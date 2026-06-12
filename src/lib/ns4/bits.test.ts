@@ -68,6 +68,13 @@ describe('complete param map decodes the fixture', () => {
     expect(synthDisplay('volume')).toEqual(['-0.3 dB', '-11.9 dB', '-3.6 dB']);
     expect(synthDisplay('pan')).toEqual(['L 4.7', '0.0', '0.0']);
   });
+
+  it('resolves morph values from their base (two-pass decode)', () => {
+    const synthDisplay = (param: string) =>
+      decoded.filter((d) => d.group === 'y' && d.name.startsWith(`${param} [`)).map((d) => d.display);
+    expect(synthDisplay('filter freq with wheel')).toEqual(['none', '21 kHz', '1.3 kHz']);
+    expect(synthDisplay('volume change with wheel')).toEqual(['none', 'none', '0.0 dB']);
+  });
 });
 
 /** "ns4p" as the integer its 32 bits would decode to (for the 'file type' field). */

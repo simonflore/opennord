@@ -10,6 +10,8 @@
 
 import { bytesToBitString, readField } from './bits';
 import { interpretValue } from './interpret';
+import { GENERATED_VALUES } from './values.generated';
+import { MORPH_BASE, MORPH_NONE } from './morphs.generated';
 import type { Param } from './maps';
 
 export interface DecodedParam {
@@ -23,15 +25,38 @@ export interface DecodedParam {
   display: string;
 }
 
+const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
+
+/**
+ * A morph param ("X with wheel/A.T./pedal") displays its base parameter's value
+ * shifted by (raw - 127), or "none" when raw == 127. Needs the base's decoded
+ * value, hence the two-pass decode. See morphs.generated.ts (validated subset).
+ */
+function morphDisplay(paramId: string, rawValue: number, layer: number, rawById: Record<string, number[]>): string | null {
+  const baseId = MORPH_BASE[paramId];
+  if (baseId === undefined) return null;
+  if (rawValue === 127) return MORPH_NONE;
+  const baseRaw = rawById[baseId]?.[layer];
+  if (baseRaw === undefined || Number.isNaN(baseRaw)) return null;
+  return GENERATED_VALUES[baseId]?.[clamp(baseRaw + rawValue - 127, 0, 127)] ?? null;
+}
+
 /** Decode every known parameter (all layers) from a file's bits. */
 export function decodeAllParams(bytes: Uint8Array, map: Param[]): DecodedParam[] {
   const bits = bytesToBitString(bytes);
+  // Pass 1: raw value of every param/layer (morphs need their base's value).
+  const rawById: Record<string, number[]> = {};
+  for (const p of map) {
+    rawById[p.id] = p.layers.map((l) => (l.begBit < 0 ? NaN : readField(bits, l.begBit, l.endBit)));
+  }
+  // Pass 2: interpret (direct table, then morph, then raw).
   const out: DecodedParam[] = [];
   for (const p of map) {
     p.layers.forEach((layer, k) => {
       if (layer.begBit < 0) return;
-      const value = readField(bits, layer.begBit, layer.endBit);
-      const label = Number.isNaN(value) ? null : interpretValue(p.id, p.name, value);
+      const value = rawById[p.id][k];
+      let label = Number.isNaN(value) ? null : interpretValue(p.id, p.name, value);
+      if (label === null && !Number.isNaN(value)) label = morphDisplay(p.id, value, k, rawById);
       out.push({
         name: p.layers.length > 1 ? `${p.name} [${'ABC'[k] ?? k}]` : p.name,
         group: p.group,
