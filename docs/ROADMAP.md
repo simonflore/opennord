@@ -6,7 +6,9 @@ Two phases. Phase 1 is buildable today from *known* knowledge. Phase 2 is the dr
 
 Everything here uses the file format, which is already partially documented/decoded.
 
-- [ ] **Parse a `.ns4p`** into the `NS4Program` model — start with name/category, then section by section (`docs/FORMAT.md`).
+- [x] **Offset map — DONE.** The full bit-location map for all four engines (406 params) is ingested from ns4decode's bitmaps (`offset-map.generated.ts`) and validated against the real fixture (80.6% byte coverage; bank/checksum/synth-layers correct). The Decode Inspector reads it now.
+- [ ] **Interpretation layer** — turn raw integers into human values ("Grand", "3.7 kHz", "+/- 7") by porting `ns4names.py`'s tables. This is the remaining decode work.
+- [ ] **Map raw → `NS4Program`** model (name/category, then section by section) for the structured Program Decode view.
 - [ ] **Visualize a program** — show piano/sample, organ, synth, effects in a readable card.
 - [ ] **AI search** over a set of parsed programs ("punchy clav", "ambient pad").
 - [ ] **AI explain** — "what does this patch do, and how would I tweak it?"

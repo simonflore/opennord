@@ -34,9 +34,16 @@ describe('bits engine — validated against the ns4decode regression fixture', (
   });
 });
 
-describe('ported param map decodes the fixture', () => {
-  const decoded = decodeAllParams(bytes, buildParamMap());
+describe('complete param map decodes the fixture', () => {
+  const map = buildParamMap();
+  const decoded = decodeAllParams(bytes, map);
   const valueOf = (name: string) => decoded.find((d) => d.name === name)?.value;
+
+  it('covers all four engines (406 params)', () => {
+    expect(map.length).toBe(406);
+    const groups = new Set(map.map((p) => p.group));
+    expect(groups).toEqual(new Set(['m', 'o', 'p', 'y']));
+  });
 
   it('decodes master fields to their expected values', () => {
     expect(valueOf('file type')).toBe(readFieldAscii('ns4p'));
@@ -44,8 +51,10 @@ describe('ported param map decodes the fixture', () => {
     expect(valueOf('checksum')).toBe(2872364241);
   });
 
-  it('produces a non-trivial set of parameters (master + piano + FX)', () => {
-    expect(decoded.length).toBeGreaterThan(20);
+  it('decodes per-layer synth fields A/B/C — layer on/off = off,on,on', () => {
+    const synthLayerVals = (param: string) =>
+      decoded.filter((d) => d.group === 'y' && d.name.startsWith(`${param} [`)).map((d) => d.value);
+    expect(synthLayerVals('layer on/off')).toEqual([0, 1, 1]);
   });
 });
 
