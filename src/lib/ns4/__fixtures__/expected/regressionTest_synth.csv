@@ -1,0 +1,174 @@
+parameter                        ,             layer A,             layer B,             layer C
+layer on/off                     ,                 off,                  on,                  on
+layer on/off (scene II)          ,                  on,                  on,                 off
+volume                           ,             -0.3 dB,            -11.9 dB,             -3.6 dB
+volume change with wheel         ,                none,                none,              0.0 dB
+volume change with A.T.          ,                none,             -4.3 dB,                none
+volume change with ctrlped       ,             -6.0 dB,                none,                none
+pan                              ,              L  4.7,                 0.0,                 0.0
+samples/analog                   ,             samples,              analog,              analog
+sample slot                      ,        slot   2/100,        slot   1/100,        slot   1/100
+sample category name             ,        Strings Solo,    Strings Ensemble,           Wind Solo
+sample ID                        ,          2768936524,          3846026064,          2324211628
+sample name                      ,Strings Multi FastAtk_ST 4.1,SymphStr Legato Amb_ProjectSAM 4.1,  Flute Multi_ST 4.1
+sample options                   ,            FAST ATK,             NATURAL,             NATURAL
+sample bright on/off             ,                  on,                 off,                 off
+KB zones                         ,                oo1o,                1111,                ooo1
+octave shift                     ,                   0,                  -2,                  +1
+pstick on/off                    ,                  on,                  on,                 off
+pstick rng                       ,               +/- 7,               +/- 2,            +2 / -24
+susped on/off                    ,                 off,                  on,                  on
+vibrato mode                     ,                A.T.,                 DLY,                none
+vibrato delay                    ,             0.2 sec,             1.2 sec,             0.2 sec
+vibrato rate                     ,              5.0 Hz,              8.0 Hz,              5.4 Hz
+vibrato amount                   ,                 5.0,                 2.8,                 0.0
+mono on/off                      ,                 off,                 off,                  on
+legato on/off                    ,                 off,                  on,                 off
+voice priority                   ,         no priority,                  HI,                  LO
+glide                            ,                 2.1,                 2.5,                 0.0
+KB hold                          ,             include,             include,             include
+arpeggiator run on/off           ,                 off,                  on,                  on
+arpeggiator mode                 ,                 Arp,                 Arp,                Poly
+arp pattern on/off               ,                  on,                  on,                 off
+KB sync on/off                   ,                 off,                 off,                 off
+arp range/env                    ,                 1.4,                 2.5,                 2.9
+arp range/env with wheel         ,                none,                none,                none
+arp range/env with A.T.          ,                 2.6,                none,                none
+arp range/env with ctrlped       ,                none,                none,                none
+arp direction                    ,                  UP,              RANDOM,             UP/DOWN
+arp zigzag on/off                ,                 off,                 off,                  on
+arp MST CLK on/off               ,                  on,                 off,                 off
+arp rate/time                    ,                 1/2,              62 bpm,              50 bpm
+arp rate/time with wheel         ,               1/16T,                none,                none
+arp rate/time with A.T.          ,                none,                none,                none
+arp rate/time with ctrlped       ,                none,                none,                none
+arp pattern length               ,                  16,                  13,                   8
+arpeggiator accent               , .>.. .... .... ..>., .... ..>. .>>. ...., .... .... .... ....
+arpeggiator gate                 , .EEE EEQE EQEE EEEq, EEQE qEEE EEqE EEQE, EEEE EEEE EEEE EEEE
+arpeggiator pan                  , CCLC LRLL CCCC LRCC, LRCC CCLC CRCL RCCC, CCCC CCCC CCCC CCCC
+unison level                     ,                   3,                   0,                   2
+extern on/off                    ,                 off,                 off,                 off
+extern program                   ,                  36,                 127,                  57
+extern CC VAL1                   ,                  16,                 127,                   0
+extern CC VAL1 with wheel        ,                  32,                none,                none
+extern CC VAL1 with A.T.         ,                none,                none,                none
+extern CC VAL1 with ctrlped      ,                none,                 111,                none
+extern CC VAL2                   ,                  94,                   6,                   0
+extern CC VAL2 with wheel        ,                none,                none,                 105
+extern CC VAL2 with A.T.         ,                  79,                   0,                none
+extern CC VAL2 with ctrlped      ,                none,                  14,                none
+analog type (knob 1)             ,          1 (ANALOG),            2 (FM-H),            3 (FM-I)
+analog cat (knob 2)              ,           4 (SHAPE),                   D,                   C
+analog wave/partial (knob 3)     ,       2 (Shape Saw),                 0.5,                 -12
+osc ctrl                         ,                 0.0,                 3.1,                 4.2
+osc ctrl with wheel              ,                none,                none,                 2.5
+osc ctrl with A.T.               ,                 3.1,                none,                none
+osc ctrl with ctrlped            ,                none,                10.0,                none
+pitch fine                       ,            + 0 cent,            - 8 cent,            +18 cent
+pitch coarse                     ,            + 0 semi,            + 1 semi,            - 3 semi
+osc env attack                   ,              0.5 ms,              1.10 s,              1.3 ms
+osc env decay                    ,              1.05 s,              5.81 s,                 inf
+osc env release                  ,              3.0 ms,                45 s,              5.3 ms
+osc env amt                      ,                 0.0,                 2.6,                -3.2
+osc env amt with wheel           ,                none,                -3.2,                 3.0
+osc env amt with A.T.            ,                 1.5,               -10.0,                none
+osc env amt with ctrlped         ,                none,                10.0,                none
+osc env-to-pitch on/off          ,                 off,                  on,                 off
+osc env velocity on/off          ,                 off,                 off,                  on
+LFO target                       ,               PITCH,              FILTER,            OSC CTRL
+LFO shape                        ,            triangle,                 saw,                 S/H
+LFO mst clk on/off               ,                 off,                 off,                  on
+LFO rate/time                    ,              4.1 Hz,              523 Hz,                 4/1
+LFO rate/time with wheel         ,              178 Hz,                none,                none
+LFO rate/time with A.T.          ,                none,                none,                1/32
+LFO rate/time with ctrlped       ,                none,             0.03 Hz,                none
+LFO mod amt                      ,             82 cent,                 2.5,                 0.0
+LFO mod amt with wheel           ,                none,                none,                none
+LFO mod amt with A.T.            ,                none,                none,                none
+LFO mod amt with ctrlped         ,                none,                none,                none
+amp env attack                   ,              0.5 ms,              3.0 ms,               39 ms
+amp env decay                    ,                 inf,                 inf,                36 s
+amp env release                  ,              244 ms,              3.0 ms,                45 s
+amp env velocity                 ,                   3,                   0,                   1
+filter on/off                    ,                 off,                  on,                  on
+filter type                      ,                LP24,                  BP,                LPHP
+filter freq                      ,              32 kHz,             3.7 kHz,              466 Hz
+filter freq with wheel           ,                none,              21 kHz,             1.3 kHz
+filter freq with A.T.            ,                none,             1.9 kHz,                none
+filter freq with ctrlped         ,                none,                none,                none
+filter resonance / freq HP       ,                 6.7,                 3.3,             1.1 kHz
+filter res with wheel            ,                 5.0,                none,                none
+filter res with A.T.             ,                 8.6,                none,             2.5 kHz
+filter res with ctrlped          ,                none,                none,                none
+filter track                     ,                 2/3,                 3/3,                 off
+filter drive                     ,                   0,                   3,                   1
+filter env amt                   ,                 0.0,                 1.8,                 5.5
+filter env amt with wheel        ,                 2.5,                none,                none
+filter env amt with A.T.         ,                none,                none,                 3.0
+filter env amt with ctrlped      ,                none,                none,                 6.6
+filter env attack                ,              0.5 ms,               24 ms,              139 ms
+filter env decay                 ,              1.82 s,              1.82 s,                 inf
+filter env release               ,              3.0 ms,              100 ms,              683 ms
+filter velocity on/off           ,                 off,                 off,                  on
+FX mod 1 on/off                  ,                 off,                  on,                 off
+FX mod 1 MST CLK on/off          ,                 off,                 off,                 off
+FX mod 1 rate                    ,                 5.0,                 7.4,                 8.4
+FX mod 1 rate with wheel         ,                none,                none,                none
+FX mod 1 rate with A.T.          ,                none,                none,                 2.9
+FX mod 1 rate with ctrlped       ,                none,                 5.0,                 9.7
+FX mod 1 amount                  ,                 5.0,                 2.9,                 4.0
+FX mod 1 amount with wheel       ,                none,                 1.1,                none
+FX mod 1 amount with A.T.        ,                none,                 7.0,                none
+FX mod 1 amount with ctrlped     ,                none,                none,                none
+FX mod 1 mode                    ,                  RM,     A-PAN variation,                 WAH
+FX mod 2 on/off                  ,                  on,                  on,                 off
+FX mod 2 rate                    ,                 5.0,                 6.6,                 3.3
+FX mod 2 rate with wheel         ,                none,                none,                none
+FX mod 2 rate with A.T.          ,                none,                none,                none
+FX mod 2 rate with ctrlped       ,                none,                none,                 7.0
+FX mod 2 amount                  ,                 5.0,                 7.3,                 9.2
+FX mod 2 amount with wheel       ,                none,                 5.0,                 8.8
+FX mod 2 amount with A.T.        ,                none,                 8.9,                 2.9
+FX mod 2 amount with ctrlped     ,                none,                none,                none
+FX mod 2 mode                    ,      SPIN variation,               FLANG,                 ENS
+FX amp sim/EQ on/off             ,                 off,                  on,                 off
+FX amp sim/EQ treb               ,             +0.0 dB,            +15.0 dB,             +7.5 dB
+FX amp sim/EQ mid                ,             +0.0 dB,            -15.0 dB,             +2.8 dB
+FX amp sim/EQ bass               ,             +0.0 dB,             +6.8 dB,             -8.0 dB
+FX amp sim/EQ freq               ,              999 Hz,             5.0 kHz,              560 Hz
+FX amp sim/EQ freq with wheel    ,              436 Hz,             3.6 kHz,             2.3 kHz
+FX amp sim/EQ freq with A.T.     ,             1.3 kHz,             6.6 kHz,                none
+FX amp sim/EQ freq with ctrlped  ,                none,                none,              200 Hz
+FX amp sim/EQ drive              ,                 0.0,                 2.9,                10.0
+FX amp sim/EQ drive with wheel   ,                none,                 6.6,                none
+FX amp sim/EQ drive with A.T.    ,                 7.4,                none,                 8.5
+FX amp sim/EQ drive with ctrlped ,                none,                none,                 5.7
+FX amp sim/EQ mode               ,                 off,               SMALL,           TO ROTARY
+FX comp on/off                   ,                 off,                  on,                 off
+FX comp amount                   ,                 2.2,                 3.4,                 5.5
+FX comp response                 ,              normal,                fast,              normal
+FX delay on/off                  ,                  on,                 off,                  on
+FX delay tempo MST CLK on/off    ,                 off,                 off,                 off
+FX delay tempo                   ,    455 ms (132 bpm), 250 ms (120 x2 bpm),  20 ms (750 x4 bpm)
+FX delay tempo with wheel        ,                none,                none,  94 ms (160 x4 bpm)
+FX delay tempo with A.T.         ,  20 ms (750 x4 bpm),  20 ms (750 x4 bpm),   1.50 sec (40 bpm)
+FX delay tempo with ctrlped      ,  20 ms (750 x4 bpm),   1.50 sec (40 bpm),  20 ms (750 x4 bpm)
+FX delay mix                     ,                 6.8,                 1.9,                 5.0
+FX delay mix with wheel          ,                none,                 9.4,                none
+FX delay mix with A.T.           ,                none,                none,                none
+FX delay mix with ctrlped        ,                none,                none,                 2.6
+FX delay normal/analog           ,              normal,              analog,              normal
+FX delay ping pong on/off        ,                 off,                 off,                  on
+FX delay filter type             ,                  LP,                none,                  BP
+FX delay feedback                ,                 5.0,                 4.1,                 7.4
+FX delay feedback with wheel     ,                none,                none,                 8.2
+FX delay feedback with A.T.      ,                none,                none,                none
+FX delay feedback with ctrlped   ,                none,                none,                 3.8
+FX delay effects                 ,                none,      FLAM variation,                 ENS
+FX reverb on/off                 ,                 off,                 off,                  on
+FX reverb amount                 ,                 2.9,                 2.5,                 2.9
+FX reverb amount with wheel      ,                none,                 4.2,                10.0
+FX reverb amount with A.T.       ,                none,                 0.4,                 3.7
+FX reverb amount with ctrlped    ,                none,                none,                none
+FX reverb dark/bright            ,                none,                DARK,              BRIGHT
+FX reverb type                   ,               STAGE,     BOOTH variation,                HALL

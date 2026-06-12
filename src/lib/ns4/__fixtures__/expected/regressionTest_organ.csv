@@ -1,0 +1,53 @@
+parameter                        ,             layer A,             layer B
+layer on/off                     ,                  on,                  on
+layer on/off (scene II)          ,                  on,                  on
+volume                           ,             -4.7 dB,            -16.2 dB
+volume change with wheel         ,             -7.6 dB,            -11.6 dB
+volume change with A.T.          ,                none,             -7.6 dB
+volume change with ctrlped       ,                none,                none
+KB zones                         ,                11oo,                oo1o
+octave shift                     ,                  +1,                   0
+organ susped on/off              ,                  on,                 off
+organ model                      ,                 VOX,                  B3
+preset on/off                    ,                  on,                  on
+drawbar 1                        ,                   4,                   1
+drawbar 1 with wheel             ,                   1,                none
+drawbar 1 with A.T.              ,                none,                none
+drawbar 1 with ctrlped           ,                none,                none
+drawbar 2                        ,                   2,                   3
+drawbar 2 with wheel             ,                none,                none
+drawbar 2 with A.T.              ,                none,                none
+drawbar 2 with ctrlped           ,                none,                none
+drawbar 3                        ,                   2,                   4
+drawbar 3 with wheel             ,                none,                none
+drawbar 3 with A.T.              ,                none,                   5
+drawbar 3 with ctrlped           ,                none,                none
+drawbar 4                        ,                   1,                   5
+drawbar 4 with wheel             ,                   5,                none
+drawbar 4 with A.T.              ,                none,                none
+drawbar 4 with ctrlped           ,                none,                none
+drawbar 5                        ,                   1,                   6
+drawbar 5 with wheel             ,                none,                   3
+drawbar 5 with A.T.              ,                none,                none
+drawbar 5 with ctrlped           ,                none,                none
+drawbar 6                        ,                   2,                   4
+drawbar 6 with wheel             ,                none,                none
+drawbar 6 with A.T.              ,                none,                none
+drawbar 6 with ctrlped           ,                none,                none
+drawbar 7                        ,                   2,                   2
+drawbar 7 with wheel             ,                none,                none
+drawbar 7 with A.T.              ,                none,                none
+drawbar 7 with ctrlped           ,                none,                none
+drawbar 8                        ,                   1,                   1
+drawbar 8 with wheel             ,                none,                none
+drawbar 8 with A.T.              ,                none,                none
+drawbar 8 with ctrlped           ,                none,                none
+drawbar 9                        ,                   1,                   7
+drawbar 9 with wheel             ,                none,                   3
+drawbar 9 with A.T.              ,                 4+5,                none
+drawbar 9 with ctrlped           ,                none,                none
+vib/chorus on/off                ,                  on,                 off
+percussion on/off                ,                 off,                  on
+perc harm 3rd on/off             ,                  on,                 off
+perc decay fast on/off           ,                  on,                  on
+perc vol soft on/off             ,                  on,                  on

@@ -1,34 +1,53 @@
 # The `.ns4p` format — what we know, and how to add to it
 
-The Nord Stage 4 stores a **program** as a binary `.ns4p` file (presets: `.ns4o`, `.ns4n`, `.ns4y`). A program is the full patch: which piano/sample, organ drawbars, synth oscillator/filter/envelopes, and effects — **referencing factory samples by id**, not embedding sample audio. That's why sharing a program is safe and small (`docs/LEGAL.md`).
+The Nord Stage 4 stores a **program** as a binary `.ns4p` file (presets: `.ns4o`, `.ns4n`, `.ns4y`). A program is the full patch — **referencing factory samples by id, not embedding audio**. That's why sharing a program is safe and small (`docs/LEGAL.md`).
 
 ## State of knowledge
 
-- **Partially decoded already.** [ns4decode](https://ns4decode.netlify.app/) extracts "many of the parameters, but not all." Treat it as a reference for *what's possible*, and re-derive fields openly here.
-- **The Stage 2/3 layout is fully documented** ([nord-documentation](https://chris55.github.io/nord-documentation/)). The Stage 4 is a relative — sections, bit-packing conventions, and the morph model rhyme with earlier models. Start there for structure, verify against real Stage 4 files.
-- **The authoritative cross-check** is the Nord Stage 4 manual (Appendix — MIDI / parameter lists) plus listening to the hardware.
+The *logical* schema is largely known — [ns4decode](https://ns4decode.netlify.app/) already decodes the great majority of parameters into human-readable values (see its [example output](https://ns4decode.netlify.app/example-output.txt)). What's **not** public is the **byte layout** (offsets/bit-packing). So:
 
-## How decoding works in this repo
+- The **model** (`src/lib/ns4/types.ts`) is shaped directly from ns4decode's output — it's a faithful target.
+- The **binary parser** (`src/lib/ns4/parse.ts`) still has to find each field's offset. That's the open RE work (or a collaboration with ns4decode's author).
 
-`src/lib/ns4/parse.ts` reads a byte buffer and fills the `NS4Program` model incrementally. Each field is a small, testable step:
+Cross-check against the Nord Stage 4 manual (MIDI / parameter appendix) and the documented [Stage 2/3 layout](https://chris55.github.io/nord-documentation/), which the Stage 4 rhymes with.
 
-1. Identify the region for a parameter (offset / bit range) from a forum post, the manual, your own capture, or comparison of two files that differ by one knob.
-2. Add the read to `parse.ts` with a comment citing the source.
-3. Add a fixture-based test in `parse.test.ts`.
-4. Record the offset in the table below so the next person doesn't redo it.
+## What a program contains (from ns4decode's output)
 
-## Known fields
+- **Up to three layers (A/B/C)** — each a full synth/sample voice. Per-layer `on/off` differs by **Scene I/II**.
+- **Per layer:** source (`samples` | `analog`), sample reference, oscillator (type/category/wave + ctrl), pitch, osc envelope, LFO, amp envelope, filter (+ its envelope), arpeggiator (mode/direction/range/rate/pattern length + accent/gate/pan step strings), and a full per-layer FX chain (Mod 1, Mod 2, amp-sim/EQ, compressor, delay, reverb).
+- **The morph system:** almost every continuous parameter carries up to three modulation assignments — **wheel**, **aftertouch (A.T.)**, **control pedal** — modeled as `Morphable<T> = { value, wheel?, aftertouch?, pedal? }`.
 
-> Seed table — fill in as fields are decoded. Keep it honest: only list what's verified.
+### Sample references (the key to sharing)
+
+A layer in `samples` mode points at a factory sample by:
+
+| Field | Example | Role |
+|---|---|---|
+| `id` | `2768936524` | 32-bit stable key — the thing to match on when sharing |
+| `slot` / `bankSize` | `2 / 100` | where it's loaded on the instrument |
+| `categoryName` | `Strings Solo` | grouping |
+| `name` | `Strings Multi FastAtk_ST 4.1` | human label |
+| `options` / `bright` | `FAST ATK` / `on` | playback flags |
+
+A shared program therefore carries a "you need these samples" list (`programSampleRefs()` in `types.ts`). OpenNord can warn a recipient which sample IDs they're missing. **Programs only — never the sample audio** (`docs/LEGAL.md`).
+
+## Two parser paths
+
+1. **Binary (`.ns4p`) — the goal.** Decode offsets field by field. Each field: map its location (from a forum post, the manual, your own capture, or diffing two files that differ by one knob), add the read to `parse.ts` with a source comment, add a fixture test, and record the offset in the table below.
+2. **CSV bridge — value today.** ns4decode emits CSV (parameter rows × layer columns). A `csv-import.ts` that maps that CSV into `NS4Program` gives OpenNord working visualization/sharing **now**, with zero offset RE — while the binary parser matures. Recommended first import path.
+
+## Known byte offsets
+
+> Seed table — fill in as the binary layout is decoded. Only list what's verified.
 
 | Section | Field | Location (offset / bits) | Encoding | Source |
 |---|---|---|---|---|
-| Header | (magic / version) | TODO | — | — |
+| Header | magic / version | TODO | — | — |
 | Program | Name | TODO | ASCII | — |
-| Piano | Model / type | TODO | enum | — |
-| Synth | Oscillator type/category/wave | TODO | enum / index | ns4mcp NRPN 3/1–3/3 corroborates |
-| Effects | … | TODO | — | — |
+| Layer | source (samples/analog) | TODO | flag | — |
+| Layer | sample id | TODO | u32 | ns4decode output corroborates the field exists |
+| Layer | filter freq | TODO | scaled | — |
 
 ## Contributing a capture (no coding needed)
 
-The single most useful thing a Stage 4 owner can do: **export a few programs you understand, and ones that differ by exactly one setting**, and attach them to an issue. Diffing two near-identical programs is how offsets get found. (Only share programs you're happy to make public — see `docs/LEGAL.md`.)
+The most useful thing a Stage 4 owner can do: export programs you understand, especially **pairs that differ by exactly one setting**, and attach them to an issue. Diffing near-identical files is how offsets get found. Only share programs you're happy to make public (`docs/LEGAL.md`).

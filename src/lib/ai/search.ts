@@ -16,7 +16,15 @@ export interface ProgramRanker {
 
 /** A searchable text blob for a program (expand as more fields are decoded). */
 function programText(p: NS4Program): string {
-  return [p.name, p.category, p.synth?.oscType, p.synth?.oscCategory, p.effects?.reverb?.type]
+  const layerText = (p.layers ?? []).flatMap((l) => [
+    l.oscType,
+    l.oscCategory,
+    l.sample?.name,
+    l.sample?.categoryName,
+    l.filter?.type,
+    l.reverb?.type,
+  ]);
+  return [p.name, p.category, ...layerText]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();

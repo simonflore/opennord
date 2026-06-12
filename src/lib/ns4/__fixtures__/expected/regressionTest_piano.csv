@@ -1,0 +1,85 @@
+parameter                        ,             layer A,             layer B
+layer on/off                     ,                  on,                  on
+layer on/off (scene II)          ,                 off,                  on
+volume                           ,             -2.2 dB,             -5.2 dB
+volume change with wheel         ,                none,                none
+volume change with A.T.          ,                none,                none
+volume change with ctrlped       ,            -19.2 dB,                none
+KB zones                         ,                1111,                ooo1
+octave shift                     ,                   0,                  +1
+pstick on/off                    ,                  on,                 off
+susped on/off                    ,                  on,                  on
+piano type                       ,                Clav,               Grand
+piano model slot                 ,         slot   1/20,         slot   1/20
+piano model variation            ,                  CB,                none
+piano model ID                   ,          0550238836,          1209279823
+piano model name                 ,     Clavinet D6 6.1,      White Grand XL
+soft rel on/off                  ,                 off,                 off
+string res on/off                ,                 off,                  on
+pedal noise on/off               ,                 off,                 off
+touch                            ,               heavy,               light
+unison level                     ,                   1,                   2
+dyn comp                         ,                   0,                   1
+timbre                           ,         SOFT+BRIGHT,                 MID
+FX mod 1 on/off                  ,                 off,                  on
+FX mod 1 MST CLK on/off          ,                 off,                  on
+FX mod 1 rate                    ,                 3.2,                1/4T
+FX mod 1 rate with wheel         ,                 0.0,                none
+FX mod 1 rate with A.T.          ,                none,                none
+FX mod 1 rate with ctrlped       ,                none,                none
+FX mod 1 amount                  ,                 6.9,                 4.6
+FX mod 1 amount with wheel       ,                none,                none
+FX mod 1 amount with A.T.        ,                none,                 5.3
+FX mod 1 amount with ctrlped     ,                none,                none
+FX mod 1 mode                    ,               A-PAN,                TREM
+FX mod 2 on/off                  ,                 off,                  on
+FX mod 2 rate                    ,                 1.8,                 2.7
+FX mod 2 rate with wheel         ,                none,                none
+FX mod 2 rate with A.T.          ,                none,                 4.9
+FX mod 2 rate with ctrlped       ,                none,                none
+FX mod 2 amount                  ,                 4.7,                 6.9
+FX mod 2 amount with wheel       ,                none,                 4.7
+FX mod 2 amount with A.T.        ,                none,                none
+FX mod 2 amount with ctrlped     ,                none,                none
+FX mod 2 mode                    ,      CHOR variation,                PHAS
+FX amp sim/EQ on/off             ,                 off,                 off
+FX amp sim/EQ treb               ,             -7.2 dB,            -10.0 dB
+FX amp sim/EQ mid                ,             -3.0 dB,             +5.5 dB
+FX amp sim/EQ bass               ,             +2.5 dB,             +1.2 dB
+FX amp sim/EQ freq               ,              904 Hz,              999 Hz
+FX amp sim/EQ freq with wheel    ,                none,                none
+FX amp sim/EQ freq with A.T.     ,                none,                none
+FX amp sim/EQ freq with ctrlped  ,             1.2 kHz,                none
+FX amp sim/EQ drive              ,                 2.5,                 0.0
+FX amp sim/EQ drive with wheel   ,                none,                none
+FX amp sim/EQ drive with A.T.    ,                 3.2,                none
+FX amp sim/EQ drive with ctrlped ,                none,                none
+FX amp sim/EQ mode               ,      TWIN variation,                  JC
+FX comp on/off                   ,                 off,                 off
+FX comp amount                   ,                 5.0,                 3.4
+FX comp response                 ,              normal,              normal
+FX delay on/off                  ,                 off,                  on
+FX delay tempo MST CLK on/off    ,                 off,                  on
+FX delay tempo                   ,    531 ms (113 bpm),                1/8D
+FX delay tempo with wheel        ,    577 ms (104 bpm),                none
+FX delay tempo with A.T.         ,  20 ms (750 x4 bpm),                1/64
+FX delay tempo with ctrlped      ,  20 ms (750 x4 bpm),                1/64
+FX delay mix                     ,                 0.0,                 1.8
+FX delay mix with wheel          ,                none,                 0.9
+FX delay mix with A.T.           ,                none,                none
+FX delay mix with ctrlped        ,                none,                none
+FX delay normal/analog           ,              normal,              normal
+FX delay ping pong on/off        ,                 off,                  on
+FX delay filter type             ,                none,                  LP
+FX delay feedback                ,                 3.4,                 5.3
+FX delay feedback with wheel     ,                 4.9,                none
+FX delay feedback with A.T.      ,                none,                none
+FX delay feedback with ctrlped   ,                none,                none
+FX delay effects                 ,                FLAM,                none
+FX reverb on/off                 ,                  on,                 off
+FX reverb amount                 ,                 3.7,                 5.9
+FX reverb amount with wheel      ,                none,                none
+FX reverb amount with A.T.       ,                none,                none
+FX reverb amount with ctrlped    ,                 4.6,                none
+FX reverb dark/bright            ,                DARK,                none
+FX reverb type                   ,                ROOM,    SPRING variation

@@ -1,0 +1,102 @@
+parameter                        ,               value
+ns4decode version                ,                 2.0
+file type                        ,                ns4p
+file version                     ,                3.13
+file version again               ,                3.13
+bank                             ,                   H
+location in bank                 ,                  81
+checksum                         ,          2872364241
+split on/off                     ,                  on
+KB zones 1-2 split point on/off  ,                 off
+KB zones 2-3 split point on/off  ,                  on
+KB zones 3-4 split point on/off  ,                  on
+KB zones 1-2 split point         ,                  F2
+KB zones 2-3 split point         ,                  C4
+KB zones 3-4 split point         ,                  F5
+KB zones 1-2 split point Xfade   ,    +/- 12 semitones
+KB zones 2-3 split point Xfade   ,     +/- 6 semitones
+KB zones 3-4 split point Xfade   ,                none
+program transpose on/off         ,                 off
+program transpose amount         ,         1 semitones
+FX comp global on/off            ,                 off
+FX delay global on/off           ,                 off
+FX reverb global on/off          ,                 off
+organ section on/off             ,                 off
+piano section on/off             ,                  on
+synth section on/off             ,                  on
+organ section on/off (layer scene II),                  on
+piano section on/off (layer scene II),                 off
+synth section on/off (layer scene II),                  on
+which layer scene is active      ,                   I
+FX on/off                        ,                  on
+organ pstick on/off              ,                 off
+organ rotary spkr on/off         ,                 off
+rotary spkr drive                ,                 2.9
+rotary spkr stop position        ,          Back Right
+rotary spkr stop on/off          ,                  on
+rotary spkr slow/fast            ,                slow
+organ vib/chorus type            ,B3->C1; VOX->V2; FARF->C3; PIPE->C1
+synth arp group on/off           ,                 off
+synth KB hold on/off             ,                 off
+organ FX mod 1 on/off            ,                  on
+organ FX mod 1 MST CLK on/off    ,                 off
+organ FX mod 1 rate              ,                 4.9
+organ FX mod 1 rate with wheel   ,                none
+organ FX mod 1 rate with A.T.    ,                none
+organ FX mod 1 rate with ctrlped ,                 2.0
+organ FX mod 1 amount            ,                 6.9
+organ FX mod 1 amount with wheel ,                none
+organ FX mod 1 amount with A.T.  ,                none
+organ FX mod 1 amount with ctrlped,                 7.4
+organ FX mod 1 mode              ,       WAH variation
+organ FX mod 2 on/off            ,                 off
+organ FX mod 2 rate              ,                 3.3
+organ FX mod 2 rate with wheel   ,                none
+organ FX mod 2 rate with A.T.    ,                none
+organ FX mod 2 rate with ctrlped ,                none
+organ FX mod 2 amount            ,                 5.3
+organ FX mod 2 amount with wheel ,                none
+organ FX mod 2 amount with A.T.  ,                 6.2
+organ FX mod 2 amount with ctrlped,                none
+organ FX mod 2 mode              ,                VIBE
+organ FX amp sim/EQ on/off       ,                  on
+organ FX amp sim/EQ treb         ,             +1.0 dB
+organ FX amp sim/EQ mid          ,         4.3 flt res
+organ FX amp sim/EQ bass         ,             -5.2 dB
+organ FX amp sim/EQ freq         ,              758 Hz
+organ FX amp sim/EQ freq with wheel,                none
+organ FX amp sim/EQ freq with A.T.,                none
+organ FX amp sim/EQ freq with ctrlped,                none
+organ FX amp sim/EQ drive        ,                 1.8
+organ FX amp sim/EQ drive with wheel,                none
+organ FX amp sim/EQ drive with A.T.,                none
+organ FX amp sim/EQ drive with ctrlped,                none
+organ FX amp sim/EQ mode         ,           HP FILTER
+organ FX comp on/off             ,                 off
+organ FX comp amount             ,                 3.4
+organ FX comp response           ,              normal
+organ FX delay on/off            ,                  on
+organ FX delay tempo MST CLK on/off,                 off
+organ FX delay tempo             ,    411 ms (146 bpm)
+organ FX delay tempo with wheel  ,                none
+organ FX delay tempo with A.T.   ,  20 ms (750 x4 bpm)
+organ FX delay tempo with ctrlped,  20 ms (750 x4 bpm)
+organ FX delay mix               ,                 5.0
+organ FX delay mix with wheel    ,                none
+organ FX delay mix with A.T.     ,                none
+organ FX delay mix with ctrlped  ,                none
+organ FX delay normal/analog     ,              analog
+organ FX delay ping pong on/off  ,                 off
+organ FX delay filter type       ,                none
+organ FX delay feedback          ,                 5.0
+organ FX delay feedback with wheel,                none
+organ FX delay feedback with A.T.,                none
+organ FX delay feedback with ctrlped,                none
+organ FX delay effects           ,                none
+organ FX reverb on/off           ,                 off
+organ FX reverb amount           ,                 3.3
+organ FX reverb amount with wheel,                none
+organ FX reverb amount with A.T. ,                none
+organ FX reverb amount with ctrlped,                none
+organ FX reverb dark/bright      ,                none
+organ FX reverb type             ,                CATH
