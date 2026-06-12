@@ -57,12 +57,16 @@ describe('complete param map decodes the fixture', () => {
     expect(synthLayerVals('layer on/off')).toEqual([0, 1, 1]);
   });
 
-  it('interprets discrete enums to human values (validated against the CSV)', () => {
+  it('interprets enum AND numeric values to human form (validated against the CSV)', () => {
     const synthDisplay = (param: string) =>
       decoded.filter((d) => d.group === 'y' && d.name.startsWith(`${param} [`)).map((d) => d.display);
+    // enums
     expect(synthDisplay('filter type')).toEqual(['LP24', 'BP', 'LPHP']);
     expect(synthDisplay('LFO shape')).toEqual(['triangle', 'saw', 'S/H']);
     expect(decoded.find((d) => d.name === 'bank')?.display).toBe('H');
+    // numeric formulas (volume->dB, pan) — exhaustively evaluated from the real interpreter
+    expect(synthDisplay('volume')).toEqual(['-0.3 dB', '-11.9 dB', '-3.6 dB']);
+    expect(synthDisplay('pan')).toEqual(['L 4.7', '0.0', '0.0']);
   });
 });
 

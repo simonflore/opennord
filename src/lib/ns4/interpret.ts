@@ -1,18 +1,24 @@
 /**
- * Turn a raw parameter integer into its human-readable value, where we have a
- * (validated) enum table for it. Returns null when no table applies — the caller
- * falls back to the raw integer.
+ * Turn a raw parameter integer into its human-readable value.
  *
- * Coverage so far: discrete enums (piano/filter/LFO type, modes, on/off, …),
- * all validated against the regression fixture. Formula/dependent interpreters
- * (dB, Hz, BPM, envelope times, synth category/wave) are future work (FORMAT.md).
+ * Two sources, both ported from ns4decode (Randy, MIT — THIRD_PARTY_LICENSES.md)
+ * and validated against the regression fixture:
+ *   1. GENERATED_VALUES — exhaustive per-parameter tables produced by evaluating
+ *      ns4decode's real interpreter over every raw value (numeric + enum). 202 params.
+ *   2. ENUM_TABLES/PARAM_TABLE — the hand-curated enum fallback (by name).
+ *
+ * Returns null when nothing applies (caller shows the raw integer). Dependent
+ * params (morphs, synth category/wave, timbre, drawbars, rate-vs-clock, sample
+ * names) are not covered yet and fall through to raw.
  */
 
 import { ENUM_TABLES, PARAM_TABLE } from './interpret.generated';
+import { GENERATED_VALUES } from './values.generated';
 
-/** Base parameter name (no " [A]" layer suffix). */
-export function interpretValue(paramName: string, rawval: number): string | null {
+export function interpretValue(paramId: string, paramName: string, rawval: number): string | null {
+  const exact = GENERATED_VALUES[paramId]?.[rawval];
+  if (exact !== undefined) return exact;
   const table = PARAM_TABLE[paramName];
-  if (!table) return null;
-  return ENUM_TABLES[table]?.[rawval] ?? null;
+  if (table) return ENUM_TABLES[table]?.[rawval] ?? null;
+  return null;
 }

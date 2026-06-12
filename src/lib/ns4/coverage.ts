@@ -31,7 +31,7 @@ export function decodeAllParams(bytes: Uint8Array, map: Param[]): DecodedParam[]
     p.layers.forEach((layer, k) => {
       if (layer.begBit < 0) return;
       const value = readField(bits, layer.begBit, layer.endBit);
-      const label = Number.isNaN(value) ? null : interpretValue(p.name, value);
+      const label = Number.isNaN(value) ? null : interpretValue(p.id, p.name, value);
       out.push({
         name: p.layers.length > 1 ? `${p.name} [${'ABC'[k] ?? k}]` : p.name,
         group: p.group,
