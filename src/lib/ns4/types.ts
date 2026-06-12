@@ -45,21 +45,18 @@ export interface Ns4SampleRef {
   bright?: boolean;
 }
 
-export interface Ns4Envelope {
-  attack?: number;
-  decay?: number;
-  release?: number;
-}
-
 export interface Ns4Arp {
   run?: boolean;
   mode?: string;            // Arp | Poly | ...
   direction?: string;       // UP | RANDOM | UP/DOWN | ...
-  range?: Morphable;
-  rate?: string;            // "1/2" | "62 bpm" | ...
+  range?: Morphable<string>;
+  rate?: Morphable<string>; // "1/2" | "62 bpm" | ...
   masterClock?: boolean;
   patternLength?: number;
   zigzag?: boolean;
+  pattern?: boolean;
+  kbSync?: boolean;
+  kbHold?: boolean;
   /** Step strings as Nord shows them (accent/gate/pan), e.g. ".>.. .... ...". */
   accent?: string;
   gate?: string;
@@ -77,13 +74,13 @@ export interface Ns4FxMod {
 export interface Ns4Filter {
   on?: boolean;
   type?: string;            // LP24 | BP | LPHP | ...
-  freq?: Morphable;
+  freq?: Morphable<string>;
   /** Resonance, or HP freq in the LPHP/combo modes. */
-  resonance?: Morphable;
+  resonance?: Morphable<string>;
   track?: string;           // "2/3" | "off" | ...
-  drive?: number;
-  envAmount?: Morphable;
-  env?: Ns4Envelope;
+  drive?: string;
+  envAmount?: Morphable<string>;
+  env?: { attack?: string; decay?: string; release?: string };
   velocity?: boolean;
 }
 
@@ -114,8 +111,6 @@ export interface NS4Layer {
   drawbars?: (Morphable<string> | undefined)[];
 
   // ── Piano-specific (when kind === 'piano') ───────────────────────────────
-  source?: 'samples' | 'analog';
-  sample?: Ns4SampleRef;
   pianoType?: string;            // "Grand" | "Electric" | "Clav" | "Digital" | ...
   pianoModelId?: number;         // 32-bit hash
   pianoModelName?: string;       // e.g. "Clavinet D6 6.1"
@@ -130,17 +125,20 @@ export interface NS4Layer {
   pedalNoise?: boolean;
 
   // ── Synth oscillator ─────────────────────────────────────────────────────
+  source?: 'samples' | 'analog';
+  sample?: Ns4SampleRef;
   oscType?: string;         // ANALOG | FM-H | FM-I | WAVE
   oscCategory?: string;
   oscWave?: string;
-  oscCtrl?: Morphable;
-  pitchFineCents?: number;
-  pitchCoarseSemi?: number;
-  oscEnv?: Ns4Envelope & { amount?: Morphable; toPitch?: boolean; velocity?: boolean };
+  oscCtrl?: Morphable<string>;
+  pitchFine?: string;
+  pitchCoarse?: string;
+  oscEnv?: { attack?: string; decay?: string; release?: string; amount?: Morphable<string>; toPitch?: boolean; velocity?: boolean };
 
-  lfo?: { target?: string; shape?: string; rate?: Morphable; amount?: Morphable; masterClock?: boolean };
-  ampEnv?: Ns4Envelope & { velocity?: number };
+  lfo?: { target?: string; shape?: string; rate?: Morphable<string>; amount?: Morphable<string>; masterClock?: boolean };
+  ampEnv?: { attack?: string; decay?: string; release?: string; velocity?: string };
   filter?: Ns4Filter;
+  unison?: string;
 
   // ── Performance / voicing ────────────────────────────────────────────────
   octaveShift?: number;
@@ -152,17 +150,27 @@ export interface NS4Layer {
   legato?: boolean;
   voicePriority?: string;
   glide?: number;
-  unison?: number;
   arp?: Ns4Arp;
-  extern?: { on?: boolean; program?: number; cc1?: Morphable; cc2?: Morphable };
+  extern?: { on?: boolean; program?: string; cc1?: Morphable<string>; cc2?: Morphable<string> };
 
   // ── Per-layer effects ─────────────────────────────────────────────────────
   fxMod1?: Ns4FxMod;
   fxMod2?: Ns4FxMod;
-  ampSimEq?: { on?: boolean; treble?: number; mid?: number; bass?: number; freq?: Morphable; drive?: Morphable; mode?: string };
-  comp?: { on?: boolean; amount?: number; response?: string };
-  delay?: { on?: boolean; tempo?: Morphable<string>; mix?: Morphable; analog?: boolean; pingPong?: boolean; filterType?: string; feedback?: Morphable; effects?: string };
-  reverb?: { on?: boolean; amount?: Morphable; tone?: string; type?: string };
+  ampSimEq?: { on?: boolean; treb?: string; mid?: string; bass?: string; freq?: Morphable<string>; drive?: Morphable<string>; mode?: string };
+  comp?: { on?: boolean; amount?: string; response?: string };
+  delay?: { on?: boolean; masterClock?: boolean; tempo?: Morphable<string>; mix?: Morphable<string>; analog?: boolean; pingPong?: boolean; filterType?: string; feedback?: Morphable<string>; effects?: string };
+  reverb?: { on?: boolean; amount?: Morphable<string>; tone?: string; type?: string };
+}
+
+/** Global organ FX (master group 'm') — single set shared across both organ layers. */
+export interface Ns4OrganFx {
+  mod1?: Ns4FxMod;
+  mod2?: Ns4FxMod;
+  ampSimEq?: { on?: boolean; treb?: string; mid?: string; bass?: string; freq?: Morphable<string>; drive?: Morphable<string>; mode?: string };
+  comp?: { on?: boolean; amount?: string; response?: string };
+  delay?: { on?: boolean; masterClock?: boolean; tempo?: Morphable<string>; mix?: Morphable<string>; analog?: boolean; pingPong?: boolean; filterType?: string; feedback?: Morphable<string>; effects?: string };
+  reverb?: { on?: boolean; amount?: Morphable<string>; tone?: string; type?: string };
+  rotary?: { on?: boolean; drive?: string; stopPosition?: string; stop?: boolean; fast?: boolean; vibChorusType?: string };
 }
 
 export interface NS4Program {
@@ -171,10 +179,10 @@ export interface NS4Program {
   kind: Ns4FileKind;
   name?: string;
   category?: string;
-  /** Up to three synth/sample layers. */
+  /** Up to seven voice layers: 2 organ, 2 piano, 3 synth. */
   layers?: NS4Layer[];
-  // TODO(format): piano and organ engines aren't in the synth-focused ns4decode
-  // sample yet — add NS4PianoSection / NS4OrganSection once their layout is known.
+  /** Global organ effects (rotary speaker, FX chain) — master group, not per-layer. */
+  organFx?: Ns4OrganFx;
   /** Original file bytes — kept so undecoded data is never lost. */
   bytes: Uint8Array;
   /** Notes about what could not (yet) be decoded, for transparency. */
