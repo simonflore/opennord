@@ -36,6 +36,19 @@ A shared program therefore carries a "you need these samples" list (`programSamp
 1. **Binary (`.ns4p`) — the goal.** Decode offsets field by field. Each field: map its location (from a forum post, the manual, your own capture, or diffing two files that differ by one knob), add the read to `parse.ts` with a source comment, add a fixture test, and record the offset in the table below.
 2. **CSV bridge — value today.** ns4decode emits CSV (parameter rows × layer columns). A `csv-import.ts` that maps that CSV into `NS4Program` gives OpenNord working visualization/sharing **now**, with zero offset RE — while the binary parser matures. Recommended first import path.
 
+## Finishing the map — two shortcuts from the ns4decode manual
+
+The ns4decode manual (developer section 18) reveals two operations that make completing OpenNord's decoder mechanical instead of hand-ported:
+
+1. **`ns4decode --bitmaps`** dumps the *complete* offset tables for all four engines as text files (`ns4p_bitmap_{master,organ,piano,synth}.txt`), using the exact `XXX-Y` byte-bit notation OpenNord's `bits.ts` already understands. **This is the whole map, for free** — generate these once and ingest them, rather than hand-transcribing `makeMapOrgan()`/`makeMapSynth()`. (Add an `importBitmaps()` that parses these into `Param[]`.)
+2. **`ns4decode --rawdecimal`** prints every parameter's *raw* integer value (no interpretation). That's a perfect **oracle**: decode the regression fixture with OpenNord and diff against ns4decode's `--rawdecimal` output to prove the port field-by-field, before tackling the human-readable interpretation layer.
+
+So the plan to finish: (a) `--bitmaps` → full offset map; (b) `--rawdecimal` → validate raw reads; (c) port `ns4names.py`'s interpretation tables for the human-readable values.
+
+## Sample names
+
+Per manual section 16: an `.ns4p` references samples **only by ID** (and slot index). The ID→name map is a *partial, community-maintained* table built into `ns4names.py` (`getPianoModels` / `getSampleNames`), extendable by users — there is **no complete official database**. So OpenNord should: store the ID + slot, resolve names via the ported (partial) table, and show the raw ID when unknown — exactly how ns4decode behaves. Section 15.4: the slot index runs continuously across all categories; the library layout needed to map it to the on-screen index isn't in the file.
+
 ## Known byte offsets
 
 > Seed table — fill in as the binary layout is decoded. Only list what's verified.
