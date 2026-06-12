@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.local
+.env
+.env.*
+ios/App/App/public/
+.DS_Store
+coverage/
+*.log
