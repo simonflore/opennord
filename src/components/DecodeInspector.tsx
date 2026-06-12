@@ -7,7 +7,7 @@
  * if known or flagging a gap to decode. This is how the format gets filled in.
  */
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { bytesToBitString, fileTypeTag, hasCbinMagic } from '../lib/ns4/bits';
 import { buildParamMap } from '../lib/ns4/maps';
 import {
