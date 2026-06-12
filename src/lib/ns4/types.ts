@@ -69,9 +69,9 @@ export interface Ns4Arp {
 export interface Ns4FxMod {
   on?: boolean;
   masterClock?: boolean;
-  rate?: Morphable;
-  amount?: Morphable;
-  mode?: string;            // RM | WAH | FLANG | ENS | ...
+  rate?: Morphable<string>;   // e.g. "3.2" | "1/4T"
+  amount?: Morphable<string>; // e.g. "6.9"
+  mode?: string;              // RM | WAH | FLANG | ENS | ...
 }
 
 export interface Ns4Filter {
@@ -87,17 +87,35 @@ export interface Ns4Filter {
   velocity?: boolean;
 }
 
-/** One synth/sample voice. A program stacks up to three (A/B/C). */
+/** One voice layer — piano, organ, or synth. A program stacks up to 2 piano, 2 organ, 3 synth. */
 export interface NS4Layer {
   id: 'A' | 'B' | 'C';
+  /** Which engine this layer belongs to. */
+  kind?: 'piano' | 'organ' | 'synth';
   enabled?: boolean;
   enabledSceneII?: boolean;
-  volume?: Morphable;       // dB
-  pan?: Morphable;
+  /** Volume with optional morph assignments, e.g. "-2.2 dB". */
+  volume?: Morphable<string>;
+  /** Pan value, e.g. "L  4.7" | "0.0". */
+  pan?: Morphable<string>;
+
+  // ── Piano-specific (when kind === 'piano') ───────────────────────────────
   source?: 'samples' | 'analog';
   sample?: Ns4SampleRef;
+  pianoType?: string;            // "Grand" | "Electric" | "Clav" | "Digital" | ...
+  pianoModelId?: number;         // 32-bit hash
+  pianoModelName?: string;       // e.g. "Clavinet D6 6.1"
+  pianoModelSlot?: number;       // raw slot index within model bank
+  pianoModelVariation?: string;  // e.g. "CB"
+  timbre?: string;               // "SOFT+BRIGHT" | "MID" | ...
+  touch?: string;                // "heavy" | "med" | "light"
+  unisonLevel?: number;
+  dynComp?: number;
+  softRelease?: boolean;
+  stringResonance?: boolean;
+  pedalNoise?: boolean;
 
-  // Oscillator (analog/FM/wave selected by three knobs — cf. ns4mcp NRPN 3/1-3/3)
+  // ── Synth oscillator ─────────────────────────────────────────────────────
   oscType?: string;         // ANALOG | FM-H | FM-I | WAVE
   oscCategory?: string;
   oscWave?: string;
@@ -110,7 +128,7 @@ export interface NS4Layer {
   ampEnv?: Ns4Envelope & { velocity?: number };
   filter?: Ns4Filter;
 
-  // Performance / voicing
+  // ── Performance / voicing ────────────────────────────────────────────────
   octaveShift?: number;
   kbZones?: string;         // "oo1o" | "1111" | ...
   pitchStick?: { on?: boolean; range?: string };
@@ -121,9 +139,10 @@ export interface NS4Layer {
   voicePriority?: string;
   glide?: number;
   unison?: number;
+  arp?: Ns4Arp;
   extern?: { on?: boolean; program?: number; cc1?: Morphable; cc2?: Morphable };
 
-  // Per-layer effects
+  // ── Per-layer effects ─────────────────────────────────────────────────────
   fxMod1?: Ns4FxMod;
   fxMod2?: Ns4FxMod;
   ampSimEq?: { on?: boolean; treble?: number; mid?: number; bass?: number; freq?: Morphable; drive?: Morphable; mode?: string };
