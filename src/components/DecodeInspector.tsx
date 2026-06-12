@@ -17,7 +17,17 @@ import {
   coveragePercent,
   diffBytes,
   paramsCoveringByte,
+  groupOfByte,
 } from '../lib/ns4/coverage';
+import type { Ns4Group } from '../lib/ns4/maps';
+
+const GROUP_COLOR: Record<Ns4Group, string> = {
+  m: '#555555', // master / global
+  o: '#c026d3', // organ
+  p: '#16a34a', // piano
+  y: '#2563eb', // synth
+};
+const GROUP_LABEL: Record<Ns4Group, string> = { m: 'master', o: 'organ', p: 'piano', y: 'synth' };
 
 async function readFile(file: File): Promise<Uint8Array> {
   return new Uint8Array(await file.arrayBuffer());
@@ -71,6 +81,10 @@ export function DecodeInspector() {
             {b && <span style={{ color: '#a60' }}>diff bytes: <b>{view.diff.size}</b></span>}
           </div>
 
+          <h3 style={{ margin: '8px 0 4px' }}>Coverage by engine</h3>
+          <CoverageStrip bytes={a!} map={map} />
+
+          <h3 style={{ marginTop: 16 }}>Bytes</h3>
           <Legend />
           <ByteGrid bytes={a!} claimed={view.claimed} diff={view.diff} map={map} />
 
@@ -78,14 +92,15 @@ export function DecodeInspector() {
           <div style={{ maxHeight: 260, overflow: 'auto', border: '1px solid #eee' }}>
             <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
               <thead><tr style={{ textAlign: 'left', background: '#fafafa' }}>
-                <th style={cell}>parameter</th><th style={cell}>bits</th><th style={cell}>raw value</th>
+                <th style={cell}>parameter</th><th style={cell}>value</th><th style={cell}>raw</th><th style={cell}>bits</th>
               </tr></thead>
               <tbody>
                 {view.decoded.map((d, i) => (
                   <tr key={i}>
-                    <td style={cell}>{d.name}</td>
-                    <td style={{ ...cell, color: '#999' }}>{d.begBit}–{d.endBit}</td>
-                    <td style={{ ...cell, fontVariantNumeric: 'tabular-nums' }}>{Number.isNaN(d.value) ? '—' : d.value}</td>
+                    <td style={cell}><span style={{ color: GROUP_COLOR[d.group] }}>●</span> {d.name}</td>
+                    <td style={{ ...cell, fontWeight: 600 }}>{d.display}</td>
+                    <td style={{ ...cell, color: '#999', fontVariantNumeric: 'tabular-nums' }}>{Number.isNaN(d.value) ? '—' : d.value}</td>
+                    <td style={{ ...cell, color: '#bbb' }}>{d.begBit}–{d.endBit}</td>
                   </tr>
                 ))}
               </tbody>
@@ -111,6 +126,35 @@ function Legend() {
     <div style={{ fontSize: 12, marginBottom: 6 }}>
       {sw('#d8f5d8', 'known')}{sw('#ffe9e9', 'gap')}{sw('#ffe08a', 'changed (diff)')}
     </div>
+  );
+}
+
+// Section-colored coverage bar — the live, per-file equivalent of ns4decode's
+// "Program file bits decoded" picture: each byte tinted by its engine, gaps
+// pale. Hover a segment to see the byte and the parameter(s) that claim it.
+function CoverageStrip({ bytes, map }: { bytes: Uint8Array; map: ReturnType<typeof buildParamMap> }) {
+  const groups: Ns4Group[] = ['m', 'o', 'p', 'y'];
+  return (
+    <>
+      <div style={{ display: 'flex', width: '100%', height: 26, borderRadius: 3, overflow: 'hidden', border: '1px solid #ddd' }}>
+        {Array.from(bytes).map((_, i) => {
+          const g = groupOfByte(map, i);
+          const owners = paramsCoveringByte(map, i).map((p) => p.name);
+          const title = `byte ${i}` + (g ? ` — ${GROUP_LABEL[g]}\n${owners.join('\n')}` : '\n(gap — undecoded)');
+          return <span key={i} title={title} style={{ flex: 1, background: g ? GROUP_COLOR[g] : '#f0f0f0' }} />;
+        })}
+      </div>
+      <div style={{ fontSize: 12, marginTop: 4 }}>
+        {groups.map((g) => (
+          <span key={g} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 12 }}>
+            <span style={{ width: 12, height: 12, background: GROUP_COLOR[g], display: 'inline-block', borderRadius: 2 }} /> {GROUP_LABEL[g]}
+          </span>
+        ))}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ width: 12, height: 12, background: '#f0f0f0', display: 'inline-block', borderRadius: 2, border: '1px solid #ddd' }} /> gap
+        </span>
+      </div>
+    </>
   );
 }
 

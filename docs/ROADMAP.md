@@ -7,7 +7,7 @@ Two phases. Phase 1 is buildable today from *known* knowledge. Phase 2 is the dr
 Everything here uses the file format, which is already partially documented/decoded.
 
 - [x] **Offset map — DONE.** The full bit-location map for all four engines (406 params) is ingested from ns4decode's bitmaps (`offset-map.generated.ts`) and validated against the real fixture (80.6% byte coverage; bank/checksum/synth-layers correct). The Decode Inspector reads it now.
-- [ ] **Interpretation layer** — turn raw integers into human values ("Grand", "3.7 kHz", "+/- 7") by porting `ns4names.py`'s tables. This is the remaining decode work.
+- [~] **Interpretation layer — discrete enums DONE.** 86 parameters (piano/filter/LFO type, modes, on/off, bank, …) now show human values via ported `ns4names.py` enum tables (`interpret.generated.ts`), each validated against the fixture's CSV. Remaining: **formula/dependent** interpreters (dB, Hz, BPM, envelope times, synth category/wave, drawbars, timbre) — these need ns4decode's `interpret*()` functions ported, not just tables.
 - [ ] **Map raw → `NS4Program`** model (name/category, then section by section) for the structured Program Decode view.
 - [ ] **Visualize a program** — show piano/sample, organ, synth, effects in a readable card.
 - [ ] **AI search** over a set of parsed programs ("punchy clav", "ambient pad").

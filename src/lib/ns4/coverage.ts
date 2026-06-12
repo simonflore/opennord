@@ -9,6 +9,7 @@
  */
 
 import { bytesToBitString, readField } from './bits';
+import { interpretValue } from './interpret';
 import type { Param } from './maps';
 
 export interface DecodedParam {
@@ -18,6 +19,8 @@ export interface DecodedParam {
   begBit: number;
   endBit: number;
   value: number;
+  /** Human-readable value where a table applies, else the raw integer. */
+  display: string;
 }
 
 /** Decode every known parameter (all layers) from a file's bits. */
@@ -27,17 +30,26 @@ export function decodeAllParams(bytes: Uint8Array, map: Param[]): DecodedParam[]
   for (const p of map) {
     p.layers.forEach((layer, k) => {
       if (layer.begBit < 0) return;
+      const value = readField(bits, layer.begBit, layer.endBit);
+      const label = Number.isNaN(value) ? null : interpretValue(p.name, value);
       out.push({
         name: p.layers.length > 1 ? `${p.name} [${'ABC'[k] ?? k}]` : p.name,
         group: p.group,
         layer: k,
         begBit: layer.begBit,
         endBit: layer.endBit,
-        value: readField(bits, layer.begBit, layer.endBit),
+        value,
+        display: label ?? (Number.isNaN(value) ? '—' : String(value)),
       });
     });
   }
   return out;
+}
+
+/** The engine that owns a byte (first covering param), for the coverage strip. */
+export function groupOfByte(map: Param[], byteIndex: number): Param['group'] | null {
+  const ps = paramsCoveringByte(map, byteIndex);
+  return ps.length ? ps[0].group : null;
 }
 
 /** Byte indices touched by at least one known parameter (any layer). */

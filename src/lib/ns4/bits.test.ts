@@ -56,6 +56,14 @@ describe('complete param map decodes the fixture', () => {
       decoded.filter((d) => d.group === 'y' && d.name.startsWith(`${param} [`)).map((d) => d.value);
     expect(synthLayerVals('layer on/off')).toEqual([0, 1, 1]);
   });
+
+  it('interprets discrete enums to human values (validated against the CSV)', () => {
+    const synthDisplay = (param: string) =>
+      decoded.filter((d) => d.group === 'y' && d.name.startsWith(`${param} [`)).map((d) => d.display);
+    expect(synthDisplay('filter type')).toEqual(['LP24', 'BP', 'LPHP']);
+    expect(synthDisplay('LFO shape')).toEqual(['triangle', 'saw', 'S/H']);
+    expect(decoded.find((d) => d.name === 'bank')?.display).toBe('H');
+  });
 });
 
 /** "ns4p" as the integer its 32 bits would decode to (for the 'file type' field). */
