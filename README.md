@@ -23,8 +23,13 @@ A lot is already done — see [`ATTRIBUTION.md`](ATTRIBUTION.md). The Stage 2/3 
 npm install
 npm run dev        # web app
 npm test           # parser tests
+npm run typecheck  # tsc --noEmit (the CI gate — keep it green)
+npm run build      # production build
 npm run cap:sync   # wrap for iOS (Capacitor) once you add the ios/ platform
 ```
+
+Working in this repo with an AI agent? See [`CLAUDE.md`](CLAUDE.md) for the
+decode-layer map, commands, and the legal guardrails.
 
 ## Layout
 
