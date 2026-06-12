@@ -99,6 +99,20 @@ export interface NS4Layer {
   /** Pan value, e.g. "L  4.7" | "0.0". */
   pan?: Morphable<string>;
 
+  // ── Organ-specific (when kind === 'organ') ───────────────────────────────
+  /** "B3" | "VOX" | "FARF" | "PIPE" */
+  organModel?: string;
+  organPreset?: boolean;
+  organSustain?: boolean;
+  vibChorus?: boolean;
+  percussion?: { on?: boolean; harm3rd?: boolean; decayFast?: boolean; volSoft?: boolean };
+  /**
+   * Nine drawbars (indices 0–8), each morphable. Display value is the drawbar
+   * position string (e.g. "4", "0") or a special VOX string (e.g. "4+5").
+   * Undefined entries mean the drawbar morph data was unavailable.
+   */
+  drawbars?: (Morphable<string> | undefined)[];
+
   // ── Piano-specific (when kind === 'piano') ───────────────────────────────
   source?: 'samples' | 'analog';
   sample?: Ns4SampleRef;
