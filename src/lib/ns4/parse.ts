@@ -57,6 +57,54 @@ export function parseNs4Program(bytes: Uint8Array): NS4Program {
     return m;
   }
 
+  // ── Organ layers (group 'o', 2 layers: A / B) ────────────────────────────
+  const organLayers: NS4Layer[] = [];
+  for (const id of ['A', 'B'] as const) {
+    const s = (n: string) => disp('o', `${n} [${id}]`);
+
+    const enabledStr = s('layer on/off');
+    if (enabledStr === null) continue;
+
+    const octStr = s('octave shift');
+
+    // Nine drawbars, each with wheel / A.T. / pedal morphs
+    const drawbars: (Morphable<string> | undefined)[] = [];
+    for (let db = 1; db <= 9; db++) {
+      drawbars.push(morphStr('o',
+        `drawbar ${db} [${id}]`,
+        `drawbar ${db} with wheel [${id}]`,
+        `drawbar ${db} with A.T. [${id}]`,
+        `drawbar ${db} with ctrlped [${id}]`,
+      ));
+    }
+
+    organLayers.push({
+      id,
+      kind: 'organ',
+      enabled: enabledStr === 'on',
+      enabledSceneII: s('layer on/off (scene II)') === 'on',
+      volume: morphStr('o',
+        `volume [${id}]`,
+        `volume change with wheel [${id}]`,
+        `volume change with A.T. [${id}]`,
+        `volume change with ctrlped [${id}]`,
+      ),
+      kbZones: s('KB zones') ?? undefined,
+      octaveShift: octStr !== null ? parseInt(octStr, 10) : undefined,
+      sustainPedal: s('organ susped on/off') === 'on',
+      organModel: s('organ model') ?? undefined,
+      organPreset: s('preset on/off') === 'on',
+      vibChorus: s('vib/chorus on/off') === 'on',
+      percussion: {
+        on: s('percussion on/off') === 'on',
+        harm3rd: s('perc harm 3rd on/off') === 'on',
+        decayFast: s('perc decay fast on/off') === 'on',
+        volSoft: s('perc vol soft on/off') === 'on',
+      },
+      drawbars,
+    });
+  }
+
   // ── Piano layers (group 'p', 2 layers: A / B) ────────────────────────────
   const pianoLayers: NS4Layer[] = [];
   for (const id of ['A', 'B'] as const) {
@@ -222,7 +270,7 @@ export function parseNs4Program(bytes: Uint8Array): NS4Program {
   return {
     parsed: true,
     kind,
-    layers: [...pianoLayers, ...synthLayers],
+    layers: [...organLayers, ...pianoLayers, ...synthLayers],
     bytes,
     warnings,
   };
