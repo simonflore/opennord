@@ -7,3 +7,4 @@ ios/App/App/public/
 .DS_Store
 coverage/
 *.log
+scripts/__pycache__/
