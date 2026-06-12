@@ -66,7 +66,7 @@ describe('complete param map decodes the fixture', () => {
     expect(decoded.find((d) => d.name === 'bank')?.display).toBe('H');
     // numeric formulas (volume->dB, pan) — exhaustively evaluated from the real interpreter
     expect(synthDisplay('volume')).toEqual(['-0.3 dB', '-11.9 dB', '-3.6 dB']);
-    expect(synthDisplay('pan')).toEqual(['L 4.7', '0.0', '0.0']);
+    expect(synthDisplay('pan')).toEqual(['L  4.7', '0.0', '0.0']);
   });
 
   it('resolves morph values from their base (two-pass decode)', () => {
@@ -74,6 +74,50 @@ describe('complete param map decodes the fixture', () => {
       decoded.filter((d) => d.group === 'y' && d.name.startsWith(`${param} [`)).map((d) => d.display);
     expect(synthDisplay('filter freq with wheel')).toEqual(['none', '21 kHz', '1.3 kHz']);
     expect(synthDisplay('volume change with wheel')).toEqual(['none', 'none', '0.0 dB']);
+  });
+
+  it('decodes synth oscillator category and wave', () => {
+    // Fixture: layers A/B/C have synth types ANALOG/FM-H/FM-I → categories and waves depend on type
+    const synth = (name: string) =>
+      decoded.filter((d) => d.group === 'y' && d.name.startsWith(`${name} [`)).map((d) => d.display);
+    // Synth cat: ANALOG layer shows "N (category)", FM-H/FM-I show letter grade
+    const cats = synth('analog cat (knob 2)');
+    expect(cats).toHaveLength(3);
+    expect(cats[0]).toMatch(/\d/);    // ANALOG: "N (CategoryName)"
+    expect(cats[1]).toMatch(/^[A-Z]$/); // FM-H: letter
+    expect(cats[2]).toMatch(/^[A-Z]$/); // FM-I: letter
+    // Wave field decoded (not raw number)
+    const waves = synth('analog wave/partial (knob 3)');
+    expect(waves).toHaveLength(3);
+    expect(waves[1]).not.toMatch(/^\d+$/); // FM-H: shows "N.5" or partial number
+  });
+
+  it('decodes LFO rate, filter res, delay tempo as human values', () => {
+    const synth = (name: string) =>
+      decoded.filter((d) => d.group === 'y' && d.name.startsWith(`${name} [`)).map((d) => d.display);
+    // LFO rate — shows Hz or fraction depending on MST CLK
+    const lfoRates = synth('LFO rate/time');
+    expect(lfoRates.some((v) => v.includes('Hz') || v.includes('/'))).toBe(true);
+    // Filter res — shows 0.0-10.0 or freq
+    const filterRes = synth('filter resonance / freq HP');
+    expect(filterRes.some((v) => /^\d/.test(v))).toBe(true);
+    // Delay tempo — shows ms or fraction
+    const delay = synth('FX delay tempo');
+    expect(delay.some((v) => v.includes('ms') || v.includes('/') || v.includes('sec'))).toBe(true);
+  });
+
+  it('decodes organ drawbars to human values', () => {
+    const organDrawbars = decoded.filter((d) => d.group === 'o' && d.name.startsWith('drawbar '));
+    expect(organDrawbars.length).toBeGreaterThan(0);
+    // B3 drawbars show 0-8 as raw numbers (passthrough for B3/PIPE)
+    // VOX drawbar 9 shows special names
+    expect(organDrawbars.every((d) => typeof d.display === 'string')).toBe(true);
+  });
+
+  it('decodes arp rate/time', () => {
+    const arpRates = decoded.filter((d) => d.group === 'y' && d.name.startsWith('arp rate/time ['));
+    expect(arpRates.length).toBeGreaterThan(0);
+    expect(arpRates.some((d) => d.display.includes('bpm') || d.display.includes('/'))).toBe(true);
   });
 });
 

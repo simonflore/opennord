@@ -1,6 +1,6 @@
 /**
  * Reverse-engineering helpers: what's decoded, what's still a gap, and what
- * changed between two files. This is the engine behind the Decode Inspector.
+ * changed between two files. Powers the Decode Inspector.
  *
  * The gap-finding workflow: export a program, change ONE setting on the Nord,
  * export again, and `diffBytes` lights up exactly the bytes that moved — that's
@@ -12,6 +12,7 @@ import { bytesToBitString, readField } from './bits';
 import { interpretValue } from './interpret';
 import { GENERATED_VALUES } from './values.generated';
 import { MORPH_BASE, MORPH_NONE } from './morphs.generated';
+import { DEP_IDS, DEP_TABLES, DEP_MORPH, DEP_DEFAULT_DEPS } from './deps.generated';
 import type { Param } from './maps';
 
 export interface DecodedParam {
@@ -26,6 +27,66 @@ export interface DecodedParam {
 }
 
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
+
+/**
+ * Look up a dep-table entry for a base-level dependent param.
+ * If the exact dep-value combo isn't in the domain, DEP_DEFAULT_DEPS provides
+ * fallback values (e.g. piano model → 0 for any non-Clavinet model).
+ */
+function depTableLookup(pid: string, depVals: number[], raw: number): string | null {
+  const table = DEP_TABLES[pid];
+  if (!table) return null;
+  const key = [...depVals, raw].join(':');
+  let r = table[key];
+  if (r !== undefined) return r;
+  const fallbacks = DEP_DEFAULT_DEPS?.[pid];
+  if (fallbacks) {
+    const fbVals = depVals.map((v, i) => (fallbacks[i] !== undefined ? fallbacks[i] : v));
+    r = table[[...fbVals, raw].join(':')];
+    if (r !== undefined) return r;
+  }
+  return null;
+}
+
+/**
+ * Resolve the display of a base dep param or morph-of-dep-param.
+ * Called after the pure interpretValue + simple morphDisplay pass.
+ */
+function depDisplay(
+  pid: string,
+  rawValue: number,
+  layer: number,
+  rawById: Record<string, number[]>,
+): string | null {
+  // Base-level dep param: direct table lookup
+  if (pid in DEP_TABLES) {
+    const depIds = DEP_IDS[pid] ?? [];
+    const depVals = depIds.map((did) => rawById[did]?.[layer] ?? 0);
+    return depTableLookup(pid, depVals, rawValue) ?? String(rawValue);
+  }
+
+  // Morph of a dep param (or osc-env-amt morph with non-127 offset)
+  const morph = DEP_MORPH[pid];
+  if (!morph) return null;
+
+  const { basePid, offset, maxRaw } = morph;
+  if (rawValue === offset) return MORPH_NONE;
+
+  const baseLayer = (rawById[basePid]?.length ?? 0) > 1 ? layer : 0;
+  const baseRaw = rawById[basePid]?.[baseLayer] ?? 0;
+  const morphed = clamp(baseRaw + rawValue - offset, 0, maxRaw);
+
+  if (basePid in DEP_TABLES) {
+    const baseDepIds = DEP_IDS[basePid] ?? [];
+    const baseDepVals = baseDepIds.map((did) => rawById[did]?.[layer] ?? 0);
+    return depTableLookup(basePid, baseDepVals, morphed) ?? String(morphed);
+  }
+  // Base is in GENERATED_VALUES (osc env amt, etc.)
+  const genDisplay = GENERATED_VALUES[basePid]?.[morphed];
+  if (genDisplay !== undefined) return genDisplay;
+  // Passthrough base (extern CC morphs etc.)
+  return String(morphed);
+}
 
 /**
  * A morph param ("X with wheel/A.T./pedal") displays its base parameter's value
@@ -57,6 +118,7 @@ export function decodeAllParams(bytes: Uint8Array, map: Param[]): DecodedParam[]
       const value = rawById[p.id][k];
       let label = Number.isNaN(value) ? null : interpretValue(p.id, p.name, value);
       if (label === null && !Number.isNaN(value)) label = morphDisplay(p.id, value, k, rawById);
+      if (label === null && !Number.isNaN(value)) label = depDisplay(p.id, value, k, rawById);
       out.push({
         name: p.layers.length > 1 ? `${p.name} [${'ABC'[k] ?? k}]` : p.name,
         group: p.group,
