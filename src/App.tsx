@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { parseNs4Program } from './lib/ns4/parse';
 import type { NS4Program } from './lib/ns4/types';
 import { DecodeInspector } from './components/DecodeInspector';
