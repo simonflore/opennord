@@ -9,3 +9,9 @@ coverage/
 *.log
 *.tsbuildinfo
 scripts/__pycache__/
+
+# Nord Sound Manager app bundle — Nord's proprietary binary, kept locally for
+# interop reverse-engineering only. NEVER commit/redistribute (see docs/LEGAL.md).
+nsm/
+# Local Ghidra decompiler output (derivative of the NSM binary — keep out of repo).
+nsm_decomp/
