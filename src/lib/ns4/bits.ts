@@ -40,6 +40,44 @@ export function readField(bits: string, begBit: number, endBit: number): number 
   return parseInt(bits.slice(begBit, endBit + 1), 2);
 }
 
+/**
+ * Read the unsigned integer in bits [begBit, endBit] directly from bytes —
+ * the byte-level equivalent of {@link readField} (MSB-first), without building
+ * the whole bit string. Used by the writer to read-modify-write a single field.
+ */
+export function readFieldBytes(bytes: Uint8Array, begBit: number, endBit: number): number {
+  let v = 0;
+  for (let absBit = begBit; absBit <= endBit; absBit++) {
+    const byteIdx = absBit >>> 3;
+    const bitInByte = 7 - (absBit & 7); // MSB-first within the byte
+    v = (v << 1) | ((bytes[byteIdx] >>> bitInByte) & 1);
+  }
+  return v >>> 0;
+}
+
+/**
+ * Write the unsigned integer `value` into MSB-first bits [begBit, endBit],
+ * mutating `bytes` in place. The exact inverse of {@link readField} /
+ * {@link readFieldBytes}. Throws on an invalid range or out-of-range value.
+ */
+export function writeField(bytes: Uint8Array, begBit: number, endBit: number, value: number): void {
+  if (begBit < 0 || endBit < begBit) throw new RangeError(`bad bit range ${begBit}..${endBit}`);
+  const width = endBit - begBit + 1;
+  if (width > 32) throw new RangeError(`field width ${width} > 32 bits unsupported`);
+  const max = width === 32 ? 0xffffffff : (1 << width) - 1;
+  if (!Number.isInteger(value) || value < 0 || value > max) {
+    throw new RangeError(`value ${value} out of range for ${width}-bit field (0..${max})`);
+  }
+  for (let i = 0; i < width; i++) {
+    const bitVal = (value >>> (width - 1 - i)) & 1; // MSB of the value first
+    const absBit = begBit + i;
+    const byteIdx = absBit >>> 3;
+    const mask = 1 << (7 - (absBit & 7)); // MSB-first within the byte
+    if (bitVal) bytes[byteIdx] |= mask;
+    else bytes[byteIdx] &= ~mask;
+  }
+}
+
 /** A Nord program file opens with "CBIN" and tags its type "ns4p" at bytes 9-12. */
 export function hasCbinMagic(bytes: Uint8Array): boolean {
   return matchAscii(bytes, 0, 'CBIN');
