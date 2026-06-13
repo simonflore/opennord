@@ -108,8 +108,23 @@ method that cracked the file layout: **change one variable, capture, diff.**
 > accepts FileTransfer over its MIDI port, program transfer works over CoreMIDI on
 > iOS.** That's now the single highest-value unknown — see `docs/SYSEX-SPIKE.md`.
 >
-> **Still to pin:** the CRC-16 polynomial/init (`CRC::CCRC16`), the `SFileSpec`
-> packing, and whether the NS4 honours FileTransfer-over-SysEx (hardware test).
+> **Now pinned (decompiled):** protocol **version byte = `0x0A`** (`CFileTransferBase(port, 10)`);
+> **CRC-16 = CCITT/XMODEM family — poly `0x1021`, init `0xFFFF`**, MSB-first,
+> table-driven (`CRC::CCRC16::CalcBuffer`, `Reset` sets `0xFFFF`). Still open: the
+> `SFileSpec` u32 packing, and the MIDI epilog's exact CRC 7-bit encoding.
+>
+> **Hardware test result (2026-06, NS4 fw 3.40, MIDI port).** Sent a Universal
+> Identity Request *and* hand-framed FileTransfer `CQryContentVersion`/`CQryPartList`
+> SysEx (several dev/CRC variants) to the Nord's USB-MIDI in; **the Nord replied to
+> none of them.** The receive path is proven good (a CoreMIDI loopback note-on was
+> captured fine), so this is real silence, not a tooling fault. Interpretation: the
+> NS4 does **not** service SysEx on its MIDI port as configured — most likely its
+> Global **SysEx RX is disabled** (default on many Nords; needs front-panel access
+> to enable), or the firmware only accepts FileTransfer over the **vendor USB**
+> interface. **Conclusion: program transfer over MIDI/SysEx is unconfirmed and
+> currently looks USB-only — so iOS-via-CoreMIDI transfer is not viable on this unit
+> without first enabling SysEx on the keyboard.** Retest once SysEx RX is on; tools:
+> `sendmidi`/`receivemidi`.
 
 ### Step 1 — Descriptor recon: what is the device?
 

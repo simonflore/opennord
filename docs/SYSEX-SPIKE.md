@@ -17,6 +17,16 @@
 > payload) or `CQryPartList` (`0x00`) as a SysEx to the Nord's MIDI in, and watch
 > for a `F0 33 …` reply. A response proves the hardware honours the protocol over
 > MIDI; silence means it's USB-only.
+>
+> **Probe result (2026-06, NS4 fw 3.40).** Done. Sent a Universal Identity Request
+> and FileTransfer `CQryContentVersion`/`CQryPartList` SysEx (proto `0x0C`, ver
+> `0x0A`, CRC-16/CCITT, several dev/CRC variants) via `sendmidi` → **no reply to
+> any.** Receive path verified good (CoreMIDI loopback captured). So the NS4 isn't
+> answering SysEx on its MIDI port — almost certainly **Global SysEx RX is off**
+> (front-panel setting, couldn't change it this session) or the firmware is
+> USB-only for FileTransfer. **iOS-via-CoreMIDI transfer stays unconfirmed; retest
+> with SysEx RX enabled on the keyboard.** Until then, transfer = USB/desktop only.
+> Full framing + constants: `docs/PROTOCOL-RE.md`.
 
 **Question:** Can a computer/iPhone *receive* a full program dump from a Nord Stage 4 over USB MIDI (SysEx), and *send* one back, well enough to move a patch between the app and the keyboard?
 
