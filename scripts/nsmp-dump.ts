@@ -42,12 +42,38 @@ function hexdump(b: Uint8Array, from: number, limit: number): void {
   }
 }
 
+function u32be(b: Uint8Array, i: number): number {
+  return ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0;
+}
+
+/** Walk the flat chunk list from 0x2c: [4-byte tag][4-byte BE length][payload]. */
+function walk(b: Uint8Array): void {
+  console.log('--- chunk walk (tag + BE length) ---');
+  let p = 0x2c;
+  while (p + 8 <= b.length) {
+    const rawTag = ascii(b, p, 4);
+    const tag = rawTag.replace(/^\.+/, ''); // strip NUL-left-pad shown as '.'
+    if (!/[A-Za-z]{2,4}$/.test(tag)) {
+      console.log(`0x${p.toString(16)}: non-tag bytes "${rawTag}" — stop`);
+      break;
+    }
+    const len = u32be(b, p + 4);
+    console.log(`0x${p.toString(16).padStart(6, '0')}  tag=${JSON.stringify(tag).padEnd(8)} len=${len} (next +${8 + len} → 0x${(p + 8 + len).toString(16)})`);
+    p += 8 + len;
+    if (len === 0) break;
+  }
+  console.log(`ended at 0x${p.toString(16)} of 0x${b.length.toString(16)} (${p === b.length ? 'EXACT EOF ✓' : `${b.length - p} bytes remain`})`);
+}
+
 const path = process.argv[2];
 if (!path) {
-  console.error('usage: tsx scripts/nsmp-dump.ts <file.nsmp*> [hexLimit]');
+  console.error('usage: tsx scripts/nsmp-dump.ts <file.nsmp*> [hexLimit | --walk]');
   process.exit(1);
 }
-const limit = Number(process.argv[3] ?? 512);
 const bytes = new Uint8Array(readFileSync(path));
 dumpHeader(path, bytes);
-hexdump(bytes, 0x2c, limit);
+if (process.argv[3] === '--walk') {
+  walk(bytes);
+} else {
+  hexdump(bytes, 0x2c, Number(process.argv[3] ?? 512));
+}
