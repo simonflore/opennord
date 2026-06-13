@@ -191,8 +191,30 @@ method that cracked the file layout: **change one variable, capture, diff.**
 > banks A–C and overwrite a real program (restorable from backup, but avoid).
 > Target only a slot provably empty under every interpretation.
 >
-> **Notes:** drain the IN endpoint between separate runs (replies queue). Tool:
-> `scripts/nordprobe.c` (read-only message sequencer).
+> **✅✅✅✅ WRITE VALIDATED ON HARDWARE (2026-06).** A full round-trip wrote a real,
+> playable program to the device: read program index 0's 824-byte body, then
+> created a copy at **C:88** that appeared in NSM and plays on the Stage 4. The
+> validated write sequence (all replies status 0):
+> ```
+> Begin(partition)                              // session; sets partition context
+> FileOpen(partition, srcIndex)  / FileRead / FileClose   // (to copy an existing body)
+> FileCreate{bank, entry, size, fileType(fourcc), 0xFFFFFFFF, category, name}
+> FileWrite{bank, entry, offset, dataLen} + data
+> FileClose{bank, entry}                        // REQUIRED — commits the file
+> End
+> ```
+> Gotchas that cost real debugging: **(1)** `Begin` partition must match what you
+> query/write (cross-partition = status 1 "empty"); **(2)** `FileRead` needs a
+> prior `FileOpen` (else status 3); **(3)** the destination `FileClose` is what
+> **commits** the write — without it the device ACKs everything (status 0) but
+> discards the file; **(4)** read/open/close address by `{partition, fileIndex}`,
+> while create/write/close-dest address by `{bank(0-based), entry(raw slot)}` in
+> the `Begin` session. `FileDelete` (msgId `0x14`) = `{bank, entry}`.
+>
+> **Notes:** drain the IN endpoint between separate runs (replies queue). Quit NSM
+> to claim interface 0. Tools: `scripts/nordprobe.c` (read-only sequencer),
+> `scripts/nordcopy.c` (read→write round-trip), `scripts/nordcreate.c` (gated
+> create). The transfer protocol is now fully proven in **both directions**.
 
 > **Write path (decompiled — untested until validated).** Symmetric with read:
 > - `CReqFileCreate` (msgId `0x0A`): payload `{partition, location, +4 u32
