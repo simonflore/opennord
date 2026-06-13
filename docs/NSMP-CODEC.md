@@ -167,13 +167,19 @@ block directory (corrects an earlier guess).
   stroke's block stream → decodes. All **8 strokes** of `Strings.nsmp3` decode to
   clean stereo PCM (peaks 4099–7500, sane 16-bit; stroke 0 onset
   `0,0,0,0,-1,-2,-3,-4`). Tested in `src/lib/ns4/nsmp.test.ts`.
-- **Codec 4 (`.nsmp4`): OUTSTANDING.** Same section format and a byte-similar
-  stroke header, and confirmed 32-bit words — but its block stream does **not**
-  decode with the codec-3 block/predictor path (output diverges; 9 strokes,
-  different sizes → re-segmented). Codec 4 has a block-format variant still to
-  pin down (candidate: a per-block difference, 24-bit samples, or a `SMetric`
-  word-size change). Once codec 4 decodes, run the matched-pair PCM fidelity
-  comparison vs `Strings.nsmp3`.
+- **Codec 4 (`.nsmp4`): NARROWED — inter-block field.** Same section format,
+  same 32-bit words, same block header layout, same predictor: individual blocks
+  decode **correctly** (e.g. `Strings.nsmp4` stk[1] block stream at `0x77fc`
+  begins `00 d0 00 60` = order 0 / bitWidth 11 / 96 samples and yields a clean
+  silent onset `0,0,0,0,0,0,0,0`, peak 1023). The difference: codec 4 puts a
+  **4-byte field between block runs** that codec 3 lacks — after block[0] (ends
+  `0x7884`) comes `7f 04 00 00`, then block[1] `00 d0 00 5a` at `0x7888`, then
+  after block[1] (`0x7908`) comes `d6 5c 00 00`, etc. (pattern `XX XX 00 00`).
+  So a codec-4 stroke is a sequence of `[block][4-byte field]…`. To finish:
+  identify that field (per-block gain/scale? segment length? extended `linearMode`
+  word?) by re-reading `DecodeStroke`/`DecodeSamples` for the codec-4
+  (`SMetric`) path, consume it between blocks, then decode full nsmp4 strokes and
+  run the matched-pair PCM fidelity comparison vs `Strings.nsmp3`.
 - **Output scaling:** raw integer PCM is returned; per-stroke normalization gain
   (`GetNormFactors`) / bit-depth scaling to float `[-1,1]` is still TODO.
 
