@@ -123,7 +123,23 @@ tag+length walk fails. Codec version = `versionRaw/100` (3 → codec 3, 4 → co
 probe; the editor refuses factory v3 libraries ("NSMP v3 Factory Library files
 are not supported"). OpenNord mirrors this: user-created only.
 
-## Task 7 — DECODE VALIDATED on real data ✓
+## Section/container format — VERIFIED (`CSectionIterator::Read_`)
+
+The body (from `0x2C`) is a **flat sequence of sections** (not nested). For codec
+3/4 each section header is **`[tag:u32 BE][version:u32 BE][size:u32 BE]`** (12
+bytes) then `size` payload bytes; codecs 1/2 use a 9-byte header
+(`GetU24`/`GetU16`/`GetU32`). Section order:
+
+`NSMP` (size 4) → `hdr` (name, NUL-left-padded tag `\0hdr`) → `cat` → `map`
+(per-zone level/detune) → **N× `stk`** (one stroke/zone each) → `sty` → `meta`.
+
+Verified by parsing both pair files end-to-end (`src/lib/ns4/nsmp.ts`,
+`parseNsmpSections`): `Strings.nsmp3` → 8 `stk` sections; `Strings.nsmp4` → 9.
+Each `stk` payload is a variable-length stroke header then the block stream; the
+block-stream start is the offset whose decode stays bounded and ends exactly on
+the section boundary (the stop sentinel sits at the next section's start).
+
+## Task 7 — DECODE VALIDATED on real data ✓ (codec 3 complete)
 
 The block codec (header parse + MSB-first signed residual unpack + order-0–7
 binomial predictor + per-channel history) is implemented in a probe and
@@ -145,19 +161,21 @@ This proves the codec is reproducible **and correct**. The `map` section, FYI,
 turned out to be per-zone **level/detune** attributes (keyboard mapping), not a
 block directory (corrects an earlier guess).
 
-### Remaining refinements (Phase 1 implementation)
+### Status: codec 3 fully decodes; codec 4 outstanding
 
-1. **Container offset from the parser, not a scan.** The empirical offset search
-   works (header validity + int24-boundedness uniquely brackets real strokes) but
-   production should get stroke starts from `CSectionStroke::Read` (`0x1002f97f4`)
-   /the section iterator. The stroke binary begins at `strokeData +
-   GetStrokeBinOffset` (codec 3→`0x6c` region; `0x51c` observed for this file).
-2. **Codec-4 (`.nsmp4`) word size / bit depth.** `.nsmp3` decodes cleanly with
-   32-bit words; `.nsmp4` (codec 4) likely uses a different word size (24-bit per
-   `DecodeSamples`: `GetU24` when the metric word size is `0x18`) and/or 24-bit
-   samples — its clean first stroke wasn't isolated under the 32-bit/16-bit
-   assumption. Read the codec-4 `SMetric` config to set word size + bit depth per
-   revision, then run the matched-pair PCM fidelity comparison.
+- **Codec 3 (`.nsmp3`): COMPLETE.** `decodeNsmp` parses sections → finds each
+  stroke's block stream → decodes. All **8 strokes** of `Strings.nsmp3` decode to
+  clean stereo PCM (peaks 4099–7500, sane 16-bit; stroke 0 onset
+  `0,0,0,0,-1,-2,-3,-4`). Tested in `src/lib/ns4/nsmp.test.ts`.
+- **Codec 4 (`.nsmp4`): OUTSTANDING.** Same section format and a byte-similar
+  stroke header, and confirmed 32-bit words — but its block stream does **not**
+  decode with the codec-3 block/predictor path (output diverges; 9 strokes,
+  different sizes → re-segmented). Codec 4 has a block-format variant still to
+  pin down (candidate: a per-block difference, 24-bit samples, or a `SMetric`
+  word-size change). Once codec 4 decodes, run the matched-pair PCM fidelity
+  comparison vs `Strings.nsmp3`.
+- **Output scaling:** raw integer PCM is returned; per-stroke normalization gain
+  (`GetNormFactors`) / bit-depth scaling to float `[-1,1]` is still TODO.
 
 ## Verdict — GO, and DECODE PROVEN on real `.nsmp3` data
 
