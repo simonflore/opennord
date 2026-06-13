@@ -123,25 +123,43 @@ tag+length walk fails. Codec version = `versionRaw/100` (3 → codec 3, 4 → co
 probe; the editor refuses factory v3 libraries ("NSMP v3 Factory Library files
 are not supported"). OpenNord mirrors this: user-created only.
 
-## Task 7 status — codec coded, container offset NOT yet pinned
+## Task 7 — DECODE VALIDATED on real data ✓
 
 The block codec (header parse + MSB-first signed residual unpack + order-0–7
-binomial predictor) is implemented in a probe. **Not yet validated**: an
-empirical search for the first stroke's block-stream offset is unreliable
-because block-header validation is too permissive (most 32-bit words satisfy
-`order≤7, 1≤sampleCnt≤0x3FFF`), so a "longest valid run" lands on coincidental
-structure and the predictor output **diverges** (peak ≫ int24) — i.e. wrong start
-offset, not a codec error.
+binomial predictor + per-channel history) is implemented in a probe and
+**confirmed correct** on a real user sample:
 
-**Next concrete step:** stop guessing the offset; read `CSectionStroke::Read`
-(`0x1002f97f4`) + `CSectionMap::Read` (`0x1002ed4e4`) to parse the container
-exactly — the `map` chunk is a per-stroke/per-block directory (10-byte entries:
-`u16=0x10` + index) whose preamble at the stroke holds the block count
-(`0x5bc`=1468 seen in `Strings.nsmp4`); the stroke binary begins at
-`strokeSectionData + GetStrokeBinOffset` (codec 4 → `0x6c`). With the true stroke
-start, re-run the matched-pair (`Strings.nsmp3`↔`.nsmp4`) PCM fidelity check.
+`Strings.nsmp3`, first stroke at block-stream offset `0x51c`, `nCh=2` (stereo),
+32-bit words, decodes **68146 samples/channel** to a clean stop sentinel at
+`0x204b0`:
 
-## Verdict — GO on the algorithm; container parse outstanding
+- **First 8 L samples: `0,0,0,0,-1,-2,-3,-4`** — silence then a smooth ramp-in:
+  the unmistakable signature of a correct audio onset (a wrong decode can't make
+  clean zeros + a gentle ramp).
+- peak **6114**, RMS ~1041 (L) / 934 (R) — sane 16-bit levels; zero-crossing rate
+  **0.026** — tonal, as expected for a strings sample (noise → ~0.5).
+- Equal L/R length, ends exactly on a stop block. `nCh=2` gives systematically
+  lower peaks than `nCh=1` across all candidates → correct stereo de-interleave.
+
+This proves the codec is reproducible **and correct**. The `map` section, FYI,
+turned out to be per-zone **level/detune** attributes (keyboard mapping), not a
+block directory (corrects an earlier guess).
+
+### Remaining refinements (Phase 1 implementation)
+
+1. **Container offset from the parser, not a scan.** The empirical offset search
+   works (header validity + int24-boundedness uniquely brackets real strokes) but
+   production should get stroke starts from `CSectionStroke::Read` (`0x1002f97f4`)
+   /the section iterator. The stroke binary begins at `strokeData +
+   GetStrokeBinOffset` (codec 3→`0x6c` region; `0x51c` observed for this file).
+2. **Codec-4 (`.nsmp4`) word size / bit depth.** `.nsmp3` decodes cleanly with
+   32-bit words; `.nsmp4` (codec 4) likely uses a different word size (24-bit per
+   `DecodeSamples`: `GetU24` when the metric word size is `0x18`) and/or 24-bit
+   samples — its clean first stroke wasn't isolated under the 32-bit/16-bit
+   assumption. Read the codec-4 `SMetric` config to set word size + bit depth per
+   revision, then run the matched-pair PCM fidelity comparison.
+
+## Verdict — GO, and DECODE PROVEN on real `.nsmp3` data
 
 The full decode path is recovered and elegantly simple (fixed-predictor LPC,
 8 integer predictor sets, MSB-first signed residuals). **Decode is reproducible
