@@ -17,15 +17,15 @@ OpenNord is a Web PWA (React + Vite) wrapped to iOS with Capacitor, so one codeb
         └───────────────┬──┘   └───────────────────────┘
                         │
         ┌───────────────▼───────────────────────────────┐
-        │  lib/midi (EXPERIMENTAL)                        │
-        │  SysEx dump request / receive / send to a Nord  │
-        │  via Web MIDI (browser) or CoreMIDI (iOS)       │
-        └────────────────────────────────────────────────┘
+        │  USB transfer (scripts/nord*.c, docs/PROTOCOL-RE) │
+        │  enumerate / read / write programs to a Nord      │
+        │  via libusb / node-usb / WebUSB (desktop)         │
+        └──────────────────────────────────────────────────┘
 ```
 
-- **`lib/ns4`** — the heart. A typed `NS4Program` model and a `.ns4p` parser. The format is *partially* known (see `docs/FORMAT.md`); the parser is built to fill in incrementally, field by field, each one traceable to a source.
+- **`lib/ns4`** — the heart. A typed `NS4Program` model and a `.ns4p` parser/decoder. The format is decoded and validated (0-mismatch against ns4decode; see `docs/FORMAT.md`); each field stays traceable to a source.
 - **`lib/ai`** — provider-pluggable. Ships a naive local ranker so the app works with zero config; the real implementation calls an LLM (default: Claude) to rank programs against a natural-language query, explain a patch, and translate intent into parameter targets. Keep it behind an interface so contributors can swap providers.
-- **`lib/midi`** — the frontier. Talking to the keyboard over SysEx. Treated as experimental and gated until the spike (`docs/SYSEX-SPIKE.md`) proves the protocol on a real Stage 4.
+- **`lib/midi`** — `sysex.ts`, an experimental MIDI/SysEx scaffold. *Program transfer* turned out to be a vendor **USB** protocol (not MIDI), fully reverse-engineered and hardware-validated — see `docs/PROTOCOL-RE.md` and the `scripts/nord*.c` tools; a desktop (WebUSB / node-usb) client is where that lands in the app. The SysEx scaffold survives only for the iOS-transfer retest (`docs/SYSEX-SPIKE.md`).
 
 ## Community library (Phase 1, server side — not in this scaffold yet)
 

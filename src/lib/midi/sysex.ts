@@ -1,13 +1,18 @@
 /**
- * EXPERIMENTAL — SysEx transfer to/from a Nord Stage 4.
+ * EXPERIMENTAL — MIDI/SysEx scaffold for the Nord Stage 4.
  *
- * This module does NOT assume a transfer protocol exists or how it works. It is
- * here to CAPTURE and CHARACTERIZE Nord SysEx traffic (the spike in
- * docs/SYSEX-SPIKE.md, step 1). Building real dump/restore on top of this comes
- * only after the spike proves the protocol on actual hardware.
+ * NOTE: program transfer is NOT SysEx. It's a vendor USB bulk protocol, fully
+ * reverse-engineered and hardware-validated — see docs/PROTOCOL-RE.md and the
+ * scripts/nord*.c tools (desktop, via WebUSB / node-usb).
  *
- * Web MIDI requires `sysex: true`. On iOS, route these through a native
- * CoreMIDI plugin instead (Web MIDI is Chromium-only).
+ * This module survives only for the *iOS retest*: the protocol has a Clavia
+ * SysEx framing (F0 33 ...), but the Stage 4 didn't answer SysEx on its MIDI
+ * port (likely Global SysEx-RX off). If that's enabled, the same FileTransfer
+ * messages could ride CoreMIDI on iOS — these helpers capture/send that traffic.
+ * See docs/SYSEX-SPIKE.md.
+ *
+ * Web MIDI requires `sysex: true`. On iOS, route through a native CoreMIDI
+ * plugin (Web MIDI is Chromium-only).
  */
 
 /** Clavia / Nord MIDI manufacturer id. A Nord SysEx message is F0 33 ... F7. */

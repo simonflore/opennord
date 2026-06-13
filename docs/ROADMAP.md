@@ -1,10 +1,10 @@
 # Roadmap
 
-Two phases. Phase 1 is buildable today from *known* knowledge. Phase 2 is the dream's hard core and depends on reverse engineering that doesn't fully exist yet for the Stage 4.
+Two phases. Both are now **unblocked**: the file format is decoded/validated and the device USB transfer protocol is fully reverse-engineered and hardware-validated. What's left in each is product engineering, not reverse engineering.
 
-## Phase 1 — Read & share (no hardware RE required)
+## Phase 1 — Read & share (no hardware needed)
 
-Everything here uses the file format, which is already partially documented/decoded.
+Everything here uses the file format, which is decoded and validated against ns4decode.
 
 - [x] **Offset map — DONE.** The full bit-location map for all four engines (406 params) is ingested from ns4decode's bitmaps (`offset-map.generated.ts`) and validated against the real fixture (80.6% byte coverage; bank/checksum/synth-layers correct). The Decode Inspector reads it now.
 - [~] **Interpretation layer — nearly complete; remaining gap now precisely characterized.** Sources validated against the fixture (0 mismatch):
@@ -24,11 +24,11 @@ Everything here uses the file format, which is already partially documented/deco
 
 A useful product exists at the end of Phase 1 *even if the keyboard is never touched.*
 
-## Phase 2 — Talk to the Nord (the frontier)
+## Phase 2 — Talk to the Nord (was the frontier — now solved)
 
-This is the unproven part. Sequence it behind a validating spike so you fail fast if it's not feasible.
+The device-transfer protocol is **fully reverse-engineered and hardware-validated**. What's left here is building it into the product (a desktop client), not RE.
 
-- [x] **Transfer protocol — SOLVED & hardware-validated.** The official client uses a **raw-USB vendor bulk protocol** on interface 0 (`0x03`/`0x82`/`0x81`), fully reverse-engineered from the binary and **proven live on a Stage 4**: framing `[len][protoId 0x0C][ver 0x0A][msgId][payload][CRC16]` (big-endian), opcode table, `Begin→FileOpen→FileRead` read path confirmed (read a real file off the device). Full spec + the `scripts/nordprobe.c` tool: `docs/PROTOCOL-RE.md`. The transport is also transport-agnostic (a Clavia SysEx framing exists), but the Stage 4's MIDI port did **not** answer SysEx probes (likely Global SysEx-RX off), so transfer is **USB/desktop-only** for now (`docs/SYSEX-SPIKE.md`).
+- [x] **Transfer protocol — SOLVED & hardware-validated, both directions.** Vendor **raw-USB bulk protocol** on interface 0 (`0x03`/`0x82`/`0x81`), recovered from the binary and **proven live on a Stage 4**: framing `[len][protoId 0x0C][ver 0x0A][msgId][payload][CRC16]` (big-endian), full opcode table, unified `{bank,slot}` addressing in a `Begin{partition}` session. Validated end-to-end: **enumerate** (FileIterate walk — listed all 356 files), **read** (pulled real program bodies), and **write** (created a playable program at C:88). Full spec + `scripts/nord*.c` tools: `docs/PROTOCOL-RE.md`. (Transport-agnostic — a Clavia SysEx framing exists — but the Stage 4's MIDI port didn't answer SysEx, so transfer is **USB/desktop-only** for now; `docs/SYSEX-SPIKE.md`.)
 - [~] **Pull current program** off the keyboard — **read path proven** (enumerate partitions/banks/files, `FileRead` returns file bytes). Remaining: a desktop runtime (libusb/Electron — iOS can't do vendor USB) + multi-chunk reassembly. Not feasible on stock iOS.
 - [ ] **Push a patch** to the keyboard — write opcodes (`FileCreate 0x0A`, `FileWrite`, `Upload`) are **decompiled but untested**; attempt only carefully, to a throwaway slot, after read is shipped.
 - [x] **Live tweak** — real-time CC/NRPN control (the ns4mcp parameter map already exists; this is the easy, proven part of device comms).

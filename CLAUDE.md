@@ -7,12 +7,13 @@ Guidance for Claude Code (and other AI agents) working in this repository.
 **OpenNord** — an open, AI-native companion for the **Nord® Stage 4**. It reads
 `.ns4p` program/preset files in the browser (no keyboard or Nord Sound Manager
 required), and aims to add a community patch library, AI search/explanation, and
-(experimental) direct SysEx transfer to/from the keyboard.
+direct USB transfer to/from the keyboard.
 
-Status: **pre-alpha scaffold.** The skeleton and the plan are here; the hard
-parts — full `.ns4p` decoding and SysEx transfer — are community
-reverse-engineering work in progress. Read `docs/ROADMAP.md` first to know what
-is *proven* vs. *unproven* before starting a task.
+Status: **early — RE done, product being built.** The `.ns4p` format is decoded
+and validated (0-mismatch vs ns4decode), and the Stage 4's **USB transfer protocol
+is fully reverse-engineered and hardware-validated** (enumerate/read/write — see
+`docs/PROTOCOL-RE.md`). The remaining work is the product layer (UI, community
+library, AI). Read `docs/ROADMAP.md` for what's built vs. planned.
 
 Web PWA (React 19 + Vite + TypeScript), wrapped to iOS with Capacitor, so one
 codebase runs in the browser and as a native app.
@@ -108,9 +109,12 @@ the bar). When extending the decoder, validate against the fixture.
 
 ## Scope tips for agents
 
-- Phase 1 (read & share) is buildable from known knowledge; Phase 2 (talk to the
-  Nord over SysEx) is **unproven** and gated behind the spike in
-  `docs/SYSEX-SPIKE.md`. Don't build transfer features as if the protocol is
-  settled — `lib/midi` is for *capturing/characterizing* traffic first.
+- The hard RE is done: the `.ns4p` format is decoded/validated and the device
+  **USB transfer protocol** is fully reverse-engineered and hardware-validated
+  (`docs/PROTOCOL-RE.md`; tools in `scripts/nord*.c`). It's a vendor USB bulk
+  protocol, **not** MIDI SysEx — don't reintroduce the old "SysEx spike" framing.
+  Device transfer is **desktop-only** (vendor USB is unreachable from iOS);
+  `lib/midi` is for live CC/NRPN only.
+- Most remaining work is **product** (visualize → AI → community library), not RE.
 - Keep changes small and verifiable; prefer extending the decoder one traceable
   field at a time over large speculative rewrites.

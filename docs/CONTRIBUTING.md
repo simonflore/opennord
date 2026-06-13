@@ -1,13 +1,13 @@
 # Contributing to OpenNord
 
-Thanks for helping build a commons for Nord Stage 4 players. The most valuable work here is **reverse engineering**, and a lot of it doesn't require writing code.
+Thanks for helping build a commons for Nord Stage 4 players. The hard reverse-engineering is **done** — the `.ns4p` format is decoded/validated and the device USB transfer protocol is fully cracked and hardware-validated (`docs/PROTOCOL-RE.md`). The work now is mostly **building the product**.
 
 ## Highest-impact contributions
 
-1. **Share captures (no code needed).** Export programs from your Stage 4 — especially **pairs that differ by exactly one setting** — and attach them to an issue. Diffing near-identical files is how the format gets decoded. Only share programs you're happy to make public (`docs/LEGAL.md`).
-2. **Decode a field.** Map one parameter to its byte/bit location, add it to `src/lib/ns4/parse.ts` with a source comment, add a test, and record it in `docs/FORMAT.md`.
-3. **Run the SysEx spike** (`docs/SYSEX-SPIKE.md`) if you can monitor USB MIDI. Even a "here's the dump envelope" or "here's why it doesn't work" is gold.
-4. **Code & UI.** Visualization, AI search/explain, the community library.
+1. **Product & UI.** A program-visualization view (piano/sample, organ, synth, FX), the community library (upload/search/rate/fork), and the AI features (search, explain, generate). This is where most value is now.
+2. **A desktop transfer client.** Wrap the proven USB protocol (`docs/PROTOCOL-RE.md`, `scripts/nord*.c`) into the app via WebUSB / node-usb (Electron).
+3. **Validate the decoder at scale.** Run the parser over more real programs and file a fixture + test for any mismatch against ns4decode.
+4. **Re-test SysEx-over-MIDI** (`docs/SYSEX-SPIKE.md`) with Global SysEx-RX enabled on a Stage 4 — that single result decides whether transfer can work on iOS.
 
 ## Ground rules
 
