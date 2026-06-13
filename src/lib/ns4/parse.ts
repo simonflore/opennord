@@ -27,12 +27,26 @@ export function parseNs4Program(bytes: Uint8Array): NS4Program {
   const recognized = hasCbinMagic(bytes);
   const tag = recognized ? fileTypeTag(bytes) : '';
 
+  // 'ns4p' is a standalone program; 'ns4l' is the same program extracted from a
+  // bundle/library (identical body, only the type tag differs). Both decode the
+  // full program model. 'nsmp' is a Nord Sample (audio content, NOT a program).
+  // See docs/FORMAT.md.
   let kind: Ns4FileKind = 'preset-unknown';
-  if (tag === 'ns4p') kind = 'program';
+  if (tag === 'ns4p' || tag === 'ns4l') kind = 'program';
+  else if (tag === 'nsmp') kind = 'sample';
   else if (tag.startsWith('ns4')) kind = 'preset-unknown';
 
   if (!recognized) {
     warnings.push('No CBIN magic — not a recognized Nord file.');
+    return { parsed: false, kind, bytes, warnings };
+  }
+
+  // Only Stage 4 *programs* have the flat bit-packed parameter body this decoder
+  // understands. Samples (`nsmp`) and presets use different layouts — decoding
+  // their bytes as program params would produce garbage, so stop here. For
+  // sample metadata (name/version only, never audio) use `readNsmpHeader`.
+  if (kind !== 'program') {
+    warnings.push(`Recognized a '${tag}' file (kind: ${kind}); not a Stage 4 program, structured decode skipped.`);
     return { parsed: false, kind, bytes, warnings };
   }
 
