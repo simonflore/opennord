@@ -141,11 +141,35 @@ method that cracked the file layout: **change one variable, capture, diff.**
 >
 > This confirms **everything**: endpoints, big-endian framing, protocol id `0x0C`,
 > version `0x0A`, opcodes, *and the CRC-16* (the device accepted our CRC → the
-> CCITT poly/init are right). The transfer protocol is no longer theoretical — we
-> can read structured data off the keyboard. **Reply opcode = request opcode | 1.**
-> Remaining: enumerate files (`CQryFileIterate`) to learn the `SFileSpec` packing,
-> then `FileOpen`/`FileRead` an actual program. (Drain the IN endpoint between runs
-> — replies queue.)
+> CCITT poly/init are right). **Reply opcode = request opcode | 1.**
+>
+> **✅✅ FULL FILE READ VALIDATED (2026-06).** A complete read sequence pulled a real
+> file off the keyboard, read-only:
+> `CReqBegin{0}` (→ status 0, session open) → `CReqFileOpen{part, loc}` (→ status 0)
+> → `CReqFileRead{part, loc, offset, length}` → reply `0x13` carrying the file
+> bytes. Reading `{partition 0 (Piano Native), location 1}` returned the file magic
+> **`CNSP`** + strings *"Vibraphone#YV3710"* — i.e. the actual on-device sample
+> file. So **read transfer works end to end.**
+>
+> **Addressing & semantics (validated):**
+> - `CQryFileInfo` / `CReqFileOpen` / `CReqFileRead` take **`{partition, flat
+>   1-based location}`** (2 u32; Read appends `offset, length`). `CQryFileIterate`
+>   takes **`{partition, bank, slot}`** (3 u32, 1-based).
+> - **Partition layout** (from `CQryBankList`): Program (6) = banks *A–H* × 64 =
+>   512 slots (matches the `X:YY` file slot); Piano Native (0) = one *"Bank 1"* ×
+>   1200. Flat location = `(bank-1)*bankSize + slot`.
+> - **Status** (reply payload word 0): `0` = OK/file present, `1` = empty slot,
+>   `2` = error / no `Begin` session.
+> - `CQryFileInfo` reply (status 0): `{status, part, loc, …, 4-char type tag
+>   (e.g. "npno"), …, u32 nameLen, name, …size}`.
+> - `CReqFileRead` reply: protocol header + read-ack header (status, …, u32 data
+>   length) + the raw file bytes (native container: `CBIN` for programs, `CNSP`
+>   for samples) + CRC16.
+>
+> **Notes:** drain the IN endpoint between separate runs (replies queue). On the
+> test unit the **Program partition was empty** (all slots status 1 — no user
+> programs stored); factory content lives in the Native partitions. Tool:
+> `scripts/nordprobe.c` (read-only sequencer).
 
 ### Step 1 — Descriptor recon: what is the device?
 
