@@ -211,10 +211,26 @@ method that cracked the file layout: **change one variable, capture, diff.**
 > while create/write/close-dest address by `{bank(0-based), entry(raw slot)}` in
 > the `Begin` session. `FileDelete` (msgId `0x14`) = `{bank, entry}`.
 >
+> **Full-partition enumeration — the `FileIterate` cursor walk (validated).**
+> `FileInfo` only sees the *focused* bank, so to list a whole partition use the
+> iterator (`CFileTransfer::GetFileListAsync` → `FileIterateNext` → `OnReply`):
+> ```
+> bank=0, cursor=0xFFFFFFFF
+> loop: send  CQryFileIterate{bank, cursor, 0}   (msgId 0x20)
+>       reply CRpyFileIterate{code, bank, slot}  (msgId 0x21)
+>         code 0 -> file at (bank, slot); record; cursor = slot   (next: slot>cursor, wraps)
+>         code 1 -> bank exhausted; bank = bank+1; cursor = 0xFFFFFFFF
+>         else   -> done
+> ```
+> `FileInfo{bank, slot}` then names each (session partition implied). Verified
+> live: walked all 8 banks of Program (6) and got **356 files** = the user's 355 +
+> the "OPENNORD TEST" we wrote at C:88 (per-bank A=64 B=64 C=25 D=37 E=0 F=40
+> G=63 H=63), names matching NSM exactly. Tool: `scripts/nordcorpus2.c`.
+>
 > **Notes:** drain the IN endpoint between separate runs (replies queue). Quit NSM
-> to claim interface 0. Tools: `scripts/nordprobe.c` (read-only sequencer),
-> `scripts/nordcopy.c` (read→write round-trip), `scripts/nordcreate.c` (gated
-> create). The transfer protocol is now fully proven in **both directions**.
+> to claim interface 0. Tools: `scripts/nordprobe.c` (sequencer), `nordcopy.c`
+> (read→write round-trip), `nordcreate.c` (gated create), `nordcorpus2.c` (full
+> partition enumeration). The transfer protocol is fully proven **both directions**.
 
 > **Write path (decompiled — untested until validated).** Symmetric with read:
 > - `CReqFileCreate` (msgId `0x0A`): payload `{partition, location, +4 u32
