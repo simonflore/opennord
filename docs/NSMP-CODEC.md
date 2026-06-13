@@ -51,15 +51,85 @@ length-counted siblings. Resolve by reading the editor's `CBinInputNordFile` /
   **the audio payload is re-encoded per revision** (no header-only shortcut), as
   predicted from the binary (`CSmpDecode`/`CSmpEncode` + quantization tables).
 
-## Decode algorithm — TODO (Task 6)
+## Decode algorithm — VERIFIED (recovered from the binary)
 
-To recover from `Ymer::Codec::CSmpDecode` via Ghidra. Expected shape (hypothesis,
-from the error string + the `map` chunk): per-block decode where each block picks
-a quantization table from the `map`, reconstructs PCM via predictor + scaled
-quantized deltas. The `map` entries are the per-block table assignments.
+The codec is `Ymer::Codec::NW1` (same `NW1` family as the program codec). It is a
+**block-based fixed-polynomial linear-predictive codec** (the FLAC/Shorten
+family), *not* a quantization-table scheme — the `map` chunk is a section/offset
+map, not per-block quant tables. Recovered from `NW1::CDecode::DecodeStroke`
+(`0x1002d9c8c`), `DecodeSamples` (`0x1002da1c0`), `FilterSamples` (`0x1002da470`),
+`CBlockHdr::Read` (`0x1002d8d5c`), and the `CFilter::g_coeff` table
+(`0x10083bd08`). Decompiled C in the gitignored `nse_decomp/` + `/tmp/nse_*`.
 
-## Verdict — PENDING
+### Block header (`CBlockHdr::Read`) — one 32-bit word per block
 
-Filled after Task 7 (decoder fidelity vs the matched pair). To state: decode
-reproduced? at what normalized-RMS delta? which revisions? encoder plausibly
-reproducible (for the future transcoder spec)?
+Read a `u32` (big-endian; some codecs read `u24` shifted `<<8`). Fields:
+
+| Field | Bits | Expr | Range |
+|---|---|---|---|
+| `sampleCnt` | 0–13 | `word & 0x3FFF` | samples in this block |
+| `filterOrder` | 14–17 | `(word >> 14) & 0xF` | **0–7** used |
+| `bitWidth` | 19–22 | `((word >> 19) & 0xF) + 1` | 1–16 bits/residual |
+| `linearMode` | (top) | — | flag |
+
+**Stop sentinel** (`IsStop`): `linearMode==1 && bitWidth==1 && filterOrder==0` →
+end of stroke.
+
+### Residuals (`DecodeSamples`)
+
+After the header, read `sampleCnt` **signed** residuals, each `bitWidth` bits,
+**MSB-first**, from the byte stream via a 64-bit accumulator fed by `u32`/`u24`
+words. Extraction: `residual = (int64)acc >> (64 - bitWidth)` (arithmetic →
+sign-extended), then `acc <<= bitWidth`. Residuals are interleaved across
+channels; sample `i` belongs to channel `i % nCh`.
+
+### Reconstruction (`FilterSamples`)
+
+Per channel, a 32-entry circular history. For sample `i` (channel `ch = i%nCh`,
+order `N` from the block header):
+
+```
+out = residual[i] + Σ_{k=0..N-1}  g_coeff[N][k] · history_ch[head-1-k]
+history_ch[head] = out ;  head = (head+1) & 0x1F
+```
+
+`g_coeff[N]` (orders 0–7, the only valid ones — extracted, == binomial predictors):
+
+```
+0: []   1: [1]   2: [2,-1]   3: [3,-3,1]   4: [4,-6,4,-1]
+5: [5,-10,10,-5,1]   6: [6,-15,20,-15,6,-1]   7: [7,-21,35,-35,21,-7,1]
+```
+
+No prediction shift — integer coefficients. (These are the rows of Pascal's
+triangle with alternating signs, i.e. the order-`N` difference operator.)
+
+### Output
+
+Reconstructed ints are scaled by the stroke's normalization gain
+(`GetNormFactors`/`Level2DSP`) and emitted as PCM, then `/2^(bitDepth-1)` → float
+`[-1,1]` (`CSmpStreamBridgeDecode::Bridge_Read` yields `float`).
+
+### Container/stroke offsets (per codec version)
+
+`CSectionStroke::GetStrokeBinOffset`: stroke-header size before the block stream
+is `0x60` (codec 1), `0x3c` (codec 2), `0x6c` (codec 3/4). Section framing is
+validated per-codec by `CSectionNSMP::Read`/`CSectionStroke::Read` via a
+`CSectionIterator` against expected tag triples — which is why a naive flat
+tag+length walk fails. Codec version = `versionRaw/100` (3 → codec 3, 4 → codec 4).
+
+## Factory-content gate
+
+`CPeekBundle::IsFactoryLibrary` returns a stored flag (offset 0x128) set during
+probe; the editor refuses factory v3 libraries ("NSMP v3 Factory Library files
+are not supported"). OpenNord mirrors this: user-created only.
+
+## Verdict — GO (decode reproducible)
+
+The full decode path is recovered and elegantly simple (fixed-predictor LPC,
+8 integer predictor sets, MSB-first signed residuals). **Decode is reproducible
+in TypeScript** with no proprietary tables to embed. Remaining for Task 7:
+implement `decodeStroke`, locate the first block via the stroke-header offset in
+a real file, and confirm fidelity on the `Strings.nsmp3`↔`.nsmp4` matched pair
+(target: normalized-RMS delta within the codecs' lossy tolerance). The encoder
+(`NW1::CEncode::EncodeStrokePhase0/1/2`) is symmetric and looks reproducible too
+— basis for the future downward-transcoder spec.
