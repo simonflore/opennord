@@ -28,10 +28,10 @@ A useful product exists at the end of Phase 1 *even if the keyboard is never tou
 
 This is the unproven part. Sequence it behind a validating spike so you fail fast if it's not feasible.
 
-- [ ] **SysEx spike** (`docs/SYSEX-SPIKE.md`) — can an iPhone/computer *receive* a program dump from a Stage 4 over USB MIDI, and *send* one back? This single experiment decides whether Phase 2 is a weekend or a wall. **Update:** teardown of Nord Sound Manager (`docs/NSM-TEARDOWN.md`) shows the official client uses a **raw-USB vendor bulk protocol, not SysEx**, for program transfer — so this likely routes to the Layer-2 USB path in `docs/PROTOCOL-RE.md`. Run the listen-step once to confirm, then plan for USB capture.
-- [ ] **Pull current program** off the keyboard into the app.
-- [ ] **Push a patch** to the keyboard (audition a shared patch on *your* Nord).
-- [ ] **Live tweak** — real-time CC/NRPN control (the ns4mcp parameter map already exists; this is the easy, proven part of device comms).
+- [x] **Transfer protocol — SOLVED & hardware-validated.** The official client uses a **raw-USB vendor bulk protocol** on interface 0 (`0x03`/`0x82`/`0x81`), fully reverse-engineered from the binary and **proven live on a Stage 4**: framing `[len][protoId 0x0C][ver 0x0A][msgId][payload][CRC16]` (big-endian), opcode table, `Begin→FileOpen→FileRead` read path confirmed (read a real file off the device). Full spec + the `scripts/nordprobe.c` tool: `docs/PROTOCOL-RE.md`. The transport is also transport-agnostic (a Clavia SysEx framing exists), but the Stage 4's MIDI port did **not** answer SysEx probes (likely Global SysEx-RX off), so transfer is **USB/desktop-only** for now (`docs/SYSEX-SPIKE.md`).
+- [~] **Pull current program** off the keyboard — **read path proven** (enumerate partitions/banks/files, `FileRead` returns file bytes). Remaining: a desktop runtime (libusb/Electron — iOS can't do vendor USB) + multi-chunk reassembly. Not feasible on stock iOS.
+- [ ] **Push a patch** to the keyboard — write opcodes (`FileCreate 0x0A`, `FileWrite`, `Upload`) are **decompiled but untested**; attempt only carefully, to a throwaway slot, after read is shipped.
+- [x] **Live tweak** — real-time CC/NRPN control (the ns4mcp parameter map already exists; this is the easy, proven part of device comms).
 
 ## What's proven vs. unproven
 
@@ -40,6 +40,8 @@ This is the unproven part. Sequence it behind a validating spike so you fail fas
 | Parse `.ns4p` (partial) | **Proven** (ns4decode) — re-derive openly |
 | Visualize / share / AI over parsed data | Buildable now |
 | Real-time CC/NRPN control | **Proven** (ns4mcp / standard MIDI) |
-| SysEx **program dump** transfer to/from Stage 4 | **Unproven** — the spike decides |
+| **Read** programs/files off the Stage 4 over USB | **Proven** — protocol RE'd + validated live (`docs/PROTOCOL-RE.md`) |
+| **Write** programs to the Stage 4 | Decompiled, **untested** — read-first, then attempt carefully |
+| Transfer over MIDI/SysEx (for iOS) | **Tested negative** on this unit — USB/desktop-only unless SysEx-RX enabled |
 
-Do Phase 1 first. It's valuable on its own and it's the credibility you bring to the forum when asking for help with Phase 2.
+The read-side RE is effectively complete: `.ns4p` decode + interpretation are validated 0-mismatch against ns4decode; checksum (CRC-32), the write path (`writer.ts`), bundles, and sample headers are implemented and tested; and the USB read protocol is proven on hardware. The remaining frontier is the **desktop write/transfer client** and the **product UI** (visualize / AI / community library).
