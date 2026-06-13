@@ -126,6 +126,27 @@ method that cracked the file layout: **change one variable, capture, diff.**
 > without first enabling SysEx on the keyboard.** Retest once SysEx RX is on; tools:
 > `sendmidi`/`receivemidi`.
 
+> **✅ VALIDATED ON HARDWARE (2026-06, NS4 fw 3.40) — the protocol works.**
+> With NSM quit, `scripts/nordprobe.c` (libusb) claimed vendor interface 0 and ran
+> the framing above **read-only**. Both queries got correct, well-formed replies:
+>
+> - `CQryContentVersion` (TX `00000012 0000000C 0000000A 0000003D` + CRC `e238`) →
+>   RX `00000016 0000000C 0000000A 0000003E 00000000` + CRC — i.e. **reply msgId =
+>   request + 1** (`0x3D`→`0x3E`), content version `0`.
+> - `CQryPartList` (msgId `0x00`) → reply msgId `0x01`, 543 bytes: the **partition
+>   table**, each entry a u32-length-prefixed name + fields. Names read straight out:
+>   *Piano (Native), Piano, Pedal (Native), Piano Pedal, Samp Lib (Native), Samp
+>   Lib, Program, Organ Preset, Piano Preset, Synth Preset, Live, Settings*
+>   (`(Native)` = factory/read-only areas).
+>
+> This confirms **everything**: endpoints, big-endian framing, protocol id `0x0C`,
+> version `0x0A`, opcodes, *and the CRC-16* (the device accepted our CRC → the
+> CCITT poly/init are right). The transfer protocol is no longer theoretical — we
+> can read structured data off the keyboard. **Reply opcode = request opcode | 1.**
+> Remaining: enumerate files (`CQryFileIterate`) to learn the `SFileSpec` packing,
+> then `FileOpen`/`FileRead` an actual program. (Drain the IN endpoint between runs
+> — replies queue.)
+
 ### Step 1 — Descriptor recon: what is the device?
 
 ```bash
