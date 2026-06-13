@@ -15,3 +15,11 @@ scripts/__pycache__/
 nsm/
 # Local Ghidra decompiler output (derivative of the NSM binary — keep out of repo).
 nsm_decomp/
+# Nord Sample Editor app bundle + Ghidra output — proprietary binary, local RE
+# only. NEVER commit/redistribute (docs/LEGAL.md).
+nse/
+nse_decomp/
+# Full real sample audio used for local decoder validation — the user's own
+# recordings, kept out of the repo (size + scope). Trimmed fixtures live under
+# src/lib/ns4/__fixtures__/nsmp/ instead.
+research/nsmp/
