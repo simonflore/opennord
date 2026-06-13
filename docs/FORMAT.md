@@ -63,8 +63,8 @@ source — both treat the header identically).
 | 0x00 | magic `CBIN` | ASCII | `CBIN` | verified |
 | 0x04 | header format type (0=legacy, 1=new) | u8 | `1` (always — NSM-era) | NS3 docs + verified |
 | 0x08 | file-type tag | 4×ASCII | `ns4p` (`ns4l` = bundle-extracted) | verified |
-| 0x0C | bank | u8 | 6 / 6 / 7 | NS3 docs + verified |
-| 0x0E | location in bank | u8 | 49 / 47 / 56 | NS3 docs + verified |
+| 0x0C | bank (low 3 bits → letter A–H) | u8 | 6 / 6 / 7 | NS3 docs + verified |
+| 0x0E | location in bank (low 6 bits) | u8 | 49 / 47 / 56 | NS3 docs + verified |
 | 0x10 | category | u8 | 6 (Organ) / 17 / 17 | NS3 docs + verified |
 | 0x14 | program version | u16 LE, ÷100 | `313` → **v3.13** | NS3 docs + verified |
 | 0x18 | **CRC-32 checksum** | u32 LE | matches `crc32(bytes[0x2C:])` | **cracked — see CHECKSUM.md** |
@@ -75,6 +75,14 @@ source — both treat the header identically).
 the **filename** — there is no ASCII name field in the file. OpenNord derives the
 name from the filename on import (`name.ts`), and the bank/location bytes identify
 the keyboard slot.
+
+**Keyboard slot display (`X:YY`).** The Nord shows a program's slot as `X:YY`:
+`X` = bank letter (A–H, from 0x0C's low 3 bits); `YY` = two 1-based digits off the
+6-bit location (0x0E) — `digit1 = location/8 + 1`, `digit2 = location%8 + 1`. So
+bank 7, location 56 → `H:81`. `parse.ts` surfaces this as `NS4Program.slot` (ported
+from ns4decode's `interpretBank`/`interpretLocnInBank`). The **program category**
+(0x10) is *not* decoded by ns4decode and isn't in NS2/3 viewers either; only
+`6=Organ` is verified (`categories.ts`), raw id surfaced otherwise.
 
 **One checksum, not two.** NS3 carries CRC1 (0x18) *and* CRC2 (0x78). Probed
 against all three real Stage 4 files: Stage 4 has **only CRC1** at 0x18 (0x1C–0x2B
