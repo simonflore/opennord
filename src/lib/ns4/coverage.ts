@@ -13,7 +13,17 @@ import { interpretValue } from './interpret';
 import { GENERATED_VALUES } from './values.generated';
 import { MORPH_BASE, MORPH_NONE } from './morphs.generated';
 import { DEP_IDS, DEP_TABLES, DEP_MORPH, DEP_DEFAULT_DEPS } from './deps.generated';
+import { ANALOG_CAT_561_8, ANALOG_WAVE_562_4 } from './synth-analog.generated';
 import type { Param } from './maps';
+
+// deps.generated covers osc types FM-H/FM-I/WAVE for the synth knob 2/3 params
+// but not ANALOG (type 0); supplement that branch here. Keys are disjoint
+// ("0:*" vs the generated "1:*"/"2:*"/"3:*"), so the merge can't collide.
+const DEP_TABLES_MERGED: Record<string, Record<string, string>> = {
+  ...DEP_TABLES,
+  '561-8': { ...ANALOG_CAT_561_8, ...DEP_TABLES['561-8'] },
+  '562-4': { ...ANALOG_WAVE_562_4, ...DEP_TABLES['562-4'] },
+};
 
 export interface DecodedParam {
   name: string;
@@ -34,7 +44,7 @@ const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi 
  * fallback values (e.g. piano model → 0 for any non-Clavinet model).
  */
 function depTableLookup(pid: string, depVals: number[], raw: number): string | null {
-  const table = DEP_TABLES[pid];
+  const table = DEP_TABLES_MERGED[pid];
   if (!table) return null;
   const key = [...depVals, raw].join(':');
   let r = table[key];

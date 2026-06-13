@@ -143,6 +143,19 @@ describe('parseNs4Program — regression fixture', () => {
       expect(la.vibrato!.mode).toBe('A.T.');
     });
 
+    it('osc category/wave resolved across all osc types (incl. ANALOG)', () => {
+      // ns4decode CSV ground truth. Layer A = ANALOG (the branch ported from
+      // ns4names.py this change); B = FM-H, C = FM-I (already covered).
+      const [a, b, c] = [prog.layers![4], prog.layers![5], prog.layers![6]];
+      expect(a.oscType).toBe('1 (ANALOG)');
+      expect(a.oscCategory).toBe('4 (SHAPE)'); // was raw "3" before the ANALOG port
+      expect(a.oscWave).toBe('2 (Shape Saw)'); // was raw "1"
+      expect(b.oscType).toBe('2 (FM-H)');
+      expect(b.oscCategory).toBe('D');
+      expect(c.oscType).toBe('3 (FM-I)');
+      expect(c.oscCategory).toBe('C');
+    });
+
     it('layer B — enabled, analog, vibrato DLY with delay/rate/amount', () => {
       const lb = prog.layers![5];
       expect(lb.id).toBe('B');
