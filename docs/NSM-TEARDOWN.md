@@ -96,6 +96,14 @@ and from the keyboard is a **vendor USB protocol over IOKit**:
   transfer**, most likely panel/control + handshake. There is no SysEx bulk-dump
   path for programs.
 
+> **Confirmed on hardware (2026-06).** Live USB recon (`scripts/nordusb.c`) of a
+> connected Stage 4: VID `0x0FFC` / PID `0x002E`, firmware 3.40, **interface 0 is
+> vendor-specific (`0xFF`)** with bulk OUT `0x03` (commands), bulk IN `0x82`
+> (data), interrupt IN `0x81` (notifications) — and NSM holds it **exclusively**
+> via two IOKit USB user-clients. Standard USB-MIDI is a *separate* interface (2,
+> class 1/3). This is exactly the `Ymer::USB` + `CFTReq*`/`CFTNotify*` model.
+> Full descriptors + the Phase-2 plan: `docs/PROTOCOL-RE.md` Step 1.
+
 **Implication:** "talk to the Nord over SysEx" (the Phase-2 framing) is the wrong
 model for *program transfer*. It's **Layer 2 in `PROTOCOL-RE.md`** — a vendor bulk
 protocol over partitions — that is **confirmed**, not Layer 1. Real-time CC/NRPN

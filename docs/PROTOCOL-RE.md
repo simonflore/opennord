@@ -58,6 +58,59 @@ method that cracked the file layout: **change one variable, capture, diff.**
 > model is **partition → bank → location/slot**. Start by capturing a single
 > `Download` (read one program) — it's read-only and the simplest framing.
 
+> **RESULT — protocol recovered statically from the binary (2026-06).** Ghidra
+> decompilation of `Zevs::Port` + `Zevs::Protocol::FileTransfer` gives the full
+> wire format without any capture. Each message (all fields **big-endian**):
+>
+> ```
+> [u32 length]      total message size in bytes, incl. this field + CRC16
+> [u32 protocolId]  0x0000000C  = FileTransfer  (MIDIX/InstrCtrl have other ids)
+> [u32 version]     protocol EVersion
+> [u32 msgId]       opcode (table below)
+> [ payload ]       msgId-specific, a sequence of big-endian u32 words
+> [u16 CRC16]       CRC-16 over everything above (NB: file CRC is CRC-32 — different)
+> ```
+>
+> Built by `CPortUSBBase::MsgProlog` (writes the 3 header u32s after reserving the
+> length word) + `MsgEpilog` (back-fills length, appends CRC16). Sent by
+> `CPortUSB::Send` → `USB::CStreamDuplex::WriteSync(buffer, len)` on bulk OUT
+> `0x03`; replies (`CAck*`) arrive on `0x82`, async `CFTNotify*` on interrupt `0x81`.
+>
+> **Opcode table** (from each message's `Write`; `CReq*` = command, `CAck*` =
+> reply, `CQry*` = query). Payload words are big-endian u32:
+>
+> | msgId | message | payload |
+> |---|---|---|
+> | `0x00` | `CQryPartList` | — |
+> | `0x04` | `CReqBegin` | 1 (session) |
+> | `0x06` | `CReqEnd` | — |
+> | `0x08` | `CQryPartState` | 1 (partition) |
+> | `0x0A` | `CReqFileCreate` | 7 (spec + sizes) |
+> | `0x0C` | `CReqFileOpen` | 2 (file address) |
+> | `0x0E` | `CReqFileClose` | 2 |
+> | `0x12` | `CReqFileRead` | 4 (address + offset + length) |
+> | `0x1E` | `CQryFileInfo` | 2 |
+> | `0x3D` | `CQryContentVersion` | — |
+>
+> **Read-one-program sequence:** `CReqBegin(0x04)` → `CReqFileOpen(0x0C, addr)` →
+> `CReqFileRead(0x12, addr, offset, length)` (data streams back on `0x82`) →
+> `CReqFileClose(0x0E)` → `CReqEnd(0x06)`. Read-only — safe to attempt first.
+>
+> **The address (`SFileSpec`)** is the two u32 words in `CReqFile::Wr` — almost
+> certainly the partition/bank/slot triple packed into them; pin the exact packing
+> by reading `SFileSpec` construction (one more decompile) or by diffing two opens.
+>
+> **Transport-agnostic — and this reopens iOS.** The identical message rides over
+> **MIDI SysEx** via `CPortMIDIBase::MsgProlog`:
+> `F0 33 7F <dev> <protoId> <version> <msgId> …payload (7-bit encoded)… F7`
+> (`0x33` = Clavia, exactly the `docs/SYSEX-SPIKE.md` envelope). So the protocol is
+> **not** intrinsically USB-only — NSM just chose USB. **If the Stage 4 firmware
+> accepts FileTransfer over its MIDI port, program transfer works over CoreMIDI on
+> iOS.** That's now the single highest-value unknown — see `docs/SYSEX-SPIKE.md`.
+>
+> **Still to pin:** the CRC-16 polynomial/init (`CRC::CCRC16`), the `SFileSpec`
+> packing, and whether the NS4 honours FileTransfer-over-SysEx (hardware test).
+
 ### Step 1 — Descriptor recon: what is the device?
 
 ```bash
@@ -75,6 +128,31 @@ Read the interface descriptors:
 
 Record the endpoint addresses (e.g. `0x01` OUT, `0x81` IN) and max packet sizes.
 
+> **DONE — confirmed on real hardware (2026-06).** Captured passively via libusb
+> (`scripts/nordusb.c` — reads the cached config descriptor, no interface claim,
+> no conflict with a running NSM):
+>
+> - **Device:** VID `0x0FFC` (Clavia DMI AB), PID `0x002E` (Nord Stage 4),
+>   bcdDevice `0x0154` (firmware 3.40), 1 configuration, 3 interfaces.
+> - **Interface 0 — vendor-specific** (`class/sub/proto = 0xFF/0xFF/0xFF`), 3 EPs
+>   — **this is the NSM transfer channel** (`Ymer::USB` / `CFTReq*`):
+>
+>   | EP | Type | Dir | MaxPkt | Role |
+>   |---|---|---|---|---|
+>   | `0x03` | BULK | OUT | 64 | host→device commands (`CFTReq*`) |
+>   | `0x82` | BULK | IN | 64 | device→host data (Download payloads) |
+>   | `0x81` | INTERRUPT | IN | 16 | async notifications (`CFTNotify*`) |
+>
+> - **Interface 1** — Audio control (class 1/1), 0 EPs.
+> - **Interface 2** — USB-**MIDI** streaming (class 1/3): bulk `0x04` OUT, `0x84`
+>   IN. This is the class-compliant MIDI path (CC/NRPN/SysEx) — *separate* from the
+>   vendor transfer interface, confirming program transfer is **not** MIDI.
+>
+> **Constraint:** while NSM runs it holds interface 0 **exclusively**
+> (`UsbExclusiveOwner = "Nord Sound Manager"`, two live IOKit user-clients). To
+> *claim* the interface for active replay you must quit NSM first; to *sniff* NSM's
+> own traffic you need a USB capture stack (see Step 2 — not trivial on macOS).
+
 ### Step 2 — Passive capture: the Rosetta Stone
 
 Sniff Sound Manager ↔ Nord performing one known operation.
@@ -83,9 +161,25 @@ Sniff Sound Manager ↔ Nord performing one known operation.
 |---|---|
 | Linux | `sudo modprobe usbmon` → Wireshark on `usbmonX` (best signal/noise) |
 | Windows | **USBPcap** → Wireshark |
-| macOS | Apple **USB** PacketLogger profile; or run Sound Manager in a Linux VM with USB passthrough and use usbmon |
+| macOS | Apple **USB** capture (`AppleUSBHostPacketFilter`, from Additional Tools for Xcode) → Wireshark |
 
 Capture filter tip: isolate by bus/device address so you only see the Nord.
+
+> **macOS reality check (tested).** There is no `usbmon`. Homebrew Wireshark does
+> **not** capture USB on macOS by itself — you need Apple's `AppleUSBHostPacketFilter`
+> (Additional Tools for Xcode → system-extension approval → reboot; SIP friction on
+> Apple Silicon). `brew install` alone is insufficient.
+>
+> **VM passthrough caveat.** To sniff the *official* client you must run NSM where
+> the capture is — and **NSM has no Linux build**, so a Linux VM (or OrbStack,
+> which can't pass USB through at all — it's on Apple Virtualization.framework)
+> does **not** help here. A **Windows** VM with real USB passthrough (UTM /
+> Parallels / VMware — not OrbStack) + **USBPcap** + the Windows NSM build is the
+> only VM route that captures the real client.
+>
+> **Most practical on this Mac:** skip sniffing and do **active replay** (Step 5):
+> quit NSM, claim interface 0 with libusb/node-usb, and probe `0x03`/`0x82`
+> directly — read-only `Download` first.
 
 ### Step 3 — Differential analysis: provoke one thing at a time
 
@@ -117,14 +211,22 @@ Send a captured **read** request back to the device and confirm an identical
 response. Replay proves the framing before you synthesize new commands.
 
 ```js
-// node-usb sketch (desktop/Electron); WebUSB is the browser equivalent
+// node-usb sketch (desktop/Electron); WebUSB is the browser equivalent.
+// Real values from the hardware recon in Step 1 (quit NSM first — it holds
+// interface 0 exclusively).
 const { usb } = require('usb');
-const dev = usb.findByIds(VID, PID); dev.open();
-const iface = dev.interface(N); iface.claim();
-const out = iface.endpoint(0x01); // bulk OUT from step 1
-const inn = iface.endpoint(0x81); // bulk IN
-out.transfer(capturedRequestBytes, () => inn.transfer(4096, (e, data) => {
-  /* compare data to the captured response */
+const dev = usb.findByIds(0x0ffc, 0x002e); // Clavia : Nord Stage 4
+dev.open();
+const iface = dev.interface(0);            // vendor-specific 0xFF interface
+if (iface.isKernelDriverActive()) iface.detachKernelDriver();
+iface.claim();
+const out  = iface.endpoint(0x03);         // BULK OUT — CFTReq commands
+const inn  = iface.endpoint(0x82);         // BULK IN  — Download payloads
+const note = iface.endpoint(0x81);         // INTERRUPT IN — CFTNotify progress
+note.startPoll(1, 16);
+note.on('data', (d) => { /* CFTNotify* started/progress/completed */ });
+out.transfer(cftReqDownloadBytes, () => inn.transfer(4096, (e, data) => {
+  /* compare data to the program body / file */
 }));
 ```
 

@@ -1,15 +1,22 @@
 # The SysEx spike — the experiment that decides Phase 2
 
-> **Update (binary teardown):** static analysis of the official client largely
-> answers this — see `docs/NSM-TEARDOWN.md`. **Nord Sound Manager does not use
-> MIDI/SysEx for program transfer.** It has no CoreMIDI dependency; it moves
-> programs over a **raw USB (IOKit) vendor bulk protocol** (`Ymer::USB` +
-> `Ymer::Protocol::FileTransfer` / `ProtocolManager::CFTReq*`). MIDI (`MIDIX`)
-> exists but is the control/handshake channel, not the dump path. So the likely
-> answer to the question below is **"no, it's a non-MIDI bulk protocol"** — which
-> routes Phase 2 to **Layer 2 in `docs/PROTOCOL-RE.md`** (raw USB capture). The
-> listen-first steps here are still worth running once to *confirm* no SysEx dump
-> path exists on the hardware before committing to the USB route.
+> **Update (binary teardown + protocol decompile) — the spike is back, and it's
+> now precise.** NSM itself transfers programs over a **raw-USB vendor bulk
+> protocol** (`Ymer::USB` + `Ymer::Protocol::FileTransfer`), not MIDI — *but* the
+> protocol layer is **transport-agnostic**: `CPortMIDIBase::MsgProlog` wraps the
+> exact same FileTransfer messages in a **Clavia SysEx envelope**
+> `F0 33 7F <dev> <protoId=0x0C> <version> <msgId> …7-bit payload… F7`. So we no
+> longer need to *guess* a dump request — we know the bytes. **The one remaining
+> unknown is whether the Stage 4's MIDI port accepts FileTransfer-over-SysEx** (NSM
+> only ever sends it over USB). If yes → program transfer works over CoreMIDI / Web
+> MIDI, including **on iOS**. If no → transfer stays USB/desktop-only. This single
+> hardware test now decides iOS feasibility. Full framing + opcode table:
+> `docs/PROTOCOL-RE.md`.
+>
+> **Concrete first probe (read-only):** send `CQryContentVersion` (msgId `0x3d`, no
+> payload) or `CQryPartList` (`0x00`) as a SysEx to the Nord's MIDI in, and watch
+> for a `F0 33 …` reply. A response proves the hardware honours the protocol over
+> MIDI; silence means it's USB-only.
 
 **Question:** Can a computer/iPhone *receive* a full program dump from a Nord Stage 4 over USB MIDI (SysEx), and *send* one back, well enough to move a patch between the app and the keyboard?
 
