@@ -123,7 +123,25 @@ tag+length walk fails. Codec version = `versionRaw/100` (3 → codec 3, 4 → co
 probe; the editor refuses factory v3 libraries ("NSMP v3 Factory Library files
 are not supported"). OpenNord mirrors this: user-created only.
 
-## Verdict — GO (decode reproducible)
+## Task 7 status — codec coded, container offset NOT yet pinned
+
+The block codec (header parse + MSB-first signed residual unpack + order-0–7
+binomial predictor) is implemented in a probe. **Not yet validated**: an
+empirical search for the first stroke's block-stream offset is unreliable
+because block-header validation is too permissive (most 32-bit words satisfy
+`order≤7, 1≤sampleCnt≤0x3FFF`), so a "longest valid run" lands on coincidental
+structure and the predictor output **diverges** (peak ≫ int24) — i.e. wrong start
+offset, not a codec error.
+
+**Next concrete step:** stop guessing the offset; read `CSectionStroke::Read`
+(`0x1002f97f4`) + `CSectionMap::Read` (`0x1002ed4e4`) to parse the container
+exactly — the `map` chunk is a per-stroke/per-block directory (10-byte entries:
+`u16=0x10` + index) whose preamble at the stroke holds the block count
+(`0x5bc`=1468 seen in `Strings.nsmp4`); the stroke binary begins at
+`strokeSectionData + GetStrokeBinOffset` (codec 4 → `0x6c`). With the true stroke
+start, re-run the matched-pair (`Strings.nsmp3`↔`.nsmp4`) PCM fidelity check.
+
+## Verdict — GO on the algorithm; container parse outstanding
 
 The full decode path is recovered and elegantly simple (fixed-predictor LPC,
 8 integer predictor sets, MSB-first signed residuals). **Decode is reproducible
