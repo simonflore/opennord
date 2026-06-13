@@ -59,6 +59,7 @@ OK, `1` = empty/not-found, `2` = no session, `3` = not open.
 | `0x14` | `CReqFileDelete` | `bank, slot` |
 | `0x1E` | `CQryFileInfo` | `bank, slot` |
 | `0x20` | `CQryFileIterate` | `bank, cursor, 0` |
+| `0x28` | `CQryFileGetDependency` | `bank, slot` (→ `0x29` reply: the file's sample dependency list) |
 | `0x2F` | `CReqFileSetFocus` | `bank, slot` |
 | `0x31` | `CQryFileGetFocus` | — |
 | `0x3D` | `CQryContentVersion` | — |
@@ -138,9 +139,23 @@ panel), or the firmware only services FileTransfer over vendor USB. **Net:
 transfer is USB/desktop-only**; iOS-via-CoreMIDI is unconfirmed until SysEx-RX is
 enabled and re-tested (`sendmidi`/`receivemidi`, `docs/SYSEX-SPIKE.md`).
 
-(Reading device **Settings** over USB is untested — the first attempt queried an
-invalid bank; with `Begin(11)` + a valid `{bank,slot}` it may be readable, which
-could reveal the SysEx flag.)
+## Device facts (validated)
+
+- **Settings are readable** over USB: `Begin(11)` → the Settings partition holds a
+  single file at `{bank 0, slot 0}`, type **`ns4t`**, ~80 bytes, name "Settings".
+  `FileRead` it to get the device global config (likely incl. the SysEx-RX flag
+  that gates iOS transfer — decoding that 80-byte blob is the next small step).
+- **Dependency** (`CQryFileGetDependency 0x28`) returns a per-file sample
+  dependency list — the basis for the "you need these factory samples" feature.
+- **Notifications** (`CFTNotify*` on interrupt `0x81`) only fire during long
+  transfers (progress); nothing arrives at idle. A transfer UI polls `0x81` for
+  progress while a download/upload runs.
+- **Decoder validated at scale:** 12 real programs pulled off the device decode
+  cleanly through `parseNs4Program` (7 layers, 0 warnings each) — not just the
+  fixture. The full **program-category enum** (54 entries) is ported in
+  `src/lib/ns4/categories.ts` (e.g. 6 = Lead, 7 = Organ, 45 = Synth Classic).
+- **Backup/restore** is orchestration over the per-file ops above (enumerate →
+  read/write each file); there is no separate bank-level protocol primitive.
 
 ## Tools (`scripts/`, libusb — read-only unless noted)
 

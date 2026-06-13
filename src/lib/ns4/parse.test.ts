@@ -48,8 +48,8 @@ describe('parseNs4Program — regression fixture', () => {
     expect(prog.slot).toBe('H:81'); // Nord X:YY slot (ns4decode interpretBank/LocnInBank)
     expect(prog.categoryId).toBe(17);
     expect(prog.programVersion).toBe('3.13');
-    // Category 17 isn't in the partial name table yet → no resolved name, raw id kept.
-    expect(prog.category).toBeUndefined();
+    // Category 17 = "None" in the full enum (ported from NSM, see categories.ts).
+    expect(prog.category).toBe('None');
   });
 
   describe('organ layers', () => {
