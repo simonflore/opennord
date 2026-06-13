@@ -12,6 +12,14 @@ their binaries.
 
 There are **two layers**. Attack the cheap one first.
 
+> **Update (binary teardown) — it's Layer 2.** Static analysis of Nord Sound
+> Manager 9.03 (`docs/NSM-TEARDOWN.md`) shows the official client transfers
+> programs over a **raw USB / IOKit vendor bulk protocol** (`Ymer::USB::CUSBMan`,
+> `Ymer::Protocol::FileTransfer`), with **no CoreMIDI** and no SysEx program-dump
+> path. Do the Layer-1 listen once to confirm on real hardware, then expect to
+> live in Layer 2. The recovered command set is the protocol's shape — see the
+> "known command vocabulary" note under Layer 2 below.
+
 ---
 
 ## Layer 1 — USB-MIDI SysEx (try this first)
@@ -39,6 +47,16 @@ Win condition: receive a dump, send it back, confirm the program loads intact.
 If Sound Manager uses a vendor-specific interface instead of MIDI, use the
 standard capture-and-differential playbook below. It's the same differential
 method that cracked the file layout: **change one variable, capture, diff.**
+
+> **Known command vocabulary (from `docs/NSM-TEARDOWN.md`).** The client's own
+> `Ymer::ProtocolManager` request classes name the operations you'll see on the
+> wire — use them to label captures: `Download` / `DownloadBank`, `Upload` /
+> `UploadBank` / `UploadStream`, `Copy`, `Move`, `Swap`, `Delete`, `Erase`,
+> `Format`, `Convert`, `Get/SetDependency` (sample links), `Get/SetFocus`,
+> `PartList`, `PartStates`, `PartitionState`, `QryContentVersion`,
+> `SetFileProps`. Async replies: `NotifyStarted/Progress/Completed/State`. Storage
+> model is **partition → bank → location/slot**. Start by capturing a single
+> `Download` (read one program) — it's read-only and the simplest framing.
 
 ### Step 1 — Descriptor recon: what is the device?
 

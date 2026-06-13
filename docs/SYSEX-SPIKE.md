@@ -1,5 +1,16 @@
 # The SysEx spike — the experiment that decides Phase 2
 
+> **Update (binary teardown):** static analysis of the official client largely
+> answers this — see `docs/NSM-TEARDOWN.md`. **Nord Sound Manager does not use
+> MIDI/SysEx for program transfer.** It has no CoreMIDI dependency; it moves
+> programs over a **raw USB (IOKit) vendor bulk protocol** (`Ymer::USB` +
+> `Ymer::Protocol::FileTransfer` / `ProtocolManager::CFTReq*`). MIDI (`MIDIX`)
+> exists but is the control/handshake channel, not the dump path. So the likely
+> answer to the question below is **"no, it's a non-MIDI bulk protocol"** — which
+> routes Phase 2 to **Layer 2 in `docs/PROTOCOL-RE.md`** (raw USB capture). The
+> listen-first steps here are still worth running once to *confirm* no SysEx dump
+> path exists on the hardware before committing to the USB route.
+
 **Question:** Can a computer/iPhone *receive* a full program dump from a Nord Stage 4 over USB MIDI (SysEx), and *send* one back, well enough to move a patch between the app and the keyboard?
 
 If **yes**, "audition a shared patch on your own Nord" and "pull my current sound into the app" become real. If **no** (sealed/bulk protocol), Phase 2 needs a different approach and you'll know in a weekend instead of a year.

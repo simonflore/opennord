@@ -16,7 +16,7 @@ Everything here uses the file format, which is already partially documented/deco
 - [ ] **AI search** over a set of parsed programs ("punchy clav", "ambient pad").
 - [ ] **AI explain** — "what does this patch do, and how would I tweak it?"
 - [ ] **Community library** (backend) — upload, browse, search, rate, fork user programs. *Programs only, never samples (`docs/LEGAL.md`).*
-- [ ] **Sample resolution — "you need these" → official downloads.** A shared program lists the factory samples it references (`programSampleRefs()`). OpenNord shows that list and, for missing ones, **deep-links to Nord's free [Sample Library](https://www.nordkeyboards.com/sounds/sample-library/)** (free, organized by category) so the user downloads the audio from the official source. OpenNord **never hosts or transfers sample audio** — it only recognizes a sample (`sample.ts`, header-only), names it, and points to where to get it. Needs: the sample-id→name/category map (the hard-tail item above) and, ideally, confirming the id↔file-CRC linkage so "missing" detection is exact. User-created samples are excluded (they have no official URL — they're the user's own, sharable file).
+- [ ] **Sample resolution — "you need these" → official downloads.** A shared program lists the factory samples it references (`programSampleRefs()`). OpenNord shows that list and, for missing ones, **deep-links to Nord's free [Sample Library](https://www.nordkeyboards.com/sounds/sample-library/)** (free, organized by category) so the user downloads the audio from the official source. *(The official client resolves factory content from a fetchable S3 manifest — `clavia_sound_libraries.xml`, see `docs/NSM-TEARDOWN.md` — a candidate canonical id→download source.)* OpenNord **never hosts or transfers sample audio** — it only recognizes a sample (`sample.ts`, header-only), names it, and points to where to get it. Needs: the sample-id→name/category map (the hard-tail item above) and, ideally, confirming the id↔file-CRC linkage so "missing" detection is exact. User-created samples are excluded (they have no official URL — they're the user's own, sharable file).
 - [ ] **AI generate** — "warm Rhodes with slow tremolo" → a `.ns4p` you can download.
 
 A useful product exists at the end of Phase 1 *even if the keyboard is never touched.*
@@ -25,7 +25,7 @@ A useful product exists at the end of Phase 1 *even if the keyboard is never tou
 
 This is the unproven part. Sequence it behind a validating spike so you fail fast if it's not feasible.
 
-- [ ] **SysEx spike** (`docs/SYSEX-SPIKE.md`) — can an iPhone/computer *receive* a program dump from a Stage 4 over USB MIDI, and *send* one back? This single experiment decides whether Phase 2 is a weekend or a wall.
+- [ ] **SysEx spike** (`docs/SYSEX-SPIKE.md`) — can an iPhone/computer *receive* a program dump from a Stage 4 over USB MIDI, and *send* one back? This single experiment decides whether Phase 2 is a weekend or a wall. **Update:** teardown of Nord Sound Manager (`docs/NSM-TEARDOWN.md`) shows the official client uses a **raw-USB vendor bulk protocol, not SysEx**, for program transfer — so this likely routes to the Layer-2 USB path in `docs/PROTOCOL-RE.md`. Run the listen-step once to confirm, then plan for USB capture.
 - [ ] **Pull current program** off the keyboard into the app.
 - [ ] **Push a patch** to the keyboard (audition a shared patch on *your* Nord).
 - [ ] **Live tweak** — real-time CC/NRPN control (the ns4mcp parameter map already exists; this is the easy, proven part of device comms).
