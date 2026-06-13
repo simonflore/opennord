@@ -11,7 +11,13 @@
  * rest in `warnings`.
  */
 
-export type Ns4FileKind = 'program' | 'preset-synth' | 'preset-piano' | 'preset-unknown';
+export type Ns4FileKind =
+  | 'program'
+  | 'preset-synth'
+  | 'preset-piano'
+  /** A Nord Sample (`.nsmp4`) — factory/library *audio* content, not a program. */
+  | 'sample'
+  | 'preset-unknown';
 
 /** A value plus its three Nord morph assignments. Units are field-specific. */
 export interface Morphable<T = number> {

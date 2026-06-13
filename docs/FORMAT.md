@@ -107,6 +107,50 @@ individual programs (`bundle.ts`, using `fflate`). This is also how sharing a
 > extension, derives names from basenames) and the writer uses a flat layout
 > until a real bundle pins the convention down.
 
+## Nord Sample files (`.nsmp4`) — audio, not programs
+
+A `.nsmp4` is a **Nord Sample** — the actual audio content a program references
+by id. Verified against one real file (`Indian Harmonium 1 PS 4.1.nsmp4`, ~1.5 MB):
+
+- **Same CBIN envelope**, type tag `nsmp`, format type 1, version at 0x14
+  (`410` → v4.10), and the **same CRC-32 at 0x18** (`crc32(bytes[0x2C:])`) —
+  confirming our checksum is the universal Clavia CBIN checksum, not program-only.
+- The bank/location bytes (0x0C/0x0E) are `0xFFFFFFFF` — samples aren't slotted.
+- After the 44-byte header the body is **chunk-based**: an `NSMP` container → a
+  `hdr` chunk holding the human name (`"Indian Harmonium 1"`) → then the audio.
+- The payload (`0x100`→end) is ~1.5 MB at ~7.85 bits/byte entropy — i.e. a
+  **compressed audio** blob. OpenNord does not decode it.
+
+**What OpenNord does with it:** `src/lib/ns4/sample.ts` reads *only* the header
+(name, version, checksum validity) so we can recognize/inventory samples and
+resolve a program's sample references. The audio payload is never read, stored,
+or shared. `parseNs4Program` classifies `nsmp` as `kind: 'sample'` and refuses to
+program-decode it.
+
+### Two kinds of sample — different legal status
+
+A `.nsmp4` may be either **factory/library** content (Clavia's IP — never share)
+or **user-created** (recorded by the user on the Nord Sample Editor — the user's
+own IP, shareable like a program). See `docs/LEGAL.md`. **Open problem:**
+reliably telling the two apart from the file alone. Candidate signals to
+investigate with more samples:
+
+- A vendor/source marker in the header (the `"PS"` in the filename, the
+  `00 02 00 05` field near the `NSMP` chunk dir, etc.).
+- Cross-referencing the sample id / name against the known factory-library
+  tables (the community ID→name maps, cf. ns3-program-viewer's library data).
+
+Until this is solved, OpenNord treats sample *audio* as not-shareable by default.
+
+### Sample id ↔ file linkage (to verify)
+
+Programs reference samples by a 32-bit id (`Ns4SampleRef.id`). **Hypothesis:**
+that id may be the sample file's own CRC-32 (the value at 0x18) — which would
+make "does the user have the sample this program needs?" a direct id match. Not
+yet confirmed: it needs a program + the exact `.nsmp4` it references. A Stage 4
+owner can close this loop by sharing a `.nsmp4` together with a program that
+uses it.
+
 ## Contributing a capture (no coding needed)
 
 The most useful thing a Stage 4 owner can do: export programs you understand, especially **pairs that differ by exactly one setting**, and attach them to an issue. Diffing near-identical files is how offsets get found. Only share programs you're happy to make public (`docs/LEGAL.md`).
