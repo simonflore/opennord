@@ -194,6 +194,8 @@ export interface NS4Program {
   bank?: number;
   /** Location within the bank (CBIN header byte 0x0E). */
   location?: number;
+  /** Keyboard slot as the Nord displays it, e.g. "H:81" (bank letter + page/slot). */
+  slot?: string;
   /** Program version string, e.g. "3.13" (CBIN header byte 0x14, raw ×100). */
   programVersion?: string;
   /** Up to seven voice layers: 2 organ, 2 piano, 3 synth. */

@@ -9,6 +9,20 @@ function formatVersion(raw: number): string {
   return (raw / 100).toFixed(2);
 }
 
+const BANK_LETTERS = 'ABCDEFGH';
+
+/**
+ * The keyboard slot the Nord displays as `X:YY` — X = bank letter (A–H, low 3
+ * bits of CBIN 0x0C), YY = two 1-based digits from the 6-bit location (0x0E):
+ * digit1 = (loc/8)+1, digit2 = (loc%8)+1. Ported from ns4decode's
+ * interpretBank / interpretLocnInBank. E.g. bank 7, location 56 → "H:81".
+ */
+function formatSlot(bank: number, location: number): string {
+  const letter = BANK_LETTERS[bank & 0x7] ?? String(bank);
+  const loc = location & 0x3f;
+  return `${letter}:${Math.floor(loc / 8) + 1}${(loc % 8) + 1}`;
+}
+
 /** Read a fixed-length ASCII field, stopping at NUL and trimming trailing spaces. */
 export function readAsciiFixed(bytes: Uint8Array, offset: number, length: number): string {
   let s = '';
@@ -637,6 +651,7 @@ export function parseNs4Program(bytes: Uint8Array): NS4Program {
     categoryId: header.category,
     bank: header.bank,
     location: header.location,
+    slot: formatSlot(header.bank, header.location),
     programVersion: formatVersion(header.versionRaw),
     layers: [...organLayers, ...pianoLayers, ...synthLayers],
     organFx,

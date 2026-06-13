@@ -45,6 +45,7 @@ describe('parseNs4Program — regression fixture', () => {
     // Verified against the raw header bytes — see docs/FORMAT.md.
     expect(prog.bank).toBe(7);
     expect(prog.location).toBe(56);
+    expect(prog.slot).toBe('H:81'); // Nord X:YY slot (ns4decode interpretBank/LocnInBank)
     expect(prog.categoryId).toBe(17);
     expect(prog.programVersion).toBe('3.13');
     // Category 17 isn't in the partial name table yet → no resolved name, raw id kept.
