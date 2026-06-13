@@ -166,10 +166,33 @@ method that cracked the file layout: **change one variable, capture, diff.**
 >   length) + the raw file bytes (native container: `CBIN` for programs, `CNSP`
 >   for samples) + CRC16.
 >
-> **Notes:** drain the IN endpoint between separate runs (replies queue). On the
-> test unit the **Program partition was empty** (all slots status 1 — no user
-> programs stored); factory content lives in the Native partitions. Tool:
-> `scripts/nordprobe.c` (read-only sequencer).
+> **Session/partition rule (important).** `CReqBegin{partition}` sets the
+> **session partition** — all subsequent ops act on it. Querying a *different*
+> partition than the one you `Begin`'d returns status `1` (looks empty). With the
+> matching `Begin`, flat location works per-partition: e.g. `Begin(6)` then
+> `FileInfo(6, 0/1/2)` returns real programs. Flat location = `bank*64 + slot`
+> within the partition (Program = banks A–H × 64).
+>
+> **✅✅✅ READ VALIDATED ON REAL USER PROGRAMS.** `Begin(6) → FileInfo(6,n)` returned
+> the user's own `ns4p` programs (e.g. "Synth Orchestra", "Sine-Saw Plk Whl",
+> "12dB Sweep"), and `Begin(6) → FileOpen(6,0) → FileRead(6,0,0,824)` returned the
+> **824-byte program parameter body** off the device. The device transfers the
+> *body only*; the 44-byte `CBIN` header is reconstructed from `FileInfo` metadata
+> (`{u32 size, fourcc type ("ns4p"), u32 ?, u32 fileCRC, u32 category, u32 nameLen,
+> name, …}`). `fileType` id = the **extension fourcc** (`Ext2Type` packs 4 chars
+> big-endian; `ns4p` = `0x6E733470`).
+>
+> **Write addressing caveat (before any write).** `CReqFileCreate` payload is
+> `{bank, entry, size, fileType(fourcc), 0xFFFFFFFF, category, nameLen, name}` — it
+> carries **no partition** (uses the `Begin` session) and addresses by **bank+entry**,
+> whereas Info/Read/Write use `{partition, flat-location}`. The exact field
+> alignment (is offset 0x10 partition-from-ctor or bank?) and bank index base must
+> be pinned before writing, or a create could collide with an occupied slot in
+> banks A–C and overwrite a real program (restorable from backup, but avoid).
+> Target only a slot provably empty under every interpretation.
+>
+> **Notes:** drain the IN endpoint between separate runs (replies queue). Tool:
+> `scripts/nordprobe.c` (read-only message sequencer).
 
 > **Write path (decompiled — untested until validated).** Symmetric with read:
 > - `CReqFileCreate` (msgId `0x0A`): payload `{partition, location, +4 u32
