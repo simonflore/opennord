@@ -183,8 +183,19 @@ export interface NS4Program {
   /** Whether structured decoding succeeded (vs. raw bytes only, format TBD). */
   parsed: boolean;
   kind: Ns4FileKind;
+  /** Program name. NOT stored in the file — derived from the filename on import. */
   name?: string;
+  /** Resolved program category name (CBIN 0x10), e.g. "Organ". Undefined when the
+   * id isn't in the partial category table yet — see {@link categoryId}. */
   category?: string;
+  /** Raw program category id (CBIN header byte 0x10), present once parsed. */
+  categoryId?: number;
+  /** Keyboard bank index (CBIN header byte 0x0C). */
+  bank?: number;
+  /** Location within the bank (CBIN header byte 0x0E). */
+  location?: number;
+  /** Program version string, e.g. "3.13" (CBIN header byte 0x14, raw ×100). */
+  programVersion?: string;
   /** Up to seven voice layers: 2 organ, 2 piano, 3 synth. */
   layers?: NS4Layer[];
   /** Global organ effects (rotary speaker, FX chain) — master group, not per-layer. */

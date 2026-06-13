@@ -41,6 +41,16 @@ describe('parseNs4Program — regression fixture', () => {
     expect(kinds).toEqual(['organ', 'organ', 'piano', 'piano', 'synth', 'synth', 'synth']);
   });
 
+  it('decodes CBIN header metadata (bank/location/category/version)', () => {
+    // Verified against the raw header bytes — see docs/FORMAT.md.
+    expect(prog.bank).toBe(7);
+    expect(prog.location).toBe(56);
+    expect(prog.categoryId).toBe(17);
+    expect(prog.programVersion).toBe('3.13');
+    // Category 17 isn't in the partial name table yet → no resolved name, raw id kept.
+    expect(prog.category).toBeUndefined();
+  });
+
   describe('organ layers', () => {
     it('layer A — VOX model, enabled, volume with morphs', () => {
       const la = prog.layers![0];

@@ -1,7 +1,13 @@
 import type { NS4Program, NS4Layer, Morphable, Ns4SampleRef, Ns4FileKind, Ns4OrganFx } from './types';
-import { hasCbinMagic, fileTypeTag } from './bits';
+import { hasCbinMagic, fileTypeTag, readCbinHeader } from './bits';
 import { buildParamMap } from './maps';
 import { decodeAllParams } from './coverage';
+import { programCategoryName } from './categories';
+
+/** Format a CBIN version word (×100) as "M.mm", e.g. 313 → "3.13". */
+function formatVersion(raw: number): string {
+  return (raw / 100).toFixed(2);
+}
 
 /** Read a fixed-length ASCII field, stopping at NUL and trimming trailing spaces. */
 export function readAsciiFixed(bytes: Uint8Array, offset: number, length: number): string {
@@ -619,9 +625,19 @@ export function parseNs4Program(bytes: Uint8Array): NS4Program {
     },
   };
 
+  // ── CBIN header metadata (bytes 0x00–0x2B; verified, see docs/FORMAT.md) ──
+  // bank/location/category/version sit in front of the bit-packed body. The
+  // program *name* is not in the file — it's the filename, set on import.
+  const header = readCbinHeader(bytes);
+
   return {
     parsed: true,
     kind,
+    category: programCategoryName(header.category),
+    categoryId: header.category,
+    bank: header.bank,
+    location: header.location,
+    programVersion: formatVersion(header.versionRaw),
     layers: [...organLayers, ...pianoLayers, ...synthLayers],
     organFx,
     bytes,

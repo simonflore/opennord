@@ -88,6 +88,39 @@ export function fileTypeTag(bytes: Uint8Array): string {
   return String.fromCharCode(...bytes.slice(8, 12));
 }
 
+/**
+ * The fixed CBIN header that precedes the bit-packed parameter body (bytes
+ * 0x00–0x2B). Layout verified against real Stage 4 files — see docs/FORMAT.md.
+ * The program *name* is NOT here (it lives in the filename); everything below is.
+ */
+export interface CbinHeader {
+  /** 0x04 — header format type: 0=legacy, 1=NSM-era (always 1 on Stage 4). */
+  formatType: number;
+  /** 0x08 — file-type tag, e.g. `ns4p` (`ns4l` = bundle-extracted). */
+  tag: string;
+  /** 0x0C — bank index (keyboard slot). */
+  bank: number;
+  /** 0x0E — location within the bank. */
+  location: number;
+  /** 0x10 — program category id (resolve via {@link programCategoryName}). */
+  category: number;
+  /** 0x14 — program version ×100 (e.g. 313 = v3.13). */
+  versionRaw: number;
+}
+
+/** Read the verified CBIN header fields. Assumes {@link hasCbinMagic} is true. */
+export function readCbinHeader(bytes: Uint8Array): CbinHeader {
+  const u16le = (o: number) => (bytes[o] ?? 0) | ((bytes[o + 1] ?? 0) << 8);
+  return {
+    formatType: bytes[0x04] ?? 0,
+    tag: fileTypeTag(bytes),
+    bank: bytes[0x0c] ?? 0,
+    location: bytes[0x0e] ?? 0,
+    category: bytes[0x10] ?? 0,
+    versionRaw: u16le(0x14),
+  };
+}
+
 function matchAscii(bytes: Uint8Array, offset: number, ascii: string): boolean {
   for (let i = 0; i < ascii.length; i++) {
     if (bytes[offset + i] !== ascii.charCodeAt(i)) return false;
