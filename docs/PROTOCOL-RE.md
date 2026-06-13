@@ -171,6 +171,21 @@ method that cracked the file layout: **change one variable, capture, diff.**
 > programs stored); factory content lives in the Native partitions. Tool:
 > `scripts/nordprobe.c` (read-only sequencer).
 
+> **Write path (decompiled — untested until validated).** Symmetric with read:
+> - `CReqFileCreate` (msgId `0x0A`): payload `{partition, location, +4 u32
+>   (type/size/flags), u32 nameLen, name bytes}` → ack `CAckFileCreate` (`0x0B`).
+> - `CReqFileWrite` (`0x10`): payload `{partition, location, offset, dataLen}` +
+>   `dataLen` raw bytes → ack `CAckFileWrite` (`0x11`).
+> - `CReqEraseBlock` (`0x14`) clears a block; `CReqFileDelete` removes a file.
+> - Sequence: `Begin(0x04) → FileCreate → FileWrite×N (chunked) → End(0x06)`.
+>
+> **Validation plan (safe, with a full instrument backup):** round-trip into the
+> *empty* Program partition — `FileCreate` an empty slot, `FileWrite` a known
+> `.ns4p`'s bytes, then `FileRead` it back and assert byte-identical, then
+> `FileDelete`. Worst case is one clobbered slot, restorable from backup. The 4
+> middle `FileCreate` u32 (type tag / size / flags) should be mirrored from a
+> `FileInfo`/read of a real file of the same type before the first write.
+
 ### Step 1 — Descriptor recon: what is the device?
 
 ```bash
