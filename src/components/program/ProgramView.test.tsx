@@ -77,7 +77,7 @@ describe('ProgramHeader', () => {
   });
 });
 
-import { activeLayers, synthStats, organStats, pianoStats, ampEnvCurve, programZones } from '../../lib/ns4/view';
+import { activeLayers, synthStats, organStats, pianoStats, ampEnvCurve, programZones, fxChips } from '../../lib/ns4/view';
 import { EngineCard } from './EngineCard';
 import { ProgramZones } from './ProgramZones';
 
@@ -153,6 +153,14 @@ describe('organ + piano card enrichment', () => {
       const html = renderToStaticMarkup(<EngineCard layer={withPerc} />);
       expect(html).toContain('ps-stats');
     }
+  });
+});
+
+describe('fx chips carry effect params', () => {
+  it('every enabled chip has a non-empty detail', () => {
+    const chips = fxChips(fixtureProgram());
+    expect(chips.length).toBeGreaterThan(0);
+    expect(chips.every((c) => c.detail.length > 0)).toBe(true);
   });
 });
 

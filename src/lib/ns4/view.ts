@@ -266,26 +266,39 @@ export function fxChips(p: NS4Program): FxChipModel[] {
     if (on) chips.push({ key, label, detail });
   };
 
+  // Build each chip's detail from the effect's real params, not just its name.
+  const j = (...parts: (string | undefined | false)[]) => parts.filter(Boolean).join(' · ');
+  type Mod = NS4Layer['fxMod1'];
+  type Delay = NS4Layer['delay'];
+  type Reverb = NS4Layer['reverb'];
+  type Amp = NS4Layer['ampSimEq'];
+  type Comp = NS4Layer['comp'];
+  const modD = (m: Mod) => j(m?.mode, m?.rate?.value, m?.amount?.value && `amt ${m.amount.value}`) || 'on';
+  const ampD = (a: Amp) => j(a?.mode, a?.drive?.value && `drv ${a.drive.value}`) || 'on';
+  const compD = (c: Comp) => j(c?.amount && `${c.amount}`, c?.response) || 'on';
+  const delayD = (d: Delay) => j(d?.tempo?.value, d?.mix?.value && `mix ${d.mix.value}`, d?.feedback?.value && `fb ${d.feedback.value}`) || 'on';
+  const revD = (r: Reverb) => j(r?.type, r?.amount?.value && `amt ${r.amount.value}`) || 'on';
+
   for (const l of activeLayers(p)) {
     if (l.kind === 'organ') continue; // organ FX is global, handled below
     const tag = `${l.kind ?? 'x'}${l.id}`;
-    push(`${tag}-mod1`, 'Mod 1', l.fxMod1?.on, l.fxMod1?.mode ?? 'on');
-    push(`${tag}-mod2`, 'Mod 2', l.fxMod2?.on, l.fxMod2?.mode ?? 'on');
-    push(`${tag}-amp`, 'Amp/EQ', l.ampSimEq?.on, l.ampSimEq?.mode ?? 'on');
-    push(`${tag}-comp`, 'Comp', l.comp?.on, l.comp?.amount ?? 'on');
-    push(`${tag}-delay`, 'Delay', l.delay?.on, l.delay?.effects ?? l.delay?.tempo?.value ?? 'on');
-    push(`${tag}-reverb`, 'Reverb', l.reverb?.on, l.reverb?.type ?? 'on');
+    push(`${tag}-mod1`, 'Mod 1', l.fxMod1?.on, modD(l.fxMod1));
+    push(`${tag}-mod2`, 'Mod 2', l.fxMod2?.on, modD(l.fxMod2));
+    push(`${tag}-amp`, 'Amp/EQ', l.ampSimEq?.on, ampD(l.ampSimEq));
+    push(`${tag}-comp`, 'Comp', l.comp?.on, compD(l.comp));
+    push(`${tag}-delay`, 'Delay', l.delay?.on, delayD(l.delay));
+    push(`${tag}-reverb`, 'Reverb', l.reverb?.on, revD(l.reverb));
   }
 
   const o = p.organFx;
   if (o) {
-    push('org-mod1', 'Organ Mod 1', o.mod1?.on, o.mod1?.mode ?? 'on');
-    push('org-mod2', 'Organ Mod 2', o.mod2?.on, o.mod2?.mode ?? 'on');
-    push('org-amp', 'Organ Amp/EQ', o.ampSimEq?.on, o.ampSimEq?.mode ?? 'on');
-    push('org-comp', 'Organ Comp', o.comp?.on, o.comp?.amount ?? 'on');
-    push('org-delay', 'Organ Delay', o.delay?.on, o.delay?.effects ?? o.delay?.tempo?.value ?? 'on');
-    push('org-reverb', 'Organ Reverb', o.reverb?.on, o.reverb?.type ?? 'on');
-    push('org-rotary', 'Rotary', o.rotary?.on, o.rotary?.fast ? 'fast' : 'slow');
+    push('org-mod1', 'Organ Mod 1', o.mod1?.on, modD(o.mod1));
+    push('org-mod2', 'Organ Mod 2', o.mod2?.on, modD(o.mod2));
+    push('org-amp', 'Organ Amp/EQ', o.ampSimEq?.on, ampD(o.ampSimEq));
+    push('org-comp', 'Organ Comp', o.comp?.on, compD(o.comp));
+    push('org-delay', 'Organ Delay', o.delay?.on, delayD(o.delay));
+    push('org-reverb', 'Organ Reverb', o.reverb?.on, revD(o.reverb));
+    push('org-rotary', 'Rotary', o.rotary?.on, j(o.rotary?.fast ? 'fast' : 'slow', o.rotary?.drive && `drv ${o.rotary.drive}`) || 'on');
   }
 
   return chips;
