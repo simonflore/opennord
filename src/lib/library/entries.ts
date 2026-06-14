@@ -1,5 +1,6 @@
 import type { LibraryEntry, LibrarySource } from './types';
 import type { ProgramEntry } from '../device/transfer';
+import type { ScannedProgram } from '../folder/scan';
 import { formatSlot } from '../ns4/slot';
 import { parseNs4Program } from '../ns4/parse';
 import { programNameFromFilename } from '../ns4/name';
@@ -45,4 +46,16 @@ export function filterEntries(
   return entries.filter((e) =>
     (source === 'all' || e.source === source) &&
     (q === '' || e.name.toLowerCase().includes(q)));
+}
+
+/** Map folder-scanned programs into Library entries under the local source. */
+export function entriesFromScannedPrograms(programs: ScannedProgram[]): LibraryEntry[] {
+  return programs.map((p) => ({
+    id: p.id,
+    name: p.name,
+    source: 'local' as const,
+    summary: p.summary,
+    program: p.program,
+    bytes: p.bytes,
+  }));
 }

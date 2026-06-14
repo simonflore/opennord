@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { nordEntriesFromDevice, filterEntries } from './entries';
+import { nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms } from './entries';
 import type { LibraryEntry } from './types';
+import type { ScannedProgram } from '../folder/scan';
+import type { NS4Program } from '../ns4/types';
 
 // formatSlot(0, 13): bank 0 → 'A', loc=13 → Math.floor(13/8)+1=2, (13%8)+1=6 → 'A:26'
 // (Task spec assumed 0-indexed slot displayed 1-indexed as 'A:14', but the real
@@ -35,5 +37,18 @@ describe('filterEntries', () => {
     const out = filterEntries(sample, 'all', 'deep');
     expect(out).toHaveLength(1);
     expect(out[0].name).toBe('Deep Stab');
+  });
+});
+
+describe('entriesFromScannedPrograms', () => {
+  it('maps scanned programs to local Library entries, preserving id', () => {
+    const fakeProgram = { parsed: false, bytes: new Uint8Array() } as unknown as NS4Program;
+    const scanned: ScannedProgram[] = [
+      { id: 'folder:Lead.ns4p', name: 'Lead', path: 'Lead.ns4p', program: fakeProgram, bytes: new Uint8Array([1]), summary: 'synth' },
+    ];
+    const entries = entriesFromScannedPrograms(scanned);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ id: 'folder:Lead.ns4p', name: 'Lead', source: 'local', summary: 'synth' });
+    expect(entries[0].program).toBe(fakeProgram);
   });
 });
