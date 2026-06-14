@@ -8,10 +8,21 @@ const entries: LibraryEntry[] = [
   { id: 'local:0', name: 'Sunday Organ', source: 'local', summary: 'organ' },
 ];
 
+const folderDefaults = {
+  folderName: null,
+  folderCount: 0,
+  canPersist: false,
+  needsReconnect: false,
+  busy: false,
+  onChooseFolder: () => {},
+  onReconnect: () => {},
+  onRefresh: () => {},
+};
+
 describe('LibraryView', () => {
   it('renders the title, counts, every entry, and source badges', () => {
     const html = renderToStaticMarkup(
-      <LibraryView entries={entries} source="all" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}} />,
+      <LibraryView entries={entries} source="all" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}} {...folderDefaults} />,
     );
     expect(html).toContain('Library');
     expect(html).toContain('2 programs');
@@ -25,7 +36,7 @@ describe('LibraryView', () => {
 
   it('marks the active source chip and makes cards keyboard-activatable', () => {
     const html = renderToStaticMarkup(
-      <LibraryView entries={entries} source="nord" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}} />,
+      <LibraryView entries={entries} source="nord" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}} {...folderDefaults} />,
     );
     expect(html).toContain('on-chip--active');
     expect(html).toContain('role="button"');
@@ -34,7 +45,7 @@ describe('LibraryView', () => {
 
   it('shows an empty hint when there are no entries', () => {
     const html = renderToStaticMarkup(
-      <LibraryView entries={[]} source="all" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}} />,
+      <LibraryView entries={[]} source="all" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}} {...folderDefaults} />,
     );
     expect(html).toContain('Nothing here yet');
   });

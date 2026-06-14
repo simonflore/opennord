@@ -10,12 +10,25 @@ interface Props {
   onQuery: (q: string) => void;
   onOpen: (e: LibraryEntry) => void;
   onImport: () => void;
+  // Folder source:
+  folderName: string | null;
+  folderCount: number;
+  canPersist: boolean;
+  needsReconnect: boolean;
+  busy: boolean;
+  onChooseFolder: () => void;
+  onReconnect: () => void;
+  onRefresh: () => void;
 }
 
 const TABS: Array<LibrarySource | 'all'> = ['all', 'nord', 'local'];
 const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', nord: 'On Nord', local: 'Local' };
 
-export function LibraryView({ entries, source, query, onSource, onQuery, onOpen, onImport }: Props) {
+export function LibraryView({
+  entries, source, query, onSource, onQuery, onOpen, onImport,
+  folderName, folderCount, canPersist, needsReconnect, busy,
+  onChooseFolder, onReconnect, onRefresh,
+}: Props) {
   const nord = entries.filter((e) => e.source === 'nord').length;
   const local = entries.length - nord;
 
@@ -26,8 +39,27 @@ export function LibraryView({ entries, source, query, onSource, onQuery, onOpen,
           <div className="lib-title">Library</div>
           <div className="lib-counts">{entries.length} programs · {nord} on Nord · {local} local</div>
         </div>
-        <Button variant="primary" onClick={onImport}>+ Import file</Button>
+        <div className="lib-actions">
+          {folderName ? (
+            <span className="lib-folder" title={folderName}>
+              📁 {folderName} · {folderCount} {folderCount === 1 ? 'file' : 'files'}
+              {canPersist
+                ? <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onRefresh} disabled={busy} aria-label="Refresh folder">⟳</button>
+                : <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onChooseFolder} disabled={busy}>Re-pick</button>}
+            </span>
+          ) : (
+            <Button variant="ghost" onClick={onChooseFolder} disabled={busy}>Choose folder</Button>
+          )}
+          <Button variant="primary" onClick={onImport}>+ Import file</Button>
+        </div>
       </div>
+
+      {needsReconnect && folderName && (
+        <div className="lib-reconnect">
+          Reconnect <strong>{folderName}</strong> to load your patches.
+          <button className="on-btn on-btn--ghost" onClick={onReconnect} disabled={busy}>Reconnect</button>
+        </div>
+      )}
 
       <div className="lib-controls">
         <SearchField value={query} onChange={onQuery} placeholder="Search patches, or describe a sound…" />
@@ -37,7 +69,11 @@ export function LibraryView({ entries, source, query, onSource, onQuery, onOpen,
       </div>
 
       {entries.length === 0 ? (
-        <div className="lib-empty">Nothing here yet. Import a program file or connect your Nord — they'll all land here together.</div>
+        <div className="lib-empty">
+          <p>Nothing here yet.</p>
+          <Button variant="primary" onClick={onChooseFolder} disabled={busy}>Choose a folder of Nord files</Button>
+          <p className="lib-empty__hint">Subfolders and <code>.ns4b</code> backups are included. Or import a single file, or connect your Nord.</p>
+        </div>
       ) : (
         <div className="lib-grid">
           {entries.map((e) => (
