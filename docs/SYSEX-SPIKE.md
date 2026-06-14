@@ -20,16 +20,18 @@ full spec lives in [`docs/PROTOCOL-RE.md`](PROTOCOL-RE.md).
   the Nord's Global settings**, or the firmware only accepts FileTransfer over
   vendor USB.
 
-## Consequence
+## Consequence — transfer is desktop-only (iOS: no)
 
 - **Transfer works over USB (desktop):** Electron + `node-usb`/libusb, or Chromium
   **WebUSB**. This is the proven path.
-- **iOS is the open question.** iOS can't reach a vendor USB interface (no WebUSB,
-  no libusb); its only device channel is CoreMIDI. So iOS transfer depends on the
-  SysEx-over-MIDI path, which this unit didn't honour. **Re-test:** enable SysEx-RX
-  on the keyboard (front panel), then replay the validated framing as SysEx
-  (`CQryContentVersion`, msgId `0x3D`) with `sendmidi`/`receivemidi` and watch for
-  a `F0 33 …` reply. Until that passes, plan iOS as read/share/AI only and put
-  transfer on desktop.
+- **iOS transfer is NOT feasible.** iOS can't reach a vendor USB interface (no
+  WebUSB, no libusb), so its only possible channel is CoreMIDI/SysEx — and the
+  Stage 4 **does not service program transfer over SysEx**: it ignored every SysEx
+  probe (including a framing-independent Universal Identity Request, receive path
+  verified by loopback), and **there is no SysEx-RX setting** on the instrument to
+  enable (confirmed: every front-panel menu + the manuals/forum). The SysEx
+  framing exists only in Clavia's shared protocol library, not active on the NS4.
+  This is a settled negative, not a pending test.
 
-Live MIDI control (CC/NRPN) is unaffected and works on every platform.
+So: **iOS gets read / share / AI / live-MIDI-control; program pull/push is
+desktop-only.** Live MIDI control (CC/NRPN) is unaffected and works everywhere.

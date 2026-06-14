@@ -130,14 +130,19 @@ drain the IN endpoint between separate program runs (replies queue).
 
 ## MIDI / SysEx transport (and iOS)
 
-The protocol is **transport-agnostic** — `CPortMIDIBase` wraps the same messages
-in a Clavia SysEx envelope (`F0 33 7F <dev> <protoId> <version> <msgId> …7-bit… F7`).
-**But** the Stage 4 answered **none** of our SysEx probes on its MIDI port — not
-even a Universal Identity Request (receive path proven via CoreMIDI loopback). So
-SysEx-RX is almost certainly **disabled in the Nord's Global settings** (front
-panel), or the firmware only services FileTransfer over vendor USB. **Net:
-transfer is USB/desktop-only**; iOS-via-CoreMIDI is unconfirmed until SysEx-RX is
-enabled and re-tested (`sendmidi`/`receivemidi`, `docs/SYSEX-SPIKE.md`).
+The protocol is **transport-agnostic in the code** — `CPortMIDIBase` wraps the
+same messages in a Clavia SysEx envelope (`F0 33 7F …`) — but that path is **dead
+on the NS4**. The Stage 4 answered **none** of our SysEx probes (including a
+framing-independent Universal Identity Request; receive path proven via CoreMIDI
+loopback), and there is **no SysEx-RX setting** on the instrument (confirmed —
+every front-panel menu + manuals/forum). The SysEx framing is just Clavia's shared
+protocol library, not active here. **Settled: the NS4 does not do program transfer
+over SysEx.**
+
+**→ Program transfer is USB/desktop-only.** iOS can't reach the vendor USB
+interface (no WebUSB/libusb) and the device won't do SysEx, so **iOS program
+pull/push is not feasible** — iOS gets read/share/AI + live MIDI control only
+(`docs/SYSEX-SPIKE.md`).
 
 ## Device facts (validated)
 
@@ -145,12 +150,10 @@ enabled and re-tested (`sendmidi`/`receivemidi`, `docs/SYSEX-SPIKE.md`).
   single file at `{bank 0, slot 0}`, type **`ns4t`**, ~80 bytes, name "Settings"
   (`scripts/nordsettings.c`). The blob is **bit-packed parameter data** (same
   style as a program body), holding the device global config (MIDI channel, local
-  control, SysEx-RX, transpose, …). Isolating a specific field (e.g. the
-  **SysEx-RX flag** that gates iOS transfer) needs a **differential** — toggle the
-  setting on the front panel, re-read, diff — because there's no settings
-  parameter-map. Note: that front-panel toggle is itself the iOS-transfer unblock,
-  so enabling SysEx-RX + re-testing transfer-over-MIDI is the path, not decoding
-  the bit.
+  control, transpose, …). Isolating a specific field would need a **differential**
+  (change one setting, re-read, diff) since there's no settings parameter-map.
+  (There is **no** SysEx-RX setting on the NS4 — see above; transfer-over-SysEx
+  isn't a thing on this device, so there's no flag to find.)
 - **Dependency** (`CQryFileGetDependency 0x28` → `0x29`) returns a program's
   **sample dependency list** — the "you need these factory samples" data. Reply:
   `{status, bank, slot, u32 count, count × entry}`. Each entry (protocol

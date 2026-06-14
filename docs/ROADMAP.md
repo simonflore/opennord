@@ -42,6 +42,6 @@ The device-transfer protocol is **fully reverse-engineered and hardware-validate
 | Real-time CC/NRPN control | **Proven** (ns4mcp / standard MIDI) |
 | **Read** programs/files off the Stage 4 over USB | **Proven** — protocol RE'd + validated live (`docs/PROTOCOL-RE.md`) |
 | **Write** programs to the Stage 4 | Decompiled, **untested** — read-first, then attempt carefully |
-| Transfer over MIDI/SysEx (for iOS) | **Tested negative** on this unit — USB/desktop-only unless SysEx-RX enabled |
+| Transfer over MIDI/SysEx (for iOS) | **No** — the NS4 doesn't do SysEx transfer (no setting, ignores SysEx). Transfer is USB/desktop-only |
 
 The read-side RE is effectively complete: `.ns4p` decode + interpretation are validated 0-mismatch against ns4decode; checksum (CRC-32), the write path (`writer.ts`), bundles, and sample headers are implemented and tested; and the USB read protocol is proven on hardware. The remaining frontier is the **desktop write/transfer client** and the **product UI** (visualize / AI / community library).
