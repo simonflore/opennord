@@ -86,3 +86,20 @@ describe('EngineCard', () => {
     expect(html).toContain('3.7 kHz');
   });
 });
+
+import { FxRow } from './FxRow';
+
+describe('FxRow', () => {
+  it('renders FX chips for the fixture (incl. Reverb and Delay)', () => {
+    const html = renderToStaticMarkup(<FxRow program={fixtureProgram()} />);
+    expect(html).toContain('ps-chip');
+    expect(html).toContain('Reverb');
+    expect(html).toContain('Delay');
+  });
+
+  it('renders nothing when there are no active effects', () => {
+    const empty = { parsed: true, kind: 'program', bytes: new Uint8Array(), warnings: [], layers: [] } as const;
+    const html = renderToStaticMarkup(<FxRow program={empty as unknown as import('../../lib/ns4/types').NS4Program} />);
+    expect(html).toBe('');
+  });
+});
