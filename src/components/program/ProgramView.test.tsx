@@ -77,7 +77,7 @@ describe('ProgramHeader', () => {
   });
 });
 
-import { activeLayers, synthStats, ampEnvCurve, programZones } from '../../lib/ns4/view';
+import { activeLayers, synthStats, organStats, pianoStats, ampEnvCurve, programZones } from '../../lib/ns4/view';
 import { EngineCard } from './EngineCard';
 import { ProgramZones } from './ProgramZones';
 
@@ -130,6 +130,28 @@ describe('synth view-model enrichment (against the fixture)', () => {
       expect(env.a + env.d + env.r).toBeCloseTo(1, 5);
       expect(env.s).toBeGreaterThan(0);
       expect(env.s).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe('organ + piano card enrichment', () => {
+  const active = activeLayers(fixtureProgram());
+
+  it('organStats / pianoStats return well-formed present-only pairs', () => {
+    for (const l of active.filter((x) => x.kind === 'organ')) {
+      expect(organStats(l).every((s) => s.label.length > 0 && s.value.length > 0)).toBe(true);
+    }
+    for (const l of active.filter((x) => x.kind === 'piano')) {
+      expect(pianoStats(l).every((s) => s.label.length > 0 && s.value.length > 0)).toBe(true);
+    }
+  });
+
+  it('the fixture organ with percussion surfaces a perc stat', () => {
+    const withPerc = active.find((l) => l.kind === 'organ' && l.percussion?.on);
+    if (withPerc) {
+      expect(organStats(withPerc).some((s) => s.label === 'perc')).toBe(true);
+      const html = renderToStaticMarkup(<EngineCard layer={withPerc} />);
+      expect(html).toContain('ps-stats');
     }
   });
 });

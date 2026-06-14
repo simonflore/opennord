@@ -1,5 +1,5 @@
 import type { NS4Layer } from '../../lib/ns4/types';
-import { organCard, pianoCard, synthCard, synthStats, ampEnvCurve, volumeFill } from '../../lib/ns4/view';
+import { organCard, pianoCard, synthCard, synthStats, organStats, pianoStats, ampEnvCurve, volumeFill } from '../../lib/ns4/view';
 import { DrawbarLadder, Knob, Lcd, Meter, StatGrid, EnvCurve } from './widgets';
 import { resolveFactory } from '../../lib/device/factory';
 
@@ -26,6 +26,7 @@ function OrganBody({ layer }: { layer: NS4Layer }) {
     <>
       <div className="ps-sub">{tags}</div>
       <DrawbarLadder values={c.drawbars} />
+      <StatGrid stats={organStats(layer)} />
     </>
   );
 }
@@ -45,6 +46,7 @@ function PianoBody({ layer }: { layer: NS4Layer }) {
         <Knob value={c.timbre} caption="timbre" />
         <Knob value={c.touch} caption="KB touch" />
       </div>
+      <StatGrid stats={pianoStats(layer)} />
     </>
   );
 }

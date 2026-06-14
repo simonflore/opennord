@@ -216,6 +216,44 @@ export function synthStats(l: NS4Layer): { label: string; value: string }[] {
   return out;
 }
 
+type Stat = { label: string; value: string };
+
+/** A present-only stat cell: drops undefined/false/0/off/none/empty so cards stay calm. */
+function stat(label: string, value: string | number | boolean | undefined): Stat | null {
+  if (value === undefined || value === null || value === false) return null;
+  if (typeof value === 'number' && value === 0) return null;
+  const v = value === true ? 'on' : String(value).trim();
+  if (v === '' || v === 'off' || v === 'none' || v === '—' || v === '0.0') return null;
+  return { label, value: v };
+}
+const statList = (...items: (Stat | null)[]): Stat[] => items.filter((s): s is Stat => s !== null);
+
+/** Secondary organ params: percussion detail, vibrato/chorus, sustain, octave. */
+export function organStats(l: NS4Layer): Stat[] {
+  const perc = l.percussion?.on
+    ? [l.percussion.harm3rd ? '3rd' : '2nd', l.percussion.decayFast ? 'fast' : 'slow', l.percussion.volSoft ? 'soft' : 'norm'].join(' · ')
+    : undefined;
+  return statList(
+    stat('perc', perc),
+    stat('vib/chorus', l.vibChorus),
+    stat('sustain', l.organSustain),
+    stat('octave', l.octaveShift),
+  );
+}
+
+/** Secondary piano params: string resonance, pedal noise, dynamics, octave, variation. */
+export function pianoStats(l: NS4Layer): Stat[] {
+  return statList(
+    stat('string res', l.stringResonance),
+    stat('pedal noise', l.pedalNoise),
+    stat('soft release', l.softRelease),
+    stat('dynamics', l.dynComp),
+    stat('unison', l.unisonLevel),
+    stat('octave', l.octaveShift),
+    stat('variation', l.pianoModelVariation),
+  );
+}
+
 export interface FxChipModel { key: string; label: string; detail: string; }
 
 /**
