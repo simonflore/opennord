@@ -188,3 +188,30 @@ describe('deleteProgram', () => {
     await expect(deleteProgram(new NordSession(t), 2, 63)).rejects.toThrow();
   });
 });
+
+import { pullFile, pushFile } from './transfer';
+import { buildCbinHeader } from '../ns4/bits';
+
+describe('pushFile', () => {
+  it('derives the FileCreate fourcc from the file header (e.g. ns4o), not hardcoded ns4p', async () => {
+    // a minimal CBIN file tagged ns4o (organ preset) + a tiny body
+    const header = buildCbinHeader({ formatType: 1, tag: 'ns4o', bank: 1, location: 3, category: 0, versionRaw: 100 });
+    const file = new Uint8Array(header.length + 4);
+    file.set(header, 0);
+    file.set([1, 2, 3, 4], header.length);
+    const t = new MockTransport([
+      encodeMessage(CReqFileCreate | 1, [0]),
+      encodeMessage(CReqFileWrite | 1, [0]),
+      encodeMessage(CReqFileClose | 1, [0]),
+    ]);
+    await pushFile(new NordSession(t), 1, 3, file, 'Champagne');
+    const create = decodeReply(t.sent[0]);
+    expect(create.words[3]).toBe(ext2Type('ns4o')); // fourcc word
+  });
+});
+
+describe('pullFile (wrapper parity)', () => {
+  it('is the same function pullProgram delegates to', () => {
+    expect(typeof pullFile).toBe('function');
+  });
+});

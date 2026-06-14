@@ -90,7 +90,7 @@ const READ_WINDOW = 4096;
  * in each FileRead reply begins at payload offset 20 (after the 5-word read-ack
  * header). Read-only on the device (Open → Read… → Close).
  */
-export async function pullProgram(session: NordSession, entry: ProgramEntry): Promise<Uint8Array> {
+export async function pullFile(session: NordSession, entry: ProgramEntry): Promise<Uint8Array> {
   const open = await session.request(CReqFileOpen, [entry.bank, entry.slot]);
   if (open.status !== 0) throw new NordError(`FileOpen failed (status ${open.status}) for ${entry.name}`);
 
@@ -125,6 +125,11 @@ export async function pullProgram(session: NordSession, entry: ProgramEntry): Pr
   return patchNs4Checksum(file);
 }
 
+/** Back-compat alias. */
+export function pullProgram(session: NordSession, entry: ProgramEntry): Promise<Uint8Array> {
+  return pullFile(session, entry);
+}
+
 export interface ProgramRowView {
   name: string;
   /** Nord X:YY slot. */
@@ -154,7 +159,7 @@ const WRITE_WINDOW = 4096;
  * handle is always closed (even on a mid-write failure), preserving the original
  * error. Destructive: overwrites whatever is at {bank, slot}.
  */
-export async function pushProgram(
+export async function pushFile(
   session: NordSession,
   bank: number,
   slot: number,
@@ -162,12 +167,12 @@ export async function pushProgram(
   name: string,
 ): Promise<void> {
   const body = fileBytes.subarray(44); // strip the 44-byte CBIN header — the device stores the body only
-  const header = readCbinHeader(fileBytes); // for the program's category; the Program-slot type is always ns4p
+  const header = readCbinHeader(fileBytes); // for the file's category and type tag
   const nameBytes = new TextEncoder().encode(name);
 
   const create = await session.request(
     CReqFileCreate,
-    [bank, slot, body.length, ext2Type('ns4p'), 0xffffffff, header.category, nameBytes.length],
+    [bank, slot, body.length, ext2Type(header.tag), 0xffffffff, header.category, nameBytes.length],
     nameBytes,
   );
   if (create.status !== 0) {
@@ -189,6 +194,17 @@ export async function pushProgram(
 
   const close = await session.request(CReqFileClose, [bank, slot]);
   if (close.status !== 0) throw new NordError(`FileClose failed (status ${close.status}) — file not committed`);
+}
+
+/** Back-compat alias (Program slot push). */
+export function pushProgram(
+  session: NordSession,
+  bank: number,
+  slot: number,
+  fileBytes: Uint8Array,
+  name: string,
+): Promise<void> {
+  return pushFile(session, bank, slot, fileBytes, name);
 }
 
 /** Delete the program at {bank, slot}. Destructive. */
