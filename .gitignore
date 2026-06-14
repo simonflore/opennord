@@ -23,3 +23,13 @@ nse_decomp/
 # recordings, kept out of the repo (size + scope). Trimmed fixtures live under
 # src/lib/ns4/__fixtures__/nsmp/ instead.
 research/nsmp/
+# Nord FACTORY library content (Clavia IP) — never commit/redistribute
+# (docs/LEGAL.md). Kept locally for interop format study only.
+*.npno
+piano_library_*
+# Nord app-bundle debris extracted into the repo root — proprietary, not ours.
+/Info.plist
+/PkgInfo
+/MacOS/
+/Resources/
+/_CodeSignature/
