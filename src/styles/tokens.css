@@ -1,0 +1,41 @@
+/* OpenNord design tokens — the single source of truth for color/space/type.
+   Studio Dark is the only theme today; a light theme is a second [data-theme] block. */
+:root,
+:root[data-theme='dark'] {
+  /* surfaces */
+  --bg: #15171c;
+  --surface: #1d2027;
+  --surface-2: #23272f;
+  --sink: #101216;       /* rail, inputs */
+  --line: #2b2f39;
+
+  /* accent + state */
+  --red: #e0202e;
+  --red-bright: #ff5a52;
+  --connected: #34d36b;
+  --lcd-cyan: #aee9ff;
+  --warn: #ffb454;
+
+  /* text */
+  --ink: #e9ebf0;
+  --dim: #8a909c;
+  --muted: #6f7480;
+
+  /* radius */
+  --r-sm: 8px;
+  --r-md: 11px;
+  --r-lg: 14px;
+
+  /* space scale 4·8·12·16·24 */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-6: 24px;
+
+  /* type */
+  --font: -apple-system, system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html { background: var(--bg); color: var(--ink); }
