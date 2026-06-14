@@ -3,24 +3,11 @@ import { hasCbinMagic, fileTypeTag, readCbinHeader } from './bits';
 import { buildParamMap } from './maps';
 import { decodeAllParams } from './coverage';
 import { programCategoryName } from './categories';
+import { formatSlot } from './slot';
 
 /** Format a CBIN version word (×100) as "M.mm", e.g. 313 → "3.13". */
 function formatVersion(raw: number): string {
   return (raw / 100).toFixed(2);
-}
-
-const BANK_LETTERS = 'ABCDEFGH';
-
-/**
- * The keyboard slot the Nord displays as `X:YY` — X = bank letter (A–H, low 3
- * bits of CBIN 0x0C), YY = two 1-based digits from the 6-bit location (0x0E):
- * digit1 = (loc/8)+1, digit2 = (loc%8)+1. Ported from ns4decode's
- * interpretBank / interpretLocnInBank. E.g. bank 7, location 56 → "H:81".
- */
-function formatSlot(bank: number, location: number): string {
-  const letter = BANK_LETTERS[bank & 0x7] ?? String(bank);
-  const loc = location & 0x3f;
-  return `${letter}:${Math.floor(loc / 8) + 1}${(loc % 8) + 1}`;
 }
 
 /** Read a fixed-length ASCII field, stopping at NUL and trimming trailing spaces. */
