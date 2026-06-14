@@ -25,7 +25,7 @@ export function TargetSlotPicker({ entries, onPick, onCancel }: {
     <div className="ps">
       <div className="ps-hd">
         <div className="ps-nm">Choose a slot</div>
-        <button onClick={onCancel} style={{ padding: '6px 12px', borderRadius: 8, cursor: 'pointer', border: '1px solid #ddd' }}>
+        <button onClick={onCancel} style={{ padding: '6px 12px', borderRadius: 8, cursor: 'pointer', border: '1px solid var(--line)' }}>
           Cancel
         </button>
       </div>

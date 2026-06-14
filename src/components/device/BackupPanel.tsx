@@ -69,7 +69,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
             {busy ? 'Restoring…' : 'Restore'}
           </button>
           <button onClick={() => setPendingZip(null)} disabled={busy}
-            style={{ padding: '8px 14px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', border: '1px solid #ddd' }}>
+            style={{ padding: '8px 14px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', border: '1px solid var(--line)' }}>
             Cancel
           </button>
         </div>
