@@ -59,3 +59,30 @@ describe('ProgramHeader', () => {
     expect(html).toContain('organ + piano + synth · 6 layers');
   });
 });
+
+import { activeLayers } from '../../lib/ns4/view';
+import { EngineCard } from './EngineCard';
+
+describe('EngineCard', () => {
+  const active = activeLayers(fixtureProgram());
+
+  it('renders an organ card with model + drawbar ladder', () => {
+    const html = renderToStaticMarkup(<EngineCard layer={active[0]} />);
+    expect(html).toContain('ORGAN · A');
+    expect(html).toContain('VOX');
+    expect(html).toContain('ps-ladder');
+  });
+
+  it('renders a piano card with model name', () => {
+    const html = renderToStaticMarkup(<EngineCard layer={active[2]} />);
+    expect(html).toContain('PIANO · A');
+    expect(html).toContain('Clavinet D6 6.1');
+  });
+
+  it('renders a synth card with osc LCD + filter cutoff', () => {
+    const html = renderToStaticMarkup(<EngineCard layer={active[4]} />);
+    expect(html).toContain('SYNTH · B');
+    expect(html).toContain('ps-lcd');
+    expect(html).toContain('3.7 kHz');
+  });
+});
