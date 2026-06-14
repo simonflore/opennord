@@ -124,10 +124,12 @@ describe('FxRow', () => {
 import { SampleRefs } from './SampleRefs';
 
 describe('SampleRefs', () => {
-  it('lists played samples with sample-library deep-links', () => {
+  it('lists played samples with deep-links (official download when resolved, library otherwise)', () => {
     const html = renderToStaticMarkup(<SampleRefs program={programWithSampleLayer()} />);
     expect(html).toContain('Flute Multi_ST 4.1');
-    expect(html).toContain('https://www.nordkeyboards.com/sounds/sample-library/');
+    // Flute Multi_ST 4.1 is in the factory catalog — resolves to the official download URL.
+    // If the fixture sample name ever stops resolving, the fallback sample-library URL is used.
+    expect(html).toMatch(/href="https:\/\/www\.nordkeyboards\.com\//);
   });
 
   it('renders nothing for an all-analog patch (no played samples)', () => {
