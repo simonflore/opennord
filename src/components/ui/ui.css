@@ -47,3 +47,5 @@
   font: 700 9px var(--font); letter-spacing: 1.4px; text-transform: uppercase;
   color: var(--red-bright);
 }
+
+.on-error { color: var(--warn); font: 11px var(--font); }

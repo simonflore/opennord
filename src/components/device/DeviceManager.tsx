@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import '../../styles/nord.css';
+import { Button } from '../ui';
 import type { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, pullProgram, pushProgram, deleteProgram, type ProgramEntry } from '../../lib/device/transfer';
 import { useDevice } from '../../lib/device/DeviceContext';
@@ -128,7 +129,7 @@ export function DeviceManager() {
           Name on the Nord:&nbsp;
           <input value={pushName} onChange={(ev) => setPushName(ev.target.value)} style={{ padding: 4 }} />
         </label>
-        {error && <p className="ps-sub" style={{ color: '#ffb454' }}>{error}</p>}
+        {error && <p className="ps-sub on-error">{error}</p>}
       </ConfirmPanel>
     );
   }
@@ -144,7 +145,7 @@ export function DeviceManager() {
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
       >
-        {error && <p className="ps-sub" style={{ color: '#ffb454' }}>{error}</p>}
+        {error && <p className="ps-sub on-error">{error}</p>}
       </ConfirmPanel>
     );
   }
@@ -154,18 +155,8 @@ export function DeviceManager() {
     return (
       <div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <button
-            onClick={() => setProgram(null)}
-            style={{ padding: '6px 12px', borderRadius: 8, cursor: 'pointer', border: '1px solid #ddd' }}
-          >
-            ← Back to programs
-          </button>
-          <button
-            onClick={() => startPush({ bytes: program.bytes, name: program.name ?? 'Program' })}
-            style={{ padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, border: '1px solid #c8102e', background: '#c8102e', color: '#fff' }}
-          >
-            Send to Nord
-          </button>
+          <Button variant="ghost" onClick={() => setProgram(null)}>← Back to programs</Button>
+          <Button variant="primary" onClick={() => startPush({ bytes: program.bytes, name: program.name ?? 'Program' })}>Send to Nord</Button>
         </div>
         <ProgramView program={program} />
       </div>
@@ -174,7 +165,7 @@ export function DeviceManager() {
 
   return (
     <div>
-      {error && <p className="ps-sub" style={{ color: '#ffb454' }}>{error}</p>}
+      {error && <p className="ps-sub on-error">{error}</p>}
       {busy && <p className="ps-sub">Working with the Nord…</p>}
       <div style={{ marginBottom: 12 }}>
         <BackupPanel
