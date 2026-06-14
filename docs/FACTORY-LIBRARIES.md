@@ -7,7 +7,8 @@ downloads (Slice 4), and what's deliberately left out.
 
 ## The catalog manifest
 
-Nord Sound Manager fetches its factory catalog over HTTPS (libcurl) from:
+Nord Sound Manager fetches its factory catalog over HTTPS (libcurl) from (the URL
+was recovered while decompiling NSM — see [`NSM-TEARDOWN.md`](./NSM-TEARDOWN.md)):
 
     https://nord-sound-manager.s3.eu-west-3.amazonaws.com/clavia_sound_libraries.xml
 

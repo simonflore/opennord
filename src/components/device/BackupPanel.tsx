@@ -47,6 +47,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
   async function pickRestore(file: File) {
     setPendingZip(new Uint8Array(await file.arrayBuffer()));
     setStatus('');
+    setSkipped([]); // clear any prior restore's skipped list
   }
 
   async function confirmRestore() {
@@ -116,7 +117,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
               return (
                 <li key={path}>
                   {match
-                    ? <a href={match.url} target="_blank" rel="noreferrer">{name}</a>
+                    ? <a href={match.url} target="_blank" rel="noreferrer" title="Official Nord download">{name}</a>
                     : name}
                 </li>
               );
