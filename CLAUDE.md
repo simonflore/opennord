@@ -113,8 +113,9 @@ the bar). When extending the decoder, validate against the fixture.
   **USB transfer protocol** is fully reverse-engineered and hardware-validated
   (`docs/PROTOCOL-RE.md`; tools in `scripts/nord*.c`). It's a vendor USB bulk
   protocol, **not** MIDI SysEx — don't reintroduce the old "SysEx spike" framing.
-  Device transfer is **desktop-only** (vendor USB is unreachable from iOS);
-  `lib/midi` is for live CC/NRPN only.
+  Device transfer rides vendor USB: reachable from **desktop** (WebUSB/node-usb)
+  and a **native iPad app (M1+, USBDriverKit DEXT)** — not iPhone, not any PWA, not
+  SysEx (`docs/SYSEX-SPIKE.md`). `lib/midi` is for live CC/NRPN only.
 - Most remaining work is **product** (visualize → AI → community library), not RE.
 - Keep changes small and verifiable; prefer extending the decoder one traceable
   field at a time over large speculative rewrites.

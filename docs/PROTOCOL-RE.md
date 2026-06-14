@@ -139,10 +139,13 @@ every front-panel menu + manuals/forum). The SysEx framing is just Clavia's shar
 protocol library, not active here. **Settled: the NS4 does not do program transfer
 over SysEx.**
 
-**→ Program transfer is USB/desktop-only.** iOS can't reach the vendor USB
-interface (no WebUSB/libusb) and the device won't do SysEx, so **iOS program
-pull/push is not feasible** — iOS gets read/share/AI + live MIDI control only
-(`docs/SYSEX-SPIKE.md`).
+**→ Program transfer rides the vendor USB interface.** Reachable from **desktop**
+(WebUSB / node-usb / libusb) and from a **native iPad app (iPadOS, M1+) via a
+`USBDriverKit` DEXT** — Apple permits vendor-class (`0xFF`) access; needs the
+`com.apple.developer.driverkit` distribution entitlement. **Not** reachable from
+**iPhone**, nor from any **PWA/browser** on Apple devices (no WebUSB/Web MIDI),
+nor via SysEx. So: transfer = desktop or native iPad; PWA/iPhone get
+read/share/AI + live MIDI only. Full breakdown + sources: `docs/SYSEX-SPIKE.md`.
 
 ## Device facts (validated)
 

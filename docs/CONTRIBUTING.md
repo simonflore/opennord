@@ -7,7 +7,7 @@ Thanks for helping build a commons for Nord Stage 4 players. The hard reverse-en
 1. **Product & UI.** A program-visualization view (piano/sample, organ, synth, FX), the community library (upload/search/rate/fork), and the AI features (search, explain, generate). This is where most value is now.
 2. **A desktop transfer client.** Wrap the proven USB protocol (`docs/PROTOCOL-RE.md`, `scripts/nord*.c`) into the app via WebUSB / node-usb (Electron).
 3. **Validate the decoder at scale.** Run the parser over more real programs and file a fixture + test for any mismatch against ns4decode.
-4. **A native-app angle for transfer** — transfer is desktop-only (the NS4 has no SysEx transfer path and iOS can't reach vendor USB; `docs/SYSEX-SPIKE.md`). If you find any iOS-reachable route (a future firmware, an MFi/accessory path), that's the one thing that would put transfer on iPhone.
+4. **A native iPad transfer client** — transfer runs over vendor USB (not SysEx). A native iPad app (M1+) with a `USBDriverKit` DEXT can drive it on-device (Apple allows vendor-class access; needs a DriverKit distribution entitlement) — see `docs/SYSEX-SPIKE.md`. Desktop (WebUSB/node-usb) is the easier first target. (iPhone and PWAs can't reach vendor USB.)
 
 ## Ground rules
 

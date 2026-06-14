@@ -11,7 +11,7 @@ OpenNord is **free and open source** (AGPL-3.0). It exists because everything th
 - **Read a program.** Drop a `.ns4p` (program) or preset file and see what's inside — piano/sample, organ, synth, effects — no keyboard or Sound Manager required.
 - **Share a patch.** A community library of *user programs*: upload yours, search others in plain language ("warm Rhodes with tape echo"), rate, fork. (Programs reference Nord's factory samples by id — you share the program, the other player already has the sample. See [`docs/LEGAL.md`](docs/LEGAL.md).)
 - **AI-native.** Natural-language search, AI explanations of what a patch does, and "describe the sound you want → get a patch."
-- **Talk to your Nord.** Pull programs off the keyboard and write them back — over a reverse-engineered **USB** protocol, proven on real hardware (desktop, via WebUSB / node-usb). It's a vendor bulk protocol, *not* MIDI SysEx — see [`docs/PROTOCOL-RE.md`](docs/PROTOCOL-RE.md). (Transfer is **desktop-only**: iOS can't reach vendor USB and the Nord doesn't do SysEx transfer — [`docs/SYSEX-SPIKE.md`](docs/SYSEX-SPIKE.md). iOS still gets read/share/AI + live MIDI.)
+- **Talk to your Nord.** Pull programs off the keyboard and write them back — over a reverse-engineered **USB** protocol, proven on real hardware (desktop, via WebUSB / node-usb). It's a vendor bulk protocol, *not* MIDI SysEx — see [`docs/PROTOCOL-RE.md`](docs/PROTOCOL-RE.md). Transfer runs on **desktop** (WebUSB / node-usb) and on a **native iPad app (M1+, via a DriverKit extension)**; a PWA and iPhone can't reach vendor USB, so they get read/share/AI + live MIDI ([`docs/SYSEX-SPIKE.md`](docs/SYSEX-SPIKE.md)).
 
 ## Why it can exist
 
