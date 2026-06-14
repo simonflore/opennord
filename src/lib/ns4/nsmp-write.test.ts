@@ -57,6 +57,37 @@ describe('writeNsmp → readNsmp/decodeNsmp round-trip', () => {
     expect(Array.from(strokes[2].channels[0])).toEqual(Array.from(z2));
   });
 
+  it('writes a codec-4 (.nsmp4) file that round-trips (word-interleaved)', () => {
+    const bytes = writeNsmp({ name: 'NSMP4', channels: [L, R], codec: 4 });
+    const f = readNsmp(bytes);
+    expect(f.codec).toBe(4);
+    expect(f.version).toBe('4.00');
+    expect(f.checksumValid).toBe(true);
+    const strokes = decodeNsmp(bytes);
+    expect(strokes.length).toBe(1);
+    expect(strokes[0].channelCount).toBe(2);
+    expect(Array.from(strokes[0].channels[0])).toEqual(Array.from(L));
+    expect(Array.from(strokes[0].channels[1])).toEqual(Array.from(R));
+  });
+
+  it('writes a codec-4 multisample (splits/layers) that round-trips', () => {
+    const z0 = Int32Array.from({ length: 1600 }, (_, i) => Math.round(900 * Math.sin(i / 6)));
+    const z1 = Int32Array.from({ length: 1400 }, (_, i) => Math.round(700 * Math.cos(i / 9)));
+    const bytes = writeNsmpMulti({
+      name: 'M4',
+      codec: 4,
+      zones: [
+        { channels: [z0], keyHigh: 59, rootKey: 48 },
+        { channels: [z1], keyHigh: 127, rootKey: 72 },
+      ],
+    });
+    expect(readNsmp(bytes).codec).toBe(4);
+    const strokes = decodeNsmp(bytes);
+    expect(strokes.length).toBe(2);
+    expect(Array.from(strokes[0].channels[0])).toEqual(Array.from(z0));
+    expect(Array.from(strokes[1].channels[0])).toEqual(Array.from(z1));
+  });
+
   it('works for mono too', () => {
     const mono = Int32Array.from({ length: 2500 }, (_, i) => i - 1250);
     const strokes = decodeNsmp(writeNsmp({ name: 'mono', channels: [mono] }));

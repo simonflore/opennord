@@ -36,6 +36,30 @@ function predict(coeff: readonly number[], order: number, ring: Int32Array, head
 export interface EncodeOptions {
   /** Samples per block (per the interleaved stream). Default 2048. */
   blockSize?: number;
+  /**
+   * Emit the codec-4 layout — each channel a separate 32-bit-word bitstream
+   * interleaved word-by-word (the inverse of `decodeStroke`'s `wordInterleaved`).
+   * Default false (codec-3 single sample-interleaved stream).
+   */
+  wordInterleaved?: boolean;
+}
+
+/** Pack signed `width`-bit residuals MSB-first into whole 32-bit BE words. */
+function packResiduals(residuals: number[], width: number): number[] {
+  const words: number[] = [];
+  let acc = 0n;
+  let nbits = 0;
+  const mask = (1n << BigInt(width)) - 1n;
+  for (const r of residuals) {
+    acc = (acc << BigInt(width)) | (BigInt(r) & mask);
+    nbits += width;
+    while (nbits >= 32) {
+      nbits -= 32;
+      words.push(Number((acc >> BigInt(nbits)) & 0xffffffffn));
+    }
+  }
+  if (nbits > 0) words.push(Number((acc << BigInt(32 - nbits)) & 0xffffffffn)); // pad to word
+  return words;
 }
 
 /**
@@ -47,6 +71,7 @@ export interface EncodeOptions {
 export function encodeStroke(channels: ArrayLike<number>[], opts: EncodeOptions = {}): Uint8Array {
   const nCh = channels.length;
   if (nCh === 0) return new Uint8Array(0);
+  if (opts.wordInterleaved) return encodeStrokeWordInterleaved(channels, opts.blockSize ?? 2048);
   const len = channels[0].length;
   const blockSize = Math.max(nCh, opts.blockSize ?? 2048);
 
@@ -127,5 +152,72 @@ export function encodeStroke(channels: ArrayLike<number>[], opts: EncodeOptions 
   }
 
   pushWord(0); // stop block (order 0, bitWidth 1, sampleCnt 0 → decoder stops)
+  return Uint8Array.from(out);
+}
+
+/**
+ * Codec-4 encode: per block, pick the order minimizing residual width across all
+ * channels, then pack each channel's residuals into its own word-aligned bitstream
+ * and interleave the words (word `w` → channel `w % nCh`). The inverse of
+ * `decodeStroke`'s `wordInterleaved` mode; round-trips exactly. No stop block —
+ * the `.nsmp` section bounds the stream (codec 4 runs to section end).
+ */
+function encodeStrokeWordInterleaved(channels: ArrayLike<number>[], blockPerCh: number): Uint8Array {
+  const nCh = channels.length;
+  const lenPerCh = channels[0].length;
+  const perBlock = Math.max(1, blockPerCh);
+  const out: number[] = [];
+  const pushWord = (w: number) => out.push((w >>> 24) & 0xff, (w >>> 16) & 0xff, (w >>> 8) & 0xff, w & 0xff);
+
+  const ring = Array.from({ length: nCh }, () => new Int32Array(HISTORY_SIZE));
+  const head = new Array(nCh).fill(0);
+
+  for (let start = 0; start < lenPerCh; start += perBlock) {
+    const perCh = Math.min(perBlock, lenPerCh - start);
+
+    // Order selection: lowest residual width across all channels (snapshot/replay).
+    const snapRing = ring.map((r) => Int32Array.from(r));
+    const snapHead = head.slice();
+    let bestOrder = 0;
+    let bestBw = MAX_BITWIDTH + 1;
+    for (let order = 0; order <= MAX_ORDER; order++) {
+      const coeff = PREDICTOR_COEFF[order];
+      let min = 0;
+      let max = 0;
+      for (let ch = 0; ch < nCh; ch++) {
+        const tRing = Int32Array.from(snapRing[ch]);
+        let tHead = snapHead[ch];
+        for (let j = start; j < start + perCh; j++) {
+          const s = channels[ch][j];
+          const r = s - predict(coeff, order, tRing, tHead);
+          if (r < min) min = r;
+          if (r > max) max = r;
+          tRing[tHead] = s;
+          tHead = (tHead + 1) & (HISTORY_SIZE - 1);
+        }
+      }
+      const bw = signedBitWidth(min, max);
+      if (bw <= MAX_BITWIDTH && bw < bestBw) { bestBw = bw; bestOrder = order; }
+    }
+    if (bestBw > MAX_BITWIDTH) throw new Error(`encodeStroke: block at ${start} needs >${MAX_BITWIDTH}-bit residuals`);
+
+    pushWord((((bestBw - 1) & 0xf) << 19) | ((bestOrder & 0xf) << 14) | ((perCh * nCh) & 0x3fff));
+
+    // Per-channel residuals → word-aligned bitstreams, then interleave the words.
+    const coeff = PREDICTOR_COEFF[bestOrder];
+    const chWords: number[][] = [];
+    for (let ch = 0; ch < nCh; ch++) {
+      const res: number[] = [];
+      for (let j = start; j < start + perCh; j++) {
+        const s = channels[ch][j];
+        res.push(s - predict(coeff, bestOrder, ring[ch], head[ch]));
+        ring[ch][head[ch]] = s;
+        head[ch] = (head[ch] + 1) & (HISTORY_SIZE - 1);
+      }
+      chWords.push(packResiduals(res, bestBw));
+    }
+    const wpc = chWords[0].length;
+    for (let w = 0; w < wpc; w++) for (let ch = 0; ch < nCh; ch++) pushWord(chWords[ch][w]);
+  }
   return Uint8Array.from(out);
 }

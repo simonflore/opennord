@@ -66,12 +66,16 @@ export interface WriteNsmpOptions extends EncodeOptions {
   name: string;
   /** Per-channel integer PCM (mono or stereo). */
   channels: ArrayLike<number>[];
+  /** Format generation: 3 → `.nsmp3`, 4 → `.nsmp4` (word-interleaved). Default 3. */
+  codec?: 3 | 4;
 }
 
 export interface WriteNsmpMultiOptions extends EncodeOptions {
   name: string;
   /** Zones: splits (key ranges) and layers (velocity ranges), each with audio. */
   zones: WriteZone[];
+  /** Format generation: 3 → `.nsmp3`, 4 → `.nsmp4` (word-interleaved). Default 3. */
+  codec?: 3 | 4;
 }
 
 /** Build the 16-byte `map` zone entry (splits/layers table). */
@@ -103,7 +107,7 @@ function buildMapPayload(zones: WriteZone[]): Uint8Array {
  */
 export function writeNsmpMulti(opts: WriteNsmpMultiOptions): Uint8Array {
   const { name, zones } = opts;
-  return assembleNsmp(name, zones.map((z) => z.channels), buildMapPayload(zones), opts.blockSize);
+  return assembleNsmp(name, zones.map((z) => z.channels), buildMapPayload(zones), opts.blockSize, opts.codec ?? 3);
 }
 
 /**
@@ -114,7 +118,7 @@ export function writeNsmp(opts: WriteNsmpOptions): Uint8Array {
   const { name, channels } = opts;
   // single zone across the keyboard, root key C4 (60)
   const mapPayload = buildMapPayload([{ channels, keyHigh: 127, rootKey: 60 }]);
-  return assembleNsmp(name, [channels], mapPayload, opts.blockSize);
+  return assembleNsmp(name, [channels], mapPayload, opts.blockSize, opts.codec ?? 3);
 }
 
 /** Assemble the CBIN envelope + sections (one `stk` per stroke) + CRC. */
@@ -122,8 +126,15 @@ function assembleNsmp(
   name: string,
   strokes: ArrayLike<number>[][],
   mapPayload: Uint8Array,
-  blockSize?: number,
+  blockSize: number | undefined,
+  codec: 3 | 4,
 ): Uint8Array {
+  // Section versions differ by codec generation (observed in real .nsmp3/.nsmp4).
+  const v = codec === 4
+    ? { file: 400, nsmp: 40, hdr: 11, map: 21, stk: 11, sty: 17 }
+    : { file: 300, nsmp: 30, hdr: 10, map: 14, stk: 11, sty: 7 };
+  const wordInterleaved = codec === 4; // codec 4 packs channels word-interleaved
+
   // --- CBIN envelope (0x00–0x2B) — samples: unslotted (bank/loc = 0xFFFFFFFF) ---
   const header = new Uint8Array(CBIN_HEADER_SIZE);
   const hv = new DataView(header.buffer);
@@ -132,25 +143,25 @@ function assembleNsmp(
   header.set([0x6e, 0x73, 0x6d, 0x70], 0x08); // "nsmp"
   hv.setUint32(0x0c, 0xffffffff, false); // bank/loc — not slotted
   header[0x12] = 0x0f; // category byte (templated from real samples)
-  hv.setUint16(0x14, 300, true); // version 3.00 (codec 3) — u16 LE
+  hv.setUint16(0x14, v.file, true); // version (3.00 / 4.00) — u16 LE
   // 0x18 CRC-32 patched at the end.
 
-  // --- sections (templated from a real .nsmp3; see docs/NSMP-CODEC.md) ---
-  const nsmp = section('NSMP', 30, Uint8Array.from([0x00, 0x02, 0x00, 0x0c]));
+  // --- sections (templated from real samples; see docs/NSMP-CODEC.md) ---
+  const nsmp = section('NSMP', v.nsmp, Uint8Array.from([0x00, 0x02, 0x00, 0x0c]));
 
   const hdrPayload = new Uint8Array(112);
   new DataView(hdrPayload.buffer).setUint16(4, 0x062c, false); // templated marker
   hdrPayload.set(asciiPad(name, 112 - 10, 0).subarray(0, 112 - 10), 10); // name at +10
-  const hdr = section('\0hdr', 10, hdrPayload);
+  const hdr = section('\0hdr', v.hdr, hdrPayload);
 
   const cat = section('\0cat', 7, Uint8Array.from([0x0f, 0, 0, 0, 0, 0, 0, 0]));
-  const map = section('\0map', 14, mapPayload);
+  const map = section('\0map', v.map, mapPayload);
 
   // One `stk` per stroke: a templated header then the encoded block stream.
   const stks = strokes.map((channels) =>
-    section('\0stk', 11, concat([new Uint8Array(STROKE_HEADER_SIZE), encodeStroke(channels, { blockSize })])));
+    section('\0stk', v.stk, concat([new Uint8Array(STROKE_HEADER_SIZE), encodeStroke(channels, { blockSize, wordInterleaved })])));
 
-  const sty = section('\0sty', 7, Uint8Array.from(
+  const sty = section('\0sty', v.sty, Uint8Array.from(
     [0x00, 0x00, 0x7f, 0x1e, 0x2b, 0, 0, 0, 0, 0, 0, 0x01, 0x4a, 0, 0x01, 0, 0x4a, 0, 0, 0x40, 0, 0, 0, 0],
   ));
   const meta = section('meta', 1, Uint8Array.from([0x00, 0x02, 0x00, 0x0e, 0xb2, 0x28, 0, 0, 0, 0, 0, 0]));
