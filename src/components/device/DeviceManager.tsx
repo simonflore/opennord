@@ -2,6 +2,7 @@ import { useState } from 'react';
 import '../../styles/nord.css';
 import type { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, pullProgram, pushProgram, deleteProgram, type ProgramEntry } from '../../lib/device/transfer';
+import { useDevice } from '../../lib/device/DeviceContext';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import { parseNs4Program } from '../../lib/ns4/parse';
 import { programNameFromFilename } from '../../lib/ns4/name';
@@ -18,9 +19,7 @@ interface PushSource { bytes: Uint8Array; name: string; }
 
 /** Orchestrates connect → browse → pull/view, plus push (file or open program) and delete. */
 export function DeviceManager() {
-  const [session, setSession] = useState<NordSession | null>(null);
-  const [entries, setEntries] = useState<ProgramEntry[]>([]);
-  const [deviceName, setDeviceName] = useState('');
+  const { session, entries, deviceName, setConnection, setEntries } = useDevice();
   const [program, setProgram] = useState<NS4Program | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -105,7 +104,7 @@ export function DeviceManager() {
   }
 
   if (!session) {
-    return <ConnectPanel onConnected={(s, e, name) => { setSession(s); setEntries(e); setDeviceName(name); }} />;
+    return <ConnectPanel onConnected={(s, e, name) => setConnection(s, e, name)} />;
   }
 
   // Push flow: pick a slot, then confirm.

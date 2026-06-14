@@ -5,6 +5,7 @@ import type { NS4Program } from './lib/ns4/types';
 import { DecodeInspector } from './components/DecodeInspector';
 import { ProgramView } from './components/program/ProgramView';
 import { DeviceManager } from './components/device/DeviceManager';
+import { DeviceProvider } from './lib/device/DeviceContext';
 import { SampleInspector } from './components/sample/SampleInspector';
 
 type Tab = 'studio' | 'device' | 'samples' | 'inspect' | 'decode';
@@ -31,7 +32,7 @@ export function App() {
       </nav>
 
       {tab === 'studio' && <ProgramStudio />}
-      {tab === 'device' && <DeviceManager />}
+      {tab === 'device' && <DeviceProvider><DeviceManager /></DeviceProvider>}
       {tab === 'samples' && <SampleInspector />}
       {tab === 'inspect' && <DecodeInspector />}
       {tab === 'decode' && <ProgramDecode />}
