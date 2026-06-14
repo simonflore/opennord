@@ -31,10 +31,10 @@ describe('sampleHeaderView', () => {
       recognized: false, checksumValid: false, sections: [],
       strokeCount: 0, suspectedFactory: false, warnings: ['nope'],
     };
-    const v = sampleHeaderView(file, 0);
-    expect(v.name).toBe('Unnamed');
-    expect(v.codecLabel).toBe('—');
-    expect(v.version).toBe('—');
+    expect(sampleHeaderView(file, 0)).toEqual({
+      name: 'Unnamed', codecLabel: '—', version: '—',
+      checksumOk: false, strokeCount: 0, sizeBytes: 0, isFactory: false,
+    });
   });
 });
 

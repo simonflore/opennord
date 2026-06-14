@@ -27,7 +27,7 @@ export interface SampleHeaderView {
 
 export function sampleHeaderView(file: NsmpFile, sizeBytes: number): SampleHeaderView {
   return {
-    name: file.name ?? 'Unnamed',
+    name: file.name?.trim() || 'Unnamed',
     codecLabel: file.codec ? `.nsmp${file.codec}` : '—',
     version: file.version ?? '—',
     checksumOk: file.checksumValid,
