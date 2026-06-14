@@ -3,6 +3,8 @@ import { CQryFileInfo, CQryFileIterate, CReqFileOpen, CReqFileClose, CReqFileRea
 import { readAsciiFixed } from '../ns4/parse';
 import { buildCbinHeader } from '../ns4/bits';
 import { patchNs4Checksum } from '../ns4/checksum';
+import { formatSlot } from '../ns4/slot';
+import { programCategoryName } from '../ns4/categories';
 
 /** A program file on the device, from FileInfo. */
 export interface ProgramEntry {
@@ -105,4 +107,23 @@ export async function pullProgram(session: NordSession, entry: ProgramEntry): Pr
   file.set(header, 0);
   file.set(body, header.length);
   return patchNs4Checksum(file);
+}
+
+export interface ProgramRowView {
+  name: string;
+  /** Nord X:YY slot. */
+  slot: string;
+  category: string;
+  /** e.g. "v3.13". */
+  version: string;
+}
+
+/** Display row for a ProgramEntry — reuses the shared slot + category formatting. */
+export function programEntryView(e: ProgramEntry): ProgramRowView {
+  return {
+    name: e.name || `(slot ${formatSlot(e.bank, e.slot)})`,
+    slot: formatSlot(e.bank, e.slot),
+    category: programCategoryName(e.categoryId) ?? `#${e.categoryId}`,
+    version: `v${(e.version / 100).toFixed(2)}`,
+  };
 }

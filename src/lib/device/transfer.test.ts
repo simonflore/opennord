@@ -93,3 +93,15 @@ describe('enumeratePrograms', () => {
     });
   });
 });
+
+import { programEntryView } from './transfer';
+
+describe('programEntryView', () => {
+  it('derives the display row reusing the shared slot + category helpers', () => {
+    const v = programEntryView({
+      bank: 7, slot: 56, name: 'Dont look back',
+      categoryId: 17, version: 313, sizeBytes: 824, fourcc: 'ns4p',
+    });
+    expect(v).toEqual({ name: 'Dont look back', slot: 'H:81', category: 'None', version: 'v3.13' });
+  });
+});
