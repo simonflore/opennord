@@ -42,6 +42,12 @@ export interface EncodeOptions {
    * Default false (codec-3 single sample-interleaved stream).
    */
   wordInterleaved?: boolean;
+  /**
+   * Emit the OG/legacy layout — the same sample-interleaved stream as codec 3 but
+   * in **24-bit units** (3-byte headers + 24-bit words). The inverse of
+   * `decodeStroke`'s `u24` mode. Mutually exclusive with `wordInterleaved`.
+   */
+  u24?: boolean;
 }
 
 /** Pack signed `width`-bit residuals MSB-first into whole 32-bit BE words. */
@@ -72,11 +78,18 @@ export function encodeStroke(channels: ArrayLike<number>[], opts: EncodeOptions 
   const nCh = channels.length;
   if (nCh === 0) return new Uint8Array(0);
   if (opts.wordInterleaved) return encodeStrokeWordInterleaved(channels, opts.blockSize ?? 2048);
+  // OG/legacy packs the stream in 24-bit units (3-byte headers + 24-bit words);
+  // codec 3 uses 32-bit. Same MSB-first residual packing either way.
+  const u24 = opts.u24 === true;
+  const wordBits = u24 ? 24 : 32;
+  const wordMask = (1n << BigInt(wordBits)) - 1n;
   const len = channels[0].length;
   const blockSize = Math.max(nCh, opts.blockSize ?? 2048);
 
   const out: number[] = []; // bytes
-  const pushWord = (w: number) => out.push((w >>> 24) & 0xff, (w >>> 16) & 0xff, (w >>> 8) & 0xff, w & 0xff);
+  const pushWord = u24
+    ? (w: number) => out.push((w >>> 16) & 0xff, (w >>> 8) & 0xff, w & 0xff)
+    : (w: number) => out.push((w >>> 24) & 0xff, (w >>> 16) & 0xff, (w >>> 8) & 0xff, w & 0xff);
 
   // Per-channel history of original samples (== reconstructed, since decode is exact).
   const ring: Int32Array[] = [];
@@ -123,6 +136,10 @@ export function encodeStroke(channels: ArrayLike<number>[], opts: EncodeOptions 
     if (bestBw > MAX_BITWIDTH) {
       throw new Error(`encodeStroke: block at ${i} needs >${MAX_BITWIDTH}-bit residuals at every order`);
     }
+    // An order-0/bitWidth-1 header is byte-identical to the stop sentinel, so the
+    // decoder would end the stroke early at a near-silent block. Promote to
+    // bitWidth 2 (the 1-bit residuals still fit exactly) to keep the invariant.
+    if (bestOrder === 0 && bestBw === 1) bestBw = 2;
 
     // Header word: bitWidth[19:22]-1, filterOrder[14:17], sampleCnt[0:13].
     pushWord((((bestBw - 1) & 0xf) << 19) | ((bestOrder & 0xf) << 14) | (sampleCnt & 0x3fff));
@@ -139,14 +156,14 @@ export function encodeStroke(channels: ArrayLike<number>[], opts: EncodeOptions 
       const r = s - predict(coeff, bestOrder, ring[ch], head[ch]);
       acc = (acc << BigInt(bestBw)) | (BigInt(r) & mask);
       nbits += bestBw;
-      while (nbits >= 32) {
-        nbits -= 32;
-        pushWord(Number((acc >> BigInt(nbits)) & 0xffffffffn));
+      while (nbits >= wordBits) {
+        nbits -= wordBits;
+        pushWord(Number((acc >> BigInt(nbits)) & wordMask));
       }
       ring[ch][head[ch]] = s;
       head[ch] = (head[ch] + 1) & (HISTORY_SIZE - 1);
     }
-    if (nbits > 0) pushWord(Number((acc << BigInt(32 - nbits)) & 0xffffffffn)); // pad to word
+    if (nbits > 0) pushWord(Number((acc << BigInt(wordBits - nbits)) & wordMask)); // pad to word
 
     i = blockEnd;
   }

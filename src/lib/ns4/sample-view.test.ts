@@ -16,7 +16,7 @@ describe('noteName', () => {
 describe('sampleHeaderView', () => {
   it('derives the header fields from an NsmpFile', () => {
     const file: NsmpFile = {
-      recognized: true, version: '3.00', versionRaw: 300, codec: 3,
+      recognized: true, version: '3.00', versionRaw: 300, codec: 3, legacy: false,
       checksumValid: true, name: 'VLV Strings', sections: [],
       strokeCount: 8, suspectedFactory: false, warnings: [],
     };
@@ -28,7 +28,7 @@ describe('sampleHeaderView', () => {
 
   it('falls back gracefully for an unrecognized file', () => {
     const file: NsmpFile = {
-      recognized: false, checksumValid: false, sections: [],
+      recognized: false, legacy: false, checksumValid: false, sections: [],
       strokeCount: 0, suspectedFactory: false, warnings: ['nope'],
     };
     expect(sampleHeaderView(file, 0)).toEqual({

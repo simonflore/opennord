@@ -49,6 +49,8 @@ export function readBlockHeader(word: number): BlockHeader {
   const sampleCnt = word & 0x3fff; // bits 0–13
   const filterOrder = (word >>> 14) & 0xf; // bits 14–17
   const bitWidth = ((word >>> 19) & 0xf) + 1; // bits 19–22, stored minus one
+  // Stop sentinel: order 0 + bitWidth 1 (the editor never emits an order-0/bw-1
+  // *data* block, so this is unambiguous; our encoder upholds the same invariant).
   const isStop = filterOrder === 0 && bitWidth === 1;
   return { sampleCnt, filterOrder, bitWidth, isStop };
 }
@@ -69,6 +71,14 @@ export interface DecodeStrokeOptions {
    * bitstream terminated by a stop block. See `docs/NSMP-CODEC.md`.
    */
   wordInterleaved?: boolean;
+  /**
+   * OG/legacy layout (original `.nsmp`, version 8 / `NWS` tree): the same
+   * single sample-interleaved, stop-terminated stream as codec 3, but packed in
+   * **24-bit units** — 3-byte block headers and 24-bit residual words. Each word
+   * is MSB-justified into a 32-bit lane before accumulation (the `GetU24<<8`
+   * step in the binary's `DecodeSamples` U24 path). See `docs/NSMP-CODEC.md`.
+   */
+  u24?: boolean;
 }
 
 /** Per-channel decode state: history ring + write head + reconstructed output. */
@@ -106,13 +116,22 @@ export function decodeStroke(
   opts: DecodeStrokeOptions = {},
 ): DecodedStroke {
   const u32be = (o: number) => ((bytes[o] << 24) | (bytes[o + 1] << 16) | (bytes[o + 2] << 8) | bytes[o + 3]) >>> 0;
+  const u24be = (o: number) => ((bytes[o] << 16) | (bytes[o + 1] << 8) | bytes[o + 2]) >>> 0;
+  // OG legacy (`.nsmp` v8) packs the stream in 24-bit units; codec 3/4 use 32-bit.
+  const u24 = opts.u24 === true;
+  const hdrBytes = u24 ? 3 : 4;
+  const wordBytes = u24 ? 3 : 4;
+  const wordBits = u24 ? 24 : 32;
+  const readHdr = (o: number) => (u24 ? u24be(o) : u32be(o));
+  // residual word, MSB-justified into a 32-bit lane (u24 → top 24 bits via `<<8`)
+  const readWord = (o: number) => (u24 ? ((u24be(o) << 8) >>> 0) : u32be(o));
   const channels = makeChannels(channelCount);
 
   let o = byteOffset;
   let index = 0; // running interleaved sample index (sample mode)
-  while (o + 4 <= bytes.length) {
-    const hdr = readBlockHeader(u32be(o));
-    o += 4;
+  while (o + hdrBytes <= bytes.length) {
+    const hdr = readBlockHeader(readHdr(o));
+    o += hdrBytes;
 
     if (opts.wordInterleaved) {
       // Codec 4: zero-sample blocks are segment markers — skip; run to buffer end.
@@ -144,14 +163,14 @@ export function decodeStroke(
       continue;
     }
 
-    // Codec 3: single sample-interleaved bitstream, stop-terminated.
+    // Codec 3 / OG legacy: single sample-interleaved bitstream, stop-terminated.
     if (hdr.isStop) break;
     if (hdr.filterOrder > 7 || hdr.sampleCnt === 0) {
-      throw new Error(`nsmp: invalid block header at 0x${(o - 4).toString(16)}`);
+      throw new Error(`nsmp: invalid block header at 0x${(o - hdrBytes).toString(16)}`);
     }
-    const nWords = Math.ceil((hdr.sampleCnt * hdr.bitWidth) / 32);
-    if (o + nWords * 4 > bytes.length) {
-      throw new Error(`nsmp: block overruns buffer at 0x${(o - 4).toString(16)}`);
+    const nWords = Math.ceil((hdr.sampleCnt * hdr.bitWidth) / wordBits);
+    if (o + nWords * wordBytes > bytes.length) {
+      throw new Error(`nsmp: block overruns buffer at 0x${(o - hdrBytes).toString(16)}`);
     }
     let acc = 0n;
     let nbits = 0;
@@ -159,9 +178,9 @@ export function decodeStroke(
     const bw = hdr.bitWidth;
     const coeff = PREDICTOR_COEFF[hdr.filterOrder];
     for (let w = 0; w < nWords; w++) {
-      acc = (acc | (BigInt(u32be(o)) << BigInt(32 - nbits))) & 0xffffffffffffffffn;
-      o += 4;
-      nbits += 32;
+      acc = (acc | (BigInt(readWord(o)) << BigInt(32 - nbits))) & 0xffffffffffffffffn;
+      o += wordBytes;
+      nbits += wordBits;
       while (nbits >= bw && produced < hdr.sampleCnt) {
         emit(channels[index % channelCount], signExtend(Number((acc >> BigInt(64 - bw)) & ((1n << BigInt(bw)) - 1n)), bw), coeff, hdr.filterOrder);
         produced++;

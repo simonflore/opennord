@@ -134,3 +134,33 @@ describe.skipIf(!existsSync(nsmp4))('decodeNsmp — codec 4 (.nsmp4)', () => {
     expect(zc).toBe(220); // 220 Hz over 0.5 s
   });
 });
+
+// OG / legacy `.nsmp` (version 8, NWS tree, 24-bit NW1). Real file, skipped in CI.
+const ogNsmp = join(process.cwd(), 'research/nsmp/TAKE ON ME.nsmp');
+describe.skipIf(!existsSync(ogNsmp))('readNsmp / decodeNsmp — OG .nsmp (legacy NWS, U24)', () => {
+  const bytes = existsSync(ogNsmp) ? new Uint8Array(readFileSync(ogNsmp)) : new Uint8Array();
+
+  it('recognizes the legacy NWS container (version 8, 9 strokes)', () => {
+    const f = readNsmp(bytes);
+    expect(f.recognized).toBe(true);
+    expect(f.legacy).toBe(true);
+    expect(f.versionRaw).toBe(8);
+    expect(f.strokeCount).toBe(9);
+    // legacy 9-byte section tree rooted at the `NWS` magic (0x18)
+    expect(f.sections.map((s) => s.tag.replace(/^\.+/, ''))).toEqual(
+      ['NWS', 'hdr', 'map', 'stk', 'stk', 'stk', 'stk', 'stk', 'stk', 'stk', 'stk', 'stk', 'sty'],
+    );
+  });
+
+  it('decodes all 9 strokes to clean stereo via the 24-bit NW1 path', () => {
+    const strokes = decodeNsmp(bytes);
+    expect(strokes.length).toBe(9);
+    for (const s of strokes) {
+      expect(s.channelCount).toBe(2);
+      expect(s.channels[1].length).toBe(s.channels[0].length); // L/R equal
+      const peak = s.channels[0].reduce((m, x) => Math.max(m, Math.abs(x)), 0);
+      expect(peak).toBeGreaterThan(0);
+      expect(peak).toBeLessThan(1 << 16); // clean 16-bit levels, not divergence
+    }
+  });
+});

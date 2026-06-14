@@ -20,8 +20,6 @@ import { hasCbinMagic, fileTypeTag } from './bits';
 import { verifyNs4Checksum } from './checksum';
 import { decodeStroke, type DecodedStroke } from './nsmp-codec';
 
-const BODY_START = 0x2c;
-
 export interface NsmpSection {
   tag: string;
   version: number;
@@ -40,6 +38,8 @@ export interface NsmpFile {
   versionRaw?: number;
   /** Codec generation = floor(versionRaw / 100): 3 for `.nsmp3`, 4 for `.nsmp4`. */
   codec?: number;
+  /** OG/legacy `NWS` container (original `.nsmp`, version 8) → 24-bit NW1 codec. */
+  legacy: boolean;
   checksumValid: boolean;
   name?: string;
   sections: NsmpSection[];
@@ -78,18 +78,35 @@ function tagString(tag: number): string {
 const u24be = (b: Uint8Array, o: number) => (b[o] << 16) | (b[o + 1] << 8) | b[o + 2];
 const u16be = (b: Uint8Array, o: number) => (b[o] << 8) | b[o + 1];
 
+const NSMP_MAGIC = 0x4e534d50; // "NSMP" — codec 3/4 body root @0x2c
+const NWS_MAGIC = 0x4e5753; // "NWS"  — OG/legacy body root @0x18
+
 /**
- * Walk the section tree. The section-header layout is codec-dependent
- * (`CSectionIterator::Read_`): codec **3/4** use `[tag:u32][version:u32][size:u32]`
- * (12 bytes); codec **1/2** use `[tag:u24][version:u16][size:u32]` (9 bytes).
- * Codec is taken from the CBIN version (0x14); defaults to 12-byte if unknown.
+ * Where the section tree starts and how its headers are framed. Two real shapes:
+ * **modern** (codec 3/4) — `NSMP` root at `0x2c`, `[tag:u32][version:u32][size:u32]`
+ * (12-byte) headers; **OG/legacy** (`.nsmp` v8) — `NWS` root at `0x18`,
+ * `[tag:u24][version:u16][size:u32]` (9-byte) headers, decoded with the 24-bit
+ * NW1 variant. Detected by magic; falls back to the CBIN version (`0x14`) for the
+ * speculative codec-1/2 form. (`CSectionIterator::Read_` / `PeekFormat`.)
+ */
+export function nsmpLayout(bytes: Uint8Array): { bodyStart: number; headerSize: number; legacy: boolean } {
+  if (u32be(bytes, 0x2c) === NSMP_MAGIC) return { bodyStart: 0x2c, headerSize: 12, legacy: false };
+  if (u24be(bytes, 0x18) === NWS_MAGIC) return { bodyStart: 0x18, headerSize: 9, legacy: true };
+  const codec = Math.trunc((bytes[0x14] | (bytes[0x15] << 8)) / 100);
+  const legacy = codec === 1 || codec === 2;
+  return { bodyStart: 0x2c, headerSize: legacy ? 9 : 12, legacy };
+}
+
+/**
+ * Walk the section tree using the layout from {@link nsmpLayout}: codec **3/4**
+ * `[tag:u32][version:u32][size:u32]` (12 bytes) from `0x2c`; **OG/legacy** + codec
+ * 1/2 `[tag:u24][version:u16][size:u32]` (9 bytes), OG from the `NWS` root at `0x18`.
  */
 export function parseNsmpSections(bytes: Uint8Array): NsmpSection[] {
-  const codec = Math.trunc((bytes[0x14] | (bytes[0x15] << 8)) / 100);
-  const legacy = codec === 1 || codec === 2; // 9-byte headers
-  const headerSize = legacy ? 9 : 12;
+  const { bodyStart, headerSize } = nsmpLayout(bytes);
+  const legacy = headerSize === 9;
   const sections: NsmpSection[] = [];
-  let o = BODY_START;
+  let o = bodyStart;
   while (o + headerSize <= bytes.length) {
     const tag = legacy ? u24be(bytes, o) : u32be(bytes, o);
     const version = legacy ? u16be(bytes, o + 3) : u32be(bytes, o + 4);
@@ -119,8 +136,9 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
   const warnings: string[] = [];
   const recognized = hasCbinMagic(bytes) && fileTypeTag(bytes) === 'nsmp';
   if (!recognized) {
-    return { recognized: false, checksumValid: false, sections: [], strokeCount: 0, suspectedFactory: false, warnings: ['Not a Nord Sample file.'] };
+    return { recognized: false, legacy: false, checksumValid: false, sections: [], strokeCount: 0, suspectedFactory: false, warnings: ['Not a Nord Sample file.'] };
   }
+  const { legacy } = nsmpLayout(bytes);
   const versionRaw = bytes[0x14] | (bytes[0x15] << 8);
   const major = Math.trunc(versionRaw / 100);
   const version = `${major}.${String(versionRaw - major * 100).padStart(2, '0')}`;
@@ -133,7 +151,7 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
   const name = hdr ? readName(bytes, hdr) : undefined;
   const strokeCount = sections.filter((s) => s.tag.endsWith('stk')).length;
 
-  return { recognized: true, version, versionRaw, codec, checksumValid, name, sections, strokeCount, suspectedFactory: looksFactory(name), warnings };
+  return { recognized: true, version, versionRaw, codec, legacy, checksumValid, name, sections, strokeCount, suspectedFactory: looksFactory(name), warnings };
 }
 
 /**
@@ -177,31 +195,88 @@ export interface DecodedStrokeResult extends DecodedStroke {
   channelCount: number;
 }
 
+const BOUND = 1 << 26; // raw 16-bit reconstructions stay well under this
+
 /**
- * Locate a stroke's block stream within its `stk` payload. The stroke header is
- * variable-length, so the block-stream start is found by the binding constraint:
- * the unique offset whose decode stays bounded and consumes the section exactly
- * (ending on the stop sentinel at the section boundary). Validated against all 8
- * strokes of a real `.nsmp3` (see `nsmp.test.ts`).
+ * Cheap structural pre-filter: from `start`, does a contiguous run of valid NW1
+ * block headers (3-byte u24 for OG, 4-byte u32 for codec 3) end on a stop sentinel
+ * at/near `end`? Shortlists candidate block-stream starts before the costlier full
+ * decode + min-peak pick. Wrong byte alignments bail almost immediately.
  */
+function streamReachesEnd(bytes: Uint8Array, start: number, end: number, u24: boolean): boolean {
+  const hb = u24 ? 3 : 4;
+  const wb = u24 ? 24 : 32;
+  const tol = u24 ? 3 : 4;
+  let o = start;
+  let blocks = 0;
+  while (o + hb <= end) {
+    const w = u24 ? u24be(bytes, o) : u32be(bytes, o);
+    const sc = w & 0x3fff;
+    const fo = (w >>> 14) & 0xf;
+    const bw = ((w >>> 19) & 0xf) + 1;
+    if (fo === 0 && bw === 1) return blocks > 20 && Math.abs(o + hb - end) <= tol;
+    if (fo > 7 || sc === 0) return false;
+    o += hb + Math.ceil((sc * bw) / wb) * hb;
+    blocks++;
+  }
+  return false;
+}
+
+/**
+ * Locate and decode a stop-terminated stroke (codec 3 = 32-bit, OG = 24-bit). The
+ * stroke header is variable-length, so the block-stream start is found by scanning
+ * offsets: structurally pre-filter to those whose stream ends on the section's stop
+ * sentinel, then pick the one decoding to the **smallest peak** (stereo or mono).
+ * Wrong byte alignments may still reach the end structurally but diverge in
+ * amplitude, so min-peak robustly selects the true alignment + channel count.
+ */
+function findStrokeStop(bytes: Uint8Array, section: NsmpSection, u24: boolean): { result: DecodedStroke; channelCount: number } | null {
+  const bounded = bytes.subarray(0, section.endOffset);
+  const end = section.endOffset;
+  let best: { result: DecodedStroke; channelCount: number; peak: number } | null = null;
+  for (let start = section.payloadOffset; start < section.payloadOffset + 0x260 && start < end; start++) {
+    if (!streamReachesEnd(bytes, start, end, u24)) continue;
+    for (const channelCount of [2, 1]) {
+      let result: DecodedStroke;
+      try {
+        result = decodeStroke(bounded, start, channelCount, { u24 });
+      } catch {
+        continue;
+      }
+      if (result.channels[0].length < 100) continue;
+      const peak = result.channels[0].reduce((m, x) => Math.max(m, Math.abs(x)), 0);
+      if (peak < BOUND && (!best || peak < best.peak)) best = { result, channelCount, peak };
+    }
+    if (best && best.peak < 1 << 14) break; // unambiguously clean alignment — done
+  }
+  return best ? { result: best.result, channelCount: best.channelCount } : null;
+}
+
 function decodeStrokeSection(
   bytes: Uint8Array,
   section: NsmpSection,
-  wordInterleaved: boolean,
+  opts: { wordInterleaved?: boolean; u24?: boolean },
 ): { result: DecodedStroke; channelCount: number } | null {
-  const BOUND = 1 << 26; // raw 16-bit reconstructions stay well under this
+  // OG/legacy (24-bit): the stroke header is large + variable and 3-byte framing
+  // is only byte-aligned, so use the min-peak locator (many offsets reach the end
+  // structurally; only the true alignment reconstructs cleanly).
+  if (opts.u24) return findStrokeStop(bytes, section, true);
+
+  // Codec 3 (32-bit sample-interleaved) + codec 4 (word-interleaved): the block
+  // stream sits at a header offset in a tight range; take the first offset whose
+  // decode stays bounded and consumes the section (prefer mono — a loud stereo
+  // stream decoded as mono diverges past BOUND, so real stereo falls through to 2).
+  // NOTE: the true channel count lives in the (still-undecoded) stroke header; this
+  // audio heuristic can mislabel *near-silent* strokes, where mono and stereo are
+  // indistinguishable from the samples alone (docs/NSMP-CODEC.md).
   const bounded = bytes.subarray(0, section.endOffset);
   for (let hdr = 0x60; hdr <= 0x180; hdr += 4) {
     const start = section.payloadOffset + hdr;
     if (start >= section.endOffset) break;
-    // Prefer mono: a true stereo stream decoded as mono diverges past BOUND
-    // (sample mode → interleaved L/R residuals; word mode → scrambled words),
-    // so real stereo falls through to 2. (The exact channel count lives in the
-    // stroke header — not yet decoded; this heuristic handles real content.)
     for (const channelCount of [1, 2]) {
       let result: DecodedStroke;
       try {
-        result = decodeStroke(bounded, start, channelCount, { wordInterleaved });
+        result = decodeStroke(bounded, start, channelCount, { wordInterleaved: opts.wordInterleaved });
       } catch {
         continue;
       }
@@ -217,18 +292,19 @@ function decodeStrokeSection(
 
 /**
  * Decode every stroke in a `.nsmp*` file to raw integer PCM per channel.
- * Supports **codec 3** (`.nsmp3`, sample-interleaved) and **codec 4** (`.nsmp4`,
- * per-channel word-interleaved — selected automatically by version). Validated
- * against real samples in both formats (see `nsmp.test.ts`, `docs/NSMP-CODEC.md`).
+ * Auto-selects the layout by version: **OG** (original `.nsmp` v8, 24-bit
+ * sample-interleaved), **codec 3** (`.nsmp3`, 32-bit sample-interleaved), and
+ * **codec 4** (`.nsmp4`, per-channel word-interleaved). Validated against real
+ * samples in all three formats (see `nsmp.test.ts`, `docs/NSMP-CODEC.md`).
  */
 export function decodeNsmp(bytes: Uint8Array): DecodedStrokeResult[] {
   const file = readNsmp(bytes);
-  const wordInterleaved = file.codec === 4; // codec 4 packs channels word-interleaved
+  const opts = { wordInterleaved: file.codec === 4, u24: file.legacy };
   const out: DecodedStrokeResult[] = [];
   let index = 0;
   for (const section of file.sections) {
     if (!section.tag.endsWith('stk')) continue;
-    const decoded = decodeStrokeSection(bytes, section, wordInterleaved);
+    const decoded = decodeStrokeSection(bytes, section, opts);
     if (decoded) out.push({ ...decoded.result, index, channelCount: decoded.channelCount });
     index++;
   }

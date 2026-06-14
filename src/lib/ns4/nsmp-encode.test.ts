@@ -68,6 +68,40 @@ describe('encodeStroke ↔ decodeStroke round-trip (codec 4, word-interleaved)',
   });
 });
 
+describe('encodeStroke ↔ decodeStroke round-trip (OG / legacy, 24-bit)', () => {
+  function roundTripU24(channels: Int32Array[]): Int32Array[] {
+    const bytes = encodeStroke(channels, { u24: true });
+    return decodeStroke(bytes, 0, channels.length, { u24: true }).channels;
+  }
+
+  it('stereo sine — 24-bit framing round-trips exactly', () => {
+    const N = 6000;
+    const L = Int32Array.from({ length: N }, (_, i) => Math.round(3000 * Math.sin(i / 7)));
+    const R = Int32Array.from({ length: N }, (_, i) => Math.round(2500 * Math.cos(i / 11)));
+    const [oL, oR] = roundTripU24([L, R]);
+    expect(Array.from(oL)).toEqual(Array.from(L));
+    expect(Array.from(oR)).toEqual(Array.from(R));
+  });
+
+  it('silent passages do not collide with the stop sentinel', () => {
+    // A near-silent block would be order-0/bitWidth-1 (== the stop word); the
+    // encoder must promote it so the decoder reads the full stroke, not truncate.
+    const sig = Int32Array.from({ length: 5000 }, (_, i) =>
+      i < 2500 ? (i % 2 === 0 ? 0 : -1) : Math.round(1500 * Math.sin(i / 9)));
+    const [out] = roundTripU24([sig]);
+    expect(out.length).toBe(sig.length);
+    expect(Array.from(out)).toEqual(Array.from(sig));
+  });
+
+  it('full-range content forces high bitWidth blocks', () => {
+    let seed = 4242;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) % 65536) - 32768;
+    const sig = Int32Array.from({ length: 4000 }, rnd);
+    const [out] = roundTripU24([sig]);
+    expect(Array.from(out)).toEqual(Array.from(sig));
+  });
+});
+
 // Round-trip on real decoded audio (gitignored sample). Skipped in CI.
 const realFile = join(process.cwd(), 'research/nsmp/Strings.nsmp3');
 describe.skipIf(!existsSync(realFile))('encodeStroke round-trip on real Strings.nsmp3 audio', () => {
