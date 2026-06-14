@@ -3,6 +3,7 @@ import { WebUsbTransport } from '../../lib/device/webusb';
 import { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
+import { findAuthorizedDevice } from '../../lib/device/authorized';
 
 const NORD_FILTER: USBDeviceFilter = { vendorId: 0x0ffc, productId: 0x002e };
 
@@ -39,7 +40,11 @@ export function ConnectPanel({ onConnected }: {
     setMessage('');
     let transport: WebUsbTransport | undefined;
     try {
-      const device = await navigator.usb.requestDevice({ filters: [NORD_FILTER] });
+      // Reconnect silently if this Nord was authorized before — Chrome remembers
+      // the grant per origin, so only the first-ever connect needs the chooser.
+      const device =
+        findAuthorizedDevice(await navigator.usb.getDevices(), NORD_FILTER) ??
+        (await navigator.usb.requestDevice({ filters: [NORD_FILTER] }));
       transport = new WebUsbTransport(device);
       await transport.open();
       const session = new NordSession(transport);
