@@ -50,10 +50,12 @@ export function SampleInspector() {
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) onFile(f); }}
-        style={{ display: 'block', padding: 24, borderRadius: 12, marginBottom: 16, cursor: 'pointer',
-          border: `2px dashed ${dragOver ? 'var(--red)' : '#ccc'}`, textAlign: 'center', color: '#666' }}
+        style={{ display: 'block', padding: 28, borderRadius: 'var(--r-lg)', marginBottom: 16, cursor: 'pointer',
+          background: dragOver ? 'var(--surface)' : 'transparent',
+          border: `2px dashed ${dragOver ? 'var(--red)' : 'var(--line)'}`, textAlign: 'center', color: 'var(--dim)' }}
       >
-        Drop a <code>.nsmp3</code> / <code>.nsmp4</code> here, or click to choose a file.
+        <div style={{ color: 'var(--ink)', fontWeight: 600 }}>Drop a Nord sample here</div>
+        <div style={{ fontSize: 12, marginTop: 4 }}>or click to choose one — <code>.nsmp3</code> or <code>.nsmp4</code></div>
         <input type="file" accept=".nsmp3,.nsmp4" style={{ display: 'none' }}
           onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
       </label>

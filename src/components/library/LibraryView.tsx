@@ -37,7 +37,7 @@ export function LibraryView({ entries, source, query, onSource, onQuery, onOpen,
       </div>
 
       {entries.length === 0 ? (
-        <div className="lib-empty">No programs yet — import a .ns4p or connect your Nord.</div>
+        <div className="lib-empty">Nothing here yet. Import a program file or connect your Nord — they'll all land here together.</div>
       ) : (
         <div className="lib-grid">
           {entries.map((e) => (

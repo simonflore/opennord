@@ -36,6 +36,6 @@ describe('LibraryView', () => {
     const html = renderToStaticMarkup(
       <LibraryView entries={[]} source="all" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}} />,
     );
-    expect(html).toContain('No programs yet');
+    expect(html).toContain('Nothing here yet');
   });
 });

@@ -4,6 +4,8 @@ import { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
+import { Button, SectionLabel } from '../ui';
+import './connect.css';
 
 const NORD_FILTER: USBDeviceFilter = { vendorId: 0x0ffc, productId: 0x002e };
 
@@ -28,10 +30,17 @@ export function ConnectPanel({ onConnected }: {
   const supported = typeof navigator !== 'undefined' && 'usb' in navigator;
   if (!supported) {
     return (
-      <p className="ps-sub">
-        Connecting to your Nord needs <b>Chrome or Edge on desktop</b> (WebUSB). The rest of
-        OpenNord works in any browser — open this page in Chrome/Edge to transfer.
-      </p>
+      <div className="connect">
+        <div className="connect__card">
+          <SectionLabel>Your Nord</SectionLabel>
+          <h2 className="connect__title">Open this in Chrome or Edge to connect</h2>
+          <p className="connect__lead">
+            Talking to your Nord over USB needs Chrome or Edge on a computer. Everything else in
+            OpenNord — browsing, samples, sharing — works in any browser; switch over when you're
+            ready to move programs to and from the keyboard.
+          </p>
+        </div>
+      </div>
     );
   }
 
@@ -68,21 +77,28 @@ export function ConnectPanel({ onConnected }: {
   }
 
   return (
-    <div style={{ marginBottom: 16 }} aria-live="polite">
-      <button
-        onClick={connect}
-        disabled={status === 'connecting'}
-        style={{
-          padding: '10px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 700,
-          border: '1px solid var(--red)', background: 'var(--red)', color: '#fff',
-        }}
-      >
-        {status === 'connecting' ? 'Connecting…' : 'Connect your Nord'}
-      </button>
-      {status === 'error' && <p className="ps-sub" style={{ color: 'var(--warn)', marginTop: 8 }}>{message}</p>}
-      <p className="ps-sub" style={{ marginTop: 8 }}>
-        Quit Nord Sound Manager first — it holds the connection while it's open.
-      </p>
+    <div className="connect" aria-live="polite">
+      <div className="connect__card">
+        <SectionLabel>Your Nord</SectionLabel>
+        <h2 className="connect__title">Bring your Nord in</h2>
+        <p className="connect__lead">
+          Plug your Stage 4 into this computer over USB to back up your sounds, browse every
+          program in one place, and move patches between the keyboard and OpenNord.
+        </p>
+        <Button
+          variant="primary"
+          className="connect__cta"
+          onClick={connect}
+          disabled={status === 'connecting'}
+        >
+          {status === 'connecting' ? 'Connecting…' : 'Connect your Nord'}
+        </Button>
+        {status === 'error' && <p className="on-error connect__error">{message}</p>}
+        <p className="connect__hint">
+          Using Nord Sound Manager? Quit it first — it keeps the USB connection to itself, so only
+          one app can talk to the Nord at a time.
+        </p>
+      </div>
     </div>
   );
 }

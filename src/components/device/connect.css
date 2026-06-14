@@ -1,0 +1,16 @@
+/* The Device screen's pre-connection state — a calm, centered onboarding card. */
+.connect { display: flex; justify-content: center; padding: var(--s-6) var(--s-4); }
+.connect__card {
+  width: 100%; max-width: 460px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: var(--s-6);
+}
+.connect__title { font: 800 22px var(--font); color: var(--ink); margin: var(--s-2) 0 var(--s-3); }
+.connect__lead { font: 13px var(--font); line-height: 1.55; color: var(--dim); margin: 0 0 var(--s-4); }
+/* Scoped to out-specify the base .on-btn rule regardless of CSS import order. */
+.connect .connect__cta { font-size: 13px; padding: 10px 18px; }
+.connect__error { margin: var(--s-3) 0 0; }
+.connect__hint {
+  font: 12px var(--font); line-height: 1.5; color: var(--muted);
+  margin: var(--s-4) 0 0; padding-top: var(--s-3); border-top: 1px solid var(--line);
+}
