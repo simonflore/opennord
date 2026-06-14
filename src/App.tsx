@@ -5,8 +5,9 @@ import type { NS4Program } from './lib/ns4/types';
 import { DecodeInspector } from './components/DecodeInspector';
 import { ProgramView } from './components/program/ProgramView';
 import { DeviceManager } from './components/device/DeviceManager';
+import { SampleInspector } from './components/sample/SampleInspector';
 
-type Tab = 'studio' | 'device' | 'inspect' | 'decode';
+type Tab = 'studio' | 'device' | 'samples' | 'inspect' | 'decode';
 
 /**
  * App shell. Three views:
@@ -24,12 +25,14 @@ export function App() {
       <nav style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <TabButton active={tab === 'studio'} onClick={() => setTab('studio')}>Program Studio</TabButton>
         <TabButton active={tab === 'device'} onClick={() => setTab('device')}>Device</TabButton>
+        <TabButton active={tab === 'samples'} onClick={() => setTab('samples')}>Samples</TabButton>
         <TabButton active={tab === 'inspect'} onClick={() => setTab('inspect')}>Decode Inspector</TabButton>
         <TabButton active={tab === 'decode'} onClick={() => setTab('decode')}>Program Decode</TabButton>
       </nav>
 
       {tab === 'studio' && <ProgramStudio />}
       {tab === 'device' && <DeviceManager />}
+      {tab === 'samples' && <SampleInspector />}
       {tab === 'inspect' && <DecodeInspector />}
       {tab === 'decode' && <ProgramDecode />}
 

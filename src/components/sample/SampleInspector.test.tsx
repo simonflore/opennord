@@ -34,3 +34,13 @@ describe('ZoneMap', () => {
     expect(renderToStaticMarkup(<ZoneMap rows={[]} />)).toBe('');
   });
 });
+
+import { SampleInspector } from './SampleInspector';
+
+describe('SampleInspector', () => {
+  it('renders the drop zone before a file is loaded', () => {
+    const html = renderToStaticMarkup(<SampleInspector />);
+    expect(html).toContain('.nsmp');
+    expect(html.toLowerCase()).toContain('drop');
+  });
+});
