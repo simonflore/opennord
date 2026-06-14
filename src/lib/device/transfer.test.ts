@@ -3,7 +3,7 @@ import { NordSession } from './session';
 import { MockTransport } from './transport';
 import { encodeMessage, decodeReply } from './protocol';
 import { CQryFileInfo, CQryFileIterate, ext2Type, CReqFileCreate, CReqFileWrite } from './opcodes';
-import { enumeratePrograms } from './transfer';
+import { enumeratePrograms, enumerateFiles } from './transfer';
 
 /** Build a FileIterate reply (0x21): code@word0, bank@word1, slot@word2. */
 function iterReply(code: number, bank: number, slot: number): Uint8Array {
@@ -75,32 +75,41 @@ describe('pullProgram', () => {
   });
 });
 
-describe('enumeratePrograms', () => {
-  it('walks the iterate cursor across banks and names each file via FileInfo', async () => {
+describe('enumerateFiles', () => {
+  it('walks the cursor across banks and stops on a terminal code', async () => {
     const replies: Uint8Array[] = [
       iterReply(0, 0, 0),                                                   // bank0: file at slot 0
       infoReply({ size: 824, version: 313, category: 17, name: 'Dont look back' }),
       iterReply(1, 0, 0),                                                   // bank0 exhausted → bank1
     ];
     for (let b = 1; b < 8; b++) replies.push(iterReply(1, b, 0));           // banks 1..7 exhausted
+    replies.push(iterReply(2, 8, 0));                                       // terminal code → stop
     const session = new NordSession(new MockTransport(replies));
 
-    const entries = await enumeratePrograms(session);
+    const entries = await enumerateFiles(session);
     expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({
-      bank: 0, slot: 0, name: 'Dont look back',
-      categoryId: 17, version: 313, sizeBytes: 824,
-    });
+    expect(entries[0]).toMatchObject({ bank: 0, slot: 0, name: 'Dont look back', categoryId: 17, version: 313, sizeBytes: 824 });
+  });
+
+  it('returns [] immediately on a terminal code (empty partition)', async () => {
+    const session = new NordSession(new MockTransport([iterReply(2, 0, 0)]));
+    expect(await enumerateFiles(session)).toEqual([]);
   });
 
   it('skips a file whose FileInfo returns a non-zero status', async () => {
-    const badInfo = encodeMessage(CQryFileInfo | 1, [1 /* status: not-found */]);
+    const badInfo = encodeMessage(CQryFileInfo | 1, [1]);
     const replies: Uint8Array[] = [iterReply(0, 0, 0), badInfo];
-    for (let b = 0; b < 8; b++) replies.push(iterReply(1, b, 0)); // every bank then exhausted
+    for (let b = 0; b < 8; b++) replies.push(iterReply(1, b, 0));
+    replies.push(iterReply(2, 8, 0));                                       // terminal
     const session = new NordSession(new MockTransport(replies));
+    expect(await enumerateFiles(session)).toHaveLength(0);
+  });
+});
 
-    const entries = await enumeratePrograms(session);
-    expect(entries).toHaveLength(0);
+describe('enumeratePrograms (wrapper)', () => {
+  it('delegates to enumerateFiles', async () => {
+    const session = new NordSession(new MockTransport([iterReply(2, 0, 0)]));
+    expect(await enumeratePrograms(session)).toEqual([]);
   });
 });
 

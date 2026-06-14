@@ -47,19 +47,21 @@ export function decodeFileInfo(payload: Uint8Array, bank: number, slot: number):
   };
 }
 
+/** Safety guard — the device terminates the walk with a non-0/1 iterate code; this just bounds a misbehaving device. */
+const MAX_BANKS = 64;
+
 /**
- * Enumerate every program by walking the FileIterate cursor across banks 0–7,
- * naming each hit via FileInfo. The session must already be on the Program
- * partition (begin(PARTITION_PROGRAM)). Read-only.
+ * Enumerate every file in the session's CURRENT partition by walking the
+ * FileIterate cursor across banks: code 0 → record (FileInfo); code 1 → next
+ * bank; any other code → stop. The caller sets the partition via begin().
  */
-export async function enumeratePrograms(session: NordSession): Promise<ProgramEntry[]> {
+export async function enumerateFiles(session: NordSession): Promise<ProgramEntry[]> {
   const out: ProgramEntry[] = [];
   let bank = 0;
-  let cursor = 0xffffffff; // sentinel: start iterating from the top of the bank
-  while (bank < 8) {
+  let cursor = 0xffffffff;
+  while (bank < MAX_BANKS) {
     const it = decodeFileIterate((await session.request(CQryFileIterate, [bank, cursor, 0])).payload);
     if (it.code === 0) {
-      // code 0 always reports a file within the requested bank (it.bank === bank).
       const info = await session.request(CQryFileInfo, [it.bank, it.slot]);
       if (info.status === 0) out.push(decodeFileInfo(info.payload, it.bank, it.slot));
       cursor = it.slot;
@@ -67,10 +69,15 @@ export async function enumeratePrograms(session: NordSession): Promise<ProgramEn
       bank = it.bank + 1;
       cursor = 0xffffffff;
     } else {
-      break;
+      break; // terminal code — no more banks in this partition
     }
   }
   return out;
+}
+
+/** Back-compat: the Program browser enumerates the (already-begun) Program partition. */
+export function enumeratePrograms(session: NordSession): Promise<ProgramEntry[]> {
+  return enumerateFiles(session);
 }
 
 /** FileRead window — programs are < 1 KB so one read suffices, but loop for safety. */
