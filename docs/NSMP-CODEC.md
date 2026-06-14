@@ -183,6 +183,35 @@ block directory (corrects an earlier guess).
 - **Output scaling:** raw integer PCM is returned; per-stroke normalization gain
   (`GetNormFactors`) / bit-depth scaling to float `[-1,1]` is still TODO.
 
+## Codec-4 investigation — narrowed, not closed (autonomous RE)
+
+Extensive testing against `Strings.nsmp4` stk[1] (which is ~the same audio as an
+nsmp3 stroke, so a known-good target). Established:
+
+- **Block structure is correct with 32-bit words** — every block's byte count
+  lands the next header on a valid `00xxxxxx` word; the stream reaches the section
+  boundary exactly. Order histogram is realistic (orders 0–3 dominant), so the
+  header bit layout (sc[0:13]/order[14:17]/bw[19:22]+1) is right for codec 4 too.
+- **Markers = zero-sample blocks** (`sampleCnt==0`), skipped; they sit at segment
+  boundaries (3 in this stroke). No-ops for audio per `DecodeSamples(sc=0)`.
+- **The residuals read identically to codec 3** — `twos`/`offset`/`zigzag`/
+  `lsb-first` sign-and-bit-order variants all behave the same (peak ~767× int24),
+  as do 24-bit words (worse). Codec 3 uses exactly this path and decodes clean.
+- **Yet the order-≥2 predictor diverges** (peak ≫ int24). Anything that shortens
+  how long the double-integrator runs *masks* it monotonically — channel-contiguous
+  split (`WriteChunk` packs per-channel via `SMetric[0x34]==1`): 767→216×; per-block
+  history reset: →67×; more sub-streams: 42×→8.6×→2.4×. That monotonicity proves
+  the channel/stream layout is a **red herring**; the true cause is a **systematic
+  per-residual error** the predictor amplifies, invisible to byte-level RE.
+
+`WriteChunk` (`0x1002dcc60`) keeps **per-channel bit accumulators** flushing whole
+words, gated by `SMetric[0x34]`; `SMetric`/`CDecode::CDecode` zero these and they're
+set per-codec during section read (not yet located). Bit-depth constants:
+kNomTgt=14, kMaxTgt=16, kMaxSrc=24, kPlayer=24.
+
+**Definitive next step:** the queued editor ground truth — encode `ramp_24.wav`
+(known residuals) to `.nsmp4`; the systematic error becomes obvious in one file.
+
 ## Encoder (`NW1::CEncode`) — algorithm recovered
 
 Recovered from `EncodeStroke` (`0x1002db3f8`/`0x1002db528`),
