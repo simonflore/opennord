@@ -26,6 +26,8 @@
   background: conic-gradient(var(--red) calc(var(--v, 50) * 1%), #353d4b 0); padding: 4px; }
 .ps-dial i { display: block; width: 100%; height: 100%; border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #4c5563, #171b22); }
+/* Neutral dial (no arc) — used when there is no real 0–100 value to show. */
+.ps-dial-flat { background: #353d4b; }
 .ps-knob b { display: block; font-size: 11px; margin-top: 3px; }
 .ps-knob span { font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
 

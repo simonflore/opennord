@@ -36,6 +36,13 @@ describe('widgets', () => {
     expect(html).toContain('-4.7 dB');
     expect(html).toContain('width:77%');
   });
+
+  it('Knob renders a neutral dial (no arc) when fill is omitted', () => {
+    const html = renderToStaticMarkup(<Knob value="MID" caption="timbre" />);
+    expect(html).toContain('MID');
+    expect(html).toContain('ps-dial-flat');
+    expect(html).not.toContain('--v:');
+  });
 });
 
 import { ProgramHeader } from './ProgramHeader';
@@ -47,6 +54,16 @@ function fixtureProgram() {
   const p = parseNs4Program(fixtureBytes);
   p.name = programNameFromFilename('regressionTest.ns4p');
   return p;
+}
+
+// The fixture's synths are all analog, so it has no played samples. This variant
+// flips synth C (Flute) to enabled samples-mode to exercise the sample-refs path.
+function programWithSampleLayer() {
+  const p = fixtureProgram();
+  const layers = (p.layers ?? []).map((l) =>
+    l.kind === 'synth' && l.id === 'C' ? { ...l, enabled: true, source: 'samples' as const } : l,
+  );
+  return { ...p, layers };
 }
 
 describe('ProgramHeader', () => {
@@ -107,10 +124,15 @@ describe('FxRow', () => {
 import { SampleRefs } from './SampleRefs';
 
 describe('SampleRefs', () => {
-  it('lists referenced samples with sample-library deep-links', () => {
-    const html = renderToStaticMarkup(<SampleRefs program={fixtureProgram()} />);
+  it('lists played samples with sample-library deep-links', () => {
+    const html = renderToStaticMarkup(<SampleRefs program={programWithSampleLayer()} />);
     expect(html).toContain('Flute Multi_ST 4.1');
     expect(html).toContain('https://www.nordkeyboards.com/sounds/sample-library/');
+  });
+
+  it('renders nothing for an all-analog patch (no played samples)', () => {
+    const html = renderToStaticMarkup(<SampleRefs program={fixtureProgram()} />);
+    expect(html).toBe('');
   });
 
   it('renders nothing when there are no sample refs', () => {
@@ -134,7 +156,8 @@ import { ProgramView } from './ProgramView';
 
 describe('ProgramView (integration)', () => {
   it('renders header, active engines, FX, sample refs, and the params drawer', () => {
-    const html = renderToStaticMarkup(<ProgramView program={fixtureProgram()} />);
+    // Use the sample-bearing variant so the full view (incl. sample refs) renders.
+    const html = renderToStaticMarkup(<ProgramView program={programWithSampleLayer()} />);
     expect(html).toContain('regressionTest');
     expect(html).toContain('H:81');
     expect(html).toContain('ORGAN · A');

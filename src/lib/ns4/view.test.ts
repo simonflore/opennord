@@ -113,13 +113,23 @@ describe('fxChips', () => {
 });
 
 describe('sampleRefViews', () => {
-  it('lists the samples the program references, by name', () => {
-    const refs = sampleRefViews(fixture());
-    expect(refs).toHaveLength(3);
-    const names = refs.map((r) => r.name);
-    expect(names).toContain('Flute Multi_ST 4.1');
-    expect(names).toContain('SymphStr Legato Amb_ProjectSAM 4.1');
-    expect(refs.every((r) => typeof r.id === 'number')).toBe(true);
-    expect(refs.every((r) => typeof r.categoryName === 'string')).toBe(true);
+  it('is empty for an all-analog patch (fixture has no enabled samples-mode layers)', () => {
+    // The fixture's synth layers are all analog (and synth A is disabled), so the
+    // stored sample slots are not samples the patch actually plays.
+    expect(sampleRefViews(fixture())).toEqual([]);
+  });
+
+  it('includes only enabled, samples-mode layers; excludes analog and disabled', () => {
+    const p = fixture();
+    // Flip synth C (Flute) to enabled samples-mode; leave synth A (disabled) and
+    // synth B (analog) as-is — only synth C should surface.
+    const layers = (p.layers ?? []).map((l) =>
+      l.kind === 'synth' && l.id === 'C' ? { ...l, enabled: true, source: 'samples' as const } : l,
+    );
+    const refs = sampleRefViews({ ...p, layers });
+    expect(refs).toHaveLength(1);
+    expect(refs[0].name).toBe('Flute Multi_ST 4.1');
+    expect(typeof refs[0].id).toBe('number');
+    expect(typeof refs[0].categoryName).toBe('string');
   });
 });

@@ -6,7 +6,6 @@
  * unit-testable against the regression fixture.
  */
 import type { NS4Program, NS4Layer } from './types';
-import { programSampleRefs } from './types';
 
 export interface HeaderView {
   name: string;
@@ -155,11 +154,18 @@ export function fxChips(p: NS4Program): FxChipModel[] {
 
 export interface SampleRefView { name: string; categoryName: string; id: number; }
 
-/** Samples this program references, by name (raw id when unnamed). Safe to share — never audio. */
+/**
+ * Samples the patch actually plays — the "you need these" list for sharing.
+ * Only enabled, samples-mode layers count: the Nord binary keeps a stored sample
+ * slot even on analog-mode or disabled layers, so `programSampleRefs` (every
+ * stored ref) would list samples the patch never loads. Names by name (raw id
+ * when unnamed). Safe to share — never audio.
+ */
 export function sampleRefViews(p: NS4Program): SampleRefView[] {
-  return programSampleRefs(p).map((s) => ({
-    name: s.name || `#${s.id}`,
-    categoryName: s.categoryName,
-    id: s.id,
-  }));
+  return (p.layers ?? [])
+    .filter((l) => l.enabled && l.source === 'samples' && l.sample)
+    .map((l) => {
+      const s = l.sample!;
+      return { name: s.name || `#${s.id}`, categoryName: s.categoryName, id: s.id };
+    });
 }

@@ -3,12 +3,18 @@
  * src/styles/nord.css. They render plain values from the view-model — no decoding.
  */
 
-/** A knob dial with a value readout and caption. `fill` is 0–100 for the arc. */
-export function Knob({ value, caption, fill = 50 }: { value: string; caption: string; fill?: number }) {
-  const v = Math.max(0, Math.min(100, Math.round(fill)));
+/**
+ * A knob dial with a value readout and caption. Pass `fill` (0–100) to draw the
+ * red arc at that position; omit it for a neutral dial. v1 knobs are mostly
+ * textual (the value lives in the readout), so most callers omit `fill` rather
+ * than show an arc that doesn't reflect the real parameter value.
+ */
+export function Knob({ value, caption, fill }: { value: string; caption: string; fill?: number }) {
+  const hasFill = typeof fill === 'number';
+  const v = hasFill ? Math.max(0, Math.min(100, Math.round(fill))) : 0;
   return (
     <div className="ps-knob">
-      <div className="ps-dial" style={{ ['--v' as string]: v }}><i /></div>
+      <div className={hasFill ? 'ps-dial' : 'ps-dial ps-dial-flat'} style={hasFill ? { ['--v' as string]: v } : undefined}><i /></div>
       <b>{value}</b>
       <span>{caption}</span>
     </div>
