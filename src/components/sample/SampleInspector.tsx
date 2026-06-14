@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import '../../styles/nord.css';
 import { readNsmp, decodeNsmp, readNsmpZones, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
 import { sampleHeaderView, zoneMapRows, strokeSummary } from '../../lib/ns4/sample-view';
@@ -21,28 +21,33 @@ interface Loaded {
   loadId: number;
 }
 
-export function SampleInspector() {
+export interface InspectorInput { bytes: Uint8Array; name: string; }
+
+export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const loadCount = useRef(0);
 
-  async function onFile(f: File) {
-    const bytes = new Uint8Array(await f.arrayBuffer());
+  async function loadBytes(bytes: Uint8Array, _name: string) {
     const file = readNsmp(bytes);
-    // Codec 3 and 4 both decode (4 via the word-interleaved path); legacy 1/2 don't.
     const decodable = file.codec === 3 || file.codec === 4;
     let decoded: DecodedStrokeResult[] = [];
     if (decodable) {
-      try {
-        decoded = decodeNsmp(bytes);
-      } catch {
-        decoded = [];
-      }
+      try { decoded = decodeNsmp(bytes); } catch { decoded = []; }
     }
     const zones: NsmpZone[] = file.recognized ? readNsmpZones(bytes) : [];
     const strokes: InspectorStroke[] = decoded.map((d) => ({ summary: strokeSummary(d), channels: d.channels }));
     setLoaded({ bytes, file, decoded, zones, strokes, decodable, loadId: ++loadCount.current });
   }
+
+  async function onFile(f: File) {
+    await loadBytes(new Uint8Array(await f.arrayBuffer()), f.name);
+  }
+
+  useEffect(() => {
+    if (initial) void loadBytes(initial.bytes, initial.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial]);
 
   return (
     <div>
