@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { parseNs4Program } from '../../lib/ns4/parse';
+import { programNameFromFilename } from '../../lib/ns4/name';
 import { Knob, DrawbarLadder, Lcd, Chip, Meter } from './widgets';
 
 describe('widgets', () => {
@@ -31,5 +35,27 @@ describe('widgets', () => {
     const html = renderToStaticMarkup(<Meter label="vol" value="-4.7 dB" fill={77} />);
     expect(html).toContain('-4.7 dB');
     expect(html).toContain('width:77%');
+  });
+});
+
+import { ProgramHeader } from './ProgramHeader';
+
+const fixtureBytes = new Uint8Array(
+  readFileSync(fileURLToPath(new URL('../../lib/ns4/__fixtures__/regressionTest.ns4p', import.meta.url))),
+);
+function fixtureProgram() {
+  const p = parseNs4Program(fixtureBytes);
+  p.name = programNameFromFilename('regressionTest.ns4p');
+  return p;
+}
+
+describe('ProgramHeader', () => {
+  it('renders name, slot, category, version, and summary', () => {
+    const html = renderToStaticMarkup(<ProgramHeader program={fixtureProgram()} />);
+    expect(html).toContain('regressionTest');
+    expect(html).toContain('H:81');
+    expect(html).toContain('None');
+    expect(html).toContain('v3.13');
+    expect(html).toContain('organ + piano + synth · 6 layers');
   });
 });
