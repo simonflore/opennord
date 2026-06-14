@@ -1,9 +1,9 @@
 /* NS4 palette + Program Studio component styles (direction C — Nord-flavored, clean). */
 .ps {
-  --navy: #1a1e26; --card: #222834; --line: #313847; --red: #c8102e;
-  --ink: #e7eaf0; --dim: #9aa2b1; --led: #ff3b3b; --grn: #34d36b; --lcd: #0d2a3a;
-  background: var(--navy); color: var(--ink); border-radius: 12px; padding: 14px;
-  font-family: -apple-system, system-ui, sans-serif;
+  --navy: var(--bg); --card: var(--surface); --line: var(--line); --red: var(--red);
+  --ink: var(--ink); --dim: var(--dim); --led: var(--red-bright); --grn: var(--connected); --lcd: #0d2a3a;
+  background: var(--navy); color: var(--ink); border-radius: var(--r-lg); padding: var(--s-3) var(--s-4);
+  font-family: var(--font);
 }
 .ps * { box-sizing: border-box; }
 
@@ -17,7 +17,7 @@
 .ps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
 .ps-card { background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--red);
   border-radius: 10px; padding: 11px 12px; }
-.ps-card h4 { margin: 0 0 2px; font-size: 11px; letter-spacing: 1.5px; color: #ff5a52; }
+.ps-card h4 { margin: 0 0 2px; font-size: 11px; letter-spacing: 1.5px; color: var(--red-bright); }
 .ps-sub { color: var(--dim); font-size: 11px; margin-bottom: 9px; }
 
 .ps-knobs { display: flex; gap: 14px; flex-wrap: wrap; }
