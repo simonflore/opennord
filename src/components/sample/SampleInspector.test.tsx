@@ -8,7 +8,7 @@ describe('SampleHeader', () => {
   it('renders name, codec, stroke count, and a factory badge when suspected', () => {
     const view: SampleHeaderView = {
       name: 'VLV Strings', codecLabel: '.nsmp3', version: '3.00',
-      checksumOk: true, strokeCount: 8, sizeBytes: 2048, isFactory: true,
+      checksumOk: true, checksumKnown: true, strokeCount: 8, sizeBytes: 2048, isFactory: true,
     };
     const html = renderToStaticMarkup(<SampleHeader view={view} />);
     expect(html).toContain('VLV Strings');

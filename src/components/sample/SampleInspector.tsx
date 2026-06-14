@@ -12,6 +12,8 @@ import { SampleConvert } from './SampleConvert';
 interface Loaded {
   bytes: Uint8Array;
   file: NsmpFile;
+  /** Source filename stem — display fallback when the file carries no name (OG). */
+  name: string;
   decoded: DecodedStrokeResult[];
   /** Zone map parsed once at load (consumed by the editor's initial model). */
   zones: NsmpZone[];
@@ -29,7 +31,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
   const [dragOver, setDragOver] = useState(false);
   const loadCount = useRef(0);
 
-  async function loadBytes(bytes: Uint8Array, _name: string) {
+  async function loadBytes(bytes: Uint8Array, name: string) {
     const file = readNsmp(bytes);
     const decodable = file.codec === 3 || file.codec === 4 || file.legacy;
     let decoded: DecodedStrokeResult[] = [];
@@ -38,7 +40,8 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     }
     const zones: NsmpZone[] = file.recognized ? readNsmpZones(bytes) : [];
     const strokes: InspectorStroke[] = decoded.map((d) => ({ summary: strokeSummary(d), channels: d.channels }));
-    setLoaded({ bytes, file, decoded, zones, strokes, decodable, loadId: ++loadCount.current });
+    const stem = name.replace(/\.[^./]+$/, '');
+    setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current });
   }
 
   async function onFile(f: File) {
@@ -75,8 +78,8 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
 
       {loaded && loaded.file.recognized && (
         <div className="ps">
-          <SampleHeader view={sampleHeaderView(loaded.file, loaded.bytes.length)} />
-          {loaded.decodable && <SampleConvert bytes={loaded.bytes} file={loaded.file} />}
+          <SampleHeader view={sampleHeaderView(loaded.file, loaded.bytes.length, loaded.name)} />
+          {loaded.decodable && <SampleConvert bytes={loaded.bytes} file={loaded.file} name={loaded.name} />}
           {/* Editor only when every zone has decoded audio (positional pairing needs
               one stroke per zone) — otherwise fall back to the read-only zone map. */}
           {loaded.decodable && loaded.zones.length > 0 && loaded.decoded.length === loaded.zones.length

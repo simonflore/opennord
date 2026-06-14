@@ -14,7 +14,7 @@ type Status =
  * original `.nsmp` (OG) → `.nsmp3`/`.nsmp4`, `.nsmp3` → `.nsmp4`, `.nsmp4` → `.nsmp3`.
  * Audio is preserved exactly (`convertNsmp`).
  */
-export function SampleConvert({ bytes, file }: { bytes: Uint8Array; file: NsmpFile }) {
+export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: NsmpFile; name?: string }) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
   const source = file.legacy ? 0 : file.codec ?? 0;
@@ -24,7 +24,7 @@ export function SampleConvert({ bytes, file }: { bytes: Uint8Array; file: NsmpFi
   function convert(target: 3 | 4) {
     try {
       const { bytes: out, extension, warnings } = convertNsmp(bytes, target);
-      const filename = `${file.name?.trim() || 'sample'}${extension}`;
+      const filename = `${file.name?.trim() || name?.trim() || 'sample'}${extension}`;
       downloadBytes(out, filename);
       setStatus({ kind: 'done', msg: `Saved ${filename}`, warnings });
     } catch (e) {

@@ -141,10 +141,12 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
   const { legacy } = nsmpLayout(bytes);
   const versionRaw = bytes[0x14] | (bytes[0x15] << 8);
   const major = Math.trunc(versionRaw / 100);
-  const version = `${major}.${String(versionRaw - major * 100).padStart(2, '0')}`;
+  // Modern codecs carry an x.yy library version (300 → "3.00"); the OG `.nsmp` uses
+  // a small format revision (8) and has no CRC field, so don't fake either.
+  const version = legacy ? `${versionRaw}` : `${major}.${String(versionRaw - major * 100).padStart(2, '0')}`;
   const codec = major;
   const checksumValid = verifyNs4Checksum(bytes);
-  if (!checksumValid) warnings.push('Sample checksum mismatch — possibly truncated/modified.');
+  if (!checksumValid && !legacy) warnings.push('Sample checksum mismatch — possibly truncated/modified.');
 
   const sections = parseNsmpSections(bytes);
   const hdr = sections.find((s) => s.tag === '.hdr' || s.tag.endsWith('hdr'));

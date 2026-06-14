@@ -17,7 +17,9 @@ export function SampleHeader({ view }: { view: SampleHeaderView }) {
           <span className="ps-pill">v{view.version}</span>
           <span className="ps-pill">{view.strokeCount} strokes</span>
           <span className="ps-pill">{formatBytes(view.sizeBytes)}</span>
-          <span className="ps-pill">{view.checksumOk ? 'checksum ✓' : 'checksum ✗'}</span>
+          {view.checksumKnown && (
+            <span className="ps-pill">{view.checksumOk ? 'checksum ✓' : 'checksum ✗'}</span>
+          )}
           {view.isFactory && (
             <span className="ps-pill" style={{ color: 'var(--warn)', borderColor: '#43222a' }}>factory?</span>
           )}

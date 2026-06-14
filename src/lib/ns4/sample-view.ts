@@ -16,10 +16,12 @@ export function noteName(midi: number): string {
 
 export interface SampleHeaderView {
   name: string;
-  /** ".nsmp3" / ".nsmp4" / "—". */
+  /** ".nsmp (OG)" / ".nsmp3" / ".nsmp4" / "—". */
   codecLabel: string;
   version: string;
   checksumOk: boolean;
+  /** False for OG `.nsmp` — it predates the CRC field, so there's nothing to verify. */
+  checksumKnown: boolean;
   strokeCount: number;
   sizeBytes: number;
   isFactory: boolean;
@@ -31,12 +33,13 @@ export function nsmpGenerationLabel(file: NsmpFile): string {
   return file.codec ? `.nsmp${file.codec}` : '—';
 }
 
-export function sampleHeaderView(file: NsmpFile, sizeBytes: number): SampleHeaderView {
+export function sampleHeaderView(file: NsmpFile, sizeBytes: number, fallbackName?: string): SampleHeaderView {
   return {
-    name: file.name?.trim() || 'Unnamed',
+    name: file.name?.trim() || fallbackName?.trim() || 'Unnamed',
     codecLabel: nsmpGenerationLabel(file),
     version: file.version ?? '—',
     checksumOk: file.checksumValid,
+    checksumKnown: !file.legacy,
     strokeCount: file.strokeCount,
     sizeBytes,
     isFactory: file.suspectedFactory,

@@ -22,7 +22,7 @@ describe('sampleHeaderView', () => {
     };
     expect(sampleHeaderView(file, 1234)).toEqual({
       name: 'VLV Strings', codecLabel: '.nsmp3', version: '3.00',
-      checksumOk: true, strokeCount: 8, sizeBytes: 1234, isFactory: false,
+      checksumOk: true, checksumKnown: true, strokeCount: 8, sizeBytes: 1234, isFactory: false,
     });
   });
 
@@ -33,8 +33,21 @@ describe('sampleHeaderView', () => {
     };
     expect(sampleHeaderView(file, 0)).toEqual({
       name: 'Unnamed', codecLabel: '—', version: '—',
-      checksumOk: false, strokeCount: 0, sizeBytes: 0, isFactory: false,
+      checksumOk: false, checksumKnown: true, strokeCount: 0, sizeBytes: 0, isFactory: false,
     });
+  });
+
+  it('OG .nsmp: shows the OG label, the v8 revision, no checksum, filename fallback', () => {
+    const file: NsmpFile = {
+      recognized: true, version: '8', versionRaw: 8, codec: 0, legacy: true,
+      checksumValid: false, name: undefined, sections: [], strokeCount: 9,
+      suspectedFactory: false, warnings: [],
+    };
+    const v = sampleHeaderView(file, 1000, 'TAKE ON ME');
+    expect(v.codecLabel).toBe('.nsmp (OG)');
+    expect(v.version).toBe('8');
+    expect(v.checksumKnown).toBe(false); // no CRC field to verify
+    expect(v.name).toBe('TAKE ON ME'); // falls back to filename when the file has no name
   });
 });
 
