@@ -19,6 +19,8 @@ interface Props {
   onChooseFolder: () => void;
   onReconnect: () => void;
   onRefresh: () => void;
+  scanErrorCount: number;
+  onForget: () => void;
 }
 
 const TABS: Array<LibrarySource | 'all'> = ['all', 'nord', 'local'];
@@ -27,7 +29,7 @@ const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', nord: 'On
 export function LibraryView({
   entries, source, query, onSource, onQuery, onOpen, onImport,
   folderName, folderCount, canPersist, needsReconnect, busy,
-  onChooseFolder, onReconnect, onRefresh,
+  onChooseFolder, onReconnect, onRefresh, scanErrorCount, onForget,
 }: Props) {
   const nord = entries.filter((e) => e.source === 'nord').length;
   const local = entries.length - nord;
@@ -43,7 +45,7 @@ export function LibraryView({
           {folderName ? (
             <span className="lib-folder" title={folderName}>
               📁 {folderName} · {folderCount} {folderCount === 1 ? 'file' : 'files'}
-              {canPersist
+              {canPersist && !needsReconnect
                 ? <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onRefresh} disabled={busy} aria-label="Refresh folder">⟳</button>
                 : <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onChooseFolder} disabled={busy}>Re-pick</button>}
             </span>
@@ -58,7 +60,12 @@ export function LibraryView({
         <div className="lib-reconnect">
           Reconnect <strong>{folderName}</strong> to load your patches.
           <button className="on-btn on-btn--ghost" onClick={onReconnect} disabled={busy}>Reconnect</button>
+          <button className="on-btn on-btn--ghost" onClick={onForget} disabled={busy}>Forget</button>
         </div>
+      )}
+
+      {scanErrorCount > 0 && (
+        <div className="lib-errnote">{scanErrorCount} {scanErrorCount === 1 ? 'file' : 'files'} couldn't be read.</div>
       )}
 
       <div className="lib-controls">

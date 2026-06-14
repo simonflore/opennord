@@ -1,4 +1,5 @@
 import type { RawFile } from './scan';
+import { classifyFile } from './classify';
 
 /**
  * Recursively read every file under a directory handle into a flat list,
@@ -21,6 +22,7 @@ async function walkInto(dir: FileSystemDirectoryHandle, prefix: string, out: Raw
   for await (const handle of (dir as unknown as AsyncDir).values()) {
     const path = prefix ? `${prefix}/${handle.name}` : handle.name;
     if (handle.kind === 'file') {
+      if (!classifyFile(path)) continue; // skip non-Nord files without reading them
       const file = await (handle as FileSystemFileHandle).getFile();
       out.push({ path, bytes: new Uint8Array(await file.arrayBuffer()) });
     } else if (handle.kind === 'directory') {

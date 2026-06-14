@@ -1,6 +1,7 @@
 import type { RawFile } from './scan';
 import { walkDirectory } from './walk';
 import { saveHandle, loadHandle, clearHandle } from './idbStore';
+import { classifyFile } from './classify';
 
 /** True when this browser can pick a folder and persist the handle (Chromium desktop). */
 export function supportsPersistentFolders(): boolean {
@@ -29,6 +30,7 @@ export async function filesToRawFiles(files: ArrayLike<File>): Promise<RawFile[]
     const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
     const slash = rel.indexOf('/');
     const path = slash === -1 ? rel : rel.slice(slash + 1); // drop top folder segment
+    if (!classifyFile(path)) continue; // skip non-Nord files without reading them
     out.push({ path, bytes: new Uint8Array(await f.arrayBuffer()) });
   }
   return out;
@@ -49,7 +51,11 @@ function pickFolderInput(): Promise<FolderHandleResult> {
     (input as HTMLInputElement & { webkitdirectory: boolean }).webkitdirectory = true;
     input.style.display = 'none';
     document.body.appendChild(input); // WKWebView needs it in the DOM (see App.tsx)
-    const cleanup = () => input.remove();
+    let settled = false;
+    const cleanup = () => { settled = true; input.remove(); window.removeEventListener('focus', onFocus); };
+    // Window regains focus when the picker closes. If a selection was made,
+    // onchange fires and settles first; otherwise treat it as a cancel.
+    const onFocus = () => { setTimeout(() => { if (!settled) { cleanup(); reject(new Error('Cancelled')); } }, 400); };
     input.onchange = async () => {
       const list = input.files;
       cleanup();
@@ -58,6 +64,7 @@ function pickFolderInput(): Promise<FolderHandleResult> {
       resolve({ name: top, files: await filesToRawFiles(list) });
     };
     input.oncancel = () => { cleanup(); reject(new Error('Cancelled')); };
+    window.addEventListener('focus', onFocus, { once: true });
     input.click();
   });
 }

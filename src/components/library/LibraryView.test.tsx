@@ -17,6 +17,8 @@ const folderDefaults = {
   onChooseFolder: () => {},
   onReconnect: () => {},
   onRefresh: () => {},
+  scanErrorCount: 0,
+  onForget: () => {},
 };
 
 describe('LibraryView', () => {

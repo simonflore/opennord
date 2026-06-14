@@ -20,3 +20,4 @@
 }
 .lib-empty__hint { color: var(--dim); font-size: 13px; margin-top: 8px; }
 .lib-empty__hint code { color: var(--ink); }
+.lib-errnote { color: var(--dim); font-size: 13px; margin-bottom: 12px; }

@@ -86,6 +86,8 @@ function Shell() {
                 onChooseFolder={folder.choose}
                 onReconnect={folder.reconnect}
                 onRefresh={folder.refresh}
+                scanErrorCount={folder.result.errors.length}
+                onForget={folder.forget}
               />)
         )}
         {dest === 'device' && <DeviceManager />}
