@@ -45,7 +45,23 @@ export interface NsmpFile {
   sections: NsmpSection[];
   /** Number of `stk` (stroke / zone) sections. */
   strokeCount: number;
+  /** Best-effort: looks like factory/library content (Clavia IP) vs user-created. */
+  suspectedFactory: boolean;
   warnings: string[];
+}
+
+/**
+ * Best-effort guess: is this likely factory/library content (Clavia IP) rather
+ * than a user's own recording? Mirrors the editor's own user-created-only gate
+ * ("NSMP v3 Factory Library files are not supported"). Conservative — when
+ * unsure, returns false so we never block a user's own sample; the UI surfaces
+ * the suspicion rather than refusing. See docs/LEGAL.md, docs/FORMAT.md.
+ */
+export function looksFactory(name: string | undefined): boolean {
+  if (!name) return false;
+  // Factory sample names carry a vendor/library marker + version, e.g.
+  // "Strings Multi … ST 4.1", "… PS 4.1", "… CL v4", "… PH_v2".
+  return /\b(PS|CL|PH|ST|GP|EP)\s?v?\d+(\.\d+)?$/i.test(name.trim());
 }
 
 const u32be = (b: Uint8Array, o: number) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
@@ -95,7 +111,7 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
   const warnings: string[] = [];
   const recognized = hasCbinMagic(bytes) && fileTypeTag(bytes) === 'nsmp';
   if (!recognized) {
-    return { recognized: false, checksumValid: false, sections: [], strokeCount: 0, warnings: ['Not a Nord Sample file.'] };
+    return { recognized: false, checksumValid: false, sections: [], strokeCount: 0, suspectedFactory: false, warnings: ['Not a Nord Sample file.'] };
   }
   const versionRaw = bytes[0x14] | (bytes[0x15] << 8);
   const major = Math.trunc(versionRaw / 100);
@@ -109,7 +125,7 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
   const name = hdr ? readName(bytes, hdr) : undefined;
   const strokeCount = sections.filter((s) => s.tag.endsWith('stk')).length;
 
-  return { recognized: true, version, versionRaw, codec, checksumValid, name, sections, strokeCount, warnings };
+  return { recognized: true, version, versionRaw, codec, checksumValid, name, sections, strokeCount, suspectedFactory: looksFactory(name), warnings };
 }
 
 export interface DecodedStrokeResult extends DecodedStroke {
