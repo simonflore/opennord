@@ -2,6 +2,21 @@ import { useState } from 'react';
 import type { NordSession } from '../../lib/device/session';
 import { backup, restore, type RestoreResult } from '../../lib/device/backup';
 
+/** Trigger a browser download of `bytes` as `filename`, releasing the object URL after. */
+function downloadFile(bytes: Uint8Array, filename: string) {
+  const url = URL.createObjectURL(new Blob([bytes.buffer as ArrayBuffer], { type: 'application/octet-stream' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a); // appended so the click reliably fires across browsers
+  try {
+    a.click();
+  } finally {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+}
+
 /** Backup → download a .ns4b; Restore → confirm, write, summarize. */
 export function BackupPanel({ session, deviceName, onAfterRestore }: {
   session: NordSession;
@@ -10,7 +25,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
 }) {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
-  const [pendingZip, setPendingZip] = useState<{ bytes: Uint8Array; fileCount: number } | null>(null);
+  const [pendingZip, setPendingZip] = useState<Uint8Array | null>(null);
 
   async function runBackup() {
     if (busy) return;
@@ -18,13 +33,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
     setStatus('Backing up…');
     try {
       const bytes = await backup(session, (done, total) => setStatus(`Backing up ${done} of ${total}…`));
-      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `OpenNord Backup ${new Date().toISOString().slice(0, 10)}.ns4b`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadFile(bytes, `OpenNord Backup ${new Date().toISOString().slice(0, 10)}.ns4b`);
       setStatus('Backup downloaded.');
     } catch (e) {
       setStatus(`Backup failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -34,9 +43,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
   }
 
   async function pickRestore(file: File) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    // count restorable entries cheaply: any non-meta entry; the exact count is shown after.
-    setPendingZip({ bytes, fileCount: 0 });
+    setPendingZip(new Uint8Array(await file.arrayBuffer()));
     setStatus('');
   }
 
@@ -45,7 +52,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
     setBusy(true);
     setStatus('Restoring…');
     try {
-      const result: RestoreResult = await restore(session, pendingZip.bytes, (done, total) => setStatus(`Restoring ${done} of ${total}…`));
+      const result: RestoreResult = await restore(session, pendingZip, (done, total) => setStatus(`Restoring ${done} of ${total}…`));
       const skipped = result.skippedFactory ? `; skipped ${result.skippedFactory} factory files` : '';
       const failed = result.failures.length ? `; ${result.failures.length} couldn't be written` : '';
       setStatus(`Restored ${result.restored} files${skipped}${failed}.`);
