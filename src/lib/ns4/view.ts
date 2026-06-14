@@ -56,3 +56,41 @@ export function headerView(p: NS4Program): HeaderView {
     summary,
   };
 }
+
+export interface OrganCardModel { id: string; model: string; drawbars: number[]; vibChorus: boolean; perc: boolean; }
+export interface PianoCardModel { id: string; type: string; model: string; timbre: string; touch: string; }
+export interface SynthCardModel { id: string; source: string; osc: string; oscDetail: string; filterType: string; cutoff: string; res: string; }
+
+export function organCard(l: NS4Layer): OrganCardModel {
+  return {
+    id: l.id,
+    model: l.organModel ?? '—',
+    drawbars: drawbarLevels(l),
+    vibChorus: !!l.vibChorus,
+    perc: !!l.percussion?.on,
+  };
+}
+
+export function pianoCard(l: NS4Layer): PianoCardModel {
+  return {
+    id: l.id,
+    type: l.pianoType ?? '—',
+    model: l.pianoModelName ?? '—',
+    timbre: l.timbre ?? '—',
+    touch: l.touch ?? '—',
+  };
+}
+
+export function synthCard(l: NS4Layer): SynthCardModel {
+  const osc = l.source === 'analog' ? (l.oscType ?? 'analog') : (l.sample?.name ?? 'sample');
+  const oscDetail = l.oscWave ? `wave ${l.oscWave}` : (l.oscCategory ? `cat ${l.oscCategory}` : '');
+  return {
+    id: l.id,
+    source: l.source ?? 'samples',
+    osc,
+    oscDetail,
+    filterType: l.filter?.type ?? '—',
+    cutoff: l.filter?.freq?.value ?? '—',
+    res: l.filter?.resonance?.value ?? '—',
+  };
+}

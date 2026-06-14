@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseNs4Program } from './parse';
 import { programNameFromFilename } from './name';
-import { activeLayers, headerView, drawbarLevels, volumeFill } from './view';
+import { activeLayers, headerView, drawbarLevels, volumeFill, organCard, pianoCard, synthCard } from './view';
 
 const fixtureBytes = new Uint8Array(
   readFileSync(fileURLToPath(new URL('./__fixtures__/regressionTest.ns4p', import.meta.url))),
@@ -56,5 +56,30 @@ describe('volumeFill', () => {
     expect(volumeFill('-40 dB')).toBe(0);
     expect(volumeFill(undefined)).toBe(0);
     expect(volumeFill('n/a')).toBe(0);
+  });
+});
+
+describe('engine card models', () => {
+  const active = activeLayers(fixture());
+
+  it('organCard reads model + drawbars', () => {
+    const c = organCard(active[0]); // organ A
+    expect(c.model).toBe('VOX');
+    expect(c.drawbars).toEqual([4, 2, 2, 1, 1, 2, 2, 1, 1]);
+  });
+
+  it('pianoCard reads type + model name', () => {
+    const c = pianoCard(active[2]); // piano A
+    expect(c.type).toBe('Clav');
+    expect(c.model).toBe('Clavinet D6 6.1');
+  });
+
+  it('synthCard reads osc + filter for an analog synth', () => {
+    const c = synthCard(active[4]); // synth B
+    expect(c.source).toBe('analog');
+    expect(c.osc).toBe('2 (FM-H)');
+    expect(c.oscDetail).toBe('wave 0.5');
+    expect(c.filterType).toBe('BP');
+    expect(c.cutoff).toBe('3.7 kHz');
   });
 });
