@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseNs4Program } from './parse';
 import { programNameFromFilename } from './name';
-import { activeLayers, headerView, drawbarLevels, volumeFill, organCard, pianoCard, synthCard } from './view';
+import { activeLayers, headerView, drawbarLevels, volumeFill, organCard, pianoCard, synthCard, fxChips } from './view';
 
 const fixtureBytes = new Uint8Array(
   readFileSync(fileURLToPath(new URL('./__fixtures__/regressionTest.ns4p', import.meta.url))),
@@ -81,5 +81,31 @@ describe('engine card models', () => {
     expect(c.oscDetail).toBe('wave 0.5');
     expect(c.filterType).toBe('BP');
     expect(c.cutoff).toBe('3.7 kHz');
+  });
+});
+
+describe('fxChips', () => {
+  const chips = fxChips(fixture());
+
+  it('collects on-effects across active layers + global organ FX', () => {
+    expect(chips.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('each chip has a non-empty label and string detail', () => {
+    for (const c of chips) {
+      expect(typeof c.label).toBe('string');
+      expect(c.label.length).toBeGreaterThan(0);
+      expect(typeof c.detail).toBe('string');
+    }
+  });
+
+  it('keys are unique', () => {
+    const keys = chips.map((c) => c.key);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('includes a Reverb and a Delay chip (present in the fixture)', () => {
+    expect(chips.some((c) => c.label === 'Reverb')).toBe(true);
+    expect(chips.some((c) => c.label === 'Delay')).toBe(true);
   });
 });

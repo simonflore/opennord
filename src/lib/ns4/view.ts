@@ -94,3 +94,40 @@ export function synthCard(l: NS4Layer): SynthCardModel {
     res: l.filter?.resonance?.value ?? '—',
   };
 }
+
+export interface FxChipModel { key: string; label: string; detail: string; }
+
+/**
+ * Compact list of effects that are switched on. Per-layer FX come from each
+ * active piano/synth layer; organ FX is a single global set (Ns4OrganFx).
+ */
+export function fxChips(p: NS4Program): FxChipModel[] {
+  const chips: FxChipModel[] = [];
+  const push = (key: string, label: string, on: boolean | undefined, detail: string) => {
+    if (on) chips.push({ key, label, detail });
+  };
+
+  for (const l of activeLayers(p)) {
+    if (l.kind === 'organ') continue; // organ FX is global, handled below
+    const tag = `${l.kind ?? 'x'}${l.id}`;
+    push(`${tag}-mod1`, 'Mod 1', l.fxMod1?.on, l.fxMod1?.mode ?? 'on');
+    push(`${tag}-mod2`, 'Mod 2', l.fxMod2?.on, l.fxMod2?.mode ?? 'on');
+    push(`${tag}-amp`, 'Amp/EQ', l.ampSimEq?.on, l.ampSimEq?.mode ?? 'on');
+    push(`${tag}-comp`, 'Comp', l.comp?.on, l.comp?.amount ?? 'on');
+    push(`${tag}-delay`, 'Delay', l.delay?.on, l.delay?.effects ?? l.delay?.tempo?.value ?? 'on');
+    push(`${tag}-reverb`, 'Reverb', l.reverb?.on, l.reverb?.type ?? 'on');
+  }
+
+  const o = p.organFx;
+  if (o) {
+    push('org-mod1', 'Organ Mod 1', o.mod1?.on, o.mod1?.mode ?? 'on');
+    push('org-mod2', 'Organ Mod 2', o.mod2?.on, o.mod2?.mode ?? 'on');
+    push('org-amp', 'Organ Amp/EQ', o.ampSimEq?.on, o.ampSimEq?.mode ?? 'on');
+    push('org-comp', 'Organ Comp', o.comp?.on, o.comp?.amount ?? 'on');
+    push('org-delay', 'Organ Delay', o.delay?.on, o.delay?.effects ?? 'on');
+    push('org-reverb', 'Organ Reverb', o.reverb?.on, o.reverb?.type ?? 'on');
+    push('org-rotary', 'Rotary', o.rotary?.on, o.rotary?.fast ? 'fast' : 'slow');
+  }
+
+  return chips;
+}
