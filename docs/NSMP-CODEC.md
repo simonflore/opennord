@@ -236,6 +236,30 @@ it stays linear):
   isolate the order-≥2 reconstruction, and pin the per-stroke header size so the
   block-stream start is computed, not scanned.
 
+### sine_24.nsmp4 (order-2 ground truth) — the wall is order-≥2 reconstruction
+
+Decoded the editor's sine (L=R, so channel layout is irrelevant — isolates the
+codec). Block stream at `payload+~0x6c` then alternating **order-2/order-3**
+blocks (bw 3–4, sc 64–448) — textbook for a smooth sine.
+
+- **Order-2/3 residuals are read correctly** — small, plausible
+  (`[-1,0,-2,1,0,0,0,0,…]`, `[1,-1,1,-2,3,-2,…]`). Headers/boundaries parse sane.
+- **But order-≥2 reconstruction diverges into a smooth ramp** (peak ≫ int24): the
+  `[2,-1]` double-integrator runs away. Sub-stream count is a **confirmed red
+  herring** — peak drops monotonically (174→25→5.9→1.6× int24 for 2/4/8/16
+  streams) but never goes clean; it only shortens the integrator.
+- **Yet codec-3 decodes order-2 fine** — Strings.nsmp3 has 509 order-2 blocks and
+  reconstructs cleanly with the *same* `[2,-1]`. So the predictor coefficients are
+  right; something about codec-4's order-≥2 *state* differs.
+
+**Unresolved discriminator (next probe):** why codec-3 order-2 reconstructs but
+codec-4 order-2 ramps, given identical residual reading + predictor. Leads:
+per-segment history **seeding** (the order-0 `bw13` blocks may be segment seeds /
+the markers may carry initial state), or a history-continuity rule across markers
+that codec-3 doesn't need. Compare a single nsmp3 order-2 block decode against a
+sine order-2 block step by step; and read how `DecodeStroke` handles state at the
+position-based (loop/segment) checkpoints for codec 4.
+
 ## Encoder (`NW1::CEncode`) — algorithm recovered
 
 Recovered from `EncodeStroke` (`0x1002db3f8`/`0x1002db528`),
