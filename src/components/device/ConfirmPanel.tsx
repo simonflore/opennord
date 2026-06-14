@@ -25,7 +25,7 @@ export function ConfirmPanel({ title, message, confirmLabel, onConfirm, onCancel
           disabled={busy}
           style={{
             padding: '8px 14px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 700,
-            border: '1px solid #c8102e', background: '#c8102e', color: '#fff',
+            border: '1px solid var(--red)', background: 'var(--red)', color: '#fff',
           }}
         >
           {busy ? 'Working…' : confirmLabel}

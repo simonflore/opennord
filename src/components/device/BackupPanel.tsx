@@ -65,7 +65,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
         </p>
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
           <button onClick={confirmRestore} disabled={busy}
-            style={{ padding: '8px 14px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 700, border: '1px solid #c8102e', background: '#c8102e', color: '#fff' }}>
+            style={{ padding: '8px 14px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 700, border: '1px solid var(--red)', background: 'var(--red)', color: '#fff' }}>
             {busy ? 'Restoring…' : 'Restore'}
           </button>
           <button onClick={() => setPendingZip(null)} disabled={busy}
@@ -82,10 +82,10 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button onClick={runBackup} disabled={busy}
-          style={{ padding: '8px 12px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontSize: 12, border: '1px solid #c8102e', color: '#ff7a72', background: 'transparent' }}>
+          style={{ padding: '8px 12px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontSize: 12, border: '1px solid var(--red)', color: '#ff7a72', background: 'transparent' }}>
           Back up
         </button>
-        <label style={{ padding: '8px 12px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontSize: 12, border: '1px solid #c8102e', color: '#ff7a72' }}>
+        <label style={{ padding: '8px 12px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontSize: 12, border: '1px solid var(--red)', color: '#ff7a72' }}>
           Restore…
           <input type="file" accept=".ns4b" style={{ display: 'none' }} disabled={busy}
             onChange={(ev) => ev.target.files?.[0] && void pickRestore(ev.target.files[0])} />

@@ -69,7 +69,7 @@ export function ConnectPanel({ onConnected }: {
         disabled={status === 'connecting'}
         style={{
           padding: '10px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 700,
-          border: '1px solid #c8102e', background: '#c8102e', color: '#fff',
+          border: '1px solid var(--red)', background: 'var(--red)', color: '#fff',
         }}
       >
         {status === 'connecting' ? 'Connecting…' : 'Connect your Nord'}

@@ -43,9 +43,9 @@ export function TargetSlotPicker({ entries, onPick, onCancel }: {
                   style={{
                     fontSize: 9, padding: '4px 2px', borderRadius: 4, cursor: 'pointer', overflow: 'hidden',
                     whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                    border: '1px solid #313847',
-                    background: name ? '#2c3340' : '#1a1e26',
-                    color: name ? '#e7eaf0' : '#6b7280',
+                    border: '1px solid var(--line)',
+                    background: name ? 'var(--surface-2)' : 'var(--bg)',
+                    color: name ? 'var(--ink)' : 'var(--muted)',
                   }}
                 >
                   {formatSlot(bank, slot)}
