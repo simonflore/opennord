@@ -119,3 +119,46 @@ the bar). When extending the decoder, validate against the fixture.
 - Most remaining work is **product** (visualize → AI → community library), not RE.
 - Keep changes small and verifiable; prefer extending the decoder one traceable
   field at a time over large speculative rewrites.
+
+## Design Context
+
+Guides all UI/UX work. The design system is **Studio Dark**, defined in
+`src/styles/tokens.css` (the single source of truth — never hardcode a color;
+route everything through a `var(--…)` token) and composed from the primitives in
+`src/components/ui/`. Spec + plan: `docs/superpowers/{specs,plans}/2026-06-14-ui-redesign*`.
+
+### Users
+Nord Stage 4 owners — gigging/practicing musicians, not engineers. Two co-equal
+jobs, both first-class: **browse/understand/organize patches** (the unified
+Library is home) and **manage the keyboard** (transfer, backup, samples). It's a
+stage tool: design mobile-first for reading/browsing; device transfer is a
+desktop/iPad-only bonus path (vendor-USB), never a hard dependency.
+
+### Brand Personality
+**Confident & precise** — reads like a pro instrument: trustworthy, exact,
+premium. Slightly Nord-inspired (the italic red "Nord" mark, the single Nord red
+`--red #e0202e` accent on near-black), modern, not skeuomorphic. Speak the
+**musician's language**: never surface protocol/engineer jargon (bytes, opcodes,
+raw bank/slot numbers) in product UI — translate to what a player understands.
+
+### Aesthetic Direction
+Dark, instrument-front-panel feel: near-black surfaces, one red accent, generous
+hierarchy and whitespace, focus over density. Dark-only for now, but built on
+tokens so a light theme is a second `[data-theme]` block, not a rewrite.
+**Anti-references:** Nord Sound Manager (dense, dated, wall-of-rows desktop UI we
+are explicitly beating) and generic SaaS/admin-dashboard chrome. Accessibility is
+part of "precise": real labels (`aria-label`/`aria-current`), keyboard-operable
+controls, and token colors that meet contrast on dark surfaces.
+
+### Design Principles
+1. **One token source.** Every color/space/radius/type step comes from
+   `tokens.css`. A hardcoded hex in a component is a review failure (rare,
+   intentional one-offs like LCD blues are the documented exception).
+2. **Speak musician, not protocol.** Hide the machine; show the sound. If a label
+   reads like the RE notes, rewrite it.
+3. **Two equal front doors.** Patch exploration and device management are both
+   first-class; don't let one become a second-class tab.
+4. **Composed, not bespoke.** Build screens from `src/components/ui/` primitives;
+   reach for a new primitive before re-styling inline.
+5. **Calm and legible on a dark stage.** Whitespace and hierarchy over density;
+   readable at phone width; the instrument's job is the music, not the UI.
