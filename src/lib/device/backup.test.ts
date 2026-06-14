@@ -100,4 +100,18 @@ describe('restore', () => {
     expect(result.restored).toBe(0);
     expect(result.failures).toHaveLength(1);
   });
+
+  it('records a non-CBIN entry as a failure without writing to slot 0:0', async () => {
+    const zip = zipSync({
+      'meta.xml': strToU8(buildMetaXml(0)),
+      'Program/Bank A/garbage.ns4p': new Uint8Array([0, 1, 2, 3, 4]), // not a CBIN file
+    }, { level: 0 });
+    // No FileCreate is sent — the hasCbinMagic guard throws before any device write.
+    const replies = [ack(CReqBegin), ack(CReqEnd), ack(CReqBegin)];
+    const t = new MockTransport(replies);
+    const result = await restore(new NordSession(t), zip);
+    expect(result.restored).toBe(0);
+    expect(result.failures).toHaveLength(1);
+    expect(t.sent.some((f) => decodeReply(f).msgId === CReqFileCreate)).toBe(false);
+  });
 });

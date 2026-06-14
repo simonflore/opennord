@@ -18,6 +18,11 @@ describe('ns4b helpers', () => {
     expect(partitionForPath('meta.xml')).toBeNull();
   });
 
+  it('partitionForPath parses the basename — a dot in a folder name is not the extension', () => {
+    expect(partitionForPath('Samp Lib/Pad.1/x.ns4p')).toBe(6); // folder has a dot; file is .ns4p
+    expect(partitionForPath('Program/Bank C/No Extension')).toBeNull(); // dotless filename → skip
+  });
+
   it('backupPath uses letter banks for Program, number banks otherwise', () => {
     const program = USER_PARTITIONS.find((p) => p.partition === 6)!;
     const synth = USER_PARTITIONS.find((p) => p.partition === 9)!;

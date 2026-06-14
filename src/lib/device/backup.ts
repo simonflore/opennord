@@ -3,7 +3,7 @@ import type { NordSession } from './session';
 import { NordError } from './protocol';
 import { PARTITION_PROGRAM } from './opcodes';
 import { enumerateFiles, pullFile, pushFile, type ProgramEntry } from './transfer';
-import { readCbinHeader } from '../ns4/bits';
+import { readCbinHeader, hasCbinMagic } from '../ns4/bits';
 import { USER_PARTITIONS, partitionForPath, backupPath, buildMetaXml, type PartitionSpec } from './ns4b';
 
 export interface RestoreResult {
@@ -44,7 +44,11 @@ export async function backup(
       await session.begin(spec.partition);
       try {
         for (const { entry } of group) {
-          files[backupPath(spec, entry.bank, entry.name)] = await pullFile(session, entry);
+          let path = backupPath(spec, entry.bank, entry.name);
+          // Two files can share a name within a bank (the slot differentiates them);
+          // disambiguate so neither is silently lost from the zip.
+          if (files[path]) path = backupPath(spec, entry.bank, `${entry.name} (slot ${entry.slot})`);
+          files[path] = await pullFile(session, entry);
           onProgress?.(++done, items.length);
         }
       } finally {
@@ -86,10 +90,20 @@ export async function restore(
   let done = 0;
   try {
     for (const [partition, items] of byPartition) {
-      await session.begin(partition);
+      try {
+        await session.begin(partition);
+      } catch (e) {
+        // Whole partition unreachable — record each file as failed, don't abort the rest.
+        const error = `Could not open partition ${partition}: ${e instanceof Error ? e.message : String(e)}`;
+        for (const { path } of items) result.failures.push({ path, error });
+        done += items.length;
+        onProgress?.(done, total);
+        continue;
+      }
       try {
         for (const { path, bytes } of items) {
           try {
+            if (!hasCbinMagic(bytes)) throw new NordError('not a Nord file (no CBIN magic)');
             const header = readCbinHeader(bytes);
             const name = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '');
             await pushFile(session, header.bank, header.location, bytes, name);

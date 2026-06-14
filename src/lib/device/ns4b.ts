@@ -28,10 +28,17 @@ const EXT_TO_PARTITION: Record<string, number> = {
   ns4p: 6, ns4o: 7, ns4n: 8, ns4y: 9, ns4l: 10, ns4t: 11,
 };
 
-/** Partition for a zip entry path, by extension. null = factory (npno/nsmp4) or non-file → skip. */
+/**
+ * Partition for a zip entry path, by the FILE's extension. null = factory
+ * (npno/nsmp4), a dotless name, or unknown → skip. Parses the basename first so a
+ * dot inside a folder name (e.g. "Samp Lib/Pad.1/x.ns4p") can't be mistaken for
+ * the extension.
+ */
 export function partitionForPath(path: string): number | null {
-  const ext = path.toLowerCase().replace(/^.*\./, '');
-  return EXT_TO_PARTITION[ext] ?? null;
+  const filename = path.replace(/^.*\//, '');
+  const dot = filename.lastIndexOf('.');
+  if (dot < 0) return null;
+  return EXT_TO_PARTITION[filename.slice(dot + 1).toLowerCase()] ?? null;
 }
 
 /** Zip path for a backed-up file: `<Folder>/Bank <X>/<name>.<ext>`. */
