@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { bytesToBitString, fileTypeTag, hasCbinMagic, locToBit, bitToLoc, readField } from './bits';
+import { bytesToBitString, fileTypeTag, hasCbinMagic, locToBit, bitToLoc, readField, buildCbinHeader, readCbinHeader, type CbinHeader } from './bits';
 import { buildParamMap } from './maps';
 import { decodeAllParams } from './coverage';
 
@@ -127,3 +127,13 @@ function readFieldAscii(s: string): number {
   for (const ch of s) v = v * 256 + ch.charCodeAt(0);
   return v;
 }
+
+describe('buildCbinHeader', () => {
+  it('round-trips through readCbinHeader', () => {
+    const h: CbinHeader = { formatType: 1, tag: 'ns4p', bank: 7, location: 56, category: 17, versionRaw: 313 };
+    const header = buildCbinHeader(h);
+    expect(header.length).toBe(44);
+    expect(hasCbinMagic(header)).toBe(true);
+    expect(readCbinHeader(header)).toEqual(h);
+  });
+});

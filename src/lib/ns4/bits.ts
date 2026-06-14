@@ -127,3 +127,24 @@ function matchAscii(bytes: Uint8Array, offset: number, ascii: string): boolean {
   }
   return true;
 }
+
+/**
+ * Build the 44-byte CBIN header from its fields — the inverse of
+ * {@link readCbinHeader}. Used to reconstruct a full .ns4p when the device
+ * returns the body only (the transfer protocol omits the header). Header bytes
+ * not represented in {@link CbinHeader} are left zero; the file checksum
+ * (bytes 24–27) is written separately via patchNs4Checksum after the body is
+ * appended.
+ */
+export function buildCbinHeader(h: CbinHeader): Uint8Array {
+  const out = new Uint8Array(44);
+  out[0] = 0x43; out[1] = 0x42; out[2] = 0x49; out[3] = 0x4e; // 'CBIN'
+  out[0x04] = h.formatType & 0xff;
+  for (let i = 0; i < 4; i++) out[0x08 + i] = h.tag.charCodeAt(i) & 0xff;
+  out[0x0c] = h.bank & 0xff;
+  out[0x0e] = h.location & 0xff;
+  out[0x10] = h.category & 0xff;
+  out[0x14] = h.versionRaw & 0xff;
+  out[0x15] = (h.versionRaw >>> 8) & 0xff;
+  return out;
+}
