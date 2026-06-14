@@ -32,6 +32,24 @@ describe('parseNsmpSections', () => {
   });
 });
 
+describe('parseNsmpSections — codec 1/2 (legacy 9-byte headers)', () => {
+  it('walks [tag:u24][version:u16][size:u32] sections for codec 2', () => {
+    // CBIN + version 200 (codec 2) + two 9-byte-header sections (hdr, stk)
+    const buf = new Uint8Array(0x2c + 9 + 4 + 9);
+    const ascii = (s: string, at: number) => { for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i); };
+    ascii('CBIN', 0); buf[4] = 1; ascii('nsmp', 8);
+    buf[0x14] = 200 & 0xff; buf[0x15] = 0; // version 2.00 → codec 2
+    // section 0 @0x2c: tag u24 "hdr", version u16 = 5, size u32 = 4
+    ascii('hdr', 0x2c); buf[0x2f] = 0; buf[0x30] = 5; buf[0x34] = 4; // size big-endian low byte
+    // section 1 @0x2c+9+4 = 0x39: tag u24 "stk", version 11, size 0
+    ascii('stk', 0x39); buf[0x3c] = 0; buf[0x3d] = 11;
+    const secs = parseNsmpSections(buf);
+    expect(secs.map((s) => s.tag)).toEqual(['.hdr', '.stk']); // u24 tag → NUL-left-padded
+    expect(secs[0]).toMatchObject({ version: 5, size: 4, payloadOffset: 0x35 });
+    expect(secs[1]).toMatchObject({ version: 11, size: 0, payloadOffset: 0x42 });
+  });
+});
+
 describe('readNsmp', () => {
   it('reads version, codec, name and recognizes a sample file', () => {
     const f = readNsmp(makeSyntheticNsmp('Strings')); // ≤ 8-byte synthetic hdr payload

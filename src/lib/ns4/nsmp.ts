@@ -75,18 +75,26 @@ function tagString(tag: number): string {
   return s;
 }
 
+const u24be = (b: Uint8Array, o: number) => (b[o] << 16) | (b[o + 1] << 8) | b[o + 2];
+const u16be = (b: Uint8Array, o: number) => (b[o] << 8) | b[o + 1];
+
 /**
- * Walk the section tree. Codec 3/4 only (12-byte headers); older codecs use a
- * 9-byte header (`GetU24`/`GetU16`/`GetU32`) and are not handled here yet.
+ * Walk the section tree. The section-header layout is codec-dependent
+ * (`CSectionIterator::Read_`): codec **3/4** use `[tag:u32][version:u32][size:u32]`
+ * (12 bytes); codec **1/2** use `[tag:u24][version:u16][size:u32]` (9 bytes).
+ * Codec is taken from the CBIN version (0x14); defaults to 12-byte if unknown.
  */
 export function parseNsmpSections(bytes: Uint8Array): NsmpSection[] {
+  const codec = Math.trunc((bytes[0x14] | (bytes[0x15] << 8)) / 100);
+  const legacy = codec === 1 || codec === 2; // 9-byte headers
+  const headerSize = legacy ? 9 : 12;
   const sections: NsmpSection[] = [];
   let o = BODY_START;
-  while (o + 12 <= bytes.length) {
-    const tag = u32be(bytes, o);
-    const version = u32be(bytes, o + 4);
-    const size = u32be(bytes, o + 8);
-    const payloadOffset = o + 12;
+  while (o + headerSize <= bytes.length) {
+    const tag = legacy ? u24be(bytes, o) : u32be(bytes, o);
+    const version = legacy ? u16be(bytes, o + 3) : u32be(bytes, o + 4);
+    const size = u32be(bytes, o + (legacy ? 5 : 8));
+    const payloadOffset = o + headerSize;
     if (payloadOffset + size > bytes.length) break; // truncated / not a real section
     sections.push({ tag: tagString(tag), version, size, payloadOffset, endOffset: payloadOffset + size });
     o = payloadOffset + size;
