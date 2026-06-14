@@ -147,7 +147,9 @@ function decodeStrokeSection(bytes: Uint8Array, section: NsmpSection): { result:
   for (let hdr = 0x60; hdr <= 0x180; hdr += 4) {
     const start = section.payloadOffset + hdr;
     if (start >= section.endOffset) break;
-    for (const channelCount of [2, 1]) {
+    // Prefer mono: a true stereo stream decoded as mono diverges (interleaved
+    // L/R → huge residuals → exceeds BOUND), so it falls through to 2.
+    for (const channelCount of [1, 2]) {
       let result: DecodedStroke;
       try {
         result = decodeStroke(bytes.subarray(0, section.endOffset), start, channelCount);
