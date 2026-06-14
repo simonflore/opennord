@@ -37,9 +37,10 @@ export function ConnectPanel({ onConnected }: {
   async function connect() {
     setStatus('connecting');
     setMessage('');
+    let transport: WebUsbTransport | undefined;
     try {
       const device = await navigator.usb.requestDevice({ filters: [NORD_FILTER] });
-      const transport = new WebUsbTransport(device);
+      transport = new WebUsbTransport(device);
       await transport.open();
       const session = new NordSession(transport);
       const begin = await session.begin(PARTITION_PROGRAM);
@@ -49,6 +50,8 @@ export function ConnectPanel({ onConnected }: {
       const name = device.productName ?? 'Nord Stage 4';
       onConnected(session, entries, name);
     } catch (e) {
+      // Release the interface on any failure so a retry isn't blocked by a stale claim.
+      if (transport) await transport.close().catch(() => {});
       const friendly = describeError(e);
       if (!friendly) {
         setStatus('idle'); // user cancelled the picker
@@ -60,7 +63,7 @@ export function ConnectPanel({ onConnected }: {
   }
 
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 16 }} aria-live="polite">
       <button
         onClick={connect}
         disabled={status === 'connecting'}

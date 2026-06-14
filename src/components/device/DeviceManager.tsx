@@ -12,12 +12,15 @@ import { DeviceBrowser } from './DeviceBrowser';
 export function DeviceManager() {
   const [session, setSession] = useState<NordSession | null>(null);
   const [entries, setEntries] = useState<ProgramEntry[]>([]);
+  const [deviceName, setDeviceName] = useState('');
   const [program, setProgram] = useState<NS4Program | null>(null);
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
   async function open(entry: ProgramEntry) {
-    if (!session) return;
+    if (!session || busy) return; // one pull at a time — the session is single-threaded
     setError('');
+    setBusy(true);
     try {
       const bytes = await pullProgram(session, entry);
       const prog = parseNs4Program(bytes);
@@ -25,11 +28,13 @@ export function DeviceManager() {
       setProgram(prog);
     } catch (e) {
       setError(`Could not read ${entry.name}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
     }
   }
 
   if (!session) {
-    return <ConnectPanel onConnected={(s, e) => { setSession(s); setEntries(e); }} />;
+    return <ConnectPanel onConnected={(s, e, name) => { setSession(s); setEntries(e); setDeviceName(name); }} />;
   }
 
   if (program) {
@@ -49,7 +54,8 @@ export function DeviceManager() {
   return (
     <div>
       {error && <p className="ps-sub" style={{ color: '#ffb454' }}>{error}</p>}
-      <DeviceBrowser entries={entries} onSelect={open} />
+      {busy && <p className="ps-sub">Reading from the Nord…</p>}
+      <DeviceBrowser entries={entries} deviceName={deviceName} onSelect={open} />
     </div>
   );
 }

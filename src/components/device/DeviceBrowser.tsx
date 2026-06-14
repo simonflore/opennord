@@ -1,10 +1,10 @@
 import { programEntryView, type ProgramEntry } from '../../lib/device/transfer';
-
-const BANK_LETTERS = 'ABCDEFGH';
+import { BANK_LETTERS } from '../../lib/ns4/slot';
 
 /** Programs grouped by bank A–H; click a row to open it. Speaks names + X:YY only. */
-export function DeviceBrowser({ entries, onSelect }: {
+export function DeviceBrowser({ entries, deviceName, onSelect }: {
   entries: ProgramEntry[];
+  deviceName: string;
   onSelect: (entry: ProgramEntry) => void;
 }) {
   const byBank = new Map<number, ProgramEntry[]>();
@@ -17,7 +17,10 @@ export function DeviceBrowser({ entries, onSelect }: {
   return (
     <div className="ps">
       <div className="ps-hd">
-        <div className="ps-nm">Your programs</div>
+        <div>
+          <div className="ps-nm">Your programs</div>
+          <div className="ps-meta"><span>{deviceName} · {entries.length} programs</span></div>
+        </div>
         <div className="ps-logo">nord</div>
       </div>
       {[...byBank.keys()].sort((a, b) => a - b).map((bank) => (

@@ -4,7 +4,7 @@
  * (loc%8)+1. Ported from ns4decode's interpretBank / interpretLocnInBank.
  * Shared by the file parser and the device layer — do not duplicate.
  */
-const BANK_LETTERS = 'ABCDEFGH';
+export const BANK_LETTERS = 'ABCDEFGH';
 
 /** @example formatSlot(7, 56) // → "H:81" */
 export function formatSlot(bank: number, location: number): string {
