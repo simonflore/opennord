@@ -1,1 +1,49 @@
-/* primitives — filled in Task 3 */
+/* OpenNord UI primitives — all color/space/radius via tokens (tokens.css). */
+.on-btn {
+  font: 700 11px var(--font); border-radius: var(--r-sm); padding: 8px 14px;
+  cursor: pointer; border: 1px solid transparent;
+}
+.on-btn--primary { background: var(--red); color: #fff; }
+.on-btn--secondary { background: var(--surface-2); color: var(--ink); border-color: var(--line); }
+.on-btn--ghost { background: transparent; color: var(--dim); }
+
+.on-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: var(--s-3); color: var(--ink);
+}
+.on-card--accent { border-left: 3px solid var(--red); }
+
+.on-tag {
+  font: 600 9px var(--font); background: var(--surface-2); color: #aeb4c0;
+  border-radius: 999px; padding: 2px 8px;
+}
+
+.on-chip {
+  font: 600 10px var(--font); background: var(--surface-2); color: #aeb4c0;
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; cursor: pointer;
+}
+.on-chip--active { background: var(--red); color: #fff; border-color: var(--red); }
+
+.on-badge {
+  font: 600 9px var(--font); letter-spacing: .4px; color: var(--muted);
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.on-badge__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.on-badge--nord { color: var(--red); }
+.on-badge--local { color: #3a4150; }
+
+.on-search {
+  display: flex; align-items: center; gap: 8px; flex: 1;
+  background: var(--sink); border: 1px solid var(--line); border-radius: 9px; padding: 7px 11px;
+}
+.on-search__icon { color: var(--muted); font-size: 13px; }
+.on-search__input {
+  flex: 1; background: transparent; border: 0; outline: none;
+  color: var(--ink); font: 11px var(--font);
+}
+.on-search__input::placeholder { color: var(--muted); }
+
+.on-overline {
+  font: 700 9px var(--font); letter-spacing: 1.4px; text-transform: uppercase;
+  color: var(--red-bright);
+}
