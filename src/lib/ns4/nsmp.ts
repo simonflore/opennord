@@ -198,6 +198,24 @@ export interface DecodedStrokeResult extends DecodedStroke {
 const BOUND = 1 << 26; // raw 16-bit reconstructions stay well under this
 
 /**
+ * Channel count from the stroke header — payload byte 8. Traced via the binary:
+ * `CSectionStroke::Read` writes this byte to `SSmpAttributes+4`, which `SetAttributes`
+ * copies to `CSmpStream+0xC` = `CSmpStream::GetChannelCnt` (the count the decoder
+ * de-interleaves by). Returns 1 or 2, or 0 when it isn't a plain mono/stereo value
+ * (then we fall back to the audio heuristic). Verified `== 2` on every stroke of
+ * real `.nsmp3`/`.nsmp4`/OG stereo samples.
+ */
+function strokeChannelHint(bytes: Uint8Array, payloadOffset: number): number {
+  const c = bytes[payloadOffset + 8];
+  return c === 1 || c === 2 ? c : 0;
+}
+
+/** Channel counts to try, hint first; falls back to `dflt` when there's no hint. */
+function channelOrder(hint: number, dflt: number[]): number[] {
+  return hint === 1 ? [1, 2] : hint === 2 ? [2, 1] : dflt;
+}
+
+/**
  * Cheap structural pre-filter: from `start`, does a contiguous run of valid NW1
  * block headers (3-byte u24 for OG, 4-byte u32 for codec 3) end on a stop sentinel
  * at/near `end`? Shortlists candidate block-stream starts before the costlier full
@@ -233,10 +251,14 @@ function streamReachesEnd(bytes: Uint8Array, start: number, end: number, u24: bo
 function findStrokeStop(bytes: Uint8Array, section: NsmpSection, u24: boolean): { result: DecodedStroke; channelCount: number } | null {
   const bounded = bytes.subarray(0, section.endOffset);
   const end = section.endOffset;
+  // Use the stroke-header channel count when present (resolves near-silent strokes,
+  // where mono/stereo are indistinguishable from audio); else try both, min-peak.
+  const hint = strokeChannelHint(bytes, section.payloadOffset);
+  const channels = hint ? [hint] : [2, 1];
   let best: { result: DecodedStroke; channelCount: number; peak: number } | null = null;
   for (let start = section.payloadOffset; start < section.payloadOffset + 0x260 && start < end; start++) {
     if (!streamReachesEnd(bytes, start, end, u24)) continue;
-    for (const channelCount of [2, 1]) {
+    for (const channelCount of channels) {
       let result: DecodedStroke;
       try {
         result = decodeStroke(bounded, start, channelCount, { u24 });
@@ -264,16 +286,16 @@ function decodeStrokeSection(
 
   // Codec 3 (32-bit sample-interleaved) + codec 4 (word-interleaved): the block
   // stream sits at a header offset in a tight range; take the first offset whose
-  // decode stays bounded and consumes the section (prefer mono — a loud stereo
-  // stream decoded as mono diverges past BOUND, so real stereo falls through to 2).
-  // NOTE: the true channel count lives in the (still-undecoded) stroke header; this
-  // audio heuristic can mislabel *near-silent* strokes, where mono and stereo are
-  // indistinguishable from the samples alone (docs/NSMP-CODEC.md).
+  // decode stays bounded and consumes the section. Channel count comes from the
+  // stroke header (byte 8) when present — which resolves *near-silent* strokes that
+  // the audio alone can't (mono vs stereo identical) — else prefer mono (a loud
+  // stereo stream decoded as mono diverges past BOUND, so real stereo falls to 2).
+  const hint = strokeChannelHint(bytes, section.payloadOffset);
   const bounded = bytes.subarray(0, section.endOffset);
   for (let hdr = 0x60; hdr <= 0x180; hdr += 4) {
     const start = section.payloadOffset + hdr;
     if (start >= section.endOffset) break;
-    for (const channelCount of [1, 2]) {
+    for (const channelCount of channelOrder(hint, [1, 2])) {
       let result: DecodedStroke;
       try {
         result = decodeStroke(bounded, start, channelCount, { wordInterleaved: opts.wordInterleaved });

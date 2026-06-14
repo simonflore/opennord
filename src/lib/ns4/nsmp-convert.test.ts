@@ -35,6 +35,22 @@ describe('convertNsmp — audio preserved across generations (synthetic)', () =>
     expect(readNsmp(back).codec).toBe(3);
     eqAudio(decodeNsmp(back), decodeNsmp(src3));
   });
+
+  it('preserves stereo channel count, incl. a near-silent stroke (header channel field)', () => {
+    // A near-silent stereo stroke is indistinguishable from mono by audio alone —
+    // the stroke-header channel byte is what keeps it stereo through a round-trip.
+    const L = Int32Array.from({ length: 3000 }, (_, i) => Math.round(2000 * Math.sin(i / 9)));
+    const R = Int32Array.from({ length: 3000 }, (_, i) => Math.round(1800 * Math.cos(i / 13)));
+    const quietL = Int32Array.from({ length: 3000 }, (_, i) => (i % 2 ? -1 : 0));
+    const quietR = Int32Array.from({ length: 3000 }, () => 0);
+    const stereo = writeNsmpMulti({ name: 'St', codec: 3, zones: [
+      { channels: [L, R], keyHigh: 59, rootKey: 48 },
+      { channels: [quietL, quietR], keyHigh: 127, rootKey: 72 },
+    ] });
+    const got = decodeNsmp(stereo);
+    expect(got.map((s) => s.channelCount)).toEqual([2, 2]);
+    eqAudio(decodeNsmp(convertNsmp(stereo, 4).bytes), got); // survives 3 → 4 too
+  });
 });
 
 // Real samples (gitignored). Skipped in CI.
@@ -54,4 +70,20 @@ describe.skipIf(!existsSync(n3) || !existsSync(n4))('convertNsmp — real sample
     expect(readNsmp(bytes).codec).toBe(3);
     eqAudio(decodeNsmp(bytes), decodeNsmp(src));
   });
+});
+
+// OG / legacy `.nsmp` (24-bit) → modern generations. Real file, skipped in CI.
+const ogFile = join(process.cwd(), 'research/nsmp/TAKE ON ME.nsmp');
+describe.skipIf(!existsSync(ogFile))('convertNsmp — OG .nsmp upconversion', () => {
+  const src = existsSync(ogFile) ? new Uint8Array(readFileSync(ogFile)) : new Uint8Array();
+  for (const target of [3, 4] as const) {
+    it(`OG → codec ${target} preserves all strokes, channels + audio`, () => {
+      const { bytes, extension } = convertNsmp(src, target);
+      expect(extension).toBe(target === 4 ? '.nsmp4' : '.nsmp3');
+      const got = decodeNsmp(bytes);
+      const orig = decodeNsmp(src);
+      expect(got.map((s) => s.channelCount)).toEqual(orig.map((s) => s.channelCount));
+      eqAudio(got, orig);
+    });
+  }
 });

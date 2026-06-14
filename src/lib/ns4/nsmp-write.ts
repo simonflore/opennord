@@ -157,9 +157,14 @@ function assembleNsmp(
   const cat = section('\0cat', 7, Uint8Array.from([0x0f, 0, 0, 0, 0, 0, 0, 0]));
   const map = section('\0map', v.map, mapPayload);
 
-  // One `stk` per stroke: a templated header then the encoded block stream.
-  const stks = strokes.map((channels) =>
-    section('\0stk', v.stk, concat([new Uint8Array(STROKE_HEADER_SIZE), encodeStroke(channels, { blockSize, wordInterleaved })])));
+  // One `stk` per stroke: a templated header then the encoded block stream. Byte 8
+  // of the stroke header is the channel count (`CSectionStroke::Read` → `SSmpAttributes`
+  // → `CSmpStream::GetChannelCnt`), so our reader recovers it without guessing.
+  const stks = strokes.map((channels) => {
+    const header = new Uint8Array(STROKE_HEADER_SIZE);
+    header[8] = channels.length; // 1 = mono, 2 = stereo
+    return section('\0stk', v.stk, concat([header, encodeStroke(channels, { blockSize, wordInterleaved })]));
+  });
 
   const sty = section('\0sty', v.sty, Uint8Array.from(
     [0x00, 0x00, 0x7f, 0x1e, 0x2b, 0, 0, 0, 0, 0, 0, 0x01, 0x4a, 0, 0x01, 0, 0x4a, 0, 0, 0x40, 0, 0, 0, 0],
