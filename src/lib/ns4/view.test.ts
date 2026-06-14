@@ -88,7 +88,9 @@ describe('fxChips', () => {
   const chips = fxChips(fixture());
 
   it('collects on-effects across active layers + global organ FX', () => {
-    expect(chips.length).toBeGreaterThanOrEqual(5);
+    // fixture: piano A reverb(1) + piano B mod1/mod2/delay(3) +
+    // synth B mod1/mod2/amp/comp(4) + synth C delay/reverb(2) + organ mod1/amp/delay(3) = 13
+    expect(chips.length).toBe(13);
   });
 
   it('each chip has a non-empty label and string detail', () => {
@@ -118,5 +120,6 @@ describe('sampleRefViews', () => {
     expect(names).toContain('Flute Multi_ST 4.1');
     expect(names).toContain('SymphStr Legato Amb_ProjectSAM 4.1');
     expect(refs.every((r) => typeof r.id === 'number')).toBe(true);
+    expect(refs.every((r) => typeof r.categoryName === 'string')).toBe(true);
   });
 });

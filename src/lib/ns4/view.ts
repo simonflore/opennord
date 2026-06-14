@@ -58,9 +58,29 @@ export function headerView(p: NS4Program): HeaderView {
   };
 }
 
-export interface OrganCardModel { id: string; model: string; drawbars: number[]; vibChorus: boolean; perc: boolean; }
-export interface PianoCardModel { id: string; type: string; model: string; timbre: string; touch: string; }
-export interface SynthCardModel { id: string; source: string; osc: string; oscDetail: string; filterType: string; cutoff: string; res: string; }
+export interface OrganCardModel {
+  id: string;
+  model: string;
+  drawbars: number[];
+  vibChorus: boolean;
+  perc: boolean;
+}
+export interface PianoCardModel {
+  id: string;
+  type: string;
+  model: string;
+  timbre: string;
+  touch: string;
+}
+export interface SynthCardModel {
+  id: string;
+  source: string;
+  osc: string;
+  oscDetail: string;
+  filterType: string;
+  cutoff: string;
+  res: string;
+}
 
 export function organCard(l: NS4Layer): OrganCardModel {
   return {
@@ -125,7 +145,7 @@ export function fxChips(p: NS4Program): FxChipModel[] {
     push('org-mod2', 'Organ Mod 2', o.mod2?.on, o.mod2?.mode ?? 'on');
     push('org-amp', 'Organ Amp/EQ', o.ampSimEq?.on, o.ampSimEq?.mode ?? 'on');
     push('org-comp', 'Organ Comp', o.comp?.on, o.comp?.amount ?? 'on');
-    push('org-delay', 'Organ Delay', o.delay?.on, o.delay?.effects ?? 'on');
+    push('org-delay', 'Organ Delay', o.delay?.on, o.delay?.effects ?? o.delay?.tempo?.value ?? 'on');
     push('org-reverb', 'Organ Reverb', o.reverb?.on, o.reverb?.type ?? 'on');
     push('org-rotary', 'Rotary', o.rotary?.on, o.rotary?.fast ? 'fast' : 'slow');
   }
