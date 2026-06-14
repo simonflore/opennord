@@ -26,7 +26,7 @@ export function ProgramView({ program }: { program: NS4Program }) {
     <div className="ps">
       <ProgramHeader program={program} />
       <div className="ps-grid">
-        {layers.map((l) => <EngineCard key={`${l.kind}${l.id}`} layer={l} />)}
+        {layers.map((l) => <EngineCard key={`${l.kind ?? 'x'}${l.id}`} layer={l} />)}
       </div>
       <FxRow program={program} />
       <SampleRefs program={program} />

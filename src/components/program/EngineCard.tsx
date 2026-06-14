@@ -9,7 +9,7 @@ import { DrawbarLadder, Knob, Lcd, Meter } from './widgets';
 export function EngineCard({ layer }: { layer: NS4Layer }) {
   return (
     <div className="ps-card">
-      <h4>{(layer.kind ?? '').toUpperCase()} · {layer.id}</h4>
+      <h4>{(layer.kind ?? '?').toUpperCase()} · {layer.id}</h4>
       {layer.kind === 'organ' && <OrganBody layer={layer} />}
       {layer.kind === 'piano' && <PianoBody layer={layer} />}
       {layer.kind === 'synth' && <SynthBody layer={layer} />}
@@ -44,10 +44,14 @@ function PianoBody({ layer }: { layer: NS4Layer }) {
 
 function SynthBody({ layer }: { layer: NS4Layer }) {
   const c = synthCard(layer);
+  // LCD gives the compact overview (osc + filter type); the numeric cutoff/res
+  // live on the knobs below, so we don't repeat the value here.
+  const filterType = c.filterType !== '—' ? c.filterType : '';
+  const secondary = [c.oscDetail, filterType].filter(Boolean).join(' · ');
   return (
     <>
       <div className="ps-sub">{c.source} oscillator</div>
-      <Lcd primary={c.osc} secondary={[c.oscDetail, `${c.filterType} · ${c.cutoff}`].filter(Boolean).join(' · ')} />
+      <Lcd primary={c.osc} secondary={secondary} />
       <div className="ps-knobs">
         <Knob value={c.cutoff} caption="cutoff" />
         <Knob value={c.res} caption="res" />
