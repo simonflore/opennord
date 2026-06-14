@@ -1,6 +1,7 @@
 import type { NS4Layer } from '../../lib/ns4/types';
 import { organCard, pianoCard, synthCard, volumeFill } from '../../lib/ns4/view';
 import { DrawbarLadder, Knob, Lcd, Meter } from './widgets';
+import { resolveFactory } from '../../lib/device/factory';
 
 /**
  * One card per active layer. Declarative per-kind layout: each engine renders
@@ -31,9 +32,15 @@ function OrganBody({ layer }: { layer: NS4Layer }) {
 
 function PianoBody({ layer }: { layer: NS4Layer }) {
   const c = pianoCard(layer);
+  const match = resolveFactory(c.model, 'npno');
   return (
     <>
-      <div className="ps-sub">{c.type} · {c.model}</div>
+      <div className="ps-sub">
+        {c.type} ·{' '}
+        {match
+          ? <a href={match.url} target="_blank" rel="noreferrer" title="Official Nord download" style={{ color: 'inherit' }}>{c.model}</a>
+          : c.model}
+      </div>
       <div className="ps-knobs">
         <Knob value={c.timbre} caption="timbre" />
         <Knob value={c.touch} caption="KB touch" />
