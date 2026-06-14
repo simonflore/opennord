@@ -19,14 +19,16 @@ static void deps(libusb_device_handle*h,int bank,int slot){
   mk(m,&p,0x28);p32(&p,bank);p32(&p,slot);fix(m,p);
   int g=xfer(h,m,(int)(p-m),r,sizeof(r)); if(g<32){printf(" %c:%02d err\n",'A'+bank,slot+1);return;}
   uint32_t count=g32(r,28);
-  printf(" %c:%02d  count=%u\n",'A'+bank,slot+1,count);
+  printf(" %c:%02d  count=%u  rawlen=%d\n",'A'+bank,slot+1,count,g);
   int off=32;
+  // version>=9 entry: u8 found, u32 id0,id1,id2, u32 nameLen, name[nameLen], u32 x3 (trailing)
   for(uint32_t i=0;i<count && i<8 && off+13<g;i++){
     uint8_t found=r[off]; off+=1;
     uint32_t a=g32(r,off);off+=4; uint32_t b=g32(r,off);off+=4; uint32_t c=g32(r,off);off+=4;
     uint32_t nl=g32(r,off);off+=4; if(nl>0x7f)nl=0x7f;
     char nm[128]; memcpy(nm,r+off,nl); nm[nl]=0; off+=nl;
-    printf("    [%u] found=%u  id=%u/%u/%u  name='%s'\n",i,found,a,b,c,nm);
+    uint32_t t0=g32(r,off);off+=4; uint32_t t1=g32(r,off);off+=4; uint32_t t2=g32(r,off);off+=4;
+    printf("    [%u] found=%u  id=%u/%u/0x%08x  name='%s'  tail=%08x/%08x/%08x\n",i,found,a,b,c,nm,t0,t1,t2);
   }
 }
 

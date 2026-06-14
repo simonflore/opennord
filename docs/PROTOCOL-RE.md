@@ -147,13 +147,16 @@ enabled and re-tested (`sendmidi`/`receivemidi`, `docs/SYSEX-SPIKE.md`).
   that gates iOS transfer — decoding that 80-byte blob is the next small step).
 - **Dependency** (`CQryFileGetDependency 0x28` → `0x29`) returns a program's
   **sample dependency list** — the "you need these factory samples" data. Reply:
-  `{status, bank, slot, u32 count, count × entry}`, entry =
-  `{u8 found, u32 id0, u32 id1, u32 id2, u32 nameLen, char name[nameLen]}`. The
-  `found=1` entries are the samples the program uses — `id2` is the sample's
-  unique id, `name` the factory name+version (e.g. A:01 "Dont look back" →
-  "Royal Grand 3D XL 6.1"; A:03 → "DX7 FullTines Lrg 6.0"). Tool:
-  `scripts/nordeps.c`. (The `found=0` stub entries need a small parse-offset
-  refinement; the used dependency per program decodes cleanly.)
+  `{status, bank, slot, u32 count, count × entry}`. Each entry (protocol
+  version ≥ 9, the NS4 case — `CDepBase::Deps_Read`) is
+  `{u8 found, u32 id0, u32 id1, u32 id2, u32 nameLen, char name[nameLen], u32 ×3}`
+  — i.e. **29 + nameLen** bytes (the 3 trailing u32 are the ≥9 addition; the
+  legacy <9 format omits them). `found=1` = sample present/loaded; `found=0` + a
+  name = referenced but **absent** (the "you're missing this sample" case);
+  empty = unused slot. `id2` is the sample's unique id; `name` the factory
+  name+version. Verified live — e.g. A:01 "Dont look back" → *Royal Grand 3D XL
+  6.1*, *3 Violins Mellotron_MKII 4.1*, *White Grand XL 6.3 (absent)*. All 5
+  slots/program decode cleanly. Tool: `scripts/nordeps.c`.
 - **Notifications** (`CFTNotify*` on interrupt `0x81`) only fire during long
   transfers (progress); nothing arrives at idle. A transfer UI polls `0x81` for
   progress while a download/upload runs.
