@@ -44,3 +44,27 @@ describe('SampleInspector', () => {
     expect(html.toLowerCase()).toContain('drop');
   });
 });
+
+import { SampleEditPanel } from './SampleEditPanel';
+import type { EditModel } from '../../lib/ns4/sample-edit';
+import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
+
+describe('SampleEditPanel', () => {
+  it('renders an editable name + a row per zone', () => {
+    const model: EditModel = {
+      name: 'My Strings',
+      zones: [
+        { rootKey: 48, keyHigh: 60, velTop: 127 },
+        { rootKey: 72, keyHigh: 96, velTop: 127 },
+      ],
+    };
+    const decoded: DecodedStrokeResult[] = [
+      { index: 0, channelCount: 1, endOffset: 0, channels: [new Int32Array([0, 1])] },
+      { index: 1, channelCount: 1, endOffset: 0, channels: [new Int32Array([0, 1])] },
+    ];
+    const html = renderToStaticMarkup(<SampleEditPanel initial={model} decoded={decoded} codec={3} />);
+    expect(html).toContain('My Strings');
+    expect(html).toContain('Download');
+    expect(html.split('<tr').length - 1).toBeGreaterThanOrEqual(3); // header + 2 zone rows
+  });
+});

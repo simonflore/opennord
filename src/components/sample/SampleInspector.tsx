@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import '../../styles/nord.css';
-import { readNsmp, decodeNsmp, type NsmpFile } from '../../lib/ns4/nsmp';
+import { readNsmp, decodeNsmp, readNsmpZones, type NsmpFile, type DecodedStrokeResult } from '../../lib/ns4/nsmp';
 import { sampleHeaderView, zoneMapRows, strokeSummary } from '../../lib/ns4/sample-view';
+import { editModel } from '../../lib/ns4/sample-edit';
 import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
 import { StrokeList, type InspectorStroke } from './StrokeList';
+import { SampleEditPanel } from './SampleEditPanel';
 
 interface Loaded {
   bytes: Uint8Array;
   file: NsmpFile;
+  decoded: DecodedStrokeResult[];
   strokes: InspectorStroke[];
   /** Codec we can decode audio for (3 or 4). */
   decodable: boolean;
@@ -23,15 +26,16 @@ export function SampleInspector() {
     const file = readNsmp(bytes);
     // Codec 3 and 4 both decode (4 via the word-interleaved path); legacy 1/2 don't.
     const decodable = file.codec === 3 || file.codec === 4;
-    let strokes: InspectorStroke[] = [];
+    let decoded: DecodedStrokeResult[] = [];
     if (decodable) {
       try {
-        strokes = decodeNsmp(bytes).map((d) => ({ summary: strokeSummary(d), channels: d.channels }));
+        decoded = decodeNsmp(bytes);
       } catch {
-        strokes = [];
+        decoded = [];
       }
     }
-    setLoaded({ bytes, file, strokes, decodable });
+    const strokes: InspectorStroke[] = decoded.map((d) => ({ summary: strokeSummary(d), channels: d.channels }));
+    setLoaded({ bytes, file, decoded, strokes, decodable });
   }
 
   return (
@@ -58,7 +62,13 @@ export function SampleInspector() {
       {loaded && loaded.file.recognized && (
         <div className="ps">
           <SampleHeader view={sampleHeaderView(loaded.file, loaded.bytes.length)} />
-          <ZoneMap rows={zoneMapRows(loaded.bytes)} />
+          {loaded.decodable && loaded.decoded.length > 0
+            ? <SampleEditPanel
+                initial={editModel(loaded.file, readNsmpZones(loaded.bytes))}
+                decoded={loaded.decoded}
+                codec={loaded.file.codec === 4 ? 4 : 3}
+              />
+            : <ZoneMap rows={zoneMapRows(loaded.bytes)} />}
           <StrokeList strokes={loaded.strokes} playable={loaded.decodable} />
         </div>
       )}
