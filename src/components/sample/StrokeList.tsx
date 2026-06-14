@@ -19,11 +19,10 @@ function getCtx(): AudioContext {
 
 export function StrokeList({ strokes, playable }: { strokes: InspectorStroke[]; playable: boolean }) {
   if (strokes.length === 0) {
-    // No decoded audio: codec-4 isn't decoded yet; a codec-3 file with no strokes
-    // means its audio couldn't be decoded.
+    // Codec 3 and 4 decode; legacy codec 1/2 (or a decode failure) → no audio.
     const message = playable
       ? 'Audio preview unavailable for this file.'
-      : 'Audio preview pending codec-4 decode.';
+      : 'Audio preview not available for this codec.';
     return (
       <div className="ps-card" style={{ marginTop: 12 }}>
         <h4>STROKES</h4>

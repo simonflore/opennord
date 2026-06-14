@@ -10,6 +10,8 @@ interface Loaded {
   bytes: Uint8Array;
   file: NsmpFile;
   strokes: InspectorStroke[];
+  /** Codec we can decode audio for (3 or 4). */
+  decodable: boolean;
 }
 
 export function SampleInspector() {
@@ -19,15 +21,17 @@ export function SampleInspector() {
   async function onFile(f: File) {
     const bytes = new Uint8Array(await f.arrayBuffer());
     const file = readNsmp(bytes);
+    // Codec 3 and 4 both decode (4 via the word-interleaved path); legacy 1/2 don't.
+    const decodable = file.codec === 3 || file.codec === 4;
     let strokes: InspectorStroke[] = [];
-    if (file.codec === 3) {
+    if (decodable) {
       try {
         strokes = decodeNsmp(bytes).map((d) => ({ summary: strokeSummary(d), channels: d.channels }));
       } catch {
         strokes = [];
       }
     }
-    setLoaded({ bytes, file, strokes });
+    setLoaded({ bytes, file, strokes, decodable });
   }
 
   return (
@@ -55,7 +59,7 @@ export function SampleInspector() {
         <div className="ps">
           <SampleHeader view={sampleHeaderView(loaded.file, loaded.bytes.length)} />
           <ZoneMap rows={zoneMapRows(loaded.bytes)} />
-          <StrokeList strokes={loaded.strokes} playable={loaded.file.codec === 3} />
+          <StrokeList strokes={loaded.strokes} playable={loaded.decodable} />
         </div>
       )}
     </div>

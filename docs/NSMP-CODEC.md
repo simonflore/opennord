@@ -161,7 +161,14 @@ This proves the codec is reproducible **and correct**. The `map` section, FYI,
 turned out to be per-zone **level/detune** attributes (keyboard mapping), not a
 block directory (corrects an earlier guess).
 
-### Status: codec 3 fully decodes; codec 4 outstanding
+### Status: codec 3 AND codec 4 fully decode
+
+> **Codec 4 is SOLVED** — see "Codec-4 — SOLVED (per-channel word-interleaving)"
+> below. Decode is validated against ground truth (`sine_24.nsmp4` → peak 3000 +
+> 220 zero-crossings, exact; `opennord_a440.nsmp4` → 48000 samples; real
+> `Strings.nsmp4` → 9 clean stereo strokes ~matching its `.nsmp3` twin) and is
+> wired into the Sample Inspector. The bullets below are the original pre-solve
+> status, kept for the investigation trail.
 
 - **Codec 3 (`.nsmp3`): COMPLETE.** `decodeNsmp` parses sections → finds each
   stroke's block stream → decodes. All **8 strokes** of `Strings.nsmp3` decode to
