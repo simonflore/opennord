@@ -26,4 +26,23 @@ export class NordSession {
   end(): Promise<NordReply> {
     return this.request(CReqEnd, []);
   }
+
+  /**
+   * Run `fn` inside a `begin(partition)` … `end()` session, always ending it.
+   * The device only shows "synchronizing" while a session is open, so callers
+   * should bracket each operation rather than hold a session open at idle.
+   */
+  async withSession<T>(partition: number, fn: () => Promise<T>): Promise<T> {
+    const begun = await this.begin(partition);
+    if (begun.status !== 0) throw new NordError(`could not open a transfer session (status ${begun.status})`);
+    try {
+      return await fn();
+    } finally {
+      try {
+        await this.end();
+      } catch {
+        // ignore end failures — don't mask the operation's own error / result
+      }
+    }
+  }
 }

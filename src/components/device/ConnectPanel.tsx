@@ -43,9 +43,9 @@ export function ConnectPanel({ onConnected }: {
       transport = new WebUsbTransport(device);
       await transport.open();
       const session = new NordSession(transport);
-      const begin = await session.begin(PARTITION_PROGRAM);
-      if (begin.status !== 0) throw new Error('the Nord refused a transfer session');
-      const entries = await enumeratePrograms(session);
+      // Bracket the enumerate in a begin/end session so the Nord returns to idle
+      // afterward (a left-open session makes it show "synchronizing" forever).
+      const entries = await session.withSession(PARTITION_PROGRAM, () => enumeratePrograms(session));
       setStatus('connected');
       const name = device.productName ?? 'Nord Stage 4';
       onConnected(session, entries, name);

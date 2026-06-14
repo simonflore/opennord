@@ -2,6 +2,7 @@ import { useState } from 'react';
 import '../../styles/nord.css';
 import type { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, pullProgram, pushProgram, deleteProgram, type ProgramEntry } from '../../lib/device/transfer';
+import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import { parseNs4Program } from '../../lib/ns4/parse';
 import { programNameFromFilename } from '../../lib/ns4/name';
 import { formatSlot } from '../../lib/ns4/slot';
@@ -32,14 +33,14 @@ export function DeviceManager() {
   const [pendingDelete, setPendingDelete] = useState<ProgramEntry | null>(null);
 
   async function refresh(s: NordSession) {
-    setEntries(await enumeratePrograms(s));
+    setEntries(await s.withSession(PARTITION_PROGRAM, () => enumeratePrograms(s)));
   }
 
   async function open(entry: ProgramEntry) {
     if (!session || busy) return;
     setError(''); setBusy(true);
     try {
-      const bytes = await pullProgram(session, entry);
+      const bytes = await session.withSession(PARTITION_PROGRAM, () => pullProgram(session, entry));
       const prog = parseNs4Program(bytes);
       prog.name = entry.name;
       setProgram(prog);
@@ -77,7 +78,8 @@ export function DeviceManager() {
     if (!session || !pushSource || !picked || busy) return;
     setError(''); setBusy(true);
     try {
-      await pushProgram(session, picked.bank, picked.slot, pushSource.bytes, pushName.trim() || pushSource.name);
+      await session.withSession(PARTITION_PROGRAM, () =>
+        pushProgram(session, picked.bank, picked.slot, pushSource.bytes, pushName.trim() || pushSource.name));
       await refresh(session);
       cancelPush();
     } catch (e) {
@@ -91,7 +93,8 @@ export function DeviceManager() {
     if (!session || !pendingDelete || busy) return;
     setError(''); setBusy(true);
     try {
-      await deleteProgram(session, pendingDelete.bank, pendingDelete.slot);
+      await session.withSession(PARTITION_PROGRAM, () =>
+        deleteProgram(session, pendingDelete.bank, pendingDelete.slot));
       await refresh(session);
       setPendingDelete(null);
     } catch (e) {

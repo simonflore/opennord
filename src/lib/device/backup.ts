@@ -1,7 +1,6 @@
 import { zipSync, unzipSync, strToU8 } from 'fflate';
 import type { NordSession } from './session';
 import { NordError } from './protocol';
-import { PARTITION_PROGRAM } from './opcodes';
 import { enumerateFiles, pullFile, pushFile, type ProgramEntry } from './transfer';
 import { readCbinHeader, hasCbinMagic } from '../ns4/bits';
 import { USER_PARTITIONS, partitionForPath, backupPath, buildMetaXml, type PartitionSpec } from './ns4b';
@@ -27,38 +26,35 @@ export async function backup(
   specs: PartitionSpec[] = USER_PARTITIONS,
 ): Promise<Uint8Array> {
   const files: Record<string, Uint8Array> = { 'meta.xml': strToU8(buildMetaXml(0)) };
-  try {
-    // Pass 1: enumerate each partition (for the total + the work list).
-    const items: { spec: PartitionSpec; entry: ProgramEntry }[] = [];
-    for (const spec of specs) {
-      await session.begin(spec.partition);
-      try {
-        for (const entry of await enumerateFiles(session)) items.push({ spec, entry });
-      } finally {
-        await session.end();
-      }
+  // Pass 1: enumerate each partition (for the total + the work list). Each
+  // partition is its own begin/end session so the device returns to idle.
+  const items: { spec: PartitionSpec; entry: ProgramEntry }[] = [];
+  for (const spec of specs) {
+    await session.begin(spec.partition);
+    try {
+      for (const entry of await enumerateFiles(session)) items.push({ spec, entry });
+    } finally {
+      await session.end();
     }
-    // Pass 2: pull each file, grouped by partition (one begin/end per partition).
-    let done = 0;
-    for (const spec of specs) {
-      const group = items.filter((i) => i.spec.partition === spec.partition);
-      if (group.length === 0) continue;
-      await session.begin(spec.partition);
-      try {
-        for (const { entry } of group) {
-          let path = backupPath(spec, entry.bank, entry.name);
-          // Two files can share a name within a bank (the slot differentiates them);
-          // disambiguate so neither is silently lost from the zip.
-          if (files[path]) path = backupPath(spec, entry.bank, `${entry.name} (slot ${entry.slot})`);
-          files[path] = await pullFile(session, entry);
-          onProgress?.(++done, items.length);
-        }
-      } finally {
-        await session.end();
+  }
+  // Pass 2: pull each file, grouped by partition (one begin/end per partition).
+  let done = 0;
+  for (const spec of specs) {
+    const group = items.filter((i) => i.spec.partition === spec.partition);
+    if (group.length === 0) continue;
+    await session.begin(spec.partition);
+    try {
+      for (const { entry } of group) {
+        let path = backupPath(spec, entry.bank, entry.name);
+        // Two files can share a name within a bank (the slot differentiates them);
+        // disambiguate so neither is silently lost from the zip.
+        if (files[path]) path = backupPath(spec, entry.bank, `${entry.name} (slot ${entry.slot})`);
+        files[path] = await pullFile(session, entry);
+        onProgress?.(++done, items.length);
       }
+    } finally {
+      await session.end();
     }
-  } finally {
-    await session.begin(PARTITION_PROGRAM);
   }
   return zipSync(files, { level: 0 });
 }
@@ -94,37 +90,34 @@ export async function restore(
   const total = [...byPartition.values()].reduce((n, l) => n + l.length, 0);
 
   let done = 0;
-  try {
-    for (const [partition, items] of byPartition) {
-      try {
-        await session.begin(partition);
-      } catch (e) {
-        // Whole partition unreachable — record each file as failed, don't abort the rest.
-        const error = `Could not open partition ${partition}: ${e instanceof Error ? e.message : String(e)}`;
-        for (const { path } of items) result.failures.push({ path, error });
-        done += items.length;
-        onProgress?.(done, total);
-        continue;
-      }
-      try {
-        for (const { path, bytes } of items) {
-          try {
-            if (!hasCbinMagic(bytes)) throw new NordError('not a Nord file (no CBIN magic)');
-            const header = readCbinHeader(bytes);
-            const name = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '');
-            await pushFile(session, header.bank, header.location, bytes, name);
-            result.restored++;
-          } catch (e) {
-            result.failures.push({ path, error: e instanceof Error ? e.message : String(e) });
-          }
-          onProgress?.(++done, total);
-        }
-      } finally {
-        await session.end();
-      }
+  // One begin/end session per partition; the device returns to idle between them.
+  for (const [partition, items] of byPartition) {
+    try {
+      await session.begin(partition);
+    } catch (e) {
+      // Whole partition unreachable — record each file as failed, don't abort the rest.
+      const error = `Could not open partition ${partition}: ${e instanceof Error ? e.message : String(e)}`;
+      for (const { path } of items) result.failures.push({ path, error });
+      done += items.length;
+      onProgress?.(done, total);
+      continue;
     }
-  } finally {
-    await session.begin(PARTITION_PROGRAM);
+    try {
+      for (const { path, bytes } of items) {
+        try {
+          if (!hasCbinMagic(bytes)) throw new NordError('not a Nord file (no CBIN magic)');
+          const header = readCbinHeader(bytes);
+          const name = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '');
+          await pushFile(session, header.bank, header.location, bytes, name);
+          result.restored++;
+        } catch (e) {
+          result.failures.push({ path, error: e instanceof Error ? e.message : String(e) });
+        }
+        onProgress?.(++done, total);
+      }
+    } finally {
+      await session.end();
+    }
   }
   return result;
 }
