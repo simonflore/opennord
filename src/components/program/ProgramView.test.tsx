@@ -103,3 +103,19 @@ describe('FxRow', () => {
     expect(html).toBe('');
   });
 });
+
+import { SampleRefs } from './SampleRefs';
+
+describe('SampleRefs', () => {
+  it('lists referenced samples with sample-library deep-links', () => {
+    const html = renderToStaticMarkup(<SampleRefs program={fixtureProgram()} />);
+    expect(html).toContain('Flute Multi_ST 4.1');
+    expect(html).toContain('https://www.nordkeyboards.com/sounds/sample-library/');
+  });
+
+  it('renders nothing when there are no sample refs', () => {
+    const empty = { parsed: true, kind: 'program', bytes: new Uint8Array(), warnings: [], layers: [] } as const;
+    const html = renderToStaticMarkup(<SampleRefs program={empty as unknown as import('../../lib/ns4/types').NS4Program} />);
+    expect(html).toBe('');
+  });
+});
