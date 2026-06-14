@@ -1,6 +1,8 @@
 import type { NordSession } from './session';
-import { CQryFileInfo, CQryFileIterate, type2Ext } from './opcodes';
+import { CQryFileInfo, CQryFileIterate, CReqFileOpen, CReqFileClose, CReqFileRead, type2Ext, ext2Type } from './opcodes';
 import { readAsciiFixed } from '../ns4/parse';
+import { buildCbinHeader } from '../ns4/bits';
+import { patchNs4Checksum } from '../ns4/checksum';
 
 /** A program file on the device, from FileInfo. */
 export interface ProgramEntry {
@@ -62,4 +64,45 @@ export async function enumeratePrograms(session: NordSession): Promise<ProgramEn
     }
   }
   return out;
+}
+
+/** FileRead window — programs are < 1 KB so one read suffices, but loop for safety. */
+const READ_WINDOW = 4096;
+
+/**
+ * Pull a program off the device and return a complete .ns4p (44-byte CBIN header
+ * reconstructed from the entry's metadata + the reassembled body + a fresh
+ * CRC-32). Reads in windows until `entry.sizeBytes` bytes arrive; the file data
+ * in each FileRead reply begins at payload offset 20 (after the 5-word read-ack
+ * header). Read-only on the device (Open → Read… → Close).
+ */
+export async function pullProgram(session: NordSession, entry: ProgramEntry): Promise<Uint8Array> {
+  await session.request(CReqFileOpen, [entry.bank, entry.slot]);
+  const body = new Uint8Array(entry.sizeBytes);
+  let offset = 0;
+  while (offset < entry.sizeBytes) {
+    const want = Math.min(READ_WINDOW, entry.sizeBytes - offset);
+    const reply = await session.request(CReqFileRead, [entry.bank, entry.slot, offset, want]);
+    const data = reply.payload.subarray(20); // skip the 5-word read-ack header
+    if (data.length === 0) throw new Error(`FileRead returned no data at offset ${offset}`);
+    body.set(data.subarray(0, Math.min(data.length, entry.sizeBytes - offset)), offset);
+    offset += data.length;
+  }
+  await session.request(CReqFileClose, [entry.bank, entry.slot]);
+
+  const header = buildCbinHeader({
+    formatType: 1,
+    tag: entry.fourcc,
+    bank: entry.bank,
+    location: entry.slot,
+    category: entry.categoryId,
+    versionRaw: entry.version,
+  });
+  // ext2Type is imported to keep fourcc handling in one module even though
+  // buildCbinHeader takes the string tag; entry.fourcc is already a string.
+  void ext2Type;
+  const file = new Uint8Array(header.length + body.length);
+  file.set(header, 0);
+  file.set(body, header.length);
+  return patchNs4Checksum(file);
 }
