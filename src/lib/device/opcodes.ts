@@ -15,7 +15,11 @@ export const CReqFileRead = 0x12;
 export const CQryFileInfo = 0x1e;
 export const CQryFileIterate = 0x20;
 
-/** Pack a 4-char extension into a big-endian fourcc, e.g. "ns4p" → 0x6E733470. */
+/**
+ * Pack a 4-char extension into a big-endian fourcc, e.g. "ns4p" → 0x6E733470.
+ * For `ext` shorter than 4 chars, `charCodeAt` returns NaN and `NaN & 0xff` is 0,
+ * so the missing positions are zero-padded.
+ */
 export function ext2Type(ext: string): number {
   let v = 0;
   for (let i = 0; i < 4; i++) v = (v << 8) | (ext.charCodeAt(i) & 0xff);

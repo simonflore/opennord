@@ -1,7 +1,8 @@
 /**
  * CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, no reflection, no xorout) — the
  * Nord USB transport checksum. Distinct from the .ns4p file's CRC-32
- * (src/lib/ns4/checksum.ts). Check value: crc16ccitt("123456789") === 0x29B1.
+ * (src/lib/ns4/checksum.ts). Check value:
+ * crc16ccitt(new TextEncoder().encode("123456789")) === 0x29B1.
  */
 export function crc16ccitt(data: Uint8Array): number {
   let crc = 0xffff;
