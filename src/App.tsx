@@ -4,11 +4,12 @@ import { DeviceProvider, useDevice } from './lib/device/DeviceContext';
 import { DecodeInspector } from './components/DecodeInspector';
 import { ProgramView } from './components/program/ProgramView';
 import { DeviceManager } from './components/device/DeviceManager';
-import { SampleInspector } from './components/sample/SampleInspector';
 import { Rail } from './components/shell/Rail';
 import { LibraryView } from './components/library/LibraryView';
 import { parseNs4Program } from './lib/ns4/parse';
-import { localEntryFromFile, nordEntriesFromDevice, filterEntries } from './lib/library/entries';
+import { localEntryFromFile, nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms } from './lib/library/entries';
+import { useFolderLibrary } from './lib/folder/useFolderLibrary';
+import { SamplesView } from './components/sample/SamplesView';
 import type { LibraryEntry, LibrarySource } from './lib/library/types';
 import type { NS4Program } from './lib/ns4/types';
 
@@ -31,7 +32,13 @@ function Shell() {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<NS4Program | null>(null);
 
-  const allEntries: LibraryEntry[] = [...nordEntriesFromDevice(deviceEntries), ...localEntries];
+  const folder = useFolderLibrary();
+
+  const allEntries: LibraryEntry[] = [
+    ...nordEntriesFromDevice(deviceEntries),
+    ...entriesFromScannedPrograms(folder.result.programs),
+    ...localEntries,
+  ];
   const shown = filterEntries(allEntries, source, query);
 
   async function importFile() {
@@ -70,10 +77,19 @@ function Shell() {
             ? (<div><button className="on-btn on-btn--ghost" onClick={() => setOpen(null)}>← Library</button><ProgramView program={open} /></div>)
             : (<LibraryView
                 entries={shown} source={source} query={query}
-                onSource={setSource} onQuery={setQuery} onOpen={openEntry} onImport={importFile} />)
+                onSource={setSource} onQuery={setQuery} onOpen={openEntry} onImport={importFile}
+                folderName={folder.folderName}
+                folderCount={folder.result.programs.length + folder.result.samples.length}
+                canPersist={folder.canPersist}
+                needsReconnect={folder.needsReconnect}
+                busy={folder.busy}
+                onChooseFolder={folder.choose}
+                onReconnect={folder.reconnect}
+                onRefresh={folder.refresh}
+              />)
         )}
         {dest === 'device' && <DeviceManager />}
-        {dest === 'samples' && <SampleInspector />}
+        {dest === 'samples' && <SamplesView samples={folder.result.samples} />}
         {dest === 'inspect' && <DecodeInspector />}
         {dest === 'decode' && <ProgramDecode />}
       </main>
