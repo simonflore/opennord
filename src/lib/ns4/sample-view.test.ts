@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import type { NsmpFile } from './nsmp';
-import { noteName, sampleHeaderView } from './sample-view';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { NsmpFile, DecodedStrokeResult } from './nsmp';
+import { noteName, sampleHeaderView, zoneMapRows, strokeSummary } from './sample-view';
 
 describe('noteName', () => {
   it('maps MIDI numbers to scientific note names (C4 = 60)', () => {
@@ -33,5 +35,34 @@ describe('sampleHeaderView', () => {
     expect(v.name).toBe('Unnamed');
     expect(v.codecLabel).toBe('—');
     expect(v.version).toBe('—');
+  });
+});
+
+describe('strokeSummary', () => {
+  it('summarizes a decoded stroke', () => {
+    const d: DecodedStrokeResult = {
+      index: 2, channelCount: 2, endOffset: 0,
+      channels: [new Int32Array([0, 100, -200, 50]), new Int32Array([0, 0, 0, 0])],
+    };
+    expect(strokeSummary(d)).toEqual({ index: 2, sampleCount: 4, channels: 2, peak: 200, ok: true });
+  });
+
+  it('marks an empty stroke not-ok', () => {
+    const d: DecodedStrokeResult = { index: 0, channelCount: 1, endOffset: 0, channels: [new Int32Array(0)] };
+    expect(strokeSummary(d).ok).toBe(false);
+  });
+});
+
+const real = join(process.cwd(), 'research/nsmp/Strings.nsmp3');
+describe.skipIf(!existsSync(real))('zoneMapRows — real Strings.nsmp3', () => {
+  it('maps each zone to note names + stroke index', () => {
+    const bytes = new Uint8Array(readFileSync(real));
+    const rows = zoneMapRows(bytes);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(typeof r.strokeIndex).toBe('number');
+      expect(r.rootNote).toMatch(/^[A-G]#?-?\d+$/);
+      expect(r.topNote).toMatch(/^[A-G]#?-?\d+$/);
+    }
   });
 });
