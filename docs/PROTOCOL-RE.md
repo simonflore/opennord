@@ -145,8 +145,15 @@ enabled and re-tested (`sendmidi`/`receivemidi`, `docs/SYSEX-SPIKE.md`).
   single file at `{bank 0, slot 0}`, type **`ns4t`**, ~80 bytes, name "Settings".
   `FileRead` it to get the device global config (likely incl. the SysEx-RX flag
   that gates iOS transfer — decoding that 80-byte blob is the next small step).
-- **Dependency** (`CQryFileGetDependency 0x28`) returns a per-file sample
-  dependency list — the basis for the "you need these factory samples" feature.
+- **Dependency** (`CQryFileGetDependency 0x28` → `0x29`) returns a program's
+  **sample dependency list** — the "you need these factory samples" data. Reply:
+  `{status, bank, slot, u32 count, count × entry}`, entry =
+  `{u8 found, u32 id0, u32 id1, u32 id2, u32 nameLen, char name[nameLen]}`. The
+  `found=1` entries are the samples the program uses — `id2` is the sample's
+  unique id, `name` the factory name+version (e.g. A:01 "Dont look back" →
+  "Royal Grand 3D XL 6.1"; A:03 → "DX7 FullTines Lrg 6.0"). Tool:
+  `scripts/nordeps.c`. (The `found=0` stub entries need a small parse-offset
+  refinement; the used dependency per program decodes cleanly.)
 - **Notifications** (`CFTNotify*` on interrupt `0x81`) only fire during long
   transfers (progress); nothing arrives at idle. A transfer UI polls `0x81` for
   progress while a download/upload runs.
