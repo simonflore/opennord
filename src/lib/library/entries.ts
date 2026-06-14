@@ -1,0 +1,48 @@
+import type { LibraryEntry, LibrarySource } from './types';
+import type { ProgramEntry } from '../device/transfer';
+import { formatSlot } from '../ns4/slot';
+import { parseNs4Program } from '../ns4/parse';
+import { programNameFromFilename } from '../ns4/name';
+import { activeLayers } from '../ns4/view';
+import type { NS4Program } from '../ns4/types';
+
+/** One-line engine summary for a parsed program, e.g. "organ + synth". */
+export function summarize(program: NS4Program): string {
+  const kinds = activeLayers(program).map((l) => l.kind);
+  const order = ['organ', 'piano', 'synth'] as const;
+  const present = order.filter((k) => kinds.includes(k));
+  return present.length ? present.join(' + ') : 'program';
+}
+
+/** Map the device's enumerated programs into Library entries. */
+export function nordEntriesFromDevice(entries: ProgramEntry[]): LibraryEntry[] {
+  return entries.map((e) => {
+    const slot = formatSlot(e.bank, e.slot);
+    return { id: `nord:${slot}`, name: e.name, source: 'nord', slot };
+  });
+}
+
+/** Parse a dropped/imported file into a local Library entry. */
+export async function localEntryFromFile(file: File, index: number): Promise<LibraryEntry> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const program = parseNs4Program(bytes);
+  program.name = programNameFromFilename(file.name);
+  return {
+    id: `local:${index}`,
+    name: program.name ?? file.name,
+    source: 'local',
+    summary: program.parsed ? summarize(program) : undefined,
+    program,
+    bytes,
+  };
+}
+
+/** Filter by source tab + case-insensitive name query. */
+export function filterEntries(
+  entries: LibraryEntry[], source: LibrarySource | 'all', query: string,
+): LibraryEntry[] {
+  const q = query.trim().toLowerCase();
+  return entries.filter((e) =>
+    (source === 'all' || e.source === source) &&
+    (q === '' || e.name.toLowerCase().includes(q)));
+}
