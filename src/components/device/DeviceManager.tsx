@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import '../../styles/nord.css';
-import { Button } from '../ui';
+import { Button, FilterChip } from '../ui';
 import type { NordSession } from '../../lib/device/session';
-import { enumeratePrograms, pullProgram, pushProgram, deleteProgram, type ProgramEntry } from '../../lib/device/transfer';
+import { enumeratePrograms, enumerateFiles, pullProgram, pullFile, pushProgram, deleteProgram, type ProgramEntry } from '../../lib/device/transfer';
 import { useDevice } from '../../lib/device/DeviceContext';
-import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
+import { PARTITION_PROGRAM, PARTITION_SAMP_LIB } from '../../lib/device/opcodes';
 import { parseNs4Program } from '../../lib/ns4/parse';
 import { programNameFromFilename } from '../../lib/ns4/name';
 import { formatSlot } from '../../lib/ns4/slot';
@@ -15,6 +15,8 @@ import { DeviceBrowser } from './DeviceBrowser';
 import { TargetSlotPicker, type SlotTarget } from './TargetSlotPicker';
 import { ConfirmPanel } from './ConfirmPanel';
 import { BackupPanel } from './BackupPanel';
+import { DeviceSampleBrowser } from './DeviceSampleBrowser';
+import { SampleInspector, type InspectorInput } from '../sample/SampleInspector';
 
 interface PushSource { bytes: Uint8Array; name: string; }
 
@@ -31,6 +33,11 @@ export function DeviceManager() {
   const [picked, setPicked] = useState<SlotTarget | null>(null);
   // Delete flow
   const [pendingDelete, setPendingDelete] = useState<ProgramEntry | null>(null);
+  // Samples view (Samp Lib partition) — separate from the program `entries` above.
+  const [view, setView] = useState<'programs' | 'samples'>('programs');
+  const [sampleEntries, setSampleEntries] = useState<ProgramEntry[]>([]);
+  const [sampleInput, setSampleInput] = useState<InspectorInput | null>(null);
+  const [pullPct, setPullPct] = useState<number | null>(null);
 
   async function refresh(s: NordSession) {
     setEntries(await s.withSession(PARTITION_PROGRAM, () => enumeratePrograms(s)));
@@ -104,6 +111,37 @@ export function DeviceManager() {
     }
   }
 
+  /** Switch the browser between programs and samples; enumerate Samp Lib once (lazily). */
+  async function switchView(next: 'programs' | 'samples') {
+    if (!session || busy) return;
+    setView(next); setProgram(null); setSampleInput(null); setError('');
+    if (next === 'samples' && sampleEntries.length === 0) {
+      setBusy(true);
+      try {
+        setSampleEntries(await session.withSession(PARTITION_SAMP_LIB, () => enumerateFiles(session)));
+      } catch (e) {
+        setError(`Could not list samples: ${msg(e)}`);
+      } finally {
+        setBusy(false);
+      }
+    }
+  }
+
+  /** Pull a sample off the board (with progress) and open it in the inspector. */
+  async function openSample(entry: ProgramEntry) {
+    if (!session || busy) return;
+    setError(''); setBusy(true); setPullPct(0);
+    try {
+      const bytes = await session.withSession(PARTITION_SAMP_LIB, () =>
+        pullFile(session, entry, (done, total) => setPullPct(total ? Math.round((done / total) * 100) : 0)));
+      setSampleInput({ bytes, name: entry.name });
+    } catch (e) {
+      setError(`Could not read ${entry.name}: ${msg(e)}`);
+    } finally {
+      setBusy(false); setPullPct(null);
+    }
+  }
+
   if (!session) {
     return <ConnectPanel onConnected={(s, e, name) => setConnection(s, e, name)} />;
   }
@@ -163,24 +201,42 @@ export function DeviceManager() {
     );
   }
 
+  // Viewing a pulled sample (read-only — edit + download live in the inspector; no write-back yet).
+  if (sampleInput) {
+    return (
+      <div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <Button variant="ghost" onClick={() => setSampleInput(null)}>← Back to samples</Button>
+        </div>
+        <SampleInspector initial={sampleInput} />
+      </div>
+    );
+  }
+
   return (
     <div>
-      {error && <p className="ps-sub on-error">{error}</p>}
-      {busy && <p className="ps-sub">Working with the Nord…</p>}
-      <div style={{ marginBottom: 12 }}>
-        <BackupPanel
-          session={session}
-          deviceName={deviceName}
-          onAfterRestore={() => { void refresh(session); }}
-        />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <FilterChip active={view === 'programs'} onClick={() => void switchView('programs')}>Programs</FilterChip>
+        <FilterChip active={view === 'samples'} onClick={() => void switchView('samples')}>Samples</FilterChip>
       </div>
-      <DeviceBrowser
-        entries={entries}
-        deviceName={deviceName}
-        onSelect={open}
-        onDelete={setPendingDelete}
-        onSendFile={startSendFile}
-      />
+      {error && <p className="ps-sub on-error">{error}</p>}
+      {busy && <p className="ps-sub">{pullPct !== null ? `Pulling sample… ${pullPct}%` : 'Working with the Nord…'}</p>}
+      {view === 'programs' ? (
+        <>
+          <div style={{ marginBottom: 12 }}>
+            <BackupPanel session={session} deviceName={deviceName} onAfterRestore={() => { void refresh(session); }} />
+          </div>
+          <DeviceBrowser
+            entries={entries}
+            deviceName={deviceName}
+            onSelect={open}
+            onDelete={setPendingDelete}
+            onSendFile={startSendFile}
+          />
+        </>
+      ) : (
+        <DeviceSampleBrowser entries={sampleEntries} deviceName={deviceName} onSelect={openSample} />
+      )}
     </div>
   );
 }
