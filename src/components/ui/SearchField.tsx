@@ -4,9 +4,11 @@ export function SearchField(
 ) {
   return (
     <div className="on-search">
-      <span className="on-search__icon" aria-hidden>⌕</span>
+      <span className="on-search__icon" aria-hidden="true">⌕</span>
       <input
         className="on-search__input"
+        type="search"
+        aria-label={placeholder ?? 'Search'}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
