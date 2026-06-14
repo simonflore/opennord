@@ -51,7 +51,7 @@ export function SampleInspector() {
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) onFile(f); }}
         style={{ display: 'block', padding: 24, borderRadius: 12, marginBottom: 16, cursor: 'pointer',
-          border: `2px dashed ${dragOver ? '#c8102e' : '#ccc'}`, textAlign: 'center', color: '#666' }}
+          border: `2px dashed ${dragOver ? 'var(--red)' : '#ccc'}`, textAlign: 'center', color: '#666' }}
       >
         Drop a <code>.nsmp3</code> / <code>.nsmp4</code> here, or click to choose a file.
         <input type="file" accept=".nsmp3,.nsmp4" style={{ display: 'none' }}

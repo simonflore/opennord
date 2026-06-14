@@ -55,12 +55,12 @@ export function SampleEditPanel({ initial, decoded, codec }: {
       </table>
       <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
         <button onClick={download}
-          style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, border: '1px solid #c8102e', background: '#c8102e', color: '#fff' }}>
+          style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, border: '1px solid var(--red)', background: 'var(--red)', color: '#fff' }}>
           Download edited .nsmp
         </button>
         <span className="ps-sub" style={{ margin: 0 }}>Rebuilds the whole sample — back up before loading.</span>
       </div>
-      {error && <p className="ps-sub" style={{ color: '#ffb454' }}>{error}</p>}
+      {error && <p className="ps-sub" style={{ color: 'var(--warn)' }}>{error}</p>}
     </div>
   );
 }

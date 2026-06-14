@@ -19,7 +19,7 @@ export function SampleHeader({ view }: { view: SampleHeaderView }) {
           <span className="ps-pill">{formatBytes(view.sizeBytes)}</span>
           <span className="ps-pill">{view.checksumOk ? 'checksum ✓' : 'checksum ✗'}</span>
           {view.isFactory && (
-            <span className="ps-pill" style={{ color: '#ffb454', borderColor: '#43222a' }}>factory?</span>
+            <span className="ps-pill" style={{ color: 'var(--warn)', borderColor: '#43222a' }}>factory?</span>
           )}
         </div>
       </div>
