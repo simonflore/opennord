@@ -226,12 +226,28 @@ describe('SampleRefs', () => {
 });
 
 import { AllParamsDrawer } from './AllParamsDrawer';
+import { decodeAllParams } from '../../lib/ns4/coverage';
+import { buildParamMap } from '../../lib/ns4/maps';
+import { collapseMorphs } from '../../lib/ns4/params-view';
 
 describe('AllParamsDrawer', () => {
-  it('renders the full decoded-parameter table for the loaded program', () => {
+  it('renders the reorganized parameter reference for the loaded program', () => {
     const html = renderToStaticMarkup(<AllParamsDrawer program={fixtureProgram()} />);
     expect(html).toContain('Show all parameters');
     expect(html).toContain('layer on/off');
+  });
+
+  it('groups params into collapsible sections with a search field', () => {
+    const html = renderToStaticMarkup(<AllParamsDrawer program={fixtureProgram()} />);
+    expect(html).toContain('ps-param-search');      // the search box
+    expect(html).toContain('ps-pgroup');            // collapsible group panels
+    expect(html).toContain('Synth');                // a section label
+  });
+
+  it('shows fewer rows than the raw dump (morphs collapsed)', () => {
+    const all = decodeAllParams(fixtureProgram().bytes, buildParamMap());
+    const collapsed = collapseMorphs(all);
+    expect(collapsed.length).toBeLessThan(all.length);
   });
 });
 

@@ -87,3 +87,14 @@
 .ps-drawer summary { cursor: pointer; font-size: 12px; color: var(--dim); }
 .ps-params { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
 .ps-params th, .ps-params td { text-align: left; padding: 2px 8px; border-bottom: 1px solid var(--line); }
+
+.ps-param-search { width: 100%; margin: 10px 0 4px; padding: 7px 11px; background: var(--sink);
+  border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font: 12px var(--font); }
+.ps-param-search::placeholder { color: var(--muted); }
+.ps-pgroup { margin-top: 8px; }
+.ps-pgroup > summary { cursor: pointer; font: 700 11px var(--font); letter-spacing: .5px; color: var(--ink);
+  padding: 6px 9px; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; }
+.ps-pgroup-n { color: var(--muted); font-weight: 400; margin-left: 7px; }
+.ps-player { display: inline-block; margin-left: 6px; font-size: 8px; font-weight: 700; color: var(--dim);
+  background: var(--surface-2); border-radius: 3px; padding: 1px 4px; vertical-align: middle; }
+.ps-morph { margin-left: 6px; font-size: 9px; font-weight: 700; color: var(--red-bright); cursor: help; }

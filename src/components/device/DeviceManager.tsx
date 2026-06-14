@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import '../../styles/nord.css';
 import { Button, FilterChip } from '../ui';
 import type { NordSession } from '../../lib/device/session';
@@ -38,6 +38,15 @@ export function DeviceManager() {
   const [sampleEntries, setSampleEntries] = useState<ProgramEntry[]>([]);
   const [sampleInput, setSampleInput] = useState<InspectorInput | null>(null);
   const [pullPct, setPullPct] = useState<number | null>(null);
+
+  // Reset the samples view when the connection changes (reconnect to a different
+  // Nord) — DeviceManager stays mounted across sessions, so the lazy enumerate
+  // cache (`sampleEntries.length === 0`) would otherwise show the old board's list.
+  useEffect(() => {
+    setView('programs');
+    setSampleEntries([]);
+    setSampleInput(null);
+  }, [session]);
 
   async function refresh(s: NordSession) {
     setEntries(await s.withSession(PARTITION_PROGRAM, () => enumeratePrograms(s)));
@@ -208,7 +217,7 @@ export function DeviceManager() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <Button variant="ghost" onClick={() => setSampleInput(null)}>← Back to samples</Button>
         </div>
-        <SampleInspector initial={sampleInput} />
+        <SampleInspector key={`${sampleInput.name}-${sampleInput.bytes.length}`} initial={sampleInput} />
       </div>
     );
   }
