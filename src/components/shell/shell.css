@@ -31,6 +31,8 @@
     width: auto; flex-direction: row; align-items: center; overflow-x: auto;
     border-right: 0; border-bottom: 1px solid var(--line); padding: var(--s-2) var(--s-3);
   }
-  .on-rail__spacer, .on-rail__dev { display: none; }
+  /* Device transfer rides vendor-USB — unreachable from a phone browser
+     (desktop / native iPad only). Hide the status box on the mobile rail. */
+  .on-rail__spacer, .on-rail__dev, .on-devbox { display: none; }
   .on-content { padding: var(--s-3) var(--s-4); }
 }

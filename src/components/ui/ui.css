@@ -30,7 +30,7 @@
 }
 .on-badge__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .on-badge--nord { color: var(--red); }
-.on-badge--local { color: #3a4150; }
+.on-badge--local { color: var(--muted); }
 
 .on-search {
   display: flex; align-items: center; gap: 8px; flex: 1;
