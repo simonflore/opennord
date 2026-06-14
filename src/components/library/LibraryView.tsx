@@ -41,7 +41,15 @@ export function LibraryView({ entries, source, query, onSource, onQuery, onOpen,
       ) : (
         <div className="lib-grid">
           {entries.map((e) => (
-            <Card key={e.id} accent={e.source === 'nord'} className="lib-patch" onClick={() => onOpen(e)}>
+            <Card
+              key={e.id}
+              accent={e.source === 'nord'}
+              className="lib-patch"
+              role="button"
+              tabIndex={0}
+              onClick={() => onOpen(e)}
+              onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onOpen(e); } }}
+            >
               <div className="lib-patch__nm">{e.name}</div>
               <div className="lib-patch__sub">{e.summary ?? '—'}</div>
               <div className="lib-patch__row">

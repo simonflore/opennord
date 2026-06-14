@@ -1,7 +1,7 @@
 .lib-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s-3); }
 .lib-title { font: 800 18px var(--font); color: var(--ink); }
 .lib-counts { font: 11px var(--font); color: var(--dim); margin-top: 2px; }
-.lib-controls { display: flex; gap: var(--s-2); align-items: center; margin-bottom: var(--s-3); }
+.lib-controls { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; margin-bottom: var(--s-3); }
 .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
 .lib-patch { cursor: pointer; }
 .lib-patch__nm { font: 700 13px var(--font); color: var(--ink); }

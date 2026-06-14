@@ -23,6 +23,15 @@ describe('LibraryView', () => {
     expect(html).toContain('Import file');
   });
 
+  it('marks the active source chip and makes cards keyboard-activatable', () => {
+    const html = renderToStaticMarkup(
+      <LibraryView entries={entries} source="nord" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}} />,
+    );
+    expect(html).toContain('on-chip--active');
+    expect(html).toContain('role="button"');
+    expect(html).toContain('tabindex="0"');
+  });
+
   it('shows an empty hint when there are no entries', () => {
     const html = renderToStaticMarkup(
       <LibraryView entries={[]} source="all" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}} />,
