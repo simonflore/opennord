@@ -215,3 +215,22 @@ describe('pullFile (wrapper parity)', () => {
     expect(typeof pullFile).toBe('function');
   });
 });
+
+describe('pullFile progress', () => {
+  it('reports progress per read window and reassembles a multi-window body', async () => {
+    const body = new Uint8Array(5000);
+    for (let i = 0; i < body.length; i++) body[i] = i & 0xff;
+    const entry = { bank: 0, slot: 0, name: 'big', categoryId: 0, version: 100, sizeBytes: body.length, fourcc: 'ns4p' };
+    const replies = [
+      encodeMessage(CReqFileOpen | 1, [0]),
+      readReply(0, 0, 0, body.subarray(0, 4096)),
+      readReply(0, 0, 4096, body.subarray(4096)),
+      encodeMessage(CReqFileClose | 1, [0]),
+    ];
+    const session = new NordSession(new MockTransport(replies));
+    const progress: Array<[number, number]> = [];
+    const file = await pullFile(session, entry, (done, total) => progress.push([done, total]));
+    expect([...file.subarray(44)]).toEqual([...body]); // body round-trips after the 44-byte header
+    expect(progress).toEqual([[4096, 5000], [5000, 5000]]);
+  });
+});

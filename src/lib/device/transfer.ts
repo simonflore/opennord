@@ -91,7 +91,11 @@ const READ_WINDOW = 4096;
  * file data in each FileRead reply begins at payload offset 20 (after the 5-word
  * read-ack header). Read-only on the device (Open → Read… → Close).
  */
-export async function pullFile(session: NordSession, entry: ProgramEntry): Promise<Uint8Array> {
+export async function pullFile(
+  session: NordSession,
+  entry: ProgramEntry,
+  onProgress?: (done: number, total: number) => void,
+): Promise<Uint8Array> {
   const open = await session.request(CReqFileOpen, [entry.bank, entry.slot]);
   if (open.status !== 0) throw new NordError(`FileOpen failed (status ${open.status}) for ${entry.name}`);
 
@@ -106,6 +110,7 @@ export async function pullFile(session: NordSession, entry: ProgramEntry): Promi
       const taken = Math.min(data.length, entry.sizeBytes - offset);
       body.set(data.subarray(0, taken), offset);
       offset += taken;
+      onProgress?.(offset, entry.sizeBytes);
     }
   } finally {
     // Always release the handle, even if a read failed mid-transfer.

@@ -52,3 +52,13 @@ describe('write/delete opcodes (Slice 2)', () => {
     expect(CReqFileDelete | 1).toBe(0x15);
   });
 });
+
+import { PARTITION_SAMP_LIB, PARTITION_SAMP_LIB_NATIVE, CQryFileGetDependency } from './opcodes';
+
+describe('Samp Lib partition + dependency opcode', () => {
+  it('exposes the documented partition indices and the dependency query opcode', () => {
+    expect(PARTITION_SAMP_LIB).toBe(5);
+    expect(PARTITION_SAMP_LIB_NATIVE).toBe(4);
+    expect(CQryFileGetDependency).toBe(0x28);
+  });
+});
