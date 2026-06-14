@@ -183,6 +183,33 @@ block directory (corrects an earlier guess).
 - **Output scaling:** raw integer PCM is returned; per-stroke normalization gain
   (`GetNormFactors`) / bit-depth scaling to float `[-1,1]` is still TODO.
 
+## Encoder (`NW1::CEncode`) — algorithm recovered
+
+Recovered from `EncodeStroke` (`0x1002db3f8`/`0x1002db528`),
+`EncodeStrokePhase0/1/2` (`0x1002dbc38`/`…be7c`/`…c654`). Three phases:
+
+- **Phase 0** — compute the stroke's region boundaries (start, second-start, loop
+  begin, end) in interleaved-sample units; the `channels × 5` constant matches the
+  decoder's loop handling. These boundaries become the **segment markers**.
+- **Phase 1** — split the stroke into blocks at those boundaries; per block, a
+  `CChunk` tries the predictor orders and picks order + bit width. Iterates with
+  reduced target bit depth if a block overflows (`CHistory::Expand` retry loop in
+  the `EncodeStroke` overload).
+- **Phase 2** — write the bitstream: for each block `CBlockHdr::Write` (the
+  inverse of `CBlockHdr::Read`) + `WriteChunk` (residuals); then **one explicit
+  stop block** `CBlockHdr(linearMode=true, flag2=false, bitWidth=1, order=0,
+  sampleCnt=loopPoint)` — matching `IsStop`. `CBlockHdr` carries **two flag bits**
+  (linearMode + a second) alongside bw/order/sc; the codec-4 markers are
+  zero-sample blocks emitted here carrying those flags at segment boundaries
+  (no-ops for audio, metadata for loop points).
+
+**OpenNord's encoder** (`src/lib/ns4/nsmp-encode.ts`) is a *correct, simple*
+inverse of `decodeStroke` — fixed-size blocks, per-block order selection
+minimizing residual width, MSB-first signed packing, stop block. It is **not** a
+byte-for-byte clone of Phase 1's optimal loop-point splitting; that (and the
+CNSP/NSMP container writer) is future work. Round-trips exactly
+(`decodeStroke(encodeStroke(pcm)) === pcm`) on synthetic + real decoded audio.
+
 ## Verdict — GO, and DECODE PROVEN on real `.nsmp3` data
 
 The full decode path is recovered and elegantly simple (fixed-predictor LPC,
