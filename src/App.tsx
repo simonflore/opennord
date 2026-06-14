@@ -4,8 +4,9 @@ import { programNameFromFilename } from './lib/ns4/name';
 import type { NS4Program } from './lib/ns4/types';
 import { DecodeInspector } from './components/DecodeInspector';
 import { ProgramView } from './components/program/ProgramView';
+import { DeviceManager } from './components/device/DeviceManager';
 
-type Tab = 'studio' | 'inspect' | 'decode';
+type Tab = 'studio' | 'device' | 'inspect' | 'decode';
 
 /**
  * App shell. Three views:
@@ -22,11 +23,13 @@ export function App() {
       <h1>OpenNord</h1>
       <nav style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <TabButton active={tab === 'studio'} onClick={() => setTab('studio')}>Program Studio</TabButton>
+        <TabButton active={tab === 'device'} onClick={() => setTab('device')}>Device</TabButton>
         <TabButton active={tab === 'inspect'} onClick={() => setTab('inspect')}>Decode Inspector</TabButton>
         <TabButton active={tab === 'decode'} onClick={() => setTab('decode')}>Program Decode</TabButton>
       </nav>
 
       {tab === 'studio' && <ProgramStudio />}
+      {tab === 'device' && <DeviceManager />}
       {tab === 'inspect' && <DecodeInspector />}
       {tab === 'decode' && <ProgramDecode />}
 
