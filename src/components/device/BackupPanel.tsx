@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { NordSession } from '../../lib/device/session';
 import { backup, restore, type RestoreResult } from '../../lib/device/backup';
+import { resolveFactory } from '../../lib/device/factory';
 
 /** Trigger a browser download of `bytes` as `filename`, releasing the object URL after. */
 function downloadFile(bytes: Uint8Array, filename: string) {
@@ -26,6 +27,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [pendingZip, setPendingZip] = useState<Uint8Array | null>(null);
+  const [skipped, setSkipped] = useState<string[]>([]);
 
   async function runBackup() {
     if (busy) return;
@@ -53,9 +55,10 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
     setStatus('Restoring…');
     try {
       const result: RestoreResult = await restore(session, pendingZip, (done, total) => setStatus(`Restoring ${done} of ${total}…`));
-      const skipped = result.skippedFactory ? `; skipped ${result.skippedFactory} factory files` : '';
+      setSkipped(result.skippedFactoryFiles);
+      const skippedMsg = result.skippedFactory ? `; skipped ${result.skippedFactory} factory files` : '';
       const failed = result.failures.length ? `; ${result.failures.length} couldn't be written` : '';
-      setStatus(`Restored ${result.restored} files${skipped}${failed}.`);
+      setStatus(`Restored ${result.restored} files${skippedMsg}${failed}.`);
       setPendingZip(null);
       onAfterRestore();
     } catch (e) {
@@ -89,17 +92,38 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
   }
 
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-      <button onClick={runBackup} disabled={busy}
-        style={{ padding: '8px 12px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontSize: 12, border: '1px solid #c8102e', color: '#ff7a72', background: 'transparent' }}>
-        Back up
-      </button>
-      <label style={{ padding: '8px 12px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontSize: 12, border: '1px solid #c8102e', color: '#ff7a72' }}>
-        Restore…
-        <input type="file" accept=".ns4b" style={{ display: 'none' }} disabled={busy}
-          onChange={(ev) => ev.target.files?.[0] && void pickRestore(ev.target.files[0])} />
-      </label>
-      {status && <span className="ps-sub" style={{ margin: 0 }}>{status}</span>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button onClick={runBackup} disabled={busy}
+          style={{ padding: '8px 12px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontSize: 12, border: '1px solid #c8102e', color: '#ff7a72', background: 'transparent' }}>
+          Back up
+        </button>
+        <label style={{ padding: '8px 12px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontSize: 12, border: '1px solid #c8102e', color: '#ff7a72' }}>
+          Restore…
+          <input type="file" accept=".ns4b" style={{ display: 'none' }} disabled={busy}
+            onChange={(ev) => ev.target.files?.[0] && void pickRestore(ev.target.files[0])} />
+        </label>
+        {status && <span className="ps-sub" style={{ margin: 0 }}>{status}</span>}
+      </div>
+      {skipped.length > 0 && (
+        <div className="ps-sub">
+          Factory libraries aren't restored over USB — download from Nord, then install with Nord Sound Manager:
+          <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+            {skipped.map((path) => {
+              const name = path.replace(/^.*\//, '');
+              const ext = name.toLowerCase().endsWith('.npno') ? 'npno' : 'nsmp4';
+              const match = resolveFactory(name, ext);
+              return (
+                <li key={path}>
+                  {match
+                    ? <a href={match.url} target="_blank" rel="noreferrer">{name}</a>
+                    : name}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

@@ -9,6 +9,8 @@ import { USER_PARTITIONS, partitionForPath, backupPath, buildMetaXml, type Parti
 export interface RestoreResult {
   restored: number;
   skippedFactory: number;
+  /** Zip paths of factory files (npno/nsmp4) that were skipped — for resolving download links. */
+  skippedFactoryFiles: string[];
   failures: { path: string; error: string }[];
 }
 
@@ -75,12 +77,16 @@ export async function restore(
   const unzipped = unzipSync(zipBytes);
   if (!unzipped['meta.xml']) throw new NordError('Not a Nord backup (no meta.xml).');
 
-  const result: RestoreResult = { restored: 0, skippedFactory: 0, failures: [] };
+  const result: RestoreResult = { restored: 0, skippedFactory: 0, skippedFactoryFiles: [], failures: [] };
   const byPartition = new Map<number, { path: string; bytes: Uint8Array }[]>();
   for (const path of Object.keys(unzipped)) {
     if (path === 'meta.xml') continue;
     const partition = partitionForPath(path);
-    if (partition === null) { result.skippedFactory++; continue; }
+    if (partition === null) {
+      result.skippedFactory++;
+      result.skippedFactoryFiles.push(path);
+      continue;
+    }
     const list = byPartition.get(partition) ?? [];
     list.push({ path, bytes: unzipped[path] });
     byPartition.set(partition, list);

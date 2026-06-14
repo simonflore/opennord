@@ -73,6 +73,7 @@ describe('restore', () => {
     const result = await restore(new NordSession(t), zip);
     expect(result.restored).toBe(1);
     expect(result.skippedFactory).toBe(1);
+    expect(result.skippedFactoryFiles).toEqual(['Samp Lib/Pad/Some Sample.nsmp4']);
     expect(result.failures).toEqual([]);
     const createFrame = t.sent.find((f) => decodeReply(f).msgId === CReqFileCreate)!;
     const create = decodeReply(createFrame);
