@@ -183,6 +183,26 @@ block directory (corrects an earlier guess).
 - **Output scaling:** raw integer PCM is returned; per-stroke normalization gain
   (`GetNormFactors`) / bit-depth scaling to float `[-1,1]` is still TODO.
 
+## Codec-4 — SOLVED (per-channel word-interleaving)
+
+**Resolution (2026-06-14, via the editor ground-truth files):** codec 4 differs
+from codec 3 in *one* way — the residual **bitstream layout**. Codec 3 packs all
+of a block's residuals as a single sample-interleaved bitstream (sample `k` →
+channel `k % nCh`). **Codec 4 packs each channel as a separate 32-bit-word
+bitstream, interleaved word-by-word**: word `w` → channel `w % nCh`, each channel
+reading `ceil((sampleCnt/nCh)·bitWidth / 32)` words. (This is exactly the
+per-channel accumulator flushing in `WriteChunk`, gated by `SMetric[0x34]`.) Plus
+codec 4's zero-sample blocks are **segment markers** (skip; the stream runs to the
+section end rather than a single stop sentinel).
+
+Proof: the editor-made `sine_24.nsmp4` decodes **pixel-clean** — peak `3000` (the
+exact source amplitude, so no normalization loss either) and 220 zero-crossings
+(220 Hz); the real `Strings.nsmp4` decodes all 9 strokes to clean stereo (peak
+~7K, matching its `.nsmp3` twin's ~6.1K). Implemented in `decodeStroke`
+(`wordInterleaved` option) + `decodeNsmp` (auto-selected for `codec === 4`).
+
+Everything below is the investigation trail that led here (kept for reference).
+
 ## Codec-4 investigation — narrowed, not closed (autonomous RE)
 
 Extensive testing against `Strings.nsmp4` stk[1] (which is ~the same audio as an

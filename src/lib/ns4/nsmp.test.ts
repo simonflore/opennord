@@ -89,3 +89,30 @@ describe.skipIf(!existsSync(realFile))('readNsmp / decodeNsmp — real Strings.n
     expect(Array.from(strokes[0].channels[0].slice(0, 8))).toEqual([0, 0, 0, 0, -1, -2, -3, -4]);
   });
 });
+
+// Codec 4 (.nsmp4, word-interleaved) — real + editor-made ground-truth. Skipped in CI.
+const nsmp4 = join(process.cwd(), 'research/nsmp/Strings.nsmp4');
+const sine4 = join(process.cwd(), 'research/nsmp/ground-truth/sine_24.nsmp4');
+describe.skipIf(!existsSync(nsmp4))('decodeNsmp — codec 4 (.nsmp4)', () => {
+  it('decodes a real .nsmp4 to clean stereo (word-interleaved)', () => {
+    const f = readNsmp(new Uint8Array(readFileSync(nsmp4)));
+    expect(f.codec).toBe(4);
+    const strokes = decodeNsmp(new Uint8Array(readFileSync(nsmp4)));
+    expect(strokes.length).toBeGreaterThan(0);
+    for (const s of strokes) {
+      expect(s.channelCount).toBe(2);
+      const peak = s.channels[0].reduce((m, x) => Math.max(m, Math.abs(x)), 0);
+      expect(peak).toBeLessThan(1 << 20); // sane 16-bit, not divergence
+    }
+  });
+
+  it.skipIf(!existsSync(sine4))('decodes a known 220 Hz sine pixel-clean', () => {
+    const strokes = decodeNsmp(new Uint8Array(readFileSync(sine4)));
+    const L = strokes[0].channels[0];
+    const peak = L.reduce((m, x) => Math.max(m, Math.abs(x)), 0);
+    expect(peak).toBe(3000); // exact source amplitude — no divergence, no loss
+    let zc = 0;
+    for (let i = 1; i < L.length; i++) if ((L[i] > 0) !== (L[i - 1] > 0)) zc++;
+    expect(zc).toBe(220); // 220 Hz over 0.5 s
+  });
+});

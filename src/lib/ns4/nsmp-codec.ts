@@ -60,28 +60,91 @@ export interface DecodedStroke {
   endOffset: number;
 }
 
+export interface DecodeStrokeOptions {
+  /**
+   * Codec-4 residual layout: each block's channels are packed as **separate
+   * 32-bit-word bitstreams interleaved word-by-word** (word `w` → channel
+   * `w % channelCount`), and zero-sample blocks are skipped as segment markers
+   * (run to end-of-buffer). Codec-3 (default) is a single sample-interleaved
+   * bitstream terminated by a stop block. See `docs/NSMP-CODEC.md`.
+   */
+  wordInterleaved?: boolean;
+}
+
+/** Per-channel decode state: history ring + write head + reconstructed output. */
+interface ChannelState {
+  ring: Int32Array;
+  head: number;
+  out: number[];
+}
+
+function makeChannels(n: number): ChannelState[] {
+  return Array.from({ length: n }, () => ({ ring: new Int32Array(HISTORY_SIZE), head: 0, out: [] }));
+}
+
+/** Reconstruct one sample on a channel from a residual + order-N prediction. */
+function emit(cs: ChannelState, residual: number, coeff: readonly number[], order: number): void {
+  let pred = 0;
+  for (let k = 0; k < order; k++) pred += coeff[k] * cs.ring[(cs.head - 1 - k) & (HISTORY_SIZE - 1)];
+  const sample = residual + pred;
+  cs.ring[cs.head] = sample;
+  cs.head = (cs.head + 1) & (HISTORY_SIZE - 1);
+  cs.out.push(sample);
+}
+
+const signExtend = (v: number, bw: number) => (v >= 1 << (bw - 1) ? v - (1 << bw) : v);
+
 /**
  * Decode one stroke's block stream starting at `byteOffset`, de-interleaving
  * `channelCount` channels. Returns raw reconstructed integer PCM per channel
  * (apply the stroke's normalization gain / bit-depth scaling separately).
  */
-export function decodeStroke(bytes: Uint8Array, byteOffset: number, channelCount: number): DecodedStroke {
+export function decodeStroke(
+  bytes: Uint8Array,
+  byteOffset: number,
+  channelCount: number,
+  opts: DecodeStrokeOptions = {},
+): DecodedStroke {
   const u32be = (o: number) => ((bytes[o] << 24) | (bytes[o + 1] << 16) | (bytes[o + 2] << 8) | bytes[o + 3]) >>> 0;
-
-  const history: Int32Array[] = [];
-  const head: number[] = [];
-  const out: number[][] = [];
-  for (let c = 0; c < channelCount; c++) {
-    history.push(new Int32Array(HISTORY_SIZE));
-    head.push(0);
-    out.push([]);
-  }
+  const channels = makeChannels(channelCount);
 
   let o = byteOffset;
-  let index = 0; // running sample index across channels
+  let index = 0; // running interleaved sample index (sample mode)
   while (o + 4 <= bytes.length) {
     const hdr = readBlockHeader(u32be(o));
     o += 4;
+
+    if (opts.wordInterleaved) {
+      // Codec 4: zero-sample blocks are segment markers — skip; run to buffer end.
+      if (hdr.sampleCnt === 0) continue;
+      if (hdr.filterOrder > 7) break;
+      const perCh = Math.floor(hdr.sampleCnt / channelCount);
+      const wordsPerCh = Math.ceil((perCh * hdr.bitWidth) / 32);
+      if (o + wordsPerCh * channelCount * 4 > bytes.length) break;
+      const bw = hdr.bitWidth;
+      const coeff = PREDICTOR_COEFF[hdr.filterOrder];
+      for (let ch = 0; ch < channelCount; ch++) {
+        // last channel absorbs any remainder when sampleCnt isn't divisible
+        const count = ch === channelCount - 1 ? hdr.sampleCnt - perCh * (channelCount - 1) : perCh;
+        let acc = 0n;
+        let nbits = 0;
+        let produced = 0;
+        for (let w = 0; w < wordsPerCh; w++) {
+          acc = (acc | (BigInt(u32be(o + (w * channelCount + ch) * 4)) << BigInt(32 - nbits))) & 0xffffffffffffffffn;
+          nbits += 32;
+          while (nbits >= bw && produced < count) {
+            emit(channels[ch], signExtend(Number((acc >> BigInt(64 - bw)) & ((1n << BigInt(bw)) - 1n)), bw), coeff, hdr.filterOrder);
+            produced++;
+            acc = (acc << BigInt(bw)) & 0xffffffffffffffffn;
+            nbits -= bw;
+          }
+        }
+      }
+      o += wordsPerCh * channelCount * 4;
+      continue;
+    }
+
+    // Codec 3: single sample-interleaved bitstream, stop-terminated.
     if (hdr.isStop) break;
     if (hdr.filterOrder > 7 || hdr.sampleCnt === 0) {
       throw new Error(`nsmp: invalid block header at 0x${(o - 4).toString(16)}`);
@@ -90,31 +153,17 @@ export function decodeStroke(bytes: Uint8Array, byteOffset: number, channelCount
     if (o + nWords * 4 > bytes.length) {
       throw new Error(`nsmp: block overruns buffer at 0x${(o - 4).toString(16)}`);
     }
-
-    // MSB-first signed residuals via a 64-bit accumulator (BigInt), refilled
-    // from the top with whole 32-bit words.
     let acc = 0n;
     let nbits = 0;
     let produced = 0;
     const bw = hdr.bitWidth;
     const coeff = PREDICTOR_COEFF[hdr.filterOrder];
-    const order = hdr.filterOrder;
     for (let w = 0; w < nWords; w++) {
       acc = (acc | (BigInt(u32be(o)) << BigInt(32 - nbits))) & 0xffffffffffffffffn;
       o += 4;
       nbits += 32;
       while (nbits >= bw && produced < hdr.sampleCnt) {
-        let residual = Number((acc >> BigInt(64 - bw)) & ((1n << BigInt(bw)) - 1n));
-        if (residual >= 1 << (bw - 1)) residual -= 1 << bw; // sign-extend
-        const ch = index % channelCount;
-        const ring = history[ch];
-        const h = head[ch];
-        let pred = 0;
-        for (let k = 0; k < order; k++) pred += coeff[k] * ring[(h - 1 - k) & (HISTORY_SIZE - 1)];
-        const sample = residual + pred;
-        ring[h] = sample;
-        head[ch] = (h + 1) & (HISTORY_SIZE - 1);
-        out[ch].push(sample);
+        emit(channels[index % channelCount], signExtend(Number((acc >> BigInt(64 - bw)) & ((1n << BigInt(bw)) - 1n)), bw), coeff, hdr.filterOrder);
         produced++;
         index++;
         acc = (acc << BigInt(bw)) & 0xffffffffffffffffn;
@@ -123,5 +172,5 @@ export function decodeStroke(bytes: Uint8Array, byteOffset: number, channelCount
     }
   }
 
-  return { channels: out.map((a) => Int32Array.from(a)), endOffset: o };
+  return { channels: channels.map((c) => Int32Array.from(c.out)), endOffset: o };
 }

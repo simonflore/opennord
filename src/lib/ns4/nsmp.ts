@@ -176,17 +176,24 @@ export interface DecodedStrokeResult extends DecodedStroke {
  * (ending on the stop sentinel at the section boundary). Validated against all 8
  * strokes of a real `.nsmp3` (see `nsmp.test.ts`).
  */
-function decodeStrokeSection(bytes: Uint8Array, section: NsmpSection): { result: DecodedStroke; channelCount: number } | null {
+function decodeStrokeSection(
+  bytes: Uint8Array,
+  section: NsmpSection,
+  wordInterleaved: boolean,
+): { result: DecodedStroke; channelCount: number } | null {
   const BOUND = 1 << 26; // raw 16-bit reconstructions stay well under this
+  const bounded = bytes.subarray(0, section.endOffset);
   for (let hdr = 0x60; hdr <= 0x180; hdr += 4) {
     const start = section.payloadOffset + hdr;
     if (start >= section.endOffset) break;
-    // Prefer mono: a true stereo stream decoded as mono diverges (interleaved
-    // L/R → huge residuals → exceeds BOUND), so it falls through to 2.
+    // Prefer mono: a true stereo stream decoded as mono diverges past BOUND
+    // (sample mode → interleaved L/R residuals; word mode → scrambled words),
+    // so real stereo falls through to 2. (The exact channel count lives in the
+    // stroke header — not yet decoded; this heuristic handles real content.)
     for (const channelCount of [1, 2]) {
       let result: DecodedStroke;
       try {
-        result = decodeStroke(bytes.subarray(0, section.endOffset), start, channelCount);
+        result = decodeStroke(bounded, start, channelCount, { wordInterleaved });
       } catch {
         continue;
       }
@@ -202,17 +209,18 @@ function decodeStrokeSection(bytes: Uint8Array, section: NsmpSection): { result:
 
 /**
  * Decode every stroke in a `.nsmp*` file to raw integer PCM per channel.
- * Currently validated for **codec 3** (`.nsmp3`); codec 4 (`.nsmp4`) uses a
- * format variant not yet supported and yields no decoded strokes (see
- * `docs/NSMP-CODEC.md`).
+ * Supports **codec 3** (`.nsmp3`, sample-interleaved) and **codec 4** (`.nsmp4`,
+ * per-channel word-interleaved — selected automatically by version). Validated
+ * against real samples in both formats (see `nsmp.test.ts`, `docs/NSMP-CODEC.md`).
  */
 export function decodeNsmp(bytes: Uint8Array): DecodedStrokeResult[] {
   const file = readNsmp(bytes);
+  const wordInterleaved = file.codec === 4; // codec 4 packs channels word-interleaved
   const out: DecodedStrokeResult[] = [];
   let index = 0;
   for (const section of file.sections) {
     if (!section.tag.endsWith('stk')) continue;
-    const decoded = decodeStrokeSection(bytes, section);
+    const decoded = decodeStrokeSection(bytes, section, wordInterleaved);
     if (decoded) out.push({ ...decoded.result, index, channelCount: decoded.channelCount });
     index++;
   }
