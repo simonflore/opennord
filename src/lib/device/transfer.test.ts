@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { NordSession } from './session';
 import { MockTransport } from './transport';
-import { encodeMessage } from './protocol';
-import { CQryFileInfo, CQryFileIterate, ext2Type } from './opcodes';
+import { encodeMessage, decodeReply } from './protocol';
+import { CQryFileInfo, CQryFileIterate, ext2Type, CReqFileCreate, CReqFileWrite, CReqFileClose as CReqFileCloseOp } from './opcodes';
 import { enumeratePrograms } from './transfer';
 
 /** Build a FileIterate reply (0x21): code@word0, bank@word1, slot@word2. */
@@ -113,5 +113,41 @@ describe('programEntryView', () => {
       categoryId: 17, version: 313, sizeBytes: 824, fourcc: 'ns4p',
     });
     expect(v).toEqual({ name: 'Dont look back', slot: 'H:81', category: 'None', version: 'v3.13' });
+  });
+});
+
+import { pushProgram } from './transfer';
+import { readCbinHeader as readHdr } from '../ns4/bits';
+
+describe('pushProgram', () => {
+  it('sends FileCreate + FileWrite + FileClose with the validated payload + body', async () => {
+    const header = readHdr(fixtureBytes);
+    const body = fixtureBytes.subarray(44);
+    const t = new MockTransport([
+      encodeMessage(CReqFileCreate | 1, [0]),     // create ack
+      encodeMessage(CReqFileWrite | 1, [0]),      // write ack
+      encodeMessage(CReqFileCloseOp | 1, [0]),    // close ack (commit)
+    ]);
+    await pushProgram(new NordSession(t), 2, 63, fixtureBytes, 'OPENNORD TEST');
+
+    const create = decodeReply(t.sent[0]);
+    expect(create.msgId).toBe(CReqFileCreate);
+    expect(create.words.slice(0, 7)).toEqual([2, 63, body.length, ext2Type('ns4p'), 0xffffffff, header.category, 13]);
+    expect(new TextDecoder().decode(create.payload.subarray(28, 28 + 13))).toBe('OPENNORD TEST');
+
+    const write = decodeReply(t.sent[1]);
+    expect(write.msgId).toBe(CReqFileWrite);
+    expect(write.words.slice(0, 4)).toEqual([2, 63, 0, body.length]);
+    expect([...write.payload.subarray(16)]).toEqual([...body]);
+
+    const close = decodeReply(t.sent[2]);
+    expect(close.msgId).toBe(CReqFileCloseOp);
+    expect(close.words.slice(0, 2)).toEqual([2, 63]);
+  });
+
+  it('throws on FileCreate failure without writing a body', async () => {
+    const t = new MockTransport([encodeMessage(CReqFileCreate | 1, [1])]); // status 1
+    await expect(pushProgram(new NordSession(t), 2, 63, fixtureBytes, 'x')).rejects.toThrow();
+    expect(t.sent).toHaveLength(1); // only the create attempt was sent
   });
 });

@@ -1,8 +1,11 @@
 import type { NordSession } from './session';
-import { CQryFileInfo, CQryFileIterate, CReqFileOpen, CReqFileClose, CReqFileRead, type2Ext } from './opcodes';
+import {
+  CQryFileInfo, CQryFileIterate, CReqFileOpen, CReqFileClose, CReqFileRead,
+  CReqFileCreate, CReqFileWrite, type2Ext, ext2Type,
+} from './opcodes';
 import { NordError } from './protocol';
 import { readAsciiFixed } from '../ns4/parse';
-import { buildCbinHeader } from '../ns4/bits';
+import { buildCbinHeader, readCbinHeader } from '../ns4/bits';
 import { patchNs4Checksum } from '../ns4/checksum';
 import { formatSlot } from '../ns4/slot';
 import { programCategoryName } from '../ns4/categories';
@@ -132,4 +135,49 @@ export function programEntryView(e: ProgramEntry): ProgramRowView {
     category: programCategoryName(e.categoryId) ?? `#${e.categoryId}`,
     version: `v${(e.version / 100).toFixed(2)}`,
   };
+}
+
+/** FileWrite window — programs are < 1 KB so one write suffices, but loop for safety. */
+const WRITE_WINDOW = 4096;
+
+/**
+ * Write a complete .ns4p (header + body) to a slot. Uses the validated
+ * FileCreate → FileWrite(…) → FileClose sequence; FileClose is what commits the
+ * file. Body, category and fourcc come from the file's own CBIN header. The
+ * handle is always closed (even on a mid-write failure), preserving the original
+ * error. Destructive: overwrites whatever is at {bank, slot}.
+ */
+export async function pushProgram(
+  session: NordSession,
+  bank: number,
+  slot: number,
+  fileBytes: Uint8Array,
+  name: string,
+): Promise<void> {
+  const body = fileBytes.subarray(44);
+  const header = readCbinHeader(fileBytes);
+  const nameBytes = new TextEncoder().encode(name);
+
+  const create = await session.request(
+    CReqFileCreate,
+    [bank, slot, body.length, ext2Type('ns4p'), 0xffffffff, header.category, nameBytes.length],
+    nameBytes,
+  );
+  if (create.status !== 0) throw new NordError(`FileCreate failed (status ${create.status}) at slot`);
+
+  try {
+    let offset = 0;
+    while (offset < body.length) {
+      const chunk = body.subarray(offset, Math.min(offset + WRITE_WINDOW, body.length));
+      const w = await session.request(CReqFileWrite, [bank, slot, offset, chunk.length], chunk);
+      if (w.status !== 0) throw new NordError(`FileWrite failed at offset ${offset} (status ${w.status})`);
+      offset += chunk.length;
+    }
+  } catch (e) {
+    await session.request(CReqFileClose, [bank, slot]).catch(() => {}); // best-effort close, keep original error
+    throw e;
+  }
+
+  const close = await session.request(CReqFileClose, [bank, slot]);
+  if (close.status !== 0) throw new NordError(`FileClose failed (status ${close.status}) — file not committed`);
 }
