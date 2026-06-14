@@ -68,7 +68,9 @@ export function SampleInspector() {
       {loaded && loaded.file.recognized && (
         <div className="ps">
           <SampleHeader view={sampleHeaderView(loaded.file, loaded.bytes.length)} />
-          {loaded.decodable && loaded.decoded.length > 0
+          {/* Editor only when every zone has decoded audio (positional pairing needs
+              one stroke per zone) — otherwise fall back to the read-only zone map. */}
+          {loaded.decodable && loaded.zones.length > 0 && loaded.decoded.length === loaded.zones.length
             ? <SampleEditPanel
                 key={loaded.loadId}
                 initial={editModel(loaded.file, loaded.zones)}
