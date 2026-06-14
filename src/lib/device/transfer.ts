@@ -84,11 +84,12 @@ export function enumeratePrograms(session: NordSession): Promise<ProgramEntry[]>
 const READ_WINDOW = 4096;
 
 /**
- * Pull a program off the device and return a complete .ns4p (44-byte CBIN header
- * reconstructed from the entry's metadata + the reassembled body + a fresh
- * CRC-32). Reads in windows until `entry.sizeBytes` bytes arrive; the file data
- * in each FileRead reply begins at payload offset 20 (after the 5-word read-ack
- * header). Read-only on the device (Open → Read… → Close).
+ * Pull a file off the device and return a complete CBIN file (44-byte header
+ * reconstructed from the entry's metadata — including its `fourcc` type — + the
+ * reassembled body + a fresh CRC-32). Works for any CBIN type (program, preset,
+ * Live, Settings). Reads in windows until `entry.sizeBytes` bytes arrive; the
+ * file data in each FileRead reply begins at payload offset 20 (after the 5-word
+ * read-ack header). Read-only on the device (Open → Read… → Close).
  */
 export async function pullFile(session: NordSession, entry: ProgramEntry): Promise<Uint8Array> {
   const open = await session.request(CReqFileOpen, [entry.bank, entry.slot]);
@@ -153,11 +154,12 @@ export function programEntryView(e: ProgramEntry): ProgramRowView {
 const WRITE_WINDOW = 4096;
 
 /**
- * Write a complete .ns4p (header + body) to a slot. Uses the validated
- * FileCreate → FileWrite(…) → FileClose sequence; FileClose is what commits the
- * file. Body, category and fourcc come from the file's own CBIN header. The
- * handle is always closed (even on a mid-write failure), preserving the original
- * error. Destructive: overwrites whatever is at {bank, slot}.
+ * Write a complete CBIN file (header + body) to a slot — any type (program,
+ * preset, Live, Settings). Uses the validated FileCreate → FileWrite(…) →
+ * FileClose sequence; FileClose is what commits the file. Body, category and
+ * fourcc come from the file's own CBIN header. The handle is always closed (even
+ * on a mid-write failure), preserving the original error. Destructive:
+ * overwrites whatever is at {bank, slot}.
  */
 export async function pushFile(
   session: NordSession,
