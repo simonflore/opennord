@@ -37,3 +37,18 @@ describe('fourcc helpers', () => {
     expect(type2Ext(0x6e733470)).toBe('ns4p');
   });
 });
+
+import { CReqFileCreate, CReqFileWrite, CReqFileDelete } from './opcodes';
+
+describe('write/delete opcodes (Slice 2)', () => {
+  it('has the validated values', () => {
+    expect(CReqFileCreate).toBe(0x0a);
+    expect(CReqFileWrite).toBe(0x10);
+    expect(CReqFileDelete).toBe(0x14);
+  });
+  it('their replies are request | 1', () => {
+    expect(CReqFileCreate | 1).toBe(0x0b);
+    expect(CReqFileWrite | 1).toBe(0x11);
+    expect(CReqFileDelete | 1).toBe(0x15);
+  });
+});

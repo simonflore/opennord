@@ -10,8 +10,11 @@ export const PARTITION_PROGRAM = 6;
 export const CReqBegin = 0x04;
 export const CReqEnd = 0x06;
 export const CReqFileOpen = 0x0c;
+export const CReqFileCreate = 0x0a;
 export const CReqFileClose = 0x0e;
 export const CReqFileRead = 0x12;
+export const CReqFileWrite = 0x10;
+export const CReqFileDelete = 0x14;
 export const CQryFileInfo = 0x1e;
 export const CQryFileIterate = 0x20;
 
