@@ -1,7 +1,6 @@
 /* NS4 palette + Program Studio component styles (direction C — Nord-flavored, clean). */
 .ps {
-  --navy: var(--bg); --card: var(--surface); --line: var(--line); --red: var(--red);
-  --ink: var(--ink); --dim: var(--dim); --led: var(--red-bright); --grn: var(--connected); --lcd: #0d2a3a;
+  --navy: var(--bg); --card: var(--surface); --led: var(--red-bright); --grn: var(--connected); --lcd: #0d2a3a;
   background: var(--navy); color: var(--ink); border-radius: var(--r-lg); padding: var(--s-3) var(--s-4);
   font-family: var(--font);
 }
