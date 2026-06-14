@@ -119,3 +119,13 @@ describe('SampleRefs', () => {
     expect(html).toBe('');
   });
 });
+
+import { AllParamsDrawer } from './AllParamsDrawer';
+
+describe('AllParamsDrawer', () => {
+  it('renders the full decoded-parameter table for the loaded program', () => {
+    const html = renderToStaticMarkup(<AllParamsDrawer program={fixtureProgram()} />);
+    expect(html).toContain('Show all parameters');
+    expect(html).toContain('layer on/off');
+  });
+});
