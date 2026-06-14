@@ -151,3 +151,21 @@ describe('pushProgram', () => {
     expect(t.sent).toHaveLength(1); // only the create attempt was sent
   });
 });
+
+import { deleteProgram } from './transfer';
+import { CReqFileDelete } from './opcodes';
+
+describe('deleteProgram', () => {
+  it('sends FileDelete{bank, slot}', async () => {
+    const t = new MockTransport([encodeMessage(CReqFileDelete | 1, [0])]);
+    await deleteProgram(new NordSession(t), 2, 63);
+    const del = decodeReply(t.sent[0]);
+    expect(del.msgId).toBe(CReqFileDelete);
+    expect(del.words.slice(0, 2)).toEqual([2, 63]);
+  });
+
+  it('throws on a non-zero delete status', async () => {
+    const t = new MockTransport([encodeMessage(CReqFileDelete | 1, [1])]);
+    await expect(deleteProgram(new NordSession(t), 2, 63)).rejects.toThrow();
+  });
+});

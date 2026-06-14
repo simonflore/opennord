@@ -1,7 +1,7 @@
 import type { NordSession } from './session';
 import {
   CQryFileInfo, CQryFileIterate, CReqFileOpen, CReqFileClose, CReqFileRead,
-  CReqFileCreate, CReqFileWrite, type2Ext, ext2Type,
+  CReqFileCreate, CReqFileWrite, CReqFileDelete, type2Ext, ext2Type,
 } from './opcodes';
 import { NordError } from './protocol';
 import { readAsciiFixed } from '../ns4/parse';
@@ -180,4 +180,10 @@ export async function pushProgram(
 
   const close = await session.request(CReqFileClose, [bank, slot]);
   if (close.status !== 0) throw new NordError(`FileClose failed (status ${close.status}) — file not committed`);
+}
+
+/** Delete the program at {bank, slot}. Destructive. */
+export async function deleteProgram(session: NordSession, bank: number, slot: number): Promise<void> {
+  const reply = await session.request(CReqFileDelete, [bank, slot]);
+  if (reply.status !== 0) throw new NordError(`FileDelete failed (status ${reply.status})`);
 }
