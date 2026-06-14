@@ -34,6 +34,13 @@ describe('resolveFactory', () => {
     expect(resolveFactory('white grand xl 6.3.npno')).not.toBeNull();
   });
 
+  it('keeps a version-like suffix (no extension) in the key', () => {
+    // Guards the normalize fix: ".3" must NOT be stripped as an extension.
+    const m = resolveFactory('White Grand XL 6.3');
+    expect(m).not.toBeNull();
+    expect(m!.url).toContain('White_Grand_XL_6.3.npno');
+  });
+
   it('returns null for an unknown / user-created name', () => {
     expect(resolveFactory('My Custom Loop 1.0', 'nsmp4')).toBeNull();
   });

@@ -12,7 +12,12 @@ export interface FactoryMatch {
   type: 'piano' | 'sample';
 }
 
-/** Normalize a name or filename to a match key: drop known media extension, spaces→_, lowercase. */
+/**
+ * Normalize a name or filename to a match key: drop a known media extension
+ * (only the NS4 formats `.npno`/`.nsmp4`), spaces→_, lowercase. We deliberately
+ * strip ONLY those extensions — a blanket `\.[^.]+$` would eat a version suffix
+ * like the ".3" in "White Grand XL 6.3" and break the match.
+ */
 function normalize(s: string): string {
   return s.replace(/\.(npno|nsmp4)$/i, '').replace(/\s+/g, '_').toLowerCase();
 }
