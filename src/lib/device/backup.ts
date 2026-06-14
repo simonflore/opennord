@@ -1,8 +1,10 @@
-import { zipSync, strToU8 } from 'fflate';
+import { zipSync, unzipSync, strToU8 } from 'fflate';
 import type { NordSession } from './session';
+import { NordError } from './protocol';
 import { PARTITION_PROGRAM } from './opcodes';
-import { enumerateFiles, pullFile, type ProgramEntry } from './transfer';
-import { USER_PARTITIONS, backupPath, buildMetaXml, type PartitionSpec } from './ns4b';
+import { enumerateFiles, pullFile, pushFile, type ProgramEntry } from './transfer';
+import { readCbinHeader } from '../ns4/bits';
+import { USER_PARTITIONS, partitionForPath, backupPath, buildMetaXml, type PartitionSpec } from './ns4b';
 
 export interface RestoreResult {
   restored: number;
@@ -53,4 +55,56 @@ export async function backup(
     await session.begin(PARTITION_PROGRAM);
   }
   return zipSync(files, { level: 0 });
+}
+
+/**
+ * Restore a .ns4b onto the device. Maps each entry's extension → partition
+ * (factory npno/nsmp4 are skipped + counted), reads its CBIN header for the
+ * target {bank, slot}, and writes it. Best-effort: per-file failures are
+ * collected, not fatal. Re-begins the Program partition at the finish.
+ */
+export async function restore(
+  session: NordSession,
+  zipBytes: Uint8Array,
+  onProgress?: Progress,
+): Promise<RestoreResult> {
+  const unzipped = unzipSync(zipBytes);
+  if (!unzipped['meta.xml']) throw new NordError('Not a Nord backup (no meta.xml).');
+
+  const result: RestoreResult = { restored: 0, skippedFactory: 0, failures: [] };
+  const byPartition = new Map<number, { path: string; bytes: Uint8Array }[]>();
+  for (const path of Object.keys(unzipped)) {
+    if (path === 'meta.xml') continue;
+    const partition = partitionForPath(path);
+    if (partition === null) { result.skippedFactory++; continue; }
+    const list = byPartition.get(partition) ?? [];
+    list.push({ path, bytes: unzipped[path] });
+    byPartition.set(partition, list);
+  }
+  const total = [...byPartition.values()].reduce((n, l) => n + l.length, 0);
+
+  let done = 0;
+  try {
+    for (const [partition, items] of byPartition) {
+      await session.begin(partition);
+      try {
+        for (const { path, bytes } of items) {
+          try {
+            const header = readCbinHeader(bytes);
+            const name = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '');
+            await pushFile(session, header.bank, header.location, bytes, name);
+            result.restored++;
+          } catch (e) {
+            result.failures.push({ path, error: e instanceof Error ? e.message : String(e) });
+          }
+          onProgress?.(++done, total);
+        }
+      } finally {
+        await session.end();
+      }
+    }
+  } finally {
+    await session.begin(PARTITION_PROGRAM);
+  }
+  return result;
 }
