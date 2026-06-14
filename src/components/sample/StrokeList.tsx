@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { normalizeChannels, toAudioBuffer } from '../../lib/ns4/nsmp-audio';
 import type { StrokeSummary } from '../../lib/ns4/sample-view';
 import { WaveCanvas } from './WaveCanvas';
@@ -19,10 +19,15 @@ function getCtx(): AudioContext {
 
 export function StrokeList({ strokes, playable }: { strokes: InspectorStroke[]; playable: boolean }) {
   if (strokes.length === 0) {
+    // No decoded audio: codec-4 isn't decoded yet; a codec-3 file with no strokes
+    // means its audio couldn't be decoded.
+    const message = playable
+      ? 'Audio preview unavailable for this file.'
+      : 'Audio preview pending codec-4 decode.';
     return (
       <div className="ps-card" style={{ marginTop: 12 }}>
         <h4>STROKES</h4>
-        <p className="ps-sub">Audio preview pending codec-4 decode.</p>
+        <p className="ps-sub">{message}</p>
       </div>
     );
   }
@@ -38,13 +43,16 @@ function StrokeRow({ stroke, playable }: { stroke: InspectorStroke; playable: bo
   const [playing, setPlaying] = useState(false);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
 
+  // Stop any playing audio if this row unmounts (e.g. a new file is loaded).
+  useEffect(() => () => { sourceRef.current?.stop(); sourceRef.current = null; }, []);
+
   function play() {
     const ctx = getCtx();
     const buf = toAudioBuffer(ctx, normalizeChannels(stroke.channels), SAMPLE_RATE);
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.connect(ctx.destination);
-    src.onended = () => setPlaying(false);
+    src.onended = () => { sourceRef.current = null; setPlaying(false); };
     src.start();
     sourceRef.current = src;
     setPlaying(true);
