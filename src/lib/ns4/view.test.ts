@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseNs4Program } from './parse';
 import { programNameFromFilename } from './name';
-import { activeLayers, headerView, drawbarLevels, volumeFill, organCard, pianoCard, synthCard, fxChips } from './view';
+import { activeLayers, headerView, drawbarLevels, volumeFill, organCard, pianoCard, synthCard, fxChips, sampleRefViews } from './view';
 
 const fixtureBytes = new Uint8Array(
   readFileSync(fileURLToPath(new URL('./__fixtures__/regressionTest.ns4p', import.meta.url))),
@@ -107,5 +107,16 @@ describe('fxChips', () => {
   it('includes a Reverb and a Delay chip (present in the fixture)', () => {
     expect(chips.some((c) => c.label === 'Reverb')).toBe(true);
     expect(chips.some((c) => c.label === 'Delay')).toBe(true);
+  });
+});
+
+describe('sampleRefViews', () => {
+  it('lists the samples the program references, by name', () => {
+    const refs = sampleRefViews(fixture());
+    expect(refs).toHaveLength(3);
+    const names = refs.map((r) => r.name);
+    expect(names).toContain('Flute Multi_ST 4.1');
+    expect(names).toContain('SymphStr Legato Amb_ProjectSAM 4.1');
+    expect(refs.every((r) => typeof r.id === 'number')).toBe(true);
   });
 });

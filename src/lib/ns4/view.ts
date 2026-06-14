@@ -6,6 +6,7 @@
  * unit-testable against the regression fixture.
  */
 import type { NS4Program, NS4Layer } from './types';
+import { programSampleRefs } from './types';
 
 export interface HeaderView {
   name: string;
@@ -130,4 +131,15 @@ export function fxChips(p: NS4Program): FxChipModel[] {
   }
 
   return chips;
+}
+
+export interface SampleRefView { name: string; categoryName: string; id: number; }
+
+/** Samples this program references, by name (raw id when unnamed). Safe to share — never audio. */
+export function sampleRefViews(p: NS4Program): SampleRefView[] {
+  return programSampleRefs(p).map((s) => ({
+    name: s.name || `#${s.id}`,
+    categoryName: s.categoryName,
+    id: s.id,
+  }));
 }
