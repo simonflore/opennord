@@ -129,3 +129,29 @@ describe('AllParamsDrawer', () => {
     expect(html).toContain('layer on/off');
   });
 });
+
+import { ProgramView } from './ProgramView';
+
+describe('ProgramView (integration)', () => {
+  it('renders header, active engines, FX, sample refs, and the params drawer', () => {
+    const html = renderToStaticMarkup(<ProgramView program={fixtureProgram()} />);
+    expect(html).toContain('regressionTest');
+    expect(html).toContain('H:81');
+    expect(html).toContain('ORGAN · A');
+    expect(html).toContain('PIANO · A');
+    expect(html).toContain('SYNTH · B');
+    expect(html).not.toContain('SYNTH · A');
+    expect(html).toContain('VOX');
+    expect(html).toContain('Clavinet D6 6.1');
+    expect(html).toContain('3.7 kHz');
+    expect(html).toContain('Reverb');
+    expect(html).toContain('Flute Multi_ST 4.1');
+    expect(html).toContain('Show all parameters');
+  });
+
+  it('shows warnings instead of a view when the program is not parsed', () => {
+    const unparsed = parseNs4Program(new Uint8Array([1, 2, 3]));
+    const html = renderToStaticMarkup(<ProgramView program={unparsed} />);
+    expect(html).toContain('Not a recognized Stage 4 program');
+  });
+});
