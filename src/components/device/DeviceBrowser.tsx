@@ -1,6 +1,5 @@
 import { programEntryView, type ProgramEntry } from '../../lib/device/transfer';
 import { BANK_LETTERS } from '../../lib/ns4/slot';
-import { programNameFromFilename } from '../../lib/ns4/name';
 
 /** Programs grouped by bank A–H. Open, delete, or send a file to the Nord. */
 export function DeviceBrowser({ entries, deviceName, onSelect, onDelete, onSendFile }: {
@@ -8,18 +7,14 @@ export function DeviceBrowser({ entries, deviceName, onSelect, onDelete, onSendF
   deviceName: string;
   onSelect: (entry: ProgramEntry) => void;
   onDelete: (entry: ProgramEntry) => void;
-  onSendFile: (bytes: Uint8Array, name: string) => void;
+  /** Hand the chosen file to the caller, which reads it (error handling lives there). */
+  onSendFile: (file: File) => void;
 }) {
   const byBank = new Map<number, ProgramEntry[]>();
   for (const e of entries) {
     const list = byBank.get(e.bank) ?? [];
     list.push(e);
     byBank.set(e.bank, list);
-  }
-
-  async function pickFile(file: File) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    onSendFile(bytes, programNameFromFilename(file.name));
   }
 
   return (
@@ -34,7 +29,7 @@ export function DeviceBrowser({ entries, deviceName, onSelect, onDelete, onSendF
         >
           Send a file to the Nord
           <input type="file" accept=".ns4p" style={{ display: 'none' }}
-            onChange={(ev) => ev.target.files?.[0] && pickFile(ev.target.files[0])} />
+            onChange={(ev) => ev.target.files?.[0] && onSendFile(ev.target.files[0])} />
         </label>
       </div>
       {[...byBank.keys()].sort((a, b) => a - b).map((bank) => (

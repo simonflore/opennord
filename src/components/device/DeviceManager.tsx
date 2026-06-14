@@ -3,6 +3,7 @@ import '../../styles/nord.css';
 import type { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, pullProgram, pushProgram, deleteProgram, type ProgramEntry } from '../../lib/device/transfer';
 import { parseNs4Program } from '../../lib/ns4/parse';
+import { programNameFromFilename } from '../../lib/ns4/name';
 import { formatSlot } from '../../lib/ns4/slot';
 import type { NS4Program } from '../../lib/ns4/types';
 import { ProgramView } from '../program/ProgramView';
@@ -49,9 +50,21 @@ export function DeviceManager() {
   }
 
   function startPush(source: PushSource) {
+    setError('');
     setPushSource(source);
     setPushName(source.name);
     setPicked(null);
+  }
+
+  /** Read a picked .ns4p (error handling lives here, where the error state is). */
+  async function startSendFile(file: File) {
+    setError('');
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      startPush({ bytes, name: programNameFromFilename(file.name) });
+    } catch (e) {
+      setError(`Could not read ${file.name}: ${msg(e)}`);
+    }
   }
 
   function cancelPush() {
@@ -94,7 +107,7 @@ export function DeviceManager() {
   // Push flow: pick a slot, then confirm.
   if (pushSource) {
     if (!picked) {
-      return <TargetSlotPicker entries={entries} onPick={setPicked} onCancel={cancelPush} />;
+      return <TargetSlotPicker entries={entries} onPick={(t) => { setError(''); setPicked(t); }} onCancel={cancelPush} />;
     }
     const where = formatSlot(picked.bank, picked.slot);
     return (
@@ -165,7 +178,7 @@ export function DeviceManager() {
         deviceName={deviceName}
         onSelect={open}
         onDelete={setPendingDelete}
-        onSendFile={(bytes, name) => startPush({ bytes, name })}
+        onSendFile={startSendFile}
       />
     </div>
   );

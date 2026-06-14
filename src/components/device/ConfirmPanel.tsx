@@ -24,7 +24,7 @@ export function ConfirmPanel({ title, message, confirmLabel, onConfirm, onCancel
           onClick={onConfirm}
           disabled={busy}
           style={{
-            padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 700,
+            padding: '8px 14px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 700,
             border: '1px solid #c8102e', background: '#c8102e', color: '#fff',
           }}
         >
@@ -33,7 +33,7 @@ export function ConfirmPanel({ title, message, confirmLabel, onConfirm, onCancel
         <button
           onClick={onCancel}
           disabled={busy}
-          style={{ padding: '8px 14px', borderRadius: 8, cursor: 'pointer', border: '1px solid #ddd' }}
+          style={{ padding: '8px 14px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', border: '1px solid #ddd' }}
         >
           Cancel
         </button>
