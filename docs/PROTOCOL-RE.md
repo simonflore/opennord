@@ -142,9 +142,15 @@ enabled and re-tested (`sendmidi`/`receivemidi`, `docs/SYSEX-SPIKE.md`).
 ## Device facts (validated)
 
 - **Settings are readable** over USB: `Begin(11)` → the Settings partition holds a
-  single file at `{bank 0, slot 0}`, type **`ns4t`**, ~80 bytes, name "Settings".
-  `FileRead` it to get the device global config (likely incl. the SysEx-RX flag
-  that gates iOS transfer — decoding that 80-byte blob is the next small step).
+  single file at `{bank 0, slot 0}`, type **`ns4t`**, ~80 bytes, name "Settings"
+  (`scripts/nordsettings.c`). The blob is **bit-packed parameter data** (same
+  style as a program body), holding the device global config (MIDI channel, local
+  control, SysEx-RX, transpose, …). Isolating a specific field (e.g. the
+  **SysEx-RX flag** that gates iOS transfer) needs a **differential** — toggle the
+  setting on the front panel, re-read, diff — because there's no settings
+  parameter-map. Note: that front-panel toggle is itself the iOS-transfer unblock,
+  so enabling SysEx-RX + re-testing transfer-over-MIDI is the path, not decoding
+  the bit.
 - **Dependency** (`CQryFileGetDependency 0x28` → `0x29`) returns a program's
   **sample dependency list** — the "you need these factory samples" data. Reply:
   `{status, bank, slot, u32 count, count × entry}`. Each entry (protocol
