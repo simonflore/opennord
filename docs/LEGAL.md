@@ -16,7 +16,16 @@ The bright line is **authorship**, not file type:
 
 So a `.nsmp4` is only off-limits when it's **factory/library** content. OpenNord should default to caution: when it can't establish that a sample is user-created, treat it as not-shareable. The receiving user already owns the factory samples (they came with the instrument), so program-only sharing "just works" regardless.
 
-> **Recognizing, not embedding.** OpenNord reads only a `.nsmp4`'s small metadata header (name, version, checksum) to *recognize* and inventory samples and to tell a user which sample a shared program needs. It does **not** decode, store, or transmit the ~1.5 MB compressed audio payload (`src/lib/ns4/sample.ts`). Distinguishing user-created from factory samples is an open problem (see `docs/FORMAT.md`); until it's reliable, sample *audio* is never part of any sharing/library feature.
+> **Recognizing vs. sharing.** For the **community library / sharing** features, OpenNord uses only a `.nsmp4`'s small metadata header (name, version, checksum) — it never publishes, transmits, or hosts the compressed audio payload. Local features — the Sample Inspector, the sample editor, and pulling a sample off your own board — *do* read and decode the full audio, but only on your own machine for your own use (see *Local device access vs. community sharing* below). Distinguishing user-created from factory samples is an open problem (see `docs/FORMAT.md`); until it's reliable, sample *audio* is never part of any sharing/library feature.
+
+## Local device access vs. community sharing
+
+OpenNord distinguishes two different things:
+
+- **Local device access (any content, personal use).** Reading files — programs, presets, *and samples, factory ones included* — from your own Nord to your own computer, and inspecting or editing them locally, is personal access to your own device. It is the same thing Nord Sound Manager does when it backs the sample library up to your computer. OpenNord neither hosts nor redistributes this content; it stays on your machine.
+- **Community sharing (user-created only).** Anything OpenNord ever publishes or shares carries **user-created content only** — never Nord's factory sample/library audio. This line is absolute, independent of the local-access capability above.
+
+Device sample browsing (read a sample off the board, edit, download) is local access; it has no sharing surface, so the community-sharing guardrail is untouched.
 
 ## Reverse engineering
 
