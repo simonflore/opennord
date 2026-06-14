@@ -115,6 +115,61 @@ export function synthCard(l: NS4Layer): SynthCardModel {
   };
 }
 
+export interface EnvCurveView { a: number; d: number; s: number; r: number; }
+
+/** Parse a Nord envelope time string ("8 ms" | "1.2 s") to milliseconds; 0 if unparseable. */
+function envMs(t?: string): number {
+  if (!t) return 0;
+  const m = /([\d.]+)\s*(ms|s)?/i.exec(t);
+  if (!m) return 0;
+  const n = parseFloat(m[1]);
+  return (m[2] ?? '').toLowerCase() === 's' ? n * 1000 : n;
+}
+
+/**
+ * Amp envelope as 0–1 segment proportions for the EnvCurve glyph, or null when
+ * there's no envelope data. Widths come from the real attack/decay/release times
+ * (sqrt-weighted so a 1 ms and a 2 s segment are both visible). The Nord synth
+ * amp env has no separate sustain value, so the sustain level is schematic (0.7);
+ * the exact A/D/R times are shown as stats beside the curve.
+ */
+export function ampEnvCurve(l: NS4Layer): EnvCurveView | null {
+  const e = l.ampEnv;
+  if (!e) return null;
+  const a = Math.sqrt(envMs(e.attack)), d = Math.sqrt(envMs(e.decay)), r = Math.sqrt(envMs(e.release));
+  const tot = a + d + r;
+  if (tot === 0) return null;
+  return { a: a / tot, d: d / tot, s: 0.7, r: r / tot };
+}
+
+/**
+ * Secondary synth parameters worth surfacing on the card, present-only: skips
+ * undefined / empty / "off" / "none" / zero so a card stays calm (balanced).
+ */
+export function synthStats(l: NS4Layer): { label: string; value: string }[] {
+  const out: { label: string; value: string }[] = [];
+  const add = (label: string, value?: string | number) => {
+    if (value === undefined || value === null) return;
+    if (typeof value === 'number' && value === 0) return;
+    const v = String(value).trim();
+    if (v === '' || v === 'off' || v === 'none' || v === '—' || v === '0.0') return;
+    out.push({ label, value: v });
+  };
+  add('amp A', l.ampEnv?.attack);
+  add('amp D', l.ampEnv?.decay);
+  add('amp R', l.ampEnv?.release);
+  add('flt env', l.filter?.envAmount?.value);
+  add('keytrack', l.filter?.track);
+  add('drive', l.filter?.drive);
+  const lfo = [l.lfo?.shape, l.lfo?.rate?.value].filter(Boolean).join(' · ');
+  if (lfo) add('LFO', lfo);
+  add('LFO amt', l.lfo?.amount?.value);
+  add('unison', l.unison);
+  add('glide', l.glide);
+  if (l.arp?.run) add('arp', [l.arp?.rate?.value, l.arp?.range?.value].filter(Boolean).join(' · ') || 'on');
+  return out;
+}
+
 export interface FxChipModel { key: string; label: string; detail: string; }
 
 /**

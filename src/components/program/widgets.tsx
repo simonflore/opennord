@@ -66,3 +66,41 @@ export function Meter({ label, value, fill }: { label: string; value: string; fi
     </div>
   );
 }
+
+/**
+ * Compact label/value grid — surfaces the many secondary parameters (env times,
+ * LFO, keytrack, glide, …) without a wall of knobs. Renders nothing when empty.
+ */
+export function StatGrid({ stats }: { stats: { label: string; value: string }[] }) {
+  if (stats.length === 0) return null;
+  return (
+    <div className="ps-stats">
+      {stats.map((s, i) => (
+        <div className="ps-stat" key={i}>
+          <span className="ps-stat-l">{s.label}</span>
+          <span className="ps-stat-v">{s.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A small ADSR envelope glyph. `a`/`d`/`r` are 0–1 segment proportions (sum ≈ 1)
+ * derived from the real attack/decay/release times; `s` is the 0–1 sustain level.
+ * The shape comes from real data; exact times live in the StatGrid beside it.
+ */
+export function EnvCurve({ a, d, s, r, caption }: { a: number; d: number; s: number; r: number; caption?: string }) {
+  const seg = 96; // px shared by attack+decay+release; the sustain hold is a fixed 20px
+  const x1 = 2 + a * seg, x2 = x1 + d * seg, x3 = x2 + 20, x4 = x3 + r * seg;
+  const sy = 40 - s * 36;
+  const path = `M2,40 L${x1.toFixed(1)},4 L${x2.toFixed(1)},${sy.toFixed(1)} L${x3.toFixed(1)},${sy.toFixed(1)} L${x4.toFixed(1)},40`;
+  return (
+    <div className="ps-env">
+      <svg viewBox="0 0 120 44" className="ps-env-svg" role="img" aria-label={caption ?? 'envelope'}>
+        <path d={path} fill="none" stroke="var(--red)" strokeWidth="2" strokeLinejoin="round" />
+      </svg>
+      {caption && <span className="ps-env-cap">{caption}</span>}
+    </div>
+  );
+}

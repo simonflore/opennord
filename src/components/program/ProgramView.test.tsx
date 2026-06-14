@@ -77,7 +77,7 @@ describe('ProgramHeader', () => {
   });
 });
 
-import { activeLayers } from '../../lib/ns4/view';
+import { activeLayers, synthStats, ampEnvCurve } from '../../lib/ns4/view';
 import { EngineCard } from './EngineCard';
 
 describe('EngineCard', () => {
@@ -101,6 +101,35 @@ describe('EngineCard', () => {
     expect(html).toContain('SYNTH · B');
     expect(html).toContain('ps-lcd');
     expect(html).toContain('3.7 kHz');
+  });
+
+  it('surfaces secondary synth params as a stat grid + amp-env curve', () => {
+    const html = renderToStaticMarkup(<EngineCard layer={active[4]} />);
+    expect(html).toContain('ps-stats'); // the new StatGrid
+    expect(html).toContain('ps-env');   // the amp envelope glyph
+  });
+});
+
+describe('synth view-model enrichment (against the fixture)', () => {
+  const synth = activeLayers(fixtureProgram()).find((l) => l.kind === 'synth')!;
+
+  it('finds an active synth layer in the fixture', () => {
+    expect(synth).toBeTruthy();
+  });
+
+  it('synthStats returns non-empty, well-formed label/value pairs', () => {
+    const stats = synthStats(synth);
+    expect(stats.length).toBeGreaterThan(0);
+    expect(stats.every((s) => s.label.length > 0 && s.value.length > 0)).toBe(true);
+  });
+
+  it('ampEnvCurve proportions sum to ~1 with a 0–1 sustain (when env data present)', () => {
+    const env = ampEnvCurve(synth);
+    if (env) {
+      expect(env.a + env.d + env.r).toBeCloseTo(1, 5);
+      expect(env.s).toBeGreaterThan(0);
+      expect(env.s).toBeLessThanOrEqual(1);
+    }
   });
 });
 

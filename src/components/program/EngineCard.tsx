@@ -1,6 +1,6 @@
 import type { NS4Layer } from '../../lib/ns4/types';
-import { organCard, pianoCard, synthCard, volumeFill } from '../../lib/ns4/view';
-import { DrawbarLadder, Knob, Lcd, Meter } from './widgets';
+import { organCard, pianoCard, synthCard, synthStats, ampEnvCurve, volumeFill } from '../../lib/ns4/view';
+import { DrawbarLadder, Knob, Lcd, Meter, StatGrid, EnvCurve } from './widgets';
 import { resolveFactory } from '../../lib/device/factory';
 
 /**
@@ -55,6 +55,8 @@ function SynthBody({ layer }: { layer: NS4Layer }) {
   // live on the knobs below, so we don't repeat the value here.
   const filterType = c.filterType !== '—' ? c.filterType : '';
   const secondary = [c.oscDetail, filterType].filter(Boolean).join(' · ');
+  const env = ampEnvCurve(layer);
+  const stats = synthStats(layer);
   return (
     <>
       <div className="ps-sub">{c.source} oscillator</div>
@@ -63,6 +65,8 @@ function SynthBody({ layer }: { layer: NS4Layer }) {
         <Knob value={c.cutoff} caption="cutoff" />
         <Knob value={c.res} caption="res" />
       </div>
+      {env && <EnvCurve a={env.a} d={env.d} s={env.s} r={env.r} caption="amp env" />}
+      <StatGrid stats={stats} />
     </>
   );
 }
