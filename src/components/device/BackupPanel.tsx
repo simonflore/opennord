@@ -2,21 +2,7 @@ import { useState } from 'react';
 import type { NordSession } from '../../lib/device/session';
 import { backup, restore, type RestoreResult } from '../../lib/device/backup';
 import { resolveFactory } from '../../lib/device/factory';
-
-/** Trigger a browser download of `bytes` as `filename`, releasing the object URL after. */
-function downloadFile(bytes: Uint8Array, filename: string) {
-  const url = URL.createObjectURL(new Blob([bytes.buffer as ArrayBuffer], { type: 'application/octet-stream' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a); // appended so the click reliably fires across browsers
-  try {
-    a.click();
-  } finally {
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-}
+import { downloadBytes } from '../../lib/download';
 
 /** Backup → download a .ns4b; Restore → confirm, write, summarize. */
 export function BackupPanel({ session, deviceName, onAfterRestore }: {
@@ -35,7 +21,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
     setStatus('Backing up…');
     try {
       const bytes = await backup(session, (done, total) => setStatus(`Backing up ${done} of ${total}…`));
-      downloadFile(bytes, `OpenNord Backup ${new Date().toISOString().slice(0, 10)}.ns4b`);
+      downloadBytes(bytes, `OpenNord Backup ${new Date().toISOString().slice(0, 10)}.ns4b`);
       setStatus('Backup downloaded.');
     } catch (e) {
       setStatus(`Backup failed: ${e instanceof Error ? e.message : String(e)}`);
