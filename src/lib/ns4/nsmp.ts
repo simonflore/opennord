@@ -128,6 +128,40 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
   return { recognized: true, version, versionRaw, codec, checksumValid, name, sections, strokeCount, suspectedFactory: looksFactory(name), warnings };
 }
 
+/**
+ * A keyboard zone from the `map` section — one entry of the splits/velocity-layer
+ * table (16 bytes). `keyHigh` is the zone's top key (a split point); `velTop` its
+ * top velocity (a layer boundary); `strokeIndex` (1-based in the file) selects the
+ * sample stroke that plays. Decoded from `CSectionMap::Read` + real files
+ * (`docs/NSMP-CODEC.md`).
+ */
+export interface NsmpZone {
+  velTop: number;
+  keyHigh: number;
+  rootKey: number;
+  strokeIndex: number;
+}
+
+/**
+ * Read the per-zone splits/layers table from the `map` section. Skips the global
+ * + per-note level/detune block (unity entries `10 00 00 00 00 00`), then parses
+ * 16-byte zone entries. (Codec-3 `map` form; verified against Strings.nsmp3.)
+ */
+export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
+  const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'));
+  if (!map) return [];
+  let o = map.payloadOffset + 6; // global level (u24) + detune (s24)
+  const isUnity = (p: number) => bytes[p] === 0x10 && bytes[p + 1] === 0 && bytes[p + 2] === 0 &&
+    bytes[p + 3] === 0 && bytes[p + 4] === 0 && bytes[p + 5] === 0;
+  while (o + 6 <= map.endOffset && isUnity(o)) o += 6; // per-note level/detune block
+  const zones: NsmpZone[] = [];
+  while (o + 16 <= map.endOffset) {
+    zones.push({ velTop: bytes[o], keyHigh: bytes[o + 1], rootKey: bytes[o + 3], strokeIndex: bytes[o + 12] });
+    o += 16;
+  }
+  return zones;
+}
+
 export interface DecodedStrokeResult extends DecodedStroke {
   /** Index of the source `stk` section. */
   index: number;

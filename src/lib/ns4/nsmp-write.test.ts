@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { writeNsmp } from './nsmp-write';
-import { readNsmp, decodeNsmp } from './nsmp';
+import { writeNsmp, writeNsmpMulti } from './nsmp-write';
+import { readNsmp, decodeNsmp, readNsmpZones } from './nsmp';
 
 describe('writeNsmp → readNsmp/decodeNsmp round-trip', () => {
   const L = Int32Array.from({ length: 4000 }, (_, i) => (i < 80 ? 0 : Math.round(2000 * Math.sin(i / 9))));
@@ -27,6 +27,34 @@ describe('writeNsmp → readNsmp/decodeNsmp round-trip', () => {
     expect(strokes[0].channelCount).toBe(2);
     expect(Array.from(strokes[0].channels[0])).toEqual(Array.from(L));
     expect(Array.from(strokes[0].channels[1])).toEqual(Array.from(R));
+  });
+
+  it('writes a multisample with splits/layers and round-trips zones + audio', () => {
+    const z0 = Int32Array.from({ length: 1500 }, (_, i) => Math.round(1000 * Math.sin(i / 8)));
+    const z1 = Int32Array.from({ length: 1800 }, (_, i) => Math.round(800 * Math.sin(i / 12)));
+    const z2 = Int32Array.from({ length: 1200 }, (_, i) => i - 600); // ramp
+    const bytes = writeNsmpMulti({
+      name: 'Multi',
+      zones: [
+        { channels: [z0], keyHigh: 47, rootKey: 43, velTop: 127 }, // low split
+        { channels: [z1], keyHigh: 71, rootKey: 60, velTop: 127 }, // mid split
+        { channels: [z2], keyHigh: 127, rootKey: 84, velTop: 64 }, // high split, soft layer
+      ],
+    });
+    const f = readNsmp(bytes);
+    expect(f.strokeCount).toBe(3);
+
+    const zones = readNsmpZones(bytes);
+    expect(zones.map((z) => z.keyHigh)).toEqual([47, 71, 127]);
+    expect(zones.map((z) => z.rootKey)).toEqual([43, 60, 84]);
+    expect(zones.map((z) => z.strokeIndex)).toEqual([1, 2, 3]);
+    expect(zones[2].velTop).toBe(64);
+
+    const strokes = decodeNsmp(bytes);
+    expect(strokes.length).toBe(3);
+    expect(Array.from(strokes[0].channels[0])).toEqual(Array.from(z0));
+    expect(Array.from(strokes[1].channels[0])).toEqual(Array.from(z1));
+    expect(Array.from(strokes[2].channels[0])).toEqual(Array.from(z2));
   });
 
   it('works for mono too', () => {

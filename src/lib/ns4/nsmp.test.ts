@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { patchNs4Checksum } from './checksum';
-import { readNsmp, parseNsmpSections, decodeNsmp } from './nsmp';
+import { readNsmp, parseNsmpSections, decodeNsmp, readNsmpZones } from './nsmp';
 
 /** Build a minimal synthetic `.nsmp` (CBIN header + NSMP + hdr sections). */
 function makeSyntheticNsmp(name = 'Hi'): Uint8Array {
@@ -60,6 +60,16 @@ describe.skipIf(!existsSync(realFile))('readNsmp / decodeNsmp — real Strings.n
     expect(f.sections.map((s) => s.tag)).toEqual(
       ['NSMP', '.hdr', '.cat', '.map', '.stk', '.stk', '.stk', '.stk', '.stk', '.stk', '.stk', '.stk', '.sty', 'meta'],
     );
+  });
+
+  it('reads the 8 key-split zones from the map section', () => {
+    const zones = readNsmpZones(bytes);
+    expect(zones.length).toBe(8);
+    // Strings.nsmp3 is split across the keyboard: descending top keys, one stroke each.
+    expect(zones.map((z) => z.keyHigh)).toEqual([45, 42, 40, 38, 33, 30, 28, 26]);
+    expect(zones.map((z) => z.strokeIndex)).toEqual([3, 4, 2, 1, 7, 8, 6, 5]);
+    expect(zones[0].velTop).toBe(8); // first zone is a soft-velocity layer
+    expect(zones.slice(1).every((z) => z.velTop === 127)).toBe(true);
   });
 
   it('decodes all 8 strokes to clean stereo PCM', () => {
