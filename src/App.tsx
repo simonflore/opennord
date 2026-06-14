@@ -38,18 +38,26 @@ function Shell() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.ns4p,.ns4o,.ns4n,.ns4y';
+    // Append to the DOM: a detached file input's click() is silently ignored on
+    // some WebKit/iOS WKWebView builds (we wrap to iOS via Capacitor).
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    const cleanup = () => input.remove();
     input.onchange = async () => {
       const f = input.files?.[0];
+      cleanup();
       if (!f) return;
       const entry = await localEntryFromFile(f, localEntries.length);
       setLocalEntries((prev) => [...prev, entry]);
     };
+    input.oncancel = cleanup;
     input.click();
   }
 
   function openEntry(e: LibraryEntry) {
     if (e.program) { setOpen(e.program); return; }
     // Nord entries are read on the Device screen (pull flow); route there.
+    setOpen(null);
     setDest('device');
   }
 

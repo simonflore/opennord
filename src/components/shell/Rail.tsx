@@ -25,6 +25,7 @@ export function Rail({ active, onNavigate, onManageDevice }: Props) {
         <button
           key={d.id}
           className={`on-nav ${active === d.id ? 'on-nav--active' : ''}`.trim()}
+          aria-current={active === d.id ? 'page' : undefined}
           onClick={() => onNavigate(d.id)}
         >
           {d.label}
@@ -41,6 +42,7 @@ export function Rail({ active, onNavigate, onManageDevice }: Props) {
           <button
             key={d.id}
             className={`on-nav on-nav--sub ${active === d.id ? 'on-nav--active' : ''}`.trim()}
+            aria-current={active === d.id ? 'page' : undefined}
             onClick={() => onNavigate(d.id)}
           >
             {d.label}
