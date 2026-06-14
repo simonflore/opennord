@@ -2,6 +2,7 @@ import { useState } from 'react';
 import '../library/library.css';
 import { Card } from '../ui';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
+import { nsmpGenerationLabel } from '../../lib/ns4/sample-view';
 import type { ScannedSample } from '../../lib/folder/scan';
 
 interface Props {
@@ -38,7 +39,7 @@ export function SamplesView({ samples }: Props) {
           onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setActive({ bytes: s.bytes, name: s.name }); } }}
         >
           <div className="lib-patch__nm">{s.name}</div>
-          <div className="lib-patch__sub">{s.file.recognized ? `codec ${s.file.codec ?? '?'}` : 'unrecognized'}</div>
+          <div className="lib-patch__sub">{s.file.recognized ? nsmpGenerationLabel(s.file) : 'unrecognized'}</div>
         </Card>
       ))}
     </div>

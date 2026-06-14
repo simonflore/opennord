@@ -7,6 +7,7 @@ import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
 import { StrokeList, type InspectorStroke } from './StrokeList';
 import { SampleEditPanel } from './SampleEditPanel';
+import { SampleConvert } from './SampleConvert';
 
 interface Loaded {
   bytes: Uint8Array;
@@ -15,7 +16,7 @@ interface Loaded {
   /** Zone map parsed once at load (consumed by the editor's initial model). */
   zones: NsmpZone[];
   strokes: InspectorStroke[];
-  /** Codec we can decode audio for (3 or 4). */
+  /** Codec we can decode audio for — OG (legacy), 3 or 4. */
   decodable: boolean;
   /** Monotonic load id — keys the editor so it remounts per file (drops stale edits). */
   loadId: number;
@@ -30,7 +31,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
 
   async function loadBytes(bytes: Uint8Array, _name: string) {
     const file = readNsmp(bytes);
-    const decodable = file.codec === 3 || file.codec === 4;
+    const decodable = file.codec === 3 || file.codec === 4 || file.legacy;
     let decoded: DecodedStrokeResult[] = [];
     if (decodable) {
       try { decoded = decodeNsmp(bytes); } catch { decoded = []; }
@@ -60,8 +61,8 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
           border: `2px dashed ${dragOver ? 'var(--red)' : 'var(--line)'}`, textAlign: 'center', color: 'var(--dim)' }}
       >
         <div style={{ color: 'var(--ink)', fontWeight: 600 }}>Drop a Nord sample here</div>
-        <div style={{ fontSize: 12, marginTop: 4 }}>or click to choose one — <code>.nsmp3</code> or <code>.nsmp4</code></div>
-        <input type="file" accept=".nsmp3,.nsmp4" style={{ display: 'none' }}
+        <div style={{ fontSize: 12, marginTop: 4 }}>or click to choose one — <code>.nsmp</code>, <code>.nsmp3</code> or <code>.nsmp4</code></div>
+        <input type="file" accept=".nsmp,.nsmp3,.nsmp4" style={{ display: 'none' }}
           onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
       </label>
 
@@ -75,6 +76,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
       {loaded && loaded.file.recognized && (
         <div className="ps">
           <SampleHeader view={sampleHeaderView(loaded.file, loaded.bytes.length)} />
+          {loaded.decodable && <SampleConvert bytes={loaded.bytes} file={loaded.file} />}
           {/* Editor only when every zone has decoded audio (positional pairing needs
               one stroke per zone) — otherwise fall back to the read-only zone map. */}
           {loaded.decodable && loaded.zones.length > 0 && loaded.decoded.length === loaded.zones.length

@@ -25,10 +25,16 @@ export interface SampleHeaderView {
   isFactory: boolean;
 }
 
+/** Display label for a sample's generation: ".nsmp (OG)" / ".nsmp3" / ".nsmp4" / "—". */
+export function nsmpGenerationLabel(file: NsmpFile): string {
+  if (file.legacy) return '.nsmp (OG)';
+  return file.codec ? `.nsmp${file.codec}` : '—';
+}
+
 export function sampleHeaderView(file: NsmpFile, sizeBytes: number): SampleHeaderView {
   return {
     name: file.name?.trim() || 'Unnamed',
-    codecLabel: file.codec ? `.nsmp${file.codec}` : '—',
+    codecLabel: nsmpGenerationLabel(file),
     version: file.version ?? '—',
     checksumOk: file.checksumValid,
     strokeCount: file.strokeCount,
