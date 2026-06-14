@@ -11,6 +11,7 @@ import { ConnectPanel } from './ConnectPanel';
 import { DeviceBrowser } from './DeviceBrowser';
 import { TargetSlotPicker, type SlotTarget } from './TargetSlotPicker';
 import { ConfirmPanel } from './ConfirmPanel';
+import { BackupPanel } from './BackupPanel';
 
 interface PushSource { bytes: Uint8Array; name: string; }
 
@@ -173,6 +174,13 @@ export function DeviceManager() {
     <div>
       {error && <p className="ps-sub" style={{ color: '#ffb454' }}>{error}</p>}
       {busy && <p className="ps-sub">Working with the Nord…</p>}
+      <div style={{ marginBottom: 12 }}>
+        <BackupPanel
+          session={session}
+          deviceName={deviceName}
+          onAfterRestore={() => { void refresh(session); }}
+        />
+      </div>
       <DeviceBrowser
         entries={entries}
         deviceName={deviceName}
