@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import '../../styles/nord.css';
-import { readNsmp, decodeNsmp, readNsmpZones, type NsmpFile, type DecodedStrokeResult } from '../../lib/ns4/nsmp';
+import { readNsmp, decodeNsmp, readNsmpZones, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
 import { sampleHeaderView, zoneMapRows, strokeSummary } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
 import { SampleHeader } from './SampleHeader';
@@ -12,14 +12,19 @@ interface Loaded {
   bytes: Uint8Array;
   file: NsmpFile;
   decoded: DecodedStrokeResult[];
+  /** Zone map parsed once at load (consumed by the editor's initial model). */
+  zones: NsmpZone[];
   strokes: InspectorStroke[];
   /** Codec we can decode audio for (3 or 4). */
   decodable: boolean;
+  /** Monotonic load id — keys the editor so it remounts per file (drops stale edits). */
+  loadId: number;
 }
 
 export function SampleInspector() {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const loadCount = useRef(0);
 
   async function onFile(f: File) {
     const bytes = new Uint8Array(await f.arrayBuffer());
@@ -34,8 +39,9 @@ export function SampleInspector() {
         decoded = [];
       }
     }
+    const zones: NsmpZone[] = file.recognized ? readNsmpZones(bytes) : [];
     const strokes: InspectorStroke[] = decoded.map((d) => ({ summary: strokeSummary(d), channels: d.channels }));
-    setLoaded({ bytes, file, decoded, strokes, decodable });
+    setLoaded({ bytes, file, decoded, zones, strokes, decodable, loadId: ++loadCount.current });
   }
 
   return (
@@ -64,7 +70,8 @@ export function SampleInspector() {
           <SampleHeader view={sampleHeaderView(loaded.file, loaded.bytes.length)} />
           {loaded.decodable && loaded.decoded.length > 0
             ? <SampleEditPanel
-                initial={editModel(loaded.file, readNsmpZones(loaded.bytes))}
+                key={loaded.loadId}
+                initial={editModel(loaded.file, loaded.zones)}
                 decoded={loaded.decoded}
                 codec={loaded.file.codec === 4 ? 4 : 3}
               />
