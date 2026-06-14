@@ -74,7 +74,7 @@ export function ConnectPanel({ onConnected }: {
       >
         {status === 'connecting' ? 'Connecting…' : 'Connect your Nord'}
       </button>
-      {status === 'error' && <p className="ps-sub" style={{ color: '#ffb454', marginTop: 8 }}>{message}</p>}
+      {status === 'error' && <p className="ps-sub" style={{ color: 'var(--warn)', marginTop: 8 }}>{message}</p>}
       <p className="ps-sub" style={{ marginTop: 8 }}>
         Quit Nord Sound Manager first — it holds the connection while it's open.
       </p>

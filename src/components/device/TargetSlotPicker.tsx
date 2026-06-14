@@ -31,7 +31,7 @@ export function TargetSlotPicker({ entries, onPick, onCancel }: {
       </div>
       {Array.from({ length: 8 }, (_, bank) => (
         <div key={bank} style={{ marginBottom: 12 }}>
-          <h4 style={{ margin: '0 0 6px', color: '#ff5a52', letterSpacing: 1.5 }}>BANK {BANK_LETTERS[bank]}</h4>
+          <h4 style={{ margin: '0 0 6px', color: 'var(--red-bright)', letterSpacing: 1.5 }}>BANK {BANK_LETTERS[bank]}</h4>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4 }}>
             {Array.from({ length: 64 }, (_, slot) => {
               const name = occupied.get(`${bank}-${slot}`);

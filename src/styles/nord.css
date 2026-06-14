@@ -36,7 +36,7 @@
 .ps-seg.on { background: var(--led); }
 
 .ps-lcd { background: linear-gradient(#10384e, var(--lcd)); border: 1px solid #1d5775; border-radius: 6px;
-  padding: 8px 10px; font-family: ui-monospace, monospace; color: #aee9ff; margin-bottom: 9px; }
+  padding: 8px 10px; font-family: ui-monospace, monospace; color: var(--lcd-cyan); margin-bottom: 9px; }
 .ps-lcd .big { font-size: 14px; color: #fff; }
 
 .ps-meter { margin-top: 9px; }

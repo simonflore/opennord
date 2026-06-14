@@ -34,7 +34,7 @@ export function DeviceBrowser({ entries, deviceName, onSelect, onDelete, onSendF
       </div>
       {[...byBank.keys()].sort((a, b) => a - b).map((bank) => (
         <div key={bank} style={{ marginBottom: 14 }}>
-          <h4 style={{ margin: '0 0 6px', color: '#ff5a52', letterSpacing: 1.5 }}>
+          <h4 style={{ margin: '0 0 6px', color: 'var(--red-bright)', letterSpacing: 1.5 }}>
             BANK {BANK_LETTERS[bank] ?? bank}
           </h4>
           <div style={{ display: 'grid', gap: 6 }}>
