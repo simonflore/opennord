@@ -212,6 +212,30 @@ kNomTgt=14, kMaxTgt=16, kMaxSrc=24, kPlayer=24.
 **Definitive next step:** the queued editor ground truth — encode `ramp_24.wav`
 (known residuals) to `.nsmp4`; the systematic error becomes obvious in one file.
 
+### Ground-truth findings (ramp_24.nsmp4, editor-encoded — 2026-06-14)
+
+Decisive results from a known signal (a linear ramp; the editor normalizes it but
+it stays linear):
+
+- **Residual reading is CORRECT for codec 4.** Order-1 blocks decode to clean
+  `[0,1,0,1,1,-1,…]` ramp-slope residuals (small, as a ramp demands). Sign,
+  bit-order, MSB-first, 32-bit words — all confirmed identical to codec 3.
+- **The earlier "divergence" was a WRONG START OFFSET.** Block stream begins at
+  `payload + ~0x6C` (a `0x40`-ish field block + zero-padding; matches
+  `GetStrokeBinOffset`'s `0x6c`). From there, output is **bounded** (peak ~7K).
+  My empirically-found Strings.nsmp4 start (`0x77fc`) was off, so it hit order-2
+  blocks with wrong history → the runaway. So codec 4 is NOT a residual-format
+  change; it's an offset/structure issue.
+- **Ramp orders:** only 0 and 1 (4 each), bw {2,3} for the body — textbook for a
+  ramp. **12 markers among 8 blocks** (segment boundaries; the leading run is
+  header padding read as zero-sample markers).
+- **Still open:** even bounded and from the right start, reconstruction is noisy
+  (~45% non-monotonic), identical across mono/interleaved/contiguous — so a
+  block-connection / order-0-block / segment-marker detail remains. The ramp only
+  exercises orders 0–1; **decode the `sine_24.nsmp4`** (order-2 present) next to
+  isolate the order-≥2 reconstruction, and pin the per-stroke header size so the
+  block-stream start is computed, not scanned.
+
 ## Encoder (`NW1::CEncode`) — algorithm recovered
 
 Recovered from `EncodeStroke` (`0x1002db3f8`/`0x1002db528`),
