@@ -2,6 +2,7 @@ import '../../styles/nord.css';
 import type { NS4Program } from '../../lib/ns4/types';
 import { activeLayers } from '../../lib/ns4/view';
 import { ProgramHeader } from './ProgramHeader';
+import { ProgramZones } from './ProgramZones';
 import { EngineCard } from './EngineCard';
 import { FxRow } from './FxRow';
 import { SampleRefs } from './SampleRefs';
@@ -25,6 +26,7 @@ export function ProgramView({ program }: { program: NS4Program }) {
   return (
     <div className="ps">
       <ProgramHeader program={program} />
+      <ProgramZones program={program} />
       <div className="ps-grid">
         {layers.map((l) => <EngineCard key={`${l.kind ?? 'x'}${l.id}`} layer={l} />)}
       </div>

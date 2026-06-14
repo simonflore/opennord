@@ -6,6 +6,8 @@
  * unit-testable against the regression fixture.
  */
 import type { NS4Program, NS4Layer } from './types';
+import { decodeAllParams } from './coverage';
+import { buildParamMap } from './maps';
 
 export interface HeaderView {
   name: string;
@@ -55,6 +57,50 @@ export function headerView(p: NS4Program): HeaderView {
     sizeBytes: p.bytes.length,
     summary,
   };
+}
+
+export interface ProgramZonesView {
+  hasSplit: boolean;
+  /** Four keyboard zones, left→right; each lists the active layers that sound there. */
+  zones: { layers: { kind: string; id: string }[] }[];
+  /** Split-point note at each of the three boundaries, or null when that split is off. */
+  boundaries: (string | null)[];
+  /** Program transpose amount, or null when off. */
+  transpose: string | null;
+}
+
+let _paramMap: ReturnType<typeof buildParamMap> | null = null;
+function paramMap() { return (_paramMap ??= buildParamMap()); }
+
+/** Decoded program-level params by display name — the ones not on the typed model. */
+function paramLookup(p: NS4Program): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const d of decodeAllParams(p.bytes, paramMap())) m.set(d.name, d.display);
+  return m;
+}
+
+/**
+ * Keyboard split / zone layout: which active layers sound in each of the four
+ * zones (from each layer's `kbZones` "[1o]{4}" string), the split-point note at
+ * each active boundary, and program transpose. Drives the ProgramZones strip.
+ */
+export function programZones(p: NS4Program): ProgramZonesView {
+  const active = activeLayers(p);
+  const zones = [0, 1, 2, 3].map((z) => ({
+    layers: active
+      .filter((l) => (l.kbZones ?? '')[z] === '1')
+      .map((l) => ({ kind: l.kind ?? '?', id: l.id })),
+  }));
+  const lut = paramLookup(p);
+  const hasSplit = lut.get('split on/off') === 'on';
+  const boundary = (i: number): string | null =>
+    hasSplit && lut.get(`KB zones ${i}-${i + 1} split point on/off`) === 'on'
+      ? (lut.get(`KB zones ${i}-${i + 1} split point`) ?? null)
+      : null;
+  const transpose = lut.get('program transpose on/off') === 'on'
+    ? (lut.get('program transpose amount') ?? null)
+    : null;
+  return { hasSplit, zones, boundaries: [boundary(1), boundary(2), boundary(3)], transpose };
 }
 
 export interface OrganCardModel {

@@ -77,8 +77,9 @@ describe('ProgramHeader', () => {
   });
 });
 
-import { activeLayers, synthStats, ampEnvCurve } from '../../lib/ns4/view';
+import { activeLayers, synthStats, ampEnvCurve, programZones } from '../../lib/ns4/view';
 import { EngineCard } from './EngineCard';
+import { ProgramZones } from './ProgramZones';
 
 describe('EngineCard', () => {
   const active = activeLayers(fixtureProgram());
@@ -130,6 +131,27 @@ describe('synth view-model enrichment (against the fixture)', () => {
       expect(env.s).toBeGreaterThan(0);
       expect(env.s).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('program zones (split map)', () => {
+  it('returns four zones and three boundaries with valid layer kinds', () => {
+    const z = programZones(fixtureProgram());
+    expect(z.zones).toHaveLength(4);
+    expect(z.boundaries).toHaveLength(3);
+    for (const zone of z.zones) {
+      for (const l of zone.layers) {
+        expect(['organ', 'piano', 'synth']).toContain(l.kind);
+        expect(['A', 'B', 'C']).toContain(l.id);
+      }
+    }
+  });
+
+  it('renders a zone bar when the program is split', () => {
+    const z = programZones(fixtureProgram());
+    const html = renderToStaticMarkup(<ProgramZones program={fixtureProgram()} />);
+    expect(typeof html).toBe('string');
+    if (z.hasSplit) expect(html).toContain('ps-zonebar');
   });
 });
 

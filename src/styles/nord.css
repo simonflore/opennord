@@ -50,6 +50,23 @@
   font-size: 11px; flex: 1; min-width: 120px; }
 .ps-chip .t { font-size: 9px; letter-spacing: 1px; color: var(--dim); }
 
+.ps-zones { margin: 0 0 14px; }
+.ps-zones-hd { display: flex; align-items: baseline; gap: 12px; margin-bottom: 7px; }
+.ps-zones-t { font-size: 9px; letter-spacing: 1.5px; font-weight: 700; color: var(--red-bright); }
+.ps-zones-tr { font-size: 10px; color: var(--dim); font-family: var(--mono); }
+.ps-zonebar { display: flex; align-items: center; }
+.ps-zone { flex: 1; display: flex; align-items: center; }
+.ps-zone-cell { flex: 1; min-height: 36px; display: flex; flex-wrap: wrap; gap: 4px;
+  align-content: center; justify-content: center; padding: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.ps-zone-chip { font-size: 9px; font-weight: 700; letter-spacing: .3px; padding: 2px 7px;
+  border-radius: 999px; background: var(--surface-2); color: var(--ink); }
+.ps-zone-organ { box-shadow: inset 0 0 0 1px var(--red); }
+.ps-zone-piano { box-shadow: inset 0 0 0 1px var(--muted); }
+.ps-zone-synth { box-shadow: inset 0 0 0 1px var(--lcd-cyan); }
+.ps-zone-empty { color: var(--muted); font-size: 12px; }
+.ps-zone-split { font-size: 9px; font-family: var(--mono); color: var(--muted); padding: 0 5px; white-space: nowrap; }
+
 .ps-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 14px; margin-top: 11px; }
 .ps-stat { display: flex; justify-content: space-between; gap: 8px; align-items: baseline;
   border-bottom: 1px solid var(--line); padding-bottom: 3px; }
