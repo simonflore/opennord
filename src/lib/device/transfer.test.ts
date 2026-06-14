@@ -92,6 +92,16 @@ describe('enumeratePrograms', () => {
       categoryId: 17, version: 313, sizeBytes: 824,
     });
   });
+
+  it('skips a file whose FileInfo returns a non-zero status', async () => {
+    const badInfo = encodeMessage(CQryFileInfo | 1, [1 /* status: not-found */]);
+    const replies: Uint8Array[] = [iterReply(0, 0, 0), badInfo];
+    for (let b = 0; b < 8; b++) replies.push(iterReply(1, b, 0)); // every bank then exhausted
+    const session = new NordSession(new MockTransport(replies));
+
+    const entries = await enumeratePrograms(session);
+    expect(entries).toHaveLength(0);
+  });
 });
 
 import { programEntryView } from './transfer';

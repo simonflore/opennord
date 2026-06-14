@@ -1,5 +1,6 @@
 import type { NordSession } from './session';
-import { CQryFileInfo, CQryFileIterate, CReqFileOpen, CReqFileClose, CReqFileRead, type2Ext, ext2Type } from './opcodes';
+import { CQryFileInfo, CQryFileIterate, CReqFileOpen, CReqFileClose, CReqFileRead, type2Ext } from './opcodes';
+import { NordError } from './protocol';
 import { readAsciiFixed } from '../ns4/parse';
 import { buildCbinHeader } from '../ns4/bits';
 import { patchNs4Checksum } from '../ns4/checksum';
@@ -51,10 +52,11 @@ export function decodeFileInfo(payload: Uint8Array, bank: number, slot: number):
 export async function enumeratePrograms(session: NordSession): Promise<ProgramEntry[]> {
   const out: ProgramEntry[] = [];
   let bank = 0;
-  let cursor = 0xffffffff;
+  let cursor = 0xffffffff; // sentinel: start iterating from the top of the bank
   while (bank < 8) {
     const it = decodeFileIterate((await session.request(CQryFileIterate, [bank, cursor, 0])).payload);
     if (it.code === 0) {
+      // code 0 always reports a file within the requested bank (it.bank === bank).
       const info = await session.request(CQryFileInfo, [it.bank, it.slot]);
       if (info.status === 0) out.push(decodeFileInfo(info.payload, it.bank, it.slot));
       cursor = it.slot;
@@ -79,18 +81,25 @@ const READ_WINDOW = 4096;
  * header). Read-only on the device (Open → Read… → Close).
  */
 export async function pullProgram(session: NordSession, entry: ProgramEntry): Promise<Uint8Array> {
-  await session.request(CReqFileOpen, [entry.bank, entry.slot]);
+  const open = await session.request(CReqFileOpen, [entry.bank, entry.slot]);
+  if (open.status !== 0) throw new NordError(`FileOpen failed (status ${open.status}) for ${entry.name}`);
+
   const body = new Uint8Array(entry.sizeBytes);
-  let offset = 0;
-  while (offset < entry.sizeBytes) {
-    const want = Math.min(READ_WINDOW, entry.sizeBytes - offset);
-    const reply = await session.request(CReqFileRead, [entry.bank, entry.slot, offset, want]);
-    const data = reply.payload.subarray(20); // skip the 5-word read-ack header
-    if (data.length === 0) throw new Error(`FileRead returned no data at offset ${offset}`);
-    body.set(data.subarray(0, Math.min(data.length, entry.sizeBytes - offset)), offset);
-    offset += data.length;
+  try {
+    let offset = 0;
+    while (offset < entry.sizeBytes) {
+      const want = Math.min(READ_WINDOW, entry.sizeBytes - offset);
+      const reply = await session.request(CReqFileRead, [entry.bank, entry.slot, offset, want]);
+      const data = reply.payload.subarray(20); // skip the 5-word read-ack header
+      if (data.length === 0) throw new NordError(`FileRead returned no data at offset ${offset}`);
+      const taken = Math.min(data.length, entry.sizeBytes - offset);
+      body.set(data.subarray(0, taken), offset);
+      offset += taken;
+    }
+  } finally {
+    // Always release the handle, even if a read failed mid-transfer.
+    await session.request(CReqFileClose, [entry.bank, entry.slot]);
   }
-  await session.request(CReqFileClose, [entry.bank, entry.slot]);
 
   const header = buildCbinHeader({
     formatType: 1,
@@ -100,9 +109,6 @@ export async function pullProgram(session: NordSession, entry: ProgramEntry): Pr
     category: entry.categoryId,
     versionRaw: entry.version,
   });
-  // ext2Type is imported to keep fourcc handling in one module even though
-  // buildCbinHeader takes the string tag; entry.fourcc is already a string.
-  void ext2Type;
   const file = new Uint8Array(header.length + body.length);
   file.set(header, 0);
   file.set(body, header.length);
