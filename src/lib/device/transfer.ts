@@ -154,8 +154,8 @@ export async function pushProgram(
   fileBytes: Uint8Array,
   name: string,
 ): Promise<void> {
-  const body = fileBytes.subarray(44);
-  const header = readCbinHeader(fileBytes);
+  const body = fileBytes.subarray(44); // strip the 44-byte CBIN header — the device stores the body only
+  const header = readCbinHeader(fileBytes); // for the program's category; the Program-slot type is always ns4p
   const nameBytes = new TextEncoder().encode(name);
 
   const create = await session.request(
@@ -163,7 +163,9 @@ export async function pushProgram(
     [bank, slot, body.length, ext2Type('ns4p'), 0xffffffff, header.category, nameBytes.length],
     nameBytes,
   );
-  if (create.status !== 0) throw new NordError(`FileCreate failed (status ${create.status}) at slot`);
+  if (create.status !== 0) {
+    throw new NordError(`FileCreate failed (status ${create.status}) at ${formatSlot(bank, slot)}`);
+  }
 
   try {
     let offset = 0;

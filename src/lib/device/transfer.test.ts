@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { NordSession } from './session';
 import { MockTransport } from './transport';
 import { encodeMessage, decodeReply } from './protocol';
-import { CQryFileInfo, CQryFileIterate, ext2Type, CReqFileCreate, CReqFileWrite, CReqFileClose as CReqFileCloseOp } from './opcodes';
+import { CQryFileInfo, CQryFileIterate, ext2Type, CReqFileCreate, CReqFileWrite } from './opcodes';
 import { enumeratePrograms } from './transfer';
 
 /** Build a FileIterate reply (0x21): code@word0, bank@word1, slot@word2. */
@@ -126,7 +126,7 @@ describe('pushProgram', () => {
     const t = new MockTransport([
       encodeMessage(CReqFileCreate | 1, [0]),     // create ack
       encodeMessage(CReqFileWrite | 1, [0]),      // write ack
-      encodeMessage(CReqFileCloseOp | 1, [0]),    // close ack (commit)
+      encodeMessage(CReqFileClose | 1, [0]),      // close ack (commit)
     ]);
     await pushProgram(new NordSession(t), 2, 63, fixtureBytes, 'OPENNORD TEST');
 
@@ -141,7 +141,7 @@ describe('pushProgram', () => {
     expect([...write.payload.subarray(16)]).toEqual([...body]);
 
     const close = decodeReply(t.sent[2]);
-    expect(close.msgId).toBe(CReqFileCloseOp);
+    expect(close.msgId).toBe(CReqFileClose);
     expect(close.words.slice(0, 2)).toEqual([2, 63]);
   });
 
@@ -149,6 +149,16 @@ describe('pushProgram', () => {
     const t = new MockTransport([encodeMessage(CReqFileCreate | 1, [1])]); // status 1
     await expect(pushProgram(new NordSession(t), 2, 63, fixtureBytes, 'x')).rejects.toThrow();
     expect(t.sent).toHaveLength(1); // only the create attempt was sent
+  });
+
+  it('still closes the handle when a write fails mid-transfer', async () => {
+    const t = new MockTransport([
+      encodeMessage(CReqFileCreate | 1, [0]), // create OK
+      encodeMessage(CReqFileWrite | 1, [1]),  // write fails (status 1)
+      encodeMessage(CReqFileClose | 1, [0]),  // best-effort close
+    ]);
+    await expect(pushProgram(new NordSession(t), 2, 63, fixtureBytes, 'x')).rejects.toThrow();
+    expect(t.sent).toHaveLength(3); // create + failed write + close all attempted
   });
 });
 
