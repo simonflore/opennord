@@ -17,6 +17,8 @@
 .on-rail__dev { margin-top: var(--s-2); }
 .on-rail__dev summary { font: 9px var(--font); color: var(--muted); cursor: pointer; padding: 6px 8px; }
 
+.on-rail__about { margin-top: var(--s-1); color: var(--muted); }
+
 .on-rail__note {
   margin-top: var(--s-2); padding: 8px; border-top: 1px solid var(--line);
   display: flex; flex-direction: column; gap: 3px;

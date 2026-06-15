@@ -50,6 +50,14 @@ export function Rail({ active, onNavigate, onManageDevice }: Props) {
         ))}
       </details>
 
+      <button
+        className={`on-nav on-rail__about ${active === 'about' ? 'on-nav--active' : ''}`.trim()}
+        aria-current={active === 'about' ? 'page' : undefined}
+        onClick={() => onNavigate('about')}
+      >
+        About &amp; legal
+      </button>
+
       <div
         className="on-rail__note"
         title="OpenNord is alpha software, provided as-is with no warranty. Features may break, and device transfer writes to real hardware — back up your keyboard first. Use at your own risk."

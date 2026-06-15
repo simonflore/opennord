@@ -1,0 +1,15 @@
+.about { max-width: 640px; }
+
+.about-head { margin-bottom: var(--s-4); }
+.about-title { font: 800 18px var(--font); color: var(--ink); }
+.about-sub { font: 13px var(--font); color: var(--dim); margin-top: 2px; }
+
+.about-stack { display: flex; flex-direction: column; gap: var(--s-3); }
+
+.about-sec__h { font: 700 13px var(--font); color: var(--ink); margin-bottom: 4px; }
+.about-sec__p { font: 13px/1.55 var(--font); color: var(--dim); margin: 0; }
+.about-sec__p strong { color: var(--ink); font-weight: 600; }
+
+.about-foot {
+  margin-top: var(--s-4); font: 11px var(--font); color: var(--muted);
+}

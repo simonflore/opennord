@@ -11,10 +11,11 @@ import { parseNs4Program } from './lib/ns4/parse';
 import { localEntryFromFile, nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms } from './lib/library/entries';
 import { useFolderLibrary } from './lib/folder/useFolderLibrary';
 import { SamplesView } from './components/sample/SamplesView';
+import { AboutView } from './components/about/AboutView';
 import type { LibraryEntry, LibrarySource } from './lib/library/types';
 import type { NS4Program } from './lib/ns4/types';
 
-type Dest = 'library' | 'samples' | 'device' | 'inspect' | 'decode';
+type Dest = 'library' | 'samples' | 'device' | 'inspect' | 'decode' | 'about';
 
 export function App() {
   return (
@@ -84,6 +85,7 @@ function Shell() {
                 folderCount={folder.result.programs.length + folder.result.samples.length}
                 canPersist={folder.canPersist}
                 needsReconnect={folder.needsReconnect}
+                reconnectError={folder.reconnectError}
                 busy={folder.busy}
                 onChooseFolder={folder.choose}
                 onReconnect={folder.reconnect}
@@ -96,6 +98,7 @@ function Shell() {
         {dest === 'samples' && <SamplesView samples={folder.result.samples} />}
         {dest === 'inspect' && <DecodeInspector />}
         {dest === 'decode' && <ProgramDecode />}
+        {dest === 'about' && <AboutView />}
         </ErrorBoundary>
       </main>
     </div>
