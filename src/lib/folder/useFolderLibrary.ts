@@ -13,6 +13,18 @@ function scan(files: RawFile[], readErrors: ScanError[]): ScanResult {
   return { ...r, errors: [...readErrors, ...r.errors] };
 }
 
+/** A user dismissing the folder picker is not an error worth surfacing. */
+function isCancel(err: unknown): boolean {
+  if (err instanceof DOMException && err.name === 'AbortError') return true;
+  const msg = err instanceof Error ? err.message : String(err);
+  return /cancel|no folder chosen|aborted/i.test(msg);
+}
+
+/** Turn a real (non-cancel) failure into a visible one-line note. */
+function noticeResult(err: unknown): ScanResult {
+  return { programs: [], samples: [], errors: [{ path: '(folder)', reason: err instanceof Error ? err.message : String(err) }] };
+}
+
 export interface FolderLibrary {
   /** Connected folder name, or null when none. */
   folderName: string | null;
@@ -66,8 +78,9 @@ export function useFolderLibrary(): FolderLibrary {
       setHandle(r.handle ?? null);
       setPending(null);
       setResult(scan(r.files, r.errors));
-    } catch {
-      /* user cancelled — leave state untouched */
+    } catch (err) {
+      // Ignore the user dismissing the picker; surface anything real.
+      if (!isCancel(err)) { console.error('Folder pick failed', err); setResult(noticeResult(err)); }
     } finally {
       setBusy(false);
     }
@@ -83,6 +96,8 @@ export function useFolderLibrary(): FolderLibrary {
         setPending(null);
         setResult(scan(res.files, res.errors));
       }
+    } catch (err) {
+      if (!isCancel(err)) { console.error('Folder reconnect failed', err); setResult(noticeResult(err)); }
     } finally {
       setBusy(false);
     }

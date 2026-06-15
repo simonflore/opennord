@@ -5,6 +5,7 @@ import { DecodeInspector } from './components/DecodeInspector';
 import { ProgramView } from './components/program/ProgramView';
 import { DeviceManager } from './components/device/DeviceManager';
 import { Rail } from './components/shell/Rail';
+import { ErrorBoundary } from './components/shell/ErrorBoundary';
 import { LibraryView } from './components/library/LibraryView';
 import { parseNs4Program } from './lib/ns4/parse';
 import { localEntryFromFile, nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms } from './lib/library/entries';
@@ -72,6 +73,7 @@ function Shell() {
     <div className="on-app">
       <Rail active={dest} onNavigate={(d) => { setOpen(null); setDest(d as Dest); }} onManageDevice={() => setDest('device')} />
       <main className="on-content">
+        <ErrorBoundary>
         {dest === 'library' && (
           open
             ? (<div><button className="on-btn on-btn--ghost" onClick={() => setOpen(null)}>← Library</button><ProgramView program={open} /></div>)
@@ -94,6 +96,7 @@ function Shell() {
         {dest === 'samples' && <SamplesView samples={folder.result.samples} />}
         {dest === 'inspect' && <DecodeInspector />}
         {dest === 'decode' && <ProgramDecode />}
+        </ErrorBoundary>
       </main>
     </div>
   );
