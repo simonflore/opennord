@@ -17,6 +17,7 @@ interface Props {
   canPersist: boolean;
   needsReconnect: boolean;
   busy: boolean;
+  reconnectError: string | null;
   onChooseFolder: () => void;
   onReconnect: () => void;
   onRefresh: () => void;
@@ -29,7 +30,7 @@ const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', nord: 'On
 
 export function LibraryView({
   entries, source, query, onSource, onQuery, onOpen, onImport,
-  folderName, folderCount, canPersist, needsReconnect, busy,
+  folderName, folderCount, canPersist, needsReconnect, busy, reconnectError,
   onChooseFolder, onReconnect, onRefresh, scanErrors, onForget,
 }: Props) {
   const nord = entries.filter((e) => e.source === 'nord').length;
@@ -59,9 +60,13 @@ export function LibraryView({
 
       {needsReconnect && folderName && (
         <div className="lib-reconnect">
-          Reconnect <strong>{folderName}</strong> to load your patches.
+          {reconnectError
+            ? <span className="lib-reconnect__err">{reconnectError}</span>
+            : <span>Reconnect <strong>{folderName}</strong> to load your patches.</span>}
           <button className="on-btn on-btn--ghost" onClick={onReconnect} disabled={busy}>Reconnect</button>
-          <button className="on-btn on-btn--ghost" onClick={onForget} disabled={busy}>Forget</button>
+          {/* Never disabled: Forget only clears local state, so it stays the
+              escape hatch when a pending browser dialog has wedged `busy`. */}
+          <button className="on-btn on-btn--ghost" onClick={onForget}>Forget</button>
         </div>
       )}
 

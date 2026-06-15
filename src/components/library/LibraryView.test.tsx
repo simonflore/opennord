@@ -14,12 +14,20 @@ const folderDefaults = {
   canPersist: false,
   needsReconnect: false,
   busy: false,
+  reconnectError: null,
   onChooseFolder: () => {},
   onReconnect: () => {},
   onRefresh: () => {},
   scanErrors: [],
   onForget: () => {},
 };
+
+/** Pull the `<button>…</button>` whose text content is exactly `label`. */
+function buttonFor(html: string, label: string): string {
+  const m = html.match(new RegExp(`<button[^>]*>${label}</button>`));
+  if (!m) throw new Error(`no <button>${label}</button> in markup`);
+  return m[0];
+}
 
 describe('LibraryView', () => {
   it('renders the title, counts, every entry, and source badges', () => {
@@ -54,5 +62,28 @@ describe('LibraryView', () => {
       <LibraryView entries={[]} source="all" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}} {...folderDefaults} />,
     );
     expect(html).toContain('Nothing here yet');
+  });
+
+  it('keeps Forget enabled while busy so it is always an escape hatch', () => {
+    const html = renderToStaticMarkup(
+      <LibraryView
+        entries={[]} source="all" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}}
+        {...folderDefaults} folderName="TBM" needsReconnect busy
+      />,
+    );
+    // A pending browser dialog flips `busy`; Reconnect rightly disables to avoid
+    // double-triggering, but Forget must stay clickable to break the deadlock.
+    expect(buttonFor(html, 'Reconnect')).toContain('disabled');
+    expect(buttonFor(html, 'Forget')).not.toContain('disabled');
+  });
+
+  it('surfaces a reconnect error in the banner instead of failing silently', () => {
+    const html = renderToStaticMarkup(
+      <LibraryView
+        entries={[]} source="all" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}}
+        {...folderDefaults} folderName="TBM" needsReconnect reconnectError="Read access was denied."
+      />,
+    );
+    expect(html).toContain('Read access was denied.');
   });
 });

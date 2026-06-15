@@ -26,6 +26,7 @@
   padding: 10px 14px; margin-bottom: 12px;
   border: 1px solid var(--line); border-radius: var(--r-md); color: var(--ink);
 }
+.lib-reconnect__err { color: var(--red); }
 .lib-empty__hint { color: var(--dim); font-size: 13px; margin-top: 8px; }
 .lib-empty__hint code { color: var(--ink); }
 .lib-errnote { color: var(--dim); font-size: 13px; margin-bottom: 12px; }

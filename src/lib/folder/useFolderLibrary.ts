@@ -32,6 +32,8 @@ export interface FolderLibrary {
   result: ScanResult;
   /** A saved folder needs its permission re-granted (show a reconnect banner). */
   needsReconnect: boolean;
+  /** Set when a reconnect attempt was denied/blocked — shown in the banner. */
+  reconnectError: string | null;
   /** True while a pick/scan is in flight. */
   busy: boolean;
   /** Whether this browser keeps the folder across reloads. */
@@ -52,6 +54,7 @@ export function useFolderLibrary(): FolderLibrary {
   const [handle, setHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [pending, setPending] = useState<FileSystemDirectoryHandle | null>(null);
   const [busy, setBusy] = useState(false);
+  const [reconnectError, setReconnectError] = useState<string | null>(null);
 
   // Restore a saved folder on mount.
   useEffect(() => {
@@ -72,6 +75,7 @@ export function useFolderLibrary(): FolderLibrary {
 
   const choose = useCallback(async () => {
     setBusy(true);
+    setReconnectError(null);
     try {
       const r = await pickFolder();
       setFolderName(r.name);
@@ -89,19 +93,24 @@ export function useFolderLibrary(): FolderLibrary {
   const reconnect = useCallback(async () => {
     if (!pending) return;
     setBusy(true);
+    setReconnectError(null);
     try {
       const res = await grantAndScan(pending);
       if (res) {
         setHandle(pending);
         setPending(null);
         setResult(scan(res.files, res.errors));
+      } else {
+        // Permission wasn't granted — say so rather than silently doing nothing.
+        // Stay in the reconnect state so they can retry or Forget.
+        setReconnectError(`Couldn't read “${folderName ?? 'the folder'}” — your browser blocked access. Click Reconnect and choose Allow, or Re-pick the folder.`);
       }
     } catch (err) {
-      if (!isCancel(err)) { console.error('Folder reconnect failed', err); setResult(noticeResult(err)); }
+      if (!isCancel(err)) { console.error('Folder reconnect failed', err); setReconnectError(err instanceof Error ? err.message : String(err)); }
     } finally {
       setBusy(false);
     }
-  }, [pending]);
+  }, [pending, folderName]);
 
   const refresh = useCallback(async () => {
     if (!handle) return;
@@ -115,17 +124,21 @@ export function useFolderLibrary(): FolderLibrary {
   }, [handle]);
 
   const forget = useCallback(async () => {
-    await forgetFolder();
+    // Reset the UI first so Forget always responds instantly — it's the escape
+    // hatch; never gate it on the IDB write completing.
     setHandle(null);
     setPending(null);
     setFolderName(null);
+    setReconnectError(null);
     setResult(EMPTY);
+    await forgetFolder();
   }, []);
 
   return {
     folderName,
     result,
     needsReconnect: pending !== null,
+    reconnectError,
     busy,
     canPersist: supportsPersistentFolders(),
     choose,
