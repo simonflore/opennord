@@ -79,9 +79,10 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
       {loaded && loaded.file.recognized && (
         <div className="ps">
           <SampleHeader view={sampleHeaderView(loaded.file, loaded.bytes.length, loaded.name)} />
-          {loaded.decodable && <SampleConvert bytes={loaded.bytes} file={loaded.file} name={loaded.name} />}
-          {/* Editor only when every zone has decoded audio (positional pairing needs
-              one stroke per zone) — otherwise fall back to the read-only zone map. */}
+
+          {/* Keyboard-map editor leads when every zone has decoded audio (positional
+              pairing needs one stroke per zone); otherwise a friendly note + the
+              read-only key map. */}
           {loaded.decodable && loaded.zones.length > 0 && loaded.decoded.length === loaded.zones.length
             ? <SampleEditPanel
                 key={loaded.loadId}
@@ -90,17 +91,20 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                 codec={loaded.file.codec === 4 ? 4 : 3}
               />
             : (
-              <>
-                <div className="ps-card" style={{ marginTop: 12 }}>
-                  <p className="ps-sub" style={{ margin: 0 }}>
-                    Editing isn't available for this sample — its key map doesn't line up with its audio
-                    {loaded.file.legacy ? '. Convert it to .nsmp3 / .nsmp4 above, then edit the result' : ''}.
-                  </p>
-                </div>
-                <ZoneMap rows={zoneMapRows(loaded.bytes)} />
-              </>
+              <div className="ps-card" style={{ marginTop: 12 }}>
+                <p className="ps-sub" style={{ margin: 0 }}>
+                  Editing isn't available for this sample — its key map doesn't line up with its audio
+                  {loaded.file.legacy ? '. Convert it to .nsmp3 / .nsmp4 below, then edit the result' : ''}.
+                </p>
+              </div>
             )}
+
+          {loaded.decodable && <SampleConvert bytes={loaded.bytes} file={loaded.file} name={loaded.name} />}
           <StrokeList strokes={loaded.strokes} playable={loaded.decodable} />
+
+          {/* Raw key/velocity table — only when we couldn't build the editor. */}
+          {!(loaded.decodable && loaded.zones.length > 0 && loaded.decoded.length === loaded.zones.length)
+            && <ZoneMap rows={zoneMapRows(loaded.bytes)} />}
         </div>
       )}
     </div>

@@ -112,6 +112,14 @@
 .ps-env-svg { width: 100%; height: 38px; display: block; }
 .ps-env-cap { font-size: 9px; letter-spacing: .5px; text-transform: uppercase; color: var(--dim); }
 
+.ps-kbd { width: 100%; display: block; margin: 6px 0 12px; touch-action: none; user-select: none; }
+.ps-kbd-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 11px; color: var(--dim); }
+.ps-kbd-edit__t { font-weight: 700; color: var(--ink); letter-spacing: .5px; }
+.ps-kbd-edit label { display: inline-flex; align-items: center; gap: 5px; }
+.ps-kbd-edit em { color: var(--muted); font-style: normal; font-family: var(--mono); }
+.ps-kbd-num { width: 54px; padding: 3px 6px; background: var(--sink); border: 1px solid var(--line);
+  border-radius: 6px; color: var(--ink); font: 11px var(--mono); }
+
 .ps-extern { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .ps-extern-t { font: 700 10px var(--font); letter-spacing: 1px; color: var(--lcd-cyan); margin-bottom: 5px; }
 .ps-extern-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 5px; }

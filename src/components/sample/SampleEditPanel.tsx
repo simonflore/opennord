@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
 import { buildEditedNsmp, type EditModel } from '../../lib/ns4/sample-edit';
+import { noteName } from '../../lib/ns4/sample-view';
 import { downloadBytes } from '../../lib/download';
+import { Button } from '../ui';
+import { KeyboardZoneMap } from './KeyboardZoneMap';
 
-/** Editable name + zone map (root/top/velocity) → rebuild + download a new .nsmp. */
+/** Keyboard-map editor: drag the splits to remap, fine-tune the selected sample,
+ *  rename, and rebuild + download a new .nsmp. */
 export function SampleEditPanel({ initial, decoded, codec }: {
   initial: EditModel;
   decoded: DecodedStrokeResult[];
@@ -11,6 +15,7 @@ export function SampleEditPanel({ initial, decoded, codec }: {
 }) {
   const [name, setName] = useState(initial.name);
   const [zones, setZones] = useState(initial.zones);
+  const [selected, setSelected] = useState(0);
   const [error, setError] = useState('');
 
   function setZone(i: number, patch: Partial<EditModel['zones'][number]>) {
@@ -28,39 +33,42 @@ export function SampleEditPanel({ initial, decoded, codec }: {
   }
 
   const num = (v: number, on: (n: number) => void) => (
-    <input type="number" min={0} max={127} value={v}
-      onChange={(e) => on(Math.max(0, Math.min(127, Number(e.target.value) || 0)))}
-      style={{ width: 56, padding: 2 }} />
+    <input type="number" min={0} max={127} value={v} className="ps-kbd-num"
+      onChange={(e) => on(Math.max(0, Math.min(127, Number(e.target.value) || 0)))} />
   );
+
+  const sel = zones[selected];
 
   return (
     <div className="ps-card" style={{ marginTop: 12 }}>
-      <h4>EDIT</h4>
-      <label className="ps-sub" style={{ display: 'block', marginBottom: 8 }}>
+      <h4>EDIT · KEYBOARD MAP</h4>
+
+      <KeyboardZoneMap
+        zones={zones}
+        selected={selected}
+        onSelect={setSelected}
+        onChangeKeyHigh={(i, keyHigh) => setZone(i, { keyHigh })}
+      />
+
+      {sel && (
+        <div className="ps-kbd-edit">
+          <span className="ps-kbd-edit__t">Sample {selected + 1}</span>
+          <label>root {num(sel.rootKey, (n) => setZone(selected, { rootKey: n }))} <em>{noteName(sel.rootKey)}</em></label>
+          <label>up to {num(sel.keyHigh, (n) => setZone(selected, { keyHigh: n }))} <em>{noteName(sel.keyHigh)}</em></label>
+          <label>vel ≤ {num(sel.velTop, (n) => setZone(selected, { velTop: n }))}</label>
+        </div>
+      )}
+
+      <label className="ps-sub" style={{ display: 'block', margin: '12px 0 8px' }}>
         Name:&nbsp;
         <input value={name} onChange={(e) => setName(e.target.value)} style={{ padding: 4 }} />
       </label>
-      <table className="ps-params">
-        <thead><tr><th>zone</th><th>root</th><th>up to</th><th>vel ≤</th></tr></thead>
-        <tbody>
-          {zones.map((z, i) => (
-            <tr key={i}>
-              <td>{i}</td>
-              <td>{num(z.rootKey, (n) => setZone(i, { rootKey: n }))}</td>
-              <td>{num(z.keyHigh, (n) => setZone(i, { keyHigh: n }))}</td>
-              <td>{num(z.velTop, (n) => setZone(i, { velTop: n }))}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={download}
-          style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, border: '1px solid var(--red)', background: 'var(--red)', color: '#fff' }}>
-          Download edited .nsmp
-        </button>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <Button variant="primary" onClick={download}>Download edited .nsmp{codec}</Button>
         <span className="ps-sub" style={{ margin: 0 }}>Rebuilds the whole sample — back up before loading.</span>
       </div>
-      {error && <p className="ps-sub" style={{ color: 'var(--warn)' }}>{error}</p>}
+      {error && <p className="ps-sub on-error">{error}</p>}
     </div>
   );
 }

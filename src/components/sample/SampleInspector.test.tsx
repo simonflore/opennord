@@ -50,7 +50,7 @@ import type { EditModel } from '../../lib/ns4/sample-edit';
 import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
 
 describe('SampleEditPanel', () => {
-  it('renders an editable name + a row per zone', () => {
+  it('renders the keyboard map editor: name, the selected sample, and a band per zone', () => {
     const model: EditModel = {
       name: 'My Strings',
       zones: [
@@ -63,8 +63,11 @@ describe('SampleEditPanel', () => {
       { index: 1, channelCount: 1, endOffset: 0, channels: [new Int32Array([0, 1])] },
     ];
     const html = renderToStaticMarkup(<SampleEditPanel initial={model} decoded={decoded} codec={3} />);
-    expect(html).toContain('My Strings');
-    expect(html).toContain('Download');
-    expect(html.split('<tr').length - 1).toBeGreaterThanOrEqual(3); // header + 2 zone rows
+    expect(html).toContain('My Strings');         // editable name
+    expect(html).toContain('Download edited .nsmp3');
+    expect(html).toContain('ps-kbd');             // the keyboard map
+    expect(html).toContain('>S1<');               // one band per zone
+    expect(html).toContain('>S2<');
+    expect(html).toContain('Sample 1');           // selected-zone fine-tune
   });
 });
