@@ -132,7 +132,7 @@ export function programZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesVie
   const performance = {
     pitchStick: pitchStickLayer ? (pitchStickLayer.pitchStick?.range ?? 'on') : undefined,
     sustain: active.some((l) => l.sustainPedal),
-    kbHold: active.some((l) => l.kbHold),
+    kbHold: active.some((l) => l.arp?.kbHold),
   };
   return {
     hasSplit, zones,
