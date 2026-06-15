@@ -93,11 +93,27 @@ export function LibraryView({
               onClick={() => onOpen(e)}
               onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onOpen(e); } }}
             >
-              <div className="lib-patch__nm">{e.name}</div>
-              <div className="lib-patch__sub">{e.summary ?? '—'}</div>
-              <div className="lib-patch__row">
-                <SourceBadge source={e.source} />
+              <div className="lib-patch__top">
+                <span className="lib-patch__nm">{e.name}</span>
                 <span className="lib-slot">{e.slot ?? 'file'}</span>
+              </div>
+              {e.summary
+                ? (
+                  <div className="lib-patch__engines">
+                    {e.summary.split(' + ').map((part, i) => {
+                      const kind = part.trim().toLowerCase();
+                      const known = kind === 'organ' || kind === 'piano' || kind === 'synth';
+                      return (
+                        <span key={i} className={`lib-eng${known ? ` lib-eng--${kind}` : ''}`}>
+                          {part.trim()}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )
+                : <div className="lib-patch__sub">—</div>}
+              <div className="lib-patch__foot">
+                <SourceBadge source={e.source} />
               </div>
             </Card>
           ))}

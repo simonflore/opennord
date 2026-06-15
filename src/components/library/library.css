@@ -2,14 +2,22 @@
 .lib-title { font: 800 18px var(--font); color: var(--ink); }
 .lib-counts { font: 11px var(--font); color: var(--dim); margin-top: 2px; }
 .lib-controls { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; margin-bottom: var(--s-3); }
-.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
-.lib-patch { cursor: pointer; }
-.lib-patch__nm { font: 700 13px var(--font); color: var(--ink); }
-.lib-patch__sub { font: 11px var(--font); color: var(--dim); margin-top: 2px; }
-.lib-patch__row { display: flex; justify-content: space-between; align-items: center; margin-top: 9px; }
-.lib-slot { font: 9px var(--mono); color: var(--muted); }
+.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 12px; }
+.lib-patch { cursor: pointer; padding: 14px; }
+.lib-patch__top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.lib-patch__nm { font: 700 14px var(--font); color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-slot { font: 9px var(--mono); color: var(--muted); flex: none; }
+.lib-patch__engines { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.lib-eng { font: 700 9px var(--font); letter-spacing: .4px; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--dim); }
+.lib-eng--organ { color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
+.lib-eng--piano { color: var(--ink); box-shadow: inset 0 0 0 1px var(--muted); }
+.lib-eng--synth { color: var(--lcd-cyan); box-shadow: inset 0 0 0 1px var(--lcd-cyan); }
+.lib-patch__sub { font: 11px var(--font); color: var(--muted); margin-top: 10px; }
+.lib-patch__foot { margin-top: 11px; }
 .lib-empty { color: var(--dim); font: 12px var(--font); padding: var(--s-6) 0; text-align: center; }
-@media (max-width: 560px) { .lib-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); } }
+@media (max-width: 560px) { .lib-grid { grid-template-columns: 1fr; } }
 .lib-actions { display: flex; gap: 8px; align-items: center; }
 .lib-folder { display: inline-flex; align-items: center; gap: 8px; color: var(--dim); font-size: 13px; }
 .lib-folder__btn { padding: 2px 8px; }

@@ -34,6 +34,10 @@ describe('LibraryView', () => {
     expect(html).toContain('On Nord');
     expect(html).toContain('Local');
     expect(html).toContain('Import file');
+    // engine glimpse chips from the summary ("piano + synth", "organ")
+    expect(html).toContain('lib-eng--piano');
+    expect(html).toContain('lib-eng--synth');
+    expect(html).toContain('lib-eng--organ');
   });
 
   it('marks the active source chip and makes cards keyboard-activatable', () => {
