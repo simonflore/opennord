@@ -89,7 +89,17 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                 decoded={loaded.decoded}
                 codec={loaded.file.codec === 4 ? 4 : 3}
               />
-            : <ZoneMap rows={zoneMapRows(loaded.bytes)} />}
+            : (
+              <>
+                <div className="ps-card" style={{ marginTop: 12 }}>
+                  <p className="ps-sub" style={{ margin: 0 }}>
+                    Editing isn't available for this sample — its key map doesn't line up with its audio
+                    {loaded.file.legacy ? '. Convert it to .nsmp3 / .nsmp4 above, then edit the result' : ''}.
+                  </p>
+                </div>
+                <ZoneMap rows={zoneMapRows(loaded.bytes)} />
+              </>
+            )}
           <StrokeList strokes={loaded.strokes} playable={loaded.decodable} />
         </div>
       )}

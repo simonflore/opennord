@@ -25,7 +25,7 @@ export function StrokeList({ strokes, playable }: { strokes: InspectorStroke[]; 
       : 'Audio preview not available for this codec.';
     return (
       <div className="ps-card" style={{ marginTop: 12 }}>
-        <h4>STROKES</h4>
+        <h4>SAMPLES</h4>
         <p className="ps-sub">{message}</p>
       </div>
     );
@@ -74,7 +74,7 @@ function StrokeRow({ stroke, playable }: { stroke: InspectorStroke; playable: bo
           {playing ? 'Stop' : 'Play'}
         </button>
         <span className="ps-sub" style={{ margin: 0 }}>
-          stroke {s.index} · {s.channels}ch · {s.sampleCount} samples
+          Sample {s.index + 1} · {s.channels === 2 ? 'stereo' : 'mono'} · {(s.sampleCount / SAMPLE_RATE).toFixed(1)}s
         </span>
       </div>
       {s.ok && <WaveCanvas pcm={stroke.channels[0]} />}

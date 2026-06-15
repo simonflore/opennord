@@ -1,12 +1,15 @@
 import type { ZoneRow } from '../../lib/ns4/sample-view';
 
+/** The raw key/velocity map — RE-grade detail, tucked behind an Advanced disclosure. */
 export function ZoneMap({ rows }: { rows: ZoneRow[] }) {
   if (rows.length === 0) return null;
   return (
-    <div className="ps-card" style={{ marginTop: 12 }}>
-      <h4>ZONES &amp; KEY MAP</h4>
-      <table className="ps-params">
-        <thead><tr><th>stroke</th><th>root</th><th>up to</th><th>vel ≤</th></tr></thead>
+    <details className="ps-card" style={{ marginTop: 12 }}>
+      <summary style={{ cursor: 'pointer', font: '700 10px var(--font)', letterSpacing: '1px', color: 'var(--dim)' }}>
+        ADVANCED · KEY MAP ({rows.length} {rows.length === 1 ? 'zone' : 'zones'})
+      </summary>
+      <table className="ps-params" style={{ marginTop: 8 }}>
+        <thead><tr><th>sample</th><th>root</th><th>up to</th><th>vel ≤</th></tr></thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={i}>
@@ -15,6 +18,6 @@ export function ZoneMap({ rows }: { rows: ZoneRow[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </details>
   );
 }

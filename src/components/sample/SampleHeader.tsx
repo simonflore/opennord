@@ -15,7 +15,7 @@ export function SampleHeader({ view }: { view: SampleHeaderView }) {
         <div className="ps-meta">
           <span className="ps-pill">{view.codecLabel}</span>
           <span className="ps-pill">v{view.version}</span>
-          <span className="ps-pill">{view.strokeCount} strokes</span>
+          <span className="ps-pill">{view.strokeCount} {view.strokeCount === 1 ? 'sample' : 'samples'}</span>
           <span className="ps-pill">{formatBytes(view.sizeBytes)}</span>
           {view.checksumKnown && (
             <span className="ps-pill">{view.checksumOk ? 'checksum ✓' : 'checksum ✗'}</span>

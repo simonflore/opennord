@@ -13,7 +13,7 @@ describe('SampleHeader', () => {
     const html = renderToStaticMarkup(<SampleHeader view={view} />);
     expect(html).toContain('VLV Strings');
     expect(html).toContain('.nsmp3');
-    expect(html).toContain('8 strokes');
+    expect(html).toContain('8 samples');
     expect(html).toContain('factory');
   });
 });
