@@ -187,6 +187,7 @@ export function vibChorusTypeFor(organFx: Ns4OrganFx | undefined, model: string 
   if (!raw || !model) return undefined;
   for (const part of raw.split(';')) {
     const [k, v] = part.split('->').map((s) => s.trim());
+    // Use startsWith (not ===): pipe models decode as "PIPE1"/"PIPE2" but the map key is "PIPE".
     if (k && v && model.toUpperCase().startsWith(k.toUpperCase())) return v;
   }
   return undefined;
