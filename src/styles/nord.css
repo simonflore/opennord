@@ -71,7 +71,11 @@
 .ps-zone-piano { box-shadow: inset 0 0 0 1px var(--muted); }
 .ps-zone-synth { box-shadow: inset 0 0 0 1px var(--lcd-cyan); }
 .ps-zone-empty { color: var(--muted); font-size: 12px; }
-.ps-zone-split { font-size: 9px; font-family: var(--mono); color: var(--muted); padding: 0 5px; white-space: nowrap; }
+.ps-zone-split { font-size: 9px; font-family: var(--mono); color: var(--muted); padding: 0 5px; white-space: nowrap;
+  display: inline-flex; flex-direction: column; align-items: center; gap: 1px; }
+.ps-zone-xfade { color: var(--lcd-cyan); font-size: 8px; }
+.ps-perf-chip { font: 700 9px var(--font); letter-spacing: .3px; color: var(--dim);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
 
 .ps-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 14px; margin-top: 11px; }
 .ps-stat { display: flex; justify-content: space-between; gap: 8px; align-items: baseline;

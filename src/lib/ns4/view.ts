@@ -84,8 +84,12 @@ export interface ProgramZonesView {
   zones: { layers: { kind: string; id: string }[] }[];
   /** Split-point note at each of the three boundaries, or null when that split is off. */
   boundaries: (string | null)[];
+  /** Split-point crossfade at each boundary, or null when none / not split. */
+  xfade: (string | null)[];
   /** Program transpose amount, or null when off. */
   transpose: string | null;
+  /** Program-wide keyboard/performance flags, aggregated over active layers. */
+  performance: { pitchStick?: string; sustain: boolean; kbHold: boolean };
 }
 
 let _paramMap: ReturnType<typeof buildParamMap> | null = null;
@@ -116,10 +120,26 @@ export function programZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesVie
     hasSplit && lut.get(`KB zones ${i}-${i + 1} split point on/off`) === 'on'
       ? (lut.get(`KB zones ${i}-${i + 1} split point`) ?? null)
       : null;
+  const xfade = (i: number): string | null => {
+    if (!hasSplit) return null;
+    const x = lut.get(`KB zones ${i}-${i + 1} split point Xfade`);
+    return x && x !== 'none' ? x : null;
+  };
   const transpose = lut.get('program transpose on/off') === 'on'
     ? (lut.get('program transpose amount') ?? null)
     : null;
-  return { hasSplit, zones, boundaries: [boundary(1), boundary(2), boundary(3)], transpose };
+  const pitchStickLayer = active.find((l) => l.pitchStick?.on);
+  const performance = {
+    pitchStick: pitchStickLayer ? (pitchStickLayer.pitchStick?.range ?? 'on') : undefined,
+    sustain: active.some((l) => l.sustainPedal),
+    kbHold: active.some((l) => l.kbHold),
+  };
+  return {
+    hasSplit, zones,
+    boundaries: [boundary(1), boundary(2), boundary(3)],
+    xfade: [xfade(1), xfade(2), xfade(3)],
+    transpose, performance,
+  };
 }
 
 export interface OrganCardModel {

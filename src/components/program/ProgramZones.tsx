@@ -4,19 +4,25 @@ import { programZones } from '../../lib/ns4/view';
 const KIND_ABBR: Record<string, string> = { organ: 'ORG', piano: 'PNO', synth: 'SY' };
 
 /**
- * Keyboard split map — which layers play where, with the split-point notes
- * between zones, plus program transpose. Renders only when the program is split
- * (or transposed); for a plain layered patch the engine cards already say it all.
+ * Keyboard split map + performance routing — which layers play where (with the
+ * split-point notes and crossfades between zones), transpose, and the program's
+ * keyboard-performance flags (pitch stick, sustain, KB hold). Renders when there's
+ * anything routing-related to show; a plain layered patch needs none of it.
  */
 export function ProgramZones({ program, scene }: { program: NS4Program; scene?: 'I' | 'II' }) {
   const z = programZones(program, scene);
-  if (!z.hasSplit && !z.transpose) return null;
+  const perf = z.performance;
+  const hasPerf = !!perf.pitchStick || perf.sustain || perf.kbHold;
+  if (!z.hasSplit && !z.transpose && !hasPerf) return null;
 
   return (
     <div className="ps-zones">
       <div className="ps-zones-hd">
         <span className="ps-zones-t">{z.hasSplit ? 'KEYBOARD SPLIT' : 'KEYBOARD'}</span>
         {z.transpose && <span className="ps-zones-tr">transpose {z.transpose}</span>}
+        {perf.pitchStick && <span className="ps-perf-chip">pitch stick {perf.pitchStick}</span>}
+        {perf.sustain && <span className="ps-perf-chip">sustain</span>}
+        {perf.kbHold && <span className="ps-perf-chip">KB hold</span>}
       </div>
 
       {z.hasSplit && (
@@ -32,7 +38,12 @@ export function ProgramZones({ program, scene }: { program: NS4Program; scene?: 
                       </span>
                     ))}
               </div>
-              {i < 3 && <span className="ps-zone-split">{z.boundaries[i] ?? ''}</span>}
+              {i < 3 && (
+                <span className="ps-zone-split">
+                  {z.boundaries[i] ?? ''}
+                  {z.xfade[i] && <span className="ps-zone-xfade" title="crossfade">↔{z.xfade[i]}</span>}
+                </span>
+              )}
             </div>
           ))}
         </div>

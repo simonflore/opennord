@@ -265,6 +265,23 @@ describe('program zones (split map)', () => {
     expect(typeof html).toBe('string');
     if (z.hasSplit) expect(html).toContain('ps-zonebar');
   });
+
+  it('reports xfade per boundary + program-wide performance flags', () => {
+    const z = programZones(fixtureProgram());
+    expect(z.xfade).toHaveLength(3);
+    expect(typeof z.performance.sustain).toBe('boolean');
+    expect(typeof z.performance.kbHold).toBe('boolean');
+  });
+
+  it('renders performance flags (pitch stick / sustain) in the strip', () => {
+    const synthetic = {
+      ...fixtureProgram(),
+      layers: [{ id: 'A', kind: 'piano', enabled: true, pitchStick: { on: true, range: '2 semi' }, sustainPedal: true }],
+    } as unknown as import('../../lib/ns4/types').NS4Program;
+    const html = renderToStaticMarkup(<ProgramZones program={synthetic} />);
+    expect(html).toContain('pitch stick 2 semi');
+    expect(html).toContain('sustain');
+  });
 });
 
 import { FxRow } from './FxRow';
