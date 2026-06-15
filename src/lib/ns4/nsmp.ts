@@ -176,8 +176,19 @@ export interface NsmpZone {
  * 16-byte zone entries. (Codec-3 `map` form; verified against Strings.nsmp3.)
  */
 export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
-  const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'));
+  const sections = parseNsmpSections(bytes);
+  const map = sections.find((s) => s.tag.endsWith('map'));
   if (!map) return [];
+
+  // OG/legacy (.nsmp v8) has a different `map` layout than codec 3/4 — its per-note
+  // level block is 6-byte unity entries ending in 0x10 (not starting), and the zone
+  // table sits at the tail. Parse it separately. (Reverse-engineered from real OG
+  // files — see parseLegacyZoneRecords.)
+  if (nsmpLayout(bytes).legacy) {
+    const strokeCount = sections.filter((s) => s.tag.endsWith('stk')).length;
+    return parseLegacyZoneRecords(bytes, map.payloadOffset, map.endOffset, strokeCount);
+  }
+
   let o = map.payloadOffset + 6; // global level (u24) + detune (s24)
   const isUnity = (p: number) => bytes[p] === 0x10 && bytes[p + 1] === 0 && bytes[p + 2] === 0 &&
     bytes[p + 3] === 0 && bytes[p + 4] === 0 && bytes[p + 5] === 0;
@@ -188,6 +199,42 @@ export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
     o += 16;
   }
   return zones;
+}
+
+/**
+ * OG/legacy (.nsmp v8) zone table, reverse-engineered from real files. After the
+ * per-note level block, the `map` ends with `[count:u16][00 00]` then `count`
+ * 12-byte records:
+ *   [strokeIndex:u8][rootKey:u8][tune:u16][keyHigh:u32 BE][00 01 00 00]
+ * `keyHigh` is the zone's top key (split point); velocity isn't per-zone (single
+ * layer → 127). The records can overrun the map's declared size by a couple of
+ * bytes, so we bound by the buffer and locate the table by the count marker that
+ * is followed by `count` records whose keyHigh is a valid key (≤127).
+ */
+export function parseLegacyZoneRecords(
+  bytes: Uint8Array, searchStart: number, searchEnd: number, count: number,
+): NsmpZone[] {
+  if (count <= 0) return [];
+  const REC = 12;
+  const recordsValid = (recStart: number): boolean => {
+    for (let i = 0; i < count; i++) {
+      const o = recStart + i * REC;
+      if (o + 8 > bytes.length || u32be(bytes, o + 4) > 127) return false;
+    }
+    return true;
+  };
+  for (let p = searchStart; p < searchEnd; p++) {
+    if (u16be(bytes, p) !== count || bytes[p + 2] !== 0 || bytes[p + 3] !== 0) continue;
+    const recStart = p + 4; // count u16 + 2 pad bytes
+    if (!recordsValid(recStart)) continue;
+    const zones: NsmpZone[] = [];
+    for (let i = 0; i < count; i++) {
+      const o = recStart + i * REC;
+      zones.push({ velTop: 127, keyHigh: u32be(bytes, o + 4), rootKey: bytes[o + 1], strokeIndex: bytes[o] });
+    }
+    return zones;
+  }
+  return [];
 }
 
 export interface DecodedStrokeResult extends DecodedStroke {

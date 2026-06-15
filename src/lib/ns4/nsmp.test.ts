@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { patchNs4Checksum } from './checksum';
-import { readNsmp, parseNsmpSections, decodeNsmp, readNsmpZones } from './nsmp';
+import { readNsmp, parseNsmpSections, decodeNsmp, readNsmpZones, parseLegacyZoneRecords } from './nsmp';
 
 /** Build a minimal synthetic `.nsmp` (CBIN header + NSMP + hdr sections). */
 function makeSyntheticNsmp(name = 'Hi'): Uint8Array {
@@ -162,5 +162,39 @@ describe.skipIf(!existsSync(ogNsmp))('readNsmp / decodeNsmp — OG .nsmp (legacy
       expect(peak).toBeGreaterThan(0);
       expect(peak).toBeLessThan(1 << 16); // clean 16-bit levels, not divergence
     }
+  });
+
+  it('reads 9 key-split zones from the OG map (one per stroke — unblocks the editor)', () => {
+    const zones = readNsmpZones(bytes);
+    expect(zones.length).toBe(9); // === strokeCount, so the editor gate passes
+    // OG map zone table: descending top keys (split points), stroke indices 13→5.
+    expect(zones.map((z) => z.keyHigh)).toEqual([108, 90, 81, 75, 69, 61, 51, 45, 39]);
+    expect(zones.map((z) => z.strokeIndex)).toEqual([13, 12, 11, 10, 9, 8, 7, 6, 5]);
+  });
+});
+
+describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
+  // Layout reverse-engineered from real OG files: [count:u16][00 00] then
+  // count × 12-byte records [strokeIndex][rootKey][tune:u16][keyHigh:u32][00 01 00 00].
+  const rec = (idx: number, root: number, keyHigh: number) =>
+    [idx, root, 0x04, 0x1a, 0, 0, 0, keyHigh, 0, 1, 0, 0];
+
+  it('decodes count + 12-byte records (keyHigh u32, stroke index, single vel layer)', () => {
+    const buf = new Uint8Array([
+      // per-note level junk that ends in 0x10 — must NOT false-match the count
+      0, 0, 0, 0, 0, 0x10, 0, 0, 0, 0, 0, 0x10,
+      0x00, 0x02, 0x00, 0x00, // count = 2, then 2 pad bytes
+      ...rec(13, 19, 108),
+      ...rec(12, 22, 90),
+    ]);
+    expect(parseLegacyZoneRecords(buf, 0, buf.length, 2)).toEqual([
+      { velTop: 127, keyHigh: 108, rootKey: 19, strokeIndex: 13 },
+      { velTop: 127, keyHigh: 90, rootKey: 22, strokeIndex: 12 },
+    ]);
+  });
+
+  it('returns [] when no count marker / valid record block is found', () => {
+    expect(parseLegacyZoneRecords(new Uint8Array([1, 2, 3, 4, 5, 6]), 0, 6, 2)).toEqual([]);
+    expect(parseLegacyZoneRecords(new Uint8Array(20), 0, 20, 0)).toEqual([]);
   });
 });
