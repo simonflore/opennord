@@ -31,6 +31,7 @@ export function ProgramView({ program }: { program: NS4Program }) {
 
   const layers = activeLayers(program, scene);
   const canToggle = scenesDiffer(program);
+  const firstOrganId = layers.find((l) => l.kind === 'organ')?.id;
 
   return (
     <div className="ps">
@@ -55,17 +56,14 @@ export function ProgramView({ program }: { program: NS4Program }) {
 
       <ProgramZones program={program} scene={scene} />
       <div className="ps-grid">
-        {(() => {
-          const firstOrganId = layers.find((l) => l.kind === 'organ')?.id;
-          return layers.map((l) => (
-            <EngineCard
-              key={`${l.kind ?? 'x'}${l.id}`}
-              layer={l}
-              organFx={program.organFx}
-              isFirstOrgan={l.kind === 'organ' && l.id === firstOrganId}
-            />
-          ));
-        })()}
+        {layers.map((l) => (
+          <EngineCard
+            key={`${l.kind ?? 'x'}${l.id}`}
+            layer={l}
+            organFx={program.organFx}
+            isFirstOrgan={l.kind === 'organ' && l.id === firstOrganId}
+          />
+        ))}
       </div>
       <FxRow program={program} scene={scene} />
       <ProgramExtern program={program} scene={scene} />
