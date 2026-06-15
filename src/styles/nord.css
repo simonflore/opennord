@@ -119,6 +119,11 @@
 .ps-kbd-edit em { color: var(--muted); font-style: normal; font-family: var(--mono); }
 .ps-kbd-num { width: 54px; padding: 3px 6px; background: var(--sink); border: 1px solid var(--line);
   border-radius: 6px; color: var(--ink); font: 11px var(--mono); }
+.ps-zone-tbl { margin-top: 4px; }
+.ps-zone-tbl tbody tr { cursor: pointer; }
+.ps-zone-tbl tbody tr.sel td { background: var(--surface-2); }
+.ps-zone-tbl tbody tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--red); }
+.ps-zone-tbl em { color: var(--muted); font-style: normal; font-family: var(--mono); margin-left: 5px; }
 
 .ps-extern { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .ps-extern-t { font: 700 10px var(--font); letter-spacing: 1px; color: var(--lcd-cyan); margin-bottom: 5px; }

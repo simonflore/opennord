@@ -6,8 +6,8 @@ import { downloadBytes } from '../../lib/download';
 import { Button } from '../ui';
 import { KeyboardZoneMap } from './KeyboardZoneMap';
 
-/** Keyboard-map editor: drag the splits to remap, fine-tune the selected sample,
- *  rename, and rebuild + download a new .nsmp. */
+/** Keyboard-map editor: drag the splits on the keybed, or edit any field of any
+ *  zone in the synced table below; rename and rebuild + download a new .nsmp. */
 export function SampleEditPanel({ initial, decoded, codec }: {
   initial: EditModel;
   decoded: DecodedStrokeResult[];
@@ -34,10 +34,9 @@ export function SampleEditPanel({ initial, decoded, codec }: {
 
   const num = (v: number, on: (n: number) => void) => (
     <input type="number" min={0} max={127} value={v} className="ps-kbd-num"
-      onChange={(e) => on(Math.max(0, Math.min(127, Number(e.target.value) || 0)))} />
+      onChange={(e) => on(Math.max(0, Math.min(127, Number(e.target.value) || 0)))}
+      onClick={(e) => e.stopPropagation()} />
   );
-
-  const sel = zones[selected];
 
   return (
     <div className="ps-card" style={{ marginTop: 12 }}>
@@ -50,14 +49,19 @@ export function SampleEditPanel({ initial, decoded, codec }: {
         onChangeKeyHigh={(i, keyHigh) => setZone(i, { keyHigh })}
       />
 
-      {sel && (
-        <div className="ps-kbd-edit">
-          <span className="ps-kbd-edit__t">Sample {selected + 1}</span>
-          <label>root {num(sel.rootKey, (n) => setZone(selected, { rootKey: n }))} <em>{noteName(sel.rootKey)}</em></label>
-          <label>up to {num(sel.keyHigh, (n) => setZone(selected, { keyHigh: n }))} <em>{noteName(sel.keyHigh)}</em></label>
-          <label>vel ≤ {num(sel.velTop, (n) => setZone(selected, { velTop: n }))}</label>
-        </div>
-      )}
+      <table className="ps-params ps-zone-tbl">
+        <thead><tr><th>sample</th><th>root</th><th>up to (split)</th><th>vel ≤</th></tr></thead>
+        <tbody>
+          {zones.map((z, i) => (
+            <tr key={i} className={i === selected ? 'sel' : ''} onClick={() => setSelected(i)}>
+              <td>S{i + 1}</td>
+              <td>{num(z.rootKey, (n) => setZone(i, { rootKey: n }))}<em>{noteName(z.rootKey)}</em></td>
+              <td>{num(z.keyHigh, (n) => setZone(i, { keyHigh: n }))}<em>{noteName(z.keyHigh)}</em></td>
+              <td>{num(z.velTop, (n) => setZone(i, { velTop: n }))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       <label className="ps-sub" style={{ display: 'block', margin: '12px 0 8px' }}>
         Name:&nbsp;
@@ -66,7 +70,9 @@ export function SampleEditPanel({ initial, decoded, codec }: {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <Button variant="primary" onClick={download}>Download edited .nsmp{codec}</Button>
-        <span className="ps-sub" style={{ margin: 0 }}>Rebuilds the whole sample — back up before loading.</span>
+        <span className="ps-sub" style={{ margin: 0 }}>
+          Edits root / split / velocity; level, tune and loops reset on rebuild. Back up first.
+        </span>
       </div>
       {error && <p className="ps-sub on-error">{error}</p>}
     </div>

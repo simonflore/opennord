@@ -63,11 +63,12 @@ describe('SampleEditPanel', () => {
       { index: 1, channelCount: 1, endOffset: 0, channels: [new Int32Array([0, 1])] },
     ];
     const html = renderToStaticMarkup(<SampleEditPanel initial={model} decoded={decoded} codec={3} />);
-    expect(html).toContain('My Strings');         // editable name
+    expect(html).toContain('My Strings');               // editable name
     expect(html).toContain('Download edited .nsmp3');
-    expect(html).toContain('ps-kbd');             // the keyboard map
-    expect(html).toContain('>S1<');               // one band per zone
+    expect(html).toContain('ps-kbd');                   // the keyboard map
+    expect(html).toContain('>S1<');                     // a labeled band per sample
     expect(html).toContain('>S2<');
-    expect(html).toContain('Sample 1');           // selected-zone fine-tune
+    expect(html).toContain('up to (split)');            // the synced all-zones table
+    expect(html.split('<tr').length - 1).toBeGreaterThanOrEqual(3); // header + a row per zone
   });
 });
