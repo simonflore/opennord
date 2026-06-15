@@ -38,4 +38,5 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-html { background: var(--bg); color: var(--ink); }
+/* Global default so any unstyled text uses the UI font, not the browser serif. */
+html { background: var(--bg); color: var(--ink); font-family: var(--font); }
