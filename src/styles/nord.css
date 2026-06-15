@@ -30,10 +30,35 @@
 .ps-knob b { display: block; font-size: 11px; margin-top: 3px; }
 .ps-knob span { font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
 
-.ps-ladder { display: flex; gap: 5px; align-items: flex-end; height: 64px; margin: 4px 0; }
-.ps-bar { width: 13px; display: flex; flex-direction: column-reverse; gap: 2px; }
-.ps-seg { height: 6px; border-radius: 1px; background: #333b49; }
-.ps-seg.on { background: var(--led); }
+/* ── Organ panel (faithful Stage 4 replica) ───────────────────────────────── */
+.ps-organ-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+.ps-models { display: flex; gap: 3px; }
+.ps-model { background: var(--surface-2); border: 1px solid var(--line); color: var(--dim);
+  border-radius: 6px; padding: 4px 7px; font-size: 10px; font-weight: 600; }
+.ps-model.on { background: var(--red); border-color: var(--red); color: #fff; }
+
+.ps-dbstack { display: flex; gap: 5px; justify-content: space-between; align-items: flex-end; margin: 6px 0; }
+.ps-db { flex: 1; text-align: center; }
+.ps-db-num { font-size: 9px; color: var(--ink); margin-bottom: 2px; }
+.ps-db-track { position: relative; height: 120px; width: 100%; max-width: 22px; margin: 0 auto 4px;
+  background: #0c0c0e; border: 1px solid var(--line); border-radius: 4px; }
+.ps-db-tab { position: absolute; left: -1px; right: -1px; bottom: 0; border-radius: 3px; }
+.ps-db-tab.brown { background: var(--organ-db-brown); }
+.ps-db-tab.white { background: var(--organ-db-white); }
+.ps-db-tab.black { background: var(--organ-db-black); border: 1px solid #3a3a42; }
+.ps-db-tab.default { background: var(--organ-db-default); }
+.ps-db-morph { position: absolute; left: -3px; right: -3px; border-top: 2px dashed var(--organ-morph); }
+.ps-db-foot { font-size: 8px; color: var(--muted); }
+
+.ps-tgroup { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 12px; }
+.ps-tgroup.dim { opacity: 0.4; }
+.ps-tgroup-lbl { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin: 0 0 7px; }
+.ps-tgroup-lbl .shared { text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 500; }
+.ps-tgrow { display: flex; gap: 4px; flex-wrap: wrap; }
+.ps-tg-btn { background: var(--surface-2); border: 1px solid var(--line); color: var(--dim);
+  border-radius: 6px; padding: 5px 9px; font-size: 10.5px; font-weight: 600; }
+.ps-tg-btn.on { background: color-mix(in srgb, var(--red) 18%, transparent); border-color: var(--red); color: #fff; }
+.ps-tg-btn.off { opacity: 0.5; }
 
 .ps-lcd { background: linear-gradient(#10384e, var(--lcd)); border: 1px solid #1d5775; border-radius: 6px;
   padding: 8px 10px; font-family: ui-monospace, monospace; color: var(--lcd-cyan); margin-bottom: 9px; }

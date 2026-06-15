@@ -33,6 +33,15 @@
   --s-4: 16px;
   --s-6: 24px;
 
+  /* Organ drawbar tab colors — the classic Hammond brown/white/black coding.
+     Documented exception to "no hardcoded color" (like the LCD blues): these are
+     instrument-faithful drawbar colors, kept as named tokens so the rule holds. */
+  --organ-db-brown: #7a4a2a;
+  --organ-db-white: #efeff1;
+  --organ-db-black: #15151a;
+  --organ-db-default: var(--red-bright);
+  --organ-morph: var(--lcd-cyan);
+
   /* type */
   --font: -apple-system, system-ui, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
