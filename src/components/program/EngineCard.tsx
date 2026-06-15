@@ -52,6 +52,7 @@ function OrganPanel({ layer, organFx, isFirstOrgan }: { layer: NS4Layer; organFx
         <ToggleGroup label={<>Rotary <span className="shared">· shared FX</span></>} items={[
           { label: 'On', on: m.rotary.on },
           { label: m.rotary.fast ? 'Fast' : 'Slow', on: m.rotary.on },
+          { label: 'Stop', on: m.rotary.stop },
           ...(m.rotary.drive ? [{ label: `Drive ${m.rotary.drive}`, on: m.rotary.on }] : []),
         ]} />
       )}

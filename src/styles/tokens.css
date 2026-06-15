@@ -41,6 +41,9 @@
   --organ-db-black: #15151a;
   --organ-db-default: var(--red-bright);
   --organ-morph: var(--lcd-cyan);
+  --organ-db-track: #0c0c0e;
+  --organ-db-black-edge: #3a3a42;
+  --organ-on-bg: #2a1416;
 
   /* type */
   --font: -apple-system, system-ui, sans-serif;

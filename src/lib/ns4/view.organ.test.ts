@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseNs4Program } from './parse';
-import { activeLayers, organPanel } from './view';
+import { activeLayers, organPanel, vibChorusTypeFor } from './view';
 
 const bytes = new Uint8Array(
   readFileSync(fileURLToPath(new URL('./__fixtures__/regressionTest.ns4p', import.meta.url))),
@@ -78,5 +78,25 @@ describe('organPanel — B3 layer (model-accurate, not first organ)', () => {
 
   it('omits rotary because it is not the first organ', () => {
     expect(m.rotary).toBeUndefined();
+  });
+});
+
+describe('vibChorusTypeFor', () => {
+  const fx = { rotary: { vibChorusType: 'B3->C1; VOX->V2; FARF->C3; PIPE->C1' } } as any;
+  it('matches an exact model key', () => {
+    expect(vibChorusTypeFor(fx, 'VOX')).toBe('V2');
+    expect(vibChorusTypeFor(fx, 'B3')).toBe('C1');
+  });
+  it('matches PIPE1/PIPE2 against the "PIPE" map key via startsWith', () => {
+    expect(vibChorusTypeFor(fx, 'PIPE1')).toBe('C1');
+    expect(vibChorusTypeFor(fx, 'PIPE2')).toBe('C1');
+  });
+  it('returns undefined when organFx, the map, or the model is missing', () => {
+    expect(vibChorusTypeFor(undefined, 'B3')).toBeUndefined();
+    expect(vibChorusTypeFor({} as any, 'B3')).toBeUndefined();
+    expect(vibChorusTypeFor(fx, undefined)).toBeUndefined();
+  });
+  it('returns undefined for an unknown model', () => {
+    expect(vibChorusTypeFor(fx, 'ZZZ')).toBeUndefined();
   });
 });

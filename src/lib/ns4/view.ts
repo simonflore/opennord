@@ -175,7 +175,6 @@ export interface OrganPanelModel {
   sustain: boolean;
   /** Shared rotary — present only on the first organ layer. */
   rotary?: { on: boolean; fast: boolean; drive?: string; stop: boolean };
-  volume: { value: string; fill: number; morph?: MorphMarkView };
 }
 
 /**
@@ -232,7 +231,6 @@ export function organPanel(l: NS4Layer, organFx: Ns4OrganFx | undefined, isFirst
     octave: l.octaveShift ?? 0,
     sustain: !!l.organSustain,
     rotary: r ? { on: !!r.on, fast: !!r.fast, drive: r.drive, stop: !!r.stop } : undefined,
-    volume: { value: l.volume?.value ?? '—', fill: volumeFill(l.volume?.value), morph: morphMarks(l.volume) },
   };
 }
 
