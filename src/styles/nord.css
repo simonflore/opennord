@@ -77,6 +77,13 @@
 .ps-env-svg { width: 100%; height: 38px; display: block; }
 .ps-env-cap { font-size: 9px; letter-spacing: .5px; text-transform: uppercase; color: var(--dim); }
 
+.ps-extern { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.ps-extern-t { font: 700 10px var(--font); letter-spacing: 1px; color: var(--lcd-cyan); margin-bottom: 5px; }
+.ps-extern-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 5px; }
+.ps-extern-tag { font: 700 9px var(--font); letter-spacing: .3px; color: var(--ink);
+  background: var(--surface-2); border-radius: 999px; padding: 2px 7px; }
+.ps-extern-v { font: 11px var(--mono); color: var(--dim); }
+
 .ps-deps { margin-top: 12px; background: #221b1d; border: 1px solid #43222a; border-radius: 10px; padding: 10px 12px; }
 .ps-deps-t { font-size: 10px; letter-spacing: 1px; color: #ff7a72; font-weight: 700; }
 .ps-dep { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; margin: 5px 10px 0 0;

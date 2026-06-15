@@ -5,6 +5,7 @@ import { ProgramHeader } from './ProgramHeader';
 import { ProgramZones } from './ProgramZones';
 import { EngineCard } from './EngineCard';
 import { FxRow } from './FxRow';
+import { ProgramExtern } from './ProgramExtern';
 import { SampleRefs } from './SampleRefs';
 import { AllParamsDrawer } from './AllParamsDrawer';
 
@@ -31,6 +32,7 @@ export function ProgramView({ program }: { program: NS4Program }) {
         {layers.map((l) => <EngineCard key={`${l.kind ?? 'x'}${l.id}`} layer={l} />)}
       </div>
       <FxRow program={program} />
+      <ProgramExtern program={program} />
       <SampleRefs program={program} />
       <AllParamsDrawer program={program} />
     </div>

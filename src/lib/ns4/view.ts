@@ -326,3 +326,22 @@ export function sampleRefViews(p: NS4Program): SampleRefView[] {
       return { name: s.name || `#${s.id}`, categoryName: s.categoryName, id: s.id };
     });
 }
+
+export interface ExternView { id: string; kind: string; program?: string; cc1?: string; cc2?: string; }
+
+/**
+ * Layers driving external MIDI gear (the External section): the program-change
+ * they send plus two CC values. Only layers with External switched on, in the
+ * given scene. CC values are the morph base (assignments show in the drawer).
+ */
+export function externViews(p: NS4Program, scene?: 'I' | 'II'): ExternView[] {
+  return activeLayers(p, scene)
+    .filter((l) => l.extern?.on)
+    .map((l) => ({
+      id: l.id,
+      kind: l.kind ?? '?',
+      program: l.extern?.program,
+      cc1: l.extern?.cc1?.value,
+      cc2: l.extern?.cc2?.value,
+    }));
+}

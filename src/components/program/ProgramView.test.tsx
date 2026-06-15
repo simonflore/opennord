@@ -77,9 +77,10 @@ describe('ProgramHeader', () => {
   });
 });
 
-import { activeLayers, synthStats, organStats, pianoStats, ampEnvCurve, programZones, fxChips } from '../../lib/ns4/view';
+import { activeLayers, synthStats, organStats, pianoStats, ampEnvCurve, programZones, fxChips, externViews } from '../../lib/ns4/view';
 import { EngineCard } from './EngineCard';
 import { ProgramZones } from './ProgramZones';
+import { ProgramExtern } from './ProgramExtern';
 
 describe('EngineCard', () => {
   const active = activeLayers(fixtureProgram());
@@ -180,6 +181,34 @@ describe('fx chips carry effect params', () => {
     const chips = fxChips(fixtureProgram());
     expect(chips.length).toBeGreaterThan(0);
     expect(chips.every((c) => c.detail.length > 0)).toBe(true);
+  });
+});
+
+describe('external / MIDI', () => {
+  const synthetic = {
+    ...fixtureProgram(),
+    layers: [
+      { id: 'A', kind: 'synth', enabled: true, extern: { on: true, program: '12', cc1: { value: '64' }, cc2: { value: '100' } } },
+      { id: 'B', kind: 'synth', enabled: true, extern: { on: false } },
+    ],
+  } as unknown as import('../../lib/ns4/types').NS4Program;
+
+  it('lists only layers with External switched on', () => {
+    const rows = externViews(synthetic);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: 'A', program: '12', cc1: '64', cc2: '100' });
+  });
+
+  it('renders an External/MIDI section with program + CCs', () => {
+    const html = renderToStaticMarkup(<ProgramExtern program={synthetic} />);
+    expect(html).toContain('EXTERNAL / MIDI');
+    expect(html).toContain('prog 12');
+    expect(html).toContain('CC1 64');
+  });
+
+  it('renders nothing when no layer drives external gear', () => {
+    const html = renderToStaticMarkup(<ProgramExtern program={fixtureProgram()} />);
+    if (externViews(fixtureProgram()).length === 0) expect(html).toBe('');
   });
 });
 
