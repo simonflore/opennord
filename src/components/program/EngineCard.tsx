@@ -1,17 +1,17 @@
-import type { NS4Layer } from '../../lib/ns4/types';
-import { organCard, pianoCard, synthCard, synthStats, organStats, pianoStats, ampEnvCurve, volumeFill, morphMarks } from '../../lib/ns4/view';
-import { DrawbarLadder, Knob, Lcd, Meter, StatGrid, EnvCurve } from './widgets';
+import type { NS4Layer, Ns4OrganFx } from '../../lib/ns4/types';
+import { organPanel, pianoCard, synthCard, synthStats, pianoStats, ampEnvCurve, volumeFill, morphMarks } from '../../lib/ns4/view';
+import { DrawbarStack, ModelSelector, ToggleGroup, Knob, Lcd, Meter, StatGrid, EnvCurve } from './widgets';
 import { resolveFactory } from '../../lib/device/factory';
 
 /**
  * One card per active layer. Declarative per-kind layout: each engine renders
  * its signature widgets from the matching view-model card object.
  */
-export function EngineCard({ layer }: { layer: NS4Layer }) {
+export function EngineCard({ layer, organFx, isFirstOrgan = false }: { layer: NS4Layer; organFx?: Ns4OrganFx; isFirstOrgan?: boolean }) {
   return (
     <div className="ps-card">
       <h4>{(layer.kind ?? '?').toUpperCase()} · {layer.id}</h4>
-      {layer.kind === 'organ' && <OrganBody layer={layer} />}
+      {layer.kind === 'organ' && <OrganPanel layer={layer} organFx={organFx} isFirstOrgan={isFirstOrgan} />}
       {layer.kind === 'piano' && <PianoBody layer={layer} />}
       {layer.kind === 'synth' && <SynthBody layer={layer} />}
       <Meter label="vol" value={layer.volume?.value ?? '—'} fill={volumeFill(layer.volume?.value)} morph={morphMarks(layer.volume)} />
@@ -19,14 +19,42 @@ export function EngineCard({ layer }: { layer: NS4Layer }) {
   );
 }
 
-function OrganBody({ layer }: { layer: NS4Layer }) {
-  const c = organCard(layer);
-  const tags = [c.model, c.vibChorus ? 'Vib' : null, c.perc ? 'Perc' : null].filter(Boolean).join(' · ');
+function OrganPanel({ layer, organFx, isFirstOrgan }: { layer: NS4Layer; organFx?: Ns4OrganFx; isFirstOrgan: boolean }) {
+  const m = organPanel(layer, organFx, isFirstOrgan);
+  const vc = m.vibChorus;
+  const p = m.percussion;
   return (
     <>
-      <div className="ps-sub">{tags}</div>
-      <DrawbarLadder values={c.drawbars} />
-      <StatGrid stats={organStats(layer)} />
+      <div className="ps-organ-head">
+        <ModelSelector models={m.models} active={m.model} />
+      </div>
+      <DrawbarStack drawbars={m.drawbars} />
+
+      <ToggleGroup label="Vibrato / Chorus" items={[
+        { label: 'On', on: vc.on },
+        { label: vc.type ?? '—', on: vc.on && !!vc.type },
+      ]} />
+
+      <ToggleGroup label="Percussion" groupDim={!p.applicable} items={[
+        { label: 'On', on: p.on },
+        { label: '2nd', on: p.on && !p.harm3rd },
+        { label: '3rd', on: p.on && p.harm3rd },
+        { label: 'Fast', on: p.on && p.decayFast },
+        { label: 'Soft', on: p.on && p.volSoft },
+      ]} />
+
+      <ToggleGroup label="Preset" items={[{ label: 'On', on: m.preset }]} />
+
+      <ToggleGroup label="Octave" items={[{ label: m.octave > 0 ? `+${m.octave}` : `${m.octave}`, on: m.octave !== 0 }]} />
+      <ToggleGroup label="Sustain" items={[{ label: 'On', on: m.sustain }]} />
+
+      {m.rotary && (
+        <ToggleGroup label={<>Rotary <span className="shared">· shared FX</span></>} items={[
+          { label: 'On', on: m.rotary.on },
+          { label: m.rotary.fast ? 'Fast' : 'Slow', on: m.rotary.on },
+          ...(m.rotary.drive ? [{ label: `Drive ${m.rotary.drive}`, on: m.rotary.on }] : []),
+        ]} />
+      )}
     </>
   );
 }
