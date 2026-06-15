@@ -43,6 +43,20 @@ export interface ScanResult {
   errors: ScanError[];
 }
 
+/**
+ * Largest single file we pull into memory in the browser. Reading a multi-GB
+ * file (e.g. a full `.ns4b` backup) via `Blob.arrayBuffer()` either blows the
+ * tab's memory budget or freezes the UI thread on the synchronous unzip — and a
+ * single such file used to abort the entire scan. We skip anything larger and
+ * report it instead. Streaming large bundles is future work.
+ */
+export const MAX_READ_BYTES = 1024 ** 3; // 1 GiB
+
+/** Human-readable reason for an oversized, skipped file. */
+export function tooLargeReason(size: number): string {
+  return `too large to open in the browser (${(size / 1e9).toFixed(1)} GB)`;
+}
+
 function reason(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }

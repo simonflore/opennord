@@ -86,7 +86,7 @@ function Shell() {
                 onChooseFolder={folder.choose}
                 onReconnect={folder.reconnect}
                 onRefresh={folder.refresh}
-                scanErrorCount={folder.result.errors.length}
+                scanErrors={folder.result.errors}
                 onForget={folder.forget}
               />)
         )}

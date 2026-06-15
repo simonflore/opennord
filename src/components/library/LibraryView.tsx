@@ -1,6 +1,7 @@
 import './library.css';
 import { Button, Card, FilterChip, SearchField, SourceBadge } from '../ui';
 import type { LibraryEntry, LibrarySource } from '../../lib/library/types';
+import type { ScanError } from '../../lib/folder/scan';
 
 interface Props {
   entries: LibraryEntry[];
@@ -19,7 +20,7 @@ interface Props {
   onChooseFolder: () => void;
   onReconnect: () => void;
   onRefresh: () => void;
-  scanErrorCount: number;
+  scanErrors: ScanError[];
   onForget: () => void;
 }
 
@@ -29,7 +30,7 @@ const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', nord: 'On
 export function LibraryView({
   entries, source, query, onSource, onQuery, onOpen, onImport,
   folderName, folderCount, canPersist, needsReconnect, busy,
-  onChooseFolder, onReconnect, onRefresh, scanErrorCount, onForget,
+  onChooseFolder, onReconnect, onRefresh, scanErrors, onForget,
 }: Props) {
   const nord = entries.filter((e) => e.source === 'nord').length;
   const local = entries.length - nord;
@@ -64,8 +65,10 @@ export function LibraryView({
         </div>
       )}
 
-      {scanErrorCount > 0 && (
-        <div className="lib-errnote">{scanErrorCount} {scanErrorCount === 1 ? 'file' : 'files'} couldn't be read.</div>
+      {scanErrors.length > 0 && (
+        <div className="lib-errnote" title={scanErrors.map((e) => `${e.path} — ${e.reason}`).join('\n')}>
+          {scanErrors.length} {scanErrors.length === 1 ? 'file' : 'files'} couldn't be read — hover for details.
+        </div>
       )}
 
       <div className="lib-controls">

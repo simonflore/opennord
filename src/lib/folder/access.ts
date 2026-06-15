@@ -1,5 +1,5 @@
-import type { RawFile } from './scan';
-import { walkDirectory } from './walk';
+import { MAX_READ_BYTES, tooLargeReason, type RawFile, type ScanError } from './scan';
+import { walkDirectory, type WalkResult } from './walk';
 import { saveHandle, loadHandle, clearHandle } from './idbStore';
 import { classifyFile } from './classify';
 
@@ -14,33 +14,47 @@ export interface FolderHandleResult {
   name: string;
   /** The live handle when the FSA path was used (enables silent re-scan later). */
   handle?: FileSystemDirectoryHandle;
-  /** The scanned files. */
+  /** The readable Nord files. */
   files: RawFile[];
+  /** Files we couldn't read (oversized / read failure) — surfaced to the user. */
+  errors: ScanError[];
 }
 
 interface DirPicker {
   showDirectoryPicker(): Promise<FileSystemDirectoryHandle>;
 }
 
-/** Map a webkitdirectory FileList → RawFile[], stripping the chosen folder's own name. */
-export async function filesToRawFiles(files: ArrayLike<File>): Promise<RawFile[]> {
+/**
+ * Map a webkitdirectory FileList → Nord {@link RawFile}s, stripping the chosen
+ * folder's own name. Mirrors {@link walkDirectory}: non-Nord files are skipped
+ * unread, oversized files are recorded in `errors`, and a read failure on one
+ * file never aborts the rest.
+ */
+export async function filesToRawFiles(files: ArrayLike<File>): Promise<WalkResult> {
   const out: RawFile[] = [];
+  const errors: ScanError[] = [];
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
     const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
     const slash = rel.indexOf('/');
     const path = slash === -1 ? rel : rel.slice(slash + 1); // drop top folder segment
     if (!classifyFile(path)) continue; // skip non-Nord files without reading them
-    out.push({ path, bytes: new Uint8Array(await f.arrayBuffer()) });
+    if (f.size > MAX_READ_BYTES) { errors.push({ path, reason: tooLargeReason(f.size) }); continue; }
+    try {
+      out.push({ path, bytes: new Uint8Array(await f.arrayBuffer()) });
+    } catch (err) {
+      errors.push({ path, reason: err instanceof Error ? err.message : String(err) });
+    }
   }
-  return out;
+  return { files: out, errors };
 }
 
 /** FSA path: prompt for a folder, persist the handle, return its files. */
 async function pickFolderFsa(): Promise<FolderHandleResult> {
   const handle = await (window as unknown as DirPicker).showDirectoryPicker();
   await saveHandle(handle);
-  return { name: handle.name, handle, files: await walkDirectory(handle) };
+  const { files, errors } = await walkDirectory(handle);
+  return { name: handle.name, handle, files, errors };
 }
 
 /** Fallback path: a one-shot <input webkitdirectory> picker, no persistence. */
@@ -61,7 +75,8 @@ function pickFolderInput(): Promise<FolderHandleResult> {
       cleanup();
       if (!list || list.length === 0) return reject(new Error('No folder chosen'));
       const top = (list[0] as File & { webkitRelativePath?: string }).webkitRelativePath?.split('/')[0] ?? 'Folder';
-      resolve({ name: top, files: await filesToRawFiles(list) });
+      const { files, errors } = await filesToRawFiles(list);
+      resolve({ name: top, files, errors });
     };
     input.oncancel = () => { cleanup(); reject(new Error('Cancelled')); };
     window.addEventListener('focus', onFocus, { once: true });
@@ -77,7 +92,7 @@ export function pickFolder(): Promise<FolderHandleResult> {
 /** Permission state for a restored handle, if any. */
 export type RestoreState =
   | { status: 'none' }
-  | { status: 'granted'; name: string; files: RawFile[] }
+  | { status: 'granted'; name: string; files: RawFile[]; errors: ScanError[] }
   | { status: 'needs-permission'; name: string; handle: FileSystemDirectoryHandle };
 
 interface Permissioned {
@@ -92,20 +107,21 @@ export async function restoreFolder(): Promise<RestoreState> {
   if (!handle) return { status: 'none' };
   const perm = await (handle as unknown as Permissioned).queryPermission({ mode: 'read' });
   if (perm === 'granted') {
-    return { status: 'granted', name: handle.name, files: await walkDirectory(handle) };
+    const { files, errors } = await walkDirectory(handle);
+    return { status: 'granted', name: handle.name, files, errors };
   }
   return { status: 'needs-permission', name: handle.name, handle };
 }
 
 /** Re-request permission (needs a user gesture) and scan, or signal denial. */
-export async function grantAndScan(handle: FileSystemDirectoryHandle): Promise<RawFile[] | null> {
+export async function grantAndScan(handle: FileSystemDirectoryHandle): Promise<WalkResult | null> {
   const perm = await (handle as unknown as Permissioned).requestPermission({ mode: 'read' });
   if (perm !== 'granted') return null;
   return walkDirectory(handle);
 }
 
 /** Re-scan a live handle (manual refresh). */
-export function rescan(handle: FileSystemDirectoryHandle): Promise<RawFile[]> {
+export function rescan(handle: FileSystemDirectoryHandle): Promise<WalkResult> {
   return walkDirectory(handle);
 }
 

@@ -3,9 +3,15 @@ import {
   pickFolder, restoreFolder, rescan, grantAndScan, forgetFolder,
   supportsPersistentFolders,
 } from './access';
-import { scanFiles, type ScanResult } from './scan';
+import { scanFiles, type RawFile, type ScanError, type ScanResult } from './scan';
 
 const EMPTY: ScanResult = { programs: [], samples: [], errors: [] };
+
+/** Scan files and fold the access-layer read errors in with the parse errors. */
+function scan(files: RawFile[], readErrors: ScanError[]): ScanResult {
+  const r = scanFiles(files);
+  return { ...r, errors: [...readErrors, ...r.errors] };
+}
 
 export interface FolderLibrary {
   /** Connected folder name, or null when none. */
@@ -43,7 +49,7 @@ export function useFolderLibrary(): FolderLibrary {
       if (cancelled) return;
       if (state.status === 'granted') {
         setFolderName(state.name);
-        setResult(scanFiles(state.files));
+        setResult(scan(state.files, state.errors));
       } else if (state.status === 'needs-permission') {
         setFolderName(state.name);
         setPending(state.handle);
@@ -59,7 +65,7 @@ export function useFolderLibrary(): FolderLibrary {
       setFolderName(r.name);
       setHandle(r.handle ?? null);
       setPending(null);
-      setResult(scanFiles(r.files));
+      setResult(scan(r.files, r.errors));
     } catch {
       /* user cancelled — leave state untouched */
     } finally {
@@ -71,11 +77,11 @@ export function useFolderLibrary(): FolderLibrary {
     if (!pending) return;
     setBusy(true);
     try {
-      const files = await grantAndScan(pending);
-      if (files) {
+      const res = await grantAndScan(pending);
+      if (res) {
         setHandle(pending);
         setPending(null);
-        setResult(scanFiles(files));
+        setResult(scan(res.files, res.errors));
       }
     } finally {
       setBusy(false);
@@ -86,7 +92,8 @@ export function useFolderLibrary(): FolderLibrary {
     if (!handle) return;
     setBusy(true);
     try {
-      setResult(scanFiles(await rescan(handle)));
+      const { files, errors } = await rescan(handle);
+      setResult(scan(files, errors));
     } finally {
       setBusy(false);
     }

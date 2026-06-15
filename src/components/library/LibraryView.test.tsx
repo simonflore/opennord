@@ -17,7 +17,7 @@ const folderDefaults = {
   onChooseFolder: () => {},
   onReconnect: () => {},
   onRefresh: () => {},
-  scanErrorCount: 0,
+  scanErrors: [],
   onForget: () => {},
 };
 
