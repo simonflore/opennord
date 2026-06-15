@@ -198,3 +198,18 @@ describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
     expect(parseLegacyZoneRecords(new Uint8Array(20), 0, 20, 0)).toEqual([]);
   });
 });
+
+const n4 = join(process.cwd(), 'research/nsmp/Strings.nsmp4');
+describe.skipIf(!existsSync(n4))('readNsmpZones — codec-4 split map', () => {
+  it('reads the same number of zones as there are strokes, with valid keys', () => {
+    const b = new Uint8Array(readFileSync(n4));
+    const zones = readNsmpZones(b);
+    const strokes = parseNsmpSections(b).filter((s) => s.tag.endsWith('stk')).length;
+    expect(zones.length).toBe(strokes);
+    for (const z of zones) {
+      expect(z.keyHigh).toBeGreaterThanOrEqual(0);
+      expect(z.keyHigh).toBeLessThanOrEqual(127);
+      expect(z.strokeIndex).toBeGreaterThanOrEqual(1);
+    }
+  });
+});

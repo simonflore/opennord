@@ -171,6 +171,53 @@ export interface NsmpZone {
 }
 
 /**
+ * Codec-4 (`.nsmp4`, map section version 21) zone table. The codec-4 `map`
+ * widens the per-note level/detune block to **10-byte rows** — a 6-byte unity
+ * entry `10 00 00 00 00 00` followed by a 4-byte incrementing note index
+ * (`00 00 00 00`, `01 01 01 01`, … `7f 7f 7f 7f`), 128 rows in all — so the
+ * codec-3 6-byte unity skip misaligns and over-reads. After the 128 per-note
+ * rows there's a short header block, then the **same 16-byte zone entries as
+ * codec-3** begin (`velTop`, `keyHigh`@+1, `rootKey`@+3, `strokeIndex`@+12,
+ * trailer `00 01 00`@+13). Because that header block has no fixed stride we don't
+ * hardcode the offset; instead — mirroring {@link parseLegacyZoneRecords} — we
+ * scan past the per-note block for the run of exactly `strokeCount` 16-byte
+ * entries whose keys/trailers are all valid. Measured against every real
+ * `.nsmp4` fixture: 128 rows → run start at payload offset 1317, count == strokes.
+ */
+export function parseCodec4ZoneRecords(
+  bytes: Uint8Array, map: NsmpSection, strokeCount: number,
+): NsmpZone[] {
+  if (strokeCount <= 0) return [];
+  const REC = 16;
+  // Skip the global level (6 bytes) + the 10-byte per-note rows.
+  let o = map.payloadOffset + 6;
+  const isPerNoteRow = (p: number) => p + 10 <= map.endOffset &&
+    bytes[p] === 0x10 && bytes[p + 1] === 0 && bytes[p + 2] === 0 &&
+    bytes[p + 3] === 0 && bytes[p + 4] === 0 && bytes[p + 5] === 0;
+  while (isPerNoteRow(o)) o += 10;
+
+  const runValid = (start: number): boolean => {
+    if (start + strokeCount * REC > map.endOffset) return false;
+    for (let i = 0; i < strokeCount; i++) {
+      const e = start + i * REC;
+      if (bytes[e + 1] > 127 || bytes[e + 12] < 1) return false; // keyHigh / strokeIndex
+      if (bytes[e + 13] !== 0 || bytes[e + 14] !== 1 || bytes[e + 15] !== 0) return false; // trailer
+    }
+    return true;
+  };
+  for (let p = o; p + strokeCount * REC <= map.endOffset; p++) {
+    if (!runValid(p)) continue;
+    const zones: NsmpZone[] = [];
+    for (let i = 0; i < strokeCount; i++) {
+      const e = p + i * REC;
+      zones.push({ velTop: bytes[e], keyHigh: bytes[e + 1], rootKey: bytes[e + 3], strokeIndex: bytes[e + 12] });
+    }
+    return zones;
+  }
+  return [];
+}
+
+/**
  * Read the per-zone splits/layers table from the `map` section. Skips the global
  * + per-note level/detune block (unity entries `10 00 00 00 00 00`), then parses
  * 16-byte zone entries. (Codec-3 `map` form; verified against Strings.nsmp3.)
@@ -187,6 +234,14 @@ export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
   if (nsmpLayout(bytes).legacy) {
     const strokeCount = sections.filter((s) => s.tag.endsWith('stk')).length;
     return parseLegacyZoneRecords(bytes, map.payloadOffset, map.endOffset, strokeCount);
+  }
+
+  // Codec-4 (`.nsmp4`, map section version 21) widens the per-note block to
+  // 10-byte rows, so the codec-3 6-byte unity-skip below misaligns and yields
+  // garbage zones. Parse it with the dedicated codec-4 reader.
+  if (map.version >= 21) {
+    const strokeCount = sections.filter((s) => s.tag.endsWith('stk')).length;
+    return parseCodec4ZoneRecords(bytes, map, strokeCount);
   }
 
   let o = map.payloadOffset + 6; // global level (u24) + detune (s24)
