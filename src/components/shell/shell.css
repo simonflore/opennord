@@ -2,6 +2,8 @@
 .on-rail {
   width: 188px; flex: none; background: var(--sink); border-right: 1px solid var(--line);
   padding: var(--s-4) var(--s-3); display: flex; flex-direction: column; gap: 2px;
+  position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto;
+  box-sizing: border-box;
 }
 .on-rail__brand { font: 800 16px var(--font); color: var(--ink); padding: 2px 8px var(--s-4); }
 .on-rail__brand-accent { color: var(--red); font-style: italic; }
@@ -14,6 +16,17 @@
 .on-rail__spacer { flex: 1; }
 .on-rail__dev { margin-top: var(--s-2); }
 .on-rail__dev summary { font: 9px var(--font); color: var(--muted); cursor: pointer; padding: 6px 8px; }
+
+.on-rail__note {
+  margin-top: var(--s-2); padding: 8px; border-top: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 3px;
+}
+.on-rail__note-tag {
+  align-self: flex-start; font: 700 8px var(--font); letter-spacing: 1px;
+  color: var(--warn); border: 1px solid var(--warn); border-radius: var(--r-sm);
+  padding: 1px 5px;
+}
+.on-rail__note-text { font: 9px/1.4 var(--font); color: var(--muted); }
 
 .on-devbox { background: #191b21; border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px; }
 .on-devbox--off { display: flex; flex-direction: column; gap: 8px; }
@@ -30,9 +43,13 @@
   .on-rail {
     width: auto; flex-direction: row; align-items: center; overflow-x: auto;
     border-right: 0; border-bottom: 1px solid var(--line); padding: var(--s-2) var(--s-3);
+    position: static; height: auto; align-self: auto; overflow-y: visible;
   }
   /* Device transfer rides vendor-USB — unreachable from a phone browser
      (desktop / native iPad only). Hide the status box on the mobile rail. */
   .on-rail__spacer, .on-rail__dev, .on-devbox { display: none; }
+  /* Keep the alpha tag visible on mobile, but compact: just the pill, inline. */
+  .on-rail__note { margin: 0 0 0 auto; padding: 0; border-top: 0; }
+  .on-rail__note-text { display: none; }
   .on-content { padding: var(--s-3) var(--s-4); }
 }

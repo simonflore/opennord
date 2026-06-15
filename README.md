@@ -4,6 +4,14 @@
 
 > Status: **early — the reverse-engineering is done, the product is being built.** The `.ns4p` format is decoded and validated (0-mismatch against ns4decode), and the Stage 4's USB transfer protocol is fully reverse-engineered and **hardware-validated in both directions** (enumerate, read, *and* write — proven by reading and writing real programs on a device). What remains is the product layer — UI, community sharing, AI — see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+> [!WARNING]
+> **Alpha software — use at your own risk.** OpenNord is under active development,
+> provided **as-is, with no warranty** (see the [AGPL-3.0](LICENSE), sections 15–16).
+> Things will change and break. Most of all: **device transfer writes to real
+> hardware.** Writing a program to your Nord overwrites whatever was in that slot —
+> **back up your keyboard first** and don't run it on data you can't afford to lose.
+> You are responsible for what you send to your instrument.
+
 OpenNord is **free and open source** (AGPL-3.0). It exists because everything that makes it possible — the Nord file-format knowledge, the decoders — was built by the community, in the open. This gives that work a home that outlives any one person and a place for the next contributor to plug in.
 
 ## What it does (and will do)

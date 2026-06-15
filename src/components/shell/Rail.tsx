@@ -49,6 +49,14 @@ export function Rail({ active, onNavigate, onManageDevice }: Props) {
           </button>
         ))}
       </details>
+
+      <div
+        className="on-rail__note"
+        title="OpenNord is alpha software, provided as-is with no warranty. Features may break, and device transfer writes to real hardware — back up your keyboard first. Use at your own risk."
+      >
+        <span className="on-rail__note-tag">ALPHA</span>
+        <span className="on-rail__note-text">use at your own risk</span>
+      </div>
     </nav>
   );
 }
