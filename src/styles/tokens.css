@@ -52,3 +52,6 @@
 
 /* Global default so any unstyled text uses the UI font, not the browser serif. */
 html { background: var(--bg); color: var(--ink); font-family: var(--font); }
+/* Zero the UA body margin — otherwise it stacks on top of the 100vh app shell
+   and forces a permanent ~16px scrollbar. */
+body { margin: 0; }
