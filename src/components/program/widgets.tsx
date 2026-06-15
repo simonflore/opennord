@@ -8,15 +8,16 @@ import type { DrawbarView } from '../../lib/ns4/view';
 
 interface Morph { wheel?: string; at?: string; pedal?: string }
 
+function morphTooltip(m: Morph): string {
+  return [m.wheel && `wheel → ${m.wheel}`, m.at && `A.T. → ${m.at}`, m.pedal && `pedal → ${m.pedal}`]
+    .filter(Boolean).join('   ·   ');
+}
+
 /** A small ✎ flag on a value that's morph-assigned; the tooltip names the targets. */
 export function MorphMark({ morph }: { morph: Morph }) {
-  const parts = [
-    morph.wheel && `wheel → ${morph.wheel}`,
-    morph.at && `A.T. → ${morph.at}`,
-    morph.pedal && `pedal → ${morph.pedal}`,
-  ].filter(Boolean);
-  if (parts.length === 0) return null;
-  return <span className="ps-morphmark" title={parts.join('   ·   ')}>✎</span>;
+  const tip = morphTooltip(morph);
+  if (!tip) return null;
+  return <span className="ps-morphmark" title={tip}>✎</span>;
 }
 
 /**
@@ -47,18 +48,13 @@ export function DrawbarStack({ drawbars }: { drawbars: DrawbarView[] }) {
           <div className="ps-db-num">{d.label}</div>
           <div className="ps-db-track">
             {d.level > 0 && <div className={`ps-db-tab ${d.color}`} style={{ height: `${(d.level / 8) * 100}%` }} />}
-            {d.morph && <div className="ps-db-morph" style={{ bottom: `${(d.level / 8) * 100}%` }} title={morphTitle(d.morph)} />}
+            {d.morph && <div className="ps-db-morph" style={{ bottom: `${(d.level / 8) * 100}%` }} title={morphTooltip(d.morph)} />}
           </div>
           {d.footage && <div className="ps-db-foot">{d.footage}</div>}
         </div>
       ))}
     </div>
   );
-}
-
-function morphTitle(m: Morph): string {
-  return [m.wheel && `wheel → ${m.wheel}`, m.at && `A.T. → ${m.at}`, m.pedal && `pedal → ${m.pedal}`]
-    .filter(Boolean).join('   ·   ');
 }
 
 /** Read-only segmented organ-model selector; the active model is highlighted. */

@@ -25,6 +25,7 @@ describe('widgets', () => {
     expect(html).toContain('16′');
     expect(html).toContain('ps-db-tab brown');
     expect(html).toContain('ps-db-morph');   // morph marker present on bar 1
+    expect(html).toContain('wheel → 3');    // morph tooltip text rendered
   });
 
   it('ModelSelector highlights the active model', () => {
