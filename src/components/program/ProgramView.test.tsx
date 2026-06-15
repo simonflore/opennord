@@ -156,6 +156,25 @@ describe('organ + piano card enrichment', () => {
   });
 });
 
+describe('layer scenes', () => {
+  it('parses the saved active scene (the fixture is Scene I)', () => {
+    expect(fixtureProgram().activeScene).toBe('I');
+  });
+
+  it('activeLayers honors the active scene (enabled vs enabledSceneII)', () => {
+    const synthetic = {
+      ...fixtureProgram(),
+      activeScene: 'II' as const,
+      layers: [
+        { id: 'A', kind: 'synth', enabled: true, enabledSceneII: false },
+        { id: 'B', kind: 'synth', enabled: false, enabledSceneII: true },
+      ],
+    } as unknown as import('../../lib/ns4/types').NS4Program;
+    expect(activeLayers(synthetic).map((l) => l.id)).toEqual(['B']);        // Scene II active
+    expect(activeLayers(synthetic, 'I').map((l) => l.id)).toEqual(['A']);   // explicit override
+  });
+});
+
 describe('fx chips carry effect params', () => {
   it('every enabled chip has a non-empty detail', () => {
     const chips = fxChips(fixtureProgram());

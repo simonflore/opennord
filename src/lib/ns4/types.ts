@@ -198,6 +198,13 @@ export interface NS4Program {
   slot?: string;
   /** Program version string, e.g. "3.13" (CBIN header byte 0x14, raw ×100). */
   programVersion?: string;
+  /**
+   * Which Layer Scene was active when the program was saved ('I' or 'II'). A
+   * scene is purely a mute snapshot — only section/layer on/off differs between
+   * the two; every sound parameter is shared. Determines which layers actually
+   * sound (`enabled` vs `enabledSceneII`). Defaults to 'I'.
+   */
+  activeScene?: 'I' | 'II';
   /** Up to seven voice layers: 2 organ, 2 piano, 3 synth. */
   layers?: NS4Layer[];
   /** Global organ effects (rotary speaker, FX chain) — master group, not per-layer. */

@@ -640,6 +640,7 @@ export function parseNs4Program(bytes: Uint8Array): NS4Program {
     location: header.location,
     slot: formatSlot(header.bank, header.location),
     programVersion: formatVersion(header.versionRaw),
+    activeScene: m('which layer scene is active') === 'II' ? 'II' : 'I',
     layers: [...organLayers, ...pianoLayers, ...synthLayers],
     organFx,
     bytes,

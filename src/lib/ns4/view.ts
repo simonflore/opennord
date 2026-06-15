@@ -21,9 +21,14 @@ export interface HeaderView {
 
 const KIND_ORDER: NonNullable<NS4Layer['kind']>[] = ['organ', 'piano', 'synth'];
 
-/** Layers present in the program AND switched on. */
-export function activeLayers(p: NS4Program): NS4Layer[] {
-  return (p.layers ?? []).filter((l) => l.enabled);
+/**
+ * Layers switched on in the given scene (defaults to the program's saved active
+ * scene). A Layer Scene only changes which layers are muted — every sound
+ * parameter is shared — so this is just an `enabled` vs `enabledSceneII` filter.
+ */
+export function activeLayers(p: NS4Program, scene?: 'I' | 'II'): NS4Layer[] {
+  const useSceneII = (scene ?? p.activeScene) === 'II';
+  return (p.layers ?? []).filter((l) => (useSceneII ? l.enabledSceneII : l.enabled));
 }
 
 /** Organ drawbar positions as integers 0–8, for the LED ladder. Non-numeric (e.g. VOX combos) or missing → 0. */
