@@ -3,6 +3,9 @@
  * src/styles/nord.css. They render plain values from the view-model — no decoding.
  */
 
+import type { ReactNode } from 'react';
+import type { DrawbarView } from '../../lib/ns4/view';
+
 interface Morph { wheel?: string; at?: string; pedal?: string }
 
 /** A small ✎ flag on a value that's morph-assigned; the tooltip names the targets. */
@@ -35,17 +38,54 @@ export function Knob({ value, caption, fill, morph }: { value: string; caption: 
   );
 }
 
-/** Organ drawbar LED ladder. Each value 0–8 lights that many of 8 segments. */
-export function DrawbarLadder({ values }: { values: number[] }) {
+/** Faithful vertical drawbars: readout, draw-tab (height = level), footage, morph. */
+export function DrawbarStack({ drawbars }: { drawbars: DrawbarView[] }) {
   return (
-    <div className="ps-ladder">
-      {values.map((v, i) => (
-        <div className="ps-bar" key={i}>
-          {Array.from({ length: 8 }, (_, s) => (
-            <span key={s} className={s < v ? 'ps-seg on' : 'ps-seg'} />
-          ))}
+    <div className="ps-dbstack">
+      {drawbars.map((d, i) => (
+        <div className="ps-db" key={i}>
+          <div className="ps-db-num">{d.label}</div>
+          <div className="ps-db-track">
+            {d.level > 0 && <div className={`ps-db-tab ${d.color}`} style={{ height: `${(d.level / 8) * 100}%` }} />}
+            {d.morph && <div className="ps-db-morph" style={{ bottom: `${(d.level / 8) * 100}%` }} title={morphTitle(d.morph)} />}
+          </div>
+          {d.footage && <div className="ps-db-foot">{d.footage}</div>}
         </div>
       ))}
+    </div>
+  );
+}
+
+function morphTitle(m: Morph): string {
+  return [m.wheel && `wheel → ${m.wheel}`, m.at && `A.T. → ${m.at}`, m.pedal && `pedal → ${m.pedal}`]
+    .filter(Boolean).join('   ·   ');
+}
+
+/** Read-only segmented organ-model selector; the active model is highlighted. */
+export function ModelSelector({ models, active }: { models: readonly string[]; active: string }) {
+  return (
+    <div className="ps-models">
+      {models.map((m) => (
+        <span key={m} className={m.toUpperCase() === active.toUpperCase() ? 'ps-model on' : 'ps-model'}>{m}</span>
+      ))}
+    </div>
+  );
+}
+
+export interface ToggleItem { label: string; on: boolean; }
+
+/**
+ * A labeled panel section with a row of read-only on/off pills. `on` items get the
+ * red accent; off items are dimmed (parity, not hidden). `groupDim` dims the whole
+ * group (used for percussion on non-B3 models).
+ */
+export function ToggleGroup({ label, items, groupDim }: { label: ReactNode; items: ToggleItem[]; groupDim?: boolean }) {
+  return (
+    <div className={groupDim ? 'ps-tgroup dim' : 'ps-tgroup'}>
+      <p className="ps-tgroup-lbl">{label}</p>
+      <div className="ps-tgrow">
+        {items.map((it, i) => <span key={i} className={it.on ? 'ps-tg-btn on' : 'ps-tg-btn off'}>{it.label}</span>)}
+      </div>
     </div>
   );
 }

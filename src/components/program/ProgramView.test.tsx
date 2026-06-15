@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseNs4Program } from '../../lib/ns4/parse';
 import { programNameFromFilename } from '../../lib/ns4/name';
-import { Knob, DrawbarLadder, Lcd, Chip, Meter } from './widgets';
+import { Knob, DrawbarStack, ModelSelector, ToggleGroup, Lcd, Chip, Meter } from './widgets';
 
 describe('widgets', () => {
   it('Knob renders value + caption', () => {
@@ -14,9 +14,34 @@ describe('widgets', () => {
     expect(html).toContain('--v:66');
   });
 
-  it('DrawbarLadder renders one bar per value', () => {
-    const html = renderToStaticMarkup(<DrawbarLadder values={[8, 0, 4]} />);
-    expect(html.split('ps-bar').length - 1).toBe(3);
+  it('DrawbarStack renders one drawbar per entry with footage + morph', () => {
+    const html = renderToStaticMarkup(
+      <DrawbarStack drawbars={[
+        { level: 8, label: '8', footage: '16′', color: 'brown', morph: { wheel: '3' } },
+        { level: 0, label: '0', color: 'default' },
+      ]} />,
+    );
+    expect(html.split('ps-db-track').length - 1).toBe(2);
+    expect(html).toContain('16′');
+    expect(html).toContain('ps-db-tab brown');
+    expect(html).toContain('ps-db-morph');   // morph marker present on bar 1
+  });
+
+  it('ModelSelector highlights the active model', () => {
+    const html = renderToStaticMarkup(<ModelSelector models={['B3', 'VOX']} active="VOX" />);
+    expect(html).toContain('B3');
+    expect(html).toContain('ps-model on');   // exactly the active one is `on`
+    expect(html.split('ps-model on').length - 1).toBe(1);
+  });
+
+  it('ToggleGroup renders on/off buttons and a dimmable group', () => {
+    const html = renderToStaticMarkup(
+      <ToggleGroup label="Percussion" groupDim items={[{ label: 'On', on: true }, { label: 'Soft', on: false }]} />,
+    );
+    expect(html).toContain('Percussion');
+    expect(html).toContain('ps-tgroup dim');
+    expect(html).toContain('ps-tg-btn on');
+    expect(html).toContain('ps-tg-btn off');
   });
 
   it('Lcd renders primary + secondary', () => {
