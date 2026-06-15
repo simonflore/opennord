@@ -50,6 +50,12 @@
   font-size: 11px; flex: 1; min-width: 120px; }
 .ps-chip .t { font-size: 9px; letter-spacing: 1px; color: var(--dim); }
 
+.ps-scene { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+.ps-scene-l { font: 700 9px var(--font); letter-spacing: 1.5px; color: var(--red-bright); }
+.ps-scene-btn { font: 700 11px var(--font); cursor: pointer; padding: 4px 13px; border-radius: 7px;
+  background: var(--surface-2); color: var(--dim); border: 1px solid var(--line); }
+.ps-scene-btn.on { background: var(--red); color: #fff; border-color: var(--red); }
+
 .ps-zones { margin: 0 0 14px; }
 .ps-zones-hd { display: flex; align-items: baseline; gap: 12px; margin-bottom: 7px; }
 .ps-zones-t { font-size: 9px; letter-spacing: 1.5px; font-weight: 700; color: var(--red-bright); }

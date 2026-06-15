@@ -77,7 +77,7 @@ describe('ProgramHeader', () => {
   });
 });
 
-import { activeLayers, synthStats, organStats, pianoStats, ampEnvCurve, programZones, fxChips, externViews } from '../../lib/ns4/view';
+import { activeLayers, synthStats, organStats, pianoStats, ampEnvCurve, programZones, fxChips, externViews, scenesDiffer } from '../../lib/ns4/view';
 import { EngineCard } from './EngineCard';
 import { ProgramZones } from './ProgramZones';
 import { ProgramExtern } from './ProgramExtern';
@@ -173,6 +173,24 @@ describe('layer scenes', () => {
     } as unknown as import('../../lib/ns4/types').NS4Program;
     expect(activeLayers(synthetic).map((l) => l.id)).toEqual(['B']);        // Scene II active
     expect(activeLayers(synthetic, 'I').map((l) => l.id)).toEqual(['A']);   // explicit override
+  });
+
+  it('scenesDiffer detects when the two scenes enable different layers', () => {
+    const same = { layers: [{ enabled: true, enabledSceneII: true }] } as unknown as import('../../lib/ns4/types').NS4Program;
+    const diff = { layers: [{ enabled: true, enabledSceneII: false }] } as unknown as import('../../lib/ns4/types').NS4Program;
+    expect(scenesDiffer(same)).toBe(false);
+    expect(scenesDiffer(diff)).toBe(true);
+  });
+
+  it('ProgramView shows a Scene I/II toggle only when the scenes differ', () => {
+    const diff = {
+      ...fixtureProgram(), parsed: true, activeScene: 'I' as const,
+      layers: [
+        { id: 'A', kind: 'synth', enabled: true, enabledSceneII: false },
+        { id: 'B', kind: 'synth', enabled: false, enabledSceneII: true },
+      ],
+    } as unknown as import('../../lib/ns4/types').NS4Program;
+    expect(renderToStaticMarkup(<ProgramView program={diff} />)).toContain('LAYER SCENE');
   });
 });
 

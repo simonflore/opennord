@@ -4,8 +4,8 @@ import { resolveFactory } from '../../lib/device/factory';
 
 const SAMPLE_LIBRARY = 'https://www.nordkeyboards.com/sounds/sample-library/';
 
-export function SampleRefs({ program }: { program: NS4Program }) {
-  const refs = sampleRefViews(program);
+export function SampleRefs({ program, scene }: { program: NS4Program; scene?: 'I' | 'II' }) {
+  const refs = sampleRefViews(program, scene);
   if (refs.length === 0) return null;
   return (
     <div className="ps-deps">

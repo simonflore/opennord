@@ -50,8 +50,13 @@ export function volumeFill(volume?: string): number {
   return Math.max(0, Math.min(100, Math.round(pct)));
 }
 
-export function headerView(p: NS4Program): HeaderView {
-  const active = activeLayers(p);
+/** True when Scene I and Scene II enable a different set of layers (a toggle helps). */
+export function scenesDiffer(p: NS4Program): boolean {
+  return (p.layers ?? []).some((l) => !!l.enabled !== !!l.enabledSceneII);
+}
+
+export function headerView(p: NS4Program, scene?: 'I' | 'II'): HeaderView {
+  const active = activeLayers(p, scene);
   const kinds = KIND_ORDER.filter((k) => active.some((l) => l.kind === k));
   const summary = `${kinds.join(' + ')} · ${active.length} layer${active.length === 1 ? '' : 's'}`;
   return {
@@ -89,8 +94,8 @@ function paramLookup(p: NS4Program): Map<string, string> {
  * zones (from each layer's `kbZones` "[1o]{4}" string), the split-point note at
  * each active boundary, and program transpose. Drives the ProgramZones strip.
  */
-export function programZones(p: NS4Program): ProgramZonesView {
-  const active = activeLayers(p);
+export function programZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesView {
+  const active = activeLayers(p, scene);
   const zones = [0, 1, 2, 3].map((z) => ({
     layers: active
       .filter((l) => (l.kbZones ?? '')[z] === '1')
@@ -265,7 +270,7 @@ export interface FxChipModel { key: string; label: string; detail: string; }
  * Compact list of effects that are switched on. Per-layer FX come from each
  * active piano/synth layer; organ FX is a single global set (Ns4OrganFx).
  */
-export function fxChips(p: NS4Program): FxChipModel[] {
+export function fxChips(p: NS4Program, scene?: 'I' | 'II'): FxChipModel[] {
   const chips: FxChipModel[] = [];
   const push = (key: string, label: string, on: boolean | undefined, detail: string) => {
     if (on) chips.push({ key, label, detail });
@@ -284,7 +289,7 @@ export function fxChips(p: NS4Program): FxChipModel[] {
   const delayD = (d: Delay) => j(d?.tempo?.value, d?.mix?.value && `mix ${d.mix.value}`, d?.feedback?.value && `fb ${d.feedback.value}`) || 'on';
   const revD = (r: Reverb) => j(r?.type, r?.amount?.value && `amt ${r.amount.value}`) || 'on';
 
-  for (const l of activeLayers(p)) {
+  for (const l of activeLayers(p, scene)) {
     if (l.kind === 'organ') continue; // organ FX is global, handled below
     const tag = `${l.kind ?? 'x'}${l.id}`;
     push(`${tag}-mod1`, 'Mod 1', l.fxMod1?.on, modD(l.fxMod1));
@@ -318,9 +323,9 @@ export interface SampleRefView { name: string; categoryName: string; id: number;
  * stored ref) would list samples the patch never loads. Names by name (raw id
  * when unnamed). Safe to share — never audio.
  */
-export function sampleRefViews(p: NS4Program): SampleRefView[] {
-  return (p.layers ?? [])
-    .filter((l) => l.enabled && l.source === 'samples' && l.sample)
+export function sampleRefViews(p: NS4Program, scene?: 'I' | 'II'): SampleRefView[] {
+  return activeLayers(p, scene)
+    .filter((l) => l.source === 'samples' && l.sample)
     .map((l) => {
       const s = l.sample!;
       return { name: s.name || `#${s.id}`, categoryName: s.categoryName, id: s.id };

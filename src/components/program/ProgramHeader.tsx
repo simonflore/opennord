@@ -1,8 +1,8 @@
 import type { NS4Program } from '../../lib/ns4/types';
 import { headerView } from '../../lib/ns4/view';
 
-export function ProgramHeader({ program }: { program: NS4Program }) {
-  const h = headerView(program);
+export function ProgramHeader({ program, scene }: { program: NS4Program; scene?: 'I' | 'II' }) {
+  const h = headerView(program, scene);
   return (
     <div className="ps-hd">
       <div>

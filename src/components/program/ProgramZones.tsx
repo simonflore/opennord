@@ -8,8 +8,8 @@ const KIND_ABBR: Record<string, string> = { organ: 'ORG', piano: 'PNO', synth: '
  * between zones, plus program transpose. Renders only when the program is split
  * (or transposed); for a plain layered patch the engine cards already say it all.
  */
-export function ProgramZones({ program }: { program: NS4Program }) {
-  const z = programZones(program);
+export function ProgramZones({ program, scene }: { program: NS4Program; scene?: 'I' | 'II' }) {
+  const z = programZones(program, scene);
   if (!z.hasSplit && !z.transpose) return null;
 
   return (
