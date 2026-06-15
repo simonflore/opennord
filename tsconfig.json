@@ -14,8 +14,8 @@
     "isolatedModules": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "types": ["node", "w3c-web-usb"],
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src"]
 }
