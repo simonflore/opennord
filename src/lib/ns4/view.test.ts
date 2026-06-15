@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseNs4Program } from './parse';
 import { programNameFromFilename } from './name';
-import { activeLayers, headerView, drawbarLevels, volumeFill, organCard, pianoCard, synthCard, fxChips, sampleRefViews } from './view';
+import { activeLayers, headerView, drawbarLevels, volumeFill, organPanel, pianoCard, synthCard, fxChips, sampleRefViews } from './view';
 
 const fixtureBytes = new Uint8Array(
   readFileSync(fileURLToPath(new URL('./__fixtures__/regressionTest.ns4p', import.meta.url))),
@@ -62,10 +62,10 @@ describe('volumeFill', () => {
 describe('engine card models', () => {
   const active = activeLayers(fixture());
 
-  it('organCard reads model + drawbars', () => {
-    const c = organCard(active[0]); // organ A
-    expect(c.model).toBe('VOX');
-    expect(c.drawbars).toEqual([4, 2, 2, 1, 1, 2, 2, 1, 1]);
+  it('organPanel reads model + drawbar levels', () => {
+    const m = organPanel(active[0], fixture().organFx, true); // organ A (VOX)
+    expect(m.model).toBe('VOX');
+    expect(m.drawbars.map((d) => d.level)).toEqual([4, 2, 2, 1, 1, 2, 2, 1, 1]);
   });
 
   it('pianoCard reads type + model name', () => {

@@ -5,9 +5,11 @@
  * will reuse the same derivations to render any shared patch. Everything here is
  * unit-testable against the regression fixture.
  */
-import type { NS4Program, NS4Layer, Morphable } from './types';
+import type { NS4Program, NS4Layer, Morphable, Ns4OrganFx } from './types';
 import { decodeAllParams } from './coverage';
 import { buildParamMap } from './maps';
+import { organModelSpec, ORGAN_MODELS } from './organ-models';
+import type { DrawbarColor } from './organ-models';
 
 export interface MorphMarkView { wheel?: string; at?: string; pedal?: string }
 
@@ -142,13 +144,97 @@ export function programZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesVie
   };
 }
 
-export interface OrganCardModel {
-  id: string;
-  model: string;
-  drawbars: number[];
-  vibChorus: boolean;
-  perc: boolean;
+export interface DrawbarView {
+  /** Position 0–8, drives the tab height. */
+  level: number;
+  /** Raw position label, e.g. "4", "0", or a VOX combo like "4+5". */
+  label: string;
+  /** Footage label (B3 only), e.g. "16′"; undefined for generic models. */
+  footage?: string;
+  /** Tab color; 'default' = the single Nord-red fill for non-B3 models. */
+  color: DrawbarColor | 'default';
+  /** Morph targets when this drawbar is morph-assigned. */
+  morph?: MorphMarkView;
 }
+
+export interface OrganPanelModel {
+  id: string;
+  /** Decoded model, e.g. "B3" | "VOX". */
+  model: string;
+  /** Canonical selector options to render (highlight the active `model`). */
+  models: readonly string[];
+  isB3: boolean;
+  drawbars: DrawbarView[];
+  /** On state (per-layer) + the model's vib/chorus type (from the global map). */
+  vibChorus: { on: boolean; type?: string };
+  /** Percussion; `applicable` is false for non-B3 → render the group dimmed. */
+  percussion: { applicable: boolean; on: boolean; harm3rd: boolean; decayFast: boolean; volSoft: boolean };
+  /** Decoded preset on/off (not a true I/II selector — that's future RE). */
+  preset: boolean;
+  octave: number;
+  sustain: boolean;
+  /** Shared rotary — present only on the first organ layer. */
+  rotary?: { on: boolean; fast: boolean; drive?: string; stop: boolean };
+  volume: { value: string; fill: number; morph?: MorphMarkView };
+}
+
+/**
+ * Pick the vib/chorus type for a model out of the global organFx map, which the
+ * decoder stores as one string like "B3->C1; VOX->V2; FARF->C3; PIPE->C1".
+ */
+export function vibChorusTypeFor(organFx: Ns4OrganFx | undefined, model: string | undefined): string | undefined {
+  const raw = organFx?.rotary?.vibChorusType;
+  if (!raw || !model) return undefined;
+  for (const part of raw.split(';')) {
+    const [k, v] = part.split('->').map((s) => s.trim());
+    if (k && v && model.toUpperCase().startsWith(k.toUpperCase())) return v;
+  }
+  return undefined;
+}
+
+/**
+ * Full faithful organ-panel view-model. `isFirstOrgan` controls the shared rotary:
+ * it appears only on the first active organ layer, never duplicated.
+ */
+export function organPanel(l: NS4Layer, organFx: Ns4OrganFx | undefined, isFirstOrgan: boolean): OrganPanelModel {
+  const model = l.organModel ?? '—';
+  const spec = organModelSpec(l.organModel);
+  const isB3 = !!spec;
+  const drawbars: DrawbarView[] = (l.drawbars ?? []).map((d, i) => {
+    const label = d?.value ?? '0';
+    const n = parseInt(label, 10);
+    return {
+      level: Number.isNaN(n) ? 0 : Math.max(0, Math.min(8, n)),
+      label,
+      footage: spec?.footages[i],
+      color: spec ? spec.colors[i] : 'default',
+      morph: morphMarks(d),
+    };
+  });
+  const perc = l.percussion ?? {};
+  const r = isFirstOrgan ? organFx?.rotary : undefined;
+  return {
+    id: l.id,
+    model,
+    models: ORGAN_MODELS,
+    isB3,
+    drawbars,
+    vibChorus: { on: !!l.vibChorus, type: vibChorusTypeFor(organFx, l.organModel) },
+    percussion: {
+      applicable: isB3,
+      on: !!perc.on,
+      harm3rd: !!perc.harm3rd,
+      decayFast: !!perc.decayFast,
+      volSoft: !!perc.volSoft,
+    },
+    preset: !!l.organPreset,
+    octave: l.octaveShift ?? 0,
+    sustain: !!l.organSustain,
+    rotary: r ? { on: !!r.on, fast: !!r.fast, drive: r.drive, stop: !!r.stop } : undefined,
+    volume: { value: l.volume?.value ?? '—', fill: volumeFill(l.volume?.value), morph: morphMarks(l.volume) },
+  };
+}
+
 export interface PianoCardModel {
   id: string;
   type: string;
@@ -164,16 +250,6 @@ export interface SynthCardModel {
   filterType: string;
   cutoff: string;
   res: string;
-}
-
-export function organCard(l: NS4Layer): OrganCardModel {
-  return {
-    id: l.id,
-    model: l.organModel ?? '—',
-    drawbars: drawbarLevels(l),
-    vibChorus: !!l.vibChorus,
-    perc: !!l.percussion?.on,
-  };
 }
 
 export function pianoCard(l: NS4Layer): PianoCardModel {
@@ -266,19 +342,6 @@ function stat(label: string, value: string | number | boolean | undefined): Stat
   return { label, value: v };
 }
 const statList = (...items: (Stat | null)[]): Stat[] => items.filter((s): s is Stat => s !== null);
-
-/** Secondary organ params: percussion detail, vibrato/chorus, sustain, octave. */
-export function organStats(l: NS4Layer): Stat[] {
-  const perc = l.percussion?.on
-    ? [l.percussion.harm3rd ? '3rd' : '2nd', l.percussion.decayFast ? 'fast' : 'slow', l.percussion.volSoft ? 'soft' : 'norm'].join(' · ')
-    : undefined;
-  return statList(
-    stat('perc', perc),
-    stat('vib/chorus', l.vibChorus),
-    stat('sustain', l.organSustain),
-    stat('octave', l.octaveShift),
-  );
-}
 
 /** Secondary piano params: string resonance, pedal noise, dynamics, octave, variation. */
 export function pianoStats(l: NS4Layer): Stat[] {
