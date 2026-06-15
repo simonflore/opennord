@@ -1,5 +1,5 @@
 import type { NS4Layer } from '../../lib/ns4/types';
-import { organCard, pianoCard, synthCard, synthStats, organStats, pianoStats, ampEnvCurve, volumeFill } from '../../lib/ns4/view';
+import { organCard, pianoCard, synthCard, synthStats, organStats, pianoStats, ampEnvCurve, volumeFill, morphMarks } from '../../lib/ns4/view';
 import { DrawbarLadder, Knob, Lcd, Meter, StatGrid, EnvCurve } from './widgets';
 import { resolveFactory } from '../../lib/device/factory';
 
@@ -14,7 +14,7 @@ export function EngineCard({ layer }: { layer: NS4Layer }) {
       {layer.kind === 'organ' && <OrganBody layer={layer} />}
       {layer.kind === 'piano' && <PianoBody layer={layer} />}
       {layer.kind === 'synth' && <SynthBody layer={layer} />}
-      <Meter label="vol" value={layer.volume?.value ?? '—'} fill={volumeFill(layer.volume?.value)} />
+      <Meter label="vol" value={layer.volume?.value ?? '—'} fill={volumeFill(layer.volume?.value)} morph={morphMarks(layer.volume)} />
     </div>
   );
 }
@@ -64,8 +64,8 @@ function SynthBody({ layer }: { layer: NS4Layer }) {
       <div className="ps-sub">{c.source} oscillator</div>
       <Lcd primary={c.osc} secondary={secondary} />
       <div className="ps-knobs">
-        <Knob value={c.cutoff} caption="cutoff" />
-        <Knob value={c.res} caption="res" />
+        <Knob value={c.cutoff} caption="cutoff" morph={morphMarks(layer.filter?.freq)} />
+        <Knob value={c.res} caption="res" morph={morphMarks(layer.filter?.resonance)} />
       </div>
       {env && <EnvCurve a={env.a} d={env.d} s={env.s} r={env.r} caption="amp env" />}
       <StatGrid stats={stats} />

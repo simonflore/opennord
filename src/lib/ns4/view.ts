@@ -5,9 +5,18 @@
  * will reuse the same derivations to render any shared patch. Everything here is
  * unit-testable against the regression fixture.
  */
-import type { NS4Program, NS4Layer } from './types';
+import type { NS4Program, NS4Layer, Morphable } from './types';
 import { decodeAllParams } from './coverage';
 import { buildParamMap } from './maps';
+
+export interface MorphMarkView { wheel?: string; at?: string; pedal?: string }
+
+/** Assigned morph targets of a value (wheel / aftertouch / pedal), or undefined
+ *  when nothing is assigned — lets a card flag a control that moves in performance. */
+export function morphMarks(m?: Morphable<string>): MorphMarkView | undefined {
+  if (!m || (!m.wheel && !m.aftertouch && !m.pedal)) return undefined;
+  return { wheel: m.wheel, at: m.aftertouch, pedal: m.pedal };
+}
 
 export interface HeaderView {
   name: string;

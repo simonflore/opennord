@@ -111,3 +111,4 @@
 .ps-player { display: inline-block; margin-left: 6px; font-size: 8px; font-weight: 700; color: var(--dim);
   background: var(--surface-2); border-radius: 3px; padding: 1px 4px; vertical-align: middle; }
 .ps-morph { margin-left: 6px; font-size: 9px; font-weight: 700; color: var(--red-bright); cursor: help; }
+.ps-morphmark { margin-left: 4px; font-size: 9px; font-weight: 400; color: var(--red-bright); cursor: help; }

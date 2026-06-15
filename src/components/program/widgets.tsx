@@ -3,19 +3,33 @@
  * src/styles/nord.css. They render plain values from the view-model — no decoding.
  */
 
+interface Morph { wheel?: string; at?: string; pedal?: string }
+
+/** A small ✎ flag on a value that's morph-assigned; the tooltip names the targets. */
+export function MorphMark({ morph }: { morph: Morph }) {
+  const parts = [
+    morph.wheel && `wheel → ${morph.wheel}`,
+    morph.at && `A.T. → ${morph.at}`,
+    morph.pedal && `pedal → ${morph.pedal}`,
+  ].filter(Boolean);
+  if (parts.length === 0) return null;
+  return <span className="ps-morphmark" title={parts.join('   ·   ')}>✎</span>;
+}
+
 /**
  * A knob dial with a value readout and caption. Pass `fill` (0–100) to draw the
  * red arc at that position; omit it for a neutral dial. v1 knobs are mostly
  * textual (the value lives in the readout), so most callers omit `fill` rather
- * than show an arc that doesn't reflect the real parameter value.
+ * than show an arc that doesn't reflect the real parameter value. Pass `morph`
+ * to flag a value that moves with wheel / aftertouch / pedal.
  */
-export function Knob({ value, caption, fill }: { value: string; caption: string; fill?: number }) {
+export function Knob({ value, caption, fill, morph }: { value: string; caption: string; fill?: number; morph?: Morph }) {
   const hasFill = typeof fill === 'number';
   const v = hasFill ? Math.max(0, Math.min(100, Math.round(fill))) : 0;
   return (
     <div className="ps-knob">
       <div className={hasFill ? 'ps-dial' : 'ps-dial ps-dial-flat'} style={hasFill ? { ['--v' as string]: v } : undefined}><i /></div>
-      <b>{value}</b>
+      <b>{value}{morph && <MorphMark morph={morph} />}</b>
       <span>{caption}</span>
     </div>
   );
@@ -57,11 +71,11 @@ export function Chip({ label, detail }: { label: string; detail: string }) {
 }
 
 /** Horizontal level meter with a label and value readout. `fill` is 0–100. */
-export function Meter({ label, value, fill }: { label: string; value: string; fill: number }) {
+export function Meter({ label, value, fill, morph }: { label: string; value: string; fill: number; morph?: Morph }) {
   const w = Math.max(0, Math.min(100, Math.round(fill)));
   return (
     <div className="ps-meter">
-      <div className="ps-meter-label"><span>{label}</span><span>{value}</span></div>
+      <div className="ps-meter-label"><span>{label}</span><span>{value}{morph && <MorphMark morph={morph} />}</span></div>
       <div className="ps-meter-track"><div className="ps-meter-fill" style={{ width: `${w}%` }} /></div>
     </div>
   );

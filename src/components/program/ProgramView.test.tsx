@@ -77,7 +77,7 @@ describe('ProgramHeader', () => {
   });
 });
 
-import { activeLayers, synthStats, organStats, pianoStats, ampEnvCurve, programZones, fxChips, externViews, scenesDiffer } from '../../lib/ns4/view';
+import { activeLayers, synthStats, organStats, pianoStats, ampEnvCurve, programZones, fxChips, externViews, scenesDiffer, morphMarks } from '../../lib/ns4/view';
 import { EngineCard } from './EngineCard';
 import { ProgramZones } from './ProgramZones';
 import { ProgramExtern } from './ProgramExtern';
@@ -131,6 +131,22 @@ describe('synth view-model enrichment (against the fixture)', () => {
       expect(env.a + env.d + env.r).toBeCloseTo(1, 5);
       expect(env.s).toBeGreaterThan(0);
       expect(env.s).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe('morph marks on cards', () => {
+  it('morphMarks returns assigned targets only (undefined when none)', () => {
+    expect(morphMarks(undefined)).toBeUndefined();
+    expect(morphMarks({ value: '0' })).toBeUndefined();
+    expect(morphMarks({ value: '0', wheel: '5', pedal: '-3 dB' })).toEqual({ wheel: '5', at: undefined, pedal: '-3 dB' });
+  });
+
+  it('flags a morph-assigned control with a ✎ on the card (fixture piano A vol has a pedal morph)', () => {
+    const piano = activeLayers(fixtureProgram()).find((l) => l.kind === 'piano' && l.volume?.pedal);
+    if (piano) {
+      const html = renderToStaticMarkup(<EngineCard layer={piano} />);
+      expect(html).toContain('ps-morphmark');
     }
   });
 });
