@@ -10,6 +10,10 @@ coverage/
 *.tsbuildinfo
 scripts/__pycache__/
 
+# Internal AI-agent planning docs (specs/plans). Kept locally only — not part of
+# the public/open-source tree. Removed from git history on 2026-06-15.
+docs/superpowers/
+
 # Nord Sound Manager app bundle — Nord's proprietary binary, kept locally for
 # interop reverse-engineering only. NEVER commit/redistribute (see docs/LEGAL.md).
 nsm/
