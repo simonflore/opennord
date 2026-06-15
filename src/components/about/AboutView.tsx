@@ -63,8 +63,11 @@ export function AboutView() {
         <Card className="about-sec">
           <div className="about-sec__h">Credits</div>
           <p className="about-sec__p">
-            The Nord Stage 4 file decoding builds on{' '}
-            <strong>ns4decode</strong> by Randy, used under the MIT license.
+            OpenNord’s <code>.ns4p</code> decoding started from{' '}
+            <strong>ns4decode</strong> by Randy (MIT) — since ported, substantially
+            extended to cover more engines and cases, and validated against real
+            hardware. The device USB transfer protocol and the wider file-format
+            support are OpenNord’s own reverse-engineering.
           </p>
         </Card>
       </div>
