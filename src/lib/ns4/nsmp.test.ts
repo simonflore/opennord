@@ -83,9 +83,11 @@ describe.skipIf(!existsSync(realFile))('readNsmp / decodeNsmp — real Strings.n
   it('reads the 8 key-split zones from the map section', () => {
     const zones = readNsmpZones(bytes);
     expect(zones.length).toBe(8);
-    // Strings.nsmp3 is split across the keyboard: descending top keys, one stroke each.
-    expect(zones.map((z) => z.keyHigh)).toEqual([45, 42, 40, 38, 33, 30, 28, 26]);
-    expect(zones.map((z) => z.strokeIndex)).toEqual([3, 4, 2, 1, 7, 8, 6, 5]);
+    // Strings.nsmp3 is split across the keyboard: descending zones, one stroke each.
+    // rootKey@+1, keyHigh(top/split)@+2, globalID@+12 — verified vs the .nsmpproj.
+    expect(zones.map((z) => z.rootKey)).toEqual([45, 42, 40, 38, 33, 30, 28, 26]);
+    expect(zones.map((z) => z.keyHigh)).toEqual([45, 42, 41, 39, 35, 31, 28, 26]);
+    expect(zones.map((z) => z.globalID)).toEqual([3, 4, 2, 1, 7, 8, 6, 5]);
     expect(zones[0].velTop).toBe(8); // first zone is a soft-velocity layer
     expect(zones.slice(1).every((z) => z.velTop === 127)).toBe(true);
   });
@@ -167,9 +169,9 @@ describe.skipIf(!existsSync(ogNsmp))('readNsmp / decodeNsmp — OG .nsmp (legacy
   it('reads 9 key-split zones from the OG map (one per stroke — unblocks the editor)', () => {
     const zones = readNsmpZones(bytes);
     expect(zones.length).toBe(9); // === strokeCount, so the editor gate passes
-    // OG map zone table: descending top keys (split points), stroke indices 13→5.
+    // OG map zone table: descending top keys (split points), stroke global ids 13→5.
     expect(zones.map((z) => z.keyHigh)).toEqual([108, 90, 81, 75, 69, 61, 51, 45, 39]);
-    expect(zones.map((z) => z.strokeIndex)).toEqual([13, 12, 11, 10, 9, 8, 7, 6, 5]);
+    expect(zones.map((z) => z.globalID)).toEqual([13, 12, 11, 10, 9, 8, 7, 6, 5]);
   });
 });
 
@@ -188,8 +190,8 @@ describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
       ...rec(12, 22, 90),
     ]);
     expect(parseLegacyZoneRecords(buf, 0, buf.length, 2)).toEqual([
-      { velTop: 127, keyHigh: 108, rootKey: 19, strokeIndex: 13 },
-      { velTop: 127, keyHigh: 90, rootKey: 22, strokeIndex: 12 },
+      { velTop: 127, keyHigh: 108, keyLow: 19, rootKey: 19, globalID: 13, recordOffset: 16 },
+      { velTop: 127, keyHigh: 90, keyLow: 22, rootKey: 22, globalID: 12, recordOffset: 28 },
     ]);
   });
 
@@ -209,7 +211,36 @@ describe.skipIf(!existsSync(n4))('readNsmpZones — codec-4 split map', () => {
     for (const z of zones) {
       expect(z.keyHigh).toBeGreaterThanOrEqual(0);
       expect(z.keyHigh).toBeLessThanOrEqual(127);
-      expect(z.strokeIndex).toBeGreaterThanOrEqual(1);
+      expect(z.globalID).toBeGreaterThanOrEqual(1);
     }
+    // Each zone must point at a distinct stroke — guards against a misparse that
+    // yields the same globalID for every zone (which `>= 1` alone would pass).
+    expect(new Set(zones.map((z) => z.globalID)).size).toBe(zones.length);
+  });
+});
+
+// Exact codec-4 zone values, byte-for-byte against the .nsmpproj ground truth.
+const other4 = join(process.cwd(), 'research/nsmp/Other.nsmp4');
+describe.skipIf(!existsSync(other4))('readNsmpZones — codec-4 Other.nsmp4 (ground truth)', () => {
+  const bytes = existsSync(other4) ? new Uint8Array(readFileSync(other4)) : new Uint8Array();
+
+  it('reads root / split (top) / bottom / velocity / globalID exactly', () => {
+    const zones = readNsmpZones(bytes);
+    expect(zones.length).toBe(4);
+    expect(zones.map((z) => z.rootKey)).toEqual([100, 91, 66, 65]);
+    expect(zones.map((z) => z.keyHigh)).toEqual([108, 95, 83, 65]); // split points (topNote)
+    expect(zones.map((z) => z.keyLow)).toEqual([96, 84, 66, 17]);
+    expect(zones.map((z) => z.velTop)).toEqual([127, 127, 127, 127]);
+    expect(zones.map((z) => z.globalID)).toEqual([22, 5, 7, 6]);
+  });
+
+  it('links each zone to a stroke by globalID (not position)', () => {
+    const zones = readNsmpZones(bytes);
+    const decoded = decodeNsmp(bytes);
+    const byGid = new Map(decoded.map((s) => [s.globalID, s.index]));
+    // globalIDs 22,5,7,6 map to stroke sections 0,3,1,2 — a non-positional order.
+    expect(zones.map((z) => byGid.get(z.globalID))).toEqual([0, 3, 1, 2]);
+    // every zone resolves to a real decoded stroke
+    expect(zones.every((z) => byGid.has(z.globalID))).toBe(true);
   });
 });

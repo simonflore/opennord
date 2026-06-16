@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
-import { buildEditedNsmp, type EditModel } from '../../lib/ns4/sample-edit';
+import { patchEditedNsmp, type EditModel } from '../../lib/ns4/sample-edit';
 import { noteName } from '../../lib/ns4/sample-view';
 import { downloadBytes } from '../../lib/download';
 import { Button } from '../ui';
 import { KeyboardZoneMap } from './KeyboardZoneMap';
 
 /** Keyboard-map editor: drag the splits on the keybed, or edit any field of any
- *  zone in the synced table below; rename and rebuild + download a new .nsmp. */
-export function SampleEditPanel({ initial, decoded, codec }: {
+ *  zone in the synced table below; rename, then patch + download a new .nsmp.
+ *  Edits are written back into the original file in place — audio and everything
+ *  we don't model are preserved exactly. */
+export function SampleEditPanel({ initial, bytes, codec }: {
   initial: EditModel;
-  decoded: DecodedStrokeResult[];
+  bytes: Uint8Array;
   codec: 3 | 4;
 }) {
   const [name, setName] = useState(initial.name);
@@ -25,8 +26,8 @@ export function SampleEditPanel({ initial, decoded, codec }: {
   function download() {
     setError('');
     try {
-      const bytes = buildEditedNsmp({ name, zones }, decoded, codec);
-      downloadBytes(bytes, `${name.trim() || 'sample'}.nsmp${codec}`);
+      const out = patchEditedNsmp(bytes, { name, zones });
+      downloadBytes(out, `${name.trim() || 'sample'}.nsmp${codec}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -71,7 +72,7 @@ export function SampleEditPanel({ initial, decoded, codec }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <Button variant="primary" onClick={download}>Download edited .nsmp{codec}</Button>
         <span className="ps-sub" style={{ margin: 0 }}>
-          Edits root / split / velocity; level, tune and loops reset on rebuild. Back up first.
+          Edits root / split / velocity and name; audio and all other settings are preserved. Back up first.
         </span>
       </div>
       {error && <p className="ps-sub on-error">{error}</p>}

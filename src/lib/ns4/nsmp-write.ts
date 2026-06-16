@@ -78,16 +78,24 @@ export interface WriteNsmpMultiOptions extends EncodeOptions {
   codec?: 3 | 4;
 }
 
-/** Build the 16-byte `map` zone entry (splits/layers table). */
-function zoneEntry(z: WriteZone, strokeIndex1Based: number): Uint8Array {
+/**
+ * Build the 16-byte `map` zone entry (splits/layers table). Real layout, verified
+ * against `.nsmpproj` ground truth (see {@link NsmpZone}):
+ *   +0 velTop | +1 rootKey | +2 keyHigh(top/split) | +3 keyLow(btm) |
+ *   +4 u32=1 | +8 u32=1 | +12 globalID | +13 `00 01 00`.
+ * We write single-key zones (keyLow = rootKey); `globalID` matches the stroke's
+ * own id at `stk` header +3.
+ */
+function zoneEntry(z: WriteZone, globalID: number): Uint8Array {
   const e = new Uint8Array(16);
   e[0] = z.velTop ?? 127; // top velocity (layer)
-  e[1] = z.keyHigh & 0x7f; // top key (split)
-  e[2] = z.keyHigh & 0x7f;
-  e[3] = z.rootKey & 0x7f;
-  e[8] = 1; // u32 = 1 (count/flag)
-  e[12] = strokeIndex1Based & 0xff;
-  e[14] = 1;
+  e[1] = z.rootKey & 0x7f; // root key (pitched note)
+  e[2] = z.keyHigh & 0x7f; // top key (split)
+  e[3] = z.rootKey & 0x7f; // bottom key — default to root
+  e[4] = 1; // u32 flag = 1
+  e[8] = 1; // u32 = 1
+  e[12] = globalID & 0xff; // stroke global id
+  e[14] = 1; // trailer 00 01 00
   return e;
 }
 
@@ -160,8 +168,9 @@ function assembleNsmp(
   // One `stk` per stroke: a templated header then the encoded block stream. Byte 8
   // of the stroke header is the channel count (`CSectionStroke::Read` → `SSmpAttributes`
   // → `CSmpStream::GetChannelCnt`), so our reader recovers it without guessing.
-  const stks = strokes.map((channels) => {
+  const stks = strokes.map((channels, i) => {
     const header = new Uint8Array(STROKE_HEADER_SIZE);
+    header[3] = (i + 1) & 0xff; // global id — matches each zone's globalID (map +12)
     header[8] = channels.length; // 1 = mono, 2 = stereo
     return section('\0stk', v.stk, concat([header, encodeStroke(channels, { blockSize, wordInterleaved })]));
   });

@@ -13,7 +13,7 @@ export function ZoneMap({ rows }: { rows: ZoneRow[] }) {
         <tbody>
           {rows.map((r, i) => (
             <tr key={i}>
-              <td>{r.strokeIndex}</td><td>{r.rootNote}</td><td>{r.topNote}</td><td>{r.velTop}</td>
+              <td>{r.globalID}</td><td>{r.rootNote}</td><td>{r.topNote}</td><td>{r.velTop}</td>
             </tr>
           ))}
         </tbody>

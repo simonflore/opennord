@@ -21,8 +21,8 @@ describe('SampleHeader', () => {
 describe('ZoneMap', () => {
   it('renders a row per zone with note names', () => {
     const rows: ZoneRow[] = [
-      { strokeIndex: 0, rootNote: 'C4', topNote: 'B4', velTop: 127 },
-      { strokeIndex: 1, rootNote: 'C5', topNote: 'B5', velTop: 127 },
+      { globalID: 1, rootNote: 'C4', topNote: 'B4', velTop: 127 },
+      { globalID: 2, rootNote: 'C5', topNote: 'B5', velTop: 127 },
     ];
     const html = renderToStaticMarkup(<ZoneMap rows={rows} />);
     expect(html).toContain('C4');
@@ -47,22 +47,17 @@ describe('SampleInspector', () => {
 
 import { SampleEditPanel } from './SampleEditPanel';
 import type { EditModel } from '../../lib/ns4/sample-edit';
-import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
 
 describe('SampleEditPanel', () => {
   it('renders the keyboard map editor: name, the selected sample, and a band per zone', () => {
     const model: EditModel = {
       name: 'My Strings',
       zones: [
-        { rootKey: 48, keyHigh: 60, velTop: 127 },
-        { rootKey: 72, keyHigh: 96, velTop: 127 },
+        { rootKey: 48, keyHigh: 60, velTop: 127, recordOffset: 100 },
+        { rootKey: 72, keyHigh: 96, velTop: 127, recordOffset: 116 },
       ],
     };
-    const decoded: DecodedStrokeResult[] = [
-      { index: 0, channelCount: 1, endOffset: 0, channels: [new Int32Array([0, 1])] },
-      { index: 1, channelCount: 1, endOffset: 0, channels: [new Int32Array([0, 1])] },
-    ];
-    const html = renderToStaticMarkup(<SampleEditPanel initial={model} decoded={decoded} codec={3} />);
+    const html = renderToStaticMarkup(<SampleEditPanel initial={model} bytes={new Uint8Array(0)} codec={3} />);
     expect(html).toContain('My Strings');               // editable name
     expect(html).toContain('Download edited .nsmp3');
     expect(html).toContain('ps-kbd');                   // the keyboard map

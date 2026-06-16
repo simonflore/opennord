@@ -46,7 +46,8 @@ export function convertNsmp(bytes: Uint8Array, targetCodec: 3 | 4): ConvertResul
   }
 
   const writeZones: WriteZone[] = strokes.map((s, i) => {
-    const z = zones.find((z) => z.strokeIndex === i + 1) ?? zones[i];
+    // Zones reference strokes by global id (not position); fall back to index order.
+    const z = zones.find((z) => z.globalID === s.globalID) ?? zones[i];
     return {
       channels: s.channels,
       keyHigh: z?.keyHigh ?? 127,

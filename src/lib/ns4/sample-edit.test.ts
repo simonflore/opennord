@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { writeNsmpMulti } from './nsmp-write';
 import { readNsmp, decodeNsmp, readNsmpZones } from './nsmp';
-import { editModel, buildEditedNsmp } from './sample-edit';
+import { editModel, buildEditedNsmp, patchEditedNsmp } from './sample-edit';
 
 /**
  * A deterministic 2-zone source .nsmp (no gitignored fixture needed). Audio is
@@ -58,5 +60,53 @@ describe('buildEditedNsmp', () => {
     const model = editModel(readNsmp(src), readNsmpZones(src));
     model.zones.push({ rootKey: 60, keyHigh: 100, velTop: 127 }); // extra zone, no stroke
     expect(() => buildEditedNsmp(model, decoded, 3)).toThrow();
+  });
+});
+
+describe('patchEditedNsmp', () => {
+  it('patches zone fields + name in place, preserving size, audio and checksum', () => {
+    const src = srcNsmp();
+    const before = decodeNsmp(src);
+    const model = editModel(readNsmp(src), readNsmpZones(src));
+    model.name = 'Edited';
+    model.zones[0].rootKey = 36;
+    model.zones[0].keyHigh = 58;
+    model.zones[0].velTop = 100;
+
+    const out = patchEditedNsmp(src, model);
+
+    expect(out.length).toBe(src.length);           // in-place: same file size
+    expect(readNsmp(out).checksumValid).toBe(true); // re-checksummed
+    expect(readNsmp(out).name).toBe('Edited');
+    const z = readNsmpZones(out);
+    expect(z[0]).toMatchObject({ rootKey: 36, keyHigh: 58, velTop: 100 });
+    expect(z[1]).toMatchObject({ rootKey: 72, keyHigh: 96, velTop: 127 }); // untouched
+    // audio is byte-identical — patching never moves a sample
+    const after = decodeNsmp(out);
+    expect([...after[0].channels[0]]).toEqual([...before[0].channels[0]]);
+    expect([...after[1].channels[0]]).toEqual([...before[1].channels[0]]);
+  });
+
+  // Real codec-4 multisample: edit one zone, prove everything else stays byte-exact.
+  const other4 = join(process.cwd(), 'research/nsmp/Other.nsmp4');
+  it.skipIf(!existsSync(other4))('edits a real .nsmp4 zone, preserving every other byte', () => {
+    const src = new Uint8Array(readFileSync(other4));
+    const model = editModel(readNsmp(src), readNsmpZones(src));
+    const e0 = model.zones[0].recordOffset!;
+    model.zones[0].rootKey = 101; // was 100
+
+    const out = patchEditedNsmp(src, model);
+
+    expect(out.length).toBe(src.length);
+    expect(readNsmp(out).checksumValid).toBe(true);
+    expect(readNsmpZones(out)[0].rootKey).toBe(101);
+    expect(readNsmpZones(out).slice(1)).toEqual(readNsmpZones(src).slice(1)); // other zones intact
+    // exactly two bytes differ: the rootKey (codec-4 root@+0) and… the rest is the
+    // CRC. Collect the changed offsets and assert they're only those.
+    const changed: number[] = [];
+    for (let i = 0; i < src.length; i++) if (src[i] !== out[i]) changed.push(i);
+    expect(changed).toContain(e0 + 0); // rootKey byte (ZONE_LAYOUT_C4.rootKey === 0)
+    // CRC lives at 0x18..0x1b; every other changed byte must be in that range.
+    expect(changed.every((i) => i === e0 || (i >= 0x18 && i <= 0x1b))).toBe(true);
   });
 });

@@ -54,26 +54,26 @@ describe('sampleHeaderView', () => {
 describe('strokeSummary', () => {
   it('summarizes a decoded stroke', () => {
     const d: DecodedStrokeResult = {
-      index: 2, channelCount: 2, endOffset: 0,
+      index: 2, channelCount: 2, endOffset: 0, globalID: 3,
       channels: [new Int32Array([0, 100, -200, 50]), new Int32Array([0, 0, 0, 0])],
     };
     expect(strokeSummary(d)).toEqual({ index: 2, sampleCount: 4, channels: 2, peak: 200, ok: true });
   });
 
   it('marks an empty stroke not-ok', () => {
-    const d: DecodedStrokeResult = { index: 0, channelCount: 1, endOffset: 0, channels: [new Int32Array(0)] };
+    const d: DecodedStrokeResult = { index: 0, channelCount: 1, endOffset: 0, globalID: 1, channels: [new Int32Array(0)] };
     expect(strokeSummary(d).ok).toBe(false);
   });
 });
 
 const real = join(process.cwd(), 'research/nsmp/Strings.nsmp3');
 describe.skipIf(!existsSync(real))('zoneMapRows — real Strings.nsmp3', () => {
-  it('maps each zone to note names + stroke index', () => {
+  it('maps each zone to note names + stroke global id', () => {
     const bytes = new Uint8Array(readFileSync(real));
     const rows = zoneMapRows(bytes);
     expect(rows.length).toBeGreaterThan(0);
     for (const r of rows) {
-      expect(typeof r.strokeIndex).toBe('number');
+      expect(typeof r.globalID).toBe('number');
       expect(r.rootNote).toMatch(/^[A-G]#?-?\d+$/);
       expect(r.topNote).toMatch(/^[A-G]#?-?\d+$/);
     }

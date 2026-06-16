@@ -161,6 +161,41 @@ This proves the codec is reproducible **and correct**. The `map` section, FYI,
 turned out to be per-zone **level/detune** attributes (keyboard mapping), not a
 block directory (corrects an earlier guess).
 
+### `map` zone table — verified layout (codec 3 & 4)
+
+Reverse-engineered byte-for-byte against the **Nord Sample Editor `.nsmpproj`**
+project files (the human-readable ground truth: `m_rootKey`, `m_topNote`,
+`m_btmNote`, `m_globalID`) and cross-checked against each stroke's `stk` header.
+Validated on `Other.nsmp4` (4 zones) and the matched `Strings.nsmp3`/`.nsmp4`
+pair (8 / 9 zones). Implemented in `readNsmpZones` / `parseCodec4ZoneRecords`.
+
+The `map` payload is `[global level/detune][per-note level/detune block][zone
+table]`. The per-note block differs by generation — **codec 3: 128 × 6-byte**
+unity rows (`10 00 00 00 00 00`); **codec 4: 128 × 10-byte** rows (the 6-byte
+unity + a 4-byte incrementing note tag `00 00 00 00`, `01 01 01 01`, … `7f`×4).
+That widening is exactly why the codec-3 6-byte skip mis-parses a `.nsmp4`.
+
+Each zone is a **16-byte record**. The two generations frame it one byte apart:
+
+| field | codec-3 offset | codec-4 offset | meaning |
+|---|---|---|---|
+| `velTop`   | +0  | +15 | top velocity of the layer (1–127) |
+| `rootKey`  | +1  | +0  | key the sample is pitched for |
+| `keyHigh`  | +2  | +1  | **split point** — zone's top key |
+| `keyLow`   | +3  | +2  | zone's bottom key |
+| `globalID` | +12 | +11 | stroke this zone plays — matches **`stk` header +3** |
+| trailer    | `00 01 00` @+13 | `00 01 00` @+12 | constant |
+
+Zones reference strokes by **`globalID`, not position** — e.g. `Other.nsmp4`'s
+zones (globalIDs 22, 5, 7, 6) map to stroke sections 0, 3, 1, 2. The codec-4
+table is located at a fixed offset (`6 + 128*10 + 32`); a 32-byte header precedes
+the records and its last byte is the zone count, self-checked by
+`recStart + count*16 + 6 == mapEnd`. **OG/legacy** uses a different 12-byte record
+(`parseLegacyZoneRecords`).
+
+Editing patches these fields back **in place** (`patchEditedNsmp`) and
+re-checksums — audio and every byte we don't model are preserved exactly.
+
 ### Status: codec 3 AND codec 4 fully decode
 
 > **Codec 4 is SOLVED** — see "Codec-4 — SOLVED (per-channel word-interleaving)"

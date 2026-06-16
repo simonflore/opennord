@@ -47,7 +47,8 @@ export function sampleHeaderView(file: NsmpFile, sizeBytes: number, fallbackName
 }
 
 export interface ZoneRow {
-  strokeIndex: number;
+  /** The stroke this zone plays, by global id. */
+  globalID: number;
   /** Root key as a note name. */
   rootNote: string;
   /** Zone top key as a note name. */
@@ -59,7 +60,7 @@ export interface ZoneRow {
 /** The zone/key map as display rows. Reads the `map` section via readNsmpZones. */
 export function zoneMapRows(bytes: Uint8Array): ZoneRow[] {
   return readNsmpZones(bytes).map((z) => ({
-    strokeIndex: z.strokeIndex,
+    globalID: z.globalID,
     rootNote: noteName(z.rootKey),
     topNote: noteName(z.keyHigh),
     velTop: z.velTop,

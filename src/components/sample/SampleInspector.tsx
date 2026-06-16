@@ -80,20 +80,20 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
         <div className="ps">
           <SampleHeader view={sampleHeaderView(loaded.file, loaded.bytes.length, loaded.name)} />
 
-          {/* Keyboard-map editor leads when every zone has decoded audio (positional
-              pairing needs one stroke per zone); otherwise a friendly note + the
-              read-only key map. */}
-          {loaded.decodable && loaded.zones.length > 0 && loaded.decoded.length === loaded.zones.length
+          {/* Keyboard-map editor leads once we've decoded the key map; edits patch
+              back into the file in place (audio preserved). Otherwise a friendly
+              note + the read-only key map. */}
+          {(loaded.file.codec === 3 || loaded.file.codec === 4) && loaded.zones.length > 0
             ? <SampleEditPanel
                 key={loaded.loadId}
                 initial={editModel(loaded.file, loaded.zones)}
-                decoded={loaded.decoded}
+                bytes={loaded.bytes}
                 codec={loaded.file.codec === 4 ? 4 : 3}
               />
             : (
               <div className="ps-card" style={{ marginTop: 12 }}>
                 <p className="ps-sub" style={{ margin: 0 }}>
-                  Editing isn't available for this sample — its key map doesn't line up with its audio
+                  Editing isn't available yet — we couldn't read this sample's key map
                   {loaded.file.legacy ? '. Convert it to .nsmp3 / .nsmp4 below, then edit the result' : ''}.
                 </p>
               </div>
@@ -103,7 +103,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
           <StrokeList strokes={loaded.strokes} playable={loaded.decodable} />
 
           {/* Raw key/velocity table — only when we couldn't build the editor. */}
-          {!(loaded.decodable && loaded.zones.length > 0 && loaded.decoded.length === loaded.zones.length)
+          {!((loaded.file.codec === 3 || loaded.file.codec === 4) && loaded.zones.length > 0)
             && <ZoneMap rows={zoneMapRows(loaded.bytes)} />}
         </div>
       )}

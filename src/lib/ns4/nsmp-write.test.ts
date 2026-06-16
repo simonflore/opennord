@@ -47,7 +47,7 @@ describe('writeNsmp → readNsmp/decodeNsmp round-trip', () => {
     const zones = readNsmpZones(bytes);
     expect(zones.map((z) => z.keyHigh)).toEqual([47, 71, 127]);
     expect(zones.map((z) => z.rootKey)).toEqual([43, 60, 84]);
-    expect(zones.map((z) => z.strokeIndex)).toEqual([1, 2, 3]);
+    expect(zones.map((z) => z.globalID)).toEqual([1, 2, 3]);
     expect(zones[2].velTop).toBe(64);
 
     const strokes = decodeNsmp(bytes);
