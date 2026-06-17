@@ -70,18 +70,28 @@ describe('writeNsmp → readNsmp/decodeNsmp round-trip', () => {
     expect(Array.from(strokes[0].channels[1])).toEqual(Array.from(R));
   });
 
-  it('writes a codec-4 multisample (splits/layers) that round-trips', () => {
+  it('writes a codec-4 multisample (splits/layers) that round-trips audio AND zones', () => {
     const z0 = Int32Array.from({ length: 1600 }, (_, i) => Math.round(900 * Math.sin(i / 6)));
     const z1 = Int32Array.from({ length: 1400 }, (_, i) => Math.round(700 * Math.cos(i / 9)));
     const bytes = writeNsmpMulti({
       name: 'M4',
       codec: 4,
       zones: [
-        { channels: [z0], keyHigh: 59, rootKey: 48 },
-        { channels: [z1], keyHigh: 127, rootKey: 72 },
+        { channels: [z0], keyHigh: 59, rootKey: 48, velTop: 100 },
+        { channels: [z1], keyHigh: 127, rootKey: 72, velTop: 64 },
       ],
     });
     expect(readNsmp(bytes).codec).toBe(4);
+
+    // The codec-4 `map` must be written in the codec-4 layout (10-byte per-note rows
+    // + 32-byte header + root-aligned records), not the codec-3 shape — else the
+    // version-21 reader can't find the zones and `.nsmp4` conversion loses its splits.
+    const zones = readNsmpZones(bytes);
+    expect(zones.map((z) => z.keyHigh)).toEqual([59, 127]);
+    expect(zones.map((z) => z.rootKey)).toEqual([48, 72]);
+    expect(zones.map((z) => z.velTop)).toEqual([100, 64]);
+    expect(zones.map((z) => z.globalID)).toEqual([1, 2]);
+
     const strokes = decodeNsmp(bytes);
     expect(strokes.length).toBe(2);
     expect(Array.from(strokes[0].channels[0])).toEqual(Array.from(z0));

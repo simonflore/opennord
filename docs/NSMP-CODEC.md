@@ -196,6 +196,16 @@ the records and its last byte is the zone count, self-checked by
 Editing patches these fields back **in place** (`patchEditedNsmp`) and
 re-checksums — audio and every byte we don't model are preserved exactly.
 
+The **writer** (`nsmp-write.ts`) emits this exact layout per generation:
+codec-3 `map` = `[6B global][128 × 6B unity][N × 16B C3 records]`; codec-4 `map` =
+`[6B global][128 × 10B per-note (unity + 4B note tag)][32B header, last byte =
+count][N × 16B C4 records][6B trailer 00 00 00 01 00 00]`. Earlier the codec-4
+writer mistakenly emitted the codec-3 `map` shape under a version-21 tag, so
+`readNsmpZones` read back **zero zones** — which silently dropped splits/layers on
+`.nsmp4` output and made conversion path-dependent (`2→3→4` ≠ `2→4` by a few
+bytes). Fixed: the target generation is now a pure function of audio + zones, so
+`3→4` equals `3→4→3→4` byte-for-byte (`nsmp-convert.test.ts`).
+
 ### Status: codec 3 AND codec 4 fully decode
 
 > **Codec 4 is SOLVED** — see "Codec-4 — SOLVED (per-channel word-interleaving)"
