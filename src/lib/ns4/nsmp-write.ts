@@ -78,15 +78,17 @@ export interface WriteNsmpMultiOptions extends EncodeOptions {
   codec?: 3 | 4;
 }
 
+const UNITY = [0x10, 0, 0, 0, 0, 0]; // per-note level 0x100000, detune 0
+
 /**
- * Build the 16-byte `map` zone entry (splits/layers table). Real layout, verified
- * against `.nsmpproj` ground truth (see {@link NsmpZone}):
+ * Codec-3 16-byte `map` zone entry (splits/layers table). Real layout, verified
+ * against `.nsmpproj` ground truth (see {@link NsmpZone} / `ZONE_LAYOUT_C3`):
  *   +0 velTop | +1 rootKey | +2 keyHigh(top/split) | +3 keyLow(btm) |
  *   +4 u32=1 | +8 u32=1 | +12 globalID | +13 `00 01 00`.
  * We write single-key zones (keyLow = rootKey); `globalID` matches the stroke's
  * own id at `stk` header +3.
  */
-function zoneEntry(z: WriteZone, globalID: number): Uint8Array {
+function zoneEntryC3(z: WriteZone, globalID: number): Uint8Array {
   const e = new Uint8Array(16);
   e[0] = z.velTop ?? 127; // top velocity (layer)
   e[1] = z.rootKey & 0x7f; // root key (pitched note)
@@ -99,13 +101,62 @@ function zoneEntry(z: WriteZone, globalID: number): Uint8Array {
   return e;
 }
 
-/** Build the `map` payload: global + 128 unity per-note level/detune + zones. */
-function buildMapPayload(zones: WriteZone[]): Uint8Array {
-  const unity = () => Uint8Array.from([0x10, 0, 0, 0, 0, 0]); // level 0x100000, detune 0
-  const parts: Uint8Array[] = [unity()]; // global
-  for (let i = 0; i < 128; i++) parts.push(unity()); // per-note
-  zones.forEach((z, i) => parts.push(zoneEntry(z, i + 1)));
+/**
+ * Codec-4 16-byte `map` zone entry. The codec-4 record is the codec-3 one with
+ * `velTop` rotated from the front (+0) to the tail (+15), shifting the rest down a
+ * byte (verified vs `ZONE_LAYOUT_C4` / real `.nsmp4`):
+ *   +0 rootKey | +1 keyHigh(top/split) | +2 keyLow(btm) | +3 u32=1 | +7 u32=1 |
+ *   +11 globalID | +12 `00 01 00` | +15 velTop.
+ */
+function zoneEntryC4(z: WriteZone, globalID: number): Uint8Array {
+  const e = new Uint8Array(16);
+  e[0] = z.rootKey & 0x7f; // root key (pitched note)
+  e[1] = z.keyHigh & 0x7f; // top key (split)
+  e[2] = z.rootKey & 0x7f; // bottom key — default to root
+  e[3] = 1; // u32 flag = 1
+  e[7] = 1; // u32 = 1
+  e[11] = globalID & 0xff; // stroke global id
+  e[13] = 1; // trailer 00 01 00 @+12
+  e[15] = z.velTop ?? 127; // top velocity (layer)
+  return e;
+}
+
+/**
+ * Codec-3 `map` payload: `[6B global][128 × 6B per-note unity][N × 16B C3 zone
+ * records]`. (Codec-3 `map`, section version 14 — `readNsmpZones` codec-3 path.)
+ */
+function buildMapPayloadC3(zones: WriteZone[]): Uint8Array {
+  const parts: Uint8Array[] = [Uint8Array.from(UNITY)]; // global
+  for (let i = 0; i < 128; i++) parts.push(Uint8Array.from(UNITY)); // per-note
+  zones.forEach((z, i) => parts.push(zoneEntryC3(z, i + 1)));
   return concat(parts);
+}
+
+/**
+ * Codec-4 `map` payload, matching the verified codec-4 layout that
+ * {@link parseCodec4ZoneRecords} reads (`docs/NSMP-CODEC.md`):
+ *   `[6B global][128 × 10B per-note: 6B unity + 4B incrementing note tag]`
+ *   `[32B zone-table header, last byte = zone count][N × 16B C4 zone records]`
+ *   `[6B trailer 00 00 00 01 00 00]`.
+ * Records begin at payload offset `6 + 128*10 + 32 = 1318`; the reader self-checks
+ * `recStart + count*16 + 6 == sectionEnd`, which this layout satisfies exactly.
+ * (The codec-3 form mis-tagged version 21 read back as zero zones — the bug that
+ * made `.nsmp4` conversion lose its splits/layers and become path-dependent.)
+ */
+function buildMapPayloadC4(zones: WriteZone[]): Uint8Array {
+  const parts: Uint8Array[] = [Uint8Array.from(UNITY)]; // global
+  for (let n = 0; n < 128; n++) parts.push(Uint8Array.from([...UNITY, n, n, n, n])); // per-note + note tag
+  const header = new Uint8Array(32); // zone-table header — only its last byte (count) is read
+  header[31] = zones.length & 0xff;
+  parts.push(header);
+  zones.forEach((z, i) => parts.push(zoneEntryC4(z, i + 1)));
+  parts.push(Uint8Array.from([0x00, 0x00, 0x00, 0x01, 0x00, 0x00])); // trailer
+  return concat(parts);
+}
+
+/** Build the `map` payload in the target generation's verified layout. */
+function buildMapPayload(zones: WriteZone[], codec: 3 | 4): Uint8Array {
+  return codec === 4 ? buildMapPayloadC4(zones) : buildMapPayloadC3(zones);
 }
 
 /**
@@ -115,7 +166,8 @@ function buildMapPayload(zones: WriteZone[]): Uint8Array {
  */
 export function writeNsmpMulti(opts: WriteNsmpMultiOptions): Uint8Array {
   const { name, zones } = opts;
-  return assembleNsmp(name, zones.map((z) => z.channels), buildMapPayload(zones), opts.blockSize, opts.codec ?? 3);
+  const codec = opts.codec ?? 3;
+  return assembleNsmp(name, zones.map((z) => z.channels), buildMapPayload(zones, codec), opts.blockSize, codec);
 }
 
 /**
@@ -124,9 +176,10 @@ export function writeNsmpMulti(opts: WriteNsmpMultiOptions): Uint8Array {
  */
 export function writeNsmp(opts: WriteNsmpOptions): Uint8Array {
   const { name, channels } = opts;
+  const codec = opts.codec ?? 3;
   // single zone across the keyboard, root key C4 (60)
-  const mapPayload = buildMapPayload([{ channels, keyHigh: 127, rootKey: 60 }]);
-  return assembleNsmp(name, [channels], mapPayload, opts.blockSize, opts.codec ?? 3);
+  const mapPayload = buildMapPayload([{ channels, keyHigh: 127, rootKey: 60 }], codec);
+  return assembleNsmp(name, [channels], mapPayload, opts.blockSize, codec);
 }
 
 /** Assemble the CBIN envelope + sections (one `stk` per stroke) + CRC. */

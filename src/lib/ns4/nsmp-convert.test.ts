@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { convertNsmp } from './nsmp-convert';
 import { writeNsmpMulti } from './nsmp-write';
-import { readNsmp, decodeNsmp } from './nsmp';
+import { readNsmp, decodeNsmp, readNsmpZones } from './nsmp';
 
 const eqAudio = (a: ReturnType<typeof decodeNsmp>, b: ReturnType<typeof decodeNsmp>) => {
   expect(a.length).toBe(b.length);
@@ -34,6 +34,27 @@ describe('convertNsmp — audio preserved across generations (synthetic)', () =>
     const back = convertNsmp(convertNsmp(src3, 4).bytes, 3).bytes;
     expect(readNsmp(back).codec).toBe(3);
     eqAudio(decodeNsmp(back), decodeNsmp(src3));
+  });
+
+  it('carries the zone map (splits/layers) across generations, both directions', () => {
+    // Direct → and the codec-4 round-trip must agree on zones; before the codec-4
+    // `map` fix the .nsmp4 intermediate read back as zero zones, silently dropping
+    // the splits/layers.
+    const z4 = readNsmpZones(convertNsmp(src3, 4).bytes);
+    expect(z4.map((z) => z.keyHigh)).toEqual([59, 127]);
+    expect(z4.map((z) => z.rootKey)).toEqual([48, 72]);
+    const z3 = readNsmpZones(convertNsmp(convertNsmp(src3, 4).bytes, 3).bytes);
+    expect(z3.map((z) => z.keyHigh)).toEqual([59, 127]);
+    expect(z3.map((z) => z.rootKey)).toEqual([48, 72]);
+  });
+
+  it('conversion is path-independent: 3→4 equals 3→4→3→4 byte-for-byte', () => {
+    // The user-reported asymmetry: a codec-4 intermediate that loses its zones makes
+    // 3→4 and 3→4→3→4 (or 2→4 vs 2→3→4) differ by a few bytes. A faithful zone map
+    // makes the target generation a pure function of the audio + zones.
+    const direct4 = convertNsmp(src3, 4).bytes;
+    const viaRoundTrip = convertNsmp(convertNsmp(convertNsmp(src3, 4).bytes, 3).bytes, 4).bytes;
+    expect(Array.from(viaRoundTrip)).toEqual(Array.from(direct4));
   });
 
   it('preserves stereo channel count, incl. a near-silent stroke (header channel field)', () => {
