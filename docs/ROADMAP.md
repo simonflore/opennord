@@ -2,6 +2,11 @@
 
 Two phases. Both are now **unblocked**: the file format is decoded/validated and the device USB transfer protocol is fully reverse-engineered and hardware-validated. What's left in each is product engineering, not reverse engineering.
 
+> **Adjacent scope (proposal):** reading *other Nord instruments'* program files
+> (Stage 2/3 family) is a bounded, hardware-free expansion built on the shared
+> CBIN container. Device transfer for those models is explicitly out of scope.
+> See `docs/MULTI-MODEL.md`.
+
 ## Phase 1 — Read & share (no hardware needed)
 
 Everything here uses the file format, which is decoded and validated against ns4decode.
