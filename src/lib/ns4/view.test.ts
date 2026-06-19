@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseNs4Program } from './parse';
 import { programNameFromFilename } from './name';
-import { activeLayers, headerView, drawbarLevels, volumeFill, organPanel, pianoCard, synthCard, fxChips, sampleRefViews } from './view';
+import { activeLayers, headerView, drawbarLevels, volumeFill, organPanel, pianoCard, synthCard, fxChips, sampleRefViews, morphSummary } from './view';
 
 const fixtureBytes = new Uint8Array(
   readFileSync(fileURLToPath(new URL('./__fixtures__/regressionTest.ns4p', import.meta.url))),
@@ -139,5 +139,24 @@ describe('sampleRefViews', () => {
     expect(refs[0].name).toBe('Flute Multi_ST 4.1');
     expect(typeof refs[0].id).toBe('number');
     expect(typeof refs[0].categoryName).toBe('string');
+  });
+});
+
+describe('morphSummary', () => {
+  const rows = morphSummary(fixture());
+
+  it('lists every morph-assigned parameter (the fixture has organ-FX morphs)', () => {
+    expect(rows.length).toBeGreaterThan(0);
+    // every row carries at least one source → target assignment
+    for (const r of rows) {
+      expect(typeof r.name).toBe('string');
+      expect(typeof r.section).toBe('string');
+      expect(!!(r.wheel || r.at || r.pedal)).toBe(true);
+    }
+  });
+
+  it('maps the param group to a human section label', () => {
+    // fixture morphs are all global organ-FX params (group "m" → "Global")
+    expect(rows.every((r) => ['Organ', 'Piano', 'Synth', 'Global'].includes(r.section))).toBe(true);
   });
 });

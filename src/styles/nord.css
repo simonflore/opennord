@@ -84,7 +84,10 @@
 .ps-zones { margin: 0 0 14px; }
 .ps-zones-hd { display: flex; align-items: baseline; gap: 12px; margin-bottom: 7px; }
 .ps-zones-t { font-size: 9px; letter-spacing: 1.5px; font-weight: 700; color: var(--red-bright); }
-.ps-zones-tr { font-size: 10px; color: var(--dim); font-family: var(--mono); }
+/* Transpose reads as an accent pill so a transposed program is obvious at a glance. */
+.ps-zones-tr { font: 700 9px var(--font); letter-spacing: .3px; text-transform: uppercase;
+  color: var(--red-bright); background: var(--surface-2); border: 1px solid var(--red);
+  border-radius: 999px; padding: 2px 8px; }
 .ps-zonebar { display: flex; align-items: center; }
 .ps-zone { flex: 1; display: flex; align-items: center; }
 .ps-zone-cell { flex: 1; min-height: 36px; display: flex; flex-wrap: wrap; gap: 4px;
@@ -101,6 +104,16 @@
 .ps-zone-xfade { color: var(--lcd-cyan); font-size: 8px; }
 .ps-perf-chip { font: 700 9px var(--font); letter-spacing: .3px; color: var(--dim);
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+
+.ps-morph-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ps-morph-item { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ps-morph-sec { font: 700 9px var(--font); letter-spacing: .5px; text-transform: uppercase;
+  color: var(--dim); min-width: 46px; }
+.ps-morph-nm { color: var(--ink); font-size: 13px; }
+.ps-morph-srcs { display: inline-flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.ps-morph-src { font: 11px var(--mono); color: var(--dim);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+.ps-morph-src b { color: var(--red-bright); font-weight: 700; }
 
 .ps-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 14px; margin-top: 11px; }
 .ps-stat { display: flex; justify-content: space-between; gap: 8px; align-items: baseline;

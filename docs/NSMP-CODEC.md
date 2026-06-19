@@ -369,3 +369,69 @@ a real file, and confirm fidelity on the `Strings.nsmp3`↔`.nsmp4` matched pair
 (target: normalized-RMS delta within the codecs' lossy tolerance). The encoder
 (`NW1::CEncode::EncodeStrokePhase0/1/2`) is symmetric and looks reproducible too
 — basis for the future downward-transcoder spec.
+
+## OG `.nsmp` (codec 1, `NWS` v8) — stroke-header RE (for downconversion, issue #17)
+
+Goal: write a Stage-2-loadable OG `.nsmp`. The envelope, section framing, and
+`map` zone table are fully known (above); the open piece was the **`stk` stroke
+header**. RE'd from the editor binary's `CSectionStroke::Read` (`@1002f97f4`) and
+`::Write` (`@1002f809c`), cross-validated by differential analysis of **17 real
+strokes** (`BrassAlesis 2.nsmp` ×8 + `TAKE ON ME.nsmp` ×9).
+
+**Codec number.** `NW1::PeekFormat` (`@1002d81a4`) maps the container to a codec
+int: `NSMP` v30→**3**, v40→**4**; `NWS` v8→**1**, v11→**2**. So the original
+`.nsmp` (Stage 2 era) is **codec 1** — the oldest `CSectionStroke` path (extra
+trailing fields; `GetStrokeBinOffset` = `0x60`).
+
+**Header shape.** `[fixed fields][trailing zero-pad to alignment][block stream]`.
+The variable header length we measured (252/228/411 B) is purely the trailing
+`iVar21 * channels` zero-pad that aligns the block-stream start (the `for` loop at
+the end of `::Write`); our decoder already finds the stream by scanning, so the
+pad is cosmetic for *reading* but must be reproduced for hardware.
+
+**Fixed-field layout** (byte offsets from the `stk` payload start; codec-1 path of
+`::Write`), verified across all 17 strokes:
+
+| Off | Sz | Field | Notes / evidence |
+|---|---|---|---|
+| 0x00 | u32 BE | **globalID** | matches `map` zone `globalID` + decoder's `stk+3`. e.g. 37,36,…30 |
+| 0x04 | u8 | 0 | always 0 |
+| 0x05 | u8 | key/tune byte | per-stroke, decreasing (79,72,67,…); semantics **TBD** (root/topkey-ish) |
+| 0x06 | u16 BE | `0x88ba` | **constant** across both files — pitch/rate base (`exp2(cents/1200)·base`, cents=0) |
+| 0x08 | u8 | `0x02` | constant |
+| 0x09 | u24 BE | **normGain** | `local_74·Level2DSP(level)` >> (39/31/23); varies per stroke |
+| 0x0c | u8 | `0x0a`/`0x0b` | `kPlayerBits + dspNorm − (…)`; ~constant (0x0a, occ. 0x0b) |
+| 0x0d | u24 BE | **peak** | `abs(SSmpAttributes[0x10])` — the stroke's 14-bit peak (norm input) |
+| 0x10 | u8×2 | 0 0 | |
+| 0x12 | u32 BE | **region U1** = base+start | absolute (cumulative across strokes) |
+| 0x16 | u24 BE | decay | `0x800000`→`80 00 00` = no decay/one-shot |
+| 0x19 | u8×2 | 0 0 | |
+| 0x1b | u32 BE | **region U2** = base+loopIn | |
+| 0x1f | — | `80 00 00 00 00` | marker |
+| 0x24 | u32 BE | **region U3** = base+loopOut | |
+| 0x28 | u24 BE | decay | `80 00 00` |
+| 0x2b | u8×2 | 0 0 | |
+| 0x2d | u32 BE | **region U4** = base+end | `U3==U4` ⇔ one-shot (no loop tail) — seen on TAKE-ON-ME stk1/2/3/8 |
+| 0x31 | u8×2 | 0 0 | |
+| 0x33 | u8×36 | 0 | codec-1 `12×(u24 0)` block |
+| … | | keyHigh `<kh> 00 01`, then pad | `kh` = zone split (103,75,… / 108,90,…) sits just before the pad |
+
+The four **region pointers** are `base + SSmpAttributes[0..3]`, where `base =
+(streamBytePos + 0x60)/channels` rounded up to a `kNomTgt` alignment, and
+`[0..3]` = (start, loop-in, loop-out, end) in per-channel samples. They are
+**cumulative** (each stroke's base advances by the prior strokes), which is why
+U1 grows monotonically across the section.
+
+**Still open before a byte-exact writer** (both bounded, RE targets named):
+1. **Region-pointer derivation for arbitrary input** — port `EncodeStrokePhase0`
+   (`@1002dbc38`): how (start, loop-in, loop-out, end) are chosen for a one-shot
+   (no source loop) vs a looped sample, and the exact `kNomTgt` alignment for
+   `base`. For a one-shot downconvert this is likely `[0,0,len,len]`; needs
+   confirmation against a Phase0 trace.
+2. **normGain / peak / 0x0c bytes** — port `GetNormFactors` (`@1002f7fc8`) +
+   `GetDSPNormalize`/`Level2DSP`/`Get0dB` so 0x09/0x0c/0x0d reproduce. Or write
+   the no-normalize config (`SAuxStrokeInfo::s_isGlobalNormalize = 0` ⇒ unity).
+
+**Validation bar:** reproduce all 17 real headers byte-for-byte from decoded
+params before shipping `convertNsmp(x, 2)`. Until then, OG output stays behind a
+"not hardware-validated" warning (same posture as the codec 3/4 writer).

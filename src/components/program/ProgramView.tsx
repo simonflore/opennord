@@ -6,6 +6,7 @@ import { ProgramHeader } from './ProgramHeader';
 import { ProgramZones } from './ProgramZones';
 import { EngineCard } from './EngineCard';
 import { FxRow } from './FxRow';
+import { Morphs } from './Morphs';
 import { ProgramExtern } from './ProgramExtern';
 import { SampleRefs } from './SampleRefs';
 import { AllParamsDrawer } from './AllParamsDrawer';
@@ -66,6 +67,7 @@ export function ProgramView({ program }: { program: NS4Program }) {
         ))}
       </div>
       <FxRow program={program} scene={scene} />
+      <Morphs program={program} />
       <ProgramExtern program={program} scene={scene} />
       <SampleRefs program={program} scene={scene} />
       <AllParamsDrawer program={program} />

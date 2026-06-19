@@ -7,6 +7,7 @@
  */
 import type { NS4Program, NS4Layer, Morphable, Ns4OrganFx } from './types';
 import { decodeAllParams } from './coverage';
+import { collapseMorphs } from './params-view';
 import { buildParamMap } from './maps';
 import { organModelSpec, ORGAN_MODELS } from './organ-models';
 import type { DrawbarColor } from './organ-models';
@@ -415,6 +416,38 @@ export function fxChips(p: NS4Program, scene?: 'I' | 'II'): FxChipModel[] {
   }
 
   return chips;
+}
+
+export interface MorphSummaryRow {
+  /** Section label — Organ / Piano / Synth / Global. */
+  section: string;
+  /** Decoded parameter name (carries the layer letter, e.g. "cutoff [A]", when per-layer). */
+  name: string;
+  /** Target value the source morphs this parameter toward, when assigned. */
+  wheel?: string;
+  at?: string;
+  pedal?: string;
+}
+
+const MORPH_SECTION: Record<string, string> = { o: 'Organ', p: 'Piano', y: 'Synth', m: 'Global' };
+
+/**
+ * Every parameter that morphs in performance, with its source → target value.
+ * The engine cards flag morph-assigned controls with a small ✎, but FX morphs
+ * (and anything not on a card) are otherwise invisible — this is the at-a-glance
+ * list so morphing is discoverable without hunting. Derived from the same
+ * decoded params as the all-parameters drawer.
+ */
+export function morphSummary(p: NS4Program): MorphSummaryRow[] {
+  return collapseMorphs(decodeAllParams(p.bytes, paramMap()))
+    .filter((r) => r.morphs.wheel || r.morphs.at || r.morphs.pedal)
+    .map((r) => ({
+      section: MORPH_SECTION[r.group] ?? r.group,
+      name: r.name,
+      wheel: r.morphs.wheel,
+      at: r.morphs.at,
+      pedal: r.morphs.pedal,
+    }));
 }
 
 export interface SampleRefView { name: string; categoryName: string; id: number; }
