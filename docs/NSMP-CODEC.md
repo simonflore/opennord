@@ -531,3 +531,18 @@ real block) → `Phase1`/`Expand` (validate block boundaries) → `Phase2` (vali
 stream bytes) → header `Write` (validate region pointers) → container → reproduce
 `sine/ramp/impulse_24.nsmp4` byte-exact → switch codec to 1 for OG. Then ship
 `convertNsmp(x, 2)` feeding decoded source PCM through the validated encoder.
+
+### Decompile tooling note (resume cleanly)
+
+The editor binary `nse/Nord Sample Editor` is **universal (x86_64 + arm64)**. A fresh
+Ghidra import picks the **x86_64** slice and **mis-aligns the codec functions** (they're
+only reached via indirect/virtual calls, so auto-analysis decodes them with wrong
+instruction boundaries → decompiles full of `unaff_RBP`/`wxMenu…` garbage). The
+original clean 142-function set predates this and came from a better-analysed project.
+
+**Reliable path:** use the **arm64 slice** — `otool -tV "nse/Nord Sample Editor"`
+disassembles cleanly at the exact symbol addresses (e.g. `0x1002ddd3c` → a real
+`stp x26,x25,[sp,#-0x50]!` prologue), and the thin `nse/nse-arm64` shares the **same
+addresses**. Re-decompile by importing `nse-arm64` into Ghidra (it auto-selects AArch64
+and analyses cleanly) and running `opennord-re/DumpAddr.java` with the address list from
+the roadmap above. (A run is queued to `nse_decomp/arm64/`.)
