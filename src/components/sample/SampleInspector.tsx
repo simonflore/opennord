@@ -8,6 +8,7 @@ import { ZoneMap } from './ZoneMap';
 import { StrokeList, type InspectorStroke } from './StrokeList';
 import { SampleEditPanel } from './SampleEditPanel';
 import { SampleConvert } from './SampleConvert';
+import { playPcm } from './audioPlayer';
 
 interface Loaded {
   bytes: Uint8Array;
@@ -25,6 +26,18 @@ interface Loaded {
 }
 
 export interface InspectorInput { bytes: Uint8Array; name: string; }
+
+/**
+ * Audition the sample mapped to zone `index`. A zone references its stroke by
+ * `globalID` (not position), so we join the parsed zone to the decoded stroke on
+ * that id (see nsmp.ts). No-op if the zone has no decoded audio.
+ */
+function playZone(loaded: Loaded, index: number): void {
+  const zone = loaded.zones[index];
+  if (!zone) return;
+  const stroke = loaded.decoded.find((s) => s.globalID === zone.globalID);
+  if (stroke) playPcm(stroke.channels);
+}
 
 export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -89,6 +102,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                 initial={editModel(loaded.file, loaded.zones)}
                 bytes={loaded.bytes}
                 codec={loaded.file.codec === 4 ? 4 : 3}
+                onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
               />
             : (
               <div className="ps-card" style={{ marginTop: 12 }}>

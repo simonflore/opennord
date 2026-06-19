@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { zipSync } from 'fflate';
-import { normalizeChannels, toAudioBuffer } from '../../lib/ns4/nsmp-audio';
+import { normalizeChannels } from '../../lib/ns4/nsmp-audio';
 import { encodeWav } from '../../lib/ns4/wav';
 import { downloadBytes } from '../../lib/download';
 import type { StrokeSummary } from '../../lib/ns4/sample-view';
 import { WaveCanvas } from './WaveCanvas';
-
-const SAMPLE_RATE = 44100; // decoded rate not yet recovered — audition only
+import { playPcm, SAMPLE_RATE } from './audioPlayer';
 
 export interface InspectorStroke {
   summary: StrokeSummary;
@@ -24,17 +23,6 @@ function strokeWav(stroke: InspectorStroke, baseName: string): { bytes: Uint8Arr
   const bytes = encodeWav(normalizeChannels(stroke.channels), SAMPLE_RATE);
   return { bytes, filename: `${safeStem(baseName)}_S${stroke.summary.index + 1}.wav` };
 }
-
-/** Lazily-created shared AudioContext (browser only). */
-let audioCtx: AudioContext | null = null;
-function getCtx(): AudioContext {
-  if (!audioCtx) audioCtx = new AudioContext();
-  return audioCtx;
-}
-
-// Single-voice playback: only one sample plays at a time. Starting a new one
-// stops whatever was playing (and clears its row's button state).
-let activeStop: (() => void) | null = null;
 
 export function StrokeList({ strokes, playable, name = 'sample' }: { strokes: InspectorStroke[]; playable: boolean; name?: string }) {
   if (strokes.length === 0) {
@@ -79,28 +67,18 @@ export function StrokeList({ strokes, playable, name = 'sample' }: { strokes: In
 
 function StrokeRow({ stroke, playable, name }: { stroke: InspectorStroke; playable: boolean; name: string }) {
   const [playing, setPlaying] = useState(false);
-  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const stopRef = useRef<(() => void) | null>(null);
 
   // Stop any playing audio if this row unmounts (e.g. a new file is loaded).
-  useEffect(() => () => { stop(); }, []);
+  useEffect(() => () => { stopRef.current?.(); }, []);
 
   function play() {
-    activeStop?.(); // stop whatever else is playing first — single voice
-    const ctx = getCtx();
-    const buf = toAudioBuffer(ctx, normalizeChannels(stroke.channels), SAMPLE_RATE);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(ctx.destination);
-    src.onended = () => { sourceRef.current = null; if (activeStop === stop) activeStop = null; setPlaying(false); };
-    src.start();
-    sourceRef.current = src;
-    activeStop = stop;
+    stopRef.current = playPcm(stroke.channels, () => { stopRef.current = null; setPlaying(false); });
     setPlaying(true);
   }
   function stop() {
-    sourceRef.current?.stop();
-    sourceRef.current = null;
-    if (activeStop === stop) activeStop = null;
+    stopRef.current?.();
+    stopRef.current = null;
     setPlaying(false);
   }
 

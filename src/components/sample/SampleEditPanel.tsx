@@ -9,10 +9,12 @@ import { KeyboardZoneMap } from './KeyboardZoneMap';
  *  zone in the synced table below; rename, then patch + download a new .nsmp.
  *  Edits are written back into the original file in place — audio and everything
  *  we don't model are preserved exactly. */
-export function SampleEditPanel({ initial, bytes, codec }: {
+export function SampleEditPanel({ initial, bytes, codec, onPlayZone }: {
   initial: EditModel;
   bytes: Uint8Array;
   codec: 3 | 4;
+  /** Audition a zone's sample by index — wired to the keyboard + table rows. */
+  onPlayZone?: (index: number) => void;
 }) {
   const [name, setName] = useState(initial.name);
   const [zones, setZones] = useState(initial.zones);
@@ -48,13 +50,14 @@ export function SampleEditPanel({ initial, bytes, codec }: {
         selected={selected}
         onSelect={setSelected}
         onChangeKeyHigh={(i, keyHigh) => setZone(i, { keyHigh })}
+        onPlayZone={onPlayZone}
       />
 
       <table className="ps-params ps-zone-tbl">
         <thead><tr><th>sample</th><th>root</th><th>up to (split)</th><th>vel ≤</th></tr></thead>
         <tbody>
           {zones.map((z, i) => (
-            <tr key={i} className={i === selected ? 'sel' : ''} onClick={() => setSelected(i)}>
+            <tr key={i} className={i === selected ? 'sel' : ''} onClick={() => { setSelected(i); onPlayZone?.(i); }}>
               <td>S{i + 1}</td>
               <td>{num(z.rootKey, (n) => setZone(i, { rootKey: n }))}<em>{noteName(z.rootKey)}</em></td>
               <td>{num(z.keyHigh, (n) => setZone(i, { keyHigh: n }))}<em>{noteName(z.keyHigh)}</em></td>

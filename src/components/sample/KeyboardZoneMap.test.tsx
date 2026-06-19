@@ -22,4 +22,18 @@ describe('KeyboardZoneMap', () => {
     // selected band (index 1) gets the bright accent stroke
     expect(html).toContain('var(--red-bright)');
   });
+
+  it('advertises "click to audition" per zone when onPlayZone is provided', () => {
+    const html = renderToStaticMarkup(
+      <KeyboardZoneMap zones={zones} selected={0} onSelect={() => {}} onChangeKeyHigh={() => {}} onPlayZone={() => {}} />,
+    );
+    expect(html.split('click to audition').length - 1).toBe(zones.length);
+  });
+
+  it('omits the audition hint when onPlayZone is absent (read-only / non-decodable)', () => {
+    const html = renderToStaticMarkup(
+      <KeyboardZoneMap zones={zones} selected={0} onSelect={() => {}} onChangeKeyHigh={() => {}} />,
+    );
+    expect(html).not.toContain('click to audition');
+  });
 });

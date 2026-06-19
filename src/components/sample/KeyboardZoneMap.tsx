@@ -19,11 +19,13 @@ const xOf = (midi: number) => keyFraction(midi) * W;
  * with the split points as draggable handles. Click a band to select it; drag a
  * handle to remap which keys play which sample (writes back the zone's top key).
  */
-export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh }: {
+export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, onPlayZone }: {
   zones: EditZone[];
   selected: number;
   onSelect: (index: number) => void;
   onChangeKeyHigh: (index: number, keyHigh: number) => void;
+  /** Audition the sample mapped to a zone (by original index). When set, clicking a band plays it. */
+  onPlayZone?: (index: number) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<number | null>(null);
@@ -54,7 +56,8 @@ export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh }: 
         const w = xOf(z.keyHigh + 1) - x;
         const isSel = z.index === selected;
         return (
-          <g key={z.index} onClick={() => onSelect(z.index)} style={{ cursor: 'pointer' }}>
+          <g key={z.index} onClick={() => { onSelect(z.index); onPlayZone?.(z.index); }} style={{ cursor: 'pointer' }}>
+            <title>{onPlayZone ? `S${z.index + 1} — click to audition` : `S${z.index + 1}`}</title>
             <rect x={x + 1} y={ZONE_TOP} width={Math.max(0, w - 2)} height={ZONE_H} rx="4"
               fill={ZONE_FILL[pos % ZONE_FILL.length]}
               stroke={isSel ? 'var(--red-bright)' : 'var(--line)'} strokeWidth={isSel ? 2.5 : 1} />
