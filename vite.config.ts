@@ -9,6 +9,8 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   test: {
+    // Default env stays node (fast, matches the pure-logic decoder tests).
+    // DOM-dependent tests opt in per-file with `// @vitest-environment jsdom`.
     css: false,
     // Don't descend into sibling git worktrees (.claude/worktrees/*) — they carry
     // their own test files (and deps like jsdom) that aren't part of this project.
