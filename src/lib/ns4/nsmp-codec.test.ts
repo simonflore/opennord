@@ -7,7 +7,7 @@ describe('readBlockHeader', () => {
   it('splits the packed fields (sampleCnt[0:13], order[14:17], bitWidth[19:22]+1)', () => {
     // sampleCnt=4, filterOrder=1, bitWidth=8  →  (8-1)<<19 | 1<<14 | 4
     const h = readBlockHeader(0x384004);
-    expect(h).toEqual({ sampleCnt: 4, filterOrder: 1, bitWidth: 8, isStop: false });
+    expect(h).toEqual({ sampleCnt: 4, filterOrder: 1, bitWidth: 8, isStop: false, linMode: false });
   });
 
   it('recognizes the stop sentinel (order 0, bitWidth 1)', () => {

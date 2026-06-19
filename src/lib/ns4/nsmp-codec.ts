@@ -42,6 +42,8 @@ export interface BlockHeader {
   bitWidth: number;
   /** True for the stop sentinel that ends a stroke (`filterOrder=0, bitWidth=1`). */
   isStop: boolean;
+  /** Block-header bit 23 — set on segment-opening (loop-point) blocks + the stop. */
+  linMode: boolean;
 }
 
 /** Parse a block header from one big-endian u32 (`NW1::CBlockHdr::Read`). */
@@ -52,7 +54,7 @@ export function readBlockHeader(word: number): BlockHeader {
   // Stop sentinel: order 0 + bitWidth 1 (the editor never emits an order-0/bw-1
   // *data* block, so this is unambiguous; our encoder upholds the same invariant).
   const isStop = filterOrder === 0 && bitWidth === 1;
-  return { sampleCnt, filterOrder, bitWidth, isStop };
+  return { sampleCnt, filterOrder, bitWidth, isStop, linMode: !!((word >>> 23) & 1) };
 }
 
 export interface DecodedStroke {
@@ -60,6 +62,12 @@ export interface DecodedStroke {
   channels: Int32Array[];
   /** Byte offset just past the stop block. */
   endOffset: number;
+  /**
+   * Segment boundaries (interleaved sample positions) — the `linMode` block
+   * starts after position 0 (the editor's region/loop points). Drives byte-exact
+   * re-encoding; carried into a converted file to preserve loop structure.
+   */
+  segments: number[];
 }
 
 export interface DecodeStrokeOptions {
@@ -129,6 +137,8 @@ export function decodeStroke(
 
   let o = byteOffset;
   let index = 0; // running interleaved sample index (sample mode)
+  let cumIL = 0; // running interleaved position (word-interleaved mode)
+  const segments: number[] = []; // interleaved positions of linMode (loop-point) blocks
   while (o + hdrBytes <= bytes.length) {
     const hdr = readBlockHeader(readHdr(o));
     o += hdrBytes;
@@ -137,6 +147,8 @@ export function decodeStroke(
       // Codec 4: zero-sample blocks are segment markers — skip; run to buffer end.
       if (hdr.sampleCnt === 0) continue;
       if (hdr.filterOrder > 7) break;
+      if (hdr.linMode && cumIL > 0) segments.push(cumIL);
+      cumIL += hdr.sampleCnt;
       const perCh = Math.floor(hdr.sampleCnt / channelCount);
       const wordsPerCh = Math.ceil((perCh * hdr.bitWidth) / 32);
       if (o + wordsPerCh * channelCount * 4 > bytes.length) break;
@@ -168,6 +180,7 @@ export function decodeStroke(
     if (hdr.filterOrder > 7 || hdr.sampleCnt === 0) {
       throw new Error(`nsmp: invalid block header at 0x${(o - hdrBytes).toString(16)}`);
     }
+    if (hdr.linMode && index > 0) segments.push(index);
     const nWords = Math.ceil((hdr.sampleCnt * hdr.bitWidth) / wordBits);
     if (o + nWords * wordBytes > bytes.length) {
       throw new Error(`nsmp: block overruns buffer at 0x${(o - hdrBytes).toString(16)}`);
@@ -191,5 +204,5 @@ export function decodeStroke(
     }
   }
 
-  return { channels: channels.map((c) => Int32Array.from(c.out)), endOffset: o };
+  return { channels: channels.map((c) => Int32Array.from(c.out)), endOffset: o, segments };
 }

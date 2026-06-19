@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { parseNsmpSections } from './nsmp';
-import { writeOgStrokeHeader, parseOgStrokeHeader, OG_STROKE_HEADER_FIXED } from './nsmp-og';
+import { parseNsmpSections, nsmpLayout } from './nsmp';
+import { writeOgStrokeHeader, parseOgStrokeHeader, OG_STROKE_HEADER_FIXED, assembleOgNsmp, ogEnvelope, type OgSection } from './nsmp-og';
 import { level2DSP, dsp2Level, get0dB, decay2DSP, getDSPNormalize } from './nw1-dsp';
 
 const ogFiles = [
@@ -32,6 +32,29 @@ describe('nw1-dsp helpers', () => {
     const { mant, exp } = getDSPNormalize(x);
     expect(Math.abs((mant / 8388608) * 2 ** exp - x)).toBeLessThan(1e-6);
   });
+});
+
+describe('assembleOgNsmp — envelope + section framing round-trip', () => {
+  for (const path of ogFiles) {
+    const name = path.split('/').pop()!;
+    it(name, () => {
+      const bytes = new Uint8Array(readFileSync(path));
+      const lay = nsmpLayout(bytes);
+      expect(lay.legacy).toBe(true);
+      // envelope reproduces
+      const env = ogEnvelope(bytes[0x14] | (bytes[0x15] << 8));
+      for (let i = 0; i < 0x18; i++) expect(env[i], `envelope byte 0x${i.toString(16)}`).toBe(bytes[i]);
+      // parse sections (carry raw payloads) → reassemble → byte-exact
+      const sections: OgSection[] = parseNsmpSections(bytes).map((s) => ({
+        tag: s.tag, version: s.version, payload: bytes.subarray(s.payloadOffset, s.endOffset),
+      }));
+      const rebuilt = assembleOgNsmp(sections, bytes[0x14] | (bytes[0x15] << 8));
+      expect(rebuilt.length).toBe(bytes.length);
+      let diff = -1;
+      for (let i = 0; i < bytes.length; i++) if (rebuilt[i] !== bytes[i]) { diff = i; break; }
+      expect(diff, `first diff at 0x${diff.toString(16)}`).toBe(-1);
+    });
+  }
 });
 
 describe('OG stroke header — byte-exact re-serialization (17 real strokes)', () => {

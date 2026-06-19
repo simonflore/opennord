@@ -135,6 +135,188 @@ export function writeOgStrokeHeader(f: OgStrokeHeaderFields): Uint8Array {
   return b;
 }
 
+/**
+ * One OG body section. Tag is the 3-char ASCII id (`NWS`/`hdr`/`map`/`stk`/`sty`);
+ * the 9-byte header is `[tag:u24 BE][version:u16 BE][size:u32 BE]`.
+ */
+export interface OgSection {
+  tag: string;
+  version: number;
+  payload: Uint8Array;
+}
+
+/**
+ * The OG/`NWS` CBIN envelope (24 bytes): `CBIN`, format 0, `nsmp`, `0xff×8`,
+ * versionRaw (LE) = 8, then the body. No CRC field (unlike codec 3/4). Verified
+ * byte-for-byte against real OG files.
+ */
+export function ogEnvelope(versionRaw = 8): Uint8Array {
+  const e = new Uint8Array(0x18);
+  e.set([0x43, 0x42, 0x49, 0x4e], 0); // "CBIN"
+  // 0x04 format type = 0 (OG); 0x08 "nsmp"; 0x0c..0x13 = 0xff×8
+  e.set([0x6e, 0x73, 0x6d, 0x70], 8);
+  for (let i = 0x0c; i < 0x14; i++) e[i] = 0xff;
+  e[0x14] = versionRaw & 0xff;
+  e[0x15] = (versionRaw >>> 8) & 0xff;
+  return e;
+}
+
+/** Serialize one OG section: 9-byte header (`tag` NUL-trimmed to ≤3) + payload. */
+function ogSectionBytes(s: OgSection): Uint8Array {
+  const tag = s.tag.replace(/^\0+/, '').slice(-3);
+  const out = new Uint8Array(9 + s.payload.length);
+  for (let i = 0; i < 3; i++) out[i] = tag.charCodeAt(i) & 0xff;
+  out[3] = (s.version >>> 8) & 0xff;
+  out[4] = s.version & 0xff;
+  putU32(out, 5, s.payload.length >>> 0);
+  out.set(s.payload, 9);
+  return out;
+}
+
+/**
+ * CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, no reflection/xorout). OG files
+ * end with this checksum over the whole preceding file, stored **little-endian**
+ * — the OG analogue of codec 3/4's envelope CRC-32. Verified on real OG files.
+ */
+export function crc16Ccitt(data: Uint8Array): number {
+  let crc = 0xffff;
+  for (let i = 0; i < data.length; i++) {
+    crc ^= data[i] << 8;
+    for (let b = 0; b < 8; b++) crc = (crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1) & 0xffff;
+  }
+  return crc;
+}
+
+/**
+ * Assemble a complete OG `.nsmp` file: envelope + the ordered body sections
+ * (`NWS → hdr → map → stk×N → sty`) + a trailing little-endian CRC-16/CCITT over
+ * everything preceding it. Round-trips a real OG file byte-for-byte when fed its
+ * parsed sections.
+ */
+export function assembleOgNsmp(sections: OgSection[], versionRaw = 8): Uint8Array {
+  const parts = [ogEnvelope(versionRaw), ...sections.map(ogSectionBytes)];
+  const bodyLen = parts.reduce((n, p) => n + p.length, 0);
+  const out = new Uint8Array(bodyLen + 2);
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  const crc = crc16Ccitt(out.subarray(0, bodyLen));
+  out[bodyLen] = crc & 0xff; // little-endian
+  out[bodyLen + 1] = (crc >>> 8) & 0xff;
+  return out;
+}
+
+import { encodeStrokeNW1, BLOCK_PER_CH_OG } from './nw1-encode';
+
+/** One OG zone/stroke to write: audio + keyboard placement + loop segments. */
+export interface OgWriteZone {
+  /** Per-channel integer PCM (internal domain — what `decodeStroke` returns). */
+  channels: ArrayLike<number>[];
+  /** Stroke global id (header +0x00, map record +0). */
+  globalID: number;
+  /** Root key the sample is pitched for (header +0x05, map record +1). */
+  rootKey: number;
+  /** Zone top key / split point (map record keyHigh). */
+  keyHigh: number;
+  /**
+   * Segment boundaries (interleaved sample positions) recovered from the source's
+   * `lin=1` blocks — drives Phase1 splitting so the block layout matches the
+   * source's loop structure. Empty → a single segment.
+   */
+  segmentsInterleaved?: number[];
+}
+
+/** Build the OG legacy `map` payload: global + per-note unity + zone records. */
+function writeOgMap(zones: OgWriteZone[]): Uint8Array {
+  // 15-byte global prefix + 128 × 6-byte unity rows (`10 00 00 00 00 00`), then
+  // [count:u16 BE][00 00] then 12-byte records — matches `parseLegacyZoneRecords`.
+  const prefix = new Uint8Array(15);
+  prefix[0] = 0x22; prefix[1] = 0x06; prefix[2] = 0x04; // templated global level marker
+  const perNote = new Uint8Array(128 * 6);
+  for (let i = 0; i < 128; i++) perNote[i * 6] = 0x10;
+  const count = new Uint8Array(4);
+  putU16(count, 0, zones.length);
+  const recs = new Uint8Array(zones.length * 12);
+  zones.forEach((z, i) => {
+    const o = i * 12;
+    recs[o] = z.globalID & 0xff;
+    recs[o + 1] = z.rootKey & 0xff;
+    // tune u16 @+2 = 0 (no detune); keyHigh u32 BE @+4; trailer `00 01 00 00` @+8
+    putU32(recs, o + 4, z.keyHigh >>> 0);
+    recs[o + 9] = 0x01;
+  });
+  const out = new Uint8Array(prefix.length + perNote.length + count.length + recs.length);
+  let p = 0;
+  for (const part of [prefix, perNote, count, recs]) { out.set(part, p); p += part.length; }
+  return out;
+}
+
+/** Max abs sample across channels → the stroke's peak (header +0x0d), clamped u24. */
+function pcmPeak(channels: ArrayLike<number>[]): number {
+  let peak = 0;
+  for (const ch of channels) for (let i = 0; i < ch.length; i++) { const a = Math.abs(ch[i]); if (a > peak) peak = a; }
+  return Math.min(peak, 0xffffff);
+}
+
+/** Unity normGain (level 0 dB, no global normalize): `(0.5·2^23 · 2^20) >> 23`. */
+const OG_UNITY_NORMGAIN = 524288;
+
+/**
+ * Build one OG `stk` payload: the 54-byte fixed header + the `12×u24` zero block
+ * + the 24-bit block stream. Region pointers/normGain are best-effort (the source
+ * stroke's segments drive the stream; exact hardware loop pointers need the source
+ * header's loop domain — see docs). Lossless and reader-round-trippable.
+ */
+export function writeOgStrokePayload(z: OgWriteZone): Uint8Array {
+  const stream = encodeStrokeNW1(z.channels, {
+    u24: true, blockPerCh: BLOCK_PER_CH_OG, segmentsInterleaved: z.segmentsInterleaved,
+  });
+  const lenPerCh = z.channels[0]?.length ?? 0;
+  const segs = (z.segmentsInterleaved ?? []).map((s) => Math.floor(s / Math.max(1, z.channels.length)));
+  const header = writeOgStrokeHeader({
+    globalID: z.globalID,
+    keyByte: z.rootKey,
+    normGain: OG_UNITY_NORMGAIN,
+    expByte: 0x0a,
+    peak: pcmPeak(z.channels),
+    // region pointers: start, secondStart, loopOut, end (per-channel) — best-effort.
+    u1: 0,
+    u2: segs[0] ?? 0,
+    u3: segs[1] ?? lenPerCh,
+    u4: lenPerCh,
+    keyHigh: z.keyHigh,
+  });
+  // 12×u24 zero block (codec-1) follows the fixed header; no extra align pad needed
+  // for our reader (it scans for the stream). Keeps the stream well within range.
+  const zeros = new Uint8Array(36);
+  const out = new Uint8Array(header.length + zeros.length + stream.length);
+  out.set(header, 0);
+  out.set(stream, header.length + zeros.length);
+  return out;
+}
+
+/**
+ * Write a complete OG (`NWS`/codec-1, Stage-2-era) `.nsmp` from decoded strokes +
+ * zones. Audio is preserved exactly and the file round-trips through
+ * `readNsmp`/`decodeNsmp`/`readNsmpZones`. ⚠️ **Experimental / not hardware-
+ * validated**: the stroke-header region pointers and normalize gain are best-effort
+ * (the editor cannot write OG, so there is no ground truth to byte-match a freshly
+ * generated OG file against — only the audio stream + container are validated). See
+ * `docs/NSMP-CODEC.md`.
+ */
+export function writeOgNsmp(opts: { name?: string; zones: OgWriteZone[]; hdrParams?: Uint8Array }): Uint8Array {
+  const hdrPayload = new Uint8Array(18);
+  if (opts.hdrParams && opts.hdrParams.length === 18) hdrPayload.set(opts.hdrParams);
+  else hdrPayload.set([0x00, 0x00, 0xe4, 0x00, 0x00, 0xc0]); // templated params
+  const sections: OgSection[] = [
+    { tag: 'NWS', version: 8, payload: new Uint8Array(0) },
+    { tag: 'hdr', version: 8, payload: hdrPayload },
+    { tag: 'map', version: 9, payload: writeOgMap(opts.zones) },
+    ...opts.zones.map((z) => ({ tag: 'stk', version: 8, payload: writeOgStrokePayload(z) })),
+    { tag: 'sty', version: 5, payload: new Uint8Array(9) },
+  ];
+  return assembleOgNsmp(sections, 8);
+}
+
 const rU32 = (b: Uint8Array, o: number) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
 const rU24 = (b: Uint8Array, o: number) => (b[o] << 16) | (b[o + 1] << 8) | b[o + 2];
 

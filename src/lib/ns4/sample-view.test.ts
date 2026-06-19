@@ -54,14 +54,14 @@ describe('sampleHeaderView', () => {
 describe('strokeSummary', () => {
   it('summarizes a decoded stroke', () => {
     const d: DecodedStrokeResult = {
-      index: 2, channelCount: 2, endOffset: 0, globalID: 3,
+      index: 2, channelCount: 2, endOffset: 0, globalID: 3, segments: [],
       channels: [new Int32Array([0, 100, -200, 50]), new Int32Array([0, 0, 0, 0])],
     };
     expect(strokeSummary(d)).toEqual({ index: 2, sampleCount: 4, channels: 2, peak: 200, ok: true });
   });
 
   it('marks an empty stroke not-ok', () => {
-    const d: DecodedStrokeResult = { index: 0, channelCount: 1, endOffset: 0, globalID: 1, channels: [new Int32Array(0)] };
+    const d: DecodedStrokeResult = { index: 0, channelCount: 1, endOffset: 0, globalID: 1, segments: [], channels: [new Int32Array(0)] };
     expect(strokeSummary(d).ok).toBe(false);
   });
 });

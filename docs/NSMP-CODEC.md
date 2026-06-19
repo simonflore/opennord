@@ -679,16 +679,26 @@ byte-exact round-trip of *arbitrary old* OG files isn't guaranteed. The encoder
 emits what the current algorithm would (correct by construction) and is always
 lossless.
 
-### Remaining for `convertNsmp(x, 2)` — container assembly (mechanical)
+### `convertNsmp(x, 2)` SHIPPED (experimental) ✓ (2026-06-20)
 
-The codec **stream**, **header serializer**, and **DSP** are ported + validated.
-What's left is plumbing, not RE:
-1. `assembleOgNsmp`: CBIN envelope (format 0, `0xff×8`@0x0c, version 8@0x14, body
-   @0x18) + 9-byte sections (`NWS→hdr→map→stk×N→sty`, 3-byte tags) + the legacy
-   `map` writer (per-note unity + 12-byte zone records — `parseLegacyZoneRecords`
-   is the reader).
-2. Per-stroke header region pointers U1–U4 = `base + region[i]` with the
-   alignment/pad formula from `CSectionStroke::Write` (`base` from stream byte
-   position; region[i] from the source segments — all now available).
-3. Wire `convertNsmp(x, 2)`: decode → segments + zones + gids + gain/regions →
-   assemble. Validate by re-emitting the byte-exact strokes + lossless round-trip.
+`nsmp-og.ts` now assembles a complete OG `.nsmp` and `convertNsmp(x, 2)` downconverts
+any Nord sample to it (the downconvert the official editor refuses):
+- `assembleOgNsmp`: CBIN envelope (format 0, `0xff×8`@0x0c, version 8@0x14, body
+  @0x18) + 9-byte sections (`NWS→hdr→map→stk×N→sty`, 3-byte tags) + a trailing
+  **little-endian CRC-16/CCITT** (poly 0x1021, init 0xFFFF) over the whole file —
+  the OG analogue of codec 3/4's envelope CRC-32 (verified on both real OG files).
+  **Round-trips a real OG file byte-for-byte** (`nsmp-og.test.ts`).
+- `writeOgMap` (legacy zone table), `writeOgStrokePayload` (54-byte header +
+  `12×u24` zeros + 24-bit stream), `writeOgNsmp`.
+- `decodeStroke` now returns `segments` (the `linMode` loop-point positions), so a
+  converted file carries the source's loop/region block structure.
+
+Validated (`nsmp-convert-og.test.ts`): `.nsmp4/.nsmp3/.nsmp` → OG is **lossless**
+(audio identical) and structurally valid (parses, zones round-trip).
+
+**Experimental caveat (unchanged):** the stroke-header region pointers (U1–U4) and
+normalize gain are best-effort — there is no editor-made Nord→OG ground truth to
+byte-match against (the editor can't write OG), and the exact loop-pointer domain
+needs the source header's loop model. Audio + container + CRC are exact; hardware
+acceptance of a *generated* OG file is unverified (no Stage 2). Flagged in the
+convert `warnings`.
