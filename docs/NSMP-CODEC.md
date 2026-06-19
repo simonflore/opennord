@@ -546,3 +546,40 @@ disassembles cleanly at the exact symbol addresses (e.g. `0x1002ddd3c` → a rea
 addresses**. Re-decompile by importing `nse-arm64` into Ghidra (it auto-selects AArch64
 and analyses cleanly) and running `opennord-re/DumpAddr.java` with the address list from
 the roadmap above. (A run is queued to `nse_decomp/arm64/`.)
+
+### Encoder algorithm — RECOVERED (clean arm64 decompiles)
+
+Decompiled clean from the **arm64 slice** (`nse_decomp/arm64/`). The encoder is now
+fully specified for a TS port. Build order + spec:
+
+**DSP helpers** (exact):
+- `Level2DSP(dB)` = `round(10^(dB/20) · 2^20)`  (2^20 = 1048576)
+- `DSP2Level(x)`  = `20 · log10(x · 2^-20)`
+- `Get0dB(bits)`  = `2^(bits-1)`
+- `GetDSPNormalize(x) -> {mant, exp}`: frexp-style — scale `x` into `[0.5,1)`,
+  `mant = trunc(scaled · 2^23)`, `exp` = the power-of-2 shift (±).
+- `Decay2DSP(d, rate)` = `d>0 ? -round(0.99^(1/(d·rate)) · 2^23) : -2^23`.
+- Bit-depth constants (`SMetric` statics): `kNomTgt=14, kMaxTgt=16, kMaxSrc=24,
+  kPlayer=24, kMinTgt=?` (read from `SMetric` globals when porting).
+
+**`CChunk` — per-block order + bit-width selection** (`CChunk::CChunk`):
+- Inputs: interleaved `samples[cnt]`, `channels`, and a persistent per-(channel,order)
+  history `hist` (carries across blocks).
+- Computes **5 residual rows = successive differences order 0..4** (order-N = N-th
+  finite difference = the order-N binomial predictor we already decode with).
+  Per channel: `r0=s`, `r1=s-hist0`, `r2=r1-hist1`, … updating `hist` each sample.
+- For each order, track the **max signed bit-width** over the block, where a value's
+  signed width = `1 + ceil(log2)` (val 0→1, 1→2, 2..3→3, −4→3, …; matches our
+  `signedBitWidth`).
+- **Pick the order (0..4) with the smallest max-width; ties → lowest order.** Only
+  orders 0–4 are considered (not 0–7) — important for byte-exact match.
+
+**Phase1/2** (next to transcribe from `arm64/1002dbe7c`/`…dc654`, `WriteChunk`
+`…dcc60`, `WriteHdr` `…dcbcc`, `WriteStopHdr` `…dceb8`): fixed-size blocks
+(`SMetric[8]·channels`) with breaks at the 4 region boundaries; per block run
+`CChunk`, `CHistory::Expand` (overflow retry → drop target bit depth), then write
+`CBlockHdr` (layout per `CBlockHdr::Write`) + residuals via `WriteChunk`.
+
+**Validation:** decode a ground-truth `.nsmp4`, re-encode the integer PCM with this
+port, `cmp` the block stream + header bytes. Start with `impulse_24.nsmp4` (fewest
+blocks), then `ramp`, `sine`. Byte-exact ⇒ correct; then flip codec → 1 for OG.
