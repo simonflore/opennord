@@ -15,6 +15,7 @@
   --connected: #34d36b;
   --lcd-cyan: #aee9ff;
   --warn: #ffb454;
+  --focus: #6aa9ff;      /* keyboard focus ring — distinct from --red action */
 
   /* text */
   --ink: #e9ebf0;
@@ -55,3 +56,23 @@ html { background: var(--bg); color: var(--ink); font-family: var(--font); }
 /* Zero the UA body margin — otherwise it stacks on top of the 100vh app shell
    and forces a permanent ~16px scrollbar. */
 body { margin: 0; }
+
+/* Keyboard focus: a single visible ring on every interactive element.
+   Mouse/touch users never see it (:focus-visible only fires for keyboard). */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+/* Never remove the ring without replacing it. */
+:focus:not(:focus-visible) { outline: none; }
+
+/* Respect the OS "reduce motion" setting — near-instant, no removal of state. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
