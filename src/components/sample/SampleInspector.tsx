@@ -7,6 +7,7 @@ import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
 import { StrokeList, type InspectorStroke } from './StrokeList';
 import { SampleEditPanel } from './SampleEditPanel';
+import { SampleKeyboard } from './SampleKeyboard';
 import { SampleConvert } from './SampleConvert';
 import { playPcm } from './audioPlayer';
 
@@ -104,14 +105,29 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                 codec={loaded.file.codec === 4 ? 4 : 3}
                 onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
               />
-            : (
-              <div className="ps-card" style={{ marginTop: 12 }}>
-                <p className="ps-sub" style={{ margin: 0 }}>
-                  Editing isn't available yet — we couldn't read this sample's key map
-                  {loaded.file.legacy ? '. Convert it to .nsmp3 / .nsmp4 below, then edit the result' : ''}.
-                </p>
-              </div>
-            )}
+            : loaded.file.legacy && loaded.zones.length > 0
+              ? (
+                // Legacy .nsmp: decoded but not editable in place — show the map
+                // read-only (click a band to audition), and point to conversion.
+                <>
+                  <SampleKeyboard
+                    zones={editModel(loaded.file, loaded.zones).zones}
+                    onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
+                  />
+                  <div className="ps-card" style={{ marginTop: 12 }}>
+                    <p className="ps-sub" style={{ margin: 0 }}>
+                      Read-only — to edit the splits, convert to .nsmp3 / .nsmp4 below, then edit the result.
+                    </p>
+                  </div>
+                </>
+              )
+              : (
+                <div className="ps-card" style={{ marginTop: 12 }}>
+                  <p className="ps-sub" style={{ margin: 0 }}>
+                    Editing isn't available yet — we couldn't read this sample's key map.
+                  </p>
+                </div>
+              )}
 
           {loaded.decodable && <SampleConvert bytes={loaded.bytes} file={loaded.file} name={loaded.name} />}
           <StrokeList strokes={loaded.strokes} playable={loaded.decodable} name={loaded.file.name?.trim() || loaded.name} />

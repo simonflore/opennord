@@ -36,4 +36,16 @@ describe('KeyboardZoneMap', () => {
     );
     expect(html).not.toContain('click to audition');
   });
+
+  it('renders drag handles only when editable (onChangeKeyHigh provided)', () => {
+    const editable = renderToStaticMarkup(
+      <KeyboardZoneMap zones={zones} selected={0} onSelect={() => {}} onChangeKeyHigh={() => {}} />,
+    );
+    const readOnly = renderToStaticMarkup(
+      <KeyboardZoneMap zones={zones} selected={-1} onSelect={() => {}} />,
+    );
+    expect(editable).toContain('ew-resize');     // split handles present
+    expect(readOnly).not.toContain('ew-resize'); // read-only: bands only, no handles
+    expect(readOnly).toContain('>S1<');          // zones still drawn
+  });
 });

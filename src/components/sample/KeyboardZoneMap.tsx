@@ -15,15 +15,18 @@ const ZONE_FILL = ['#2f4a59', '#473a59', '#593a3f', '#3a5945', '#534a2c', '#3f3a
 const xOf = (midi: number) => keyFraction(midi) * W;
 
 /**
- * The keyboard zone map: each sample is a colored band across the keys it covers,
- * with the split points as draggable handles. Click a band to select it; drag a
- * handle to remap which keys play which sample (writes back the zone's top key).
+ * The keyboard zone map: each sample is a colored band across the keys it covers.
+ * Click a band to select it (and audition it when `onPlayZone` is set). When
+ * `onChangeKeyHigh` is provided the split points become draggable handles to
+ * remap keys; omit it for a read-only view (e.g. legacy .nsmp, which we decode
+ * but don't edit in place).
  */
 export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, onPlayZone }: {
   zones: EditZone[];
   selected: number;
   onSelect: (index: number) => void;
-  onChangeKeyHigh: (index: number, keyHigh: number) => void;
+  /** Remap a zone's top key by dragging a split handle. Omit for a read-only map. */
+  onChangeKeyHigh?: (index: number, keyHigh: number) => void;
   /** Audition the sample mapped to a zone (by original index). When set, clicking a band plays it. */
   onPlayZone?: (index: number) => void;
 }) {
@@ -77,7 +80,7 @@ export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, on
         );
       })}
 
-      {tiled.slice(0, -1).map((z, pos) => {
+      {onChangeKeyHigh && tiled.slice(0, -1).map((z, pos) => {
         const hx = xOf(z.keyHigh + 1);
         return (
           <g key={`h${pos}`} style={{ cursor: 'ew-resize' }}
