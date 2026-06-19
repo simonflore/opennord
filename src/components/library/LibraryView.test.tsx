@@ -8,8 +8,16 @@ const entries: LibraryEntry[] = [
   { id: 'local:0', name: 'Sunday Organ', source: 'local', summary: 'organ' },
 ];
 
+const organizeDefaults = {
+  sort: 'default' as const,
+  onSort: () => {},
+  favorites: new Set<string>(),
+  onToggleFavorite: () => {},
+};
+
 const folderDefaults = {
   onRemove: () => {},
+  ...organizeDefaults,
   folderName: null,
   folderCount: 0,
   canPersist: false,
@@ -102,5 +110,23 @@ describe('LibraryView', () => {
         {...folderDefaults} folderName="My Patches" canPersist />,
     );
     expect(html).toContain('aria-label="Disconnect folder"');
+  });
+
+  it('renders a sort selector and a favorite toggle per card', () => {
+    const html = renderToStaticMarkup(
+      <LibraryView entries={entries} source="all" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}} {...folderDefaults} />,
+    );
+    expect(html).toContain('aria-label="Sort patches"');
+    expect(html).toContain('aria-label="Favorite Wurli Dream"');   // unfavorited → "Favorite …"
+    expect(html).toContain('aria-label="Favorite Sunday Organ"');
+  });
+
+  it('marks a favorited card as pressed and offers to unfavorite it', () => {
+    const html = renderToStaticMarkup(
+      <LibraryView entries={entries} source="all" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}}
+        {...folderDefaults} favorites={new Set(['local:0'])} />,
+    );
+    expect(html).toContain('aria-label="Unfavorite Sunday Organ"');
+    expect(html).toContain('aria-pressed="true"');
   });
 });

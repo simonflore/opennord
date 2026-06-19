@@ -2,6 +2,9 @@ import type { NS4Program } from '../ns4/types';
 
 export type LibrarySource = 'nord' | 'local';
 
+/** Library sort order. `default` keeps the natural source order (Nord → folder → local). */
+export type LibrarySort = 'default' | 'name' | 'source';
+
 /** One row in the unified Library — a program from the Nord or a local file. */
 export interface LibraryEntry {
   id: string;            // stable key, e.g. "nord:A:26" or "local:3"

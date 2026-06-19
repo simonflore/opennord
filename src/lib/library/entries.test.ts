@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms } from './entries';
+import { nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms, sortEntries } from './entries';
 import type { LibraryEntry } from './types';
 import type { ScannedProgram } from '../folder/scan';
 import type { NS4Program } from '../ns4/types';
@@ -50,5 +50,35 @@ describe('entriesFromScannedPrograms', () => {
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({ id: 'folder:Lead.ns4p', name: 'Lead', source: 'local', summary: 'synth' });
     expect(entries[0].program).toBe(fakeProgram);
+  });
+});
+
+describe('sortEntries', () => {
+  const none = new Set<string>();
+  const names = (es: LibraryEntry[]) => es.map((e) => e.name);
+
+  it('default keeps input order', () => {
+    expect(names(sortEntries(sample, 'default', none))).toEqual(['Wurli Dream', 'Sunday Organ', 'Deep Stab']);
+  });
+
+  it('name sorts alphabetically', () => {
+    expect(names(sortEntries(sample, 'name', none))).toEqual(['Deep Stab', 'Sunday Organ', 'Wurli Dream']);
+  });
+
+  it('source groups by source then name (local before nord)', () => {
+    expect(names(sortEntries(sample, 'source', none))).toEqual(['Sunday Organ', 'Deep Stab', 'Wurli Dream']);
+  });
+
+  it('favorites float to the top within the active sort', () => {
+    const fav = new Set(['nord:B:03']); // Deep Stab
+    expect(names(sortEntries(sample, 'name', fav))).toEqual(['Deep Stab', 'Sunday Organ', 'Wurli Dream']);
+    // even under default order, the favorite leads
+    expect(names(sortEntries(sample, 'default', fav))).toEqual(['Deep Stab', 'Wurli Dream', 'Sunday Organ']);
+  });
+
+  it('does not mutate the input array', () => {
+    const copy = [...sample];
+    sortEntries(sample, 'name', none);
+    expect(sample).toEqual(copy);
   });
 });

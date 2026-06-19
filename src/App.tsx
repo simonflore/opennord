@@ -8,8 +8,9 @@ import { Rail } from './components/shell/Rail';
 import { ErrorBoundary } from './components/shell/ErrorBoundary';
 import { LibraryView } from './components/library/LibraryView';
 import { parseNs4Program } from './lib/ns4/parse';
-import { nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms } from './lib/library/entries';
+import { nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms, sortEntries } from './lib/library/entries';
 import { useImportedLibrary } from './lib/library/useImportedLibrary';
+import { useLibraryPrefs } from './lib/library/prefs';
 import { useFolderLibrary } from './lib/folder/useFolderLibrary';
 import { SamplesView } from './components/sample/SamplesView';
 import { AboutView } from './components/about/AboutView';
@@ -36,13 +37,14 @@ function Shell() {
 
   const folder = useFolderLibrary();
   const imported = useImportedLibrary();
+  const prefs = useLibraryPrefs();
 
   const allEntries: LibraryEntry[] = [
     ...nordEntriesFromDevice(deviceEntries),
     ...entriesFromScannedPrograms(folder.result.programs),
     ...imported.entries,
   ];
-  const shown = filterEntries(allEntries, source, query);
+  const shown = sortEntries(filterEntries(allEntries, source, query), prefs.sort, prefs.favorites);
 
   function importFile() {
     const input = document.createElement('input');
@@ -82,6 +84,8 @@ function Shell() {
                 entries={shown} source={source} query={query}
                 onSource={setSource} onQuery={setQuery} onOpen={openEntry} onImport={importFile}
                 onRemove={imported.remove}
+                sort={prefs.sort} onSort={prefs.setSort}
+                favorites={prefs.favorites} onToggleFavorite={prefs.toggleFavorite}
                 folderName={folder.folderName}
                 folderCount={folder.result.programs.length + folder.result.samples.length}
                 canPersist={folder.canPersist}

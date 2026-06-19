@@ -1,6 +1,6 @@
 import './library.css';
 import { Button, Card, FilterChip, SearchField, SourceBadge } from '../ui';
-import type { LibraryEntry, LibrarySource } from '../../lib/library/types';
+import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
 import type { ScanError } from '../../lib/folder/scan';
 
 interface Props {
@@ -13,6 +13,11 @@ interface Props {
   onImport: () => void;
   /** Remove an imported program (local source only). */
   onRemove: (id: string) => void;
+  /** Sort order + favorites (organize). */
+  sort: LibrarySort;
+  onSort: (s: LibrarySort) => void;
+  favorites: ReadonlySet<string>;
+  onToggleFavorite: (id: string) => void;
   // Folder source:
   folderName: string | null;
   folderCount: number;
@@ -30,8 +35,11 @@ interface Props {
 const TABS: Array<LibrarySource | 'all'> = ['all', 'nord', 'local'];
 const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', nord: 'On Nord', local: 'Local' };
 
+const SORT_LABEL: Record<LibrarySort, string> = { default: 'Default', name: 'Name (A–Z)', source: 'Source' };
+
 export function LibraryView({
   entries, source, query, onSource, onQuery, onOpen, onImport, onRemove,
+  sort, onSort, favorites, onToggleFavorite,
   folderName, folderCount, canPersist, needsReconnect, busy, reconnectError,
   onChooseFolder, onReconnect, onRefresh, scanErrors, onForget,
 }: Props) {
@@ -85,6 +93,12 @@ export function LibraryView({
         {TABS.map((t) => (
           <FilterChip key={t} active={source === t} onClick={() => onSource(t)}>{TAB_LABEL[t]}</FilterChip>
         ))}
+        <select className="lib-sort" value={sort} aria-label="Sort patches"
+          onChange={(e) => onSort(e.target.value as LibrarySort)}>
+          {(Object.keys(SORT_LABEL) as LibrarySort[]).map((k) => (
+            <option key={k} value={k}>Sort: {SORT_LABEL[k]}</option>
+          ))}
+        </select>
       </div>
 
       {entries.length === 0 ? (
@@ -106,6 +120,14 @@ export function LibraryView({
               onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onOpen(e); } }}
             >
               <div className="lib-patch__top">
+                <button
+                  className={`lib-fav${favorites.has(e.id) ? ' is-fav' : ''}`}
+                  aria-label={favorites.has(e.id) ? `Unfavorite ${e.name}` : `Favorite ${e.name}`}
+                  aria-pressed={favorites.has(e.id)}
+                  title={favorites.has(e.id) ? 'Remove from favorites' : 'Add to favorites'}
+                  onClick={(ev) => { ev.stopPropagation(); onToggleFavorite(e.id); }}
+                  onKeyDown={(ev) => ev.stopPropagation()}
+                >{favorites.has(e.id) ? '★' : '☆'}</button>
                 <span className="lib-patch__nm">{e.name}</span>
                 <span className="lib-slot">{e.slot ?? 'file'}</span>
               </div>

@@ -1,4 +1,4 @@
-import type { LibraryEntry, LibrarySource } from './types';
+import type { LibraryEntry, LibrarySource, LibrarySort } from './types';
 import type { ProgramEntry } from '../device/transfer';
 import type { ScannedProgram } from '../folder/scan';
 import { formatSlot } from '../ns4/slot';
@@ -49,6 +49,30 @@ export function filterEntries(
   return entries.filter((e) =>
     (source === 'all' || e.source === source) &&
     (q === '' || e.name.toLowerCase().includes(q)));
+}
+
+/**
+ * Order entries for display: favorites always float to the top, then the chosen
+ * sort within each group. Stable — equal keys keep their input order, so
+ * `default` preserves the natural source order (Nord → folder → local). Pure.
+ */
+export function sortEntries(
+  entries: LibraryEntry[], sort: LibrarySort, favorites: ReadonlySet<string>,
+): LibraryEntry[] {
+  const byKey = (a: LibraryEntry, b: LibraryEntry): number => {
+    if (sort === 'name') return a.name.localeCompare(b.name);
+    if (sort === 'source') return a.source.localeCompare(b.source) || a.name.localeCompare(b.name);
+    return 0; // default → fall through to input order
+  };
+  return entries
+    .map((e, i) => ({ e, i }))
+    .sort((x, y) => {
+      const fx = favorites.has(x.e.id) ? 0 : 1;
+      const fy = favorites.has(y.e.id) ? 0 : 1;
+      if (fx !== fy) return fx - fy;            // favorites first
+      return byKey(x.e, y.e) || x.i - y.i;       // then sort key, stable
+    })
+    .map((w) => w.e);
 }
 
 /** Map folder-scanned programs into Library entries under the local source. */
