@@ -499,3 +499,35 @@ or (b) a Stage 2 to calibrate/validate approximate output against. With neither
 available, OG downconversion stays **documented but unbuilt**. The OG *read* path
 (decode + zones) already works and is unaffected. Everything needed to resume is
 captured above (field map, Phase0 semantics, ruled-out hypotheses, RE addresses).
+
+### OG write IS reachable offline — encoder-port roadmap (correction)
+
+Earlier "decisive blocker" was too pessimistic about *validation*: we don't need a
+Stage 2 to validate the **port**. If a bit-exact port of the editor's encoder
+reproduces the ground-truth `.nsmp4` files (`sine/ramp/impulse_24`) **byte-for-byte**
+from their decoded PCM, the OG (codec-1) writer built on that same encoder is correct
+**by construction** — the exact bytes the editor would emit. Validation = re-encode a
+decoded ground-truth stream and `cmp` against the original. No hardware needed.
+
+The editor's encoder (`NW1::CEncode`) is **fully present in the binary** and now
+decompiled. Pipeline (from `EncodeStroke`@`1002db528` driver):
+`Phase0` (regions) → loop[`Phase1` split+select → `CHistory::Expand` overflow check →
+reduce target bit-depth & retry, else `Phase2` write] . `Phase1` uses **fixed-size
+blocks** (size = `SMetric[8] × channels`) with **breaks at the 4 region boundaries**;
+`CChunk` picks order+bitwidth per block; the region pointers are byte positions over
+the *resulting* stream (which is why content changes them — `sine≠ramp≠impulse`).
+
+**Functions to port (addresses, x86_64 `nse/Nord Sample Editor`):**
+- `CChunk::CChunk` `@1002ddd3c` — per-block order/bitwidth selection (the core)
+- `CHistory::Expand` `@1002dc574`, `ExpandOne` `@1002dd608`, `AnalyzeSegment` `@1002dd0fc`, `PushBlock` `@1002dc9b0`
+- Phase2 writers: `WriteHdr` `@1002dcbcc`, `WriteChunk` `@1002dcc60`, `WriteStopHdr` `@1002dceb8`, `CBlockHdr::Write` `@1002d8de0` ✓have
+- Norm DSP: `Level2DSP` `@1002de888`, `DSP2Level` `@1002de8b8`, `Get0dB` `@1002de77c`, `Decay2DSP` `@1002de790`, `GetDSPNormalize` `@1002de8e4`
+- `SMetric::SMetric`/`Validate` `@1002d7ee8`/`@1002d7f18` — the kNomTgt/kMaxTgt/block-size **constants**
+- `CScopedSectionWriter` `@1002e9514`, `CEncode::EncodeBegin` `@1002daff4` (global peak/normalize), `GetGlobalPeak14` `@1002daf70`, `CreateIntermediate` `@1002dadf0`
+- Have already: `Phase0/1/2`, `CSectionStroke::Read/Write`, `CBlockHdr::Read/Write`.
+
+**Build order:** SMetric constants → DSP helpers → `CChunk` (validate per-block vs a
+real block) → `Phase1`/`Expand` (validate block boundaries) → `Phase2` (validate
+stream bytes) → header `Write` (validate region pointers) → container → reproduce
+`sine/ramp/impulse_24.nsmp4` byte-exact → switch codec to 1 for OG. Then ship
+`convertNsmp(x, 2)` feeding decoded source PCM through the validated encoder.
