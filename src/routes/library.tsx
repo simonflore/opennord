@@ -31,15 +31,7 @@ function LibraryScreen() {
         else navigate({ to: '/device' });
       }}
       onImport={s.importFile} onRemove={s.imported.remove}
-      sort={s.prefs.sort} onSort={s.prefs.setSort}
-      favorites={s.prefs.favorites} onToggleFavorite={s.prefs.toggleFavorite}
-      folderName={s.folder.folderName}
-      folderCount={s.folder.result.programs.length + s.folder.result.samples.length}
-      canPersist={s.folder.canPersist} needsReconnect={s.folder.needsReconnect}
-      reconnectError={s.folder.reconnectError} busy={s.folder.busy}
-      onChooseFolder={s.folder.choose} onReconnect={s.folder.reconnect}
-      onRefresh={s.folder.refresh} scanErrors={s.folder.result.errors}
-      onForget={s.folder.forget}
+      prefs={s.prefs} folder={s.folder}
     />
   );
 }
