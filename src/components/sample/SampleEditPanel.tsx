@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { patchEditedNsmp, type EditModel } from '../../lib/ns4/sample-edit';
+import { tileZones } from '../../lib/ns4/keyboard-view';
 import { noteName } from '../../lib/ns4/sample-view';
 import { downloadBytes } from '../../lib/download';
 import { Button } from '../ui';
@@ -56,14 +57,20 @@ export function SampleEditPanel({ initial, bytes, codec, onPlayZone }: {
       <table className="ps-params ps-zone-tbl">
         <thead><tr><th>sample</th><th>root</th><th>up to (split)</th><th>vel ≤</th></tr></thead>
         <tbody>
-          {zones.map((z, i) => (
-            <tr key={i} className={i === selected ? 'sel' : ''} onClick={() => { setSelected(i); onPlayZone?.(i); }}>
-              <td>S{i + 1}</td>
-              <td>{num(z.rootKey, (n) => setZone(i, { rootKey: n }))}<em>{noteName(z.rootKey)}</em></td>
-              <td>{num(z.keyHigh, (n) => setZone(i, { keyHigh: n }))}<em>{noteName(z.keyHigh)}</em></td>
-              <td>{num(z.velTop, (n) => setZone(i, { velTop: n }))}</td>
-            </tr>
-          ))}
+          {/* Rows in keyboard order (left→right) so S-numbers match the map above;
+              edits still address the original zone by its index (tz.index). */}
+          {tileZones(zones).map((tz, pos) => {
+            const i = tz.index;
+            const z = zones[i];
+            return (
+              <tr key={i} className={i === selected ? 'sel' : ''} onClick={() => { setSelected(i); onPlayZone?.(i); }}>
+                <td>S{pos + 1}</td>
+                <td>{num(z.rootKey, (n) => setZone(i, { rootKey: n }))}<em>{noteName(z.rootKey)}</em></td>
+                <td>{num(z.keyHigh, (n) => setZone(i, { keyHigh: n }))}<em>{noteName(z.keyHigh)}</em></td>
+                <td>{num(z.velTop, (n) => setZone(i, { velTop: n }))}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 

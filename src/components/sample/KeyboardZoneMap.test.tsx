@@ -37,6 +37,22 @@ describe('KeyboardZoneMap', () => {
     expect(html).not.toContain('click to audition');
   });
 
+  it('numbers zones by keyboard position (S1 leftmost) regardless of stroke order', () => {
+    // Zones supplied high→low (as real .nsmp store them) must still label S1 at
+    // the far left and S3 at the far right.
+    const reversed: EditZone[] = [
+      { rootKey: 96, keyHigh: 108, velTop: 127 },
+      { rootKey: 60, keyHigh: 72, velTop: 127 },
+      { rootKey: 30, keyHigh: 40, velTop: 127 },
+    ];
+    const html = renderToStaticMarkup(
+      <KeyboardZoneMap zones={reversed} selected={-1} onSelect={() => {}} />,
+    );
+    // bands render left→right, so S1 must appear before S2 before S3 in the markup
+    expect(html.indexOf('>S1<')).toBeLessThan(html.indexOf('>S2<'));
+    expect(html.indexOf('>S2<')).toBeLessThan(html.indexOf('>S3<'));
+  });
+
   it('renders drag handles only when editable (onChangeKeyHigh provided)', () => {
     const editable = renderToStaticMarkup(
       <KeyboardZoneMap zones={zones} selected={0} onSelect={() => {}} onChangeKeyHigh={() => {}} />,
