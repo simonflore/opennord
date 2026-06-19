@@ -100,7 +100,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
             )}
 
           {loaded.decodable && <SampleConvert bytes={loaded.bytes} file={loaded.file} name={loaded.name} />}
-          <StrokeList strokes={loaded.strokes} playable={loaded.decodable} />
+          <StrokeList strokes={loaded.strokes} playable={loaded.decodable} name={loaded.file.name?.trim() || loaded.name} />
 
           {/* Raw key/velocity table — only when we couldn't build the editor. */}
           {!((loaded.file.codec === 3 || loaded.file.codec === 4) && loaded.zones.length > 0)
