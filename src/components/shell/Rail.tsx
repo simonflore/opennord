@@ -1,32 +1,41 @@
 import { DeviceStatus } from './DeviceStatus';
 
+/** Route paths the rail can navigate to — kept in sync with the route tree in router.tsx. */
+export type NavTo = '/library' | '/samples' | '/device' | '/about' | '/dev/inspect' | '/dev/decode';
+
 interface Props {
+  /** Current pathname without its leading slash (e.g. "library", "library/abc", "dev/inspect"). */
   active: string;
-  onNavigate: (dest: string) => void;
+  onNavigate: (to: NavTo) => void;
   onManageDevice: () => void;
 }
 
-const DESTS: Array<{ id: string; label: string }> = [
-  { id: 'library', label: 'Library' },
-  { id: 'samples', label: 'Samples' },
+const DESTS: Array<{ to: NavTo; label: string }> = [
+  { to: '/library', label: 'Library' },
+  { to: '/samples', label: 'Samples' },
 ];
 
-const DEV_DESTS: Array<{ id: string; label: string }> = [
-  { id: 'inspect', label: 'Decode Inspector' },
-  { id: 'decode', label: 'Program Decode' },
+const DEV_DESTS: Array<{ to: NavTo; label: string }> = [
+  { to: '/dev/inspect', label: 'Decode Inspector' },
+  { to: '/dev/decode', label: 'Program Decode' },
 ];
 
 export function Rail({ active, onNavigate, onManageDevice }: Props) {
+  const path = '/' + active;
+  // A nav item is active when the path equals it or sits beneath it (e.g.
+  // /library/$id keeps Library lit).
+  const isActive = (to: NavTo) => path === to || path.startsWith(to + '/');
+
   return (
     <nav className="on-rail">
       <div className="on-rail__brand">Open<span className="on-rail__brand-accent">Nord</span></div>
 
       {DESTS.map((d) => (
         <button
-          key={d.id}
-          className={`on-nav ${active === d.id ? 'on-nav--active' : ''}`.trim()}
-          aria-current={active === d.id ? 'page' : undefined}
-          onClick={() => onNavigate(d.id)}
+          key={d.to}
+          className={`on-nav ${isActive(d.to) ? 'on-nav--active' : ''}`.trim()}
+          aria-current={isActive(d.to) ? 'page' : undefined}
+          onClick={() => onNavigate(d.to)}
         >
           {d.label}
         </button>
@@ -40,10 +49,10 @@ export function Rail({ active, onNavigate, onManageDevice }: Props) {
         <summary>Developer</summary>
         {DEV_DESTS.map((d) => (
           <button
-            key={d.id}
-            className={`on-nav on-nav--sub ${active === d.id ? 'on-nav--active' : ''}`.trim()}
-            aria-current={active === d.id ? 'page' : undefined}
-            onClick={() => onNavigate(d.id)}
+            key={d.to}
+            className={`on-nav on-nav--sub ${isActive(d.to) ? 'on-nav--active' : ''}`.trim()}
+            aria-current={isActive(d.to) ? 'page' : undefined}
+            onClick={() => onNavigate(d.to)}
           >
             {d.label}
           </button>
@@ -51,9 +60,9 @@ export function Rail({ active, onNavigate, onManageDevice }: Props) {
       </details>
 
       <button
-        className={`on-nav on-rail__about ${active === 'about' ? 'on-nav--active' : ''}`.trim()}
-        aria-current={active === 'about' ? 'page' : undefined}
-        onClick={() => onNavigate('about')}
+        className={`on-nav on-rail__about ${isActive('/about') ? 'on-nav--active' : ''}`.trim()}
+        aria-current={isActive('/about') ? 'page' : undefined}
+        onClick={() => onNavigate('/about')}
       >
         About &amp; legal
       </button>
