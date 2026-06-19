@@ -27,6 +27,12 @@ nse_decomp/
 # recordings, kept out of the repo (size + scope). Trimmed fixtures live under
 # src/lib/ns4/__fixtures__/nsmp/ instead.
 research/nsmp/
+# Sample binaries are never repo content — they're real sample audio (the user's
+# or shared third-party files), kept local only (docs/LEGAL.md).
+*.nsmp
+*.nsmp3
+*.nsmp4
+nsmp conversion demo files/
 # Nord FACTORY library content (Clavia IP) — never commit/redistribute
 # (docs/LEGAL.md). Kept locally for interop format study only.
 *.npno
