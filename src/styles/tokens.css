@@ -8,6 +8,7 @@
   --surface-2: #23272f;
   --sink: #101216;       /* rail, inputs */
   --line: #2b2f39;
+  --devbox-bg: #191b21;  /* device-status box on the rail (between bg and surface) */
 
   /* accent + state */
   --red: #e0202e;
@@ -21,6 +22,8 @@
   --ink: #e9ebf0;
   --dim: #8a909c;
   --muted: #6f7480;
+  --text-on-accent: #ffffff;   /* text on --red fills (buttons, active chips) */
+  --text-tertiary: #aeb4c0;    /* tag/chip label — one step brighter than --dim */
 
   /* radius */
   --r-sm: 8px;
@@ -45,6 +48,29 @@
   --organ-db-track: #0c0c0e;
   --organ-db-black-edge: #3a3a42;
   --organ-on-bg: #2a1416;
+
+  /* Instrument-panel surfaces — faithful front-panel greys/LCD, like the organ
+     drawbars above. Tokenized so the "no hardcoded color" rule holds in nord.css. */
+  --dial-bg: #353d4b;
+  --dial-shell-hi: #4c5563;    /* radial highlight at top of a dial */
+  --meter-track: #333b49;
+  --fx-border: #5b6472;
+  --deps-bg: #221b1d;
+  --deps-border: #43222a;
+  --deps-ink: #ff7a72;         /* dependency warning text (brighter red) */
+  --lcd-bg: #10384e;           /* sample-waveform LCD backdrop */
+  --lcd-deep: #0d2a3a;         /* LCD gradient floor */
+  --lcd-edge: #1d5775;         /* LCD bezel border */
+  --wave: #ff3b3b;             /* waveform trace */
+  --panel-pill: #2c3340;       /* dark pill/chip backdrop on the panel */
+  --dial-shell-lo: #171b22;    /* dial inner shadow floor */
+  /* Keyboard-zone fills — a 6-hue data-viz palette for the zone map. */
+  --zone-1: #2f4a59;
+  --zone-2: #473a59;
+  --zone-3: #593a3f;
+  --zone-4: #3a5945;
+  --zone-5: #534a2c;
+  --zone-6: #3f3a59;
 
   /* type */
   --font: -apple-system, system-ui, sans-serif;
