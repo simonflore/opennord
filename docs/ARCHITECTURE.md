@@ -31,6 +31,29 @@ OpenNord is a Web PWA (React + Vite) wrapped to iOS with Capacitor, so one codeb
 
 The sharing layer (upload, search, rate, fork) needs a backend + storage. Deliberately **not** scaffolded here so the first cut can be a pure client that reads local files. When added, keep the rule from `docs/LEGAL.md`: store **programs**, never sample/library content.
 
+## UI shell & routing
+
+The app is a [TanStack Router](https://tanstack.com/router) tree with **hash
+history** (`createHashHistory` in `src/router.tsx`) — hash URLs (`#/library`)
+survive Capacitor's non-http origin on iOS, where path-based history would not.
+
+A **screen = one route module** under `src/routes/` (a thin `createRoute`
+wrapper) whose feature logic lives in `src/lib/<feature>/` (or a `src/components/<feature>/`
+folder for view-only pieces). The root layout (`src/routes/root.tsx`) renders the
+left `Rail` + an `<Outlet>`; shared cross-screen state lives in a provider
+(`DeviceContext`, `LibraryContext`) composed in `src/App.tsx`, never drilled.
+
+**To add a screen** — three compiler-checked edits:
+
+1. Create `src/routes/<name>.tsx` exporting a `createRoute({ getParentRoute: () => rootRoute, path: '/<name>', component })`.
+2. Add it to the `routeTree` in `src/router.tsx`.
+3. Add a `{ to: '/<name>', label }` entry to `DESTS` (or `DEV_DESTS`) in `src/components/shell/Rail.tsx` — `NavTo` is the typed union of valid paths.
+
+Deep links come for free: any route (e.g. `/library/$programId`) is shareable and
+survives a reload. Keep components composed from `src/components/ui/` primitives,
+and group related props into objects (see `LibraryView`'s `prefs` / `folder`)
+rather than growing flat prop lists.
+
 ## Design principles
 
 1. **Every decoded field is traceable.** A comment or `docs/FORMAT.md` entry says where the knowledge came from. The format must stay re-derivable by the next person.
