@@ -1,6 +1,6 @@
 /* NS4 palette + Program Studio component styles (direction C — Nord-flavored, clean). */
 .ps {
-  --navy: var(--bg); --card: var(--surface); --led: var(--red-bright); --grn: var(--connected); --lcd: #0d2a3a;
+  --navy: var(--bg); --card: var(--surface); --led: var(--red-bright); --grn: var(--connected); --lcd: var(--lcd-deep);
   background: var(--navy); color: var(--ink); border-radius: var(--r-lg); padding: var(--s-3) var(--s-4);
   font-family: var(--font);
 }
@@ -10,7 +10,7 @@
   border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 14px; }
 .ps-nm { font-size: 20px; font-weight: 800; }
 .ps-meta { color: var(--dim); font-size: 12px; margin-top: 3px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.ps-pill { background: #2c3340; border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; font-size: 11px; }
+.ps-pill { background: var(--panel-pill); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; font-size: 11px; }
 .ps-logo { color: var(--red); font-style: italic; font-weight: 800; font-size: 22px; }
 
 .ps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
@@ -22,11 +22,11 @@
 .ps-knobs { display: flex; gap: 14px; flex-wrap: wrap; }
 .ps-knob { text-align: center; width: 52px; }
 .ps-dial { width: 40px; height: 40px; border-radius: 50%; margin: 0 auto;
-  background: conic-gradient(var(--red) calc(var(--v, 50) * 1%), #353d4b 0); padding: 4px; }
+  background: conic-gradient(var(--red) calc(var(--v, 50) * 1%), var(--dial-bg) 0); padding: 4px; }
 .ps-dial i { display: block; width: 100%; height: 100%; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #4c5563, #171b22); }
+  background: radial-gradient(circle at 35% 30%, var(--dial-shell-hi), var(--dial-shell-lo)); }
 /* Neutral dial (no arc) — used when there is no real 0–100 value to show. */
-.ps-dial-flat { background: #353d4b; }
+.ps-dial-flat { background: var(--dial-bg); }
 .ps-knob b { display: block; font-size: 11px; margin-top: 3px; }
 .ps-knob span { font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
 
@@ -35,7 +35,7 @@
 .ps-models { display: flex; gap: 3px; }
 .ps-model { background: var(--surface-2); border: 1px solid var(--line); color: var(--dim);
   border-radius: 6px; padding: 4px 7px; font-size: 10px; font-weight: 600; }
-.ps-model.on { background: var(--red); border-color: var(--red); color: #fff; }
+.ps-model.on { background: var(--red); border-color: var(--red); color: var(--text-on-accent); }
 
 .ps-dbstack { display: flex; gap: 5px; justify-content: space-between; align-items: flex-end; margin: 6px 0; }
 .ps-db { flex: 1; text-align: center; }
@@ -57,21 +57,21 @@
 .ps-tgrow { display: flex; gap: 4px; flex-wrap: wrap; }
 .ps-tg-btn { background: var(--surface-2); border: 1px solid var(--line); color: var(--dim);
   border-radius: 6px; padding: 5px 9px; font-size: 10.5px; font-weight: 600; }
-.ps-tg-btn.on { background: var(--organ-on-bg); border-color: var(--red); color: #fff; }
+.ps-tg-btn.on { background: var(--organ-on-bg); border-color: var(--red); color: var(--text-on-accent); }
 .ps-tg-btn.off { opacity: 0.5; }
 
-.ps-lcd { background: linear-gradient(#10384e, var(--lcd)); border: 1px solid #1d5775; border-radius: 6px;
+.ps-lcd { background: linear-gradient(var(--lcd-bg), var(--lcd)); border: 1px solid var(--lcd-edge); border-radius: 6px;
   padding: 8px 10px; font-family: ui-monospace, monospace; color: var(--lcd-cyan); margin-bottom: 9px; }
-.ps-lcd .big { font-size: 14px; color: #fff; }
+.ps-lcd .big { font-size: 14px; color: var(--text-on-accent); }
 
 .ps-meter { margin-top: 9px; }
 .ps-meter-label { font-size: 9px; letter-spacing: 1px; color: var(--dim); display: flex; justify-content: space-between; }
-.ps-meter-track { height: 6px; border-radius: 3px; background: #333b49; margin-top: 3px; overflow: hidden; }
+.ps-meter-track { height: 6px; border-radius: 3px; background: var(--meter-track); margin-top: 3px; overflow: hidden; }
 .ps-meter-fill { height: 100%; background: var(--red); }
 
-.ps-fx { border-left-color: #5b6472; margin-top: 12px; }
+.ps-fx { border-left-color: var(--fx-border); margin-top: 12px; }
 .ps-chips { display: flex; gap: 8px; flex-wrap: wrap; }
-.ps-chip { background: #2c3340; border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px;
+.ps-chip { background: var(--panel-pill); border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px;
   font-size: 11px; flex: 1; min-width: 120px; }
 .ps-chip .t { font-size: 9px; letter-spacing: 1px; color: var(--dim); }
 
@@ -79,7 +79,7 @@
 .ps-scene-l { font: 700 9px var(--font); letter-spacing: 1.5px; color: var(--red-bright); }
 .ps-scene-btn { font: 700 11px var(--font); cursor: pointer; padding: 4px 13px; border-radius: 7px;
   background: var(--surface-2); color: var(--dim); border: 1px solid var(--line); }
-.ps-scene-btn.on { background: var(--red); color: #fff; border-color: var(--red); }
+.ps-scene-btn.on { background: var(--red); color: var(--text-on-accent); border-color: var(--red); }
 
 .ps-zones { margin: 0 0 14px; }
 .ps-zones-hd { display: flex; align-items: baseline; gap: 12px; margin-bottom: 7px; }
@@ -145,8 +145,8 @@
   background: var(--surface-2); border-radius: 999px; padding: 2px 7px; }
 .ps-extern-v { font: 11px var(--mono); color: var(--dim); }
 
-.ps-deps { margin-top: 12px; background: #221b1d; border: 1px solid #43222a; border-radius: 10px; padding: 10px 12px; }
-.ps-deps-t { font-size: 10px; letter-spacing: 1px; color: #ff7a72; font-weight: 700; }
+.ps-deps { margin-top: 12px; background: var(--deps-bg); border: 1px solid var(--deps-border); border-radius: 10px; padding: 10px 12px; }
+.ps-deps-t { font-size: 10px; letter-spacing: 1px; color: var(--deps-ink); font-weight: 700; }
 .ps-dep { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; margin: 5px 10px 0 0;
   color: var(--grn); text-decoration: none; }
 .ps-dep:hover { text-decoration: underline; }

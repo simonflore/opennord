@@ -30,7 +30,7 @@
 }
 .on-rail__note-text { font: 9px/1.4 var(--font); color: var(--muted); }
 
-.on-devbox { background: #191b21; border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px; }
+.on-devbox { background: var(--devbox-bg); border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px; }
 .on-devbox--off { display: flex; flex-direction: column; gap: 8px; }
 .on-devbox__state { font: 700 9px var(--font); letter-spacing: 1px; color: var(--muted); }
 .on-devbox__state--on { color: var(--connected); }
