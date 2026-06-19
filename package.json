@@ -12,6 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint src && stylelint \"src/**/*.css\"",
+    "lint:fix": "eslint src --fix && stylelint \"src/**/*.css\" --fix",
     "cap:sync": "cap sync"
   },
   "dependencies": {
@@ -30,8 +32,12 @@
     "@types/react-dom": "^19.2.3",
     "@types/w3c-web-usb": "^1.0.14",
     "@vitejs/plugin-react": "^6.0.2",
+    "eslint": "^10.5.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "fast-xml-parser": "^5.9.0",
+    "stylelint": "^17.13.0",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1",
     "vite": "^8.0.16",
     "vitest": "^4.1.9"
   }
