@@ -435,3 +435,33 @@ U1 grows monotonically across the section.
 **Validation bar:** reproduce all 17 real headers byte-for-byte from decoded
 params before shipping `convertNsmp(x, 2)`. Until then, OG output stays behind a
 "not hardware-validated" warning (same posture as the codec 3/4 writer).
+
+### Region pointers — domain is internal, not decoded-PCM (RE update)
+
+`EncodeStrokePhase0` (`@1002dbc38`) builds the four region values from the source
+`CSmpStream`'s `GetSecondStart`/`GetLoopBegin`/`GetEnd`/`GetChannelCnt`, with a
+`channels×5` guard between regions and a `kNomTgt`-derived alignment (the
+`uVar2`/`iVar21` rounding). `param_1[0x14]==0` (no loop) sets loop-out = end, so
+`U3==U4` — confirmed on every one-shot stroke (TAKE-ON-ME stk1/2/3/8).
+
+**Ruled out by measurement (17 strokes), do not retry:**
+- `base = (sectionByte + 0x60)/channels`: `U1 − base` is large-negative and grows
+  per stroke — wrong.
+- `U4 − U1 == decoded sample length`: false. BrassAlesis stk0 `U4−U1=174483`
+  vs `samp=169604`; TAKE-ON-ME stk0 `U4−U1=117651` vs `samp=165030`, and its
+  end-pointer `U4=118110 < samp` — i.e. the pointers count a **different, internal
+  sample unit** than our block-stream decode (codec decimation / `kNomTgt`
+  domain), so they can't be derived from our PCM length alone.
+
+**Conclusion:** byte-exact OG region pointers need a faithful port of
+`EncodeStroke`→`Phase0` plus the `CSmpStream` position/loop model (and the
+`CHistory[0x5c..0x68]`→`SSmpAttributes[0..3]`→`Write U1..U4` plumbing), operating
+in the encoder's internal sample domain. That is a real multi-function port, not
+a one-liner — scoped as the remaining work for `convertNsmp(x, 2)`.
+
+**Fastest validation path (uses the user's Stage 2):** rebuild an OG file from a
+*single real stroke* — re-encode its own decoded PCM and reuse the original `stk`
+header verbatim (same audio ⇒ same length ⇒ same regions). If that loads on a
+Stage 2, it proves the envelope + `map` + section assembly, isolating the only
+open problem to region-recompute-for-new-length. Then calibrate the region/align
+constants against hardware (2–3 iterations) rather than a blind port.
