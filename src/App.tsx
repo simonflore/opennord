@@ -8,7 +8,8 @@ import { Rail } from './components/shell/Rail';
 import { ErrorBoundary } from './components/shell/ErrorBoundary';
 import { LibraryView } from './components/library/LibraryView';
 import { parseNs4Program } from './lib/ns4/parse';
-import { localEntryFromFile, nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms } from './lib/library/entries';
+import { nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms } from './lib/library/entries';
+import { useImportedLibrary } from './lib/library/useImportedLibrary';
 import { useFolderLibrary } from './lib/folder/useFolderLibrary';
 import { SamplesView } from './components/sample/SamplesView';
 import { AboutView } from './components/about/AboutView';
@@ -29,21 +30,21 @@ function Shell() {
   const [dest, setDest] = useState<Dest>('library');
   const { entries: deviceEntries } = useDevice();
 
-  const [localEntries, setLocalEntries] = useState<LibraryEntry[]>([]);
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<NS4Program | null>(null);
 
   const folder = useFolderLibrary();
+  const imported = useImportedLibrary();
 
   const allEntries: LibraryEntry[] = [
     ...nordEntriesFromDevice(deviceEntries),
     ...entriesFromScannedPrograms(folder.result.programs),
-    ...localEntries,
+    ...imported.entries,
   ];
   const shown = filterEntries(allEntries, source, query);
 
-  async function importFile() {
+  function importFile() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.ns4p,.ns4o,.ns4n,.ns4y';
@@ -56,8 +57,7 @@ function Shell() {
       const f = input.files?.[0];
       cleanup();
       if (!f) return;
-      const entry = await localEntryFromFile(f, localEntries.length);
-      setLocalEntries((prev) => [...prev, entry]);
+      await imported.add(f);
     };
     input.oncancel = cleanup;
     input.click();
@@ -81,6 +81,7 @@ function Shell() {
             : (<LibraryView
                 entries={shown} source={source} query={query}
                 onSource={setSource} onQuery={setQuery} onOpen={openEntry} onImport={importFile}
+                onRemove={imported.remove}
                 folderName={folder.folderName}
                 folderCount={folder.result.programs.length + folder.result.samples.length}
                 canPersist={folder.canPersist}

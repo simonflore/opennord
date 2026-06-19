@@ -11,6 +11,8 @@ interface Props {
   onQuery: (q: string) => void;
   onOpen: (e: LibraryEntry) => void;
   onImport: () => void;
+  /** Remove an imported program (local source only). */
+  onRemove: (id: string) => void;
   // Folder source:
   folderName: string | null;
   folderCount: number;
@@ -29,7 +31,7 @@ const TABS: Array<LibrarySource | 'all'> = ['all', 'nord', 'local'];
 const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', nord: 'On Nord', local: 'Local' };
 
 export function LibraryView({
-  entries, source, query, onSource, onQuery, onOpen, onImport,
+  entries, source, query, onSource, onQuery, onOpen, onImport, onRemove,
   folderName, folderCount, canPersist, needsReconnect, busy, reconnectError,
   onChooseFolder, onReconnect, onRefresh, scanErrors, onForget,
 }: Props) {
@@ -50,6 +52,8 @@ export function LibraryView({
               {canPersist && !needsReconnect
                 ? <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onRefresh} disabled={busy} aria-label="Refresh folder">⟳</button>
                 : <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onChooseFolder} disabled={busy}>Re-pick</button>}
+              {/* Disconnect only forgets the folder pointer — it never touches the user's files. */}
+              <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onForget} aria-label="Disconnect folder" title="Disconnect this folder">✕</button>
             </span>
           ) : (
             <Button variant="ghost" onClick={onChooseFolder} disabled={busy}>Choose folder</Button>
@@ -122,6 +126,15 @@ export function LibraryView({
                 : <div className="lib-patch__sub">—</div>}
               <div className="lib-patch__foot">
                 <SourceBadge source={e.source} />
+                {e.source === 'local' && (
+                  <button
+                    className="lib-patch__rm"
+                    aria-label={`Remove ${e.name}`}
+                    title="Remove from library"
+                    onClick={(ev) => { ev.stopPropagation(); onRemove(e.id); }}
+                    onKeyDown={(ev) => ev.stopPropagation()}
+                  >✕</button>
+                )}
               </div>
             </Card>
           ))}

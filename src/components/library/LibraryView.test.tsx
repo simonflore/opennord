@@ -9,6 +9,7 @@ const entries: LibraryEntry[] = [
 ];
 
 const folderDefaults = {
+  onRemove: () => {},
   folderName: null,
   folderCount: 0,
   canPersist: false,
@@ -85,5 +86,21 @@ describe('LibraryView', () => {
       />,
     );
     expect(html).toContain('Read access was denied.');
+  });
+
+  it('shows a remove control on local cards but not on nord cards', () => {
+    const html = renderToStaticMarkup(
+      <LibraryView entries={entries} source="all" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}} {...folderDefaults} />,
+    );
+    expect(html).toContain('aria-label="Remove Sunday Organ"'); // local
+    expect(html).not.toContain('aria-label="Remove Wurli Dream"'); // nord
+  });
+
+  it('offers a Disconnect control on a connected folder chip', () => {
+    const html = renderToStaticMarkup(
+      <LibraryView entries={entries} source="all" query="" onSource={() => {}} onQuery={() => {}} onOpen={() => {}} onImport={() => {}}
+        {...folderDefaults} folderName="My Patches" canPersist />,
+    );
+    expect(html).toContain('aria-label="Disconnect folder"');
   });
 });

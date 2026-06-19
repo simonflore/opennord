@@ -23,18 +23,21 @@ export function nordEntriesFromDevice(entries: ProgramEntry[]): LibraryEntry[] {
   });
 }
 
-/** Parse a dropped/imported file into a local Library entry. */
-export async function localEntryFromFile(file: File, index: number): Promise<LibraryEntry> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const program = parseNs4Program(bytes);
-  program.name = programNameFromFilename(file.name);
+/**
+ * Build a local Library entry from a persisted import (id + filename + bytes).
+ * Pure: parsing the same bytes always yields the same entry, so it works equally
+ * for a freshly-imported file and one restored from IndexedDB on reload.
+ */
+export function entryFromImport(rec: { id: string; name: string; bytes: Uint8Array }): LibraryEntry {
+  const program = parseNs4Program(rec.bytes);
+  program.name = programNameFromFilename(rec.name);
   return {
-    id: `local:${index}`,
-    name: program.name ?? file.name,
+    id: rec.id,
+    name: program.name ?? rec.name,
     source: 'local',
     summary: program.parsed ? summarize(program) : undefined,
     program,
-    bytes,
+    bytes: rec.bytes,
   };
 }
 
