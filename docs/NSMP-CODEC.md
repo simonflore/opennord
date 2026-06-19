@@ -583,3 +583,86 @@ fully specified for a TS port. Build order + spec:
 **Validation:** decode a ground-truth `.nsmp4`, re-encode the integer PCM with this
 port, `cmp` the block stream + header bytes. Start with `impulse_24.nsmp4` (fewest
 blocks), then `ramp`, `sine`. Byte-exact ⇒ correct; then flip codec → 1 for OG.
+
+### Encoder PORTED + VALIDATED byte-exact ✓ (`nw1-encode.ts`, 2026-06-19)
+
+`src/lib/ns4/nw1-encode.ts` (`encodeStrokeNW1` / `planBlocks`) reproduces the
+editor's codec-4 **block stream byte-for-byte** for all three ground-truth files
+(`impulse/ramp/sine_24.nsmp4`) — see `nw1-encode.test.ts` (`firstDiff === -1`,
+lengths equal). The port is `Phase1` segmentation → `CChunk` order/width →
+`Phase2` writer, recovered from `nse_decomp/arm64/` (`1002dbe7c`/`…dc654`/`…ddd3c`
+/`…dcc60`/`…d8de0`). Confirmed mechanics (do not re-derive):
+
+- **No DSP / no normalization in the stream.** Residuals are raw integers; decoded
+  peak == source amplitude exactly (sine peak 3000). `Level2DSP`/`GetDSPNormalize`
+  etc. matter only for the **OG stroke-header** fields (normGain/peak), not the
+  block codec.
+- **`CChunk` selection:** successive differences orders **0–4** only, signed
+  bit-width floored at **2** (the editor inits the width tracker to 2), min width,
+  ties → lowest order. Per-channel history (ring of originals) carries across
+  blocks. Matched GT selection on every block except the forced ones below.
+- **Segmentation (`Phase1`):** the stroke splits into segments at the region
+  boundaries (one-shot = 2 segments: `[0, secondStart)`, `[secondStart, end)`).
+  Each segment opens with a **forced order-0, `linMode=1`** block of size
+  `blockSize + (segLen mod blockSize)` (= `64 + rem`); the rest are fixed
+  `blockSize`-sample (64 = `SMetric[8]·ch`, `SMetric[8]=32`) chunks.
+- **Run merging:** consecutive non-forced full chunks merge into one block iff the
+  chunk fits at the run's order within the run's bw **and** its own best width ≥
+  the run's bw (`widthAtRunOrder ≤ run.bw ≤ chunkBestWidth`); otherwise flush and
+  the chunk's own best `(order, width)` starts the next run. (This — not "identical
+  `(order,bw)`" — is the exact `Phase1` rule; the looser-but-wrong version
+  over-split `sine`.)
+- **Block header word** (`CBlockHdr::Write`): `(linMode<<23) | ((bw-1)<<19) |
+  (flag2<<18) | (order<<14) | sampleCnt`. `flag2` unused on the one-shot path.
+- **Stop block:** `linMode=1, bw=1, order=0, sampleCnt = blockSize` (= 64), a
+  single 4-byte header word, no payload.
+- **Residual packing:** byte-identical to the decoder/`WriteChunk` — codec-4
+  per-channel word-interleaving (proven independently: 0 byte mismatches across all
+  317 GT data blocks when driven by GT boundaries).
+
+The only value measured from (not derived for) the GT is `secondStart` in the
+editor's **internal/resampled domain** = **4376** interleaved samples (seg0 =
+88 + 67·64), identical across the three files (shared `.nsmpproj`). It is the one
+resample-dependent scalar: the source is 24000 samp/ch @ 48 kHz but the stored
+stream is 17628 samp/ch (a 1469/2000 resample done by the editor's
+`CreateIntermediate` pipeline, which we do **not** port — we encode the already-
+resampled PCM that `decodeStroke` returns). Everything else (splitting, merging,
+selection, packing, headers) reproduces from first principles.
+
+### OG (codec-1) write — header serializer + DSP PORTED ✓ (2026-06-19)
+
+The block-stream encoder is codec-agnostic: `encodeStrokeNW1({ u24:true })` emits
+the OG **sample-interleaved 24-bit** stream. Two more pieces are now ported and
+tested:
+- **`nw1-dsp.ts`** — `level2DSP`/`dsp2Level`/`get0dB`/`decay2DSP`/`getDSPNormalize`,
+  verbatim from `nse_decomp/arm64/1002de{77c,790,888,8b8,8e4}.c`. Unit-tested
+  (`nsmp-og.test.ts`).
+- **`nsmp-og.ts`** — `writeOgStrokeHeader` / `parseOgStrokeHeader`: the fixed
+  54-byte (`0x36`) codec-1 `stk` header (binOffset `0x60`), ported from
+  `CSectionStroke::Write` (`@1002f809c`). **Validated byte-for-byte** by
+  re-serializing all **17 real OG strokes** (`BrassAlesis 2.nsmp` ×8 +
+  `TAKE ON ME.nsmp` ×9): `parse → write → cmp` is exact (`nsmp-og.test.ts`). The
+  `00 4f 88 ba 02` shape, the `80 00 00` decay markers, the `80 …` region marker,
+  and the `<keyHigh> 00 01` trailer all reproduce. Two decay fields (A@0x16,
+  B@0x28) confirmed independent. Confirmed: codec-1 `GetStrokeBinOffset = 0x60`;
+  pitch base @0x06 = `round(2^(cents/1200)·0x88ba)` (0x88ba at cents 0).
+
+### Remaining (genuinely blocked on the resample pipeline)
+
+What stays open for a *from-scratch* `convertNsmp(x, 2)` (vs. round-tripping an
+existing OG file, which the above now supports):
+1. **Region pointers U1–U4 from scratch** = `base + region[i]`, where `base` is
+   `(streamBytePos + 0x60)/channels` aligned and `region[i]` are `Phase0` outputs
+   in the **internal/resampled** sample domain. Triple-confirmed via
+   `CSectionStroke::Write`: not derivable from decoded PCM length (the editor
+   resamples 24000→17628 samp/ch). Needs a port of the resample (`CreateIntermediate`
+   pipeline) + `Phase0`→header plumbing, OR a Stage 2 to calibrate against.
+2. **`normGain`/`peak`/`0x0c`/`secondStart` from scratch** — the DSP chain is
+   ported (`nw1-dsp.ts`) but the inputs (source level, global-normalize state,
+   internal-domain regions) come from that same resample/normalize pipeline.
+3. Container assembly (`assembleOgNsmp`: envelope + 9-byte sections + legacy `map`).
+
+So: the OG **stream**, **header serialization**, and **DSP** are done + validated;
+the gate to a byte-exact *new* OG file is the upstream resample/normalize port (the
+"DECISIVE BLOCKER", now scoped precisely — it affects only the header's region/gain
+*inputs*, not the codec).
