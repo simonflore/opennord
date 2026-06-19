@@ -12,6 +12,7 @@
   font: 600 12px var(--font); color: var(--dim); padding: 7px 10px; border-radius: var(--r-sm);
 }
 .on-nav--active { background: var(--surface-2); color: var(--ink); }
+.on-nav:disabled { color: var(--muted); cursor: not-allowed; opacity: .55; }
 .on-nav--sub { font-size: 11px; padding-left: 16px; }
 .on-rail__spacer { flex: 1; }
 .on-rail__dev { margin-top: var(--s-2); }

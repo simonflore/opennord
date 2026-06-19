@@ -13,7 +13,13 @@ interface Props {
 const DESTS: Array<{ to: NavTo; label: string }> = [
   { to: '/library', label: 'Library' },
   { to: '/samples', label: 'Samples' },
+  { to: '/device', label: 'Device' },
 ];
+
+// Device transfer rides vendor-USB (WebUSB) — desktop Chrome/Edge or the iPad app
+// only. Where it's unavailable, Device stays visible but disabled with a reason.
+const usbSupported = typeof navigator !== 'undefined' && 'usb' in navigator;
+const DEVICE_DISABLED_HINT = 'Connecting to the Nord needs Chrome or Edge on a computer (or the iPad app).';
 
 const DEV_DESTS: Array<{ to: NavTo; label: string }> = [
   { to: '/dev/inspect', label: 'Decode Inspector' },
@@ -30,16 +36,21 @@ export function Rail({ active, onNavigate, onManageDevice }: Props) {
     <nav className="on-rail">
       <div className="on-rail__brand">Open<span className="on-rail__brand-accent">Nord</span></div>
 
-      {DESTS.map((d) => (
-        <button
-          key={d.to}
-          className={`on-nav ${isActive(d.to) ? 'on-nav--active' : ''}`.trim()}
-          aria-current={isActive(d.to) ? 'page' : undefined}
-          onClick={() => onNavigate(d.to)}
-        >
-          {d.label}
-        </button>
-      ))}
+      {DESTS.map((d) => {
+        const disabled = d.to === '/device' && !usbSupported;
+        return (
+          <button
+            key={d.to}
+            className={`on-nav ${isActive(d.to) ? 'on-nav--active' : ''}`.trim()}
+            aria-current={isActive(d.to) ? 'page' : undefined}
+            disabled={disabled}
+            title={disabled ? DEVICE_DISABLED_HINT : undefined}
+            onClick={() => onNavigate(d.to)}
+          >
+            {d.label}
+          </button>
+        );
+      })}
 
       <div className="on-rail__spacer" />
 
