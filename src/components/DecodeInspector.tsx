@@ -8,6 +8,7 @@
  */
 
 import { useMemo, useState, type CSSProperties } from 'react';
+import './decode-inspector.css';
 import { bytesToBitString, fileTypeTag, hasCbinMagic } from '../lib/ns4/bits';
 import { buildParamMap } from '../lib/ns4/maps';
 import {
@@ -21,11 +22,13 @@ import {
 } from '../lib/ns4/coverage';
 import type { Ns4Group } from '../lib/ns4/maps';
 
+// Engine-group dot/segment colors — resolved from the --di-* data-viz tokens
+// defined on the `.di` container in decode-inspector.css.
 const GROUP_COLOR: Record<Ns4Group, string> = {
-  m: '#555555', // master / global
-  o: '#c026d3', // organ
-  p: '#16a34a', // piano
-  y: '#2563eb', // synth
+  m: 'var(--di-m)', // master / global
+  o: 'var(--di-o)', // organ
+  p: 'var(--di-p)', // piano
+  y: 'var(--di-y)', // synth
 };
 const GROUP_LABEL: Record<Ns4Group, string> = { m: 'master', o: 'organ', p: 'piano', y: 'synth' };
 
@@ -55,8 +58,8 @@ export function DecodeInspector() {
   }, [a, b, map]);
 
   return (
-    <div style={{ fontFamily: 'system-ui', maxWidth: 980, margin: '0 auto', padding: 16 }}>
-      <p style={{ color: '#666' }}>
+    <div className="di" style={{ maxWidth: 980, margin: '0 auto', padding: 16 }}>
+      <p style={{ color: 'var(--dim)' }}>
         Load a <code>.ns4p</code> to inspect. Load a second one to diff — the changed bytes
         reveal where a parameter lives.
       </p>
@@ -78,7 +81,7 @@ export function DecodeInspector() {
             <span>size: <b>{a!.length}</b> B</span>
             <span>known-byte coverage: <b>{view.coverage.toFixed(1)}%</b></span>
             <span>gap regions: <b>{view.gaps.length}</b></span>
-            {b && <span style={{ color: '#a60' }}>diff bytes: <b>{view.diff.size}</b></span>}
+            {b && <span style={{ color: 'var(--warn)' }}>diff bytes: <b>{view.diff.size}</b></span>}
           </div>
 
           <h3 style={{ margin: '8px 0 4px' }}>Coverage by engine</h3>
@@ -89,9 +92,9 @@ export function DecodeInspector() {
           <ByteGrid bytes={a!} claimed={view.claimed} diff={view.diff} map={map} />
 
           <h3 style={{ marginTop: 20 }}>Decoded parameters ({view.decoded.length})</h3>
-          <div style={{ maxHeight: 260, overflow: 'auto', border: '1px solid #eee' }}>
+          <div style={{ maxHeight: 260, overflow: 'auto', border: '1px solid var(--line)' }}>
             <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
-              <thead><tr style={{ textAlign: 'left', background: '#fafafa' }}>
+              <thead><tr style={{ textAlign: 'left', background: 'var(--surface)' }}>
                 <th style={cell}>parameter</th><th style={cell}>value</th><th style={cell}>raw</th><th style={cell}>bits</th>
               </tr></thead>
               <tbody>
@@ -99,8 +102,8 @@ export function DecodeInspector() {
                   <tr key={i}>
                     <td style={cell}><span style={{ color: GROUP_COLOR[d.group] }}>●</span> {d.name}</td>
                     <td style={{ ...cell, fontWeight: 600 }}>{d.display}</td>
-                    <td style={{ ...cell, color: '#999', fontVariantNumeric: 'tabular-nums' }}>{Number.isNaN(d.value) ? '—' : d.value}</td>
-                    <td style={{ ...cell, color: '#bbb' }}>{d.begBit}–{d.endBit}</td>
+                    <td style={{ ...cell, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>{Number.isNaN(d.value) ? '—' : d.value}</td>
+                    <td style={{ ...cell, color: 'var(--dim)' }}>{d.begBit}–{d.endBit}</td>
                   </tr>
                 ))}
               </tbody>
@@ -114,7 +117,7 @@ export function DecodeInspector() {
   );
 }
 
-const cell: CSSProperties = { padding: '2px 8px', borderBottom: '1px solid #f0f0f0' };
+const cell: CSSProperties = { padding: '2px 8px', borderBottom: '1px solid var(--line)' };
 
 function Legend() {
   const sw = (c: string, label: string) => (
@@ -124,7 +127,7 @@ function Legend() {
   );
   return (
     <div style={{ fontSize: 12, marginBottom: 6 }}>
-      {sw('#d8f5d8', 'known')}{sw('#ffe9e9', 'gap')}{sw('#ffe08a', 'changed (diff)')}
+      {sw('var(--di-known)', 'known')}{sw('var(--di-gap)', 'gap')}{sw('var(--di-changed)', 'changed (diff)')}
     </div>
   );
 }
@@ -136,12 +139,12 @@ function CoverageStrip({ bytes, map }: { bytes: Uint8Array; map: ReturnType<type
   const groups: Ns4Group[] = ['m', 'o', 'p', 'y'];
   return (
     <>
-      <div style={{ display: 'flex', width: '100%', height: 26, borderRadius: 3, overflow: 'hidden', border: '1px solid #ddd' }}>
+      <div style={{ display: 'flex', width: '100%', height: 26, borderRadius: 3, overflow: 'hidden', border: '1px solid var(--line)' }}>
         {Array.from(bytes).map((_, i) => {
           const g = groupOfByte(map, i);
           const owners = paramsCoveringByte(map, i).map((p) => p.name);
           const title = `byte ${i}` + (g ? ` — ${GROUP_LABEL[g]}\n${owners.join('\n')}` : '\n(gap — undecoded)');
-          return <span key={i} title={title} style={{ flex: 1, background: g ? GROUP_COLOR[g] : '#f0f0f0' }} />;
+          return <span key={i} title={title} style={{ flex: 1, background: g ? GROUP_COLOR[g] : 'var(--surface-2)' }} />;
         })}
       </div>
       <div style={{ fontSize: 12, marginTop: 4 }}>
@@ -151,7 +154,7 @@ function CoverageStrip({ bytes, map }: { bytes: Uint8Array; map: ReturnType<type
           </span>
         ))}
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 12, height: 12, background: '#f0f0f0', display: 'inline-block', borderRadius: 2, border: '1px solid #ddd' }} /> gap
+          <span style={{ width: 12, height: 12, background: 'var(--surface-2)', display: 'inline-block', borderRadius: 2, border: '1px solid var(--line)' }} /> gap
         </span>
       </div>
     </>
@@ -164,7 +167,7 @@ function ByteGrid({ bytes, claimed, diff, map }: {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 1, fontFamily: 'ui-monospace, monospace', fontSize: 10 }}>
       {Array.from(bytes).map((byteVal, i) => {
-        const bg = diff.has(i) ? '#ffe08a' : claimed.has(i) ? '#d8f5d8' : '#ffe9e9';
+        const bg = diff.has(i) ? 'var(--di-changed)' : claimed.has(i) ? 'var(--di-known)' : 'var(--di-gap)';
         const owners = paramsCoveringByte(map, i).map((p) => p.name);
         const title = `byte ${i}: 0x${byteVal.toString(16).padStart(2, '0')}` +
           (owners.length ? `\n${owners.join('\n')}` : '\n(unclaimed — gap)');
@@ -188,7 +191,7 @@ function DiffList({ diff, map }: { diff: number[]; map: ReturnType<typeof buildP
           const owners = paramsCoveringByte(map, i).map((p) => p.name);
           return (
             <li key={i}>
-              byte {i} — {owners.length ? owners.join(', ') : <em style={{ color: '#c00' }}>unknown (gap to decode)</em>}
+              byte {i} — {owners.length ? owners.join(', ') : <em style={{ color: 'var(--red)' }}>unknown (gap to decode)</em>}
             </li>
           );
         })}
