@@ -50,7 +50,7 @@ export function LibraryView({
     <div>
       <div className="lib-head">
         <div>
-          <div className="lib-title">Library</div>
+          <h1 className="lib-title">Library</h1>
           <div className="lib-counts">{entries.length} programs · {nord} on Nord · {local} local</div>
         </div>
         <div className="lib-actions">
