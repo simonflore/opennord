@@ -647,22 +647,48 @@ tested:
   B@0x28) confirmed independent. Confirmed: codec-1 `GetStrokeBinOffset = 0x60`;
   pitch base @0x06 = `round(2^(cents/1200)·0x88ba)` (0x88ba at cents 0).
 
-### Remaining (genuinely blocked on the resample pipeline)
+### The resampler is NOT needed for Nord→OG conversion ✓ (2026-06-19)
 
-What stays open for a *from-scratch* `convertNsmp(x, 2)` (vs. round-tripping an
-existing OG file, which the above now supports):
-1. **Region pointers U1–U4 from scratch** = `base + region[i]`, where `base` is
-   `(streamBytePos + 0x60)/channels` aligned and `region[i]` are `Phase0` outputs
-   in the **internal/resampled** sample domain. Triple-confirmed via
-   `CSectionStroke::Write`: not derivable from decoded PCM length (the editor
-   resamples 24000→17628 samp/ch). Needs a port of the resample (`CreateIntermediate`
-   pipeline) + `Phase0`→header plumbing, OR a Stage 2 to calibrate against.
-2. **`normGain`/`peak`/`0x0c`/`secondStart` from scratch** — the DSP chain is
-   ported (`nw1-dsp.ts`) but the inputs (source level, global-normalize state,
-   internal-domain regions) come from that same resample/normalize pipeline.
-3. Container assembly (`assembleOgNsmp`: envelope + 9-byte sections + legacy `map`).
+Decisive measurement: the editor's own conversions `BrassAlesis 2.nsmp` (OG) →
+`.nsmp3` → `.nsmp4` decode to **byte-identical internal PCM** (0 mismatches across
+2,756,452 samples; `decodeNsmp` comparison). So **converting between Nord
+generations never resamples** — the decoded PCM *is* the shared internal domain.
+Resampling happens only on **fresh-WAV import** (24000→17628 samp/ch), a separate
+"create from audio" feature, not what #17 ("downconvert any Nord *sample*") needs.
 
-So: the OG **stream**, **header serialization**, and **DSP** are done + validated;
-the gate to a byte-exact *new* OG file is the upstream resample/normalize port (the
-"DECISIVE BLOCKER", now scoped precisely — it affects only the header's region/gain
-*inputs*, not the codec).
+So `convertNsmp(x, 2)` does NOT need the resample pipeline: decode `x` → internal
+PCM + segment boundaries (recoverable from the source stream's `lin=1` blocks) +
+zone map, then re-encode to OG. The region pointers come from the source's own
+regions (internal domain), not from a fresh resample.
+
+### OG stream encoder validated on REAL strokes ✓ (`nw1-encode-og.test.ts`)
+
+`encodeStrokeNW1({ u24:true, blockPerCh: BLOCK_PER_CH_OG /*=24*/ })` with the
+source stroke's recovered segments reproduces real OG block streams **byte-for-byte**
+for 5 of 9 `TAKE ON ME.nsmp` strokes (stk1–4, 8), and **round-trips losslessly**
+(`decode∘encode === pcm`) for every OG stroke tested. Confirmed: **OG block size is
+`SMetric[8]=24`/ch (48 interleaved)** — codec-dependent (codec 3/4 use 32) — from
+the `sc=48` chunks + `sc=48` stop block; segment openings are `48 + (segLen mod 48)`.
+
+**Known limitation (old-editor Phase1):** the other strokes diverge only in
+loop-heavy/decay regions, where the *current* binary's Phase1 merge rule (validated
+100% on current codec-4 one-shots + the 5 OG strokes) says "merge" but these older
+OG files keep blocks separate. Since the current editor **cannot write OG at all**,
+every real OG file predates it and some used a slightly different Phase1 merge — so
+byte-exact round-trip of *arbitrary old* OG files isn't guaranteed. The encoder
+emits what the current algorithm would (correct by construction) and is always
+lossless.
+
+### Remaining for `convertNsmp(x, 2)` — container assembly (mechanical)
+
+The codec **stream**, **header serializer**, and **DSP** are ported + validated.
+What's left is plumbing, not RE:
+1. `assembleOgNsmp`: CBIN envelope (format 0, `0xff×8`@0x0c, version 8@0x14, body
+   @0x18) + 9-byte sections (`NWS→hdr→map→stk×N→sty`, 3-byte tags) + the legacy
+   `map` writer (per-note unity + 12-byte zone records — `parseLegacyZoneRecords`
+   is the reader).
+2. Per-stroke header region pointers U1–U4 = `base + region[i]` with the
+   alignment/pad formula from `CSectionStroke::Write` (`base` from stream byte
+   position; region[i] from the source segments — all now available).
+3. Wire `convertNsmp(x, 2)`: decode → segments + zones + gids + gain/regions →
+   assemble. Validate by re-emitting the byte-exact strokes + lossless round-trip.

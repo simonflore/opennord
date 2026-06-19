@@ -24,12 +24,15 @@ import { PREDICTOR_COEFF } from './nsmp-codec';
 const HISTORY_SIZE = 32; // per-channel ring (matches the decoder + CChunk)
 
 /**
- * `SMetric` block size, per channel (`SMetric[8]`). The interleaved fixed chunk
- * size is `BLOCK_PER_CH * channels` (= 64 for stereo) — the unit Phase1 splits on
- * and the `sampleCnt` carried in the stop block. Recovered from the stop block of
- * every ground-truth file (`sc == SMetric[8]·channels`).
+ * `SMetric` block size, per channel (`SMetric[8]`) — the unit Phase1 splits on and
+ * the `sampleCnt` carried in the stop block (`sc == SMetric[8]·channels`). It is
+ * **codec-dependent**: codec 3/4 use **32**, OG/codec-1 uses **24** (recovered
+ * from the `sc=48` chunks + `sc=48` stop block of real OG strokes). Override via
+ * {@link EncodeNW1Options.blockPerCh}.
  */
 export const BLOCK_PER_CH = 32;
+/** OG/codec-1 block size per channel (`SMetric[8]`); pass via `blockPerCh`. */
+export const BLOCK_PER_CH_OG = 24;
 
 /**
  * Largest first-chunk remainder folded into a segment's opening block
@@ -70,6 +73,8 @@ export interface EncodeNW1Options {
   wordInterleaved?: boolean;
   /** OG/legacy 24-bit units (3-byte headers + 24-bit words). Default false (32-bit). */
   u24?: boolean;
+  /** `SMetric[8]` block size per channel: 32 (codec 3/4, default) or 24 (OG). */
+  blockPerCh?: number;
 }
 
 /** Smallest signed bit width (≥1) holding every value in [min, max]. */
@@ -163,7 +168,7 @@ export function planBlocks(channels: ArrayLike<number>[], opts: EncodeNW1Options
   if (nCh === 0) return [];
   const lenPerCh = channels[0].length;
   const total = lenPerCh * nCh; // interleaved
-  const BS = BLOCK_PER_CH * nCh;
+  const BS = (opts.blockPerCh ?? BLOCK_PER_CH) * nCh;
 
   // Segment boundaries → segment lengths (interleaved). Clamp, dedupe, sort.
   const bounds = (opts.segmentsInterleaved ?? [])
@@ -320,7 +325,7 @@ export function encodeStrokeNW1(channels: ArrayLike<number>[], opts: EncodeNW1Op
     }
   }
 
-  // Stop block: linMode, bw=1, order=0, sampleCnt = blockSize (interleaved). 4 bytes.
-  pushWord(blockHeaderWord({ order: 0, bw: 1, sampleCnt: BLOCK_PER_CH * nCh, linMode: true, flag2: false }));
+  // Stop block: linMode, bw=1, order=0, sampleCnt = blockSize (interleaved). 1 word.
+  pushWord(blockHeaderWord({ order: 0, bw: 1, sampleCnt: (opts.blockPerCh ?? BLOCK_PER_CH) * nCh, linMode: true, flag2: false }));
   return Uint8Array.from(out);
 }
