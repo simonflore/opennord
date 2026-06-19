@@ -89,7 +89,7 @@ export function LibraryView({
       )}
 
       <div className="lib-controls">
-        <SearchField value={query} onChange={onQuery} placeholder="Search patches, or describe a sound…" />
+        <SearchField value={query} onChange={onQuery} placeholder="Search patches by name…" />
         {TABS.map((t) => (
           <FilterChip key={t} active={source === t} onClick={() => onSource(t)}>{TAB_LABEL[t]}</FilterChip>
         ))}
