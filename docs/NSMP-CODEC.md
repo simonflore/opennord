@@ -465,3 +465,37 @@ header verbatim (same audio ⇒ same length ⇒ same regions). If that loads on 
 Stage 2, it proves the envelope + `map` + section assembly, isolating the only
 open problem to region-recompute-for-new-length. Then calibrate the region/align
 constants against hardware (2–3 iterations) rather than a blind port.
+
+### DECISIVE BLOCKER — byte-exact OG header needs a byte-exact *encoder*
+
+Ground-truth proof (editor-made `.nsmp4` + `.nsmpproj`, all single one-shot
+strokes, **identical** proj loop/length: `end=24000, secondStart=3000,
+loopEnabled=0`):
+
+| file | region end pointer | block-stream bytes |
+|---|---|---|
+| `sine_24`    | **4544** | ~16484 |
+| `ramp_24`    | **3808** | ~13604 |
+| `impulse_24` | **2816** |  ~9640 |
+
+Same length, same loop config → **different** region pointers. The only variable
+is the audio content. Therefore the region pointers index the editor's
+**content-adaptive compressed block layout** (`EncodeStrokePhase1` picks block
+boundaries at loop points / by content), *not* the sample length or proj loop
+points — and they're not a clean function of compressed byte size either
+(bytes/unit ≈ 3.63 / 3.57 / 3.42, non-constant).
+
+**Consequence:** reproducing an OG `stk` header byte-for-byte requires producing
+the **same compressed stream the editor produces**, i.e. cloning `NW1::CEncode`
+Phase0/1/2 (the optimal loop-point block splitter) bit-for-bit. OpenNord's
+encoder (`nsmp-encode.ts`) is deliberately a *simple* fixed-block encoder, so its
+stream — and thus the region pointers computed over it — will differ from the
+editor's. A keyboard validates these pointers against the actual stream, so an
+"approximately right" header is not safe.
+
+**Verdict for #17:** OG *write* is gated on either (a) a full bit-exact port of
+`NW1::CEncode` Phase0/1/2 (large; and still unverifiable here without a Stage 2),
+or (b) a Stage 2 to calibrate/validate approximate output against. With neither
+available, OG downconversion stays **documented but unbuilt**. The OG *read* path
+(decode + zones) already works and is unaffected. Everything needed to resume is
+captured above (field map, Phase0 semantics, ruled-out hypotheses, RE addresses).
