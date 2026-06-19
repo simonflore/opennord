@@ -89,7 +89,7 @@ function StrokeRow({ stroke, playable, name }: { stroke: InspectorStroke; playab
         <button
           onClick={playing ? stop : play}
           disabled={!playable || !s.ok}
-          style={{ padding: '4px 10px', borderRadius: 6, cursor: playable && s.ok ? 'pointer' : 'not-allowed', border: '1px solid var(--red)', background: 'var(--red)', color: '#fff', fontSize: 11 }}
+          style={{ padding: '4px 10px', borderRadius: 6, cursor: playable && s.ok ? 'pointer' : 'not-allowed', border: '1px solid var(--red)', background: 'var(--red)', color: 'var(--text-on-accent)', fontSize: 11 }}
         >
           {playing ? 'Stop' : 'Play'}
         </button>

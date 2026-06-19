@@ -25,7 +25,7 @@ export function DeviceBrowser({ entries, deviceName, onSelect, onDelete, onSendF
           <div className="ps-meta"><span>{deviceName} · {entries.length} programs</span></div>
         </div>
         <label
-          style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, border: '1px solid var(--red)', color: '#ff7a72' }}
+          style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, border: '1px solid var(--red)', color: 'var(--deps-ink)' }}
         >
           Send a file to the Nord
           <input type="file" accept=".ns4p" style={{ display: 'none' }}
@@ -65,7 +65,7 @@ export function DeviceBrowser({ entries, deviceName, onSelect, onDelete, onSendF
                     <button
                       onClick={() => onDelete(e)}
                       title={`Delete ${v.name}`}
-                      style={{ cursor: 'pointer', background: 'transparent', border: '1px solid #43222a', color: 'var(--warn)', borderRadius: 6, padding: '4px 8px', fontSize: 11 }}
+                      style={{ cursor: 'pointer', background: 'transparent', border: '1px solid var(--deps-border)', color: 'var(--warn)', borderRadius: 6, padding: '4px 8px', fontSize: 11 }}
                     >
                       Delete
                     </button>

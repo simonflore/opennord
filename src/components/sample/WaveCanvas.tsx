@@ -15,7 +15,8 @@ export function WaveCanvas({ pcm, height = 64 }: { pcm: Int32Array; height?: num
     for (let i = 0; i < pcm.length; i++) { const a = Math.abs(pcm[i]); if (a > peak) peak = a; }
     if (peak === 0) peak = 1;
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#ff3b3b';
+    // Canvas fillStyle can't take a CSS var() — resolve the token off the element.
+    ctx.fillStyle = getComputedStyle(cv).getPropertyValue('--wave').trim() || '#ff3b3b';
     const mid = height / 2;
     bars.forEach(([lo, hi], x) => {
       const yHi = mid - (hi / peak) * mid;
@@ -23,5 +24,5 @@ export function WaveCanvas({ pcm, height = 64 }: { pcm: Int32Array; height?: num
       ctx.fillRect(x, yHi, 1, Math.max(1, yLo - yHi));
     });
   }, [pcm, height]);
-  return <canvas ref={ref} width={600} height={height} style={{ width: '100%', height, background: '#10384e', borderRadius: 6, display: 'block' }} />;
+  return <canvas ref={ref} width={600} height={height} style={{ width: '100%', height, background: 'var(--lcd-bg)', borderRadius: 6, display: 'block' }} />;
 }
