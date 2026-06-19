@@ -17,6 +17,10 @@ function getCtx(): AudioContext {
   return audioCtx;
 }
 
+// Single-voice playback: only one sample plays at a time. Starting a new one
+// stops whatever was playing (and clears its row's button state).
+let activeStop: (() => void) | null = null;
+
 export function StrokeList({ strokes, playable }: { strokes: InspectorStroke[]; playable: boolean }) {
   if (strokes.length === 0) {
     // Codec 3 and 4 decode; legacy codec 1/2 (or a decode failure) → no audio.
@@ -43,22 +47,25 @@ function StrokeRow({ stroke, playable }: { stroke: InspectorStroke; playable: bo
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   // Stop any playing audio if this row unmounts (e.g. a new file is loaded).
-  useEffect(() => () => { sourceRef.current?.stop(); sourceRef.current = null; }, []);
+  useEffect(() => () => { stop(); }, []);
 
   function play() {
+    activeStop?.(); // stop whatever else is playing first — single voice
     const ctx = getCtx();
     const buf = toAudioBuffer(ctx, normalizeChannels(stroke.channels), SAMPLE_RATE);
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.connect(ctx.destination);
-    src.onended = () => { sourceRef.current = null; setPlaying(false); };
+    src.onended = () => { sourceRef.current = null; if (activeStop === stop) activeStop = null; setPlaying(false); };
     src.start();
     sourceRef.current = src;
+    activeStop = stop;
     setPlaying(true);
   }
   function stop() {
     sourceRef.current?.stop();
     sourceRef.current = null;
+    if (activeStop === stop) activeStop = null;
     setPlaying(false);
   }
 

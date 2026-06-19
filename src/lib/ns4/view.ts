@@ -380,15 +380,27 @@ export function fxChips(p: NS4Program, scene?: 'I' | 'II'): FxChipModel[] {
   const delayD = (d: Delay) => j(d?.tempo?.value, d?.mix?.value && `mix ${d.mix.value}`, d?.feedback?.value && `fb ${d.feedback.value}`) || 'on';
   const revD = (r: Reverb) => j(r?.type, r?.amount?.value && `amt ${r.amount.value}`) || 'on';
 
-  for (const l of activeLayers(p, scene)) {
-    if (l.kind === 'organ') continue; // organ FX is global, handled below
+  // Each NS4 engine has its own FX chain, so prefix every chip with the engine
+  // it belongs to (e.g. "Piano Reverb" vs "Synth Reverb") — without this, two
+  // reverbs from different engines are indistinguishable. When more than one
+  // layer of the same engine is active, also tag the layer letter (A/B/C).
+  const fxLayers = activeLayers(p, scene).filter((l) => l.kind !== 'organ');
+  const kindCount = new Map<string, number>();
+  for (const l of fxLayers) kindCount.set(l.kind ?? 'x', (kindCount.get(l.kind ?? 'x') ?? 0) + 1);
+  const engineName = (l: NS4Layer): string => {
+    const kind = (l.kind ?? 'x').charAt(0).toUpperCase() + (l.kind ?? 'x').slice(1);
+    const letter = (kindCount.get(l.kind ?? 'x') ?? 0) > 1 ? ` ${l.id}` : '';
+    return `${kind}${letter}`;
+  };
+  for (const l of fxLayers) {
     const tag = `${l.kind ?? 'x'}${l.id}`;
-    push(`${tag}-mod1`, 'Mod 1', l.fxMod1?.on, modD(l.fxMod1));
-    push(`${tag}-mod2`, 'Mod 2', l.fxMod2?.on, modD(l.fxMod2));
-    push(`${tag}-amp`, 'Amp/EQ', l.ampSimEq?.on, ampD(l.ampSimEq));
-    push(`${tag}-comp`, 'Comp', l.comp?.on, compD(l.comp));
-    push(`${tag}-delay`, 'Delay', l.delay?.on, delayD(l.delay));
-    push(`${tag}-reverb`, 'Reverb', l.reverb?.on, revD(l.reverb));
+    const eng = engineName(l);
+    push(`${tag}-mod1`, `${eng} Mod 1`, l.fxMod1?.on, modD(l.fxMod1));
+    push(`${tag}-mod2`, `${eng} Mod 2`, l.fxMod2?.on, modD(l.fxMod2));
+    push(`${tag}-amp`, `${eng} Amp/EQ`, l.ampSimEq?.on, ampD(l.ampSimEq));
+    push(`${tag}-comp`, `${eng} Comp`, l.comp?.on, compD(l.comp));
+    push(`${tag}-delay`, `${eng} Delay`, l.delay?.on, delayD(l.delay));
+    push(`${tag}-reverb`, `${eng} Reverb`, l.reverb?.on, revD(l.reverb));
   }
 
   const o = p.organFx;

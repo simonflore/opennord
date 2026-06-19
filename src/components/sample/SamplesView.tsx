@@ -19,12 +19,15 @@ function fmtSize(n: number): string {
 /** Folder-detected samples as a Library-style grid; tap one to open the inspector. */
 export function SamplesView({ samples }: Props) {
   const [active, setActive] = useState<InspectorInput | null>(null);
+  // Open the inspector with no file → its drop/pick zone, so a sample can be
+  // loaded directly from the Samples page without first selecting another.
+  const [loadNew, setLoadNew] = useState(false);
 
-  if (active) {
+  if (active || loadNew) {
     return (
       <div>
-        <button className="on-btn on-btn--ghost" onClick={() => setActive(null)}>← Samples</button>
-        <SampleInspector initial={active} />
+        <button className="on-btn on-btn--ghost" onClick={() => { setActive(null); setLoadNew(false); }}>← Samples</button>
+        <SampleInspector initial={active ?? undefined} />
       </div>
     );
   }
@@ -41,6 +44,7 @@ export function SamplesView({ samples }: Props) {
           <div className="lib-title">Samples</div>
           <div className="lib-counts">{samples.length} {samples.length === 1 ? 'sample' : 'samples'}</div>
         </div>
+        <button className="on-btn" onClick={() => setLoadNew(true)}>Load sample</button>
       </div>
 
       <div className="lib-grid">

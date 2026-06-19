@@ -58,8 +58,15 @@ export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh }: 
             <rect x={x + 1} y={ZONE_TOP} width={Math.max(0, w - 2)} height={ZONE_H} rx="4"
               fill={ZONE_FILL[pos % ZONE_FILL.length]}
               stroke={isSel ? 'var(--red-bright)' : 'var(--line)'} strokeWidth={isSel ? 2.5 : 1} />
-            {w > 26 && (
+            {w > 26 ? (
               <text x={x + w / 2} y={ZONE_TOP + ZONE_H / 2 + 5} textAnchor="middle" fontSize="14" fontWeight="700" fill="var(--ink)">
+                S{z.index + 1}
+              </text>
+            ) : (
+              // Too narrow for a horizontal label — rotate it so every zone stays identifiable.
+              <text x={x + w / 2} y={ZONE_TOP + ZONE_H / 2} textAnchor="middle" dominantBaseline="middle"
+                fontSize="12" fontWeight="700" fill="var(--ink)"
+                transform={`rotate(-90 ${x + w / 2} ${ZONE_TOP + ZONE_H / 2})`}>
                 S{z.index + 1}
               </text>
             )}

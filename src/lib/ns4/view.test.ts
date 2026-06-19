@@ -107,8 +107,16 @@ describe('fxChips', () => {
   });
 
   it('includes a Reverb and a Delay chip (present in the fixture)', () => {
-    expect(chips.some((c) => c.label === 'Reverb')).toBe(true);
-    expect(chips.some((c) => c.label === 'Delay')).toBe(true);
+    expect(chips.some((c) => c.label.endsWith('Reverb'))).toBe(true);
+    expect(chips.some((c) => c.label.endsWith('Delay'))).toBe(true);
+  });
+
+  it('prefixes per-layer FX with the engine, and the layer letter when a kind has 2+ active layers', () => {
+    // fixture: piano A + piano B both active → letters; synth B + synth C both active → letters
+    expect(chips.some((c) => c.label === 'Piano A Reverb')).toBe(true);
+    expect(chips.some((c) => c.label === 'Synth C Reverb')).toBe(true);
+    // organ FX keeps its global "Organ" prefix
+    expect(chips.some((c) => c.label.startsWith('Organ'))).toBe(true);
   });
 });
 
