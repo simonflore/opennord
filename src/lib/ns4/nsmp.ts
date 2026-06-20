@@ -370,6 +370,35 @@ export function parseLegacyZoneRecords(
   return [];
 }
 
+export interface StrokeLoop {
+  /** Loop start, per-channel samples from the stroke start. */
+  loopStart: number;
+  /** Loop end, per-channel samples from the stroke start. */
+  loopEnd: number;
+  /** True when the stroke loops (loop-out before the sample end); false = one-shot. */
+  loops: boolean;
+}
+
+/**
+ * Per-stroke loop region from the `stk` header's four region pointers
+ * (start @+0x12, loop-in @+0x1b, loop-out @+0x24, end @+0x2d; u32 BE, per-channel
+ * samples, cumulative across strokes — see docs/NSMP-CODEC.md). Returns the loop
+ * window relative to the stroke start and the one-shot flag (`loop-out == end`).
+ * Validated on OG codec-1 (TAKE ON ME stk1/2/3/8 read one-shot, matching the RE).
+ * Returns null when the pointers aren't monotonic — a guard for any generation
+ * whose header offsets we haven't independently pinned, so we never show garbage.
+ */
+export function readStrokeLoop(bytes: Uint8Array, payloadOffset: number): StrokeLoop | null {
+  const u1 = u32be(bytes, payloadOffset + 0x12); // start
+  const u2 = u32be(bytes, payloadOffset + 0x1b); // loop-in
+  const u3 = u32be(bytes, payloadOffset + 0x24); // loop-out
+  const u4 = u32be(bytes, payloadOffset + 0x2d); // end
+  if (!(u1 <= u2 && u2 <= u3 && u3 <= u4)) return null;
+  const span = u4 - u1;
+  if (span <= 0 || span > (1 << 27)) return null; // implausible → unknown
+  return { loopStart: u2 - u1, loopEnd: u3 - u1, loops: u3 !== u4 };
+}
+
 export interface DecodedStrokeResult extends DecodedStroke {
   /** Index of the source `stk` section. */
   index: number;
@@ -377,6 +406,8 @@ export interface DecodedStrokeResult extends DecodedStroke {
   channelCount: number;
   /** The stroke's global id (`stk` header byte +3) — what a zone's `globalID` references. */
   globalID: number;
+  /** Loop window from the stroke header, or null when not decodable. */
+  loop: StrokeLoop | null;
 }
 
 const BOUND = 1 << 26; // raw 16-bit reconstructions stay well under this
@@ -512,7 +543,11 @@ export function decodeNsmp(bytes: Uint8Array): DecodedStrokeResult[] {
     if (!section.tag.endsWith('stk')) continue;
     const decoded = decodeStrokeSection(bytes, section, opts);
     // `stk` header byte +3 is the stroke's global id (the value a zone's globalID matches).
-    if (decoded) out.push({ ...decoded.result, index, channelCount: decoded.channelCount, globalID: bytes[section.payloadOffset + 3] });
+    if (decoded) out.push({
+      ...decoded.result, index, channelCount: decoded.channelCount,
+      globalID: bytes[section.payloadOffset + 3],
+      loop: readStrokeLoop(bytes, section.payloadOffset),
+    });
     index++;
   }
   return out;

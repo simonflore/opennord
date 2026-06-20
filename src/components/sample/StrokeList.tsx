@@ -103,6 +103,9 @@ function StrokeRow({ stroke, playable, name }: { stroke: InspectorStroke; playab
         </button>
         <span className="ps-sub" style={{ margin: 0 }}>
           Sample {s.index + 1} · {s.channels === 2 ? 'stereo' : 'mono'} · {(s.sampleCount / SAMPLE_RATE).toFixed(1)}s
+          {s.loops !== undefined && (
+            <span title={s.loops ? 'Sample loops' : 'Plays once (no loop)'}> · {s.loops ? '↻ loops' : 'one-shot'}</span>
+          )}
         </span>
       </div>
       {s.ok && <WaveCanvas pcm={stroke.channels[0]} />}

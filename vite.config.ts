@@ -10,5 +10,8 @@ export default defineConfig({
   },
   test: {
     css: false,
+    // Don't descend into sibling git worktrees (.claude/worktrees/*) — they carry
+    // their own test files (and deps like jsdom) that aren't part of this project.
+    exclude: ['**/node_modules/**', '**/dist/**', '**/.claude/**'],
   },
 });
