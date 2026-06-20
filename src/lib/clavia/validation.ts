@@ -102,7 +102,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 're', note: "sampleCodec 'og' (codec-1) decoded in lib/ns4/nsmp*.ts; not HW-tested on E4" },
   },
   'electro-5': {
-    'file-read': { status: 're', note: "ne5p legacy formatType-0 header + CElectro5::BankToCategories + CElectro5::ConvertLocation NSM-traced; 8-partition spec from CElectro5 ctor; validated vs real .ne5p fixtures, not HW-tested" },
+    'file-read': { status: 're', note: "ne5p legacy formatType-0 header NSM-traced (CElectro5 ctor, BankToCategories, 8-partition spec); sequential 1-based slot display (CElectro5::ConvertLocation returns unhandled for programs — base class applies sequential scheme); validated vs real .ne5p fixtures, not HW-tested" },
     enumerate: { status: 'inferred', note: "shared vendor-USB FileTransfer (0x0FFC); read-only, v3-sibling inference, untested" },
     pull: { status: 'inferred', note: "shared FileTransfer Download; read-only, v3-sibling inference, untested" },
     push: { status: 'inferred', note: "shared FileTransfer Upload; WRITE \u2014 untested-write risk, v3-sibling inference" },

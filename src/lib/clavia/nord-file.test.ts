@@ -77,8 +77,8 @@ describe('identifyNordFile', () => {
     expect(info.category).toBe(0xff);
     // categoryName for 0xFF is undefined (not in the table) — that's correct
     expect(info.categoryName).toBeUndefined();
-    // slot follows the same raw-location convention as ns2p
-    expect(info.slot).toBe('C:20');
+    // ne5p uses sequential 1-based slot display: loc 20 → C:21 (electro5Slot)
+    expect(info.slot).toBe('C:21');
     // legacy header has no firmware version field — version must be undefined
     expect(info.version).toBeUndefined();
   });

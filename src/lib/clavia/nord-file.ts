@@ -6,16 +6,17 @@
  *
  * For NSM-era files (Stage 3 & 4) the fixed header — bank/location/category/
  * version — decodes with the same {@link readCbinHeader} we use for Stage 4
- * (verified against real `.ns3f`: v3.04, slot F:33/F:34). Stage 2's *legacy*
- * header lays those fields out differently and isn't decoded yet, so we surface
- * only the generation/size for it rather than show wrong values.
+ * (verified against real `.ns3f`: v3.04, slot F:33/F:34). Legacy formatType-0
+ * files (ns2p, ne4p, ne5p) share a common header layout that IS now decoded:
+ * category @0x10 (same enum), raw location @0x0E (ns2p/ne4p sequential-raw;
+ * ne5p sequential-1-based via {@link electro5Slot}).
  *
  * This identifies and shows structure; it does NOT decode the parameter body —
  * only Stage 4 programs have the bit map our decoder understands (parse.ts).
  */
 import { hasCbinMagic, readCbinHeader } from './cbin';
 import { programCategoryName } from './categories';
-import { formatSlot, BANK_LETTERS } from './slot';
+import { formatSlot, electro5Slot, BANK_LETTERS } from './slot';
 import { modelByTag, type NordModelId } from './partitions';
 
 export type NordGeneration = 'Stage 2' | 'Stage 3' | 'Stage 4' | 'unknown';
@@ -38,7 +39,7 @@ export interface NordFileInfo {
   formatType: number;
   /** True when the NSM-era header fields below are decoded (Stage 3/4); false for the legacy layout. */
   headerDecoded: boolean;
-  /** Keyboard slot ("F:34"), NSM-era only. */
+  /** Keyboard slot ("F:34"); present when headerDecoded — NSM-era and legacy formatType-0. */
   slot?: string;
   category?: number;
   categoryName?: string;
@@ -103,7 +104,13 @@ export function identifyNordFile(bytes: Uint8Array): NordFileInfo {
     //  Full slot/engine decode lives in lib/ns2/decode.ts (ns2) and will live in
     //  lib/ne5/decode.ts (ne5p) when that body codec is built.
     info.headerDecoded = true;
-    info.slot = `${BANK_LETTERS[h.bank & 0x7] ?? h.bank}:${h.location}`;
+    // ne5p uses sequential 1-based slot numbering (location 0 → slot 01, …, 49 → slot 50),
+    // as established by CElectro5::ConvertLocation returning "unhandled" for program
+    // partitions — the base class applies the sequential display, not the Stage 8-col grid.
+    // ns2p and ne4p use the raw location value directly (sequential 0-based raw display).
+    info.slot = h.tag === 'ne5p'
+      ? electro5Slot(h.bank, h.location)
+      : `${BANK_LETTERS[h.bank & 0x7] ?? h.bank}:${h.location}`;
     info.category = h.category;
     info.categoryName = programCategoryName(h.category);
   }

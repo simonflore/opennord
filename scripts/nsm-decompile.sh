@@ -9,8 +9,8 @@
 #   (B) objdump fallback — disassembles to nsm_decomp/<name>@<addr>.s
 #        and prints a notice (never a silent failure).
 #
-# The Ghidra project is cached under nsm_decomp/.ghidra-project/ so the
-# expensive 48 MB import+analysis happens only once; subsequent runs reuse it.
+# The Ghidra project is cached under nsm_decomp/ghidra-project/ so the
+# expensive import+analysis happens only once; subsequent runs reuse it.
 #
 # See docs/NSM-RE-WORKFLOW.md for the full workflow.
 
