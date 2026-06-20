@@ -5,17 +5,11 @@
  */
 import { identifyNordFile } from '../clavia/nord-file';
 import type { DecodedProgram, DecodedSection, DecodedEngine } from '../clavia/decoded';
-import type { DrawbarView } from '../ns4/view';
+import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
 import { decodeNs3, type Ns3Panel } from './decode';
 
-// B3 footage labels for the 9 drawbars; Vox/Farfisa use their own legend.
-const B3_FOOTAGE = ['16′', '5⅓′', '8′', '4′', '2⅔′', '2′', '1⅗′', '1⅓′', '1′'];
-
-function organDrawbars(panel: Ns3Panel): DrawbarView[] {
-  return panel.organ.drawbars.map((level, i) => ({
-    level, label: String(level), color: 'default',
-    footage: panel.organ.type === 'B3' ? B3_FOOTAGE[i] : undefined,
-  }));
+function organDrawbars(panel: Ns3Panel) {
+  return drawbarViews(panel.organ.drawbars, panel.organ.type === 'B3' ? B3_FOOTAGE : undefined);
 }
 
 /** B3 character chips (vib/chorus + percussion) followed by the active FX. */

@@ -47,6 +47,15 @@ describe('decodeNs2', () => {
     expect(decodeNs2(z).slots[0].piano.volume).toBe('Off');
   });
 
+  it('decodes B3/Vox organ drawbars (4-bit fields from base 0x5F)', () => {
+    const b = t1();
+    b[0x60] = 0x00; b[0x61] = 0xe0;   // drawbar 1: (u16(0x60) & 0x01e0) >>> 5 = 7
+    const dr = decodeNs2(b).slots[0].organ.drawbars;
+    expect(dr).toHaveLength(9);
+    expect(dr[0]).toBe(7);
+    expect(dr.every((d) => d >= 0 && d <= 8)).toBe(true);
+  });
+
   it('applies versionOffset -20 for the legacy header (0x04 ≠ 1)', () => {
     const b = new Uint8Array(600); // 0x04 = 0 → legacy → all body offsets -20
     b[0x2e - 20] = 0;          // slot flag → A only

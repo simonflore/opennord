@@ -28,11 +28,31 @@ const lut = (table: readonly string[], v: number): string => table[v] ?? `#${v}`
 // Engine volume: a 7-bit MIDI value through the shared Nord dB curve.
 const db = (midi: number): string => NORD_DB[midi] ?? '?';
 
+/**
+ * Organ preset-1 drawbars (each 0-8) for B3/Vox, whose values are 4-bit fields
+ * spread from base 0x5F — masks per ns2-organ.js `getDrawbars` (4-bit branch).
+ * (Farfisa uses a 1-bit on/off encoding elsewhere; not read here.)
+ */
+function readDrawbars(b: Uint8Array, o: number): number[] {
+  const d = o + 0x5f;
+  return [
+    (u16(b, d + 1) & 0x01e0) >>> 5,  // 0x60
+    (u16(b, d + 3) & 0x003c) >>> 2,  // 0x62
+    (u16(b, d + 6) & 0x0780) >>> 7,  // 0x65
+    (u16(b, d + 8) & 0x00f0) >>> 4,  // 0x67
+    (u16(b, d + 10) & 0x001e) >>> 1, // 0x69
+    (u16(b, d + 13) & 0x03c0) >>> 6, // 0x6c
+    (u16(b, d + 15) & 0x0078) >>> 3, // 0x6e
+    u16(b, d + 17) & 0x000f,         // 0x70
+    (u16(b, d + 20) & 0x01e0) >>> 5, // 0x73
+  ];
+}
+
 export interface Ns2Slot {
   id: 'A' | 'B';
   /** Slot plays in this program (per the 0x2E slot-enable flag). */
   active: boolean;
-  organ: { on: boolean; type: string; volume: string };
+  organ: { on: boolean; type: string; volume: string; drawbars: number[] };
   piano: { on: boolean; type: string; volume: string };
   synth: { on: boolean; osc: string; volume: string };
 }
@@ -47,7 +67,7 @@ function readSlot(b: Uint8Array, id: 'A' | 'B', vo: number, active: boolean): Ns
     id,
     active,
     // organ on @0x43.b7; type @0x34.b7-6 (B3/Vox/Farfisa); volume @0x46.b6-0
-    organ: { on: (u8(b, o + 0x43) & 0x80) !== 0, type: lut(ORGAN_TYPE, (u8(b, o + 0x34) & 0xc0) >>> 6), volume: db(u8(b, o + 0x46) & 0x7f) },
+    organ: { on: (u8(b, o + 0x43) & 0x80) !== 0, type: lut(ORGAN_TYPE, (u8(b, o + 0x34) & 0xc0) >>> 6), volume: db(u8(b, o + 0x46) & 0x7f), drawbars: readDrawbars(b, o) },
     // piano on @0x48.b7; type @0xCD.b7-5; volume @0x4B.b6-0
     piano: { on: (u8(b, o + 0x48) & 0x80) !== 0, type: lut(PIANO_TYPE, (u8(b, o + 0xcd) & 0xe0) >>> 5), volume: db(u8(b, o + 0x4b) & 0x7f) },
     // synth on @0x4D.b6; osc type @0xE1.b9-7; volume @0x50.b13-7
