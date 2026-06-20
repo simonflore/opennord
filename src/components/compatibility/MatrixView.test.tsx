@@ -23,4 +23,7 @@ describe('MatrixView', () => {
   it('prompts to connect a Nord when none is connected', () => {
     expect(render()).toContain('the check is read-only');
   });
+  it('links to the Contribute tool for undecoded models', () => {
+    expect(render()).toContain('href="#/contribute"');
+  });
 });

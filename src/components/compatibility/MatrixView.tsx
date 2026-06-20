@@ -12,6 +12,10 @@ export function MatrixView() {
     <div className="cmp">
       <h1 className="cmp__title">Nord compatibility</h1>
       <p className="cmp__lead">What OpenNord can do with each Nord — and where we need your help.</p>
+      <p className="cmp__lead">
+        See your model marked <em>In progress</em> or <em>Needs a tester</em>?{' '}
+        <a href="#/contribute">Help decode it →</a> — change one control at a time and OpenNord learns the format.
+      </p>
       <ProbePanel />
       <div className="cmp__scroll">
         <table className="cmp__table">
