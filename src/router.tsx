@@ -6,6 +6,7 @@ import { DeviceRoute } from '@/routes/device';
 import { AboutRoute } from '@/routes/about';
 import { CompatibilityRoute } from '@/routes/compatibility';
 import { InspectRoute, DecodeRoute } from '@/routes/dev';
+import { ContributeRoute } from '@/routes/contribute';
 
 // Index `/` → the Library (the home door).
 const IndexRoute = createRoute({
@@ -24,6 +25,7 @@ const routeTree = rootRoute.addChildren([
   AboutRoute,          // /about
   InspectRoute,        // /dev/inspect
   DecodeRoute,         // /dev/decode
+  ContributeRoute,     // /contribute
 ]);
 
 export const router = createRouter({
