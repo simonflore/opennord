@@ -18,6 +18,9 @@ const PIANO_TYPE = ['Grand', 'Upright', 'Electric', 'Clav', 'Digital', 'Misc'];
 const ORGAN_TYPE = ['B3', 'Vox', 'Farfisa', 'Pipe1', 'Pipe2'];
 const SYNTH_OSC = ['Classic', 'Wave', 'Formant', 'Super', 'Sample'];
 const SYNTH_FILTER = ['LP12', 'LP24', 'Mini Moog', 'LP+HP', 'BP24', 'HP24'];
+const REVERB_TYPE = ['Room 1', 'Room 2', 'Stage 1', 'Stage 2', 'Hall 1', 'Hall 2'];
+const EFFECT1_TYPE = ['Panning', 'Tremolo', 'Ring Mod', 'Wah-Wah', 'Auto-Wah 1', 'Auto-Wah 2'];
+const EFFECT2_TYPE = ['Phaser 1', 'Phaser 2', 'Flanger', 'Vibe', 'Chorus 1', 'Chorus 2'];
 
 import { NORD_DB } from './volume';
 import { NS3_FILTER_FREQ } from './filter-freq';
@@ -28,11 +31,27 @@ const lut = (table: readonly string[], v: number): string => table[v] ?? `#${v}`
 // Engine volume shares the enable word: bits 10-4 are the 7-bit level → dB.
 const vol = (b: Uint8Array, o: number): string => NORD_DB[(u16(b, o) & 0x07f0) >>> 4] ?? '?';
 
+export interface Ns3Fx { name: string; type?: string }
+
 export interface Ns3Panel {
   id: 'A' | 'B';
   organ: { on: boolean; type: string; volume: string };
   piano: { on: boolean; type: string; volume: string };
   synth: { on: boolean; osc: string; filter: string; cutoff: string; volume: string };
+  /** Effects switched on in this panel, in signal order. */
+  fx: Ns3Fx[];
+}
+
+/** The effects this panel has switched on, with type where the effect has one. */
+function readFx(b: Uint8Array, base: number): Ns3Fx[] {
+  const fx: Ns3Fx[] = [];
+  if ((u8(b, base + 0x10b) & 0x10) !== 0) fx.push({ name: 'Effect 1', type: lut(EFFECT1_TYPE, (u16(b, base + 0x10b) & 0x0380) >>> 7) });
+  if ((u8(b, base + 0x114) & 0x80) !== 0) fx.push({ name: 'Effect 2', type: lut(EFFECT2_TYPE, (u8(b, base + 0x114) & 0x1c) >>> 2) });
+  if ((u8(b, base + 0x129) & 0x04) !== 0) fx.push({ name: 'Amp/EQ' });
+  if ((u8(b, base + 0x139) & 0x20) !== 0) fx.push({ name: 'Comp' });
+  if ((u8(b, base + 0x119) & 0x08) !== 0) fx.push({ name: 'Delay' });
+  if ((u8(b, base + 0x134) & 0x02) !== 0) fx.push({ name: 'Reverb', type: lut(REVERB_TYPE, (u16(b, base + 0x134) & 0x01c0) >>> 6) });
+  return fx;
 }
 
 export interface Ns3Program {
@@ -56,6 +75,7 @@ function readPanel(b: Uint8Array, id: 'A' | 'B', base: number): Ns3Panel {
       cutoff: lut(NS3_FILTER_FREQ, (u16(b, base + 0x98) & 0x03f8) >>> 3),
       volume: vol(b, base + 0x52),
     },
+    fx: readFx(b, base),
   };
 }
 

@@ -43,6 +43,15 @@ describe('decodeNs3', () => {
     expect(decodeNs3(z).panels[0].piano.volume).toBe('Off');
   });
 
+  it('lists active FX with types (reverb + delay)', () => {
+    const b = new Uint8Array(600);
+    b[0x134] = 0x02;   // reverb enable; type (u16 & 0x01c0)>>>6 = 0 → Room 1
+    b[0x119] = 0x08;   // delay enable
+    const fx = decodeNs3(b).panels[0].fx;
+    expect(fx.map((f) => f.name)).toEqual(['Delay', 'Reverb']); // signal order
+    expect(fx.find((f) => f.name === 'Reverb')?.type).toBe('Room 1');
+  });
+
   it('reads panel B fields shifted by 263 bytes', () => {
     const b = new Uint8Array(600);
     b[0x31] = 1 << 5;        // panel B only

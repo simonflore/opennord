@@ -23,6 +23,13 @@ function PanelEngines({ panel }: { panel: Ns3Panel }) {
             ))}
           </div>
         )}
+      {panel.fx.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+          {panel.fx.map((f) => (
+            <span className="ps-perf-chip" key={f.name}>{f.type ? `${f.name}: ${f.type}` : f.name}</span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
