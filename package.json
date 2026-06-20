@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src && stylelint \"src/**/*.css\"",
     "lint:fix": "eslint src --fix && stylelint \"src/**/*.css\" --fix",
+    "fixtures:scan": "vitest run src/lib/clavia/fixtures-scan.test.ts",
     "cap:sync": "cap sync"
   },
   "dependencies": {
