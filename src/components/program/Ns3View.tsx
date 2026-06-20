@@ -78,7 +78,8 @@ export function Ns3View({ bytes }: { bytes: Uint8Array }) {
 
   const header: [string, string][] = [];
   if (info.slot) header.push(['Slot', info.slot]);
-  if (info.category !== undefined) header.push(['Category', info.categoryName ?? `#${info.category}`]);
+  // Only surface a real, named category — never the raw "#255 = none" protocol value.
+  if (info.categoryName) header.push(['Category', info.categoryName]);
   if (info.version) header.push(['Version', `v${info.version}`]);
 
   return (
@@ -95,8 +96,8 @@ export function Ns3View({ bytes }: { bytes: Uint8Array }) {
       {panels.map((p) => <PanelEngines key={p.id} panel={p} />)}
 
       <p className="ps-sub" style={{ marginTop: 12 }}>
-        Stage 3 decode is in progress — engines and models are read here; drawbars, levels and FX are
-        coming. Offsets from the community ns3-program-viewer (see docs).
+        Stage 3 decode (Tier 2): engines, models, levels, organ drawbars, FX and B3 character.
+        Specific sample/model names are next. Offsets from the community ns3-program-viewer (see docs).
       </p>
     </div>
   );
