@@ -194,7 +194,19 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   'piano-2': { id: 'piano-2', name: 'Nord Piano 2', generation: 'OG', programTag: 'np2p', sampleCodec: 'og', partitions: baseline('np2p', true) },
   'piano-4': { id: 'piano-4', name: 'Nord Piano 4', generation: 'NW1-v3', programTag: 'np4p', sampleCodec: 'codec3', partitions: baseline('np4p', true) },
   'piano-5': { id: 'piano-5', name: 'Nord Piano 5', generation: 'NW1-v4', programTag: 'np5p', sampleCodec: 'codec4', partitions: baseline('np5p', true) },
-  'lead-4': { id: 'lead-4', name: 'Nord Lead 4', generation: 'OG', programTag: 'nl4p', sampleCodec: null, partitions: baseline('nl4p', false) },
+  'lead-4': {
+    // CLead4Base::CLead4Base @0x00000001000dd364 — constructor Add() order:
+    //   SPartitionUserE2P  "Performance" (CFileSpec from CFileType(this+0x118)="nl4p") → program
+    //   SPartitionProgram  (CFileSpec from CFileType "nl4s")                           → synth-preset
+    //   SPartitionSettings "Settings"   (CFileSpec from CFileType "nl4t")              → settings
+    // No piano, no samples, no live, no setlist — purely synth: program + preset + settings.
+    id: 'lead-4', name: 'Nord Lead 4', generation: 'OG', programTag: 'nl4p', sampleCodec: null,
+    partitions: [
+      P('program',      'Performances', false, 'nl4p'),
+      P('synth-preset', 'Programs',     false, 'nl4s'),
+      P('settings',     'Settings',     false, 'nl4t'),
+    ],
+  },
   'lead-a1': { id: 'lead-a1', name: 'Nord Lead A1', generation: 'OG', programTag: 'nlap', sampleCodec: null, partitions: baseline('nlap', false) },
   'wave': { id: 'wave', name: 'Nord Wave', generation: 'OG', programTag: 'nwp', sampleCodec: 'og', partitions: baseline('nwp', true) },
   'c2': { id: 'c2', name: 'Nord C2', generation: 'OG', programTag: 'nc2p', sampleCodec: null, partitions: baseline('nc2p', false) },

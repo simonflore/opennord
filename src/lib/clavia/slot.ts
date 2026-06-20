@@ -24,6 +24,31 @@ export function slotLabel(bank: number, location: number): string {
 }
 
 /**
+ * Nord Lead 4 program-slot display: `X:NN` where X is the bank letter (A or B)
+ * and NN is the 1-based sequential slot within the bank (zero-padded to 2 digits).
+ *
+ * The Lead 4 has two performance banks (A and B), each holding 50 slots (0–49).
+ * `CLead4Base::ConvertLocation @0x00000001000ddcf8` checks the file type matches
+ * `nl4p` then normalises bank 0/1 against a 50-slot stride (0x32). The base-class
+ * display scheme is sequential: bank letter from {@link BANK_LETTERS}, slot = loc + 1.
+ * This matches the Electro 5 sequential pattern — ConvertLocation handles bank
+ * switching (the "two-bank" fold), not a new display encoding.
+ *
+ * Source: `CLead4Base::ConvertLocation @0x00000001000ddcf8` (NSM decompile,
+ * `nsm_decomp/`).
+ *
+ * @example lead4Slot(0, 0)  // → "A:01"
+ * @example lead4Slot(1, 41) // → "B:42"  (fixture: "Duo Arp Nord Stage Samples.nl4p")
+ */
+export function lead4Slot(bank: number, location: number): string {
+  // CLead4Base::ConvertLocation @0x00000001000ddcf8: nl4p programs use sequential
+  // display — bank letter + 1-based loc within the 50-slot bank (same as Electro 5).
+  const letter = BANK_LETTERS[bank & 0x7] ?? String(bank);
+  const slot = (location & 0xff) + 1;
+  return `${letter}:${String(slot).padStart(2, '0')}`;
+}
+
+/**
  * Electro 5 program-slot display: `X:NN` where X is the bank letter and NN is
  * the 1-based sequential slot number within the bank (zero-padded to 2 digits).
  *

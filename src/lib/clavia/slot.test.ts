@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatSlot, electro5Slot } from './slot';
+import { formatSlot, electro5Slot, lead4Slot } from './slot';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -18,6 +18,37 @@ describe('formatSlot', () => {
 // Stage models). The Electro 5 has 50 slots per bank (locs 0–49), displayed as
 // A:01–F:50. Format: X:NN where X = ABCDEFGH[bank] and NN = location + 1
 // (zero-padded to 2 digits).
+// CLead4Base::ConvertLocation @0x00000001000ddcf8 — matches nl4p partition only.
+// The Lead 4 has two "performance" banks (A=bank 0, B=bank 1), each with 50 slots
+// (0x32 = 50 per bank). The function normalises a two-component (bank, loc) address
+// into/from a flat linear slot within the partition. Display mirrors the Electro 5
+// sequential scheme: bank letter + 1-based slot, zero-padded to 2 digits (A:01–B:50).
+describe('lead4Slot (CLead4Base::ConvertLocation @0x00000001000ddcf8)', () => {
+  it('maps bank+location to Lead 4 sequential slot display', () => {
+    // Bank A (0), slot 0 → A:01 (first slot)
+    expect(lead4Slot(0, 0)).toBe('A:01');
+    // Bank A (0), slot 49 → A:50 (last slot in bank A)
+    expect(lead4Slot(0, 49)).toBe('A:50');
+    // Bank B (1), slot 0 → B:01 (first slot in bank B)
+    expect(lead4Slot(1, 0)).toBe('B:01');
+    // Bank B (1), slot 49 → B:50 (last slot in bank B)
+    expect(lead4Slot(1, 49)).toBe('B:50');
+  });
+
+  it('cross-checks the "Duo Arp Nord Stage Samples.nl4p" fixture (bank=1, loc=0x29=41)', () => {
+    // Fixture header: 0x0C=0x01 (bank B), 0x0E=0x29 (loc 41) → B:42
+    const fixturesDir = join(process.cwd(), 'fixtures/lead-4');
+    if (!existsSync(fixturesDir)) return; // corpus is gitignored — skip in CI
+
+    const path = join(fixturesDir, 'Duo Arp Nord Stage Samples.nl4p');
+    if (!existsSync(path)) return;
+    const buf = readFileSync(path);
+    const bank = buf[0x0c] ?? 0; // 0x01
+    const loc = buf[0x0e] ?? 0;  // 0x29 = 41
+    expect(lead4Slot(bank, loc)).toBe('B:42');
+  });
+});
+
 describe('electro5Slot (CElectro5::ConvertLocation @0x0000000100194844)', () => {
   it('maps bank+location to Electro 5 sequential slot display', () => {
     // Bank 0, loc 0 → A:01 (first slot)

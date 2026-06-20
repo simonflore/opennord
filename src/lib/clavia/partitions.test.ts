@@ -36,6 +36,28 @@ describe('partition registry', () => {
     expect(MODELS['stage-2'].generation).toBe('OG');
   });
 
+  // CLead4Base::CLead4Base @0x00000001000dd364 — constructor adds partitions in this order:
+  //   SPartitionUserE2P  "Performance" (CFileSpec from nl4p CFileType) → program
+  //   SPartitionProgram  (CFileSpec from nl4s CFileType)               → synth-preset
+  //   SPartitionSettings "Settings"   (CFileSpec from nl4t CFileType)  → settings
+  // NO piano, NO samples, NO live partition. baseline('nl4p', false) was wrong:
+  // baseline adds live (not traced) and misses synth-preset ('nl4s') + settings fourcc 'nl4t'.
+  it('lead-4 partition spec matches NSM constructor (CLead4Base::CLead4Base @0x00000001000dd364)', () => {
+    const m = modelById('lead-4')!;
+    expect(m.programTag).toBe('nl4p');
+    const kinds = m.partitions.map((p) => p.kind);
+    expect(kinds).toEqual(['program', 'synth-preset', 'settings']);
+    // Program partition carries nl4p fourcc
+    const prog = m.partitions.find((p) => p.kind === 'program');
+    expect(prog?.fourcc).toBe('nl4p');
+    // Synth-preset partition carries nl4s fourcc
+    const preset = m.partitions.find((p) => p.kind === 'synth-preset');
+    expect(preset?.fourcc).toBe('nl4s');
+    // Settings partition carries nl4t fourcc
+    const settings = m.partitions.find((p) => p.kind === 'settings');
+    expect(settings?.fourcc).toBe('nl4t');
+  });
+
   // CElectro5::CElectro5 @0x0000000100194838 — constructor adds partitions in this order:
   //   Piano (Native) [SPartitionNative], Piano (user) [SPartitionPianoV5/V6],
   //   Samp Lib (Native) [SPartitionNative], Samp Lib (user) [SPartitionSampLibV2],
