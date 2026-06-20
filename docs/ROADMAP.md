@@ -2,10 +2,11 @@
 
 Two phases. Both are now **unblocked**: the file format is decoded/validated and the device USB transfer protocol is fully reverse-engineered and hardware-validated. What's left in each is product engineering, not reverse engineering.
 
-> **Adjacent scope (proposal):** reading *other Nord instruments'* program files
-> (Stage 2/3 family) is a bounded, hardware-free expansion built on the shared
-> CBIN container. Device transfer for those models is explicitly out of scope.
-> See `docs/MULTI-MODEL.md`.
+> **Adjacent scope:** reading *other Nord instruments'* program files (Stage 2/3
+> family) is a bounded, hardware-free expansion built on the shared CBIN
+> container. **Tier 1 (recognition + structure view) shipped in #22**; Tier 2
+> (NS2/3 body decode) is scoped in `docs/MULTI-MODEL.md`. Device transfer for
+> those models is explicitly out of scope.
 
 ## Phase 1 — Read & share (no hardware needed)
 

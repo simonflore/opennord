@@ -1,6 +1,17 @@
 # Multi-model support — design proposal
 
-**Status:** proposal (not yet implemented). **Scope decision required before build.**
+**Status:** **Tier 1 shipped** (PR #22 — Stage 2/3 recognition + structure view);
+Tier 2 (NS2/3 parameter-body decode) is the open work this proposal now scopes.
+
+> **What already landed (PR #22, "Tier 1").** `src/lib/ns4/nord-file.ts` —
+> `identifyNordFile()` recognizes the whole Stage 2/3/4 CBIN family by tag and
+> decodes the header where it's reliable: **Stage 3 shares the Stage 4 NSM-era
+> header**, so slot/category/version decode with our existing `readCbinHeader`
+> (validated against a real `.ns3f`: *ABBA — Stage 3 · Performance · Grand ·
+> v3.04 · F:34*). Stage 2's legacy header (format-type 0) is recognized but its
+> fields aren't decoded yet. `NordFileCard` shows that structure instead of a
+> dead-end, and the import pickers accept `.ns2p/.ns3p/.ns3f`. This realized
+> **M1 below** in a lighter form than originally drawn (see "Reconciliation").
 
 OpenNord is a Stage 4 companion. A recurring question is whether it should also
 read **other Nord instruments** — chiefly the **Stage 2 / 2EX / 3** family — given
@@ -10,6 +21,9 @@ phased path that keeps the Stage 4 the flagship.
 
 ## TL;DR
 
+- **Recognition is done.** Stage 2/3/4 files are identified, headers decoded
+  where reliable, and shown via `NordFileCard` (Tier 1 / #22). The remaining work
+  is **Tier 2: decoding the NS2/3 parameter *body*** into a viewable program.
 - **Reading other instruments' *program files* is bounded, hardware-free work.**
   Our CBIN container layer is already model-agnostic; the cost is **one parameter
   map + model shape + fixtures per model**, derived from existing public research.
@@ -73,7 +87,16 @@ The body decode is 100% NS4-specific and lives in the generated tables:
 NS2/3 differ structurally (slot/layer counts, morph sources, parameter set, bit
 packing), so this is a **parallel map per model**, not a tweak.
 
-## The abstraction: a `model` registry
+## The abstraction: a `model` registry (deferred — not yet warranted)
+
+> **Reconciliation with what shipped.** Tier 1 deliberately did **not** build the
+> `clavia/` codec registry below. Instead `identifyNordFile()` lives in `ns4/` and
+> reuses `readCbinHeader`/`formatSlot`/`programCategoryName` directly. That was the
+> right call: with only one full body decoder (Stage 4), a codec registry is
+> premature abstraction. **Introduce the registry only when Tier 2 lands a second
+> body decoder** — at that point two decoders justify the dispatch and the shared
+> container is worth extracting. Until then, the sketch below is the *target* the
+> NS2/3 decoder should be refactored toward, not a prerequisite for starting it.
 
 Introduce a thin dispatch keyed on the file-type tag (already detected in
 `bits.ts`) + CBIN version. The container layer stays shared; each model plugs in
@@ -118,26 +141,27 @@ output is byte-identical before/after** — proven by the existing fixtures.)
 
 Smallest useful unit first; each milestone independently shippable and testable.
 
-1. **M0 — Container refactor (no new format).** Extract `clavia/` shared layer +
-   `model` registry; wrap the NS4 decoder as the `ns4` codec. **Gate:** all
-   existing NS4 fixtures pass byte-identical; `typecheck` + `npm test` green.
-2. **M1 — NS3 recognition.** `parseClaviaFile` recognizes `.ns3f/.ns3y/.ns2p`,
-   reads the shared header (name, bank/slot, version, checksum validity), returns
-   `{ model: 'ns3', parsed: false }` with a clear "structured decode pending"
-   warning. Bundles (`.ns3fb`, …) unzip via the existing reader. Real value
-   already: identify + validate + inventory NS3 files and collections.
-3. **M2 — NS3 offset map (the core cost).** Build `ns3/offset-map.ts` from
+1. **M1 — NS3 recognition. ✅ SHIPPED (Tier 1 / #22).** `identifyNordFile()`
+   recognizes `.ns2p/.ns3p/.ns3f` (+ Stage 4), decodes the NSM-era header
+   (slot/category/version) for Stage 3/4, recognizes Stage 2's legacy header
+   without decoding it, and `NordFileCard` shows the structure. Import pickers
+   accept the new extensions. *(Note: the originally-drawn M0 container refactor
+   was skipped as premature — see "The abstraction" above. Bundle support
+   (`.ns3fb`, …) for the new extensions is the one M1 gap still open.)*
+2. **M2 — NS3 offset map (the core cost). ← Tier 2 starts here.** Build
+   `ns3/offset-map.ts` from
    `nord-documentation` — field by field, each traceable to a doc section (or our
    own one-knob diff), **re-derived, not copied** from the GPLv3 source. Validate
    raw reads against `ns3-program-viewer` output as the **oracle** (the NS3
    analogue of `ns4decode --rawdecimal`).
-4. **M3 — NS3 model + interpretation.** An `Ns3Program` shape (2 slots × 2 layers
+3. **M3 — NS3 model + interpretation.** An `Ns3Program` shape (2 slots × 2 layers
    for NS3; its own morph sources) + the interpretation tables (drawbars, piano
    models, FX). Pin with NS3 fixtures (real file + expected CSV), **0-mismatch vs
    the oracle**, exactly like the NS4 bar.
-5. **M4 — UI.** The Library/inspector renders an `Ns3Program`. Most UI is
-   model-shaped already; needs a model badge and graceful handling of fields a
-   given model lacks.
+4. **M4 — UI.** Render an `Ns3Program` in the full parameter view — graduating
+   from today's `NordFileCard` structure view (header only) to engines/FX/morphs.
+   Most UI is model-shaped already; needs graceful handling of fields a given
+   model lacks.
 
 Then **Stage 2 / 2EX** are largely M2–M3 deltas off NS3 (same docs, same oracle).
 
@@ -149,9 +173,9 @@ Then **Stage 2 / 2EX** are largely M2–M3 deltas off NS3 (same docs, same oracl
 | `.ns4o/.ns4n/.ns4y` | ns4 | preset | Existing sibling handling |
 | `.nsmp4` | ns4 | sample | Header-only today (`sample.ts`); audio out of scope |
 | `.npno` | piano | piano lib | **Blocked** — audio framing in firmware (`docs/NSP-FORMAT.md`) |
-| `.ns3f/.ns3y` | ns3 | program | **This proposal** (M1–M4) |
-| `.ns2p/.ns2s` | ns2 | program | Delta off NS3 |
-| `.ns3b/.ns2b/.ns3fb/…` | ns3/ns2 | bundle | Existing ZIP reader + extensions |
+| `.ns3p/.ns3f/.ns3y` | ns3 | program | **Recognized (Tier 1 / #22)**; body decode = Tier 2 (M2–M4) |
+| `.ns2p/.ns2s` | ns2 | program | Recognized (header undecoded); decode = delta off NS3 |
+| `.ns3b/.ns2b/.ns3fb/…` | ns3/ns2 | bundle | Existing ZIP reader + extensions (M1 gap) |
 
 ## Out of scope: device transfer for other instruments
 
@@ -173,31 +197,34 @@ transfer is not.
 
 | | Effort | Risk |
 |---|---|---|
-| M0 container refactor | Low | Low — fixtures prove NS4 unchanged |
-| M1 recognition + bundles | Low | Low |
+| M1 recognition (`identifyNordFile`) | Low | **✅ Shipped (Tier 1 / #22)** |
+| M1 gap — bundle (`.ns3fb`, …) support | Low | Low |
 | M2 NS3 offset map | **Medium–High** | Medium — manual port; mitigated by the oracle |
 | M3 model + interpretation | Medium | Medium — NS3 model shape differs from NS4 |
 | M4 UI | Low–Medium | Low |
+| (deferred) `clavia/` registry refactor | Low | Low — do it *with* M3, fixtures prove NS4 unchanged |
 | Device transfer (excluded) | High + hardware | High — separate RE |
 
 **Risks & mitigations**
 - *GPLv3 contamination.* Re-derive from `nord-documentation`; oracle-test against
   the viewer's output, never lift its code. Per-field provenance in comments.
-- *NS4 regression during refactor.* M0 is gated on byte-identical NS4 fixture
-  output before any NS3 code is written.
-- *Scope creep.* Each model is a self-contained codec; we can ship NS3 and stop,
-  or never start, without touching the NS4 path.
+- *NS4 regression during the (deferred) refactor.* Gate on byte-identical NS4
+  fixture output; only extract the registry once a second decoder justifies it.
+- *Scope creep.* Each model stays a self-contained decoder; we can ship NS3 and
+  stop, or never start, without touching the NS4 path.
 - *Fixtures.* Needs real NS2/3 files. Community-sourced (programs only, never
   factory sample audio — `docs/LEGAL.md`); the viewer supplies expected output.
 
 ## Recommendation
 
-Worth doing **if** broadening the community library to the large NS2/3 owner base
-is a product goal — the format knowledge already exists, so the cost is porting +
-fixtures, not new reverse-engineering. If we proceed, do **M0 + M1 first** (cheap,
-low-risk, immediately useful for identifying/validating NS3 files and bundles),
-then decide on M2+ once we see real NS3 files land. Keep the Stage 4 the flagship;
-device transfer stays NS4-only.
+Recognition (Tier 1) is **already in** — Stage 2/3 files now open to a structure
+card instead of a dead-end. The open question is whether to fund **Tier 2** (the
+NS2/3 body decode, M2–M4). Worth doing **if** broadening the community library to
+the large NS2/3 owner base is a product goal — the format knowledge already exists
+(Chris55), so the cost is the offset-map port + fixtures, not new reverse-
+engineering. Sequencing: **start M2 with a real `.ns3f` + the viewer as oracle**;
+close the small M1 bundle gap alongside. Keep the Stage 4 the flagship; device
+transfer stays NS4-only.
 
 [n4d]: https://ns4decode.netlify.app/
 [ndoc]: https://chris55.github.io/nord-documentation/
