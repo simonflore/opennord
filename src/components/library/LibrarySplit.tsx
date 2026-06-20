@@ -43,7 +43,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
         {entry?.program ? (
           <ProgramView program={entry.program} />
         ) : (
-          <p className="lib-empty">This program isn't open. Pick it from the Library.</p>
+          <p className="lib-empty">This program isn’t open. Pick it from the Library.</p>
         )}
       </div>
     );
