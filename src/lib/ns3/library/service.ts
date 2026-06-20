@@ -5,7 +5,7 @@
  * name across the eight catalogs, in the oracle's search order.
  *
  * This module statically imports ~1.3MB of catalog data, so it is only ever
- * pulled in via dynamic import() (from Ns3View) — keeping it out of the main
+ * pulled in via dynamic import() (from the Stage 3 presenter's enrich) — out of the main
  * bundle and loaded lazily the first time a Stage 3 program is opened.
  */
 import { ns3NordPianoLibrary } from './ns3-nord-piano-library.generated';
