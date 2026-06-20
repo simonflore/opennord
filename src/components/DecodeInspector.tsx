@@ -88,8 +88,9 @@ export function DecodeInspector() {
           <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 12, fontSize: 13 }}>
             <span>type: <b>{view.tag}</b>{view.magic ? ' ✓' : ' (no CBIN magic)'}</span>
             <span>size: <b>{a!.length}</b> B</span>
-            <span>known-byte coverage: <b>{view.coverage.toFixed(1)}%</b></span>
-            <span>gap regions: <b>{view.gaps.length}</b></span>
+            {/* Coverage/gaps come from the Stage 4 param map — meaningless for other models. */}
+            {isStage4 && <span>known-byte coverage: <b>{view.coverage.toFixed(1)}%</b></span>}
+            {isStage4 && <span>gap regions: <b>{view.gaps.length}</b></span>}
             {b && <span style={{ color: 'var(--warn)' }}>diff bytes: <b>{view.diff.size}</b></span>}
           </div>
 
