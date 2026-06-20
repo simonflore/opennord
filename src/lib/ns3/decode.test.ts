@@ -15,7 +15,7 @@ describe('decodeNs3', () => {
     b[0x43] = 0x80;     // piano enable (b7)
     b[0x48] = 0x00;     // piano type bits 5-3 = 0 → Grand
     const a = decodeNs3(b).panels[0];
-    expect(a.piano).toEqual({ on: true, type: 'Grand' });
+    expect(a.piano).toMatchObject({ on: true, type: 'Grand' });
     expect(a.organ.on).toBe(false);
     expect(a.synth.on).toBe(false);
   });
@@ -25,7 +25,15 @@ describe('decodeNs3', () => {
     b[0x52] = 0x80;     // synth enable (b7)
     b[0x8d] = 0x02;     // osc type: (u16(0x8d) & 0x0380) >>> 7 = 4 → Sample
     b[0x98] = 0x08;     // filter type: (0x98 & 0x1c) >>> 2 = 2 → Mini Moog
-    expect(decodeNs3(b).panels[0].synth).toEqual({ on: true, osc: 'Sample', filter: 'Mini Moog' });
+    expect(decodeNs3(b).panels[0].synth).toMatchObject({ on: true, osc: 'Sample', filter: 'Mini Moog' });
+  });
+
+  it('decodes engine volume from the Nord dB curve (bits 10-4 of the enable word)', () => {
+    const b = new Uint8Array(600);
+    b[0x43] = 0x07; b[0x44] = 0xf0;   // piano volume word bits 10-4 = 127 → "0.0 dB"
+    expect(decodeNs3(b).panels[0].piano.volume).toBe('0.0 dB');
+    const z = new Uint8Array(600);     // all zero → midi 0 → "Off"
+    expect(decodeNs3(z).panels[0].piano.volume).toBe('Off');
   });
 
   it('reads panel B fields shifted by 263 bytes', () => {
@@ -35,6 +43,6 @@ describe('decodeNs3', () => {
     b[0xbb + 263] = 0x10;    // organ type bits 6-4 = 1 → Vox
     const bPanel = decodeNs3(b).panels[0];
     expect(bPanel.id).toBe('B');
-    expect(bPanel.organ).toEqual({ on: true, type: 'Vox' });
+    expect(bPanel.organ).toMatchObject({ on: true, type: 'Vox' });
   });
 });

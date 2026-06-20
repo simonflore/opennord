@@ -19,15 +19,19 @@ const ORGAN_TYPE = ['B3', 'Vox', 'Farfisa', 'Pipe1', 'Pipe2'];
 const SYNTH_OSC = ['Classic', 'Wave', 'Formant', 'Super', 'Sample'];
 const SYNTH_FILTER = ['LP12', 'LP24', 'Mini Moog', 'LP+HP', 'BP24', 'HP24'];
 
+import { NORD_DB } from './volume';
+
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
 const u16 = (b: Uint8Array, o: number): number => ((b[o] ?? 0) << 8) | (b[o + 1] ?? 0);
-const lut = (table: string[], v: number): string => table[v] ?? `#${v}`;
+const lut = (table: readonly string[], v: number): string => table[v] ?? `#${v}`;
+// Engine volume shares the enable word: bits 10-4 are the 7-bit level → dB.
+const vol = (b: Uint8Array, o: number): string => NORD_DB[(u16(b, o) & 0x07f0) >>> 4] ?? '?';
 
 export interface Ns3Panel {
   id: 'A' | 'B';
-  organ: { on: boolean; type: string };
-  piano: { on: boolean; type: string };
-  synth: { on: boolean; osc: string; filter: string };
+  organ: { on: boolean; type: string; volume: string };
+  piano: { on: boolean; type: string; volume: string };
+  synth: { on: boolean; osc: string; filter: string; volume: string };
 }
 
 export interface Ns3Program {
@@ -38,15 +42,16 @@ export interface Ns3Program {
 function readPanel(b: Uint8Array, id: 'A' | 'B', base: number): Ns3Panel {
   return {
     id,
-    // piano enable @0x43.b7; type @0x48.b5-3
-    piano: { on: (u16(b, base + 0x43) & 0x8000) !== 0, type: lut(PIANO_TYPE, (u8(b, base + 0x48) & 0x38) >>> 3) },
-    // organ enable @0xB6.b7; type @0xBB.b6-4
-    organ: { on: (u16(b, base + 0xb6) & 0x8000) !== 0, type: lut(ORGAN_TYPE, (u8(b, base + 0xbb) & 0x70) >>> 4) },
-    // synth enable @0x52.b7; osc type @0x8D.b1-0+0x8E.b7; filter type @0x98.b4-2
+    // piano enable @0x43.b7; type @0x48.b5-3; volume @0x43
+    piano: { on: (u16(b, base + 0x43) & 0x8000) !== 0, type: lut(PIANO_TYPE, (u8(b, base + 0x48) & 0x38) >>> 3), volume: vol(b, base + 0x43) },
+    // organ enable @0xB6.b7; type @0xBB.b6-4; volume @0xB6
+    organ: { on: (u16(b, base + 0xb6) & 0x8000) !== 0, type: lut(ORGAN_TYPE, (u8(b, base + 0xbb) & 0x70) >>> 4), volume: vol(b, base + 0xb6) },
+    // synth enable @0x52.b7; osc type @0x8D.b1-0+0x8E.b7; filter type @0x98.b4-2; volume @0x52
     synth: {
       on: (u16(b, base + 0x52) & 0x8000) !== 0,
       osc: lut(SYNTH_OSC, (u16(b, base + 0x8d) & 0x0380) >>> 7),
       filter: lut(SYNTH_FILTER, (u8(b, base + 0x98) & 0x1c) >>> 2),
+      volume: vol(b, base + 0x52),
     },
   };
 }
