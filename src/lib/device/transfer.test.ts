@@ -33,8 +33,8 @@ import { fileURLToPath } from 'node:url';
 import { CReqFileOpen, CReqFileRead, CReqFileClose } from './opcodes';
 import { pullProgram } from './transfer';
 import { parseNs4Program } from '../ns4/parse';
-import { readCbinHeader, type CbinHeader } from '../ns4/bits';
-import { verifyNs4Checksum } from '../ns4/checksum';
+import { readCbinHeader, type CbinHeader } from '../clavia/cbin';
+import { verifyNs4Checksum } from '../clavia/checksum';
 
 const fixtureBytes = new Uint8Array(
   readFileSync(fileURLToPath(new URL('../ns4/__fixtures__/regressionTest.ns4p', import.meta.url))),
@@ -126,7 +126,7 @@ describe('programEntryView', () => {
 });
 
 import { pushProgram } from './transfer';
-import { readCbinHeader as readHdr } from '../ns4/bits';
+import { readCbinHeader as readHdr } from '../clavia/cbin';
 
 describe('pushProgram', () => {
   it('sends FileCreate + FileWrite + FileClose with the validated payload + body', async () => {
@@ -190,7 +190,7 @@ describe('deleteProgram', () => {
 });
 
 import { pullFile, pushFile } from './transfer';
-import { buildCbinHeader } from '../ns4/bits';
+import { buildCbinHeader } from '../clavia/cbin';
 
 describe('pushFile', () => {
   it('derives the FileCreate fourcc from the file header (e.g. ns4o), not hardcoded ns4p', async () => {

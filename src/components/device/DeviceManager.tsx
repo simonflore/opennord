@@ -6,7 +6,7 @@ import { enumeratePrograms, pullProgram, type ProgramEntry } from '../../lib/dev
 import { useDevice } from '../../lib/device/DeviceContext';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import { parseNs4Program } from '../../lib/ns4/parse';
-import { slotLabel } from '../../lib/ns4/slot';
+import { slotLabel } from '../../lib/clavia/slot';
 import type { NS4Program } from '../../lib/ns4/types';
 import { ProgramView } from '../program/ProgramView';
 import { ConnectPanel } from './ConnectPanel';

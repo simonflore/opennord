@@ -1,4 +1,4 @@
-import { identifyNordFile } from '../../lib/ns4/nord-file';
+import { identifyNordFile } from '../../lib/clavia/nord-file';
 
 const KIND_LABEL: Record<string, string> = { program: 'Program', performance: 'Performance', sample: 'Sample', unknown: 'File' };
 

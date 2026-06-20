@@ -9,7 +9,7 @@ import {
   CReqBegin, CReqEnd, CQryFileInfo, CQryFileIterate, CReqFileOpen, CReqFileClose, CReqFileRead, ext2Type,
   CReqFileCreate, CReqFileWrite,
 } from './opcodes';
-import { readCbinHeader } from '../ns4/bits';
+import { readCbinHeader } from '../clavia/cbin';
 import { backup, restore } from './backup';
 import { USER_PARTITIONS, buildMetaXml } from './ns4b';
 

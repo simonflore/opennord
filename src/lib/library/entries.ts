@@ -1,9 +1,9 @@
 import type { LibraryEntry, LibrarySource, LibrarySort } from './types';
 import type { ProgramEntry } from '../device/transfer';
 import type { ScannedProgram } from '../folder/scan';
-import { formatSlot } from '../ns4/slot';
+import { formatSlot } from '../clavia/slot';
 import { parseNs4Program } from '../ns4/parse';
-import { programNameFromFilename } from '../ns4/name';
+import { programNameFromFilename } from '../clavia/name';
 import { activeLayers } from '../ns4/view';
 import type { NS4Program } from '../ns4/types';
 

@@ -12,7 +12,7 @@
 
 import { unzipSync, zipSync } from 'fflate';
 import { parseNs4Program } from './parse';
-import { programNameFromFilename } from './name';
+import { programNameFromFilename } from '../clavia/name';
 import type { NS4Program } from './types';
 
 /** File extensions that hold a decodable program inside a bundle. */

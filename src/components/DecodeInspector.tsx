@@ -9,7 +9,8 @@
 
 import { useMemo, useState, type CSSProperties } from 'react';
 import './decode-inspector.css';
-import { bytesToBitString, fileTypeTag, hasCbinMagic } from '../lib/ns4/bits';
+import { bytesToBitString } from '../lib/ns4/bits';
+import { fileTypeTag, hasCbinMagic } from '../lib/clavia/cbin';
 import { buildParamMap } from '../lib/ns4/maps';
 import {
   decodeAllParams,

@@ -18,7 +18,7 @@
  */
 
 import { encodeStroke, type EncodeOptions } from './nsmp-encode';
-import { patchNs4Checksum } from './checksum';
+import { patchNs4Checksum } from '../clavia/checksum';
 
 const CBIN_HEADER_SIZE = 0x2c;
 const STROKE_HEADER_SIZE = 0xb0; // observed; the block stream begins after it

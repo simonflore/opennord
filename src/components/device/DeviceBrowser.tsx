@@ -1,5 +1,5 @@
 import { programEntryView, type ProgramEntry } from '../../lib/device/transfer';
-import { BANK_LETTERS } from '../../lib/ns4/slot';
+import { BANK_LETTERS } from '../../lib/clavia/slot';
 
 /** Programs grouped by bank A–H. Open, delete, or send a file to the Nord. */
 export function DeviceBrowser({ entries, deviceName, onSelect, onDelete, onSendFile }: {

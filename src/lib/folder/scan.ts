@@ -1,5 +1,5 @@
 import { parseNs4Program } from '../ns4/parse';
-import { programNameFromFilename } from '../ns4/name';
+import { programNameFromFilename } from '../clavia/name';
 import { readNs4Bundle } from '../ns4/bundle';
 import { readNsmp, type NsmpFile } from '../ns4/nsmp';
 import { summarize } from '../library/entries';

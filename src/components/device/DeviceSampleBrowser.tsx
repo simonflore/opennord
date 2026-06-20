@@ -1,5 +1,5 @@
 import { type ProgramEntry } from '../../lib/device/transfer';
-import { formatSlot } from '../../lib/ns4/slot';
+import { formatSlot } from '../../lib/clavia/slot';
 import { formatBytes } from '../../lib/format';
 
 /** The board's samples (Samp Lib partition) as a flat list; tap one to pull + open. */

@@ -17,7 +17,7 @@
 import type { NsmpFile, NsmpZone, DecodedStrokeResult } from './nsmp';
 import { parseNsmpSections, readNsmp, zoneRecordLayout } from './nsmp';
 import { writeNsmpMulti, type WriteZone } from './nsmp-write';
-import { patchNs4Checksum } from './checksum';
+import { patchNs4Checksum } from '../clavia/checksum';
 
 export interface EditZone {
   rootKey: number;

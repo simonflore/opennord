@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readNsmpHeader } from './sample';
 import { parseNs4Program } from './parse';
-import { patchNs4Checksum, verifyNs4Checksum } from './checksum';
+import { patchNs4Checksum, verifyNs4Checksum } from '../clavia/checksum';
 
 /**
  * Build a minimal, synthetic Nord Sample header — CBIN header + NSMP chunk +

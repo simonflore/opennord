@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseNs4Program } from '../../lib/ns4/parse';
-import { programNameFromFilename } from '../../lib/ns4/name';
+import { programNameFromFilename } from '../../lib/clavia/name';
 import { Knob, DrawbarStack, ModelSelector, ToggleGroup, Lcd, Chip, Meter } from './widgets';
 
 describe('widgets', () => {

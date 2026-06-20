@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseNs4Program } from './parse';
-import { programNameFromFilename } from './name';
+import { programNameFromFilename } from '../clavia/name';
 import { activeLayers, headerView, drawbarLevels, volumeFill, organPanel, pianoCard, synthCard, fxChips, sampleRefViews, morphSummary } from './view';
 
 const fixtureBytes = new Uint8Array(

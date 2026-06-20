@@ -16,8 +16,8 @@
  * never embedded or shared.
  */
 
-import { hasCbinMagic, fileTypeTag } from './bits';
-import { verifyNs4Checksum } from './checksum';
+import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
+import { verifyNs4Checksum } from '../clavia/checksum';
 import { decodeStroke, type DecodedStroke } from './nsmp-codec';
 
 export interface NsmpSection {

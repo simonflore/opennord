@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { bytesToBitString, readField, readFieldBytes, writeField } from './bits';
 import { buildParamMap } from './maps';
 import { editNs4Program, getRawParam, setRawParam } from './writer';
-import { verifyNs4Checksum } from './checksum';
+import { verifyNs4Checksum } from '../clavia/checksum';
 import { parseNs4Program } from './parse';
 
 const fixture = new Uint8Array(
