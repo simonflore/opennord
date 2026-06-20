@@ -30,6 +30,11 @@
   --r-md: 11px;
   --r-lg: 14px;
 
+  /* layout breakpoints — mirrored in src/lib/responsive.ts (BP_SPLIT).
+     CSS media queries can't read a var(), so these are documented constants
+     kept in sync by hand; the JS hook is the runtime source of truth. */
+  --bp-split: 900px;
+
   /* space scale 4·8·12·16·24 */
   --s-1: 4px;
   --s-2: 8px;
