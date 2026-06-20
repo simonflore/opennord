@@ -83,6 +83,15 @@ describe('decodeNs2', () => {
     expect(g[0].type).toBe('Hall 1');
   });
 
+  it('decodes B3 organ vibrato/chorus + percussion (preset 1)', () => {
+    const b = t1();
+    b[0x35] = 0x40;   // vib mode (0x35 & 0xe0) >>> 5 = 2 → V2; soft = !(0x35 & 0x04) = true
+    b[0x74] = 0x18;   // vib on (0x10) + percussion on (0x08)
+    const org = decodeNs2(b).slots[0].organ;
+    expect(org.vibChorus).toEqual({ on: true, mode: 'V2' });
+    expect(org.percussion).toMatchObject({ on: true, soft: true, third: false, fast: false });
+  });
+
   it('applies versionOffset -20 for the legacy header (0x04 ≠ 1)', () => {
     const b = new Uint8Array(600); // 0x04 = 0 → legacy → all body offsets -20
     b[0x2e - 20] = 0;          // slot flag → A only

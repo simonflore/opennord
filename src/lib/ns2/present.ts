@@ -13,6 +13,19 @@ function fxChip(f: { name: string; type?: string }): string {
   return f.type ? `${f.name}: ${f.type}` : f.name;
 }
 
+/** B3-only character chips: vibrato/chorus mode + percussion flags, when on. */
+function organChips(slot: Ns2Slot): string[] {
+  if (!slot.organ.on || slot.organ.type !== 'B3') return [];
+  const chips: string[] = [];
+  const { vibChorus, percussion } = slot.organ;
+  if (vibChorus.on) chips.push(`Vib/Chorus: ${vibChorus.mode}`);
+  if (percussion.on) {
+    const f = [percussion.third && '3rd', percussion.fast && 'Fast', percussion.soft && 'Soft'].filter(Boolean);
+    chips.push(`Percussion${f.length ? ` · ${f.join(' / ')}` : ''}`);
+  }
+  return chips;
+}
+
 function toSection(slot: Ns2Slot, globalChips: string[]): DecodedSection {
   const engines: DecodedEngine[] = [];
   if (slot.organ.on) engines.push({ label: 'Organ', parts: [slot.organ.type, slot.organ.volume] });
@@ -22,8 +35,8 @@ function toSection(slot: Ns2Slot, globalChips: string[]): DecodedSection {
   }
   // Drawbars are the 4-bit B3/Vox encoding; Farfisa's 1-bit form isn't read yet.
   const hasDrawbars = slot.organ.on && (slot.organ.type === 'B3' || slot.organ.type === 'Vox');
-  // Per-slot FX then the program-global FX (reverb/comp apply across the program).
-  const chips = [...slot.fx.map(fxChip), ...globalChips];
+  // B3 character chips (vib/chorus + percussion), then per-slot FX, then global FX.
+  const chips = [...organChips(slot), ...slot.fx.map(fxChip), ...globalChips];
   return {
     id: slot.id,
     label: `SLOT ${slot.id}`,

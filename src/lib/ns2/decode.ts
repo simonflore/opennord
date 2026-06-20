@@ -23,6 +23,7 @@ const EFFECT1_TYPE = ['Panning', 'Tremolo', 'Ring Mod', 'Wah-Wah', 'Auto-Wah 1',
 const EFFECT2_TYPE = ['Phaser 1', 'Phaser 2', 'Flanger', 'Vibe', 'Chorus 1', 'Chorus 2'];
 const AMP_TYPE = ['Off', 'Small', 'JC', 'Twin'];
 const REVERB_TYPE = ['Room 1', 'Room 2', 'Stage 1', 'Stage 2', 'Hall 1', 'Hall 2'];
+const VIB_CHORUS = ['V1', 'C1', 'V2', 'C2', 'V3', 'C3'];
 
 import { NORD_DB } from '../clavia/volume';
 
@@ -43,11 +44,12 @@ const ns2ToNs3Id = (ns2: bigint): number => (ns2 === 0n ? 0 : Number(ns2 ^ 0x800
 
 /**
  * Organ preset-1 drawbars (each 0-8) for B3/Vox, whose values are 4-bit fields
- * spread from base 0x5F — masks per ns2-organ.js `getDrawbars` (4-bit branch).
- * (Farfisa uses a 1-bit on/off encoding elsewhere; not read here.)
+ * spread from a per-type base — masks per ns2-organ.js `getDrawbars` (4-bit
+ * branch): B3 from 0x5F, Vox from 0x76. (Farfisa uses a 1-bit on/off encoding at
+ * 0x8D; not read here, and not shown as faders.)
  */
-function readDrawbars(b: Uint8Array, o: number): number[] {
-  const d = o + 0x5f;
+function readDrawbars(b: Uint8Array, o: number, type: string): number[] {
+  const d = o + (type === 'Vox' ? 0x76 : 0x5f);
   return [
     (u16(b, d + 1) & 0x01e0) >>> 5,  // 0x60
     (u16(b, d + 3) & 0x003c) >>> 2,  // 0x62
@@ -81,7 +83,12 @@ export interface Ns2Slot {
   id: 'A' | 'B';
   /** Slot plays in this program (per the 0x2E slot-enable flag). */
   active: boolean;
-  organ: { on: boolean; type: string; volume: string; drawbars: number[] };
+  organ: {
+    on: boolean; type: string; volume: string; drawbars: number[];
+    /** B3 preset-1 vibrato/chorus + percussion (gated to B3 in the view). */
+    vibChorus: { on: boolean; mode: string };
+    percussion: { on: boolean; third: boolean; fast: boolean; soft: boolean };
+  };
   piano: { on: boolean; type: string; volume: string; sampleId: number; clavVariation: number };
   synth: { on: boolean; osc: string; volume: string; sampleId: number };
   /** Per-slot effects switched on, in signal order. */
@@ -96,11 +103,26 @@ export interface Ns2Program {
 
 function readSlot(b: Uint8Array, id: 'A' | 'B', vo: number, active: boolean): Ns2Slot {
   const o = (id === 'B' ? SLOT_STRIDE : 0) + vo; // slot base, incl. legacy shift
+  const organType = lut(ORGAN_TYPE, (u8(b, o + 0x34) & 0xc0) >>> 6);
   return {
     id,
     active,
     // organ on @0x43.b7; type @0x34.b7-6 (B3/Vox/Farfisa); volume @0x46.b6-0
-    organ: { on: (u8(b, o + 0x43) & 0x80) !== 0, type: lut(ORGAN_TYPE, (u8(b, o + 0x34) & 0xc0) >>> 6), volume: db(u8(b, o + 0x46) & 0x7f), drawbars: readDrawbars(b, o) },
+    organ: {
+      on: (u8(b, o + 0x43) & 0x80) !== 0,
+      type: organType,
+      volume: db(u8(b, o + 0x46) & 0x7f),
+      drawbars: readDrawbars(b, o, organType),
+      // B3 preset 1: vib/chorus on @0x74.b4 + mode @0x35.b7-5; percussion on @0x74.b3
+      // + 3rd @0x35.b4 / fast @0x35.b3 / soft @0x35.b2 (soft is inverted per the oracle).
+      vibChorus: { on: (u8(b, o + 0x74) & 0x10) !== 0, mode: lut(VIB_CHORUS, (u8(b, o + 0x35) & 0xe0) >>> 5) },
+      percussion: {
+        on: (u8(b, o + 0x74) & 0x08) !== 0,
+        third: (u8(b, o + 0x35) & 0x10) !== 0,
+        fast: (u8(b, o + 0x35) & 0x08) !== 0,
+        soft: (u8(b, o + 0x35) & 0x04) === 0,
+      },
+    },
     // piano on @0x48.b7; type @0xCD.b7-5; volume @0x4B.b6-0; sampleId = u64@0xCD bits 37-6; clav variation @0xCE.b8-7
     piano: {
       on: (u8(b, o + 0x48) & 0x80) !== 0,
