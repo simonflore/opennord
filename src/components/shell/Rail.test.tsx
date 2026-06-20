@@ -17,6 +17,7 @@ describe('Rail', () => {
     expect(html).toContain('Open');
     expect(html).toContain('Library');
     expect(html).toContain('Samples');
+    expect(html).toContain('Contribute');
   });
   it('marks the active destination', () => {
     const html = render('library');
