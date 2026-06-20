@@ -65,6 +65,15 @@ describe('decodeNs2', () => {
     expect(fx.find((f) => f.name === 'Effect 2')?.type).toBe('Chorus 1');
   });
 
+  it('decodes piano sampleId (0 = program init) and clavinet variation', () => {
+    const b = t1();
+    b[0x48] = 0x80;      // piano on
+    b[0xcf] = 0x80;      // clav variation: (u16(0xce) & 0x0180) >>> 7 = 1
+    const p = decodeNs2(b).slots[0].piano;
+    expect(p.sampleId).toBe(0);    // empty sample field → program-init id 0
+    expect(p.clavVariation).toBe(1);
+  });
+
   it('applies versionOffset -20 for the legacy header (0x04 ≠ 1)', () => {
     const b = new Uint8Array(600); // 0x04 = 0 → legacy → all body offsets -20
     b[0x2e - 20] = 0;          // slot flag → A only

@@ -30,6 +30,15 @@ const u16 = (b: Uint8Array, o: number): number => ((b[o] ?? 0) << 8) | (b[o + 1]
 const lut = (table: readonly string[], v: number): string => table[v] ?? `#${v}`;
 // Engine volume: a 7-bit MIDI value through the shared Nord dB curve.
 const db = (midi: number): string => NORD_DB[midi] ?? '?';
+// 64-bit big-endian read as BigInt — sampleId hashes span a 64-bit field.
+const u64 = (b: Uint8Array, o: number): bigint => {
+  let v = 0n;
+  for (let i = 0; i < 8; i++) v = (v << 8n) | BigInt(b[o + i] ?? 0);
+  return v;
+};
+// NS2 sampleId hashes are stored one step off the NS3 catalog form: b31 inverted,
+// then decremented (per the oracle's getSampleIdNs2ToNs3). 0 stays 0 (program init).
+const ns2ToNs3Id = (ns2: bigint): number => (ns2 === 0n ? 0 : Number(ns2 ^ 0x80000000n) - 1);
 
 /**
  * Organ preset-1 drawbars (each 0-8) for B3/Vox, whose values are 4-bit fields
@@ -72,8 +81,8 @@ export interface Ns2Slot {
   /** Slot plays in this program (per the 0x2E slot-enable flag). */
   active: boolean;
   organ: { on: boolean; type: string; volume: string; drawbars: number[] };
-  piano: { on: boolean; type: string; volume: string };
-  synth: { on: boolean; osc: string; volume: string };
+  piano: { on: boolean; type: string; volume: string; sampleId: number; clavVariation: number };
+  synth: { on: boolean; osc: string; volume: string; sampleId: number };
   /** Per-slot effects switched on, in signal order. */
   fx: Ns2Fx[];
 }
@@ -89,10 +98,21 @@ function readSlot(b: Uint8Array, id: 'A' | 'B', vo: number, active: boolean): Ns
     active,
     // organ on @0x43.b7; type @0x34.b7-6 (B3/Vox/Farfisa); volume @0x46.b6-0
     organ: { on: (u8(b, o + 0x43) & 0x80) !== 0, type: lut(ORGAN_TYPE, (u8(b, o + 0x34) & 0xc0) >>> 6), volume: db(u8(b, o + 0x46) & 0x7f), drawbars: readDrawbars(b, o) },
-    // piano on @0x48.b7; type @0xCD.b7-5; volume @0x4B.b6-0
-    piano: { on: (u8(b, o + 0x48) & 0x80) !== 0, type: lut(PIANO_TYPE, (u8(b, o + 0xcd) & 0xe0) >>> 5), volume: db(u8(b, o + 0x4b) & 0x7f) },
-    // synth on @0x4D.b6; osc type @0xE1.b9-7; volume @0x50.b13-7
-    synth: { on: (u8(b, o + 0x4d) & 0x40) !== 0, osc: lut(SYNTH_OSC, (u16(b, o + 0xe1) & 0x0380) >>> 7), volume: db((u16(b, o + 0x50) & 0x3f80) >>> 7) },
+    // piano on @0x48.b7; type @0xCD.b7-5; volume @0x4B.b6-0; sampleId = u64@0xCD bits 37-6; clav variation @0xCE.b8-7
+    piano: {
+      on: (u8(b, o + 0x48) & 0x80) !== 0,
+      type: lut(PIANO_TYPE, (u8(b, o + 0xcd) & 0xe0) >>> 5),
+      volume: db(u8(b, o + 0x4b) & 0x7f),
+      sampleId: ns2ToNs3Id((u64(b, o + 0xcd) & 0x0000003fffffffc0n) >> 6n),
+      clavVariation: (u16(b, o + 0xce) & 0x0180) >>> 7,
+    },
+    // synth on @0x4D.b6; osc type @0xE1.b9-7; volume @0x50.b13-7; sample-osc id = u64@0xF4 bits 33-2
+    synth: {
+      on: (u8(b, o + 0x4d) & 0x40) !== 0,
+      osc: lut(SYNTH_OSC, (u16(b, o + 0xe1) & 0x0380) >>> 7),
+      volume: db((u16(b, o + 0x50) & 0x3f80) >>> 7),
+      sampleId: ns2ToNs3Id((u64(b, o + 0xf4) & 0x03fffffffcn) >> 2n),
+    },
     fx: readFx(b, o),
   };
 }

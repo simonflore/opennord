@@ -12,8 +12,10 @@ import { decodeNs2, type Ns2Slot } from './decode';
 function toSection(slot: Ns2Slot): DecodedSection {
   const engines: DecodedEngine[] = [];
   if (slot.organ.on) engines.push({ label: 'Organ', parts: [slot.organ.type, slot.organ.volume] });
-  if (slot.piano.on) engines.push({ label: 'Piano', parts: [slot.piano.type, slot.piano.volume] });
-  if (slot.synth.on) engines.push({ label: 'Synth', parts: [slot.synth.osc, slot.synth.volume] });
+  if (slot.piano.on) engines.push({ label: 'Piano', parts: [slot.piano.type, slot.piano.volume], nameSlot: 0 });
+  if (slot.synth.on) {
+    engines.push({ label: 'Synth', parts: [slot.synth.osc, slot.synth.volume], nameSlot: slot.synth.osc === 'SAMPLE' ? 0 : undefined });
+  }
   // Drawbars are the 4-bit B3/Vox encoding; Farfisa's 1-bit form isn't read yet.
   const hasDrawbars = slot.organ.on && (slot.organ.type === 'B3' || slot.organ.type === 'Vox');
   const chips = slot.fx.map((f) => (f.type ? `${f.name}: ${f.type}` : f.name));
@@ -34,10 +36,29 @@ export function ns2Decoded(bytes: Uint8Array): DecodedProgram {
   if (info.slot) header.push(['Slot', info.slot]);
   if (info.categoryName) header.push(['Category', info.categoryName]);
 
+  // Lazy: NS2 reuses the same vendored sample catalog as NS3 (the nsmp library
+  // family), resolved through the shared service via dynamic import.
+  const enrich = async (): Promise<Record<string, string>> => {
+    const { resolveSample } = await import('../ns3/library/service');
+    const out: Record<string, string> = {};
+    for (const s of slots) {
+      if (s.piano.on) {
+        const r = resolveSample(s.piano.sampleId, s.piano.clavVariation);
+        if (r) out[`${s.id}-Piano`] = r.version ? `${r.name} ${r.version}` : r.name;
+      }
+      if (s.synth.on && s.synth.osc === 'SAMPLE') {
+        const r = resolveSample(s.synth.sampleId, 0);
+        if (r) out[`${s.id}-Synth`] = r.name;
+      }
+    }
+    return out;
+  };
+
   return {
     title: 'Stage 2 · Program',
     header,
     sections: slots.map(toSection),
-    note: 'Stage 2 decode (Tier 2): active slots, engines + model/type, levels and organ drawbars. FX and sample names to follow. Offsets from the community ns3-program-viewer (see docs).',
+    note: 'Stage 2 decode (Tier 2): active slots, engines + model/type, levels, organ drawbars, FX and factory sample names. Offsets + library from the community ns3-program-viewer (see docs).',
+    enrich,
   };
 }
