@@ -5,8 +5,8 @@ import type { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, pullProgram, type ProgramEntry } from '../../lib/device/transfer';
 import { useDevice } from '../../lib/device/DeviceContext';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
-import { parseNs4Program } from '../../lib/ns4/parse';
-import { slotLabel } from '../../lib/ns4/slot';
+import { parseClaviaFile } from '../../lib/formats';
+import { slotLabel } from '../../lib/clavia/slot';
 import type { NS4Program } from '../../lib/ns4/types';
 import { ProgramView } from '../program/ProgramView';
 import { ConnectPanel } from './ConnectPanel';
@@ -47,7 +47,7 @@ export function DeviceManager() {
     setError(''); setBusy(true);
     try {
       const bytes = await session.withSession(PARTITION_PROGRAM, () => pullProgram(session, entry));
-      const prog = parseNs4Program(bytes);
+      const prog = parseClaviaFile(bytes).program;
       prog.name = entry.name;
       setProgram(prog);
     } catch (e) {

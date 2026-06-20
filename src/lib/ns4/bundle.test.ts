@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { zipSync } from 'fflate';
 import { readNs4Bundle, writeNs4Bundle } from './bundle';
-import { verifyNs4Checksum } from './checksum';
+import { verifyNs4Checksum } from '../clavia/checksum';
 
 function loadFixture(filename: string): Uint8Array {
   return new Uint8Array(

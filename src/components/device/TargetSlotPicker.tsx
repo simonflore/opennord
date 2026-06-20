@@ -1,5 +1,5 @@
 import type { ProgramEntry } from '../../lib/device/transfer';
-import { formatSlot, BANK_LETTERS } from '../../lib/ns4/slot';
+import { formatSlot, BANK_LETTERS } from '../../lib/clavia/slot';
 
 /** A chosen write target. `occupiedBy` is the existing program name, if any. */
 export interface SlotTarget {

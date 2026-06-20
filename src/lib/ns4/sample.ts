@@ -18,8 +18,8 @@
  *   0x2C  "NSMP" chunk container → "hdr" chunk (human name) → audio payload
  */
 
-import { hasCbinMagic, fileTypeTag } from './bits';
-import { verifyNs4Checksum } from './checksum';
+import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
+import { verifyNs4Checksum } from '../clavia/checksum';
 
 const HEADER_SIZE = 0x2c;
 

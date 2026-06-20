@@ -5,7 +5,7 @@ import { computeNs4Checksum, verifyNs4Checksum, patchNs4Checksum } from './check
 
 function loadFixture(filename: string): Uint8Array {
   return new Uint8Array(
-    readFileSync(fileURLToPath(new URL(`./__fixtures__/${filename}`, import.meta.url))),
+    readFileSync(fileURLToPath(new URL(`../ns4/__fixtures__/${filename}`, import.meta.url))),
   );
 }
 

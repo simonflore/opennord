@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { pushProgram } from '../../lib/device/transfer';
-import { programNameFromFilename } from '../../lib/ns4/name';
-import { formatSlot } from '../../lib/ns4/slot';
+import { programNameFromFilename } from '../../lib/clavia/name';
+import { formatSlot } from '../../lib/clavia/slot';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import type { NordSession } from '../../lib/device/session';
 import type { SlotTarget } from './TargetSlotPicker';

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { patchNs4Checksum } from './checksum';
+import { patchNs4Checksum } from '../clavia/checksum';
 import { readNsp } from './nsp';
 
 /** Minimal synthetic Nord Piano: CBIN + npno + CNSP + a name in the meta block. */

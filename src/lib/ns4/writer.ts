@@ -14,7 +14,7 @@
 
 import { readFieldBytes, writeField } from './bits';
 import { buildParamMap, type Param, type Ns4Group } from './maps';
-import { patchNs4Checksum } from './checksum';
+import { patchNs4Checksum } from '../clavia/checksum';
 
 /** A single raw-value edit: set `group:name` (layer `layer`) to `value`. */
 export interface RawEdit {

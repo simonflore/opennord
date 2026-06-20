@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { bytesToBitString, fileTypeTag, hasCbinMagic, locToBit, bitToLoc, readField, buildCbinHeader, readCbinHeader, type CbinHeader } from './bits';
+import { bytesToBitString, locToBit, bitToLoc, readField } from './bits';
+import { fileTypeTag, hasCbinMagic, buildCbinHeader, readCbinHeader, type CbinHeader } from '../clavia/cbin';
 import { buildParamMap } from './maps';
 import { decodeAllParams } from './coverage';
 

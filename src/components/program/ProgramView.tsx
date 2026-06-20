@@ -8,7 +8,7 @@ import { EngineCard } from './EngineCard';
 import { FxRow } from './FxRow';
 import { Morphs } from './Morphs';
 import { NordFileCard } from './NordFileCard';
-import { identifyNordFile } from '../../lib/ns4/nord-file';
+import { identifyNordFile } from '../../lib/clavia/nord-file';
 import { ProgramExtern } from './ProgramExtern';
 import { SampleRefs } from './SampleRefs';
 import { AllParamsDrawer } from './AllParamsDrawer';

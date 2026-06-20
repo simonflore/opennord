@@ -2,7 +2,7 @@ import { zipSync, unzipSync, strToU8 } from 'fflate';
 import type { NordSession } from './session';
 import { NordError } from './protocol';
 import { enumerateFiles, pullFile, pushFile, type ProgramEntry } from './transfer';
-import { readCbinHeader, hasCbinMagic } from '../ns4/bits';
+import { readCbinHeader, hasCbinMagic } from '../clavia/cbin';
 import { USER_PARTITIONS, partitionForPath, backupPath, buildMetaXml, type PartitionSpec } from './ns4b';
 
 export interface RestoreResult {

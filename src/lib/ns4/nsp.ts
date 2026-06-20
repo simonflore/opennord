@@ -14,8 +14,8 @@
  *   0x42  103-byte metadata block (name, variant, size)
  */
 
-import { hasCbinMagic, fileTypeTag } from './bits';
-import { verifyNs4Checksum } from './checksum';
+import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
+import { verifyNs4Checksum } from '../clavia/checksum';
 
 const META_OFFSET = 0x42; // CNSP stream offset 0x16 (file 0x2C + 0x16)
 const META_SIZE = 0x67; // 103 bytes

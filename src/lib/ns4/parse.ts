@@ -1,9 +1,9 @@
 import type { NS4Program, NS4Layer, Morphable, Ns4SampleRef, Ns4FileKind, Ns4OrganFx } from './types';
-import { hasCbinMagic, fileTypeTag, readCbinHeader } from './bits';
+import { hasCbinMagic, fileTypeTag, readCbinHeader } from '../clavia/cbin';
 import { buildParamMap } from './maps';
 import { decodeAllParams } from './coverage';
-import { programCategoryName } from './categories';
-import { formatSlot } from './slot';
+import { programCategoryName } from '../clavia/categories';
+import { formatSlot } from '../clavia/slot';
 
 /** Format a CBIN version word (×100) as "M.mm", e.g. 313 → "3.13". */
 function formatVersion(raw: number): string {

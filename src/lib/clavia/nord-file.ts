@@ -13,7 +13,7 @@
  * This identifies and shows structure; it does NOT decode the parameter body —
  * only Stage 4 programs have the bit map our decoder understands (parse.ts).
  */
-import { hasCbinMagic, readCbinHeader } from './bits';
+import { hasCbinMagic, readCbinHeader } from './cbin';
 import { programCategoryName } from './categories';
 import { formatSlot, BANK_LETTERS } from './slot';
 

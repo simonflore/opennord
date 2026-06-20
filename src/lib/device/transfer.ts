@@ -5,10 +5,10 @@ import {
 } from './opcodes';
 import { NordError } from './protocol';
 import { readAsciiFixed } from '../ns4/parse';
-import { buildCbinHeader, readCbinHeader } from '../ns4/bits';
-import { patchNs4Checksum } from '../ns4/checksum';
-import { formatSlot } from '../ns4/slot';
-import { programCategoryName } from '../ns4/categories';
+import { buildCbinHeader, readCbinHeader } from '../clavia/cbin';
+import { patchNs4Checksum } from '../clavia/checksum';
+import { formatSlot } from '../clavia/slot';
+import { programCategoryName } from '../clavia/categories';
 
 /** A program file on the device, from FileInfo. */
 export interface ProgramEntry {
