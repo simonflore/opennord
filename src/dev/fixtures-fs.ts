@@ -4,11 +4,11 @@ import { MODELS } from '../lib/clavia/partitions';
 
 export interface CorpusModel { id: string; files: string[]; }
 
-const SAFE = /^[A-Za-z0-9._-]+$/;
+const unsafe = (s: string) => !s || s === '..' || s.includes('/') || s.includes('\\') || s.includes('\0');
 
 /** Absolute path under `root`, or null if model/name is unsafe or escapes root. */
 export function resolveFixturePath(root: string, model: string, name: string): string | null {
-  if (model === '..' || name === '..' || !SAFE.test(model) || !SAFE.test(name)) return null;
+  if (unsafe(model) || unsafe(name)) return null;
   const abs = resolve(root, model, name);
   return abs.startsWith(resolve(root) + sep) ? abs : null;
 }

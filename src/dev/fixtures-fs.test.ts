@@ -9,6 +9,7 @@ beforeAll(() => {
   root = mkdtempSync(join(tmpdir(), 'corpus-'));
   mkdirSync(join(root, 'stage-3'));
   writeFileSync(join(root, 'stage-3', 'Patch.ns3f'), 'x');
+  writeFileSync(join(root, 'stage-3', 'Yavuz House C-2 (1).ns3f'), 'x');
   writeFileSync(join(root, 'stage-3', 'README.md'), 'x');     // skipped
   writeFileSync(join(root, 'stage-3', '.hidden'), 'x');        // skipped
   mkdirSync(join(root, 'not-a-model'));                        // skipped (unknown id)
@@ -20,6 +21,9 @@ afterAll(() => rmSync(root, { recursive: true, force: true }));
 describe('resolveFixturePath', () => {
   it('resolves a valid model/name under root', () => {
     expect(resolveFixturePath(root, 'stage-3', 'Patch.ns3f')).toBe(resolve(root, 'stage-3', 'Patch.ns3f'));
+  });
+  it('resolves filenames with spaces and parentheses', () => {
+    expect(resolveFixturePath(root, 'stage-3', 'Yavuz House C-2 (1).ns3f')).toBe(resolve(root, 'stage-3', 'Yavuz House C-2 (1).ns3f'));
   });
   it('rejects traversal, absolute, and multi-segment names', () => {
     expect(resolveFixturePath(root, '..', 'x')).toBeNull();
@@ -33,7 +37,7 @@ describe('resolveFixturePath', () => {
 describe('corpusManifest', () => {
   it('lists known-model dirs, skipping dotfiles/README/unknown dirs', () => {
     const m = corpusManifest(root);
-    expect(m).toEqual([{ id: 'stage-3', files: ['Patch.ns3f'] }]);
+    expect(m).toEqual([{ id: 'stage-3', files: ['Patch.ns3f', 'Yavuz House C-2 (1).ns3f'] }]);
   });
   it('returns [] when the root is missing', () => {
     expect(corpusManifest(join(root, 'nope'))).toEqual([]);
