@@ -7,6 +7,8 @@ import { ProgramZones } from './ProgramZones';
 import { EngineCard } from './EngineCard';
 import { FxRow } from './FxRow';
 import { Morphs } from './Morphs';
+import { NordFileCard } from './NordFileCard';
+import { identifyNordFile } from '../../lib/ns4/nord-file';
 import { ProgramExtern } from './ProgramExtern';
 import { SampleRefs } from './SampleRefs';
 import { AllParamsDrawer } from './AllParamsDrawer';
@@ -22,9 +24,12 @@ export function ProgramView({ program }: { program: NS4Program }) {
   const [scene, setScene] = useState<'I' | 'II'>(program.activeScene ?? 'I');
 
   if (!program.parsed) {
+    // A recognized Nord file we don't fully decode (Stage 2/3, presets) → show its
+    // structure instead of a dead end. Truly unrecognized files fall through.
+    if (identifyNordFile(program.bytes).recognized) return <NordFileCard bytes={program.bytes} />;
     return (
       <div className="ps">
-        <p>Not a recognized Stage 4 program.</p>
+        <p>Not a recognized Nord file.</p>
         <ul>{program.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
       </div>
     );

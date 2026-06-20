@@ -49,7 +49,7 @@ function Shell() {
   function importFile() {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.ns4p,.ns4o,.ns4n,.ns4y';
+    input.accept = '.ns4p,.ns4o,.ns4n,.ns4y,.ns3p,.ns3f,.ns2p';
     // Append to the DOM: a detached file input's click() is silently ignored on
     // some WebKit/iOS WKWebView builds (we wrap to iOS via Capacitor).
     input.style.display = 'none';
@@ -120,7 +120,7 @@ function ProgramDecode() {
   }
   return (
     <div>
-      <input type="file" accept=".ns4p,.ns4o,.ns4n,.ns4y"
+      <input type="file" accept=".ns4p,.ns4o,.ns4n,.ns4y,.ns3p,.ns3f,.ns2p"
         onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
       {program && (
         <section style={{ marginTop: 16 }}>

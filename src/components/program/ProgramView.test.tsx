@@ -399,9 +399,20 @@ describe('ProgramView (integration)', () => {
     expect(html).toContain('Show all parameters');
   });
 
-  it('shows warnings instead of a view when the program is not parsed', () => {
+  it('shows warnings when the bytes are not a recognized Nord file', () => {
     const unparsed = parseNs4Program(new Uint8Array([1, 2, 3]));
     const html = renderToStaticMarkup(<ProgramView program={unparsed} />);
-    expect(html).toContain('Not a recognized Stage 4 program');
+    expect(html).toContain('Not a recognized Nord file');
+  });
+
+  it('shows the structure card for a recognized Nord file we don’t fully decode (e.g. Stage 3)', () => {
+    const ns3f = new Uint8Array(64);
+    ns3f.set([0x43, 0x42, 0x49, 0x4e]); // CBIN
+    ns3f[0x04] = 1;
+    for (let i = 0; i < 4; i++) ns3f[0x08 + i] = 'ns3f'.charCodeAt(i);
+    ns3f[0x0c] = 5; ns3f[0x0e] = 19; ns3f[0x10] = 21; ns3f[0x14] = 0x30; ns3f[0x15] = 0x01; // v3.04
+    const html = renderToStaticMarkup(<ProgramView program={parseNs4Program(ns3f)} />);
+    expect(html).toContain('Stage 3');
+    expect(html).toContain('v3.04');
   });
 });
