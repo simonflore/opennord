@@ -44,4 +44,21 @@ describe('validation matrix', () => {
       expect(statusFor('electro-4', cap).status, `electro-4 ${cap}`).toBe('inferred');
     }
   });
+  // CLead4Base::ConvertLocation @0x00000001000ddcf8 — slot display NSM-traced.
+  // CLead4Base::CLead4Base @0x00000001000dd364 — 3-partition spec NSM-traced.
+  // CLead4Base::Archive_OnPostUnZip @0x00000001000dda94 — backup flow NSM-traced (nl4b).
+  // All three validated against real .nl4p + .nl4s fixtures (fixtures/lead-4/).
+  // Transfer caps (enumerate/pull/push/delete) stay inferred — hardware-gated.
+  it('lead-4 file-read and backup are re (NSM-traced + fixture-validated)', () => {
+    expect(statusFor('lead-4', 'file-read').status).toBe('re');
+    expect(statusFor('lead-4', 'backup').status).toBe('re');
+  });
+  it('lead-4 transfer caps stay at inferred (hardware-gated)', () => {
+    for (const cap of ['enumerate', 'pull', 'push', 'delete'] as const) {
+      expect(statusFor('lead-4', cap).status, `lead-4 ${cap}`).toBe('inferred');
+    }
+  });
+  it('lead-4 samples is unsupported (sampleCodec null — no sample engine)', () => {
+    expect(statusFor('lead-4', 'samples').status).toBe('unsupported');
+  });
 });
