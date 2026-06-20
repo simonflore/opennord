@@ -23,6 +23,10 @@ nsm_decomp/
 # only. NEVER commit/redistribute (docs/LEGAL.md).
 nse/
 nse_decomp/
+# Nord keyboard firmware (.cab/OS images) + Ghidra output — Clavia IP, downloaded
+# publicly for body-parser RE (Tier B oracle). NEVER commit/redistribute (docs/LEGAL.md).
+firmware/
+firmware_decomp/
 # Full real sample audio used for local decoder validation — the user's own
 # recordings, kept out of the repo (size + scope). Trimmed fixtures live under
 # src/lib/ns4/__fixtures__/nsmp/ instead.
