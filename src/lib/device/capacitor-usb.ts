@@ -1,13 +1,7 @@
 import type { NordTransport } from './transport';
 import { getCapacitorPlatform, isCapacitorPlatform } from '@/lib/platform';
-
-/** Thrown by the iPad transport until the Phase B DriverKit bridge exists. */
-export class TransportUnavailableError extends Error {
-  constructor(public readonly reason: 'ipad-dext-pending') {
-    super(`Nord USB transport unavailable: ${reason}`);
-    this.name = 'TransportUnavailableError';
-  }
-}
+import { NordUsb } from 'capacitor-nord-usb';
+import { base64ToBytes, bytesToBase64 } from './base64';
 
 /** Why USB transfer is or isn't reachable on this host. */
 export type UsbAvailability = 'webusb' | 'ipad-dext-pending' | 'unsupported';
@@ -15,7 +9,7 @@ export type UsbAvailability = 'webusb' | 'ipad-dext-pending' | 'unsupported';
 /**
  * Classify the host's USB-transfer reach:
  *   - 'webusb'            Chromium desktop — use WebUsbTransport.
- *   - 'ipad-dext-pending' native iPad — the DriverKit path lands in Phase B.
+ *   - 'ipad-dext-pending' native iPad — the DriverKit path; gate on nordUsbAvailable().
  *   - 'unsupported'       any other browser/device (iPhone, Safari, etc.).
  */
 export function usbAvailability(): UsbAvailability {
@@ -25,19 +19,36 @@ export function usbAvailability(): UsbAvailability {
 }
 
 /**
- * iPad USB transport. Phase B fills these with the native Capacitor plugin →
- * IOKit → DriverKit DEXT bridge (see docs/IPAD.md). Until then every I/O method
- * reports the pending state so the UI can explain it rather than crash.
+ * True when a Nord is present and the DriverKit DEXT is reachable (native iPad).
+ * Any error/absence (e.g. no DEXT installed) maps to false so the UI degrades to
+ * the "coming to iPad" state rather than crashing.
+ */
+export async function nordUsbAvailable(): Promise<boolean> {
+  try {
+    const { available } = await NordUsb.isAvailable();
+    return available;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * iPad USB transport: delegates the four-method NordTransport seam to the native
+ * NordUsb plugin (Swift CAPPlugin -> IOKit -> DriverKit DEXT), marshaling bytes as
+ * base64 across the bridge. Everything above this seam is reused unchanged.
  */
 export class CapacitorUsbTransport implements NordTransport {
   async open(): Promise<void> {
-    throw new TransportUnavailableError('ipad-dext-pending');
+    await NordUsb.open();
   }
-  async bulkOut(_data: Uint8Array): Promise<void> {
-    throw new TransportUnavailableError('ipad-dext-pending');
+  async bulkOut(data: Uint8Array): Promise<void> {
+    await NordUsb.bulkOut({ data: bytesToBase64(data) });
   }
-  async bulkIn(_maxLength: number): Promise<Uint8Array> {
-    throw new TransportUnavailableError('ipad-dext-pending');
+  async bulkIn(maxLength: number): Promise<Uint8Array> {
+    const { data } = await NordUsb.bulkIn({ maxLength });
+    return base64ToBytes(data);
   }
-  async close(): Promise<void> {}
+  async close(): Promise<void> {
+    await NordUsb.close();
+  }
 }
