@@ -116,6 +116,10 @@ the bar). When extending the decoder, validate against the fixture.
 
 1. **Every decoded field is traceable.** A comment or a `docs/FORMAT.md` entry
    says where the knowledge came from. The format must stay re-derivable.
+   Traceability source includes the **decompiled NSM/NSE binary**
+   (`nsm_decomp/`, `nse_decomp/`) as a first-class oracle alongside third-party
+   tools — cite the specific function/struct (e.g.
+   `CElectro5::BankToCategories`). See `docs/NSM-RE-WORKFLOW.md`.
 2. **Hardware is optional.** Reading / sharing / AI all work from just a file;
    device transfer is a bonus path, never a hard dependency.
 3. **Provider-agnostic AI behind an interface** (`ProgramRanker` in

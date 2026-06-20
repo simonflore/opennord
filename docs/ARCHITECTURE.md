@@ -57,7 +57,7 @@ rather than growing flat prop lists.
 
 ## Design principles
 
-1. **Every decoded field is traceable.** A comment or `docs/FORMAT.md` entry says where the knowledge came from. The format must stay re-derivable by the next person.
+1. **Every decoded field is traceable.** A comment or `docs/FORMAT.md` entry says where the knowledge came from. The format must stay re-derivable by the next person. The decompiled NSM/NSE binary (`nsm_decomp/`, `nse_decomp/`) is a first-class oracle alongside third-party tools; cite the specific function or struct (e.g. `CElectro5::BankToCategories`) — see `docs/NSM-RE-WORKFLOW.md`.
 2. **Hardware is optional.** Reading/sharing/AI all work with just a file. Device transfer is a bonus path, never a hard dependency — exactly the lesson from the Nord ecosystem ("review your programs without any download to the instrument").
 3. **Provider-agnostic AI behind an interface.** No lock-in; cheap default model for search, smarter model for generation.
 4. **Mobile-first.** It's a stage tool. Test at phone width.
