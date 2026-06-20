@@ -30,27 +30,35 @@ byte arrays across the JS↔Swift bridge. Everything above the transport
 
 ## Phase B build order
 
-1. **Generate the iOS target:** `npm run build` then `npx cap add ios`. Set
-   `appId`/`ios.scheme` in `capacitor.config.ts` first. The `ios/` dir is not
-   committed until this step (it bakes in the bundle id).
-2. **Custom Capacitor USB plugin** (Swift). Scaffold with
-   `npm init @capacitor/plugin@latest`, then register it so `cap sync` keeps it
-   alive — follow the vitronitor pattern (`scripts/register-capacitor-plugins.js`,
-   which edits `ios/App/App/capacitor.config.json` and the SPM `Package.swift`).
-   Implement `open/bulkOut/bulkIn/close`; map results back to
-   `CapacitorUsbTransport` (replace the `ipad-dext-pending` throws).
-3. **DriverKit DEXT target** in the Xcode project: an `IOUSBHostInterface` driver
-   matched on VID `0x0FFC` / PID `0x002E`, claiming the vendor interface and doing
-   the bulk transfers; exposes an `IOUserClient` the app talks to via IOKit.
-4. **Apple entitlement:** request `com.apple.developer.driverkit` (+ the USB
-   transport entitlement) from Apple — this has lead time. (WWDC22 "Bring your
-   driver to iPad with DriverKit.")
-5. **StatusBar polish:** add `@capacitor/status-bar`, style to Studio Dark
-   near-black behind `isCapacitorPlatform()`. (Deferred from Phase A because it
-   needs the plugin + generated target.)
-6. **Hardware validation** on a real M1+ iPad against a Stage 4: enumerate, read,
-   write — same `scripts/nord*.c` expectations as desktop. The DEXT cannot run on
-   the simulator; needs a device + provisioning profile with the entitlement.
+The TS bridge + native source already live in `plugins/capacitor-nord-usb/`
+(committed, `UNVALIDATED` headers). What remains is gated on Apple + hardware:
+
+1. **Apple Developer.** Request the `com.apple.developer.driverkit` distribution
+   entitlement (justification form; lead time). Enable the DriverKit capability on
+   the `org.opennord.app` App ID. Create provisioning profiles for the app and the
+   DEXT carrying the entitlement.
+2. **Generate the iOS app target (local, not committed).** `npm run build` then
+   `npx cap add ios`. Add `"capacitor-nord-usb": "file:plugins/capacitor-nord-usb"`
+   to the app `dependencies` and `npm install` so `cap sync` discovers the plugin.
+3. **Register the plugin.** Run `node scripts/register-capacitor-plugins.js` after
+   `npx cap sync` (it re-adds `NordUsbPlugin` to the regenerated
+   `ios/App/App/capacitor.config.json`).
+4. **Add the DEXT target.** In Xcode, add a DriverKit extension target from
+   `plugins/capacitor-nord-usb/ios/Dext/*`; embed it in the app; set its
+   entitlements + the match `Info.plist`.
+5. **Sign + deploy.** Build with the entitlement-bearing profiles; install on an
+   M1+ iPad; approve the system extension in Settings.
+6. **StatusBar polish.** Add `@capacitor/status-bar`, style to Studio Dark
+   near-black behind `isCapacitorPlatform()`.
+7. **Hardware-validate.** Against a real Stage 4: enumerate (FileIterate) / read /
+   write, matching `scripts/nordpull.c` / `scripts/nordcreate.c`. The DEXT cannot
+   run on the simulator.
+
+## Validation gates (cannot be verified without entitlement + hardware)
+
+- DEXT compile — best-effort via the DriverKit SDK once an `ios/` target exists.
+- Signing / installation — blocked on the `com.apple.developer.driverkit` entitlement.
+- On-device enumerate / read / write — blocked on an M1+ iPad + a Nord Stage 4.
 
 ## Constraints
 
