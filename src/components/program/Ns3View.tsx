@@ -1,5 +1,17 @@
 import { identifyNordFile } from '../../lib/clavia/nord-file';
 import { decodeNs3, type Ns3Panel } from '../../lib/ns3/decode';
+import { DrawbarStack } from './widgets';
+import type { DrawbarView } from '../../lib/ns4/view';
+
+// B3 footage labels for the 9 drawbars; Vox/Farfisa use their own legend.
+const B3_FOOTAGE = ['16′', '5⅓′', '8′', '4′', '2⅔′', '2′', '1⅗′', '1⅓′', '1′'];
+
+function organDrawbars(panel: Ns3Panel): DrawbarView[] {
+  return panel.organ.drawbars.map((level, i) => ({
+    level, label: String(level), color: 'default',
+    footage: panel.organ.type === 'B3' ? B3_FOOTAGE[i] : undefined,
+  }));
+}
 
 /** The active engines of one panel as readable chips ("Piano · Grand"). */
 function PanelEngines({ panel }: { panel: Ns3Panel }) {
@@ -23,6 +35,9 @@ function PanelEngines({ panel }: { panel: Ns3Panel }) {
             ))}
           </div>
         )}
+      {panel.organ.on && (
+        <div style={{ marginTop: 10 }}><DrawbarStack drawbars={organDrawbars(panel)} /></div>
+      )}
       {panel.fx.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
           {panel.fx.map((f) => (

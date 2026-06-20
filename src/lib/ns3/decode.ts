@@ -33,9 +33,29 @@ const vol = (b: Uint8Array, o: number): string => NORD_DB[(u16(b, o) & 0x07f0) >
 
 export interface Ns3Fx { name: string; type?: string }
 
+/**
+ * The 9 organ drawbar positions (0-8) of preset 1. Each is a 3-4 bit field at a
+ * fixed offset from the drawbar base (0xBE on panel A) — masks per ns3-organ.js
+ * `getDrawbars`. (B3 reads them straight; Vox/Farfisa relabel for display.)
+ */
+function readDrawbars(b: Uint8Array, base: number): number[] {
+  const o = base + 0xbe;
+  return [
+    (u8(b, o) & 0xf0) >>> 4,         // 0xBE
+    (u8(b, o + 2) & 0x1e) >>> 1,     // 0xC0
+    (u16(b, o + 4) & 0x03c0) >>> 6,  // 0xC2
+    (u8(b, o + 7) & 0x78) >>> 3,     // 0xC5
+    u8(b, o + 9) & 0x0f,             // 0xC7
+    (u16(b, o + 11) & 0x01e0) >>> 5, // 0xC9
+    (u8(b, o + 14) & 0x3c) >>> 2,    // 0xCC
+    (u16(b, o + 16) & 0x0780) >>> 7, // 0xCE
+    (u8(b, o + 19) & 0xf0) >>> 4,    // 0xD1
+  ];
+}
+
 export interface Ns3Panel {
   id: 'A' | 'B';
-  organ: { on: boolean; type: string; volume: string };
+  organ: { on: boolean; type: string; volume: string; drawbars: number[] };
   piano: { on: boolean; type: string; volume: string };
   synth: { on: boolean; osc: string; filter: string; cutoff: string; volume: string };
   /** Effects switched on in this panel, in signal order. */
@@ -65,7 +85,7 @@ function readPanel(b: Uint8Array, id: 'A' | 'B', base: number): Ns3Panel {
     // piano enable @0x43.b7; type @0x48.b5-3; volume @0x43
     piano: { on: (u16(b, base + 0x43) & 0x8000) !== 0, type: lut(PIANO_TYPE, (u8(b, base + 0x48) & 0x38) >>> 3), volume: vol(b, base + 0x43) },
     // organ enable @0xB6.b7; type @0xBB.b6-4; volume @0xB6
-    organ: { on: (u16(b, base + 0xb6) & 0x8000) !== 0, type: lut(ORGAN_TYPE, (u8(b, base + 0xbb) & 0x70) >>> 4), volume: vol(b, base + 0xb6) },
+    organ: { on: (u16(b, base + 0xb6) & 0x8000) !== 0, type: lut(ORGAN_TYPE, (u8(b, base + 0xbb) & 0x70) >>> 4), volume: vol(b, base + 0xb6), drawbars: readDrawbars(b, base) },
     // synth enable @0x52.b7; osc type @0x8D.b1-0+0x8E.b7; filter type @0x98.b4-2; volume @0x52
     synth: {
       on: (u16(b, base + 0x52) & 0x8000) !== 0,

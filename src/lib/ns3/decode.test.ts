@@ -43,6 +43,17 @@ describe('decodeNs3', () => {
     expect(decodeNs3(z).panels[0].piano.volume).toBe('Off');
   });
 
+  it('decodes the 9 organ drawbars (each 0-8) from the 0xBE block', () => {
+    const b = new Uint8Array(600);
+    b[0xbe] = 0x60;   // drawbar 1: (0x60 & 0xf0) >>> 4 = 6
+    b[0xc0] = 0x10;   // drawbar 2: (0x10 & 0x1e) >>> 1 = 8
+    const dr = decodeNs3(b).panels[0].organ.drawbars;
+    expect(dr).toHaveLength(9);
+    expect(dr[0]).toBe(6);
+    expect(dr[1]).toBe(8);
+    expect(dr.every((d) => d >= 0 && d <= 8)).toBe(true);
+  });
+
   it('lists active FX with types (reverb + delay)', () => {
     const b = new Uint8Array(600);
     b[0x134] = 0x02;   // reverb enable; type (u16 & 0x01c0)>>>6 = 0 → Room 1
