@@ -4,6 +4,7 @@ import { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
+import { usbAvailability } from '../../lib/device/capacitor-usb';
 import { Button, SectionLabel } from '../ui';
 import './connect.css';
 
@@ -27,17 +28,20 @@ export function ConnectPanel({ onConnected }: {
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState('');
 
-  const supported = typeof navigator !== 'undefined' && 'usb' in navigator;
-  if (!supported) {
+  const reach = usbAvailability();
+  if (reach !== 'webusb') {
+    const ipad = reach === 'ipad-dext-pending';
     return (
       <div className="connect">
         <div className="connect__card">
           <SectionLabel>Your Nord</SectionLabel>
-          <h2 className="connect__title">Open this in Chrome or Edge to connect</h2>
+          <h2 className="connect__title">
+            {ipad ? 'USB transfer is coming to iPad' : 'Open this in Chrome or Edge to connect'}
+          </h2>
           <p className="connect__lead">
-            Talking to your Nord over USB needs Chrome or Edge on a computer. Everything else in
-            OpenNord — browsing, samples, sharing — works in any browser; switch over when you're
-            ready to move programs to and from the keyboard.
+            {ipad
+              ? "Moving programs to and from your Nord over USB is on the way for iPad. Everything else — browsing, samples, sharing — works right here today."
+              : "Talking to your Nord over USB needs Chrome or Edge on a computer. Everything else in OpenNord — browsing, samples, sharing — works in any browser; switch over when you're ready to move programs to and from the keyboard."}
           </p>
         </div>
       </div>
