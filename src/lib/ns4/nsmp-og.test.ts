@@ -4,11 +4,13 @@ import { resolve } from 'node:path';
 import { parseNsmpSections, nsmpLayout } from './nsmp';
 import { writeOgStrokeHeader, parseOgStrokeHeader, OG_STROKE_HEADER_FIXED, assembleOgNsmp, ogEnvelope, type OgSection } from './nsmp-og';
 import { level2DSP, dsp2Level, get0dB, decay2DSP, getDSPNormalize } from './nw1-dsp';
+import { hasGt } from './gt-fixtures';
 
 const ogFiles = [
   resolve(__dirname, '../../../nsmp conversion demo files/BrassAlesis 2.nsmp'),
   resolve(__dirname, '../../../research/nsmp/TAKE ON ME.nsmp'),
 ];
+const HAS_OG = hasGt('nsmp conversion demo files/BrassAlesis 2.nsmp', 'research/nsmp/TAKE ON ME.nsmp');
 
 describe('nw1-dsp helpers', () => {
   it('level2DSP / get0dB / round-trip', () => {
@@ -34,7 +36,7 @@ describe('nw1-dsp helpers', () => {
   });
 });
 
-describe('assembleOgNsmp — envelope + section framing round-trip', () => {
+describe.skipIf(!HAS_OG)('assembleOgNsmp — envelope + section framing round-trip', () => {
   for (const path of ogFiles) {
     const name = path.split('/').pop()!;
     it(name, () => {
@@ -57,7 +59,7 @@ describe('assembleOgNsmp — envelope + section framing round-trip', () => {
   }
 });
 
-describe('OG stroke header — byte-exact re-serialization (17 real strokes)', () => {
+describe.skipIf(!HAS_OG)('OG stroke header — byte-exact re-serialization (17 real strokes)', () => {
   for (const path of ogFiles) {
     const name = path.split('/').pop()!;
     it(name, () => {

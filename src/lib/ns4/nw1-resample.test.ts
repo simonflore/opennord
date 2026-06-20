@@ -3,8 +3,14 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { decodeNsmp } from './nsmp';
 import { resampleNW1, resampleToRate } from './nw1-resample';
+import { hasGt } from './gt-fixtures';
 
 const GT = resolve(__dirname, '../../../research/nsmp/ground-truth');
+const HAS_GT = hasGt(
+  'research/nsmp/ground-truth/sine_24.wav',
+  'research/nsmp/ground-truth/ramp_24.wav',
+  'research/nsmp/ground-truth/impulse_24.wav',
+);
 
 function parseWav24(bytes: Uint8Array): { rate: number; ch: number; data: Int32Array[] } {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -31,7 +37,7 @@ function parseWav24(bytes: Uint8Array): { rate: number; ch: number; data: Int32A
 const peak = (a: ArrayLike<number>) => { let m = 0; for (let i = 0; i < a.length; i++) m = Math.max(m, Math.abs(a[i])); return m; };
 const zeroCross = (a: ArrayLike<number>) => { let z = 0; for (let i = 1; i < a.length; i++) if ((a[i - 1] < 0) !== (a[i] < 0)) z++; return z; };
 
-describe('resampleNW1 — correctness', () => {
+describe.skipIf(!HAS_GT)('resampleNW1 — correctness', () => {
   it('preserves pitch + amplitude resampling a 220 Hz sine (48k → 35256)', () => {
     const wav = parseWav24(new Uint8Array(readFileSync(resolve(GT, 'sine_24.wav'))));
     const out = resampleToRate(wav.data, 48000, 35256);
@@ -50,7 +56,7 @@ describe('resampleNW1 — correctness', () => {
   });
 });
 
-describe('resampleNW1 — matches the editor length + spectrum (not phase)', () => {
+describe.skipIf(!HAS_GT)('resampleNW1 — matches the editor length + spectrum (not phase)', () => {
   // The editor's *encode* path uses a longer, runtime-generated kernel (s_newFir48,
   // .bss — not statically extractable), so its output differs from ours in phase
   // and onset. Both are valid resamples of the same signal; we validate that ours
