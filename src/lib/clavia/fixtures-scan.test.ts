@@ -20,6 +20,7 @@ describe('fixtures corpus scan', () => {
       if (!statSync(dir).isDirectory()) continue; // skips README.md
       if (!(id in MODELS)) { console.warn(`[fixtures] "${id}" is not a known model id — skipping`); continue; }
       for (const file of readdirSync(dir)) {
+        if (!statSync(`${dir}/${file}`).isFile()) continue;
         const bytes = new Uint8Array(readFileSync(`${dir}/${file}`));
         const f = identifyFixture(file, bytes);
         const cc = crossCheckFixture(f, id as NordModelId);
