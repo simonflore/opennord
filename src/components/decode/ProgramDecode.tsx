@@ -1,20 +1,50 @@
 import { useState } from 'react';
 import { parseClaviaFile } from '@/lib/formats';
+import { summarizeFile, type FileSummary } from '@/lib/clavia/identify-summary';
+import { FixtureLoader } from '@/components/dev/FixtureLoader';
 import type { NS4Program } from '@/lib/ns4/types';
 
-/** Developer tool: drop a .ns4p and dump its parsed structure as JSON. */
+/** Identify summary — which Nord, tag/version/kind, and whether it matches the registry. */
+export function IdentifyPanel({ summary }: { summary: FileSummary }) {
+  const { finding, modelGuess, cross } = summary;
+  return (
+    <div style={{ font: '12px var(--mono)', color: 'var(--ink)', margin: '8px 0' }}>
+      <span>{modelGuess ?? 'unknown model'}</span>{' · '}
+      <span>{finding.tag ?? finding.ext}</span>{' · '}
+      <span>{finding.generation ?? '—'}</span>{' · '}
+      <span>v{finding.version ?? '—'}</span>{' · '}
+      <span>{finding.kind}</span>
+      {cross && (cross.ok
+        ? <span style={{ color: 'var(--connected)' }}> · matches registry ✓</span>
+        : <span style={{ color: 'var(--warn)' }}> · {cross.issues.join('; ')}</span>)}
+      {!finding.headerOk && finding.error && <span style={{ color: 'var(--warn)' }}> · {finding.error}</span>}
+    </div>
+  );
+}
+
+/** Developer tool: drop or pick any Nord file and dump its parsed structure as JSON. */
 export function ProgramDecode() {
   const [program, setProgram] = useState<NS4Program | null>(null);
   const [fileName, setFileName] = useState('');
-  async function onFile(file: File) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    setFileName(file.name);
+  const [summary, setSummary] = useState<FileSummary | null>(null);
+
+  function load(name: string, bytes: Uint8Array) {
+    setFileName(name);
+    setSummary(summarizeFile(name, bytes));
     setProgram(parseClaviaFile(bytes).program);
   }
+  async function onFile(file: File) {
+    load(file.name, new Uint8Array(await file.arrayBuffer()));
+  }
+
   return (
     <div>
-      <input type="file" accept=".ns4p,.ns4o,.ns4n,.ns4y,.ns3p,.ns3f,.ns2p"
-        onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input type="file"
+          onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+        <FixtureLoader onLoad={load} />
+      </div>
+      {summary && <IdentifyPanel summary={summary} />}
       {program && (
         <section style={{ marginTop: 16 }}>
           <h3>{fileName}</h3>
