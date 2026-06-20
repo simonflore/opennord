@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
+import { fixturesDevPlugin } from './src/dev/fixtures-plugin';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), fixturesDevPlugin()],
   server: { port: process.env.PORT ? Number(process.env.PORT) : 5173 },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
