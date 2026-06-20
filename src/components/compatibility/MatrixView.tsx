@@ -1,4 +1,5 @@
 import './compatibility.css';
+import { ProbePanel } from './ProbePanel';
 import { ALL_MODELS } from '../../lib/clavia/partitions';
 import { CAPABILITIES, CAPABILITY_LABEL, statusFor, type ValidationStatus } from '../../lib/clavia/validation';
 
@@ -11,6 +12,7 @@ export function MatrixView() {
     <div className="cmp">
       <h1 className="cmp__title">Nord compatibility</h1>
       <p className="cmp__lead">What OpenNord can do with each Nord — and where we need your help.</p>
+      <ProbePanel />
       <div className="cmp__scroll">
         <table className="cmp__table">
           <thead>
