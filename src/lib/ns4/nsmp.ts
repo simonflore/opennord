@@ -271,6 +271,22 @@ export function parseCodec4ZoneRecords(
 }
 
 /**
+ * Map each stroke's global id (`stk` header +3) to its root key (`stk` header +5).
+ * The stroke header begins `00 00 00 <gid> 00 <root> 88 ba …` across every codec
+ * generation — validated against codec-4 ground truth (sine_24 root 57, ramp_24
+ * root 24, matching their `.nsmpproj` `m_rootKey`).
+ */
+function strokeRootByGlobalId(bytes: Uint8Array, sections: NsmpSection[]): Map<number, number> {
+  const roots = new Map<number, number>();
+  for (const s of sections) {
+    if (!s.tag.endsWith('stk')) continue;
+    const root = bytes[s.payloadOffset + 5];
+    if (root <= 127) roots.set(bytes[s.payloadOffset + 3], root);
+  }
+  return roots;
+}
+
+/**
  * Read the per-zone splits/layers table from the `map` section. Skips the global
  * + per-note level/detune block (unity entries `10 00 00 00 00 00`), then parses
  * 16-byte zone entries. (Codec-3 `map` form; verified against Strings.nsmp3.)
@@ -286,7 +302,13 @@ export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
   // files — see parseLegacyZoneRecords.)
   if (nsmpLayout(bytes).legacy) {
     const strokeCount = sections.filter((s) => s.tag.endsWith('stk')).length;
-    return parseLegacyZoneRecords(bytes, map.payloadOffset, map.endOffset, strokeCount);
+    const zones = parseLegacyZoneRecords(bytes, map.payloadOffset, map.endOffset, strokeCount);
+    // The OG `map` record carries no root key (the byte we'd read there is ~0, far
+    // below the zone) — the real per-zone root lives in the `stk` header (+5), keyed
+    // by global id, exactly as NSE reads it (CSectionStroke). Codec 3/4 keep their
+    // map-record root, which is correct for NSE-authored files and round-trips edits.
+    const roots = strokeRootByGlobalId(bytes, sections);
+    return zones.map((z) => ({ ...z, rootKey: roots.get(z.globalID) ?? z.rootKey }));
   }
 
   // Codec-4 (`.nsmp4`, map section version 21) widens the per-note block to
