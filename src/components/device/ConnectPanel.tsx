@@ -83,6 +83,9 @@ export function ConnectPanel({ onConnected }: {
     try {
       if (reach === 'ipad-dext-pending') {
         transport = new CapacitorUsbTransport();
+        // TODO(ipad-dext): placeholder name + productId 0 — the four-method seam
+        // can't report device identity yet; surface the real model/PID once the
+        // DriverKit DEXT lands (docs/IPAD.md).
         await runSession(transport, 'Nord Stage 4', 0);
         return;
       }

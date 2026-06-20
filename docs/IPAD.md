@@ -43,9 +43,13 @@ The TS bridge + native source already live in `plugins/capacitor-nord-usb/`
 3. **Register the plugin.** Run `node scripts/register-capacitor-plugins.js` after
    `npx cap sync` (it re-adds `NordUsbPlugin` to the regenerated
    `ios/App/App/capacitor.config.json`).
-4. **Add the DEXT target.** In Xcode, add a DriverKit extension target from
-   `plugins/capacitor-nord-usb/ios/Dext/*`; embed it in the app; set its
-   entitlements + the match `Info.plist`.
+4. **Add the DEXT target + finish the IOUserClient.** In Xcode, add a DriverKit
+   extension target from `plugins/capacitor-nord-usb/ios/Dext/*`; embed it in the
+   app; set its entitlements + the match `Info.plist`. The committed DEXT source is
+   unvalidated and **incomplete by design**: implement `NewUserClient` and the
+   `IOUserClient` subclass with an `ExternalMethod` dispatch table mapping selectors
+   0–3 → `DoOpen/DoBulkOut/DoBulkIn/DoClose`, matching the Swift wrapper's call
+   shapes (note `bulkIn` is marshalled as a scalar input + struct output).
 5. **Sign + deploy.** Build with the entitlement-bearing profiles; install on an
    M1+ iPad; approve the system extension in Settings.
 6. **StatusBar polish.** Add `@capacitor/status-bar`, style to Studio Dark
