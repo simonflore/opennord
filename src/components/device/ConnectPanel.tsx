@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { NordTransport } from '../../lib/device/transport';
 import { WebUsbTransport } from '../../lib/device/webusb';
+import { CapacitorUsbTransport, nordUsbAvailable, usbAvailability } from '../../lib/device/capacitor-usb';
 import { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
-import { usbAvailability } from '../../lib/device/capacitor-usb';
 import { Button, SectionLabel } from '../ui';
 import './connect.css';
 
@@ -31,7 +32,23 @@ export function ConnectPanel({ onConnected }: {
   const [message, setMessage] = useState('');
 
   const reach = usbAvailability();
-  if (reach !== 'webusb') {
+  // null = probing; only meaningful on the iPad native path.
+  const [ipadReady, setIpadReady] = useState<boolean | null>(
+    reach === 'ipad-dext-pending' ? null : false,
+  );
+  useEffect(() => {
+    if (reach !== 'ipad-dext-pending') return;
+    let alive = true;
+    nordUsbAvailable().then((ok) => {
+      if (alive) setIpadReady(ok);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [reach]);
+
+  // Info cards: a plain browser without WebUSB, or an iPad whose DEXT isn't ready.
+  if (reach === 'unsupported' || (reach === 'ipad-dext-pending' && ipadReady !== true)) {
     const ipad = reach === 'ipad-dext-pending';
     return (
       <div className="connect">
@@ -50,27 +67,32 @@ export function ConnectPanel({ onConnected }: {
     );
   }
 
+  async function runSession(transport: NordTransport, deviceName: string, productId: number) {
+    await transport.open();
+    const session = new NordSession(transport);
+    // Bracket enumerate in a begin/end session so the Nord returns to idle after.
+    const entries = await session.withSession(PARTITION_PROGRAM, () => enumeratePrograms(session));
+    setStatus('connected');
+    onConnected(session, entries, deviceName, productId);
+  }
+
   async function connect() {
     setStatus('connecting');
     setMessage('');
-    let transport: WebUsbTransport | undefined;
+    let transport: NordTransport | undefined;
     try {
-      // Reconnect silently if this Nord was authorized before — Chrome remembers
-      // the grant per origin, so only the first-ever connect needs the chooser.
+      if (reach === 'ipad-dext-pending') {
+        transport = new CapacitorUsbTransport();
+        await runSession(transport, 'Nord Stage 4', 0);
+        return;
+      }
+      // WebUSB: reconnect silently if authorized before; else show the chooser.
       const device =
         findAuthorizedDevice(await navigator.usb.getDevices(), NORD_FILTER) ??
         (await navigator.usb.requestDevice({ filters: [NORD_FILTER] }));
       transport = new WebUsbTransport(device);
-      await transport.open();
-      const session = new NordSession(transport);
-      // Bracket the enumerate in a begin/end session so the Nord returns to idle
-      // afterward (a left-open session makes it show "synchronizing" forever).
-      const entries = await session.withSession(PARTITION_PROGRAM, () => enumeratePrograms(session));
-      setStatus('connected');
-      const name = device.productName ?? 'Nord';
-      onConnected(session, entries, name, device.productId);
+      await runSession(transport, device.productName ?? 'Nord Stage 4', device.productId);
     } catch (e) {
-      // Release the interface on any failure so a retry isn't blocked by a stale claim.
       if (transport) await transport.close().catch(() => {});
       const friendly = describeError(e);
       if (!friendly) {
