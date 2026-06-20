@@ -2,7 +2,7 @@ import type { LibraryEntry, LibrarySource, LibrarySort } from './types';
 import type { ProgramEntry } from '../device/transfer';
 import type { ScannedProgram } from '../folder/scan';
 import { formatSlot } from '../clavia/slot';
-import { parseNs4Program } from '../ns4/parse';
+import { parseClaviaFile } from '../formats';
 import { programNameFromFilename } from '../clavia/name';
 import { activeLayers } from '../ns4/view';
 import type { NS4Program } from '../ns4/types';
@@ -29,7 +29,7 @@ export function nordEntriesFromDevice(entries: ProgramEntry[]): LibraryEntry[] {
  * for a freshly-imported file and one restored from IndexedDB on reload.
  */
 export function entryFromImport(rec: { id: string; name: string; bytes: Uint8Array }): LibraryEntry {
-  const program = parseNs4Program(rec.bytes);
+  const program = parseClaviaFile(rec.bytes).program;
   program.name = programNameFromFilename(rec.name);
   return {
     id: rec.id,

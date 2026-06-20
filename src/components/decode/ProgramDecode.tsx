@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { parseNs4Program } from '@/lib/ns4/parse';
+import { parseClaviaFile } from '@/lib/formats';
 import type { NS4Program } from '@/lib/ns4/types';
 
 /** Developer tool: drop a .ns4p and dump its parsed structure as JSON. */
@@ -9,7 +9,7 @@ export function ProgramDecode() {
   async function onFile(file: File) {
     const bytes = new Uint8Array(await file.arrayBuffer());
     setFileName(file.name);
-    setProgram(parseNs4Program(bytes));
+    setProgram(parseClaviaFile(bytes).program);
   }
   return (
     <div>
