@@ -21,6 +21,7 @@ const SYNTH_FILTER = ['LP12', 'LP24', 'Mini Moog', 'LP+HP', 'BP24', 'HP24'];
 const REVERB_TYPE = ['Room 1', 'Room 2', 'Stage 1', 'Stage 2', 'Hall 1', 'Hall 2'];
 const EFFECT1_TYPE = ['Panning', 'Tremolo', 'Ring Mod', 'Wah-Wah', 'Auto-Wah 1', 'Auto-Wah 2'];
 const EFFECT2_TYPE = ['Phaser 1', 'Phaser 2', 'Flanger', 'Vibe', 'Chorus 1', 'Chorus 2'];
+const VIB_CHORUS = ['V1', 'C1', 'V2', 'C2', 'V3', 'C3'];
 
 import { NORD_DB } from './volume';
 import { NS3_FILTER_FREQ } from './filter-freq';
@@ -55,7 +56,13 @@ function readDrawbars(b: Uint8Array, base: number): number[] {
 
 export interface Ns3Panel {
   id: 'A' | 'B';
-  organ: { on: boolean; type: string; volume: string; drawbars: number[] };
+  organ: {
+    on: boolean; type: string; volume: string; drawbars: number[];
+    /** Vibrato/Chorus (B3): on + mode (V1/C1/V2/…). */
+    vibChorus: { on: boolean; mode: string };
+    /** Percussion (B3): on + 3rd-harmonic / fast-decay / soft-volume flags. */
+    percussion: { on: boolean; third: boolean; fast: boolean; soft: boolean };
+  };
   piano: { on: boolean; type: string; volume: string };
   synth: { on: boolean; osc: string; filter: string; cutoff: string; volume: string };
   /** Effects switched on in this panel, in signal order. */
@@ -85,7 +92,22 @@ function readPanel(b: Uint8Array, id: 'A' | 'B', base: number): Ns3Panel {
     // piano enable @0x43.b7; type @0x48.b5-3; volume @0x43
     piano: { on: (u16(b, base + 0x43) & 0x8000) !== 0, type: lut(PIANO_TYPE, (u8(b, base + 0x48) & 0x38) >>> 3), volume: vol(b, base + 0x43) },
     // organ enable @0xB6.b7; type @0xBB.b6-4; volume @0xB6
-    organ: { on: (u16(b, base + 0xb6) & 0x8000) !== 0, type: lut(ORGAN_TYPE, (u8(b, base + 0xbb) & 0x70) >>> 4), volume: vol(b, base + 0xb6), drawbars: readDrawbars(b, base) },
+    organ: {
+      on: (u16(b, base + 0xb6) & 0x8000) !== 0,
+      type: lut(ORGAN_TYPE, (u8(b, base + 0xbb) & 0x70) >>> 4),
+      volume: vol(b, base + 0xb6),
+      drawbars: readDrawbars(b, base),
+      // Vib/Chorus mode @0x34.b3-1, on @0xD3.b4; percussion on/flags @0xD3.b3-0.
+      // We read preset 1 (the active one when preset 2 @0xBB.b2 is off — the common
+      // case). Preset 2's block (0xEE) isn't surfaced yet. TODO when a file needs it.
+      vibChorus: { on: (u8(b, base + 0xd3) & 0x10) !== 0, mode: lut(VIB_CHORUS, (u8(b, base + 0x34) & 0x0e) >>> 1) },
+      percussion: {
+        on: (u8(b, base + 0xd3) & 0x08) !== 0,
+        third: (u8(b, base + 0xd3) & 0x04) !== 0,
+        fast: (u8(b, base + 0xd3) & 0x02) !== 0,
+        soft: (u8(b, base + 0xd3) & 0x01) !== 0,
+      },
+    },
     // synth enable @0x52.b7; osc type @0x8D.b1-0+0x8E.b7; filter type @0x98.b4-2; volume @0x52
     synth: {
       on: (u16(b, base + 0x52) & 0x8000) !== 0,

@@ -54,6 +54,15 @@ describe('decodeNs3', () => {
     expect(dr.every((d) => d >= 0 && d <= 8)).toBe(true);
   });
 
+  it('decodes organ vibrato/chorus + percussion (preset 1)', () => {
+    const b = new Uint8Array(600);
+    b[0x34] = 0x04;   // vib/chorus mode: (0x04 & 0x0e) >>> 1 = 2 → V2
+    b[0xd3] = 0x1c;   // vib on (0x10) + perc on (0x08) + 3rd (0x04); fast/soft off
+    const org = decodeNs3(b).panels[0].organ;
+    expect(org.vibChorus).toEqual({ on: true, mode: 'V2' });
+    expect(org.percussion).toEqual({ on: true, third: true, fast: false, soft: false });
+  });
+
   it('lists active FX with types (reverb + delay)', () => {
     const b = new Uint8Array(600);
     b[0x134] = 0x02;   // reverb enable; type (u16 & 0x01c0)>>>6 = 0 → Room 1

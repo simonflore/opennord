@@ -13,6 +13,18 @@ function organDrawbars(panel: Ns3Panel): DrawbarView[] {
   }));
 }
 
+/** B3 character chips: vibrato/chorus mode + percussion flags, when on. */
+function organChips(panel: Ns3Panel): string[] {
+  const chips: string[] = [];
+  const { vibChorus, percussion } = panel.organ;
+  if (vibChorus.on) chips.push(`Vib/Chorus: ${vibChorus.mode}`);
+  if (percussion.on) {
+    const f = [percussion.third && '3rd', percussion.fast && 'Fast', percussion.soft && 'Soft'].filter(Boolean);
+    chips.push(`Percussion${f.length ? ` · ${f.join(' / ')}` : ''}`);
+  }
+  return chips;
+}
+
 /** The active engines of one panel as readable chips ("Piano · Grand"). */
 function PanelEngines({ panel }: { panel: Ns3Panel }) {
   const engines: { name: string; detail: string }[] = [];
@@ -37,6 +49,11 @@ function PanelEngines({ panel }: { panel: Ns3Panel }) {
         )}
       {panel.organ.on && (
         <div style={{ marginTop: 10 }}><DrawbarStack drawbars={organDrawbars(panel)} /></div>
+      )}
+      {panel.organ.on && (organChips(panel).length > 0) && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+          {organChips(panel).map((c) => <span className="ps-perf-chip" key={c}>{c}</span>)}
+        </div>
       )}
       {panel.fx.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
