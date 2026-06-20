@@ -6,7 +6,6 @@
  */
 export const BANK_LETTERS = 'ABCDEFGH';
 
-
 /** @example formatSlot(7, 56) // → "H:81" */
 export function formatSlot(bank: number, location: number): string {
   const letter = BANK_LETTERS[bank & 0x7] ?? String(bank);

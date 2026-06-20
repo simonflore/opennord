@@ -178,6 +178,10 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     //   SPartitionUserE2P  "ne5t"         →  setlist (label="Set List", type="song")
     //   SPartitionLive     "ne5l"         →  live
     //   SPartitionSettings "ne5s"         →  settings
+    //
+    // Note: `generation: 'NW1-v3'` refers to the SAMPLE codec generation (codec3 / .nsmp).
+    // The Electro 5 program file uses a legacy `formatType 0` CBIN header — confirmed from
+    // fixtures — not the NW1-v4 formatType used by Stage 4/Piano 6/Grand 2.
     id: 'electro-5', name: 'Nord Electro 5', generation: 'NW1-v3', programTag: 'ne5p', sampleCodec: 'codec3',
     partitions: [
       P('piano-native', 'Piano (factory)', true),

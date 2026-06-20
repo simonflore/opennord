@@ -70,8 +70,8 @@ Output files live under `nsm_decomp/` (gitignored — proprietary derivative,
 local-only per `docs/LEGAL.md`). The naming mirrors `nse_decomp/`:
 
 ```
-nsm_decomp/<DemangedClass__Method>@<hex_addr>.c   # Ghidra decompiled C
-nsm_decomp/<DemangedClass__Method>@<hex_addr>.s   # objdump disassembly fallback
+nsm_decomp/<DemangledClass__Method>@<hex_addr>.c   # Ghidra decompiled C
+nsm_decomp/<DemangledClass__Method>@<hex_addr>.s   # objdump disassembly fallback
 ```
 
 `::` in C++ names is replaced with `__` (same convention as `nse_decomp/`).

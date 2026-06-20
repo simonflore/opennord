@@ -90,5 +90,8 @@ describe('partition registry', () => {
     // Live partition carries ne5l tag
     const live = m.partitions.find((p) => p.kind === 'live');
     expect(live?.fourcc).toBe('ne5l');
+    // Settings partition carries ne5s tag (SPartitionSettings "ne5s")
+    const settings = m.partitions.find((p) => p.kind === 'settings');
+    expect(settings?.fourcc).toBe('ne5s');
   });
 });

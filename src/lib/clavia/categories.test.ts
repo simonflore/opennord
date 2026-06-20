@@ -36,8 +36,9 @@ describe('programCategoryName (existing table)', () => {
 // Transcribed directly from the switch-on-bank in @0x100194f7c.
 // ---------------------------------------------------------------------------
 describe('ELECTRO5_BANK_CATEGORIES (NSM-traced, CElectro5::BankToCategories @0x100194f7c)', () => {
-  it('exposes a map with entries for all 6 named Electro banks (0-5) plus a default', () => {
-    // Banks 0-5 are explicitly cased; default (0xffffffff) is the "all" sentinel.
+  it('exposes a map with entries for all 6 named Electro banks (0-5); unknown banks return undefined', () => {
+    // Banks 0-5 are explicitly cased. The firmware default (0xffffffff "all" sentinel)
+    // is NOT stored in this map — electroBankCategoryIds() returns undefined for unknown banks.
     expect(Object.keys(ELECTRO5_BANK_CATEGORIES).length).toBeGreaterThanOrEqual(6);
   });
 

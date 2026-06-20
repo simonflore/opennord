@@ -80,7 +80,10 @@ export function programCategoryName(id: number): string | undefined {
  *   bank 3 → 14, 15           (User, User2)                     — oracle lines 672/751
  *   bank 4 → 4                (Fantasy)                         — oracle line 819
  *   bank 5 → 7                (Organ)                           — oracle line 888
- *   default → 0xffffffff      ("all" / uncategorized sentinel)  — oracle line 957
+ *   default → (no entry stored) — the sentinel 0xffffffff is NOT kept in this map;
+ *             unknown banks return `undefined` from `electroBankCategoryIds()`.
+ *             Oracle line 957 documents the raw firmware default; we expose it as
+ *             undefined rather than storing the raw 32-bit sentinel.
  *
  * The CategoryID enum values resolve directly through PROGRAM_CATEGORY above.
  */
