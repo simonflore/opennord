@@ -25,8 +25,17 @@ function describeError(e: unknown): string {
   return `Could not connect: ${m}`;
 }
 
-export function ConnectPanel({ onConnected }: {
+const DEFAULT_TITLE = 'Bring your Nord in';
+const DEFAULT_LEAD =
+  'Plug your Stage 4 into this computer over USB to back up your sounds, browse every ' +
+  'program in one place, and move patches between the keyboard and OpenNord.';
+
+export function ConnectPanel({ onConnected, title = DEFAULT_TITLE, lead = DEFAULT_LEAD }: {
   onConnected: (session: NordSession, entries: ProgramEntry[], deviceName: string, productId: number) => void;
+  /** Override the connect-card heading (e.g. for line-wide tools, not Stage-4 framing). */
+  title?: string;
+  /** Override the connect-card lead copy. */
+  lead?: string;
 }) {
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState('');
@@ -94,7 +103,7 @@ export function ConnectPanel({ onConnected }: {
         findAuthorizedDevice(await navigator.usb.getDevices(), NORD_FILTER) ??
         (await navigator.usb.requestDevice({ filters: [NORD_FILTER] }));
       transport = new WebUsbTransport(device);
-      await runSession(transport, device.productName ?? 'Nord Stage 4', device.productId);
+      await runSession(transport, device.productName ?? 'Nord', device.productId);
     } catch (e) {
       if (transport) await transport.close().catch(() => {});
       const friendly = describeError(e);
@@ -111,11 +120,8 @@ export function ConnectPanel({ onConnected }: {
     <div className="connect" aria-live="polite">
       <div className="connect__card">
         <SectionLabel>Your Nord</SectionLabel>
-        <h2 className="connect__title">Bring your Nord in</h2>
-        <p className="connect__lead">
-          Plug your Stage 4 into this computer over USB to back up your sounds, browse every
-          program in one place, and move patches between the keyboard and OpenNord.
-        </p>
+        <h2 className="connect__title">{title}</h2>
+        <p className="connect__lead">{lead}</p>
         <Button
           variant="primary"
           className="connect__cta"

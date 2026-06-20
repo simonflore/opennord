@@ -27,7 +27,11 @@ export function ContributePage() {
           Plug in your Nord and change one control at a time, so OpenNord can learn how your
           model stores its sounds. A couple of minutes helps everyone with the same keyboard.
         </p>
-        <ConnectPanel onConnected={(s, e, name, pid) => setConnection(s, e, name, pid)} />
+        <ConnectPanel
+          title="Connect your Nord"
+          lead="OpenNord reads programs from any Nord over USB — Stage, Electro, Piano, Lead and the rest of the line. Connect yours to start capturing changes so we can learn how your model stores its sounds."
+          onConnected={(s, e, name, pid) => setConnection(s, e, name, pid)}
+        />
       </section>
     );
   }
