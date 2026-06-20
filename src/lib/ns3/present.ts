@@ -33,7 +33,7 @@ function toSection(panel: Ns3Panel): DecodedSection {
     const isSample = panel.synth.osc === 'Sample';
     engines.push({
       label: 'Synth',
-      parts: [panel.synth.osc, `${panel.synth.filter} ${panel.synth.cutoff}`, panel.synth.volume],
+      parts: [panel.synth.osc, `${panel.synth.filter.type} ${panel.synth.filter.cutoff}`, panel.synth.volume],
       nameSlot: isSample ? 0 : undefined,
     });
   }
