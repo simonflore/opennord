@@ -1,0 +1,27 @@
+// UNVALIDATED — needs com.apple.developer.driverkit entitlement + M1+ iPad + Nord
+// Stage 4 to sign/run/validate (docs/IPAD.md).
+#ifndef NordUsbDriver_h
+#define NordUsbDriver_h
+
+#include <Availability.h>
+#include <DriverKit/IOService.iig>
+#include <DriverKit/IOUserClient.iig>
+#include <USBDriverKit/IOUSBHostInterface.iig>
+
+class NordUsbDriver: public IOService {
+public:
+  virtual bool init() override;
+  virtual kern_return_t Start(IOService* provider) override;
+  virtual kern_return_t Stop(IOService* provider) override;
+  virtual void free() override;
+
+  virtual kern_return_t NewUserClient(uint32_t type, IOUserClient** userClient) override;
+
+  // External methods invoked from the app's IOKit user client.
+  virtual kern_return_t DoOpen();
+  virtual kern_return_t DoClose();
+  virtual kern_return_t DoBulkOut(const void* data, size_t length);
+  virtual kern_return_t DoBulkIn(void* data, size_t* length);
+};
+
+#endif /* NordUsbDriver_h */

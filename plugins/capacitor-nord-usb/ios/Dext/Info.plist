@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- UNVALIDATED — needs com.apple.developer.driverkit entitlement + M1+ iPad + Nord
+     Stage 4 to sign/run/validate (docs/IPAD.md). VID 4092=0x0FFC, PID 46=0x002E. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>org.opennord.app.NordUsbDriver</string>
+  <key>CFBundleName</key>
+  <string>NordUsbDriver</string>
+  <key>CFBundlePackageType</key>
+  <string>DEXT</string>
+  <key>OSBundleUsageDescription</key>
+  <string>Transfers programs to and from a connected Nord keyboard.</string>
+  <key>IOKitPersonalities</key>
+  <dict>
+    <key>NordUsbDriver</key>
+    <dict>
+      <key>CFBundleIdentifierKernel</key>
+      <string>com.apple.kpi.iokit</string>
+      <key>IOClass</key>
+      <string>IOUserService</string>
+      <key>IOUserClass</key>
+      <string>NordUsbDriver</string>
+      <key>IOProviderClass</key>
+      <string>IOUSBHostInterface</string>
+      <key>IOUserServerName</key>
+      <string>org.opennord.app.NordUsbDriver</string>
+      <key>idVendor</key>
+      <integer>4092</integer>
+      <key>idProduct</key>
+      <integer>46</integer>
+      <key>bInterfaceNumber</key>
+      <integer>0</integer>
+    </dict>
+  </dict>
+</dict>
+</plist>
