@@ -702,3 +702,37 @@ byte-match against (the editor can't write OG), and the exact loop-pointer domai
 needs the source header's loop model. Audio + container + CRC are exact; hardware
 acceptance of a *generated* OG file is unverified (no Stage 2). Flagged in the
 convert `warnings`.
+
+## Resampler + WAV import — FAITHFUL (not byte-exact) ✓ (2026-06-20)
+
+The editor resamples imported audio (e.g. 48000→35256 Hz, ratio 1469/2000) before
+encoding, via `NAudio::CResampler::GetNextResampledBuffer` (@1000a5e84) /
+`CVectorResample` (@10009b878) — a **float32 polyphase windowed-sinc**.
+
+**Byte-exact is impractical, empirically:** extracted `gFIRCoeffs` (static
+@1007e82e4, 15 taps × 512 phases, layout `g[tap*512+phase]`, unity-DC lowpass) and
+implemented the conv — **impulse silence reproduces bit-for-bit (98.8%)**, proving
+the algorithm + table correct, but transients differ. The editor accumulates in
+float32 (arm64 likely fused `fmadd`) and its *encode* path uses a longer,
+**runtime-generated** kernel (`s_newFir48`, `.bss` — not statically readable), so
+its exact samples can't be reproduced. A faithful resample is correct (right
+pitch/amplitude) but differs in phase/onset — fine: a phase shift is inaudible and
+the keyboard cares about container/codec correctness, which we emit exactly. (An
+earlier note claimed bit-exact was impossible *in JS* specifically — that was
+wrong: float32, incl. FMA, is exactly emulatable via float64 + `Math.fround`. It's
+just not worth it, and the editor's encode kernel isn't statically extractable.)
+
+**Shipped:**
+- `nw1-fir.generated.ts` — extracted `gFIRCoeffs` (base64 float32).
+- `nw1-resample.ts` — `resampleNW1` / `resampleToRate` (faithful windowed-sinc).
+  Validated: a 220 Hz sine keeps pitch + amplitude across 48k→35256 and 48k→96k
+  (`nw1-resample.test.ts`).
+- `wav.ts` `parseWav` — 8/16/24/32-bit int + float WAV → integer PCM.
+- `importWavToNsmp(wav, {codec,rootKey,keyHigh,targetRate})` (`nsmp-convert.ts`) —
+  parse → (optional) resample → encode any generation; round-trips
+  (`nsmp-import.test.ts`).
+
+⚠️ Import is EXPERIMENTAL: faithful-not-byte-exact resample, and the Nord's internal
+storage-rate / pitch model isn't hardware-verified (35256 Hz observed for rootKey 57
+only) — callers set `targetRate` explicitly. Byte-exact resampling would need the
+runtime `s_newFir48` kernel (or a WASM core for exact float32/FMA); not worth it.

@@ -44,3 +44,66 @@ export function encodeWav(channels: Float32Array[], sampleRate: number): Uint8Ar
   }
   return new Uint8Array(buf);
 }
+
+/**
+ * Parsed WAV audio as per-channel signed integers (the form the resampler /
+ * encoders consume). 32-bit float input is scaled to the 24-bit integer range.
+ */
+export interface WavAudio {
+  sampleRate: number;
+  channelCount: number;
+  /** Source bits per sample (8/16/24/32). */
+  bitDepth: number;
+  channels: Int32Array[];
+}
+
+const fourCC = (b: Uint8Array, o: number) => String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3]);
+
+/**
+ * Parse a RIFF/WAVE PCM file → per-channel signed integer PCM. Reads 8/16/24/32-bit
+ * integer and 32-bit IEEE-float, mono or multi-channel; skips unknown chunks.
+ * Throws on a non-PCM/float or malformed file. The front of WAV import.
+ */
+export function parseWav(bytes: Uint8Array): WavAudio {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (fourCC(bytes, 0) !== 'RIFF' || fourCC(bytes, 8) !== 'WAVE') throw new Error('parseWav: not a RIFF/WAVE file');
+
+  let fmtTag = 0, channelCount = 0, sampleRate = 0, bitDepth = 0, dataOff = -1, dataLen = 0;
+  let o = 12;
+  while (o + 8 <= bytes.length) {
+    const id = fourCC(bytes, o);
+    const sz = dv.getUint32(o + 4, true);
+    const body = o + 8;
+    if (id === 'fmt ') {
+      fmtTag = dv.getUint16(body, true);
+      channelCount = dv.getUint16(body + 2, true);
+      sampleRate = dv.getUint32(body + 4, true);
+      bitDepth = dv.getUint16(body + 14, true);
+      if (fmtTag === 0xfffe && sz >= 26) fmtTag = dv.getUint16(body + 24, true); // EXTENSIBLE → real tag
+    } else if (id === 'data') {
+      dataOff = body; dataLen = Math.min(sz, bytes.length - body);
+    }
+    o = body + sz + (sz & 1); // chunks are word-aligned
+  }
+  if (dataOff < 0 || channelCount < 1 || bitDepth === 0) throw new Error('parseWav: missing fmt/data chunk');
+  const isFloat = fmtTag === 3;
+  if (fmtTag !== 1 && !isFloat) throw new Error(`parseWav: unsupported format ${fmtTag} (PCM/float only)`);
+
+  const bytesPer = bitDepth >> 3;
+  const stride = bytesPer * channelCount;
+  const frames = Math.floor(dataLen / stride);
+  const channels = Array.from({ length: channelCount }, () => new Int32Array(frames));
+  for (let f = 0; f < frames; f++) {
+    for (let c = 0; c < channelCount; c++) {
+      const p = dataOff + f * stride + c * bytesPer;
+      let v: number;
+      if (isFloat) v = Math.round(dv.getFloat32(p, true) * 0x7fffff);
+      else if (bitDepth === 8) v = bytes[p] - 128; // 8-bit WAV is unsigned
+      else if (bitDepth === 16) v = dv.getInt16(p, true);
+      else if (bitDepth === 24) { v = bytes[p] | (bytes[p + 1] << 8) | (bytes[p + 2] << 16); if (v & 0x800000) v -= 0x1000000; }
+      else v = dv.getInt32(p, true);
+      channels[c][f] = v;
+    }
+  }
+  return { sampleRate, channelCount, bitDepth, channels };
+}
