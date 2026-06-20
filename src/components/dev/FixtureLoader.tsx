@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { corpusAvailable, listCorpus, getCorpusFile, type CorpusModel } from '../../lib/dev/fixtures-client';
 
-const SEP = '\n';
+const SEP = '\0';
 
 /** DEV-only picker that loads a file straight from the local fixtures/<model>/ corpus. */
 export function FixtureLoader({ onLoad }: { onLoad: (name: string, bytes: Uint8Array) => void }) {
@@ -12,7 +12,10 @@ export function FixtureLoader({ onLoad }: { onLoad: (name: string, bytes: Uint8A
 
   async function pick(value: string) {
     if (!value) return;
-    const [model, name] = value.split(SEP);
+    const i = value.indexOf(SEP);
+    if (i < 0) return;
+    const model = value.slice(0, i);
+    const name = value.slice(i + 1);
     setError('');
     try { onLoad(name, await getCorpusFile(model, name)); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
