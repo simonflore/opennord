@@ -16,6 +16,16 @@ function cbin(tag: string, formatType: number, f: { bank?: number; loc?: number;
 }
 
 describe('identifyNordFile', () => {
+  it('names a whole-line model from the registry (Electro 6) + NSM header fields', () => {
+    const info = identifyNordFile(cbin('ne6p', 1, { bank: 5, loc: 19, ver: 102 }));
+    expect(info).toMatchObject({
+      recognized: true, tag: 'ne6p', kind: 'program',
+      modelId: 'electro-6', modelName: 'Nord Electro 6', modelGeneration: 'NW1-v3',
+    });
+    expect(info.slot).toBe('F:34');     // shared NSM-era header decode
+    expect(info.version).toBe('1.02');
+  });
+
   it('decodes a Stage 3 (ns3f, NSM-era) header — slot/category/version', () => {
     const info = identifyNordFile(cbin('ns3f', 1, { bank: 5, loc: 19, cat: 21, ver: 304 }));
     expect(info).toMatchObject({

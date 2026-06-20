@@ -21,6 +21,16 @@ describe('NordFileCard', () => {
     expect(html).toContain('v3.04');
   });
 
+  it('names a non-Stage model from the registry (Electro 6) instead of a dead-end', () => {
+    const html = renderToStaticMarkup(<NordFileCard bytes={cbin('ne6p', 1, { bank: 5, loc: 19, cat: 3, ver: 102 })} />);
+    expect(html).toContain('Nord Electro 6');  // registry model name
+    expect(html).toContain('Program');
+    expect(html).toContain('F:34');            // shared NSM slot decode
+    expect(html).toContain('v1.02');
+    expect(html).not.toContain('Category');    // enum unvalidated for non-Stage models
+    expect(html).not.toContain('unknown');
+  });
+
   it('shows a Stage 2 file with its decoded slot + category, but no version', () => {
     const html = renderToStaticMarkup(<NordFileCard bytes={cbin('ns2p', 0, { bank: 3, loc: 69, cat: 12, ver: 6 })} />);
     expect(html).toContain('Stage 2');

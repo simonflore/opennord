@@ -18,10 +18,16 @@ export function NordFileCard({ bytes }: { bytes: Uint8Array }) {
     );
   }
 
+  // Heading shows the specific model where the registry knows it, else the generation.
+  const title = info.modelName ?? (info.generation !== 'unknown' ? info.generation : 'Nord file');
+  // The category *enum* is only validated for the Stage family; for other models we
+  // show the structural fields (slot, version) but not a possibly-wrong category.
+  const knownCategory = info.generation !== 'unknown';
+
   const rows: [string, string][] = [];
   if (info.headerDecoded) {
     if (info.slot) rows.push(['Slot', info.slot]);
-    if (info.category !== undefined) rows.push(['Category', info.categoryName ?? `#${info.category}`]);
+    if (knownCategory && info.category !== undefined) rows.push(['Category', info.categoryName ?? `#${info.category}`]);
     if (info.version) rows.push(['Version', `v${info.version}`]);
   }
   rows.push(['Type tag', info.tag]);
@@ -30,10 +36,10 @@ export function NordFileCard({ bytes }: { bytes: Uint8Array }) {
   return (
     <div className="ps">
       <div className="ps-card">
-        <h4>{info.generation} · {KIND_LABEL[info.kind] ?? 'File'}</h4>
+        <h4>{title} · {KIND_LABEL[info.kind] ?? 'File'}</h4>
         {!info.headerDecoded && (
           <p className="ps-sub" style={{ marginTop: 0 }}>
-            Legacy {info.generation} header — slot, category and version aren’t decoded yet.
+            Legacy {title} header — slot, category and version aren’t decoded yet.
           </p>
         )}
         <div className="ps-stats" style={{ marginTop: 8 }}>
@@ -45,8 +51,8 @@ export function NordFileCard({ bytes }: { bytes: Uint8Array }) {
           ))}
         </div>
         <p className="ps-sub" style={{ marginTop: 12, marginBottom: 0 }}>
-          OpenNord recognizes this file and its structure. The full parameter view (engines, FX, morphs)
-          is available for Stage 4 programs for now — Stage 2/3 decoding is tracked in #22.
+          OpenNord recognizes this file and its structure. Full patch views (engines, FX, drawbars) are
+          available for Stage 2, 3 and 4 today; other models are recognized here while their decoders are built.
         </p>
       </div>
     </div>

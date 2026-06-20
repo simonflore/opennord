@@ -187,3 +187,13 @@ export const ALL_MODELS: ModelInfo[] = Object.values(MODELS);
 export function modelById(id: NordModelId): ModelInfo | undefined {
   return MODELS[id];
 }
+
+/**
+ * First registry model whose `programTag` equals `tag`. Tags can be shared across
+ * models (e.g. `ns2p` = Stage 2 & Stage EX, `nc2p` = C2 & C2D), so this returns the
+ * canonical/anchor model for the tag. The single source of truth for tag → model.
+ */
+export function modelByTag(tag: string | undefined): ModelInfo | undefined {
+  if (!tag) return undefined;
+  return ALL_MODELS.find((m) => m.programTag === tag);
+}

@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { MODELS, ALL_MODELS, modelById } from './partitions';
+import { MODELS, ALL_MODELS, modelById, modelByTag } from './partitions';
 
 describe('partition registry', () => {
+  it('resolves a model from its program tag (anchor for shared tags)', () => {
+    expect(modelByTag('ne6p')?.id).toBe('electro-6');
+    expect(modelByTag('ns2p')?.id).toBe('stage-2'); // anchor; Stage EX shares the tag
+    expect(modelByTag('zzzz')).toBeUndefined();
+    expect(modelByTag(undefined)).toBeUndefined();
+  });
+
   it('has unique model ids and resolves them', () => {
     const ids = ALL_MODELS.map((m) => m.id);
     expect(new Set(ids).size).toBe(ids.length);

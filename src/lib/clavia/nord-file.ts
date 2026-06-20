@@ -16,6 +16,7 @@
 import { hasCbinMagic, readCbinHeader } from './cbin';
 import { programCategoryName } from './categories';
 import { formatSlot, BANK_LETTERS } from './slot';
+import { modelByTag, type NordModelId } from './partitions';
 
 export type NordGeneration = 'Stage 2' | 'Stage 3' | 'Stage 4' | 'unknown';
 
@@ -25,6 +26,12 @@ export interface NordFileInfo {
   /** 4-char type tag, e.g. `ns2p`, `ns3f`, `ns4p`. */
   tag: string;
   generation: NordGeneration;
+  /** Registry model resolved from the program tag (whole line), if known. */
+  modelId?: NordModelId;
+  /** Musician-facing model name, e.g. "Nord Electro 6" — from the registry by tag. */
+  modelName?: string;
+  /** Envelope generation from the registry: OG / NW1-v3 / NW1-v4. */
+  modelGeneration?: 'OG' | 'NW1-v3' | 'NW1-v4';
   /** Coarse kind from the tag's last char: `p`=program, `f`=performance/file, samples separate. */
   kind: 'program' | 'performance' | 'sample' | 'unknown';
   /** 0 = legacy (Stage 2) header layout, 1 = NSM-era (Stage 3/4). */
@@ -66,9 +73,11 @@ export function identifyNordFile(bytes: Uint8Array): NordFileInfo {
   const generation = generationOf(h.tag);
   const kind = kindOf(h.tag);
   const fullyDecoded = h.tag === 'ns4p' || h.tag === 'ns4l';
+  const model = modelByTag(h.tag); // whole-line model from the registry (programs)
 
   const info: NordFileInfo = {
     recognized: true, tag: h.tag, generation, kind,
+    modelId: model?.id, modelName: model?.name, modelGeneration: model?.generation,
     formatType: h.formatType, headerDecoded: false, fullyDecoded, sizeBytes: bytes.length,
   };
 
