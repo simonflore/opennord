@@ -4,7 +4,8 @@ Two phases. Both are now **unblocked**: the file format is decoded/validated and
 
 > **Adjacent scope:** reading *other Nord instruments'* program files (Stage 2/3
 > family) is a bounded, hardware-free expansion built on the shared CBIN
-> container. **Tier 1 (recognition + structure view) shipped in #22**; Tier 2
+> container. **Tier 1 (recognition + structure view, #22) and M0 (the `clavia/`
+> container + `parseClaviaFile` model-codec registry) have shipped**; Tier 2
 > (NS2/3 body decode) is scoped in `docs/MULTI-MODEL.md`. Device transfer for
 > those models is explicitly out of scope.
 

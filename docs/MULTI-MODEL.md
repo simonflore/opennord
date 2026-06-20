@@ -1,7 +1,8 @@
 # Multi-model support — design proposal
 
-**Status:** **Tier 1 shipped** (PR #22 — Stage 2/3 recognition + structure view);
-Tier 2 (NS2/3 parameter-body decode) is the open work this proposal now scopes.
+**Status:** **Tier 1 shipped** (PR #22 — Stage 2/3 recognition + structure view)
+and **M0 shipped** (the `clavia/` container + model-codec registry seam). Tier 2
+(NS2/3 parameter-body decode) is the open work this proposal now scopes.
 
 > **What already landed (PR #22, "Tier 1").** `src/lib/ns4/nord-file.ts` —
 > `identifyNordFile()` recognizes the whole Stage 2/3/4 CBIN family by tag and
@@ -30,9 +31,11 @@ phased path that keeps the Stage 4 the flagship.
 - **Device *transfer* for other instruments is out of scope** — it's separate
   reverse-engineering that needs the hardware in hand and shares nothing with the
   Stage 4 USB protocol. This proposal explicitly excludes it.
-- Recommended first slice: **read-only Stage 3 program viewing**, built on a
-  small `model`-dispatch refactor, with [ns3-program-viewer][n3v] as the test
-  oracle (the same role ns4decode plays for the Stage 4).
+- **The seam is now in place (M0):** `clavia/` container + `formats.ts`
+  `parseClaviaFile()` model dispatch. Adding Stage 3 = appending one codec.
+- Recommended next slice: **read-only Stage 3 program *body* decode** (Tier 2),
+  with [ns3-program-viewer][n3v] as the test oracle (the same role ns4decode
+  plays for the Stage 4).
 
 ## Prior art we'd build on
 
@@ -87,18 +90,27 @@ The body decode is 100% NS4-specific and lives in the generated tables:
 NS2/3 differ structurally (slot/layer counts, morph sources, parameter set, bit
 packing), so this is a **parallel map per model**, not a tweak.
 
-## The abstraction: a `model` registry (deferred — not yet warranted)
+## The abstraction: a `model` registry — ✅ BUILT (M0)
 
-> **Reconciliation with what shipped.** Tier 1 deliberately did **not** build the
-> `clavia/` codec registry below. Instead `identifyNordFile()` lives in `ns4/` and
-> reuses `readCbinHeader`/`formatSlot`/`programCategoryName` directly. That was the
-> right call: with only one full body decoder (Stage 4), a codec registry is
-> premature abstraction. **Introduce the registry only when Tier 2 lands a second
-> body decoder** — at that point two decoders justify the dispatch and the shared
-> container is worth extracting. Until then, the sketch below is the *target* the
-> NS2/3 decoder should be refactored toward, not a prerequisite for starting it.
+> **What shipped (M0).** The `clavia/` container + codec registry below is now
+> **in the tree**, ahead of a second body decoder, to give Tier 2 a clean seam to
+> plug into:
+> - **`src/lib/clavia/`** — the shared, model-agnostic container, lifted out of
+>   `ns4/`: `cbin.ts` (CBIN magic/tag/header, split from `bits.ts`), `checksum.ts`,
+>   `name.ts`, `slot.ts`, `categories.ts`, the `nord-file.ts` identifier, and
+>   `model.ts` (the generic `ModelCodec` interface). The Stage-4 *body* codec (bit
+>   fields) stays in `ns4/bits.ts`. Dependency direction is **model → clavia**.
+> - **`src/lib/ns4/codec.ts`** — wraps `parseNs4Program` as the `ns4` codec.
+> - **`src/lib/formats.ts`** — the composition root: holds the codec list and
+>   `parseClaviaFile()`, which reads the header once and routes to the claiming
+>   codec (falling back to the recognized-but-unparsed shell). All file-ingestion
+>   points decode through it. **Adding the NS3 codec = appending one entry here.**
+>
+> Done as two byte-identical commits (extraction, then registry); NS4 output is
+> unchanged, proven by the existing fixtures + new `formats.test.ts`. The sketch
+> below is what landed.
 
-Introduce a thin dispatch keyed on the file-type tag (already detected in
+The dispatch is keyed on the file-type tag (detected in
 `bits.ts`) + CBIN version. The container layer stays shared; each model plugs in
 its own map + interpreter + model-builder.
 
@@ -126,27 +138,33 @@ export function resolveCodec(bytes: Uint8Array): ModelCodec<unknown> | undefined
   is provably inert against the NS4 fixtures before any NS3 code lands.
 - Today's `Ns4FileKind` union generalizes to `{ model, kind }`.
 
-Directory shape (NS4 files move under a model folder; container lifts to `clavia/`):
+Directory shape (as built in M0; `ns3/` is the Tier 2 addition):
 
 ```
-src/lib/clavia/        # shared: cbin header, checksum, bundle, name, model registry
-src/lib/ns4/           # existing NS4 codec (unchanged behavior)
-src/lib/ns3/           # new: ns3 map + interpreter + model builder + fixtures
+src/lib/clavia/        # shared: cbin header, checksum, name, slot, categories, identifier, model registry
+src/lib/formats.ts     # composition root: codec list + parseClaviaFile()
+src/lib/ns4/           # NS4 codec (bits body codec, parse, codec.ts adapter) — unchanged behavior
+src/lib/ns3/           # NEW (Tier 2): ns3 map + interpreter + model builder + fixtures
 ```
 
-(Exact move vs. re-export is an implementation detail; the constraint is **NS4
-output is byte-identical before/after** — proven by the existing fixtures.)
+(The constraint held: **NS4 output is byte-identical before/after** — proven by
+the existing fixtures + `formats.test.ts`. `bundle.ts` stayed in `ns4/` as the
+NS4 bundle reader; generalising it to decode any model via `parseClaviaFile` is a
+small Tier 2 follow-up.)
 
 ## Stage 3 reading — milestones
 
 Smallest useful unit first; each milestone independently shippable and testable.
 
+0. **M0 — Container extraction + registry seam. ✅ SHIPPED.** `clavia/` shared
+   layer + `ModelCodec` + `formats.ts:parseClaviaFile()`; NS4 wrapped as the `ns4`
+   codec; ingestion points routed through the dispatcher. Byte-identical (see
+   "The abstraction" above).
 1. **M1 — NS3 recognition. ✅ SHIPPED (Tier 1 / #22).** `identifyNordFile()`
    recognizes `.ns2p/.ns3p/.ns3f` (+ Stage 4), decodes the NSM-era header
    (slot/category/version) for Stage 3/4, recognizes Stage 2's legacy header
    without decoding it, and `NordFileCard` shows the structure. Import pickers
-   accept the new extensions. *(Note: the originally-drawn M0 container refactor
-   was skipped as premature — see "The abstraction" above. Bundle support
+   accept the new extensions. *(Bundle support
    (`.ns3fb`, …) for the new extensions is the one M1 gap still open.)*
 2. **M2 — NS3 offset map (the core cost). ← Tier 2 starts here.** Build
    `ns3/offset-map.ts` from
@@ -197,19 +215,19 @@ transfer is not.
 
 | | Effort | Risk |
 |---|---|---|
+| M0 `clavia/` extraction + registry seam | Low | **✅ Shipped** — fixtures + `formats.test.ts` prove NS4 unchanged |
 | M1 recognition (`identifyNordFile`) | Low | **✅ Shipped (Tier 1 / #22)** |
 | M1 gap — bundle (`.ns3fb`, …) support | Low | Low |
 | M2 NS3 offset map | **Medium–High** | Medium — manual port; mitigated by the oracle |
 | M3 model + interpretation | Medium | Medium — NS3 model shape differs from NS4 |
 | M4 UI | Low–Medium | Low |
-| (deferred) `clavia/` registry refactor | Low | Low — do it *with* M3, fixtures prove NS4 unchanged |
 | Device transfer (excluded) | High + hardware | High — separate RE |
 
 **Risks & mitigations**
 - *GPLv3 contamination.* Re-derive from `nord-documentation`; oracle-test against
   the viewer's output, never lift its code. Per-field provenance in comments.
-- *NS4 regression during the (deferred) refactor.* Gate on byte-identical NS4
-  fixture output; only extract the registry once a second decoder justifies it.
+- *NS4 regression from the M0 refactor.* Gated on byte-identical NS4 fixture
+  output (held: 349 tests pass, incl. a `formats.test.ts` equivalence check).
 - *Scope creep.* Each model stays a self-contained decoder; we can ship NS3 and
   stop, or never start, without touching the NS4 path.
 - *Fixtures.* Needs real NS2/3 files. Community-sourced (programs only, never
@@ -217,8 +235,9 @@ transfer is not.
 
 ## Recommendation
 
-Recognition (Tier 1) is **already in** — Stage 2/3 files now open to a structure
-card instead of a dead-end. The open question is whether to fund **Tier 2** (the
+Recognition (Tier 1) and the model-dispatch seam (M0) are **already in** — Stage
+2/3 files open to a structure card instead of a dead-end, and the registry is
+ready for a second codec. The open question is whether to fund **Tier 2** (the
 NS2/3 body decode, M2–M4). Worth doing **if** broadening the community library to
 the large NS2/3 owner base is a product goal — the format knowledge already exists
 (Chris55), so the cost is the offset-map port + fixtures, not new reverse-
