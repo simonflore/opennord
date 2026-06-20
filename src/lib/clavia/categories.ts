@@ -65,3 +65,41 @@ export const PROGRAM_CATEGORY: Record<number, string> = {
 export function programCategoryName(id: number): string | undefined {
   return PROGRAM_CATEGORY[id];
 }
+
+/**
+ * Electro 5 bank → category-id set.
+ *
+ * Transcribed from CElectro5::BankToCategories @0x100194f7c (NSM binary,
+ * Ghidra decompile). The function receives (ECategoryIntrumentType=0 for
+ * keyboard sounds, bank, out-vector) and push_backs CategoryID enum values.
+ *
+ * Mapping (bank → CategoryID[]):
+ *   bank 0 → 5, 1, 16, 8, 0  (FX, Bass, User3, Pad, Acoustic) — oracle lines 51/56/136/216/296
+ *   bank 1 → 6                (Lead)                            — oracle line 451
+ *   bank 2 → 3, 2             (Drum/Perc, Wind)                 — oracle lines 524/603
+ *   bank 3 → 14, 15           (User, User2)                     — oracle lines 672/751
+ *   bank 4 → 4                (Fantasy)                         — oracle line 819
+ *   bank 5 → 7                (Organ)                           — oracle line 888
+ *   default → 0xffffffff      ("all" / uncategorized sentinel)  — oracle line 957
+ *
+ * The CategoryID enum values resolve directly through PROGRAM_CATEGORY above.
+ */
+// CElectro5::BankToCategories @0x100194f7c
+export const ELECTRO5_BANK_CATEGORIES: Record<number, number[]> = {
+  0: [5, 1, 16, 8, 0],
+  1: [6],
+  2: [3, 2],
+  3: [14, 15],
+  4: [4],
+  5: [7],
+};
+
+/**
+ * Return the CategoryID set for a given Electro bank number, or `undefined`
+ * if the bank is not mapped.
+ *
+ * Source: CElectro5::BankToCategories @0x100194f7c
+ */
+export function electroBankCategoryIds(bank: number): number[] | undefined {
+  return ELECTRO5_BANK_CATEGORIES[bank];
+}
