@@ -26,12 +26,14 @@ describe('identifyNordFile', () => {
     expect(info.category).toBe(21);
   });
 
-  it('recognizes Stage 2 (ns2p, legacy format 0) but leaves the legacy header undecoded', () => {
-    const info = identifyNordFile(cbin('ns2p', 0, { bank: 3, loc: 69, ver: 6 }));
-    expect(info).toMatchObject({ recognized: true, generation: 'Stage 2', kind: 'program', formatType: 0, headerDecoded: false, fullyDecoded: false });
-    // legacy fields are not surfaced (would be wrong — e.g. version read as 0.06)
-    expect(info.version).toBeUndefined();
-    expect(info.slot).toBeUndefined();
+  it('decodes the Stage 2 (ns2p, legacy format 0) header — raw slot + shared category, no version', () => {
+    // RE'd by diffing 6 real .ns2p: location is the raw program number (SUMMER 69
+    // → slot 69), category shares the enum (12 = Synth), 0x14 is not the version.
+    const info = identifyNordFile(cbin('ns2p', 0, { bank: 3, loc: 69, cat: 12, ver: 6 }));
+    expect(info).toMatchObject({ recognized: true, generation: 'Stage 2', kind: 'program', formatType: 0, headerDecoded: true, fullyDecoded: false });
+    expect(info.slot).toBe('D:69');          // raw location, not the NSM page-encoding
+    expect(info.categoryName).toBe('Synth');
+    expect(info.version).toBeUndefined();    // legacy header has no OS version here
   });
 
   it('marks a Stage 4 program fully decodable', () => {

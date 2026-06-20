@@ -15,7 +15,7 @@
  */
 import { hasCbinMagic, readCbinHeader } from './cbin';
 import { programCategoryName } from './categories';
-import { formatSlot } from './slot';
+import { formatSlot, BANK_LETTERS } from './slot';
 
 export type NordGeneration = 'Stage 2' | 'Stage 3' | 'Stage 4' | 'unknown';
 
@@ -79,6 +79,17 @@ export function identifyNordFile(bytes: Uint8Array): NordFileInfo {
     info.category = h.category;
     info.categoryName = programCategoryName(h.category);
     info.version = (h.versionRaw / 100).toFixed(2);
+  } else if (generation === 'Stage 2') {
+    // Legacy (Stage 2) header, RE'd by diffing 6 real .ns2p files:
+    //  - category @0x10 shares the same enum (validated: Take On Me → Synth,
+    //    Eumel Horn → Wind, BlameBoogie → Clavinet);
+    //  - location @0x0E is the *raw* program number, NOT the NSM page-encoding
+    //    (SUMMER 69 sits in slot 69) — so format it directly, not via formatSlot;
+    //  - 0x14 is not the OS version (only ever 6/7), so we don't show a version.
+    info.headerDecoded = true;
+    info.slot = `${BANK_LETTERS[h.bank & 0x7] ?? h.bank}:${h.location}`;
+    info.category = h.category;
+    info.categoryName = programCategoryName(h.category);
   }
   return info;
 }

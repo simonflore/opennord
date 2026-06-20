@@ -21,10 +21,12 @@ describe('NordFileCard', () => {
     expect(html).toContain('v3.04');
   });
 
-  it('shows a Stage 2 file as legacy / undecoded header', () => {
-    const html = renderToStaticMarkup(<NordFileCard bytes={cbin('ns2p', 0, { bank: 3, loc: 69, ver: 6 })} />);
+  it('shows a Stage 2 file with its decoded slot + category, but no version', () => {
+    const html = renderToStaticMarkup(<NordFileCard bytes={cbin('ns2p', 0, { bank: 3, loc: 69, cat: 12, ver: 6 })} />);
     expect(html).toContain('Stage 2');
-    expect(html).toContain('aren’t decoded yet');
-    expect(html).not.toContain('v0.06'); // never show the wrong legacy version
+    expect(html).toContain('D:69');   // raw program slot
+    expect(html).toContain('Synth');  // shared category enum
+    expect(html).not.toContain('v0.06'); // never show the bogus legacy version
+    expect(html).not.toContain('VERSION'); // no version row for Stage 2
   });
 });

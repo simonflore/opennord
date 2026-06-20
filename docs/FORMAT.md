@@ -4,10 +4,10 @@ The Nord Stage 4 stores a **program** as a binary `.ns4p` file (presets: `.ns4o`
 
 ## State of knowledge
 
-The *logical* schema is largely known — [ns4decode](https://ns4decode.netlify.app/) already decodes the great majority of parameters into human-readable values (see its [example output](https://ns4decode.netlify.app/example-output.txt)). What's **not** public is the **byte layout** (offsets/bit-packing). So:
+The *logical* schema is largely known — [ns4decode](https://ns4decode.netlify.app/) already decodes the great majority of parameters into human-readable values (see its [example output](https://ns4decode.netlify.app/example-output.txt)). The **byte layout** (offsets/bit-packing) — once the open piece — is now **fully ingested** from ns4decode's bitmaps. So:
 
 - The **model** (`src/lib/ns4/types.ts`) is shaped directly from ns4decode's output — it's a faithful target.
-- The **binary parser** (`src/lib/ns4/parse.ts`) still has to find each field's offset. That's the open RE work (or a collaboration with ns4decode's author).
+- The **binary parser** (`src/lib/ns4/parse.ts`) reads the complete offset map (`offset-map.generated.ts`, 406 params, all four engines) and is validated **0-mismatch** against ns4decode on the regression fixture. The remaining work is mapping the decoded fields into the structured `NS4Program` model, not finding offsets.
 
 Cross-check against the Nord Stage 4 manual (MIDI / parameter appendix) and the documented [Stage 2/3 layout](https://chris55.github.io/nord-documentation/), which the Stage 4 rhymes with.
 
@@ -33,8 +33,14 @@ A shared program therefore carries a "you need these samples" list (`programSamp
 
 ## Two parser paths
 
-1. **Binary (`.ns4p`) — the goal.** Decode offsets field by field. Each field: map its location (from a forum post, the manual, your own capture, or diffing two files that differ by one knob), add the read to `parse.ts` with a source comment, add a fixture test, and record the offset in the table below.
-2. **CSV bridge — value today.** ns4decode emits CSV (parameter rows × layer columns). A `csv-import.ts` that maps that CSV into `NS4Program` gives OpenNord working visualization/sharing **now**, with zero offset RE — while the binary parser matures. Recommended first import path.
+1. **Binary (`.ns4p`) — the primary path (done).** The full offset map is ingested
+   from ns4decode's `--bitmaps` (see below) into `offset-map.generated.ts` and read
+   by `parse.ts`/`bits.ts`, validated 0-mismatch against ns4decode on the fixture.
+   To extend interpretation, add the read with a source comment and a fixture test.
+2. **CSV bridge — superseded.** ns4decode also emits CSV (parameter rows × layer
+   columns); an early plan was a `csv-import.ts` shim for zero-offset visualization
+   while the binary parser matured. The binary path matured first, so this bridge
+   was never needed and isn't built — kept here only as historical context.
 
 ## Finishing the map — two shortcuts from the ns4decode manual
 
@@ -65,7 +71,7 @@ source — both treat the header identically).
 | 0x08 | file-type tag | 4×ASCII | `ns4p` (`ns4l` = bundle-extracted) | verified |
 | 0x0C | bank (low 3 bits → letter A–H) | u8 | 6 / 6 / 7 | NS3 docs + verified |
 | 0x0E | location in bank (low 6 bits) | u8 | 49 / 47 / 56 | NS3 docs + verified |
-| 0x10 | category | u8 | 6 (Organ) / 17 / 17 | NS3 docs + verified |
+| 0x10 | category | u8 | 6 (Lead) / 17 (None) / 17 | NSM table + verified |
 | 0x14 | program version | u16 LE, ÷100 | `313` → **v3.13** | NS3 docs + verified |
 | 0x18 | **CRC-32 checksum** | u32 LE | matches `crc32(bytes[0x2C:])` | **cracked — see CHECKSUM.md** |
 | 0x1C–0x2B | reserved | — | all zero on Stage 4 | verified |
@@ -81,8 +87,11 @@ the keyboard slot.
 6-bit location (0x0E) — `digit1 = location/8 + 1`, `digit2 = location%8 + 1`. So
 bank 7, location 56 → `H:81`. `parse.ts` surfaces this as `NS4Program.slot` (ported
 from ns4decode's `interpretBank`/`interpretLocnInBank`). The **program category**
-(0x10) is *not* decoded by ns4decode and isn't in NS2/3 viewers either; only
-`6=Organ` is verified (`categories.ts`), raw id surfaced otherwise.
+(0x10) is *not* decoded by ns4decode and isn't in NS2/3 viewers either, so its enum
+was recovered from **Nord Sound Manager's** authoritative 54-entry table
+(`S_Category_GetName`; see `docs/NSM-TEARDOWN.md`) and cross-checked against a real
+Stage 4 USB corpus — ported in `categories.ts` (`6=Lead`, `7=Organ`, `45=Synth
+Classic`). Values 47+ are unnamed in firmware 3.40; the raw id is surfaced there.
 
 **One checksum, not two.** NS3 carries CRC1 (0x18) *and* CRC2 (0x78). Probed
 against all three real Stage 4 files: Stage 4 has **only CRC1** at 0x18 (0x1C–0x2B

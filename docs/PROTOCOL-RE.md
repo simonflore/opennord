@@ -190,8 +190,15 @@ read/share/AI + live MIDI only. Full breakdown + sources: `docs/SYSEX-SPIKE.md`.
 | `nordcopy.c` | read→write round-trip (**writes**) |
 | `nordcreate.c` | gated `FileCreate` (**writes**) |
 | `nordel.c` | `FileDelete` a slot (**writes**) |
+| `nordsettings.c` | read the Settings partition (`Begin(11)`) |
+| `nordeps.c` | `GetDependency` — a program's sample list |
 
 Build: `clang scripts/nordX.c -I"$(brew --prefix libusb)/include" -L"$(brew --prefix libusb)/lib" -lusb-1.0 -o /tmp/nordX`.
+
+> The C tools were the RE/validation harness; the protocol is now implemented in
+> **TypeScript** for the app under `src/lib/device/` (`transport`/`webusb`,
+> `protocol`, `opcodes`, `session`, `transfer`, `backup`) — the WebUSB client that
+> ships these operations.
 
 ## Safety
 

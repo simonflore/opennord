@@ -16,9 +16,10 @@ full spec lives in [`docs/PROTOCOL-RE.md`](PROTOCOL-RE.md).
 - The protocol *is* transport-agnostic — the same messages have a Clavia SysEx
   framing (`F0 33 7F …`) — **but the Stage 4 did not answer any SysEx probe** on
   its MIDI port (not even a Universal Identity Request; our receive path was
-  verified via a CoreMIDI loopback). So SysEx-RX is almost certainly **disabled in
-  the Nord's Global settings**, or the firmware only accepts FileTransfer over
-  vendor USB.
+  verified via a CoreMIDI loopback). There is **no SysEx-RX setting** anywhere on
+  the instrument (confirmed across every front-panel menu + the manuals/forum; see
+  `docs/PROTOCOL-RE.md`), so this isn't a togglable flag — the NS4 firmware simply
+  accepts FileTransfer over vendor USB only. **Settled.**
 
 ## Consequence — where transfer can run (researched 2026-06)
 
