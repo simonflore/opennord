@@ -88,15 +88,20 @@ export function identifyNordFile(bytes: Uint8Array): NordFileInfo {
     info.category = h.category;
     info.categoryName = programCategoryName(h.category);
     info.version = (h.versionRaw / 100).toFixed(2);
-  } else if (generation === 'Stage 2') {
-    // Legacy (Stage 2) header, RE'd by diffing 6 real .ns2p files:
+  } else if (h.formatType === 0) {
+    // Legacy (OG-era) header — applies to Stage 2 (ns2p) AND Electro 4/5 (ne4p/ne5p)
+    // and any other formatType=0 file. RE'd by diffing 6 real .ns2p files and confirmed
+    // against ne4p/ne5p fixtures (tierB-electro5-recon.md, 2026-06-20):
     //  - category @0x10 shares the same enum (validated: Take On Me → Synth,
-    //    Eumel Horn → Wind, BlameBoogie → Clavinet);
+    //    Eumel Horn → Wind, BlameBoogie → Clavinet; ne4p cat=14=User);
+    //  - ne5p category is 0xFF (sentinel for "not set") — the field IS decoded, it just
+    //    has no programCategoryName entry, which is the correct result;
     //  - location @0x0E is the *raw* program number, NOT the NSM page-encoding
     //    (SUMMER 69 sits in slot 69) — so format it directly, not via formatSlot;
-    //  - 0x14 (LE) is the NS2 *file-format* version (2-7), not a firmware/OS
-    //    version string — so it's not musician-facing and we don't surface it.
-    //  Full slot/engine decode lives in lib/ns2/decode.ts (presented via ns2/present.ts).
+    //  - 0x14 (LE) is a *file-format* version integer (e.g. 4 for ne5p, 2-7 for ns2p),
+    //    not a firmware/OS version string — not musician-facing, not surfaced.
+    //  Full slot/engine decode lives in lib/ns2/decode.ts (ns2) and will live in
+    //  lib/ne5/decode.ts (ne5p) when that body codec is built.
     info.headerDecoded = true;
     info.slot = `${BANK_LETTERS[h.bank & 0x7] ?? h.bank}:${h.location}`;
     info.category = h.category;

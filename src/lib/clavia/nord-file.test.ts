@@ -58,4 +58,43 @@ describe('identifyNordFile', () => {
     expect(info.recognized).toBe(false);
     expect(info.generation).toBe('unknown');
   });
+
+  // Tier A librarian fix (2026-06-20): ne4p/ne5p use the legacy (formatType 0) header
+  // layout, same as ns2p — but generationOf() returns 'unknown' for them, so the
+  // legacy decode branch (else if generation === 'Stage 2') was never reached.
+  // Fix: key the legacy branch on formatType === 0, not generation === 'Stage 2'.
+  it('decodes ne5p (Electro 5, legacy formatType 0) header — slot/category, no version', () => {
+    // Synthetic buffer: formatType 0 @ 0x04, tag 'ne5p', bank 2, loc 20, cat 0xFF (sentinel)
+    // Mirrors the real fixture layout (confirmed from fixtures/electro-5/*.ne5p).
+    // category 0xFF means "not set" in this format — should survive and not be overridden.
+    const b = cbin('ne5p', 0, { bank: 2, loc: 20, cat: 0xff });
+    const info = identifyNordFile(b);
+    expect(info).toMatchObject({
+      recognized: true, tag: 'ne5p', kind: 'program',
+      formatType: 0, headerDecoded: true, fullyDecoded: false,
+    });
+    // category sentinel 0xFF should be present (not undefined — the field IS decoded)
+    expect(info.category).toBe(0xff);
+    // categoryName for 0xFF is undefined (not in the table) — that's correct
+    expect(info.categoryName).toBeUndefined();
+    // slot follows the same raw-location convention as ns2p
+    expect(info.slot).toBe('C:20');
+    // legacy header has no firmware version field — version must be undefined
+    expect(info.version).toBeUndefined();
+  });
+
+  it('decodes ne4p (Electro 4, legacy formatType 0) header — slot/real category, no version', () => {
+    // Synthetic buffer: formatType 0 @ 0x04, tag 'ne4p', bank 0, loc 40, cat 14 (User)
+    // Mirrors the real fixture (fixtures/electro-4/Infectd Square 1 FS.ne4p).
+    const b = cbin('ne4p', 0, { bank: 0, loc: 40, cat: 14 });
+    const info = identifyNordFile(b);
+    expect(info).toMatchObject({
+      recognized: true, tag: 'ne4p', kind: 'program',
+      formatType: 0, headerDecoded: true, fullyDecoded: false,
+    });
+    expect(info.category).toBe(14);
+    expect(info.categoryName).toBe('User');
+    expect(info.slot).toBe('A:40');
+    expect(info.version).toBeUndefined();
+  });
 });
