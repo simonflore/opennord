@@ -9,6 +9,7 @@ import { FxRow } from './FxRow';
 import { Morphs } from './Morphs';
 import { NordFileCard } from './NordFileCard';
 import { Ns3View } from './Ns3View';
+import { Ns2View } from './Ns2View';
 import { identifyNordFile } from '../../lib/clavia/nord-file';
 import { ProgramExtern } from './ProgramExtern';
 import { SampleRefs } from './SampleRefs';
@@ -30,6 +31,7 @@ export function ProgramView({ program }: { program: NS4Program }) {
     // show the structure card. Truly unrecognized files fall through.
     const info = identifyNordFile(program.bytes);
     if (info.generation === 'Stage 3' && info.kind === 'performance') return <Ns3View bytes={program.bytes} />;
+    if (info.generation === 'Stage 2' && info.kind === 'program') return <Ns2View bytes={program.bytes} />;
     if (info.recognized) return <NordFileCard bytes={program.bytes} />;
     return (
       <div className="ps">

@@ -85,7 +85,9 @@ export function identifyNordFile(bytes: Uint8Array): NordFileInfo {
     //    Eumel Horn → Wind, BlameBoogie → Clavinet);
     //  - location @0x0E is the *raw* program number, NOT the NSM page-encoding
     //    (SUMMER 69 sits in slot 69) — so format it directly, not via formatSlot;
-    //  - 0x14 is not the OS version (only ever 6/7), so we don't show a version.
+    //  - 0x14 (LE) is the NS2 *file-format* version (2-7), not a firmware/OS
+    //    version string — so it's not musician-facing and we don't surface it.
+    //  Full slot/engine decode lives in lib/ns2/decode.ts (rendered by Ns2View).
     info.headerDecoded = true;
     info.slot = `${BANK_LETTERS[h.bank & 0x7] ?? h.bank}:${h.location}`;
     info.category = h.category;
