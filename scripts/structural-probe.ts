@@ -679,6 +679,261 @@ describe('Structural Tier B Probe', () => {
     }
   });
 
+  // ── Name-weak-label variant (Task 1 — the realistic undecoded-model case) ──────
+
+  /**
+   * NAME-WEAK-LABEL BIT DISCOVERY
+   *
+   * Key research question: if we ONLY had patch NAMES (no ns4 ground truth,
+   * no category-to-engine oracle), could we still find the engine-enable bits
+   * via byte-variance correlation?
+   *
+   * Keyword lists are explicit and must stay documented:
+   *
+   *   ORGAN keywords : "organ", "b3", "drawbar", "hammond", "vox", "farfisa",
+   *                    "pipe", "tonewheel", "rotary"
+   *   PIANO keywords : "piano", "grand", "upright", "ep", "e.p.", "electric p",
+   *                    "wurli", "wurlitzer", "rhodes", "clav", "clavinet", "hps",
+   *                    "harpsichord", "honky"
+   *   SYNTH keywords : "synth", "pad", "lead", "pluck", "bass", "arp", "brass",
+   *                    "string", "seq", "osc", "analog", "wave", "lfo",
+   *                    "filter", "resonan", "sweep"
+   *
+   * A patch can match zero, one, or multiple engines (names like "organ bass",
+   * "synth piano", etc. intentionally overlap).
+   */
+
+  function deriveWeakLabels(filename: string): {
+    weakOrgan: boolean;
+    weakPiano: boolean;
+    weakSynth: boolean;
+  } {
+    const name = filename.toLowerCase().replace(/[_\-\.]/g, ' ');
+
+    const organKw = ['organ', 'b3', 'drawbar', 'hammond', 'vox', 'farfisa',
+      'pipe', 'tonewheel', 'rotary'];
+    const pianoKw = ['piano', 'grand', 'upright', 'wurli', 'wurlitzer', 'rhodes',
+      'clav', 'clavinet', 'hps', 'harpsichord', 'honky',
+      'ep ', ' ep', 'e.p.', 'electric p'];
+    const synthKw = ['synth', 'pad', 'lead', 'pluck', 'bass', 'arp', 'brass',
+      'string', 'seq', 'osc', 'analog', 'wave', 'lfo',
+      'filter', 'resonan', 'sweep'];
+
+    return {
+      weakOrgan: organKw.some(kw => name.includes(kw)),
+      weakPiano: pianoKw.some(kw => name.includes(kw)),
+      weakSynth: synthKw.some(kw => name.includes(kw)),
+    };
+  }
+
+  it('Strategy C — name-weak-label bit discovery (the undecoded-model test)', () => {
+    console.log('\n' + '='.repeat(70));
+    console.log('STRATEGY C — NAME-WEAK-LABEL BIT DISCOVERY');
+    console.log('='.repeat(70));
+    console.log('Inputs: raw bytes + filename only (no ns4 ground truth, no category oracle)');
+    console.log('Goal: find engine-enable bit positions using ONLY name-derived weak labels,');
+    console.log('      then classify and score vs ns4 ground truth.\n');
+
+    // 1. Derive weak labels for every patch
+    const withWeakLabels = corpus.map(e => ({
+      ...e,
+      wl: deriveWeakLabels(e.filename),
+    }));
+
+    // Coverage: how many patches get a usable name signal?
+    const covOrgan = withWeakLabels.filter(e => e.wl.weakOrgan).length;
+    const covPiano = withWeakLabels.filter(e => e.wl.weakPiano).length;
+    const covSynth = withWeakLabels.filter(e => e.wl.weakSynth).length;
+    const covAny = withWeakLabels.filter(e => e.wl.weakOrgan || e.wl.weakPiano || e.wl.weakSynth).length;
+
+    console.log('Keyword coverage (fraction of patches with at least one matching keyword):');
+    console.log(`  Organ  : ${covOrgan} / ${corpus.length} patches (${(100*covOrgan/corpus.length).toFixed(1)}%)`);
+    console.log(`  Piano  : ${covPiano} / ${corpus.length} patches (${(100*covPiano/corpus.length).toFixed(1)}%)`);
+    console.log(`  Synth  : ${covSynth} / ${corpus.length} patches (${(100*covSynth/corpus.length).toFixed(1)}%)`);
+    console.log(`  Any KW : ${covAny} / ${corpus.length} patches (${(100*covAny/corpus.length).toFixed(1)}%)`);
+
+    // Quick name label precision check (vs ns4 ground truth) — measures label quality
+    const labelOrganPrec = withWeakLabels.filter(e => e.wl.weakOrgan && e.gt.hasOrgan).length /
+      Math.max(1, covOrgan);
+    const labelPianoPrec = withWeakLabels.filter(e => e.wl.weakPiano && e.gt.hasPiano).length /
+      Math.max(1, covPiano);
+    const labelSynthPrec = withWeakLabels.filter(e => e.wl.weakSynth && e.gt.hasSynth).length /
+      Math.max(1, covSynth);
+
+    console.log('\nWeak-label precision (vs ns4 truth — not used for bit discovery, just sanity check):');
+    console.log(`  Organ  : ${(100*labelOrganPrec).toFixed(0)}%`);
+    console.log(`  Piano  : ${(100*labelPianoPrec).toFixed(0)}%`);
+    console.log(`  Synth  : ${(100*labelSynthPrec).toFixed(0)}%`);
+
+    // 2. Bit discovery using ONLY weak labels (not ns4 ground truth)
+    //    For each engine, build a "weak positive" subset from name keywords,
+    //    then scan byte*bit positions for best accuracy against those weak labels.
+    //    This mirrors what you'd do on an undecoded model.
+
+    const fileLen = corpus[0]!.bytes.length;
+    const bodyStart = 44;
+
+    type WLEngine = 'weakOrgan' | 'weakPiano' | 'weakSynth';
+    const wlEngines: Array<{ key: WLEngine; label: string }> = [
+      { key: 'weakOrgan', label: 'Organ' },
+      { key: 'weakPiano', label: 'Piano' },
+      { key: 'weakSynth', label: 'Synth' },
+    ];
+
+    console.log('\nBit discovery using name-weak-labels (scanning all byte×bit positions)...');
+
+    // For each engine, find the best single bit (highest accuracy against the WEAK label)
+    const discoveredBits: Array<{
+      engine: WLEngine;
+      label: string;
+      byteOffset: number;
+      bitInByte: number;
+      bitValue: number;
+      wlAccuracy: number;   // accuracy vs weak label (used for discovery)
+      gtAccuracy: number;   // accuracy vs ns4 ground truth (hold-out scoring)
+      gtPrecision: number;
+      gtRecall: number;
+      gtF1: number;
+    }> = [];
+
+    for (const { key, label } of wlEngines) {
+      let bestWLAcc = 0;
+      let bestResult: (typeof discoveredBits)[0] | null = null;
+
+      for (let byteOff = bodyStart; byteOff < fileLen; byteOff++) {
+        for (let bit = 0; bit <= 7; bit++) {
+          const mask = 1 << bit;
+
+          // Try both bit=1 and bit=0 as the "active" signal
+          for (const testVal of [0, 1] as const) {
+            // Check if constant
+            const vals = withWeakLabels.map(e => ((e.bytes[byteOff] ?? 0) & mask) ? 1 : 0);
+            const ones = vals.filter(v => v === 1).length;
+            if (ones === 0 || ones === corpus.length) continue;
+
+            // Accuracy vs WEAK LABEL (this is what we'd use on an undecoded model)
+            let wlCorrect = 0;
+            for (let i = 0; i < withWeakLabels.length; i++) {
+              const predicted = vals[i] === testVal;
+              const wlActual = withWeakLabels[i]!.wl[key];
+              if (predicted === wlActual) wlCorrect++;
+            }
+            const wlAcc = wlCorrect / withWeakLabels.length;
+
+            if (wlAcc > bestWLAcc) {
+              bestWLAcc = wlAcc;
+
+              // Score against GT (hold-out — we wouldn't have this on undecoded model)
+              let gtTP = 0, gtFP = 0, gtFN = 0, gtTN = 0;
+              const gtKey = key === 'weakOrgan' ? 'hasOrgan'
+                : key === 'weakPiano' ? 'hasPiano' : 'hasSynth';
+              for (let i = 0; i < withWeakLabels.length; i++) {
+                const predicted = vals[i] === testVal;
+                const actual = withWeakLabels[i]!.gt[gtKey];
+                if (predicted && actual) gtTP++;
+                else if (predicted && !actual) gtFP++;
+                else if (!predicted && actual) gtFN++;
+                else gtTN++;
+              }
+              const gtAcc = (gtTP + gtTN) / withWeakLabels.length;
+              const gtPrec = gtTP + gtFP > 0 ? gtTP / (gtTP + gtFP) : 0;
+              const gtRec = gtTP + gtFN > 0 ? gtTP / (gtTP + gtFN) : 0;
+              const gtF1 = gtPrec + gtRec > 0 ? 2 * gtPrec * gtRec / (gtPrec + gtRec) : 0;
+
+              bestResult = {
+                engine: key,
+                label,
+                byteOffset: byteOff,
+                bitInByte: bit,
+                bitValue: testVal,
+                wlAccuracy: wlAcc,
+                gtAccuracy: gtAcc,
+                gtPrecision: gtPrec,
+                gtRecall: gtRec,
+                gtF1,
+              };
+            }
+          }
+        }
+      }
+
+      if (bestResult) {
+        discoveredBits.push(bestResult);
+        console.log(`  ${label}: byte ${bestResult.byteOffset} bit ${bestResult.bitInByte}=${bestResult.bitValue}`);
+        console.log(`    WL-accuracy=${(bestResult.wlAccuracy*100).toFixed(1)}% (discovery signal)`);
+        console.log(`    GT-accuracy=${(bestResult.gtAccuracy*100).toFixed(1)}% GT-prec=${(bestResult.gtPrecision*100).toFixed(1)}% GT-recall=${(bestResult.gtRecall*100).toFixed(1)}% GT-F1=${(bestResult.gtF1*100).toFixed(1)}%`);
+      }
+    }
+
+    // 3. Byte convergence check: do we find the same bytes as the supervised version?
+    const supervisedBytes = { hasOrgan: 94, hasPiano: 229, hasSynth: 64 };
+    const keyToGT: Record<WLEngine, 'hasOrgan' | 'hasPiano' | 'hasSynth'> = {
+      weakOrgan: 'hasOrgan', weakPiano: 'hasPiano', weakSynth: 'hasSynth',
+    };
+
+    console.log('\nByte convergence check (supervised vs name-weak-label discovery):');
+    for (const b of discoveredBits) {
+      const gtB = supervisedBytes[keyToGT[b.engine]];
+      const same = b.byteOffset === gtB;
+      console.log(`  ${b.label}: discovered byte ${b.byteOffset} — supervised byte ${gtB} — ${same ? 'SAME ✓' : 'DIFFERENT ✗'}`);
+    }
+
+    // 4. Classify ALL 357 patches using name-weak-label-discovered bits
+    //    (on an undecoded model we'd use this as the final classifier)
+    const bitMap = new Map<WLEngine, typeof discoveredBits[0]>();
+    for (const b of discoveredBits) bitMap.set(b.engine, b);
+
+    type GTKey = 'hasOrgan' | 'hasPiano' | 'hasSynth';
+    const gtEngines: Array<[GTKey, WLEngine, string]> = [
+      ['hasOrgan', 'weakOrgan', 'Organ'],
+      ['hasPiano', 'weakPiano', 'Piano'],
+      ['hasSynth', 'weakSynth', 'Synth'],
+    ];
+
+    console.log('\nFull-corpus classification using name-weak-label-discovered bits:');
+    let macroF1Sum = 0;
+    let macroAccSum = 0;
+    let n = 0;
+
+    for (const [gtKey, wlKey, label] of gtEngines) {
+      const bit = bitMap.get(wlKey);
+      if (!bit) {
+        console.log(`  ${label}: no bit found`);
+        continue;
+      }
+      const mask = 1 << bit.bitInByte;
+      let tp = 0, fp = 0, fn = 0, tn = 0;
+      for (const e of withWeakLabels) {
+        const predicted = (((e.bytes[bit.byteOffset] ?? 0) & mask) ? 1 : 0) === bit.bitValue;
+        const actual = e.gt[gtKey];
+        if (predicted && actual) tp++;
+        else if (predicted && !actual) fp++;
+        else if (!predicted && actual) fn++;
+        else tn++;
+      }
+      const acc = (tp + tn) / withWeakLabels.length;
+      const prec = tp + fp > 0 ? tp / (tp + fp) : 0;
+      const rec = tp + fn > 0 ? tp / (tp + fn) : 0;
+      const f1 = prec + rec > 0 ? 2 * prec * rec / (prec + rec) : 0;
+      console.log(`  ${label}: accuracy=${(acc*100).toFixed(1)}% precision=${(prec*100).toFixed(1)}% recall=${(rec*100).toFixed(1)}% F1=${(f1*100).toFixed(1)}%`);
+      macroF1Sum += f1;
+      macroAccSum += acc;
+      n++;
+    }
+    if (n > 0) {
+      console.log(`  → Macro avg: accuracy=${(macroAccSum/n*100).toFixed(1)}% F1=${(macroF1Sum/n*100).toFixed(1)}%`);
+    }
+
+    console.log('\nComparison vs supervised baseline:');
+    console.log('  Supervised (ns4 GT labels)       : Macro avg F1 = 98.9%');
+    console.log(`  Name-weak-label (filename only)  : Macro avg F1 = ${(macroF1Sum/Math.max(1,n)*100).toFixed(1)}%`);
+    console.log('  (Numbers above are the real hold-out results — see MULTI-MODEL.md Tier B section)');
+
+    // Store for SUMMARY
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (global as any).__wlResults = { discoveredBits, macroF1: macroF1Sum / Math.max(1, n), covAny, corpusLen: corpus.length };
+  });
+
   it('SUMMARY', () => {
     console.log(`\n${'='.repeat(70)}`);
     console.log(`STRUCTURAL TIER B PROBE — SUMMARY`);

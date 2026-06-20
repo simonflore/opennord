@@ -233,6 +233,95 @@ transfer is not.
 - *Fixtures.* Needs real NS2/3 files. Community-sourced (programs only, never
   factory sample audio — `docs/LEGAL.md`); the viewer supplies expected output.
 
+## Tier B — structural/differential decode (path of record for undecoded models)
+
+When a model has no third-party oracle, no firmware RE, and no field-by-field offset
+map — the "fully undecoded" case — the only viable structural information is
+**engine-active** (which sections are on/off in a given patch). This is enough for
+the key browse/search use case ("this is an organ patch", "this is a piano+synth
+split") without knowing anything else about the format.
+
+### Decision
+
+For a model with no decode oracle, **Tier B = structural/differential decode of
+"what's in the patch" (engines active), not full per-parameter decode.**  Full
+parameter decode (Tier 2) requires an oracle; Tier B requires only a patch corpus
+and a small labeled set.
+
+### Method
+
+1. Collect ≥100 patches of the target model.
+2. Parse CBIN header (model-agnostic — `readCbinHeader()` works on every Clavia
+   file).
+3. Build a **byte-variance map**: for each byte position, count distinct values
+   across the corpus. Constant bytes (34% on Stage 4) are structural boilerplate;
+   low-variance bytes (2–8 distinct values) are candidate enum fields; high-variance
+   bytes are continuous params.
+4. **Weak-label bootstrap — manual, not automatic.** Manually label ~20–50 patches
+   per engine type by opening them on hardware or in Nord Sound Manager and
+   confirming which sections are active. (~1 hour per engine type.) Do not rely on
+   patch name keywords alone — see "What doesn't work" below.
+5. Run a **bit-correlation scan**: for each byte×bit position, compute accuracy of
+   that bit against the labeled set. The real enable bits emerge as clear accuracy
+   peaks. On Stage 4, three bits together gave 98.9% macro-avg F1 on 357 patches.
+6. Classify the full corpus with those bits — no further manual work required.
+
+### Measured results (Stage 4 — `scripts/structural-probe.ts`, 357 patches)
+
+| Strategy | Label source | Macro avg F1 | Notes |
+|---|---|---|---|
+| A — category only | CBIN header category | 38.1% | 50% of patches filed as "None" |
+| B — category + supervised bit scan | ns4 ground truth (parseNs4Program) | **98.9%** | Enable bits: byte 94 (organ), 229 (piano), 64 (synth) |
+| C — name-weak-label bit scan | Patch filename keywords only | **4.6%** | See below |
+
+Strategy B is the path of record. Strategy C is **not viable** — see below.
+
+### What doesn't work: patch name keywords
+
+An obvious shortcut is to derive weak labels from patch filenames: patches named
+"B3 Growl" are probably organ patches. Testing this on 357 Stage 4 patches showed:
+
+- **Coverage is catastrophically low:** organ keywords hit 1.7% of patches, piano
+  3.4%, synth 21.8%. Nord Stage 4 patches are named after sound character ("Morning
+  Light", "Cosmic Dream"), not engine composition.
+- **Bit discovery fails at that sparsity:** with 6 organ-positive examples, the
+  scanner latches onto incidental bytes — it finds byte 49 (not 94) for organ,
+  byte 62 (not 229) for piano, byte 614 (not 64) for synth. These do not
+  generalize. Macro-avg F1 against ns4 ground truth: **4.6%** vs 98.9% supervised.
+- **Keyword precision is high** (100% / 92% / 99%) — the few patches that do name
+  their engines actually have those engines. But precision alone doesn't help when
+  coverage is < 5%.
+
+Name keywords can **pre-populate** the manual labeling set (include all keyword hits
+in the initial batch), but they cannot replace it. The positive set must reach ~20–30
+per engine for the scan to converge on the correct bytes.
+
+### What Tier B cannot do
+
+- Engine *type* (B3 vs VOX vs FARF, Grand vs Electric) — needs labeled examples per
+  type or category disambiguation, and category is "None" in ~50% of real corpora.
+- Continuous parameters (volume, pitch, drawbars, envelope) — opaque without a
+  format map.
+- Morph assignments, sample IDs, FX routing.
+
+### Requirements to activate on a new model
+
+- ≥100 patches of a single model in the CBIN family.
+- ~20–50 manually labeled patches per engine type (~1 hour per engine).
+- No firmware RE, no third-party oracle, no hardware USB required.
+
+### Firmware-as-oracle (parked)
+
+A prior spike explored extracting decode logic from the Stage 4 firmware binary
+(`os.cab`). The firmware is a Zevs CBinFile (3 sections: SRAM / CODE / ARM0) with
+the main OS as uncompressed mixed ARM+Thumb code. The `.npno` (piano) parser is
+findable in principle via proper mixed-mode disassembly, but blind Thumb seeding
+makes this a high-effort path. **Parked** — the Stage 4 is already fully decoded
+via the ns4decode oracle; firmware RE adds nothing for models that already have a
+software oracle. For a truly undecoded model with no oracle at all, the manual
+bootstrap cost of ~3 hours total (3 engines) is lower than firmware RE. See
+`memory/stage4-firmware-re.md`.
+
 ## Recommendation
 
 Recognition (Tier 1) and the model-dispatch seam (M0) are **already in** — Stage
