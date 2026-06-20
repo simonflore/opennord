@@ -30,4 +30,18 @@ describe('validation matrix', () => {
     expect(CAPABILITIES).toContain('enumerate');
     expect(CAPABILITIES[0]).toBe('file-read');
   });
+  it('electro-5 file-read and backup are re (NSM-traced + fixture-validated)', () => {
+    expect(statusFor('electro-5', 'file-read').status).toBe('re');
+    expect(statusFor('electro-5', 'backup').status).toBe('re');
+  });
+  it('electro-4 file-read is re (NSM-traced + fixture-validated); backup stays inferred (not specifically traced)', () => {
+    expect(statusFor('electro-4', 'file-read').status).toBe('re');
+    expect(statusFor('electro-4', 'backup').status).toBe('inferred');
+  });
+  it('electro-5 and electro-4 transfer caps stay at inferred (hardware-gated)', () => {
+    for (const cap of ['enumerate', 'pull', 'push', 'delete'] as const) {
+      expect(statusFor('electro-5', cap).status, `electro-5 ${cap}`).toBe('inferred');
+      expect(statusFor('electro-4', cap).status, `electro-4 ${cap}`).toBe('inferred');
+    }
+  });
 });
