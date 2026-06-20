@@ -3,7 +3,10 @@
 .lib-counts { font: 11px var(--font); color: var(--dim); margin-top: 2px; }
 .lib-controls { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; margin-bottom: var(--s-3); }
 .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 12px; }
-.lib-patch { cursor: pointer; padding: 14px; }
+.lib-patch { cursor: pointer; padding: 14px;
+  transition: transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast); }
+.lib-patch:hover { transform: translateY(-2px); border-color: var(--muted); box-shadow: var(--edge-hi), var(--shadow-3); }
+.lib-patch:focus-visible { transform: translateY(-2px); }
 .lib-patch__top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .lib-patch__nm { font: 700 14px var(--font); color: var(--ink); flex: 1 1 auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -11,8 +14,9 @@
 
 /* Sort selector */
 .lib-sort { margin-left: auto; font: 12px var(--font); color: var(--ink);
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm);
-  padding: 6px 10px; cursor: pointer; }
+  background: var(--grad-raised); border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 6px 10px; cursor: pointer; box-shadow: var(--edge-hi), var(--shadow-1);
+  transition: border-color var(--t-fast); }
 .lib-sort:hover { border-color: var(--muted); }
 
 /* Favorite star — hidden until hover when off, always shown (red) when favorited. */

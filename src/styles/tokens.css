@@ -30,6 +30,37 @@
   --r-md: 11px;
   --r-lg: 14px;
 
+  /* ── Depth & material ──────────────────────────────────────────────────────
+     The front-panel feel: surfaces are lit from above, so they carry a faint
+     top highlight and cast a shadow below. Everything here is derived from the
+     palette tokens (color-mix) or neutral elevation black — no new raw hues,
+     so the "one token source" rule still holds. Use these instead of inventing
+     per-component gradients/shadows. */
+  --lift: #ffffff;             /* virtual light source, mixed in at low % for top edges */
+
+  /* Top-lit surface fills — replace flat solid backgrounds to read as physical. */
+  --grad-surface: linear-gradient(180deg, color-mix(in srgb, var(--lift) 5%, var(--surface)), var(--surface));
+  --grad-raised:  linear-gradient(180deg, color-mix(in srgb, var(--lift) 7%, var(--surface-2)), var(--surface-2));
+  --grad-sink:    linear-gradient(180deg, color-mix(in srgb, #000 22%, var(--sink)), var(--sink));
+  --grad-red:     linear-gradient(180deg, var(--red-bright), var(--red));
+
+  /* Hairline highlight along a panel's top edge — the light catching the bevel. */
+  --edge-hi: inset 0 1px 0 color-mix(in srgb, var(--lift) 7%, transparent);
+
+  /* Elevation — neutral black shadows, layered for soft contact + ambient cast. */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .35);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, .38), 0 1px 2px rgba(0, 0, 0, .3);
+  --shadow-3: 0 10px 30px rgba(0, 0, 0, .5), 0 2px 6px rgba(0, 0, 0, .35);
+  /* Recessed inputs/tracks — content sits below the panel plane. */
+  --shadow-inset: inset 0 1px 3px rgba(0, 0, 0, .5);
+  /* The single red accent, as a soft halo for active/primary affordances. */
+  --glow-red: 0 1px 0 color-mix(in srgb, var(--lift) 18%, transparent) inset, 0 3px 14px color-mix(in srgb, var(--red) 35%, transparent);
+
+  /* Motion — one easing curve + two durations so interactions feel consistent. */
+  --ease: cubic-bezier(.2, .6, .2, 1);
+  --t-fast: .12s var(--ease);
+  --t-med: .2s var(--ease);
+
   /* layout breakpoints — mirrored in src/lib/responsive.ts (BP_SPLIT).
      CSS media queries can't read a var(), so these are documented constants
      kept in sync by hand; the JS hook is the runtime source of truth. */
