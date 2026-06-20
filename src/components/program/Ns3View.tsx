@@ -6,7 +6,7 @@ function PanelEngines({ panel }: { panel: Ns3Panel }) {
   const engines: { name: string; detail: string }[] = [];
   if (panel.organ.on) engines.push({ name: 'Organ', detail: `${panel.organ.type} · ${panel.organ.volume}` });
   if (panel.piano.on) engines.push({ name: 'Piano', detail: `${panel.piano.type} · ${panel.piano.volume}` });
-  if (panel.synth.on) engines.push({ name: 'Synth', detail: `${panel.synth.osc} · ${panel.synth.filter} filter · ${panel.synth.volume}` });
+  if (panel.synth.on) engines.push({ name: 'Synth', detail: `${panel.synth.osc} · ${panel.synth.filter} ${panel.synth.cutoff} · ${panel.synth.volume}` });
 
   return (
     <div className="ps-card" style={{ marginTop: 12 }}>

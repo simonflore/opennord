@@ -20,6 +20,7 @@ const SYNTH_OSC = ['Classic', 'Wave', 'Formant', 'Super', 'Sample'];
 const SYNTH_FILTER = ['LP12', 'LP24', 'Mini Moog', 'LP+HP', 'BP24', 'HP24'];
 
 import { NORD_DB } from './volume';
+import { NS3_FILTER_FREQ } from './filter-freq';
 
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
 const u16 = (b: Uint8Array, o: number): number => ((b[o] ?? 0) << 8) | (b[o + 1] ?? 0);
@@ -31,7 +32,7 @@ export interface Ns3Panel {
   id: 'A' | 'B';
   organ: { on: boolean; type: string; volume: string };
   piano: { on: boolean; type: string; volume: string };
-  synth: { on: boolean; osc: string; filter: string; volume: string };
+  synth: { on: boolean; osc: string; filter: string; cutoff: string; volume: string };
 }
 
 export interface Ns3Program {
@@ -51,6 +52,8 @@ function readPanel(b: Uint8Array, id: 'A' | 'B', base: number): Ns3Panel {
       on: (u16(b, base + 0x52) & 0x8000) !== 0,
       osc: lut(SYNTH_OSC, (u16(b, base + 0x8d) & 0x0380) >>> 7),
       filter: lut(SYNTH_FILTER, (u8(b, base + 0x98) & 0x1c) >>> 2),
+      // cutoff frequency @0x98.b1-0 + 0x99.b7-3 (7-bit) → Hz
+      cutoff: lut(NS3_FILTER_FREQ, (u16(b, base + 0x98) & 0x03f8) >>> 3),
       volume: vol(b, base + 0x52),
     },
   };

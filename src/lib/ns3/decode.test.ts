@@ -28,6 +28,13 @@ describe('decodeNs3', () => {
     expect(decodeNs3(b).panels[0].synth).toMatchObject({ on: true, osc: 'Sample', filter: 'Mini Moog' });
   });
 
+  it('decodes synth filter cutoff frequency (bits @0x98.b1-0 + 0x99.b7-3)', () => {
+    const b = new Uint8Array(600);
+    b[0x52] = 0x80;                    // synth on
+    b[0x98] = 0x03; b[0x99] = 0xf8;    // cutoff midi 127 → "21 kHz"
+    expect(decodeNs3(b).panels[0].synth.cutoff).toBe('21 kHz');
+  });
+
   it('decodes engine volume from the Nord dB curve (bits 10-4 of the enable word)', () => {
     const b = new Uint8Array(600);
     b[0x43] = 0x07; b[0x44] = 0xf0;   // piano volume word bits 10-4 = 127 → "0.0 dB"
