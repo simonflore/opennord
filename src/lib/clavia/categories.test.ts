@@ -12,6 +12,8 @@ import {
   programCategoryName,
   ELECTRO5_BANK_CATEGORIES,
   electroBankCategoryIds,
+  WAVE2_PROGRAM_CATEGORIES,
+  isWave2ProgramCategory,
 } from './categories';
 
 // ---------------------------------------------------------------------------
@@ -83,6 +85,74 @@ describe('electroBankCategoryIds', () => {
 
   it('returns undefined for an unknown bank', () => {
     expect(electroBankCategoryIds(99)).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wave 2 program category whitelist (CWave2::CWave2 @0x100033a7c)
+// 19-entry Category_Add loop over DAT_100727788.
+// BankToCategories @0x100034d64 handles ONLY the sample partition; programs get
+// their categories from the constructor's Category_Add loop.
+// ---------------------------------------------------------------------------
+describe('WAVE2_PROGRAM_CATEGORIES (NSM-traced, CWave2::CWave2 @0x100033a7c)', () => {
+  it('has exactly 19 entries', () => {
+    // Constructor loops lVar11=0 to 0x4c step 4 → 0x4c/4 = 19 iterations
+    expect(WAVE2_PROGRAM_CATEGORIES).toHaveLength(19);
+  });
+
+  it('contains all categories observed in the 26 real .nw2p fixtures', () => {
+    // Categories observed: 1=Bass, 4=Fantasy, 6=Lead, 8=Pad, 9=Piano,
+    // 10=Guitar/Plucked, 11=String, 12=Synth, 13=Vocal
+    for (const id of [1, 4, 6, 8, 9, 10, 11, 12, 13]) {
+      expect(WAVE2_PROGRAM_CATEGORIES, `category ${id} (${programCategoryName(id)})`).toContain(id);
+    }
+  });
+
+  it('resolves every entry through the shared PROGRAM_CATEGORY table (or is a known extension)', () => {
+    // All 19 entries must either resolve to a name or be known extended ids (44=Synth Bass)
+    for (const id of WAVE2_PROGRAM_CATEGORIES) {
+      const name = programCategoryName(id);
+      expect(name ?? id, `category ${id} must be in PROGRAM_CATEGORY`).toBeTruthy();
+    }
+  });
+});
+
+describe('isWave2ProgramCategory (CWave2::CWave2 @0x100033a7c)', () => {
+  it('returns true for all fixture-observed category ids', () => {
+    for (const id of [1, 4, 6, 8, 9, 10, 11, 12, 13]) {
+      expect(isWave2ProgramCategory(id), `id=${id}`).toBe(true);
+    }
+  });
+
+  it('returns false for ids not in the Wave 2 whitelist', () => {
+    // 45 (Synth Classic), 46 (Synth Pad), 18 (B3) are not in the program whitelist
+    expect(isWave2ProgramCategory(45)).toBe(false);
+    expect(isWave2ProgramCategory(46)).toBe(false);
+    expect(isWave2ProgramCategory(99)).toBe(false);
+  });
+});
+
+describe('Wave 2 fixture anchor (fixtures/wave-2/*.nw2p)', () => {
+  const fixtureDir = join(new URL('.', import.meta.url).pathname, '../../../../../fixtures/wave-2');
+
+  it('resolves category bytes from real fixtures through the shared table', () => {
+    const samples: Array<[string, number, string]> = [
+      ['One Vision Queen.nw2p', 0x0b, 'String'],         // cat=11=String
+      ['EF__Program_Bank O_Eli    Bass 1.nw2p', 0x01, 'Bass'],   // cat=1=Bass
+      ['EF__Program_Bank O_camel  Lead 3.nw2p', 0x06, 'Lead'],   // cat=6=Lead
+      ['EF__Program_Bank O_Elio.nw2p', 0x08, 'Pad'],             // cat=8=Pad
+    ];
+    for (const [filename, expectedCat, expectedName] of samples) {
+      const path = join(fixtureDir, filename);
+      if (!existsSync(path)) {
+        console.log(`SKIP: fixture not present at ${path}`);
+        continue;
+      }
+      const bytes = new Uint8Array(readFileSync(path).buffer);
+      const categoryId = bytes[0x10];
+      expect(categoryId, `${filename} category byte`).toBe(expectedCat);
+      expect(programCategoryName(categoryId), `${filename} category name`).toBe(expectedName);
+    }
   });
 });
 

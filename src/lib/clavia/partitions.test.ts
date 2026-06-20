@@ -58,6 +58,39 @@ describe('partition registry', () => {
     expect(settings?.fourcc).toBe('nl4t');
   });
 
+  // CWave2::CWave2 @0x100033a7c — constructor Add() order (NSM-traced):
+  //   SPartitionNative "Samp Lib (Native)"      → samplib-native (factory)
+  //   SPartitionSampLibV3                       → samplib (user)
+  //   (conditional SPartitionROMFlash "Transient" — OG-mode only, skipped on NW1-v3 hardware)
+  //   SPartitionUserE2P "Program" (tag "nw2p")  → program
+  //   SPartitionLive    (tag "nw2l")            → live
+  //   SPartitionSettings "Settings" (tag "nw2s")→ settings  ← NOT synth-preset
+  //   SPartitionNative "E2P FFS"                → ffs (native housekeeping)
+  // Backup ext: "nw2b" (ctor: wxString::wxString(...,"nw2b")).
+  // The prior baseline had synth-preset('nw2s') — wrong: nw2s is the settings tag,
+  // and the synth-preset kind doesn't appear in the constructor at all.
+  it('wave-2 partition spec matches NSM constructor (CWave2::CWave2 @0x100033a7c)', () => {
+    const m = modelById('wave-2')!;
+    expect(m.programTag).toBe('nw2p');
+    const kinds = m.partitions.map((p) => p.kind);
+    // Core order: samplib-native, samplib, program, live, settings, ffs
+    expect(kinds).toEqual(['samplib-native', 'samplib', 'program', 'live', 'settings', 'ffs']);
+    // Program partition carries nw2p fourcc
+    const prog = m.partitions.find((p) => p.kind === 'program');
+    expect(prog?.fourcc).toBe('nw2p');
+    // Live partition carries nw2l fourcc
+    const live = m.partitions.find((p) => p.kind === 'live');
+    expect(live?.fourcc).toBe('nw2l');
+    // Settings partition carries nw2s fourcc (NOT synth-preset)
+    const settings = m.partitions.find((p) => p.kind === 'settings');
+    expect(settings?.fourcc).toBe('nw2s');
+    // No synth-preset partition
+    expect(m.partitions.find((p) => p.kind === 'synth-preset')).toBeUndefined();
+    // ffs is native (factory)
+    const ffs = m.partitions.find((p) => p.kind === 'ffs');
+    expect(ffs?.native).toBe(true);
+  });
+
   // CElectro5::CElectro5 @0x0000000100194838 — constructor adds partitions in this order:
   //   Piano (Native) [SPartitionNative], Piano (user) [SPartitionPianoV5/V6],
   //   Samp Lib (Native) [SPartitionNative], Samp Lib (user) [SPartitionSampLibV2],

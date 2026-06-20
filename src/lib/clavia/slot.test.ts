@@ -1,7 +1,57 @@
 import { describe, it, expect } from 'vitest';
-import { formatSlot, electro5Slot, lead4Slot } from './slot';
+import { formatSlot, wave2Slot, electro5Slot, lead4Slot } from './slot';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+
+// CWave2::ConvertLocation @0x0000000100034508 — only handles NSMP files;
+// for program (nw2p) partitions it returns 1 (unhandled). The base class then
+// applies the NSM-era grid display — identical to formatSlot. Confirmed by 26
+// real .nw2p fixtures (all formatType=1, NSM-era envelope, not OG/legacy).
+describe('wave2Slot (CWave2::ConvertLocation @0x0000000100034508)', () => {
+  it('maps bank+location to the NSM-era grid display (same as formatSlot)', () => {
+    // One Vision Queen.nw2p: bank=2, loc=1 → C:12 (loc/8=0 → d1=1, loc%8=1 → d2=2)
+    expect(wave2Slot(2, 1)).toBe('C:12');
+    // EF programs carry bank=14 in the header; BANK_LETTERS[14 & 0x7] = BANK_LETTERS[6] = 'G'
+    // (NSM displays these as "Bank O" but that is NSM's own label, not the header bank index)
+    // loc=0 → d1=1, d2=1 → G:11
+    expect(wave2Slot(14, 0)).toBe('G:11');
+    // loc=15 → 15/8=1 d1=2, 15%8=7 d2=8 → G:28  (Ambient Pno Wh 2.nw2p)
+    expect(wave2Slot(14, 15)).toBe('G:28');
+    // loc=24 → 24/8=3 d1=4, 24%8=0 d2=1 → G:41  (Elio.nw2p)
+    expect(wave2Slot(14, 24)).toBe('G:41');
+  });
+
+  it('is identical to formatSlot (wave2Slot delegates to formatSlot)', () => {
+    // wave2Slot MUST equal formatSlot for all values — ConvertLocation is a no-op for programs
+    for (const [bank, loc] of [[0, 0], [2, 1], [7, 63], [14, 15], [14, 24]] as const) {
+      expect(wave2Slot(bank, loc)).toBe(formatSlot(bank, loc));
+    }
+  });
+
+  it('cross-checks real fixture bytes (bank, loc) against expected slot', () => {
+    const fixturesDir = join(process.cwd(), 'fixtures/wave-2');
+    if (!existsSync(fixturesDir)) return; // corpus is gitignored — skip in CI
+
+    // Spot-check known fixtures by header bytes
+    // bank=14 in the CBIN header → BANK_LETTERS[14 & 0x7] = BANK_LETTERS[6] = 'G'
+    // (NSM displays these as "Bank O" in its own UI, but the header bank value is 14)
+    const expected: Record<string, string> = {
+      'One Vision Queen.nw2p': 'C:12',                    // bank=2, loc=1
+      'EF__Program_Bank O_camel  Lead 3.nw2p': 'G:11',   // bank=14, loc=0
+      'EF__Program_Bank O_nemet  Lead 4.nw2p': 'G:12',   // bank=14, loc=1
+      'EF__Program_Bank O_Ambient Pno Wh 2.nw2p': 'G:28', // bank=14, loc=15
+      'EF__Program_Bank O_Elio.nw2p': 'G:41',            // bank=14, loc=24
+    };
+    for (const [filename, expectedSlot] of Object.entries(expected)) {
+      const path = join(fixturesDir, filename);
+      if (!existsSync(path)) continue;
+      const buf = readFileSync(path);
+      const bank = buf[0x0c] ?? 0;
+      const loc  = buf[0x0e] ?? 0;
+      expect(wave2Slot(bank, loc), filename).toBe(expectedSlot);
+    }
+  });
+});
 
 describe('formatSlot', () => {
   it('maps {bank, location} to the Nord X:YY display', () => {

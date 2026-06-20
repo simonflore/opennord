@@ -154,13 +154,25 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     ],
   },
   'wave-2': {
+    // CWave2::CWave2 @0x100033a7c — constructor Add() order:
+    //   SPartitionNative "Samp Lib (Native)"         → samplib-native (factory)
+    //   SPartitionSampLibV3                          → samplib (user)
+    //   (conditional SPartitionROMFlash "Transient"  → OG-mode only, NW1-v3 devices skip)
+    //   SPartitionUserE2P "Program" (tag "nw2p")     → program
+    //   SPartitionLive    (tag "nw2l")               → live
+    //   SPartitionSettings "Settings" (tag "nw2s")   → settings  (NOT synth-preset)
+    //   SPartitionNative "E2P FFS"                   → ffs (native, housekeeping partition)
+    //
+    // Backup extension: "nw2b" (from wxString::wxString(...,"nw2b") in ctor).
+    // Validated vs 26 real .nw2p fixtures; not HW-tested.
     id: 'wave-2', name: 'Nord Wave 2', generation: 'NW1-v3', programTag: 'nw2p', sampleCodec: 'codec3',
     partitions: [
       P('samplib-native', 'Sample Library (factory)', true),
-      P('program', 'Programs', false, 'nw2p'),
-      P('live', 'Live', false, 'nw2l'),
-      P('synth-preset', 'Synth Presets', false, 'nw2s'),
-      P('settings', 'Settings', false),
+      P('samplib',        'Sample Library',           false),
+      P('program',        'Programs',                 false, 'nw2p'),
+      P('live',           'Live',                     false, 'nw2l'),
+      P('settings',       'Settings',                 false, 'nw2s'),
+      P('ffs',            'E2P FFS',                  true),
     ],
   },
   // Remaining models — baseline layout from their fourcc family (NORD-PRODUCT-LINE.md).

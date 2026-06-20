@@ -16,7 +16,7 @@
  */
 import { hasCbinMagic, readCbinHeader } from './cbin';
 import { programCategoryName } from './categories';
-import { formatSlot, electro5Slot, lead4Slot, BANK_LETTERS } from './slot';
+import { formatSlot, wave2Slot, electro5Slot, lead4Slot, BANK_LETTERS } from './slot';
 import { modelByTag, type NordModelId } from './partitions';
 
 export type NordGeneration = 'Stage 2' | 'Stage 3' | 'Stage 4' | 'unknown';
@@ -82,10 +82,13 @@ export function identifyNordFile(bytes: Uint8Array): NordFileInfo {
     formatType: h.formatType, headerDecoded: false, fullyDecoded, sizeBytes: bytes.length,
   };
 
-  // NSM-era header (Stage 3 & 4) — bank/location/category/version decode reliably.
+  // NSM-era header (Stage 3 & 4 and Wave 2) — bank/location/category/version decode reliably.
+  // nw2p uses formatType 1 (NSM-era envelope, confirmed vs 26 real fixtures).
+  // CWave2::ConvertLocation @0x0000000100034508 handles only NSMP; for programs it
+  // returns unhandled — base class applies the shared NSM-era grid (wave2Slot ≡ formatSlot).
   if (h.formatType === 1) {
     info.headerDecoded = true;
-    info.slot = formatSlot(h.bank, h.location);
+    info.slot = h.tag === 'nw2p' ? wave2Slot(h.bank, h.location) : formatSlot(h.bank, h.location);
     info.category = h.category;
     info.categoryName = programCategoryName(h.category);
     info.version = (h.versionRaw / 100).toFixed(2);

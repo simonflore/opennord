@@ -98,6 +98,27 @@ describe('identifyNordFile', () => {
     expect(info.version).toBeUndefined();
   });
 
+  // Tier A Wave 2 wiring (2026-06-20): nw2p uses formatType 1 (NSM-era) so it already
+  // routes through the formatSlot path. wave2Slot is wired explicitly so the product
+  // path is traceable and testable against real fixture data.
+  it('decodes nw2p (Wave 2, NSM-era formatType 1) header — wave2Slot grid display + category', () => {
+    // Synthetic: bank 2, loc 1, cat 11 (String). Matches One Vision Queen.nw2p header.
+    // CWave2::ConvertLocation @0x0000000100034508 returns unhandled for programs →
+    // base class uses NSM-era grid (wave2Slot ≡ formatSlot): loc/8+1, loc%8+1.
+    const b = cbin('nw2p', 1, { bank: 2, loc: 1, cat: 11, ver: 301 });
+    const info = identifyNordFile(b);
+    expect(info).toMatchObject({
+      recognized: true, tag: 'nw2p', kind: 'program',
+      formatType: 1, headerDecoded: true, fullyDecoded: false,
+      modelId: 'wave-2', modelName: 'Nord Wave 2', modelGeneration: 'NW1-v3',
+    });
+    // wave2Slot(2, 1): loc 1 → 1/8=0 d1=1, 1%8=1 d2=2 → "C:12"
+    expect(info.slot).toBe('C:12');
+    expect(info.category).toBe(11);
+    expect(info.categoryName).toBe('String');
+    expect(info.version).toBe('3.01');
+  });
+
   // Tier A lead-4 wiring fix (2026-06-20): lead4Slot must be called for nl4p so the
   // product emits the same 1-based sequential string that the unit test validates.
   // Before this fix, identifyNordFile returned the raw 'B:41' (bank:location) instead

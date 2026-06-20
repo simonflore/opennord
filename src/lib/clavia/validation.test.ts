@@ -64,6 +64,25 @@ describe('validation matrix', () => {
   // CBIN container identify validated against 52 real .nlap/.nlas fixtures.
   // CMini inherits base-class defaults only (constructor-only in NSM); no model-specific body decoder needed.
   // Transfer caps stay inferred: A1 native transfer is MIDI SysEx (A1 user manual); FileTransfer path unverified.
+  // CWave2::ConvertLocation @0x0000000100034508 — slot display NSM-traced (programs → unhandled → formatSlot).
+  // CWave2::BankToCategories @0x100034d64 — sample partition only; programs: 19-entry Category_Add loop.
+  // CWave2::CWave2 @0x100033a7c — 6-partition spec (samplib-native + samplib + program nw2p + live nw2l +
+  //   settings nw2s + ffs) NSM-traced.
+  // CWave::Backup_RenameFolder @0x1000ad288, CWave2::Archive_OnPostUnZip @0x0000000100034ca0 — backup traced.
+  // All validated against 26 real .nw2p fixtures (2026-06-20); not HW-tested.
+  it('wave-2 file-read and backup are re (NSM-traced + 26 fixture-validated)', () => {
+    expect(statusFor('wave-2', 'file-read').status).toBe('re');
+    expect(statusFor('wave-2', 'backup').status).toBe('re');
+  });
+  it('wave-2 transfer caps stay at inferred (hardware-gated)', () => {
+    for (const cap of ['enumerate', 'pull', 'push', 'delete'] as const) {
+      expect(statusFor('wave-2', cap).status, `wave-2 ${cap}`).toBe('inferred');
+    }
+  });
+  it('wave-2 samples is re (sampleCodec codec3 decoded)', () => {
+    expect(statusFor('wave-2', 'samples').status).toBe('re');
+  });
+
   it('lead-a1 file-read is re (52 fixtures, CBIN container validated)', () => {
     expect(statusFor('lead-a1', 'file-read').status).toBe('re');
   });

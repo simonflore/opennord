@@ -106,3 +106,59 @@ export const ELECTRO5_BANK_CATEGORIES: Record<number, number[]> = {
 export function electroBankCategoryIds(bank: number): number[] | undefined {
   return ELECTRO5_BANK_CATEGORIES[bank];
 }
+
+/**
+ * Nord Wave 2 — program-partition category whitelist.
+ *
+ * Transcribed from `CWave2::CWave2 @0x100033a7c` (NSM binary, Ghidra decompile).
+ * The constructor iterates `DAT_100727788` in 4-byte steps for 0x4c bytes (19
+ * entries) and calls `SPartition::Category_Add` on the program partition. The
+ * data table is a baked-in array of CategoryID values in the firmware image; the
+ * 19 values below are the full set validated against 26 real `.nw2p` fixtures
+ * (all observed categories — 1=Bass, 4=Fantasy, 6=Lead, 8=Pad, 9=Piano,
+ * 10=Guitar/Plucked, 11=String, 12=Synth, 13=Vocal — are members of this set).
+ *
+ * Note: `BankToCategories` for the Wave 2 (`@0x100034d64`) handles ONLY the
+ * sample partition (ECategoryInstrumentType == 1, delegating to
+ * `CStage4::SampleBankCategories()`). For programs (ECategoryInstrumentType != 1)
+ * it returns 1 (unhandled) immediately. The program partition's categories are
+ * set directly in the constructor via `Category_Add`, not via BankToCategories.
+ *
+ * Validated vs 26 real .nw2p fixtures (2026-06-20); not HW-tested.
+ *
+ * CategoryID values (indices into PROGRAM_CATEGORY):
+ *   0=Acoustic, 1=Bass, 2=Wind, 3=Drum/Perc, 4=Fantasy, 5=FX, 6=Lead,
+ *   7=Organ, 8=Pad, 9=Piano, 10=Guitar/Plucked, 11=String, 12=Synth,
+ *   13=Vocal, 14=User, 15=User 2, 16=User 3, 17=None, 44=Synth Bass
+ */
+// CWave2::CWave2 @0x100033a7c — 19-entry Category_Add loop over DAT_100727788
+export const WAVE2_PROGRAM_CATEGORIES: number[] = [
+  0,  // Acoustic
+  1,  // Bass
+  2,  // Wind
+  3,  // Drum/Perc
+  4,  // Fantasy
+  5,  // FX
+  6,  // Lead
+  7,  // Organ
+  8,  // Pad
+  9,  // Piano
+  10, // Guitar/Plucked
+  11, // String
+  12, // Synth
+  13, // Vocal
+  14, // User
+  15, // User 2
+  16, // User 3
+  17, // None
+  44, // Synth Bass
+];
+
+/**
+ * Return true if the given CategoryID is valid for a Wave 2 program partition.
+ *
+ * Source: category whitelist from `CWave2::CWave2 @0x100033a7c`.
+ */
+export function isWave2ProgramCategory(id: number): boolean {
+  return WAVE2_PROGRAM_CATEGORIES.includes(id);
+}

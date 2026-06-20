@@ -48,6 +48,31 @@ export function lead4Slot(bank: number, location: number): string {
 }
 
 /**
+ * Nord Wave 2 program-slot display: `X:d1d2` using the shared NSM-era grid
+ * (the same 8-column encoding as Stage 3/4/Electro 6 — bank letter + two grid
+ * digits from location).
+ *
+ * `CWave2::ConvertLocation @0x0000000100034508` handles only the NSMP sample
+ * partition (checks `s_kNSMP` type; programs are a different type). For program
+ * files (tag `nw2p`, formatType 1), ConvertLocation returns 1 (unhandled) and
+ * the base class applies the **NSM-era grid display** — the same `formatSlot`
+ * encoding used by Stage 3/4. This is confirmed by 26 real `.nw2p` fixtures
+ * (all carry formatType = 1, i.e. the NSM-era envelope, not the OG legacy
+ * format). The function delegates directly to `formatSlot`.
+ *
+ * Source: `CWave2::ConvertLocation @0x0000000100034508` (NSM decompile,
+ * `nsm_decomp/`); confirmed vs 26 real .nw2p fixtures, not HW-tested.
+ *
+ * @example wave2Slot(2, 1) // → "C:12"  (One Vision Queen.nw2p: bank=2, loc=1)
+ * @example wave2Slot(14, 0) // → "O:11" (EF bank O, loc 0)
+ */
+export function wave2Slot(bank: number, location: number): string {
+  // CWave2::ConvertLocation @0x0000000100034508: programs → unhandled (returns 1);
+  // base class applies NSM-era grid display — delegate to formatSlot.
+  return formatSlot(bank, location);
+}
+
+/**
  * Electro 5 program-slot display: `X:NN` where X is the bank letter and NN is
  * the 1-based sequential slot number within the bank (zero-padded to 2 digits).
  *
