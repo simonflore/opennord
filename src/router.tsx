@@ -4,6 +4,7 @@ import { LibraryRoute, ProgramRoute } from '@/routes/library';
 import { SamplesRoute } from '@/routes/samples';
 import { DeviceRoute } from '@/routes/device';
 import { AboutRoute } from '@/routes/about';
+import { CompatibilityRoute } from '@/routes/compatibility';
 import { InspectRoute, DecodeRoute } from '@/routes/dev';
 
 // Index `/` → the Library (the home door).
@@ -19,6 +20,7 @@ const routeTree = rootRoute.addChildren([
   ProgramRoute,        // /library/$programId
   SamplesRoute,        // /samples
   DeviceRoute,         // /device
+  CompatibilityRoute,  // /compatibility
   AboutRoute,          // /about
   InspectRoute,        // /dev/inspect
   DecodeRoute,         // /dev/decode

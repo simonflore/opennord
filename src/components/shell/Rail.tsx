@@ -1,7 +1,7 @@
 import { DeviceStatus } from './DeviceStatus';
 
 /** Route paths the rail can navigate to — kept in sync with the route tree in router.tsx. */
-export type NavTo = '/library' | '/samples' | '/device' | '/about' | '/dev/inspect' | '/dev/decode';
+export type NavTo = '/library' | '/samples' | '/device' | '/compatibility' | '/about' | '/dev/inspect' | '/dev/decode';
 
 interface Props {
   /** Current pathname without its leading slash (e.g. "library", "library/abc", "dev/inspect"). */
@@ -14,6 +14,7 @@ const DESTS: Array<{ to: NavTo; label: string }> = [
   { to: '/library', label: 'Library' },
   { to: '/samples', label: 'Samples' },
   { to: '/device', label: 'Device' },
+  { to: '/compatibility', label: 'Compatibility' },
 ];
 
 // Device transfer rides vendor-USB (WebUSB) — desktop Chrome/Edge or the iPad app
