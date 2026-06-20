@@ -83,6 +83,14 @@ describe('decodeNs2', () => {
     expect(g[0].type).toBe('Hall 1');
   });
 
+  it('reads B3 organ drawbars from preset 2 when active (0x5C.b7)', () => {
+    const b = t1();
+    b[0x5c] = 0x80;   // preset 2 enabled (B3, type 0)
+    b[0x98] = 0xe0;   // preset-2 drawbar 1 @0x96 → 7
+    b[0x61] = 0x20;   // preset-1 drawbar 1 @0x5F → 1 (proves we don't read preset 1)
+    expect(decodeNs2(b).slots[0].organ.drawbars[0]).toBe(7);
+  });
+
   it('decodes B3 organ vibrato/chorus + percussion (preset 1)', () => {
     const b = t1();
     b[0x35] = 0x40;   // vib mode (0x35 & 0xe0) >>> 5 = 2 → V2; soft = !(0x35 & 0x04) = true

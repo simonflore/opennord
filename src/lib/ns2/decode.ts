@@ -43,13 +43,14 @@ const u64 = (b: Uint8Array, o: number): bigint => {
 const ns2ToNs3Id = (ns2: bigint): number => (ns2 === 0n ? 0 : Number(ns2 ^ 0x80000000n) - 1);
 
 /**
- * Organ preset-1 drawbars (each 0-8) for B3/Vox, whose values are 4-bit fields
- * spread from a per-type base — masks per ns2-organ.js `getDrawbars` (4-bit
- * branch): B3 from 0x5F, Vox from 0x76. (Farfisa uses a 1-bit on/off encoding at
+ * Organ drawbars (each 0-8) for B3/Vox, 4-bit fields from a per-type, per-preset
+ * base — masks per ns2-organ.js `getDrawbars` (4-bit branch): B3 0x5F (preset 1)
+ * / 0x96 (preset 2), Vox 0x76 / 0xAD. (Farfisa uses a 1-bit on/off encoding at
  * 0x8D; not read here, and not shown as faders.)
  */
-function readDrawbars(b: Uint8Array, o: number, type: string): number[] {
-  const d = o + (type === 'Vox' ? 0x76 : 0x5f);
+function readDrawbars(b: Uint8Array, o: number, type: string, preset2: boolean): number[] {
+  const base = type === 'Vox' ? (preset2 ? 0xad : 0x76) : (preset2 ? 0x96 : 0x5f);
+  const d = o + base;
   return [
     (u16(b, d + 1) & 0x01e0) >>> 5,  // 0x60
     (u16(b, d + 3) & 0x003c) >>> 2,  // 0x62
@@ -104,6 +105,11 @@ export interface Ns2Program {
 function readSlot(b: Uint8Array, id: 'A' | 'B', vo: number, active: boolean): Ns2Slot {
   const o = (id === 'B' ? SLOT_STRIDE : 0) + vo; // slot base, incl. legacy shift
   const organType = lut(ORGAN_TYPE, (u8(b, o + 0x34) & 0xc0) >>> 6);
+  // Active organ preset — enable bit is type-dependent (B3 @0x5C, Vox @0x5D, Farfisa @0x5E, b7).
+  const p2Off = organType === 'Vox' ? 0x5d : organType === 'Farfisa' ? 0x5e : 0x5c;
+  const preset2 = (u8(b, o + p2Off) & 0x80) !== 0;
+  // B3 vib/percussion enable byte: 0x74 (preset 1) / 0xAB (preset 2); mode + flags @0x35 are shared.
+  const vp = o + (preset2 ? 0xab : 0x74);
   return {
     id,
     active,
@@ -112,12 +118,12 @@ function readSlot(b: Uint8Array, id: 'A' | 'B', vo: number, active: boolean): Ns
       on: (u8(b, o + 0x43) & 0x80) !== 0,
       type: organType,
       volume: db(u8(b, o + 0x46) & 0x7f),
-      drawbars: readDrawbars(b, o, organType),
-      // B3 preset 1: vib/chorus on @0x74.b4 + mode @0x35.b7-5; percussion on @0x74.b3
+      drawbars: readDrawbars(b, o, organType, preset2),
+      // B3: vib/chorus on @vp.b4 + mode @0x35.b7-5; percussion on @vp.b3
       // + 3rd @0x35.b4 / fast @0x35.b3 / soft @0x35.b2 (soft is inverted per the oracle).
-      vibChorus: { on: (u8(b, o + 0x74) & 0x10) !== 0, mode: lut(VIB_CHORUS, (u8(b, o + 0x35) & 0xe0) >>> 5) },
+      vibChorus: { on: (u8(b, vp) & 0x10) !== 0, mode: lut(VIB_CHORUS, (u8(b, o + 0x35) & 0xe0) >>> 5) },
       percussion: {
-        on: (u8(b, o + 0x74) & 0x08) !== 0,
+        on: (u8(b, vp) & 0x08) !== 0,
         third: (u8(b, o + 0x35) & 0x10) !== 0,
         fast: (u8(b, o + 0x35) & 0x08) !== 0,
         soft: (u8(b, o + 0x35) & 0x04) === 0,
