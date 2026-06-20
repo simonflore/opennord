@@ -20,17 +20,21 @@ const PIANO_TYPE = ['Grand', 'Upright', 'E Piano 1', 'E Piano 2', 'Clavinet', 'H
 const ORGAN_TYPE = ['B3', 'Vox', 'Farfisa'];
 const SYNTH_OSC = ['TRI', 'SAW', 'SQR', 'SAMPLE', 'FM', 'WAVE'];
 
+import { NORD_DB } from '../clavia/volume';
+
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
 const u16 = (b: Uint8Array, o: number): number => ((b[o] ?? 0) << 8) | (b[o + 1] ?? 0);
 const lut = (table: readonly string[], v: number): string => table[v] ?? `#${v}`;
+// Engine volume: a 7-bit MIDI value through the shared Nord dB curve.
+const db = (midi: number): string => NORD_DB[midi] ?? '?';
 
 export interface Ns2Slot {
   id: 'A' | 'B';
   /** Slot plays in this program (per the 0x2E slot-enable flag). */
   active: boolean;
-  organ: { on: boolean; type: string };
-  piano: { on: boolean; type: string };
-  synth: { on: boolean; osc: string };
+  organ: { on: boolean; type: string; volume: string };
+  piano: { on: boolean; type: string; volume: string };
+  synth: { on: boolean; osc: string; volume: string };
 }
 
 export interface Ns2Program {
@@ -42,12 +46,12 @@ function readSlot(b: Uint8Array, id: 'A' | 'B', vo: number, active: boolean): Ns
   return {
     id,
     active,
-    // organ on @0x43.b7; type @0x34.b7-6 (B3/Vox/Farfisa) — type is shared from slot A on the hw
-    organ: { on: (u8(b, o + 0x43) & 0x80) !== 0, type: lut(ORGAN_TYPE, (u8(b, o + 0x34) & 0xc0) >>> 6) },
-    // piano on @0x48.b7; type @0xCD.b7-5
-    piano: { on: (u8(b, o + 0x48) & 0x80) !== 0, type: lut(PIANO_TYPE, (u8(b, o + 0xcd) & 0xe0) >>> 5) },
-    // synth on @0x4D.b6; osc type @0xE1.b9-7
-    synth: { on: (u8(b, o + 0x4d) & 0x40) !== 0, osc: lut(SYNTH_OSC, (u16(b, o + 0xe1) & 0x0380) >>> 7) },
+    // organ on @0x43.b7; type @0x34.b7-6 (B3/Vox/Farfisa); volume @0x46.b6-0
+    organ: { on: (u8(b, o + 0x43) & 0x80) !== 0, type: lut(ORGAN_TYPE, (u8(b, o + 0x34) & 0xc0) >>> 6), volume: db(u8(b, o + 0x46) & 0x7f) },
+    // piano on @0x48.b7; type @0xCD.b7-5; volume @0x4B.b6-0
+    piano: { on: (u8(b, o + 0x48) & 0x80) !== 0, type: lut(PIANO_TYPE, (u8(b, o + 0xcd) & 0xe0) >>> 5), volume: db(u8(b, o + 0x4b) & 0x7f) },
+    // synth on @0x4D.b6; osc type @0xE1.b9-7; volume @0x50.b13-7
+    synth: { on: (u8(b, o + 0x4d) & 0x40) !== 0, osc: lut(SYNTH_OSC, (u16(b, o + 0xe1) & 0x0380) >>> 7), volume: db((u16(b, o + 0x50) & 0x3f80) >>> 7) },
   };
 }
 

@@ -10,9 +10,9 @@ import { decodeNs2, type Ns2Slot } from './decode';
 
 function toSection(slot: Ns2Slot) {
   const engines: DecodedEngine[] = [];
-  if (slot.organ.on) engines.push({ label: 'Organ', parts: [slot.organ.type] });
-  if (slot.piano.on) engines.push({ label: 'Piano', parts: [slot.piano.type] });
-  if (slot.synth.on) engines.push({ label: 'Synth', parts: [slot.synth.osc] });
+  if (slot.organ.on) engines.push({ label: 'Organ', parts: [slot.organ.type, slot.organ.volume] });
+  if (slot.piano.on) engines.push({ label: 'Piano', parts: [slot.piano.type, slot.piano.volume] });
+  if (slot.synth.on) engines.push({ label: 'Synth', parts: [slot.synth.osc, slot.synth.volume] });
   return { id: slot.id, label: `SLOT ${slot.id}`, engines };
 }
 

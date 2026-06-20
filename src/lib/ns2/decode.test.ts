@@ -38,6 +38,15 @@ describe('decodeNs2', () => {
     expect(s.piano).toMatchObject({ on: true, type: 'Grand' });
   });
 
+  it('decodes engine volume via the shared Nord dB curve', () => {
+    const b = t1();
+    b[0x48] = 0x80;    // piano on
+    b[0x4b] = 0x7f;    // volume midi 127 → "0.0 dB"
+    expect(decodeNs2(b).slots[0].piano.volume).toBe('0.0 dB');
+    const z = t1(); z[0x48] = 0x80; // piano on, volume midi 0 → "Off"
+    expect(decodeNs2(z).slots[0].piano.volume).toBe('Off');
+  });
+
   it('applies versionOffset -20 for the legacy header (0x04 ≠ 1)', () => {
     const b = new Uint8Array(600); // 0x04 = 0 → legacy → all body offsets -20
     b[0x2e - 20] = 0;          // slot flag → A only

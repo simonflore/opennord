@@ -23,7 +23,7 @@ const EFFECT1_TYPE = ['Panning', 'Tremolo', 'Ring Mod', 'Wah-Wah', 'Auto-Wah 1',
 const EFFECT2_TYPE = ['Phaser 1', 'Phaser 2', 'Flanger', 'Vibe', 'Chorus 1', 'Chorus 2'];
 const VIB_CHORUS = ['V1', 'C1', 'V2', 'C2', 'V3', 'C3'];
 
-import { NORD_DB } from './volume';
+import { NORD_DB } from '../clavia/volume';
 import { NS3_FILTER_FREQ } from './filter-freq';
 
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
