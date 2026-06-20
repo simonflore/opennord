@@ -72,6 +72,12 @@ describe('decodeNs3', () => {
     expect(fx.find((f) => f.name === 'Reverb')?.type).toBe('Room 1');
   });
 
+  it('extracts the 32-bit piano sampleId from the 0x49 field (bits 59-28)', () => {
+    const b = new Uint8Array(600);
+    b.set([0x03, 0xaa, 0x41, 0x6e, 0xf0, 0x00, 0x00, 0x00], 0x49); // 0x3aa416ef << 28
+    expect(decodeNs3(b).panels[0].piano.sampleId).toBe(0x3aa416ef);
+  });
+
   it('reads panel B fields shifted by 263 bytes', () => {
     const b = new Uint8Array(600);
     b[0x31] = 1 << 5;        // panel B only

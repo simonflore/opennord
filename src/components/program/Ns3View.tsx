@@ -1,7 +1,11 @@
+import { useEffect, useMemo, useState } from 'react';
 import { identifyNordFile } from '../../lib/clavia/nord-file';
 import { decodeNs3, type Ns3Panel } from '../../lib/ns3/decode';
 import { DrawbarStack } from './widgets';
 import type { DrawbarView } from '../../lib/ns4/view';
+
+/** Resolved factory sample names, keyed `${panelId}-piano` / `${panelId}-synth`. */
+type SampleNames = Record<string, string>;
 
 // B3 footage labels for the 9 drawbars; Vox/Farfisa use their own legend.
 const B3_FOOTAGE = ['16′', '5⅓′', '8′', '4′', '2⅔′', '2′', '1⅗′', '1⅓′', '1′'];
@@ -25,12 +29,19 @@ function organChips(panel: Ns3Panel): string[] {
   return chips;
 }
 
-/** The active engines of one panel as readable chips ("Piano · Grand"). */
-function PanelEngines({ panel }: { panel: Ns3Panel }) {
+/** The active engines of one panel as readable chips ("Piano · White Grand Lrg"). */
+function PanelEngines({ panel, names }: { panel: Ns3Panel; names: SampleNames }) {
   const engines: { name: string; detail: string }[] = [];
   if (panel.organ.on) engines.push({ name: 'Organ', detail: `${panel.organ.type} · ${panel.organ.volume}` });
-  if (panel.piano.on) engines.push({ name: 'Piano', detail: `${panel.piano.type} · ${panel.piano.volume}` });
-  if (panel.synth.on) engines.push({ name: 'Synth', detail: `${panel.synth.osc} · ${panel.synth.filter} ${panel.synth.cutoff} · ${panel.synth.volume}` });
+  if (panel.piano.on) {
+    const model = names[`${panel.id}-piano`] ?? panel.piano.type;
+    engines.push({ name: 'Piano', detail: `${model} · ${panel.piano.volume}` });
+  }
+  if (panel.synth.on) {
+    // For Sample oscillators, lead with the resolved sample name; else the osc model.
+    const src = panel.synth.osc === 'Sample' ? (names[`${panel.id}-synth`] ?? 'Sample') : panel.synth.osc;
+    engines.push({ name: 'Synth', detail: `${src} · ${panel.synth.filter} ${panel.synth.cutoff} · ${panel.synth.volume}` });
+  }
 
   return (
     <div className="ps-card" style={{ marginTop: 12 }}>
@@ -67,14 +78,44 @@ function PanelEngines({ panel }: { panel: Ns3Panel }) {
 }
 
 /**
+ * Resolve each active panel's piano/synth-Sample factory name. The ~1.3MB sample
+ * catalog is dynamically imported, so it loads lazily (own chunk) the first time
+ * a Stage 3 program is opened, never in the main bundle.
+ */
+function useSampleNames(panels: Ns3Panel[]): SampleNames {
+  const [names, setNames] = useState<SampleNames>({});
+  useEffect(() => {
+    let alive = true;
+    void import('../../lib/ns3/library/service').then(({ resolveSample }) => {
+      if (!alive) return;
+      const out: SampleNames = {};
+      for (const p of panels) {
+        if (p.piano.on) {
+          const r = resolveSample(p.piano.sampleId, p.piano.sampleVariation);
+          if (r) out[`${p.id}-piano`] = r.version ? `${r.name} ${r.version}` : r.name;
+        }
+        if (p.synth.on && p.synth.osc === 'Sample') {
+          const r = resolveSample(p.synth.sampleId, 0);
+          if (r) out[`${p.id}-synth`] = r.name;
+        }
+      }
+      setNames(out);
+    });
+    return () => { alive = false; };
+  }, [panels]);
+  return names;
+}
+
+/**
  * Stage 3 program view (Tier 2, #22). Shows the header (slot / category / version)
- * plus the decoded per-panel engines. Offsets ported from ns3-program-viewer
- * (docs/MULTI-MODEL.md); this is a first slice — engines + model/type — so it's
- * framed as in-progress until fuller parameter decode lands.
+ * plus the decoded per-panel engines, with factory sample/model names resolved
+ * lazily from the vendored library catalog. Offsets ported from ns3-program-viewer
+ * (docs/MULTI-MODEL.md).
  */
 export function Ns3View({ bytes }: { bytes: Uint8Array }) {
-  const info = identifyNordFile(bytes);
-  const { panels } = decodeNs3(bytes);
+  const info = useMemo(() => identifyNordFile(bytes), [bytes]);
+  const { panels } = useMemo(() => decodeNs3(bytes), [bytes]);
+  const names = useSampleNames(panels);
 
   const header: [string, string][] = [];
   if (info.slot) header.push(['Slot', info.slot]);
@@ -93,11 +134,11 @@ export function Ns3View({ bytes }: { bytes: Uint8Array }) {
         </div>
       </div>
 
-      {panels.map((p) => <PanelEngines key={p.id} panel={p} />)}
+      {panels.map((p) => <PanelEngines key={p.id} panel={p} names={names} />)}
 
       <p className="ps-sub" style={{ marginTop: 12 }}>
-        Stage 3 decode (Tier 2): engines, models, levels, organ drawbars, FX and B3 character.
-        Specific sample/model names are next. Offsets from the community ns3-program-viewer (see docs).
+        Stage 3 decode (Tier 2): engines, factory sample/model names, levels, organ drawbars, FX
+        and B3 character. Offsets + library from the community ns3-program-viewer (see docs).
       </p>
     </div>
   );

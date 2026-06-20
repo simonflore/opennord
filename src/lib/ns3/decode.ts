@@ -28,6 +28,12 @@ import { NS3_FILTER_FREQ } from './filter-freq';
 
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
 const u16 = (b: Uint8Array, o: number): number => ((b[o] ?? 0) << 8) | (b[o + 1] ?? 0);
+// 64-bit big-endian read as BigInt — sampleId hashes span a 64-bit field.
+const u64 = (b: Uint8Array, o: number): bigint => {
+  let v = 0n;
+  for (let i = 0; i < 8; i++) v = (v << 8n) | BigInt(b[o + i] ?? 0);
+  return v;
+};
 const lut = (table: readonly string[], v: number): string => table[v] ?? `#${v}`;
 // Engine volume shares the enable word: bits 10-4 are the 7-bit level → dB.
 const vol = (b: Uint8Array, o: number): string => NORD_DB[(u16(b, o) & 0x07f0) >>> 4] ?? '?';
@@ -63,8 +69,16 @@ export interface Ns3Panel {
     /** Percussion (B3): on + 3rd-harmonic / fast-decay / soft-volume flags. */
     percussion: { on: boolean; third: boolean; fast: boolean; soft: boolean };
   };
-  piano: { on: boolean; type: string; volume: string };
-  synth: { on: boolean; osc: string; filter: string; cutoff: string; volume: string };
+  piano: {
+    on: boolean; type: string; volume: string;
+    /** Factory sample reference: 32-bit hash + clavinet/harpsichord variant. Resolve via library/service. */
+    sampleId: number; sampleVariation: number;
+  };
+  synth: {
+    on: boolean; osc: string; filter: string; cutoff: string; volume: string;
+    /** Factory sample reference (only meaningful when osc === 'Sample'). */
+    sampleId: number;
+  };
   /** Effects switched on in this panel, in signal order. */
   fx: Ns3Fx[];
 }
@@ -89,8 +103,14 @@ export interface Ns3Program {
 function readPanel(b: Uint8Array, id: 'A' | 'B', base: number): Ns3Panel {
   return {
     id,
-    // piano enable @0x43.b7; type @0x48.b5-3; volume @0x43
-    piano: { on: (u16(b, base + 0x43) & 0x8000) !== 0, type: lut(PIANO_TYPE, (u8(b, base + 0x48) & 0x38) >>> 3), volume: vol(b, base + 0x43) },
+    // piano enable @0x43.b7; type @0x48.b5-3; volume @0x43; sampleId = u64@0x49 bits 59-28; variation @0x49.b5-4
+    piano: {
+      on: (u16(b, base + 0x43) & 0x8000) !== 0,
+      type: lut(PIANO_TYPE, (u8(b, base + 0x48) & 0x38) >>> 3),
+      volume: vol(b, base + 0x43),
+      sampleId: Number((u64(b, base + 0x49) & 0x0ffffffff0000000n) >> 28n),
+      sampleVariation: (u8(b, base + 0x49) & 0x30) >>> 4,
+    },
     // organ enable @0xB6.b7; type @0xBB.b6-4; volume @0xB6
     organ: {
       on: (u16(b, base + 0xb6) & 0x8000) !== 0,
@@ -116,6 +136,8 @@ function readPanel(b: Uint8Array, id: 'A' | 'B', base: number): Ns3Panel {
       // cutoff frequency @0x98.b1-0 + 0x99.b7-3 (7-bit) → Hz
       cutoff: lut(NS3_FILTER_FREQ, (u16(b, base + 0x98) & 0x03f8) >>> 3),
       volume: vol(b, base + 0x52),
+      // sample-osc id = u64@0xA5 bits 38-3 (used when osc === 'Sample')
+      sampleId: Number((u64(b, base + 0xa5) & 0x07fffffff8n) >> 3n),
     },
     fx: readFx(b, base),
   };
