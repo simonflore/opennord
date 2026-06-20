@@ -97,4 +97,23 @@ describe('identifyNordFile', () => {
     expect(info.slot).toBe('A:40');
     expect(info.version).toBeUndefined();
   });
+
+  // Tier A lead-4 wiring fix (2026-06-20): lead4Slot must be called for nl4p so the
+  // product emits the same 1-based sequential string that the unit test validates.
+  // Before this fix, identifyNordFile returned the raw 'B:41' (bank:location) instead
+  // of the correct 'B:42' (lead4Slot sequential-1-based); the function was dead code.
+  it('decodes nl4p (Lead 4, legacy formatType 0) header — 1-based sequential slot via lead4Slot', () => {
+    // Synthetic: bank 1, loc 41, cat 7 (Pad). Matches the fixture comment in slot.ts:
+    //   lead4Slot(1, 41) → "B:42"  (not the raw "B:41")
+    const b = cbin('nl4p', 0, { bank: 1, loc: 41, cat: 7 });
+    const info = identifyNordFile(b);
+    expect(info).toMatchObject({
+      recognized: true, tag: 'nl4p', kind: 'program',
+      formatType: 0, headerDecoded: true, fullyDecoded: false,
+      modelId: 'lead-4', modelName: 'Nord Lead 4',
+    });
+    // lead4Slot(1, 41) → "B:42" — 1-based sequential, NOT raw "B:41"
+    expect(info.slot).toBe('B:42');
+    expect(info.version).toBeUndefined();
+  });
 });

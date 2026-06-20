@@ -16,7 +16,7 @@
  */
 import { hasCbinMagic, readCbinHeader } from './cbin';
 import { programCategoryName } from './categories';
-import { formatSlot, electro5Slot, BANK_LETTERS } from './slot';
+import { formatSlot, electro5Slot, lead4Slot, BANK_LETTERS } from './slot';
 import { modelByTag, type NordModelId } from './partitions';
 
 export type NordGeneration = 'Stage 2' | 'Stage 3' | 'Stage 4' | 'unknown';
@@ -104,13 +104,16 @@ export function identifyNordFile(bytes: Uint8Array): NordFileInfo {
     //  Full slot/engine decode lives in lib/ns2/decode.ts (ns2) and will live in
     //  lib/ne5/decode.ts (ne5p) when that body codec is built.
     info.headerDecoded = true;
-    // ne5p uses sequential 1-based slot numbering (location 0 → slot 01, …, 49 → slot 50),
-    // as established by CElectro5::ConvertLocation returning "unhandled" for program
-    // partitions — the base class applies the sequential display, not the Stage 8-col grid.
+    // ne5p and nl4p use sequential 1-based slot numbering — ConvertLocation returns
+    // "unhandled" (base class sequential display), not the Stage 8-column grid.
+    // nl4p: CLead4Base::ConvertLocation @0x00000001000ddcf8 — 2-bank/50-slot sequential.
+    // ne5p: CElectro5::ConvertLocation @0x0000000100194844 — same sequential scheme.
     // ns2p and ne4p use the raw location value directly (sequential 0-based raw display).
     info.slot = h.tag === 'ne5p'
       ? electro5Slot(h.bank, h.location)
-      : `${BANK_LETTERS[h.bank & 0x7] ?? h.bank}:${h.location}`;
+      : h.tag === 'nl4p'
+        ? lead4Slot(h.bank, h.location)
+        : `${BANK_LETTERS[h.bank & 0x7] ?? h.bank}:${h.location}`;
     info.category = h.category;
     info.categoryName = programCategoryName(h.category);
   }
