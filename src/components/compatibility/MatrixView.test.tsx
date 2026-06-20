@@ -14,8 +14,11 @@ describe('MatrixView', () => {
     expect(html).toContain('Nord Stage 3');
     expect(html).toContain('cmp-cell--validated');
   });
-  it('labels unknown cells as needing a tester', () => {
-    expect(render()).toContain('Needs a tester');
+  it('shows graded statuses across the line (works / in progress / likely)', () => {
+    const html = render();
+    expect(html).toContain('Works');        // Stage 4 (validated)
+    expect(html).toContain('In progress');  // Stage 2/3 (reverse-engineered)
+    expect(html).toContain('Likely');       // inferred from shared transport
   });
   it('prompts to connect a Nord when none is connected', () => {
     expect(render()).toContain('the check is read-only');
