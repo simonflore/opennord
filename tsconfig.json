@@ -15,7 +15,10 @@
     "noEmit": true,
     "skipLibCheck": true,
     "types": ["node", "w3c-web-usb"],
-    "paths": { "@/*": ["./src/*"] }
+    "paths": {
+      "@/*": ["./src/*"],
+      "capacitor-nord-usb": ["./plugins/capacitor-nord-usb/src/index.ts"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "plugins/capacitor-nord-usb/src"]
 }

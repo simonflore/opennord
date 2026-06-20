@@ -7,7 +7,12 @@ export default defineConfig({
   plugins: [react(), fixturesDevPlugin()],
   server: { port: process.env.PORT ? Number(process.env.PORT) : 5173 },
   resolve: {
-    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      'capacitor-nord-usb': fileURLToPath(
+        new URL('./plugins/capacitor-nord-usb/src/index.ts', import.meta.url),
+      ),
+    },
   },
   test: {
     // Default env stays node (fast, matches the pure-logic decoder tests).
