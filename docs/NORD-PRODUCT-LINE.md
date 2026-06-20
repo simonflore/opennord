@@ -145,6 +145,53 @@ From `docs/PROTOCOL-RE.md` + binary symbols, all model-agnostic:
 
 ---
 
+## Per-model partition layouts
+
+A device's memory is a list of **partitions**; the `FileTransfer` protocol
+addresses them by index (`CReqBegin{partition}`, `CQryBankList{partition}` — see
+`docs/PROTOCOL-RE.md`). NSM builds each model's list in its **product constructor**
+(`Ymer::Product::C<Model>::C<Model>(SCaps)`) as an ordered sequence of
+`CProductBase::Add(SPartition*)` calls; each `SPartition` carries a
+`CFileSpec(extension, fileType)` — the fourcc + category. Recovered by resolving
+the constructors' string references (recipe in the appendix). *(NSM)*
+
+**Canonical layout.** Every model is a subset/superset of one scheme. *Native*
+partitions hold read-only factory content; the rest are user-writable. The
+`…b` backup is a whole-device ZIP, not a live partition.
+
+| Partition | Role | Present on |
+|---|---|---|
+| `Native (FFS)` / `E2P FFS` | flash filesystem | most |
+| `Piano (Native)` | factory pianos | piano-capable (Stage, Piano, Electro, Grand) |
+| `Pedal (Native)` / `Piano Pedal (Native)` | factory pedal-noise/pads | Piano, Electro 6, Grand, Stage |
+| `Samp Lib (Native)` | factory sample library | sample-capable |
+| **`Program` (+ `Program Bundle`)** | user programs (bundle = program + deps by name) | all |
+| `Live` | live buffer | all |
+| `Synth Preset` / `Organ Preset` | per-engine presets | Stage/Wave (synth), Electro/C2 (organ) |
+| `Set List` *(inferred, `…t` tag)* | set lists | Stage 3/4, Electro 6, Piano 6, Grand 2 |
+| `Settings` | global settings | all |
+
+**Extracted layouts** *(NSM, static; order ≈ `Add()` order — exact indices are
+HW-validated only for Stage 4)*:
+
+| Model | Program tag | Ordered partition set (Native → user) |
+|---|---|---|
+| **Stage 4** *(HW-validated, PROTOCOL-RE)* | `ns4p` | Piano N, Piano, Pedal N, Pedal, SampLib N, SampLib, **Program(6)**, Organ, Piano Preset, Synth Preset (`ns4y`), Live (`ns4l`), Settings — **12 partitions** |
+| **Stage (base; NS2/NS3 via SCaps)** | `ns2p`/`ns3f` | Backup, Native FFS, Program, Synth (`…s`), Live, Settings — variant fourcc by SCaps |
+| **Electro 4** *(OG)* | `ne4p` | Piano N, SampLib N, Program (+`ne4pb`), Live (`ne4l`), Settings (`ne4s`); Backup `ne4b`/`ne4db` |
+| **Electro 6** *(v3)* | `ne6p` | Piano N, Pedal N, SampLib N, Program (+bundle), Live (`ne6l`), Set List (`ne6t`), Settings; FFS |
+| **Piano 3** *(v3)* | `np3p` | Piano N, Piano Pedal N, SampLib N, Program (+bundle), Live (`np3l`), Settings (`np3s`) |
+| **Piano 6** *(v4)* | `np6p` | Piano N, Pedal N, SampLib N, Program (+bundle), Live (`np6l`), Set List (`np6t`), Settings; FFS |
+| **Grand 2** *(v4)* | `ng2p` | Piano N, Pedal N, SampLib N, Program (+bundle), Live (`ng2l`), Set List (`ng2t`), Settings; FFS |
+| **Wave 2** *(v3)* | `nw2p` | SampLib N, Program (+bundle), Live (`nw2l`), Synth (`nw2s`), Settings; FFS |
+
+Takeaway: **the partition model is uniform across the line** — same partition
+*kinds* in the same relative order, model-to-model differences are which optional
+partitions exist (Pedal, Organ vs Synth, Set List) and the fourcc generation. A
+single `{ partitions: PartitionSpec[] }` per model in OpenNord's `clavia` registry
+captures all of it. Exact numeric indices for non-Stage-4 models still want a
+one-line hardware `CQryPartList` to confirm `Add()` order, but the **set** is known.
+
 ## Where OpenNord plugs models in
 
 The parallel multi-model work (#22) already built the seam:
@@ -198,3 +245,20 @@ otool -arch arm64 -tV "$BIN" | grep -n -A2 'GetVendorIDEv'   # → cmp w0, #0xff
 # Transport + protocol classes
 strings -n 6 "$BIN" | grep -E 'CUSBMan|CStreamDuplex|FileTransfer|MIDIX|protocol v%d'
 ```
+
+**Per-model partition layout** — resolve a product constructor's string refs (the
+`Add(SPartition)` operands). Find the ctor range with `nm`, then:
+
+```bash
+nm -arch arm64 nsm/nsm-arm64 | c++filt | grep -E 'CElectro4::CElectro4\('  # → start/end addrs
+otool -arch arm64 -tV nsm/nsm-arm64 > /tmp/d.txt    # one-time
+awk 'index($0,"<START>"){f=1} f{print} index($0,"<END>"){exit}' /tmp/d.txt > /tmp/ctor.txt
+# pair adrp(page)+add(off) per register, read the cstring (fileoff = vmaddr - 0x100000000)
+perl -ne 'if(/adrp\s+(x\d+),\s+\d+\s+;\s+(0x[0-9a-f]+)/){$p{$1}=hex($2)}
+  if(/\badd\s+(x\d+),\s+(x\d+),\s+#(0x[0-9a-f]+)/&&$1 eq $2&&$p{$2}){print $p{$2}+hex($3),"\n"}' /tmp/ctor.txt |
+while read a; do dd if=nsm/nsm-arm64 bs=1 skip=$((a-0x100000000)) count=44 2>/dev/null|tr '\0' '\n'|head -1; echo; done
+```
+
+The output is the model's partition names + fourccs in (approximately) `Add()`
+order. For exact protocol indices, pair each string to its `bl CProductBase::Add`
+call, or run a read-only `CQryPartList` against the hardware.
