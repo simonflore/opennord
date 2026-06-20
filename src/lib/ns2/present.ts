@@ -33,7 +33,8 @@ function toSection(slot: Ns2Slot, globalChips: string[]): DecodedSection {
   if (slot.synth.on) {
     engines.push({ label: 'Synth', parts: [slot.synth.osc, slot.synth.volume], nameSlot: slot.synth.osc === 'SAMPLE' ? 0 : undefined });
   }
-  // Drawbars are the 4-bit B3/Vox encoding; Farfisa's 1-bit form isn't read yet.
+  // B3/Vox drawbars are 4-bit (0-8). Farfisa drawbars are 1-bit on/off and use
+  // a different visual — exclude from the shared fader view.
   const hasDrawbars = slot.organ.on && (slot.organ.type === 'B3' || slot.organ.type === 'Vox');
   // B3 character chips (vib/chorus + percussion), then per-slot FX, then global FX.
   const chips = [...organChips(slot), ...slot.fx.map(fxChip), ...globalChips];
