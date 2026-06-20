@@ -6,7 +6,9 @@ interface DeviceState {
   session: NordSession | null;
   entries: ProgramEntry[];
   deviceName: string;
-  setConnection: (s: NordSession, e: ProgramEntry[], name: string) => void;
+  /** USB idProduct of the connected device (0 until connected). */
+  productId: number;
+  setConnection: (s: NordSession, e: ProgramEntry[], name: string, productId: number) => void;
   setEntries: (e: ProgramEntry[]) => void;
   disconnect: () => void;
 }
@@ -17,12 +19,13 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<NordSession | null>(null);
   const [entries, setEntries] = useState<ProgramEntry[]>([]);
   const [deviceName, setDeviceName] = useState('');
+  const [productId, setProductId] = useState(0);
 
   const value: DeviceState = {
-    session, entries, deviceName,
-    setConnection: (s, e, name) => { setSession(s); setEntries(e); setDeviceName(name); },
+    session, entries, deviceName, productId,
+    setConnection: (s, e, name, pid) => { setSession(s); setEntries(e); setDeviceName(name); setProductId(pid); },
     setEntries,
-    disconnect: () => { setSession(null); setEntries([]); setDeviceName(''); },
+    disconnect: () => { setSession(null); setEntries([]); setDeviceName(''); setProductId(0); },
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

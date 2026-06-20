@@ -63,7 +63,7 @@ export function DeviceManager() {
   }
 
   if (!session) {
-    return <ConnectPanel onConnected={(s, e, name) => setConnection(s, e, name)} />;
+    return <ConnectPanel onConnected={(s, e, name, pid) => setConnection(s, e, name, pid)} />;
   }
 
   // Push flow: pick a slot, then confirm.

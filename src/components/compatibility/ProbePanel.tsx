@@ -7,7 +7,7 @@ import { probeIssueUrl } from '../../lib/device/report';
 /** "Check my Nord" — a read-only probe whose result an owner can share to help
  *  validate their model. Gated on a connected session (USB, desktop/iPad). */
 export function ProbePanel() {
-  const { session, deviceName } = useDevice();
+  const { session, deviceName, productId } = useDevice();
   const [report, setReport] = useState<ProbeReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -24,7 +24,7 @@ export function ProbePanel() {
     if (!session) return;
     setBusy(true); setError('');
     try {
-      setReport(await probeDevice(session, { deviceName: deviceName || 'Nord', productId: 0, now: () => new Date() }));
+      setReport(await probeDevice(session, { deviceName: deviceName || 'Nord', productId, now: () => new Date() }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

@@ -24,7 +24,7 @@ function describeError(e: unknown): string {
 }
 
 export function ConnectPanel({ onConnected }: {
-  onConnected: (session: NordSession, entries: ProgramEntry[], deviceName: string) => void;
+  onConnected: (session: NordSession, entries: ProgramEntry[], deviceName: string, productId: number) => void;
 }) {
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState('');
@@ -63,8 +63,8 @@ export function ConnectPanel({ onConnected }: {
       // afterward (a left-open session makes it show "synchronizing" forever).
       const entries = await session.withSession(PARTITION_PROGRAM, () => enumeratePrograms(session));
       setStatus('connected');
-      const name = device.productName ?? 'Nord Stage 4';
-      onConnected(session, entries, name);
+      const name = device.productName ?? 'Nord';
+      onConnected(session, entries, name, device.productId);
     } catch (e) {
       // Release the interface on any failure so a retry isn't blocked by a stale claim.
       if (transport) await transport.close().catch(() => {});
