@@ -8,6 +8,7 @@ import { EngineCard } from './EngineCard';
 import { FxRow } from './FxRow';
 import { Morphs } from './Morphs';
 import { NordFileCard } from './NordFileCard';
+import { Ns3View } from './Ns3View';
 import { identifyNordFile } from '../../lib/clavia/nord-file';
 import { ProgramExtern } from './ProgramExtern';
 import { SampleRefs } from './SampleRefs';
@@ -24,9 +25,12 @@ export function ProgramView({ program }: { program: NS4Program }) {
   const [scene, setScene] = useState<'I' | 'II'>(program.activeScene ?? 'I');
 
   if (!program.parsed) {
-    // A recognized Nord file we don't fully decode (Stage 2/3, presets) → show its
-    // structure instead of a dead end. Truly unrecognized files fall through.
-    if (identifyNordFile(program.bytes).recognized) return <NordFileCard bytes={program.bytes} />;
+    // A recognized Nord file we don't fully decode here. Stage 3 gets its own
+    // decoded engine view (Tier 2); other recognized files (Stage 2, presets)
+    // show the structure card. Truly unrecognized files fall through.
+    const info = identifyNordFile(program.bytes);
+    if (info.generation === 'Stage 3' && info.kind === 'performance') return <Ns3View bytes={program.bytes} />;
+    if (info.recognized) return <NordFileCard bytes={program.bytes} />;
     return (
       <div className="ps">
         <p>Not a recognized Nord file.</p>
