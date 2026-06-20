@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { convertNsmp } from './nsmp-convert';
 import { readNsmp, decodeNsmp, readNsmpZones, nsmpLayout } from './nsmp';
+import { hasGt } from './gt-fixtures';
 
 const root = resolve(__dirname, '../../..');
 const load = (p: string) => new Uint8Array(readFileSync(resolve(root, p)));
@@ -16,12 +17,13 @@ const sameChannels = (a: Int32Array[], b: Int32Array[]) => {
   return true;
 };
 
-describe('convertNsmp(x, 2) — downconvert any Nord sample to OG (.nsmp)', () => {
-  const sources = [
-    'nsmp conversion demo files/BrassAlesis 4 from 2.nsmp4',
-    'nsmp conversion demo files/BrassAlesis 3 from 2.nsmp3',
-    'nsmp conversion demo files/BrassAlesis 2.nsmp',
-  ];
+const sources = [
+  'nsmp conversion demo files/BrassAlesis 4 from 2.nsmp4',
+  'nsmp conversion demo files/BrassAlesis 3 from 2.nsmp3',
+  'nsmp conversion demo files/BrassAlesis 2.nsmp',
+];
+
+describe.skipIf(!hasGt(...sources))('convertNsmp(x, 2) — downconvert any Nord sample to OG (.nsmp)', () => {
 
   for (const src of sources) {
     it(`lossless + valid OG from ${src.split('/').pop()}`, () => {

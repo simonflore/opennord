@@ -1,56 +1,46 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import '../../styles/nord.css';
 import { Button, FilterChip } from '../ui';
 import type { NordSession } from '../../lib/device/session';
-import { enumeratePrograms, enumerateFiles, pullProgram, pullFile, pushProgram, deleteProgram, type ProgramEntry } from '../../lib/device/transfer';
+import { enumeratePrograms, pullProgram, type ProgramEntry } from '../../lib/device/transfer';
 import { useDevice } from '../../lib/device/DeviceContext';
-import { PARTITION_PROGRAM, PARTITION_SAMP_LIB } from '../../lib/device/opcodes';
+import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import { parseNs4Program } from '../../lib/ns4/parse';
-import { programNameFromFilename } from '../../lib/ns4/name';
-import { formatSlot } from '../../lib/ns4/slot';
+import { slotLabel } from '../../lib/ns4/slot';
 import type { NS4Program } from '../../lib/ns4/types';
 import { ProgramView } from '../program/ProgramView';
 import { ConnectPanel } from './ConnectPanel';
 import { DeviceBrowser } from './DeviceBrowser';
-import { TargetSlotPicker, type SlotTarget } from './TargetSlotPicker';
+import { TargetSlotPicker } from './TargetSlotPicker';
 import { ConfirmPanel } from './ConfirmPanel';
 import { BackupPanel } from './BackupPanel';
 import { DeviceSampleBrowser } from './DeviceSampleBrowser';
-import { SampleInspector, type InspectorInput } from '../sample/SampleInspector';
+import { SampleInspector } from '../sample/SampleInspector';
+import { usePushFlow } from './usePushFlow';
+import { useDeleteFlow } from './useDeleteFlow';
+import { useSamplesFlow } from './useSamplesFlow';
 
-interface PushSource { bytes: Uint8Array; name: string; }
+const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** Orchestrates connect → browse → pull/view, plus push (file or open program) and delete. */
+/**
+ * Orchestrates the device screen: connect, browse, and view a pulled program.
+ * The push / delete / samples flows live in their own hooks (usePushFlow,
+ * useDeleteFlow, useSamplesFlow); this component is the switch between them.
+ */
 export function DeviceManager() {
   const { session, entries, deviceName, setConnection, setEntries } = useDevice();
+  // Program-open (pull-to-view) state stays local — it's this component's own concern.
   const [program, setProgram] = useState<NS4Program | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Push flow
-  const [pushSource, setPushSource] = useState<PushSource | null>(null);
-  const [pushName, setPushName] = useState('');
-  const [picked, setPicked] = useState<SlotTarget | null>(null);
-  // Delete flow
-  const [pendingDelete, setPendingDelete] = useState<ProgramEntry | null>(null);
-  // Samples view (Samp Lib partition) — separate from the program `entries` above.
-  const [view, setView] = useState<'programs' | 'samples'>('programs');
-  const [sampleEntries, setSampleEntries] = useState<ProgramEntry[]>([]);
-  const [sampleInput, setSampleInput] = useState<InspectorInput | null>(null);
-  const [pullPct, setPullPct] = useState<number | null>(null);
-
-  // Reset the samples view when the connection changes (reconnect to a different
-  // Nord) — DeviceManager stays mounted across sessions, so the lazy enumerate
-  // cache (`sampleEntries.length === 0`) would otherwise show the old board's list.
-  useEffect(() => {
-    setView('programs');
-    setSampleEntries([]);
-    setSampleInput(null);
-  }, [session]);
-
   async function refresh(s: NordSession) {
     setEntries(await s.withSession(PARTITION_PROGRAM, () => enumeratePrograms(s)));
   }
+
+  const push = usePushFlow(session, refresh);
+  const del = useDeleteFlow(session, refresh);
+  const samples = useSamplesFlow(session);
 
   async function open(entry: ProgramEntry) {
     if (!session || busy) return;
@@ -67,88 +57,9 @@ export function DeviceManager() {
     }
   }
 
-  function startPush(source: PushSource) {
-    setError('');
-    setPushSource(source);
-    setPushName(source.name);
-    setPicked(null);
-  }
-
-  /** Read a picked .ns4p (error handling lives here, where the error state is). */
-  async function startSendFile(file: File) {
-    setError('');
-    try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      startPush({ bytes, name: programNameFromFilename(file.name) });
-    } catch (e) {
-      setError(`Could not read ${file.name}: ${msg(e)}`);
-    }
-  }
-
-  function cancelPush() {
-    setPushSource(null);
-    setPicked(null);
-  }
-
-  async function confirmPush() {
-    if (!session || !pushSource || !picked || busy) return;
-    setError(''); setBusy(true);
-    try {
-      await session.withSession(PARTITION_PROGRAM, () =>
-        pushProgram(session, picked.bank, picked.slot, pushSource.bytes, pushName.trim() || pushSource.name));
-      await refresh(session);
-      cancelPush();
-    } catch (e) {
-      setError(`Could not write to ${formatSlot(picked.bank, picked.slot)}: ${msg(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function confirmDelete() {
-    if (!session || !pendingDelete || busy) return;
-    setError(''); setBusy(true);
-    try {
-      await session.withSession(PARTITION_PROGRAM, () =>
-        deleteProgram(session, pendingDelete.bank, pendingDelete.slot));
-      await refresh(session);
-      setPendingDelete(null);
-    } catch (e) {
-      setError(`Could not delete ${pendingDelete.name}: ${msg(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  /** Switch the browser between programs and samples; enumerate Samp Lib once (lazily). */
-  async function switchView(next: 'programs' | 'samples') {
-    if (!session || busy) return;
-    setView(next); setProgram(null); setSampleInput(null); setError('');
-    if (next === 'samples' && sampleEntries.length === 0) {
-      setBusy(true);
-      try {
-        setSampleEntries(await session.withSession(PARTITION_SAMP_LIB, () => enumerateFiles(session)));
-      } catch (e) {
-        setError(`Could not list samples: ${msg(e)}`);
-      } finally {
-        setBusy(false);
-      }
-    }
-  }
-
-  /** Pull a sample off the board (with progress) and open it in the inspector. */
-  async function openSample(entry: ProgramEntry) {
-    if (!session || busy) return;
-    setError(''); setBusy(true); setPullPct(0);
-    try {
-      const bytes = await session.withSession(PARTITION_SAMP_LIB, () =>
-        pullFile(session, entry, (done, total) => setPullPct(total ? Math.round((done / total) * 100) : 0)));
-      setSampleInput({ bytes, name: entry.name });
-    } catch (e) {
-      setError(`Could not read ${entry.name}: ${msg(e)}`);
-    } finally {
-      setBusy(false); setPullPct(null);
-    }
+  function toggleView(next: 'programs' | 'samples') {
+    setProgram(null);
+    void samples.switchView(next);
   }
 
   if (!session) {
@@ -156,43 +67,43 @@ export function DeviceManager() {
   }
 
   // Push flow: pick a slot, then confirm.
-  if (pushSource) {
-    if (!picked) {
-      return <TargetSlotPicker entries={entries} onPick={(t) => { setError(''); setPicked(t); }} onCancel={cancelPush} />;
+  if (push.pushSource) {
+    if (!push.picked) {
+      return <TargetSlotPicker entries={entries} onPick={push.pickSlot} onCancel={push.cancel} />;
     }
-    const where = formatSlot(picked.bank, picked.slot);
+    const where = slotLabel(push.picked.bank, push.picked.slot);
     return (
       <ConfirmPanel
         title="Send to the Nord?"
-        message={picked.occupiedBy
-          ? `This replaces "${picked.occupiedBy}" at ${where}.`
+        message={push.picked.occupiedBy
+          ? `This replaces "${push.picked.occupiedBy}" at ${where}.`
           : `Write to ${where} (currently empty).`}
         confirmLabel="Write"
-        busy={busy}
-        onConfirm={confirmPush}
-        onCancel={() => setPicked(null)}
+        busy={push.busy}
+        onConfirm={push.confirmPush}
+        onCancel={push.unpick}
       >
         <label className="ps-sub" style={{ display: 'block' }}>
           Name on the Nord:&nbsp;
-          <input value={pushName} onChange={(ev) => setPushName(ev.target.value)} style={{ padding: 4 }} />
+          <input value={push.pushName} onChange={(ev) => push.setPushName(ev.target.value)} style={{ padding: 4 }} />
         </label>
-        {error && <p className="ps-sub on-error">{error}</p>}
+        {push.error && <p className="ps-sub on-error">{push.error}</p>}
       </ConfirmPanel>
     );
   }
 
   // Delete confirm.
-  if (pendingDelete) {
+  if (del.pendingDelete) {
     return (
       <ConfirmPanel
         title="Delete this program?"
-        message={`Permanently remove "${pendingDelete.name}" from ${formatSlot(pendingDelete.bank, pendingDelete.slot)}.`}
+        message={`Permanently remove "${del.pendingDelete.name}" from ${slotLabel(del.pendingDelete.bank, del.pendingDelete.slot)}.`}
         confirmLabel="Delete"
-        busy={busy}
-        onConfirm={confirmDelete}
-        onCancel={() => setPendingDelete(null)}
+        busy={del.busy}
+        onConfirm={del.confirmDelete}
+        onCancel={() => del.setPendingDelete(null)}
       >
-        {error && <p className="ps-sub on-error">{error}</p>}
+        {del.error && <p className="ps-sub on-error">{del.error}</p>}
       </ConfirmPanel>
     );
   }
@@ -203,7 +114,7 @@ export function DeviceManager() {
       <div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <Button variant="ghost" onClick={() => setProgram(null)}>← Back to programs</Button>
-          <Button variant="primary" onClick={() => startPush({ bytes: program.bytes, name: program.name ?? 'Program' })}>Send to Nord</Button>
+          <Button variant="primary" onClick={() => push.startPush({ bytes: program.bytes, name: program.name ?? 'Program' })}>Send to Nord</Button>
         </div>
         <ProgramView program={program} />
       </div>
@@ -211,26 +122,30 @@ export function DeviceManager() {
   }
 
   // Viewing a pulled sample (read-only — edit + download live in the inspector; no write-back yet).
-  if (sampleInput) {
+  if (samples.sampleInput) {
     return (
       <div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <Button variant="ghost" onClick={() => setSampleInput(null)}>← Back to samples</Button>
+          <Button variant="ghost" onClick={() => samples.setSampleInput(null)}>← Back to samples</Button>
         </div>
-        <SampleInspector key={`${sampleInput.name}-${sampleInput.bytes.length}`} initial={sampleInput} />
+        <SampleInspector key={`${samples.sampleInput.name}-${samples.sampleInput.bytes.length}`} initial={samples.sampleInput} />
       </div>
     );
   }
 
+  // Default browser. error/busy here come from the program-open action or the
+  // samples flow — only one is ever active at a time in this branch.
+  const browserError = error || samples.error;
+  const browserBusy = busy || samples.busy;
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <FilterChip active={view === 'programs'} onClick={() => void switchView('programs')}>Programs</FilterChip>
-        <FilterChip active={view === 'samples'} onClick={() => void switchView('samples')}>Samples</FilterChip>
+        <FilterChip active={samples.view === 'programs'} onClick={() => toggleView('programs')}>Programs</FilterChip>
+        <FilterChip active={samples.view === 'samples'} onClick={() => toggleView('samples')}>Samples</FilterChip>
       </div>
-      {error && <p className="ps-sub on-error">{error}</p>}
-      {busy && <p className="ps-sub">{pullPct !== null ? `Pulling sample… ${pullPct}%` : 'Working with the Nord…'}</p>}
-      {view === 'programs' ? (
+      {browserError && <p className="ps-sub on-error">{browserError}</p>}
+      {browserBusy && <p className="ps-sub">{samples.pullPct !== null ? `Pulling sample… ${samples.pullPct}%` : 'Working with the Nord…'}</p>}
+      {samples.view === 'programs' ? (
         <>
           <div style={{ marginBottom: 12 }}>
             <BackupPanel session={session} deviceName={deviceName} onAfterRestore={() => { void refresh(session); }} />
@@ -239,17 +154,13 @@ export function DeviceManager() {
             entries={entries}
             deviceName={deviceName}
             onSelect={open}
-            onDelete={setPendingDelete}
-            onSendFile={startSendFile}
+            onDelete={del.setPendingDelete}
+            onSendFile={push.startSendFile}
           />
         </>
       ) : (
-        <DeviceSampleBrowser entries={sampleEntries} deviceName={deviceName} onSelect={openSample} />
+        <DeviceSampleBrowser entries={samples.sampleEntries} deviceName={deviceName} onSelect={samples.openSample} />
       )}
     </div>
   );
-}
-
-function msg(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
 }

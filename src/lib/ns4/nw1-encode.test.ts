@@ -4,8 +4,10 @@ import { resolve } from 'node:path';
 import { parseNsmpSections } from './nsmp';
 import { decodeStroke } from './nsmp-codec';
 import { encodeStrokeNW1 } from './nw1-encode';
+import { hasGt } from './gt-fixtures';
 
 const GT = resolve(__dirname, '../../../research/nsmp/ground-truth');
+const GT_FILES = ['impulse_24.nsmp4', 'ramp_24.nsmp4', 'sine_24.nsmp4'];
 const u32be = (b: Uint8Array, o: number) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
 
 /** Locate a codec-4 stroke's block stream (first real block .. stop inclusive). */
@@ -33,8 +35,8 @@ function firstDiff(a: Uint8Array, b: Uint8Array): number {
 // three files since they share the same .nsmpproj (secondStart=3000, end=24000).
 const SECOND_START_INTERLEAVED = 4376;
 
-describe('encodeStrokeNW1 — byte-exact vs editor ground truth', () => {
-  for (const name of ['impulse_24.nsmp4', 'ramp_24.nsmp4', 'sine_24.nsmp4']) {
+describe.skipIf(!hasGt(...GT_FILES.map((f) => `research/nsmp/ground-truth/${f}`)))('encodeStrokeNW1 — byte-exact vs editor ground truth', () => {
+  for (const name of GT_FILES) {
     it(name, () => {
       const { bytes: expected, channels } = gtStream(name);
       const got = encodeStrokeNW1(channels, {

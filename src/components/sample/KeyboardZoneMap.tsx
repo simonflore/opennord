@@ -8,9 +8,11 @@ const SEMI = W / (KEY_MAX - KEY_MIN);
 const ZONE_TOP = 8, ZONE_H = 56;
 const KB_TOP = 82, KB_H = 92;
 const VIEW_H = KB_TOP + KB_H + 2;
-// Categorical sample-zone palette — dim hues so adjacent samples read apart. A
-// documented data-viz exception to the single-accent rule (like the LCD blues).
-const ZONE_FILL = ['#2f4a59', '#473a59', '#593a3f', '#3a5945', '#534a2c', '#3f3a59'];
+// Categorical sample-zone palette — 6 dim hues so adjacent samples read apart,
+// defined as --zone-1..6 tokens in tokens.css (a documented data-viz exception
+// to the single-accent rule, like the LCD blues). SVG fill takes var() directly.
+const ZONE_COUNT = 6;
+const zoneFill = (pos: number) => `var(--zone-${(pos % ZONE_COUNT) + 1})`;
 
 const xOf = (midi: number) => keyFraction(midi) * W;
 
@@ -65,7 +67,7 @@ export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, on
                 back to the underlying zone/stroke. */}
             <title>{onPlayZone ? `S${pos + 1} — click to audition` : `S${pos + 1}`}</title>
             <rect x={x + 1} y={ZONE_TOP} width={Math.max(0, w - 2)} height={ZONE_H} rx="4"
-              fill={ZONE_FILL[pos % ZONE_FILL.length]}
+              fill={zoneFill(pos)}
               stroke={isSel ? 'var(--red-bright)' : 'var(--line)'} strokeWidth={isSel ? 2.5 : 1} />
             {w > 26 ? (
               <text x={x + w / 2} y={ZONE_TOP + ZONE_H / 2 + 5} textAnchor="middle" fontSize="14" fontWeight="700" fill="var(--ink)">

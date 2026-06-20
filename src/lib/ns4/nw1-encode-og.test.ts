@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { parseNsmpSections } from './nsmp';
 import { decodeStroke } from './nsmp-codec';
 import { encodeStrokeNW1, BLOCK_PER_CH_OG } from './nw1-encode';
+import { hasGt } from './gt-fixtures';
 
 const u24be = (b: Uint8Array, o: number) => ((b[o] << 16) | (b[o + 1] << 8) | b[o + 2]) >>> 0;
 
@@ -60,8 +61,10 @@ const eq = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((v
  *    rule that over-/under-merges loop-heavy regions; see docs/NSMP-CODEC.md).
  *  - **Lossless round-trip** for every stroke (`decode(encode(pcm)) === pcm`).
  */
-describe('encodeStrokeNW1 OG (codec-1) — vs real .nsmp strokes', () => {
-  const files = ['research/nsmp/TAKE ON ME.nsmp', 'nsmp conversion demo files/BrassAlesis 2.nsmp'];
+const OG_TEST_FILES = ['research/nsmp/TAKE ON ME.nsmp', 'nsmp conversion demo files/BrassAlesis 2.nsmp'];
+
+describe.skipIf(!hasGt(...OG_TEST_FILES))('encodeStrokeNW1 OG (codec-1) — vs real .nsmp strokes', () => {
+  const files = OG_TEST_FILES;
 
   it('byte-exact on the strokes the current Phase1 reproduces', () => {
     let exact = 0, total = 0;

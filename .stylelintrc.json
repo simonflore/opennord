@@ -1,0 +1,12 @@
+{
+  "rules": {
+    "color-no-hex": [true, { "message": "Use a var(--token) from tokens.css, not a hardcoded hex." }]
+  },
+  "overrides": [
+    {
+      "comment": "tokens.css defines the palette; decode-inspector.css holds documented data-viz vars.",
+      "files": ["src/styles/tokens.css", "src/components/decode-inspector.css"],
+      "rules": { "color-no-hex": null }
+    }
+  ]
+}

@@ -12,3 +12,12 @@ export function formatSlot(bank: number, location: number): string {
   const loc = location & 0x3f;
   return `${letter}:${Math.floor(loc / 8) + 1}${(loc % 8) + 1}`;
 }
+
+/**
+ * The same address, written out for prose ("Write to Slot A:26"). Use this in
+ * sentences; keep {@link formatSlot} for dense grid cells where space is tight.
+ * @example slotLabel(0, 21) // → "Slot A:36"
+ */
+export function slotLabel(bank: number, location: number): string {
+  return `Slot ${formatSlot(bank, location)}`;
+}

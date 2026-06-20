@@ -64,7 +64,6 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
 
   useEffect(() => {
     if (initial) void loadBytes(initial.bytes, initial.name);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial]);
 
   return (

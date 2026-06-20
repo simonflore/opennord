@@ -21,7 +21,7 @@ export function SampleHeader({ view }: { view: SampleHeaderView }) {
             <span className="ps-pill">{view.checksumOk ? 'checksum ✓' : 'checksum ✗'}</span>
           )}
           {view.isFactory && (
-            <span className="ps-pill" style={{ color: 'var(--warn)', borderColor: '#43222a' }}>factory?</span>
+            <span className="ps-pill" style={{ color: 'var(--warn)', borderColor: 'var(--deps-border)' }}>factory?</span>
           )}
         </div>
       </div>

@@ -1,7 +1,8 @@
 import './library.css';
 import { Button, Card, FilterChip, SearchField, SourceBadge } from '../ui';
 import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
-import type { ScanError } from '../../lib/folder/scan';
+import type { LibraryPrefsApi } from '../../lib/library/prefs';
+import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
 
 interface Props {
   entries: LibraryEntry[];
@@ -14,22 +15,9 @@ interface Props {
   /** Remove an imported program (local source only). */
   onRemove: (id: string) => void;
   /** Sort order + favorites (organize). */
-  sort: LibrarySort;
-  onSort: (s: LibrarySort) => void;
-  favorites: ReadonlySet<string>;
-  onToggleFavorite: (id: string) => void;
-  // Folder source:
-  folderName: string | null;
-  folderCount: number;
-  canPersist: boolean;
-  needsReconnect: boolean;
-  busy: boolean;
-  reconnectError: string | null;
-  onChooseFolder: () => void;
-  onReconnect: () => void;
-  onRefresh: () => void;
-  scanErrors: ScanError[];
-  onForget: () => void;
+  prefs: LibraryPrefsApi;
+  /** The connected folder source (name, scan results, connect/refresh/forget). */
+  folder: FolderLibrary;
 }
 
 const TABS: Array<LibrarySource | 'all'> = ['all', 'nord', 'local'];
@@ -39,10 +27,15 @@ const SORT_LABEL: Record<LibrarySort, string> = { default: 'Default', name: 'Nam
 
 export function LibraryView({
   entries, source, query, onSource, onQuery, onOpen, onImport, onRemove,
-  sort, onSort, favorites, onToggleFavorite,
-  folderName, folderCount, canPersist, needsReconnect, busy, reconnectError,
-  onChooseFolder, onReconnect, onRefresh, scanErrors, onForget,
+  prefs, folder,
 }: Props) {
+  // Unpack the grouped props so the JSX below reads the same as before.
+  const { sort, setSort: onSort, favorites, toggleFavorite: onToggleFavorite } = prefs;
+  const { folderName, canPersist, needsReconnect, busy, reconnectError } = folder;
+  const onChooseFolder = folder.choose, onReconnect = folder.reconnect, onRefresh = folder.refresh, onForget = folder.forget;
+  const folderCount = folder.result.programs.length + folder.result.samples.length;
+  const scanErrors = folder.result.errors;
+
   const nord = entries.filter((e) => e.source === 'nord').length;
   const local = entries.length - nord;
 
@@ -50,7 +43,7 @@ export function LibraryView({
     <div>
       <div className="lib-head">
         <div>
-          <div className="lib-title">Library</div>
+          <h1 className="lib-title">Library</h1>
           <div className="lib-counts">{entries.length} programs · {nord} on Nord · {local} local</div>
         </div>
         <div className="lib-actions">
@@ -89,7 +82,7 @@ export function LibraryView({
       )}
 
       <div className="lib-controls">
-        <SearchField value={query} onChange={onQuery} placeholder="Search patches, or describe a sound…" />
+        <SearchField value={query} onChange={onQuery} placeholder="Search patches by name…" />
         {TABS.map((t) => (
           <FilterChip key={t} active={source === t} onClick={() => onSource(t)}>{TAB_LABEL[t]}</FilterChip>
         ))}
