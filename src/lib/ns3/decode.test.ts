@@ -211,16 +211,25 @@ describe('decodeNs3', () => {
 
   it('decodes organ octave shift from 0xBA(b3-0)', () => {
     const b = new Uint8Array(600);
-    // octRaw = (0xBA & 0x0f); shift = raw - 4; raw=6 → shift=+2
-    b[0xba] = 0x06;
+    // octRaw = (0xBA & 0x0f); shift = raw - 6; raw=8 → shift=+2
+    b[0xba] = 0x08;
     expect(decodeNs3(b).panels[0].organ.octaveShift).toBe(2);
+    // center: raw=6 → shift=0
+    const c = new Uint8Array(600); c[0xba] = 0x06;
+    expect(decodeNs3(c).panels[0].organ.octaveShift).toBe(0);
   });
 
-  it('decodes piano timbre from 0x4E(b5-3)', () => {
+  it('decodes piano timbre from 0x4E(b5-3) (type-dependent, oracle ns3PianoTimbreMap)', () => {
     const b = new Uint8Array(600);
-    // timbre: (0x4E & 0x38)>>>3 = 2 → 'Bright'
-    b[0x4e] = 0x10; // 0x10 = 0001_0000, (& 0x38)>>>3 = 2
-    expect(decodeNs3(b).panels[0].piano.timbre).toBe('Bright');
+    // Grand (type 0): raw=2 → 'Mid'; raw=3 → 'Bright'
+    b[0x4e] = 0x10; // (0x10 & 0x38)>>>3 = 2
+    b[0x48] = 0x00; // type bits 5-3 = 0 → Grand
+    expect(decodeNs3(b).panels[0].piano.timbre).toBe('Mid');
+    // Electric (type 2): raw=4 → 'Dyno1'
+    const e = new Uint8Array(600);
+    e[0x48] = 0x10; // type bits 5-3 = 2 → Electric
+    e[0x4e] = 0x20; // (0x20 & 0x38)>>>3 = 4
+    expect(decodeNs3(e).panels[0].piano.timbre).toBe('Dyno1');
   });
 
   it('decodes compressor enable + params from 0x139-0x13A', () => {
@@ -249,5 +258,68 @@ describe('decodeNs3', () => {
     const rot = decodeNs3(b).panels[0].fx.find((f) => f.name === 'Rotary');
     expect(rot).toBeDefined();
     expect(rot?.params?.speed).toBe('Slow');
+  });
+
+  it('decodes piano octave shift from 0x47(b3-0), center=6 (oracle ns3-piano.js)', () => {
+    const b = new Uint8Array(600);
+    // raw=8 → shift=+2; raw=6 → shift=0; raw=4 → shift=-2
+    b[0x47] = 0x08;
+    expect(decodeNs3(b).panels[0].piano.octaveShift).toBe(2);
+    const c = new Uint8Array(600); c[0x47] = 0x06;
+    expect(decodeNs3(c).panels[0].piano.octaveShift).toBe(0);
+  });
+
+  // ── Fixture cross-check: oracle-derived expected values ────────────────────
+  // These expected values were extracted by running ns3-program-viewer (Chris55, GPLv3)
+  // on the 4 Stage-3 fixture files and reading the oracle output fields.
+  // Oracle clone (NOT checked in): https://github.com/Chris55/ns3-program-viewer
+  //
+  // Tests skip gracefully if fixture files are absent (gitignored corpus).
+  // If you update/add fixtures, re-run /tmp/ns3-crosscheck.mjs to refresh these values.
+  describe('fixture oracle cross-check (skip if files absent)', () => {
+    const FIXTURES_DIR = new URL('../../../../fixtures/stage-3/', import.meta.url).pathname;
+
+    function readFixture(name: string): Uint8Array | null {
+      try {
+        // vitest/Node: synchronous require for fixture reads
+        // biome-ignore lint: require is intentional here for sync reads in vitest
+        const fs = require('fs') as typeof import('fs');
+        const b = fs.readFileSync(`${FIXTURES_DIR}${name}`);
+        return new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
+      } catch { return null; }
+    }
+
+    // Money_Wurly panel A: Electric piano, Mid timbre, organ at +0 oct, synth osc=Sample
+    it('Money_Wurly panelA: piano type=Electric, timbre=Mid, organOctShift=0', () => {
+      const buf = readFixture('s50428_Money_Wurly.ns3f');
+      if (!buf) return; // fixture absent
+      const pa = decodeNs3(buf).panels[0]; // panel A (flag=2, both panels)
+      expect(pa.piano.type).toBe('Electric');
+      expect(pa.piano.timbre).toBe('Mid');       // oracle: timbre.value='Mid'
+      expect(pa.organ.octaveShift).toBe(0);      // oracle: octaveShift.value='+0 oct' → 0
+      expect(pa.piano.octaveShift).toBe(0);      // oracle: octaveShift.value='+0 oct' → 0
+      expect(pa.synth.osc).toBe('Sample');       // oracle: oscillators.type.value='Sample'
+    });
+
+    // Heavi_Fuel panel A: Upright piano, Soft timbre, organ octave +2
+    it('Heavi_Fuel panelA: piano type=Upright, timbre=Soft, organOctShift=+2', () => {
+      const buf = readFixture('s50427_Heavi_Fuel.ns3f');
+      if (!buf) return;
+      const pa = decodeNs3(buf).panels[0]; // panel A
+      expect(pa.piano.type).toBe('Upright');
+      expect(pa.piano.timbre).toBe('Soft');      // oracle: 'Soft'
+      expect(pa.organ.octaveShift).toBe(2);      // oracle: raw=8 → +2
+      expect(pa.piano.octaveShift).toBe(0);      // oracle: raw=6 → 0
+    });
+
+    // Organ Lead panel B: B3 organ, octaveShift=0
+    it('Boston panelB: organ=B3, octaveShift=0', () => {
+      const buf = readFixture('Organ Lead for Smokin by Boston.ns3f');
+      if (!buf) return;
+      const prog = decodeNs3(buf);
+      expect(prog.panels[0].id).toBe('B');       // flag=1 → panel B only
+      expect(prog.panels[0].organ.type).toBe('B3');
+      expect(prog.panels[0].organ.octaveShift).toBe(0); // oracle: raw=6 → 0
+    });
   });
 });

@@ -407,9 +407,9 @@ function organ(b: Uint8Array, base: number): Ns3Panel['organ'] {
   const preset2 = (u8(b, base + 0xbb) & 0x04) !== 0;
   const drawbarBase = base + (preset2 ? 0xd9 : 0xbe);
   const pb = base + (preset2 ? 0xee : 0xd3); // percussion/vib enable byte
-  // Octave shift: ns3-organ.js 0xBA(b3-0) — 4-bit signed, -2..+2 mapped via 0-8 (4=0)
+  // Octave shift: ns3-organ.js 0xBA(b3-0) — 4-bit raw, center=6 (range ±2), shift = raw − 6.
   const octRaw = u8(b, base + 0xba) & 0x0f;
-  const octaveShift = octRaw - 4; // 0→-4, 4→0, 8→+4 (display range ±2)
+  const octaveShift = octRaw - 6; // 4→-2, 6→0, 8→+2
   return {
     on: (u16(b, base + 0xb6) & 0x8000) !== 0,
     type: lut(ORGAN_TYPE, (u8(b, base + 0xbb) & 0x70) >>> 4),
@@ -426,23 +426,38 @@ function organ(b: Uint8Array, base: number): Ns3Panel['organ'] {
   };
 }
 
-// Piano timbre table — ns3-piano.js: pianoTimbreMap (0x4E bits 5-3)
-const PIANO_TIMBRE = ['Soft', 'Mid', 'Bright', 'Nasal', 'Treble', 'Clavinet'];
+/**
+ * Piano timbre — ns3-piano.js: ns3PianoTimbreMap (0x4E bits 5-3).
+ * The raw 3-bit value maps to per-type label arrays (index 0 = None):
+ *   Grand/Upright/Digital/Misc: None, Soft, Mid, Bright
+ *   Electric:                   None, Soft, Mid, Bright, Dyno1, Dyno2
+ *   Clav:                       None, Soft, Treble, Soft+Treble, Brilliant, Soft+Brill, Treble+Brill, Soft+Trb+Brill
+ * We resolve per-type using PIANO_TYPE index; fall back to Grand labels for unknown types.
+ */
+function pianoTimbre(typeIdx: number, timbreRaw: number): string {
+  // Grand=0, Upright=1, Electric=2, Clav=3, Digital=4, Misc=5
+  const GRAND   = ['None', 'Soft', 'Mid', 'Bright', 'None', 'None', 'None', 'None'];
+  const ELECTRIC = ['None', 'Soft', 'Mid', 'Bright', 'Dyno1', 'Dyno2', 'None', 'None'];
+  const CLAV    = ['None', 'Soft', 'Treble', 'Soft+Treble', 'Brilliant', 'Soft+Brill', 'Treble+Brill', 'Soft+Trb+Brill'];
+  if (typeIdx === 2) return ELECTRIC[timbreRaw] ?? 'None';
+  if (typeIdx === 3) return CLAV[timbreRaw] ?? 'None';
+  return GRAND[timbreRaw] ?? 'None';
+}
 
 function piano(b: Uint8Array, base: number): Ns3Panel['piano'] {
-  // timbre: 0x4E(b5-3), 3 bits — ns3-piano.js
-  const timbreIdx = (u8(b, base + 0x4e) & 0x38) >>> 3;
-  // Piano octave shift reuses the same register as synth octave shift: 0x56(b3-0)
-  // ns3-piano.js reads ns3OctaveShift from 0x56
-  const octRaw = u8(b, base + 0x56) & 0x0f;
-  const octaveShift = octRaw - 4;
+  // timbre: 0x4E(b5-3), 3 bits — ns3-piano.js ns3PianoTimbreMap
+  const timbreRaw = (u8(b, base + 0x4e) & 0x38) >>> 3;
+  const typeIdx = (u8(b, base + 0x48) & 0x38) >>> 3;
+  // Piano octave shift: ns3-piano.js 0x47(b3-0), center=6, shift = raw − 6.
+  const octRaw = u8(b, base + 0x47) & 0x0f;
+  const octaveShift = octRaw - 6;
   return {
     on: (u16(b, base + 0x43) & 0x8000) !== 0,
-    type: lut(PIANO_TYPE, (u8(b, base + 0x48) & 0x38) >>> 3),
+    type: lut(PIANO_TYPE, typeIdx),
     volume: vol(b, base + 0x43),
     sampleId: Number((u64(b, base + 0x49) & 0x0ffffffff0000000n) >> 28n),
     sampleVariation: (u8(b, base + 0x49) & 0x30) >>> 4,
-    timbre: lut(PIANO_TIMBRE, timbreIdx),
+    timbre: pianoTimbre(typeIdx, timbreRaw),
     octaveShift,
   };
 }
