@@ -1,8 +1,8 @@
 # OpenNord
 
-**An open, AI-native companion for the Nord® Stage 4.** Browse, share, and visualize your programs — and talk to your Nord directly over USB, without a desktop app.
+**An open, AI-native companion for Nord® keyboards** — starting with the **Nord Stage** line. Browse, share, and visualize your programs — and talk to your Nord directly over USB, without a desktop app.
 
-> Status: **early — the reverse-engineering is done, the product is being built.** The `.ns4p` format is decoded and validated (0-mismatch against ns4decode), and the Stage 4's USB transfer protocol is fully reverse-engineered and **hardware-validated in both directions** (enumerate, read, *and* write — proven by reading and writing real programs on a device). What remains is the product layer — UI, community sharing, AI — see [`docs/ROADMAP.md`](docs/ROADMAP.md).
+> Status: **early — the reverse-engineering is done, the product is being built.** OpenNord is built for the **whole Nord family**: one shared file container and one shared USB transport run the entire line, so the architecture is family-wide from the ground up (`src/lib/clavia/` already carries a full-line model registry). The **Nord Stage series is what we cover first** — Stage 2 / 3 / 4 files read today, and the **Stage 4** is decoded and validated (0-mismatch against ns4decode) with its USB transfer protocol fully reverse-engineered and **hardware-validated in both directions** (enumerate, read, *and* write — proven on a device). Other Nord families (Electro, Piano, Lead, …) are mapped and next in line. What remains is the product layer — UI, community sharing, AI — see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 > [!WARNING]
 > **Alpha software — use at your own risk.** OpenNord is under active development,
@@ -16,10 +16,11 @@ OpenNord is **free and open source** (AGPL-3.0). It exists because everything th
 
 ## What it does (and will do)
 
-- **Read a program.** Drop a `.ns4p` (program) or preset file and see what's inside — piano/sample, organ, synth, effects — no keyboard or Sound Manager required.
+- **Read a program.** Drop a program or preset file from any **Nord Stage** — Stage 2 / 3 / 4 (`.ns2p` / `.ns3f` / `.ns4p` …) — and see what's inside: piano/sample, organ, synth, effects. No keyboard or Sound Manager required. Every Nord generation shares the same CBIN container, so reading runs through one model-codec registry built to extend across the whole family ([`docs/MULTI-MODEL.md`](docs/MULTI-MODEL.md)).
+- **Browse your patches.** Point OpenNord at a folder of programs and it builds a searchable, mobile-first **Library** — the home screen — with a master/detail program view. There's also a sample workshop for `.nsmp`/`.nsmp4` files (inspect, convert across generations, import a WAV).
 - **Share a patch.** A community library of *user programs*: upload yours, search others in plain language ("warm Rhodes with tape echo"), rate, fork. (Programs reference Nord's factory samples by id — you share the program, the other player already has the sample. See [`docs/LEGAL.md`](docs/LEGAL.md).)
 - **AI-native.** Natural-language search, AI explanations of what a patch does, and "describe the sound you want → get a patch."
-- **Talk to your Nord.** Pull programs off the keyboard and write them back — over a reverse-engineered **USB** protocol, proven on real hardware (desktop, via WebUSB / node-usb). It's a vendor bulk protocol, *not* MIDI SysEx — see [`docs/PROTOCOL-RE.md`](docs/PROTOCOL-RE.md). Transfer runs on **desktop** (WebUSB / node-usb) and on a **native iPad app (M1+, via a DriverKit extension)**; a PWA and iPhone can't reach vendor USB, so they get read/share/AI + live MIDI ([`docs/SYSEX-SPIKE.md`](docs/SYSEX-SPIKE.md)).
+- **Talk to your Nord.** Pull programs off the keyboard and write them back — over a reverse-engineered **USB** protocol, proven on real hardware (desktop, via WebUSB / node-usb). It's a vendor bulk protocol, *not* MIDI SysEx — see [`docs/PROTOCOL-RE.md`](docs/PROTOCOL-RE.md). A read-only **"Check my Nord"** probe also enumerates any connected Clavia device and reports what OpenNord supports for it. Transfer runs on **desktop** (WebUSB / node-usb) and on a **native iPad app (M1+, via a DriverKit extension)**; a PWA and iPhone can't reach vendor USB, so they get read/share/AI + live MIDI ([`docs/SYSEX-SPIKE.md`](docs/SYSEX-SPIKE.md)).
 
 ## Why it can exist
 
@@ -29,11 +30,13 @@ A lot was already done — see [`ATTRIBUTION.md`](ATTRIBUTION.md). The Stage 2/3
 
 ```bash
 npm install
-npm run dev        # web app
-npm test           # parser tests
-npm run typecheck  # tsc --noEmit (the CI gate — keep it green)
-npm run build      # production build
-npm run cap:sync   # wrap for iOS (Capacitor) once you add the ios/ platform
+npm run dev          # web app
+npm test             # parser/decoder tests (vitest)
+npm run typecheck    # tsc --noEmit  ┐
+npm run lint         # eslint + stylelint ┘ CI gates — keep both green
+npm run build        # production build
+npm run fixtures:scan # auto-RE harness over the local corpus (gitignored)
+npm run cap:sync     # wrap for iOS (Capacitor) once you add the ios/ platform
 ```
 
 Working in this repo with an AI agent? See [`CLAUDE.md`](CLAUDE.md) for the
@@ -43,11 +46,16 @@ decode-layer map, commands, and the legal guardrails.
 
 | Path | What |
 |---|---|
-| `src/lib/ns4/` | `.ns4p` program model + parser/decoder (decoded + validated) |
-| `src/lib/midi/` | experimental MIDI/SysEx scaffold (the iOS-transfer retest path) |
-| `src/lib/ai/` | AI-native search / explanation |
+| `src/lib/clavia/` | the shared, model-agnostic layer: CBIN container, checksum, name/slot/category, the file identifier + `ModelCodec` registry |
+| `src/lib/ns4/` | the Stage 4 `.ns4p` body codec — model + parser + bit/byte decode (decoded + validated, the heart) |
+| `src/lib/ns3/`, `src/lib/ns2/` | Stage 3 / Stage 2 body decoders + factory-library catalogs (multi-model, [`docs/MULTI-MODEL.md`](docs/MULTI-MODEL.md)) |
+| `src/lib/device/` | WebUSB device layer — transport → session → transfer (read/write), backup, hardware probe |
+| `src/lib/folder/` | local-folder library: scan/classify/index `.ns*` files into the Library |
+| `src/lib/library/` | the unified Library model + import store |
+| `src/lib/ai/` | AI-native search / explanation (provider-pluggable) |
+| `src/lib/midi/` | **live** CC/NRPN only — *not* the transfer path (that's vendor USB in `device/`) |
 | `scripts/` | USB-protocol tools (`nord*.c`, libusb) + RE tooling (Ghidra dumpers) |
-| `docs/` | architecture, roadmap, format notes, the USB protocol, legal stance |
+| `docs/` | architecture, roadmap, format notes, the USB protocol, multi-model, legal stance |
 
 ## Contributing
 
