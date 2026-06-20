@@ -63,6 +63,14 @@ describe('decodeNs3', () => {
     expect(org.percussion).toEqual({ on: true, third: true, fast: false, soft: false });
   });
 
+  it('reads organ drawbars from preset 2 when it is active (0xBB.b2)', () => {
+    const b = new Uint8Array(600);
+    b[0xbb] = 0x04;   // preset 2 enabled (type bits 0 → B3)
+    b[0xd9] = 0x70;   // preset-2 drawbar 1 @0xD9 → 7
+    b[0xbe] = 0x10;   // preset-1 drawbar 1 @0xBE → 1 (proves we DON'T read preset 1)
+    expect(decodeNs3(b).panels[0].organ.drawbars[0]).toBe(7);
+  });
+
   it('lists active FX with types (reverb + delay)', () => {
     const b = new Uint8Array(600);
     b[0x134] = 0x02;   // reverb enable; type (u16 & 0x01c0)>>>6 = 0 → Room 1

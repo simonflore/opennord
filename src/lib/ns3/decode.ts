@@ -41,12 +41,11 @@ const vol = (b: Uint8Array, o: number): string => NORD_DB[(u16(b, o) & 0x07f0) >
 export interface Ns3Fx { name: string; type?: string }
 
 /**
- * The 9 organ drawbar positions (0-8) of preset 1. Each is a 3-4 bit field at a
- * fixed offset from the drawbar base (0xBE on panel A) — masks per ns3-organ.js
- * `getDrawbars`. (B3 reads them straight; Vox/Farfisa relabel for display.)
+ * The 9 organ drawbar positions (0-8) from a drawbar block base `o` — masks per
+ * ns3-organ.js `getDrawbars`. The same layout serves both presets (preset 1 at
+ * 0xBE, preset 2 at 0xD9). (B3 reads them straight; Vox/Farfisa relabel for display.)
  */
-function readDrawbars(b: Uint8Array, base: number): number[] {
-  const o = base + 0xbe;
+function readDrawbars(b: Uint8Array, o: number): number[] {
   return [
     (u8(b, o) & 0xf0) >>> 4,         // 0xBE
     (u8(b, o + 2) & 0x1e) >>> 1,     // 0xC0
@@ -100,6 +99,31 @@ export interface Ns3Program {
   panels: Ns3Panel[];
 }
 
+/**
+ * Decode the organ engine, reading the **active preset's** drawbar + vib/percussion
+ * blocks. Preset 2 (enabled @0xBB.b2) mirrors preset 1's layout, shifted: drawbars
+ * 0xBE→0xD9, vib/percussion enable byte 0xD3→0xEE (the vib/chorus *mode* @0x34 is a
+ * shared global). Preset-1 files are unaffected (the common, validated path).
+ */
+function organ(b: Uint8Array, base: number): Ns3Panel['organ'] {
+  const preset2 = (u8(b, base + 0xbb) & 0x04) !== 0;
+  const drawbarBase = base + (preset2 ? 0xd9 : 0xbe);
+  const pb = base + (preset2 ? 0xee : 0xd3); // percussion/vib enable byte
+  return {
+    on: (u16(b, base + 0xb6) & 0x8000) !== 0,
+    type: lut(ORGAN_TYPE, (u8(b, base + 0xbb) & 0x70) >>> 4),
+    volume: vol(b, base + 0xb6),
+    drawbars: readDrawbars(b, drawbarBase),
+    vibChorus: { on: (u8(b, pb) & 0x10) !== 0, mode: lut(VIB_CHORUS, (u8(b, base + 0x34) & 0x0e) >>> 1) },
+    percussion: {
+      on: (u8(b, pb) & 0x08) !== 0,
+      third: (u8(b, pb) & 0x04) !== 0,
+      fast: (u8(b, pb) & 0x02) !== 0,
+      soft: (u8(b, pb) & 0x01) !== 0,
+    },
+  };
+}
+
 function readPanel(b: Uint8Array, id: 'A' | 'B', base: number): Ns3Panel {
   return {
     id,
@@ -112,22 +136,7 @@ function readPanel(b: Uint8Array, id: 'A' | 'B', base: number): Ns3Panel {
       sampleVariation: (u8(b, base + 0x49) & 0x30) >>> 4,
     },
     // organ enable @0xB6.b7; type @0xBB.b6-4; volume @0xB6
-    organ: {
-      on: (u16(b, base + 0xb6) & 0x8000) !== 0,
-      type: lut(ORGAN_TYPE, (u8(b, base + 0xbb) & 0x70) >>> 4),
-      volume: vol(b, base + 0xb6),
-      drawbars: readDrawbars(b, base),
-      // Vib/Chorus mode @0x34.b3-1, on @0xD3.b4; percussion on/flags @0xD3.b3-0.
-      // We read preset 1 (the active one when preset 2 @0xBB.b2 is off — the common
-      // case). Preset 2's block (0xEE) isn't surfaced yet. TODO when a file needs it.
-      vibChorus: { on: (u8(b, base + 0xd3) & 0x10) !== 0, mode: lut(VIB_CHORUS, (u8(b, base + 0x34) & 0x0e) >>> 1) },
-      percussion: {
-        on: (u8(b, base + 0xd3) & 0x08) !== 0,
-        third: (u8(b, base + 0xd3) & 0x04) !== 0,
-        fast: (u8(b, base + 0xd3) & 0x02) !== 0,
-        soft: (u8(b, base + 0xd3) & 0x01) !== 0,
-      },
-    },
+    organ: organ(b, base),
     // synth enable @0x52.b7; osc type @0x8D.b1-0+0x8E.b7; filter type @0x98.b4-2; volume @0x52
     synth: {
       on: (u16(b, base + 0x52) & 0x8000) !== 0,
