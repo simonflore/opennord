@@ -7,7 +7,9 @@ import { findAuthorizedDevice } from '../../lib/device/authorized';
 import { Button, SectionLabel } from '../ui';
 import './connect.css';
 
-const NORD_FILTER: USBDeviceFilter = { vendorId: 0x0ffc, productId: 0x002e };
+// Vendor-only (Clavia DMI AB) — accept the whole Nord line, as NSM does. The
+// Stage 4 transfer flows are validated; other models connect read-only (probe).
+const NORD_FILTER: USBDeviceFilter = { vendorId: 0x0ffc };
 
 type Status = 'idle' | 'connecting' | 'connected' | 'error';
 

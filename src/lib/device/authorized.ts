@@ -10,7 +10,11 @@ export function findAuthorizedDevice(
   devices: USBDevice[],
   filter: USBDeviceFilter,
 ): USBDevice | undefined {
+  // Match on vendor; only constrain the product when the filter sets one. A
+  // vendor-only filter (Clavia 0x0ffc) accepts the whole Nord line — exactly what
+  // Nord Sound Manager does (docs/NORD-PRODUCT-LINE.md).
   return devices.find(
-    (d) => d.vendorId === filter.vendorId && d.productId === filter.productId,
+    (d) => d.vendorId === filter.vendorId &&
+      (filter.productId === undefined || d.productId === filter.productId),
   );
 }
