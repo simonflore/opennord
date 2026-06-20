@@ -56,6 +56,15 @@ describe('decodeNs2', () => {
     expect(dr.every((d) => d >= 0 && d <= 8)).toBe(true);
   });
 
+  it('lists active per-slot FX with types (effect 2 + delay)', () => {
+    const b = t1();
+    b[0x11a] = 0x24;   // effect 2 on (0x20) + type 4 → Chorus 1
+    b[0x125] = 0x20;   // delay on
+    const fx = decodeNs2(b).slots[0].fx;
+    expect(fx.map((f) => f.name)).toEqual(['Effect 2', 'Delay']); // signal order
+    expect(fx.find((f) => f.name === 'Effect 2')?.type).toBe('Chorus 1');
+  });
+
   it('applies versionOffset -20 for the legacy header (0x04 ≠ 1)', () => {
     const b = new Uint8Array(600); // 0x04 = 0 → legacy → all body offsets -20
     b[0x2e - 20] = 0;          // slot flag → A only

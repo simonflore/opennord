@@ -19,6 +19,9 @@ const SLOT_STRIDE = 249; // slot B = slot A + 0xf9
 const PIANO_TYPE = ['Grand', 'Upright', 'E Piano 1', 'E Piano 2', 'Clavinet', 'Harpsi'];
 const ORGAN_TYPE = ['B3', 'Vox', 'Farfisa'];
 const SYNTH_OSC = ['TRI', 'SAW', 'SQR', 'SAMPLE', 'FM', 'WAVE'];
+const EFFECT1_TYPE = ['Panning', 'Tremolo', 'Ring Mod', 'Wah-Wah', 'Auto-Wah 1', 'Auto-Wah 2'];
+const EFFECT2_TYPE = ['Phaser 1', 'Phaser 2', 'Flanger', 'Vibe', 'Chorus 1', 'Chorus 2'];
+const AMP_TYPE = ['Off', 'Small', 'JC', 'Twin'];
 
 import { NORD_DB } from '../clavia/volume';
 
@@ -48,6 +51,22 @@ function readDrawbars(b: Uint8Array, o: number): number[] {
   ];
 }
 
+export interface Ns2Fx { name: string; type?: string }
+
+/** The per-slot effects switched on, with type where the effect has one. */
+function readFx(b: Uint8Array, o: number): Ns2Fx[] {
+  const fx: Ns2Fx[] = [];
+  if ((u8(b, o + 0x10f) & 0x20) !== 0) fx.push({ name: 'Effect 1', type: lut(EFFECT1_TYPE, u8(b, o + 0x10f) & 0x07) });
+  if ((u8(b, o + 0x11a) & 0x20) !== 0) fx.push({ name: 'Effect 2', type: lut(EFFECT2_TYPE, u8(b, o + 0x11a) & 0x07) });
+  if ((u8(b, o + 0x133) & 0x10) !== 0) {
+    const t = lut(AMP_TYPE, u8(b, o + 0x133) & 0x03);
+    fx.push({ name: 'Amp/EQ', type: t !== 'Off' ? t : undefined });
+  }
+  if ((u8(b, o + 0x125) & 0x20) !== 0) fx.push({ name: 'Delay' });
+  if ((u8(b, o + 0x3f) & 0x10) !== 0) fx.push({ name: 'Rotary' });
+  return fx;
+}
+
 export interface Ns2Slot {
   id: 'A' | 'B';
   /** Slot plays in this program (per the 0x2E slot-enable flag). */
@@ -55,6 +74,8 @@ export interface Ns2Slot {
   organ: { on: boolean; type: string; volume: string; drawbars: number[] };
   piano: { on: boolean; type: string; volume: string };
   synth: { on: boolean; osc: string; volume: string };
+  /** Per-slot effects switched on, in signal order. */
+  fx: Ns2Fx[];
 }
 
 export interface Ns2Program {
@@ -72,6 +93,7 @@ function readSlot(b: Uint8Array, id: 'A' | 'B', vo: number, active: boolean): Ns
     piano: { on: (u8(b, o + 0x48) & 0x80) !== 0, type: lut(PIANO_TYPE, (u8(b, o + 0xcd) & 0xe0) >>> 5), volume: db(u8(b, o + 0x4b) & 0x7f) },
     // synth on @0x4D.b6; osc type @0xE1.b9-7; volume @0x50.b13-7
     synth: { on: (u8(b, o + 0x4d) & 0x40) !== 0, osc: lut(SYNTH_OSC, (u16(b, o + 0xe1) & 0x0380) >>> 7), volume: db((u16(b, o + 0x50) & 0x3f80) >>> 7) },
+    fx: readFx(b, o),
   };
 }
 

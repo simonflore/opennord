@@ -16,11 +16,13 @@ function toSection(slot: Ns2Slot): DecodedSection {
   if (slot.synth.on) engines.push({ label: 'Synth', parts: [slot.synth.osc, slot.synth.volume] });
   // Drawbars are the 4-bit B3/Vox encoding; Farfisa's 1-bit form isn't read yet.
   const hasDrawbars = slot.organ.on && (slot.organ.type === 'B3' || slot.organ.type === 'Vox');
+  const chips = slot.fx.map((f) => (f.type ? `${f.name}: ${f.type}` : f.name));
   return {
     id: slot.id,
     label: `SLOT ${slot.id}`,
     engines,
     drawbars: hasDrawbars ? drawbarViews(slot.organ.drawbars, slot.organ.type === 'B3' ? B3_FOOTAGE : undefined) : undefined,
+    chips: chips.length ? chips : undefined,
   };
 }
 
