@@ -74,6 +74,15 @@ describe('decodeNs2', () => {
     expect(p.clavVariation).toBe(1);
   });
 
+  it('decodes program-global reverb (+ type) and compressor', () => {
+    const b = t1();
+    b[0x3d] = 0xc0;   // reverb on (0x8000) + type 4 → Hall 1
+    b[0x3e] = 0x10;   // compressor on (0x1000)
+    const g = decodeNs2(b).globalFx;
+    expect(g.map((x) => x.name)).toEqual(['Reverb', 'Comp']);
+    expect(g[0].type).toBe('Hall 1');
+  });
+
   it('applies versionOffset -20 for the legacy header (0x04 ≠ 1)', () => {
     const b = new Uint8Array(600); // 0x04 = 0 → legacy → all body offsets -20
     b[0x2e - 20] = 0;          // slot flag → A only

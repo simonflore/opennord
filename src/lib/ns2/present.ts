@@ -9,7 +9,11 @@ import type { DecodedProgram, DecodedSection, DecodedEngine } from '../clavia/de
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
 import { decodeNs2, type Ns2Slot } from './decode';
 
-function toSection(slot: Ns2Slot): DecodedSection {
+function fxChip(f: { name: string; type?: string }): string {
+  return f.type ? `${f.name}: ${f.type}` : f.name;
+}
+
+function toSection(slot: Ns2Slot, globalChips: string[]): DecodedSection {
   const engines: DecodedEngine[] = [];
   if (slot.organ.on) engines.push({ label: 'Organ', parts: [slot.organ.type, slot.organ.volume] });
   if (slot.piano.on) engines.push({ label: 'Piano', parts: [slot.piano.type, slot.piano.volume], nameSlot: 0 });
@@ -18,7 +22,8 @@ function toSection(slot: Ns2Slot): DecodedSection {
   }
   // Drawbars are the 4-bit B3/Vox encoding; Farfisa's 1-bit form isn't read yet.
   const hasDrawbars = slot.organ.on && (slot.organ.type === 'B3' || slot.organ.type === 'Vox');
-  const chips = slot.fx.map((f) => (f.type ? `${f.name}: ${f.type}` : f.name));
+  // Per-slot FX then the program-global FX (reverb/comp apply across the program).
+  const chips = [...slot.fx.map(fxChip), ...globalChips];
   return {
     id: slot.id,
     label: `SLOT ${slot.id}`,
@@ -30,7 +35,8 @@ function toSection(slot: Ns2Slot): DecodedSection {
 
 export function ns2Decoded(bytes: Uint8Array): DecodedProgram {
   const info = identifyNordFile(bytes);
-  const { slots } = decodeNs2(bytes);
+  const { slots, globalFx } = decodeNs2(bytes);
+  const globalChips = globalFx.map(fxChip);
 
   const header: [string, string][] = [];
   if (info.slot) header.push(['Slot', info.slot]);
@@ -57,7 +63,7 @@ export function ns2Decoded(bytes: Uint8Array): DecodedProgram {
   return {
     title: 'Stage 2 · Program',
     header,
-    sections: slots.map(toSection),
+    sections: slots.map((s) => toSection(s, globalChips)),
     note: 'Stage 2 decode (Tier 2): active slots, engines + model/type, levels, organ drawbars, FX and factory sample names. Offsets + library from the community ns3-program-viewer (see docs).',
     enrich,
   };

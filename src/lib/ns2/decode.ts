@@ -22,6 +22,7 @@ const SYNTH_OSC = ['TRI', 'SAW', 'SQR', 'SAMPLE', 'FM', 'WAVE'];
 const EFFECT1_TYPE = ['Panning', 'Tremolo', 'Ring Mod', 'Wah-Wah', 'Auto-Wah 1', 'Auto-Wah 2'];
 const EFFECT2_TYPE = ['Phaser 1', 'Phaser 2', 'Flanger', 'Vibe', 'Chorus 1', 'Chorus 2'];
 const AMP_TYPE = ['Off', 'Small', 'JC', 'Twin'];
+const REVERB_TYPE = ['Room 1', 'Room 2', 'Stage 1', 'Stage 2', 'Hall 1', 'Hall 2'];
 
 import { NORD_DB } from '../clavia/volume';
 
@@ -89,6 +90,8 @@ export interface Ns2Slot {
 
 export interface Ns2Program {
   slots: Ns2Slot[];
+  /** Program-global effects (reverb, compressor) — apply across both slots. */
+  globalFx: Ns2Fx[];
 }
 
 function readSlot(b: Uint8Array, id: 'A' | 'B', vo: number, active: boolean): Ns2Slot {
@@ -132,5 +135,12 @@ export function decodeNs2(bytes: Uint8Array): Ns2Program {
   // Organ type is a hardware-global (shared from slot A) — mirror the oracle.
   b.organ.type = a.organ.type;
 
-  return { slots: [a, b].filter((s) => s.active) };
+  // Program-global FX (versionOffset only, no slot shift): reverb @0x3D, comp @0x3E.
+  const globalFx: Ns2Fx[] = [];
+  if ((u16(bytes, 0x3d + versionOffset) & 0x8000) !== 0) {
+    globalFx.push({ name: 'Reverb', type: lut(REVERB_TYPE, (u16(bytes, 0x3d + versionOffset) & 0x7000) >>> 12) });
+  }
+  if ((u16(bytes, 0x3e + versionOffset) & 0x1000) !== 0) globalFx.push({ name: 'Comp' });
+
+  return { slots: [a, b].filter((s) => s.active), globalFx };
 }

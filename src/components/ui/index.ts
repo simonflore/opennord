@@ -5,3 +5,4 @@ export { FilterChip } from './FilterChip';
 export { SourceBadge, type LibrarySource } from './SourceBadge';
 export { SearchField } from './SearchField';
 export { SectionLabel } from './SectionLabel';
+export { SplitView } from './SplitView';

@@ -56,3 +56,20 @@
   .on-rail__note-text { display: none; }
   .on-content { padding: var(--s-3) var(--s-4); }
 }
+
+/* Native shell only (Capacitor) — additive, scoped under [data-native] so the
+   web build is byte-identical. index.html already sets viewport-fit=cover. */
+[data-native] .on-rail {
+  padding-top: max(var(--s-4), env(safe-area-inset-top));
+  padding-left: max(var(--s-3), env(safe-area-inset-left));
+}
+[data-native] .on-content {
+  padding-right: max(var(--s-6), env(safe-area-inset-right));
+  padding-bottom: max(var(--s-4), env(safe-area-inset-bottom));
+}
+/* Suppress the iOS long-press callout / text selection on app chrome. */
+[data-native] {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
