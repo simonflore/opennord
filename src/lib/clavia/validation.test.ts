@@ -61,4 +61,15 @@ describe('validation matrix', () => {
   it('lead-4 samples is unsupported (sampleCodec null — no sample engine)', () => {
     expect(statusFor('lead-4', 'samples').status).toBe('unsupported');
   });
+  // CBIN container identify validated against 52 real .nlap/.nlas fixtures.
+  // CMini inherits base-class defaults only (constructor-only in NSM); no model-specific body decoder needed.
+  // Transfer caps stay inferred: A1 native transfer is MIDI SysEx (A1 user manual); FileTransfer path unverified.
+  it('lead-a1 file-read is re (52 fixtures, CBIN container validated)', () => {
+    expect(statusFor('lead-a1', 'file-read').status).toBe('re');
+  });
+  it('lead-a1 transfer caps stay at inferred (MIDI SysEx native; FileTransfer unverified)', () => {
+    for (const cap of ['enumerate', 'pull', 'push', 'delete', 'backup'] as const) {
+      expect(statusFor('lead-a1', cap).status, `lead-a1 ${cap}`).toBe('inferred');
+    }
+  });
 });
