@@ -12,6 +12,9 @@ import './decode-inspector.css';
 import { bytesToBitString } from '../lib/ns4/bits';
 import { fileTypeTag, hasCbinMagic } from '../lib/clavia/cbin';
 import { buildParamMap } from '../lib/ns4/maps';
+import { summarizeFile, type FileSummary } from '@/lib/clavia/identify-summary';
+import { FixtureLoader } from '@/components/dev/FixtureLoader';
+import { IdentifyPanel } from '@/components/decode/ProgramDecode';
 import {
   decodeAllParams,
   claimedByteSet,
@@ -41,6 +44,8 @@ export function DecodeInspector() {
   const map = useMemo(() => buildParamMap(), []);
   const [a, setA] = useState<Uint8Array | null>(null);
   const [b, setB] = useState<Uint8Array | null>(null);
+  const [summaryA, setSummaryA] = useState<FileSummary | null>(null);
+  function loadA(_name: string, bytes: Uint8Array) { setA(bytes); setSummaryA(summarizeFile(_name, bytes)); }
 
   const view = useMemo(() => {
     if (!a) return null;
@@ -58,21 +63,24 @@ export function DecodeInspector() {
     };
   }, [a, b, map]);
 
+  const isStage4 = summaryA?.finding.generation === 'Stage 4';
+
   return (
     <div className="di" style={{ maxWidth: 980, margin: '0 auto', padding: 16 }}>
       <p style={{ color: 'var(--dim)' }}>
-        Load a <code>.ns4p</code> to inspect. Load a second one to diff — the changed bytes
-        reveal where a parameter lives.
+        Load any Nord program to inspect. Load a second to diff — the changed bytes reveal where a parameter lives.
       </p>
+      {summaryA && <IdentifyPanel summary={summaryA} />}
       <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
         <label>File A&nbsp;
-          <input type="file" accept=".ns4p,.ns4o,.ns4n,.ns4y"
-            onChange={(e) => e.target.files?.[0] && readFile(e.target.files[0]).then(setA)} />
+          <input type="file"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) f.arrayBuffer().then((buf) => loadA(f.name, new Uint8Array(buf))); }} />
         </label>
         <label>File B (diff)&nbsp;
-          <input type="file" accept=".ns4p,.ns4o,.ns4n,.ns4y"
+          <input type="file"
             onChange={(e) => e.target.files?.[0] && readFile(e.target.files[0]).then(setB)} />
         </label>
+        <FixtureLoader onLoad={loadA} />
       </div>
 
       {view && (
@@ -85,31 +93,39 @@ export function DecodeInspector() {
             {b && <span style={{ color: 'var(--warn)' }}>diff bytes: <b>{view.diff.size}</b></span>}
           </div>
 
-          <h3 style={{ margin: '8px 0 4px' }}>Coverage by engine</h3>
-          <CoverageStrip bytes={a!} map={map} />
+          {isStage4 ? (
+            <>
+              <h3 style={{ margin: '8px 0 4px' }}>Coverage by engine</h3>
+              <CoverageStrip bytes={a!} map={map} />
+
+              <h3 style={{ marginTop: 20 }}>Decoded parameters ({view.decoded.length})</h3>
+              <div style={{ maxHeight: 260, overflow: 'auto', border: '1px solid var(--line)' }}>
+                <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
+                  <thead><tr style={{ textAlign: 'left', background: 'var(--surface)' }}>
+                    <th style={cell}>parameter</th><th style={cell}>value</th><th style={cell}>raw</th><th style={cell}>bits</th>
+                  </tr></thead>
+                  <tbody>
+                    {view.decoded.map((d, i) => (
+                      <tr key={i}>
+                        <td style={cell}><span style={{ color: GROUP_COLOR[d.group] }}>●</span> {d.name}</td>
+                        <td style={{ ...cell, fontWeight: 600 }}>{d.display}</td>
+                        <td style={{ ...cell, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>{Number.isNaN(d.value) ? '—' : d.value}</td>
+                        <td style={{ ...cell, color: 'var(--dim)' }}>{d.begBit}–{d.endBit}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <p style={{ color: 'var(--dim)', fontSize: 12 }}>
+              Parameter map for {summaryA?.modelGuess ?? 'this model'} isn't decoded yet — byte grid + diff only.
+            </p>
+          )}
 
           <h3 style={{ marginTop: 16 }}>Bytes</h3>
           <Legend />
           <ByteGrid bytes={a!} claimed={view.claimed} diff={view.diff} map={map} />
-
-          <h3 style={{ marginTop: 20 }}>Decoded parameters ({view.decoded.length})</h3>
-          <div style={{ maxHeight: 260, overflow: 'auto', border: '1px solid var(--line)' }}>
-            <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
-              <thead><tr style={{ textAlign: 'left', background: 'var(--surface)' }}>
-                <th style={cell}>parameter</th><th style={cell}>value</th><th style={cell}>raw</th><th style={cell}>bits</th>
-              </tr></thead>
-              <tbody>
-                {view.decoded.map((d, i) => (
-                  <tr key={i}>
-                    <td style={cell}><span style={{ color: GROUP_COLOR[d.group] }}>●</span> {d.name}</td>
-                    <td style={{ ...cell, fontWeight: 600 }}>{d.display}</td>
-                    <td style={{ ...cell, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>{Number.isNaN(d.value) ? '—' : d.value}</td>
-                    <td style={{ ...cell, color: 'var(--dim)' }}>{d.begBit}–{d.endBit}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
 
           {b && view.diff.size > 0 && <DiffList diff={[...view.diff]} map={map} />}
         </>
