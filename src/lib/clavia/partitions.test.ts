@@ -35,4 +35,38 @@ describe('partition registry', () => {
   it('exposes MODELS keyed by id', () => {
     expect(MODELS['stage-2'].generation).toBe('OG');
   });
+
+  // CElectro5::CElectro5 @0x0000000100194838 — constructor adds partitions in this order:
+  //   Piano (Native) [SPartitionNative], Piano (user) [SPartitionPianoV5/V6],
+  //   Samp Lib (Native) [SPartitionNative], Samp Lib (user) [SPartitionSampLibV2],
+  //   Programs [SPartitionProgram, tag="ne5p"],
+  //   Set List [SPartitionUserE2P, tag="ne5t"],
+  //   Live [SPartitionLive, tag="ne5l"],
+  //   Settings [SPartitionSettings, tag="ne5s"].
+  // The generic baseline('ne5p', true) was missing piano partitions, user samp lib,
+  // and set-list — this spec replaces it with the oracle-traced layout.
+  it('electro-5 partition spec matches NSM constructor (CElectro5::CElectro5 @0x0000000100194838)', () => {
+    const m = modelById('electro-5')!;
+    expect(m.programTag).toBe('ne5p');
+    const kinds = m.partitions.map((p) => p.kind);
+    expect(kinds).toEqual([
+      'piano-native',
+      'piano',
+      'samplib-native',
+      'samplib',
+      'program',
+      'setlist',
+      'live',
+      'settings',
+    ]);
+    // Program partition must carry the correct fourcc
+    const prog = m.partitions.find((p) => p.kind === 'program');
+    expect(prog?.fourcc).toBe('ne5p');
+    // Set-list partition carries ne5t tag
+    const setlist = m.partitions.find((p) => p.kind === 'setlist');
+    expect(setlist?.fourcc).toBe('ne5t');
+    // Live partition carries ne5l tag
+    const live = m.partitions.find((p) => p.kind === 'live');
+    expect(live?.fourcc).toBe('ne5l');
+  });
 });

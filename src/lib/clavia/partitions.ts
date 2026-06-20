@@ -168,7 +168,28 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   'stage-ex': { id: 'stage-ex', name: 'Nord Stage EX', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og', partitions: baseline('ns2p', true) },
   'electro-3': { id: 'electro-3', name: 'Nord Electro 3', generation: 'OG', programTag: 'nepg', sampleCodec: 'og', partitions: baseline('nepg', true) },
   'electro-3-hp': { id: 'electro-3-hp', name: 'Nord Electro 3 HP', generation: 'OG', programTag: 'nepg', sampleCodec: 'og', partitions: baseline('nepg', true) },
-  'electro-5': { id: 'electro-5', name: 'Nord Electro 5', generation: 'NW1-v3', programTag: 'ne5p', sampleCodec: 'codec3', partitions: baseline('ne5p', true) },
+  'electro-5': {
+    // CElectro5::CElectro5 @0x0000000100194838 — partition Add() order in constructor:
+    //   SPartitionNative "Piano (Native)"  →  piano-native (factory)
+    //   SPartitionPianoV5/V6              →  piano (user; V5 if firmware < 0x91, else V6)
+    //   SPartitionNative "Samp Lib (Native)" → samplib-native (factory)
+    //   SPartitionSampLibV2               →  samplib (user)
+    //   SPartitionProgram  "ne5p"         →  program
+    //   SPartitionUserE2P  "ne5t"         →  setlist (label="Set List", type="song")
+    //   SPartitionLive     "ne5l"         →  live
+    //   SPartitionSettings "ne5s"         →  settings
+    id: 'electro-5', name: 'Nord Electro 5', generation: 'NW1-v3', programTag: 'ne5p', sampleCodec: 'codec3',
+    partitions: [
+      P('piano-native', 'Piano (factory)', true),
+      P('piano', 'Piano', false),
+      P('samplib-native', 'Sample Library (factory)', true),
+      P('samplib', 'Sample Library', false),
+      P('program', 'Programs', false, 'ne5p'),
+      P('setlist', 'Set Lists', false, 'ne5t'),
+      P('live', 'Live', false, 'ne5l'),
+      P('settings', 'Settings', false, 'ne5s'),
+    ],
+  },
   'piano-1': { id: 'piano-1', name: 'Nord Piano', generation: 'OG', programTag: 'nppg', sampleCodec: 'og', partitions: baseline('nppg', true) },
   'piano-2': { id: 'piano-2', name: 'Nord Piano 2', generation: 'OG', programTag: 'np2p', sampleCodec: 'og', partitions: baseline('np2p', true) },
   'piano-4': { id: 'piano-4', name: 'Nord Piano 4', generation: 'NW1-v3', programTag: 'np4p', sampleCodec: 'codec3', partitions: baseline('np4p', true) },
