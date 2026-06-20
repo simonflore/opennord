@@ -14,6 +14,7 @@ import { GENERATED_VALUES } from './values.generated';
 import { MORPH_BASE, MORPH_NONE } from './morphs.generated';
 import { DEP_IDS, DEP_TABLES, DEP_MORPH, DEP_DEFAULT_DEPS } from './deps.generated';
 import { ANALOG_CAT_561_8, ANALOG_WAVE_562_4 } from './synth-analog.generated';
+import { diffBytes } from '../clavia/diff';
 import type { Param } from './maps';
 
 // deps.generated covers osc types FM-H/FM-I/WAVE for the synth knob 2/3 params
@@ -186,15 +187,8 @@ export function coveragePercent(map: Param[], byteLen: number): number {
   return (claimedByteSet(map, byteLen).size / byteLen) * 100;
 }
 
-/** Byte indices where two files differ — the heart of one-knob-apart diffing. */
-export function diffBytes(a: Uint8Array, b: Uint8Array): number[] {
-  const len = Math.max(a.length, b.length);
-  const diff: number[] = [];
-  for (let i = 0; i < len; i++) {
-    if ((a[i] ?? -1) !== (b[i] ?? -1)) diff.push(i);
-  }
-  return diff;
-}
+// Re-export from clavia/diff for back-compat (moved to shared layer)
+export { diffBytes };
 
 /** Which known parameters (if any) cover a given byte — names a diff for you. */
 export function paramsCoveringByte(map: Param[], byteIndex: number): Param[] {
