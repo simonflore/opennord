@@ -13,7 +13,7 @@ export function ProgramDecode() {
   }
   return (
     <div>
-      <input type="file" accept=".ns4p,.ns4o,.ns4n,.ns4y"
+      <input type="file" accept=".ns4p,.ns4o,.ns4n,.ns4y,.ns3p,.ns3f,.ns2p"
         onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
       {program && (
         <section style={{ marginTop: 16 }}>
