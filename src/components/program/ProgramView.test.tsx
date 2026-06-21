@@ -94,7 +94,7 @@ function programWithSampleLayer() {
 
 describe('ProgramHeader', () => {
   it('renders name, slot, category, version, and summary', () => {
-    const html = renderToStaticMarkup(<ProgramHeader program={fixtureProgram()} />);
+    const html = renderToStaticMarkup(<ProgramHeader header={headerView(fixtureProgram())} />);
     expect(html).toContain('regressionTest');
     expect(html).toContain('H:81');
     expect(html).toContain('None');
@@ -103,7 +103,7 @@ describe('ProgramHeader', () => {
   });
 });
 
-import { activeLayers, synthStats, pianoStats, ampEnvCurve, programZones, fxChips, externViews, scenesDiffer, morphMarks } from '../../lib/ns4/view';
+import { activeLayers, synthStats, pianoStats, ampEnvCurve, programZones, fxChips, externViews, scenesDiffer, morphMarks, engineCardModel, headerView } from '../../lib/ns4/view';
 import { EngineCard } from './EngineCard';
 import { ProgramZones } from './ProgramZones';
 import { ProgramExtern } from './ProgramExtern';
@@ -114,7 +114,7 @@ describe('EngineCard', () => {
   it('renders an organ panel with model selector + drawbars + rotary on the first organ', () => {
     const program = fixtureProgram();
     const html = renderToStaticMarkup(
-      <EngineCard layer={active[0]} organFx={program.organFx} isFirstOrgan />,
+      <EngineCard card={engineCardModel(active[0], program.organFx, true)} />,
     );
     expect(html).toContain('ORGAN · A');
     expect(html).toContain('ps-models');     // model selector row
@@ -126,7 +126,7 @@ describe('EngineCard', () => {
     const program = fixtureProgram();
     const b3 = active.find((l) => l.kind === 'organ' && l.id === 'B')!;
     const html = renderToStaticMarkup(
-      <EngineCard layer={b3} organFx={program.organFx} isFirstOrgan={false} />,
+      <EngineCard card={engineCardModel(b3, program.organFx, false)} />,
     );
     expect(html).toContain('ORGAN · B');
     expect(html).not.toContain('Rotary');
@@ -134,20 +134,20 @@ describe('EngineCard', () => {
   });
 
   it('renders a piano card with model name', () => {
-    const html = renderToStaticMarkup(<EngineCard layer={active[2]} />);
+    const html = renderToStaticMarkup(<EngineCard card={engineCardModel(active[2], undefined, false)} />);
     expect(html).toContain('PIANO · A');
     expect(html).toContain('Clavinet D6 6.1');
   });
 
   it('renders a synth card with osc LCD + filter cutoff', () => {
-    const html = renderToStaticMarkup(<EngineCard layer={active[4]} />);
+    const html = renderToStaticMarkup(<EngineCard card={engineCardModel(active[4], undefined, false)} />);
     expect(html).toContain('SYNTH · B');
     expect(html).toContain('ps-lcd');
     expect(html).toContain('3.7 kHz');
   });
 
   it('surfaces secondary synth params as a stat grid + amp-env curve', () => {
-    const html = renderToStaticMarkup(<EngineCard layer={active[4]} />);
+    const html = renderToStaticMarkup(<EngineCard card={engineCardModel(active[4], undefined, false)} />);
     expect(html).toContain('ps-stats'); // the new StatGrid
     expect(html).toContain('ps-env');   // the amp envelope glyph
   });
@@ -186,7 +186,7 @@ describe('morph marks on cards', () => {
   it('flags a morph-assigned control with a ✎ on the card (fixture piano A vol has a pedal morph)', () => {
     const piano = activeLayers(fixtureProgram()).find((l) => l.kind === 'piano' && l.volume?.pedal);
     if (piano) {
-      const html = renderToStaticMarkup(<EngineCard layer={piano} />);
+      const html = renderToStaticMarkup(<EngineCard card={engineCardModel(piano, undefined, false)} />);
       expect(html).toContain('ps-morphmark');
     }
   });
@@ -317,15 +317,14 @@ import { FxRow } from './FxRow';
 
 describe('FxRow', () => {
   it('renders FX chips for the fixture (incl. Reverb and Delay)', () => {
-    const html = renderToStaticMarkup(<FxRow program={fixtureProgram()} />);
+    const html = renderToStaticMarkup(<FxRow chips={fxChips(fixtureProgram())} />);
     expect(html).toContain('ps-chip');
     expect(html).toContain('Reverb');
     expect(html).toContain('Delay');
   });
 
   it('renders nothing when there are no active effects', () => {
-    const empty = { parsed: true, kind: 'program', bytes: new Uint8Array(), warnings: [], layers: [] } as const;
-    const html = renderToStaticMarkup(<FxRow program={empty as unknown as import('../../lib/ns4/types').NS4Program} />);
+    const html = renderToStaticMarkup(<FxRow chips={[]} />);
     expect(html).toBe('');
   });
 });

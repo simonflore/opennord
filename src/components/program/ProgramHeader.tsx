@@ -1,8 +1,6 @@
-import type { NS4Program } from '../../lib/ns4/types';
-import { headerView } from '../../lib/ns4/view';
+import type { HeaderView } from '../../lib/clavia/engine-view';
 
-export function ProgramHeader({ program, scene }: { program: NS4Program; scene?: 'I' | 'II' }) {
-  const h = headerView(program, scene);
+export function ProgramHeader({ header: h }: { header: HeaderView }) {
   return (
     <div className="ps-hd">
       <div>

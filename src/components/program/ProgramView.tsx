@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import '../../styles/nord.css';
 import type { NS4Program } from '../../lib/ns4/types';
-import { activeLayers, scenesDiffer } from '../../lib/ns4/view';
+import { activeLayers, scenesDiffer, engineCardModel, headerView, fxChips } from '../../lib/ns4/view';
 import { ProgramHeader } from './ProgramHeader';
 import { ProgramZones } from './ProgramZones';
 import { EngineCard } from './EngineCard';
@@ -48,7 +48,7 @@ export function ProgramView({ program }: { program: NS4Program }) {
 
   return (
     <div className="ps">
-      <ProgramHeader program={program} scene={scene} />
+      <ProgramHeader header={headerView(program, scene)} />
 
       {canToggle && (
         <div className="ps-scene">
@@ -72,13 +72,11 @@ export function ProgramView({ program }: { program: NS4Program }) {
         {layers.map((l) => (
           <EngineCard
             key={`${l.kind ?? 'x'}${l.id}`}
-            layer={l}
-            organFx={program.organFx}
-            isFirstOrgan={l.kind === 'organ' && l.id === firstOrganId}
+            card={engineCardModel(l, program.organFx, l.kind === 'organ' && l.id === firstOrganId)}
           />
         ))}
       </div>
-      <FxRow program={program} scene={scene} />
+      <FxRow chips={fxChips(program, scene)} />
       <Morphs program={program} />
       <ProgramExtern program={program} scene={scene} />
       <SampleRefs program={program} scene={scene} />

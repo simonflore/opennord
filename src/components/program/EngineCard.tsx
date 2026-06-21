@@ -1,26 +1,27 @@
-import type { NS4Layer, Ns4OrganFx } from '../../lib/ns4/types';
-import { organPanel, pianoCard, synthCard, synthStats, pianoStats, ampEnvCurve, volumeFill, morphMarks } from '../../lib/ns4/view';
+import type {
+  EngineCardModel, OrganPanelModel, PianoCardModel, SynthCardModel, EnvCurveView, Stat,
+} from '../../lib/clavia/engine-view';
 import { DrawbarStack, ModelSelector, ToggleGroup, Knob, Lcd, Meter, StatGrid, EnvCurve } from './widgets';
 import { resolveFactory } from '../../lib/device/factory';
 
 /**
- * One card per active layer. Declarative per-kind layout: each engine renders
- * its signature widgets from the matching view-model card object.
+ * One card per active engine. Pure renderer of the model-agnostic EngineCardModel —
+ * the per-model view-models (ns4/view.ts, ns3/view.ts) build the model; this file
+ * only renders it.
  */
-export function EngineCard({ layer, organFx, isFirstOrgan = false }: { layer: NS4Layer; organFx?: Ns4OrganFx; isFirstOrgan?: boolean }) {
+export function EngineCard({ card }: { card: EngineCardModel }) {
   return (
     <div className="ps-card">
-      <h4>{(layer.kind ?? '?').toUpperCase()} · {layer.id}</h4>
-      {layer.kind === 'organ' && <OrganPanel layer={layer} organFx={organFx} isFirstOrgan={isFirstOrgan} />}
-      {layer.kind === 'piano' && <PianoBody layer={layer} />}
-      {layer.kind === 'synth' && <SynthBody layer={layer} />}
-      <Meter label="vol" value={layer.volume?.value ?? '—'} fill={volumeFill(layer.volume?.value)} morph={morphMarks(layer.volume)} />
+      <h4>{card.title}</h4>
+      {card.kind === 'organ' && <OrganPanel m={card.organ} />}
+      {card.kind === 'piano' && <PianoBody m={card.piano} stats={card.stats} />}
+      {card.kind === 'synth' && <SynthBody m={card.synth} env={card.env} modEnv={card.modEnv} stats={card.stats} />}
+      <Meter label="vol" value={card.volume.value} fill={card.volume.fill} morph={card.volume.morph} />
     </div>
   );
 }
 
-function OrganPanel({ layer, organFx, isFirstOrgan }: { layer: NS4Layer; organFx?: Ns4OrganFx; isFirstOrgan: boolean }) {
-  const m = organPanel(layer, organFx, isFirstOrgan);
+function OrganPanel({ m }: { m: OrganPanelModel }) {
   const vc = m.vibChorus;
   const p = m.percussion;
   return (
@@ -43,10 +44,10 @@ function OrganPanel({ layer, organFx, isFirstOrgan }: { layer: NS4Layer; organFx
         { label: 'Soft', on: p.on && p.volSoft },
       ]} />
 
-      <ToggleGroup label="Preset" items={[{ label: 'On', on: !!m.preset }]} />
+      {m.preset !== undefined && <ToggleGroup label="Preset" items={[{ label: 'On', on: m.preset }]} />}
 
       <ToggleGroup label="Octave" items={[{ label: m.octave > 0 ? `+${m.octave}` : `${m.octave}`, on: m.octave !== 0 }]} />
-      <ToggleGroup label="Sustain" items={[{ label: 'On', on: !!m.sustain }]} />
+      {m.sustain !== undefined && <ToggleGroup label="Sustain" items={[{ label: 'On', on: m.sustain }]} />}
 
       {m.rotary && (
         <ToggleGroup label={<>Rotary <span className="shared">· shared FX</span></>} items={[
@@ -60,43 +61,38 @@ function OrganPanel({ layer, organFx, isFirstOrgan }: { layer: NS4Layer; organFx
   );
 }
 
-function PianoBody({ layer }: { layer: NS4Layer }) {
-  const c = pianoCard(layer);
-  const match = resolveFactory(c.model, 'npno');
+function PianoBody({ m, stats }: { m: PianoCardModel; stats: Stat[] }) {
+  const match = resolveFactory(m.model, 'npno');
   return (
     <>
       <div className="ps-sub">
-        {c.type} ·{' '}
+        {m.type} ·{' '}
         {match
-          ? <a href={match.url} target="_blank" rel="noreferrer" title="Official Nord download" style={{ color: 'inherit' }}>{c.model}</a>
-          : c.model}
+          ? <a href={match.url} target="_blank" rel="noreferrer" title="Official Nord download" style={{ color: 'inherit' }}>{m.model}</a>
+          : m.model}
       </div>
       <div className="ps-knobs">
-        <Knob value={c.timbre} caption="timbre" />
-        <Knob value={c.touch ?? '—'} caption="KB touch" />
+        <Knob value={m.timbre} caption="timbre" />
+        {m.touch !== undefined && <Knob value={m.touch} caption="KB touch" />}
       </div>
-      <StatGrid stats={pianoStats(layer)} />
+      <StatGrid stats={stats} />
     </>
   );
 }
 
-function SynthBody({ layer }: { layer: NS4Layer }) {
-  const c = synthCard(layer);
-  // LCD gives the compact overview (osc + filter type); the numeric cutoff/res
-  // live on the knobs below, so we don't repeat the value here.
-  const filterType = c.filterType !== '—' ? c.filterType : '';
-  const secondary = [c.oscDetail, filterType].filter(Boolean).join(' · ');
-  const env = ampEnvCurve(layer);
-  const stats = synthStats(layer);
+function SynthBody({ m, env, modEnv, stats }: { m: SynthCardModel; env: EnvCurveView | null; modEnv?: EnvCurveView; stats: Stat[] }) {
+  const filterType = m.filterType !== '—' ? m.filterType : '';
+  const secondary = [m.oscDetail, filterType].filter(Boolean).join(' · ');
   return (
     <>
-      <div className="ps-sub">{c.source} oscillator</div>
-      <Lcd primary={c.osc} secondary={secondary} />
+      <div className="ps-sub">{m.source} oscillator</div>
+      <Lcd primary={m.osc} secondary={secondary} />
       <div className="ps-knobs">
-        <Knob value={c.cutoff} caption="cutoff" morph={morphMarks(layer.filter?.freq)} />
-        <Knob value={c.res} caption="res" morph={morphMarks(layer.filter?.resonance)} />
+        <Knob value={m.cutoff} caption="cutoff" morph={m.cutoffMorph} />
+        <Knob value={m.res} caption="res" morph={m.resMorph} />
       </div>
       {env && <EnvCurve a={env.a} d={env.d} s={env.s} r={env.r} caption="amp env" />}
+      {modEnv && <EnvCurve a={modEnv.a} d={modEnv.d} s={modEnv.s} r={modEnv.r} caption="mod env" />}
       <StatGrid stats={stats} />
     </>
   );

@@ -12,9 +12,9 @@ import { buildParamMap } from './maps';
 import { organModelSpec, ORGAN_MODELS } from './organ-models';
 import type {
   MorphMarkView, DrawbarView, OrganPanelModel, PianoCardModel, SynthCardModel,
-  EnvCurveView, Stat, FxChipModel, HeaderView,
+  EnvCurveView, Stat, FxChipModel, HeaderView, VolumeView, EngineCardModel,
 } from '../clavia/engine-view';
-import { envCurve } from '../clavia/engine-view';
+import { volumeFill, envCurve } from '../clavia/engine-view';
 
 export type {
   MorphMarkView, DrawbarView, OrganPanelModel, PianoCardModel, SynthCardModel,
@@ -211,12 +211,27 @@ export function synthCard(l: NS4Layer): SynthCardModel {
     filterType: l.filter?.type ?? '—',
     cutoff: l.filter?.freq?.value ?? '—',
     res: l.filter?.resonance?.value ?? '—',
+    cutoffMorph: morphMarks(l.filter?.freq),
+    resMorph: morphMarks(l.filter?.resonance),
   };
 }
 
 /** Amp envelope as a curve view, or null when there's no envelope data. */
 export function ampEnvCurve(l: NS4Layer): EnvCurveView | null {
   return envCurve(l.ampEnv);
+}
+
+/** Assemble the neutral EngineCardModel for one NS4 layer. */
+export function engineCardModel(l: NS4Layer, organFx: Ns4OrganFx | undefined, isFirstOrgan: boolean): EngineCardModel {
+  const title = `${(l.kind ?? '?').toUpperCase()} · ${l.id}`;
+  const volume: VolumeView = {
+    value: l.volume?.value ?? '—',
+    fill: volumeFill(l.volume?.value),
+    morph: morphMarks(l.volume),
+  };
+  if (l.kind === 'organ') return { kind: 'organ', title, volume, organ: organPanel(l, organFx, isFirstOrgan) };
+  if (l.kind === 'piano') return { kind: 'piano', title, volume, piano: pianoCard(l), stats: pianoStats(l) };
+  return { kind: 'synth', title, volume, synth: synthCard(l), env: ampEnvCurve(l), stats: synthStats(l) };
 }
 
 /**
