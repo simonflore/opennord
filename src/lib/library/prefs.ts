@@ -1,59 +1,75 @@
 /**
- * Library view preferences — sort order + favorited entry ids — persisted in
- * localStorage. Small, non-sensitive, and read on every load, so localStorage
- * (sync, no async ceremony) fits better than IndexedDB here. Favorites are keyed
- * by the entry's stable id (`nord:slot` / `local:<uuid>` / folder scan id), so a
- * favorite survives reload as long as the entry's source is still present.
+ * Browse-screen preferences — sort order + favorited ids — persisted in
+ * localStorage (sync, no async ceremony; small and read on every load).
+ * Favorites are keyed by the entry's stable id, so they survive reload as long
+ * as the source is still present. The Library and Samples screens each get their
+ * own blob (different sort vocabularies, independent favorites).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { LibrarySort } from './types';
 
-const KEY = 'opennord.library.prefs';
+export type SampleSort = 'default' | 'name' | 'size' | 'strokes';
 
-export interface LibraryPrefs {
-  sort: LibrarySort;
+interface PersistedPrefs<S extends string> {
+  sort: S;
   favorites: string[];
 }
 
-const DEFAULTS: LibraryPrefs = { sort: 'default', favorites: [] };
-
-export function loadPrefs(): LibraryPrefs {
+function loadPrefs<S extends string>(key: string, parseSort: (raw: unknown) => S): PersistedPrefs<S> {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return DEFAULTS;
-    const p = JSON.parse(raw) as Partial<LibraryPrefs>;
+    const raw = localStorage.getItem(key);
+    if (!raw) return { sort: parseSort(undefined), favorites: [] };
+    const p = JSON.parse(raw) as Partial<PersistedPrefs<S>>;
     return {
-      sort: p.sort === 'name' || p.sort === 'source' ? p.sort : 'default',
+      sort: parseSort(p.sort),
       favorites: Array.isArray(p.favorites) ? p.favorites.filter((x): x is string => typeof x === 'string') : [],
     };
   } catch {
-    return DEFAULTS; // missing/locked/corrupt storage → defaults
+    return { sort: parseSort(undefined), favorites: [] };
   }
 }
 
-function savePrefs(p: LibraryPrefs): void {
-  try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { /* storage unavailable — keep session-only */ }
+function savePrefs<S extends string>(key: string, p: PersistedPrefs<S>): void {
+  try { localStorage.setItem(key, JSON.stringify(p)); } catch { /* storage unavailable — session-only */ }
 }
 
-export interface LibraryPrefsApi {
-  sort: LibrarySort;
-  setSort: (sort: LibrarySort) => void;
+export interface PrefsApi<S extends string> {
+  sort: S;
+  setSort: (sort: S) => void;
   favorites: ReadonlySet<string>;
   isFavorite: (id: string) => boolean;
   toggleFavorite: (id: string) => void;
 }
 
-/** Reactive library prefs, persisted on every change. */
-export function useLibraryPrefs(): LibraryPrefsApi {
-  const [prefs, setPrefs] = useState<LibraryPrefs>(loadPrefs);
-  useEffect(() => { savePrefs(prefs); }, [prefs]);
+/** Reactive, persisted prefs for one browse screen. */
+function usePrefs<S extends string>(key: string, parseSort: (raw: unknown) => S): PrefsApi<S> {
+  const [prefs, setPrefs] = useState<PersistedPrefs<S>>(() => loadPrefs(key, parseSort));
+  useEffect(() => { savePrefs(key, prefs); }, [key, prefs]);
 
   const favorites = useMemo(() => new Set(prefs.favorites), [prefs.favorites]);
-  const setSort = useCallback((sort: LibrarySort) => setPrefs((p) => ({ ...p, sort })), []);
+  const setSort = useCallback((sort: S) => setPrefs((p) => ({ ...p, sort })), []);
   const toggleFavorite = useCallback((id: string) => setPrefs((p) => ({
     ...p,
     favorites: p.favorites.includes(id) ? p.favorites.filter((x) => x !== id) : [...p.favorites, id],
   })), []);
 
   return { sort: prefs.sort, setSort, favorites, isFavorite: (id) => favorites.has(id), toggleFavorite };
+}
+
+const parseLibrarySort = (raw: unknown): LibrarySort =>
+  raw === 'name' || raw === 'source' ? raw : 'default';
+const parseSampleSort = (raw: unknown): SampleSort =>
+  raw === 'name' || raw === 'size' || raw === 'strokes' ? raw : 'default';
+
+export type LibraryPrefsApi = PrefsApi<LibrarySort>;
+export type SamplesPrefsApi = PrefsApi<SampleSort>;
+
+/** Library (programs) view prefs — persisted under `opennord.library.prefs`. */
+export function useLibraryPrefs(): LibraryPrefsApi {
+  return usePrefs('opennord.library.prefs', parseLibrarySort);
+}
+
+/** Samples view prefs — persisted under `opennord.samples.prefs`. */
+export function useSamplesPrefs(): SamplesPrefsApi {
+  return usePrefs('opennord.samples.prefs', parseSampleSort);
 }
