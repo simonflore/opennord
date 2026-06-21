@@ -1,5 +1,5 @@
 import './library.css';
-import { Button, Card, FilterChip, SearchField, SourceBadge } from '../ui';
+import { Button, BrowseToolbar, Card, SourceBadge } from '../ui';
 import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
 import type { LibraryPrefsApi } from '../../lib/library/prefs';
 import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
@@ -81,18 +81,21 @@ export function LibraryView({
         </div>
       )}
 
-      <div className="lib-controls">
-        <SearchField value={query} onChange={onQuery} placeholder="Search patches by name…" />
-        {TABS.map((t) => (
-          <FilterChip key={t} active={source === t} onClick={() => onSource(t)}>{TAB_LABEL[t]}</FilterChip>
-        ))}
-        <select className="lib-sort" value={sort} aria-label="Sort patches"
-          onChange={(e) => onSort(e.target.value as LibrarySort)}>
-          {(Object.keys(SORT_LABEL) as LibrarySort[]).map((k) => (
-            <option key={k} value={k}>Sort: {SORT_LABEL[k]}</option>
-          ))}
-        </select>
-      </div>
+      <BrowseToolbar
+        query={query}
+        onQuery={onQuery}
+        placeholder="Search patches by name…"
+        facets={[{
+          ariaLabel: 'Filter by source',
+          value: source,
+          options: TABS.map((t) => ({ key: t, label: TAB_LABEL[t] })),
+          onChange: (k) => onSource(k as LibrarySource | 'all'),
+        }]}
+        sort={sort}
+        sortOptions={(Object.keys(SORT_LABEL) as LibrarySort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }))}
+        onSort={(k) => onSort(k as LibrarySort)}
+        sortAriaLabel="Sort patches"
+      />
 
       {entries.length === 0 ? (
         <div className="lib-empty">

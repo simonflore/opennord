@@ -4,5 +4,6 @@ export { Tag } from './Tag';
 export { FilterChip } from './FilterChip';
 export { SourceBadge, type LibrarySource } from './SourceBadge';
 export { SearchField } from './SearchField';
+export { BrowseToolbar, type FacetGroup, type FacetOption, type SortOption } from './BrowseToolbar';
 export { SectionLabel } from './SectionLabel';
 export { SplitView } from './SplitView';
