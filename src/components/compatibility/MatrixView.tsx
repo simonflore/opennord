@@ -9,7 +9,7 @@ const CHIP: Record<ValidationStatus, string> = {
 };
 
 // Reuse the matrix cell colors for the decode column.
-const DECODE_CELL: Record<DecodeStatus, ValidationStatus> = { full: 'validated', partial: 're', none: 'unknown' };
+const DECODE_CELL: Record<DecodeStatus, ValidationStatus> = { full: 'validated', partial: 're', started: 're', none: 'unknown' };
 
 export function MatrixView() {
   return (
@@ -36,7 +36,11 @@ export function MatrixView() {
                 <th className="cmp__model" scope="row">{m.name}</th>
                 {(() => {
                   const d = decodeForModel(m.id);
-                  const text = d.status === 'full' ? `${d.paramCount} params` : d.status === 'partial' ? 'Partial' : '—';
+                  const text =
+                    d.status === 'full' ? `${d.paramCount} params`
+                    : d.status === 'partial' ? 'Partial'
+                    : d.status === 'started' ? (d.pct != null ? `${d.pct}%` : `${d.controlCount}✓`)
+                    : '—';
                   return <td className={`cmp-cell cmp-cell--${DECODE_CELL[d.status]}`} title={DECODE_LABEL[d.status]}>{text}</td>;
                 })()}
                 {CAPABILITIES.map((c) => {
