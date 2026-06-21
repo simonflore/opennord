@@ -46,8 +46,9 @@ export interface PianoCardModel {
   id: string;
   type: string;
   model: string;
-  timbre: string;
-  /** Keyboard-touch knob — undefined on models without it (ns3). */
+  /** Timbre knob — undefined on models without it (ns2). */
+  timbre?: string;
+  /** Keyboard-touch knob — undefined on models without it (ns3, ns2). */
   touch?: string;
 }
 

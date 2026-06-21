@@ -63,6 +63,10 @@ function OrganPanel({ m }: { m: OrganPanelModel }) {
 
 function PianoBody({ m, stats }: { m: PianoCardModel; stats: Stat[] }) {
   const match = resolveFactory(m.model, 'npno');
+  const knobs = [
+    m.timbre !== undefined && <Knob key="timbre" value={m.timbre} caption="timbre" />,
+    m.touch !== undefined && <Knob key="touch" value={m.touch} caption="KB touch" />,
+  ].filter(Boolean);
   return (
     <>
       <div className="ps-sub">
@@ -71,10 +75,7 @@ function PianoBody({ m, stats }: { m: PianoCardModel; stats: Stat[] }) {
           ? <a href={match.url} target="_blank" rel="noreferrer" title="Official Nord download" style={{ color: 'inherit' }}>{m.model}</a>
           : m.model}
       </div>
-      <div className="ps-knobs">
-        <Knob value={m.timbre} caption="timbre" />
-        {m.touch !== undefined && <Knob value={m.touch} caption="KB touch" />}
-      </div>
+      {knobs.length > 0 && <div className="ps-knobs">{knobs}</div>}
       <StatGrid stats={stats} />
     </>
   );

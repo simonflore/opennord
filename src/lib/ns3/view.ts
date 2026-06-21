@@ -150,6 +150,18 @@ export function ns3FxChips(panel: Ns3Panel): FxChipModel[] {
   return panel.fx.map((fx) => ({ key: `${panel.id}-${fx.name}`, label: fx.name, detail: fxDetail(fx) }));
 }
 
+/** Referenced factory samples (resolved names) for the sample strip — piano + Sample-osc synth. */
+export function ns3SampleRefs(panels: Ns3Panel[], names: Record<string, string>): { key: string; label: string }[] {
+  const refs: { key: string; label: string }[] = [];
+  for (const p of panels) {
+    const piano = names[ns3SampleKey(p.id, 'Piano')];
+    if (p.piano.on && piano) refs.push({ key: `${p.id}-pno`, label: piano });
+    const synth = names[ns3SampleKey(p.id, 'Synth')];
+    if (p.synth.on && p.synth.oscillator.type === 'Sample' && synth) refs.push({ key: `${p.id}-syn`, label: synth });
+  }
+  return refs;
+}
+
 const KIND_ORDER = ['organ', 'piano', 'synth'] as const;
 
 /** Program header: CBIN slot/category/version + a per-panel engine summary. */
