@@ -2,6 +2,8 @@ import { MAX_READ_BYTES, tooLargeReason, type RawFile, type ScanError } from './
 import { walkDirectory, type WalkResult } from './walk';
 import { saveHandle, loadHandle, clearHandle } from './idbStore';
 import { classifyFile } from './classify';
+import { streamUnzip } from './unzip-stream';
+import { isBundleProgramEntry } from '../ns4/bundle';
 
 /** True when this browser can pick a folder and persist the handle (Chromium desktop). */
 export function supportsPersistentFolders(): boolean {
@@ -27,7 +29,8 @@ interface DirPicker {
 /**
  * Map a webkitdirectory FileList → Nord {@link RawFile}s, stripping the chosen
  * folder's own name. Mirrors {@link walkDirectory}: non-Nord files are skipped
- * unread, oversized files are recorded in `errors`, and a read failure on one
+ * unread, `.ns4b` bundles are streamed into their inner programs (not size-capped),
+ * oversized non-bundle files are recorded in `errors`, and a read failure on one
  * file never aborts the rest.
  */
 export async function filesToRawFiles(files: ArrayLike<File>): Promise<WalkResult> {
@@ -38,9 +41,21 @@ export async function filesToRawFiles(files: ArrayLike<File>): Promise<WalkResul
     const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
     const slash = rel.indexOf('/');
     const path = slash === -1 ? rel : rel.slice(slash + 1); // drop top folder segment
-    if (!classifyFile(path)) continue; // skip non-Nord files without reading them
-    if (f.size > MAX_READ_BYTES) { errors.push({ path, reason: tooLargeReason(f.size) }); continue; }
+    const kind = classifyFile(path);
+    if (!kind) continue; // skip non-Nord files without reading them
     try {
+      if (kind === 'bundle') {
+        // Mirror walkDirectory: stream the `.ns4b` entry-by-entry (no size cap,
+        // no whole-archive in memory), emitting each inner program keyed
+        // `<bundle>!<inner>` to match scanFiles' bundle id scheme.
+        await streamUnzip(
+          f.stream(),
+          (entry) => out.push({ path: `${path}!${entry.path}`, bytes: entry.bytes }),
+          isBundleProgramEntry,
+        );
+        continue;
+      }
+      if (f.size > MAX_READ_BYTES) { errors.push({ path, reason: tooLargeReason(f.size) }); continue; }
       out.push({ path, bytes: new Uint8Array(await f.arrayBuffer()) });
     } catch (err) {
       errors.push({ path, reason: err instanceof Error ? err.message : String(err) });

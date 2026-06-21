@@ -44,11 +44,12 @@ export interface ScanResult {
 }
 
 /**
- * Largest single file we pull into memory in the browser. Reading a multi-GB
- * file (e.g. a full `.ns4b` backup) via `Blob.arrayBuffer()` either blows the
- * tab's memory budget or freezes the UI thread on the synchronous unzip — and a
- * single such file used to abort the entire scan. We skip anything larger and
- * report it instead. Streaming large bundles is future work.
+ * Largest single file we pull whole into memory in the browser via
+ * `Blob.arrayBuffer()`. Reading a multi-GB file that way blows the tab's memory
+ * budget, and a single such file used to abort the entire scan — so we skip
+ * anything larger and report it instead. `.ns4b` bundles are exempt: the folder
+ * walk streams them entry-by-entry (`unzip-stream.ts`), so a huge backup never
+ * lands in memory whole and is never capped.
  */
 export const MAX_READ_BYTES = 1024 ** 3; // 1 GiB
 

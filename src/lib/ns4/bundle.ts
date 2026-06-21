@@ -23,6 +23,18 @@ function isProgramPath(path: string): boolean {
   return PROGRAM_EXTENSIONS.some((ext) => lower.endsWith(ext));
 }
 
+/**
+ * True for a zip entry that holds a decodable program — i.e. a real file (not a
+ * directory), not a macOS resource fork, with a program extension. The single
+ * source of truth for what {@link readNs4Bundle} surfaces, shared with the
+ * streaming folder scan so both paths pick the same entries.
+ */
+export function isBundleProgramEntry(path: string): boolean {
+  if (path.endsWith('/')) return false; // directory entry
+  if (path.startsWith('__MACOSX/') || path.split('/').pop()?.startsWith('._')) return false;
+  return isProgramPath(path);
+}
+
 /** One program found inside a bundle. */
 export interface Ns4BundleEntry {
   /** Path of the entry inside the zip, e.g. `"Bank 1/My Patch.ns4p"`. */
@@ -57,9 +69,7 @@ export function readNs4Bundle(zipData: Uint8Array): Ns4BundleEntry[] {
   const entries: Ns4BundleEntry[] = [];
 
   for (const [path, bytes] of Object.entries(files)) {
-    if (path.endsWith('/')) continue; // directory entry
-    if (path.startsWith('__MACOSX/') || path.split('/').pop()?.startsWith('._')) continue;
-    if (!isProgramPath(path)) continue;
+    if (!isBundleProgramEntry(path)) continue;
 
     entries.push({
       path,

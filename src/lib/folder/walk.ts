@@ -1,5 +1,7 @@
 import { MAX_READ_BYTES, tooLargeReason, type RawFile, type ScanError } from './scan';
 import { classifyFile } from './classify';
+import { streamUnzip } from './unzip-stream';
+import { isBundleProgramEntry } from '../ns4/bundle';
 
 /** What a folder walk yields: the readable Nord files plus any per-file errors. */
 export interface WalkResult {
@@ -14,6 +16,8 @@ export interface WalkResult {
  * Tolerant by design: non-Nord files are skipped without reading; an oversized
  * file (> {@link MAX_READ_BYTES}) or one that fails to read is recorded in
  * `errors` and the walk continues — one bad file never aborts the whole scan.
+ * `.ns4b` bundles are streamed (not size-capped): each inner program is emitted
+ * as its own file keyed `<bundle>!<inner>`, matching scanFiles' bundle id scheme.
  *
  * Note: `FileSystemDirectoryHandle.values()` is an async iterator in the File
  * System Access API; the type lib may not declare it, hence the local cast.
@@ -35,9 +39,22 @@ async function walkInto(
   for await (const handle of (dir as unknown as AsyncDir).values()) {
     const path = prefix ? `${prefix}/${handle.name}` : handle.name;
     if (handle.kind === 'file') {
-      if (!classifyFile(path)) continue; // skip non-Nord files without reading them
+      const kind = classifyFile(path);
+      if (!kind) continue; // skip non-Nord files without reading them
       try {
         const file = await (handle as FileSystemFileHandle).getFile();
+        if (kind === 'bundle') {
+          // Stream the zip entry-by-entry so even a multi-GB `.ns4b` never lands
+          // in memory whole (no size cap, no synchronous `unzipSync` freeze).
+          // Each inner program becomes its own RawFile keyed `<bundle>!<inner>`,
+          // matching scanFiles' bundle id scheme so repeated scans reconcile.
+          await streamUnzip(
+            file.stream(),
+            (entry) => files.push({ path: `${path}!${entry.path}`, bytes: entry.bytes }),
+            isBundleProgramEntry,
+          );
+          continue;
+        }
         if (file.size > MAX_READ_BYTES) { errors.push({ path, reason: tooLargeReason(file.size) }); continue; }
         files.push({ path, bytes: new Uint8Array(await file.arrayBuffer()) });
       } catch (err) {
