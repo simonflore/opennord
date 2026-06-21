@@ -51,6 +51,8 @@ export interface ZoneRow {
   globalID: number;
   /** Root key as a note name. */
   rootNote: string;
+  /** Zone bottom key as a note name. */
+  btmNote: string;
   /** Zone top key as a note name. */
   topNote: string;
   /** Top velocity of this layer. */
@@ -62,6 +64,7 @@ export function zoneMapRows(bytes: Uint8Array): ZoneRow[] {
   return readNsmpZones(bytes).map((z) => ({
     globalID: z.globalID,
     rootNote: noteName(z.rootKey),
+    btmNote: noteName(z.keyLow),
     topNote: noteName(z.keyHigh),
     velTop: z.velTop,
   }));

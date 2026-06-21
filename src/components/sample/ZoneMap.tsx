@@ -9,11 +9,11 @@ export function ZoneMap({ rows }: { rows: ZoneRow[] }) {
         ADVANCED · KEY MAP ({rows.length} {rows.length === 1 ? 'zone' : 'zones'})
       </summary>
       <table className="ps-params" style={{ marginTop: 8 }}>
-        <thead><tr><th>sample</th><th>root</th><th>up to</th><th>vel ≤</th></tr></thead>
+        <thead><tr><th>sample</th><th>root</th><th>range</th><th>vel ≤</th></tr></thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={i}>
-              <td>{r.globalID}</td><td>{r.rootNote}</td><td>{r.topNote}</td><td>{r.velTop}</td>
+              <td>{r.globalID}</td><td>{r.rootNote}</td><td>{r.btmNote}–{r.topNote}</td><td>{r.velTop}</td>
             </tr>
           ))}
         </tbody>

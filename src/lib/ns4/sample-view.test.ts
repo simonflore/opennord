@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { NsmpFile, DecodedStrokeResult } from './nsmp';
+import { readNsmp } from './nsmp';
 import { noteName, sampleHeaderView, zoneMapRows, strokeSummary } from './sample-view';
 
 describe('noteName', () => {
@@ -92,5 +93,16 @@ describe.skipIf(!existsSync(real))('zoneMapRows — real Strings.nsmp3', () => {
       expect(r.rootNote).toMatch(/^[A-G]#?-?\d+$/);
       expect(r.topNote).toMatch(/^[A-G]#?-?\d+$/);
     }
+  });
+});
+
+const tbm = '/Users/simonflore/Documents/TBM/VibesNoVibrato Mellotron_M300A 4.1.nsmp4';
+describe.skipIf(!existsSync(tbm))('zoneMapRows key range', () => {
+  it('includes the zone bottom note as a range', () => {
+    const bytes = new Uint8Array(readFileSync(tbm));
+    if (!readNsmp(bytes).recognized) return;
+    const rows = zoneMapRows(bytes);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(r.btmNote).toMatch(/^[A-G]#?-?\d+$/);
   });
 });
