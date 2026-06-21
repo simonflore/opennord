@@ -19,7 +19,8 @@ const SLOT_STRIDE = 249; // slot B = slot A + 0xf9 (oracle: ns2-program.js)
 // ── Type tables — identical to ns3-program-viewer's ns2-mapping.js ────────────
 
 const PIANO_TYPE = ['Grand', 'Upright', 'E Piano 1', 'E Piano 2', 'Clavinet', 'Harpsi'];
-const ORGAN_TYPE = ['B3', 'Vox', 'Farfisa'];
+/** Organ models, in decode order — also reused by ns2/view.ts for the model selector. */
+export const ORGAN_TYPE = ['B3', 'Vox', 'Farfisa'];
 const SYNTH_OSC = ['TRI', 'SAW', 'SQR', 'SAMPLE', 'FM', 'WAVE'];
 const SYNTH_VOICE = ['Off', 'Legato', 'Mono'];
 const SYNTH_UNISON = ['Off', '1', '2', '3', 'Multi 1', 'Multi 2', 'Multi 3'];
