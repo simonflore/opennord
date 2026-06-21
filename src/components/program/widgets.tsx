@@ -4,7 +4,7 @@
  */
 
 import type { ReactNode } from 'react';
-import type { DrawbarView } from '../../lib/ns4/view';
+import type { DrawbarView } from '../../lib/clavia/engine-view';
 
 interface Morph { wheel?: string; at?: string; pedal?: string }
 

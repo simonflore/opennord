@@ -10,25 +10,23 @@ import { decodeAllParams } from './coverage';
 import { collapseMorphs } from './params-view';
 import { buildParamMap } from './maps';
 import { organModelSpec, ORGAN_MODELS } from './organ-models';
-import type { DrawbarColor } from './organ-models';
+import type {
+  MorphMarkView, DrawbarView, OrganPanelModel, PianoCardModel, SynthCardModel,
+  EnvCurveView, Stat, FxChipModel, HeaderView,
+} from '../clavia/engine-view';
+import { envCurve } from '../clavia/engine-view';
 
-export interface MorphMarkView { wheel?: string; at?: string; pedal?: string }
+export type {
+  MorphMarkView, DrawbarView, OrganPanelModel, PianoCardModel, SynthCardModel,
+  EnvCurveView, Stat, FxChipModel, HeaderView, VolumeView, EngineCardModel,
+} from '../clavia/engine-view';
+export { volumeFill, envCurve } from '../clavia/engine-view';
 
 /** Assigned morph targets of a value (wheel / aftertouch / pedal), or undefined
  *  when nothing is assigned — lets a card flag a control that moves in performance. */
 export function morphMarks(m?: Morphable<string>): MorphMarkView | undefined {
   if (!m || (!m.wheel && !m.aftertouch && !m.pedal)) return undefined;
   return { wheel: m.wheel, at: m.aftertouch, pedal: m.pedal };
-}
-
-export interface HeaderView {
-  name: string;
-  slot: string;
-  category: string;
-  version: string;
-  sizeBytes: number;
-  /** e.g. "organ + piano + synth · 6 layers". */
-  summary: string;
 }
 
 const KIND_ORDER: NonNullable<NS4Layer['kind']>[] = ['organ', 'piano', 'synth'];
@@ -50,16 +48,6 @@ export function drawbarLevels(layer: NS4Layer): number[] {
     const n = parseInt(d.value, 10);
     return Number.isNaN(n) ? 0 : Math.max(0, Math.min(8, n));
   });
-}
-
-/** Map a "-4.7 dB" style volume to a 0–100 meter fill, clamped to a -40..+6 dB window. */
-export function volumeFill(volume?: string): number {
-  if (!volume) return 0;
-  const db = parseFloat(volume);
-  if (Number.isNaN(db)) return 0;
-  const lo = -40, hi = 6;
-  const pct = ((db - lo) / (hi - lo)) * 100;
-  return Math.max(0, Math.min(100, Math.round(pct)));
 }
 
 /** True when Scene I and Scene II enable a different set of layers (a toggle helps). */
@@ -145,39 +133,6 @@ export function programZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesVie
   };
 }
 
-export interface DrawbarView {
-  /** Position 0–8, drives the tab height. */
-  level: number;
-  /** Raw position label, e.g. "4", "0", or a VOX combo like "4+5". */
-  label: string;
-  /** Footage label (B3 only), e.g. "16′"; undefined for generic models. */
-  footage?: string;
-  /** Tab color; 'default' = the single Nord-red fill for non-B3 models. */
-  color: DrawbarColor | 'default';
-  /** Morph targets when this drawbar is morph-assigned. */
-  morph?: MorphMarkView;
-}
-
-export interface OrganPanelModel {
-  id: string;
-  /** Decoded model, e.g. "B3" | "VOX". */
-  model: string;
-  /** Canonical selector options to render (highlight the active `model`). */
-  models: readonly string[];
-  isB3: boolean;
-  drawbars: DrawbarView[];
-  /** On state (per-layer) + the model's vib/chorus type (from the global map). */
-  vibChorus: { on: boolean; type?: string };
-  /** Percussion; `applicable` is false for non-B3 → render the group dimmed. */
-  percussion: { applicable: boolean; on: boolean; harm3rd: boolean; decayFast: boolean; volSoft: boolean };
-  /** Decoded preset on/off (not a true I/II selector — that's future RE). */
-  preset: boolean;
-  octave: number;
-  sustain: boolean;
-  /** Shared rotary — present only on the first organ layer. */
-  rotary?: { on: boolean; fast: boolean; drive?: string; stop: boolean };
-}
-
 /**
  * Pick the vib/chorus type for a model out of the global organFx map, which the
  * decoder stores as one string like "B3->C1; VOX->V2; FARF->C3; PIPE->C1".
@@ -235,23 +190,6 @@ export function organPanel(l: NS4Layer, organFx: Ns4OrganFx | undefined, isFirst
   };
 }
 
-export interface PianoCardModel {
-  id: string;
-  type: string;
-  model: string;
-  timbre: string;
-  touch: string;
-}
-export interface SynthCardModel {
-  id: string;
-  source: string;
-  osc: string;
-  oscDetail: string;
-  filterType: string;
-  cutoff: string;
-  res: string;
-}
-
 export function pianoCard(l: NS4Layer): PianoCardModel {
   return {
     id: l.id,
@@ -276,31 +214,9 @@ export function synthCard(l: NS4Layer): SynthCardModel {
   };
 }
 
-export interface EnvCurveView { a: number; d: number; s: number; r: number; }
-
-/** Parse a Nord envelope time string ("8 ms" | "1.2 s") to milliseconds; 0 if unparseable. */
-function envMs(t?: string): number {
-  if (!t) return 0;
-  const m = /([\d.]+)\s*(ms|s)?/i.exec(t);
-  if (!m) return 0;
-  const n = parseFloat(m[1]);
-  return (m[2] ?? '').toLowerCase() === 's' ? n * 1000 : n;
-}
-
-/**
- * Amp envelope as 0–1 segment proportions for the EnvCurve glyph, or null when
- * there's no envelope data. Widths come from the real attack/decay/release times
- * (sqrt-weighted so a 1 ms and a 2 s segment are both visible). The Nord synth
- * amp env has no separate sustain value, so the sustain level is schematic (0.7);
- * the exact A/D/R times are shown as stats beside the curve.
- */
+/** Amp envelope as a curve view, or null when there's no envelope data. */
 export function ampEnvCurve(l: NS4Layer): EnvCurveView | null {
-  const e = l.ampEnv;
-  if (!e) return null;
-  const a = Math.sqrt(envMs(e.attack)), d = Math.sqrt(envMs(e.decay)), r = Math.sqrt(envMs(e.release));
-  const tot = a + d + r;
-  if (tot === 0) return null;
-  return { a: a / tot, d: d / tot, s: 0.7, r: r / tot };
+  return envCurve(l.ampEnv);
 }
 
 /**
@@ -331,8 +247,6 @@ export function synthStats(l: NS4Layer): { label: string; value: string }[] {
   return out;
 }
 
-type Stat = { label: string; value: string };
-
 /** A present-only stat cell: drops undefined/false/0/off/none/empty so cards stay calm. */
 function stat(label: string, value: string | number | boolean | undefined): Stat | null {
   if (value === undefined || value === null || value === false) return null;
@@ -355,8 +269,6 @@ export function pianoStats(l: NS4Layer): Stat[] {
     stat('variation', l.pianoModelVariation),
   );
 }
-
-export interface FxChipModel { key: string; label: string; detail: string; }
 
 /**
  * Compact list of effects that are switched on. Per-layer FX come from each

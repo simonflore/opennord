@@ -9,7 +9,7 @@
  *
  * Dependency direction stays model → clavia: this file is pure types, no model deps.
  */
-import type { DrawbarView } from '../ns4/view';
+import type { DrawbarView } from './engine-view';
 
 export interface DecodedEngine {
   /** Row label, e.g. 'Organ' | 'Piano' | 'Synth' (unique within a section). */

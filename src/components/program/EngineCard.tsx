@@ -43,10 +43,10 @@ function OrganPanel({ layer, organFx, isFirstOrgan }: { layer: NS4Layer; organFx
         { label: 'Soft', on: p.on && p.volSoft },
       ]} />
 
-      <ToggleGroup label="Preset" items={[{ label: 'On', on: m.preset }]} />
+      <ToggleGroup label="Preset" items={[{ label: 'On', on: !!m.preset }]} />
 
       <ToggleGroup label="Octave" items={[{ label: m.octave > 0 ? `+${m.octave}` : `${m.octave}`, on: m.octave !== 0 }]} />
-      <ToggleGroup label="Sustain" items={[{ label: 'On', on: m.sustain }]} />
+      <ToggleGroup label="Sustain" items={[{ label: 'On', on: !!m.sustain }]} />
 
       {m.rotary && (
         <ToggleGroup label={<>Rotary <span className="shared">· shared FX</span></>} items={[
@@ -73,7 +73,7 @@ function PianoBody({ layer }: { layer: NS4Layer }) {
       </div>
       <div className="ps-knobs">
         <Knob value={c.timbre} caption="timbre" />
-        <Knob value={c.touch} caption="KB touch" />
+        <Knob value={c.touch ?? '—'} caption="KB touch" />
       </div>
       <StatGrid stats={pianoStats(layer)} />
     </>

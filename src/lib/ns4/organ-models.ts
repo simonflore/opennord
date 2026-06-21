@@ -7,8 +7,10 @@
  * Hammond B-3 drawbar spec). Only the B3 has a meaningful footage/color layout in
  * OpenNord today; Vox/Farfisa/Pipe render as plain numbered drawbars (null spec).
  */
+import type { DrawbarColor } from '../clavia/engine-view';
+import { B3_COLORS } from '../clavia/drawbars';
 
-export type DrawbarColor = 'brown' | 'white' | 'black';
+export type { DrawbarColor };
 
 export interface OrganModelSpec {
   /** Footage label per drawbar, left→right (9 entries). */
@@ -22,9 +24,6 @@ export const ORGAN_MODELS = ['B3', 'VOX', 'FARF', 'PIPE1', 'PIPE2'] as const;
 
 // Classic Hammond drawbar layout.
 const B3_FOOTAGES = ['16′', '5⅓′', '8′', '4′', '2⅔′', '2′', '1⅗′', '1⅓′', '1′'];
-const B3_COLORS: DrawbarColor[] = [
-  'brown', 'brown', 'white', 'white', 'black', 'white', 'black', 'black', 'white',
-];
 
 /** Footage/color layout for a model, or null when the model has no special layout. */
 export function organModelSpec(model: string | undefined): OrganModelSpec | null {
