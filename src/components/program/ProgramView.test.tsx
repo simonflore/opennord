@@ -414,4 +414,18 @@ describe('ProgramView (integration)', () => {
     expect(html).toContain('PANEL A'); // the Stage 3 panel band (rich per-engine view)
     expect(html).toContain('v3.04');   // header still surfaces the decoded version
   });
+
+  it('routes a Stage 2 program file to the rich Ns2 program view', () => {
+    const ns2p = new Uint8Array(547);
+    ns2p.set([0x43, 0x42, 0x49, 0x4e]); // CBIN
+    ns2p[0x04] = 0;                     // legacy header → versionOffset -20
+    for (let i = 0; i < 4; i++) ns2p[0x08 + i] = 'ns2p'.charCodeAt(i);
+    ns2p[0x0c] = 0x00; ns2p[0x0e] = 0x03; ns2p[0x10] = 0x1b; // bank/loc/category
+    ns2p[0x2e - 20] = 0;               // slot flag → A only
+    ns2p[0x48 - 20] = 0x80;            // piano on
+    ns2p[0xcd - 20] = 0x80;            // type → Clavinet
+    const html = renderToStaticMarkup(<ProgramView program={parseNs4Program(ns2p)} />);
+    expect(html).toContain('SLOT A'); // the Stage 2 slot band (rich per-engine view)
+    expect(html).not.toContain('SLOT B'); // slot flag selects A only
+  });
 });
