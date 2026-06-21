@@ -158,54 +158,78 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
 
 /**
  * A keyboard zone from the `map` section — one entry of the splits/velocity-layer
- * table (16 bytes). Layout verified byte-for-byte against `.nsmpproj` ground truth
- * (rootKey/topNote/btmNote) and the matching `stk` headers (globalID), codec 3 & 4:
+ * table. The 16-byte single-stroke record is **root-aligned and identical across
+ * codec 3 & 4** (the one shared `CSectionMap::Read` path, @1002ed4e4):
  *
- *   +0 velTop | +1 rootKey | +2 keyHigh(topNote/split) | +3 keyLow(btmNote)
- *   +4 u32 flag | +8 u32=1 | +12 globalID | +13 `00 01 00` trailer
+ *   +0 rootKey | +1 keyHigh(NoteExtend_Hi/split) | +2 keyLow(NoteExtend_Lo) |
+ *   +3 zoneMode | +4 zonePlayback | +5 zoneIsOneShot | +6 u16 strokeCount(=1) |
+ *   +8 u32 globalID | +12 u16 strength(=1) | +14 velMin | +15 velMax
  *
- * `keyHigh` is the zone's top key (a split point), `keyLow` its bottom; `rootKey`
- * is the key it's pitched for; `velTop` its top velocity (a layer boundary).
- * `globalID` selects the stroke that plays — it matches the stroke's id at `stk`
- * header byte +3 (NOT a positional index). See `docs/NSMP-CODEC.md`.
+ * `keyHigh`/`keyLow` are the zone's split bounds; `rootKey` the key it's pitched
+ * for; `velLow`..`velTop` its velocity range (a layer). `globalID` selects the
+ * stroke that plays — matching the stroke's id at `stk` header +3 (NOT a
+ * positional index). Verified vs `.nsmpproj` ground truth + real file dumps;
+ * see `docs/NSMP-CODEC.md`. (Multi-stroke zones — strokeCount>1 — exist on the
+ * wire but aren't modeled; all known content is single-stroke.)
  */
 export interface NsmpZone {
+  /** Top velocity of the layer — `velMax` @+15. */
   velTop: number;
-  /** Top key — the zone's split point (record +2). */
+  /** Bottom velocity of the layer — `velMin` @+14. */
+  velLow: number;
+  /** Top key — the zone's split point (record +1). */
   keyHigh: number;
-  /** Bottom key of the zone (record +3). */
+  /** Bottom key of the zone (record +2). */
   keyLow: number;
-  /** Key the sample is pitched for / plays at unity (record +1). */
+  /** Key the sample is pitched for / plays at unity (record +0). */
   rootKey: number;
-  /** The stroke this zone plays, by the stroke's global id (record +12 == `stk` header +3). */
+  /** Per-zone playback mode byte (+3). */
+  zoneMode: number;
+  /** Per-zone playback flag (+4). */
+  zonePlayback: number;
+  /** Per-zone one-shot flag (+5). */
+  zoneIsOneShot: number;
+  /** The stroke this zone plays, by the stroke's global id (record +11 == `stk` header +3). */
   globalID: number;
   /** Byte offset of this 16-byte record in the file, for in-place edits (0 when unknown). */
   recordOffset: number;
 }
 
 /**
- * Field byte-offsets within a 16-byte zone record. The two codec generations frame
- * the record one byte apart (verified vs `.nsmpproj` ground truth): codec-3 records
- * are velTop-first; codec-4 records are root-aligned with velTop trailing at +12+3.
+ * Field byte-offsets within the 16-byte zone record. Root-aligned and **identical
+ * for codec 3 & 4** — the generations differ only in the per-note row width and the
+ * block that precedes the records (a 1-byte count for codec 3; a ~32-byte
+ * SampleUnison block ending in the count for codec 4), not in the record itself.
  */
 export interface ZoneRecordLayout {
-  velTop: number; rootKey: number; keyHigh: number; keyLow: number; globalID: number;
+  rootKey: number; keyHigh: number; keyLow: number;
+  zoneMode: number; zonePlayback: number; zoneIsOneShot: number;
+  globalID: number; velLow: number; velTop: number;
 }
-export const ZONE_LAYOUT_C3: ZoneRecordLayout = { velTop: 0, rootKey: 1, keyHigh: 2, keyLow: 3, globalID: 12 };
-export const ZONE_LAYOUT_C4: ZoneRecordLayout = { rootKey: 0, keyHigh: 1, keyLow: 2, globalID: 11, velTop: 15 };
+export const ZONE_LAYOUT: ZoneRecordLayout = {
+  rootKey: 0, keyHigh: 1, keyLow: 2, zoneMode: 3, zonePlayback: 4, zoneIsOneShot: 5,
+  globalID: 11, velLow: 14, velTop: 15,
+};
+/** @deprecated codec 3 & 4 share {@link ZONE_LAYOUT}; kept as aliases. */
+export const ZONE_LAYOUT_C3 = ZONE_LAYOUT;
+export const ZONE_LAYOUT_C4 = ZONE_LAYOUT;
 
-/** The 16-byte zone-record layout for a file's generation (codec 3 vs 4). */
-export function zoneRecordLayout(codec: number | undefined): ZoneRecordLayout {
-  return codec === 4 ? ZONE_LAYOUT_C4 : ZONE_LAYOUT_C3;
+/** The 16-byte zone-record layout (shared across codec 3 & 4). */
+export function zoneRecordLayout(_codec?: number): ZoneRecordLayout {
+  return ZONE_LAYOUT;
 }
 
 /** Read one 16-byte zone record at byte offset `e` using the given field layout. */
 function readZoneRecord(bytes: Uint8Array, e: number, L: ZoneRecordLayout): NsmpZone {
   return {
     velTop: bytes[e + L.velTop],
+    velLow: bytes[e + L.velLow],
     rootKey: bytes[e + L.rootKey],
     keyHigh: bytes[e + L.keyHigh],
     keyLow: bytes[e + L.keyLow],
+    zoneMode: bytes[e + L.zoneMode],
+    zonePlayback: bytes[e + L.zonePlayback],
+    zoneIsOneShot: bytes[e + L.zoneIsOneShot],
     globalID: bytes[e + L.globalID],
     recordOffset: e,
   };
@@ -350,14 +374,16 @@ export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
     return parseCodec4ZoneRecords(bytes, map, strokeCount);
   }
 
-  let o = map.payloadOffset + 6; // global level (u24) + detune (s24)
-  const isUnity = (p: number) => bytes[p] === 0x10 && bytes[p + 1] === 0 && bytes[p + 2] === 0 &&
-    bytes[p + 3] === 0 && bytes[p + 4] === 0 && bytes[p + 5] === 0;
-  while (o + 6 <= map.endOffset && isUnity(o)) o += 6; // per-note level/detune block
+  // Codec-3 `map`: [6B global][128 × 6B per-note level/detune][1B zone count][N × 16B
+  // records][1B pad]. The per-note block is a fixed 128 rows (CSectionMap::Read loops
+  // 0..0x80 unconditionally) — a *fixed* skip, not a unity-scan, so a non-unity
+  // per-note level/detune row no longer truncates it. The 1-byte zone count precedes
+  // the records (earlier readers skipped it → an off-by-one that misread velTop).
+  const recStart = map.payloadOffset + 6 + 128 * 6 + 1; // global + per-note + count byte
+  const count = bytes[recStart - 1];
   const zones: NsmpZone[] = [];
-  while (o + 16 <= map.endOffset) {
-    zones.push(readZoneRecord(bytes, o, ZONE_LAYOUT_C3));
-    o += 16;
+  for (let i = 0; i < count && recStart + i * 16 + 16 <= map.endOffset; i++) {
+    zones.push(readZoneRecord(bytes, recStart + i * 16, ZONE_LAYOUT));
   }
   return zones;
 }
@@ -394,7 +420,10 @@ export function parseLegacyZoneRecords(
       // Legacy 12B layout: strokeIndex@+0 (the global id), rootKey@+1, keyHigh u32be@+4.
       // No separate bottom key in this generation; keyLow mirrors rootKey.
       const keyHigh = u32be(bytes, o + 4);
-      zones.push({ velTop: 127, keyHigh, keyLow: bytes[o + 1], rootKey: bytes[o + 1], globalID: bytes[o], recordOffset: o });
+      zones.push({
+        velTop: 127, velLow: 0, keyHigh, keyLow: bytes[o + 1], rootKey: bytes[o + 1],
+        zoneMode: 0, zonePlayback: 0, zoneIsOneShot: 0, globalID: bytes[o], recordOffset: o,
+      });
     }
     return zones;
   }

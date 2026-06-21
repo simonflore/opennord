@@ -163,38 +163,55 @@ block directory (corrects an earlier guess).
 
 ### `map` zone table — verified layout (codec 3 & 4)
 
-Reverse-engineered byte-for-byte against the **Nord Sample Editor `.nsmpproj`**
-project files (the human-readable ground truth: `m_rootKey`, `m_topNote`,
-`m_btmNote`, `m_globalID`) and cross-checked against each stroke's `stk` header.
-Validated on `Other.nsmp4` (4 zones) and the matched `Strings.nsmp3`/`.nsmp4`
-pair (8 / 9 zones). Implemented in `readNsmpZones` / `parseCodec4ZoneRecords`.
+Reverse-engineered against the decompiled **`NW1::CSectionMap::Read`**
+(`@1002ed4e4`, the one shared codec-3/4 read path) and cross-validated
+byte-for-byte against `.nsmpproj` ground truth (`m_rootKey`/`m_topNote`/
+`m_btmNote`/`m_globalID`) + real-file dumps (`Strings.nsmp3` 8 zones, `Other.nsmp4`
+4 zones). Implemented in `readNsmpZones` / `parseCodec4ZoneRecords`.
 
-The `map` payload is `[global level/detune][per-note level/detune block][zone
-table]`. The per-note block differs by generation — **codec 3: 128 × 6-byte**
-unity rows (`10 00 00 00 00 00`); **codec 4: 128 × 10-byte** rows (the 6-byte
-unity + a 4-byte incrementing note tag `00 00 00 00`, `01 01 01 01`, … `7f`×4).
-That widening is exactly why the codec-3 6-byte skip mis-parses a `.nsmp4`.
+The `map` payload reads (per `CSectionMap::Read`):
+`[global level/detune][128 × per-note level/detune][pre-record block][zone count][N × 16B records][pad]`.
 
-Each zone is a **16-byte record**. The two generations frame it one byte apart:
+- **global** = `u24 level` (→ `DSP2Level`, dB) + `s24 detune` (→ `DSP2Detune`, cents).
+- **per-note** (128 rows): each = `u24 level`(→`DSP2Level`) + `s24 detune`(→`DSP2Detune`).
+  **Codec 4 adds 4 trailing bytes per note** (10-byte rows) — read into four
+  *distinct* per-note arrays (`@+0x610/+0x614/+0xa10/+0xa14`), **not** a "note
+  tag" (they merely read `n,n,n,n` in the all-default corpus). Codec 3 = 6-byte rows.
+- **pre-record block:** codec 3 = nothing; **codec 4 = a ~32-byte `SampleUnison` +
+  random-stroke block** (`SetSampleUnison*` mode/detune-spreads/pan/voice-counts/
+  gains, `SetRandomStrokeMode`, `SetBlockRandomSustPed`) ending in the zone count.
+- **zone count** = 1 byte, immediately before the records (codec 3 reads it right
+  after the per-note block; codec 4's count is the last byte of the unison block).
 
-| field | codec-3 offset | codec-4 offset | meaning |
-|---|---|---|---|
-| `velTop`   | +0  | +15 | top velocity of the layer (1–127) |
-| `rootKey`  | +1  | +0  | key the sample is pitched for |
-| `keyHigh`  | +2  | +1  | **split point** — zone's top key |
-| `keyLow`   | +3  | +2  | zone's bottom key |
-| `globalID` | +12 | +11 | stroke this zone plays — matches **`stk` header +3** |
-| trailer    | `00 01 00` @+13 | `00 01 00` @+12 | constant |
+Each zone is a **16-byte single-stroke record, root-aligned and identical for
+codec 3 & 4** (earlier notes claimed the two were "framed one byte apart" — that
+was the codec-3 reader being **off by one**, mis-skipping the count byte so it read
+the count/neighbour `velMax` as a phantom `velTop`):
 
-Zones reference strokes by **`globalID`, not position** — e.g. `Other.nsmp4`'s
-zones (globalIDs 22, 5, 7, 6) map to stroke sections 0, 3, 1, 2. The codec-4
-table is located at a fixed offset (`6 + 128*10 + 32`); a 32-byte header precedes
-the records and its last byte is the zone count, self-checked by
-`recStart + count*16 + 6 == mapEnd`. **OG/legacy** uses a different 12-byte record
-(`parseLegacyZoneRecords`).
+| off | field | meaning |
+|---|---|---|
+| +0  | `rootKey` | key the sample is pitched for (`SZoneParams` ctor) |
+| +1  | `keyHigh` | **split point** — zone's top key (`NoteExtend_Hi`) |
+| +2  | `keyLow`  | zone's bottom key (`NoteExtend_Lo`) |
+| +3  | `zoneMode` | per-zone playback mode (`SetZoneMode`) |
+| +4  | `zonePlayback` | `SetZonePlayback` (mapVer ≥ 0xd) |
+| +5  | `zoneIsOneShot` | `SetZoneIsOneShot` (mapVer ≥ 0xe) |
+| +6  | `u16 strokeCount` | = 1 (multi-stroke zones unmodeled) |
+| +8  | `u32 globalID` | stroke this zone plays — matches **`stk` header +3** |
+| +12 | `u16 strength` | `SetStrength` = 1 in all known content |
+| +14 | `velMin` | bottom velocity of the layer (`SetVelocityMin`, mapVer ≥ 0xe) |
+| +15 | `velMax` | top velocity of the layer (`SetVelocityMax`) |
 
-Editing patches these fields back **in place** (`patchEditedNsmp`) and
-re-checksums — audio and every byte we don't model are preserved exactly.
+Zones reference strokes by **`globalID`, not position**. The codec-4 records sit
+at `6 + 128*10 + 32`; the reader self-checks `recStart + count*16 + 6 == mapEnd`.
+Codec-3 records sit at `6 + 128*6 + 1` (after the count byte), with a 1-byte pad
+trailing. **OG/legacy** uses a different 12-byte record (`parseLegacyZoneRecords`).
+The **writer** (`nsmp-write.ts`) emits this exact record (one `zoneEntry`, root-
+aligned) for both generations, with the codec-3 count byte + pad.
+
+Editing patches these fields (`rootKey`/`keyHigh`/`keyLow`/`velMin`/`velMax`) back
+**in place** (`patchEditedNsmp`) and re-checksums — audio and every byte we don't
+model are preserved exactly.
 
 The **writer** (`nsmp-write.ts`) emits this exact layout per generation:
 codec-3 `map` = `[6B global][128 × 6B unity][N × 16B C3 records]`; codec-4 `map` =
@@ -748,17 +765,22 @@ the codec-4 corpus file (Mellotron) the only non-audio gaps are small header
 regions — every large gap is a `stk` audio payload. **No large structured region
 exists for per-zone EQ / imaging / fades / envelope**, so those appear to be
 **editor-only** (not stored in the exported `.nsmp`) and are out of scope until
-proven otherwise. All 5 local projects are at default, so non-default
-gain/detune/velocity scales cannot be reversed from current data.
+proven otherwise. All 5 local projects are at default — so the gain/detune/velocity
+**scales could not be reversed from data**; they were closed instead from the
+**NSE source** (`CSectionMap::Read` + the `DSP2*` converters), the same oracle that
+cracked the codec. The "scale unknown" / "velocity unknown" rows below are now
+**resolved** (2026-06-21).
 
 | field group (`.nsmpproj`) | in `.nsmp`? | evidence |
 |---|---|---|
 | loop in/out (`m_loopStart`, …) | **present** | `stk` header pointers @0x12/0x1b/0x24/0x2d — decoded + writable |
-| key range (`m_btmNote`/`m_topNote`) | **present** | 16B zone record +2/+3 (c4) — decoded + writable |
-| global gain/detune (`map_info m_gain/m_detune`) | **present** | `map` payload first 6B; Mellotron non-unity `16 5e 7f` |
-| per-note gain/detune (`note_info`) | **present (structure)** | 128-row block after global 6B; all unity in corpus → scale unknown |
-| velocity min/max (`map_stroke`) | **unknown** | within 16B zone record spare bytes (+3..+10/+13/+14 c4); constant across all-default corpus |
+| key range (`m_btmNote`/`m_topNote`) | **present** | 16B zone record +1/+2 — decoded + writable |
+| global gain/detune (`map_info m_gain/m_detune`) | **present + scaled** | `map` first 6B; `DSP2Level`=`20·log10(raw/2²⁰)` dB, `DSP2Detune`=`round(raw·100/256)` cents (binary @1002de8b8/@1002de854) |
+| per-note gain/detune (`note_info`) | **present + scaled** | 128-row block; same `DSP2Level`/`DSP2Detune` per row (codec-4 +4 extra bytes are 4 distinct arrays, not a tag) |
+| velocity min/max (`map_stroke`) | **present** | zone record `velMin@+14` / `velMax@+15` (`SetVelocityMin`/`Max`, mapVer ≥ 0xe) — both codecs; decoded + writable |
+| zone mode / playback / one-shot | **present** | zone record `@+3/+4/+5` (`SetZoneMode`/`SetZonePlayback`/`SetZoneIsOneShot`) — read |
+| codec-4 SampleUnison block (mode, detune/pan spreads, voices, gains) | **present (structure)** | ~32B between per-note table & zone records (`SetSampleUnison*`) — not yet surfaced |
 | per-zone EQ / imaging / fades / release / instrument envelope | **absent / editor-only?** | no structured non-audio gap large enough; likely baked/dropped on export |
 
-Build work for "unknown"/"editor-only" rows is gated on a non-default
-ground-truth patch (recipe in the inspector-enrichment spec) and/or deeper RE.
+Remaining: the codec-4 `SampleUnison` block is structurally located but not
+surfaced; per-zone EQ/imaging/fades/envelope still look editor-only.

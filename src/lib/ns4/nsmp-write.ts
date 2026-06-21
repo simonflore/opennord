@@ -55,10 +55,14 @@ export interface WriteZone {
   channels: ArrayLike<number>[];
   /** Top key of this zone — a split point (keys up to here use this zone). */
   keyHigh: number;
+  /** Bottom key of this zone. Default: `rootKey`. */
+  keyLow?: number;
   /** The key this sample is pitched for (unpitched playback note). */
   rootKey: number;
   /** Top velocity of this zone — a layer boundary (1–127). Default 127. */
   velTop?: number;
+  /** Bottom velocity of this zone (velMin). Default 0. */
+  velLow?: number;
 }
 
 export interface WriteNsmpOptions extends EncodeOptions {
@@ -81,54 +85,40 @@ export interface WriteNsmpMultiOptions extends EncodeOptions {
 const UNITY = [0x10, 0, 0, 0, 0, 0]; // per-note level 0x100000, detune 0
 
 /**
- * Codec-3 16-byte `map` zone entry (splits/layers table). Real layout, verified
- * against `.nsmpproj` ground truth (see {@link NsmpZone} / `ZONE_LAYOUT_C3`):
- *   +0 velTop | +1 rootKey | +2 keyHigh(top/split) | +3 keyLow(btm) |
- *   +4 u32=1 | +8 u32=1 | +12 globalID | +13 `00 01 00`.
- * We write single-key zones (keyLow = rootKey); `globalID` matches the stroke's
- * own id at `stk` header +3.
+ * The 16-byte `map` zone record — **root-aligned, identical for codec 3 & 4** (the
+ * shared `CSectionMap::Read` layout, see {@link NsmpZone} / `ZONE_LAYOUT`):
+ *   +0 rootKey | +1 keyHigh(split) | +2 keyLow(btm) | +3 zoneMode |
+ *   +6 u16 strokeCount=1 | +8 u32 globalID | +12 u16 strength=1 | +14 velMin | +15 velMax.
+ * We write single-stroke zones (keyLow = rootKey unless given); `globalID` matches
+ * the stroke's own id at `stk` header +3. `zoneMode` defaults per-codec to the
+ * value seen in real files (codec-3 `Strings` = 0, codec-4 `Other` = 1).
  */
-function zoneEntryC3(z: WriteZone, globalID: number): Uint8Array {
-  const e = new Uint8Array(16);
-  e[0] = z.velTop ?? 127; // top velocity (layer)
-  e[1] = z.rootKey & 0x7f; // root key (pitched note)
-  e[2] = z.keyHigh & 0x7f; // top key (split)
-  e[3] = z.rootKey & 0x7f; // bottom key — default to root
-  e[4] = 1; // u32 flag = 1
-  e[8] = 1; // u32 = 1
-  e[12] = globalID & 0xff; // stroke global id
-  e[14] = 1; // trailer 00 01 00
-  return e;
-}
-
-/**
- * Codec-4 16-byte `map` zone entry. The codec-4 record is the codec-3 one with
- * `velTop` rotated from the front (+0) to the tail (+15), shifting the rest down a
- * byte (verified vs `ZONE_LAYOUT_C4` / real `.nsmp4`):
- *   +0 rootKey | +1 keyHigh(top/split) | +2 keyLow(btm) | +3 u32=1 | +7 u32=1 |
- *   +11 globalID | +12 `00 01 00` | +15 velTop.
- */
-function zoneEntryC4(z: WriteZone, globalID: number): Uint8Array {
+function zoneEntry(z: WriteZone, globalID: number, zoneMode: number): Uint8Array {
   const e = new Uint8Array(16);
   e[0] = z.rootKey & 0x7f; // root key (pitched note)
   e[1] = z.keyHigh & 0x7f; // top key (split)
-  e[2] = z.rootKey & 0x7f; // bottom key — default to root
-  e[3] = 1; // u32 flag = 1
-  e[7] = 1; // u32 = 1
-  e[11] = globalID & 0xff; // stroke global id
-  e[13] = 1; // trailer 00 01 00 @+12
-  e[15] = z.velTop ?? 127; // top velocity (layer)
+  e[2] = (z.keyLow ?? z.rootKey) & 0x7f; // bottom key — default to root
+  e[3] = zoneMode & 0xff; // per-zone playback mode
+  e[7] = 1; // u16 strokeCount @+6 = 1
+  e[11] = globalID & 0xff; // u32 globalID @+8 (low byte)
+  e[13] = 1; // u16 strength @+12 = 1
+  e[14] = z.velLow ?? 0; // velMin
+  e[15] = z.velTop ?? 127; // velMax (top velocity of the layer)
   return e;
 }
 
 /**
- * Codec-3 `map` payload: `[6B global][128 × 6B per-note unity][N × 16B C3 zone
- * records]`. (Codec-3 `map`, section version 14 — `readNsmpZones` codec-3 path.)
+ * Codec-3 `map` payload: `[6B global][128 × 6B per-note unity][1B zone count]
+ * [N × 16B records][1B pad]`. The 1-byte count precedes the records and a 1-byte
+ * pad trails them — matching real `.nsmp3` files and the `readNsmpZones` codec-3
+ * path. (Codec-3 `map`, section version 14.)
  */
 function buildMapPayloadC3(zones: WriteZone[]): Uint8Array {
   const parts: Uint8Array[] = [Uint8Array.from(UNITY)]; // global
   for (let i = 0; i < 128; i++) parts.push(Uint8Array.from(UNITY)); // per-note
-  zones.forEach((z, i) => parts.push(zoneEntryC3(z, i + 1)));
+  parts.push(Uint8Array.from([zones.length & 0xff])); // zone count
+  zones.forEach((z, i) => parts.push(zoneEntry(z, i + 1, 0)));
+  parts.push(Uint8Array.from([0])); // trailing pad
   return concat(parts);
 }
 
@@ -149,7 +139,7 @@ function buildMapPayloadC4(zones: WriteZone[]): Uint8Array {
   const header = new Uint8Array(32); // zone-table header — only its last byte (count) is read
   header[31] = zones.length & 0xff;
   parts.push(header);
-  zones.forEach((z, i) => parts.push(zoneEntryC4(z, i + 1)));
+  zones.forEach((z, i) => parts.push(zoneEntry(z, i + 1, 1)));
   parts.push(Uint8Array.from([0x00, 0x00, 0x00, 0x01, 0x00, 0x00])); // trailer
   return concat(parts);
 }

@@ -31,6 +31,25 @@ export function dsp2Level(x: number): number {
   return 20 * Math.log10(x * 9.5367431640625e-7);
 }
 
+/**
+ * `DSP2Detune(raw)` = `round(raw·100/256)` — the `map` section's detune scale.
+ * Converts the stored s24 detune to the editor's displayed **cents** (256 raw =
+ * 100 cents = one semitone). Rounds half away from zero, matching the binary's
+ * `±0.5` bias (`DSP2Detune` @1002de854).
+ */
+export function dsp2Detune(raw: number): number {
+  return Math.trunc((raw * 100) / 256 + (raw < 0 ? -0.5 : 0.5));
+}
+
+/**
+ * `Detune2DSP(cents)` = `trunc(cents·256/100)` — inverse of {@link dsp2Detune},
+ * for the write path. Truncates toward zero (`Detune2DSP` @1002de834 is a signed
+ * `/100` magic-multiply). Round-trips the clean unit points (0, ±100 cents).
+ */
+export function detune2DSP(cents: number): number {
+  return Math.trunc((cents * 256) / 100);
+}
+
 /** `Get0dB(bits)` = `2^(bits-1)` — full-scale amplitude for a bit depth. */
 export function get0dB(bits: number): number {
   return Math.pow(2, (bits - 1) & 0x1f);

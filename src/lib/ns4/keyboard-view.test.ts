@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { tileZones, clampKeyHigh, keyFraction, keyFromFraction, isBlackKey, KEY_MIN, KEY_MAX } from './keyboard-view';
 import type { EditZone } from './sample-edit';
 
-const z = (rootKey: number, keyHigh: number, velTop = 127): EditZone => ({ rootKey, keyLow: rootKey, keyHigh, velTop });
+const z = (rootKey: number, keyHigh: number, velTop = 127): EditZone => ({ rootKey, keyLow: rootKey, keyHigh, velTop, velLow: 0 });
 
 describe('tileZones', () => {
   it('lays zones out by ascending top key and derives bottom keys, keeping original index', () => {

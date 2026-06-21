@@ -4,9 +4,9 @@ import { KeyboardZoneMap } from './KeyboardZoneMap';
 import type { EditZone } from '../../lib/ns4/sample-edit';
 
 const zones: EditZone[] = [
-  { rootKey: 40, keyLow: 40, keyHigh: 40, velTop: 127 },
-  { rootKey: 60, keyLow: 60, keyHigh: 72, velTop: 127 },
-  { rootKey: 90, keyLow: 90, keyHigh: 108, velTop: 127 },
+  { rootKey: 40, keyLow: 40, keyHigh: 40, velTop: 127, velLow: 0 },
+  { rootKey: 60, keyLow: 60, keyHigh: 72, velTop: 127, velLow: 0 },
+  { rootKey: 90, keyLow: 90, keyHigh: 108, velTop: 127, velLow: 0 },
 ];
 
 describe('KeyboardZoneMap', () => {
@@ -41,9 +41,9 @@ describe('KeyboardZoneMap', () => {
     // Zones supplied high→low (as real .nsmp store them) must still label S1 at
     // the far left and S3 at the far right.
     const reversed: EditZone[] = [
-      { rootKey: 96, keyLow: 96, keyHigh: 108, velTop: 127 },
-      { rootKey: 60, keyLow: 60, keyHigh: 72, velTop: 127 },
-      { rootKey: 30, keyLow: 30, keyHigh: 40, velTop: 127 },
+      { rootKey: 96, keyLow: 96, keyHigh: 108, velTop: 127, velLow: 0 },
+      { rootKey: 60, keyLow: 60, keyHigh: 72, velTop: 127, velLow: 0 },
+      { rootKey: 30, keyLow: 30, keyHigh: 40, velTop: 127, velLow: 0 },
     ];
     const html = renderToStaticMarkup(
       <KeyboardZoneMap zones={reversed} selected={-1} onSelect={() => {}} />,

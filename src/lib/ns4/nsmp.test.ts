@@ -84,12 +84,15 @@ describe.skipIf(!existsSync(realFile))('readNsmp / decodeNsmp — real Strings.n
     const zones = readNsmpZones(bytes);
     expect(zones.length).toBe(8);
     // Strings.nsmp3 is split across the keyboard: descending zones, one stroke each.
-    // rootKey@+1, keyHigh(top/split)@+2, globalID@+12 — verified vs the .nsmpproj.
+    // root-aligned record (CSectionMap::Read): rootKey@+0, keyHigh@+1, globalID@+11.
     expect(zones.map((z) => z.rootKey)).toEqual([45, 42, 40, 38, 33, 30, 28, 26]);
     expect(zones.map((z) => z.keyHigh)).toEqual([45, 42, 41, 39, 35, 31, 28, 26]);
     expect(zones.map((z) => z.globalID)).toEqual([3, 4, 2, 1, 7, 8, 6, 5]);
-    expect(zones[0].velTop).toBe(8); // first zone is a soft-velocity layer
-    expect(zones.slice(1).every((z) => z.velTop === 127)).toBe(true);
+    // Velocity range is the full 0..127 (single layer); the old reader misread the
+    // zone-count byte (8) as zone 0's velTop — the codec-3 off-by-one, now fixed.
+    expect(zones.every((z) => z.velTop === 127)).toBe(true); // velMax @+15
+    expect(zones.every((z) => z.velLow === 0)).toBe(true); // velMin @+14
+    expect(zones.map((z) => z.zoneMode)).toEqual([0, 0, 0, 1, 0, 0, 0, 0]); // @+3, real ground truth
   });
 
   it('decodes all 8 strokes to clean stereo PCM', () => {
@@ -189,9 +192,10 @@ describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
       ...rec(13, 19, 108),
       ...rec(12, 22, 90),
     ]);
+    const z0 = { velLow: 0, zoneMode: 0, zonePlayback: 0, zoneIsOneShot: 0 };
     expect(parseLegacyZoneRecords(buf, 0, buf.length, 2)).toEqual([
-      { velTop: 127, keyHigh: 108, keyLow: 19, rootKey: 19, globalID: 13, recordOffset: 16 },
-      { velTop: 127, keyHigh: 90, keyLow: 22, rootKey: 22, globalID: 12, recordOffset: 28 },
+      { velTop: 127, keyHigh: 108, keyLow: 19, rootKey: 19, globalID: 13, recordOffset: 16, ...z0 },
+      { velTop: 127, keyHigh: 90, keyLow: 22, rootKey: 22, globalID: 12, recordOffset: 28, ...z0 },
     ]);
   });
 

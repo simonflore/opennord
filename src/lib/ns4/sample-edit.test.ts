@@ -58,7 +58,7 @@ describe('buildEditedNsmp', () => {
     const src = srcNsmp();
     const decoded = decodeNsmp(src);
     const model = editModel(readNsmp(src), readNsmpZones(src));
-    model.zones.push({ rootKey: 60, keyLow: 48, keyHigh: 100, velTop: 127 }); // extra zone, no stroke
+    model.zones.push({ rootKey: 60, keyLow: 48, keyHigh: 100, velTop: 127, velLow: 0 }); // extra zone, no stroke
     expect(() => buildEditedNsmp(model, decoded, 3)).toThrow();
   });
 });

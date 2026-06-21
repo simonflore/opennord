@@ -23,7 +23,10 @@ export interface EditZone {
   rootKey: number;
   keyLow: number;
   keyHigh: number;
+  /** Top velocity of the layer (velMax). */
   velTop: number;
+  /** Bottom velocity of the layer (velMin). */
+  velLow: number;
   /** Byte offset of this zone's 16-byte record in the source file (for in-place patching). */
   recordOffset?: number;
 }
@@ -40,7 +43,8 @@ export function editModel(file: NsmpFile, zones: NsmpZone[]): EditModel {
   return {
     name: file.name ?? 'Sample',
     zones: zones.map((z) => ({
-      rootKey: z.rootKey, keyLow: z.keyLow, keyHigh: z.keyHigh, velTop: z.velTop, recordOffset: z.recordOffset,
+      rootKey: z.rootKey, keyLow: z.keyLow, keyHigh: z.keyHigh,
+      velTop: z.velTop, velLow: z.velLow, recordOffset: z.recordOffset,
     })),
   };
 }
@@ -49,18 +53,20 @@ const clampKey = (n: number): number => Math.max(0, Math.min(127, Math.round(n))
 
 /**
  * Patch the edited zone fields + name back into the original file bytes, then
- * re-checksum. Writes only `velTop`@+0 / `rootKey`@+1 / `keyHigh`(top)@+2 of each
- * zone's 16-byte record (see {@link NsmpZone}); everything else — audio, per-note
- * data, the bytes we don't decode — is preserved untouched. Zones without a
- * `recordOffset` are skipped. Renaming is capped to the stored name's length.
+ * re-checksum. Writes `rootKey`/`keyHigh`/`keyLow`/`velLow`/`velTop` at their
+ * offsets in each zone's 16-byte record (the root-aligned {@link ZONE_LAYOUT},
+ * shared across codec 3 & 4); everything else — audio, per-note data, the bytes we
+ * don't decode — is preserved untouched. Zones without a `recordOffset` are
+ * skipped. Renaming is capped to the stored name's length.
  */
 export function patchEditedNsmp(original: Uint8Array, model: EditModel): Uint8Array {
   const out = original.slice();
-  const layout = zoneRecordLayout(readNsmp(out).codec); // codec-3 vs codec-4 field framing
+  const layout = zoneRecordLayout(readNsmp(out).codec);
   for (const z of model.zones) {
     if (z.recordOffset == null) continue;
     const e = z.recordOffset;
     out[e + layout.velTop] = clampKey(z.velTop);
+    out[e + layout.velLow] = clampKey(z.velLow);
     out[e + layout.rootKey] = clampKey(z.rootKey);
     out[e + layout.keyLow] = clampKey(z.keyLow);
     out[e + layout.keyHigh] = clampKey(z.keyHigh);
@@ -108,7 +114,7 @@ export function buildEditedNsmp(model: EditModel, decoded: DecodedStrokeResult[]
   const zones: WriteZone[] = model.zones.map((z, i) => {
     const stroke = decoded[i];
     if (!stroke) throw new Error(`no decoded audio for zone ${i}`);
-    return { channels: stroke.channels, keyHigh: z.keyHigh, rootKey: z.rootKey, velTop: z.velTop };
+    return { channels: stroke.channels, keyHigh: z.keyHigh, keyLow: z.keyLow, rootKey: z.rootKey, velTop: z.velTop, velLow: z.velLow };
   });
   return writeNsmpMulti({ name: model.name, zones, codec });
 }

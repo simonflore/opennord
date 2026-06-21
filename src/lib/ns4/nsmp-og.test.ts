@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseNsmpSections, nsmpLayout } from './nsmp';
 import { writeOgStrokeHeader, parseOgStrokeHeader, OG_STROKE_HEADER_FIXED, assembleOgNsmp, ogEnvelope, type OgSection } from './nsmp-og';
-import { level2DSP, dsp2Level, get0dB, decay2DSP, getDSPNormalize } from './nw1-dsp';
+import { level2DSP, dsp2Level, get0dB, decay2DSP, getDSPNormalize, dsp2Detune, detune2DSP } from './nw1-dsp';
 import { hasGt } from './gt-fixtures';
 
 const ogFiles = [
@@ -33,6 +33,22 @@ describe('nw1-dsp helpers', () => {
     const x = 0.731;
     const { mant, exp } = getDSPNormalize(x);
     expect(Math.abs((mant / 8388608) * 2 ** exp - x)).toBeLessThan(1e-6);
+  });
+
+  it('dsp2Detune / detune2DSP — the map detune scale (cents)', () => {
+    // DSP2Detune(raw) = round(raw·100/256); Detune2DSP(cents) = trunc(cents·256/100).
+    // Recovered from the binary (DSP2Detune @1002de854, Detune2DSP @1002de834).
+    expect(dsp2Detune(0)).toBe(0);
+    expect(dsp2Detune(256)).toBe(100); // one full unit = 100 cents
+    expect(dsp2Detune(128)).toBe(50);
+    expect(dsp2Detune(-256)).toBe(-100); // round-half away from zero, symmetric
+    expect(detune2DSP(0)).toBe(0);
+    expect(detune2DSP(100)).toBe(256);
+    expect(detune2DSP(50)).toBe(128);
+    expect(detune2DSP(-100)).toBe(-256); // trunc toward zero
+    // round-trips the clean unit points.
+    expect(dsp2Detune(detune2DSP(100))).toBe(100);
+    expect(detune2DSP(dsp2Detune(256))).toBe(256);
   });
 });
 

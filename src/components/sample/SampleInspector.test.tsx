@@ -53,8 +53,8 @@ describe('SampleEditPanel', () => {
     const model: EditModel = {
       name: 'My Strings',
       zones: [
-        { rootKey: 48, keyLow: 48, keyHigh: 60, velTop: 127, recordOffset: 100 },
-        { rootKey: 72, keyLow: 72, keyHigh: 96, velTop: 127, recordOffset: 116 },
+        { rootKey: 48, keyLow: 48, keyHigh: 60, velTop: 127, velLow: 0, recordOffset: 100 },
+        { rootKey: 72, keyLow: 72, keyHigh: 96, velTop: 127, velLow: 0, recordOffset: 116 },
       ],
     };
     const html = renderToStaticMarkup(<SampleEditPanel initial={model} bytes={new Uint8Array(0)} codec={3} />);
