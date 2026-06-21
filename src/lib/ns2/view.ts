@@ -174,7 +174,8 @@ export function ns2HeaderView(bytes: Uint8Array, slots: Ns2Slot[]): HeaderView {
     return `Slot ${s.id}: ${kinds.length ? kinds.join(' + ') : 'empty'}`;
   }).join(' · ');
   return {
-    name: info.slot ?? 'Unnamed',
+    // ns2 stores no program name — show 'Unnamed' (the slot already appears as a pill).
+    name: 'Unnamed',
     slot: info.slot ?? '—',
     category: info.categoryName ?? '—',
     version: info.version ? `v${info.version}` : '—',

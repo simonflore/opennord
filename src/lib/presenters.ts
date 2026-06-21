@@ -18,6 +18,11 @@ interface PresenterEntry {
   present: (bytes: Uint8Array) => DecodedProgram;
 }
 
+// NOTE: Stage 2 & Stage 3 now render through their rich per-engine views
+// (Ns2ProgramView/Ns3ProgramView), which ProgramView dispatches *before* this
+// registry. These entries (and the shared DecodedProgramView) are kept as the
+// lean on-ramp for the next not-yet-rich model — add a model here + a present.ts
+// to get it rendering immediately, then graduate it to a rich view later.
 const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.generation === 'Stage 3' && i.kind === 'performance', present: ns3Decoded },
   { match: (i) => i.generation === 'Stage 2' && i.kind === 'program', present: ns2Decoded },
