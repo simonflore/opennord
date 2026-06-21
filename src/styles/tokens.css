@@ -68,6 +68,7 @@
   --lcd-deep: #0d2a3a;         /* LCD gradient floor */
   --lcd-edge: #1d5775;         /* LCD bezel border */
   --wave: #ff3b3b;             /* waveform trace */
+  --accent-soft: rgba(224, 32, 46, 0.18); /* translucent red — loop region on the waveform */
   --panel-pill: #2c3340;       /* dark pill/chip backdrop on the panel */
   --dial-shell-lo: #171b22;    /* dial inner shadow floor */
   /* Keyboard-zone fills — a 6-hue data-viz palette for the zone map. */

@@ -75,6 +75,9 @@ export interface StrokeSummary {
   ok: boolean;
   /** Whether the stroke loops; undefined when the loop region wasn't decodable. */
   loops?: boolean;
+  /** Loop in/out, per-channel samples from stroke start (only when looping). */
+  loopStart?: number;
+  loopEnd?: number;
 }
 
 export function strokeSummary(d: DecodedStrokeResult): StrokeSummary {
@@ -83,5 +86,7 @@ export function strokeSummary(d: DecodedStrokeResult): StrokeSummary {
     index: d.index, sampleCount, channels: d.channelCount,
     peak: peakAmplitude(d.channels), ok: sampleCount > 0,
     loops: d.loop ? d.loop.loops : undefined,
+    loopStart: d.loop?.loops ? d.loop.loopStart : undefined,
+    loopEnd: d.loop?.loops ? d.loop.loopEnd : undefined,
   };
 }

@@ -106,9 +106,17 @@ function StrokeRow({ stroke, playable, name }: { stroke: InspectorStroke; playab
           {s.loops !== undefined && (
             <span title={s.loops ? 'Sample loops' : 'Plays once (no loop)'}> · {s.loops ? '↻ loops' : 'one-shot'}</span>
           )}
+          {s.loops && s.loopStart != null && s.loopEnd != null && (
+            <span> · loop {(s.loopStart / SAMPLE_RATE).toFixed(2)}–{(s.loopEnd / SAMPLE_RATE).toFixed(2)}s</span>
+          )}
         </span>
       </div>
-      {s.ok && <WaveCanvas pcm={stroke.channels[0]} />}
+      {s.ok && (
+        <WaveCanvas
+          pcm={stroke.channels[0]}
+          loop={s.loops && s.loopStart != null && s.loopEnd != null ? { start: s.loopStart, end: s.loopEnd } : undefined}
+        />
+      )}
     </div>
   );
 }
