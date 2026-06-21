@@ -8,6 +8,9 @@ interface DeviceState {
   deviceName: string;
   /** USB idProduct of the connected device (0 until connected). */
   productId: number;
+  /** User Sample Library files enumerated from the device (partition 5). */
+  sampleEntries: ProgramEntry[];
+  setSampleEntries: (e: ProgramEntry[]) => void;
   setConnection: (s: NordSession, e: ProgramEntry[], name: string, productId: number) => void;
   setEntries: (e: ProgramEntry[]) => void;
   disconnect: () => void;
@@ -18,14 +21,16 @@ const Ctx = createContext<DeviceState | null>(null);
 export function DeviceProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<NordSession | null>(null);
   const [entries, setEntries] = useState<ProgramEntry[]>([]);
+  const [sampleEntries, setSampleEntries] = useState<ProgramEntry[]>([]);
   const [deviceName, setDeviceName] = useState('');
   const [productId, setProductId] = useState(0);
 
   const value: DeviceState = {
     session, entries, deviceName, productId,
+    sampleEntries, setSampleEntries,
     setConnection: (s, e, name, pid) => { setSession(s); setEntries(e); setDeviceName(name); setProductId(pid); },
     setEntries,
-    disconnect: () => { setSession(null); setEntries([]); setDeviceName(''); setProductId(0); },
+    disconnect: () => { setSession(null); setEntries([]); setSampleEntries([]); setDeviceName(''); setProductId(0); },
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

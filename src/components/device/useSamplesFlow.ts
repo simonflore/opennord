@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { enumerateFiles, pullFile, type ProgramEntry } from '../../lib/device/transfer';
-import { PARTITION_SAMP_LIB } from '../../lib/device/opcodes';
+import { type ProgramEntry } from '../../lib/device/transfer';
+import { enumerateSampleLibrary, pullSample } from '../../lib/device/samples';
 import type { NordSession } from '../../lib/device/session';
 import type { InspectorInput } from '../sample/SampleInspector';
 
@@ -34,7 +34,7 @@ export function useSamplesFlow(session: NordSession | null) {
     if (next === 'samples' && sampleEntries.length === 0) {
       setBusy(true);
       try {
-        setSampleEntries(await session.withSession(PARTITION_SAMP_LIB, () => enumerateFiles(session)));
+        setSampleEntries(await enumerateSampleLibrary(session));
       } catch (e) {
         setError(`Could not list samples: ${msg(e)}`);
       } finally {
@@ -48,8 +48,8 @@ export function useSamplesFlow(session: NordSession | null) {
     if (!session || busy) return;
     setError(''); setBusy(true); setPullPct(0);
     try {
-      const bytes = await session.withSession(PARTITION_SAMP_LIB, () =>
-        pullFile(session, entry, (done, total) => setPullPct(total ? Math.round((done / total) * 100) : 0)));
+      const bytes = await pullSample(session, entry,
+        (done, total) => setPullPct(total ? Math.round((done / total) * 100) : 0));
       setSampleInput({ bytes, name: entry.name });
     } catch (e) {
       setError(`Could not read ${entry.name}: ${msg(e)}`);
