@@ -27,6 +27,10 @@ describe('sortWithFavorites', () => {
   it('floats favorites first, then key within each group', () => {
     expect(sortWithFavorites(items, new Set(['a']), byName).map((i) => i.id)).toEqual(['a', 'b', 'c']);
   });
+  it('orders multiple favorites by key within the favorites group', () => {
+    // a=Cello, c=Banjo both favorited → sorted by name (Banjo, Cello), then non-fav b=Apple
+    expect(sortWithFavorites(items, new Set(['a', 'c']), byName).map((i) => i.id)).toEqual(['c', 'a', 'b']);
+  });
   it('is stable for equal keys and does not mutate input', () => {
     const copy = [...items];
     const out = sortWithFavorites(items, new Set(), () => 0);

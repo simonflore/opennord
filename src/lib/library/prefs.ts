@@ -53,7 +53,8 @@ function usePrefs<S extends string>(key: string, parseSort: (raw: unknown) => S)
     favorites: p.favorites.includes(id) ? p.favorites.filter((x) => x !== id) : [...p.favorites, id],
   })), []);
 
-  return { sort: prefs.sort, setSort, favorites, isFavorite: (id) => favorites.has(id), toggleFavorite };
+  const isFavorite = useCallback((id: string) => favorites.has(id), [favorites]);
+  return { sort: prefs.sort, setSort, favorites, isFavorite, toggleFavorite };
 }
 
 const parseLibrarySort = (raw: unknown): LibrarySort =>

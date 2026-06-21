@@ -23,6 +23,9 @@ describe('useSamplesPrefs', () => {
     const { result } = renderHook(() => useSamplesPrefs());
     act(() => result.current.setSort('size'));
     expect(result.current.sort).toBe('size');
+    act(() => result.current.setSort('strokes'));
+    expect(result.current.sort).toBe('strokes');
+    expect(localStorage.getItem('opennord.samples.prefs')).toContain('strokes');
   });
 });
 
