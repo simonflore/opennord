@@ -736,3 +736,29 @@ just not worth it, and the editor's encode kernel isn't statically extractable.)
 storage-rate / pitch model isn't hardware-verified (35256 Hz observed for rootKey 57
 only) — callers set `targetRate` explicitly. Byte-exact resampling would need the
 runtime `s_newFir48` kernel (or a WASM core for exact float32/FMA); not worth it.
+
+## Field-presence in `.nsmp` (discovery 2026-06-21)
+
+The `.nsmpproj` (Nord Sample Editor project, plain ASCII at
+`~/Documents/NordSampleEditor3Projects/*.nsmpproj`) is the full editor model.
+OpenNord edits the `.nsmp` *binary*, so each richer editor field must be located
+in the binary before it can be surfaced. `nsmp-coverage.ts`
+(`nsmpClaimedRegions` / `nsmpGapRanges`) maps claimed vs unclaimed bytes; run on
+the codec-4 corpus file (Mellotron) the only non-audio gaps are small header
+regions — every large gap is a `stk` audio payload. **No large structured region
+exists for per-zone EQ / imaging / fades / envelope**, so those appear to be
+**editor-only** (not stored in the exported `.nsmp`) and are out of scope until
+proven otherwise. All 5 local projects are at default, so non-default
+gain/detune/velocity scales cannot be reversed from current data.
+
+| field group (`.nsmpproj`) | in `.nsmp`? | evidence |
+|---|---|---|
+| loop in/out (`m_loopStart`, …) | **present** | `stk` header pointers @0x12/0x1b/0x24/0x2d — decoded + writable |
+| key range (`m_btmNote`/`m_topNote`) | **present** | 16B zone record +2/+3 (c4) — decoded + writable |
+| global gain/detune (`map_info m_gain/m_detune`) | **present** | `map` payload first 6B; Mellotron non-unity `16 5e 7f` |
+| per-note gain/detune (`note_info`) | **present (structure)** | 128-row block after global 6B; all unity in corpus → scale unknown |
+| velocity min/max (`map_stroke`) | **unknown** | within 16B zone record spare bytes (+3..+10/+13/+14 c4); constant across all-default corpus |
+| per-zone EQ / imaging / fades / release / instrument envelope | **absent / editor-only?** | no structured non-audio gap large enough; likely baked/dropped on export |
+
+Build work for "unknown"/"editor-only" rows is gated on a non-default
+ground-truth patch (recipe in the inspector-enrichment spec) and/or deeper RE.

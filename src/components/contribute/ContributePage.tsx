@@ -14,6 +14,7 @@ import type { Capture, ContributionEntry, ControlVocabItem } from '../../lib/con
 import { slotLabel } from '../../lib/clavia/slot';
 import { useNordMidi } from './useNordMidi';
 import { MidiProbe } from './MidiProbe';
+import { DecodeCoverage } from './DecodeCoverage';
 
 const APP_VERSION = '0.1.0';
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -36,6 +37,7 @@ export function ContributePage() {
           onConnected={(s, e, name, pid) => setConnection(s, e, name, pid)}
         />
         <FileDropWizard />
+        <DecodeCoverage />
       </section>
     );
   }

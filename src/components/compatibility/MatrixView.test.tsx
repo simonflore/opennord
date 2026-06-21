@@ -26,4 +26,9 @@ describe('MatrixView', () => {
   it('links to the Contribute tool for undecoded models', () => {
     expect(render()).toContain('href="#/contribute"');
   });
+  it('shows a Sounds-decoded column with Stage 4 parameter count', () => {
+    const html = render();
+    expect(html).toContain('Sounds');
+    expect(html).toContain('params'); // Stage 4 → "406 params"
+  });
 });
