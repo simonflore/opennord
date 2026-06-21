@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { writeNsmpMulti } from './nsmp-write';
 import { readNsmp, decodeNsmp, readNsmpZones, parseNsmpSections, readStrokeLoop, patchStrokeLoopBytes } from './nsmp';
 import { editModel, buildEditedNsmp, patchEditedNsmp } from './sample-edit';
+import { gainDetuneView } from './sample-view';
 
 /**
  * A deterministic 2-zone source .nsmp (no gitignored fixture needed). Audio is
@@ -128,6 +129,33 @@ describe('patchEditedNsmp', () => {
     expect(out.length).toBe(src.length);
     expect(readNsmpZones(out)[0].keyLow).toBe(36);
     expect(readNsmpZones(out)[1].keyLow).toBe(readNsmpZones(src)[1].keyLow); // untouched
+  });
+
+  it('patches a zone velocity range (velLow/velTop) in place', () => {
+    const src = srcNsmp();
+    const model = editModel(readNsmp(src), readNsmpZones(src));
+    model.zones[0].velLow = 40;
+    model.zones[0].velTop = 90;
+    const out = patchEditedNsmp(src, model);
+    const z = readNsmpZones(out);
+    expect(z[0]).toMatchObject({ velLow: 40, velTop: 90 });
+    expect(z[1]).toMatchObject({ velLow: 0, velTop: 127 }); // untouched
+  });
+
+  it('patches global gain (dB) + detune (cents) into the map, round-tripping', () => {
+    const src = srcNsmp();
+    const model = editModel(readNsmp(src), readNsmpZones(src));
+    model.globalGainDb = -6;
+    model.globalDetuneCents = 50;
+    const out = patchEditedNsmp(src, model);
+    expect(out.length).toBe(src.length);
+    expect(readNsmp(out).checksumValid).toBe(true);
+    const g = gainDetuneView(out)!;
+    expect(g.isDefault).toBe(false);
+    expect(g.gainDb).toBeCloseTo(-6, 1);
+    expect(g.detuneCents).toBe(50);
+    // audio untouched
+    expect([...decodeNsmp(out)[0].channels[0]]).toEqual([...decodeNsmp(src)[0].channels[0]]);
   });
 
   // Real codec-4 multisample: edit one zone, prove everything else stays byte-exact.

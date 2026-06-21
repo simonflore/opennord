@@ -21,8 +21,8 @@ describe('SampleHeader', () => {
 describe('ZoneMap', () => {
   it('renders a row per zone with note names', () => {
     const rows: ZoneRow[] = [
-      { globalID: 1, rootNote: 'C4', btmNote: 'C4', topNote: 'B4', velTop: 127 },
-      { globalID: 2, rootNote: 'C5', btmNote: 'C5', topNote: 'B5', velTop: 127 },
+      { globalID: 1, rootNote: 'C4', btmNote: 'C4', topNote: 'B4', velTop: 127, velLow: 0 },
+      { globalID: 2, rootNote: 'C5', btmNote: 'C5', topNote: 'B5', velTop: 127, velLow: 0 },
     ];
     const html = renderToStaticMarkup(<ZoneMap rows={rows} />);
     expect(html).toContain('C4');

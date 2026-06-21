@@ -4,6 +4,7 @@
  */
 import type { NsmpFile, DecodedStrokeResult } from './nsmp';
 import { readNsmpZones, readGlobalLevelDetune, perNoteCustomCount } from './nsmp';
+import { dsp2Level, dsp2Detune } from './nw1-dsp';
 import { peakAmplitude } from './nsmp-audio';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -27,7 +28,14 @@ export interface SampleHeaderView {
   isFactory: boolean;
   /** Global + per-note level/detune, read-only. Computed by {@link gainDetuneView}
    *  (kept off {@link sampleHeaderView} so its callers/tests stay unchanged). */
-  gainDetune?: { isDefault: boolean; level: number; detune: number; customNotes: number };
+  gainDetune?: {
+    isDefault: boolean;
+    /** Raw stored values (Q20 level, s24 detune). */
+    level: number; detune: number;
+    /** Interpreted via the NSE converters: gain in dB, detune in cents. */
+    gainDb: number; detuneCents: number;
+    customNotes: number;
+  };
 }
 
 /** Display label for a sample's generation: ".nsmp (OG)" / ".nsmp3" / ".nsmp4" / "—". */
@@ -54,7 +62,11 @@ export function sampleHeaderView(file: NsmpFile, sizeBytes: number, fallbackName
 export function gainDetuneView(bytes: Uint8Array): SampleHeaderView['gainDetune'] {
   const g = readGlobalLevelDetune(bytes);
   if (!g) return undefined;
-  return { isDefault: g.isDefault, level: g.level, detune: g.detune, customNotes: perNoteCustomCount(bytes) };
+  return {
+    isDefault: g.isDefault, level: g.level, detune: g.detune,
+    gainDb: dsp2Level(g.level), detuneCents: dsp2Detune(g.detune),
+    customNotes: perNoteCustomCount(bytes),
+  };
 }
 
 export interface ZoneRow {
@@ -66,7 +78,9 @@ export interface ZoneRow {
   btmNote: string;
   /** Zone top key as a note name. */
   topNote: string;
-  /** Top velocity of this layer. */
+  /** Bottom velocity of this layer (velMin). */
+  velLow: number;
+  /** Top velocity of this layer (velMax). */
   velTop: number;
 }
 
@@ -77,6 +91,7 @@ export function zoneMapRows(bytes: Uint8Array): ZoneRow[] {
     rootNote: noteName(z.rootKey),
     btmNote: noteName(z.keyLow),
     topNote: noteName(z.keyHigh),
+    velLow: z.velLow,
     velTop: z.velTop,
   }));
 }

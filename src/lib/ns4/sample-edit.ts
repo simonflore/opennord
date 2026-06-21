@@ -17,6 +17,7 @@
 import type { NsmpFile, NsmpZone, DecodedStrokeResult } from './nsmp';
 import { parseNsmpSections, readNsmp, zoneRecordLayout, patchStrokeLoopBytes } from './nsmp';
 import { writeNsmpMulti, type WriteZone } from './nsmp-write';
+import { level2DSP, detune2DSP } from './nw1-dsp';
 import { patchNs4Checksum } from '../clavia/checksum';
 
 export interface EditZone {
@@ -36,6 +37,10 @@ export interface EditModel {
   zones: EditZone[];
   /** Optional loop-point edits, by `stk` payload offset (absolute pointers). */
   loops?: Array<{ stkPayloadOffset: number; loopInAbs: number; loopOutAbs: number }>;
+  /** Global gain in dB — written to the `map` global level when set. */
+  globalGainDb?: number;
+  /** Global detune in cents — written to the `map` global detune when set. */
+  globalDetuneCents?: number;
 }
 
 /** Build the editable model from a loaded file + its zone map. */
@@ -74,8 +79,28 @@ export function patchEditedNsmp(original: Uint8Array, model: EditModel): Uint8Ar
   for (const lp of model.loops ?? []) {
     patchStrokeLoopBytes(out, lp.stkPayloadOffset, lp.loopInAbs, lp.loopOutAbs);
   }
+  patchGlobalGainDetune(out, model.globalGainDb, model.globalDetuneCents);
   patchName(out, model.name);
   return patchNs4Checksum(out);
+}
+
+/** Big-endian u24 write at `o`. */
+function writeU24(out: Uint8Array, o: number, v: number): void {
+  out[o] = (v >>> 16) & 0xff; out[o + 1] = (v >>> 8) & 0xff; out[o + 2] = v & 0xff;
+}
+
+/**
+ * Patch the `map` section's global level (dB → `Level2DSP`) and/or detune
+ * (cents → `Detune2DSP`, written s24) in place. Each is written only when given,
+ * so a model that edits just one leaves the other untouched.
+ */
+function patchGlobalGainDetune(out: Uint8Array, gainDb?: number, detuneCents?: number): void {
+  if (gainDb == null && detuneCents == null) return;
+  const map = parseNsmpSections(out).find((s) => s.tag.endsWith('map'));
+  if (!map) return;
+  const p = map.payloadOffset;
+  if (gainDb != null) writeU24(out, p, level2DSP(gainDb) & 0xffffff);
+  if (detuneCents != null) writeU24(out, p + 3, detune2DSP(detuneCents) & 0xffffff); // s24 (two's complement)
 }
 
 /**

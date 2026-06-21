@@ -7,6 +7,11 @@ function formatBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Signed gain in dB, e.g. +2.9 dB / −6.0 dB. */
+const fmtDb = (db: number): string => `${db >= 0 ? '+' : '−'}${Math.abs(db).toFixed(1)} dB`;
+/** Signed detune in cents, e.g. +100 ¢. */
+const fmtCents = (c: number): string => `${c >= 0 ? '+' : '−'}${Math.abs(c)} ¢`;
+
 export function SampleHeader({ view }: { view: SampleHeaderView }) {
   return (
     <div className="ps-hd">
@@ -24,8 +29,15 @@ export function SampleHeader({ view }: { view: SampleHeaderView }) {
             <span className="ps-pill" style={{ color: 'var(--warn)', borderColor: 'var(--deps-border)' }}>factory?</span>
           )}
           {view.gainDetune && !view.gainDetune.isDefault && (
-            <span className="ps-pill" title={`global level ${view.gainDetune.level}, detune ${view.gainDetune.detune}`}>
-              custom gain{view.gainDetune.customNotes > 0 ? ` · ${view.gainDetune.customNotes} notes` : ''}
+            <span
+              className="ps-pill"
+              title={`global gain ${fmtDb(view.gainDetune.gainDb)}, detune ${fmtCents(view.gainDetune.detuneCents)}`}
+            >
+              {[
+                view.gainDetune.gainDb !== 0 ? `gain ${fmtDb(view.gainDetune.gainDb)}` : null,
+                view.gainDetune.detuneCents !== 0 ? `detune ${fmtCents(view.gainDetune.detuneCents)}` : null,
+                view.gainDetune.customNotes > 0 ? `${view.gainDetune.customNotes} custom notes` : null,
+              ].filter(Boolean).join(' · ') || 'custom gain'}
             </span>
           )}
         </div>

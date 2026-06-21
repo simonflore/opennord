@@ -3,7 +3,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { NsmpFile, DecodedStrokeResult } from './nsmp';
 import { readNsmp } from './nsmp';
-import { noteName, sampleHeaderView, zoneMapRows, strokeSummary } from './sample-view';
+import { noteName, sampleHeaderView, zoneMapRows, strokeSummary, gainDetuneView } from './sample-view';
+import { parseNsmpSections } from './nsmp';
+import { writeNsmp } from './nsmp-write';
 
 describe('noteName', () => {
   it('maps MIDI numbers to scientific note names (C4 = 60)', () => {
@@ -82,9 +84,32 @@ describe('strokeSummary', () => {
   });
 });
 
+describe('gainDetuneView — interpreted gain (dB) + detune (cents)', () => {
+  it('reads unity as 0 dB / 0 cents and marks it default', () => {
+    const bytes = writeNsmp({ name: 'G', channels: [new Int16Array(64)] }); // codec 3, unity global
+    const v = gainDetuneView(bytes)!;
+    expect(v.isDefault).toBe(true);
+    expect(Math.abs(v.gainDb)).toBeLessThan(0.01);
+    expect(v.detuneCents).toBe(0);
+  });
+
+  it('scales a non-unity global to dB / cents via the NSE converters', () => {
+    const bytes = writeNsmp({ name: 'G', channels: [new Int16Array(64)] });
+    const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'))!;
+    const p = map.payloadOffset;
+    // Mellotron-style level 0x165e7f (≈ +2.9 dB) + detune 256 (= +100 cents).
+    bytes[p] = 0x16; bytes[p + 1] = 0x5e; bytes[p + 2] = 0x7f;
+    bytes[p + 3] = 0x00; bytes[p + 4] = 0x01; bytes[p + 5] = 0x00;
+    const v = gainDetuneView(bytes)!;
+    expect(v.isDefault).toBe(false);
+    expect(v.gainDb).toBeCloseTo(2.91, 1);
+    expect(v.detuneCents).toBe(100);
+  });
+});
+
 const real = join(process.cwd(), 'research/nsmp/Strings.nsmp3');
 describe.skipIf(!existsSync(real))('zoneMapRows — real Strings.nsmp3', () => {
-  it('maps each zone to note names + stroke global id', () => {
+  it('maps each zone to note names + stroke global id + velocity range', () => {
     const bytes = new Uint8Array(readFileSync(real));
     const rows = zoneMapRows(bytes);
     expect(rows.length).toBeGreaterThan(0);
@@ -92,6 +117,8 @@ describe.skipIf(!existsSync(real))('zoneMapRows — real Strings.nsmp3', () => {
       expect(typeof r.globalID).toBe('number');
       expect(r.rootNote).toMatch(/^[A-G]#?-?\d+$/);
       expect(r.topNote).toMatch(/^[A-G]#?-?\d+$/);
+      expect(r.velLow).toBe(0); // velMin
+      expect(r.velTop).toBe(127); // velMax
     }
   });
 });
