@@ -1,17 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  pickFolder, restoreFolder, rescan, grantAndScan, forgetFolder,
-  supportsPersistentFolders,
+  pickFolder, restoreFolder, rescan, grantAndScan, forgetFolder, supportsPersistentFolders,
 } from './access';
-import { scanFiles, type RawFile, type ScanError, type ScanResult } from './scan';
+import { mainThreadScanner, type Scanner, type ScanBatch, type BundleDescriptor } from './pipeline';
+import { loadBundleChoice, saveBundleChoice, clearBundleChoice } from './bundlePrefs';
+import type { FolderSource } from './source';
+import type { ScanResult } from './scan';
 
 const EMPTY: ScanResult = { programs: [], samples: [], errors: [] };
-
-/** Scan files and fold the access-layer read errors in with the parse errors. */
-function scan(files: RawFile[], readErrors: ScanError[]): ScanResult {
-  const r = scanFiles(files);
-  return { ...r, errors: [...readErrors, ...r.errors] };
-}
 
 /** A user dismissing the folder picker is not an error worth surfacing. */
 function isCancel(err: unknown): boolean {
@@ -20,16 +16,17 @@ function isCancel(err: unknown): boolean {
   return /cancel|no folder chosen|aborted/i.test(msg);
 }
 
-/** Turn a real (non-cancel) failure into a visible one-line note. */
-function noticeResult(err: unknown): ScanResult {
-  return { programs: [], samples: [], errors: [{ path: '(folder)', reason: err instanceof Error ? err.message : String(err) }] };
-}
-
 export interface FolderLibrary {
   /** Connected folder name, or null when none. */
   folderName: string | null;
-  /** Latest scan results (programs/samples/errors). */
+  /** Latest scan results (programs/samples/errors), built up progressively. */
   result: ScanResult;
+  /** All `.ns4b` backups detected in the folder. */
+  bundles: BundleDescriptor[];
+  /** Backups not yet decided (neither loaded nor skipped) — drive the picker/banner. */
+  newBundles: BundleDescriptor[];
+  /** Whether the multi-bundle picker is showing. */
+  pickerOpen: boolean;
   /** A saved folder needs its permission re-granted (show a reconnect banner). */
   needsReconnect: boolean;
   /** Set when a reconnect attempt was denied/blocked — shown in the banner. */
@@ -38,23 +35,75 @@ export interface FolderLibrary {
   busy: boolean;
   /** Whether this browser keeps the folder across reloads. */
   canPersist: boolean;
-  /** Prompt for a folder and scan it. */
   choose: () => Promise<void>;
-  /** Re-request permission for a saved folder, then scan. */
   reconnect: () => Promise<void>;
-  /** Re-scan the current folder (manual refresh). FSA only. */
   refresh: () => Promise<void>;
-  /** Forget the folder and clear results. */
   forget: () => Promise<void>;
+  openBundlePicker: () => void;
+  closeBundlePicker: () => void;
+  /** Load the chosen backups (the rest are remembered as skipped), then close the picker. */
+  applyBundleSelection: (loadPaths: string[]) => Promise<void>;
 }
 
-export function useFolderLibrary(): FolderLibrary {
+export function useFolderLibrary(makeScanner: () => Scanner = mainThreadScanner): FolderLibrary {
   const [folderName, setFolderName] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult>(EMPTY);
+  const [bundles, setBundles] = useState<BundleDescriptor[]>([]);
+  const [newBundles, setNewBundles] = useState<BundleDescriptor[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [handle, setHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [pending, setPending] = useState<FileSystemDirectoryHandle | null>(null);
   const [busy, setBusy] = useState(false);
   const [reconnectError, setReconnectError] = useState<string | null>(null);
+
+  const scannerRef = useRef<Scanner | null>(null);
+  const genRef = useRef(0); // generation token: ignore batches from a superseded scan
+
+  const append = useCallback((gen: number) => (b: ScanBatch) => {
+    if (gen !== genRef.current) return;
+    setResult((r) => ({
+      programs: [...r.programs, ...b.programs],
+      samples: [...r.samples, ...b.samples],
+      errors: [...r.errors, ...b.errors],
+    }));
+  }, []);
+
+  /** Run Pass A on a source, then apply remembered choices / open the gate. */
+  const runScan = useCallback(async (name: string, source: FolderSource) => {
+    const gen = ++genRef.current;
+    scannerRef.current?.dispose?.();
+    const scanner = makeScanner();
+    scannerRef.current = scanner;
+    setResult(EMPTY); setBundles([]); setNewBundles([]); setPickerOpen(false);
+    const onBatch = append(gen);
+
+    const found = await scanner.scanLoose(source, onBatch);
+    if (gen !== genRef.current) return;
+    setBundles(found);
+
+    const choice = await loadBundleChoice(name);
+    if (gen !== genRef.current) return;
+    const decided = new Set(choice?.decided ?? []);
+    const skipped = new Set(choice?.skipped ?? []);
+    const undecided = found.filter((b) => !decided.has(b.path) && !skipped.has(b.path));
+    setNewBundles(undecided);
+
+    // Re-apply remembered "load" choices silently.
+    const toReload = found.filter((b) => decided.has(b.path)).map((b) => b.path);
+    if (toReload.length > 0) await scanner.expandBundles(toReload, onBatch);
+    if (gen !== genRef.current) return;
+
+    if (undecided.length >= 2) {
+      setPickerOpen(true);
+    } else if (undecided.length === 1 && !choice) {
+      // First sight of this folder, single backup → auto-expand and remember.
+      const only = undecided[0].path;
+      await scanner.expandBundles([only], onBatch);
+      await saveBundleChoice({ folderName: name, decided: [only], skipped: [] });
+      if (gen !== genRef.current) return;
+      setNewBundles([]);
+    }
+  }, [append, makeScanner]);
 
   // Restore a saved folder on mount.
   useEffect(() => {
@@ -63,87 +112,85 @@ export function useFolderLibrary(): FolderLibrary {
       const state = await restoreFolder();
       if (cancelled) return;
       if (state.status === 'granted') {
-        setFolderName(state.name);
-        setResult(scan(state.files, state.errors));
+        setFolderName(state.name); setHandle(state.handle);
+        await runScan(state.name, state.source);
       } else if (state.status === 'needs-permission') {
-        setFolderName(state.name);
-        setPending(state.handle);
+        setFolderName(state.name); setPending(state.handle);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [runScan]);
 
   const choose = useCallback(async () => {
-    setBusy(true);
-    setReconnectError(null);
+    setBusy(true); setReconnectError(null);
     try {
       const r = await pickFolder();
-      setFolderName(r.name);
-      setHandle(r.handle ?? null);
-      setPending(null);
-      setResult(scan(r.files, r.errors));
+      setFolderName(r.name); setHandle(r.handle ?? null); setPending(null);
+      await runScan(r.name, r.source);
     } catch (err) {
-      // Ignore the user dismissing the picker; surface anything real.
-      if (!isCancel(err)) { console.error('Folder pick failed', err); setResult(noticeResult(err)); }
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+      if (!isCancel(err)) {
+        console.error('Folder pick failed', err);
+        setResult({ programs: [], samples: [], errors: [{ path: '(folder)', reason: err instanceof Error ? err.message : String(err) }] });
+      }
+    } finally { setBusy(false); }
+  }, [runScan]);
 
   const reconnect = useCallback(async () => {
     if (!pending) return;
-    setBusy(true);
-    setReconnectError(null);
+    setBusy(true); setReconnectError(null);
     try {
-      const res = await grantAndScan(pending);
-      if (res) {
-        setHandle(pending);
-        setPending(null);
-        setResult(scan(res.files, res.errors));
+      const source = await grantAndScan(pending);
+      if (source) {
+        setHandle(pending); setPending(null);
+        await runScan(folderName ?? pending.name, source);
       } else {
         // Permission wasn't granted — say so rather than silently doing nothing.
-        // Stay in the reconnect state so they can retry or Forget.
         setReconnectError(`Couldn't read “${folderName ?? 'the folder'}” — your browser blocked access. Click Reconnect and choose Allow, or Re-pick the folder.`);
       }
     } catch (err) {
       if (!isCancel(err)) { console.error('Folder reconnect failed', err); setReconnectError(err instanceof Error ? err.message : String(err)); }
-    } finally {
-      setBusy(false);
-    }
-  }, [pending, folderName]);
+    } finally { setBusy(false); }
+  }, [pending, folderName, runScan]);
 
   const refresh = useCallback(async () => {
-    if (!handle) return;
+    if (!handle || !folderName) return;
     setBusy(true);
-    try {
-      const { files, errors } = await rescan(handle);
-      setResult(scan(files, errors));
-    } finally {
-      setBusy(false);
-    }
-  }, [handle]);
+    try { await runScan(folderName, rescan(handle)); } finally { setBusy(false); }
+  }, [handle, folderName, runScan]);
 
   const forget = useCallback(async () => {
     // Reset the UI first so Forget always responds instantly — it's the escape
     // hatch; never gate it on the IDB write completing.
-    setHandle(null);
-    setPending(null);
-    setFolderName(null);
-    setReconnectError(null);
-    setResult(EMPTY);
-    await forgetFolder();
+    genRef.current++; // abandon in-flight batches
+    setHandle(null); setPending(null); setFolderName(null); setReconnectError(null);
+    setResult(EMPTY); setBundles([]); setNewBundles([]); setPickerOpen(false);
+    await forgetFolder(); await clearBundleChoice();
   }, []);
 
+  const openBundlePicker = useCallback(() => setPickerOpen(true), []);
+  const closeBundlePicker = useCallback(() => setPickerOpen(false), []);
+
+  const applyBundleSelection = useCallback(async (loadPaths: string[]) => {
+    const scanner = scannerRef.current;
+    if (!scanner || !folderName) { setPickerOpen(false); return; }
+    const gen = genRef.current;
+    const load = newBundles.filter((b) => loadPaths.includes(b.path)).map((b) => b.path);
+    const skip = newBundles.filter((b) => !loadPaths.includes(b.path)).map((b) => b.path);
+    const prior = await loadBundleChoice(folderName);
+    await saveBundleChoice({
+      folderName,
+      decided: [...new Set([...(prior?.decided ?? []), ...load])],
+      skipped: [...new Set([...(prior?.skipped ?? []), ...skip])],
+    });
+    setPickerOpen(false); setNewBundles([]);
+    await scanner.expandBundles(load, append(gen));
+  }, [folderName, newBundles, append]);
+
   return {
-    folderName,
-    result,
-    needsReconnect: pending !== null,
-    reconnectError,
-    busy,
+    folderName, result, bundles, newBundles, pickerOpen,
+    needsReconnect: pending !== null, reconnectError, busy,
     canPersist: supportsPersistentFolders(),
-    choose,
-    reconnect,
-    refresh,
-    forget,
+    choose, reconnect, refresh, forget,
+    openBundlePicker, closeBundlePicker, applyBundleSelection,
   };
 }

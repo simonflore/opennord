@@ -1,75 +1,34 @@
-import { MAX_READ_BYTES, tooLargeReason, type RawFile, type ScanError } from './scan';
-import { walkDirectory, type WalkResult } from './walk';
 import { saveHandle, loadHandle, clearHandle } from './idbStore';
-import { classifyFile } from './classify';
-import { streamUnzip } from './unzip-stream';
-import { isBundleProgramEntry } from '../ns4/bundle';
+import type { FolderSource } from './source';
 
 /** True when this browser can pick a folder and persist the handle (Chromium desktop). */
 export function supportsPersistentFolders(): boolean {
   return typeof (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker === 'function';
 }
 
-/** What a folder access attempt yields. */
+/**
+ * What a folder access attempt yields. The access layer no longer reads or
+ * scans — it only resolves a {@link FolderSource} (an FSA handle or a `File[]`).
+ * Reading + parsing is the pipeline's job (see {@link ./pipeline}).
+ */
 export interface FolderHandleResult {
   /** Display name of the chosen folder. */
   name: string;
   /** The live handle when the FSA path was used (enables silent re-scan later). */
   handle?: FileSystemDirectoryHandle;
-  /** The readable Nord files. */
-  files: RawFile[];
-  /** Files we couldn't read (oversized / read failure) — surfaced to the user. */
-  errors: ScanError[];
+  /** Where the pipeline reads files from. */
+  source: FolderSource;
 }
 
 interface DirPicker {
   showDirectoryPicker(): Promise<FileSystemDirectoryHandle>;
 }
 
-/**
- * Map a webkitdirectory FileList → Nord {@link RawFile}s, stripping the chosen
- * folder's own name. Mirrors {@link walkDirectory}: non-Nord files are skipped
- * unread, `.ns4b` bundles are streamed into their inner programs (not size-capped),
- * oversized non-bundle files are recorded in `errors`, and a read failure on one
- * file never aborts the rest.
- */
-export async function filesToRawFiles(files: ArrayLike<File>): Promise<WalkResult> {
-  const out: RawFile[] = [];
-  const errors: ScanError[] = [];
-  for (let i = 0; i < files.length; i++) {
-    const f = files[i];
-    const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
-    const slash = rel.indexOf('/');
-    const path = slash === -1 ? rel : rel.slice(slash + 1); // drop top folder segment
-    const kind = classifyFile(path);
-    if (!kind) continue; // skip non-Nord files without reading them
-    try {
-      if (kind === 'bundle') {
-        // Mirror walkDirectory: stream the `.ns4b` entry-by-entry (no size cap,
-        // no whole-archive in memory), emitting each inner program keyed
-        // `<bundle>!<inner>` to match scanFiles' bundle id scheme.
-        await streamUnzip(
-          f.stream(),
-          (entry) => out.push({ path: `${path}!${entry.path}`, bytes: entry.bytes }),
-          isBundleProgramEntry,
-        );
-        continue;
-      }
-      if (f.size > MAX_READ_BYTES) { errors.push({ path, reason: tooLargeReason(f.size) }); continue; }
-      out.push({ path, bytes: new Uint8Array(await f.arrayBuffer()) });
-    } catch (err) {
-      errors.push({ path, reason: err instanceof Error ? err.message : String(err) });
-    }
-  }
-  return { files: out, errors };
-}
-
-/** FSA path: prompt for a folder, persist the handle, return its files. */
+/** FSA path: prompt for a folder, persist the handle, return it as the source. */
 async function pickFolderFsa(): Promise<FolderHandleResult> {
   const handle = await (window as unknown as DirPicker).showDirectoryPicker();
   await saveHandle(handle);
-  const { files, errors } = await walkDirectory(handle);
-  return { name: handle.name, handle, files, errors };
+  return { name: handle.name, handle, source: handle };
 }
 
 /** Fallback path: a one-shot <input webkitdirectory> picker, no persistence. */
@@ -85,13 +44,12 @@ function pickFolderInput(): Promise<FolderHandleResult> {
     // Window regains focus when the picker closes. If a selection was made,
     // onchange fires and settles first; otherwise treat it as a cancel.
     const onFocus = () => { setTimeout(() => { if (!settled) { cleanup(); reject(new Error('Cancelled')); } }, 400); };
-    input.onchange = async () => {
+    input.onchange = () => {
       const list = input.files;
       cleanup();
       if (!list || list.length === 0) return reject(new Error('No folder chosen'));
       const top = (list[0] as File & { webkitRelativePath?: string }).webkitRelativePath?.split('/')[0] ?? 'Folder';
-      const { files, errors } = await filesToRawFiles(list);
-      resolve({ name: top, files, errors });
+      resolve({ name: top, source: Array.from(list) });
     };
     input.oncancel = () => { cleanup(); reject(new Error('Cancelled')); };
     window.addEventListener('focus', onFocus, { once: true });
@@ -107,7 +65,7 @@ export function pickFolder(): Promise<FolderHandleResult> {
 /** Permission state for a restored handle, if any. */
 export type RestoreState =
   | { status: 'none' }
-  | { status: 'granted'; name: string; files: RawFile[]; errors: ScanError[] }
+  | { status: 'granted'; name: string; handle: FileSystemDirectoryHandle; source: FolderSource }
   | { status: 'needs-permission'; name: string; handle: FileSystemDirectoryHandle };
 
 interface Permissioned {
@@ -121,23 +79,20 @@ export async function restoreFolder(): Promise<RestoreState> {
   const handle = await loadHandle();
   if (!handle) return { status: 'none' };
   const perm = await (handle as unknown as Permissioned).queryPermission({ mode: 'read' });
-  if (perm === 'granted') {
-    const { files, errors } = await walkDirectory(handle);
-    return { status: 'granted', name: handle.name, files, errors };
-  }
+  if (perm === 'granted') return { status: 'granted', name: handle.name, handle, source: handle };
   return { status: 'needs-permission', name: handle.name, handle };
 }
 
-/** Re-request permission (needs a user gesture) and scan, or signal denial. */
-export async function grantAndScan(handle: FileSystemDirectoryHandle): Promise<WalkResult | null> {
+/** Re-request permission (needs a user gesture); return the source, or null if denied. */
+export async function grantAndScan(handle: FileSystemDirectoryHandle): Promise<FolderSource | null> {
   const perm = await (handle as unknown as Permissioned).requestPermission({ mode: 'read' });
   if (perm !== 'granted') return null;
-  return walkDirectory(handle);
+  return handle;
 }
 
-/** Re-scan a live handle (manual refresh). */
-export function rescan(handle: FileSystemDirectoryHandle): Promise<WalkResult> {
-  return walkDirectory(handle);
+/** Re-scan a live handle (manual refresh) — the handle is itself the source. */
+export function rescan(handle: FileSystemDirectoryHandle): FolderSource {
+  return handle;
 }
 
 /** Forget the saved folder. */

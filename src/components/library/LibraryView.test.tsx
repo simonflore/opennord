@@ -18,6 +18,9 @@ const prefs = (over: Partial<LibraryPrefsApi> = {}): LibraryPrefsApi => ({
 const folder = (over: Partial<FolderLibrary> = {}): FolderLibrary => ({
   folderName: null,
   result: { programs: [], samples: [], errors: [] },
+  bundles: [],
+  newBundles: [],
+  pickerOpen: false,
   needsReconnect: false,
   reconnectError: null,
   busy: false,
@@ -26,6 +29,9 @@ const folder = (over: Partial<FolderLibrary> = {}): FolderLibrary => ({
   reconnect: async () => {},
   refresh: async () => {},
   forget: async () => {},
+  openBundlePicker: () => {},
+  closeBundlePicker: () => {},
+  applyBundleSelection: async () => {},
   ...over,
 });
 
