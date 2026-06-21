@@ -430,6 +430,18 @@ export function readStrokeLoop(bytes: Uint8Array, payloadOffset: number): Stroke
   return { loopStart: u2 - u1, loopEnd: u3 - u1, loops: u3 !== u4 };
 }
 
+/** Write loop-in (@+0x1b) and loop-out (@+0x24) u32 BE into a `stk` header in
+ *  place. Pointers are absolute, cumulative across strokes — the same frame
+ *  {@link readStrokeLoop} reads. Start (@+0x12) and end (@+0x2d) are left
+ *  untouched, so the sample window is preserved. Caller re-checksums. */
+export function patchStrokeLoopBytes(out: Uint8Array, stkPayloadOffset: number, loopInAbs: number, loopOutAbs: number): void {
+  const put = (o: number, v: number) => {
+    out[o] = (v >>> 24) & 0xff; out[o + 1] = (v >>> 16) & 0xff; out[o + 2] = (v >>> 8) & 0xff; out[o + 3] = v & 0xff;
+  };
+  put(stkPayloadOffset + 0x1b, loopInAbs >>> 0);
+  put(stkPayloadOffset + 0x24, loopOutAbs >>> 0);
+}
+
 export interface DecodedStrokeResult extends DecodedStroke {
   /** Index of the source `stk` section. */
   index: number;

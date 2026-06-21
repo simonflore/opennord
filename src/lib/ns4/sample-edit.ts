@@ -15,7 +15,7 @@
  *    correct when zone order matches stroke order (what `writeNsmpMulti` produces).
  */
 import type { NsmpFile, NsmpZone, DecodedStrokeResult } from './nsmp';
-import { parseNsmpSections, readNsmp, zoneRecordLayout } from './nsmp';
+import { parseNsmpSections, readNsmp, zoneRecordLayout, patchStrokeLoopBytes } from './nsmp';
 import { writeNsmpMulti, type WriteZone } from './nsmp-write';
 import { patchNs4Checksum } from '../clavia/checksum';
 
@@ -31,6 +31,8 @@ export interface EditZone {
 export interface EditModel {
   name: string;
   zones: EditZone[];
+  /** Optional loop-point edits, by `stk` payload offset (absolute pointers). */
+  loops?: Array<{ stkPayloadOffset: number; loopInAbs: number; loopOutAbs: number }>;
 }
 
 /** Build the editable model from a loaded file + its zone map. */
@@ -62,6 +64,9 @@ export function patchEditedNsmp(original: Uint8Array, model: EditModel): Uint8Ar
     out[e + layout.rootKey] = clampKey(z.rootKey);
     out[e + layout.keyLow] = clampKey(z.keyLow);
     out[e + layout.keyHigh] = clampKey(z.keyHigh);
+  }
+  for (const lp of model.loops ?? []) {
+    patchStrokeLoopBytes(out, lp.stkPayloadOffset, lp.loopInAbs, lp.loopOutAbs);
   }
   patchName(out, model.name);
   return patchNs4Checksum(out);

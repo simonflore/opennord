@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { writeNsmpMulti } from './nsmp-write';
-import { readNsmp, decodeNsmp, readNsmpZones } from './nsmp';
+import { readNsmp, decodeNsmp, readNsmpZones, parseNsmpSections, readStrokeLoop, patchStrokeLoopBytes } from './nsmp';
 import { editModel, buildEditedNsmp, patchEditedNsmp } from './sample-edit';
 
 /**
@@ -60,6 +60,39 @@ describe('buildEditedNsmp', () => {
     const model = editModel(readNsmp(src), readNsmpZones(src));
     model.zones.push({ rootKey: 60, keyLow: 48, keyHigh: 100, velTop: 127 }); // extra zone, no stroke
     expect(() => buildEditedNsmp(model, decoded, 3)).toThrow();
+  });
+});
+
+describe('patchStrokeLoopBytes', () => {
+  it('writes loop-in @+0x1b and loop-out @+0x24 as u32 BE, leaving the rest', () => {
+    const buf = new Uint8Array(0x40);
+    patchStrokeLoopBytes(buf, 0, 0x01020304, 0x0a0b0c0d);
+    expect([...buf.subarray(0x1b, 0x1f)]).toEqual([0x01, 0x02, 0x03, 0x04]);
+    expect([...buf.subarray(0x24, 0x28)]).toEqual([0x0a, 0x0b, 0x0c, 0x0d]);
+    // start (@0x12) and end (@0x2d) untouched (still zero here)
+    expect([...buf.subarray(0x12, 0x16)]).toEqual([0, 0, 0, 0]);
+    expect([...buf.subarray(0x2d, 0x31)]).toEqual([0, 0, 0, 0]);
+  });
+});
+
+const u32be = (b: Uint8Array, o: number) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
+const takeOnMe = '/Users/simonflore/Documents/TBM/TAKE ON ME.nsmp';
+describe.skipIf(!existsSync(takeOnMe))('loop points round-trip in place', () => {
+  it('moves loop-in/out and reads them back, preserving size', () => {
+    const src = new Uint8Array(readFileSync(takeOnMe));
+    const stk = parseNsmpSections(src).find((s) => s.tag.endsWith('stk'));
+    if (!stk) return;
+    const before = readStrokeLoop(src, stk.payloadOffset);
+    if (!before) return;
+    const startAbs = u32be(src, stk.payloadOffset + 0x12);
+    const out = patchEditedNsmp(src, {
+      name: 'x', zones: [],
+      loops: [{ stkPayloadOffset: stk.payloadOffset, loopInAbs: startAbs + before.loopStart + 50, loopOutAbs: startAbs + before.loopEnd - 50 }],
+    });
+    const after = readStrokeLoop(out, stk.payloadOffset);
+    expect(after!.loopStart).toBe(before.loopStart + 50);
+    expect(after!.loopEnd).toBe(before.loopEnd - 50);
+    expect(out.length).toBe(src.length);
   });
 });
 
