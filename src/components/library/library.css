@@ -57,3 +57,22 @@
 .lib-empty__hint { color: var(--dim); font-size: 13px; margin-top: 8px; }
 .lib-empty__hint code { color: var(--ink); }
 .lib-errnote { color: var(--dim); font-size: 13px; margin-bottom: 12px; }
+
+/* Multi-bundle confirmation — picker rows + the quiet "new backups" banner. */
+.bundle-picker__hint { margin: 0 0 var(--s-3); color: var(--dim); font: 11px var(--font); }
+.bundle-picker__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-1); }
+.bundle-picker__row label {
+  display: flex; align-items: center; gap: var(--s-2);
+  padding: var(--s-2); border: 1px solid var(--line); border-radius: var(--r-sm);
+  cursor: pointer; color: var(--ink); font: 12px var(--font);
+}
+.bundle-picker__name { flex: 1; }
+.bundle-picker__size { color: var(--muted); font: 10px var(--font); }
+
+.new-backups {
+  display: flex; align-items: center; gap: var(--s-2);
+  margin-bottom: var(--s-3); padding: var(--s-2) var(--s-3);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm);
+  color: var(--ink); font: 11px var(--font);
+}
+.new-backups span { flex: 1; }

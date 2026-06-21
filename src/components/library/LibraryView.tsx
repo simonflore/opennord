@@ -1,5 +1,7 @@
 import './library.css';
 import { Button, BrowseToolbar, Card, SourceBadge } from '../ui';
+import { BundlePicker } from './BundlePicker';
+import { NewBackupsBanner } from './NewBackupsBanner';
 import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
 import type { LibraryPrefsApi } from '../../lib/library/prefs';
 import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
@@ -80,6 +82,16 @@ export function LibraryView({
           {scanErrors.length} {scanErrors.length === 1 ? 'file' : 'files'} couldn't be read — hover for details.
         </div>
       )}
+
+      {!folder.pickerOpen && (
+        <NewBackupsBanner count={folder.newBundles.length} onReview={folder.openBundlePicker} />
+      )}
+      <BundlePicker
+        open={folder.pickerOpen}
+        bundles={folder.newBundles}
+        onConfirm={(paths) => { void folder.applyBundleSelection(paths); }}
+        onClose={() => { void folder.applyBundleSelection([]); }}
+      />
 
       <BrowseToolbar
         query={query}
