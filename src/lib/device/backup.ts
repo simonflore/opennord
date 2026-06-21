@@ -2,6 +2,7 @@ import { zipSync, unzipSync, strToU8 } from 'fflate';
 import type { NordSession } from './session';
 import { NordError } from './protocol';
 import { enumerateFiles, pullFile, pushFile, type ProgramEntry } from './transfer';
+import { readPartitionCapacity, type PartitionCapacity } from './capacity';
 import { readCbinHeader, hasCbinMagic } from '../clavia/cbin';
 import { USER_PARTITIONS, partitionForPath, backupPath, buildMetaXml, type PartitionSpec } from './ns4b';
 
@@ -103,12 +104,27 @@ export async function restore(
       continue;
     }
     try {
+      // Pre-flight capacity guard: translate "no room" into a friendly, up-front
+      // failure instead of raw FileCreate status errors mid-restore. Overwriting an
+      // occupied slot consumes no new slot, so only writes landing on empty slots
+      // draw down free slots. Capacity/occupancy are best-effort — if either query
+      // fails the guard stays open (freeSlots = ∞) and we just attempt the write.
+      const occupied = await safeOccupiedSlots(session);
+      const cap = await safeCapacity(session, partition);
+      let freeSlots = cap ? cap.freeSlots : Infinity;
+
       for (const { path, bytes } of items) {
         try {
           if (!hasCbinMagic(bytes)) throw new NordError('not a Nord file (no CBIN magic)');
           const header = readCbinHeader(bytes);
+          const isNewSlot = !occupied.has(slotKey(header.bank, header.location));
+          if (isNewSlot && freeSlots <= 0) throw new NordError(partitionFullMessage(cap));
           const name = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '');
           await pushFile(session, header.bank, header.location, bytes, name);
+          if (isNewSlot) {
+            occupied.add(slotKey(header.bank, header.location));
+            freeSlots--;
+          }
           result.restored++;
         } catch (e) {
           result.failures.push({ path, error: e instanceof Error ? e.message : String(e) });
@@ -120,4 +136,30 @@ export async function restore(
     }
   }
   return result;
+}
+
+const slotKey = (bank: number, slot: number) => `${bank}:${slot}`;
+
+/** Currently-occupied {bank, slot} keys in the begun partition; empty set on failure. */
+async function safeOccupiedSlots(session: NordSession): Promise<Set<string>> {
+  try {
+    return new Set((await enumerateFiles(session)).map((e) => slotKey(e.bank, e.slot)));
+  } catch {
+    return new Set();
+  }
+}
+
+/** Read a partition's capacity, or null if the queries aren't answered. */
+async function safeCapacity(session: NordSession, partition: number): Promise<PartitionCapacity | null> {
+  try {
+    return await readPartitionCapacity(session, partition);
+  } catch {
+    return null;
+  }
+}
+
+function partitionFullMessage(cap: PartitionCapacity | null): string {
+  return cap
+    ? `No free slots — ${cap.fileCount} of ${cap.totalSlots} used. Delete some files and restore again.`
+    : 'No free slots left on the device. Delete some files and restore again.';
 }

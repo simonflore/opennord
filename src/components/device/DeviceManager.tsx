@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import '../../styles/nord.css';
 import { Button, FilterChip } from '../ui';
 import type { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, pullProgram, type ProgramEntry } from '../../lib/device/transfer';
+import { readPartitionCapacity } from '../../lib/device/capacity';
 import { useDevice } from '../../lib/device/DeviceContext';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import { parseClaviaFile } from '../../lib/formats';
@@ -28,15 +29,35 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
  * useDeleteFlow, useSamplesFlow); this component is the switch between them.
  */
 export function DeviceManager() {
-  const { session, entries, deviceName, setConnection, setEntries } = useDevice();
+  const { session, entries, deviceName, capacity, setConnection, setEntries, setCapacity } = useDevice();
   // Program-open (pull-to-view) state stays local — it's this component's own concern.
   const [program, setProgram] = useState<NS4Program | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function refresh(s: NordSession) {
-    setEntries(await s.withSession(PARTITION_PROGRAM, () => enumeratePrograms(s)));
+    await s.withSession(PARTITION_PROGRAM, async () => {
+      setEntries(await enumeratePrograms(s));
+      // Best-effort: a failed capacity read shouldn't break the program list.
+      setCapacity(await readPartitionCapacity(s, PARTITION_PROGRAM).catch(() => null));
+    });
   }
+
+  // Load the storage readout once on connect (entries arrive from ConnectPanel,
+  // but capacity needs its own query). Best-effort — leaves capacity null on failure.
+  const loadCapacity = useCallback(
+    async (s: NordSession) => {
+      try {
+        setCapacity(await s.withSession(PARTITION_PROGRAM, () => readPartitionCapacity(s, PARTITION_PROGRAM)));
+      } catch {
+        /* ignore — the readout simply doesn't show */
+      }
+    },
+    [setCapacity],
+  );
+  useEffect(() => {
+    if (session) void loadCapacity(session);
+  }, [session, loadCapacity]);
 
   const push = usePushFlow(session, refresh);
   const del = useDeleteFlow(session, refresh);
@@ -153,13 +174,20 @@ export function DeviceManager() {
           <DeviceBrowser
             entries={entries}
             deviceName={deviceName}
+            capacity={capacity}
             onSelect={open}
             onDelete={del.setPendingDelete}
             onSendFile={push.startSendFile}
           />
         </>
       ) : (
-        <DeviceSampleBrowser entries={samples.sampleEntries} deviceName={deviceName} onSelect={samples.openSample} />
+        <DeviceSampleBrowser
+          entries={samples.sampleEntries}
+          deviceName={deviceName}
+          sampleCapacity={samples.sampleCapacity}
+          pianoCapacity={samples.pianoCapacity}
+          onSelect={samples.openSample}
+        />
       )}
     </div>
   );

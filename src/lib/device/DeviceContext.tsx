@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import type { NordSession } from './session';
 import type { ProgramEntry } from './transfer';
+import type { PartitionCapacity } from './capacity';
 
 interface DeviceState {
   session: NordSession | null;
@@ -11,6 +12,9 @@ interface DeviceState {
   /** User Sample Library files enumerated from the device (partition 5). */
   sampleEntries: ProgramEntry[];
   setSampleEntries: (e: ProgramEntry[]) => void;
+  /** Program partition capacity (slots + free space), or null until read. */
+  capacity: PartitionCapacity | null;
+  setCapacity: (c: PartitionCapacity | null) => void;
   setConnection: (s: NordSession, e: ProgramEntry[], name: string, productId: number) => void;
   setEntries: (e: ProgramEntry[]) => void;
   disconnect: () => void;
@@ -24,13 +28,17 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
   const [sampleEntries, setSampleEntries] = useState<ProgramEntry[]>([]);
   const [deviceName, setDeviceName] = useState('');
   const [productId, setProductId] = useState(0);
+  const [capacity, setCapacity] = useState<PartitionCapacity | null>(null);
 
   const value: DeviceState = {
     session, entries, deviceName, productId,
     sampleEntries, setSampleEntries,
+    capacity, setCapacity,
     setConnection: (s, e, name, pid) => { setSession(s); setEntries(e); setDeviceName(name); setProductId(pid); },
     setEntries,
-    disconnect: () => { setSession(null); setEntries([]); setSampleEntries([]); setDeviceName(''); setProductId(0); },
+    disconnect: () => {
+      setSession(null); setEntries([]); setSampleEntries([]); setDeviceName(''); setProductId(0); setCapacity(null);
+    },
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { type ProgramEntry } from '../../lib/device/transfer';
 import { enumerateSampleLibrary, pullSample } from '../../lib/device/samples';
+import { readPartitionCapacity, type PartitionCapacity } from '../../lib/device/capacity';
+import { PARTITION_SAMP_LIB, PARTITION_PIANO } from '../../lib/device/opcodes';
 import type { NordSession } from '../../lib/device/session';
 import type { InspectorInput } from '../sample/SampleInspector';
 
@@ -15,6 +17,9 @@ export function useSamplesFlow(session: NordSession | null) {
   const [sampleEntries, setSampleEntries] = useState<ProgramEntry[]>([]);
   const [sampleInput, setSampleInput] = useState<InspectorInput | null>(null);
   const [pullPct, setPullPct] = useState<number | null>(null);
+  // Sample Library + Piano are the byte-constrained ("how full?") partitions; null until read.
+  const [sampleCapacity, setSampleCapacity] = useState<PartitionCapacity | null>(null);
+  const [pianoCapacity, setPianoCapacity] = useState<PartitionCapacity | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -25,16 +30,21 @@ export function useSamplesFlow(session: NordSession | null) {
     setView('programs');
     setSampleEntries([]);
     setSampleInput(null);
+    setSampleCapacity(null);
+    setPianoCapacity(null);
   }, [session]);
 
-  /** Switch between programs and samples; enumerate Samp Lib once (lazily). */
+  /** Switch between programs and samples; enumerate Samp Lib + read storage once (lazily). */
   async function switchView(next: 'programs' | 'samples') {
     if (!session || busy) return;
     setView(next); setSampleInput(null); setError('');
-    if (next === 'samples' && sampleEntries.length === 0) {
+    if (next === 'samples') {
       setBusy(true);
       try {
-        setSampleEntries(await enumerateSampleLibrary(session));
+        if (sampleEntries.length === 0) setSampleEntries(await enumerateSampleLibrary(session));
+        // Storage readouts — best-effort, so a failed query never blocks browsing.
+        if (!sampleCapacity) setSampleCapacity(await readPartitionCapacity(session, PARTITION_SAMP_LIB).catch(() => null));
+        if (!pianoCapacity) setPianoCapacity(await readPartitionCapacity(session, PARTITION_PIANO).catch(() => null));
       } catch (e) {
         setError(`Could not list samples: ${msg(e)}`);
       } finally {
@@ -58,5 +68,8 @@ export function useSamplesFlow(session: NordSession | null) {
     }
   }
 
-  return { view, sampleEntries, sampleInput, setSampleInput, pullPct, error, busy, switchView, openSample };
+  return {
+    view, sampleEntries, sampleInput, setSampleInput, pullPct, error, busy,
+    sampleCapacity, pianoCapacity, switchView, openSample,
+  };
 }

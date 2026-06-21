@@ -47,10 +47,11 @@ OK, `1` = empty/not-found, `2` = no session, `3` = not open.
 | msgId | message | payload (big-endian u32, unless noted) |
 |---|---|---|
 | `0x00` | `CQryPartList` | — |
-| `0x02` | `CQryBankList` | `partition` |
+| `0x02` | `CQryBankList` | `partition` (→ `0x03`: per-bank slot capacity — see *Partition capacity*) |
 | `0x04` | `CReqBegin` | `partition` |
 | `0x06` | `CReqEnd` | — |
-| `0x08` | `CQryPartState` | `partition` |
+| `0x08` | `CQryPartState` | `partition` (→ `0x09`: file count + free space — see *Partition capacity*) |
+| `0x22` | `CReqEraseBlock` | `blockCount` (→ `0x23` ack; free room before a write — see *Partition capacity*) |
 | `0x0A` | `CReqFileCreate` | `bank, slot, size, fourccType, 0xFFFFFFFF, category, u32 nameLen, name…` |
 | `0x0C` | `CReqFileOpen` | `bank, slot` |
 | `0x0E` | `CReqFileClose` | `bank, slot` |
@@ -177,7 +178,109 @@ read/share/AI + live MIDI only. Full breakdown + sources: `docs/SYSEX-SPIKE.md`.
   fixture. The full **program-category enum** (54 entries) is ported in
   `src/lib/ns4/categories.ts` (e.g. 6 = Lead, 7 = Organ, 45 = Synth Classic).
 - **Backup/restore** is orchestration over the per-file ops above (enumerate →
-  read/write each file); there is no separate bank-level protocol primitive.
+  read/write each file). The *transfer* needs no bank-level primitive, but a
+  safe write **should** first check the partition has room — see
+  *Partition capacity* below.
+
+## Partition capacity / free-space — pre-write fit check
+
+NSM checks that a download *fits* before transferring; OpenNord does not yet.
+`pushFile()` (`src/lib/device/transfer.ts`) goes straight to `FileCreate` and
+relies on the device to reject — surfacing only a raw `status N`. The data to do
+better rides opcodes we list above but **don't implement** (`CQryPartState`
+`0x08`, `CQryBankList` `0x02`, plus the `CReqEraseBlock` pair below).
+
+Schemas + semantics below were recovered by **Ghidra decompilation** of NSM
+(`scripts/nsm-decompile.sh`; `nsm_decomp/*.c`, gitignored) and then **confirmed
+live on a Nord Stage 4 (firmware 3.40)** via `scripts/nordprobe.c` — read-only
+queries, no writes. `Read`/`Write` agree byte-for-byte in the decomp, and the
+captured replies match the model.
+
+**Reply schemas:**
+
+- `CQryPartState{partition}` `0x08` → `CRpyPartState` `0x09`
+  (`CRpyPartState::Read` NSM arm64 `@0x10008ca0c`): `u32 status` then **5 payload
+  u32** `[fileCount, used, free, reserved, E]`. (Earlier "6 u32" note was
+  off-by-one: the first u32 is the status, not a data field.) `OnReply`
+  (`@0x10007bbc8`) caches the 5 into `CFileTransfer + idx*0xb70 + 0xc90…0xca0`,
+  thence into a `CPartInfo` and `CPartition::GetInfo()` (`+0xb5c`=used,
+  `+0xb60`=free/headroom, `+0xb64`=reserved). **All counts are erase blocks**,
+  except `fileCount`. Live capture (Program partition, `08:6`):
+  `status=0, fileCount=356, used=3552, free=4632, reserved=0, E=4` — the
+  **356 exactly matches** the 356 enumerated Program files (above), nailing word 1
+  as the file count. `word5/E` (4 for Program, 8 for Piano/Sample) is unresolved —
+  plausibly a block-size class; not needed for the fit check.
+  - **Native vs user partitions share one physical region.** `08:0` (Piano-Native)
+    returned byte-identical to `08:1` (Piano-user), and `08:4`==`08:5`
+    (SampLib-Native/user). `used`/`free` report the **user-writable** portion;
+    factory content is not counted in `used`. So `free` is directly "space
+    available to the player" (matches NSM's "clearing Sample Library won't free
+    Piano"). Captured: Piano `used=48, free=16104, rsv=0`; SampLib
+    `used=7, free=15711, rsv=658`.
+- `CQryBankList{partition}` `0x02` → `CRpyBankList` `0x03`
+  (`CRpyBankList::Read` `@0x10008c414`): `u32 status`, `u32 partitionIndex`,
+  `u8 bankCount`, then `bankCount` records at **stride 0x84**, each
+  `{ name (u32 len ≤0x7f + bytes, NUL-term), u32 entryCount @+0x80 }`. The per-bank
+  u32 is the bank's **slot capacity** (max files the bank holds), not a size. Live
+  (Program, `02:6`): **8 banks "Bank A"…"Bank H", each entryCount `0x40`=64** →
+  512 program slots. With `fileCount=356` from `CRpyPartState`, that's **156 free
+  slots**. (The PartList reply `0x00`→`0x01` carries 12 partitions as
+  `u8 count + {u32 nameLen, name, props…}` records — names/order match
+  *Addressing* above.)
+- `CReqEraseBlock` `0x22` → `CAckEraseBlock` `0x23`
+  (`Write @0x10090728`, `Read @0x10090778`): request body is `u32 blockCount`; ack
+  is `u32 status`. A write that needs more room first **erases blocks**.
+
+**The fit test — all counts are ERASE BLOCKS, not bytes.**
+`CFileManager::CheckDownloadFit_GetRequiredEraseBlockCnt` (NSM arm64 `@0x1000edb88`):
+
+```
+required = Σ ceil((fileBytes + perFileOverhead) / blockSize)   // → block count
+used     = GetInfo()+0xb5c
+usedPlus = used + (GetInfo()+0x26 ? reserved(+0xb64) : 0) + p3
+if   free(+0xb60) + usedPlus < required → "…can only contain a maximum of %.1f MB"   // exceeds total (used+free)
+elif used < required && usedPlus < required → "…only has %.1f MB of free space"          // not enough free
+else  fits;  blocksToErase = required - used → CReqEraseBlock(blocksToErase)
+```
+
+`blockSize` and `perFileOverhead` are **device-reported** (arrive in the `CPartInfo`
+header → `CPartition::GetProps()+4` / `+8`), *not* hardcoded — there is **no
+per-model capacity table** in NSM; capacity is entirely what `CRpyPartState`
+returns. Bytes are display-only: `bytes = blocks × blockSize`
+(`CPartitionCtrl::GetFreeBytes @0x100132314`); the exact MB divisor (1024² vs 1e6)
+feeding the `"%.1f MB"` strings was not pinned and doesn't affect the check.
+
+**A second, independent "full" condition** is the per-bank slot count: a write can
+fail because the *bank's entryCount is reached* even when block space is fine →
+*"The bank is full."* / *"The partition file list is full."* (the `CRpyBankList`
+`entryCount` field above). A correct guard checks **both** capacity and slot count,
+and translates to musician language — never a raw `status N` / slot code
+(`docs/LEGAL.md` / design rules).
+
+**Block size → real megabytes (Sample/Piano).** The device reports counts in
+erase blocks, not bytes; the block size isn't transmitted. It's recovered from the
+**documented partition capacities** — official NS4 specs: **2 GB Piano / 1 GB
+Sample Library** — over the measured block totals, which land on clean powers of
+two: a `≈16384`-block (2¹⁴) partition ⇒ **128 KiB/block (Piano)** and **64 KiB/block
+(Sample)**. Live cross-check (this device, factory content absent): Sample
+`free 15711 × 64 KiB ≈ 982 MB`, Piano `free 16104 × 128 KiB ≈ 1.97 GB`; totals
+(`used+free+reserved`) ≈ 1 GiB / 2 GiB (the few missing blocks = system reserve).
+Documented stock free space (≈33 MB sample, ≈11 MB piano with factory banks of
+945 MB / 1.6 GB loaded) is consistent. So free MB = `freeBlocks × blockSize`, with
+`blockSize` from a small per-partition table (`src/lib/device/capacity.ts`
+`PARTITION_BLOCK_BYTES`); Program stays slot-bound. Sources: nordkeyboards.com NS4
+specs; norduserforum capacity threads.
+
+**Status — hardware-validated (read side).** The query/reply schemas and field
+meanings above are confirmed live (NS4 fw 3.40). For **program** writes the
+binding limit is slots — fully known — so a guard can ship now:
+- read `CQryBankList{6}` → Σ entryCount = total slots; `CQryPartState{6}` word 1 =
+  used → free slots = total − used. Block headroom (`free` word) is a secondary
+  check.
+- wire `checkDownloadFit()` into `pushFile()` + `backup.ts` restore; translate the
+  two failure modes ("no free slot" / "not enough space") to musician language.
+- a delete-differential (write/erase a slot, re-query) would further confirm the
+  block-accounting deltas, but is destructive — skipped here (read-only capture).
 
 ## Tools (`scripts/`, libusb — read-only unless noted)
 

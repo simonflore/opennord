@@ -9,10 +9,15 @@ export const PARTITION_PROGRAM = 6;
 export const PARTITION_SAMP_LIB = 5;
 /** Partition index of the Native (instrument) Sample Library. */
 export const PARTITION_SAMP_LIB_NATIVE = 4;
+/** Partition index of the user Piano Library. (Native=0 shares the same physical partition.) */
+export const PARTITION_PIANO = 1;
 
 // Request opcodes (replies are request | 1).
+export const CQryBankList = 0x02; // → 0x03: per-bank slot capacity for a partition
 export const CReqBegin = 0x04;
 export const CReqEnd = 0x06;
+export const CQryPartState = 0x08; // → 0x09: a partition's file count + free/used erase blocks
+export const CReqEraseBlock = 0x22; // → 0x23: free N erase blocks before a large write
 export const CReqFileOpen = 0x0c;
 export const CReqFileCreate = 0x0a;
 export const CReqFileClose = 0x0e;

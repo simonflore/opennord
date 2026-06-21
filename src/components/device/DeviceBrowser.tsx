@@ -1,10 +1,14 @@
 import { programEntryView, type ProgramEntry } from '../../lib/device/transfer';
+import type { PartitionCapacity } from '../../lib/device/capacity';
 import { BANK_LETTERS } from '../../lib/clavia/slot';
+import { StorageMeter } from './StorageMeter';
 
 /** Programs grouped by bank A–H. Open, delete, or send a file to the Nord. */
-export function DeviceBrowser({ entries, deviceName, onSelect, onDelete, onSendFile }: {
+export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelete, onSendFile }: {
   entries: ProgramEntry[];
   deviceName: string;
+  /** Program partition capacity for the storage readout, or null while it loads. */
+  capacity: PartitionCapacity | null;
   onSelect: (entry: ProgramEntry) => void;
   onDelete: (entry: ProgramEntry) => void;
   /** Hand the chosen file to the caller, which reads it (error handling lives there). */
@@ -23,6 +27,7 @@ export function DeviceBrowser({ entries, deviceName, onSelect, onDelete, onSendF
         <div>
           <div className="ps-nm">Your programs</div>
           <div className="ps-meta"><span>{deviceName} · {entries.length} programs</span></div>
+          {capacity && <StorageMeter label="STORAGE" capacity={capacity} mode="slots" />}
         </div>
         <label
           style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, border: '1px solid var(--red)', color: 'var(--deps-ink)' }}

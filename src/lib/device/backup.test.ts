@@ -25,6 +25,18 @@ function info(o: { size: number; version: number; category: number; name: string
 function readReply(body: Uint8Array) {
   return encodeMessage(CReqFileRead | 1, [0, 0, 0, 0, body.length], body);
 }
+// Capacity replies restore() now reads as a pre-flight guard.
+const partState = (fileCount: number) => encodeMessage(0x09, [0, fileCount, 0, 1000, 0, 0]);
+function bankList(caps: number[]) {
+  const trailing: number[] = [caps.length]; // u8 bank count, then {u32 nameLen, name, u32 slotCapacity}…
+  caps.forEach((cap, i) => {
+    const nb = [...new TextEncoder().encode(`Bank ${String.fromCharCode(65 + i)}`)];
+    trailing.push(0, 0, 0, nb.length, ...nb, (cap >>> 24) & 255, (cap >>> 16) & 255, (cap >>> 8) & 255, cap & 255);
+  });
+  return encodeMessage(0x03, [0, 6], new Uint8Array(trailing));
+}
+/** The queries restore() issues right after begin(): enumerate (empty) + CQryPartState + CQryBankList. */
+const preflight = (fileCount = 0, caps = [64]) => [iter(2, 0, 0), partState(fileCount), bankList(caps)];
 
 describe('backup', () => {
   it('produces a .ns4b zip with meta.xml + the file at its NSM path', async () => {
@@ -65,6 +77,7 @@ describe('restore', () => {
 
     const replies = [
       ack(CReqBegin),               // begin(Program)
+      ...preflight(),               // guard: empty partition, 64 free slots
       ack(CReqFileCreate), ack(CReqFileWrite), ack(CReqFileClose),
       ack(CReqEnd),
       ack(CReqBegin),               // finally re-begin(Program)
@@ -93,6 +106,7 @@ describe('restore', () => {
     // When FileCreate fails (status 1), pushFile throws immediately — no FileClose is sent.
     const replies = [
       ack(CReqBegin),
+      ...preflight(),                         // guard open (64 free slots) → write is attempted
       encodeMessage(CReqFileCreate | 1, [1]), // create fails (status 1) → pushFile throws, no close
       ack(CReqEnd),
       ack(CReqBegin),
@@ -108,7 +122,7 @@ describe('restore', () => {
       'Program/Bank A/garbage.ns4p': new Uint8Array([0, 1, 2, 3, 4]), // not a CBIN file
     }, { level: 0 });
     // No FileCreate is sent — the hasCbinMagic guard throws before any device write.
-    const replies = [ack(CReqBegin), ack(CReqEnd), ack(CReqBegin)];
+    const replies = [ack(CReqBegin), ...preflight(), ack(CReqEnd), ack(CReqBegin)];
     const t = new MockTransport(replies);
     const result = await restore(new NordSession(t), zip);
     expect(result.restored).toBe(0);
