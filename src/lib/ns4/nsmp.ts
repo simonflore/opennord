@@ -291,6 +291,37 @@ function strokeRootByGlobalId(bytes: Uint8Array, sections: NsmpSection[]): Map<n
  * + per-note level/detune block (unity entries `10 00 00 00 00 00`), then parses
  * 16-byte zone entries. (Codec-3 `map` form; verified against Strings.nsmp3.)
  */
+/** The `map` section's global level (u24) + detune (s24), with a default flag.
+ *  Layout per docs/NSMP-CODEC.md: `[global level/detune]` at the map payload
+ *  start; unity = `10 00 00 00 00 00` (.nsmpproj m_gain=1.0, m_detune=0). */
+export interface GlobalLevelDetune { level: number; detune: number; isDefault: boolean }
+
+export function readGlobalLevelDetune(bytes: Uint8Array): GlobalLevelDetune | null {
+  const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'));
+  if (!map) return null;
+  const p = map.payloadOffset;
+  const level = u24be(bytes, p);
+  const raw = u24be(bytes, p + 3);
+  const detune = raw >= 0x800000 ? raw - 0x1000000 : raw; // s24
+  return { level, detune, isDefault: level === 0x100000 && detune === 0 };
+}
+
+/** Count per-note rows that differ from unity (`10 00 00 00 00 00`). The block
+ *  follows the global 6 bytes: codec-3 128×6B, codec-4 128×10B. */
+export function perNoteCustomCount(bytes: Uint8Array): number {
+  const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'));
+  if (!map) return 0;
+  const codec = readNsmp(bytes).codec ?? 0;
+  const rowLen = codec >= 4 ? 10 : 6;
+  let o = map.payloadOffset + 6, custom = 0;
+  for (let i = 0; i < 128 && o + rowLen <= map.endOffset; i++, o += rowLen) {
+    const unity = bytes[o] === 0x10 && bytes[o + 1] === 0 && bytes[o + 2] === 0 &&
+      bytes[o + 3] === 0 && bytes[o + 4] === 0 && bytes[o + 5] === 0;
+    if (!unity) custom++;
+  }
+  return custom;
+}
+
 export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
   const sections = parseNsmpSections(bytes);
   const map = sections.find((s) => s.tag.endsWith('map'));

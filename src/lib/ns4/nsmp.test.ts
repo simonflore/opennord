@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { patchNs4Checksum } from '../clavia/checksum';
-import { readNsmp, parseNsmpSections, decodeNsmp, readNsmpZones, parseLegacyZoneRecords } from './nsmp';
+import { readNsmp, parseNsmpSections, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount } from './nsmp';
 
 /** Build a minimal synthetic `.nsmp` (CBIN header + NSMP + hdr sections). */
 function makeSyntheticNsmp(name = 'Hi'): Uint8Array {
@@ -242,5 +242,23 @@ describe.skipIf(!existsSync(other4))('readNsmpZones — codec-4 Other.nsmp4 (gro
     expect(zones.map((z) => byGid.get(z.globalID))).toEqual([0, 3, 1, 2]);
     // every zone resolves to a real decoded stroke
     expect(zones.every((z) => byGid.has(z.globalID))).toBe(true);
+  });
+});
+
+const tbm4 = '/Users/simonflore/Documents/TBM/VibesNoVibrato Mellotron_M300A 4.1.nsmp4';
+describe.skipIf(!existsSync(tbm4))('global + per-note level/detune (read-only)', () => {
+  const bytes = existsSync(tbm4) ? new Uint8Array(readFileSync(tbm4)) : new Uint8Array();
+
+  it('flags a non-unity global level as not-default', () => {
+    const g = readGlobalLevelDetune(bytes);
+    expect(g).not.toBeNull();
+    // probe showed global6B = 16 5e 7f 00 00 00 → level 0x165e7f, detune 0
+    expect(g!.level).toBe(0x165e7f);
+    expect(g!.detune).toBe(0);
+    expect(g!.isDefault).toBe(false);
+  });
+
+  it('reports 0 custom per-note rows for the all-default corpus file', () => {
+    expect(perNoteCustomCount(bytes)).toBe(0);
   });
 });

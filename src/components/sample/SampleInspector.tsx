@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import '../../styles/nord.css';
 import { readNsmp, decodeNsmp, readNsmpZones, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
-import { sampleHeaderView, zoneMapRows, strokeSummary } from '../../lib/ns4/sample-view';
+import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
 import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
@@ -91,7 +91,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
 
       {loaded && loaded.file.recognized && (
         <div className="ps">
-          <SampleHeader view={sampleHeaderView(loaded.file, loaded.bytes.length, loaded.name)} />
+          <SampleHeader view={{ ...sampleHeaderView(loaded.file, loaded.bytes.length, loaded.name), gainDetune: gainDetuneView(loaded.bytes) }} />
 
           {/* Keyboard-map editor leads once we've decoded the key map; edits patch
               back into the file in place (audio preserved). Otherwise a friendly

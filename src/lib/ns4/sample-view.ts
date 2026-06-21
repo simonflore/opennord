@@ -3,7 +3,7 @@
  * display data. No DOM, no audio. Reused by the Sample Inspector components.
  */
 import type { NsmpFile, DecodedStrokeResult } from './nsmp';
-import { readNsmpZones } from './nsmp';
+import { readNsmpZones, readGlobalLevelDetune, perNoteCustomCount } from './nsmp';
 import { peakAmplitude } from './nsmp-audio';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -25,6 +25,9 @@ export interface SampleHeaderView {
   strokeCount: number;
   sizeBytes: number;
   isFactory: boolean;
+  /** Global + per-note level/detune, read-only. Computed by {@link gainDetuneView}
+   *  (kept off {@link sampleHeaderView} so its callers/tests stay unchanged). */
+  gainDetune?: { isDefault: boolean; level: number; detune: number; customNotes: number };
 }
 
 /** Display label for a sample's generation: ".nsmp (OG)" / ".nsmp3" / ".nsmp4" / "—". */
@@ -44,6 +47,14 @@ export function sampleHeaderView(file: NsmpFile, sizeBytes: number, fallbackName
     sizeBytes,
     isFactory: file.suspectedFactory,
   };
+}
+
+/** Read-only global + per-note level/detune for the header. Null-safe: returns
+ *  undefined when there's no `map` section to read. */
+export function gainDetuneView(bytes: Uint8Array): SampleHeaderView['gainDetune'] {
+  const g = readGlobalLevelDetune(bytes);
+  if (!g) return undefined;
+  return { isDefault: g.isDefault, level: g.level, detune: g.detune, customNotes: perNoteCustomCount(bytes) };
 }
 
 export interface ZoneRow {

@@ -23,6 +23,11 @@ export function SampleHeader({ view }: { view: SampleHeaderView }) {
           {view.isFactory && (
             <span className="ps-pill" style={{ color: 'var(--warn)', borderColor: 'var(--deps-border)' }}>factory?</span>
           )}
+          {view.gainDetune && !view.gainDetune.isDefault && (
+            <span className="ps-pill" title={`global level ${view.gainDetune.level}, detune ${view.gainDetune.detune}`}>
+              custom gain{view.gainDetune.customNotes > 0 ? ` · ${view.gainDetune.customNotes} notes` : ''}
+            </span>
+          )}
         </div>
       </div>
       <div className="ps-logo">nord</div>
