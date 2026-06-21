@@ -10,7 +10,6 @@ import { slotCaptureSource, fileCaptureSource } from '../../lib/contribute/sourc
 import { ContributionSession } from '../../lib/contribute/session';
 import { vocabForTag } from '../../lib/contribute/vocab';
 import { buildBundle, bundleToJson, bundleFilename } from '../../lib/contribute/export';
-import { diffBytes, groupRanges } from '../../lib/clavia/diff';
 import type { Capture, ContributionEntry, ControlVocabItem } from '../../lib/contribute/types';
 import { slotLabel } from '../../lib/clavia/slot';
 
@@ -169,7 +168,7 @@ function CaptureWizard({ session, entries, productId }: {
     try {
       const after = await readSlot(picked);
       setPendingAfter(after);
-      setPendingRanges(groupRanges(diffBytes(baseline.body, after.body)));
+      setPendingRanges(contrib.pendingRanges(after));
     } catch (e) {
       setError(`Could not read that program: ${msg(e)}`);
     } finally {
@@ -219,7 +218,7 @@ function CaptureWizard({ session, entries, productId }: {
       <p className="ps-sub">
         Starting point: {slotLabel(picked!.bank, picked!.slot)} — {picked!.name || '(empty)'}.
         Change <strong>one</strong> control on the Nord, press <strong>Store</strong> to save it
-        to the same spot, then capture the change.
+        to the same spot, then capture the change. Go straight to the next one — no need to undo.
       </p>
       {error && <p className="ps-sub on-error">{error}</p>}
 
@@ -301,7 +300,7 @@ function FileDropWizard() {
         return;
       }
       setPendingAfter(after);
-      setPendingRanges(groupRanges(diffBytes(baseline.body, after.body)));
+      setPendingRanges(contrib.pendingRanges(after));
     } catch (e) {
       setError(`Could not read that file: ${msg(e)}`);
     }
