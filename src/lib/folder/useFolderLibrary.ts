@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   pickFolder, restoreFolder, rescan, grantAndScan, forgetFolder, supportsPersistentFolders,
 } from './access';
-import { mainThreadScanner, type Scanner, type ScanBatch, type BundleDescriptor } from './pipeline';
+import { type Scanner, type ScanBatch, type BundleDescriptor } from './pipeline';
+import { createScanner } from './scanner';
 import { loadBundleChoice, saveBundleChoice, clearBundleChoice } from './bundlePrefs';
 import type { FolderSource } from './source';
 import type { ScanResult } from './scan';
@@ -45,7 +46,7 @@ export interface FolderLibrary {
   applyBundleSelection: (loadPaths: string[]) => Promise<void>;
 }
 
-export function useFolderLibrary(makeScanner: () => Scanner = mainThreadScanner): FolderLibrary {
+export function useFolderLibrary(makeScanner: () => Scanner = createScanner): FolderLibrary {
   const [folderName, setFolderName] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult>(EMPTY);
   const [bundles, setBundles] = useState<BundleDescriptor[]>([]);
