@@ -6,6 +6,7 @@ import { parseClaviaFile } from '../formats';
 import { programNameFromFilename } from '../clavia/name';
 import { activeLayers } from '../ns4/view';
 import type { NS4Program } from '../ns4/types';
+import { matchesQuery, sortWithFavorites } from './browse';
 
 /** One-line engine summary for a parsed program, e.g. "organ + synth". */
 export function summarize(program: NS4Program): string {
@@ -45,16 +46,13 @@ export function entryFromImport(rec: { id: string; name: string; bytes: Uint8Arr
 export function filterEntries(
   entries: LibraryEntry[], source: LibrarySource | 'all', query: string,
 ): LibraryEntry[] {
-  const q = query.trim().toLowerCase();
   return entries.filter((e) =>
-    (source === 'all' || e.source === source) &&
-    (q === '' || e.name.toLowerCase().includes(q)));
+    (source === 'all' || e.source === source) && matchesQuery(e.name, query));
 }
 
 /**
- * Order entries for display: favorites always float to the top, then the chosen
- * sort within each group. Stable — equal keys keep their input order, so
- * `default` preserves the natural source order (Nord → folder → local). Pure.
+ * Order entries for display: favorites float to the top, then the chosen sort
+ * within each group. Stable — `default` preserves natural source order. Pure.
  */
 export function sortEntries(
   entries: LibraryEntry[], sort: LibrarySort, favorites: ReadonlySet<string>,
@@ -64,15 +62,7 @@ export function sortEntries(
     if (sort === 'source') return a.source.localeCompare(b.source) || a.name.localeCompare(b.name);
     return 0; // default → fall through to input order
   };
-  return entries
-    .map((e, i) => ({ e, i }))
-    .sort((x, y) => {
-      const fx = favorites.has(x.e.id) ? 0 : 1;
-      const fy = favorites.has(y.e.id) ? 0 : 1;
-      if (fx !== fy) return fx - fy;            // favorites first
-      return byKey(x.e, y.e) || x.i - y.i;       // then sort key, stable
-    })
-    .map((w) => w.e);
+  return sortWithFavorites(entries, favorites, byKey);
 }
 
 /** Map folder-scanned programs into Library entries under the local source. */
