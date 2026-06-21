@@ -19,6 +19,7 @@
 import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
 import { verifyNs4Checksum } from '../clavia/checksum';
 import { decodeStroke, type DecodedStroke } from './nsmp-codec';
+import { dsp2Level } from './nw1-dsp';
 
 export interface NsmpSection {
   tag: string;
@@ -344,6 +345,62 @@ export function perNoteCustomCount(bytes: Uint8Array): number {
     if (!unity) custom++;
   }
   return custom;
+}
+
+/**
+ * The codec-4 `map`'s **SampleUnison / voicing** block — the 31-byte structure
+ * between the per-note level/detune table and the zone count, read by
+ * `CSectionMap::Read` (@1002ed4e4). Codec 3 has no such block. Gains are the
+ * `DSP2Level` dB scale; `detune*`/`pan*` are stored raw (u16/u8) and their value
+ * scale isn't pinned (the whole corpus is unison-off). `mode`/`blockMode` are the
+ * `Zevs::NordSmp::EUnisonMode`/`EUnisonBlockMode` enums (0 = off).
+ */
+export interface SampleUnison {
+  mode: number; topKey: number;
+  detuneMax: number; sameDetuneMin: number; panMax: number;
+  detuneMax2: number; panMax2: number; detuneMax3: number; panMax3: number;
+  numVoice1: number; numVoice2: number; numVoice3: number; numVoiceSame: number;
+  /** Per-tier voice gains in dB (`DSP2Level`). */
+  gainDb1: number; gainDb2: number; gainDb3: number; gainDbSame: number;
+  randomStrokeMode: number; blockRandomSustPed: number;
+  /** True when unison is engaged (`mode !== 0`). */
+  active: boolean;
+}
+
+/** Default (unison-off) block as real `.nsmp4` stores it: 2 voices per tier, unity gain. */
+export const DEFAULT_SAMPLE_UNISON: Readonly<SampleUnison> = {
+  mode: 0, topKey: 0, detuneMax: 0, sameDetuneMin: 0, panMax: 0,
+  detuneMax2: 0, panMax2: 0, detuneMax3: 0, panMax3: 0,
+  numVoice1: 2, numVoice2: 2, numVoice3: 2, numVoiceSame: 2,
+  gainDb1: 0, gainDb2: 0, gainDb3: 0, gainDbSame: 0,
+  randomStrokeMode: 0, blockRandomSustPed: 0, active: false,
+};
+
+/**
+ * Read the codec-4 `map` SampleUnison block. Returns null for codec 3 / no map /
+ * a block that runs past the section. Field order + sizes are the exact
+ * `CSectionMap::Read` read sequence (mode, topKey, then interleaved detune(u16)/
+ * pan(u8) spreads, four voice counts, four u24 gains, two random flags).
+ */
+export function readSampleUnison(bytes: Uint8Array): SampleUnison | null {
+  const codec = readNsmp(bytes).codec ?? 0;
+  if (codec < 4) return null;
+  const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'));
+  if (!map) return null;
+  const o = map.payloadOffset + 6 + 128 * 10; // after global + per-note (10B rows)
+  if (o + 31 > map.endOffset) return null;
+  const mode = bytes[o];
+  return {
+    mode, topKey: bytes[o + 1],
+    detuneMax: u16be(bytes, o + 2), sameDetuneMin: u16be(bytes, o + 4), panMax: bytes[o + 6],
+    detuneMax2: u16be(bytes, o + 7), panMax2: bytes[o + 9],
+    detuneMax3: u16be(bytes, o + 10), panMax3: bytes[o + 12],
+    numVoice1: bytes[o + 13], numVoice2: bytes[o + 14], numVoice3: bytes[o + 15], numVoiceSame: bytes[o + 16],
+    gainDb1: dsp2Level(u24be(bytes, o + 17)), gainDb2: dsp2Level(u24be(bytes, o + 20)),
+    gainDb3: dsp2Level(u24be(bytes, o + 23)), gainDbSame: dsp2Level(u24be(bytes, o + 26)),
+    randomStrokeMode: bytes[o + 29], blockRandomSustPed: bytes[o + 30],
+    active: mode !== 0,
+  };
 }
 
 export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import '../../styles/nord.css';
 import { readNsmp, decodeNsmp, readNsmpZones, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
-import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary } from '../../lib/ns4/sample-view';
+import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary, sampleUnisonView } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
 import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
@@ -102,6 +102,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                 initial={editModel(loaded.file, loaded.zones)}
                 bytes={loaded.bytes}
                 codec={loaded.file.codec === 4 ? 4 : 3}
+                unison={sampleUnisonView(loaded.bytes)?.summary ?? null}
                 onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
               />
             : loaded.file.legacy && loaded.zones.length > 0
@@ -133,7 +134,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
 
           {/* Raw key/velocity table — only when we couldn't build the editor. */}
           {!((loaded.file.codec === 3 || loaded.file.codec === 4) && loaded.zones.length > 0)
-            && <ZoneMap rows={zoneMapRows(loaded.bytes)} />}
+            && <ZoneMap rows={zoneMapRows(loaded.bytes)} unison={sampleUnisonView(loaded.bytes)?.summary ?? null} />}
         </div>
       )}
     </div>

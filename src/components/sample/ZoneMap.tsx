@@ -1,7 +1,7 @@
 import type { ZoneRow } from '../../lib/ns4/sample-view';
 
 /** The raw key/velocity map — RE-grade detail, tucked behind an Advanced disclosure. */
-export function ZoneMap({ rows }: { rows: ZoneRow[] }) {
+export function ZoneMap({ rows, unison }: { rows: ZoneRow[]; unison?: string | null }) {
   if (rows.length === 0) return null;
   return (
     <details className="ps-card" style={{ marginTop: 12 }}>
@@ -19,6 +19,9 @@ export function ZoneMap({ rows }: { rows: ZoneRow[] }) {
           ))}
         </tbody>
       </table>
+      {unison && (
+        <p className="ps-sub" style={{ margin: '8px 0 0' }}>Unison: {unison}</p>
+      )}
     </details>
   );
 }

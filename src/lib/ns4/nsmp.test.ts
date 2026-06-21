@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { patchNs4Checksum } from '../clavia/checksum';
-import { readNsmp, parseNsmpSections, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount } from './nsmp';
+import { readNsmp, parseNsmpSections, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison } from './nsmp';
+import { writeNsmp } from './nsmp-write';
 
 /** Build a minimal synthetic `.nsmp` (CBIN header + NSMP + hdr sections). */
 function makeSyntheticNsmp(name = 'Hi'): Uint8Array {
@@ -202,6 +203,35 @@ describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
   it('returns [] when no count marker / valid record block is found', () => {
     expect(parseLegacyZoneRecords(new Uint8Array([1, 2, 3, 4, 5, 6]), 0, 6, 2)).toEqual([]);
     expect(parseLegacyZoneRecords(new Uint8Array(20), 0, 20, 0)).toEqual([]);
+  });
+});
+
+describe('readSampleUnison (codec-4 map block)', () => {
+  it('reads the default unison block from a written .nsmp4: off, 2 voices, 0 dB', () => {
+    const bytes = writeNsmp({ name: 'U', channels: [new Int16Array(64)], codec: 4 });
+    const u = readSampleUnison(bytes)!;
+    expect(u).not.toBeNull();
+    expect(u.mode).toBe(0);
+    expect(u.active).toBe(false);
+    expect([u.numVoice1, u.numVoice2, u.numVoice3, u.numVoiceSame]).toEqual([2, 2, 2, 2]);
+    expect(Math.abs(u.gainDbSame)).toBeLessThan(0.01); // unity 0x100000 → 0 dB
+    expect(u.detuneMax).toBe(0);
+    expect(u.panMax).toBe(0);
+    expect(u.randomStrokeMode).toBe(0);
+  });
+
+  it('returns null for a codec-3 file (no unison block)', () => {
+    const bytes = writeNsmp({ name: 'U3', channels: [new Int16Array(64)], codec: 3 });
+    expect(readSampleUnison(bytes)).toBeNull();
+  });
+
+  const oth = join(process.cwd(), 'research/nsmp/Other.nsmp4');
+  it.skipIf(!existsSync(oth))('reads the real Other.nsmp4 unison block (all default)', () => {
+    const u = readSampleUnison(new Uint8Array(readFileSync(oth)))!;
+    expect(u.mode).toBe(0);
+    expect([u.numVoice1, u.numVoice2, u.numVoice3, u.numVoiceSame]).toEqual([2, 2, 2, 2]);
+    expect(u.gainDb1).toBeCloseTo(0, 5);
+    expect(u.active).toBe(false);
   });
 });
 

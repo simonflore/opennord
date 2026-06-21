@@ -779,8 +779,11 @@ cracked the codec. The "scale unknown" / "velocity unknown" rows below are now
 | per-note gain/detune (`note_info`) | **present + scaled** | 128-row block; same `DSP2Level`/`DSP2Detune` per row (codec-4 +4 extra bytes are 4 distinct arrays, not a tag) |
 | velocity min/max (`map_stroke`) | **present** | zone record `velMin@+14` / `velMax@+15` (`SetVelocityMin`/`Max`, mapVer ≥ 0xe) — both codecs; decoded + writable |
 | zone mode / playback / one-shot | **present** | zone record `@+3/+4/+5` (`SetZoneMode`/`SetZonePlayback`/`SetZoneIsOneShot`) — read |
-| codec-4 SampleUnison block (mode, detune/pan spreads, voices, gains) | **present (structure)** | ~32B between per-note table & zone records (`SetSampleUnison*`) — not yet surfaced |
+| codec-4 SampleUnison block (mode, detune/pan spreads, voices, gains) | **decoded + surfaced (read-only)** | 31B `[mode u8][topKey u8][detuneMax u16][sameDetuneMin u16][panMax u8][detuneMax2 u16][panMax2 u8][detuneMax3 u16][panMax3 u8][numVoice1/2/3/Same u8×4][gainX3 1/2/3/Same u24×4 → DSP2Level][randomStrokeMode u8][blockRandomSustPed u8]` then the 1B zone count (`readSampleUnison`; `SetSampleUnison*`). Whole corpus is unison-**off** so detune/pan value scales aren't pinned; gains use the dB scale |
 | per-zone EQ / imaging / fades / release / instrument envelope | **absent / editor-only?** | no structured non-audio gap large enough; likely baked/dropped on export |
 
-Remaining: the codec-4 `SampleUnison` block is structurally located but not
-surfaced; per-zone EQ/imaging/fades/envelope still look editor-only.
+Remaining: editing the SampleUnison block + per-note gain/detune is gated on a
+non-default ground-truth patch (no corpus file exercises either); per-zone
+EQ/imaging/fades/envelope still look editor-only. The codec-4 writer now emits a
+**correct default** unison block (2 voices/tier, unity gains) — it previously
+wrote an all-zero header (0 voices, −∞ dB gains).

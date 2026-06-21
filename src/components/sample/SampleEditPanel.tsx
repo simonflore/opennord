@@ -13,10 +13,12 @@ const round1 = (n: number): number => Math.round(n * 10) / 10;
  *  zone in the synced table below; rename, then patch + download a new .nsmp.
  *  Edits are written back into the original file in place — audio and everything
  *  we don't model are preserved exactly. */
-export function SampleEditPanel({ initial, bytes, codec, onPlayZone }: {
+export function SampleEditPanel({ initial, bytes, codec, unison, onPlayZone }: {
   initial: EditModel;
   bytes: Uint8Array;
   codec: 3 | 4;
+  /** Read-only unison summary (codec-4 voicing block), or null when absent. */
+  unison?: string | null;
   /** Audition a zone's sample by index — wired to the keyboard + table rows. */
   onPlayZone?: (index: number) => void;
 }) {
@@ -101,6 +103,10 @@ export function SampleEditPanel({ initial, bytes, codec, onPlayZone }: {
               onChange={(e) => setDetuneCents(e.target.value)} /> ¢
           </label>
         </div>
+      )}
+
+      {unison && (
+        <p className="ps-sub" style={{ margin: '10px 0 0' }}>Unison: {unison} <em>(read-only)</em></p>
       )}
 
       <label className="ps-sub" style={{ display: 'block', margin: '12px 0 8px' }}>

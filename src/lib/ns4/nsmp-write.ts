@@ -136,12 +136,24 @@ function buildMapPayloadC3(zones: WriteZone[]): Uint8Array {
 function buildMapPayloadC4(zones: WriteZone[]): Uint8Array {
   const parts: Uint8Array[] = [Uint8Array.from(UNITY)]; // global
   for (let n = 0; n < 128; n++) parts.push(Uint8Array.from([...UNITY, n, n, n, n])); // per-note + note tag
-  const header = new Uint8Array(32); // zone-table header — only its last byte (count) is read
-  header[31] = zones.length & 0xff;
-  parts.push(header);
+  parts.push(defaultUnisonHeader(zones.length)); // 31B SampleUnison block + 1B zone count
   zones.forEach((z, i) => parts.push(zoneEntry(z, i + 1, 1)));
   parts.push(Uint8Array.from([0x00, 0x00, 0x00, 0x01, 0x00, 0x00])); // trailer
   return concat(parts);
+}
+
+/**
+ * The codec-4 `map`'s 31-byte SampleUnison block + 1-byte zone count, written as a
+ * real `.nsmp4` stores it *off*: voices = 2 per tier, gains unity (0 dB), no
+ * detune/pan spread, no random. (Earlier the writer emitted an all-zero header —
+ * 0 voices / −∞ dB gains — an invalid unison config; see `readSampleUnison`.)
+ */
+function defaultUnisonHeader(count: number): Uint8Array {
+  const h = new Uint8Array(32); // bytes default to 0 (mode/topKey/detune/pan/random)
+  h[13] = h[14] = h[15] = h[16] = 2; // numVoice 1/2/3/Same
+  for (const o of [17, 20, 23, 26]) h[o] = 0x10; // gainX3 1/2/3/Same = unity 0x100000
+  h[31] = count & 0xff; // zone count
+  return h;
 }
 
 /** Build the `map` payload in the target generation's verified layout. */

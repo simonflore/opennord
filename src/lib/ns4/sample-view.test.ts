@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { NsmpFile, DecodedStrokeResult } from './nsmp';
 import { readNsmp } from './nsmp';
-import { noteName, sampleHeaderView, zoneMapRows, strokeSummary, gainDetuneView } from './sample-view';
+import { noteName, sampleHeaderView, zoneMapRows, strokeSummary, gainDetuneView, sampleUnisonView } from './sample-view';
 import { parseNsmpSections } from './nsmp';
 import { writeNsmp } from './nsmp-write';
 
@@ -104,6 +104,20 @@ describe('gainDetuneView — interpreted gain (dB) + detune (cents)', () => {
     expect(v.isDefault).toBe(false);
     expect(v.gainDb).toBeCloseTo(2.91, 1);
     expect(v.detuneCents).toBe(100);
+  });
+});
+
+describe('sampleUnisonView', () => {
+  it('summarises a default codec-4 unison block as off', () => {
+    const bytes = writeNsmp({ name: 'U', channels: [new Int16Array(64)], codec: 4 });
+    const v = sampleUnisonView(bytes)!;
+    expect(v.active).toBe(false);
+    expect(v.summary.toLowerCase()).toContain('off');
+  });
+
+  it('returns null for codec-3 (no unison block)', () => {
+    const bytes = writeNsmp({ name: 'U3', channels: [new Int16Array(64)], codec: 3 });
+    expect(sampleUnisonView(bytes)).toBeNull();
   });
 });
 

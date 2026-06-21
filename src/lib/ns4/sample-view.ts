@@ -3,7 +3,7 @@
  * display data. No DOM, no audio. Reused by the Sample Inspector components.
  */
 import type { NsmpFile, DecodedStrokeResult } from './nsmp';
-import { readNsmpZones, readGlobalLevelDetune, perNoteCustomCount } from './nsmp';
+import { readNsmpZones, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison } from './nsmp';
 import { dsp2Level, dsp2Detune } from './nw1-dsp';
 import { peakAmplitude } from './nsmp-audio';
 
@@ -67,6 +67,24 @@ export function gainDetuneView(bytes: Uint8Array): SampleHeaderView['gainDetune'
     gainDb: dsp2Level(g.level), detuneCents: dsp2Detune(g.detune),
     customNotes: perNoteCustomCount(bytes),
   };
+}
+
+/**
+ * Read-only summary of the codec-4 `map` SampleUnison/voicing block. Null for
+ * codec 3 (no such block). `summary` is a one-line musician-facing readout — most
+ * real files are "off" (the whole known corpus is). Detune/pan are shown raw
+ * (their value scale isn't pinned); gains use the known dB scale.
+ */
+export function sampleUnisonView(bytes: Uint8Array): { active: boolean; summary: string } | null {
+  const u = readSampleUnison(bytes);
+  if (!u) return null;
+  if (!u.active) return { active: false, summary: 'off' };
+  const parts = [`${u.numVoiceSame} voices`];
+  if (u.detuneMax) parts.push(`detune ${u.detuneMax}`);
+  if (u.panMax) parts.push(`pan ${u.panMax}`);
+  if (Math.abs(u.gainDbSame) >= 0.05) parts.push(`gain ${u.gainDbSame >= 0 ? '+' : '−'}${Math.abs(u.gainDbSame).toFixed(1)} dB`);
+  if (u.randomStrokeMode) parts.push('random');
+  return { active: true, summary: `on · ${parts.join(' · ')}` };
 }
 
 export interface ZoneRow {

@@ -20,7 +20,11 @@ export function nsmpClaimedRegions(bytes: Uint8Array): ByteRange[] {
     out.push({ start: map.payloadOffset, end: map.payloadOffset + 6 }); // global level/detune
     const codec = readNsmp(bytes).codec ?? 0;
     const rowLen = codec >= 4 ? 10 : 6;
-    out.push({ start: map.payloadOffset + 6, end: map.payloadOffset + 6 + 128 * rowLen }); // per-note block
+    const afterNotes = map.payloadOffset + 6 + 128 * rowLen;
+    out.push({ start: map.payloadOffset + 6, end: afterNotes }); // per-note block
+    // The block before the zone records: codec-4 = 31B SampleUnison + 1B count;
+    // codec-3 = just the 1B count. (readSampleUnison / readNsmpZones.)
+    out.push({ start: afterNotes, end: afterNotes + (codec >= 4 ? 32 : 1) });
     const layout = zoneRecordLayout(codec);
     void layout; // (offsets within each 16B record are claimed by the record range)
     for (const z of readNsmpZones(bytes)) {
