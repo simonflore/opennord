@@ -1,15 +1,9 @@
 import { createRoute } from '@tanstack/react-router';
 import { rootRoute } from '@/routes/root';
-import { SamplesView } from '@/components/sample/SamplesView';
-import { useLibraryState } from '@/lib/library/LibraryContext';
+import { SamplesSplit } from '@/components/sample/SamplesSplit';
 
 export const SamplesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/samples',
-  component: SamplesScreen,
+  component: () => <SamplesSplit />,
 });
-
-function SamplesScreen() {
-  const { folder } = useLibraryState();
-  return <SamplesView samples={folder.result.samples} />;
-}

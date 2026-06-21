@@ -1,0 +1,94 @@
+import { useState } from 'react';
+import { SamplesBrowse } from './SamplesBrowse';
+import { SampleInspector, type InspectorInput } from './SampleInspector';
+import { Button, SplitView } from '@/components/ui';
+import { useSamplesState } from '@/lib/library/SamplesContext';
+import { useDevice } from '@/lib/device/DeviceContext';
+import { pullSample } from '@/lib/device/samples';
+import { useSplitLayout } from '@/lib/responsive';
+import type { SampleEntry } from '@/lib/library/sample-entries';
+
+const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/**
+ * The Samples screen as master/detail. Folder samples open in the inspector
+ * (bytes in hand); device samples are pulled off the board with progress, then
+ * opened in the same inspector — staying on the Samples screen. No folder samples
+ * and no device → the inspector's own drag/drop/pick zone (via "Load sample").
+ */
+export function SamplesSplit() {
+  const wide = useSplitLayout();
+  const s = useSamplesState();
+  const { session } = useDevice();
+  // The thing currently shown in the detail pane: pulled/folder bytes, or null.
+  const [inspect, setInspect] = useState<InspectorInput | null>(null);
+  const [loadNew, setLoadNew] = useState(false);
+  const [pullPct, setPullPct] = useState<number | null>(null);
+  const [pullError, setPullError] = useState('');
+
+  async function openEntry(e: SampleEntry) {
+    setPullError('');
+    if (e.source === 'local' && e.bytes) {
+      setLoadNew(false);
+      setInspect({ bytes: e.bytes, name: e.name });
+      return;
+    }
+    if (e.source === 'nord' && e.device && session) {
+      setLoadNew(false); setInspect(null); setPullPct(0);
+      try {
+        const bytes = await pullSample(session, e.device,
+          (done, total) => setPullPct(total ? Math.round((done / total) * 100) : 0));
+        setInspect({ bytes, name: e.name });
+      } catch (err) {
+        setPullError(`Could not read ${e.name}: ${msg(err)}`);
+      } finally {
+        setPullPct(null);
+      }
+    }
+  }
+  const startLoadNew = () => { setInspect(null); setLoadNew(true); setPullError(''); };
+  const back = () => { setInspect(null); setLoadNew(false); setPullError(''); };
+
+  const status = pullPct !== null
+    ? <p className="ps-sub">Pulling sample… {pullPct}%</p>
+    : pullError
+      ? <p className="ps-sub" role="alert">{pullError}</p>
+      : null;
+
+  const list = (
+    <div>
+      {status}
+      <SamplesBrowse
+        entries={s.shown}
+        source={s.source} generation={s.generation} query={s.query}
+        nordCount={s.nordCount} localCount={s.localCount}
+        showSourceFacet={s.showSourceFacet} showUnknownGen={s.showUnknownGen}
+        onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery}
+        onOpen={(e) => void openEntry(e)} onLoadNew={startLoadNew}
+        prefs={s.prefs}
+      />
+    </div>
+  );
+
+  const initial = loadNew ? undefined : (inspect ?? undefined);
+  // Remount the inspector per sample (key on name+size) so its load effect re-runs.
+  const inspector = (
+    <SampleInspector key={initial ? `${initial.name}-${initial.bytes.length}` : 'new'} initial={initial} />
+  );
+  const hasDetail = loadNew || inspect !== null;
+
+  // Narrow: one pane at a time.
+  if (!wide) {
+    if (!hasDetail) return list;
+    return (
+      <div>
+        <Button variant="ghost" onClick={back}>← Samples</Button>
+        {inspector}
+      </div>
+    );
+  }
+
+  // Wide: master list + detail side by side.
+  const detail = hasDetail ? inspector : <p className="lib-empty">Pick a sample to inspect it.</p>;
+  return <SplitView master={list} detail={detail} />;
+}
