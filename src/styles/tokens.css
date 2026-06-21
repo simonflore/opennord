@@ -9,6 +9,7 @@
   --sink: #101216;       /* rail, inputs */
   --line: #2b2f39;
   --devbox-bg: #191b21;  /* device-status box on the rail (between bg and surface) */
+  --scrim: rgb(0 0 0 / 60%);  /* modal/dialog backdrop over the app */
 
   /* accent + state */
   --red: #e0202e;

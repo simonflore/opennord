@@ -60,3 +60,17 @@
 }
 .on-split__master { min-width: 0; }
 .on-split__detail { min-width: 0; }
+
+/* Modal dialog — scrim + centered panel (Dialog.tsx). Tokens only. */
+.on-dialog-backdrop {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--s-4); background: var(--scrim);
+}
+.on-dialog {
+  width: 100%; max-width: 28rem; max-height: 85vh; overflow: auto;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s-4);
+}
+.on-dialog__title { margin: 0 0 var(--s-3); font: 700 15px var(--font); }
+.on-dialog__footer { display: flex; gap: var(--s-2); justify-content: flex-end; margin-top: var(--s-4); }
