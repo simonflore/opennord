@@ -9,6 +9,7 @@ import { FxRow } from './FxRow';
 import { Morphs } from './Morphs';
 import { NordFileCard } from './NordFileCard';
 import { DecodedProgramView } from './DecodedProgramView';
+import { Ns3ProgramView } from './Ns3ProgramView';
 import { decodedProgramFor } from '../../lib/presenters';
 import { identifyNordFile } from '../../lib/clavia/nord-file';
 import { ProgramExtern } from './ProgramExtern';
@@ -30,9 +31,12 @@ export function ProgramView({ program }: { program: NS4Program }) {
     // (Stage 2/3) render through the shared decoded-program view via their
     // presenter; other recognized files show the structure card; truly
     // unrecognized files fall through.
+    const info = identifyNordFile(program.bytes);
+    // Stage 3 graduates to the rich per-engine view; other leaner models (Stage 2,
+    // still being decoded) stay on the shared decoded-program view via their presenter.
+    if (info.generation === 'Stage 3' && info.kind === 'performance') return <Ns3ProgramView bytes={program.bytes} />;
     const decoded = decodedProgramFor(program.bytes);
     if (decoded) return <DecodedProgramView program={decoded} />;
-    const info = identifyNordFile(program.bytes);
     if (info.recognized) return <NordFileCard bytes={program.bytes} />;
     return (
       <div className="ps">

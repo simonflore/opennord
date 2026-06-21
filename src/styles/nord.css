@@ -151,6 +151,11 @@
   color: var(--grn); text-decoration: none; }
 .ps-dep:hover { text-decoration: underline; }
 
+/* Stage 3 panel band: a labelled group wrapping one panel's cards + FX. */
+.ps-panel { margin-top: 18px; }
+.ps-panel-lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); font-weight: 700; margin: 0 0 8px; }
+
 .ps-drawer { margin-top: 12px; color: var(--ink); }
 .ps-drawer summary { cursor: pointer; font-size: 12px; color: var(--dim); }
 .ps-params { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
