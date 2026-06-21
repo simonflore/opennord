@@ -11,9 +11,11 @@ import type {
 import { volumeFill, envCurve } from '../clavia/engine-view';
 import { drawbarViews, b3DrawbarViews } from '../clavia/drawbars';
 import { identifyNordFile } from '../clavia/nord-file';
-import type { Ns3Panel, Ns3Fx } from './decode';
+import { ORGAN_TYPE, type Ns3Panel, type Ns3Fx } from './decode';
 
-const ORGAN_MODELS = ['B3', 'Vox', 'Farfisa', 'Pipe1', 'Pipe2'] as const;
+// The model-selector options ARE the decoder's organ-type table — sourced from it
+// so a future decoder relabel can't silently desync the selector.
+const ORGAN_MODELS = ORGAN_TYPE;
 
 /** Key convention for an injected, lazily-resolved factory sample name. */
 export function ns3SampleKey(panelId: string, kind: 'Piano' | 'Synth'): string {

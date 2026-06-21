@@ -23,7 +23,8 @@ const PANEL_STRIDE = 263; // Panel B = Panel A + 0x107
 // ── Type tables ─────────────────────────────────────────────────────────────
 // All from ns3-mapping.js (Chris55/ns3-program-viewer)
 const PIANO_TYPE = ['Grand', 'Upright', 'Electric', 'Clav', 'Digital', 'Misc'];
-const ORGAN_TYPE = ['B3', 'Vox', 'Farfisa', 'Pipe1', 'Pipe2'];
+/** Organ models, in decode order — also reused by ns3/view.ts for the model selector. */
+export const ORGAN_TYPE = ['B3', 'Vox', 'Farfisa', 'Pipe1', 'Pipe2'];
 const SYNTH_OSC = ['Classic', 'Wave', 'Formant', 'Super', 'Sample'];
 const SYNTH_FILTER = ['LP12', 'LP24', 'Mini Moog', 'LP+HP', 'BP24', 'HP24'];
 const REVERB_TYPE = ['Room 1', 'Room 2', 'Stage 1', 'Stage 2', 'Hall 1', 'Hall 2'];
