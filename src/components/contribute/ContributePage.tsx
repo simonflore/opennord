@@ -12,6 +12,8 @@ import { vocabForTag } from '../../lib/contribute/vocab';
 import { buildBundle, bundleToJson, bundleFilename } from '../../lib/contribute/export';
 import type { Capture, ContributionEntry, ControlVocabItem } from '../../lib/contribute/types';
 import { slotLabel } from '../../lib/clavia/slot';
+import { useNordMidi } from './useNordMidi';
+import { MidiProbe } from './MidiProbe';
 
 const APP_VERSION = '0.1.0';
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -144,6 +146,8 @@ function CaptureWizard({ session, entries, productId }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [focused, setFocused] = useState<ProgramEntry | null>(null);
+  const [midiOn, setMidiOn] = useState(false);
+  const midi = useNordMidi(midiOn);
   const ls = useLabelState();
 
   // Ask the device which program is currently selected, so the musician picks it
@@ -185,6 +189,8 @@ function CaptureWizard({ session, entries, productId }: {
       const after = await readSlot(picked);
       setPendingAfter(after);
       setPendingRanges(contrib.pendingRanges(after));
+      // Auto-label from the last control the Nord transmitted over MIDI, if any.
+      if (midi.last && !ls.vocabId) ls.setLabel(`${midi.last.label} → ${midi.last.value}`);
     } catch (e) {
       setError(`Could not read that program: ${msg(e)}`);
     } finally {
@@ -246,6 +252,7 @@ function CaptureWizard({ session, entries, productId }: {
         Change <strong>one</strong> control on the Nord, press <strong>Store</strong> to save it
         to the same spot, then capture the change. Go straight to the next one — no need to undo.
       </p>
+      <MidiProbe state={midi} enabled={midiOn} onToggle={() => setMidiOn((v) => !v)} />
       {error && <p className="ps-sub on-error">{error}</p>}
 
       {!pendingAfter ? (
