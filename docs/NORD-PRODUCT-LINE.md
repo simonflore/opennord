@@ -57,6 +57,7 @@ era) → **NW1 v4** (Stage 4). Sample-library codec: `nsmp` (codec-1/OG), `nsmp3
 |---|---|---|---|---|---|
 | Nord Stage (Classic/EX) | `CStageBase` | `nsp` / `nspg` | `nsb`, `ns2exb` | — | OG/NWS |
 | **Nord Stage 2** | `CStageBase`, `CPartitionProgramNS2` | `ns2p` | `ns2b` | `nsmp` (codec-1) | OG |
+| **Nord Stage 2 EX** | `CStageBase` | `ns2p` *(shared w/ Stage 2)* | `ns2exb` | `nsmp` (codec-1) | OG |
 | **Nord Stage 3** | `CStageBase` | **`ns3f`** | `ns3b` | `nsmp3` (codec-3) | NW1 v3 |
 | **Nord Stage 4** | `CStageBase` | `ns4p` | `ns4b` | `nsmp4` (codec-4) | NW1 v4 |
 | Nord Electro 3 / 3 HP | `CElectro3`, `CElectro3HP`, `CElectro3Base`, `CPartitionProgramE3(HP)` | `nepg` | `neb` | `nsmp` | OG |

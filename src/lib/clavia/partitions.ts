@@ -11,7 +11,7 @@
  */
 
 export type NordModelId =
-  | 'stage-classic' | 'stage-ex' | 'stage-2' | 'stage-3' | 'stage-4'
+  | 'stage-classic' | 'stage-ex' | 'stage-2' | 'stage-2-ex' | 'stage-3' | 'stage-4'
   | 'electro-3' | 'electro-3-hp' | 'electro-4' | 'electro-5' | 'electro-6'
   | 'piano-1' | 'piano-2' | 'piano-3' | 'piano-4' | 'piano-5' | 'piano-6'
   | 'lead-4' | 'lead-a1' | 'wave' | 'wave-2' | 'c2' | 'c2d'
@@ -87,6 +87,21 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   },
   'stage-2': {
     id: 'stage-2', name: 'Nord Stage 2', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og',
+    partitions: [
+      P('piano-native', 'Piano (factory)', true),
+      P('samplib-native', 'Sample Library (factory)', true),
+      P('program', 'Programs', false, 'ns2p'),
+      P('synth-preset', 'Synth Presets', false, 'ns2y'),
+      P('live', 'Live', false, 'ns2l'),
+      P('settings', 'Settings', false),
+    ],
+  },
+  'stage-2-ex': {
+    // Nord Stage 2 EX = Nord Stage 2 with extended memory. Same ns2p program body
+    // codec and same partition structure as Stage 2; stage-2 stays the ns2p anchor
+    // (defined first). The "EX" is a hardware capacity bump, not a format change —
+    // so Stage 2 EX program files read/render through the Stage 2 path unchanged.
+    id: 'stage-2-ex', name: 'Nord Stage 2 EX', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og',
     partitions: [
       P('piano-native', 'Piano (factory)', true),
       P('samplib-native', 'Sample Library (factory)', true),
@@ -177,7 +192,9 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   },
   // Remaining models — baseline layout from their fourcc family (NORD-PRODUCT-LINE.md).
   'stage-classic': { id: 'stage-classic', name: 'Nord Stage Classic', generation: 'OG', programTag: 'nsp', sampleCodec: null, partitions: baseline('nsp', false) },
-  'stage-ex': { id: 'stage-ex', name: 'Nord Stage EX', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og', partitions: baseline('ns2p', true) },
+  // First-generation Nord Stage EX (extended sibling of Stage Classic), NOT Stage 2 EX.
+  // Tag 'nspg' per docs/NORD-PRODUCT-LINE.md; no user sample engine (like Stage Classic).
+  'stage-ex': { id: 'stage-ex', name: 'Nord Stage EX', generation: 'OG', programTag: 'nspg', sampleCodec: null, partitions: baseline('nspg', false) },
   'electro-3': { id: 'electro-3', name: 'Nord Electro 3', generation: 'OG', programTag: 'nepg', sampleCodec: 'og', partitions: baseline('nepg', true) },
   'electro-3-hp': { id: 'electro-3-hp', name: 'Nord Electro 3 HP', generation: 'OG', programTag: 'nepg', sampleCodec: 'og', partitions: baseline('nepg', true) },
   'electro-5': {

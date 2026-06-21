@@ -4,7 +4,7 @@ import { MODELS, ALL_MODELS, modelById, modelByTag } from './partitions';
 describe('partition registry', () => {
   it('resolves a model from its program tag (anchor for shared tags)', () => {
     expect(modelByTag('ne6p')?.id).toBe('electro-6');
-    expect(modelByTag('ns2p')?.id).toBe('stage-2'); // anchor; Stage EX shares the tag
+    expect(modelByTag('ns2p')?.id).toBe('stage-2'); // anchor; Stage 2 EX also shares ns2p
     expect(modelByTag('zzzz')).toBeUndefined();
     expect(modelByTag(undefined)).toBeUndefined();
   });
@@ -126,5 +126,26 @@ describe('partition registry', () => {
     // Settings partition carries ne5s tag (SPartitionSettings "ne5s")
     const settings = m.partitions.find((p) => p.kind === 'settings');
     expect(settings?.fourcc).toBe('ne5s');
+  });
+
+  // Product-line order: Stage, Stage EX, Stage 2, Stage 2 EX, Stage 3, Stage 4.
+  // Two distinct "EX" models: first-gen Nord Stage EX (nspg, sibling of Stage
+  // Classic) and Nord Stage 2 EX (ns2p, extended-memory sibling of Stage 2).
+  it('separates first-gen Stage EX (nspg) from Stage 2 EX (ns2p)', () => {
+    // First-gen Stage EX: own tag, no user sample engine (like Stage Classic).
+    const ex = modelById('stage-ex')!;
+    expect(ex.name).toBe('Nord Stage EX');
+    expect(ex.programTag).toBe('nspg');
+    expect(ex.sampleCodec).toBeNull();
+    expect(modelByTag('nspg')?.id).toBe('stage-ex');
+
+    // Stage 2 EX: shares ns2p with Stage 2, same partition structure; stage-2 stays anchor.
+    const ex2 = modelById('stage-2-ex')!;
+    expect(ex2.name).toBe('Nord Stage 2 EX');
+    expect(ex2.programTag).toBe('ns2p');
+    expect(ex2.sampleCodec).toBe('og');
+    expect(modelByTag('ns2p')?.id).toBe('stage-2'); // anchor unchanged
+    expect(ex2.partitions.map((p) => p.kind))
+      .toEqual(MODELS['stage-2'].partitions.map((p) => p.kind));
   });
 });
