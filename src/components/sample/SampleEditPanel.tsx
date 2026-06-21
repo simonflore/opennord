@@ -55,7 +55,7 @@ export function SampleEditPanel({ initial, bytes, codec, onPlayZone }: {
       />
 
       <table className="ps-params ps-zone-tbl">
-        <thead><tr><th>sample</th><th>root</th><th>up to (split)</th><th>vel ≤</th></tr></thead>
+        <thead><tr><th>sample</th><th>root</th><th>from</th><th>up to (split)</th><th>vel ≤</th></tr></thead>
         <tbody>
           {/* Rows in keyboard order (left→right) so S-numbers match the map above;
               edits still address the original zone by its index (tz.index). */}
@@ -66,6 +66,7 @@ export function SampleEditPanel({ initial, bytes, codec, onPlayZone }: {
               <tr key={i} className={i === selected ? 'sel' : ''} onClick={() => { setSelected(i); onPlayZone?.(i); }}>
                 <td>S{pos + 1}</td>
                 <td>{num(z.rootKey, (n) => setZone(i, { rootKey: n }))}<em>{noteName(z.rootKey)}</em></td>
+                <td>{num(z.keyLow, (n) => setZone(i, { keyLow: n }))}<em>{noteName(z.keyLow)}</em></td>
                 <td>{num(z.keyHigh, (n) => setZone(i, { keyHigh: n }))}<em>{noteName(z.keyHigh)}</em></td>
                 <td>{num(z.velTop, (n) => setZone(i, { velTop: n }))}</td>
               </tr>

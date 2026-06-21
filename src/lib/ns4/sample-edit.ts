@@ -21,6 +21,7 @@ import { patchNs4Checksum } from '../clavia/checksum';
 
 export interface EditZone {
   rootKey: number;
+  keyLow: number;
   keyHigh: number;
   velTop: number;
   /** Byte offset of this zone's 16-byte record in the source file (for in-place patching). */
@@ -37,7 +38,7 @@ export function editModel(file: NsmpFile, zones: NsmpZone[]): EditModel {
   return {
     name: file.name ?? 'Sample',
     zones: zones.map((z) => ({
-      rootKey: z.rootKey, keyHigh: z.keyHigh, velTop: z.velTop, recordOffset: z.recordOffset,
+      rootKey: z.rootKey, keyLow: z.keyLow, keyHigh: z.keyHigh, velTop: z.velTop, recordOffset: z.recordOffset,
     })),
   };
 }
@@ -59,6 +60,7 @@ export function patchEditedNsmp(original: Uint8Array, model: EditModel): Uint8Ar
     const e = z.recordOffset;
     out[e + layout.velTop] = clampKey(z.velTop);
     out[e + layout.rootKey] = clampKey(z.rootKey);
+    out[e + layout.keyLow] = clampKey(z.keyLow);
     out[e + layout.keyHigh] = clampKey(z.keyHigh);
   }
   patchName(out, model.name);

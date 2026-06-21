@@ -58,7 +58,7 @@ describe('buildEditedNsmp', () => {
     const src = srcNsmp();
     const decoded = decodeNsmp(src);
     const model = editModel(readNsmp(src), readNsmpZones(src));
-    model.zones.push({ rootKey: 60, keyHigh: 100, velTop: 127 }); // extra zone, no stroke
+    model.zones.push({ rootKey: 60, keyLow: 48, keyHigh: 100, velTop: 127 }); // extra zone, no stroke
     expect(() => buildEditedNsmp(model, decoded, 3)).toThrow();
   });
 });
@@ -85,6 +85,16 @@ describe('patchEditedNsmp', () => {
     const after = decodeNsmp(out);
     expect([...after[0].channels[0]]).toEqual([...before[0].channels[0]]);
     expect([...after[1].channels[0]]).toEqual([...before[1].channels[0]]);
+  });
+
+  it('patches an edited bottom key (keyLow) back in place', () => {
+    const src = srcNsmp();
+    const model = editModel(readNsmp(src), readNsmpZones(src));
+    model.zones[0].keyLow = 36; // C2
+    const out = patchEditedNsmp(src, model);
+    expect(out.length).toBe(src.length);
+    expect(readNsmpZones(out)[0].keyLow).toBe(36);
+    expect(readNsmpZones(out)[1].keyLow).toBe(readNsmpZones(src)[1].keyLow); // untouched
   });
 
   // Real codec-4 multisample: edit one zone, prove everything else stays byte-exact.
