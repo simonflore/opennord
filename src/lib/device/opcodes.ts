@@ -22,6 +22,7 @@ export const CReqFileDelete = 0x14;
 export const CQryFileInfo = 0x1e;
 export const CQryFileIterate = 0x20;
 export const CQryFileGetDependency = 0x28; // → 0x29 reply: a file's sample dependency list
+export const CQryFileGetFocus = 0x31; // → the program currently selected on the device
 
 /**
  * Pack a 4-char extension into a big-endian fourcc, e.g. "ns4p" → 0x6E733470.

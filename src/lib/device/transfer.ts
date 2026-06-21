@@ -1,7 +1,7 @@
 import type { NordSession } from './session';
 import {
   CQryFileInfo, CQryFileIterate, CReqFileOpen, CReqFileClose, CReqFileRead,
-  CReqFileCreate, CReqFileWrite, CReqFileDelete, type2Ext, ext2Type,
+  CReqFileCreate, CReqFileWrite, CReqFileDelete, CQryFileGetFocus, type2Ext, ext2Type,
 } from './opcodes';
 import { NordError } from './protocol';
 import { readAsciiFixed } from '../ns4/parse';
@@ -45,6 +45,27 @@ export function decodeFileInfo(payload: Uint8Array, bank: number, slot: number):
     sizeBytes: u32(payload, 12),
     fourcc: type2Ext(u32(payload, 16)),
   };
+}
+
+/**
+ * The {bank, slot} of the program currently selected on the device, or null if
+ * the query fails / isn't supported. Lets a caller read "the program you're on"
+ * instead of making the user pick a slot in the UI too.
+ *
+ * Uses requestRaw because GetFocus's reply-opcode convention isn't confirmed, and
+ * the {status, bank, slot} payload layout below is inferred from sibling replies
+ * (e.g. FileIterate 0x21). HARDWARE-VALIDATION TODO: confirm the reply opcode and
+ * the bank/slot offsets against a real device. Everything is guarded so a wrong
+ * guess returns null (the caller falls back to explicit slot selection).
+ */
+export async function getFocusedSlot(session: NordSession): Promise<{ bank: number; slot: number } | null> {
+  try {
+    const reply = await session.requestRaw(CQryFileGetFocus, []);
+    if (reply.status !== 0 || reply.payload.length < 12) return null;
+    return { bank: u32(reply.payload, 4), slot: u32(reply.payload, 8) };
+  } catch {
+    return null;
+  }
 }
 
 /** Safety guard — the device terminates the walk with a non-0/1 iterate code; this just bounds a misbehaving device. */

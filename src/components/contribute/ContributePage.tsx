@@ -1,11 +1,11 @@
 // src/components/contribute/ContributePage.tsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDevice } from '../../lib/device/DeviceContext';
 import { ConnectPanel } from '../device/ConnectPanel';
 import { Button } from '../ui';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import type { NordSession } from '../../lib/device/session';
-import type { ProgramEntry } from '../../lib/device/transfer';
+import { getFocusedSlot, type ProgramEntry } from '../../lib/device/transfer';
 import { slotCaptureSource, fileCaptureSource } from '../../lib/contribute/source';
 import { ContributionSession } from '../../lib/contribute/session';
 import { vocabForTag } from '../../lib/contribute/vocab';
@@ -143,7 +143,23 @@ function CaptureWizard({ session, entries, productId }: {
   const [list, setList] = useState<ContributionEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [focused, setFocused] = useState<ProgramEntry | null>(null);
   const ls = useLabelState();
+
+  // Ask the device which program is currently selected, so the musician picks it
+  // on the keyboard rather than in this list too. Best-effort: if GetFocus isn't
+  // supported the slot list below is the fallback.
+  useEffect(() => {
+    let alive = true;
+    session.withSession(PARTITION_PROGRAM, () => getFocusedSlot(session))
+      .then((f) => {
+        if (!alive || !f) return;
+        const match = entries.find((e) => e.bank === f.bank && e.slot === f.slot);
+        if (match) setFocused(match);
+      })
+      .catch(() => { /* fall back to the slot list */ });
+    return () => { alive = false; };
+  }, [session, entries]);
 
   const readSlot = (entry: ProgramEntry) =>
     session.withSession(PARTITION_PROGRAM, () => slotCaptureSource(session, entry).capture());
@@ -192,9 +208,19 @@ function CaptureWizard({ session, entries, productId }: {
     return (
       <section style={{ maxWidth: 720 }}>
         <h1>Help decode your Nord</h1>
-        <p className="ps-sub">Pick the program you'll edit — we read it now as the starting point.</p>
         {error && <p className="ps-sub on-error">{error}</p>}
         {busy && <p className="ps-sub">Reading the Nord…</p>}
+        {focused && (
+          <div style={{ marginBottom: 12 }}>
+            <p className="ps-sub">
+              Loaded on your Nord now: <strong>{slotLabel(focused.bank, focused.slot)} — {focused.name || '(empty)'}</strong>.
+            </p>
+            <Button variant="primary" disabled={busy} onClick={() => captureBaseline(focused)}>Use this program</Button>
+          </div>
+        )}
+        <p className="ps-sub">
+          {focused ? 'Or pick another program to edit:' : "Pick the program you'll edit — we read it now as the starting point."}
+        </p>
         {entries.length === 0 && <p className="ps-sub">No programs found on this Nord yet.</p>}
         <ul style={{ listStyle: 'none', padding: 0, display: 'grid', gap: 4 }}>
           {entries.map((e) => (

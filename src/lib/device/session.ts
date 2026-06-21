@@ -9,10 +9,16 @@ const READ_BUFFER = 8192;
 export class NordSession {
   constructor(private readonly transport: NordTransport) {}
 
+  /** Send a request and return its decoded reply, without asserting the reply opcode.
+   *  For queries whose reply-opcode convention isn't confirmed yet (e.g. GetFocus). */
+  async requestRaw(msgId: number, words: number[], trailing?: Uint8Array): Promise<NordReply> {
+    await this.transport.bulkOut(encodeMessage(msgId, words, trailing));
+    return decodeReply(await this.transport.bulkIn(READ_BUFFER));
+  }
+
   /** Send a request and return its decoded reply (verifies opcode = request | 1). */
   async request(msgId: number, words: number[], trailing?: Uint8Array): Promise<NordReply> {
-    await this.transport.bulkOut(encodeMessage(msgId, words, trailing));
-    const reply = decodeReply(await this.transport.bulkIn(READ_BUFFER));
+    const reply = await this.requestRaw(msgId, words, trailing);
     if (reply.msgId !== (msgId | 1)) {
       throw new NordError(`unexpected reply opcode 0x${reply.msgId.toString(16)} for request 0x${msgId.toString(16)}`);
     }
