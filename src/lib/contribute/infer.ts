@@ -32,3 +32,20 @@ export function bitRuns(bits: number[]): Array<{ startBit: number; endBit: numbe
   runs.push({ startBit: start, endBit: prev });
   return runs;
 }
+
+/**
+ * Read a field's raw integer. Sub-byte fields are little-endian within their byte;
+ * multi-byte (byte-aligned) fields honor `endian`. Uses BigInt internally so wide
+ * fields never overflow a 32-bit int.
+ */
+export function extractRaw(
+  body: Uint8Array, byteOffset: number, bitOffset: number, bitWidth: number, endian: 'le' | 'be',
+): number {
+  const nbytes = Math.ceil((bitOffset + bitWidth) / 8);
+  let acc = 0n;
+  for (let i = 0; i < nbytes; i++) {
+    const src = endian === 'le' ? byteOffset + i : byteOffset + (nbytes - 1 - i);
+    acc |= BigInt(body[src] ?? 0) << BigInt(8 * i);
+  }
+  return Number((acc >> BigInt(bitOffset)) & ((1n << BigInt(bitWidth)) - 1n));
+}

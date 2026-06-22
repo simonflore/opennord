@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { changedBits, bitRuns } from './infer';
+import { changedBits, bitRuns, extractRaw } from './infer';
 
 describe('changedBits', () => {
   it('finds bits that vary across samples (LSB=0, byte*8+bit)', () => {
@@ -21,4 +21,17 @@ describe('bitRuns', () => {
     ]);
   });
   it('returns [] for no bits', () => { expect(bitRuns([])).toEqual([]); });
+});
+
+describe('extractRaw', () => {
+  it('reads a sub-byte field (bitOffset/width within one byte)', () => {
+    // byte 0 = 0b0110_1000; field at bitOffset 3, width 4 -> 0b1101 = 13
+    expect(extractRaw(new Uint8Array([0x68]), 0, 3, 4, 'le')).toBe(13);
+  });
+  it('reads a little-endian 16-bit field', () => {
+    expect(extractRaw(new Uint8Array([0x34, 0x12]), 0, 0, 16, 'le')).toBe(0x1234);
+  });
+  it('reads a big-endian 16-bit field', () => {
+    expect(extractRaw(new Uint8Array([0x12, 0x34]), 0, 0, 16, 'be')).toBe(0x1234);
+  });
 });
