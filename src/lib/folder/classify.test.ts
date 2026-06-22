@@ -15,6 +15,7 @@ describe('classifyFile', () => {
     expect(classifyFile('snare.nsmp')).toBe('sample');
     expect(classifyFile('snare.nsmp3')).toBe('sample');
     expect(classifyFile('snare.nsmp4')).toBe('sample');
+    expect(classifyFile('Clavinet D6 6.1.npno')).toBe('sample');
   });
 
   it('is case-insensitive and path-aware, ignores others', () => {

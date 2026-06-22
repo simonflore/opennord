@@ -11,7 +11,7 @@ function fmtSize(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const GEN_LABEL: Record<SampleGeneration, string> = { og: 'OG', '3': '.nsmp3', '4': '.nsmp4', unknown: 'Unrecognized' };
+const GEN_LABEL: Record<SampleGeneration, string> = { og: 'OG', '3': '.nsmp3', '4': '.nsmp4', npno: 'Piano (.npno)', unknown: 'Unrecognized' };
 const SORT_LABEL: Record<SampleSort, string> = { default: 'Default', name: 'Name (A–Z)', size: 'Size', strokes: 'Samples' };
 
 export function SamplesBrowse(
@@ -37,6 +37,7 @@ export function SamplesBrowse(
     { key: 'og', label: GEN_LABEL.og },
     { key: '3', label: GEN_LABEL['3'] },
     { key: '4', label: GEN_LABEL['4'] },
+    { key: 'npno', label: GEN_LABEL.npno },
     ...(showUnknownGen ? [{ key: 'unknown' as const, label: GEN_LABEL.unknown }] : []),
   ];
 
@@ -109,7 +110,9 @@ export function SamplesBrowse(
               </div>
               <div className="lib-patch__engines">
                 <span className="lib-eng">
-                  {e.strokeCount != null
+                  {e.generation === 'npno'
+                    ? 'piano library'
+                    : e.strokeCount != null
                     ? `${e.strokeCount} ${e.strokeCount === 1 ? 'sample' : 'samples'}`
                     : (e.source === 'nord' ? 'on Nord' : 'unrecognized')}
                 </span>

@@ -41,6 +41,12 @@ export interface NsmpFile {
   codec?: number;
   /** OG/legacy `NWS` container (original `.nsmp`, version 8) → 24-bit NW1 codec. */
   legacy: boolean;
+  /**
+   * Piano-library note file (`.npno`, `CNSP` root @0x2c) — a full multi-sampled
+   * piano/EP instrument, distinct from the `NSMP` stroke-based sample formats.
+   * Only the name is decoded (the audio body is the firmware-gated CNSP codec).
+   */
+  pianoLibrary?: boolean;
   checksumValid: boolean;
   name?: string;
   sections: NsmpSection[];
@@ -133,8 +139,50 @@ function readName(bytes: Uint8Array, hdr: NsmpSection): string | undefined {
 }
 
 /** Parse a `.nsmp*` file's header + section structure (no audio decode). */
+/**
+ * Read the display name from a `.npno` (piano-library note) file. These use a
+ * `CNSP` root at 0x2c, NOT the `NSMP` section tree, so they carry no `.hdr`
+ * section. The name sits in the CNSP header as an ASCII field (a space-padded
+ * copy with a trailing `#` marker, then a clean null-terminated copy) — e.g.
+ * `Clavinet D6 6.1.npno` → "Clavinet D6". RE'd from the factory corpus; we take
+ * the first letter-initial printable run after the CNSP header and strip the
+ * `#`/padding. Returns undefined if no plausible name is found.
+ */
+export function readNpnoName(bytes: Uint8Array): string | undefined {
+  // Scan past the 16-byte CBIN header + the CNSP marker/header for the name
+  // field. Accept the first run that looks like a real name — a name-like char
+  // set only (letters/digits/spaces/.-_), length >= 3 — which rejects the short
+  // binary-header junk (e.g. "d(zx") that precedes the name field.
+  const NAME_LIKE = /^[A-Za-z0-9][A-Za-z0-9 ._-]*$/;
+  let run = '';
+  const accept = (s: string): string | undefined => {
+    const cleaned = s.replace(/[#\s]+$/, '').trim();
+    return cleaned.length >= 3 && NAME_LIKE.test(cleaned) ? cleaned : undefined;
+  };
+  for (let i = 0x30; i < Math.min(bytes.length, 0x120); i++) {
+    const c = bytes[i];
+    if (c >= 0x20 && c < 0x7f) {
+      run += String.fromCharCode(c);
+    } else {
+      const got = accept(run);
+      if (got) return got;
+      run = '';
+    }
+  }
+  return accept(run);
+}
+
 export function readNsmp(bytes: Uint8Array): NsmpFile {
   const warnings: string[] = [];
+  // `.npno` piano-library files: CBIN container, `npno` type tag, `CNSP` root.
+  // We surface the name only (audio body is the firmware-gated CNSP codec).
+  if (hasCbinMagic(bytes) && fileTypeTag(bytes) === 'npno') {
+    const name = readNpnoName(bytes);
+    return {
+      recognized: true, pianoLibrary: true, legacy: false, checksumValid: false,
+      name, sections: [], strokeCount: 0, suspectedFactory: true, warnings: [],
+    };
+  }
   const recognized = hasCbinMagic(bytes) && fileTypeTag(bytes) === 'nsmp';
   if (!recognized) {
     return { recognized: false, legacy: false, checksumValid: false, sections: [], strokeCount: 0, suspectedFactory: false, warnings: ['Not a Nord Sample file.'] };

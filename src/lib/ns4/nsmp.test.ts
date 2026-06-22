@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { patchNs4Checksum } from '../clavia/checksum';
-import { readNsmp, parseNsmpSections, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison } from './nsmp';
+import { readNsmp, readNpnoName, parseNsmpSections, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison } from './nsmp';
 import { writeNsmp } from './nsmp-write';
 
 /** Build a minimal synthetic `.nsmp` (CBIN header + NSMP + hdr sections). */
@@ -63,6 +63,24 @@ describe('readNsmp', () => {
 
   it('returns recognized:false for non-sample input', () => {
     expect(readNsmp(new Uint8Array([1, 2, 3, 4])).recognized).toBe(false);
+  });
+});
+
+// `.npno` piano-library files (CNSP root) — name-only decode.
+const npnoFile = join(process.cwd(), 'fixtures/piano-4/Clavinet D6 6.1.npno');
+describe.skipIf(!existsSync(npnoFile))('readNsmp — .npno piano library (Clavinet D6)', () => {
+  const bytes = existsSync(npnoFile) ? new Uint8Array(readFileSync(npnoFile)) : new Uint8Array();
+
+  it('recognizes the npno tag and extracts the embedded name', () => {
+    const f = readNsmp(bytes);
+    expect(f.recognized).toBe(true);
+    expect(f.pianoLibrary).toBe(true);
+    expect(f.name).toBe('Clavinet D6');
+    expect(f.strokeCount).toBe(0);
+  });
+
+  it('readNpnoName strips the trailing # / padding', () => {
+    expect(readNpnoName(bytes)).toBe('Clavinet D6');
   });
 });
 

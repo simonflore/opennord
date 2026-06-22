@@ -6,8 +6,8 @@ import type { SampleSort } from './prefs';
 import { formatSlot } from '../clavia/slot';
 import { matchesQuery, sortWithFavorites } from './browse';
 
-/** Sample codec generation, in musician-facing buckets. */
-export type SampleGeneration = 'og' | '3' | '4' | 'unknown';
+/** Sample codec generation, in musician-facing buckets. `npno` = piano library. */
+export type SampleGeneration = 'og' | '3' | '4' | 'npno' | 'unknown';
 
 /** One row in the Samples browser — a folder sample or a device-listed sample. */
 export interface SampleEntry {
@@ -26,6 +26,7 @@ export interface SampleEntry {
 /** Classify a parsed sample file into a generation bucket. */
 export function sampleGeneration(file: NsmpFile): SampleGeneration {
   if (!file.recognized) return 'unknown';
+  if (file.pianoLibrary) return 'npno';
   if (file.legacy) return 'og';
   if (file.codec === 3) return '3';
   if (file.codec === 4) return '4';
