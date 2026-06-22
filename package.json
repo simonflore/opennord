@@ -15,7 +15,8 @@
     "lint": "eslint src && stylelint \"src/**/*.css\"",
     "lint:fix": "eslint src --fix && stylelint \"src/**/*.css\" --fix",
     "fixtures:scan": "vitest run src/lib/clavia/fixtures-scan.test.ts",
-    "cap:sync": "cap sync"
+    "build:native": "OPENNORD_NATIVE=1 tsc -b && OPENNORD_NATIVE=1 vite build",
+    "cap:sync": "npm run build:native && cap sync"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.84",
