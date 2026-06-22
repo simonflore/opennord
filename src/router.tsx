@@ -5,8 +5,7 @@ import { SamplesRoute } from '@/routes/samples';
 import { DeviceRoute } from '@/routes/device';
 import { AboutRoute } from '@/routes/about';
 import { CompatibilityRoute } from '@/routes/compatibility';
-import { InspectRoute, DecodeRoute } from '@/routes/dev';
-import { ContributeRoute } from '@/routes/contribute';
+import { RE_ROUTES } from '@/router-re';
 
 // Index `/` → the Library (the home door).
 const IndexRoute = createRoute({
@@ -17,15 +16,13 @@ const IndexRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   IndexRoute,
-  LibraryRoute,        // /library
-  ProgramRoute,        // /library/$programId
-  SamplesRoute,        // /samples
-  DeviceRoute,         // /device
-  CompatibilityRoute,  // /compatibility
-  AboutRoute,          // /about
-  InspectRoute,        // /dev/inspect
-  DecodeRoute,         // /dev/decode
-  ContributeRoute,     // /contribute
+  LibraryRoute,
+  ProgramRoute,
+  SamplesRoute,
+  DeviceRoute,
+  CompatibilityRoute,
+  AboutRoute,
+  ...RE_ROUTES, // /contribute, /dev/inspect, /dev/decode — empty on the native build
 ]);
 
 export const router = createRouter({

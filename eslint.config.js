@@ -27,4 +27,36 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      '**/*.generated.ts', 'dist/**',
+      // RE area — allowed to import RE; the boundary only binds product code.
+      'src/lib/contribute/**', 'src/components/contribute/**', 'src/dev/**',
+      'src/routes/contribute.tsx', 'src/routes/dev.tsx', 'src/router-re.tsx',
+      // RE tool components (rendered only by RE routes).
+      'src/components/DecodeInspector.tsx',
+      'src/components/decode/**',
+      'src/components/dev/**',
+      // Pre-existing cross-boundary import: MatrixView uses lib/contribute/coverage
+      // to show decode-status badges. TODO: move coverage metadata to lib/clavia/.
+      'src/components/compatibility/MatrixView.tsx',
+      // Test files may import RE modules directly.
+      'src/**/*.test.ts', 'src/**/*.test.tsx',
+    ],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{
+          group: [
+            '**/lib/contribute/*', '**/lib/contribute/**',
+            '**/components/contribute/*', '**/components/contribute/**',
+            '**/dev/*', '**/dev/**', '**/routes/contribute', '**/routes/dev',
+            '@/lib/contribute/*', '@/components/contribute/*', '@/dev/*',
+            '@/routes/contribute', '@/routes/dev',
+          ],
+          message: 'Product code must not import the RE area (lib/contribute, components/contribute, dev, /contribute, /dev). RE ships only in the web build.',
+        }],
+      }],
+    },
+  },
 );

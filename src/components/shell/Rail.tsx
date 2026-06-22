@@ -15,8 +15,10 @@ const DESTS: Array<{ to: NavTo; label: string }> = [
   { to: '/samples', label: 'Samples' },
   { to: '/device', label: 'Device' },
   { to: '/compatibility', label: 'Compatibility' },
-  { to: '/contribute', label: 'Contribute' },
 ];
+
+// RE-only destinations — present only in the web/dev build (__RE__).
+const RE_DESTS: Array<{ to: NavTo; label: string }> = [{ to: '/contribute', label: 'Contribute' }];
 
 // Device transfer rides vendor-USB (WebUSB) — desktop Chrome/Edge or the iPad app
 // only. Where it's unavailable, Device stays visible but disabled with a reason.
@@ -54,23 +56,36 @@ export function Rail({ active, onNavigate, onManageDevice }: Props) {
         );
       })}
 
+      {__RE__ && RE_DESTS.map((d) => (
+        <button
+          key={d.to}
+          className={`on-nav ${isActive(d.to) ? 'on-nav--active' : ''}`.trim()}
+          aria-current={isActive(d.to) ? 'page' : undefined}
+          onClick={() => onNavigate(d.to)}
+        >
+          {d.label}
+        </button>
+      ))}
+
       <div className="on-rail__spacer" />
 
       <DeviceStatus onManage={onManageDevice} />
 
-      <details className="on-rail__dev">
-        <summary>Developer</summary>
-        {DEV_DESTS.map((d) => (
-          <button
-            key={d.to}
-            className={`on-nav on-nav--sub ${isActive(d.to) ? 'on-nav--active' : ''}`.trim()}
-            aria-current={isActive(d.to) ? 'page' : undefined}
-            onClick={() => onNavigate(d.to)}
-          >
-            {d.label}
-          </button>
-        ))}
-      </details>
+      {__RE__ && (
+        <details className="on-rail__dev">
+          <summary>Developer</summary>
+          {DEV_DESTS.map((d) => (
+            <button
+              key={d.to}
+              className={`on-nav on-nav--sub ${isActive(d.to) ? 'on-nav--active' : ''}`.trim()}
+              aria-current={isActive(d.to) ? 'page' : undefined}
+              onClick={() => onNavigate(d.to)}
+            >
+              {d.label}
+            </button>
+          ))}
+        </details>
+      )}
 
       <button
         className={`on-nav on-rail__about ${isActive('/about') ? 'on-nav--active' : ''}`.trim()}

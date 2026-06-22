@@ -15,17 +15,18 @@ export default defineConfig({
     __RE__: JSON.stringify(!NATIVE),
   },
   resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-      'capacitor-nord-usb': fileURLToPath(
-        new URL('./plugins/capacitor-nord-usb/src/index.ts', import.meta.url),
-      ),
-      // Native build: swap the RE route-aggregator for an empty stub so no RE route
-      // (and nothing it imports) reaches the iOS bundle.
+    alias: [
+      // Native build: the specific @/router-re alias MUST come before the @-prefix
+      // alias, otherwise Vite's prefix matching resolves @/router-re → src/router-re
+      // before the stub override can take effect.
       ...(NATIVE
-        ? { '@/router-re': fileURLToPath(new URL('./src/router-re.stub.tsx', import.meta.url)) }
-        : {}),
-    },
+        ? [{ find: '@/router-re', replacement: fileURLToPath(new URL('./src/router-re.stub.tsx', import.meta.url)) }]
+        : []),
+      { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
+      { find: 'capacitor-nord-usb', replacement: fileURLToPath(
+        new URL('./plugins/capacitor-nord-usb/src/index.ts', import.meta.url),
+      )},
+    ],
   },
   test: {
     css: false,
