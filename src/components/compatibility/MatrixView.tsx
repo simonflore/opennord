@@ -3,6 +3,8 @@ import { ProbePanel } from './ProbePanel';
 import { ALL_MODELS } from '../../lib/clavia/partitions';
 import { CAPABILITIES, CAPABILITY_LABEL, statusFor, type ValidationStatus } from '../../lib/clavia/validation';
 import { decodeForModel, DECODE_LABEL, type DecodeStatus } from '../../lib/contribute/coverage';
+import { MODEL_PROGRESS } from '../../lib/contribute/coverage-data';
+import { ByteMapView } from './ByteMapView';
 
 const CHIP: Record<ValidationStatus, string> = {
   validated: 'Works', re: 'In progress', inferred: 'Likely', unsupported: '—', unknown: 'Needs a tester',
@@ -52,6 +54,13 @@ export function MatrixView() {
           </tbody>
         </table>
       </div>
+
+      {ALL_MODELS.filter(m => MODEL_PROGRESS[m.id]?.regions).map(m => (
+        <div key={m.id} className="cmp__map-block">
+          <p className="cmp__map-label">{m.name} — body coverage map</p>
+          <ByteMapView progress={MODEL_PROGRESS[m.id]} />
+        </div>
+      ))}
     </div>
   );
 }

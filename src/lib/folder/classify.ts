@@ -1,8 +1,8 @@
 /** What a file in the watched folder maps to. */
 export type FileClass = 'program' | 'bundle' | 'sample';
 
-/** Program & preset files decode via parseNs4Program → the Library. */
-const PROGRAM_EXTS = ['.ns4p', '.ns4l', '.ns4o', '.ns4n', '.ns4y'];
+/** Program & preset files decode via parseClaviaFile → the Library. */
+const PROGRAM_EXTS = ['.ns4p', '.ns4l', '.ns4o', '.ns4n', '.ns4y', '.ne6p', '.ne6l'];
 /** ZIP backups — expanded into their contained programs. */
 const BUNDLE_EXTS = ['.ns4b'];
 /** Nord samples → the Samples tab. */

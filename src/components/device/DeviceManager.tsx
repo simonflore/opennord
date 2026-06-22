@@ -6,9 +6,8 @@ import { enumeratePrograms, pullProgram, type ProgramEntry } from '../../lib/dev
 import { readPartitionCapacity } from '../../lib/device/capacity';
 import { useDevice } from '../../lib/device/DeviceContext';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
-import { parseClaviaFile } from '../../lib/formats';
+import { parseClaviaFile, type NordProgram } from '../../lib/formats';
 import { slotLabel } from '../../lib/clavia/slot';
-import type { NS4Program } from '../../lib/ns4/types';
 import { ProgramView } from '../program/ProgramView';
 import { ConnectPanel } from './ConnectPanel';
 import { DeviceBrowser } from './DeviceBrowser';
@@ -31,7 +30,7 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 export function DeviceManager() {
   const { session, entries, deviceName, capacity, setConnection, setEntries, setCapacity } = useDevice();
   // Program-open (pull-to-view) state stays local — it's this component's own concern.
-  const [program, setProgram] = useState<NS4Program | null>(null);
+  const [program, setProgram] = useState<NordProgram | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 

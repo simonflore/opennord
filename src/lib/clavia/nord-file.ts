@@ -73,7 +73,7 @@ export function identifyNordFile(bytes: Uint8Array): NordFileInfo {
   const h = readCbinHeader(bytes);
   const generation = generationOf(h.tag);
   const kind = kindOf(h.tag);
-  const fullyDecoded = h.tag === 'ns4p' || h.tag === 'ns4l';
+  const fullyDecoded = h.tag === 'ns4p' || h.tag === 'ns4l' || h.tag === 'ne6p' || h.tag === 'ne6l';
   const model = modelByTag(h.tag); // whole-line model from the registry (programs)
 
   const info: NordFileInfo = {

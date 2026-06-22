@@ -2,18 +2,23 @@ import type { LibraryEntry, LibrarySource, LibrarySort } from './types';
 import type { ProgramEntry } from '../device/transfer';
 import type { ScannedProgram } from '../folder/scan';
 import { formatSlot } from '../clavia/slot';
-import { parseClaviaFile } from '../formats';
+import { parseClaviaFile, type NordProgram } from '../formats';
 import { programNameFromFilename } from '../clavia/name';
 import { activeLayers } from '../ns4/view';
 import type { NS4Program } from '../ns4/types';
 import { matchesQuery, sortWithFavorites } from './browse';
 
-/** One-line engine summary for a parsed program, e.g. "organ + synth". */
+/** One-line engine summary for a parsed NS4 program, e.g. "organ + synth". */
 export function summarize(program: NS4Program): string {
   const kinds = activeLayers(program).map((l) => l.kind);
   const order = ['organ', 'piano', 'synth'] as const;
   const present = order.filter((k) => kinds.includes(k));
   return present.length ? present.join(' + ') : 'program';
+}
+
+/** True when `program` is a fully-structured NS4 program (has `kind`). */
+export function isNs4Program(program: NordProgram): program is NS4Program {
+  return 'kind' in program;
 }
 
 /** Map the device's enumerated programs into Library entries. */
@@ -36,7 +41,7 @@ export function entryFromImport(rec: { id: string; name: string; bytes: Uint8Arr
     id: rec.id,
     name: program.name ?? rec.name,
     source: 'local',
-    summary: program.parsed ? summarize(program) : undefined,
+    summary: program.parsed && isNs4Program(program) ? summarize(program) : undefined,
     program,
     bytes: rec.bytes,
   };

@@ -38,9 +38,10 @@ export default tseslint.config(
       'src/components/DecodeInspector.tsx',
       'src/components/decode/**',
       'src/components/dev/**',
-      // Pre-existing cross-boundary import: MatrixView uses lib/contribute/coverage
-      // to show decode-status badges. TODO: move coverage metadata to lib/clavia/.
+      // Pre-existing cross-boundary import: MatrixView + ByteMapView use lib/contribute/coverage
+      // to show decode-status badges and body-coverage maps. TODO: move coverage metadata to lib/clavia/.
       'src/components/compatibility/MatrixView.tsx',
+      'src/components/compatibility/ByteMapView.tsx',
       // Test files may import RE modules directly.
       'src/**/*.test.ts', 'src/**/*.test.tsx',
     ],

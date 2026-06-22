@@ -22,3 +22,41 @@
   .cmp__table { font-size: 10px; }
   .cmp__table th, .cmp__table td { padding: 4px 6px; }
 }
+
+.cmp__map-block { margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1px solid var(--line); }
+.cmp__map-label { font: 700 13px var(--font); color: var(--ink); margin: 0 0 var(--s-2); }
+
+/* ── Byte-coverage map ─────────────────────────────────────────────────────── */
+.bmap { margin-top: var(--s-4); }
+
+.bmap__meta { display: flex; align-items: center; gap: 6px; font: 12px var(--font); margin-bottom: var(--s-2); color: var(--dim); }
+.bmap__stat--confirmed { color: var(--connected); font-weight: 600; }
+.bmap__sep { color: var(--muted); }
+
+.bmap__grid { display: flex; flex-direction: column; gap: 2px; }
+.bmap__row { display: flex; align-items: center; gap: 2px; }
+.bmap__addr { font: 10px/1 var(--mono, monospace); color: var(--muted); width: 24px; flex-shrink: 0; text-align: right; margin-right: 4px; }
+
+.bmap__cell {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.bmap__cell--confirmed { background: var(--connected); }
+.bmap__cell--candidate { background: var(--warn); opacity: 0.75; }
+.bmap__cell--unknown   { background: var(--red-bright); opacity: 0.6; }
+.bmap__cell--constant  { background: var(--line); }
+
+.bmap__legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: var(--s-2); font: 11px var(--font); color: var(--dim); }
+.bmap__leg-item { display: flex; align-items: center; gap: 4px; }
+
+.bmap__controls { list-style: none; margin: var(--s-2) 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.bmap__control { display: flex; align-items: center; gap: 6px; font: 11px var(--font); color: var(--dim); }
+.bmap__range { color: var(--muted); font-family: var(--mono, monospace); }
+
+@media (max-width: 560px) {
+  .bmap__cell { width: 8px; height: 8px; }
+  .bmap__addr { width: 20px; font-size: 9px; }
+}

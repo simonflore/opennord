@@ -16,8 +16,15 @@ describe('decodeForModel', () => {
   });
 
   it('reports an unstarted undecoded model as none', () => {
-    expect(decodeForModel('electro-6')).toMatchObject({ status: 'none', controlCount: 0, pct: null });
+    expect(decodeForModel('electro-4')).toMatchObject({ status: 'none', controlCount: 0, pct: null });
     expect(decodeForModel('whatever')).toMatchObject({ status: 'none', controlCount: 0 });
+  });
+
+  it('reports NE6 as started with controls mapped', () => {
+    const d = decodeForModel('electro-6');
+    expect(d.status).toBe('started');
+    expect(d.controlCount).toBeGreaterThan(0);
+    expect(d.pct).toBeGreaterThan(0);
   });
 
   it('has a label for every status', () => {

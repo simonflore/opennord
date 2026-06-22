@@ -1,4 +1,4 @@
-import type { NS4Program } from '../ns4/types';
+import type { NordProgram } from '../formats';
 
 export type LibrarySource = 'nord' | 'local';
 
@@ -12,6 +12,6 @@ export interface LibraryEntry {
   source: LibrarySource;
   slot?: string;         // "A:26" for nord entries; undefined for local
   summary?: string;      // engine summary, e.g. "organ + synth"
-  program?: NS4Program;  // parsed program when available (local: from file; nord: when pulled)
+  program?: NordProgram; // parsed program when available (local: from file; nord: when pulled)
   bytes?: Uint8Array;    // raw bytes when available
 }

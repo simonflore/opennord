@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import '../../styles/nord.css';
-import type { NS4Program } from '../../lib/ns4/types';
+import type { NordProgram } from '../../lib/formats';
+import { isNs4Program } from '../../lib/library/entries';
 import { activeLayers, scenesDiffer, engineCardModel, headerView, fxChips } from '../../lib/ns4/view';
 import { ProgramHeader } from './ProgramHeader';
 import { ProgramZones } from './ProgramZones';
@@ -24,8 +25,24 @@ import { AllParamsDrawer } from './AllParamsDrawer';
  * different layers, a Scene I/II toggle re-renders the whole view for the chosen
  * scene (a scene only changes which layers are muted, never the sound).
  */
-export function ProgramView({ program }: { program: NS4Program }) {
-  const [scene, setScene] = useState<'I' | 'II'>(program.activeScene ?? 'I');
+export function ProgramView({ program }: { program: NordProgram }) {
+  const [scene, setScene] = useState<'I' | 'II'>(
+    isNs4Program(program) ? (program.activeScene ?? 'I') : 'I'
+  );
+
+  // NE6 and future non-NS4 models: minimal placeholder until their rich view lands.
+  if (!isNs4Program(program)) {
+    const upper = 'organ' in program ? program.organ.upper.bars.join(' ') : '?';
+    const lower = 'organ' in program ? program.organ.lower.bars.join(' ') : '?';
+    return (
+      <div className="ps">
+        <p style={{ color: 'var(--ink-dim)' }}>Nord Electro 6 · v{program.version}</p>
+        <p>Upper drawbars: {upper}</p>
+        <p>Lower drawbars: {lower}</p>
+        {program.warnings.length > 0 && <ul>{program.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>}
+      </div>
+    );
+  }
 
   if (!program.parsed) {
     // A recognized Nord file we don't fully decode here. The leaner models

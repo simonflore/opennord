@@ -1,9 +1,8 @@
-import { parseNs4Program } from '../ns4/parse';
+import { parseClaviaFile, type NordProgram } from '../formats';
 import { programNameFromFilename } from '../clavia/name';
 import { readNs4Bundle } from '../ns4/bundle';
 import { readNsmp, type NsmpFile } from '../ns4/nsmp';
-import { summarize } from '../library/entries';
-import type { NS4Program } from '../ns4/types';
+import { summarize, isNs4Program } from '../library/entries';
 import { classifyFile } from './classify';
 
 /** A flat file pulled from the folder — what both access paths produce. */
@@ -18,7 +17,7 @@ export interface ScannedProgram {
   id: string;        // "folder:<path>" or "folder:<bundlePath>!<innerPath>"
   name: string;
   path: string;      // human-facing source path
-  program: NS4Program;
+  program: NordProgram;
   bytes: Uint8Array;
   summary?: string;
 }
@@ -80,7 +79,7 @@ export function scanFiles(files: RawFile[]): ScanResult {
 
     try {
       if (kind === 'program') {
-        const program = parseNs4Program(bytes);
+        const program = parseClaviaFile(bytes).program;
         program.name = programNameFromFilename(path);
         programs.push({
           id: `folder:${path}`,
@@ -88,7 +87,7 @@ export function scanFiles(files: RawFile[]): ScanResult {
           path,
           program,
           bytes,
-          summary: program.parsed ? summarize(program) : undefined,
+          summary: program.parsed && isNs4Program(program) ? summarize(program) : undefined,
         });
       } else if (kind === 'bundle') {
         for (const entry of readNs4Bundle(bytes)) {
@@ -98,7 +97,7 @@ export function scanFiles(files: RawFile[]): ScanResult {
             path: `${path} → ${entry.path}`,
             program: entry.program,
             bytes: entry.bytes,
-            summary: entry.program.parsed ? summarize(entry.program) : undefined,
+            summary: entry.program.parsed && isNs4Program(entry.program) ? summarize(entry.program) : undefined,
           });
         }
       } else {

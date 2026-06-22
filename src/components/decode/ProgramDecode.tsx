@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { parseClaviaFile } from '@/lib/formats';
+import { parseClaviaFile, type NordProgram } from '@/lib/formats';
 import { summarizeFile, type FileSummary } from '@/lib/clavia/identify-summary';
 import { FixtureLoader } from '@/components/dev/FixtureLoader';
-import type { NS4Program } from '@/lib/ns4/types';
 
 /** Identify summary — which Nord, tag/version/kind, and whether it matches the registry. */
 export function IdentifyPanel({ summary }: { summary: FileSummary }) {
@@ -24,7 +23,7 @@ export function IdentifyPanel({ summary }: { summary: FileSummary }) {
 
 /** Developer tool: drop or pick any Nord file and dump its parsed structure as JSON. */
 export function ProgramDecode() {
-  const [program, setProgram] = useState<NS4Program | null>(null);
+  const [program, setProgram] = useState<NordProgram | null>(null);
   const [fileName, setFileName] = useState('');
   const [summary, setSummary] = useState<FileSummary | null>(null);
 
@@ -49,7 +48,7 @@ export function ProgramDecode() {
         <section style={{ marginTop: 16 }}>
           <h3>{fileName}</h3>
           <p>{program.parsed
-            ? `Recognized ${program.kind} — ${program.bytes.length} bytes`
+            ? `Recognized ${'kind' in program ? program.kind : program.version} — ${program.bytes.length} bytes`
             : `Recognized ${program.bytes.length} bytes; structured decode in progress (docs/FORMAT.md).`}</p>
           <pre style={{ background: 'var(--surface)', padding: 12, overflow: 'auto' }}>
             {JSON.stringify(program, (k, v) => (k === 'bytes' ? `<${(v as Uint8Array).length} bytes>` : v), 2)}
