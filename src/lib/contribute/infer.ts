@@ -4,6 +4,7 @@
  * (CRC-32 lives in the stripped header), so varying bits are essentially the field.
  * Bit convention: global bit index = byte*8 + bitInByte, LSB = bit 0.
  */
+import type { Sample, ValueType, FieldDescriptor } from './types';
 
 /** Global bit indices that differ across any pair of bodies. */
 export function changedBits(bodies: Uint8Array[]): number[] {
@@ -87,4 +88,81 @@ export function fitEnum(raws: number[], options: string[]): { map: Record<number
 /** A boolean field needs exactly two distinct raw states. */
 export function fitBool(raws: number[]): { ok: boolean } {
   return { ok: new Set(raws).size === 2 };
+}
+
+/** Candidate field geometry from a contiguous bit-run. */
+interface Cand { byteOffset: number; bitOffset: number; bitWidth: number; endian: 'le' | 'be' }
+
+function runToCand(run: { startBit: number; endBit: number }, endian: 'le' | 'be'): Cand {
+  const byteOffset = Math.floor(run.startBit / 8);
+  return { byteOffset, bitOffset: run.startBit - byteOffset * 8, bitWidth: run.endBit - run.startBit + 1, endian };
+}
+
+/** Numeric value for fitting: number as-is, bool→0/1, string→NaN (enum handled separately). */
+function asNum(v: Sample['value']): number {
+  return typeof v === 'number' ? v : typeof v === 'boolean' ? (v ? 1 : 0) : NaN;
+}
+
+/**
+ * Infer a field descriptor from multiple captures of one control. Picks the bit-run
+ * whose extracted raw best tracks the value; fits encoding per `valueType`; scores
+ * confidence; records extra runs as multi-region notes.
+ */
+export function inferField(samples: Sample[], valueType: ValueType): FieldDescriptor {
+  if (samples.length < 2) throw new Error('inferField needs >= 2 samples.');
+  const bodies = samples.map((s) => s.body);
+  const len0 = bodies[0].length;
+  if (!bodies.every((b) => b.length === len0)) throw new Error('inferField: all sample bodies must be equal length.');
+  const runs = bitRuns(changedBits(bodies));
+  const notes: string[] = [];
+  if (runs.length === 0) {
+    return { byteOffset: 0, bitOffset: 0, bitWidth: 0, endian: 'le', encoding: { kind: 'raw' },
+      confidence: 0, evidence: { samples: samples.length, monotonic: false, residual: 1, notes: ['no bits changed'] } };
+  }
+  if (runs.length > 1) notes.push(`multi-region: ${runs.length} disjoint ranges changed — contributor may have moved more than one control`);
+
+  // Candidate set: each run, with both endians when it spans >1 byte and is byte-aligned.
+  const cands: Cand[] = [];
+  for (const run of runs) {
+    const c = runToCand(run, 'le');
+    cands.push(c);
+    const multiByte = Math.floor(run.startBit / 8) !== Math.floor(run.endBit / 8);
+    if (multiByte && c.bitOffset === 0 && c.bitWidth % 8 === 0) cands.push({ ...c, endian: 'be' });
+  }
+
+  // Score each candidate; keep the best by fit quality.
+  let best: { cand: Cand; enc: FieldDescriptor['encoding']; residual: number; monotonic: boolean; score: number } | null = null;
+  for (const cand of cands) {
+    const raws = bodies.map((b) => extractRaw(b, cand.byteOffset, cand.bitOffset, cand.bitWidth, cand.endian));
+    let enc: FieldDescriptor['encoding']; let residual = 1; let monotonic = false; let score = 0;
+    if (valueType.kind === 'linear') {
+      const f = fitLinear(raws, samples.map((s) => asNum(s.value)));
+      enc = { kind: 'linear', a: f.a, b: f.b, unit: valueType.unit };
+      residual = f.residual; monotonic = f.monotonic;
+      score = (monotonic ? 1 : 0) + (1 - Math.min(1, residual));
+    } else if (valueType.kind === 'enum') {
+      const f = fitEnum(raws, samples.map((s) => String(s.value)));
+      enc = { kind: 'enum', map: f.map }; monotonic = true;
+      score = f.consistent ? 1.5 : 0.2;
+    } else if (valueType.kind === 'bool') {
+      const f = fitBool(raws); enc = { kind: 'bool' }; score = f.ok ? 1.5 : 0.2;
+    } else {
+      enc = { kind: 'raw' }; score = 0.5;
+    }
+    if (!best || score > best.score) best = { cand, enc, residual, monotonic, score };
+  }
+
+  const { cand, enc, residual, monotonic } = best!;
+  // Confidence: fit score, sample count, single-region.
+  const sampleBonus = Math.min(1, samples.length / 4);
+  const singleRegion = runs.length === 1 ? 1 : 0.5;
+  const fitGood = enc.kind === 'linear' ? (monotonic ? 1 - Math.min(1, residual) : 0.2)
+    : enc.kind === 'raw' ? 0.4 : 0.9;
+  const confidence = Math.max(0, Math.min(1, fitGood * 0.6 + sampleBonus * 0.2 + singleRegion * 0.2));
+
+  return {
+    byteOffset: cand.byteOffset, bitOffset: cand.bitOffset, bitWidth: cand.bitWidth, endian: cand.endian,
+    encoding: enc, confidence,
+    evidence: { samples: samples.length, monotonic, residual, notes },
+  };
 }

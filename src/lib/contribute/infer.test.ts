@@ -68,3 +68,56 @@ describe('fitBool', () => {
     expect(fitBool([0, 0]).ok).toBe(false);
   });
 });
+
+import { inferField } from './infer';
+import type { Sample, ValueType } from './types';
+
+/** Samples where body byte `off` holds the raw == value; rest is fixed (noise-free). */
+function linSamples(off: number, values: number[], len = 8): Sample[] {
+  return values.map((v) => {
+    const body = new Uint8Array(len).fill(0x10);
+    body[off] = v & 0xff;
+    return { value: v, body };
+  });
+}
+
+describe('inferField', () => {
+  it('localizes + linearly fits a single-byte control', () => {
+    // values 0,5,10,15 exercise the whole low nibble -> bits 0-3 vary, raw == value.
+    const samples = linSamples(3, [0, 5, 10, 15]);
+    const vt: ValueType = { kind: 'linear', unit: 'dB', min: 0, max: 15 };
+    const d = inferField(samples, vt);
+    expect(d.byteOffset).toBe(3);
+    expect(d.bitOffset).toBe(0);
+    expect(d.bitWidth).toBe(4);
+    expect(d.encoding.kind).toBe('linear');
+    if (d.encoding.kind === 'linear') expect(d.encoding.a).toBeCloseTo(1, 3);
+    expect(d.confidence).toBeGreaterThan(0.7);
+  });
+
+  it('builds an enum map for an enum control', () => {
+    const opts = ['LP12', 'LP24', 'HP24'];
+    const samples: Sample[] = opts.map((o, i) => {
+      const body = new Uint8Array(8).fill(0); body[2] = i; return { value: o, body };
+    });
+    const d = inferField(samples, { kind: 'enum', options: opts });
+    expect(d.byteOffset).toBe(2);
+    expect(d.encoding).toEqual({ kind: 'enum', map: { 0: 'LP12', 1: 'LP24', 2: 'HP24' } });
+  });
+
+  it('notes multi-region when two disjoint byte ranges move', () => {
+    const samples: Sample[] = [0, 1].map((v) => {
+      const body = new Uint8Array(8).fill(0); body[1] = v; body[6] = v; return { value: v, body };
+    });
+    const d = inferField(samples, { kind: 'linear', unit: 'x', min: 0, max: 1 });
+    expect(d.evidence.notes.some((n) => n.includes('multi-region'))).toBe(true);
+  });
+
+  it('throws when sample bodies differ in length', () => {
+    const bad: Sample[] = [
+      { value: 0, body: new Uint8Array(4) },
+      { value: 1, body: new Uint8Array(8) },
+    ];
+    expect(() => inferField(bad, { kind: 'linear', unit: 'x', min: 0, max: 1 })).toThrow(/equal length/);
+  });
+});
