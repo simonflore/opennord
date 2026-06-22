@@ -25,8 +25,43 @@ describe('decodeNl4 (nl4s — Sound)', () => {
   it('exposes correctly-sized nl4s clusters', () => {
     const prog = decodeNl4(load(nl4sFiles()[0]));
     expect(prog._clusterA).toHaveLength(25);
-    expect(prog._clusterB).toHaveLength(73);
-    expect(prog._clusterC).toHaveLength(27);
+    expect(prog.voice?._packed).toHaveLength(72);
+    expect(prog.fxArp?._packed).toHaveLength(27);
+  });
+
+  it('decodes the voice head selector as a 2-bit enum (0-3) across the corpus', () => {
+    for (const name of nl4sFiles()) {
+      const prog = decodeNl4(load(name));
+      expect(prog.voice, name).toBeDefined();
+      expect(prog.voice!.mode, name).toBeGreaterThanOrEqual(0);
+      expect(prog.voice!.mode, name).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it('decodes the cluster-C enable flag as a boolean', () => {
+    for (const name of nl4sFiles()) {
+      const prog = decodeNl4(load(name));
+      expect(typeof prog.fxArp?.enabled, name).toBe('boolean');
+    }
+  });
+
+  it('decodes cluster-C enums within their observed corpus ranges', () => {
+    for (const name of nl4sFiles()) {
+      const prog = decodeNl4(load(name));
+      expect(prog.fxArp!.modeA, name).toBeGreaterThanOrEqual(0);
+      expect(prog.fxArp!.modeA, name).toBeLessThanOrEqual(7);
+      expect(prog.fxArp!.modeB, name).toBeGreaterThanOrEqual(0);
+      expect(prog.fxArp!.modeB, name).toBeLessThanOrEqual(8);
+    }
+  });
+
+  it('decodes the CBIN checksum as the LE u16 of the last two body bytes', () => {
+    for (const name of nl4sFiles()) {
+      const file = load(name);
+      const prog = decodeNl4(file);
+      const expected = file[file.length - 2] | (file[file.length - 1] << 8);
+      expect(prog.checksum, name).toBe(expected);
+    }
   });
 });
 

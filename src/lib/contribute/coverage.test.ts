@@ -15,8 +15,9 @@ describe('decodeForModel', () => {
     expect(decodeForModel('stage-3')).toMatchObject({ status: 'partial', paramCount: null });
   });
 
-  it('reports an unstarted undecoded model as none', () => {
-    expect(decodeForModel('electro-4')).toMatchObject({ status: 'none', controlCount: 0, pct: null });
+  it('reports a model with no curated progress as none', () => {
+    // A model id absent from MODEL_PROGRESS has no localized controls → none.
+    expect(decodeForModel('does-not-exist')).toMatchObject({ status: 'none', controlCount: 0, pct: null });
     expect(decodeForModel('whatever')).toMatchObject({ status: 'none', controlCount: 0 });
   });
 
@@ -33,7 +34,7 @@ describe('decodeForModel', () => {
 });
 
 describe('summarizeProgress', () => {
-  it('counts distinct covered bytes, controls, and percent of a known body size', () => {
+  it('falls back to control-union bytes when there are no regions', () => {
     const s = summarizeProgress({
       bodyBytes: 100,
       controls: [
@@ -41,11 +42,25 @@ describe('summarizeProgress', () => {
         { label: 'b', ranges: [{ start: 1, end: 3 }] },        // bytes 1,2,3 (1 overlaps)
       ],
     });
-    expect(s).toEqual({ coveredBytes: 4, controlCount: 2, pct: 4 }); // {0,1,2,3} = 4 bytes of 100
+    expect(s).toEqual({ coveredBytes: 4, candidateBytes: 0, controlCount: 2, pct: 4 }); // {0,1,2,3} = 4 bytes of 100
   });
 
   it('leaves percent null when the body size is unknown', () => {
     expect(summarizeProgress({ bodyBytes: null, controls: [{ label: 'a', ranges: [{ start: 0, end: 0 }] }] }))
-      .toEqual({ coveredBytes: 1, controlCount: 1, pct: null });
+      .toEqual({ coveredBytes: 1, candidateBytes: 0, controlCount: 1, pct: null });
+  });
+
+  it('counts only confirmed region bytes toward pct; candidate bytes reported separately', () => {
+    const s = summarizeProgress({
+      bodyBytes: 100,
+      controls: [{ label: 'whole body (candidate)', ranges: [{ start: 0, end: 99 }] }],
+      regions: [
+        { start: 0,  end: 9,  label: 'decoded field',     status: 'confirmed' }, // 10 bytes
+        { start: 10, end: 49, label: 'section identified', status: 'candidate' }, // 40 bytes
+        { start: 50, end: 99, label: '',                   status: 'constant'  },
+      ],
+    });
+    // Headline = confirmed only (10/100 = 10%), NOT inflated by the candidate control.
+    expect(s).toEqual({ coveredBytes: 10, candidateBytes: 40, controlCount: 1, pct: 10 });
   });
 });

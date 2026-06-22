@@ -23,8 +23,25 @@
   .cmp__table th, .cmp__table td { padding: 4px 6px; }
 }
 
-.cmp__map-block { margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1px solid var(--line); }
-.cmp__map-label { font: 700 13px var(--font); color: var(--ink); margin: 0 0 var(--s-2); }
+/* ── Expandable rows ──────────────────────────────────────────────────────── */
+.cmp__row { cursor: pointer; user-select: none; }
+.cmp__row:hover { background: var(--surface); }
+.cmp__row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.cmp__row--expanded { background: var(--surface); }
+.cmp__chevron {
+  display: inline-block;
+  font-size: 9px;
+  line-height: 1;
+  margin-right: 5px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+  vertical-align: middle;
+}
+.cmp__chevron--open { transform: rotate(90deg); }
+
+.cmp__detail-row td { padding: 0; border-bottom: 1px solid var(--line); }
+.cmp__detail { padding: var(--s-3) var(--s-4); background: var(--surface-2); }
+.cmp__detail-msg { color: var(--dim); font: 12px var(--font); margin: 0; }
 
 /* ── Byte-coverage map ─────────────────────────────────────────────────────── */
 .bmap { margin-top: var(--s-4); }

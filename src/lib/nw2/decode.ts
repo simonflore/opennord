@@ -3,61 +3,113 @@
  *
  * Body offset: 0x2c (44). Body length: 1044 bytes (1088 - 44).
  *
- * Four voice slots anchored by drawbar regions (corpus RE, 2026-06-22):
- * | Slot | Drawbar body offset | File offset | Drawbar bytes |
- * |------|---------------------|-------------|---------------|
- * | 0    | 144-147             | 188-191     | 4 (8 nibbles) |
- * | 1    | 388-391             | 432-435     | 4 (8 nibbles) |
- * | 2    | 631-638             | 675-682     | 8 (16 nibbles) — upper+lower? |
- * | 3    | 876-879             | 920-923     | 4 (8 nibbles) |
+ * Four voice slots each exactly 244 bytes, followed by a 68-byte global tail:
+ * | Slot | Body range  | Drawbar offset | Drawbar encoding            |
+ * |------|-------------|----------------|-----------------------------|
+ * | 0    | [0-243]     | body[143-147]  | 5 bytes, 9 nibbles (NE6)    |
+ * | 1    | [244-487]   | body[387-391]  | 5 bytes, 9 nibbles (NE6)    |
+ * | 2    | [488-731]   | body[631-635]  | 5 bytes, 9 nibbles (NE6)    |
+ * | 3    | [732-975]   | body[875-879]  | 5 bytes, 9 nibbles (NE6)    |
+ * | tail | [976-1043]  | —              | 68-byte global tail          |
  *
- * Slot boundaries are estimated from the ~244-byte period between drawbar anchors.
- * Slot sizes: 0→[0-243], 1→[244-487], 2→[488-731], 3→[732-975], global tail→[976+].
- * The global header (body[0-99]) precedes all slots.
+ * Drawbar encoding: 9 × 4-bit nibbles, high nibble first.
+ *   bytes[0-3] = bars 1-8 (2 per byte), byte[4] high nibble = bar 9,
+ *   byte[4] low nibble = trailing (always 0 in the 26-file corpus).
+ *
+ * Waveform selector (candidate, body local[77-79] per slot):
+ *   local[77] = oscFlag (0xfe=standard, 0xff=extended/wavetable mode)
+ *   local[78] = bank    (0=classic synth waveforms, 1=wavetable catalog)
+ *   local[79] = id      (waveform index; low=synth primitive, high=named wavetable)
+ *
+ * NOTE on skeleton bug: the original DRAWBAR_OFFSETS were [144, 388, 631, 876].
+ * Offsets for slots 0, 1, and 3 were off by 1 (the first byte 0x37 at local[143]
+ * was misidentified as constant padding; it is in fact part of the drawbar block,
+ * encoding bars 1 and 2 as nibbles [3, 7] — the default position in 25/26 fixtures).
+ * Source: Eli Bass 6 fixture confirms non-default bars=[3,7,7,7,7,7,7,7,4] starting
+ * at the corrected offset.
+ *
+ * Source: 26-file corpus statistical analysis (2026-06-22).
  */
 
-import type { Nw2Drawbars, Nw2VoiceSlot, Nw2Program } from './types';
+import type { Nw2Drawbars, Nw2VoiceSlot, Nw2Waveform, Nw2Program } from './types';
 
-const BODY_OFFSET = 0x2c;
+const BODY_OFFSET = 0x2c; // 44 — the CBIN header length
 
-// Drawbar anchor offsets within the body (file offset - 44)
-const DRAWBAR_OFFSETS = [144, 388, 631, 876] as const;
-// Estimated slot start offsets (body-relative), inferred from ~244-byte period
+const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
+
+// Corrected drawbar anchor offsets within the body (previously off by 1 for slots 0,1,3)
+// Slot local offset 143: slot0=143, slot1=244+143=387, slot2=488+143=631, slot3=732+143=875
+const DRAWBAR_OFFSETS = [143, 387, 631, 875] as const;
+// Slot start offsets (body-relative), confirmed by ~244-byte period
 const SLOT_STARTS = [0, 244, 488, 732] as const;
 const SLOT_SIZE = 244;
 
-function readDrawbars4(body: Uint8Array, offset: number): Nw2Drawbars {
+/**
+ * Decode 9 nibble-packed drawbar values from 5 body bytes at `bodyOffset`.
+ * Identical encoding to NE6: each nibble is 4 bits (value 0-8).
+ * Source: corpus RE (2026-06-22); confirmed by Eli Bass 6 fixture.
+ */
+function readDrawbars(body: Uint8Array, bodyOffset: number): Nw2Drawbars {
   const bars: number[] = [];
+  // Bytes 0-3: drawbars 1-8, 2 per byte (high nibble first)
   for (let i = 0; i < 4; i++) {
-    const byte = body[offset + i] ?? 0;
+    const byte = u8(body, bodyOffset + i);
     bars.push((byte >>> 4) & 0xf);
     bars.push(byte & 0xf);
   }
-  return { bars };
+  // Byte 4: drawbar 9 in the high nibble; low nibble is unidentified (always 0 in corpus)
+  const last = u8(body, bodyOffset + 4);
+  bars.push((last >>> 4) & 0xf);
+  return { bars, _trailing: last & 0xf };
+}
+
+/**
+ * Decode the waveform / oscillator selector from body local[77-79].
+ * Confidence: candidate — statistically derived from 26 fixtures, not hardware-validated.
+ */
+function readWaveform(slotBody: Uint8Array): Nw2Waveform {
+  return {
+    oscFlag: u8(slotBody, 77),
+    bank: u8(slotBody, 78),
+    id: u8(slotBody, 79),
+  };
 }
 
 function readSlot(body: Uint8Array, slotIndex: number): Nw2VoiceSlot {
   const drawbarOffset = DRAWBAR_OFFSETS[slotIndex];
   const slotStart = SLOT_STARTS[slotIndex];
+  const slotBody = body.slice(slotStart, slotStart + SLOT_SIZE);
   return {
-    drawbars: readDrawbars4(body, drawbarOffset),
-    _raw: body.slice(slotStart, slotStart + SLOT_SIZE),
+    drawbars: readDrawbars(body, drawbarOffset),
+    waveform: readWaveform(slotBody),
+    // The 7-byte oscillator/waveform region local[77-83] — oscFlag + bank + id + 4 unknown bytes.
+    // Candidate: full extent of this region not yet decoded.
+    _oscWaveformRegion: slotBody.slice(77, 84),
+    _raw: slotBody,
   };
 }
 
+/** Decode a Nord Wave 2 program body (full file bytes including CBIN header). */
 export function decodeNw2(bytes: Uint8Array): Nw2Program {
   const warnings: string[] = [];
   if (bytes.length < BODY_OFFSET) {
-    warnings.push(`File too short: ${bytes.length} bytes`);
+    warnings.push(`File too short: ${bytes.length} bytes (expected ≥ ${BODY_OFFSET})`);
   }
   const body = bytes.slice(BODY_OFFSET);
+
+  // Version from CBIN header (versionRaw LE u16 at 0x14)
   const versionRaw = (bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8);
   const version = (versionRaw / 100).toFixed(2);
+
   return {
     parsed: true,
     version,
     slots: [readSlot(body, 0), readSlot(body, 1), readSlot(body, 2), readSlot(body, 3)],
-    _globalHeader: body.slice(0, 100),
+    // Global preamble: body[0-4], constant across all 26 fixtures (00 00 01 2d 3f).
+    // byte[2]=0x01 may be a format version marker.
+    _globalPreamble: body.slice(0, 5),
+    // Global tail: body[976-1043] (68 bytes), follows all four slots.
+    _globalTail: body.slice(976, 1044),
     _rawBody: body,
     bytes,
     warnings,

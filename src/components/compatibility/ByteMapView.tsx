@@ -28,7 +28,7 @@ export function ByteMapView({ progress }: { progress: ModelProgress }) {
   const { bodyBytes, regions, controls } = progress;
   if (!bodyBytes || !regions) return null;
 
-  const { coveredBytes, controlCount, pct } = summarizeProgress(progress);
+  const { coveredBytes, candidateBytes, controlCount, pct } = summarizeProgress(progress);
   const lookup = buildLookup(regions, bodyBytes);
 
   const rows: number[][] = [];
@@ -37,10 +37,11 @@ export function ByteMapView({ progress }: { progress: ModelProgress }) {
   return (
     <div className="bmap">
       <div className="bmap__meta">
-        <span className="bmap__stat bmap__stat--confirmed">{coveredBytes} bytes mapped</span>
+        <span className="bmap__stat bmap__stat--confirmed">{coveredBytes} decoded</span>
+        {candidateBytes > 0 && <><span className="bmap__sep">·</span><span className="bmap__stat">{candidateBytes} identified</span></>}
         <span className="bmap__sep">·</span>
         <span className="bmap__stat">{controlCount} controls</span>
-        {pct != null && <><span className="bmap__sep">·</span><span className="bmap__stat">{pct}% coverage</span></>}
+        {pct != null && <><span className="bmap__sep">·</span><span className="bmap__stat">{pct}% decoded</span></>}
       </div>
 
       <div className="bmap__grid" style={{ '--bmap-cols': COLS } as React.CSSProperties}>

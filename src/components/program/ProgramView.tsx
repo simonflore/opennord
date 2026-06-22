@@ -33,7 +33,9 @@ export function ProgramView({ program }: { program: NordProgram }) {
   // NE6 and future non-NS4 models: minimal placeholder until their rich view lands.
   if (!isNs4Program(program)) {
     const upper = 'organ' in program ? program.organ.upper.bars.join(' ') : '?';
-    const lower = 'organ' in program ? program.organ.lower.bars.join(' ') : '?';
+    const lower = 'organ' in program && 'lower' in program.organ
+      ? (program.organ as { lower: { bars: readonly number[] } }).lower.bars.join(' ')
+      : '?';
     return (
       <div className="ps">
         <p style={{ color: 'var(--ink-dim)' }}>Nord Electro 6 · v{program.version}</p>
