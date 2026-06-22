@@ -23,9 +23,24 @@ import { ng2Codec } from './ng2/codec';
 import type { Ng2Program } from './ng2/types';
 import { nw2Codec } from './nw2/codec';
 import type { Nw2Program } from './nw2/types';
+import { nw1Codec } from './nw1/codec';
+import type { Nw1Program } from './nw1/types';
+import { nl4Codec } from './nl4/codec';
+import type { Nl4Program } from './nl4/types';
+import { nlaCodec } from './nla/codec';
+import type { NlaProgram } from './nla/types';
+import { ne4Codec } from './ne4/codec';
+import type { Ne4Program } from './ne4/types';
+import { ne5Codec } from './ne5/codec';
+import type { Ne5Program } from './ne5/types';
 
 /** Every decoded program type OpenNord supports. Discriminate on `model` or `parsed`. */
-export type NordProgram = NS4Program | Ne6Program | Np4Program | Np5Program | Ng2Program | Nw2Program;
+export type NordProgram =
+  | NS4Program | Ne6Program
+  | Np4Program | Np5Program | Ng2Program
+  | Nw1Program | Nw2Program
+  | Nl4Program | NlaProgram
+  | Ne4Program | Ne5Program;
 
 /**
  * Every model OpenNord can decode. Add new codecs here as they land —
@@ -38,6 +53,11 @@ const CODECS: readonly ModelCodec<NordProgram>[] = [
   np5Codec,
   ng2Codec,
   nw2Codec,
+  nw1Codec,
+  nl4Codec,
+  nlaCodec,
+  ne4Codec,
+  ne5Codec,
 ];
 
 export interface ClaviaFile {

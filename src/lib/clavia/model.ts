@@ -12,10 +12,20 @@
 
 /**
  * Which Nord model a file belongs to.
- * Stage family: ns2/ns3/ns4. Electro family: ne6. Piano family: np4/np5/ng2.
- * Wave family: nw2. New models are added as corpus RE produces skeleton decoders.
+ * Stage:   ns2 / ns3 / ns4
+ * Electro: ne4 / ne5 / ne6
+ * Piano:   np4 / np5 / ng2
+ * Wave:    nw1 / nw2
+ * Lead:    nl4 / nla
+ * New models added as corpus RE produces skeleton decoders.
  */
-export type ClaviaModel = 'ns4' | 'ns3' | 'ns2' | 'ne6' | 'np4' | 'np5' | 'ng2' | 'nw2' | 'unknown';
+export type ClaviaModel =
+  | 'ns4' | 'ns3' | 'ns2'
+  | 'ne4' | 'ne5' | 'ne6'
+  | 'np4' | 'np5' | 'ng2'
+  | 'nw1' | 'nw2'
+  | 'nl4' | 'nla'
+  | 'unknown';
 
 /**
  * A decoder for one model's program body. `tags` are the CBIN file-type tags it
