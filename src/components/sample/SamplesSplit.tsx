@@ -66,6 +66,8 @@ export function SamplesSplit() {
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery}
         onOpen={(e) => void openEntry(e)} onLoadNew={startLoadNew}
         prefs={s.prefs}
+        canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct}
+        unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
       />
     </div>
   );

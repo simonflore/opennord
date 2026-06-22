@@ -16,6 +16,8 @@ const prefs = (over: Partial<SamplesPrefsApi> = {}): SamplesPrefsApi => ({
 
 const handlers = {
   onSource: () => {}, onGeneration: () => {}, onQuery: () => {}, onOpen: () => {}, onLoadNew: () => {},
+  canScanUsage: false, onScanUsage: () => {}, scanPct: null, unusedCount: null,
+  unusedOnly: false, onUnusedOnly: () => {},
 };
 
 describe('SamplesBrowse', () => {

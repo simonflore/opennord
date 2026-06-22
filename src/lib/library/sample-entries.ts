@@ -21,6 +21,8 @@ export interface SampleEntry {
   file?: NsmpFile;            // folder samples — parsed file
   bytes?: Uint8Array;         // folder samples — raw bytes for the inspector
   device?: ProgramEntry;      // device samples — the enumerated entry, for pullSample
+  /** Device samples only: not referenced by any program (safe to remove). Set after a usage scan. */
+  unused?: boolean;
 }
 
 /** Classify a parsed sample file into a generation bucket. */
@@ -55,16 +57,18 @@ export function nordSampleEntriesFromDevice(entries: ProgramEntry[]): SampleEntr
   });
 }
 
-/** Filter by source tab + generation tab + case-insensitive name query. */
+/** Filter by source tab + generation tab + case-insensitive name query + optional unused-only. */
 export function filterSamples(
   entries: SampleEntry[],
   source: LibrarySource | 'all',
   generation: SampleGeneration | 'all',
   query: string,
+  unusedOnly = false,
 ): SampleEntry[] {
   return entries.filter((e) =>
     (source === 'all' || e.source === source) &&
     (generation === 'all' || e.generation === generation) &&
+    (!unusedOnly || e.unused === true) &&
     matchesQuery(e.name, query));
 }
 

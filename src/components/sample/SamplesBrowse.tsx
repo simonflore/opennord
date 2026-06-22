@@ -16,7 +16,8 @@ const SORT_LABEL: Record<SampleSort, string> = { default: 'Default', name: 'Name
 
 export function SamplesBrowse(
   { entries, source, generation, query, nordCount, localCount, showSourceFacet, showUnknownGen,
-    onSource, onGeneration, onQuery, onOpen, onLoadNew, prefs }: {
+    onSource, onGeneration, onQuery, onOpen, onLoadNew, prefs,
+    canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly }: {
     entries: SampleEntry[];
     source: LibrarySource | 'all'; generation: SampleGeneration | 'all'; query: string;
     nordCount: number; localCount: number;
@@ -27,6 +28,13 @@ export function SamplesBrowse(
     onOpen: (e: SampleEntry) => void;
     onLoadNew: () => void;
     prefs: SamplesPrefsApi;
+    // Sample-usage cleanup (device-connected)
+    canScanUsage: boolean;
+    onScanUsage: () => void;
+    scanPct: number | null;
+    unusedCount: number | null;
+    unusedOnly: boolean;
+    onUnusedOnly: (v: boolean) => void;
   },
 ) {
   const { favorites, toggleFavorite: onToggleFavorite } = prefs;
@@ -68,6 +76,20 @@ export function SamplesBrowse(
           </div>
         </div>
         <div className="lib-actions">
+          {canScanUsage && (
+            <button className="on-btn" onClick={onScanUsage} disabled={scanPct !== null}>
+              {scanPct !== null ? `Scanning… ${scanPct}%` : 'Find unused samples'}
+            </button>
+          )}
+          {unusedCount !== null && scanPct === null && (
+            <button
+              className={`on-btn${unusedOnly ? ' is-active' : ''}`}
+              aria-pressed={unusedOnly}
+              onClick={() => onUnusedOnly(!unusedOnly)}
+            >
+              {unusedCount === 0 ? 'No unused samples' : `${unusedOnly ? 'Show all' : `Unused only (${unusedCount})`}`}
+            </button>
+          )}
           <button className="on-btn" onClick={onLoadNew}>Load sample</button>
         </div>
       </div>
@@ -106,6 +128,7 @@ export function SamplesBrowse(
                   onKeyDown={(ev) => ev.stopPropagation()}
                 >{favorites.has(e.id) ? '★' : '☆'}</button>
                 <span className="lib-patch__nm">{e.name}</span>
+                {e.unused && <span className="lib-tag lib-tag--unused" title="Not used by any program">unused</span>}
                 <span className="lib-slot">{e.slot ?? GEN_LABEL[e.generation]}</span>
               </div>
               <div className="lib-patch__engines">

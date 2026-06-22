@@ -76,3 +76,11 @@
   color: var(--ink); font: 11px var(--font);
 }
 .new-backups span { flex: 1; }
+
+/* Sample-usage cleanup (device-connected): "unused" tag + active filter button. */
+.lib-tag {
+  font: 600 9px/1 var(--font); text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 3px 5px; border-radius: 4px; flex-shrink: 0;
+}
+.lib-tag--unused { color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn); }
+.on-btn.is-active { box-shadow: inset 0 0 0 1px var(--warn); color: var(--ink); }
