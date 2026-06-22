@@ -10,8 +10,12 @@
  * (docs/MULTI-MODEL.md, Tier 2) plug in here without touching the container.
  */
 
-/** Which Nord generation a file belongs to. */
-export type ClaviaModel = 'ns4' | 'ns3' | 'ns2' | 'unknown';
+/**
+ * Which Nord model a file belongs to.
+ * Stage family: ns2/ns3/ns4. Electro family: ne6. Piano family: np4/np5/ng2.
+ * Wave family: nw2. New models are added as corpus RE produces skeleton decoders.
+ */
+export type ClaviaModel = 'ns4' | 'ns3' | 'ns2' | 'ne6' | 'np4' | 'np5' | 'ng2' | 'nw2' | 'unknown';
 
 /**
  * A decoder for one model's program body. `tags` are the CBIN file-type tags it
