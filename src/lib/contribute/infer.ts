@@ -49,3 +49,42 @@ export function extractRaw(
   }
   return Number((acc >> BigInt(bitOffset)) & ((1n << BigInt(bitWidth)) - 1n));
 }
+
+const avg = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
+const isAscending = (xs: number[]) => xs.every((x, i) => i === 0 || x >= xs[i - 1]);
+
+/** Least-squares value = a*raw + b. `residual` is RMSE normalized by the value range
+ *  (0 = perfect). `monotonic` = value order tracks raw order (either direction). */
+export function fitLinear(raws: number[], values: number[]): { a: number; b: number; residual: number; monotonic: boolean } {
+  const n = raws.length;
+  const mr = avg(raws), mv = avg(values);
+  let cov = 0, varr = 0;
+  for (let i = 0; i < n; i++) { cov += (raws[i] - mr) * (values[i] - mv); varr += (raws[i] - mr) ** 2; }
+  const a = varr === 0 ? 0 : cov / varr;
+  const b = mv - a * mr;
+  let sse = 0;
+  for (let i = 0; i < n; i++) { const pred = a * raws[i] + b; sse += (pred - values[i]) ** 2; }
+  const range = (Math.max(...values) - Math.min(...values)) || 1;
+  const residual = Math.sqrt(sse / n) / range;
+  const order = [...raws.keys()].sort((i, j) => raws[i] - raws[j]).map((i) => values[i]);
+  const monotonic = isAscending(order) || isAscending([...order].reverse());
+  return { a, b, residual, monotonic };
+}
+
+/** Map distinct raw -> the option captured with it. `consistent` is false if a raw
+ *  maps to more than one option. */
+export function fitEnum(raws: number[], options: string[]): { map: Record<number, string>; consistent: boolean } {
+  const map: Record<number, string> = {};
+  let consistent = true;
+  for (let i = 0; i < raws.length; i++) {
+    const r = raws[i], opt = options[i];
+    if (r in map && map[r] !== opt) consistent = false;
+    map[r] = opt;
+  }
+  return { map, consistent };
+}
+
+/** A boolean field needs exactly two distinct raw states. */
+export function fitBool(raws: number[]): { ok: boolean } {
+  return { ok: new Set(raws).size === 2 };
+}
