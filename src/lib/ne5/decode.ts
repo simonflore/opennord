@@ -3,49 +3,38 @@
  *
  * Body offset: 0x2c (44). Body length: 103 bytes (147 - 44).
  *
- * Parameter layout (corpus RE, 2026-06-22, 13 fixtures):
- * | Field             | body range | status    | notes                                     |
- * |-------------------|------------|-----------|-------------------------------------------|
- * | programTypeFlags  | 0          | candidate | type/mode — 9 unique values               |
- * | constant_0x00     | 1-5        | constant  |                                           |
- * | sectionEnableNib  | 6          | candidate | 4 unique nibble values                    |
- * | _sampleRefHash    | 7-12       | unknown   | 6-byte hash/sample ref                    |
- * | flagByte13        | 13         | candidate | 0x80 or 0x00                              |
- * | constant_0x00     | 14-16      | constant  |                                           |
- * | sectionFlags17    | 17         | candidate | 6 unique values                           |
- * | constant_0x00     | 18         | constant  |                                           |
- * | flagByte19        | 19         | candidate | 0x40 or 0x00                              |
- * | constant_0x00     | 20         | constant  |                                           |
- * | upperDrawbarsA    | 21-25      | candidate | 9 nibbles (NE6 style), alt layer          |
- * | nibbleField26     | 26         | candidate | 3 unique nibble values                    |
- * | constant_0x00     | 27         | constant  |                                           |
- * | lowerDrawbarsA    | 28-32      | candidate | 9 nibbles (NE6 style), alt layer          |
- * | nibbleField33     | 33         | candidate | 0x20 or 0x00                              |
- * | constant_0x00     | 34         | constant  |                                           |
- * | nibbleFlag35      | 35         | candidate | nibble field                              |
- * | constant_0x00     | 36-38      | constant  |                                           |
- * | upperDrawbarsB    | 39-43      | confirmed | 9 nibbles (NE6 style) — primary upper     |
- * | constant_0x00     | 44         | constant  |                                           |
- * | lowerDrawbarsB    | 45-49      | confirmed | 9 nibbles (NE6 style) — primary lower     |
- * | constant_0x00     | 50         | constant  |                                           |
- * | nibbleField51     | 51         | candidate |                                           |
- * | constant_0x00     | 52-54      | constant  |                                           |
- * | pedalDrawbarsB    | 55-59      | candidate | 9 nibbles (NE6 style) — pedal bass        |
- * | constant_0x00     | 60         | constant  |                                           |
- * | nibbleFlag61      | 61         | candidate | 0x80 or 0x00                              |
- * | constant_0x00     | 62-70      | constant  |                                           |
- * | extraNibbleGroup  | 71-74      | candidate | 4-byte nibble group (4th drawbar set?)    |
- * | constant_0x08     | 75         | constant  | sentinel                                  |
- * | constant_0x00     | 76         | constant  |                                           |
- * | nibbleFlag77      | 77         | candidate | 0x80 or 0x00                              |
- * | constant_0x00     | 78-80      | constant  |                                           |
- * | constant_0x08     | 81         | constant  | sentinel                                  |
- * | constant_0x00     | 82         | constant  |                                           |
- * | _clusterC         | 83-97      | unknown   | sample reference block (15 bytes)         |
- * | constant_0x00     | 98-100     | constant  |                                           |
- * | _checksum         | 101-102    | candidate | likely CRC-16 (2 bytes)                   |
+ * Parameter layout (cross-model Stage-oracle alignment + corpus RE, 2026-06-22,
+ * 13 fixtures). Confirmed fields are aligned against the Stage organ/piano
+ * parameter groups (traceability cited per field, per CLAUDE.md):
  *
- * Source: 13-file corpus statistical analysis (2026-06-22).
+ * | Field               | body range | status    | Stage oracle param                       |
+ * |---------------------|------------|-----------|------------------------------------------|
+ * | programTypeFlags    | 0          | candidate | —                                        |
+ * | constant_0x00       | 1-5        | constant  |                                          |
+ * | sectionEnableNibble | 6          | candidate | —                                        |
+ * | sampleModelId       | 7-12       | confirmed | piano model ID/name (group p, 245-5, 32b)|
+ * | sampleModelFlag     | 13 bit7    | confirmed | (companion to model id)                  |
+ * | constant_0x00       | 14-16      | constant  |                                          |
+ * | sampleSectionActive | 17 bit7    | confirmed | piano on/off (m 084-6 / p 230-3)         |
+ * | constant_0x00       | 18         | constant  |                                          |
+ * | flagByte19          | 19         | candidate | —                                        |
+ * | constant_0x00       | 20         | constant  |                                          |
+ * | preset1Upper        | 21-25      | confirmed | organ drawbar 1..9 (group o, 117..136-1) |
+ * | nibbleField26       | 26         | candidate |                                          |
+ * | constant_0x00       | 27         | constant  |                                          |
+ * | preset1Lower        | 28-32      | confirmed | organ drawbar 1..9 (group o, lower)      |
+ * | ...                 | 33-38      | candidate/constant                          |
+ * | preset2Upper        | 39-43      | confirmed | organ drawbar 1..9 (group o, 2nd preset) |
+ * | constant_0x00       | 44         | constant  |                                          |
+ * | preset2Lower        | 45-49      | confirmed | organ drawbar 1..9 (group o, 2nd lower)  |
+ * | ...                 | 50-54      | candidate/constant                          |
+ * | pedal               | 55-59      | candidate | organ drawbar 1..9 (group o, pedal/bass) |
+ * | ...                 | 60-82      | candidate/constant                          |
+ * | sampleDescriptor    | 83-94      | candidate | piano slot/variation (group p 244-6/245-3)|
+ * | constant_0x00       | 98-100     | constant  |                                          |
+ * | _checksum           | 101-102    | candidate | checksum (group m, id 025-1)             |
+ *
+ * Source: 13-file corpus statistical analysis + Stage oracle alignment (2026-06-22).
  */
 
 import type { Ne5Drawbars, Ne5Organ, Ne5Program } from './types';
@@ -72,17 +61,20 @@ function readDrawbars(body: Uint8Array, bodyOffset: number): Ne5Drawbars {
 }
 
 function readOrgan(body: Uint8Array): Ne5Organ {
-  // body[39-43]: upper manual drawbars — CONFIRMED by corpus (11/13 share same default)
-  const upper = readDrawbars(body, 39);
-  // body[45-49]: lower manual drawbars — CONFIRMED by corpus
-  const lower = readDrawbars(body, 45);
-  // body[55-59]: pedal drawbars — CANDIDATE (all valid 0-8 nibbles across all fixtures)
+  // Stage oracle: organ drawbar 1..9 (group o, ids 117-1..136-1), nibble-relocated
+  // as in NS3 (drawbars@preset1 0xBE). body[21] is the primary/active organ slot.
+  const preset1Upper = readDrawbars(body, 21);
+  // Stage oracle: organ drawbar 1..9 (group o, lower manual). Mirrors preset-1
+  // upper 7 bytes later.
+  const preset1Lower = readDrawbars(body, 28);
+  // Stage oracle: organ drawbar 1..9 (group o), second organ preset (analogous to
+  // NS3 preset2@0xD9).
+  const preset2Upper = readDrawbars(body, 39);
+  // Stage oracle: organ drawbar 1..9 (group o), second preset lower manual.
+  const preset2Lower = readDrawbars(body, 45);
+  // Stage oracle: organ drawbar 1..9 (group o), pedal/bass manual — CANDIDATE.
   const pedal = readDrawbars(body, 55);
-  // body[21-25]: alternate upper drawbars — CANDIDATE (VCS3 Organ = custom values)
-  const upperAlt = readDrawbars(body, 21);
-  // body[28-32]: alternate lower drawbars — CANDIDATE (mirrors upperAlt structure)
-  const lowerAlt = readDrawbars(body, 28);
-  return { upper, lower, pedal, upperAlt, lowerAlt };
+  return { preset1Upper, preset1Lower, preset2Upper, preset2Lower, pedal };
 }
 
 /** Decode a Nord Electro 5 program body (full file bytes including CBIN header). */
@@ -99,22 +91,34 @@ export function decodeNe5(bytes: Uint8Array): Ne5Program {
   const versionRaw = (bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8);
   const version = (versionRaw / 100).toFixed(2);
 
+  const sampleModelId = body.slice(7, 13); // 6 bytes — Stage oracle: piano model ID
+
   return {
     parsed: true,
     version,
     organ: readOrgan(body),
-    // Named scalar candidates
+    // --- Confirmed fields (Stage-oracle aligned) ---
+    // body[17] bit7: piano/sample section active — Stage oracle m 084-6 / p 230-3
+    sampleSectionActive: (u8(body, 17) & 0x80) !== 0,
+    // body[7-12]: factory sample/model reference id — Stage oracle p 245-5 (32b)
+    sampleModelId,
+    // body[13] bit7: trailing flag adjacent to the model id (separate from the id)
+    sampleModelFlag: (u8(body, 13) & 0x80) !== 0,
+    // body[17] full byte: bit7 is confirmed (sampleSectionActive); lower bits raw
+    sectionFlags17: u8(body, 17),
+    // --- Candidate scalar fields ---
     programTypeFlags: u8(body, 0),
     sectionEnableNibble: u8(body, 6),
-    flagByte13: u8(body, 13),
-    sectionFlags17: u8(body, 17),
     flagByte19: u8(body, 19),
-    // Named byte-array candidates / unknowns
-    _sampleRefHash: body.slice(7, 13),     // 6 bytes, possible sample bank ref
-    _organSection: body.slice(17, 34),     // 17 bytes, pre-drawbar sparse region
+    // --- Candidate byte-array fields (Stage-oracle aligned) ---
+    // body[83-94]: sample-bank descriptor record — Stage oracle p 244-6 / 245-3
+    sampleDescriptor: body.slice(83, 95),
+    // body[101-102]: trailing checksum — Stage oracle m 025-1 (CRC-16, unverified)
+    _checksum: body.slice(101, 103),
+    // --- Raw passthrough for ongoing RE ---
+    _sampleRefHash: sampleModelId, // alias of sampleModelId, addressed by range
+    _organSection: body.slice(17, 34), // 17 bytes, pre-/preset-1 drawbar region
     _extraNibbleGroup: body.slice(71, 75), // 4 bytes, 4th nibble group candidate
-    _clusterC: body.slice(83, 98),         // 15 bytes, sample reference block
-    _checksum: body.slice(101, 103),       // 2 bytes, likely CRC-16
     _rawBody: body,
     bytes,
     warnings,

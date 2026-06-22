@@ -3,8 +3,7 @@ import './compatibility.css';
 import { ProbePanel } from './ProbePanel';
 import { ALL_MODELS } from '../../lib/clavia/partitions';
 import { CAPABILITIES, CAPABILITY_LABEL, statusFor, type ValidationStatus } from '../../lib/clavia/validation';
-import { decodeForModel, DECODE_LABEL, type DecodeStatus } from '../../lib/contribute/coverage';
-import { MODEL_PROGRESS } from '../../lib/contribute/coverage-data';
+import { decodeForModel, getModelProgress, DECODE_LABEL, type DecodeStatus } from '../../lib/contribute/coverage';
 import { ByteMapView } from './ByteMapView';
 
 const CHIP: Record<ValidationStatus, string> = {
@@ -39,7 +38,7 @@ export function MatrixView() {
           <tbody>
             {ALL_MODELS.map((m) => {
               const isOpen = expanded === m.id;
-              const progress = MODEL_PROGRESS[m.id];
+              const progress = getModelProgress(m.id);
               return (
                 <Fragment key={m.id}>
                   <tr

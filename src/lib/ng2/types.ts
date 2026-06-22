@@ -1,43 +1,164 @@
 /**
  * Nord Grand 2 (`.ng2p`) program model.
  *
- * Fields are decoded incrementally as the format is RE'd. Confirmed/candidate
- * fields are typed normally; unidentified sections are kept as raw Uint8Array
- * clusters so the decode inspector can still display them.
+ * Field names + bit offsets come from aligning the ng2 corpus against the Stage
+ * piano (group p) oracle param map (cross-model mapping, 2026-06-22). The Stage
+ * oracle is a REFERENCE we transcribe from, never a runtime import (lib/ns4 is
+ * off-limits).
  *
- * ## Structure overview (20-file corpus RE, 2026-06-22)
+ * ## Body bit layout (Stage oracle alignment, 2026-06-22, 20 fixtures)
  *
  * The 185-byte body uses a TLV-style section layout: every data cluster is
  * preceded by a constant separator whose last byte is a section-type tag
- * (0x05 = 1-byte payload, 0x0d = 9-byte, 0x14 = 14-byte, 0x15 = 16-byte).
- * Data clusters appear in symmetric Layer A / Layer B pairs at consistent
- * body offsets.
+ * (0x05 = 1-byte payload, 0x0d = 9-byte, 0x14 = 14-byte, 0x15 = 16-byte). The
+ * two 9-byte 0x0d clusters — body[22..30] (Layer A) and body[36..44] (Layer B) —
+ * are the per-layer piano sections. Each is a 72-bit packed record (MSB-first):
  *
- * ## Candidate fields (corpus RE)
+ * | Bit (rel. cluster) | Field            | Enc.   | Stage oracle param         |
+ * |--------------------|------------------|--------|----------------------------|
+ * | 0                  | pianoOn          | 1b     | 230-3 layer on/off (p)     |
+ * | 1-7                | volume           | 7b     | 230-7 volume (p)           |
+ * | 8-11               | kbZones          | 4b     | 243-1 KB zones (p)         |
+ * | 12-15              | octaveShift      | 4b     | 243-5 octave shift (p)     |
+ * | 16                 | pstick           | 1b     | 244-1 pstick on/off (p)    |
+ * | 17                 | susPedal         | 1b     | 244-2 susped on/off (p)    |
+ * | 18-20              | pianoType        | 3b     | 244-3 piano type (p)       |
+ * | 21-25              | pianoModelSlot   | 5b     | 244-6 piano model slot (p) |
+ * | 26-27              | pianoVariation   | 2b     | 245-3 model variation (p)  |
+ * | 28-59              | pianoModelID     | 32b    | 245-5 model ID/name (p)    |
+ * | 60                 | softRelease      | 1b     | 249-5 soft rel on/off (p)  |
+ * | 61                 | stringRes        | 1b     | 249-6 string res on/off (p)|
+ * | 62                 | pedalNoise       | 1b     | 249-7 pedal noise (p)      |
+ * | 63-64              | touch            | 2b     | 249-8 touch (p)            |
+ * | 65-66              | unisonLevel      | 2b     | 250-2 unison level (p)     |
+ * | 67-68              | dynComp          | 2b     | 250-4 dyn comp (p)         |
+ * | 69-71              | timbre           | 3b     | 250-7 timbre (p)           |
  *
- * | Body offset | Field                  | Confidence  |
- * |-------------|------------------------|-------------|
- * | 8 bit7      | layerB_activeFlag      | candidate   |
- * | 16 bits[7:5]| globalParam1           | candidate   |
- * | 94 bits[7:5]| globalParam2           | candidate   |
- * | 101         | layerA.pianoModel      | candidate   |
- * | 122         | layerB.pianoModel      | candidate   |
- *
- * Source: 20-file corpus statistical analysis (2026-06-22).
+ * Layer A cluster starts at body bit 176 (= body byte 22); Layer B at body bit
+ * 288 (= body byte 36). pianoOn/volume/kbZones/octaveShift/pianoType/pianoModelID
+ * are CONFIRMED (12 fields); the rest are CANDIDATE (mirror placement + tight
+ * value sets, no independent semantic check). Source: 20-file corpus aligned to
+ * the Stage group-p oracle (2026-06-22).
  */
 
 /**
- * Parameters decoded from the Layer A or Layer B effects cluster (D1/D2,
- * body[100-113] / body[121-134]).
+ * Piano type enum (Stage oracle: 244-3 piano type, group p).
+ * 0 Grand, 1 Upright, 2 Electric, 3 Clav, 4 Digital, 5 Misc.
  */
-export interface Ng2LayerEffects {
+export type Ng2PianoType =
+  | 'Grand'
+  | 'Upright'
+  | 'Electric'
+  | 'Clav'
+  | 'Digital'
+  | 'Misc'
+  | 'Unknown';
+
+/**
+ * One decoded piano layer (Layer A = body[22..30], Layer B = body[36..44]).
+ *
+ * The 12 CONFIRMED fields (`pianoOn`, `volume`, `kbZones`, `octaveShift`,
+ * `pianoType`, `pianoModelId`) are cross-validated against the Stage group-p
+ * oracle and the corpus evidence. The remaining fields are CANDIDATE: their
+ * positions mirror Layer A/B and their value ranges fit, but they lack an
+ * independent semantic check.
+ */
+export interface Ng2PianoLayer {
   /**
-   * Piano model/voice bank index (uint8, values 1–18 in corpus).
-   * body[101] for Layer A (D1[1]), body[122] for Layer B (D2[1]).
-   * Candidate: small-integer distribution matches Nord Grand 2 piano voice count.
+   * Layer on/off flag (cluster bit 0).
+   * Stage oracle: 230-3 layer on/off (group p). CONFIRMED.
+   * On-layers carry real volume; off-layers read volume 0 + default model bytes.
    */
-  pianoModel: number;
-  /** Raw cluster bytes for RE tooling (14 bytes). */
+  pianoOn: boolean;
+  /**
+   * Layer volume, 0-127 (cluster bits 1-7).
+   * Stage oracle: 230-7 volume (group p). CONFIRMED.
+   */
+  volume: number;
+  /**
+   * Keyboard-zone selector, 4-bit enum (cluster bits 8-11).
+   * Stage oracle: 243-1 KB zones (group p). CONFIRMED (values {0,8,15}).
+   */
+  kbZones: number;
+  /**
+   * Octave shift, 4-bit signed-offset, center ~4 (cluster bits 12-15).
+   * Stage oracle: 243-5 octave shift (group p). CONFIRMED placement
+   * ({4,5,12,13}); exact center-offset convention unverified.
+   */
+  octaveShift: number;
+  /**
+   * Pedal-noise "pstick" stick flag (cluster bit 16).
+   * Stage oracle: 244-1 pstick on/off (group p). CANDIDATE.
+   */
+  pstick: boolean;
+  /**
+   * Sustain-pedal flag (cluster bit 17).
+   * Stage oracle: 244-2 susped on/off (group p). CANDIDATE.
+   */
+  susPedal: boolean;
+  /**
+   * Piano type, decoded enum (cluster bits 18-20).
+   * Stage oracle: 244-3 piano type (group p). CONFIRMED.
+   */
+  pianoType: Ng2PianoType;
+  /** Raw 3-bit piano type value backing {@link pianoType}. */
+  pianoTypeRaw: number;
+  /**
+   * Piano-model slot, 5-bit 0-31 (cluster bits 21-25).
+   * Stage oracle: 244-6 piano model slot (group p). CANDIDATE
+   * (co-varies with {@link pianoModelId}).
+   */
+  pianoModelSlot: number;
+  /**
+   * Piano-model variation, 2-bit 0-3 (cluster bits 26-27).
+   * Stage oracle: 245-3 piano model variation (group p). CANDIDATE.
+   */
+  pianoVariation: number;
+  /**
+   * Piano model identifier, 32-bit (cluster bits 28-59).
+   * Stage oracle: 245-5 piano model ID/name (group p). CONFIRMED:
+   * same-instrument patches share the exact 32-bit ID (e.g. Clavish-A &
+   * Untitled-A both 0x830146c3); default Grand = 0x40a12a7b on off-layers.
+   */
+  pianoModelId: number;
+  /** Big-endian 4-byte view of {@link pianoModelId} (references a factory sample). */
+  pianoModelIdBytes: Uint8Array;
+  /**
+   * Soft-release flag (cluster bit 60).
+   * Stage oracle: 249-5 soft rel on/off (group p). CANDIDATE.
+   */
+  softRelease: boolean;
+  /**
+   * String-resonance flag (cluster bit 61).
+   * Stage oracle: 249-6 string res on/off (group p). CANDIDATE.
+   */
+  stringRes: boolean;
+  /**
+   * Pedal-noise flag (cluster bit 62).
+   * Stage oracle: 249-7 pedal noise on/off (group p). CANDIDATE.
+   */
+  pedalNoise: boolean;
+  /**
+   * Touch / velocity-curve, 2-bit 0-3 (cluster bits 63-64).
+   * Stage oracle: 249-8 touch (group p). CANDIDATE.
+   */
+  touch: number;
+  /**
+   * Unison level, 2-bit 0-3 (cluster bits 65-66).
+   * Stage oracle: 250-2 unison level (group p). CANDIDATE.
+   */
+  unisonLevel: number;
+  /**
+   * Dynamic compression, 2-bit 0-3 (cluster bits 67-68).
+   * Stage oracle: 250-4 dyn comp (group p). CANDIDATE.
+   */
+  dynComp: number;
+  /**
+   * Timbre, 3-bit enum (cluster bits 69-71, consumes the cluster's final bits).
+   * Stage oracle: 250-7 timbre (group p). CANDIDATE.
+   */
+  timbre: number;
+  /** Raw 9-byte cluster bytes for RE tooling. */
   _raw: Uint8Array;
 }
 
@@ -52,38 +173,34 @@ export interface Ng2Program {
   /** Program version string derived from CBIN versionRaw, e.g. "1.02". */
   readonly version: string;
 
+  // ── Decoded piano layers (Stage group-p oracle alignment) ────────────────
+
+  /** Layer A piano section — body[22..30] (0x0d cluster). */
+  readonly layerA: Ng2PianoLayer;
+  /** Layer B piano section — body[36..44] (0x0d cluster). */
+  readonly layerB: Ng2PianoLayer;
+
   // ── Candidate global fields ──────────────────────────────────────────────
 
   /**
    * Layer B active / alternate mode flag (body[8] bit7).
    * True in exactly 4 corpus programs (Duet, Stacked, Subway, Tspoon).
-   * Candidate: may indicate an enhanced Layer B mode (sustain/octave-split),
-   * rather than enabling Layer B altogether (Layer B data is present in many
-   * programs where this is false).
+   * Candidate: may indicate an enhanced Layer B mode (sustain/octave-split)
+   * rather than enabling Layer B altogether.
    */
   readonly layerBActiveFlag: boolean;
 
   /**
    * Global parameter 1 — top 3 bits of body[16] (values 0–7).
-   * body[16] has lower 5 bits always 0; only bits[7:5] carry data.
-   * Candidate interpretation: master transpose semitones or program-level flag.
-   * Needs differential RE to pin semantics.
+   * Lower 5 bits always 0 in corpus. Candidate, semantics unverified.
    */
   readonly globalParam1: number;
 
   /**
    * Global parameter 2 — top 3 bits of body[94] (values 0–7).
-   * Same bit packing as globalParam1. Differs from globalParam1 in 14/20 corpus
-   * programs, indicating it tracks a separate parameter (possibly octave shift).
+   * Same bit packing as globalParam1; differs from it in 14/20 corpus programs.
    */
   readonly globalParam2: number;
-
-  // ── Candidate layer fields ───────────────────────────────────────────────
-
-  /** Layer A effects section — contains pianoModel and raw cluster bytes. */
-  readonly layerA: Ng2LayerEffects;
-  /** Layer B effects section — contains pianoModel and raw cluster bytes. */
-  readonly layerB: Ng2LayerEffects;
 
   // ── Raw clusters (named by role, not yet fully decoded) ──────────────────
 
@@ -93,33 +210,33 @@ export interface Ng2Program {
    */
   readonly _globalHeaderCluster: Uint8Array;
   /**
-   * body[22-30] — 9 bytes. Layer A primary parameters (ClusterB1).
-   * Default pattern: 00 84 00 24 0a 12 a7 b4 00 across 9 corpus programs.
-   */
-  readonly _layerAPrimaryCluster: Uint8Array;
-  /**
-   * body[36-44] — 9 bytes. Layer B primary parameters (ClusterB2).
-   * Mirror of B1 for Layer B; 5 corpus programs match B1's default pattern.
-   */
-  readonly _layerBPrimaryCluster: Uint8Array;
-  /**
    * body[50-65] — 16 bytes. Layer A extended parameters (ClusterC1).
    * Default prefix 40 80 08 10; last byte is a per-program sub-identifier.
    */
   readonly _layerAExtendedCluster: Uint8Array;
   /**
    * body[72-87] — 16 bytes. Layer B extended parameters (ClusterC2).
-   * Mirror of C1 for Layer B; last byte (body[87]) = per-program sub-identifier.
+   * Mirror of C1 for Layer B.
    */
   readonly _layerBExtendedCluster: Uint8Array;
   /**
+   * body[100-113] — 14 bytes. Layer A effects/audio section (ClusterD1).
+   * Not yet aligned to the Stage oracle; passed through raw.
+   */
+  readonly _layerAEffectsCluster: Uint8Array;
+  /**
+   * body[121-134] — 14 bytes. Layer B effects/audio section (ClusterD2).
+   * Mirror of D1; passed through raw.
+   */
+  readonly _layerBEffectsCluster: Uint8Array;
+  /**
    * body[142-157] — 16 bytes. Layer A final section (ClusterE1).
-   * Same sub-structure as C1; last byte (body[157]) = program sub-identifier.
+   * Same sub-structure as C1; last byte = program sub-identifier.
    */
   readonly _layerAFinalCluster: Uint8Array;
   /**
    * body[164-179] — 16 bytes. Layer B final section (ClusterE2).
-   * Mirror of E1; last byte (body[179]) matches body[157] in 12/20 programs.
+   * Mirror of E1.
    */
   readonly _layerBFinalCluster: Uint8Array;
 

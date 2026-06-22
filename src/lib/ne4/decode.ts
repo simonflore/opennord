@@ -3,27 +3,44 @@
  *
  * Body offset: 0x2c (44). Body length: 92 bytes (136 - 44).
  *
- * ## Confirmed fields (corpus RE, 2026-06-22, 16 fixtures)
+ * ## Confirmed fields (corpus RE + Stage-oracle alignment, 2026-06-22, 16 fixtures)
  *
- * | Body offset | Field                        | Source                  |
- * |-------------|------------------------------|-------------------------|
- * | 16-20       | Upper organ drawbars (9 nibs)| 16-file corpus diff     |
+ * | Body offset | Field                            | Stage oracle                | Source              |
+ * |-------------|----------------------------------|-----------------------------|---------------------|
+ * | 4-8         | Organ drawbars — default slot 1  | 117-1..136-1 (group o)      | 16-file corpus diff |
+ * | 16-20       | Organ drawbars — active/edited   | 117-1..136-1 (group o)      | 16-file corpus diff |
+ * | 25-29       | Organ drawbars — default slot 2  | 117-1..136-1 (group o)      | 16-file corpus diff |
+ *
+ * The NE4 stores multiple organ drawbar slots (Electro's two organ presets plus
+ * the live/edited registration). body[4-8] and body[25-29] are byte-identical
+ * factory-default blocks (8,8,0,0,0,0,0,8,8) constant across all 16 files;
+ * body[16-20] tracks patch identity and is the block the user edits.
+ *
+ * ## Candidate fields (Stage-oracle position match, bit map unverified)
+ *
+ * | Body offset | Field                       | Stage oracle                          |
+ * |-------------|-----------------------------|---------------------------------------|
+ * | 0           | section enable / mode flags | 084-5/6/7 section on/off (group m)     |
+ * | 20lo,21     | vib/chorus + percussion     | 141-1..141-5 (group o)                 |
+ * | 37-41       | sample reference ID [~40b]  | piano model ID [32b] (group p)         |
+ * | 43-44       | sample voice params         | piano touch/timbre/level (group p)     |
  *
  * ## Sparse structure — 33/92 bytes vary
  *
- * | Region     | body offset | status              |
- * |------------|-------------|---------------------|
- * | _byte0     | 0           | candidate (type/mode)|
- * | clusterA   | 16-21       | confirmed (drawbars) + 3 candidate nibs |
- * | _organSection | 37-45    | candidate (sample/synth params) |
- * | zero pad   | 46-50       | constant            |
- * | _sampleSection | 51-63   | candidate (sample ID, zone params) |
- * | zero pad   | 64-67       | constant            |
- * | _tail0     | 68          | candidate (level/mode, bit-3 flag in lo nib) |
- * | zero pad   | 69-78       | constant            |
- * | _tail1     | 79          | candidate (same nibble pattern, hi=0-13) |
- * | zero pad   | 80-89       | constant            |
- * | _tail23    | 90-91       | unknown (program-specific, not checksum) |
+ * | Region          | body offset | status              |
+ * |-----------------|-------------|---------------------|
+ * | sectionFlags    | 0           | candidate (master section enable) |
+ * | drawbars def1   | 4-8         | confirmed           |
+ * | drawbars active | 16-20       | confirmed           |
+ * | vib/perc        | 20lo-21     | candidate           |
+ * | drawbars def2   | 25-29       | confirmed           |
+ * | sample.refId    | 37-41       | candidate (sample ID) |
+ * | sample.voice    | 43-44       | candidate (voice params) |
+ * | _organSection   | 37-45       | raw superset of refId |
+ * | _sampleSection  | 51-63       | candidate (zone params) |
+ * | _tail0          | 68          | candidate           |
+ * | _tail1          | 79          | candidate           |
+ * | _tail23         | 90-91       | unknown (program-specific) |
  *
  * ## Drawbar encoding (identical to NE6)
  *
@@ -37,7 +54,7 @@
  * All files are version raw=103 → '1.03'.
  */
 
-import type { Ne4Drawbars, Ne4Organ, Ne4Program } from './types';
+import type { Ne4Drawbars, Ne4Organ, Ne4Program, Ne4Sample } from './types';
 
 const BODY_OFFSET = 0x2c;
 
@@ -46,7 +63,8 @@ const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
 /**
  * Decode 9 nibble-packed drawbar values from 5 body bytes at `bodyOffset`.
  * Each nibble is 4 bits (value 0-8); the 10th nibble is an unidentified field.
- * Same encoding as NE6 readDrawbars (body[143-147] in NE6, body[16-20] in NE4).
+ * Same encoding as NE6 readDrawbars (body[143-147] in NE6).
+ * Stage oracle: 117-1..136-1 drawbar 1..9 (group o).
  */
 function readDrawbars(body: Uint8Array, bodyOffset: number): Ne4Drawbars {
   const bars: number[] = [];
@@ -63,29 +81,50 @@ function readDrawbars(body: Uint8Array, bodyOffset: number): Ne4Drawbars {
 }
 
 /**
- * Decode the NE4 organ section from body[16-21].
+ * Decode the NE4 organ section.
  *
- * ClusterA layout (6 bytes = 12 nibbles):
- *   nibs[0-8]  → upper drawbars 1-9 (body[16-20], high-nibble-first) [confirmed]
- *   nib[9]     → body[20]lo = extra1 (organ section level candidate: 0/10/11)
- *   nib[10]    → body[21]hi = extra2 (rotary/vibrato candidate: 0/3/9/11/13)
- *   nib[11]    → body[21]lo = extra3 (section flags candidate: 4 or 6 only)
+ * Three drawbar slots (Stage oracle 117-1..136-1, group o):
+ *   active         → body[16-20] (confirmed, patch-tracking, user-edited)
+ *   presetDefault1 → body[4-8]   (confirmed, factory-default twin)
+ *   presetDefault2 → body[25-29] (confirmed, factory-default twin)
+ *
+ * Vib/perc flags candidate (Stage oracle 141-1..141-5, group o): the 3 sub-byte
+ * nibbles immediately after the active drawbar block, exposed raw.
  */
 function readOrgan(body: Uint8Array): Ne4Organ {
-  // Confirmed by 16-fixture corpus diff (2026-06-22).
-  // All 16 corpus files satisfy 0-8 nibble range for drawbars at body[16-20].
-  // Example: 'Infectd Sq1' = 888000000, 'Freddie Smith' = 888800000.
-  const upper = readDrawbars(body, 16);
+  // All 3 slots satisfy the 0-8 nibble range across the 16-fixture corpus.
+  const active = readDrawbars(body, 16);          // body[16-20] — edited registration
+  const presetDefault1 = readDrawbars(body, 4);   // body[4-8]   — factory default 1
+  const presetDefault2 = readDrawbars(body, 25);  // body[25-29] — factory default 2
 
-  // 3 candidate nibbles immediately following the 9th drawbar nibble
-  const extra1 = u8(body, 20) & 0xf;         // body[20]lo
+  // Vib/chorus + percussion flags candidate — body[20]lo + body[21].
+  // Stage oracle: 141-1..141-5 (group o). Exposed as raw nibbles (bit map unverified).
+  const flag0 = u8(body, 20) & 0xf;        // body[20]lo
   const byte21 = u8(body, 21);
-  const extra2 = (byte21 >>> 4) & 0xf;        // body[21]hi
-  const extra3 = byte21 & 0xf;                // body[21]lo
+  const flag1 = (byte21 >>> 4) & 0xf;      // body[21]hi
+  const flag2 = byte21 & 0xf;              // body[21]lo
+  const vibPercFlags: [number, number, number] = [flag0, flag1, flag2];
 
   return {
-    upper,
-    _extraNibs: [extra1, extra2, extra3],
+    active,
+    presetDefault1,
+    presetDefault2,
+    _vibPercFlags: vibPercFlags,
+    // Backward-compat aliases
+    upper: active,
+    _extraNibs: vibPercFlags,
+  };
+}
+
+/**
+ * Decode the NE4 Piano/Sample section reference + voice params.
+ * Stage oracle: piano model ID [32b] (group p) for refId; piano touch/timbre/
+ * level family (group p) for voiceParams. Both candidate (exact split unverified).
+ */
+function readSample(body: Uint8Array): Ne4Sample {
+  return {
+    refId: body.slice(37, 42),       // body[37-41] — ~40-bit factory sample-set ID
+    voiceParams: body.slice(43, 45), // body[43-44] — per-sound level/timbre/zone
   };
 }
 
@@ -102,6 +141,11 @@ export function decodeNe4(bytes: Uint8Array): Ne4Program {
   const version = (versionRaw / 100).toFixed(2);
 
   const organ = readOrgan(body);
+  const sample = readSample(body);
+
+  // Section enable / program-mode flags — body[0].
+  // Stage oracle: 084-5/6/7 section on/off (group m). Candidate.
+  const sectionFlags = u8(body, 0);
 
   // Sparse tail bytes collected individually
   const _tail0 = u8(body, 68);
@@ -124,14 +168,16 @@ export function decodeNe4(bytes: Uint8Array): Ne4Program {
   return {
     parsed: true,
     version,
-    _byte0: u8(body, 0),
+    sectionFlags,
     organ,
+    sample,
     _organSection: body.slice(37, 46),
     _sampleSection: body.slice(51, 64),
     _tail0,
     _tail1,
     _tail23,
     // Backward-compat aliases
+    _byte0: sectionFlags,
     _clusterA,
     _clusterB,
     _clusterC,

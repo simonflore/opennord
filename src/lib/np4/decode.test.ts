@@ -26,9 +26,9 @@ describe('decodeNp4', () => {
 
   it('exposes correctly-sized raw sections', () => {
     const prog = decodeNp4(load(fixtures()[0]));
-    expect(prog._soundSection).toHaveLength(9);    // body[17-25]
-    expect(prog._pianoParams).toHaveLength(13);    // body[35-47]
-    expect(prog._effectsSection).toHaveLength(14); // body[59-72]
+    expect(prog._soundSection).toHaveLength(9);  // body[17-25]
+    expect(prog._pianoParams).toHaveLength(13);  // body[35-47]
+    expect(prog._fxSection).toHaveLength(14);    // body[59-72]
   });
 
   // ── Confirmed fields ───────────────────────────────────────────────────────
@@ -60,19 +60,29 @@ describe('decodeNp4', () => {
     }
   });
 
-  it('George Model E and Tea Phaser share the same sound model ID', () => {
+  it('George Model E and Tea Phaser share the same model ID (same model, different program)', () => {
     const george = decodeNp4(load('George Model E.np4p'));
     const tea = decodeNp4(load('Tea Phaser.np4p'));
-    expect(Array.from(george.pianoSoundModelId)).toEqual(Array.from(tea.pianoSoundModelId));
-    expect(Array.from(george.pianoSoundModelId)).toEqual([0x44, 0x19, 0x33, 0x46, 0x12]);
+    expect(Array.from(george.pianoModelId)).toEqual(Array.from(tea.pianoModelId));
+    expect(Array.from(george.pianoModelId)).toEqual([0x44, 0x19, 0x33, 0x46, 0x12]);
   });
 
-  it('all programs have piano category prefix 0x4 in sound model ID high nibble', () => {
+  it('all programs have piano category prefix 0x4 in model ID high nibble', () => {
     for (const name of fixtures()) {
       const prog = decodeNp4(load(name));
-      const highNibble = (prog.pianoSoundModelId[0] ?? 0) >>> 4;
-      expect(highNibble, `${name}: upper nibble of pianoSoundModelId[0] should be 0x4`).toBe(0x4);
+      const highNibble = (prog.pianoModelId[0] ?? 0) >>> 4;
+      expect(highNibble, `${name}: upper nibble of pianoModelId[0] should be 0x4`).toBe(0x4);
     }
+  });
+
+  it('model-family selector (body[19] low nibble) matches corpus evidence', () => {
+    // Stage oracle alignment: 4=Wurl, 4=Wurl(EP), 7=FunkySuitcase, 5=Suitcase2, 3=Grand2, 0=Grand1
+    expect(decodeNp4(load('George Model E.np4p')).pianoModelFamily).toBe(0x4);
+    expect(decodeNp4(load('Tea Phaser.np4p')).pianoModelFamily).toBe(0x4);
+    expect(decodeNp4(load('Funky Suitcase.np4p')).pianoModelFamily).toBe(0x7);
+    expect(decodeNp4(load('Jazz Suitcase 2.np4p')).pianoModelFamily).toBe(0x5);
+    expect(decodeNp4(load('Nord Corea.np4p')).pianoModelFamily).toBe(0x3);
+    expect(decodeNp4(load('Utility Stage.np4p')).pianoModelFamily).toBe(0x0);
   });
 
   // ── Candidate fields ────────────────────────────────────────────────────────
@@ -109,20 +119,20 @@ describe('decodeNp4', () => {
     expect(decodeNp4(load('Utility Stage.np4p')).velocityCurve).toBe('Soft');
   });
 
-  it('effectsWord is 0x0202 (off) for George, NCorea, Tea', () => {
-    expect(decodeNp4(load('George Model E.np4p')).effectsWord).toBe(0x0202);
-    expect(decodeNp4(load('Nord Corea.np4p')).effectsWord).toBe(0x0202);
-    expect(decodeNp4(load('Tea Phaser.np4p')).effectsWord).toBe(0x0202);
+  // fxModWord: per-program FX-mod region head word. NOTE 0x0202 is NOT an "off"
+  // sentinel — Tea Phaser is an active phaser yet also reads 0x0202. We only pin
+  // the raw decoded values from the corpus, not an on/off interpretation.
+  it('fxModWord matches the per-program corpus values', () => {
+    expect(decodeNp4(load('George Model E.np4p')).fxModWord).toBe(0x0202);
+    expect(decodeNp4(load('Nord Corea.np4p')).fxModWord).toBe(0x0202);
+    expect(decodeNp4(load('Tea Phaser.np4p')).fxModWord).toBe(0x0202);
+    expect(decodeNp4(load('Funky Suitcase.np4p')).fxModWord).toBe(0x90f0);
+    expect(decodeNp4(load('Jazz Suitcase 2.np4p')).fxModWord).toBe(0x8d7a);
+    expect(decodeNp4(load('Utility Stage.np4p')).fxModWord).toBe(0x94c8);
   });
 
-  it('effectsWord is non-0x0202 (active) for Funky, Jazz, Utility', () => {
-    expect(decodeNp4(load('Funky Suitcase.np4p')).effectsWord).toBe(0x90f0);
-    expect(decodeNp4(load('Jazz Suitcase 2.np4p')).effectsWord).toBe(0x8d7a);
-    expect(decodeNp4(load('Utility Stage.np4p')).effectsWord).toBe(0x94c8);
-  });
-
-  it('Tea Phaser has non-zero effect params (phaser active)', () => {
+  it('Tea Phaser has distinctly non-zero fxModParams (active phaser)', () => {
     const prog = decodeNp4(load('Tea Phaser.np4p'));
-    expect(Array.from(prog.effectParams)).toEqual([0x3f, 0x8d, 0x70, 0xf2]);
+    expect(Array.from(prog.fxModParams)).toEqual([0x3f, 0x8d, 0x70, 0xf2]);
   });
 });

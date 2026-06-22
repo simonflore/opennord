@@ -1,18 +1,25 @@
 /**
  * Nord Piano 5 (`.np5p`) program model.
  *
+ * Field names map to Stage oracle params (group p = piano section) by cross-model
+ * alignment; CLAUDE.md requires every decoded field be traceable to its source.
+ *
  * Confirmed fields (corpus RE, 2026-06-22, 25 fixtures × 237-byte bodies):
  *   - CBIN header: slot @0x0e, category @0x10, version @0x14 (1.01)
- *   - format_tag: body[3-4] = 0x65 0x0c (LE16 = 0x0c65), constant NP5 body sub-format ID
- *   - layer_b_active: body[7] bit 3 (mask 0x08): 1 = layer B active
+ *   - formatTag: body[3-4] = 0x65 0x0c (LE16 = 0x0c65), constant NP5 body sub-format ID
+ *   - layerBActive: body[7] bit 3 (mask 0x08) — Stage 230-3 layer on/off (group p)
+ *   - soundSlotLayer{A,B}.pianoModelId: body[61-64]/[93-96] — Stage 245-5 (group p)
  *
  * Candidate fields (strong corpus evidence, not yet confirmed by differential RE):
  *   - body[5-6] — likely 16-bit program/sound reference ID
  *   - Cluster B (body[18-32]) — primary program parameters (volume, transpose, arp, FX routing)
- *   - Cluster C (body[58-66]) — layer A sound slot (9 bytes, type-marker 0x1f at body[57])
- *   - Cluster D (body[90-98]) — layer B sound slot (same 9-byte layout as C)
- *   - Cluster E (body[122-135]) — layer A FX/EQ (14 bytes, type-marker 0x39 at body[121])
- *   - Cluster F (body[180-193]) — layer B FX/EQ (14 bytes, type-marker 0x39 at body[179])
+ *   - soundSlotLayer{A,B}.volume: body[58]/[90] — Stage 230-7 (group p)
+ *   - soundSlotLayer{A,B}.pianoType: body[60]/[92] — Stage 244-3 (group p)
+ *   - fxSlotLayer{A,B}.transpose: body[134]/[192] — Stage 243-5 (group p, tentative)
+ *
+ * Slot framing: layer A sound 0x1f @body[57] (payload body[58-66]); layer B sound
+ * 0x1f @body[89]; layer A FX 0x39 @body[121] (payload body[122-135]); layer B FX
+ * 0x39 @body[179].
  *
  * Body structure: record-oriented — each sound/FX record is preceded by a
  * type-marker byte and padded to 32 bytes (sound) or 58 bytes (FX) with zeros.
@@ -28,9 +35,45 @@
  * The default/inactive pattern is: bf 80 00 12 05 09 53 e0 00.
  * Bytes [3-6] = 12 05 09 53 recur in ~52% of patches and may represent
  * the standard grand-piano sample bank reference.
+ *
+ * Named fields below are cross-model-mapped against the Stage oracle (group p,
+ * the piano section). Confirmed = `pianoModelId`; candidate = `volume`/`pianoType`.
  */
 export interface Np5SoundSlot {
-  /** Raw 9-byte sound-slot payload — pending differential RE for field layout. */
+  /**
+   * Section volume — Stage oracle param 230-7 "volume" (group p). [candidate]
+   * Slot payload byte 0 (body[58] layer A / body[90] layer B):
+   * low 7 bits = level 0-127; high bit (0x80) = active/morph flag.
+   * Default 0xbf (low7 = 63, the common Nord unity level) dominates the corpus.
+   */
+  readonly volume: number;
+
+  /**
+   * Active/morph flag carried in the high bit (0x80) of the volume byte.
+   * Surfaced alongside `volume` since the two share a byte. [candidate]
+   */
+  readonly volumeActive: boolean;
+
+  /**
+   * Piano type — Stage oracle param 244-3 "piano type" (group p). [candidate]
+   * 3-bit enum 0-7: 0=Grand 1=Upright 2=Electric 3=Clav 4=Digital 5=Misc
+   * (per values.generated 244-3, shared with ns3 PIANO_TYPE). Read byte-aligned
+   * from body[60]/[92] low 3 bits; the exact bit boundary is shifted by the
+   * preceding sub-byte slot/variation field, so the label is approximate.
+   */
+  readonly pianoType: number;
+
+  /**
+   * Piano/EP model ID — Stage oracle param 245-5 "piano model ID/name"
+   * (group p; cf. Piano 4 body[19-23]). [confirmed]
+   * 32-bit high-entropy model identifier exposed as its 4 raw bytes
+   * (body[61-64] layer A / body[93-96] layer B). Same instrument -> same ID
+   * (e.g. EP_Flu and Wurlitzer both 1f af 44 88; default grand 12 05 09 53).
+   * Bit-aligned (~body bit 489-492); byte-aligned read is a close approximation.
+   */
+  readonly pianoModelId: Uint8Array;
+
+  /** Raw 9-byte sound-slot payload — kept for fields not yet pinned. */
   readonly _raw: Uint8Array;
 }
 
@@ -38,12 +81,21 @@ export interface Np5SoundSlot {
  * Layer A or B FX/EQ slot — the 14-byte record at body[122-135] (layer A)
  * or body[180-193] (layer B), preceded by type-marker 0x39.
  *
- * Byte[12] (body[134] / body[192]) takes values 0x20/0x28/0x30 — likely
- * a per-layer transpose or octave offset (bits 3-4, with bit 5 always set).
  * Byte[13] (body[135] / body[193]) takes 0x00 or 0x80 — purpose unknown.
  */
 export interface Np5FxSlot {
-  /** Raw 14-byte FX/EQ payload — pending differential RE for field layout. */
+  /**
+   * Octave/transpose offset — Stage oracle param 243-5 "octave shift"
+   * (group p) [tentative / candidate].
+   * FX-slot byte 12 (body[134] layer A / body[192] layer B) takes only
+   * 0x20/0x28/0x30 across the corpus with bit 5 (0x20) pinned; bits 3-4
+   * encode the offset 0/1/2. Mapping to "octave shift" is tentative — the
+   * value set is too narrow to confirm a centered octave field, and the byte
+   * lives in the FX record so it may be an FX-local offset.
+   */
+  readonly transpose: number;
+
+  /** Raw 14-byte FX/EQ payload — kept for fields not yet pinned. */
   readonly _raw: Uint8Array;
 }
 

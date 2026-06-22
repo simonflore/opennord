@@ -3,27 +3,30 @@
  *
  * Body offset: 0x2c (44). Body length: 237 bytes (281 - 44).
  *
+ * Field names map to Stage oracle params (group p = the piano section) by
+ * cross-model alignment; CLAUDE.md requires every decoded field be traceable.
+ *
  * ## Confirmed fields (corpus RE, 2026-06-22, 25 fixtures)
  *
- * | Body offset | Field                  | Encoding                             |
- * |-------------|------------------------|--------------------------------------|
- * | 3-4         | format_tag             | constant 0x65 0x0c (LE16 = 0x0c65)  |
- * | 7           | layer_b_active         | bit 3 (mask 0x08); bit 5 always set  |
+ * | Body offset | Field                  | Stage oracle | Encoding                          |
+ * |-------------|------------------------|--------------|-----------------------------------|
+ * | 3-4         | formatTag              | n/a          | constant 0x65 0x0c (LE16 0x0c65)  |
+ * | 7           | layerBActive           | 230-3        | bit 3 (mask 0x08); bit 5 always set |
+ * | 61-64       | soundA pianoModelId    | 245-5        | 32-bit model ID (4 raw bytes)     |
+ * | 93-96       | soundB pianoModelId    | 245-5        | 32-bit model ID (4 raw bytes)     |
  *
- * ## Candidate clusters (strong corpus evidence, pending differential RE)
+ * ## Candidate fields (strong corpus evidence, pending differential RE)
  *
- * | Body offset | Cluster                | Notes                                |
- * |-------------|------------------------|--------------------------------------|
- * | 5-7         | _programHeader         | sound-ref bytes + layer-B flag byte  |
- * | 18-32       | _primaryParams         | 15-byte primary params block         |
- * | 57          | record_marker 0x1f     | constant type-marker (layer A sound) |
- * | 58-66       | soundSlotLayerA._raw   | 9-byte layer A sound slot            |
- * | 89          | record_marker 0x1f     | constant type-marker (layer B sound) |
- * | 90-98       | soundSlotLayerB._raw   | 9-byte layer B sound slot            |
- * | 121         | record_marker 0x39     | constant type-marker (layer A FX)    |
- * | 122-135     | fxSlotLayerA._raw      | 14-byte layer A FX/EQ slot           |
- * | 179         | record_marker 0x39     | constant type-marker (layer B FX)    |
- * | 180-193     | fxSlotLayerB._raw      | 14-byte layer B FX/EQ slot           |
+ * | Body offset | Field                  | Stage oracle | Notes                             |
+ * |-------------|------------------------|--------------|-----------------------------------|
+ * | 58 / 90     | soundX volume          | 230-7        | low7 = level 0-127; bit7 = active |
+ * | 60 / 92     | soundX pianoType       | 244-3        | 3-bit enum (byte-aligned approx)  |
+ * | 134 / 192   | fxX transpose          | 243-5†       | bits 3-4 (0x20/0x28/0x30)         |
+ * | 5-7         | _programHeader         | —            | sound-ref bytes + layer-B flag    |
+ * | 18-32       | _primaryParams         | —            | 15-byte primary params block      |
+ *
+ * † octave-shift mapping is tentative. Record markers: 0x1f at body[57]/[89]
+ * (sound slots), 0x39 at body[121]/[179] (FX/EQ slots).
  *
  * ## Body structure
  *
@@ -49,16 +52,45 @@ function readFormatTag(body: Uint8Array): number {
   return u8(body, 3) | (u8(body, 4) << 8);
 }
 
-/** Extract and validate the sound-slot record at `bodyOffset` (9 payload bytes). */
+/**
+ * Extract the sound-slot record at `markerOffset` (the 0x1f type-marker byte;
+ * the 9-byte payload follows). Surfaces the cross-model-mapped fields:
+ *   - volume      payload[0] (body[58]/[90]) — Stage 230-7 (group p) [candidate]
+ *   - pianoType   payload[2] (body[60]/[92]) — Stage 244-3 (group p) [candidate]
+ *   - pianoModelId payload[3-6] (body[61-64]/[93-96]) — Stage 245-5 (group p) [confirmed]
+ */
 function readSoundSlot(body: Uint8Array, markerOffset: number): Np5SoundSlot {
-  // markerOffset holds the 0x1f type-marker; payload is the 9 bytes that follow.
-  return { _raw: body.slice(markerOffset + 1, markerOffset + 10) };
+  const payloadStart = markerOffset + 1;
+  const _raw = body.slice(payloadStart, payloadStart + 9);
+
+  // Stage 230-7 "volume" (group p): low 7 bits = level 0-127, bit 7 = active flag.
+  const volByte = u8(body, payloadStart + 0);
+  const volume = volByte & 0x7f;
+  const volumeActive = (volByte & 0x80) !== 0;
+
+  // Stage 244-3 "piano type" (group p): 3-bit enum, byte-aligned approximation.
+  const pianoType = u8(body, payloadStart + 2) & 0x07;
+
+  // Stage 245-5 "piano model ID/name" (group p): 32-bit model ID, 4 raw bytes.
+  const pianoModelId = body.slice(payloadStart + 3, payloadStart + 7);
+
+  return { volume, volumeActive, pianoType, pianoModelId, _raw };
 }
 
-/** Extract and validate the FX/EQ slot record at `bodyOffset` (14 payload bytes). */
+/**
+ * Extract the FX/EQ slot record at `markerOffset` (the 0x39 type-marker byte;
+ * the 14-byte payload follows). Surfaces the cross-model-mapped field:
+ *   - transpose  payload[12] (body[134]/[192]) — Stage 243-5 (group p) [candidate, tentative]
+ */
 function readFxSlot(body: Uint8Array, markerOffset: number): Np5FxSlot {
-  // markerOffset holds the 0x39 type-marker; payload is the 14 bytes that follow.
-  return { _raw: body.slice(markerOffset + 1, markerOffset + 15) };
+  const payloadStart = markerOffset + 1;
+  const _raw = body.slice(payloadStart, payloadStart + 14);
+
+  // Stage 243-5 "octave shift" (group p) [tentative]: bits 3-4 (0x20/0x28/0x30),
+  // bit 5 always set. Decode to the 0/1/2 offset carried in bits 3-4.
+  const transpose = (u8(body, payloadStart + 12) >>> 3) & 0x03;
+
+  return { transpose, _raw };
 }
 
 /** Decode a Nord Piano 5 program body (full file bytes including CBIN header). */

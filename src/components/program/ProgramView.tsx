@@ -32,10 +32,16 @@ export function ProgramView({ program }: { program: NordProgram }) {
 
   // NE6 and future non-NS4 models: minimal placeholder until their rich view lands.
   if (!isNs4Program(program)) {
-    const upper = 'organ' in program ? program.organ.upper.bars.join(' ') : '?';
-    const lower = 'organ' in program && 'lower' in program.organ
-      ? (program.organ as { lower: { bars: readonly number[] } }).lower.bars.join(' ')
-      : '?';
+    // Organ shapes differ by model: NE4/NE6 expose `upper`/`lower`; NE5 exposes
+    // `preset1Upper`/`preset1Lower` (its primary organ slot). Read whichever exists.
+    const organBars = (key: 'upper' | 'lower'): string => {
+      if (!('organ' in program)) return '?';
+      const organ = program.organ as unknown as Record<string, { bars: readonly number[] } | undefined>;
+      const set = organ[key] ?? organ[key === 'upper' ? 'preset1Upper' : 'preset1Lower'];
+      return set ? set.bars.join(' ') : '?';
+    };
+    const upper = organBars('upper');
+    const lower = organBars('lower');
     return (
       <div className="ps">
         <p style={{ color: 'var(--ink-dim)' }}>Nord Electro 6 · v{program.version}</p>

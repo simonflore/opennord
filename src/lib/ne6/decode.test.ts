@@ -74,11 +74,60 @@ describe('decodeNe6', () => {
     });
   });
 
-  it('exposes raw body clusters for RE tooling', () => {
+  describe('section/layer enable (candidate, Stage m:084-5/6 / m:095-3)', () => {
+    // byte5 bit0 reads 0 exactly for the two organ-drawbar-edited presets.
+    it('organEnableBit is 0 for the organ-edited presets', () => {
+      expect(decodeNe6(load('BUNDLE__Drunken_Brass.ne6p')).sectionEnable.organEnableBit).toBe(0);
+      expect(decodeNe6(load('BUNDLE__Duvet_Pad.ne6p')).sectionEnable.organEnableBit).toBe(0);
+    });
+
+    it('organEnableBit is 1 for non-organ-edited presets', () => {
+      expect(decodeNe6(load('BUNDLE__Brass_Boy.ne6p')).sectionEnable.organEnableBit).toBe(1);
+      expect(decodeNe6(load('BUNDLE__Logan_Synth.ne6p')).sectionEnable.organEnableBit).toBe(1);
+    });
+
+    it('pianoEnableBit (byte6 0x80) is set for all but Duvet_Pad', () => {
+      // 82/c2/82 → bit set; 42 → bit clear
+      expect(decodeNe6(load('BUNDLE__Brass_Boy.ne6p')).sectionEnable.pianoEnableBit).toBe(1);
+      expect(decodeNe6(load('BUNDLE__Drunken_Brass.ne6p')).sectionEnable.pianoEnableBit).toBe(1);
+      expect(decodeNe6(load('BUNDLE__Duvet_Pad.ne6p')).sectionEnable.pianoEnableBit).toBe(0);
+    });
+  });
+
+  describe('sample section (candidate, Stage p:244-3/6 / p:245-3/5)', () => {
+    it('exposes the 4-byte model ID, unique per preset', () => {
+      const tiffany = decodeNe6(load('BUNDLE__Tiffany-Bell.ne6p'));
+      // body 40-43 = 49 2f d7 3b
+      expect(Array.from(tiffany.sample.modelId)).toEqual([0x49, 0x2f, 0xd7, 0x3b]);
+
+      const drunken = decodeNe6(load('BUNDLE__Drunken_Brass.ne6p'));
+      // body 40-43 = 75 1f ef 06
+      expect(Array.from(drunken.sample.modelId)).toEqual([0x75, 0x1f, 0xef, 0x06]);
+    });
+
+    it('exposes the type/slot/variation header bytes', () => {
+      const brass = decodeNe6(load('BUNDLE__Brass_Boy.ne6p'));
+      // body 38-39 = df c2 (most common)
+      expect(Array.from(brass.sample._header)).toEqual([0xdf, 0xc2]);
+      // Logan's variant byte 39 = fe
+      const logan = decodeNe6(load('BUNDLE__Logan_Synth.ne6p'));
+      expect(Array.from(logan.sample._header)).toEqual([0xdf, 0xfe]);
+    });
+  });
+
+  it('organ lead-in varies only for organ-edited presets (candidate)', () => {
+    // Stage o:113-1 KB zones / 113-5 octave / 114-1 susped / 114-2 model / 114-5 preset
+    const brass = decodeNe6(load('BUNDLE__Drunken_Brass.ne6p'));
+    expect(Array.from(brass.organ._leadIn ?? [])).toEqual([0x8e, 0x00]);
+    const duvet = decodeNe6(load('BUNDLE__Duvet_Pad.ne6p'));
+    expect(Array.from(duvet.organ._leadIn ?? [])).toEqual([0xeb, 0x00]);
+  });
+
+  it('exposes raw body clusters + full body for RE tooling', () => {
     const prog = decodeNe6(load('BUNDLE__Brass_Boy.ne6p'));
-    expect(prog._clusterA).toHaveLength(4);
+    expect(prog.sectionEnable._raw).toHaveLength(2);
+    expect(prog.sample._raw).toHaveLength(13);
     expect(prog._clusterB).toHaveLength(9);
-    expect(prog._clusterC).toHaveLength(13);
     expect(prog._clusterD).toHaveLength(14);
     expect(prog._rawBody.length).toBeGreaterThan(0);
   });

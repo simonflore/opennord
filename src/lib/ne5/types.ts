@@ -1,21 +1,27 @@
 /**
  * Nord Electro 5 (`.ne5p`) program model.
  *
- * Confirmed fields (corpus RE, 2026-06-22, 13 fixtures × 147 bytes):
+ * Confirmed fields (cross-model Stage-oracle alignment + corpus RE, 2026-06-22,
+ * 13 fixtures × 147 bytes):
  *   - CBIN header: slot @0x0e, category @0x10, versionRaw @0x14 (=4 → 0.04, all files)
  *   - Body 103 bytes; 62/103 bytes vary, many nibble-range blocks
- *   - upperDrawbarsB (body[39-43]): confirmed by all-nibble-range detection + corpus variation
- *   - lowerDrawbarsB (body[45-49]): confirmed by all-nibble-range detection + corpus variation
- *   - pedalDrawbarsB (body[55-59]): candidate, consistent 0-8 nibble range across all fixtures
- *   - upperDrawbarsA (body[21-25]): candidate — VCS3 organ shows custom values; may be alternate layer
- *   - lowerDrawbarsA (body[28-32]): candidate — mirrors upperDrawbarsA structure
+ *   - organ preset 1 upper (body[21-25]) — primary organ slot
+ *   - organ preset 1 lower (body[28-32])
+ *   - organ preset 2 upper (body[39-43]) — second organ preset
+ *   - organ preset 2 lower (body[45-49])
+ *   - sampleSectionActive (body[17] bit7) — piano/sample section on/off
+ *   - sampleModelId (body[7-12]) — factory sample/model reference id
+ *
+ * Each confirmed field carries a comment citing the Stage oracle parameter it
+ * was aligned against (traceability, per CLAUDE.md).
  *
  * Constant: body[1-5]=0, body[14-16]=0, body[18]=0, body[20]=0, body[27]=0,
  *           body[34]=0, body[36-38]=0, body[44]=0, body[50]=0, body[52-54]=0,
  *           body[60]=0, body[62-70]=0, body[75]=0x08, body[76]=0, body[78-80]=0,
  *           body[81]=0x08, body[82]=0, body[98-100]=0.
  *
- * Source: 13-file corpus statistical analysis (2026-06-22).
+ * Source: 13-file corpus statistical analysis + Stage organ/piano oracle
+ * alignment (2026-06-22).
  */
 
 /** One set of 9 Hammond drawbar positions (16' … 1'). Each is 0-8. */
@@ -27,41 +33,49 @@ export interface Ne5Drawbars {
 }
 
 /**
- * Organ section. The B-slot drawbars (body[39-43] upper, body[45-49] lower) are
- * confirmed by corpus RE. Pedal drawbars are a strong candidate. The A-slot
- * drawbars (body[21-25] upper, body[28-32] lower) are candidates — they show
- * valid nibble range and custom values on real organ presets, but their role
- * (alternate layer vs. section copy) is unresolved without differential RE.
+ * Organ section. Two organ presets, each with an upper and lower manual.
+ *
+ * Cross-model alignment maps these to the Stage organ drawbar group (group `o`,
+ * drawbar ids 117-1..136-1), nibble-relocated as in NS3 (drawbars@preset1 0xBE,
+ * preset2 0xD9). Preset 1 (body[21]) is the primary/active organ slot; preset 2
+ * (body[39]) is the second organ preset. The pedal manual (body[55]) is a
+ * candidate — order/range fit but only a single fixture deviates.
  */
 export interface Ne5Organ {
   /**
-   * Upper manual drawbars — primary slot (body[39-43]).
-   * CONFIRMED by corpus: 11/13 files share default [8,8,8,8,0,0,0,0,0]; VCS3 Organ
-   * and Walk of Life Nord Samples carry program-specific values.
+   * Organ preset 1, upper manual (body[21-25]).
+   * CONFIRMED — Stage oracle: organ drawbar 1..9 (group o, ids 117-1..136-1).
+   * Primary/active organ slot. VCS3 Organ carries custom voicing
+   * [6,1,8,8,4,8,4,6,6] here while preset-2 (b39) is all-zero.
+   * All 13 fixtures decode to valid 0-8 nibbles.
    */
-  upper: Ne5Drawbars;
+  preset1Upper: Ne5Drawbars;
   /**
-   * Lower manual drawbars — primary slot (body[45-49]).
-   * CONFIRMED by corpus: mirrors upper; Walk of Life = classic B3 lower voicing.
+   * Organ preset 1, lower manual (body[28-32]).
+   * CONFIRMED — Stage oracle: organ drawbar 1..9 (group o, second manual).
+   * Mirrors preset-1 upper 7 bytes later. Walk of Life lower = [8,8,8,4,1,1,0,0,0].
    */
-  lower: Ne5Drawbars;
+  preset1Lower: Ne5Drawbars;
   /**
-   * Pedal drawbars (body[55-59]).
-   * CANDIDATE: default = [8,0,0,0,0,0,0,0,0] (16' only); Walk of Life = all-8.
-   * All fixtures decode to valid 0-8 nibble range.
+   * Organ preset 2, upper manual (body[39-43]).
+   * CONFIRMED — Stage oracle: organ drawbar 1..9 (group o), second organ preset
+   * (analogous to NS3 preset2@0xD9). Default [8,8,8,8,0,0,0,0,0] on 12/13 files;
+   * only Walk of Life (which uses organ preset 2) carries [8,8,8,8,0,3,0,0,2].
+   */
+  preset2Upper: Ne5Drawbars;
+  /**
+   * Organ preset 2, lower manual (body[45-49]).
+   * CONFIRMED — Stage oracle: organ drawbar 1..9 (group o), second preset lower.
+   * Default [8,8,8,8,0,0,0,0,0] on 12/13; Walk of Life = [8,8,7,5,8,3,1,3,0].
+   */
+  preset2Lower: Ne5Drawbars;
+  /**
+   * Pedal / bass manual drawbars (body[55-59]).
+   * CANDIDATE — Stage oracle: organ drawbar 1..9 (group o), pedal/bass manual.
+   * Default [8,0,0,0,0,0,0,0,0] (16' only) on 12/13; Walk of Life = all-8.
+   * All fixtures decode to valid 0-8 nibble range; single-deviating-file evidence.
    */
   pedal: Ne5Drawbars;
-  /**
-   * Upper manual drawbars — secondary slot (body[21-25]).
-   * CANDIDATE: VCS3 Organ = [6,1,8,8,4,8,4,6,6] custom; most sample presets =
-   * [8,8,8,0,0,0,0,0,0] or [8,0,0,0,0,0,0,0,0]. Role unclear vs. upper.
-   */
-  upperAlt: Ne5Drawbars;
-  /**
-   * Lower manual drawbars — secondary slot (body[28-32]).
-   * CANDIDATE: mirrors upperAlt structure. Walk of Life = [8,8,8,8,0,6,6,7,7].
-   */
-  lowerAlt: Ne5Drawbars;
 }
 
 /**
@@ -75,10 +89,41 @@ export interface Ne5Program {
   /** Program version string derived from CBIN versionRaw, e.g. "0.04". */
   readonly version: string;
   /**
-   * Organ section with drawbar data.
-   * B-slot (upper/lower) confirmed; pedal + A-slot (upperAlt/lowerAlt) are candidates.
+   * Organ section with drawbar data (two presets + pedal).
+   * Preset 1/2 upper+lower confirmed; pedal is a candidate.
    */
   readonly organ: Ne5Organ;
+  /**
+   * Piano / sample section active flag — body[17] bit 7 (0x80).
+   * CONFIRMED — Stage oracle: piano section on/off (group m, id 084-6) /
+   * layer on/off (group p, id 230-3). Set on all 11 sample/piano presets;
+   * CLEAR on exactly the 2 organ-only presets (VCS3 Organ, Walk of Life).
+   * Lower bits of body[17] do not cluster cleanly, so only bit7 is claimed.
+   */
+  readonly sampleSectionActive: boolean;
+  /**
+   * Factory sample / model reference id — body[7-12] (6 bytes).
+   * CONFIRMED — Stage oracle: piano model ID/name (group p, id 245-5, 32b).
+   * High-entropy id (10-11 unique values per byte) that identifies the factory
+   * sample. Semantic differential passes: "Naked Piano Sample" and
+   * "Nord Stage Electro Lead Samples (1)" share an identical id (80 07 90 15 19
+   * 24) because they reference the same factory sample.
+   * Trailing byte body[13] bit7 is a separate flag (see `sampleModelFlag`).
+   */
+  readonly sampleModelId: Uint8Array;
+  /**
+   * Sample-model trailing flag — body[13] bit 7 (0x80).
+   * CONFIRMED (companion to sampleModelId) — set on CP80/DX7 Kurz/DX7 PH/WarmPad;
+   * a separate flag adjacent to the model id, NOT part of the id bytes.
+   */
+  readonly sampleModelFlag: boolean;
+  /**
+   * Raw byte at body[17].
+   * CONFIRMED bit: bit7 (0x80) = `sampleSectionActive`. The lower bits carry
+   * additional section sub-fields that do not yet cluster to a clean enum;
+   * exposed raw for ongoing RE.
+   */
+  readonly sectionFlags17: number;
   /**
    * Program type / mode flags: body[0].
    * CANDIDATE: 9 unique values (0x00, 0x14, 0x2c, 0x74, 0xa8, 0xc0, 0xc8, 0xec, 0xfc).
@@ -89,56 +134,45 @@ export interface Ne5Program {
   /**
    * Section enable nibble: body[6].
    * CANDIDATE: 4 unique values (0x00, 0x01, 0x27, 0x40).
-   * 0x01 = most sample presets; 0x40 = Kawai SK7 / Naked Piano / Nord Stage Lead (1);
-   * 0x27 = Walk of Life; 0x00 = DX7 Kurz.
    */
   readonly sectionEnableNibble: number;
-  /**
-   * Section flags byte: body[17].
-   * CANDIDATE: 6 unique values (0x00, 0x04, 0xac, 0xb0, 0xb8, 0xbc).
-   * Bits 7,5,4 (0x90 base) commonly set; correlates with drawbar patterns.
-   */
-  readonly sectionFlags17: number;
   /**
    * Flag nibble: body[19].
    * CANDIDATE: 0x40 = Nord Stage Lead (2) (most-varied drawbars), 0x00 = all others.
    */
   readonly flagByte19: number;
   /**
-   * Single-bit flag: body[13].
-   * CANDIDATE: 0x80 = CP80/DX7 Kurz/DX7 PH/WarmPad; 0x00 = others.
+   * Sample-section descriptor record: body[83-94] (12 bytes).
+   * CANDIDATE — Stage oracle: piano model slot/variation region (group p,
+   * ids 244-6 / 245-3) — sample bank reference. 6/13 files share the b83-87
+   * prefix 02 00 10 06 04 (a sample-bank-type descriptor); bytes 88-94 are a
+   * per-sample hash. Field boundaries / slot-variation split unverified.
    */
-  readonly flagByte13: number;
+  readonly sampleDescriptor: Uint8Array;
   /**
-   * Sample reference / hash block: body[7-12] (6 bytes).
-   * UNKNOWN: full 0x00-0xFF range, 10-11 unique values per byte.
-   * Likely sample bank reference or program fingerprint. Decode requires catalog cross-ref.
+   * Trailing checksum: body[101-102] (2 bytes).
+   * CANDIDATE — Stage oracle: checksum (group m, id 025-1). Position (final 2
+   * body bytes) and full-range behavior are consistent with the CRC-16 used
+   * elsewhere in the Nord container family; algorithm unverified.
+   */
+  readonly _checksum: Uint8Array;
+  /**
+   * Sample reference / hash block: body[7-12] (6 bytes) — alias kept raw.
+   * Equals `sampleModelId`; retained for RE tooling that addressed it by range.
    */
   readonly _sampleRefHash: Uint8Array;
   /**
    * Pre-drawbar cluster: body[17-33] (17 bytes, sparse).
-   * Renamed from _clusterB — wraps sectionFlags17, nibble fields at [26]/[33],
-   * and flagByte19. Still mostly unidentified; kept raw for RE.
-   * @deprecated Split into named fields once differential RE confirms layout.
+   * Wraps sectionFlags17, nibble fields at [26]/[33], flagByte19, and the
+   * preset-1 drawbars. Kept raw for RE.
    */
   readonly _organSection: Uint8Array;
   /**
    * Extra nibble group: body[71-74] (4 bytes).
    * CANDIDATE: default [8,0,0,0,0,0,0,0] (7 nibbles), Walk of Life [4,0,1,6,4,8,1,0].
-   * May be a 4th drawbar set (e.g., second upper layer) or FX nibble region.
+   * May be a 4th drawbar set or FX nibble region.
    */
   readonly _extraNibbleGroup: Uint8Array;
-  /**
-   * Sample reference block: body[83-97] (15 bytes).
-   * UNKNOWN: 6 files share pattern 02 00 10 06 04 at [83-87]; likely a structured
-   * sample-bank reference record. Full decode requires Nord sample catalog index.
-   */
-  readonly _clusterC: Uint8Array;
-  /**
-   * Trailing checksum: body[101-102] (2 bytes).
-   * CANDIDATE: all 13 files differ; consistent with CRC-16 (algorithm unverified).
-   */
-  readonly _checksum: Uint8Array;
   /** Full raw body for RE tooling. */
   readonly _rawBody: Uint8Array;
   /** RE notes and decode anomalies. */
