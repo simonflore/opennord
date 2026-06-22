@@ -42,9 +42,10 @@ describe('DeviceSampleBrowser', () => {
   it('shows real free space when block size is known', () => {
     const html = renderToStaticMarkup(
       <DeviceSampleBrowser deviceName="Nord" entries={[]}
-        // The live NS4 capture: 15711 free × 64 KiB ≈ 982 MB; 16104 free × 128 KiB ≈ 1.97 GiB.
-        sampleCapacity={cap(7, 15711, 65536)} pianoCapacity={cap(48, 16104, 131072)} onSelect={() => {}} />);
-    expect(html).toContain('981.9 MB free');
-    expect(html).toContain('2.0 GB free');
+        // The live NS4 capture (factory content present → nearly full):
+        // Sample free 7 × 64 KiB = 448 KB; Piano free 48 × 128 KiB = 6 MB. cap(used, free, block).
+        sampleCapacity={cap(15711, 7, 65536)} pianoCapacity={cap(16104, 48, 131072)} onSelect={() => {}} />);
+    expect(html).toContain('448.0 KB free');
+    expect(html).toContain('6.0 MB free');
   });
 });

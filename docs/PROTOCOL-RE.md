@@ -200,23 +200,30 @@ captured replies match the model.
 
 - `CQryPartState{partition}` `0x08` → `CRpyPartState` `0x09`
   (`CRpyPartState::Read` NSM arm64 `@0x10008ca0c`): `u32 status` then **5 payload
-  u32** `[fileCount, used, free, reserved, E]`. (Earlier "6 u32" note was
-  off-by-one: the first u32 is the status, not a data field.) `OnReply`
-  (`@0x10007bbc8`) caches the 5 into `CFileTransfer + idx*0xb70 + 0xc90…0xca0`,
-  thence into a `CPartInfo` and `CPartition::GetInfo()` (`+0xb5c`=used,
-  `+0xb60`=free/headroom, `+0xb64`=reserved). **All counts are erase blocks**,
+  u32** `[fileCount, free, used, reserved, E]` — **free comes before used**.
+  (Earlier "6 u32" note was off-by-one: the first u32 is the status, not a data
+  field.) `OnReply` (`@0x10007bbc8`) caches the 5 into
+  `CFileTransfer + idx*0xb70 + 0xc90…0xca0`. **All counts are erase blocks**,
   except `fileCount`. Live capture (Program partition, `08:6`):
-  `status=0, fileCount=356, used=3552, free=4632, reserved=0, E=4` — the
+  `status=0, fileCount=356, free=3552, used=4632, reserved=0, E=4` — the
   **356 exactly matches** the 356 enumerated Program files (above), nailing word 1
   as the file count. `word5/E` (4 for Program, 8 for Piano/Sample) is unresolved —
   plausibly a block-size class; not needed for the fit check.
+  - **free/used order corrected by a reality check.** An earlier reading had
+    word2=used / word3=free, which made a Piano *full* of factory banks display as
+    "2 GB free." Re-checked against the documented factory sizes: word3×blockSize
+    matches what's loaded, so **word2 = free, word3 = used**. Captured (factory
+    content present): Piano `free=48, used=16104, rsv=0`; SampLib
+    `free=7, used=15711, rsv=658` →
+    Piano used `16104 × 128 KiB ≈ 2.0 GB` (full; factory 1.6 GB + user),
+    SampLib used `15711 × 64 KiB ≈ 982 MB` (≈945 MB factory), reserved
+    `658 × 64 KiB ≈ 42 MB`; totals land on ~2 GiB / 1 GiB (2¹⁴ blocks).
+    **Caveat: this swap was reasoned from documented capacities, NOT re-confirmed
+    live** (device disconnected) — re-read once + ideally a write/erase
+    differential to lock it.
   - **Native vs user partitions share one physical region.** `08:0` (Piano-Native)
     returned byte-identical to `08:1` (Piano-user), and `08:4`==`08:5`
-    (SampLib-Native/user). `used`/`free` report the **user-writable** portion;
-    factory content is not counted in `used`. So `free` is directly "space
-    available to the player" (matches NSM's "clearing Sample Library won't free
-    Piano"). Captured: Piano `used=48, free=16104, rsv=0`; SampLib
-    `used=7, free=15711, rsv=658`.
+    (SampLib-Native/user).
 - `CQryBankList{partition}` `0x02` → `CRpyBankList` `0x03`
   (`CRpyBankList::Read` `@0x10008c414`): `u32 status`, `u32 partitionIndex`,
   `u8 bankCount`, then `bankCount` records at **stride 0x84**, each
@@ -262,8 +269,9 @@ erase blocks, not bytes; the block size isn't transmitted. It's recovered from t
 **documented partition capacities** — official NS4 specs: **2 GB Piano / 1 GB
 Sample Library** — over the measured block totals, which land on clean powers of
 two: a `≈16384`-block (2¹⁴) partition ⇒ **128 KiB/block (Piano)** and **64 KiB/block
-(Sample)**. Live cross-check (this device, factory content absent): Sample
-`free 15711 × 64 KiB ≈ 982 MB`, Piano `free 16104 × 128 KiB ≈ 1.97 GB`; totals
+(Sample)**. Live cross-check (this device, factory content **present**): Sample
+`used 15711 × 64 KiB ≈ 982 MB` (≈945 MB factory), `free 7 × 64 KiB = 448 KB`;
+Piano `used 16104 × 128 KiB ≈ 2.0 GB` (full), `free 48 × 128 KiB = 6 MB`; totals
 (`used+free+reserved`) ≈ 1 GiB / 2 GiB (the few missing blocks = system reserve).
 Documented stock free space (≈33 MB sample, ≈11 MB piano with factory banks of
 945 MB / 1.6 GB loaded) is consistent. So free MB = `freeBlocks × blockSize`, with

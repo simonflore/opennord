@@ -68,15 +68,20 @@ function u32(payload: Uint8Array, byteOffset: number): number {
 
 /**
  * Decode a `CRpyPartState` (0x09) reply payload: `u32 status` then 5 payload u32s
- * `[fileCount, used, free, reserved, E]` (E is an unresolved block-size class; unused).
+ * `[fileCount, free, used, reserved, E]` (E is an unresolved block-size class; unused).
  * `payload` is the reply body (status word included at offset 0).
+ *
+ * Field order is empirically pinned (see docs/PROTOCOL-RE.md): on a Stage 4 with
+ * factory Piano banks loaded, word3 (`used`) × block size matched the documented
+ * factory size and word2 (`free`) was tiny — the partition was *full*, not empty.
+ * (An earlier reading had free/used swapped; it wrongly showed a full Piano as 2 GB free.)
  */
 export function decodePartState(payload: Uint8Array): PartitionState {
   if (payload.length < 20) throw new NordError(`CRpyPartState payload too short (${payload.length} bytes)`);
   return {
     fileCount: u32(payload, 4),
-    usedBlocks: u32(payload, 8),
-    freeBlocks: u32(payload, 12),
+    freeBlocks: u32(payload, 8),
+    usedBlocks: u32(payload, 12),
     reservedBlocks: u32(payload, 16),
   };
 }

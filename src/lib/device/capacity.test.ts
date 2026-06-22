@@ -49,8 +49,9 @@ describe('decodePartState (real NS4 capture)', () => {
     const state = decodePartState(reply.payload);
     // 356 == the enumerated Program corpus (docs/PROTOCOL-RE.md), the ground-truth anchor.
     expect(state.fileCount).toBe(356);
-    expect(state.usedBlocks).toBe(3552);
-    expect(state.freeBlocks).toBe(4632);
+    // Word order is [fileCount, free, used, reserved, E] — free before used.
+    expect(state.freeBlocks).toBe(3552);
+    expect(state.usedBlocks).toBe(4632);
     expect(state.reservedBlocks).toBe(0);
   });
 
@@ -84,7 +85,8 @@ describe('readPartitionCapacity', () => {
     expect(cap.fileCount).toBe(356);
     expect(cap.totalSlots).toBe(512);
     expect(cap.freeSlots).toBe(156);
-    expect(cap.freeBlocks).toBe(4632);
+    expect(cap.freeBlocks).toBe(3552);
+    expect(cap.usedBlocks).toBe(4632);
   });
 });
 
