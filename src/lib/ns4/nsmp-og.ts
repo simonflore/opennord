@@ -14,7 +14,7 @@
  * | 0x04 | u8  | 0            |
  * | 0x05 | u8  | keyByte (root/top) |
  * | 0x06 | u16 | pitch base = round(2^(cents/1200)·`PITCH_BASE`) (0x88ba @ cents 0) |
- * | 0x08 | u8  | 0x02         |
+ * | 0x08 | u8  | channelCount (`GetChannelCnt`; 0x02 in every real — all-stereo — stroke) |
  * | 0x09 | u24 | normGain     |
  * | 0x0c | u8  | exponent byte |
  * | 0x0d | u24 | peak (14-bit) |
@@ -62,6 +62,14 @@ export interface OgStrokeHeaderFields {
   cents?: number;
   /** Pitch base before detune (default {@link PITCH_BASE}). */
   pitchBase?: number;
+  /**
+   * Channel count (header +0x08 = `GetChannelCnt`; 1 = mono, 2 = stereo). The
+   * decoder reads this byte as its channel hint, so it must match the audio (a
+   * mono stroke written as `0x02` decodes back as stereo). Every real OG stroke is
+   * stereo (`0x02`); default 2 keeps those byte-identical. Traceable to the shared
+   * codec-3/4 stroke-header layout, where +0x08 is the channel count.
+   */
+  channelCount?: number;
   /** Gain mantissa (header +0x09, u24). */
   normGain: number;
   /** Exponent byte (header +0x0c). */
@@ -113,7 +121,7 @@ export function writeOgStrokeHeader(f: OgStrokeHeaderFields): Uint8Array {
   b[0x04] = 0;
   b[0x05] = f.keyByte & 0xff;
   putU16(b, 0x06, pitch & 0xffff);
-  b[0x08] = 0x02;
+  b[0x08] = (f.channelCount ?? 2) & 0xff;
   putU24(b, 0x09, f.normGain & 0xffffff);
   b[0x0c] = f.expByte & 0xff;
   putU24(b, 0x0d, f.peak & 0xffffff);
@@ -275,6 +283,7 @@ export function writeOgStrokePayload(z: OgWriteZone): Uint8Array {
   const header = writeOgStrokeHeader({
     globalID: z.globalID,
     keyByte: z.rootKey,
+    channelCount: z.channels.length,
     normGain: OG_UNITY_NORMGAIN,
     expByte: 0x0a,
     peak: pcmPeak(z.channels),
@@ -327,6 +336,7 @@ export function parseOgStrokeHeader(b: Uint8Array, off = 0): OgStrokeHeaderField
     keyByte: b[off + 0x05],
     pitchBase: (b[off + 0x06] << 8) | b[off + 0x07], // cents assumed 0 (round-trip)
     cents: 0,
+    channelCount: b[off + 0x08],
     normGain: rU24(b, off + 0x09),
     expByte: b[off + 0x0c],
     peak: rU24(b, off + 0x0d),

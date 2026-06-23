@@ -17,6 +17,13 @@ import { writeOgNsmp, type OgWriteZone } from './nsmp-og';
 import { parseWav } from './wav';
 import { resampleNW1 } from './nw1-resample';
 
+/**
+ * Target generation for {@link convertNsmp}: `2` = original `.nsmp` (OG `NWS`
+ * container), `3` = `.nsmp3`, `4` = `.nsmp4`. Any source generation converts to
+ * any of these.
+ */
+export type TargetCodec = 2 | 3 | 4;
+
 export interface ConvertResult {
   bytes: Uint8Array;
   /** Suggested filename extension for the target generation. */
@@ -26,7 +33,7 @@ export interface ConvertResult {
 
 export interface ImportWavOptions {
   /** Target codec: 2 = OG `.nsmp`, 3 = `.nsmp3`, 4 = `.nsmp4` (default 4). */
-  codec?: 2 | 3 | 4;
+  codec?: TargetCodec;
   /** Sample name stored in the file. Default "Imported". */
   name?: string;
   /** Root key the sample is pitched for (default 60 = C4). */
@@ -48,7 +55,7 @@ const EXT: Record<number, string> = { 2: '.nsmp', 3: '.nsmp3', 4: '.nsmp4' };
  * Audio is preserved exactly; zone mapping is carried over when the source map is
  * readable (codec-3 maps today), else each stroke spans the keyboard by default.
  */
-export function convertNsmp(bytes: Uint8Array, targetCodec: 2 | 3 | 4): ConvertResult {
+export function convertNsmp(bytes: Uint8Array, targetCodec: TargetCodec): ConvertResult {
   const file = readNsmp(bytes);
   const warnings: string[] = [...file.warnings];
   if (!file.recognized) {

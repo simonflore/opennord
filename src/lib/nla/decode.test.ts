@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'fs';
+import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { describe, it, expect } from 'vitest';
 import { decodeNla } from './decode';
@@ -7,7 +7,7 @@ const FIXTURE_DIR = join(__dirname, '../../../fixtures/lead-a1');
 const load = (name: string) => new Uint8Array(readFileSync(join(FIXTURE_DIR, name)));
 const fixtures = () => readdirSync(FIXTURE_DIR).filter(f => f.endsWith('.nlas'));
 
-describe('decodeNla', () => {
+describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNla', () => {
   it('decodes every fixture without warnings', () => {
     for (const name of fixtures()) {
       const prog = decodeNla(load(name));

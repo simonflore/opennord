@@ -415,7 +415,7 @@ pad is cosmetic for *reading* but must be reproduced for hardware.
 | 0x04 | u8 | 0 | always 0 |
 | 0x05 | u8 | key/tune byte | per-stroke, decreasing (79,72,67,…); semantics **TBD** (root/topkey-ish) |
 | 0x06 | u16 BE | `0x88ba` | **constant** across both files — pitch/rate base (`exp2(cents/1200)·base`, cents=0) |
-| 0x08 | u8 | `0x02` | constant |
+| 0x08 | u8 | **channelCount** | `0x02` in every real (all-stereo) stroke; same +0x08 position the codec-3/4 decoder reads as the channel count (`GetChannelCnt`). The OG writer now emits the actual count (1 = mono, 2 = stereo) so a converted **mono** sample round-trips as mono — earlier it hardcoded `0x02`, decoding mono → stereo. |
 | 0x09 | u24 BE | **normGain** | `local_74·Level2DSP(level)` >> (39/31/23); varies per stroke |
 | 0x0c | u8 | `0x0a`/`0x0b` | `kPlayerBits + dspNorm − (…)`; ~constant (0x0a, occ. 0x0b) |
 | 0x0d | u24 BE | **peak** | `abs(SSmpAttributes[0x10])` — the stroke's 14-bit peak (norm input) |
@@ -712,6 +712,22 @@ any Nord sample to it (the downconvert the official editor refuses):
 
 Validated (`nsmp-convert-og.test.ts`): `.nsmp4/.nsmp3/.nsmp` → OG is **lossless**
 (audio identical) and structurally valid (parses, zones round-trip).
+
+### Full generation matrix exposed in the UI ✓ (2026-06-23)
+
+`convertNsmp` already wrote all three generations (OG `2`, `.nsmp3` `3`, `.nsmp4`
+`4`), but `SampleConvert` only offered `[3, 4]` — so `.nsmp3`/`.nsmp4` → original
+`.nsmp` (the downconvert the official editor refuses) was unreachable from the
+product. The component now lists **every** generation other than the source
+(`GENERATIONS` table; OG mapped via `sourceGeneration`), so any sample converts to
+any other generation in either direction. A synthetic **every-gen → every-gen**
+matrix test (`nsmp-convert.test.ts`, no gitignored fixtures) guards it.
+
+This surfaced + fixed a **mono→OG channel bug**: the OG stroke-header writer
+hardcoded the `+0x08` channel byte to `0x02`, so a mono sample taken through an OG
+conversion decoded back as stereo. The writer now emits the real channel count
+(`writeOgStrokePayload` passes `z.channels.length`); stereo files stay
+byte-identical (still `0x02`), mono now round-trips as mono.
 
 **Experimental caveat (unchanged):** the stroke-header region pointers (U1–U4) and
 normalize gain are best-effort — there is no editor-made Nord→OG ground truth to

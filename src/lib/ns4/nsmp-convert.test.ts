@@ -57,6 +57,28 @@ describe('convertNsmp — audio preserved across generations (synthetic)', () =>
     expect(Array.from(viaRoundTrip)).toEqual(Array.from(direct4));
   });
 
+  it('converts from every generation to every other generation, audio preserved', () => {
+    // The headline ask: any generation → any other. Build a source in each
+    // generation, then convert it to all three targets and confirm the audio
+    // survives and the output is the requested generation (OG/2, .nsmp3, .nsmp4).
+    const gens = [
+      { code: 2 as const, ext: '.nsmp', isGen: (b: Uint8Array) => readNsmp(b).legacy === true },
+      { code: 3 as const, ext: '.nsmp3', isGen: (b: Uint8Array) => readNsmp(b).codec === 3 },
+      { code: 4 as const, ext: '.nsmp4', isGen: (b: Uint8Array) => readNsmp(b).codec === 4 },
+    ];
+    const expected = decodeNsmp(src3);
+    for (const from of gens) {
+      const source = convertNsmp(src3, from.code).bytes;
+      for (const to of gens) {
+        if (to.code === from.code) continue;
+        const { bytes, extension } = convertNsmp(source, to.code);
+        expect(extension, `${from.ext} → ${to.ext} extension`).toBe(to.ext);
+        expect(to.isGen(bytes), `${from.ext} → ${to.ext} is target generation`).toBe(true);
+        eqAudio(decodeNsmp(bytes), expected);
+      }
+    }
+  });
+
   it('preserves stereo channel count, incl. a near-silent stroke (header channel field)', () => {
     // A near-silent stereo stroke is indistinguishable from mono by audio alone —
     // the stroke-header channel byte is what keeps it stereo through a round-trip.
