@@ -36,6 +36,7 @@ export const NS4_PARAM_COUNT = new Set(NS4_OFFSET_MAP.map((p) => p.id)).size;
 const DECODER_BY_ID: Record<string, 'full' | 'partial'> = {
   'stage-4': 'full',
   'stage-3': 'partial',
+  'stage-2': 'partial', // ns2/decode.ts: engines/levels/drawbars/FX via the ns2 oracle
 };
 
 // ── Stage 4 coverage synthesized from the offset map ─────────────────────────

@@ -39,6 +39,7 @@ export function MatrixView() {
             {ALL_MODELS.map((m) => {
               const isOpen = expanded === m.id;
               const progress = getModelProgress(m.id);
+              const d = decodeForModel(m.id);
               return (
                 <Fragment key={m.id}>
                   <tr
@@ -54,7 +55,6 @@ export function MatrixView() {
                       {m.name}
                     </th>
                     {(() => {
-                      const d = decodeForModel(m.id);
                       const text =
                         d.status === 'full' ? `${d.paramCount} params`
                         : d.status === 'partial' ? 'Partial'
@@ -74,6 +74,8 @@ export function MatrixView() {
                         <div className="cmp__detail">
                           {progress?.regions
                             ? <ByteMapView progress={progress} />
+                            : d.status !== 'none'
+                            ? <p className="cmp__detail-msg">Decoded by the {m.name} reader — open one of its programs from your Library to view it. A byte-coverage map for this format isn’t built yet.</p>
                             : progress?.bodyBytes
                             ? <p className="cmp__detail-msg">Body is {progress.bodyBytes} bytes — body map coming soon. <a href="#/contribute">Help decode it →</a></p>
                             : <p className="cmp__detail-msg">No body data yet for this format. <a href="#/contribute">Be the first to map it →</a></p>
