@@ -10,6 +10,8 @@
  */
 import { NS4_OFFSET_MAP } from '../ns4/offset-map.generated';
 import { MODEL_PROGRESS, type ModelProgress, type BodyRegion } from './coverage-data';
+import { decodeNs3 } from '../ns3/decode';
+import { decodeNs2 } from '../ns2/decode';
 
 export type DecodeStatus = 'full' | 'partial' | 'started' | 'none';
 
@@ -47,14 +49,33 @@ const GROUP_LABEL: Record<string, string> = {
   m: 'Master section', o: 'Organ engine', p: 'Piano engine', y: 'Synth engine',
 };
 
+/**
+ * Run-length encode a covered-byte set into BodyRegions. `labelFor(b)` returns a
+ * group label for a covered byte (regions break where the label changes); covered
+ * runs become 'confirmed', gaps become 'constant'.
+ */
+function coveredToRegions(
+  covered: Set<number>, bodyBytes: number, labelFor: (b: number) => string,
+): BodyRegion[] {
+  const regions: BodyRegion[] = [];
+  let i = 0;
+  while (i < bodyBytes) {
+    const isCovered = covered.has(i);
+    const label = isCovered ? labelFor(i) : '';
+    let j = i + 1;
+    while (j < bodyBytes && covered.has(j) === isCovered && (!isCovered || labelFor(j) === label)) j++;
+    regions.push({ start: i, end: j - 1, label, status: isCovered ? 'confirmed' : 'constant' });
+    i = j;
+  }
+  return regions;
+}
+
 let _ns4Progress: ModelProgress | undefined;
 
 function getNs4Progress(): ModelProgress {
   if (_ns4Progress) return _ns4Progress;
-
   const groupFor: Record<number, string> = {};
   const covered = new Set<number>();
-
   for (const param of NS4_OFFSET_MAP) {
     for (const layer of param.layers) {
       const bs = Math.floor((layer.begBit - NS4_CBIN_BITS) / 8);
@@ -66,32 +87,64 @@ function getNs4Progress(): ModelProgress {
       }
     }
   }
-
-  const regions: BodyRegion[] = [];
-  let i = 0;
-  while (i < NS4_BODY_BYTES) {
-    const isCovered = covered.has(i);
-    const g = groupFor[i];
-    let j = i + 1;
-    while (j < NS4_BODY_BYTES && covered.has(j) === isCovered && (!isCovered || groupFor[j] === g)) j++;
-    regions.push({
-      start: i, end: j - 1,
-      label: isCovered ? (GROUP_LABEL[g] ?? g) : '',
-      status: isCovered ? 'confirmed' : 'constant',
-    });
-    i = j;
-  }
-
+  const regions = coveredToRegions(covered, NS4_BODY_BYTES, (b) => GROUP_LABEL[groupFor[b]] ?? groupFor[b]);
   _ns4Progress = { bodyBytes: NS4_BODY_BYTES, controls: [], regions };
   return _ns4Progress;
 }
 
+// ── Stage 2/3 coverage traced from the reader ────────────────────────────────
+// The ns2/ns3 decoders read the program body directly (no internal slice), so a
+// tracking Proxy records exactly which bytes a decode touches = the bytes the
+// reader decodes. Tracing crafted synthetic inputs (varied fills × panel-flag
+// values) fires every conditional branch, yielding the reader's full read
+// footprint with no fixtures, no duplicated offset table, and no drift.
+const CBIN_HEADER = 44;
+
+function tracedReaderProgress(
+  decode: (b: Uint8Array) => unknown, flagOffsets: number[],
+): ModelProgress {
+  const touched = new Set<number>();
+  const record = (bytes: Uint8Array) => {
+    const proxy = new Proxy(bytes, {
+      get(t, prop, recv) {
+        if (typeof prop === 'string') {
+          const n = Number(prop);
+          if (Number.isInteger(n) && n >= 0) touched.add(n);
+        }
+        return Reflect.get(t, prop, recv);
+      },
+    });
+    try { decode(proxy as Uint8Array); } catch { /* garbage input may throw mid-parse; reads so far still count */ }
+  };
+  // Fire all branches: varied fills, and every panel/slot-flag value at the flag byte(s).
+  for (const fill of [0x00, 0xff, 0xaa, 0x55]) {
+    for (const flag of [0x00, 0x20, 0x40, 0x60, 0x80, 0xc0, 0xe0]) {
+      const b = new Uint8Array(768).fill(fill);
+      b[0x04] = 1; // content-version marker (selects the +0 offset path)
+      for (const fo of flagOffsets) b[fo] = flag;
+      record(b);
+    }
+  }
+  const body = [...touched].filter((o) => o >= CBIN_HEADER).map((o) => o - CBIN_HEADER);
+  if (body.length === 0) return { bodyBytes: null, controls: [], regions: [] };
+  const bodyBytes = Math.max(...body) + 1;
+  const covered = new Set(body);
+  const regions = coveredToRegions(covered, bodyBytes, () => 'Decoded by reader');
+  return { bodyBytes, controls: [], regions };
+}
+
+let _ns3Progress: ModelProgress | undefined;
+let _ns2Progress: ModelProgress | undefined;
+
 /**
  * Returns the decode progress for any model — synthesized from the NS4 offset
- * map for Stage 4, curated from MODEL_PROGRESS for all others.
+ * map (Stage 4), traced from the reader (Stage 2/3), or curated from
+ * MODEL_PROGRESS (every other model).
  */
 export function getModelProgress(modelId: string): ModelProgress | undefined {
   if (modelId === 'stage-4') return getNs4Progress();
+  if (modelId === 'stage-3') return (_ns3Progress ??= tracedReaderProgress(decodeNs3, [0x31, 0x1d]));
+  if (modelId === 'stage-2') return (_ns2Progress ??= tracedReaderProgress(decodeNs2, [0x2e, 0x1a]));
   return MODEL_PROGRESS[modelId];
 }
 
@@ -142,7 +195,7 @@ export function decodeForModel(modelId: string): ModelDecode {
   if (decoder === 'full') {
     return { status: 'full', paramCount: NS4_PARAM_COUNT, bodyBytes: NS4_BODY_BYTES, coveredBytes: 0, candidateBytes: 0, controlCount: NS4_PARAM_COUNT, pct: 100 };
   }
-  const prog = MODEL_PROGRESS[modelId];
+  const prog = getModelProgress(modelId); // includes traced Stage 2/3 regions
   const summary = prog ? summarizeProgress(prog) : { coveredBytes: 0, candidateBytes: 0, controlCount: 0, pct: null };
   if (decoder === 'partial') {
     return { status: 'partial', paramCount: null, bodyBytes: prog?.bodyBytes ?? null, ...summary };

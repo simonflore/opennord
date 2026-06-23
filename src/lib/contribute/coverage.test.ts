@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decodeForModel, summarizeProgress, NS4_PARAM_COUNT, DECODE_LABEL } from './coverage';
+import { decodeForModel, getModelProgress, summarizeProgress, NS4_PARAM_COUNT, DECODE_LABEL } from './coverage';
 import { NS4_OFFSET_MAP } from '../ns4/offset-map.generated';
 
 describe('decodeForModel', () => {
@@ -30,6 +30,17 @@ describe('decodeForModel', () => {
 
   it('has a label for every status', () => {
     expect(DECODE_LABEL.full && DECODE_LABEL.partial && DECODE_LABEL.started && DECODE_LABEL.none).toBeTruthy();
+  });
+
+  it('synthesizes a byte-map for Stage 2/3 by tracing the reader (no fixtures needed)', () => {
+    for (const id of ['stage-2', 'stage-3']) {
+      const p = getModelProgress(id);
+      expect(p, id).toBeTruthy();
+      expect(p!.bodyBytes, id).toBeGreaterThan(0);
+      expect(p!.regions!.length, id).toBeGreaterThan(0);
+      // Some bytes are read by the reader (confirmed) — the map isn't all-constant.
+      expect(p!.regions!.some((r) => r.status === 'confirmed'), id).toBe(true);
+    }
   });
 });
 
