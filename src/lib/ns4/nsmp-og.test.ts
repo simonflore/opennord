@@ -75,6 +75,22 @@ describe.skipIf(!HAS_OG)('assembleOgNsmp — envelope + section framing round-tr
   }
 });
 
+describe('OG stroke header — channel count (header +0x08)', () => {
+  it('writes the actual channel count and reads it back (1 = mono, 2 = stereo)', () => {
+    const base = { globalID: 7, keyByte: 60, normGain: 524288, expByte: 0x0a, peak: 1000, u1: 0, u2: 0, u3: 10, u4: 10, keyHigh: 127 };
+    for (const channelCount of [1, 2]) {
+      const h = writeOgStrokeHeader({ ...base, channelCount });
+      expect(h[0x08]).toBe(channelCount);
+      expect(parseOgStrokeHeader(h).channelCount).toBe(channelCount);
+    }
+  });
+
+  it('defaults to stereo (0x02) when channelCount is omitted — keeps real files byte-exact', () => {
+    const h = writeOgStrokeHeader({ globalID: 1, keyByte: 60, normGain: 524288, expByte: 0x0a, peak: 0, u1: 0, u2: 0, u3: 1, u4: 1, keyHigh: 127 });
+    expect(h[0x08]).toBe(0x02);
+  });
+});
+
 describe.skipIf(!HAS_OG)('OG stroke header — byte-exact re-serialization (17 real strokes)', () => {
   for (const path of ogFiles) {
     const name = path.split('/').pop()!;
