@@ -72,6 +72,17 @@ describe('decodeNe6', () => {
       // 62 54 32 11 0b → nibbles [6,2,5,4,3,2,1,1,0]
       expect(prog.organ.upper.bars).toEqual([6,2,5,4,3,2,1,1,0]);
     });
+
+    it('post-drawbar trailing nibble: 0x3 default, 0xb on fully-edited Duvet_Pad', () => {
+      // The 4 bits after drawbar 9 (Stage vib/chorus + perc flags region). Default
+      // 0x3 for every preset; only Duvet_Pad (the one organ preset with non-default
+      // perc/vib) flips the high bit → 0xb. Validated 16-file corpus.
+      expect(decodeNe6(load('BUNDLE__Brass_Boy.ne6p')).organ.upper._trailing).toBe(0x3);
+      expect(decodeNe6(load('BUNDLE__Brass_Boy.ne6p')).organ.lower._trailing).toBe(0x3);
+      const duvet = decodeNe6(load('BUNDLE__Duvet_Pad.ne6p'));
+      expect(duvet.organ.upper._trailing).toBe(0xb);
+      expect(duvet.organ.lower._trailing).toBe(0xb);
+    });
   });
 
   describe('section/layer enable (candidate, Stage m:084-5/6 / m:095-3)', () => {

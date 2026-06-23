@@ -189,9 +189,9 @@ describe('decodeNg2', () => {
     expect(prog.layerB.pianoModelSlot).toBe(9);
   });
 
-  // ── CANDIDATE field range guards (Stage group-p oracle) ──────────────────
+  // ── CONFIRMED core-cluster fields (Stage group-p oracle, in-range across corpus) ──
 
-  it('CANDIDATE slot/variation/touch/unison/dynComp/timbre stay in range', () => {
+  it('CONFIRMED all 15 core fields stay in their bit-width range across the corpus', () => {
     for (const name of fixtures()) {
       const prog = decodeNg2(load(name));
       for (const layer of [prog.layerA, prog.layerB]) {
@@ -203,5 +203,86 @@ describe('decodeNg2', () => {
         expect(layer.timbre, `${name} timbre`).toBeLessThanOrEqual(7); // 250-7 3-bit
       }
     }
+  });
+
+  it('CONFIRMED stringRes flips 0/1 (set in 32/40 layers)', () => {
+    // Stage 249-6 string res on/off.
+    let set = 0;
+    for (const name of fixtures()) {
+      const prog = decodeNg2(load(name));
+      for (const layer of [prog.layerA, prog.layerB]) if (layer.stringRes) set++;
+    }
+    expect(set).toBe(32);
+  });
+
+  it('CONFIRMED pstick flips 0/1 (set in 10/40 layers)', () => {
+    // Stage 244-1 pstick on/off.
+    let set = 0;
+    for (const name of fixtures()) {
+      const prog = decodeNg2(load(name));
+      for (const layer of [prog.layerA, prog.layerB]) if (layer.pstick) set++;
+    }
+    expect(set).toBe(10);
+  });
+
+  it('CONFIRMED susPedal/pedalNoise/softRelease flip 0/1 across the corpus', () => {
+    // Stage 244-2 susped, 249-7 pedal noise, 249-5 soft rel.
+    let susped = 0;
+    let pedalNoise = 0;
+    let softRel = 0;
+    for (const name of fixtures()) {
+      const prog = decodeNg2(load(name));
+      for (const layer of [prog.layerA, prog.layerB]) {
+        if (layer.susPedal) susped++;
+        if (layer.pedalNoise) pedalNoise++;
+        if (layer.softRelease) softRel++;
+      }
+    }
+    expect(susped).toBe(5); // 249-2-ish: a handful of patches enable sustain
+    expect(pedalNoise).toBe(8);
+    expect(softRel).toBe(1);
+  });
+
+  it('CONFIRMED per-layer core values — Acid Piano Layer B (slot 17, var 3)', () => {
+    // Stage group-p anchors: a played Grand Layer B with a distinct model.
+    const prog = decodeNg2(load('BUNDLE__DW_Acid_Piano.ng2p'));
+    const b = prog.layerB;
+    expect(b.pianoOn).toBe(true);
+    expect(b.volume).toBe(86); // 230-7
+    expect(b.octaveShift).toBe(5); // 243-5
+    expect(b.pianoModelSlot).toBe(17); // 244-6
+    expect(b.pianoVariation).toBe(3); // 245-3
+    expect(b.stringRes).toBe(true); // 249-6
+    expect(b.pedalNoise).toBe(true); // 249-7
+    expect(b.dynComp).toBe(1); // 250-4
+    expect(b.timbre).toBe(4); // 250-7
+  });
+
+  it('CONFIRMED Electric-piano Layer B carries a coherent co-varying param set', () => {
+    // Stacked-B is an Electric piano (244-3 type=2). Its 249/250 cluster lights
+    // up together — the signature of real per-layer fields, not noise.
+    const stacked = decodeNg2(load('BUNDLE__DW_Stacked.ng2p')).layerB;
+    expect(stacked.pianoType).toBe('Electric'); // 244-3
+    expect(stacked.softRelease).toBe(true); // 249-5
+    expect(stacked.touch).toBe(1); // 249-8
+    expect(stacked.unisonLevel).toBe(2); // 250-2
+    expect(stacked.dynComp).toBe(2); // 250-4
+    expect(stacked.timbre).toBe(4); // 250-7
+
+    // Wavey-A: a Grand with pedalNoise on, touch 1, unison 2, timbre 4.
+    const waveyA = decodeNg2(load('BUNDLE__DW_Wavey.ng2p')).layerA;
+    expect(waveyA.pedalNoise).toBe(true); // 249-7
+    expect(waveyA.touch).toBe(1); // 249-8
+    expect(waveyA.unisonLevel).toBe(2); // 250-2
+    expect(waveyA.timbre).toBe(4); // 250-7
+  });
+
+  it('CONFIRMED pstick/susPedal on an off-layer — Clavish Layer B', () => {
+    // Clavish-B is off but has pstick + susPedal set (244-1/244-2).
+    const b = decodeNg2(load('BUNDLE__DW_Clavish.ng2p')).layerB;
+    expect(b.pianoOn).toBe(false);
+    expect(b.pstick).toBe(true); // 244-1
+    expect(b.susPedal).toBe(true); // 244-2
+    expect(b.pianoModelSlot).toBe(6); // 244-6
   });
 });

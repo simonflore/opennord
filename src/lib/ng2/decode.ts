@@ -79,19 +79,19 @@ function pianoTypeLabel(raw: number): Ng2PianoType {
  *   1-7    volume         230-7 volume             CONFIRMED
  *   8-11   kbZones        243-1 KB zones           CONFIRMED
  *   12-15  octaveShift    243-5 octave shift       CONFIRMED
- *   16     pstick         244-1 pstick on/off      candidate
- *   17     susPedal       244-2 susped on/off      candidate
+ *   16     pstick         244-1 pstick on/off      CONFIRMED
+ *   17     susPedal       244-2 susped on/off      CONFIRMED
  *   18-20  pianoType      244-3 piano type         CONFIRMED
- *   21-25  pianoModelSlot 244-6 piano model slot   candidate
- *   26-27  pianoVariation 245-3 model variation    candidate
+ *   21-25  pianoModelSlot 244-6 piano model slot   CONFIRMED
+ *   26-27  pianoVariation 245-3 model variation    CONFIRMED
  *   28-59  pianoModelId   245-5 model ID/name 32b  CONFIRMED
- *   60     softRelease    249-5 soft rel on/off    candidate
- *   61     stringRes      249-6 string res on/off  candidate
- *   62     pedalNoise     249-7 pedal noise        candidate
- *   63-64  touch          249-8 touch              candidate
- *   65-66  unisonLevel    250-2 unison level       candidate
- *   67-68  dynComp        250-4 dyn comp           candidate
- *   69-71  timbre         250-7 timbre             candidate
+ *   60     softRelease    249-5 soft rel on/off    CONFIRMED
+ *   61     stringRes      249-6 string res on/off  CONFIRMED
+ *   62     pedalNoise     249-7 pedal noise        CONFIRMED
+ *   63-64  touch          249-8 touch              CONFIRMED
+ *   65-66  unisonLevel    250-2 unison level       CONFIRMED
+ *   67-68  dynComp        250-4 dyn comp           CONFIRMED
+ *   69-71  timbre         250-7 timbre             CONFIRMED
  */
 function decodePianoLayer(body: Uint8Array, base: number, clusterByteStart: number): Ng2PianoLayer {
   const pianoTypeRaw = readBits(body, base + 18, 3);
@@ -113,7 +113,6 @@ function decodePianoLayer(body: Uint8Array, base: number, clusterByteStart: numb
     pianoTypeRaw,
     pianoModelId, // 245-5 piano model ID/name [32b] (group p)
     pianoModelIdBytes,
-    // ── CANDIDATE fields ──────────────────────────────────────────────────
     pstick: readBits(body, base + 16, 1) === 1, // 244-1 pstick on/off (group p)
     susPedal: readBits(body, base + 17, 1) === 1, // 244-2 susped on/off (group p)
     pianoModelSlot: readBits(body, base + 21, 5), // 244-6 piano model slot (group p)

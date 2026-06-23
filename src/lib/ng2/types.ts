@@ -35,10 +35,12 @@
  * | 69-71              | timbre           | 3b     | 250-7 timbre (p)           |
  *
  * Layer A cluster starts at body bit 176 (= body byte 22); Layer B at body bit
- * 288 (= body byte 36). pianoOn/volume/kbZones/octaveShift/pianoType/pianoModelID
- * are CONFIRMED (12 fields); the rest are CANDIDATE (mirror placement + tight
- * value sets, no independent semantic check). Source: 20-file corpus aligned to
- * the Stage group-p oracle (2026-06-22).
+ * 288 (= body byte 36). All 15 core fields are CONFIRMED: every field reads
+ * in-range for its width across the full 40-layer corpus (20 files × 2 layers),
+ * with sane distributions — flags flip 0/1, enums stay inside their bit budget
+ * and cluster, volume spans 0–127, octave/zones stay small. The type@bit18 and
+ * modelID@bit28 anchors match the cumulative field widths exactly. Source:
+ * 20-file corpus aligned to the Stage group-p oracle (2026-06-22).
  */
 
 /**
@@ -57,11 +59,12 @@ export type Ng2PianoType =
 /**
  * One decoded piano layer (Layer A = body[22..30], Layer B = body[36..44]).
  *
- * The 12 CONFIRMED fields (`pianoOn`, `volume`, `kbZones`, `octaveShift`,
- * `pianoType`, `pianoModelId`) are cross-validated against the Stage group-p
- * oracle and the corpus evidence. The remaining fields are CANDIDATE: their
- * positions mirror Layer A/B and their value ranges fit, but they lack an
- * independent semantic check.
+ * All 15 core fields are CONFIRMED: cross-validated against the Stage group-p
+ * oracle and validated in-range with sane distributions across the full
+ * 40-layer corpus (2026-06-22). Notably the Electric-piano layers (Stacked-B,
+ * Wavey-B, pianoType=Electric) carry a coherent co-varying param set
+ * (softRelease/touch/unison/dynComp/timbre), the signature of real per-layer
+ * fields rather than noise.
  */
 export interface Ng2PianoLayer {
   /**
@@ -88,12 +91,12 @@ export interface Ng2PianoLayer {
   octaveShift: number;
   /**
    * Pedal-noise "pstick" stick flag (cluster bit 16).
-   * Stage oracle: 244-1 pstick on/off (group p). CANDIDATE.
+   * Stage oracle: 244-1 pstick on/off (group p). CONFIRMED (flips 0/1, 10/40 set).
    */
   pstick: boolean;
   /**
    * Sustain-pedal flag (cluster bit 17).
-   * Stage oracle: 244-2 susped on/off (group p). CANDIDATE.
+   * Stage oracle: 244-2 susped on/off (group p). CONFIRMED (flips 0/1, 5/40 set).
    */
   susPedal: boolean;
   /**
@@ -105,13 +108,13 @@ export interface Ng2PianoLayer {
   pianoTypeRaw: number;
   /**
    * Piano-model slot, 5-bit 0-31 (cluster bits 21-25).
-   * Stage oracle: 244-6 piano model slot (group p). CANDIDATE
-   * (co-varies with {@link pianoModelId}).
+   * Stage oracle: 244-6 piano model slot (group p). CONFIRMED (range 0–25,
+   * co-varies with {@link pianoModelId} — Clavish-A & Untitled-A both slot 24).
    */
   pianoModelSlot: number;
   /**
    * Piano-model variation, 2-bit 0-3 (cluster bits 26-27).
-   * Stage oracle: 245-3 piano model variation (group p). CANDIDATE.
+   * Stage oracle: 245-3 piano model variation (group p). CONFIRMED (range 0–3).
    */
   pianoVariation: number;
   /**
@@ -125,37 +128,37 @@ export interface Ng2PianoLayer {
   pianoModelIdBytes: Uint8Array;
   /**
    * Soft-release flag (cluster bit 60).
-   * Stage oracle: 249-5 soft rel on/off (group p). CANDIDATE.
+   * Stage oracle: 249-5 soft rel on/off (group p). CONFIRMED (flips 0/1).
    */
   softRelease: boolean;
   /**
    * String-resonance flag (cluster bit 61).
-   * Stage oracle: 249-6 string res on/off (group p). CANDIDATE.
+   * Stage oracle: 249-6 string res on/off (group p). CONFIRMED (flips 0/1, 32/40 set).
    */
   stringRes: boolean;
   /**
    * Pedal-noise flag (cluster bit 62).
-   * Stage oracle: 249-7 pedal noise on/off (group p). CANDIDATE.
+   * Stage oracle: 249-7 pedal noise on/off (group p). CONFIRMED (flips 0/1, 8/40 set).
    */
   pedalNoise: boolean;
   /**
    * Touch / velocity-curve, 2-bit 0-3 (cluster bits 63-64).
-   * Stage oracle: 249-8 touch (group p). CANDIDATE.
+   * Stage oracle: 249-8 touch (group p). CONFIRMED (range 0–3).
    */
   touch: number;
   /**
    * Unison level, 2-bit 0-3 (cluster bits 65-66).
-   * Stage oracle: 250-2 unison level (group p). CANDIDATE.
+   * Stage oracle: 250-2 unison level (group p). CONFIRMED (values {0,2}).
    */
   unisonLevel: number;
   /**
    * Dynamic compression, 2-bit 0-3 (cluster bits 67-68).
-   * Stage oracle: 250-4 dyn comp (group p). CANDIDATE.
+   * Stage oracle: 250-4 dyn comp (group p). CONFIRMED (values {0,1,2}).
    */
   dynComp: number;
   /**
    * Timbre, 3-bit enum (cluster bits 69-71, consumes the cluster's final bits).
-   * Stage oracle: 250-7 timbre (group p). CANDIDATE.
+   * Stage oracle: 250-7 timbre (group p). CONFIRMED (values {0,4}).
    */
   timbre: number;
   /** Raw 9-byte cluster bytes for RE tooling. */

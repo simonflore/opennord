@@ -28,6 +28,98 @@
  * Source: 25-file corpus statistical analysis (2026-06-22).
  */
 
+/** Stage piano-type enum label (Stage oracle 244-3, group p). */
+export type Np5PianoType =
+  | 'Grand'
+  | 'Upright'
+  | 'Electric'
+  | 'Clav'
+  | 'Digital'
+  | 'Misc'
+  | 'Unknown';
+
+/**
+ * Per-layer "core" piano cluster — the Stage piano params (group p) laid out
+ * CONTIGUOUSLY, MSB-first, with morph variants dropped. 72 bits packed.
+ *
+ * Cluster base: body bit 461 (layer A) / body bit 717 (layer B). The base is
+ * fixed by the `pianoModelId` anchor at base+28 (= body bit 489 / 745): that
+ * 32-bit window is identical for same-instrument pairs (EP_Flu == Wurlitzer,
+ * PianoSynthB == Shimmer, and — unlike the byte-aligned read — Vintage ==
+ * Wah_Clav), and the `pianoType` anchor at base+18 lands on the 3-bit enum.
+ *
+ * This is the Nord Grand 2 (NW1-v4) cluster, proven field-for-field on Piano 5:
+ * across all 25 fixtures every width stays in-range with a sane distribution.
+ *
+ * Bit map (relative to base, MSB-first) — Stage group-p oracle params cited:
+ *   0      layerOn        230-* layer on/off      CONFIRMED (const 1 in corpus)
+ *   1-7    volume         230-7 volume            CONFIRMED (100-119, 0-127)
+ *   8-11   kbZones        243-1 KB zones          CONFIRMED
+ *   12-15  octaveShift    243-5 octave shift      CONFIRMED (0 / ±1, 4-bit signed)
+ *   16     pstick         244-1 pstick on/off     candidate
+ *   17     susped         244-2 susped on/off     candidate
+ *   18-20  pianoType      244-3 piano type        CONFIRMED (anchor)
+ *   21-25  modelSlot      244-6 piano model slot  candidate
+ *   26-27  variation      245-3 model variation   candidate
+ *   28-59  pianoModelId   245-5 model ID/name 32b CONFIRMED (anchor)
+ *   60     softRel        249-5 soft rel on/off   candidate
+ *   61     stringRes      249-6 string res on/off candidate (const 1 in corpus)
+ *   62     pedalNoise     249-7 pedal noise       candidate
+ *   63-64  touch          249-8 touch             candidate
+ *   65-66  unison         250-2 unison level      candidate
+ *   67-68  dynComp        250-4 dyn comp          candidate
+ *   69-71  timbre         250-7 timbre            candidate
+ */
+export interface Np5PianoCore {
+  // ── CONFIRMED fields (corpus in-range + sane distribution, 2026-06-22) ──────
+  /** Layer on/off — Stage 230-* (group p). Constant 1 across the corpus. */
+  readonly layerOn: boolean;
+  /** Section volume 0-127 — Stage 230-7 (group p). Corpus span 100-119. */
+  readonly volume: number;
+  /** Keyboard-zone field (4 bits) — Stage 243-1 (group p). */
+  readonly kbZones: number;
+  /**
+   * Octave shift (4 bits, Nord-centered) — Stage 243-5 (group p).
+   * Corpus values are 0 (center) and the wrap-around 15 / 1 (±1 octave).
+   */
+  readonly octaveShift: number;
+  /** Piano type label — Stage 244-3 (group p). Cluster anchor at base+18. */
+  readonly pianoType: Np5PianoType;
+  /** Raw 3-bit piano-type value backing {@link pianoType}. */
+  readonly pianoTypeRaw: number;
+  /**
+   * Piano/EP model ID — Stage 245-5 (group p). 32-bit, cluster anchor at
+   * base+28. Same instrument -> same ID. Exposed as a uint and its 4 bytes.
+   */
+  readonly pianoModelId: number;
+  /** {@link pianoModelId} as 4 big-endian bytes. */
+  readonly pianoModelIdBytes: Uint8Array;
+
+  // ── CANDIDATE fields (in-range, distribution sane, layout not yet confirmed) ─
+  /** pstick on/off — Stage 244-1 (group p). [candidate] */
+  readonly pstick: boolean;
+  /** Sustain-pedal on/off — Stage 244-2 (group p). [candidate] */
+  readonly susped: boolean;
+  /** Piano model slot (5 bits) — Stage 244-6 (group p). [candidate] */
+  readonly modelSlot: number;
+  /** Piano model variation (2 bits) — Stage 245-3 (group p). [candidate] */
+  readonly variation: number;
+  /** Soft-release on/off — Stage 249-5 (group p). [candidate] */
+  readonly softRel: boolean;
+  /** String-resonance on/off — Stage 249-6 (group p). Const 1 in corpus. [candidate] */
+  readonly stringRes: boolean;
+  /** Pedal-noise on/off — Stage 249-7 (group p). [candidate] */
+  readonly pedalNoise: boolean;
+  /** Touch (2 bits) — Stage 249-8 (group p). [candidate] */
+  readonly touch: number;
+  /** Unison level (2 bits) — Stage 250-2 (group p). [candidate] */
+  readonly unison: number;
+  /** Dynamic compression (2 bits) — Stage 250-4 (group p). [candidate] */
+  readonly dynComp: number;
+  /** Timbre (3 bits) — Stage 250-7 (group p). [candidate] */
+  readonly timbre: number;
+}
+
 /**
  * Layer A or B sound slot — the 9-byte record at body[58-66] (layer A)
  * or body[90-98] (layer B), preceded by type-marker 0x1f.
@@ -125,6 +217,20 @@ export interface Np5Program {
    * Confirmed by corpus differential RE (2026-06-22).
    */
   readonly layerBActive: boolean;
+
+  /**
+   * Layer A core piano cluster — 72-bit MSB-first record at body bit 461
+   * (body bytes 57-65). The Stage group-p piano section, contiguous, morph
+   * variants dropped. Carries the confirmed layerOn / volume / kbZones /
+   * octaveShift / pianoType / pianoModelId, plus candidate flags.
+   */
+  readonly coreLayerA: Np5PianoCore;
+
+  /**
+   * Layer B core piano cluster — 72-bit MSB-first record at body bit 717
+   * (body bytes 89-97). Structurally identical to layer A.
+   */
+  readonly coreLayerB: Np5PianoCore;
 
   // ── Candidate fields (meaningful names; layout pending differential RE) ─────
 

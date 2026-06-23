@@ -153,4 +153,62 @@ describe('decodeNp5', () => {
       expect(body[179], `${name} body[179]`).toBe(0x39); // layer B FX marker
     }
   });
+
+  // ── Confirmed core piano cluster (Stage group-p oracle, NW1-v4) ──────────────
+
+  it('decodes the layer-A core volume bit-aligned (Stage 230-7)', () => {
+    // Vintage layer A volume = 119 (corpus span 100-119, all <= 127).
+    expect(decodeNp5(load('BUNDLE__Vintage_JA.np5p')).coreLayerA.volume).toBe(119);
+    // StringsPads is the corpus minimum at 103.
+    expect(decodeNp5(load('BUNDLE__StringsPads_JA.np5p')).coreLayerA.volume).toBe(103);
+  });
+
+  it('decodes the layer-A core pianoType (Stage 244-3)', () => {
+    // FM_Tines layer A = Electric (type 2); EP_Flu = Upright (type 1); Atmosphere = Grand (0).
+    expect(decodeNp5(load('BUNDLE__FM_Tines_JA.np5p')).coreLayerA.pianoType).toBe('Electric');
+    expect(decodeNp5(load('BUNDLE__EP_Flu_JA.np5p')).coreLayerA.pianoType).toBe('Upright');
+    expect(decodeNp5(load('BUNDLE__Atmosphere_JA.np5p')).coreLayerA.pianoType).toBe('Grand');
+  });
+
+  it('decodes the layer-A core octaveShift (Stage 243-5)', () => {
+    // Most patches are centered (0); Piano_Bass shifts to 15 (= -1 octave, 4-bit signed).
+    expect(decodeNp5(load('BUNDLE__Atmosphere_JA.np5p')).coreLayerA.octaveShift).toBe(0);
+    expect(decodeNp5(load('BUNDLE__Piano_Bass_JA.np5p')).coreLayerA.octaveShift).toBe(15);
+    expect(decodeNp5(load('BUNDLE__Cyber_Town_JA.np5p')).coreLayerA.octaveShift).toBe(1);
+  });
+
+  it('core pianoModelId matches for same-instrument pairs (Stage 245-5, bit-aligned)', () => {
+    const id = (p: ReturnType<typeof decodeNp5>, layer: 'A' | 'B') =>
+      (layer === 'A' ? p.coreLayerA : p.coreLayerB).pianoModelId.toString(16).padStart(8, '0');
+    // EP_Flu == Wurlitzer (same EP), layer A.
+    expect(id(decodeNp5(load('BUNDLE__EP_Flu_JA.np5p')), 'A')).toBe('3f5e8911');
+    expect(id(decodeNp5(load('BUNDLE__Wurlitzer_JA.np5p')), 'A')).toBe('3f5e8911');
+    // PianoSynthB == Shimmer, both layers.
+    expect(id(decodeNp5(load('BUNDLE__PianoSynthB_JA.np5p')), 'A')).toBe('240a12a7');
+    expect(id(decodeNp5(load('BUNDLE__Shimmer_Piano_JA.np5p')), 'A')).toBe('240a12a7');
+    expect(id(decodeNp5(load('BUNDLE__PianoSynthB_JA.np5p')), 'B')).toBe('6a3f2e5d');
+    expect(id(decodeNp5(load('BUNDLE__Shimmer_Piano_JA.np5p')), 'B')).toBe('6a3f2e5d');
+    // Bit-aligned read unifies the two clavs that the byte-aligned read split by one bit.
+    expect(id(decodeNp5(load('BUNDLE__Vintage_JA.np5p')), 'A')).toBe('1065fd3a');
+    expect(id(decodeNp5(load('BUNDLE__Wah_Clav_JA.np5p')), 'A')).toBe('1065fd3a');
+  });
+
+  it('core confirmed fields stay in-range with sane shape across the whole corpus', () => {
+    for (const name of fixtures()) {
+      const prog = decodeNp5(load(name));
+      for (const [layer, core] of [
+        ['A', prog.coreLayerA] as const,
+        ['B', prog.coreLayerB] as const,
+      ]) {
+        expect(core.layerOn, `${name} ${layer} layerOn`).toBe(true); // const 1 in corpus
+        expect(core.volume, `${name} ${layer} volume`).toBeGreaterThanOrEqual(0);
+        expect(core.volume, `${name} ${layer} volume`).toBeLessThanOrEqual(127);
+        expect(core.kbZones, `${name} ${layer} kbZones`).toBeLessThanOrEqual(15);
+        expect(core.octaveShift, `${name} ${layer} octaveShift`).toBeLessThanOrEqual(15);
+        expect(core.pianoTypeRaw, `${name} ${layer} pianoType`).toBeLessThanOrEqual(5);
+        expect(core.pianoModelIdBytes, `${name} ${layer} modelId`).toHaveLength(4);
+        expect(core.stringRes, `${name} ${layer} stringRes`).toBe(true); // const 1 in corpus
+      }
+    }
+  });
 });

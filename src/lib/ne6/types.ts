@@ -17,7 +17,15 @@
 export interface Ne6Drawbars {
   /** [16', 8', 5⅓', 4', 2⅔', 2', 1⅗', 1⅓', 1'] — values 0-8. */
   bars: readonly number[];
-  /** Trailing 4-bit nibble packed after the 9th drawbar — purpose not yet decoded. */
+  /**
+   * Trailing 4-bit nibble packed immediately after the 9th drawbar (low nibble of
+   * body byte 147 upper / 162 lower). This is exactly where the Stage organ order
+   * places the post-drawbar flags — vib/chorus on/off + percussion on/off /
+   * harm-3rd / decay-fast / vol-soft. It value-validates as a varying field
+   * (0x3 default → 0xb on the fully-edited Duvet_Pad preset), but the all-default
+   * corpus has only one varying sample, so the individual flag bits can't be named
+   * yet — surfaced as the raw nibble. Stage oracle: o:138-x vib/chorus + perc flags.
+   */
   _trailing: number;
 }
 

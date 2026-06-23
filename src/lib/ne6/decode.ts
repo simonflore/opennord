@@ -30,6 +30,28 @@
  * certainly more piano/synth section parameters. They are passed through as raw
  * bytes until differential RE pins the field layout.
  *
+ * ## Negative result — organ CORE cluster is NOT a tight bitstream abutting the
+ * drawbars (validated 2026-06-22, 16-file corpus)
+ *
+ * The Stage organ section is a contiguous MSB-first bitstream
+ * (volume[7b]/zones[4b]/octave[4b]/susped[1b]/model[3b]/preset[1b] → 9×drawbar[4b]
+ * → vib/perc flags). Walking that layout *backward* from the byte-aligned drawbar
+ * start (bit 1144) decodes garbage that fails range checks across the whole
+ * corpus — `model` reads a constant 7 (out of its 0-4 range) and `volume` reads a
+ * constant 0. So NE6 does NOT pack the organ core as a tight bitstream
+ * immediately before the drawbar bytes; the drawbar blocks are byte-aligned and
+ * framed by structural constants (byte 142 = `0e`, byte 148 = `80`; same for the
+ * lower block at 157/163) that stay fixed even for the organ-edited presets — i.e.
+ * they are NOT volume/zones/octave/model/preset (those would move when the organ
+ * is re-registered). The only organ data that varies in this all-default corpus
+ * is the drawbars themselves (confirmed), the `_trailing` nibble after drawbar 9
+ * (varies 0x3 → 0xb on Duvet_Pad — this is where the Stage vib/perc flags sit, but
+ * one varying sample can't name the individual bits), and the 124-125 lead-in
+ * (candidate). No additional musician-facing CORE field value-validates against
+ * this corpus, so none is promoted — a labeled/organ-section-disabled fixture is
+ * required to break the all-default ambiguity. Don't re-chase the abutting
+ * bitstream hypothesis without new data.
+ *
  * ## Drawbar encoding
  *
  * 9 drawbar values (0-8) are packed as 9 consecutive 4-bit nibbles, high nibble
