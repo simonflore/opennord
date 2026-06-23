@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'fs';
+import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { describe, it, expect } from 'vitest';
 import { decodeNe5 } from './decode';
@@ -13,7 +13,7 @@ const WALK = 'Walk of Life Nord Samples.ne5p';
 const NAKED = 'Naked Piano Sample.ne5p';
 const LEAD1 = 'Nord Stage Electro Lead Samples (1).ne5p';
 
-describe('decodeNe5', () => {
+describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNe5', () => {
   it('decodes every fixture without warnings', () => {
     for (const name of fixtures()) {
       const prog = decodeNe5(load(name));

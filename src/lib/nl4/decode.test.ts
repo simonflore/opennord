@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'fs';
+import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { describe, it, expect } from 'vitest';
 import { decodeNl4 } from './decode';
@@ -8,7 +8,7 @@ const load = (name: string) => new Uint8Array(readFileSync(join(FIXTURE_DIR, nam
 const nl4sFiles = () => readdirSync(FIXTURE_DIR).filter(f => f.endsWith('.nl4s'));
 const nl4pFiles = () => readdirSync(FIXTURE_DIR).filter(f => f.endsWith('.nl4p'));
 
-describe('decodeNl4 (nl4s — Sound)', () => {
+describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNl4 (nl4s — Sound)', () => {
   it('decodes every nl4s fixture without warnings', () => {
     for (const name of nl4sFiles()) {
       const prog = decodeNl4(load(name));
@@ -65,7 +65,7 @@ describe('decodeNl4 (nl4s — Sound)', () => {
   });
 });
 
-describe('decodeNl4 (nl4p — Program)', () => {
+describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNl4 (nl4p — Program)', () => {
   it('decodes every nl4p fixture without warnings', () => {
     for (const name of nl4pFiles()) {
       const prog = decodeNl4(load(name));

@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'fs';
+import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { describe, it, expect } from 'vitest';
 import { decodeNw2 } from './decode';
@@ -7,7 +7,7 @@ const FIXTURE_DIR = join(__dirname, '../../../fixtures/wave-2');
 const load = (name: string) => new Uint8Array(readFileSync(join(FIXTURE_DIR, name)));
 const fixtures = () => readdirSync(FIXTURE_DIR).filter(f => f.endsWith('.nw2p'));
 
-describe('decodeNw2', () => {
+describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNw2', () => {
   it('decodes every fixture without warnings', () => {
     for (const name of fixtures()) {
       const prog = decodeNw2(load(name));

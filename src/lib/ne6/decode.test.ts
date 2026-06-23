@@ -8,7 +8,7 @@
  *   - Drunken_Brass upper drawbars: [8,5,7,0,5,0,0,0,0]
  *   - Drunken_Brass lower drawbars: [7,5,6,0,4,5,5,0,0]
  */
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { describe, it, expect } from 'vitest';
 import { decodeNe6 } from './decode';
@@ -19,7 +19,7 @@ function load(name: string): Uint8Array {
   return new Uint8Array(readFileSync(join(FIXTURE_DIR, name)));
 }
 
-describe('decodeNe6', () => {
+describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNe6', () => {
   it('decodes without warnings on a valid fixture', () => {
     const prog = decodeNe6(load('BUNDLE__Brass_Boy.ne6p'));
     expect(prog.parsed).toBe(true);

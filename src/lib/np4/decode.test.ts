@@ -6,10 +6,10 @@ import { decodeNp4 } from './decode';
 const FIXTURE_DIR = join(__dirname, '../../../fixtures/piano-4');
 const load = (name: string) => new Uint8Array(readFileSync(join(FIXTURE_DIR, name)));
 
-import { readdirSync } from 'fs';
+import { readdirSync, existsSync } from 'fs';
 const fixtures = () => readdirSync(FIXTURE_DIR).filter(f => f.endsWith('.np4p') && !f.startsWith('BUNDLE__'));
 
-describe('decodeNp4', () => {
+describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNp4', () => {
   it('decodes every fixture without warnings', () => {
     for (const name of fixtures()) {
       const prog = decodeNp4(load(name));
