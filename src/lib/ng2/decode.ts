@@ -28,10 +28,41 @@
  * | 50–65      | layer A extended (16B) | candidate (raw)      |
  * | 72–87      | layer B extended (16B) | candidate (raw)      |
  * | 94 bits7:5 | globalParam2 (0–7)     | candidate            |
+ * | 99         | 0x14 section tag       | CONFIRMED (framing)  |
  * | 100–113    | layer A effects (14 B) | candidate (raw)      |
  * | 121–134    | layer B effects (14 B) | candidate (raw)      |
  * | 142–157    | layer A final (16 B)   | candidate (raw)      |
  * | 164–179    | layer B final (16 B)   | candidate (raw)      |
+ *
+ * ## Per-layer FX clusters (RE pass 2026-06-23, 20 fixtures) — STILL CANDIDATE
+ *
+ * Grand 2 FX is per-layer: each layer carries Modulation (rate/amount/type),
+ * a 3-band EQ, Amp sim (drive), Compressor, Delay and Reverb (Stage group-p
+ * oracle: ids 267-x … 316-x — `FX mod 1/2`, `FX amp sim/EQ`, `FX comp`,
+ * `FX delay`, `FX reverb`). Those params are spread across the per-layer
+ * `extended` (50-65 / 72-87), `effects` (100-113 / 121-134) and `final`
+ * (142-157 / 164-179) clusters.
+ *
+ * What this RE pass CONFIRMED (structure, not field semantics):
+ *  - The `effects` cluster is framed by a 0x14 (=14, the payload size) section
+ *    tag at body[99], matching the TLV scheme used for the piano-core clusters.
+ *  - The cluster shares a stable default tail — body[102..113] ≈
+ *    `80 f2 1f 35 ba 85 10 00 19 a0 32 06` in the FX-neutral presets (Acid,
+ *    Thursday, Wavey, Boston, Griti, …) — so the FX section IS in this region.
+ *
+ * What this RE pass could NOT confirm (left candidate, honestly):
+ *  - Individual Stage FX params could not be pinned to specific bits. The
+ *    clusters are densely bit-packed (every 7-bit window across body[102..110]
+ *    spans ~0–127 and every bit flips), so an unlabeled corpus gives no
+ *    discriminating anchor: condensed-bitstream, byte-aligned and flag+7-bit
+ *    alignments all fail to reproduce a recognizable Stage FX-default signature.
+ *    Confirming these needs labeled ground truth (move ONE FX knob on hardware,
+ *    re-export, diff) — see `coverage.ts` diff workflow.
+ *  - body[101]/[122] is NOT the piano model index: it does not co-vary with the
+ *    CONFIRMED 32-bit {@link Ng2PianoLayer.pianoModelId} across same-instrument
+ *    pairs (Clavish-A & Untitled-A share modelId 0x830146c3 but body[101]=14/12;
+ *    Lazy-A & Basement-A are both default Grand but body[101]=16/14). It is an
+ *    in-cluster FX/packed field, left raw.
  */
 
 import type { Ng2PianoLayer, Ng2PianoType, Ng2Program } from './types';

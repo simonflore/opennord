@@ -179,6 +179,27 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNg2', () => {
     expect(concerto.layerB.pianoModelId >>> 0).toBe(0x22676f0b);
   });
 
+  // ── CONFIRMED FX-cluster framing (RE 2026-06-23) ─────────────────────────
+
+  it('CONFIRMED effects cluster is framed by a 0x14 section tag at body[99]', () => {
+    // The TLV section tag (= payload size, 14 bytes) precedes the per-layer FX
+    // effects cluster in every fixture. This is structural framing, not an FX
+    // value; the FX field semantics inside the cluster remain candidate (raw).
+    for (const name of fixtures()) {
+      const prog = decodeNg2(load(name));
+      expect(prog._rawBody[99], `${name} effects section tag`).toBe(0x14);
+    }
+  });
+
+  it('CONFIRMED body[101]/[122] is NOT the piano model index', () => {
+    // Same-instrument pairs share the CONFIRMED 32-bit pianoModelId but DIFFER
+    // in body[101]/[122], so that byte is not the model index — left raw.
+    const clavish = decodeNg2(load('BUNDLE__DW_Clavish.ng2p'));
+    const untitled = decodeNg2(load('BUNDLE__DW_Untitled.ng2p'));
+    expect(clavish.layerA.pianoModelId >>> 0).toBe(untitled.layerA.pianoModelId >>> 0);
+    expect(clavish._rawBody[101]).not.toBe(untitled._rawBody[101]); // 14 vs 12
+  });
+
   it('decodes specific fixture values — Duet layer split', () => {
     const prog = decodeNg2(load('BUNDLE__DW_Duet.ng2p'));
     expect(prog.layerBActiveFlag).toBe(true);
