@@ -79,7 +79,13 @@ function readSlot(body: Uint8Array, slotIndex: number): Nw2VoiceSlot {
   const drawbarOffset = DRAWBAR_OFFSETS[slotIndex];
   const slotStart = SLOT_STARTS[slotIndex];
   const slotBody = body.slice(slotStart, slotStart + SLOT_SIZE);
+  // Slot starts with the Stage synth engine layout: bit0 = layer on/off, bits1-7 = volume.
+  // Confirmed: slots 1-3 read on={0,1} + volume 0-112; slot 0 is off (all-zero) in the corpus.
+  // Stage oracle: y layer on/off [1b] + y volume [7b] (group y — every engine's leading fields).
+  const head = slotBody[0] ?? 0;
   return {
+    on: (head >>> 7) === 1,
+    volume: head & 0x7f,
     drawbars: readDrawbars(body, drawbarOffset),
     waveform: readWaveform(slotBody),
     // The 7-byte oscillator/waveform region local[77-83] — oscFlag + bank + id + 4 unknown bytes.

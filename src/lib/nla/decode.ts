@@ -56,10 +56,19 @@ export function decodeNla(bytes: Uint8Array): NlaProgram {
   const headerNibble = (u8(body, 0) >>> 4) & 0xf; // const 0 — bitstream marker
   const checksum = (u8(body, 77) << 8) | u8(body, 78); // 16-bit big-endian
 
+  // Leading params of the 7-bit bitstream (which starts at bit 4). Per the Stage
+  // synth engine order the first fields are layer on/off then volume.
+  // Confirmed: layerOn@bit4 = {0,1}; volume@bits5-11 varies 0-76 across 51 fixtures.
+  // Stage oracle: y layer on/off [1b] + y volume [7b] (group y).
+  const layerOn = ((u8(body, 0) >>> 3) & 1) === 1; // bit 4 (MSB-first, 0-indexed)
+  const volume = ((u8(body, 0) & 0x07) << 4) | ((u8(body, 1) >>> 4) & 0x0f); // bits 5-11
+
   return {
     parsed: true,
     version,
     headerNibble,
+    layerOn,
+    volume,
     checksum,
     // Candidate sections, named by Nord front-panel order; raw pending RE.
     _oscFilterSection: body.slice(1, 32),

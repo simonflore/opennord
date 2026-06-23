@@ -17,6 +17,8 @@ import { np5Decoded } from './np5/present';
 import { np4Decoded } from './np4/present';
 import { ne5Decoded } from './ne5/present';
 import { ne6Decoded } from './ne6/present';
+import { nw2Decoded } from './nw2/present';
+import { nlaDecoded } from './nla/present';
 
 interface PresenterEntry {
   match: (info: NordFileInfo) => boolean;
@@ -37,6 +39,8 @@ const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.tag === 'np4p', present: np4Decoded },
   { match: (i) => i.tag === 'ne5p', present: ne5Decoded },
   { match: (i) => i.tag === 'ne6p', present: ne6Decoded },
+  { match: (i) => i.tag === 'nw2p', present: nw2Decoded },
+  { match: (i) => i.tag === 'nlas' || i.tag === 'nlap', present: nlaDecoded },
 ];
 
 /** The shared decoded-program presentation for a file, or null if no model claims it. */

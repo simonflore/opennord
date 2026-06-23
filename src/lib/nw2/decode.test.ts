@@ -27,6 +27,19 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNw2', () => {
     expect(prog.slots).toHaveLength(4);
   });
 
+  it('decodes per-slot layer on/off + volume (Stage synth engine head)', () => {
+    let anyOn = false;
+    for (const name of fixtures()) {
+      for (const slot of decodeNw2(load(name)).slots) {
+        expect(typeof slot.on, name).toBe('boolean');
+        expect(slot.volume, name).toBeGreaterThanOrEqual(0);
+        expect(slot.volume, name).toBeLessThanOrEqual(127);
+        if (slot.on) anyOn = true;
+      }
+    }
+    expect(anyOn).toBe(true); // at least one slot active across the corpus
+  });
+
   it('each slot has 9 drawbar values in range 0-8', () => {
     for (const name of fixtures()) {
       const prog = decodeNw2(load(name));

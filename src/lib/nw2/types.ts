@@ -56,6 +56,16 @@ export interface Nw2Waveform {
 /** One voice slot in a Wave 2 program (exactly 244 bytes). */
 export interface Nw2VoiceSlot {
   /**
+   * Slot layer on/off (slot-local bit 0). Confirmed: slots 1-3 vary {0,1};
+   * slot 0 is off in the corpus. Stage oracle: y layer on/off [1b].
+   */
+  readonly on: boolean;
+  /**
+   * Slot volume 0-127 (slot-local bits 1-7). Confirmed: varies 0-112 across the
+   * corpus. Stage oracle: y volume [7b] (leading field of every synth engine).
+   */
+  readonly volume: number;
+  /**
    * Drawbar values for this slot (9 bars).
    * Confirmed by nibble-range detection across 26 fixtures.
    */

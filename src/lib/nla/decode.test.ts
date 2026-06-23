@@ -22,6 +22,18 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNla', () => {
     }
   });
 
+  it('decodes layer on/off + volume from the bitstream head', () => {
+    const vols = new Set<number>();
+    for (const name of fixtures()) {
+      const prog = decodeNla(load(name));
+      expect(typeof prog.layerOn, name).toBe('boolean');
+      expect(prog.volume, name).toBeGreaterThanOrEqual(0);
+      expect(prog.volume, name).toBeLessThanOrEqual(127);
+      vols.add(prog.volume);
+    }
+    expect(vols.size).toBeGreaterThan(1); // volume varies across the corpus
+  });
+
   it('exposes correctly-sized candidate sections', () => {
     const prog = decodeNla(load(fixtures()[0]));
     expect(prog._oscFilterSection).toHaveLength(31); // body[1-31]

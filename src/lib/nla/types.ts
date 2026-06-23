@@ -32,6 +32,16 @@ export interface NlaProgram {
    */
   readonly headerNibble: number;
   /**
+   * Layer on/off — first field of the 7-bit bitstream (bit 4). Confirmed {0,1}
+   * across the corpus. Stage oracle: y layer on/off [1b].
+   */
+  readonly layerOn: boolean;
+  /**
+   * Program volume 0-127 (bitstream bits 5-11). Confirmed: varies 0-76 across
+   * 51 fixtures. Stage oracle: y volume [7b] (leading synth-engine field).
+   */
+  readonly volume: number;
+  /**
    * 16-bit body checksum (bytes 77-78, big-endian). 50/51 distinct across the
    * corpus — a CRC/checksum over the program data, not a parameter.
    */
