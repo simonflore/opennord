@@ -30,23 +30,15 @@ export function ProgramView({ program }: { program: NordProgram }) {
     isNs4Program(program) ? (program.activeScene ?? 'I') : 'I'
   );
 
-  // NE6 and future non-NS4 models: minimal placeholder until their rich view lands.
+  // Non-NS4 models (Electro/Piano/Grand/Wave/Lead) render through the shared
+  // decoded-program view via their presenter — the Stage-oracle-confirmed fields
+  // (piano core, organ drawbars, sound-id fingerprints) shown with musician labels.
   if (!isNs4Program(program)) {
-    // Organ shapes differ by model: NE4/NE6 expose `upper`/`lower`; NE5 exposes
-    // `preset1Upper`/`preset1Lower` (its primary organ slot). Read whichever exists.
-    const organBars = (key: 'upper' | 'lower'): string => {
-      if (!('organ' in program)) return '?';
-      const organ = program.organ as unknown as Record<string, { bars: readonly number[] } | undefined>;
-      const set = organ[key] ?? organ[key === 'upper' ? 'preset1Upper' : 'preset1Lower'];
-      return set ? set.bars.join(' ') : '?';
-    };
-    const upper = organBars('upper');
-    const lower = organBars('lower');
+    const decoded = decodedProgramFor(program.bytes);
+    if (decoded) return <DecodedProgramView program={decoded} />;
     return (
       <div className="ps">
-        <p style={{ color: 'var(--ink-dim)' }}>Nord Electro 6 · v{program.version}</p>
-        <p>Upper drawbars: {upper}</p>
-        <p>Lower drawbars: {lower}</p>
+        <p style={{ color: 'var(--ink-dim)' }}>Recognized Nord file · v{program.version}</p>
         {program.warnings.length > 0 && <ul>{program.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>}
       </div>
     );

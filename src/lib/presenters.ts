@@ -12,6 +12,11 @@ import { identifyNordFile, type NordFileInfo } from './clavia/nord-file';
 import type { DecodedProgram } from './clavia/decoded';
 import { ns3Decoded } from './ns3/present';
 import { ns2Decoded } from './ns2/present';
+import { ng2Decoded } from './ng2/present';
+import { np5Decoded } from './np5/present';
+import { np4Decoded } from './np4/present';
+import { ne5Decoded } from './ne5/present';
+import { ne6Decoded } from './ne6/present';
 
 interface PresenterEntry {
   match: (info: NordFileInfo) => boolean;
@@ -26,6 +31,12 @@ interface PresenterEntry {
 const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.generation === 'Stage 3' && i.kind === 'performance', present: ns3Decoded },
   { match: (i) => i.generation === 'Stage 2' && i.kind === 'program', present: ns2Decoded },
+  // Lite piano/organ models: surface the Stage-oracle-confirmed core fields.
+  { match: (i) => i.tag === 'ng2p', present: ng2Decoded },
+  { match: (i) => i.tag === 'np5p', present: np5Decoded },
+  { match: (i) => i.tag === 'np4p', present: np4Decoded },
+  { match: (i) => i.tag === 'ne5p', present: ne5Decoded },
+  { match: (i) => i.tag === 'ne6p', present: ne6Decoded },
 ];
 
 /** The shared decoded-program presentation for a file, or null if no model claims it. */
