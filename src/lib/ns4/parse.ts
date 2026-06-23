@@ -10,17 +10,6 @@ function formatVersion(raw: number): string {
   return (raw / 100).toFixed(2);
 }
 
-/** Read a fixed-length ASCII field, stopping at NUL and trimming trailing spaces. */
-export function readAsciiFixed(bytes: Uint8Array, offset: number, length: number): string {
-  let s = '';
-  for (let i = 0; i < length; i++) {
-    const b = bytes[offset + i] ?? 0;
-    if (b === 0) break;
-    s += String.fromCharCode(b);
-  }
-  return s.trimEnd();
-}
-
 /**
  * Parse a Nord Stage 4 program/preset file into the OpenNord model.
  *

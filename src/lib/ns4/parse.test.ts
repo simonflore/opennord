@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { parseNs4Program, readAsciiFixed } from './parse';
+import { parseNs4Program } from './parse';
 
 // Real Stage 4 program — the same regression fixture used by bits.test.ts.
 const fixtureBytes = new Uint8Array(
@@ -199,22 +199,5 @@ describe('parseNs4Program — regression fixture', () => {
     it('layer A — pan', () => {
       expect(prog.layers![4].pan!.value).toBe('L  4.7');
     });
-  });
-});
-
-describe('readAsciiFixed', () => {
-  it('reads a fixed-length ASCII field and trims trailing padding', () => {
-    const bytes = new Uint8Array([...'Grand Piano '].map((c) => c.charCodeAt(0)));
-    expect(readAsciiFixed(bytes, 0, bytes.length)).toBe('Grand Piano');
-  });
-
-  it('stops at a NUL terminator', () => {
-    const bytes = new Uint8Array([0x41, 0x42, 0x00, 0x43]); // "AB\0C"
-    expect(readAsciiFixed(bytes, 0, 4)).toBe('AB');
-  });
-
-  it('reads from an offset', () => {
-    const bytes = new Uint8Array([0x00, 0x00, 0x4e, 0x53, 0x34]); // ..NS4
-    expect(readAsciiFixed(bytes, 2, 3)).toBe('NS4');
   });
 });

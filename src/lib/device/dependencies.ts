@@ -14,7 +14,7 @@ import type { NordSession } from './session';
 import { enumerateFiles, type ProgramEntry } from './transfer';
 import { CQryFileGetDependency, PARTITION_PROGRAM, PARTITION_SAMP_LIB } from './opcodes';
 import { NordError } from './protocol';
-import { readAsciiFixed } from '../ns4/parse';
+import { readAsciiFixed } from '../clavia/ascii';
 
 /** Big-endian u32 (the FileTransfer protocol is BE — matches capacity.ts/transfer.ts). */
 function u32(payload: Uint8Array, byteOffset: number): number {

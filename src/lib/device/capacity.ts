@@ -3,7 +3,7 @@ import {
   CQryPartState, CQryBankList, PARTITION_PIANO, PARTITION_SAMP_LIB, PARTITION_SAMP_LIB_NATIVE,
 } from './opcodes';
 import { NordError } from './protocol';
-import { readAsciiFixed } from '../ns4/parse';
+import { readAsciiFixed } from '../clavia/ascii';
 
 /**
  * Erase-block size in bytes per partition (Nord Stage 4). The device does NOT

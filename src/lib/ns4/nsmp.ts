@@ -16,10 +16,14 @@
  * never embedded or shared.
  */
 
-import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
 import { verifyNs4Checksum } from '../clavia/checksum';
+import { identifyNsmp, nsmpLayout } from '../clavia/sample-identify';
 import { decodeStroke, type DecodedStroke } from './nsmp-codec';
 import { dsp2Level } from './nw1-dsp';
+
+// Header identification + section-tree framing are model-agnostic container
+// knowledge (clavia/sample-identify); re-exported here for the codec's callers.
+export { nsmpLayout };
 
 export interface NsmpSection {
   tag: string;
@@ -84,25 +88,6 @@ function tagString(tag: number): string {
 
 const u24be = (b: Uint8Array, o: number) => (b[o] << 16) | (b[o + 1] << 8) | b[o + 2];
 const u16be = (b: Uint8Array, o: number) => (b[o] << 8) | b[o + 1];
-
-const NSMP_MAGIC = 0x4e534d50; // "NSMP" — codec 3/4 body root @0x2c
-const NWS_MAGIC = 0x4e5753; // "NWS"  — OG/legacy body root @0x18
-
-/**
- * Where the section tree starts and how its headers are framed. Two real shapes:
- * **modern** (codec 3/4) — `NSMP` root at `0x2c`, `[tag:u32][version:u32][size:u32]`
- * (12-byte) headers; **OG/legacy** (`.nsmp` v8) — `NWS` root at `0x18`,
- * `[tag:u24][version:u16][size:u32]` (9-byte) headers, decoded with the 24-bit
- * NW1 variant. Detected by magic; falls back to the CBIN version (`0x14`) for the
- * speculative codec-1/2 form. (`CSectionIterator::Read_` / `PeekFormat`.)
- */
-export function nsmpLayout(bytes: Uint8Array): { bodyStart: number; headerSize: number; legacy: boolean } {
-  if (u32be(bytes, 0x2c) === NSMP_MAGIC) return { bodyStart: 0x2c, headerSize: 12, legacy: false };
-  if (u24be(bytes, 0x18) === NWS_MAGIC) return { bodyStart: 0x18, headerSize: 9, legacy: true };
-  const codec = Math.trunc((bytes[0x14] | (bytes[0x15] << 8)) / 100);
-  const legacy = codec === 1 || codec === 2;
-  return { bodyStart: 0x2c, headerSize: legacy ? 9 : 12, legacy };
-}
 
 /**
  * Walk the section tree using the layout from {@link nsmpLayout}: codec **3/4**
@@ -174,26 +159,20 @@ export function readNpnoName(bytes: Uint8Array): string | undefined {
 
 export function readNsmp(bytes: Uint8Array): NsmpFile {
   const warnings: string[] = [];
+  const id = identifyNsmp(bytes);
   // `.npno` piano-library files: CBIN container, `npno` type tag, `CNSP` root.
   // We surface the name only (audio body is the firmware-gated CNSP codec).
-  if (hasCbinMagic(bytes) && fileTypeTag(bytes) === 'npno') {
+  if (id.pianoLibrary) {
     const name = readNpnoName(bytes);
     return {
       recognized: true, pianoLibrary: true, legacy: false, checksumValid: false,
       name, sections: [], strokeCount: 0, suspectedFactory: true, warnings: [],
     };
   }
-  const recognized = hasCbinMagic(bytes) && fileTypeTag(bytes) === 'nsmp';
-  if (!recognized) {
+  if (!id.recognized) {
     return { recognized: false, legacy: false, checksumValid: false, sections: [], strokeCount: 0, suspectedFactory: false, warnings: ['Not a Nord Sample file.'] };
   }
-  const { legacy } = nsmpLayout(bytes);
-  const versionRaw = bytes[0x14] | (bytes[0x15] << 8);
-  const major = Math.trunc(versionRaw / 100);
-  // Modern codecs carry an x.yy library version (300 → "3.00"); the OG `.nsmp` uses
-  // a small format revision (8) and has no CRC field, so don't fake either.
-  const version = legacy ? `${versionRaw}` : `${major}.${String(versionRaw - major * 100).padStart(2, '0')}`;
-  const codec = major;
+  const { legacy, version, versionRaw, codec } = id;
   const checksumValid = verifyNs4Checksum(bytes);
   if (!checksumValid && !legacy) warnings.push('Sample checksum mismatch — possibly truncated/modified.');
 

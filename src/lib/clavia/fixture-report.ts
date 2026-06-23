@@ -1,6 +1,6 @@
 import { unzipSync } from 'fflate';
 import { identifyNordFile, type NordGeneration } from './nord-file';
-import { readNsmp } from '../ns4/nsmp';
+import { identifyNsmp } from './sample-identify';
 import { MODELS, type NordModelId } from './partitions';
 
 export type FixtureKind = 'program' | 'preset' | 'backup' | 'sample' | 'unknown';
@@ -29,7 +29,7 @@ export function identifyFixture(name: string, bytes: Uint8Array): FixtureFinding
   const ext = extOf(name);
   try {
     if (ext.startsWith('nsmp')) {
-      const s = readNsmp(bytes);
+      const s = identifyNsmp(bytes);
       return s.recognized
         ? { name, ext, kind: 'sample', version: s.version, sampleCodec: s.legacy ? 'og' : codecName(s.codec), headerOk: true }
         : { name, ext, kind: 'sample', headerOk: false, error: 'unrecognized sample container' };

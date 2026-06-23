@@ -4,7 +4,7 @@ import {
   CReqFileCreate, CReqFileWrite, CReqFileDelete, CQryFileGetFocus, type2Ext, ext2Type,
 } from './opcodes';
 import { NordError } from './protocol';
-import { readAsciiFixed } from '../ns4/parse';
+import { readAsciiFixed } from '../clavia/ascii';
 import { buildCbinHeader, readCbinHeader } from '../clavia/cbin';
 import { patchNs4Checksum } from '../clavia/checksum';
 import { formatSlot } from '../clavia/slot';
