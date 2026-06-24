@@ -18,6 +18,19 @@
  * Same `Param` shape as NS4_OFFSET_MAP. Bit indices are absolute, 0-based,
  * MSB-first from file start (the 44-byte CBIN header is included), exactly like
  * bits.ts / offset-map.generated.ts. Do NOT add these to the generated file.
+ *
+ * ## Remaining undecoded tail (corpus retry, 2026-06-24 — verdict: BLOCKED)
+ * The other varying-unmapped bytes were retried against the 357-program corpus and
+ * stay out — they need a hardware differential (export → move ONE control → diff):
+ *   - bytes 55-82: an OPTIONAL packed 4-byte-record region (129/357 all-zero; some
+ *     patches repeat a record 3×, e.g. d7 c9 3a 6e) — modulation/routing structure,
+ *     not scalar fields. Decodable as records only with hardware.
+ *   - byte 106: NOT organ-gated (varies in organ-off patches too) → not a clean
+ *     rotary param; reads as the tail of a wider mod field.
+ *   - bytes 418/469/520 (synth Extern): Extern is active in 0/357 programs, so the
+ *     field can't be exercised/named from this corpus at all.
+ *   - byte 401 (bit 3204): a 1-bit flag set in only 4 files — too sparse to confirm.
+ *   - bytes 300/355: saturated tails of the existing FX-delay value field.
  */
 
 import type { Param } from './maps';
