@@ -64,6 +64,9 @@ export function DeviceManager() {
     if (session) void loadCapacity(session);
   }, [session, loadCapacity]);
 
+  // Re-arm session-start backup whenever the session changes (reconnect).
+  useEffect(() => { backedUp.current = false; }, [session]);
+
   const push = usePushFlow(session, refresh);
   const del = useDeleteFlow(session, refresh);
   const samples = useSamplesFlow(session);
@@ -79,6 +82,7 @@ export function DeviceManager() {
   }, [session, backupWanted]);
   const reorg = useReorgFlow(session, refresh, backupOnce, entries);
   function onGesture(g: { kind: 'move'; from: Addr; to: Addr }) {
+    reorg.clearResult();
     setReorgError('');
     const plan = planMove(buildOccupancy(entries), g.from, g.to);
     if (isPlanError(plan)) { setReorgError(plan.error); return; }
