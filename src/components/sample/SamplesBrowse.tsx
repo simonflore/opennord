@@ -67,7 +67,8 @@ export function SamplesBrowse(
   ];
 
   return (
-    <div>
+    <div className="lib-panel">
+      <div className="lib-panel__head">
       <div className="lib-head">
         <div>
           <h1 className="lib-title">Samples</h1>
@@ -104,7 +105,9 @@ export function SamplesBrowse(
         onSort={(k) => prefs.setSort(k as SampleSort)}
         sortAriaLabel="Sort samples"
       />
+      </div>
 
+      <div className="lib-panel__body">
       {entries.length === 0 ? (
         <div className="lib-empty"><p>No samples match.</p></div>
       ) : (
@@ -148,6 +151,7 @@ export function SamplesBrowse(
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

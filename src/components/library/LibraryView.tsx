@@ -42,7 +42,8 @@ export function LibraryView({
   const local = entries.length - nord;
 
   return (
-    <div>
+    <div className="lib-panel">
+      <div className="lib-panel__head">
       <div className="lib-head">
         <div>
           <h1 className="lib-title">Library</h1>
@@ -108,7 +109,9 @@ export function LibraryView({
         onSort={(k) => onSort(k as LibrarySort)}
         sortAriaLabel="Sort patches"
       />
+      </div>
 
+      <div className="lib-panel__body">
       {entries.length === 0 ? (
         <div className="lib-empty">
           <p>Nothing here yet.</p>
@@ -170,6 +173,7 @@ export function LibraryView({
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

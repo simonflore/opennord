@@ -80,10 +80,23 @@
   display: grid;
   grid-template-columns: minmax(280px, 360px) 1fr;
   gap: var(--s-6);
-  align-items: start;
+  align-items: stretch;
+  /* Bound the split to the viewport so each pane scrolls independently instead
+     of growing the whole page. var(--s-4) mirrors .on-content's vertical pad. */
+  height: calc(100vh - 2 * var(--s-4));
+  min-height: 0;
 }
-.on-split__master { min-width: 0; }
-.on-split__detail { min-width: 0; }
+.on-split__master { min-width: 0; min-height: 0; display: flex; }
+/* The detail pane owns its own scroll; its header is pinned below. */
+.on-split__detail { min-width: 0; min-height: 0; overflow-y: auto; }
+/* Program header stays put while the body (engines, FX, samples…) scrolls.
+   The margin→padding swap keeps the divider's gap inside the opaque bg so
+   scrolling content doesn't bleed through beneath it. */
+.on-split__detail .ps-hd {
+  position: sticky; top: 0; z-index: 3;
+  background: var(--bg);
+  margin-bottom: 0; padding-bottom: 14px;
+}
 
 /* Modal dialog — scrim + centered panel (Dialog.tsx). Tokens only. */
 .on-dialog-backdrop {

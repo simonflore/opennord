@@ -1,3 +1,16 @@
+/* Two-zone panel: a fixed head (title/counts/search/sort) over a scrollable
+   card list. The height/overflow only kick in inside the wide split — narrow
+   and mobile keep the normal full-page scroll. The panel fills its pane via the
+   flex chain (.on-split__master is display:flex, stretching its child to full
+   height), so no explicit height is needed — which lets a sibling (Samples'
+   pull-status line) coexist above it without overflowing. */
+.lib-panel { display: flex; flex-direction: column; }
+.lib-panel__head { flex: none; }
+.on-split .lib-panel { flex: 1; min-width: 0; min-height: 0; }
+.on-split .lib-panel__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* Samples wraps its browse panel with a transient "Pulling sample…" line. */
+.on-split .lib-master { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+
 .lib-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s-3); }
 .lib-title { font: 800 18px var(--font); color: var(--ink); margin: 0; }
 .lib-counts { font: 11px var(--font); color: var(--dim); margin-top: 2px; }

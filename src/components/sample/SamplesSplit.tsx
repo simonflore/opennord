@@ -56,7 +56,7 @@ export function SamplesSplit() {
       : null;
 
   const list = (
-    <div>
+    <div className="lib-master">
       {status}
       <SamplesBrowse
         entries={s.shown}
