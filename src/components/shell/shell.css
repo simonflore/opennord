@@ -1,19 +1,35 @@
-.on-app { display: flex; min-height: 100vh; }
+/* Stage backdrop — a faint top glow over near-black gives the app depth without
+   competing with content. Fixed so it doesn't scroll. All via tokens. */
+.on-app {
+  display: flex; min-height: 100vh;
+  background:
+    radial-gradient(120% 80% at 50% -10%, color-mix(in srgb, var(--surface) 60%, transparent), transparent 60%),
+    var(--bg);
+}
 .on-rail {
-  width: 188px; flex: none; background: var(--sink); border-right: 1px solid var(--line);
+  width: 188px; flex: none; background: var(--grad-sink); border-right: 1px solid var(--line);
   padding: var(--s-4) var(--s-3); display: flex; flex-direction: column; gap: 2px;
   position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto;
   box-sizing: border-box;
+  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--lift) 3%, transparent);
 }
-.on-rail__brand { font: 800 16px var(--font); color: var(--ink); padding: 2px 8px var(--s-4); }
+.on-rail__brand { font: 800 16px var(--font); letter-spacing: -.2px; color: var(--ink); padding: 2px 8px var(--s-4); }
 .on-rail__brand-accent { color: var(--red); font-style: italic; }
 .on-nav {
-  text-align: left; background: transparent; border: 0; cursor: pointer;
+  position: relative; text-align: left; background: transparent; border: 0; cursor: pointer;
   font: 600 12px var(--font); color: var(--dim); padding: 7px 10px; border-radius: var(--r-sm);
+  transition: color var(--t-fast), background var(--t-fast);
 }
-.on-nav--active { background: var(--surface-2); color: var(--ink); }
+.on-nav:hover:not(:disabled):not(.on-nav--active) { color: var(--ink); background: color-mix(in srgb, var(--lift) 3%, transparent); }
+/* Active item: raised panel chip + a red indicator bar marking the current page. */
+.on-nav--active { background: var(--grad-raised); color: var(--ink); box-shadow: var(--edge-hi), var(--shadow-1); }
+.on-nav--active::before {
+  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 16px; border-radius: 0 2px 2px 0; background: var(--red);
+}
 .on-nav:disabled { color: var(--muted); cursor: not-allowed; opacity: .55; }
 .on-nav--sub { font-size: 11px; padding-left: 16px; }
+.on-nav--sub.on-nav--active::before { height: 12px; }
 .on-rail__spacer { flex: 1; }
 .on-rail__dev { margin-top: var(--s-2); }
 .on-rail__dev summary { font: 9px var(--font); color: var(--muted); cursor: pointer; padding: 6px 8px; }
@@ -31,7 +47,11 @@
 }
 .on-rail__note-text { font: 9px/1.4 var(--font); color: var(--muted); }
 
-.on-devbox { background: var(--devbox-bg); border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px; }
+.on-devbox {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lift) 4%, var(--devbox-bg)), var(--devbox-bg));
+  border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px;
+  box-shadow: var(--edge-hi), var(--shadow-1);
+}
 .on-devbox--off { display: flex; flex-direction: column; gap: 8px; }
 .on-devbox__state { font: 700 9px var(--font); letter-spacing: 1px; color: var(--muted); }
 .on-devbox__state--on { color: var(--connected); }
