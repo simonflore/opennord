@@ -12,6 +12,7 @@
  */
 
 import { NS4_OFFSET_MAP } from './offset-map.generated';
+import { NS4_EXTRA_PARAMS } from './extra-params';
 
 export type Ns4Group = 'm' | 'o' | 'p' | 'y';
 
@@ -28,7 +29,13 @@ export interface Param {
   layers: ParamLayer[];
 }
 
-/** The full Nord Stage 4 parameter map (all four engines). */
+/**
+ * The full Nord Stage 4 parameter map (all four engines) — the single canonical
+ * map every consumer (decoder, coverage, views) uses. Composed from two sources:
+ * the generated ns4decode port (`NS4_OFFSET_MAP`, regenerable, do-not-hand-edit)
+ * plus our corpus-RE'd additions (`NS4_EXTRA_PARAMS`). Kept as separate source
+ * files for provenance + so regenerating the port never clobbers our RE.
+ */
 export function buildParamMap(): Param[] {
-  return NS4_OFFSET_MAP;
+  return [...NS4_OFFSET_MAP, ...NS4_EXTRA_PARAMS];
 }

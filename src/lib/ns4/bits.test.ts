@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { bytesToBitString, locToBit, bitToLoc, readField } from './bits';
 import { fileTypeTag, hasCbinMagic, buildCbinHeader, readCbinHeader, type CbinHeader } from '../clavia/cbin';
 import { buildParamMap } from './maps';
+import { NS4_OFFSET_MAP } from './offset-map.generated';
+import { NS4_EXTRA_PARAMS } from './extra-params';
 import { decodeAllParams } from './coverage';
 
 // The real ns4decode regression fixture (a genuine Nord Stage 4 program) — our
@@ -40,8 +42,10 @@ describe('complete param map decodes the fixture', () => {
   const decoded = decodeAllParams(bytes, map);
   const valueOf = (name: string) => decoded.find((d) => d.name === name)?.value;
 
-  it('covers all four engines (406 params)', () => {
-    expect(map.length).toBe(406);
+  it('covers all four engines (ns4decode port + corpus-RE extras)', () => {
+    // The canonical map = the 406-param ns4decode port + our corpus-RE'd extras.
+    expect(NS4_OFFSET_MAP.length).toBe(406); // the port stays pinned at 406
+    expect(map.length).toBe(NS4_OFFSET_MAP.length + NS4_EXTRA_PARAMS.length);
     const groups = new Set(map.map((p) => p.group));
     expect(groups).toEqual(new Set(['m', 'o', 'p', 'y']));
   });

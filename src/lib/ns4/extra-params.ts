@@ -36,17 +36,11 @@
 import type { Param } from './maps';
 
 export const NS4_EXTRA_PARAMS: Param[] = [
-  // --- byte 16 → program category (6-bit field, bits 130-135) ---
-  // Bracketed by master 'location in bank'@114-119 and 'file version'@160-167.
-  // Top 2 bits (128,129) are always 0 across all 357 programs → a 6-bit field.
-  // Values 1-52, 19 distinct. CONFIRMED as the per-program sound CATEGORY by an
-  // unambiguous corpus name-keyword correlation:
-  //   Pad→46, Lead→6, Synth→45, Piano/Pno→9, Organ→7, String→(17/46/49).
-  // Also clusters by factory bank: cover/user banks A-D are dominated by one
-  // value (17), while sound-design banks F/G/H spread across 6/9/23/30/45/46.
-  // The manual documents per-program Category (presets "browsed by Category",
-  // Cat soft button) — Nord Stage 4 User Manual v1.2X p.40.
-  { id: '017-3', name: 'program category', group: 'm', layers: [{ begBit: 130, endBit: 135 }] },
+  // NOTE: byte 16 (file offset 0x10) reads as the program CATEGORY, but it's a
+  // CBIN *header* byte already decoded by clavia/cbin.ts (`category: bytes[0x10]`,
+  // resolved via programCategoryName + categories table). The corpus hunt
+  // rediscovered it; it is NOT added here to avoid a duplicate decode. (It also
+  // sits in the 44-byte header, outside the body param map by construction.)
 
   // --- byte 238 → piano octave shift (3-bit field, bits 1904-1906) ---
   // Bracketed by piano 'volume change with ctrlped'@1892-1899 and piano

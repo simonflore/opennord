@@ -8,14 +8,13 @@
  * contributions. We always know a model's body *size*, so even undecoded models
  * have a concrete target to fill.
  */
-import { NS4_OFFSET_MAP } from '../ns4/offset-map.generated';
-import { NS4_EXTRA_PARAMS } from '../ns4/extra-params';
+import { buildParamMap } from '../ns4/maps';
 import { MODEL_PROGRESS, type ModelProgress, type BodyRegion } from './coverage-data';
 import { decodeNs3 } from '../ns3/decode';
 import { decodeNs2 } from '../ns2/decode';
 
-/** Full Stage 4 param map: the ns4decode-ported map + corpus-hunted extras. */
-const NS4_PARAMS = [...NS4_OFFSET_MAP, ...NS4_EXTRA_PARAMS];
+/** The single canonical Stage 4 param map (ns4decode port + corpus-RE'd extras). */
+const NS4_PARAMS = buildParamMap();
 
 export type DecodeStatus = 'full' | 'partial' | 'started' | 'none';
 
