@@ -9,9 +9,13 @@
  * have a concrete target to fill.
  */
 import { NS4_OFFSET_MAP } from '../ns4/offset-map.generated';
+import { NS4_EXTRA_PARAMS } from '../ns4/extra-params';
 import { MODEL_PROGRESS, type ModelProgress, type BodyRegion } from './coverage-data';
 import { decodeNs3 } from '../ns3/decode';
 import { decodeNs2 } from '../ns2/decode';
+
+/** Full Stage 4 param map: the ns4decode-ported map + corpus-hunted extras. */
+const NS4_PARAMS = [...NS4_OFFSET_MAP, ...NS4_EXTRA_PARAMS];
 
 export type DecodeStatus = 'full' | 'partial' | 'started' | 'none';
 
@@ -32,7 +36,7 @@ export interface ModelDecode {
 }
 
 /** Distinct parameters in the Stage 4 map (each id may span multiple layers). */
-export const NS4_PARAM_COUNT = new Set(NS4_OFFSET_MAP.map((p) => p.id)).size;
+export const NS4_PARAM_COUNT = new Set(NS4_PARAMS.map((p) => p.id)).size;
 
 // Models with a (full/partial) decoder independent of contributions.
 const DECODER_BY_ID: Record<string, 'full' | 'partial'> = {
@@ -76,7 +80,7 @@ function getNs4Progress(): ModelProgress {
   if (_ns4Progress) return _ns4Progress;
   const groupFor: Record<number, string> = {};
   const covered = new Set<number>();
-  for (const param of NS4_OFFSET_MAP) {
+  for (const param of NS4_PARAMS) {
     for (const layer of param.layers) {
       const bs = Math.floor((layer.begBit - NS4_CBIN_BITS) / 8);
       const be = Math.floor((layer.endBit - NS4_CBIN_BITS) / 8);

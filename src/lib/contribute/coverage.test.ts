@@ -6,7 +6,9 @@ describe('decodeForModel', () => {
   it('reports Stage 4 fully decoded with its real parameter count', () => {
     const d = decodeForModel('stage-4');
     expect(d.status).toBe('full');
-    expect(d.paramCount).toBe(new Set(NS4_OFFSET_MAP.map((p) => p.id)).size);
+    // Param count = the ported ns4decode map + the corpus-hunted extra params.
+    expect(d.paramCount).toBe(NS4_PARAM_COUNT);
+    expect(NS4_PARAM_COUNT).toBeGreaterThanOrEqual(new Set(NS4_OFFSET_MAP.map((p) => p.id)).size);
     expect(d.pct).toBe(100);
     expect(NS4_PARAM_COUNT).toBeGreaterThan(100);
   });
