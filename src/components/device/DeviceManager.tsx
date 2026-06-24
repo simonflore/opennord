@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import '../../styles/nord.css';
 import { Button, FilterChip } from '../ui';
 import type { NordSession } from '../../lib/device/session';
@@ -19,6 +19,12 @@ import { SampleInspector } from '../sample/SampleInspector';
 import { usePushFlow } from './usePushFlow';
 import { useDeleteFlow } from './useDeleteFlow';
 import { useSamplesFlow } from './useSamplesFlow';
+import { useReorgFlow } from './useReorgFlow';
+import { planMove, isPlanError, buildOccupancy, type Addr } from '../../lib/device/reorg';
+import { PlanReview } from './PlanReview';
+import { PlanProgress } from './PlanProgress';
+import { backup } from '../../lib/device/backup';
+import { downloadBytes } from '../../lib/download';
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -61,6 +67,23 @@ export function DeviceManager() {
   const push = usePushFlow(session, refresh);
   const del = useDeleteFlow(session, refresh);
   const samples = useSamplesFlow(session);
+
+  const [backupWanted, setBackupWanted] = useState(true);
+  const [reorgError, setReorgError] = useState('');
+  const backedUp = useRef(false);
+  const backupOnce = useCallback(async () => {
+    if (!session || !backupWanted || backedUp.current) return;
+    const bytes = await backup(session);
+    downloadBytes(bytes, `OpenNord Safety Backup ${new Date().toISOString().slice(0, 10)}.ns4b`);
+    backedUp.current = true;
+  }, [session, backupWanted]);
+  const reorg = useReorgFlow(session, refresh, backupOnce, entries);
+  function onGesture(g: { kind: 'move'; from: Addr; to: Addr }) {
+    setReorgError('');
+    const plan = planMove(buildOccupancy(entries), g.from, g.to);
+    if (isPlanError(plan)) { setReorgError(plan.error); return; }
+    reorg.setPendingPlan(plan);
+  }
 
   async function open(entry: ProgramEntry) {
     if (!session || busy) return;
@@ -128,6 +151,23 @@ export function DeviceManager() {
     );
   }
 
+  // Reorg confirm.
+  if (reorg.pendingPlan) {
+    return (
+      <>
+        <PlanReview
+          plan={reorg.pendingPlan}
+          backup={backupWanted}
+          onBackupChange={setBackupWanted}
+          busy={reorg.busy}
+          onConfirm={reorg.confirmReorg}
+          onCancel={() => reorg.setPendingPlan(null)}
+        />
+        <PlanProgress progress={reorg.progress} />
+      </>
+    );
+  }
+
   // Viewing a pulled program — offer "Send to Nord".
   if (program) {
     return (
@@ -155,7 +195,10 @@ export function DeviceManager() {
 
   // Default browser. error/busy here come from the program-open action or the
   // samples flow — only one is ever active at a time in this branch.
-  const browserError = error || samples.error;
+  const reorgFail = reorg.result && !reorg.result.ok
+    ? `Move failed; your Nord was restored.${reorg.result.warnings.length ? ` (${reorg.result.warnings.join('; ')})` : ''}`
+    : '';
+  const browserError = error || samples.error || reorgError || reorg.error || reorgFail;
   const browserBusy = busy || samples.busy;
   return (
     <div>
@@ -177,6 +220,7 @@ export function DeviceManager() {
             onSelect={open}
             onDelete={del.setPendingDelete}
             onSendFile={push.startSendFile}
+            onReorg={onGesture}
           />
         </>
       ) : (

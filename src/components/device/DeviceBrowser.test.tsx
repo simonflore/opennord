@@ -18,6 +18,12 @@ const render = (capacity: PartitionCapacity | null, entries: ProgramEntry[] = [e
     <DeviceBrowser entries={entries} deviceName="Nord Stage 4" capacity={capacity} onSelect={noop} onDelete={noop} onSendFile={noop} />,
   );
 
+describe('DeviceBrowser organize mode', () => {
+  it('offers an Organize mode toggle on the programs view', () => {
+    expect(render(cap())).toContain('Organize');
+  });
+});
+
 describe('DeviceBrowser storage meter', () => {
   it('shows free slots out of total when capacity is known', () => {
     const html = render(cap());
