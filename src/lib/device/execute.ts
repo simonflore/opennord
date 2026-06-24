@@ -53,9 +53,9 @@ export async function executePlan(
       completed++;
     }
     return { ok: true, completedOps: completed, rolledBack: false, warnings: [] };
-  } catch {
+  } catch (e) {
     const warnings = await rollback(io, partition, journal, onProgress);
-    return { ok: false, completedOps: completed, rolledBack: true, warnings };
+    return { ok: false, completedOps: completed, rolledBack: true, warnings: [msg(e), ...warnings] };
   }
 }
 
@@ -67,8 +67,9 @@ async function rollback(
   onProgress?: (p: ExecProgress) => void,
 ): Promise<string[]> {
   const warnings: string[] = [];
+  let ri = 0;
   for (const j of journal) {
-    onProgress?.({ opIndex: 0, opCount: journal.length, phase: 'rollback' });
+    onProgress?.({ opIndex: ri++, opCount: journal.length, phase: 'rollback' });
     try {
       if (j.before) {
         await io.push(partition, j.addr, j.before.file, j.before.name);

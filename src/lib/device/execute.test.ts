@@ -37,6 +37,17 @@ describe('executePlan', () => {
     expect([...dev.snapshot()]).toEqual([...initial]); // final == initial
   });
 
+  it('surfaces the trigger error in warnings, not just rollback failures', async () => {
+    const { dev, occ, plan, initial } = setup();
+    dev.failNext('push', PART, { bank: 3, slot: 40 });
+    const res = await executePlan(dev, PART, plan, occ);
+    expect(res.ok).toBe(false);
+    expect(res.rolledBack).toBe(true);
+    expect(res.warnings.length).toBeGreaterThan(0);
+    expect(res.warnings.some((w) => /fake push failure/i.test(w))).toBe(true);
+    expect([...dev.snapshot()]).toEqual([...initial]); // final == initial
+  });
+
   it('rolls back when the source delete fails (target gets removed again)', async () => {
     const { dev, occ, plan, initial } = setup();
     dev.failNext('delete', PART, { bank: 2, slot: 12 });
