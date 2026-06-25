@@ -13,7 +13,7 @@ function RootLayout() {
     <div className="on-app">
       <Rail
         active={active}
-        onNavigate={(to) => navigate({ to: to as Parameters<typeof navigate>[0]['to'] })}
+        onNavigate={(to) => navigate({ to })}
         onManageDevice={() => navigate({ to: '/device' })}
       />
       <main className="on-content">
