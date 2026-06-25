@@ -28,9 +28,13 @@ export function useSampleTransport(sampler: Sampler | null) {
   const raf = useRef<number | null>(null);
 
   const tick = useCallback(() => {
-    if (!sampler) return;
-    setSounding(sampler.sounding());
-    raf.current = requestAnimationFrame(tick);
+    if (!sampler) { raf.current = null; return; }
+    const s = sampler.sounding();
+    setSounding(s);
+    // Park the loop once silent (one final tick paints the cleared state);
+    // `refresh()` restarts it on the next note. Without this, the rAF poll would
+    // re-render every frame for the life of the file after the first note played.
+    raf.current = s.size > 0 ? requestAnimationFrame(tick) : null;
   }, [sampler]);
 
   const refresh = useCallback(() => {

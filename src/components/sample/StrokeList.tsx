@@ -111,7 +111,7 @@ function StrokeRow({ stroke, playable, name, sNumber, sounding, playhead }: {
 
   const s = stroke.summary;
   return (
-    <div style={{ marginBottom: 10, borderLeft: sounding ? '3px solid var(--red-bright)' : '3px solid transparent', paddingLeft: sounding ? 6 : 6 }}>
+    <div style={{ marginBottom: 10, borderLeft: sounding ? '3px solid var(--red-bright)' : '3px solid transparent', paddingLeft: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
         <button
           onClick={playing ? stop : play}
