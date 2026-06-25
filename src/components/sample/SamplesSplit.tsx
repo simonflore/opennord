@@ -13,8 +13,9 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
  * (bytes in hand); device samples are pulled off the board with progress, then
- * opened in the same inspector — staying on the Samples screen. No folder samples
- * and no device → the inspector's own drag/drop/pick zone (via "Load sample").
+ * opened in the same inspector — staying on the Samples screen. "+ Import sample"
+ * persists a file and opens it; "Preview a file" opens the inspector's own
+ * drag/drop/pick zone for a throwaway look (not stored).
  */
 export function SamplesSplit() {
   const wide = useSplitLayout();

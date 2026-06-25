@@ -87,6 +87,7 @@ describe('sampleEntryFromImport', () => {
     const bytes = writeNsmp({ name: 'Pad', channels: [new Int16Array(64)], codec: 3 });
     const e = sampleEntryFromImport({ id: 'local:abc', name: 'Pad.nsmp3', bytes });
     expect(e.id).toBe('local:abc');
+    expect(e.name).toBe('Pad'); // the file's own name wins over the filename stem
     expect(e.source).toBe('local');
     expect(e.generation).toBe('3');
     expect(e.size).toBe(bytes.length);
