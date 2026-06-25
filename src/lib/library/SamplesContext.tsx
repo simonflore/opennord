@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolderLibrary } from '@/lib/folder/useFolderLibrary';
+import { useImportedSamples } from '@/lib/library/useImportedSamples';
 import { useSamplesPrefs } from '@/lib/library/prefs';
 import {
   sampleEntriesFromScanned, nordSampleEntriesFromDevice, filterSamples, sortSamples,
@@ -15,6 +16,7 @@ import { findUnusedSamples, normalizeSampleName, type SampleUsage } from '@/lib/
 function useSamplesStateValue() {
   const { session, sampleEntries, setSampleEntries } = useDevice();
   const folder = useFolderLibrary();
+  const imported = useImportedSamples();
   const prefs = useSamplesPrefs();
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
   const [generation, setGeneration] = useState<SampleGeneration | 'all'>('all');
@@ -58,9 +60,12 @@ function useSamplesStateValue() {
     ...nordSampleEntriesFromDevice(sampleEntries).map((e) =>
       unusedNames ? { ...e, unused: unusedNames.has(normalizeSampleName(e.name)) } : e),
     ...sampleEntriesFromScanned(folder.result.samples),
+    ...imported.entries,
   ];
   const nordCount = allEntries.filter((e) => e.source === 'nord').length;
   const localCount = allEntries.length - nordCount;
+  const storedCount = imported.entries.length;
+  const storedBytes = imported.entries.reduce((n, e) => n + (e.size ?? 0), 0);
   const showSourceFacet = nordCount > 0 && localCount > 0;
   const showUnknownGen = allEntries.some((e) => e.generation === 'unknown' && e.source === 'local');
   const unusedCount = usage ? usage.unused.length : null;
@@ -75,6 +80,7 @@ function useSamplesStateValue() {
     // Sample-usage cleanup (device-connected)
     canScanUsage: !!session, scanUsage, scanPct, unusedCount,
     unusedOnly, setUnusedOnly, missingCount: usage ? usage.missing.length : null,
+    importSample: imported.add, removeSample: imported.remove, storedCount, storedBytes,
   };
 }
 
