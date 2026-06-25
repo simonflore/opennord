@@ -34,7 +34,7 @@ export function loopSeconds(stroke: DecodedStrokeResult): { loop: boolean; start
   return { loop: true, start: l.loopStart / SAMPLE_RATE, end: l.loopEnd / SAMPLE_RATE };
 }
 
-export interface Voice { midi: number; globalID: number; startedAt: number }
+export interface Voice { midi: number; globalID: number; startedAt: number; rate: number }
 
 export interface Sampler {
   noteOn(midi: number, velocity: number): void;
@@ -86,13 +86,14 @@ export function createSampler(
       noteOff(midi); // retrigger: drop any voice already on this key
       const src = ctx.createBufferSource();
       src.buffer = buf;
-      src.playbackRate.value = playbackRate(zone.rootKey, midi);
+      const rate = playbackRate(zone.rootKey, midi);
+      src.playbackRate.value = rate;
       const ls = loopSeconds(stroke);
       if (ls.loop) { src.loop = true; src.loopStart = ls.start; src.loopEnd = ls.end; }
       const gain = ctx.createGain();
       gain.gain.value = velocityGain(velocity);
       src.connect(gain).connect(ctx.destination);
-      const voice: Voice = { midi, globalID: zone.globalID, startedAt: ctx.currentTime };
+      const voice: Voice = { midi, globalID: zone.globalID, startedAt: ctx.currentTime, rate };
       src.onended = () => { if (live.get(midi)?.src === src) live.delete(midi); };
       src.start();
       live.set(midi, { src, gain, voice });
