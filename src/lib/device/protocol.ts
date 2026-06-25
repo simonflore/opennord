@@ -9,19 +9,32 @@ export class NordError extends Error {
   }
 }
 
+/** Override the frame's protocolId/version — e.g. NS2 FileTransfer is version `0x08`
+ *  (not `0x0a`), and the pre-FileTransfer version handshake rides protocolId `0x07`.
+ *  Both default to the NS4 FileTransfer values. See docs/PROTOCOL-RE.md (issue #31). */
+export interface FrameOptions {
+  protocolId?: number;
+  version?: number;
+}
+
 /**
  * Build a request frame: [u32 length][u32 protoId][u32 version][u32 msgId]
  * [payload words big-endian][trailing bytes][u16 CRC16]. `length` counts every
  * byte including itself and the CRC. Big-endian throughout.
  */
-export function encodeMessage(msgId: number, words: number[], trailing?: Uint8Array): Uint8Array {
+export function encodeMessage(
+  msgId: number,
+  words: number[],
+  trailing?: Uint8Array,
+  opts?: FrameOptions,
+): Uint8Array {
   const trail = trailing ?? new Uint8Array(0);
   const total = 16 + words.length * 4 + trail.length + 2;
   const out = new Uint8Array(total);
   const dv = new DataView(out.buffer);
   dv.setUint32(0, total);
-  dv.setUint32(4, PROTOCOL_ID);
-  dv.setUint32(8, PROTOCOL_VERSION);
+  dv.setUint32(4, opts?.protocolId ?? PROTOCOL_ID);
+  dv.setUint32(8, opts?.version ?? PROTOCOL_VERSION);
   dv.setUint32(12, msgId);
   let off = 16;
   for (const w of words) {

@@ -86,29 +86,43 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     ],
   },
   'stage-2': {
+    // Hardware-validated indices from a live CQryPartList probe on a Nord Stage 2
+    // (fw 3.00), contributed in issue #31 (independent interop notes). count = 10;
+    // Program partition index = 6 (same as NS4). NS2 swaps indices 2/3 (user Piano
+    // Pedal ↔ native Pedal) relative to the NS4, and — unlike the NS4 — has no
+    // separate Organ/Piano/Synth *Preset* partitions. See docs/PROTOCOL-RE.md.
     id: 'stage-2', name: 'Nord Stage 2', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og',
     partitions: [
-      P('piano-native', 'Piano (factory)', true),
-      P('samplib-native', 'Sample Library (factory)', true),
-      P('program', 'Programs', false, 'ns2p'),
-      P('synth-preset', 'Synth Presets', false, 'ns2y'),
-      P('live', 'Live', false, 'ns2l'),
-      P('settings', 'Settings', false),
+      P('piano-native', 'Piano (factory)', true, undefined, 0),
+      P('piano', 'Piano', false, undefined, 1),
+      P('pedal', 'Piano Pedal', false, undefined, 2),
+      P('pedal-native', 'Pedal (factory)', true, undefined, 3),
+      P('samplib-native', 'Sample Library (factory)', true, undefined, 4),
+      P('samplib', 'Sample Library', false, undefined, 5),
+      P('program', 'Programs', false, 'ns2p', 6),
+      P('synth-preset', 'Synth', false, 'ns2y', 7),
+      P('live', 'Live', false, 'ns2l', 8),
+      P('settings', 'Settings', false, undefined, 9),
     ],
   },
   'stage-2-ex': {
     // Nord Stage 2 EX = Nord Stage 2 with extended memory. Same ns2p program body
-    // codec and same partition structure as Stage 2; stage-2 stays the ns2p anchor
-    // (defined first). The "EX" is a hardware capacity bump, not a format change —
-    // so Stage 2 EX program files read/render through the Stage 2 path unchanged.
+    // codec and same partition structure as Stage 2 (mirrors the hardware-validated
+    // NS2 map from issue #31); stage-2 stays the ns2p anchor (defined first). The
+    // "EX" is a hardware capacity bump, not a format change — so Stage 2 EX program
+    // files read/render through the Stage 2 path unchanged.
     id: 'stage-2-ex', name: 'Nord Stage 2 EX', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og',
     partitions: [
-      P('piano-native', 'Piano (factory)', true),
-      P('samplib-native', 'Sample Library (factory)', true),
-      P('program', 'Programs', false, 'ns2p'),
-      P('synth-preset', 'Synth Presets', false, 'ns2y'),
-      P('live', 'Live', false, 'ns2l'),
-      P('settings', 'Settings', false),
+      P('piano-native', 'Piano (factory)', true, undefined, 0),
+      P('piano', 'Piano', false, undefined, 1),
+      P('pedal', 'Piano Pedal', false, undefined, 2),
+      P('pedal-native', 'Pedal (factory)', true, undefined, 3),
+      P('samplib-native', 'Sample Library (factory)', true, undefined, 4),
+      P('samplib', 'Sample Library', false, undefined, 5),
+      P('program', 'Programs', false, 'ns2p', 6),
+      P('synth-preset', 'Synth', false, 'ns2y', 7),
+      P('live', 'Live', false, 'ns2l', 8),
+      P('settings', 'Settings', false, undefined, 9),
     ],
   },
   'electro-4': {

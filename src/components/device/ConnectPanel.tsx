@@ -79,6 +79,9 @@ export function ConnectPanel({ onConnected, title = DEFAULT_TITLE, lead = DEFAUL
   async function runSession(transport: NordTransport, deviceName: string, productId: number) {
     await transport.open();
     const session = new NordSession(transport);
+    // Adopt the device's FileTransfer protocol version (NS4 = 0x0a, NS2 = 0x08).
+    // Best-effort: if the device doesn't answer the handshake, the NS4 default stands.
+    await session.negotiateVersion().catch(() => undefined);
     // Bracket enumerate in a begin/end session so the Nord returns to idle after.
     const entries = await session.withSession(PARTITION_PROGRAM, () => enumeratePrograms(session));
     setStatus('connected');

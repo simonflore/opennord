@@ -31,7 +31,8 @@ Every message, all fields **big-endian**:
 ```
 [u32 length]      total bytes incl. this field + the trailing CRC16
 [u32 protocolId]  0x0000000C = FileTransfer  (MIDIX / InstrCtrl have other ids)
-[u32 version]     0x0000000A
+[u32 version]     FileTransfer version — 0x0000000A on NS4, 0x00000008 on NS2
+                  (negotiated per device — see Multi-model below)
 [u32 msgId]       opcode (table below)
 [ payload ]       msgId-specific, big-endian u32 words (+ trailing bytes for some)
 [u16 CRC16]       CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF) over all preceding bytes
@@ -85,6 +86,51 @@ addresses **`{bank, slot}`** within it:
 > Earlier notes called this `{partition, index}`; that was a misread — the value
 > happened to equal a bank number (passing `6` to `FileInfo` after `Begin(6)` is
 > bank `6` = G, not "partition 6"). It is always `{bank, slot}`.
+
+## Multi-model — version negotiation & the Nord Stage 2
+
+The same FileTransfer protocol runs the whole Nord line — same transport, framing,
+CRC, opcodes, and read sequence. The one per-model knob is the **FileTransfer
+protocol version** in the frame header: a frame sent with the wrong version is
+**silently ignored** (no reply, no stall).
+
+**Version negotiation.** Before any FileTransfer traffic, NSM sends a query on a
+separate protocol (`protocolId 0x07`, `version 0x00`, `msgId 0x02`, empty payload).
+The device replies `msgId 0x03` with a byte-packed list of supported
+`(protocolId, version)` pairs: `[u8 count][(u8 protocolId, u8 version) × count]`.
+Reading the FileTransfer entry (`protocolId 0x0c`) auto-selects the right version
+per model rather than hard-coding it. OpenNord does this in
+[`negotiate.ts`](../src/lib/device/negotiate.ts) / `NordSession.negotiateVersion()`.
+
+**Nord Stage 2 (fw 3.00) — verified differences vs the NS4 above:**
+
+| Aspect | Stage 2 | Stage 4 |
+|---|---|---|
+| USB PID | `0x0021` | `0x002E` |
+| **FileTransfer version** | **`0x08`** | `0x0A` |
+| fourcc | `ns2p` (`0x6E733270`) | `ns4p` (`0x6E733470`) |
+| Partitions | 10 | 12 |
+| Program banks | A–D (4) | A–H (8) |
+| Slots per bank | 100 | 64 |
+| Program display | 5/page: `bank:(⌊slot/5⌋+1):(slot%5+1)` (e.g. `B:01:3`) | 8/page: `(⌊slot/8⌋+1)(slot%8+1)` (e.g. `G:11`) |
+| File checksum | CRC-32 LE (CBIN header +24) — *same as NS4* | CRC-32 LE (header +24) |
+
+NS2 captured `CQryPartList` (count = 10): `0` Piano (Native), `1` Piano, `2` Piano
+Pedal, `3` Pedal (Native), `4` Samp Lib (Native), `5` Samp Lib, **`6` Program**,
+`7` Synth, `8` Live, `9` Settings. The Program partition index is `6` — same as the
+NS4 — but NS2 **swaps indices 2/3** (user Piano Pedal ↔ native Pedal) and has no
+separate Organ/Piano/Synth *Preset* partitions. Mirrored in the registry
+([`clavia/partitions.ts`](../src/lib/clavia/partitions.ts), `stage-2`).
+
+The NS2 captured negotiation reply: `05 06 01 07 00 0a 02 0c 08 0d 00`
+→ `(0x06,1) (0x07,0) (0x0a,2)` **`(0x0c,8)`** `(0x0d,0)` — FileTransfer at version 8.
+
+> **Source:** community contribution
+> [issue #31](https://github.com/simonflore/opennord/issues/31) — captured with
+> USBPcap from NSM ↔ NS2 and validated against live hardware (pulled programs
+> reconstruct byte-identical `.ns2p` files). These are independent interop notes,
+> **not** derived from any Nord/Clavia source. The transport/opcodes/CRC are
+> byte-for-byte identical to the NS4; only the table above differs.
 
 ## Operations (all hardware-validated)
 

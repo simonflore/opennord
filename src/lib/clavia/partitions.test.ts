@@ -36,6 +36,27 @@ describe('partition registry', () => {
     expect(MODELS['stage-2'].generation).toBe('OG');
   });
 
+  // Hardware-validated via a live CQryPartList probe on a Nord Stage 2 (fw 3.00),
+  // contributed in issue #31 (independent interop notes, not from any Nord source).
+  // count = 10; Program partition index = 6 (same as NS4). Full map:
+  //   0 Piano(Native) 1 Piano 2 Piano Pedal 3 Pedal(Native) 4 Samp Lib(Native)
+  //   5 Samp Lib 6 Program 7 Synth 8 Live 9 Settings.
+  // NS2 swaps indices 2/3 (user Piano Pedal ↔ native Pedal) relative to the NS4.
+  it('Stage 2 carries the hardware-validated 10-partition map (issue #31)', () => {
+    const m = modelById('stage-2')!;
+    expect(m.partitions.map((p) => p.index)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(m.partitions.map((p) => p.kind)).toEqual([
+      'piano-native', 'piano', 'pedal', 'pedal-native', 'samplib-native', 'samplib',
+      'program', 'synth-preset', 'live', 'settings',
+    ]);
+    const prog = m.partitions.find((p) => p.kind === 'program')!;
+    expect(prog.index).toBe(6);
+    expect(prog.fourcc).toBe('ns2p');
+    // index 3 is the native (factory) pedal; index 2 the user one — swapped vs NS4
+    expect(m.partitions[2]).toMatchObject({ kind: 'pedal', native: false });
+    expect(m.partitions[3]).toMatchObject({ kind: 'pedal-native', native: true });
+  });
+
   // CLead4Base::CLead4Base @0x00000001000dd364 — constructor adds partitions in this order:
   //   SPartitionUserE2P  "Performance" (CFileSpec from nl4p CFileType) → program
   //   SPartitionProgram  (CFileSpec from nl4s CFileType)               → synth-preset

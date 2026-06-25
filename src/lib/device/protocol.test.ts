@@ -15,6 +15,22 @@ describe('encodeMessage', () => {
     ]);
   });
 
+  it('encodes with an explicit FileTransfer version (NS2 = 0x08)', () => {
+    // NS2 speaks the same FileTransfer protocol as NS4 but at version 0x08 (issue #31).
+    const bytes = encodeMessage(CReqBegin, [6], undefined, { version: 0x08 });
+    expect([...bytes.slice(8, 12)]).toEqual([0x00, 0x00, 0x00, 0x08]); // version word
+    expect([...bytes.slice(4, 8)]).toEqual([0x00, 0x00, 0x00, 0x0c]); // protocolId unchanged
+    expect(decodeReply(bytes).msgId).toBe(CReqBegin); // valid CRC (round-trips)
+  });
+
+  it('encodes a version-negotiation query (protocolId 0x07, version 0x00)', () => {
+    // NSM's pre-FileTransfer handshake: protocolId 0x07, version 0x00, msgId 0x02, empty payload.
+    const bytes = encodeMessage(0x02, [], undefined, { protocolId: 0x07, version: 0x00 });
+    expect([...bytes.slice(4, 8)]).toEqual([0x00, 0x00, 0x00, 0x07]); // protocolId
+    expect([...bytes.slice(8, 12)]).toEqual([0x00, 0x00, 0x00, 0x00]); // version
+    expect([...bytes.slice(12, 16)]).toEqual([0x00, 0x00, 0x00, 0x02]); // msgId
+  });
+
   it('includes trailing bytes before the CRC and sets length', () => {
     const trailing = new Uint8Array([0xaa, 0xbb]);
     const bytes = encodeMessage(0x10, [1, 2], trailing);

@@ -24,6 +24,10 @@ is fine — but preserve this credit and the GPLv3 lineage if you regenerate it.
 - **[NordLead3Librarian](https://github.com/malacalypse/NordLead3Librarian)** — proves a Nord can be driven over MIDI SysEx for patch import/export/audition (Nord Lead 3; macOS; unmaintained). The closest evidence the Stage transfer is achievable.
 - **[KnobKraft Orm](https://github.com/christofmuc/KnobKraft-orm)** — maintained, cross-platform, extensible SysEx librarian with Python "adaptations." A model for adding a new device, and a possible upstream collaborator.
 
+## USB FileTransfer protocol — multi-model
+
+- **[@jeffclementson-cloud](https://github.com/simonflore/opennord/issues/31)** (issue #31) — brought up the USB FileTransfer protocol on a **Nord Stage 2** (fw 3.00) from scratch with a node-usb client and contributed the NS2↔NS4 differences: FileTransfer **version `0x08`** (not `0x0a`), the `protocolId 0x07` **version-negotiation handshake**, the 10-partition NS2 map (Program at index 6), and PID/bank/slot/display deltas. Captured with USBPcap from NSM ↔ NS2 and validated against live hardware (byte-identical `.ns2p` reconstruction). **Independent interop notes — not derived from any Nord/Clavia source.** Folded into `docs/PROTOCOL-RE.md`, `src/lib/device/negotiate.ts`, and the `stage-2` registry entry.
+
 ## Live MIDI parameter map
 
 - **[ns4mcp](https://github.com/gbulfon/ns4mcp)** (MIT) — assembled the Nord Stage 4 CC/NRPN parameter map. The underlying parameter addresses are from **[midi.guide](https://midi.guide/d/nord/stage-4/)**, licensed **CC BY-SA 4.0**. If OpenNord vendors that parameter data, it must carry that attribution and remain CC BY-SA.
