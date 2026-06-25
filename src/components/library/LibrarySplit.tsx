@@ -6,7 +6,7 @@ import { useLibraryState } from '@/lib/library/LibraryContext';
 import { useSplitLayout } from '@/lib/responsive';
 
 /**
- * The Library as master/detail. Both `/library` and `/library/$programId` render
+ * The Library as master/detail. Both `/library/programs` and `/library/programs/$programId` render
  * this: at wide widths the list stays visible beside a detail pane; below the
  * split breakpoint it shows one pane at a time (today's full-page behavior).
  */
@@ -24,7 +24,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
       onSource={s.setSource}
       onQuery={s.setQuery}
       onOpen={(e) => {
-        if (e.program) navigate({ to: '/library/$programId', params: { programId: e.id } });
+        if (e.program) navigate({ to: '/library/programs/$programId', params: { programId: e.id } });
         else navigate({ to: '/device' });
       }}
       onImport={s.importFile}
@@ -39,7 +39,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
     if (!selectedId) return list;
     return (
       <div>
-        <Button variant="ghost" onClick={() => navigate({ to: '/library' })}>← Library</Button>
+        <Button variant="ghost" onClick={() => navigate({ to: '/library/programs' })}>← Library</Button>
         {entry?.program ? (
           <ProgramView program={entry.program} />
         ) : (
