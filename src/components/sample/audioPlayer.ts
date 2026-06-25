@@ -38,3 +38,11 @@ export function playPcm(channels: Int32Array[], onEnded?: () => void): () => voi
 export function stopActive(): void {
   activeStop?.();
 }
+
+/** The shared AudioContext (one across the inspector). Resumes if suspended by
+ *  the autoplay policy — call from a user gesture. */
+export function getSharedCtx(): AudioContext {
+  const ctx = getCtx();
+  if (ctx.state === 'suspended') void ctx.resume();
+  return ctx;
+}
