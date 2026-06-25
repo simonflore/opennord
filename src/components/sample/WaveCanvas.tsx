@@ -4,8 +4,8 @@ import { peaks } from '../../lib/ns4/nsmp-audio';
 /** Draws a mono waveform (channel 0) from raw integer PCM onto a canvas, with an
  *  optional shaded loop region (in/out as per-channel sample indices). */
 export function WaveCanvas(
-  { pcm, height = 64, loop }:
-  { pcm: Int32Array; height?: number; loop?: { start: number; end: number } },
+  { pcm, height = 64, loop, playhead }:
+  { pcm: Int32Array; height?: number; loop?: { start: number; end: number }; playhead?: number | null },
 ) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -34,6 +34,11 @@ export function WaveCanvas(
       const yLo = mid - (lo / peak) * mid;
       ctx.fillRect(x, yHi, 1, Math.max(1, yLo - yHi));
     });
-  }, [pcm, height, loop]);
+    if (playhead != null && playhead >= 0) {
+      const px = Math.max(0, Math.min(width, playhead * width));
+      ctx.fillStyle = getComputedStyle(cv).getPropertyValue('--red-bright').trim() || '#ff5a5a';
+      ctx.fillRect(px, 0, 2, height);
+    }
+  }, [pcm, height, loop, playhead]);
   return <canvas ref={ref} width={600} height={height} style={{ width: '100%', height, background: 'var(--lcd-bg)', borderRadius: 6, display: 'block' }} />;
 }
