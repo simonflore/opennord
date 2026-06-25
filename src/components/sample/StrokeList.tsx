@@ -24,7 +24,11 @@ function strokeWav(stroke: InspectorStroke, baseName: string): { bytes: Uint8Arr
   return { bytes, filename: `${safeStem(baseName)}_S${stroke.summary.index + 1}.wav` };
 }
 
-export function StrokeList({ strokes, playable, name = 'sample' }: { strokes: InspectorStroke[]; playable: boolean; name?: string }) {
+export function StrokeList({ strokes, playable, name = 'sample', order, globalIDOf, soundingGlobalIDs }: {
+  strokes: InspectorStroke[]; playable: boolean; name?: string;
+  order?: Map<number, number>; globalIDOf?: (strokeIndex: number) => number | undefined;
+  soundingGlobalIDs?: ReadonlySet<number>;
+}) {
   if (strokes.length === 0) {
     // Codec 3 and 4 decode; legacy codec 1/2 (or a decode failure) → no audio.
     const message = playable
@@ -48,6 +52,13 @@ export function StrokeList({ strokes, playable, name = 'sample' }: { strokes: In
     downloadBytes(zipSync(files), `${safeStem(name)}_samples.zip`);
   }
 
+  const sIndex = (s: InspectorStroke): number => {
+    const gid = globalIDOf?.(s.summary.index);
+    const pos = gid != null ? order?.get(gid) : undefined;
+    return pos ?? Number.MAX_SAFE_INTEGER; // orphans last
+  };
+  const rows = order ? [...strokes].sort((a, b) => sIndex(a) - sIndex(b)) : strokes;
+
   return (
     <div className="ps-card" style={{ marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -59,13 +70,24 @@ export function StrokeList({ strokes, playable, name = 'sample' }: { strokes: In
         )}
       </div>
       <div style={{ marginTop: 10 }}>
-        {strokes.map((s) => <StrokeRow key={s.summary.index} stroke={s} playable={playable} name={name} />)}
+        {rows.map((s) => {
+          const gid = globalIDOf?.(s.summary.index);
+          const sNumber = order && gid != null ? (order.get(gid) ?? null) : null;
+          const sounding = !!soundingGlobalIDs && globalIDOf != null && gid != null && soundingGlobalIDs.has(gid);
+          return (
+            <StrokeRow key={s.summary.index} stroke={s} playable={playable} name={name}
+              sNumber={sNumber} sounding={sounding} />
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function StrokeRow({ stroke, playable, name }: { stroke: InspectorStroke; playable: boolean; name: string }) {
+function StrokeRow({ stroke, playable, name, sNumber, sounding }: {
+  stroke: InspectorStroke; playable: boolean; name: string;
+  sNumber?: number | null; sounding?: boolean;
+}) {
   const [playing, setPlaying] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
 
@@ -84,7 +106,7 @@ function StrokeRow({ stroke, playable, name }: { stroke: InspectorStroke; playab
 
   const s = stroke.summary;
   return (
-    <div style={{ marginBottom: 10 }}>
+    <div style={{ marginBottom: 10, borderLeft: sounding ? '3px solid var(--red-bright)' : '3px solid transparent', paddingLeft: sounding ? 6 : 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
         <button
           onClick={playing ? stop : play}
@@ -102,7 +124,7 @@ function StrokeRow({ stroke, playable, name }: { stroke: InspectorStroke; playab
           WAV
         </button>
         <span className="ps-sub" style={{ margin: 0 }}>
-          Sample {s.index + 1}{s.rootNote ? ` · ${s.rootNote}` : ''} · {s.channels === 2 ? 'stereo' : 'mono'} · {(s.sampleCount / SAMPLE_RATE).toFixed(1)}s
+          Sample {sNumber != null ? sNumber + 1 : s.index + 1}{s.rootNote ? ` · ${s.rootNote}` : ''} · {s.channels === 2 ? 'stereo' : 'mono'} · {(s.sampleCount / SAMPLE_RATE).toFixed(1)}s
           {s.loops !== undefined && (
             <span title={s.loops ? 'Sample loops' : 'Plays once (no loop)'}> · {s.loops ? '↻ loops' : 'one-shot'}</span>
           )}

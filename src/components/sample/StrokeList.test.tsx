@@ -37,6 +37,23 @@ describe('StrokeList root note', () => {
   });
 });
 
+describe('StrokeList keyboard order', () => {
+  it('numbers and orders rows by the keyboard S# when an order map is given', () => {
+    // two strokes; globalIDs 5 and 9; keyboard order puts 9 first (S1), 5 second (S2)
+    const strokes: InspectorStroke[] = [
+      { summary: { index: 0, sampleCount: 4, channels: 1, peak: 1, ok: true }, channels: [new Int32Array([0,1,-1,0])] },
+      { summary: { index: 1, sampleCount: 4, channels: 1, peak: 1, ok: true }, channels: [new Int32Array([0,1,-1,0])] },
+    ];
+    const order = new Map([[9, 0], [5, 1]]);
+    const globalIDOf = (i: number) => (i === 0 ? 5 : 9);
+    const html = renderToStaticMarkup(
+      <StrokeList strokes={strokes} playable name="P" order={order} globalIDOf={globalIDOf} />,
+    );
+    // S1 (globalID 9 = stroke index 1) must appear before S2 (globalID 5 = stroke index 0)
+    expect(html.indexOf('Sample 1')).toBeLessThan(html.indexOf('Sample 2'));
+  });
+});
+
 describe('StrokeList export controls', () => {
   it('shows a WAV button per stroke and an "Export all" button for 2+ decodable strokes', () => {
     const html = renderToStaticMarkup(<StrokeList strokes={[stroke(0), stroke(1)]} playable name="Pad" />);
