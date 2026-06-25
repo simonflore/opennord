@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
-  loadBackup, backupDeviceIO, listPrograms, serializeBackup, type BackupModel,
+  loadBackup, loadBackupStreaming, backupDeviceIO, listPrograms, serializeBackup, streamBackupTo,
+  type BackupModel,
 } from '../../lib/device/backup-io';
 import { planMove, buildOccupancy, isPlanError, type Addr, type Plan } from '../../lib/device/reorg';
 import { executePlan, type ExecProgress } from '../../lib/device/execute';
@@ -14,6 +15,18 @@ import { ConfirmPanel } from './ConfirmPanel';
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+/** Above this size, read the backup all at once would exceed the browser's ~2 GiB single-ArrayBuffer
+ *  limit (and blow the tab's memory), so we stream instead. Mirrors the folder scan's cap. */
+const STREAM_ABOVE = 1024 ** 3; // 1 GiB
+
+type SaveFilePicker = (opts?: {
+  suggestedName?: string;
+  types?: { description?: string; accept?: Record<string, string[]> }[];
+}) => Promise<FileSystemFileHandle>;
+
+const saveFilePicker = (): SaveFilePicker | undefined =>
+  (window as unknown as { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
+
 /** Reorganize a .ns4b backup offline — open, drag a program to an empty slot, download the result. */
 export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; initialModel?: BackupModel }) {
   const [model, setModel] = useState<BackupModel | null>(initialModel ?? null);
@@ -26,7 +39,10 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
   async function onFile(file: File) {
     setPlanError('');
     try {
-      const m = loadBackup(new Uint8Array(await file.arrayBuffer()));
+      // Full-device backups (samples) run to several GB — stream those; read small ones in one shot.
+      const m = file.size > STREAM_ABOVE
+        ? await loadBackupStreaming(file)
+        : loadBackup(new Uint8Array(await file.arrayBuffer()));
       setModel(m);
       setEntries(listPrograms(m));
     } catch (e) {
@@ -56,9 +72,28 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
     }
   }
 
-  function download() {
-    if (!model) return;
-    downloadBytes(serializeBackup(model), `OpenNord Backup (reorganized) ${new Date().toISOString().slice(0, 10)}.ns4b`);
+  async function download() {
+    if (!model || busy) return;
+    const name = `OpenNord Backup (reorganized) ${new Date().toISOString().slice(0, 10)}.ns4b`;
+    // Small in-memory backups serialize whole; streamed (multi-GB) ones must be written straight to disk.
+    if (!model.source) {
+      downloadBytes(serializeBackup(model), name);
+      return;
+    }
+    const picker = saveFilePicker();
+    if (!picker) {
+      setPlanError('This backup is too large to download here — saving it needs a desktop Chromium browser (Chrome or Edge).');
+      return;
+    }
+    setBusy(true); setPlanError('');
+    try {
+      const handle = await picker({ suggestedName: name, types: [{ description: 'Nord backup', accept: { 'application/octet-stream': ['.ns4b'] } }] });
+      await streamBackupTo(model, await handle.createWritable());
+    } catch (e) {
+      if ((e as DOMException)?.name !== 'AbortError') setPlanError(`Could not save the backup: ${msg(e)}`); // ignore picker cancel
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (pendingPlan) {
@@ -81,8 +116,8 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={onBack}
             style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, border: '1px solid var(--line)', background: 'transparent', color: 'var(--ink)' }}>← Back</button>
-          <button type="button" onClick={download} disabled={!model}
-            style={{ padding: '8px 12px', borderRadius: 8, cursor: model ? 'pointer' : 'not-allowed', fontSize: 12, border: '1px solid var(--red)', background: 'transparent', color: 'var(--deps-ink)' }}>Download reorganized backup</button>
+          <button type="button" onClick={download} disabled={!model || busy}
+            style={{ padding: '8px 12px', borderRadius: 8, cursor: model && !busy ? 'pointer' : 'not-allowed', fontSize: 12, border: '1px solid var(--red)', background: 'transparent', color: 'var(--deps-ink)' }}>{busy ? 'Saving…' : 'Download reorganized backup'}</button>
         </div>
       </div>
 

@@ -6,10 +6,34 @@ import { buildMetaXml } from './ns4b';
 import { PARTITION_PROGRAM } from './opcodes';
 import { buildOccupancy, planMove, type Plan } from './reorg';
 import { executePlan } from './execute';
-import { loadBackup, backupDeviceIO, listPrograms, serializeBackup } from './backup-io';
+import { loadBackup, loadBackupStreaming, backupDeviceIO, listPrograms, serializeBackup, streamBackupTo } from './backup-io';
 import type { DeviceIO } from './device-io';
 
 const PART = PARTITION_PROGRAM;
+
+/** A `.ns4b`-like source whose `stream()` re-emits `bytes` in small chunks (fresh each call). */
+function streamSource(bytes: Uint8Array, chunk = 7): { stream: () => ReadableStream<Uint8Array> } {
+  return {
+    stream: () => new ReadableStream<Uint8Array>({
+      start(c) { for (let i = 0; i < bytes.length; i += chunk) c.enqueue(bytes.slice(i, i + chunk)); c.close(); },
+    }),
+  };
+}
+
+/** A WritableStream that gathers everything written, exposing the concatenated result. */
+function collectingWritable() {
+  const chunks: Uint8Array[] = [];
+  const writable = new WritableStream<Uint8Array>({ write(c) { chunks.push(c.slice()); } });
+  return {
+    writable,
+    bytes() {
+      const total = chunks.reduce((n, c) => n + c.length, 0);
+      const out = new Uint8Array(total);
+      let off = 0; for (const c of chunks) { out.set(c, off); off += c.length; }
+      return out;
+    },
+  };
+}
 
 /** A synthetic full CBIN .ns4p file (44-byte header + body), addressed to {bank,slot}. */
 function cbinFile(bank: number, slot: number, bodyLen = 4): Uint8Array {
@@ -71,6 +95,33 @@ describe('backup-io', () => {
     const round = loadBackup(serializeBackup(model));
     const progs = listPrograms(round).sort((a, b) => a.slot - b.slot);
     expect(progs.map((p) => [p.slot, p.name])).toEqual([[1, 'Pad'], [5, 'Lead']]); // clean 'Lead', not 'Lead (slot 5)'
+  });
+
+  it('streams a backup: programs decoded the same as the in-memory loader', async () => {
+    const model = await loadBackupStreaming(streamSource(synthBackup()));
+    const progs = listPrograms(model).sort((a, b) => a.slot - b.slot);
+    expect(progs.map((p) => [p.bank, p.slot, p.name])).toEqual([[0, 0, 'Lead'], [0, 1, 'Pad']]);
+  });
+
+  it('streaming load rejects a non-Nord zip', async () => {
+    const notBackup = zipSync({ 'hello.txt': strToU8('hi') }, { level: 0 });
+    await expect(loadBackupStreaming(streamSource(notBackup))).rejects.toThrow(/not a nord backup/i);
+  });
+
+  it('streams a re-export: program move applied, non-program entries preserved losslessly', async () => {
+    const model = await loadBackupStreaming(streamSource(synthBackup()));
+    const io = backupDeviceIO(model);
+    const occ = buildOccupancy(listPrograms(model));
+    await executePlan(io, PART, planMove(occ, { bank: 0, slot: 0 }, { bank: 0, slot: 5 }) as Plan, occ);
+
+    const sink = collectingWritable();
+    await streamBackupTo(model, sink.writable);
+
+    const round = loadBackup(sink.bytes());
+    const progs = listPrograms(round).sort((a, b) => a.slot - b.slot);
+    expect(progs.map((p) => [p.slot, p.name])).toEqual([[1, 'Pad'], [5, 'Lead']]); // move applied, clean name
+    expect([...round.passthrough.get('Samp Lib/Bank 1/Factory.nsmp4')!]).toEqual([1, 2, 3]); // sample untouched
+    expect(round.passthrough.has('meta.xml')).toBe(true); // header carried through
   });
 
   it('rolls the model back to its original state when a copy push fails', async () => {

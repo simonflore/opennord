@@ -1,6 +1,7 @@
-import { zipSync, unzipSync } from 'fflate';
+import { zipSync, unzipSync, Zip, ZipPassThrough } from 'fflate';
 import { hasCbinMagic, readCbinHeader } from '../clavia/cbin';
 import { patchNs4Checksum } from '../clavia/checksum';
+import { streamUnzip } from '../folder/unzip-stream';
 import { USER_PARTITIONS, backupPath, partitionForPath, type PartitionSpec } from './ns4b';
 import { PARTITION_PROGRAM } from './opcodes';
 import type { ProgramEntry } from './transfer';
@@ -9,6 +10,11 @@ import type { Addr } from './reorg';
 
 const PROGRAM_SPEC: PartitionSpec = USER_PARTITIONS.find((s) => s.partition === PARTITION_PROGRAM)!;
 const key = (a: Addr) => `${a.bank}:${a.slot}`;
+
+/** Something a streamed-in backup can be re-read from (a `File` satisfies this). */
+export interface BackupSource {
+  stream(): ReadableStream<Uint8Array>;
+}
 
 interface ProgramFile {
   addr: Addr;
@@ -20,16 +26,31 @@ interface ProgramFile {
 }
 
 export interface BackupModel {
-  /** meta.xml + every non-program entry, kept verbatim for lossless re-export. */
+  /** Non-program entries kept verbatim for lossless re-export. Populated by the in-memory
+   *  {@link loadBackup}; left empty by {@link loadBackupStreaming}, which re-reads them from
+   *  `source` at export time instead of holding multi-GB samples in RAM. */
   passthrough: Map<string, Uint8Array>;
   /** Editable Program-partition files, keyed by `${bank}:${slot}`. */
   programs: Map<string, ProgramFile>;
+  /** When present (streamed load), the original archive — re-streamed by {@link streamBackupTo}. */
+  source?: BackupSource;
 }
 
 const toEntry = (p: ProgramFile): ProgramEntry => ({
   bank: p.addr.bank, slot: p.addr.slot, name: p.name,
   categoryId: p.categoryId, version: p.version, sizeBytes: p.bytes.length - 44, fourcc: p.fourcc,
 });
+
+/** True for a zip path that holds an editable Program-partition file (not meta.xml, not a preset). */
+const isProgramEntry = (path: string) => path !== 'meta.xml' && partitionForPath(path) === PARTITION_PROGRAM;
+
+/** Decode one Program entry into a ProgramFile, or null if the path/bytes aren't an editable program. */
+function toProgramFile(path: string, bytes: Uint8Array): ProgramFile | null {
+  if (!isProgramEntry(path) || !hasCbinMagic(bytes)) return null;
+  const h = readCbinHeader(bytes);
+  const name = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '');
+  return { addr: { bank: h.bank, slot: h.location }, name, bytes, categoryId: h.category, version: h.versionRaw, fourcc: h.tag };
+}
 
 /** Parse a .ns4b into an in-memory model. Throws if it isn't a Nord backup. */
 export function loadBackup(zipBytes: Uint8Array): BackupModel {
@@ -38,16 +59,47 @@ export function loadBackup(zipBytes: Uint8Array): BackupModel {
   const passthrough = new Map<string, Uint8Array>();
   const programs = new Map<string, ProgramFile>();
   for (const [path, bytes] of Object.entries(unzipped)) {
-    if (path !== 'meta.xml' && partitionForPath(path) === PARTITION_PROGRAM && hasCbinMagic(bytes)) {
-      const h = readCbinHeader(bytes);
-      const addr = { bank: h.bank, slot: h.location };
-      const name = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '');
-      programs.set(key(addr), { addr, name, bytes, categoryId: h.category, version: h.versionRaw, fourcc: h.tag });
-    } else {
-      passthrough.set(path, bytes);
-    }
+    const prog = toProgramFile(path, bytes);
+    if (prog) programs.set(key(prog.addr), prog);
+    else passthrough.set(path, bytes);
   }
   return { passthrough, programs };
+}
+
+/**
+ * Parse a .ns4b by *streaming* it — only the (tiny) Program entries are decompressed and kept;
+ * the multi-GB Piano/Sample passthrough is skipped on load and re-streamed from `source` at
+ * export ({@link streamBackupTo}). This is the path for real full-device backups, which exceed
+ * the browser's ~2 GiB single-`ArrayBuffer` ceiling that {@link loadBackup} would hit.
+ */
+export async function loadBackupStreaming(source: BackupSource): Promise<BackupModel> {
+  const programs = new Map<string, ProgramFile>();
+  let sawMeta = false;
+  await streamUnzip(
+    source.stream(),
+    (entry) => {
+      if (entry.path === 'meta.xml') { sawMeta = true; return; }
+      const prog = toProgramFile(entry.path, entry.bytes);
+      if (prog) programs.set(key(prog.addr), prog);
+    },
+    (path) => path === 'meta.xml' || isProgramEntry(path), // skip everything else undecompressed
+  );
+  if (!sawMeta) throw new Error('Not a Nord backup (no meta.xml).');
+  return { passthrough: new Map(), programs, source };
+}
+
+/**
+ * The final Program entries to write: each program's regenerated `<Folder>/Bank/<name>` path and
+ * bytes, disambiguating only genuine same-bank-same-name duplicates. `used` is seeded with any
+ * paths already claimed (passthrough), and mutated as paths are taken. Shared by both serializers.
+ */
+function* finalProgramFiles(model: BackupModel, used: Set<string>): Generator<[string, Uint8Array]> {
+  for (const p of model.programs.values()) {
+    let path = backupPath(PROGRAM_SPEC, p.addr.bank, p.name);
+    if (used.has(path)) path = backupPath(PROGRAM_SPEC, p.addr.bank, `${p.name} (slot ${p.addr.slot})`);
+    used.add(path);
+    yield [path, p.bytes];
+  }
 }
 
 export function listPrograms(model: BackupModel): ProgramEntry[] {
@@ -92,11 +144,41 @@ export function serializeBackup(model: BackupModel): Uint8Array {
   const out: Record<string, Uint8Array> = {};
   for (const [path, bytes] of model.passthrough) out[path] = bytes;
   const used = new Set(Object.keys(out));
-  for (const p of model.programs.values()) {
-    let path = backupPath(PROGRAM_SPEC, p.addr.bank, p.name);
-    if (used.has(path)) path = backupPath(PROGRAM_SPEC, p.addr.bank, `${p.name} (slot ${p.addr.slot})`);
-    used.add(path);
-    out[path] = p.bytes;
-  }
+  for (const [path, bytes] of finalProgramFiles(model, used)) out[path] = bytes;
   return zipSync(out, { level: 0 });
+}
+
+/**
+ * Re-export a streamed-in backup to `writable` without ever holding it whole: every non-program
+ * entry is copied through from `model.source` verbatim (stored, lossless), and the edited Program
+ * set is appended with regenerated paths. Peak memory is a single entry, so a 3 GB backup
+ * re-zips straight to disk. Requires a model from {@link loadBackupStreaming} (has `source`).
+ */
+export async function streamBackupTo(model: BackupModel, writable: WritableStream<Uint8Array>): Promise<void> {
+  if (!model.source) throw new Error('streamBackupTo requires a streamed-in backup (model.source).');
+  const writer = writable.getWriter();
+  const pending: Uint8Array[] = []; // zip output produced (synchronously) by the current entry
+  const zip = new Zip((err, chunk) => { if (!err && chunk.length) pending.push(chunk); });
+
+  const drain = async () => { for (const c of pending.splice(0)) { await writer.ready; await writer.write(c); } };
+  const addStored = async (path: string, bytes: Uint8Array) => {
+    const file = new ZipPassThrough(path); // stored: no recompression, byte-for-byte
+    zip.add(file);
+    file.push(bytes, true);
+    await drain();
+  };
+
+  try {
+    // 1) carry every non-program entry through untouched (meta.xml, presets, samples)
+    await streamUnzip(model.source.stream(), (e) => addStored(e.path, e.bytes), (p) => !isProgramEntry(p));
+    // 2) append the edited program set; Program/ never collides with the passthrough folders
+    const used = new Set<string>();
+    for (const [path, bytes] of finalProgramFiles(model, used)) await addStored(path, bytes);
+    zip.end();
+    await drain();
+    await writer.close();
+  } catch (e) {
+    await writer.abort(e).catch(() => {});
+    throw e;
+  }
 }

@@ -34,13 +34,18 @@ function concat(chunks: Uint8Array[]): Uint8Array {
  * fflate's push-based {@link Unzip} reads each entry from its local header as the
  * bytes flow by (no central-directory seek), so forward streaming works even for
  * store-zips. A decode error propagates out of the returned promise.
+ *
+ * `onEntry` may be async: each completed entry is awaited before the next chunk is
+ * read, so a consumer can apply write-backpressure (e.g. piping entries straight
+ * into a streaming re-zip) and keep peak memory at a single entry.
  */
 export async function streamUnzip(
   source: ReadableStream<Uint8Array>,
-  onEntry: (entry: UnzippedEntry) => void,
+  onEntry: (entry: UnzippedEntry) => void | Promise<void>,
   accept?: (path: string) => boolean,
 ): Promise<void> {
   let failure: unknown;
+  const ready: UnzippedEntry[] = []; // entries completed within the current push, awaited after it
   const unzipper = new Unzip();
   unzipper.register(UnzipInflate); // DEFLATE entries; stored entries pass through natively
 
@@ -51,7 +56,7 @@ export async function streamUnzip(
       if (failure) return;
       if (err) { failure = err; return; }
       if (chunk.length) chunks.push(chunk);
-      if (final) onEntry({ path: file.name, bytes: concat(chunks) });
+      if (final) ready.push({ path: file.name, bytes: concat(chunks) });
     };
     file.start();
   };
@@ -60,8 +65,9 @@ export async function streamUnzip(
   try {
     for (;;) {
       const { value, done } = await reader.read();
-      unzipper.push(value ?? EMPTY, done); // ondata fires synchronously within push
+      unzipper.push(value ?? EMPTY, done); // ondata fires synchronously within push, queuing into `ready`
       if (failure) throw failure;
+      for (const entry of ready.splice(0)) await onEntry(entry);
       if (done) break;
     }
   } finally {

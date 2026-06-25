@@ -16,7 +16,7 @@ function streamOf(bytes: Uint8Array, chunkSize = 8): ReadableStream<Uint8Array> 
 
 async function collect(zip: Uint8Array, accept?: (p: string) => boolean): Promise<UnzippedEntry[]> {
   const out: UnzippedEntry[] = [];
-  await streamUnzip(streamOf(zip), (e) => out.push(e), accept);
+  await streamUnzip(streamOf(zip), (e) => { out.push(e); }, accept);
   return out;
 }
 
