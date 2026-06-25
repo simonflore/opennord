@@ -3,6 +3,9 @@ import '../../styles/nord.css';
 import { readNsmp, decodeNsmp, readNsmpZones, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
 import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary, sampleUnisonView, noteName } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
+import { buildPlayableZones, strokeKeyboardOrder, type PlayableZone } from '../../lib/ns4/playable-zones';
+import { createSampler, type Sampler } from './sampleEngine';
+import { useSampleTransport } from './useSampleTransport';
 import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
 import { StrokeList, type InspectorStroke } from './StrokeList';
@@ -24,6 +27,14 @@ interface Loaded {
   decodable: boolean;
   /** Monotonic load id — keys the editor so it remounts per file (drops stale edits). */
   loadId: number;
+  /** Gapless playable zone layout for the sampler + keyboard highlight. */
+  playableZones: PlayableZone[];
+  /** globalID → keyboard position (0-based) for StrokeList ordering. */
+  order: Map<number, number>;
+  /** globalID → decoded stroke (sampler needs audio + loop info). */
+  strokesByGlobalID: Map<number, DecodedStrokeResult>;
+  /** Polyphonic player, null when audio isn't decodable. */
+  sampler: Sampler | null;
 }
 
 export interface InspectorInput { bytes: Uint8Array; name: string; }
@@ -45,6 +56,14 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
   const [dragOver, setDragOver] = useState(false);
   const loadCount = useRef(0);
 
+  const transport = useSampleTransport(loaded?.sampler ?? null);
+  // sounding is a state value (Map), not a function
+  const soundingMidis = new Set(transport.sounding.keys());
+  const soundingGlobalIDs = new Set(transport.sounding.values());
+
+  // Stop any held voices when the file changes or the component unmounts.
+  useEffect(() => () => { loaded?.sampler?.stopAll(); }, [loaded?.sampler]);
+
   async function loadBytes(bytes: Uint8Array, name: string) {
     const file = readNsmp(bytes);
     const decodable = file.codec === 3 || file.codec === 4 || file.legacy;
@@ -64,7 +83,11 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
       return { summary, channels: d.channels };
     });
     const stem = name.replace(/\.[^./]+$/, '');
-    setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current });
+    const playableZones = buildPlayableZones(zones);
+    const order = strokeKeyboardOrder(zones);
+    const strokesByGlobalID = new Map(decoded.map((d) => [d.globalID, d]));
+    const sampler = decodable ? createSampler(playableZones, strokesByGlobalID) : null;
+    setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current, playableZones, order, strokesByGlobalID, sampler });
   }
 
   async function onFile(f: File) {
@@ -113,6 +136,10 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                 codec={loaded.file.codec === 4 ? 4 : 3}
                 unison={sampleUnisonView(loaded.bytes)?.summary ?? null}
                 onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
+                onNoteOn={(midi) => { loaded.sampler?.noteOn(midi, 100); transport.refresh(); }}
+                onNoteOff={(midi) => loaded.sampler?.noteOff(midi)}
+                soundingMidis={soundingMidis}
+                playableZones={loaded.playableZones}
               />
             : loaded.file.legacy && loaded.zones.length > 0
               ? (
@@ -122,6 +149,10 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                   <SampleKeyboard
                     zones={editModel(loaded.file, loaded.zones).zones}
                     onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
+                    onNoteOn={(midi) => { loaded.sampler?.noteOn(midi, 100); transport.refresh(); }}
+                    onNoteOff={(midi) => loaded.sampler?.noteOff(midi)}
+                    soundingMidis={soundingMidis}
+                    playableZones={loaded.playableZones}
                   />
                   <div className="ps-card" style={{ marginTop: 12 }}>
                     <p className="ps-sub" style={{ margin: 0 }}>
@@ -139,7 +170,18 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
               )}
 
           {loaded.decodable && <SampleConvert bytes={loaded.bytes} file={loaded.file} name={loaded.name} />}
-          <StrokeList strokes={loaded.strokes} playable={loaded.decodable} name={loaded.file.name?.trim() || loaded.name} />
+          <StrokeList
+            strokes={loaded.strokes}
+            playable={loaded.decodable}
+            name={loaded.file.name?.trim() || loaded.name}
+            order={loaded.order}
+            globalIDOf={(i) => loaded.decoded[i]?.globalID}
+            soundingGlobalIDs={soundingGlobalIDs}
+            playheadOf={(i) => {
+              const st = loaded.decoded[i];
+              return st ? transport.playheadFor(st.globalID, st) : null;
+            }}
+          />
 
           {/* Raw key/velocity table — only when we couldn't build the editor. */}
           {!((loaded.file.codec === 3 || loaded.file.codec === 4) && loaded.zones.length > 0)

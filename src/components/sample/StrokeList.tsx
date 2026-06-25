@@ -24,10 +24,12 @@ function strokeWav(stroke: InspectorStroke, baseName: string): { bytes: Uint8Arr
   return { bytes, filename: `${safeStem(baseName)}_S${stroke.summary.index + 1}.wav` };
 }
 
-export function StrokeList({ strokes, playable, name = 'sample', order, globalIDOf, soundingGlobalIDs }: {
+export function StrokeList({ strokes, playable, name = 'sample', order, globalIDOf, soundingGlobalIDs, playheadOf }: {
   strokes: InspectorStroke[]; playable: boolean; name?: string;
   order?: Map<number, number>; globalIDOf?: (strokeIndex: number) => number | undefined;
   soundingGlobalIDs?: ReadonlySet<number>;
+  /** Normalized 0..1 playhead for a stroke by its index, or null when silent. */
+  playheadOf?: (strokeIndex: number) => number | null;
 }) {
   if (strokes.length === 0) {
     // Codec 3 and 4 decode; legacy codec 1/2 (or a decode failure) → no audio.
@@ -76,7 +78,8 @@ export function StrokeList({ strokes, playable, name = 'sample', order, globalID
           const sounding = !!soundingGlobalIDs && globalIDOf != null && gid != null && soundingGlobalIDs.has(gid);
           return (
             <StrokeRow key={s.summary.index} stroke={s} playable={playable} name={name}
-              sNumber={sNumber} sounding={sounding} />
+              sNumber={sNumber} sounding={sounding}
+              playhead={playheadOf ? playheadOf(s.summary.index) : undefined} />
           );
         })}
       </div>
@@ -84,9 +87,11 @@ export function StrokeList({ strokes, playable, name = 'sample', order, globalID
   );
 }
 
-function StrokeRow({ stroke, playable, name, sNumber, sounding }: {
+function StrokeRow({ stroke, playable, name, sNumber, sounding, playhead }: {
   stroke: InspectorStroke; playable: boolean; name: string;
   sNumber?: number | null; sounding?: boolean;
+  /** Normalized 0..1 playhead position from the sampler, or null/undefined when silent. */
+  playhead?: number | null;
 }) {
   const [playing, setPlaying] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
@@ -137,6 +142,7 @@ function StrokeRow({ stroke, playable, name, sNumber, sounding }: {
         <WaveCanvas
           pcm={stroke.channels[0]}
           loop={s.loops && s.loopStart != null && s.loopEnd != null ? { start: s.loopStart, end: s.loopEnd } : undefined}
+          playhead={playhead}
         />
       )}
     </div>

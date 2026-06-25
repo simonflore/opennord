@@ -5,6 +5,7 @@ import { noteName, gainDetuneView } from '../../lib/ns4/sample-view';
 import { downloadBytes } from '../../lib/download';
 import { Button } from '../ui';
 import { KeyboardZoneMap } from './KeyboardZoneMap';
+import type { PlayableZone } from '../../lib/ns4/playable-zones';
 
 /** One decimal place, dropping a trailing ".0" (e.g. -6, 2.9). */
 const round1 = (n: number): number => Math.round(n * 10) / 10;
@@ -13,7 +14,7 @@ const round1 = (n: number): number => Math.round(n * 10) / 10;
  *  zone in the synced table below; rename, then patch + download a new .nsmp.
  *  Edits are written back into the original file in place — audio and everything
  *  we don't model are preserved exactly. */
-export function SampleEditPanel({ initial, bytes, codec, unison, onPlayZone }: {
+export function SampleEditPanel({ initial, bytes, codec, unison, onPlayZone, onNoteOn, onNoteOff, soundingMidis, playableZones }: {
   initial: EditModel;
   bytes: Uint8Array;
   codec: 3 | 4;
@@ -21,6 +22,14 @@ export function SampleEditPanel({ initial, bytes, codec, unison, onPlayZone }: {
   unison?: string | null;
   /** Audition a zone's sample by index — wired to the keyboard + table rows. */
   onPlayZone?: (index: number) => void;
+  /** Play a MIDI note via the sampler (keyboard press). */
+  onNoteOn?: (midi: number) => void;
+  /** Release a MIDI note. */
+  onNoteOff?: (midi: number) => void;
+  /** Currently-sounding MIDI notes (for keyboard highlight). */
+  soundingMidis?: ReadonlySet<number>;
+  /** Gapless playable zone layout (for keyboard highlight). */
+  playableZones?: PlayableZone[];
 }) {
   const [name, setName] = useState(initial.name);
   const [zones, setZones] = useState(initial.zones);
@@ -66,6 +75,10 @@ export function SampleEditPanel({ initial, bytes, codec, unison, onPlayZone }: {
         onSelect={setSelected}
         onChangeKeyHigh={(i, keyHigh) => setZone(i, { keyHigh })}
         onPlayZone={onPlayZone}
+        onNoteOn={onNoteOn}
+        onNoteOff={onNoteOff}
+        soundingMidis={soundingMidis}
+        playableZones={playableZones}
       />
 
       <table className="ps-params ps-zone-tbl">
