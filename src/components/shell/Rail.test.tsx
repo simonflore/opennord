@@ -13,20 +13,29 @@ function render(active: string) {
 
 describe('Rail', () => {
   it('renders the brand and primary destinations', () => {
-    const html = render('library');
+    const html = render('library/programs');
     expect(html).toContain('Open');
     expect(html).toContain('Library');
-    expect(html).toContain('Samples');
     expect(html).toContain('Contribute');
   });
-  it('marks the active destination', () => {
-    const html = render('library');
+
+  it('renders the four category sub-items under Library, two disabled', () => {
+    const html = render('library/programs');
+    for (const label of ['Programs', 'Pianos', 'Samples', 'Presets']) expect(html).toContain(label);
+    // Pianos + Presets are not-ready → rendered disabled.
+    expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('keeps Library lit while on a category path', () => {
+    const html = render('library/samples');
     expect(html).toContain('on-nav--active');
   });
+
   it('shows the disconnected device state by default', () => {
     const html = render('library');
     expect(html).toContain('No Nord connected');
   });
+
   it('exposes the developer tools entry', () => {
     const html = render('library');
     expect(html).toContain('Developer');

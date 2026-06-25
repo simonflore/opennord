@@ -1,7 +1,10 @@
+import { LIBRARY_CATEGORIES } from '../../lib/library/categories';
 import { DeviceStatus } from './DeviceStatus';
 
 /** Route paths the rail can navigate to — kept in sync with the route tree in router.tsx. */
-export type NavTo = '/library' | '/samples' | '/device' | '/compatibility' | '/contribute' | '/about' | '/dev/inspect' | '/dev/decode';
+export type NavTo =
+  | '/library' | '/library/programs' | '/library/samples'
+  | '/device' | '/compatibility' | '/contribute' | '/about' | '/dev/inspect' | '/dev/decode';
 
 interface Props {
   /** Current pathname without its leading slash (e.g. "library", "library/abc", "dev/inspect"). */
@@ -11,8 +14,6 @@ interface Props {
 }
 
 const DESTS: Array<{ to: NavTo; label: string }> = [
-  { to: '/library', label: 'Library' },
-  { to: '/samples', label: 'Samples' },
   { to: '/device', label: 'Device' },
   { to: '/compatibility', label: 'Compatibility' },
 ];
@@ -39,6 +40,27 @@ export function Rail({ active, onNavigate, onManageDevice }: Props) {
   return (
     <nav className="on-rail">
       <div className="on-rail__brand">Open<span className="on-rail__brand-accent">Nord</span></div>
+
+      {/* Library + its category sub-nav (registry-driven) */}
+      <button
+        className={`on-nav ${isActive('/library') ? 'on-nav--active' : ''}`.trim()}
+        aria-current={isActive('/library') ? 'page' : undefined}
+        onClick={() => onNavigate('/library')}
+      >
+        Library
+      </button>
+      {isActive('/library') && LIBRARY_CATEGORIES.map((c) => (
+        <button
+          key={c.id}
+          className={`on-nav on-nav--sub ${path === c.path || path.startsWith(c.path + '/') ? 'on-nav--active' : ''}`.trim()}
+          aria-current={path === c.path ? 'page' : undefined}
+          disabled={!c.ready}
+          title={c.ready ? undefined : 'Coming soon'}
+          onClick={c.ready ? () => onNavigate(c.path as NavTo) : undefined}
+        >
+          {c.label}
+        </button>
+      ))}
 
       {DESTS.map((d) => {
         const disabled = d.to === '/device' && !usbSupported;
