@@ -6,7 +6,7 @@ import { buildMetaXml } from './ns4b';
 import { PARTITION_PROGRAM } from './opcodes';
 import { buildOccupancy, planMove, type Plan } from './reorg';
 import { executePlan } from './execute';
-import { loadBackup, backupDeviceIO, listPrograms, serializeBackup, type BackupModel } from './backup-io';
+import { loadBackup, backupDeviceIO, listPrograms, serializeBackup } from './backup-io';
 import type { DeviceIO } from './device-io';
 
 const PART = PARTITION_PROGRAM;
