@@ -81,6 +81,7 @@ export function SampleEditPanel({ initial, bytes, codec, unison, onPlayZone, onN
         playableZones={playableZones}
       />
 
+      <div className="ps-zone-scroll">
       <table className="ps-params ps-zone-tbl">
         <thead><tr>
           <th>sample</th><th>root</th><th>from</th><th>up to (split)</th><th>vel ≥</th><th>vel ≤</th>
@@ -104,6 +105,7 @@ export function SampleEditPanel({ initial, bytes, codec, unison, onPlayZone, onN
           })}
         </tbody>
       </table>
+      </div>
 
       {gd && (
         <div className="ps-sub" style={{ display: 'flex', gap: 18, alignItems: 'center', margin: '12px 0 0', flexWrap: 'wrap' }}>

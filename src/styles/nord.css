@@ -132,9 +132,13 @@
 .ps-kbd-edit__t { font-weight: 700; color: var(--ink); letter-spacing: .5px; }
 .ps-kbd-edit label { display: inline-flex; align-items: center; gap: 5px; }
 .ps-kbd-edit em { color: var(--muted); font-style: normal; font-family: var(--mono); }
-.ps-kbd-num { width: 54px; padding: 3px 6px; background: var(--sink); border: 1px solid var(--line);
+.ps-kbd-num { width: 44px; padding: 3px 5px; background: var(--sink); border: 1px solid var(--line);
   border-radius: 6px; color: var(--ink); font: 11px var(--mono); }
+/* The zone table can exceed a narrow detail pane (6 columns of inputs) — scroll
+   it instead of clipping the rightmost velocity column. */
+.ps-zone-scroll { overflow-x: auto; }
 .ps-zone-tbl { margin-top: 4px; }
+.ps-zone-tbl th, .ps-zone-tbl td { padding: 2px 6px; white-space: nowrap; }
 .ps-zone-tbl tbody tr { cursor: pointer; }
 .ps-zone-tbl tbody tr.sel td { background: var(--surface-2); }
 .ps-zone-tbl tbody tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--red); }
