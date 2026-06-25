@@ -2,6 +2,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 import type { NordSession } from './session';
 import type { ProgramEntry } from './transfer';
 import type { PartitionCapacity } from './capacity';
+import type { PresetGroup } from './presets';
 
 interface DeviceState {
   session: NordSession | null;
@@ -12,6 +13,9 @@ interface DeviceState {
   /** User Sample Library files enumerated from the device (partition 5). */
   sampleEntries: ProgramEntry[];
   setSampleEntries: (e: ProgramEntry[]) => void;
+  /** Preset groups enumerated from the device (organ/piano/synth partitions). */
+  presetEntries: PresetGroup[];
+  setPresetEntries: (g: PresetGroup[]) => void;
   /** Program partition capacity (slots + free space), or null until read. */
   capacity: PartitionCapacity | null;
   setCapacity: (c: PartitionCapacity | null) => void;
@@ -26,6 +30,7 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<NordSession | null>(null);
   const [entries, setEntries] = useState<ProgramEntry[]>([]);
   const [sampleEntries, setSampleEntries] = useState<ProgramEntry[]>([]);
+  const [presetEntries, setPresetEntries] = useState<PresetGroup[]>([]);
   const [deviceName, setDeviceName] = useState('');
   const [productId, setProductId] = useState(0);
   const [capacity, setCapacity] = useState<PartitionCapacity | null>(null);
@@ -33,11 +38,12 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
   const value: DeviceState = {
     session, entries, deviceName, productId,
     sampleEntries, setSampleEntries,
+    presetEntries, setPresetEntries,
     capacity, setCapacity,
     setConnection: (s, e, name, pid) => { setSession(s); setEntries(e); setDeviceName(name); setProductId(pid); },
     setEntries,
     disconnect: () => {
-      setSession(null); setEntries([]); setSampleEntries([]); setDeviceName(''); setProductId(0); setCapacity(null);
+      setSession(null); setEntries([]); setSampleEntries([]); setPresetEntries([]); setDeviceName(''); setProductId(0); setCapacity(null);
     },
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
