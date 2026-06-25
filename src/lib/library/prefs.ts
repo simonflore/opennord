@@ -10,6 +10,9 @@ import type { LibrarySort } from './types';
 
 export type SampleSort = 'default' | 'name' | 'size' | 'strokes';
 
+/** Preset browse sort vocabulary — presets have name + size (no strokes). */
+export type PresetSort = 'default' | 'name' | 'size';
+
 interface PersistedPrefs<S extends string> {
   sort: S;
   favorites: string[];
