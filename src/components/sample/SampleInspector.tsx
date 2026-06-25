@@ -12,6 +12,8 @@ import { StrokeList, type InspectorStroke } from './StrokeList';
 import { SampleEditPanel } from './SampleEditPanel';
 import { SampleKeyboard } from './SampleKeyboard';
 import { SampleConvert } from './SampleConvert';
+import { MidiConnect } from './MidiConnect';
+import { useMidi } from '../../lib/midi/MidiContext';
 import { playPcm } from './audioPlayer';
 
 interface Loaded {
@@ -63,6 +65,19 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
 
   // Stop any held voices when the file changes or the component unmounts.
   useEffect(() => () => { loaded?.sampler?.stopAll(); }, [loaded?.sampler]);
+
+  const midi = useMidi();
+  // Route MIDI notes into the loaded sampler (same path as the on-screen keyboard,
+  // so playing the controller lights the now-playing zones + waveform playhead).
+  useEffect(() => {
+    const sampler = loaded?.sampler;
+    if (!sampler || !loaded?.decodable) { midi.setSink(null); return; }
+    midi.setSink({
+      noteOn: (n, v) => { sampler.noteOn(n, v); transport.refresh(); },
+      noteOff: (n) => sampler.noteOff(n),
+    });
+    return () => midi.setSink(null);
+  }, [loaded?.sampler, loaded?.decodable, midi, transport]);
 
   async function loadBytes(bytes: Uint8Array, name: string) {
     const file = readNsmp(bytes);
@@ -169,6 +184,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                 </div>
               )}
 
+          {loaded.decodable && <MidiConnect />}
           {loaded.decodable && <SampleConvert bytes={loaded.bytes} file={loaded.file} name={loaded.name} />}
           <StrokeList
             strokes={loaded.strokes}

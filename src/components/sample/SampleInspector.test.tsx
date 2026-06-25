@@ -36,10 +36,11 @@ describe('ZoneMap', () => {
 });
 
 import { SampleInspector } from './SampleInspector';
+import { MidiProvider } from '../../lib/midi/MidiContext';
 
 describe('SampleInspector', () => {
   it('renders the drop zone before a file is loaded', () => {
-    const html = renderToStaticMarkup(<SampleInspector />);
+    const html = renderToStaticMarkup(<MidiProvider><SampleInspector /></MidiProvider>);
     expect(html).toContain('.nsmp');
     expect(html.toLowerCase()).toContain('drop');
   });
