@@ -86,8 +86,8 @@ export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, on
       aria-label="Keyboard zone map"
       onPointerDown={onNoteOn ? (e) => { (e.currentTarget as Element).setPointerCapture(e.pointerId); press(e.clientX); } : undefined}
       onPointerMove={onNoteOn ? (e) => { if (held.current != null) press(e.clientX); } : undefined}
-      onPointerUp={onNoteOn ? release : undefined}
-      onPointerLeave={onNoteOn ? release : undefined}
+      onPointerUp={onNoteOn ? (e) => { try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* not captured */ } release(); } : undefined}
+      onPointerLeave={onNoteOn ? (e) => { try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* not captured */ } release(); } : undefined}
     >
       <rect x="0" y={KB_TOP} width={W} height={KB_H} rx="4" fill="var(--ink)" />
       {blacks.map((m) => (
