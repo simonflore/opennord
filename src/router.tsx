@@ -2,6 +2,7 @@ import { createRouter, createHashHistory, createRoute, redirect } from '@tanstac
 import { rootRoute } from '@/routes/root';
 import { LibraryIndexRoute, ProgramsRoute, ProgramRoute } from '@/routes/library';
 import { SamplesRoute, SamplesRedirectRoute } from '@/routes/samples';
+import { PresetsRoute } from '@/routes/presets';
 import { DeviceRoute } from '@/routes/device';
 import { AboutRoute } from '@/routes/about';
 import { CompatibilityRoute } from '@/routes/compatibility';
@@ -21,6 +22,7 @@ const routeTree = rootRoute.addChildren([
   ProgramRoute,
   SamplesRedirectRoute,
   SamplesRoute,
+  PresetsRoute,
   DeviceRoute,
   CompatibilityRoute,
   AboutRoute,

@@ -1,10 +1,7 @@
 import { LIBRARY_CATEGORIES } from '../../lib/library/categories';
 import { DeviceStatus } from './DeviceStatus';
-
-/** Route paths the rail can navigate to — kept in sync with the route tree in router.tsx. */
-export type NavTo =
-  | '/library' | '/library/programs' | '/library/samples'
-  | '/device' | '/compatibility' | '/contribute' | '/about' | '/dev/inspect' | '/dev/decode';
+import type { NavTo } from './nav';
+export type { NavTo } from './nav';
 
 interface Props {
   /** Current pathname without its leading slash (e.g. "library", "library/abc", "dev/inspect"). */
@@ -56,7 +53,7 @@ export function Rail({ active, onNavigate, onManageDevice }: Props) {
           aria-current={path === c.path ? 'page' : undefined}
           disabled={!c.ready}
           title={c.ready ? undefined : 'Coming soon'}
-          onClick={c.ready ? () => onNavigate(c.path as NavTo) : undefined}
+          onClick={c.ready ? () => onNavigate(c.path) : undefined}
         >
           {c.label}
         </button>

@@ -3,6 +3,7 @@ import './components/shell/shell.css';
 import { DeviceProvider } from './lib/device/DeviceContext';
 import { LibraryProvider } from './lib/library/LibraryContext';
 import { SamplesProvider } from './lib/library/SamplesContext';
+import { PresetsProvider } from './lib/library/PresetsContext';
 import { router } from './router';
 
 export function App() {
@@ -10,7 +11,9 @@ export function App() {
     <DeviceProvider>
       <LibraryProvider>
         <SamplesProvider>
-          <RouterProvider router={router} />
+          <PresetsProvider>
+            <RouterProvider router={router} />
+          </PresetsProvider>
         </SamplesProvider>
       </LibraryProvider>
     </DeviceProvider>

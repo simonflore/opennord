@@ -1,0 +1,107 @@
+import '../library/library.css';
+import { BrowseToolbar, Card, SourceBadge, type FacetGroup } from '../ui';
+import type { PresetEntry } from '@/lib/library/preset-entries';
+import type { PresetKind } from '@/lib/clavia/preset-kind';
+import type { LibrarySource } from '@/lib/library/types';
+import type { PresetSort } from '@/lib/library/prefs';
+
+export const KIND_LABEL: Record<PresetKind, string> = {
+  'organ-preset': 'Organ', 'piano-preset': 'Piano', 'synth-preset': 'Synth',
+};
+const SORT_LABEL: Record<PresetSort, string> = { default: 'Default', name: 'Name (A–Z)', size: 'Size' };
+
+const parsePresetSort = (raw: string): PresetSort =>
+  raw === 'name' || raw === 'size' ? raw : 'default';
+
+export function PresetsBrowse({
+  entries, source, setSource, kind, setKind, query, setQuery,
+  kinds, showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect,
+}: {
+  entries: PresetEntry[];
+  source: LibrarySource | 'all'; setSource: (s: LibrarySource | 'all') => void;
+  kind: PresetKind | 'all'; setKind: (k: PresetKind | 'all') => void;
+  query: string; setQuery: (q: string) => void;
+  kinds: PresetKind[];
+  showSourceFacet: boolean;
+  sort: PresetSort; setSort: (s: PresetSort) => void;
+  isFavorite: (id: string) => boolean;
+  toggleFavorite: (id: string) => void;
+  onSelect: (e: PresetEntry) => void;
+}) {
+  const facets: FacetGroup[] = [
+    ...(showSourceFacet ? [{
+      ariaLabel: 'Filter by source',
+      value: source,
+      options: [
+        { key: 'all', label: 'All' }, { key: 'nord', label: 'On Nord' }, { key: 'local', label: 'Local' },
+      ],
+      onChange: (k: string) => setSource(k as LibrarySource | 'all'),
+    }] : []),
+    {
+      ariaLabel: 'Filter by type',
+      value: kind,
+      options: [
+        { key: 'all', label: 'All' },
+        ...kinds.map((k) => ({ key: k, label: KIND_LABEL[k] })),
+      ],
+      onChange: (k: string) => setKind(k as PresetKind | 'all'),
+    },
+  ];
+
+  const sortOptions = (Object.keys(SORT_LABEL) as PresetSort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }));
+
+  return (
+    <div className="lib-panel">
+      <div className="lib-panel__head">
+        <div className="lib-head">
+          <div>
+            <h1 className="lib-title">Presets</h1>
+            <div className="lib-counts">
+              <span className="lib-counts__total">{entries.length} preset{entries.length !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+        </div>
+        <BrowseToolbar
+          query={query} onQuery={setQuery} placeholder="Search presets…"
+          facets={facets}
+          sort={sort} sortOptions={sortOptions} onSort={(k) => setSort(parsePresetSort(k))} sortAriaLabel="Sort presets"
+        />
+      </div>
+      <div className="lib-panel__body">
+        {entries.length === 0 ? (
+          <p className="lib-empty">No presets match your filter.</p>
+        ) : (
+          <div className="lib-grid">
+            {entries.map((e) => (
+              <Card
+                key={e.id}
+                accent={e.source === 'nord'}
+                className="lib-patch"
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelect(e)}
+                onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onSelect(e); } }}
+              >
+                <div className="lib-patch__top">
+                  <button
+                    className={`lib-fav${isFavorite(e.id) ? ' is-fav' : ''}`}
+                    aria-label={isFavorite(e.id) ? `Unfavorite ${e.name}` : `Favorite ${e.name}`}
+                    aria-pressed={isFavorite(e.id)}
+                    onClick={(ev) => { ev.stopPropagation(); toggleFavorite(e.id); }}
+                    onKeyDown={(ev) => ev.stopPropagation()}
+                  >{isFavorite(e.id) ? '★' : '☆'}</button>
+                  <span className="lib-patch__nm">{e.name}</span>
+                  <span className="lib-slot">{e.slot ?? KIND_LABEL[e.kind]}</span>
+                </div>
+                <div className="lib-patch__foot">
+                  <SourceBadge source={e.source} />
+                  {e.size != null && <span className="lib-slot">{e.size} B</span>}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

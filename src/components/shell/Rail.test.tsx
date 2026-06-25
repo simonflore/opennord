@@ -19,11 +19,16 @@ describe('Rail', () => {
     expect(html).toContain('Contribute');
   });
 
-  it('renders the four category sub-items under Library, two disabled', () => {
+  it('renders the four category sub-items under Library, only Pianos disabled', () => {
     const html = render('library/programs');
     for (const label of ['Programs', 'Pianos', 'Samples', 'Presets']) expect(html).toContain(label);
-    // Pianos + Presets are not-ready → rendered disabled.
-    expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    // Only Pianos is not-ready → exactly one disabled category sub-item.
+    expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(1);
+    expect(html).toContain('Pianos');
+    // Presets is now live — its button must NOT carry a disabled attribute immediately adjacent.
+    const presetsIdx = html.indexOf('>Presets<');
+    const presetsBtnStart = html.lastIndexOf('<button', presetsIdx);
+    expect(html.slice(presetsBtnStart, presetsIdx)).not.toContain('disabled');
   });
 
   it('keeps Library lit while on a category path', () => {
