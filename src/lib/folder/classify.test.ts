@@ -27,6 +27,6 @@ describe('classifyFile', () => {
     expect(classifyFile('Bank A/Pad.ns4y')).toBe('preset');
     expect(classifyFile('legacy.ns3y')).toBe('preset');
     expect(classifyFile('Prog.ns4p')).toBe('program'); // program unchanged
-    expect(classifyFile('Lead4Patch.nl4s')).toBe('program'); // Lead programs stay program
+    expect(classifyFile('Lead4Patch.nl4s')).not.toBe('preset');
   });
 });

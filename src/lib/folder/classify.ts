@@ -2,7 +2,7 @@
 export type FileClass = 'program' | 'bundle' | 'sample' | 'preset';
 
 /** Program files decode via parseClaviaFile → the Library. */
-const PROGRAM_EXTS = ['.ns4p', '.ns4l', '.ne6p', '.ne6l', '.nl4s', '.nl4p'];
+const PROGRAM_EXTS = ['.ns4p', '.ns4l', '.ne6p', '.ne6l'];
 /** Organ/Piano/Synth preset files — recognized by tag, listed in the Presets category (no decode). */
 const PRESET_EXTS = ['.ns4o', '.ns4n', '.ns4y', '.ns3y', '.ns2y'];
 /** ZIP backups — expanded into their contained programs. */
