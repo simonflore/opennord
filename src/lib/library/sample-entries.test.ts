@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   sampleGeneration, sampleEntriesFromScanned, nordSampleEntriesFromDevice,
-  filterSamples, sortSamples, type SampleEntry,
+  filterSamples, sortSamples, sampleEntryFromImport, type SampleEntry,
 } from './sample-entries';
+import { writeNsmp } from '../ns4/nsmp-write';
 import type { NsmpFile } from '../ns4/nsmp';
 import type { ScannedSample } from '../folder/scan';
 
@@ -78,5 +79,24 @@ describe('sortSamples', () => {
   });
   it('favorites float to the top', () => {
     expect(names(sortSamples(sample, 'name', new Set(['folder:Old.nsmp'])))).toEqual(['Old Pad', 'Bell', 'Choir']);
+  });
+});
+
+describe('sampleEntryFromImport', () => {
+  it('maps imported bytes to a local SampleEntry with the parsed generation', () => {
+    const bytes = writeNsmp({ name: 'Pad', channels: [new Int16Array(64)], codec: 3 });
+    const e = sampleEntryFromImport({ id: 'local:abc', name: 'Pad.nsmp3', bytes });
+    expect(e.id).toBe('local:abc');
+    expect(e.source).toBe('local');
+    expect(e.generation).toBe('3');
+    expect(e.size).toBe(bytes.length);
+    expect(e.bytes).toBe(bytes);
+    expect(e.file?.recognized).toBe(true);
+  });
+
+  it('falls back to the filename stem when the file carries no name', () => {
+    const bytes = writeNsmp({ name: '', channels: [new Int16Array(64)], codec: 3 });
+    const e = sampleEntryFromImport({ id: 'local:x', name: 'My Loop.nsmp3', bytes });
+    expect(e.name).toBe('My Loop');
   });
 });

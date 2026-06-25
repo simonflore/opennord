@@ -1,4 +1,4 @@
-import type { NsmpFile } from '../ns4/nsmp';
+import { readNsmp, type NsmpFile } from '../ns4/nsmp';
 import type { ScannedSample } from '../folder/scan';
 import type { ProgramEntry } from '../device/transfer';
 import type { LibrarySource } from './types';
@@ -47,6 +47,27 @@ export function sampleEntriesFromScanned(samples: ScannedSample[]): SampleEntry[
     file: s.file,
     bytes: s.bytes,
   }));
+}
+
+/**
+ * Build a local Sample entry from a persisted import (id + filename + bytes).
+ * Pure: re-parsing the same bytes always yields the same entry, so it serves a
+ * fresh import and one restored from IndexedDB identically. Mirrors
+ * {@link ../entries.entryFromImport} for programs.
+ */
+export function sampleEntryFromImport(rec: { id: string; name: string; bytes: Uint8Array }): SampleEntry {
+  const file = readNsmp(rec.bytes);
+  const stem = rec.name.replace(/\.[^./]+$/, '');
+  return {
+    id: rec.id,
+    name: file.name?.trim() || stem || rec.name,
+    source: 'local',
+    generation: sampleGeneration(file),
+    strokeCount: file.recognized ? file.strokeCount : undefined,
+    size: rec.bytes.length,
+    file,
+    bytes: rec.bytes,
+  };
 }
 
 /** Map the device's enumerated sample-partition files into nord Sample entries. */
