@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseVersionReply, PROTOCOL_NEGOTIATE, MSG_QRY_VERSIONS } from './negotiate';
+import { parseVersionReply, PROTOCOL_NEGOTIATE, MSG_QRY_VERSIONS, shouldNegotiateVersion, NS4_PRODUCT_ID } from './negotiate';
 import { PROTOCOL_ID } from './opcodes';
 
 describe('parseVersionReply', () => {
@@ -28,5 +28,19 @@ describe('parseVersionReply', () => {
   it('exposes the handshake opcode constants', () => {
     expect(PROTOCOL_NEGOTIATE).toBe(0x07);
     expect(MSG_QRY_VERSIONS).toBe(0x02);
+  });
+});
+
+describe('shouldNegotiateVersion', () => {
+  it('skips the handshake for the Stage 4 — its FileTransfer version is the 0x0a default', () => {
+    // The 0x07 query has no bounded read; if a device never answers it the connect
+    // would pend forever. NS4 (the validated transfer path) needs no negotiation, so
+    // we never issue the query for it — no dangling read, no risk to enumerate.
+    expect(shouldNegotiateVersion(NS4_PRODUCT_ID)).toBe(false);
+  });
+
+  it('negotiates for other models so they can adopt a non-default version (NS2 = 0x08)', () => {
+    expect(shouldNegotiateVersion(0x0030)).toBe(true); // a non-NS4 Clavia product id
+    expect(NS4_PRODUCT_ID).toBe(0x002e);
   });
 });

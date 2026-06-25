@@ -6,6 +6,7 @@ import { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
+import { shouldNegotiateVersion } from '../../lib/device/negotiate';
 import { Button, SectionLabel } from '../ui';
 import './connect.css';
 
@@ -81,9 +82,13 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
   async function runSession(transport: NordTransport, deviceName: string, productId: number) {
     await transport.open();
     const session = new NordSession(transport);
-    // Adopt the device's FileTransfer protocol version (NS4 = 0x0a, NS2 = 0x08).
-    // Best-effort: if the device doesn't answer the handshake, the NS4 default stands.
-    await session.negotiateVersion().catch(() => undefined);
+    // Adopt the device's FileTransfer protocol version (NS2 = 0x08). Best-effort:
+    // if the device doesn't answer the handshake, the NS4 default (0x0a) stands.
+    // Skipped for the NS4 itself — it already uses 0x0a, and the handshake's reply
+    // read is unbounded, so querying a device that won't answer hangs connect.
+    if (shouldNegotiateVersion(productId)) {
+      await session.negotiateVersion().catch(() => undefined);
+    }
     // Bracket enumerate in a begin/end session so the Nord returns to idle after.
     const entries = await session.withSession(PARTITION_PROGRAM, () => enumeratePrograms(session));
     setStatus('connected');

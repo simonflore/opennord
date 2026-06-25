@@ -12,6 +12,25 @@ export const PROTOCOL_NEGOTIATE = 0x07;
 /** msgId of the "list your supported versions" query; the device replies `0x03`. */
 export const MSG_QRY_VERSIONS = 0x02;
 
+/** Nord Stage 4 USB product id (Clavia vendor `0x0ffc`). */
+export const NS4_PRODUCT_ID = 0x002e;
+
+/**
+ * Whether to run the pre-FileTransfer version handshake for a device, by product id.
+ *
+ * Skip it for the Stage 4: its FileTransfer version *is* the `0x0a` default
+ * (negotiation's own fallback), so the handshake can only confirm what we already
+ * use — while the `0x07` query's reply read is unbounded ({@link ./session
+ * negotiateVersion} → transport `bulkIn`, no timeout). A device that silently
+ * ignores `0x07` would pend the connect forever, and a dropped read can't be
+ * rescued by a `.catch` nor abandoned without desyncing the shared IN endpoint.
+ * Not issuing the query for the validated NS4 path removes that risk entirely;
+ * other models (e.g. NS2, which answers `0x07` and needs `0x08`) still negotiate.
+ */
+export function shouldNegotiateVersion(productId: number): boolean {
+  return productId !== NS4_PRODUCT_ID;
+}
+
 /**
  * Decode a `0x03` negotiation reply payload into `protocolId → version`.
  * Payload is byte-packed (not u32 words): `[u8 count][(u8 protocolId, u8 version) × count]`.
