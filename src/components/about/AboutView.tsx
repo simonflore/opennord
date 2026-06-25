@@ -61,6 +61,25 @@ export function AboutView() {
         </Card>
 
         <Card className="about-sec">
+          <div className="about-sec__h">Support OpenNord</div>
+          <p className="about-sec__p">
+            OpenNord is free and open source, built in the open. If it’s useful to
+            you and you’d like to help keep the work going, you can buy me a coffee.
+            Entirely optional — and always appreciated.
+          </p>
+          <a
+            className="bmc-btn"
+            href="https://buymeacoffee.com/simonflore"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Buy me a coffee on Buy Me a Coffee"
+          >
+            <span className="bmc-btn__icon" aria-hidden="true">☕</span>
+            Buy me a coffee
+          </a>
+        </Card>
+
+        <Card className="about-sec">
           <div className="about-sec__h">Credits</div>
           <p className="about-sec__p">
             OpenNord’s <code>.ns4p</code> decoding started from{' '}

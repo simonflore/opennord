@@ -61,6 +61,12 @@ decode-layer map, commands, and the legal guardrails.
 
 The reverse-engineering (format + USB transfer protocol) is **done and documented** — see [`docs/PROTOCOL-RE.md`](docs/PROTOCOL-RE.md) and [`docs/FORMAT.md`](docs/FORMAT.md). The most valuable contributions now are on the **product**: the program-visualization UI, the community library, and the AI features. See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## Support
+
+OpenNord is free and open source, built in the open. If it's useful to you and you'd like to help keep the work going, you can buy me a coffee — entirely optional, always appreciated.
+
+<a href="https://buymeacoffee.com/simonflore" target="_blank"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=simonflore&button_colour=FFDD00&font_colour=000000&font_family=Poppins&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee" height="48" /></a>
+
 ## Legal
 
 Not affiliated with, endorsed by, or connected to Clavia DMI AB / Nord Keyboards. "Nord" and "Nord Stage" are trademarks of their owner, used here only to describe compatibility. OpenNord shares **user-created programs**, never Nord's sample/library content. See [`docs/LEGAL.md`](docs/LEGAL.md).

@@ -110,6 +110,13 @@
   --zone-5: #534a2c;
   --zone-6: #3f3a59;
 
+  /* Buy Me a Coffee brand button — fixed external-brand colors (like the LCD
+     blues, a documented exception). Tokenized so nothing hardcodes hex outside
+     here and the button matches buymeacoffee.com's recognizable yellow. */
+  --bmc-yellow: #ffdd00;
+  --bmc-yellow-hi: #ffe84d;    /* hover lift */
+  --bmc-ink: #000000;          /* black text/icon on the yellow */
+
   /* type */
   --font: -apple-system, system-ui, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;

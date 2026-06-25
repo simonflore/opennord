@@ -10,6 +10,22 @@
 .about-sec__p { font: 13px/1.55 var(--font); color: var(--dim); margin: 0; }
 .about-sec__p strong { color: var(--ink); font-weight: 600; }
 
+/* Buy Me a Coffee button — native styling matching buymeacoffee.com's button
+   (no third-party embed script, so the privacy posture above holds). */
+.bmc-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: var(--s-3); padding: 8px 16px;
+  background: var(--bmc-yellow); color: var(--bmc-ink);
+  font: 600 13px var(--font); text-decoration: none;
+  border-radius: var(--r-sm);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition: background 120ms ease, transform 120ms ease;
+}
+.bmc-btn:hover { background: var(--bmc-yellow-hi); transform: translateY(-1px); }
+.bmc-btn:active { transform: translateY(0); }
+.bmc-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.bmc-btn__icon { font-size: 15px; line-height: 1; }
+
 .about-foot {
   margin-top: var(--s-4); font: 11px var(--font); color: var(--muted);
 }
