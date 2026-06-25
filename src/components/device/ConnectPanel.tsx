@@ -30,8 +30,10 @@ const DEFAULT_LEAD =
   'Plug your Stage 4 into this computer over USB to back up your sounds, browse every ' +
   'program in one place, and move patches between the keyboard and OpenNord.';
 
-export function ConnectPanel({ onConnected, title = DEFAULT_TITLE, lead = DEFAULT_LEAD }: {
+export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE, lead = DEFAULT_LEAD }: {
   onConnected: (session: NordSession, entries: ProgramEntry[], deviceName: string, productId: number) => void;
+  /** Callback when the user clicks "open a backup offline" (optional). */
+  onOpenBackup?: () => void;
   /** Override the connect-card heading (e.g. for line-wide tools, not Stage-4 framing). */
   title?: string;
   /** Override the connect-card lead copy. */
@@ -138,6 +140,15 @@ export function ConnectPanel({ onConnected, title = DEFAULT_TITLE, lead = DEFAUL
           Using Nord Sound Manager? Quit it first — it keeps the USB connection to itself, so only
           one app can talk to the Nord at a time.
         </p>
+        {onOpenBackup && (
+          <p className="connect__hint">
+            No Nord handy?{' '}
+            <button type="button" onClick={onOpenBackup}
+              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--deps-ink)', textDecoration: 'underline', font: 'inherit' }}>
+              Open a backup to organize offline
+            </button>
+          </p>
+        )}
       </div>
     </div>
   );

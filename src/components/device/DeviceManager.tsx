@@ -10,6 +10,7 @@ import { parseClaviaFile, type NordProgram } from '../../lib/formats';
 import { slotLabel } from '../../lib/clavia/slot';
 import { ProgramView } from '../program/ProgramView';
 import { ConnectPanel } from './ConnectPanel';
+import { BackupOrganizer } from './BackupOrganizer';
 import { DeviceBrowser } from './DeviceBrowser';
 import { TargetSlotPicker } from './TargetSlotPicker';
 import { ConfirmPanel } from './ConfirmPanel';
@@ -39,6 +40,7 @@ export function DeviceManager() {
   const [program, setProgram] = useState<NordProgram | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [organizingBackup, setOrganizingBackup] = useState(false);
 
   async function refresh(s: NordSession) {
     await s.withSession(PARTITION_PROGRAM, async () => {
@@ -110,7 +112,13 @@ export function DeviceManager() {
   }
 
   if (!session) {
-    return <ConnectPanel onConnected={(s, e, name, pid) => setConnection(s, e, name, pid)} />;
+    if (organizingBackup) return <BackupOrganizer onBack={() => setOrganizingBackup(false)} />;
+    return (
+      <ConnectPanel
+        onConnected={(s, e, name, pid) => setConnection(s, e, name, pid)}
+        onOpenBackup={() => setOrganizingBackup(true)}
+      />
+    );
   }
 
   // Push flow: pick a slot, then confirm.

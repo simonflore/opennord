@@ -53,4 +53,10 @@ describe('ConnectPanel render states', () => {
     render(<ConnectPanel onConnected={vi.fn()} />);
     expect(screen.getByRole('heading', { name: /chrome or edge/i })).toBeInTheDocument();
   });
+
+  it('offers an offline "open a backup" action when onOpenBackup is provided', () => {
+    reach = 'webusb';
+    render(<ConnectPanel onConnected={vi.fn()} onOpenBackup={vi.fn()} />);
+    expect(screen.getByText(/open a backup/i)).toBeInTheDocument();
+  });
 });
