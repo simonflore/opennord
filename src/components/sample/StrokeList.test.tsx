@@ -23,6 +23,20 @@ describe('StrokeList loop indicator', () => {
   });
 });
 
+describe('StrokeList root note', () => {
+  it('shows the root note in the description line when known, omits it otherwise', () => {
+    const withRoot: InspectorStroke = {
+      summary: { index: 0, sampleCount: 4, channels: 2, peak: 1, ok: true, rootNote: 'E3' },
+      channels: [new Int32Array([0, 1, -1, 0])],
+    };
+    const html = renderToStaticMarkup(<StrokeList strokes={[withRoot]} playable name="P" />);
+    expect(html).toContain('E3');
+    // No root → the line still renders, just without a note token.
+    const noRoot = renderToStaticMarkup(<StrokeList strokes={[stroke(0)]} playable name="P" />);
+    expect(noRoot).toContain('Sample 1');
+  });
+});
+
 describe('StrokeList export controls', () => {
   it('shows a WAV button per stroke and an "Export all" button for 2+ decodable strokes', () => {
     const html = renderToStaticMarkup(<StrokeList strokes={[stroke(0), stroke(1)]} playable name="Pad" />);

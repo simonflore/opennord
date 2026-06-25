@@ -11,7 +11,7 @@ function fmtSize(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const GEN_LABEL: Record<SampleGeneration, string> = { og: 'OG', '3': '.nsmp3', '4': '.nsmp4', npno: 'Piano (.npno)', unknown: 'Unrecognized' };
+const GEN_LABEL: Record<SampleGeneration, string> = { og: '.nsmp', '3': '.nsmp3', '4': '.nsmp4', npno: 'Piano (.npno)', unknown: 'Unrecognized' };
 const SORT_LABEL: Record<SampleSort, string> = { default: 'Default', name: 'Name (A–Z)', size: 'Size', strokes: 'Samples' };
 
 export function SamplesBrowse(

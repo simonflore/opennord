@@ -17,7 +17,7 @@ export function noteName(midi: number): string {
 
 export interface SampleHeaderView {
   name: string;
-  /** ".nsmp (OG)" / ".nsmp3" / ".nsmp4" / "—". */
+  /** ".nsmp" / ".nsmp3" / ".nsmp4" / "—". */
   codecLabel: string;
   version: string;
   checksumOk: boolean;
@@ -38,9 +38,11 @@ export interface SampleHeaderView {
   };
 }
 
-/** Display label for a sample's generation: ".nsmp (OG)" / ".nsmp3" / ".nsmp4" / "—". */
+/** Display label for a sample's generation: ".nsmp" / ".nsmp3" / ".nsmp4" / "—".
+ *  The legacy generation is shown as its plain extension (".nsmp") — the internal
+ *  "OG" codec name is never surfaced to players. */
 export function nsmpGenerationLabel(file: NsmpFile): string {
-  if (file.legacy) return '.nsmp (OG)';
+  if (file.legacy) return '.nsmp';
   return file.codec ? `.nsmp${file.codec}` : '—';
 }
 
@@ -120,6 +122,9 @@ export interface StrokeSummary {
   channels: number;
   peak: number;
   ok: boolean;
+  /** Root note (e.g. "E3") of the zone that plays this stroke. Joined from the
+   *  key map by globalID at load time; undefined when no zone references it. */
+  rootNote?: string;
   /** Whether the stroke loops; undefined when the loop region wasn't decodable. */
   loops?: boolean;
   /** Loop in/out, per-channel samples from stroke start (only when looping). */

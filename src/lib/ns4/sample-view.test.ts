@@ -40,14 +40,14 @@ describe('sampleHeaderView', () => {
     });
   });
 
-  it('OG .nsmp: shows the OG label, the v8 revision, no checksum, filename fallback', () => {
+  it('legacy .nsmp: shows the plain .nsmp label, the v8 revision, no checksum, filename fallback', () => {
     const file: NsmpFile = {
       recognized: true, version: '8', versionRaw: 8, codec: 0, legacy: true,
       checksumValid: false, name: undefined, sections: [], strokeCount: 9,
       suspectedFactory: false, warnings: [],
     };
     const v = sampleHeaderView(file, 1000, 'TAKE ON ME');
-    expect(v.codecLabel).toBe('.nsmp (OG)');
+    expect(v.codecLabel).toBe('.nsmp'); // no internal "OG" jargon surfaced to players
     expect(v.version).toBe('8');
     expect(v.checksumKnown).toBe(false); // no CRC field to verify
     expect(v.name).toBe('TAKE ON ME'); // falls back to filename when the file has no name

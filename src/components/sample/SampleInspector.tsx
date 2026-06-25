@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import '../../styles/nord.css';
 import { readNsmp, decodeNsmp, readNsmpZones, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
-import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary, sampleUnisonView } from '../../lib/ns4/sample-view';
+import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary, sampleUnisonView, noteName } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
 import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
@@ -53,7 +53,16 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
       try { decoded = decodeNsmp(bytes); } catch { decoded = []; }
     }
     const zones: NsmpZone[] = file.recognized ? readNsmpZones(bytes) : [];
-    const strokes: InspectorStroke[] = decoded.map((d) => ({ summary: strokeSummary(d), channels: d.channels }));
+    // A zone references its stroke by globalID; the zone's rootKey is that
+    // stroke's recorded pitch. Join here (both in scope) so each stroke row can
+    // show its root note. First match wins if a stroke is shared across zones.
+    const rootByGlobalID = new Map<number, number>();
+    for (const z of zones) if (!rootByGlobalID.has(z.globalID)) rootByGlobalID.set(z.globalID, z.rootKey);
+    const strokes: InspectorStroke[] = decoded.map((d) => {
+      const root = rootByGlobalID.get(d.globalID);
+      const summary = root != null ? { ...strokeSummary(d), rootNote: noteName(root) } : strokeSummary(d);
+      return { summary, channels: d.channels };
+    });
     const stem = name.replace(/\.[^./]+$/, '');
     setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current });
   }
