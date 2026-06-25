@@ -7,6 +7,7 @@ import type { NordSession } from '../../lib/device/session';
 import type { SlotTarget } from './TargetSlotPicker';
 
 import { getErrorMessage } from '../../lib/errors';
+import { readFileBytes } from '../../lib/file';
 
 export interface PushSource { bytes: Uint8Array; name: string; }
 
@@ -33,7 +34,7 @@ export function usePushFlow(session: NordSession | null, refresh: (s: NordSessio
   async function startSendFile(file: File) {
     setError('');
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
+      const bytes = await readFileBytes(file);
       startPush({ bytes, name: programNameFromFilename(file.name) });
     } catch (e) {
       setError(`Could not read ${file.name}: ${getErrorMessage(e)}`);

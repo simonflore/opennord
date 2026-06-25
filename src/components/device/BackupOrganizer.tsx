@@ -13,6 +13,7 @@ import { SlotGrid } from './SlotGrid';
 import { PlanProgress } from './PlanProgress';
 import { ConfirmPanel } from './ConfirmPanel';
 import { getErrorMessage } from '../../lib/errors';
+import { readFileBytes } from '../../lib/file';
 
 /** Above this size, read the backup all at once would exceed the browser's ~2 GiB single-ArrayBuffer
  *  limit (and blow the tab's memory), so we stream instead. Mirrors the folder scan's cap. */
@@ -41,7 +42,7 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
       // Full-device backups (samples) run to several GB — stream those; read small ones in one shot.
       const m = file.size > STREAM_ABOVE
         ? await loadBackupStreaming(file)
-        : loadBackup(new Uint8Array(await file.arrayBuffer()));
+        : loadBackup(await readFileBytes(file));
       setModel(m);
       setEntries(listPrograms(m));
     } catch (e) {

@@ -1,11 +1,5 @@
 import type { SampleHeaderView } from '../../lib/ns4/sample-view';
-
-/** Human-friendly byte size, e.g. 2097152 → "2.0 MB". */
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
+import { formatBytes } from '../../lib/format';
 
 /** Signed gain in dB, e.g. +2.9 dB / −6.0 dB. */
 const fmtDb = (db: number): string => `${db >= 0 ? '+' : '−'}${Math.abs(db).toFixed(1)} dB`;

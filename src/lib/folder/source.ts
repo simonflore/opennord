@@ -1,4 +1,5 @@
 import { classifyFile } from './classify';
+import { readFileBytes } from '../file';
 
 /** Where folder files come from: an FSA directory handle, or a webkitdirectory FileList. */
 export type FolderSource = FileSystemDirectoryHandle | File[];
@@ -25,7 +26,7 @@ interface AsyncDir { values(): AsyncIterable<FileSystemHandle>; }
 
 function locatedForFile(path: string, file: File, isBundle: boolean): Located {
   if (isBundle) return { kind: 'bundle', path, size: file.size, stream: () => file.stream() };
-  return { kind: 'file', path, size: file.size, bytes: async () => new Uint8Array(await file.arrayBuffer()) };
+  return { kind: 'file', path, size: file.size, bytes: () => readFileBytes(file) };
 }
 
 async function* fromHandle(dir: FileSystemDirectoryHandle, prefix: string): AsyncGenerator<Located> {

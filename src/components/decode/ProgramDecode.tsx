@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { parseClaviaFile, type NordProgram } from '@/lib/formats';
 import { summarizeFile, type FileSummary } from '@/lib/clavia/identify-summary';
 import { FixtureLoader } from '@/components/dev/FixtureLoader';
+import { readFileBytes } from '@/lib/file';
 
 /** Identify summary — which Nord, tag/version/kind, and whether it matches the registry. */
 export function IdentifyPanel({ summary }: { summary: FileSummary }) {
@@ -33,7 +34,7 @@ export function ProgramDecode() {
     setProgram(parseClaviaFile(bytes).program);
   }
   async function onFile(file: File) {
-    load(file.name, new Uint8Array(await file.arrayBuffer()));
+    load(file.name, await readFileBytes(file));
   }
 
   return (

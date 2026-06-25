@@ -4,6 +4,7 @@ import { backup, restore, type RestoreResult } from '../../lib/device/backup';
 import { resolveFactory } from '../../lib/device/factory';
 import { downloadBytes } from '../../lib/download';
 import { getErrorMessage } from '../../lib/errors';
+import { readFileBytes } from '../../lib/file';
 
 /** Backup → download a .ns4b; Restore → confirm, write, summarize. */
 export function BackupPanel({ session, deviceName, onAfterRestore }: {
@@ -32,7 +33,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
   }
 
   async function pickRestore(file: File) {
-    setPendingZip(new Uint8Array(await file.arrayBuffer()));
+    setPendingZip(await readFileBytes(file));
     setStatus('');
     setSkipped([]); // clear any prior restore's skipped list
   }

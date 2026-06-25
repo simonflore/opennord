@@ -15,6 +15,7 @@ import { SampleConvert } from './SampleConvert';
 import { MidiConnect } from './MidiConnect';
 import { useMidi } from '../../lib/midi/MidiContext';
 import { playPcm } from './audioPlayer';
+import { readFileBytes } from '../../lib/file';
 
 interface Loaded {
   bytes: Uint8Array;
@@ -106,7 +107,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
   }
 
   async function onFile(f: File) {
-    await loadBytes(new Uint8Array(await f.arrayBuffer()), f.name);
+    await loadBytes(await readFileBytes(f), f.name);
   }
 
   useEffect(() => {

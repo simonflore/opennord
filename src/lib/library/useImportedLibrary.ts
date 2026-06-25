@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { LibraryEntry } from './types';
 import { entryFromImport } from './entries';
 import { saveImport, listImports, deleteImport, type StoredImport } from './importStore';
+import { readFileBytes } from '../file';
 
 export interface ImportedLibrary {
   /** Imported programs, restored from IndexedDB on mount. */
@@ -30,7 +31,7 @@ export function useImportedLibrary(): ImportedLibrary {
   }, []);
 
   const add = useCallback(async (file: File) => {
-    const bytes = new Uint8Array(await file.arrayBuffer());
+    const bytes = await readFileBytes(file);
     const rec: StoredImport = { id: `local:${crypto.randomUUID()}`, name: file.name, bytes };
     await saveImport(rec).catch(() => { /* keep it for the session even if persist fails */ });
     setEntries((prev) => [...prev, entryFromImport(rec)]);

@@ -8,6 +8,7 @@ import { pullSample } from '@/lib/device/samples';
 import { useSplitLayout } from '@/lib/responsive';
 import type { SampleEntry } from '@/lib/library/sample-entries';
 import { getErrorMessage } from '../../lib/errors';
+import { readFileBytes } from '../../lib/file';
 
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
@@ -60,7 +61,7 @@ export function SamplesSplit() {
       const f = input.files?.[0];
       cleanup();
       if (!f) return;
-      const bytes = new Uint8Array(await f.arrayBuffer());
+      const bytes = await readFileBytes(f);
       await s.importSample(f);                  // persist + add to the list
       setLoadNew(false);
       setInspect({ bytes, name: f.name });      // open it now

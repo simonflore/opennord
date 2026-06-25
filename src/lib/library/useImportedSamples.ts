@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { SampleEntry } from './sample-entries';
 import { sampleEntryFromImport } from './sample-entries';
 import { saveSampleImport, listSampleImports, deleteSampleImport, type StoredSample } from './sampleImportStore';
+import { readFileBytes } from '../file';
 
 export interface ImportedSamples {
   entries: SampleEntry[];
@@ -23,7 +24,7 @@ export function useImportedSamples(): ImportedSamples {
   }, []);
 
   const add = useCallback(async (file: File) => {
-    const bytes = new Uint8Array(await file.arrayBuffer());
+    const bytes = await readFileBytes(file);
     const rec: StoredSample = { id: `local:${crypto.randomUUID()}`, name: file.name, bytes };
     await saveSampleImport(rec).catch(() => { /* keep for the session even if persist fails */ });
     setEntries((prev) => [...prev, sampleEntryFromImport(rec)]);

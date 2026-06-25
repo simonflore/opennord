@@ -16,6 +16,7 @@ import { useNordMidi } from './useNordMidi';
 import { MidiProbe } from './MidiProbe';
 import { DecodeCoverage } from './DecodeCoverage';
 import { getErrorMessage } from '../../lib/errors';
+import { readFileBytes } from '../../lib/file';
 
 const APP_VERSION = '0.1.0';
 
@@ -305,7 +306,7 @@ function FileDropWizard() {
   const vocab = baseline ? vocabForTag(baseline.model.tag) : [];
 
   async function readFile(file: File): Promise<Capture> {
-    const bytes = new Uint8Array(await file.arrayBuffer());
+    const bytes = await readFileBytes(file);
     return fileCaptureSource(bytes).capture();
   }
 

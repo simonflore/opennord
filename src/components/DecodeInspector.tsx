@@ -25,6 +25,7 @@ import {
   groupOfByte,
 } from '../lib/ns4/coverage';
 import type { Ns4Group } from '../lib/ns4/maps';
+import { readFileBytes } from '../lib/file';
 
 // Engine-group dot/segment colors — resolved from the --di-* data-viz tokens
 // defined on the `.di` container in decode-inspector.css.
@@ -37,7 +38,7 @@ const GROUP_COLOR: Record<Ns4Group, string> = {
 const GROUP_LABEL: Record<Ns4Group, string> = { m: 'master', o: 'organ', p: 'piano', y: 'synth' };
 
 async function readFile(file: File): Promise<Uint8Array> {
-  return new Uint8Array(await file.arrayBuffer());
+  return readFileBytes(file);
 }
 
 export function DecodeInspector() {
