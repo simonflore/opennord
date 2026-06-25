@@ -2,12 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { classifyFile } from './classify';
 
 describe('classifyFile', () => {
-  it('recognizes program & preset extensions', () => {
+  it('recognizes program extensions', () => {
     expect(classifyFile('My Patch.ns4p')).toBe('program');
     expect(classifyFile('x.ns4l')).toBe('program');
-    expect(classifyFile('organ.ns4o')).toBe('program');
-    expect(classifyFile('piano.ns4n')).toBe('program');
-    expect(classifyFile('synth.ns4y')).toBe('program');
   });
 
   it('recognizes bundles and samples', () => {
@@ -22,5 +19,14 @@ describe('classifyFile', () => {
     expect(classifyFile('Bank 1/Lead.NS4P')).toBe('program');
     expect(classifyFile('notes.txt')).toBeNull();
     expect(classifyFile('folder/')).toBeNull();
+  });
+
+  it('classifies organ/piano/synth preset files as preset, not program', () => {
+    expect(classifyFile('Bank A/Lead.ns4o')).toBe('preset');
+    expect(classifyFile('Bank A/Grand.ns4n')).toBe('preset');
+    expect(classifyFile('Bank A/Pad.ns4y')).toBe('preset');
+    expect(classifyFile('legacy.ns3y')).toBe('preset');
+    expect(classifyFile('Prog.ns4p')).toBe('program'); // program unchanged
+    expect(classifyFile('Lead4Patch.nl4s')).toBe('program'); // Lead programs stay program
   });
 });

@@ -1,13 +1,13 @@
 import { locateNordFiles, type FolderSource, type Located } from './source';
 import {
   scanFiles, MAX_READ_BYTES, tooLargeReason,
-  type RawFile, type ScannedProgram, type ScannedSample, type ScanError,
+  type RawFile, type ScannedProgram, type ScannedPreset, type ScannedSample, type ScanError,
 } from './scan';
 import { streamUnzip } from './unzip-stream';
 import { isBundleProgramEntry } from '../ns4/bundle';
 
 /** A chunk of decoded results emitted as a scan progresses. */
-export interface ScanBatch { programs: ScannedProgram[]; samples: ScannedSample[]; errors: ScanError[]; }
+export interface ScanBatch { programs: ScannedProgram[]; presets: ScannedPreset[]; samples: ScannedSample[]; errors: ScanError[]; }
 /** A detected `.ns4b` backup — name + size only, never its contents. */
 export interface BundleDescriptor { path: string; size: number; }
 export type BatchSink = (batch: ScanBatch) => void;
@@ -23,7 +23,7 @@ export interface Scanner {
 export const BATCH_SIZE = 16;
 
 function errBatch(path: string, reason: string): ScanBatch {
-  return { programs: [], samples: [], errors: [{ path, reason }] };
+  return { programs: [], presets: [], samples: [], errors: [{ path, reason }] };
 }
 
 /** Buffers RawFiles, parsing + flushing via scanFiles every BATCH_SIZE. */

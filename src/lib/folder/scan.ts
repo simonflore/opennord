@@ -4,6 +4,8 @@ import { readNs4Bundle } from '../ns4/bundle';
 import { readNsmp, type NsmpFile } from '../ns4/nsmp';
 import { summarize, isNs4Program } from '../library/entries';
 import { classifyFile } from './classify';
+import { identifyNordFile } from '../clavia/nord-file';
+import { presetKindForTag, type PresetKind } from '../clavia/preset-kind';
 
 /** A flat file pulled from the folder — what both access paths produce. */
 export interface RawFile {
@@ -22,6 +24,16 @@ export interface ScannedProgram {
   summary?: string;
 }
 
+/** A recognized preset file — listed by tag+kind, never decoded. */
+export interface ScannedPreset {
+  id: string;        // "folder:<path>"
+  name: string;
+  path: string;
+  tag: string;
+  kind: PresetKind;
+  bytes: Uint8Array;
+}
+
 /** A sample for the Samples tab. */
 export interface ScannedSample {
   id: string;        // "folder:<path>"
@@ -38,6 +50,7 @@ export interface ScanError {
 
 export interface ScanResult {
   programs: ScannedProgram[];
+  presets: ScannedPreset[];
   samples: ScannedSample[];
   errors: ScanError[];
 }
@@ -70,6 +83,7 @@ function reason(err: unknown): string {
  */
 export function scanFiles(files: RawFile[]): ScanResult {
   const programs: ScannedProgram[] = [];
+  const presets: ScannedPreset[] = [];
   const samples: ScannedSample[] = [];
   const errors: ScanError[] = [];
 
@@ -100,6 +114,10 @@ export function scanFiles(files: RawFile[]): ScanResult {
             summary: entry.program.parsed && isNs4Program(entry.program) ? summarize(entry.program) : undefined,
           });
         }
+      } else if (kind === 'preset') {
+        const info = identifyNordFile(bytes);              // real CBIN tag
+        const pk = presetKindForTag(info.tag);
+        if (pk) presets.push({ id: `folder:${path}`, name: programNameFromFilename(path), path, tag: info.tag, kind: pk, bytes });
       } else {
         const file = readNsmp(bytes);
         samples.push({
@@ -115,5 +133,5 @@ export function scanFiles(files: RawFile[]): ScanResult {
     }
   }
 
-  return { programs, samples, errors };
+  return { programs, presets, samples, errors };
 }

@@ -3,6 +3,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { zipSync } from 'fflate';
 import { scanFiles, type RawFile } from './scan';
+import { buildCbinHeader } from '../clavia/cbin';
+
+const cbinFileWithTag = (tag: string) =>
+  buildCbinHeader({ formatType: 1, tag, bank: 0, location: 0, category: 0, versionRaw: 100 });
 
 const ns4p = new Uint8Array(
   readFileSync(fileURLToPath(new URL('../ns4/__fixtures__/BreakFreeSolo.ns4p', import.meta.url))),
@@ -39,6 +43,15 @@ describe('scanFiles', () => {
     expect(r.samples).toHaveLength(1);
     expect(r.samples[0].id).toBe('folder:kick.nsmp3');
     expect(r.programs).toHaveLength(0);
+  });
+
+  it('routes preset files to result.presets with tag+kind, not to programs', () => {
+    const bytes = cbinFileWithTag('ns4o'); // 44-byte CBIN header, tag ns4o (test helper)
+    const r = scanFiles([{ path: 'Bank A/My Organ.ns4o', bytes }]);
+    expect(r.programs).toHaveLength(0);
+    expect(r.presets).toHaveLength(1);
+    expect(r.presets[0]).toMatchObject({ kind: 'organ-preset', tag: 'ns4o', path: 'Bank A/My Organ.ns4o' });
+    expect(r.presets[0].name).toBeTruthy();
   });
 
   it('collects per-file errors without aborting the scan', () => {
