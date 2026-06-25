@@ -77,3 +77,13 @@ export function useLibraryPrefs(): LibraryPrefsApi {
 export function useSamplesPrefs(): SamplesPrefsApi {
   return usePrefs('opennord.samples.prefs', parseSampleSort);
 }
+
+const parsePresetSort = (raw: unknown): PresetSort =>
+  raw === 'name' || raw === 'size' ? raw : 'default';
+
+export type PresetsPrefsApi = PrefsApi<PresetSort>;
+
+/** Presets view prefs — persisted under `opennord.presets.prefs`. */
+export function usePresetsPrefs(): PresetsPrefsApi {
+  return usePrefs('opennord.presets.prefs', parsePresetSort);
+}
