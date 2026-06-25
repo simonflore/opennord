@@ -16,7 +16,8 @@ const SORT_LABEL: Record<SampleSort, string> = { default: 'Default', name: 'Name
 
 export function SamplesBrowse(
   { entries, source, generation, query, nordCount, localCount, showSourceFacet, showUnknownGen,
-    onSource, onGeneration, onQuery, onOpen, onLoadNew, prefs,
+    onSource, onGeneration, onQuery, onOpen, onLoadNew, onImport, onRemove,
+    storedCount, storedBytes, prefs,
     canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly }: {
     entries: SampleEntry[];
     source: LibrarySource | 'all'; generation: SampleGeneration | 'all'; query: string;
@@ -27,6 +28,10 @@ export function SamplesBrowse(
     onQuery: (q: string) => void;
     onOpen: (e: SampleEntry) => void;
     onLoadNew: () => void;
+    onImport: () => void;
+    onRemove: (id: string) => void;
+    storedCount: number;
+    storedBytes: number;
     prefs: SamplesPrefsApi;
     // Sample-usage cleanup (device-connected)
     canScanUsage: boolean;
@@ -74,6 +79,7 @@ export function SamplesBrowse(
           <h1 className="lib-title">Samples</h1>
           <div className="lib-counts">
             {total} {total === 1 ? 'sample' : 'samples'} · {nordCount} on Nord · {localCount} local
+            {storedCount > 0 && <> · {storedCount} stored ({fmtSize(storedBytes)})</>}
           </div>
         </div>
         <div className="lib-actions">
@@ -91,7 +97,8 @@ export function SamplesBrowse(
               {unusedCount === 0 ? 'No unused samples' : `${unusedOnly ? 'Show all' : `Unused only (${unusedCount})`}`}
             </button>
           )}
-          <button className="on-btn" onClick={onLoadNew}>Load sample</button>
+          <button className="on-btn" onClick={onLoadNew}>Preview a file</button>
+          <button className="on-btn on-btn--primary" onClick={onImport}>+ Import sample</button>
         </div>
       </div>
 
@@ -146,6 +153,15 @@ export function SamplesBrowse(
               <div className="lib-patch__foot">
                 <SourceBadge source={e.source} />
                 <span className="lib-slot">{e.size != null ? fmtSize(e.size) : ''}</span>
+                {e.id.startsWith('local:') && (
+                  <button
+                    className="lib-patch__rm"
+                    aria-label={`Remove ${e.name}`}
+                    title="Remove from library"
+                    onClick={(ev) => { ev.stopPropagation(); onRemove(e.id); }}
+                    onKeyDown={(ev) => ev.stopPropagation()}
+                  >✕</button>
+                )}
               </div>
             </Card>
           ))}

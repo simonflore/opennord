@@ -49,6 +49,26 @@ export function SamplesSplit() {
   const startLoadNew = () => { setInspect(null); setLoadNew(true); setPullError(''); };
   const back = () => { setInspect(null); setLoadNew(false); setPullError(''); };
 
+  function importSample() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.nsmp,.nsmp3,.nsmp4'; // D3: no .npno (Pianos category)
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    const cleanup = () => input.remove();
+    input.onchange = async () => {
+      const f = input.files?.[0];
+      cleanup();
+      if (!f) return;
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      await s.importSample(f);                  // persist + add to the list
+      setLoadNew(false);
+      setInspect({ bytes, name: f.name });      // open it now
+    };
+    input.oncancel = cleanup;
+    input.click();
+  }
+
   const status = pullPct !== null
     ? <p className="ps-sub">Pulling sample… {pullPct}%</p>
     : pullError
@@ -65,6 +85,9 @@ export function SamplesSplit() {
         showSourceFacet={s.showSourceFacet} showUnknownGen={s.showUnknownGen}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery}
         onOpen={(e) => void openEntry(e)} onLoadNew={startLoadNew}
+        onImport={importSample}
+        onRemove={(id) => void s.removeSample(id)}
+        storedCount={s.storedCount} storedBytes={s.storedBytes}
         prefs={s.prefs}
         canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct}
         unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
