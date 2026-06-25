@@ -6,6 +6,7 @@ import { downloadBytes } from '../../lib/download';
 import { Button } from '../ui';
 import { KeyboardZoneMap } from './KeyboardZoneMap';
 import type { PlayableZone } from '../../lib/ns4/playable-zones';
+import { getErrorMessage } from '../../lib/errors';
 
 /** One decimal place, dropping a trailing ".0" (e.g. -6, 2.9). */
 const round1 = (n: number): number => Math.round(n * 10) / 10;
@@ -55,7 +56,7 @@ export function SampleEditPanel({ initial, bytes, codec, unison, onPlayZone, onN
       });
       downloadBytes(out, `${name.trim() || 'sample'}.nsmp${codec}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(getErrorMessage(e));
     }
   }
 

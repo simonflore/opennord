@@ -5,8 +5,7 @@ import { sessionDeviceIO } from '../../lib/device/device-io';
 import { executePlan, type ExecResult, type ExecProgress } from '../../lib/device/execute';
 import { buildOccupancy, type Occupancy, type Plan } from '../../lib/device/reorg';
 import type { ProgramEntry } from '../../lib/device/transfer';
-
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+import { getErrorMessage } from '../../lib/errors';
 
 /**
  * Reorg flow: hold a pending plan, take a one-time session backup, execute with
@@ -46,7 +45,7 @@ export function useReorgFlow(
       if (res.ok) await refresh(session);
       setPendingPlan(null);
     } catch (e) {
-      setError(`Could not complete the move: ${msg(e)}`);
+      setError(`Could not complete the move: ${getErrorMessage(e)}`);
     } finally {
       setBusy(false); setProgress(null);
     }

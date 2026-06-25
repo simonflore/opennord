@@ -26,8 +26,7 @@ import { PlanReview } from './PlanReview';
 import { PlanProgress } from './PlanProgress';
 import { backup } from '../../lib/device/backup';
 import { downloadBytes } from '../../lib/download';
-
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+import { getErrorMessage } from '../../lib/errors';
 
 /**
  * Orchestrates the device screen: connect, browse, and view a pulled program.
@@ -100,7 +99,7 @@ export function DeviceManager() {
       prog.name = entry.name;
       setProgram(prog);
     } catch (e) {
-      setError(`Could not read ${entry.name}: ${msg(e)}`);
+      setError(`Could not read ${entry.name}: ${getErrorMessage(e)}`);
     } finally {
       setBusy(false);
     }

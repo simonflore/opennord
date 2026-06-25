@@ -12,8 +12,7 @@ import type { ProgramEntry } from '../../lib/device/transfer';
 import { SlotGrid } from './SlotGrid';
 import { PlanProgress } from './PlanProgress';
 import { ConfirmPanel } from './ConfirmPanel';
-
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+import { getErrorMessage } from '../../lib/errors';
 
 /** Above this size, read the backup all at once would exceed the browser's ~2 GiB single-ArrayBuffer
  *  limit (and blow the tab's memory), so we stream instead. Mirrors the folder scan's cap. */
@@ -46,7 +45,7 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
       setModel(m);
       setEntries(listPrograms(m));
     } catch (e) {
-      setPlanError(msg(e));
+      setPlanError(getErrorMessage(e));
     }
   }
 
@@ -66,7 +65,7 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
       if (!res.ok) setPlanError(`Move failed; the backup is unchanged.${res.warnings.length ? ` (${res.warnings.join('; ')})` : ''}`);
       setPendingPlan(null);
     } catch (e) {
-      setPlanError(`Could not complete the move: ${msg(e)}`);
+      setPlanError(`Could not complete the move: ${getErrorMessage(e)}`);
     } finally {
       setBusy(false); setProgress(null);
     }
@@ -90,7 +89,7 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
       const handle = await picker({ suggestedName: name, types: [{ description: 'Nord backup', accept: { 'application/octet-stream': ['.ns4b'] } }] });
       await streamBackupTo(model, await handle.createWritable());
     } catch (e) {
-      if ((e as DOMException)?.name !== 'AbortError') setPlanError(`Could not save the backup: ${msg(e)}`); // ignore picker cancel
+      if ((e as DOMException)?.name !== 'AbortError') setPlanError(`Could not save the backup: ${getErrorMessage(e)}`); // ignore picker cancel
     } finally {
       setBusy(false);
     }

@@ -3,6 +3,7 @@ import type { PresetEntry } from '@/lib/library/preset-entries';
 import { pullPreset } from '@/lib/device/presets';
 import { downloadBytes } from '@/lib/download';
 import type { NordSession } from '@/lib/device/session';
+import { getErrorMessage } from '../../lib/errors';
 
 const KIND_LABEL: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'Organ preset', 'piano-preset': 'Piano preset', 'synth-preset': 'Synth preset',
@@ -11,7 +12,6 @@ const KIND_LABEL: Record<PresetEntry['kind'], string> = {
 const KIND_EXT: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'ns4o', 'piano-preset': 'ns4n', 'synth-preset': 'ns4y',
 };
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Thin, decode-free detail for a recognized preset: metadata + download. */
 export function PresetInspector({ entry, session }: { entry: PresetEntry; session: NordSession | null }) {
@@ -29,7 +29,7 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
       if (!bytes) throw new Error('Connect your Nord to download this preset.');
       downloadBytes(bytes, `${entry.name}.${KIND_EXT[entry.kind]}`);
     } catch (e) {
-      setError(`Couldn't download ${entry.name}: ${msg(e)}`);
+      setError(`Couldn't download ${entry.name}: ${getErrorMessage(e)}`);
     } finally {
       setBusy(false);
     }

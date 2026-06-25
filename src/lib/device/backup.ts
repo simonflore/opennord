@@ -5,6 +5,7 @@ import { enumerateFiles, pullFile, pushFile, type ProgramEntry } from './transfe
 import { readPartitionCapacity, type PartitionCapacity } from './capacity';
 import { readCbinHeader, hasCbinMagic } from '../clavia/cbin';
 import { USER_PARTITIONS, partitionForPath, backupPath, buildMetaXml, type PartitionSpec } from './ns4b';
+import { getErrorMessage } from '../errors';
 
 export interface RestoreResult {
   restored: number;
@@ -97,7 +98,7 @@ export async function restore(
       await session.begin(partition);
     } catch (e) {
       // Whole partition unreachable — record each file as failed, don't abort the rest.
-      const error = `Could not open partition ${partition}: ${e instanceof Error ? e.message : String(e)}`;
+      const error = `Could not open partition ${partition}: ${getErrorMessage(e)}`;
       for (const { path } of items) result.failures.push({ path, error });
       done += items.length;
       onProgress?.(done, total);
@@ -127,7 +128,7 @@ export async function restore(
           }
           result.restored++;
         } catch (e) {
-          result.failures.push({ path, error: e instanceof Error ? e.message : String(e) });
+          result.failures.push({ path, error: getErrorMessage(e) });
         }
         onProgress?.(++done, total);
       }

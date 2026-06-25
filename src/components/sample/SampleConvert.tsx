@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { NsmpFile } from '../../lib/ns4/nsmp';
 import { convertNsmp, type TargetCodec } from '../../lib/ns4/nsmp-convert';
 import { downloadBytes } from '../../lib/download';
+import { getErrorMessage } from '../../lib/errors';
 
 type Status =
   | { kind: 'idle' }
@@ -48,7 +49,7 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
       downloadBytes(out, filename);
       setStatus({ kind: 'done', msg: `Saved ${filename}`, warnings });
     } catch (e) {
-      setStatus({ kind: 'error', msg: e instanceof Error ? e.message : String(e) });
+      setStatus({ kind: 'error', msg: getErrorMessage(e) });
     }
   }
 

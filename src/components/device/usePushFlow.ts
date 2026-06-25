@@ -6,9 +6,9 @@ import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import type { NordSession } from '../../lib/device/session';
 import type { SlotTarget } from './TargetSlotPicker';
 
-export interface PushSource { bytes: Uint8Array; name: string; }
+import { getErrorMessage } from '../../lib/errors';
 
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+export interface PushSource { bytes: Uint8Array; name: string; }
 
 /**
  * Push flow: choose a program (a picked .ns4p or an open program), pick a target
@@ -36,7 +36,7 @@ export function usePushFlow(session: NordSession | null, refresh: (s: NordSessio
       const bytes = new Uint8Array(await file.arrayBuffer());
       startPush({ bytes, name: programNameFromFilename(file.name) });
     } catch (e) {
-      setError(`Could not read ${file.name}: ${msg(e)}`);
+      setError(`Could not read ${file.name}: ${getErrorMessage(e)}`);
     }
   }
 
@@ -64,7 +64,7 @@ export function usePushFlow(session: NordSession | null, refresh: (s: NordSessio
       await refresh(session);
       cancel();
     } catch (e) {
-      setError(`Could not write to ${formatSlot(picked.bank, picked.slot)}: ${msg(e)}`);
+      setError(`Could not write to ${formatSlot(picked.bank, picked.slot)}: ${getErrorMessage(e)}`);
     } finally {
       setBusy(false);
     }

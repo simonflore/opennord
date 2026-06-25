@@ -7,8 +7,7 @@ import { useDevice } from '@/lib/device/DeviceContext';
 import { pullSample } from '@/lib/device/samples';
 import { useSplitLayout } from '@/lib/responsive';
 import type { SampleEntry } from '@/lib/library/sample-entries';
-
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+import { getErrorMessage } from '../../lib/errors';
 
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
@@ -41,7 +40,7 @@ export function SamplesSplit() {
           (done, total) => setPullPct(total ? Math.round((done / total) * 100) : 0));
         setInspect({ bytes, name: e.name });
       } catch (err) {
-        setPullError(`Could not read ${e.name}: ${msg(err)}`);
+        setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
       } finally {
         setPullPct(null);
       }

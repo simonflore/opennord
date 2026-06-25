@@ -8,6 +8,7 @@ import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
 import { shouldNegotiateVersion } from '../../lib/device/negotiate';
 import { Button, SectionLabel } from '../ui';
+import { getErrorMessage } from '../../lib/errors';
 import './connect.css';
 
 // Vendor-only (Clavia DMI AB) — accept the whole Nord line, as NSM does. The
@@ -18,7 +19,7 @@ type Status = 'idle' | 'connecting' | 'connected' | 'error';
 
 /** Maps low-level errors to friendly guidance. Empty string = user cancelled (no error). */
 function describeError(e: unknown): string {
-  const m = e instanceof Error ? e.message : String(e);
+  const m = getErrorMessage(e);
   if (/no device selected|cancel/i.test(m)) return '';
   if (/claim|interface|access|busy/i.test(m)) {
     return 'Could not connect — quit Nord Sound Manager (it holds the Nord), then try again.';

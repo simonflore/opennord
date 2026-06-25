@@ -5,6 +5,7 @@ import {
 } from './scan';
 import { streamUnzip } from './unzip-stream';
 import { isBundleProgramEntry } from '../ns4/bundle';
+import { getErrorMessage } from '../errors';
 
 /** A chunk of decoded results emitted as a scan progresses. */
 export interface ScanBatch { programs: ScannedProgram[]; presets: ScannedPreset[]; samples: ScannedSample[]; errors: ScanError[]; }
@@ -49,7 +50,7 @@ class MainThreadScanner implements Scanner {
       }
       if (loc.size > MAX_READ_BYTES) { onBatch(errBatch(loc.path, tooLargeReason(loc.size))); continue; }
       try { push({ path: loc.path, bytes: await loc.bytes() }); }
-      catch (err) { onBatch(errBatch(loc.path, err instanceof Error ? err.message : String(err))); }
+      catch (err) { onBatch(errBatch(loc.path, getErrorMessage(err))); }
     }
     flush();
     return descriptors;
@@ -68,7 +69,7 @@ class MainThreadScanner implements Scanner {
         );
       } catch (err) {
         flush(); // emit whatever decoded before the failure
-        onBatch(errBatch(path, err instanceof Error ? err.message : String(err)));
+        onBatch(errBatch(path, getErrorMessage(err)));
       }
     }
     flush();

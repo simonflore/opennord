@@ -15,9 +15,9 @@ import { slotLabel } from '../../lib/clavia/slot';
 import { useNordMidi } from './useNordMidi';
 import { MidiProbe } from './MidiProbe';
 import { DecodeCoverage } from './DecodeCoverage';
+import { getErrorMessage } from '../../lib/errors';
 
 const APP_VERSION = '0.1.0';
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 type Range = { start: number; end: number };
 
@@ -178,7 +178,7 @@ function CaptureWizard({ session, entries, productId }: {
       setBaseline(cap);
       setPicked(entry);
     } catch (e) {
-      setError(`Could not read that program: ${msg(e)}`);
+      setError(`Could not read that program: ${getErrorMessage(e)}`);
     } finally {
       setBusy(false);
     }
@@ -194,7 +194,7 @@ function CaptureWizard({ session, entries, productId }: {
       // Auto-label from the last control the Nord transmitted over MIDI, if any.
       if (midi.last && !ls.vocabId) ls.setLabel(`${midi.last.label} → ${midi.last.value}`);
     } catch (e) {
-      setError(`Could not read that program: ${msg(e)}`);
+      setError(`Could not read that program: ${getErrorMessage(e)}`);
     } finally {
       setBusy(false);
     }
@@ -321,7 +321,7 @@ function FileDropWizard() {
       contrib.setBaseline(cap);
       setBaseline(cap);
     } catch (e) {
-      setError(`Could not read that file: ${msg(e)}`);
+      setError(`Could not read that file: ${getErrorMessage(e)}`);
     }
   }
 
@@ -337,7 +337,7 @@ function FileDropWizard() {
       setPendingAfter(after);
       setPendingRanges(contrib.pendingRanges(after));
     } catch (e) {
-      setError(`Could not read that file: ${msg(e)}`);
+      setError(`Could not read that file: ${getErrorMessage(e)}`);
     }
   }
 

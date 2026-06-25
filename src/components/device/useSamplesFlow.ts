@@ -5,8 +5,7 @@ import { readPartitionCapacity, type PartitionCapacity } from '../../lib/device/
 import { PARTITION_SAMP_LIB, PARTITION_PIANO } from '../../lib/device/opcodes';
 import type { NordSession } from '../../lib/device/session';
 import type { InspectorInput } from '../sample/SampleInspector';
-
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+import { getErrorMessage } from '../../lib/errors';
 
 /**
  * Samples flow: browse the Samp Lib partition (enumerated lazily on first switch)
@@ -46,7 +45,7 @@ export function useSamplesFlow(session: NordSession | null) {
         if (!sampleCapacity) setSampleCapacity(await readPartitionCapacity(session, PARTITION_SAMP_LIB).catch(() => null));
         if (!pianoCapacity) setPianoCapacity(await readPartitionCapacity(session, PARTITION_PIANO).catch(() => null));
       } catch (e) {
-        setError(`Could not list samples: ${msg(e)}`);
+        setError(`Could not list samples: ${getErrorMessage(e)}`);
       } finally {
         setBusy(false);
       }
@@ -62,7 +61,7 @@ export function useSamplesFlow(session: NordSession | null) {
         (done, total) => setPullPct(total ? Math.round((done / total) * 100) : 0));
       setSampleInput({ bytes, name: entry.name });
     } catch (e) {
-      setError(`Could not read ${entry.name}: ${msg(e)}`);
+      setError(`Could not read ${entry.name}: ${getErrorMessage(e)}`);
     } finally {
       setBusy(false); setPullPct(null);
     }

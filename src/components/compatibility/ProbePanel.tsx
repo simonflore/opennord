@@ -3,6 +3,7 @@ import { Button } from '../ui';
 import { useDevice } from '../../lib/device/DeviceContext';
 import { probeDevice, type ProbeReport } from '../../lib/device/probe';
 import { probeIssueUrl } from '../../lib/device/report';
+import { getErrorMessage } from '../../lib/errors';
 
 /** "Check my Nord" — a read-only probe whose result an owner can share to help
  *  validate their model. Gated on a connected session (USB, desktop/iPad). */
@@ -26,7 +27,7 @@ export function ProbePanel() {
     try {
       setReport(await probeDevice(session, { deviceName: deviceName || 'Nord', productId, now: () => new Date() }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(getErrorMessage(e));
     } finally {
       setBusy(false);
     }

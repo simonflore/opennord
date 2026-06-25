@@ -1,12 +1,11 @@
 import type { DeviceIO } from './device-io';
 import { addrKey, type Addr, type Occupancy, type Plan } from './reorg';
+import { getErrorMessage } from '../errors';
 
 export interface ExecProgress { opIndex: number; opCount: number; phase: 'copy' | 'delete' | 'rollback' }
 export interface ExecResult { ok: boolean; completedOps: number; rolledBack: boolean; warnings: string[] }
 
 interface JournalEntry { addr: Addr; before: { file: Uint8Array; name: string } | null }
-
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Execute a plan with per-plan journal rollback and verify-before-delete. */
 export async function executePlan(
@@ -26,7 +25,7 @@ export async function executePlan(
       journal.push(src ? { addr, before: { file: await io.pull(partition, src), name: src.name } } : { addr, before: null });
     }
   } catch (e) {
-    return { ok: false, completedOps: 0, rolledBack: false, warnings: [`Could not read the slots before moving: ${msg(e)}`] };
+    return { ok: false, completedOps: 0, rolledBack: false, warnings: [`Could not read the slots before moving: ${getErrorMessage(e)}`] };
   }
 
   // 2. Run ops in order, copy-then-verify-then-delete. Any failure → rollback.
@@ -55,7 +54,7 @@ export async function executePlan(
     return { ok: true, completedOps: completed, rolledBack: false, warnings: [] };
   } catch (e) {
     const warnings = await rollback(io, partition, journal, onProgress);
-    return { ok: false, completedOps: completed, rolledBack: true, warnings: [msg(e), ...warnings] };
+    return { ok: false, completedOps: completed, rolledBack: true, warnings: [getErrorMessage(e), ...warnings] };
   }
 }
 
@@ -77,7 +76,7 @@ async function rollback(
         await io.delete(partition, j.addr);
       }
     } catch (e) {
-      warnings.push(`Could not restore ${addrKey(j.addr)}: ${msg(e)}`);
+      warnings.push(`Could not restore ${addrKey(j.addr)}: ${getErrorMessage(e)}`);
     }
   }
   return warnings;

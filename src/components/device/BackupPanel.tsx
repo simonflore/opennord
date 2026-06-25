@@ -3,6 +3,7 @@ import type { NordSession } from '../../lib/device/session';
 import { backup, restore, type RestoreResult } from '../../lib/device/backup';
 import { resolveFactory } from '../../lib/device/factory';
 import { downloadBytes } from '../../lib/download';
+import { getErrorMessage } from '../../lib/errors';
 
 /** Backup → download a .ns4b; Restore → confirm, write, summarize. */
 export function BackupPanel({ session, deviceName, onAfterRestore }: {
@@ -24,7 +25,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
       downloadBytes(bytes, `OpenNord Backup ${new Date().toISOString().slice(0, 10)}.ns4b`);
       setStatus('Backup downloaded.');
     } catch (e) {
-      setStatus(`Backup failed: ${e instanceof Error ? e.message : String(e)}`);
+      setStatus(`Backup failed: ${getErrorMessage(e)}`);
     } finally {
       setBusy(false);
     }
@@ -49,7 +50,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
       setPendingZip(null);
       onAfterRestore();
     } catch (e) {
-      setStatus(`Restore failed: ${e instanceof Error ? e.message : String(e)}`);
+      setStatus(`Restore failed: ${getErrorMessage(e)}`);
     } finally {
       setBusy(false);
     }

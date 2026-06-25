@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { deleteProgram, type ProgramEntry } from '../../lib/device/transfer';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import type { NordSession } from '../../lib/device/session';
-
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+import { getErrorMessage } from '../../lib/errors';
 
 /** Delete flow: confirm, then remove a program from its slot. Owns its error/busy. */
 export function useDeleteFlow(session: NordSession | null, refresh: (s: NordSession) => Promise<void>) {
@@ -20,7 +19,7 @@ export function useDeleteFlow(session: NordSession | null, refresh: (s: NordSess
       await refresh(session);
       setPendingDelete(null);
     } catch (e) {
-      setError(`Could not delete ${pendingDelete.name}: ${msg(e)}`);
+      setError(`Could not delete ${pendingDelete.name}: ${getErrorMessage(e)}`);
     } finally {
       setBusy(false);
     }

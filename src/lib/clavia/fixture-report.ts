@@ -2,6 +2,7 @@ import { unzipSync } from 'fflate';
 import { identifyNordFile, type NordGeneration } from './nord-file';
 import { identifyNsmp } from './sample-identify';
 import { MODELS, type NordModelId } from './partitions';
+import { getErrorMessage } from '../errors';
 
 export type FixtureKind = 'program' | 'preset' | 'backup' | 'sample' | 'unknown';
 
@@ -43,7 +44,7 @@ export function identifyFixture(name: string, bytes: Uint8Array): FixtureFinding
     const kind: FixtureKind = info.kind === 'program' || info.kind === 'performance' ? 'program' : 'preset';
     return { name, ext, kind, tag: info.tag, version: info.version, generation: info.generation, headerOk: true };
   } catch (e) {
-    return { name, ext, kind: 'unknown', headerOk: false, error: e instanceof Error ? e.message : String(e) };
+    return { name, ext, kind: 'unknown', headerOk: false, error: getErrorMessage(e) };
   }
 }
 

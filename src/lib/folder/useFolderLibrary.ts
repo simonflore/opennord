@@ -7,14 +7,14 @@ import { createScanner } from './scanner';
 import { loadBundleChoice, saveBundleChoice, clearBundleChoice } from './bundlePrefs';
 import type { FolderSource } from './source';
 import type { ScanResult } from './scan';
+import { getErrorMessage } from '../errors';
 
 const EMPTY: ScanResult = { programs: [], presets: [], samples: [], errors: [] };
 
 /** A user dismissing the folder picker is not an error worth surfacing. */
 function isCancel(err: unknown): boolean {
   if (err instanceof DOMException && err.name === 'AbortError') return true;
-  const msg = err instanceof Error ? err.message : String(err);
-  return /cancel|no folder chosen|aborted/i.test(msg);
+  return /cancel|no folder chosen|aborted/i.test(getErrorMessage(err));
 }
 
 export interface FolderLibrary {
@@ -132,7 +132,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     } catch (err) {
       if (!isCancel(err)) {
         console.error('Folder pick failed', err);
-        setResult({ programs: [], presets: [], samples: [], errors: [{ path: '(folder)', reason: err instanceof Error ? err.message : String(err) }] });
+        setResult({ programs: [], presets: [], samples: [], errors: [{ path: '(folder)', reason: getErrorMessage(err) }] });
       }
     } finally { setBusy(false); }
   }, [runScan]);
@@ -150,7 +150,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
         setReconnectError(`Couldn't read “${folderName ?? 'the folder'}” — your browser blocked access. Click Reconnect and choose Allow, or Re-pick the folder.`);
       }
     } catch (err) {
-      if (!isCancel(err)) { console.error('Folder reconnect failed', err); setReconnectError(err instanceof Error ? err.message : String(err)); }
+      if (!isCancel(err)) { console.error('Folder reconnect failed', err); setReconnectError(getErrorMessage(err)); }
     } finally { setBusy(false); }
   }, [pending, folderName, runScan]);
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { corpusAvailable, listCorpus, getCorpusFile, type CorpusModel } from '../../lib/dev/fixtures-client';
+import { getErrorMessage } from '../../lib/errors';
 
 const SEP = '\0';
 
@@ -18,7 +19,7 @@ export function FixtureLoader({ onLoad }: { onLoad: (name: string, bytes: Uint8A
     const name = value.slice(i + 1);
     setError('');
     try { onLoad(name, await getCorpusFile(model, name)); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    catch (e) { setError(getErrorMessage(e)); }
   }
 
   return (

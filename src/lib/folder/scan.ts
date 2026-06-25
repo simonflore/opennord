@@ -6,6 +6,7 @@ import { summarize, isNs4Program } from '../library/entries';
 import { classifyFile } from './classify';
 import { identifyNordFile } from '../clavia/nord-file';
 import { presetKindForTag, type PresetKind } from '../clavia/preset-kind';
+import { getErrorMessage } from '../errors';
 
 /** A flat file pulled from the folder — what both access paths produce. */
 export interface RawFile {
@@ -71,7 +72,7 @@ export function tooLargeReason(size: number): string {
 }
 
 function reason(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  return getErrorMessage(err);
 }
 
 /**
