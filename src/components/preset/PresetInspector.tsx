@@ -7,6 +7,7 @@ import type { NordSession } from '@/lib/device/session';
 const KIND_LABEL: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'Organ preset', 'piano-preset': 'Piano preset', 'synth-preset': 'Synth preset',
 };
+// Download filename extension by kind. Device presets are Stage-4-only (ns4o/n/y); a folder-sourced ns3y/ns2y synth preset downloads as .ns4y — its bytes are unchanged, only the filename ext.
 const KIND_EXT: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'ns4o', 'piano-preset': 'ns4n', 'synth-preset': 'ns4y',
 };

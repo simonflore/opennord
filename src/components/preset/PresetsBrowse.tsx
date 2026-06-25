@@ -4,6 +4,7 @@ import type { PresetEntry } from '@/lib/library/preset-entries';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
 import type { PresetSort } from '@/lib/library/prefs';
+import { formatBytes } from '@/lib/format';
 
 export const KIND_LABEL: Record<PresetKind, string> = {
   'organ-preset': 'Organ', 'piano-preset': 'Piano', 'synth-preset': 'Synth',
@@ -95,7 +96,7 @@ export function PresetsBrowse({
                 </div>
                 <div className="lib-patch__foot">
                   <SourceBadge source={e.source} />
-                  {e.size != null && <span className="lib-slot">{e.size} B</span>}
+                  {e.size != null && <span className="lib-slot">{formatBytes(e.size)}</span>}
                 </div>
               </Card>
             ))}
