@@ -37,7 +37,8 @@ const FACTORY_SAMPLIB_FOLDER = 'Samp Lib';
 
 /** Classify a backup entry to its partition kind + factory flag, or null to skip. */
 export function classifyBackupEntry(path: string, model: NordModelId | null): BackupClass | null {
-  if (path.endsWith('/') || path === 'meta.xml' || path.startsWith('__MACOSX/')) return null;
+  const basename = path.replace(/^.*\//, '');
+  if (path.endsWith('/') || path === 'meta.xml' || path.startsWith('__MACOSX/') || basename.startsWith('._')) return null;
   const e = ext(path);
   // 1) program/preset/live: match the partition fourcc in the model registry.
   //    If the model is identified, prefer its own partition; then fall back to

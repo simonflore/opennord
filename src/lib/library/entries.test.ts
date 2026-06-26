@@ -51,6 +51,25 @@ describe('entriesFromScannedPrograms', () => {
     expect(entries[0]).toMatchObject({ id: 'folder:Lead.ns4p', name: 'Lead', source: 'local', summary: 'synth' });
     expect(entries[0].program).toBe(fakeProgram);
   });
+
+  it('tags a bundle-sourced program as source=backup (id contains !)', () => {
+    const fakeProgram = { parsed: false, bytes: new Uint8Array() } as unknown as NS4Program;
+    const scanned: ScannedProgram[] = [
+      { id: 'folder:Backup.ns4b!Program/Bank A/Lead.ns4p', name: 'Lead', path: 'Backup.ns4b → Program/Bank A/Lead.ns4p', program: fakeProgram, bytes: new Uint8Array([1]) },
+    ];
+    const entries = entriesFromScannedPrograms(scanned);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].source).toBe('backup');
+  });
+
+  it('tags a loose program (no ! in id) as source=local', () => {
+    const fakeProgram = { parsed: false, bytes: new Uint8Array() } as unknown as NS4Program;
+    const scanned: ScannedProgram[] = [
+      { id: 'folder:Lead.ns4p', name: 'Lead', path: 'Lead.ns4p', program: fakeProgram, bytes: new Uint8Array([1]) },
+    ];
+    const entries = entriesFromScannedPrograms(scanned);
+    expect(entries[0].source).toBe('local');
+  });
 });
 
 describe('sortEntries', () => {

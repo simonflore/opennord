@@ -70,12 +70,14 @@ export function sortEntries(
   return sortWithFavorites(entries, favorites, byKey);
 }
 
-/** Map folder-scanned programs into Library entries under the local source. */
+/** Map folder-scanned programs into Library entries.
+ * Bundle-sourced programs (id contains `!`) are tagged `source:'backup'`;
+ * loose-file programs are tagged `source:'local'`. */
 export function entriesFromScannedPrograms(programs: ScannedProgram[]): LibraryEntry[] {
   return programs.map((p) => ({
     id: p.id,
     name: p.name,
-    source: 'local' as const,
+    source: (p.id.includes('!') ? 'backup' : 'local') as LibrarySource,
     summary: p.summary,
     program: p.program,
     bytes: p.bytes,

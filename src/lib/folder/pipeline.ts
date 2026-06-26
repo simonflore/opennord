@@ -27,6 +27,8 @@ export type BatchSink = (batch: ScanBatch) => void;
 export interface Scanner {
   scanLoose(source: FolderSource, onBatch: BatchSink): Promise<BundleDescriptor[]>;
   expandBundles(paths: string[], onBatch: BatchSink): Promise<void>;
+  /** Return the File for a previously-located bundle (by path). Used by File[] sources that have no FSA handle. */
+  openBundle?(path: string): Promise<File>;
   dispose?(): void;
 }
 
@@ -64,6 +66,12 @@ class MainThreadScanner implements Scanner {
     }
     flush();
     return descriptors;
+  }
+
+  async openBundle(path: string): Promise<File> {
+    const bundle = this.bundles.get(path);
+    if (!bundle) throw new Error(`openBundle: "${path}" is not a known bundle.`);
+    return bundle.file();
   }
 
   async expandBundles(paths: string[], onBatch: BatchSink): Promise<void> {

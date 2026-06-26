@@ -18,6 +18,9 @@ describe('classifyBackupEntry (stage-4)', () => {
   it('ignores meta.xml and unknown entries', () => {
     expect(classifyBackupEntry('meta.xml', 'stage-4')).toBeNull();
   });
+  it('ignores ._-prefixed resource-fork entries', () => {
+    expect(classifyBackupEntry('Program/Bank A/._Lead.ns4p', 'stage-4')).toBeNull();
+  });
 });
 
 describe('indexBackup', () => {

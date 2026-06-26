@@ -190,8 +190,10 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
   const closeBundlePicker = useCallback(() => setPickerOpen(false), []);
 
   const openBundle = useCallback(async (path: string): Promise<File> => {
-    if (!handle) throw new Error('No folder is connected.');
-    return fileFromHandle(handle, path);
+    if (handle) return fileFromHandle(handle, path);
+    const scanner = scannerRef.current;
+    if (scanner?.openBundle) return scanner.openBundle(path);
+    throw new Error('No folder is connected.');
   }, [handle]);
 
   const writeBack = useCallback(async (
