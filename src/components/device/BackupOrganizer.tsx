@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   loadBackup, loadBackupStreaming, backupDeviceIO, listPrograms, serializeBackup, streamBackupTo,
   type BackupModel,
@@ -16,6 +16,8 @@ import { BankLabel } from './BankLabel';
 import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
 import { Button, FileInput } from '../ui';
+import { useFolder } from '../../lib/folder/FolderContext';
+import { BundleChooser } from './BundleChooser';
 
 /** Above this size, read the backup all at once would exceed the browser's ~2 GiB single-ArrayBuffer
  *  limit (and blow the tab's memory), so we stream instead. Mirrors the folder scan's cap. */
@@ -31,12 +33,34 @@ const saveFilePicker = (): SaveFilePicker | undefined =>
 
 /** Reorganize a .ns4b backup offline — open, drag a program to an empty slot, download the result. */
 export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; initialModel?: BackupModel }) {
+  const folder = useFolder();
   const [model, setModel] = useState<BackupModel | null>(initialModel ?? null);
   const [entries, setEntries] = useState<ProgramEntry[]>(initialModel ? listPrograms(initialModel) : []);
   const [pendingPlan, setPendingPlan] = useState<Plan | null>(null);
   const [planError, setPlanError] = useState('');
   const [progress, setProgress] = useState<ExecProgress | null>(null);
   const [busy, setBusy] = useState(false);
+
+  /** Open a bundle from the linked folder directly (no file picker needed). */
+  async function openFromFolder(path: string) {
+    setPlanError('');
+    try {
+      const f = await folder.openBundle(path);
+      const m = await loadBackupStreaming(f);
+      setModel(m);
+      setEntries(listPrograms(m));
+    } catch (e) {
+      setPlanError(getErrorMessage(e));
+    }
+  }
+
+  // Auto-open when there is exactly one bundle in the linked folder and no model is loaded.
+  useEffect(() => {
+    if (!model && !initialModel && folder.bundles.length === 1) {
+      void openFromFolder(folder.bundles[0].path);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folder.bundles, model, initialModel]);
 
   async function onFile(file: File) {
     setPlanError('');
@@ -126,10 +150,26 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
       {planError && <p className="ps-sub on-error">{planError}</p>}
 
       {!model ? (
-        <FileInput accept=".ns4b" onFile={onFile}
-          style={{ display: 'inline-block', padding: '10px 16px', borderRadius: 8, cursor: 'pointer', border: '1px dashed var(--line)', color: 'var(--ink)' }}>
-          Open a backup (.ns4b) to organize offline
-        </FileInput>
+        folder.bundles.length >= 2 ? (
+          <>
+            <BundleChooser bundles={folder.bundles} onPick={(p) => void openFromFolder(p)} />
+            <FileInput accept=".ns4b" onFile={onFile}
+              style={{ display: 'inline-block', marginTop: 16, padding: '10px 16px', borderRadius: 8, cursor: 'pointer', border: '1px dashed var(--line)', color: 'var(--ink)' }}>
+              Open a different .ns4b…
+            </FileInput>
+          </>
+        ) : folder.bundles.length === 1 ? (
+          /* Auto-open is in progress (effect fired); show fallback picker in case it fails. */
+          <FileInput accept=".ns4b" onFile={onFile}
+            style={{ display: 'inline-block', padding: '10px 16px', borderRadius: 8, cursor: 'pointer', border: '1px dashed var(--line)', color: 'var(--ink)' }}>
+            Open a different .ns4b…
+          </FileInput>
+        ) : (
+          <FileInput accept=".ns4b" onFile={onFile}
+            style={{ display: 'inline-block', padding: '10px 16px', borderRadius: 8, cursor: 'pointer', border: '1px dashed var(--line)', color: 'var(--ink)' }}>
+            Open a backup (.ns4b) to organize offline
+          </FileInput>
+        )
       ) : (
         BANK_LETTERS.split('').map((_, bank) => (
           <div key={bank} style={{ marginBottom: 14 }}>
