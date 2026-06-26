@@ -17,7 +17,8 @@ OpenNord is **free and open source** (AGPL-3.0). It exists because everything th
 ## What it does (and will do)
 
 - **Read a program.** Drop a program or preset file from any **Nord Stage** — Stage 2 / 3 / 4 (`.ns2p` / `.ns3f` / `.ns4p` …) — and see what's inside: piano/sample, organ, synth, effects. No keyboard or Sound Manager required. Every Nord generation shares the same CBIN container, so reading runs through one model-codec registry built to extend across the whole family ([`docs/MULTI-MODEL.md`](docs/MULTI-MODEL.md)).
-- **Browse your patches.** Point OpenNord at a folder of programs and it builds a searchable, mobile-first **Library** — the home screen — with a master/detail program view. There's also a sample workshop for `.nsmp`/`.nsmp4` files (inspect, convert across generations, import a WAV).
+- **Browse your patches.** Point OpenNord at a folder of programs (or import single files) and it builds a searchable, mobile-first **Library** — the home screen — split into **Programs · Samples · Presets** with a master/detail view.
+- **Play your samples.** The sample workshop reads `.nsmp`/`.nsmp3`/`.nsmp4` files — keyboard map, loop points, root notes — and lets you **audition them on an on-screen keyboard, or (on desktop) play them from a connected MIDI controller**: a lightweight rompler — pitched across the keys, polyphonic, velocity + sustain — for testing sounds with no Nord plugged in. Convert across generations, import a WAV, and export any sample (or all of them) to WAV. Imported samples persist as your own local sample library.
 - **Share a patch.** A community library of *user programs*: upload yours, search others in plain language ("warm Rhodes with tape echo"), rate, fork. (Programs reference Nord's factory samples by id — you share the program, the other player already has the sample. See [`docs/LEGAL.md`](docs/LEGAL.md).)
 - **AI-native.** Natural-language search, AI explanations of what a patch does, and "describe the sound you want → get a patch."
 - **Talk to your Nord.** Pull programs off the keyboard and write them back — over a reverse-engineered **USB** protocol, proven on real hardware (desktop, via WebUSB / node-usb). It's a vendor bulk protocol, *not* MIDI SysEx — see [`docs/PROTOCOL-RE.md`](docs/PROTOCOL-RE.md). A read-only **"Check my Nord"** probe also enumerates any connected Clavia device and reports what OpenNord supports for it. Transfer runs on **desktop** (WebUSB / node-usb) and on a **native iPad app (M1+, via a DriverKit extension)**; a PWA and iPhone can't reach vendor USB, so they get read/share/AI + live MIDI ([`docs/SYSEX-SPIKE.md`](docs/SYSEX-SPIKE.md)).
@@ -53,7 +54,7 @@ decode-layer map, commands, and the legal guardrails.
 | `src/lib/folder/` | local-folder library: scan/classify/index `.ns*` files into the Library |
 | `src/lib/library/` | the unified Library model + import store |
 | `src/lib/ai/` | AI-native search / explanation (provider-pluggable) |
-| `src/lib/midi/` | **live** CC/NRPN only — *not* the transfer path (that's vendor USB in `device/`) |
+| `src/lib/midi/` | **live MIDI** — CC/NRPN control + note input that plays the loaded sample (the in-app rompler); *not* the transfer path (that's vendor USB in `device/`) |
 | `scripts/` | USB-protocol tools (`nord*.c`, libusb) + RE tooling (Ghidra dumpers) |
 | `docs/` | architecture, roadmap, format notes, the USB protocol, multi-model, legal stance |
 
