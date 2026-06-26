@@ -58,6 +58,7 @@
 .on-badge__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .on-badge--nord { color: var(--red); }
 .on-badge--local { color: var(--muted); }
+.on-badge--backup { color: var(--focus); }
 
 .on-search {
   display: flex; align-items: center; gap: 8px; flex: 1;

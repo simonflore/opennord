@@ -1,5 +1,5 @@
 import '../library/library.css';
-import { BrowseToolbar, Card, SourceBadge, Tag, type FacetGroup } from '../ui';
+import { BrowseToolbar, Card, Pill, SourceBadge, Tag, type FacetGroup } from '../ui';
 import type { PianoEntry } from '@/lib/library/piano-entries';
 import type { LibrarySource } from '@/lib/library/types';
 import type { PianoSort } from '@/lib/library/prefs';
@@ -81,6 +81,9 @@ export function PianosBrowse({
                 </div>
                 <div className="lib-patch__foot">
                   <SourceBadge source={e.source} />
+                  {e.source === 'backup' && (
+                    <Pill>{e.isFactory ? 'Factory' : 'Yours'}</Pill>
+                  )}
                   {e.size != null && <span className="lib-slot">{formatBytes(e.size)}</span>}
                   {e.factory && <Tag>Factory</Tag>}
                 </div>
