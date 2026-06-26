@@ -13,7 +13,12 @@ let __bundles: { path: string; size: number }[] = [];
 
 // Mock useFolder so BackupOrganizer can call it without a FolderProvider.
 vi.mock('../../lib/folder/FolderContext', () => ({
-  useFolder: () => ({ bundles: __bundles, openBundle: vi.fn() }),
+  useFolder: () => ({ bundles: __bundles, openBundle: vi.fn(), folderName: null, writeBack: vi.fn() }),
+}));
+
+// Mock useWriteBackPref so BackupOrganizer can call it without localStorage.
+vi.mock('../../lib/library/writeBackPrefs', () => ({
+  useWriteBackPref: () => ({ mode: 'ask', setMode: vi.fn() }),
 }));
 
 function cbinFile(bank: number, slot: number): Uint8Array {
