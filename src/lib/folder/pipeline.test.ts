@@ -1,10 +1,11 @@
 // Runs under the default node env: Node's File implements .stream() (jsdom's does not).
 import { describe, it, expect } from 'vitest';
-import { zipSync } from 'fflate';
+import { zipSync, strToU8 } from 'fflate';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { mainThreadScanner, type ScanBatch, type BundleDescriptor } from './pipeline';
 import { MAX_READ_BYTES } from './scan';
+import { buildCbinHeader } from '../clavia/cbin';
 
 // Real program bytes so scanFiles actually parses something.
 const solo = new Uint8Array(
@@ -40,13 +41,14 @@ describe('mainThreadScanner', () => {
   });
 
   it('Pass B expands only the chosen bundles, keyed <bundle>!<inner>', async () => {
-    const zip = zipSync({ 'Bank 1/Lead.ns4p': solo });
+    const metaXml = strToU8('<?xml version="1.0"?><backup product_id="46"/>');
+    const zip = zipSync({ 'meta.xml': metaXml, 'Program/Bank A/Lead.ns4p': solo });
     const scanner = mainThreadScanner();
     await scanner.scanLoose([file('F/Backup.ns4b', zip)], () => {});
     const batches: ScanBatch[] = [];
     await scanner.expandBundles(['Backup.ns4b'], (b) => batches.push(b));
     const r = drain(batches);
-    expect(r.programs.map((p) => p.id)).toEqual(['folder:Backup.ns4b!Bank 1/Lead.ns4p']);
+    expect(r.programs.map((p) => p.id)).toEqual(['folder:Backup.ns4b!Program/Bank A/Lead.ns4p']);
   });
 
   it('records an oversized loose file as an error instead of reading it', async () => {
@@ -59,17 +61,44 @@ describe('mainThreadScanner', () => {
     expect(r.errors[0].reason).toMatch(/too large/i);
   });
 
-  it('records one error for a bundle whose stream fails, then continues', async () => {
+  it('records one error for a bundle that is not a valid zip, then continues', async () => {
     const scanner = mainThreadScanner();
     const broken = file('F/Broken.ns4b', new Uint8Array([0]));
-    // A read error mid-stream (IO failure) must be caught per-bundle, not abort the scan.
-    Object.defineProperty(broken, 'stream', {
-      value: () => new ReadableStream<Uint8Array>({ pull(c) { c.error(new Error('stream failed')); } }),
-    });
     await scanner.scanLoose([broken], () => {});
     const batches: ScanBatch[] = [];
     await scanner.expandBundles(['Broken.ns4b'], (b) => batches.push(b));
     const r = drain(batches);
     expect(r.errors.map((e) => e.path)).toEqual(['Broken.ns4b']);
+  });
+
+  it('Pass B surfaces both programs AND presets from a backup, programs byte-identical', async () => {
+    // Build a minimal CBIN preset (ns4y = synth preset).
+    const presetBytes = buildCbinHeader({ tag: 'ns4y', formatType: 1, bank: 0, location: 0, category: 0, versionRaw: 304 });
+
+    // meta.xml identifies the backup as Stage 4 (product_id=46).
+    const metaXml = strToU8('<?xml version="1.0"?><backup product_id="46"/>');
+
+    const zip = zipSync({
+      'meta.xml': metaXml,
+      'Program/Bank A/Lead.ns4p': solo,
+      'Synth Preset/Bank 1/Pad.ns4y': presetBytes,
+    });
+
+    const scanner = mainThreadScanner();
+    await scanner.scanLoose([file('F/Backup.ns4b', zip)], () => {});
+
+    const batches: ScanBatch[] = [];
+    await scanner.expandBundles(['Backup.ns4b'], (b) => batches.push(b));
+
+    const programs = batches.flatMap((b) => b.programs);
+    const presets = batches.flatMap((b) => b.presets);
+
+    // Both a program and a preset must arrive.
+    expect(programs.map((p) => p.id)).toEqual(['folder:Backup.ns4b!Program/Bank A/Lead.ns4p']);
+    expect(presets.map((p) => p.id)).toEqual(['folder:Backup.ns4b!Synth Preset/Bank 1/Pad.ns4y']);
+
+    // The program path/name is unchanged from the forward-stream baseline.
+    expect(programs[0].path).toBe('Backup.ns4b!Program/Bank A/Lead.ns4p');
+    expect(presets[0].kind).toBe('synth-preset');
   });
 });

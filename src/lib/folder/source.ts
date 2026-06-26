@@ -12,12 +12,13 @@ export interface LocatedFile {
   bytes(): Promise<Uint8Array>;
 }
 
-/** A `.ns4b` bundle located but NOT expanded — streamed lazily via `stream()`. */
+/** A `.ns4b` bundle located but NOT expanded — streamable via `stream()`, readable as a File via `file()`. */
 export interface LocatedBundle {
   kind: 'bundle';
   path: string;
   size: number;
   stream(): ReadableStream<Uint8Array>;
+  file(): Promise<File>;
 }
 
 export type Located = LocatedFile | LocatedBundle;
@@ -25,7 +26,7 @@ export type Located = LocatedFile | LocatedBundle;
 interface AsyncDir { values(): AsyncIterable<FileSystemHandle>; }
 
 function locatedForFile(path: string, file: File, isBundle: boolean): Located {
-  if (isBundle) return { kind: 'bundle', path, size: file.size, stream: () => file.stream() };
+  if (isBundle) return { kind: 'bundle', path, size: file.size, stream: () => file.stream(), file: async () => file };
   return { kind: 'file', path, size: file.size, bytes: () => readFileBytes(file) };
 }
 

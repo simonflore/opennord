@@ -3,8 +3,8 @@ import {
   scanFiles, MAX_READ_BYTES, tooLargeReason,
   type RawFile, type ScannedProgram, type ScannedPreset, type ScannedPiano, type ScannedSample, type ScanError,
 } from './scan';
-import { streamUnzip } from './unzip-stream';
-import { isBundleProgramEntry } from '../ns4/bundle';
+import { indexBackup } from '../clavia/backup/backup-index';
+import { extractZipEntry } from '../clavia/backup/zip-directory';
 import { getErrorMessage } from '../errors';
 
 /** A chunk of decoded results emitted as a scan progresses. */
@@ -62,11 +62,12 @@ class MainThreadScanner implements Scanner {
       const bundle = this.bundles.get(path);
       if (!bundle) continue;
       try {
-        await streamUnzip(
-          bundle.stream(),
-          (entry) => push({ path: `${path}!${entry.path}`, bytes: entry.bytes }),
-          isBundleProgramEntry,
-        );
+        const file = await bundle.file();
+        const contents = await indexBackup(file, path);
+        for (const entry of [...contents.programs, ...contents.presets]) {
+          const bytes = await extractZipEntry(file, entry);
+          push({ path: `${path}!${entry.path}`, bytes });
+        }
       } catch (err) {
         flush(); // emit whatever decoded before the failure
         onBatch(errBatch(path, getErrorMessage(err)));
