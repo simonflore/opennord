@@ -99,3 +99,41 @@ export function rescan(handle: FileSystemDirectoryHandle): FolderSource {
 export function forgetFolder(): Promise<unknown> {
   return clearHandle();
 }
+
+/** Resolve a folder-relative, `/`-separated path to a File via the directory handle. */
+export async function fileFromHandle(dir: FileSystemDirectoryHandle, path: string): Promise<File> {
+  const parts = path.split('/').filter(Boolean);
+  const fileName = parts.pop();
+  if (!fileName) throw new Error(`Not a file path: "${path}"`);
+  let cur = dir;
+  for (const seg of parts) cur = await cur.getDirectoryHandle(seg);
+  return (await cur.getFileHandle(fileName)).getFile();
+}
+
+/** Escalate a directory handle to readwrite. Returns false if the API is absent or permission denied. */
+export async function requestWriteAccess(handle: FileSystemDirectoryHandle): Promise<boolean> {
+  const h = handle as FileSystemDirectoryHandle & {
+    requestPermission?: (o: { mode: 'readwrite' }) => Promise<PermissionState>;
+  };
+  if (!h.requestPermission) return false;
+  return (await h.requestPermission({ mode: 'readwrite' })) === 'granted';
+}
+
+/** List the top-level entry names of a directory (for uniquify / existence checks). */
+export async function listDirNames(handle: FileSystemDirectoryHandle): Promise<Set<string>> {
+  const names = new Set<string>();
+  for await (const [name] of (handle as unknown as { entries(): AsyncIterable<[string, unknown]> }).entries()) {
+    names.add(name);
+  }
+  return names;
+}
+
+/** Write a file into a directory, creating it if needed; calls write then closes the stream. */
+export async function writeFileToDir(
+  handle: FileSystemDirectoryHandle, name: string,
+  write: (w: FileSystemWritableFileStream) => Promise<void>,
+): Promise<void> {
+  const fh = await handle.getFileHandle(name, { create: true });
+  const w = await fh.createWritable();
+  try { await write(w); await w.close(); } catch (e) { await w.abort?.().catch(() => {}); throw e; }
+}

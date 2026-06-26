@@ -32,6 +32,8 @@ const folder = (over: Partial<FolderLibrary> = {}): FolderLibrary => ({
   openBundlePicker: () => {},
   closeBundlePicker: () => {},
   applyBundleSelection: async () => {},
+  openBundle: async () => { throw new Error('Not connected'); },
+  writeBack: async () => ({ target: 'download' as const }),
   ...over,
 });
 

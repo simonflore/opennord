@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useFolderLibrary } from './useFolderLibrary';
 import type { Scanner, BundleDescriptor } from './pipeline';
+import * as access from './access';
 
 // A fake program-bearing batch (id is what the hook surfaces).
 function prog(id: string) {
@@ -30,6 +31,7 @@ vi.mock('./access', () => ({
   grantAndScan: vi.fn(),
   rescan: vi.fn(),
   forgetFolder: vi.fn(async () => {}),
+  fileFromHandle: vi.fn(),
 }));
 
 const choiceStore: { value: null | { folderName: string; decided: string[]; skipped: string[] } } = { value: null };
@@ -73,5 +75,47 @@ describe('useFolderLibrary gate', () => {
     const ids = result.current.result.programs.map((p) => p.id);
     expect(ids).toContain('folder:A.ns4b!x.ns4p');
     expect(ids).not.toContain('folder:B.ns4b!x.ns4p');
+  });
+});
+
+describe('useFolderLibrary openBundle', () => {
+  it('openBundle resolves a discovered .ns4b to a File via the folder handle', async () => {
+    // Arrange: a fake handle and a fake File returned by fileFromHandle.
+    const fakeHandle = {} as FileSystemDirectoryHandle;
+    const fakeFile = new File([new Uint8Array([1, 2, 3])], 'TBM.ns4b');
+
+    // Configure restoreFolder to return a granted state with the fake handle.
+    vi.mocked(access.restoreFolder).mockResolvedValueOnce({
+      status: 'granted',
+      name: 'MyFolder',
+      handle: fakeHandle,
+      source: fakeHandle as never,
+    });
+    // Configure fileFromHandle to return the fake File.
+    vi.mocked(access.fileFromHandle).mockResolvedValueOnce(fakeFile);
+
+    const scanner = fakeScanner([]);
+    const { result } = renderHook(() => useFolderLibrary(() => scanner));
+
+    // Wait for the restored folder to be connected (folderName set).
+    await waitFor(() => expect(result.current.folderName).toBe('MyFolder'));
+
+    // Act: open the bundle.
+    let file!: File;
+    await act(async () => { file = await result.current.openBundle('TBM.ns4b'); });
+
+    // Assert: fileFromHandle was called with the handle + path, and we got the right File back.
+    expect(access.fileFromHandle).toHaveBeenCalledWith(fakeHandle, 'TBM.ns4b');
+    expect(file.name).toBe('TBM.ns4b');
+    expect(file.size).toBe(3);
+  });
+
+  it('openBundle throws when no folder is connected', async () => {
+    vi.mocked(access.restoreFolder).mockResolvedValueOnce({ status: 'none' });
+    const scanner = fakeScanner([]);
+    const { result } = renderHook(() => useFolderLibrary(() => scanner));
+    await waitFor(() => expect(result.current.folderName).toBeNull());
+
+    await expect(result.current.openBundle('TBM.ns4b')).rejects.toThrow('No folder is connected.');
   });
 });

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
-import { useFolderLibrary } from '@/lib/folder/useFolderLibrary';
+import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedSamples } from '@/lib/library/useImportedSamples';
 import { useSamplesPrefs } from '@/lib/library/prefs';
 import {
@@ -15,7 +15,7 @@ import { findUnusedSamples, normalizeSampleName, type SampleUsage } from '@/lib/
  *  Samples-screen view state. Mirrors useLibraryStateValue for programs. */
 function useSamplesStateValue() {
   const { session, sampleEntries, setSampleEntries } = useDevice();
-  const folder = useFolderLibrary();
+  const folder = useFolder();
   const imported = useImportedSamples();
   const prefs = useSamplesPrefs();
   const [source, setSource] = useState<LibrarySource | 'all'>('all');

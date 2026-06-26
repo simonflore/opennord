@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   pickFolder, restoreFolder, rescan, grantAndScan, forgetFolder, supportsPersistentFolders,
+  fileFromHandle, requestWriteAccess, writeFileToDir, listDirNames,
 } from './access';
+import { resolveWriteName, type WriteResult } from './writeBack';
 import { type Scanner, type ScanBatch, type BundleDescriptor } from './pipeline';
 import { createScanner } from './scanner';
 import { loadBundleChoice, saveBundleChoice, clearBundleChoice } from './bundlePrefs';
@@ -44,6 +46,18 @@ export interface FolderLibrary {
   closeBundlePicker: () => void;
   /** Load the chosen backups (the rest are remembered as skipped), then close the picker. */
   applyBundleSelection: (loadPaths: string[]) => Promise<void>;
+  /** Open a folder-relative path as a File (e.g. to stream a `.ns4b`). Throws if no folder is connected. */
+  openBundle: (path: string) => Promise<File>;
+  /**
+   * Write a file into the connected folder.  Escalates to readwrite on first call.
+   * Returns `{target:'download'}` when no folder is connected or permission is denied;
+   * otherwise writes the file, re-scans, and returns `{target:'folder', path}`.
+   */
+  writeBack: (
+    name: string,
+    write: (w: FileSystemWritableFileStream) => Promise<void>,
+    opts: { mode: 'new' | 'overwrite' },
+  ) => Promise<WriteResult>;
 }
 
 export function useFolderLibrary(makeScanner: () => Scanner = createScanner): FolderLibrary {
@@ -173,6 +187,25 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
   const openBundlePicker = useCallback(() => setPickerOpen(true), []);
   const closeBundlePicker = useCallback(() => setPickerOpen(false), []);
 
+  const openBundle = useCallback(async (path: string): Promise<File> => {
+    if (!handle) throw new Error('No folder is connected.');
+    return fileFromHandle(handle, path);
+  }, [handle]);
+
+  const writeBack = useCallback(async (
+    name: string,
+    write: (w: FileSystemWritableFileStream) => Promise<void>,
+    opts: { mode: 'new' | 'overwrite' },
+  ): Promise<WriteResult> => {
+    if (!handle) return { target: 'download' };
+    if (!(await requestWriteAccess(handle))) return { target: 'download' };
+    const existing = await listDirNames(handle);
+    const finalName = resolveWriteName(name, opts.mode, existing);
+    await writeFileToDir(handle, finalName, write);
+    await refresh();
+    return { target: 'folder', path: finalName };
+  }, [handle, refresh]);
+
   const applyBundleSelection = useCallback(async (loadPaths: string[]) => {
     const scanner = scannerRef.current;
     if (!scanner || !folderName) { setPickerOpen(false); return; }
@@ -195,5 +228,6 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     canPersist: supportsPersistentFolders(),
     choose, reconnect, refresh, forget,
     openBundlePicker, closeBundlePicker, applyBundleSelection,
+    openBundle, writeBack,
   };
 }

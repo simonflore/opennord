@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
-import { useFolderLibrary } from '@/lib/folder/useFolderLibrary';
+import { useFolder } from '@/lib/folder/FolderContext';
 import { usePianosPrefs } from '@/lib/library/prefs';
 import {
   pianoEntriesFromScanned, pianoEntriesFromDevice, filterPianos, sortPianos,
@@ -13,7 +13,7 @@ import { enumeratePianoLibrary } from '@/lib/device/pianos';
  *  Pianos-screen view state. Mirrors usePresetsStateValue, recognition-only. */
 function usePianosStateValue() {
   const { session, pianoEntries, setPianoEntries } = useDevice();
-  const folder = useFolderLibrary();
+  const folder = useFolder();
   const prefs = usePianosPrefs();
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
   const [query, setQuery] = useState('');

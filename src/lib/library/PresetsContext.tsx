@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
-import { useFolderLibrary } from '@/lib/folder/useFolderLibrary';
+import { useFolder } from '@/lib/folder/FolderContext';
 import { usePresetsPrefs } from '@/lib/library/prefs';
 import {
   presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds,
@@ -15,7 +15,7 @@ import { modelById } from '@/lib/clavia/partitions';
  *  Presets-screen view state. Mirrors useSamplesStateValue, recognition-only. */
 function usePresetsStateValue() {
   const { session, presetEntries, setPresetEntries } = useDevice();
-  const folder = useFolderLibrary();
+  const folder = useFolder();
   const prefs = usePresetsPrefs();
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
   const [kind, setKind] = useState<PresetKind | 'all'>('all');
