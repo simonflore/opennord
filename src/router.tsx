@@ -3,6 +3,7 @@ import { rootRoute } from '@/routes/root';
 import { LibraryIndexRoute, ProgramsRoute, ProgramRoute } from '@/routes/library';
 import { SamplesRoute, SamplesRedirectRoute } from '@/routes/samples';
 import { PresetsRoute } from '@/routes/presets';
+import { PianosRoute } from '@/routes/pianos';
 import { DeviceRoute } from '@/routes/device';
 import { AboutRoute } from '@/routes/about';
 import { CompatibilityRoute } from '@/routes/compatibility';
@@ -23,6 +24,7 @@ const routeTree = rootRoute.addChildren([
   SamplesRedirectRoute,
   SamplesRoute,
   PresetsRoute,
+  PianosRoute,
   DeviceRoute,
   CompatibilityRoute,
   AboutRoute,

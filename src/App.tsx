@@ -5,6 +5,7 @@ import { MidiProvider } from './lib/midi/MidiContext';
 import { LibraryProvider } from './lib/library/LibraryContext';
 import { SamplesProvider } from './lib/library/SamplesContext';
 import { PresetsProvider } from './lib/library/PresetsContext';
+import { PianosProvider } from './lib/library/PianosContext';
 import { router } from './router';
 
 export function App() {
@@ -14,7 +15,9 @@ export function App() {
         <LibraryProvider>
           <SamplesProvider>
             <PresetsProvider>
-              <RouterProvider router={router} />
+              <PianosProvider>
+                <RouterProvider router={router} />
+              </PianosProvider>
             </PresetsProvider>
           </SamplesProvider>
         </LibraryProvider>

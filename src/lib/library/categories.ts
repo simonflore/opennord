@@ -12,7 +12,7 @@ export type LibraryCategory =
 
 export const LIBRARY_CATEGORIES: LibraryCategory[] = [
   { id: 'programs', label: 'Programs', path: '/library/programs', ready: true },
-  { id: 'pianos',   label: 'Pianos',   path: '/library/pianos',   ready: false },
+  { id: 'pianos',   label: 'Pianos',   path: '/library/pianos',   ready: true },
   { id: 'samples',  label: 'Samples',  path: '/library/samples',  ready: true },
   { id: 'presets',  label: 'Presets',  path: '/library/presets',  ready: true },
 ];

@@ -7,8 +7,8 @@ describe('LIBRARY_CATEGORIES', () => {
     for (const c of LIBRARY_CATEGORIES) expect(c.path).toBe(`/library/${c.id}`);
   });
 
-  it('marks Programs, Samples, and Presets ready', () => {
-    expect(LIBRARY_CATEGORIES.filter((c) => c.ready).map((c) => c.id)).toEqual(['programs', 'samples', 'presets']);
+  it('marks all four categories ready', () => {
+    expect(LIBRARY_CATEGORIES.filter((c) => c.ready).map((c) => c.id)).toEqual(['programs', 'pianos', 'samples', 'presets']);
   });
 
   it('resolves a category from a /library/<id> path, including nested detail', () => {
