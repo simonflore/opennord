@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import type { Addr } from '../../lib/device/reorg';
 import { formatSlot, BANK_LETTERS } from '../../lib/clavia/slot';
@@ -11,11 +10,14 @@ interface Props {
   onGesture(g: { kind: 'move'; from: Addr; to: Addr }): void;
 }
 
-/** A grid of one bank's slots. Drag an occupied slot onto an empty one to move it. */
+/** MIME carried on the drag so the source {bank,slot} travels with it — across grid
+ *  instances (each bank is its own SlotGrid), which per-component state cannot do. */
+const DRAG_MIME = 'application/x-nord-slot';
+
+/** A grid of one bank's slots. Drag an occupied slot onto an empty one — in this or
+ *  any other bank's grid — to move it. */
 export function SlotGrid({ bank, slotCount, entries, onGesture }: Props) {
   const bySlot = new Map(entries.filter((e) => e.bank === bank).map((e) => [e.slot, e]));
-  const [dragFrom, setDragFrom] = useState<number | null>(null);
-
   const bankLabel = BANK_LETTERS[bank & 0x7] ?? String(bank);
 
   return (
@@ -31,14 +33,25 @@ export function SlotGrid({ bank, slotCount, entries, onGesture }: Props) {
             className={`slot-grid__cell${occupied ? ' slot-grid__cell--occupied' : ''}`}
             draggable={occupied}
             aria-label={`${formatSlot(bank, slot)}${occupied ? `: ${e!.name}` : ' (empty)'}`}
-            onDragStart={() => setDragFrom(slot)}
-            onDragEnd={() => setDragFrom(null)}
-            onDragOver={(ev) => { if (!occupied && dragFrom !== null) ev.preventDefault(); }}
-            onDrop={() => {
-              if (dragFrom !== null && !occupied) {
-                onGesture({ kind: 'move', from: { bank, slot: dragFrom }, to: { bank, slot } });
+            onDragStart={(ev) => {
+              ev.dataTransfer.setData(DRAG_MIME, JSON.stringify({ bank, slot }));
+              ev.dataTransfer.effectAllowed = 'move';
+            }}
+            onDragOver={(ev) => {
+              // Empty cells accept our drag; calling preventDefault is what permits the drop.
+              if (!occupied && [...ev.dataTransfer.types].includes(DRAG_MIME)) {
+                ev.preventDefault();
+                ev.dataTransfer.dropEffect = 'move';
               }
-              setDragFrom(null);
+            }}
+            onDrop={(ev) => {
+              if (occupied) return;
+              const raw = ev.dataTransfer.getData(DRAG_MIME);
+              if (!raw) return;
+              ev.preventDefault();
+              const from = JSON.parse(raw) as Addr;
+              if (from.bank === bank && from.slot === slot) return; // dropped on itself
+              onGesture({ kind: 'move', from, to: { bank, slot } });
             }}
           >
             <span className="slot-grid__label">{formatSlot(bank, slot)}</span>
