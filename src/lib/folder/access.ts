@@ -99,3 +99,13 @@ export function rescan(handle: FileSystemDirectoryHandle): FolderSource {
 export function forgetFolder(): Promise<unknown> {
   return clearHandle();
 }
+
+/** Resolve a folder-relative, `/`-separated path to a File via the directory handle. */
+export async function fileFromHandle(dir: FileSystemDirectoryHandle, path: string): Promise<File> {
+  const parts = path.split('/').filter(Boolean);
+  const fileName = parts.pop();
+  if (!fileName) throw new Error(`Not a file path: "${path}"`);
+  let cur = dir;
+  for (const seg of parts) cur = await cur.getDirectoryHandle(seg);
+  return (await cur.getFileHandle(fileName)).getFile();
+}
