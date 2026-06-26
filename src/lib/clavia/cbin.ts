@@ -11,9 +11,17 @@
  * dependency direction is always model → clavia, never the reverse.
  */
 
+/** The fixed CBIN header is 44 bytes (0x00–0x2B); the model-specific body starts here. */
+export const CBIN_BODY_OFFSET = 0x2c;
+
 /** A Nord program file opens with "CBIN" and tags its type "ns4p" at bytes 9-12. */
 export function hasCbinMagic(bytes: Uint8Array): boolean {
   return matchAscii(bytes, 0, 'CBIN');
+}
+
+/** CBIN program version as a display string, e.g. 313 → "3.13" (raw u16 LE at 0x14, ÷100). */
+export function formatCbinVersion(bytes: Uint8Array): string {
+  return (((bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8)) / 100).toFixed(2);
 }
 
 /** The 4-char file-type tag at master map 009-1..012-8 (bytes 9-12, 1-based). */

@@ -54,31 +54,11 @@
  * All files are version raw=103 → '1.03'.
  */
 
-import type { Ne4Drawbars, Ne4Organ, Ne4Program, Ne4Sample } from './types';
-
-const BODY_OFFSET = 0x2c;
+import { CBIN_BODY_OFFSET as BODY_OFFSET, formatCbinVersion } from '../clavia/cbin';
+import { readDrawbars } from '../clavia/drawbars';
+import type { Ne4Organ, Ne4Program, Ne4Sample } from './types';
 
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
-
-/**
- * Decode 9 nibble-packed drawbar values from 5 body bytes at `bodyOffset`.
- * Each nibble is 4 bits (value 0-8); the 10th nibble is an unidentified field.
- * Same encoding as NE6 readDrawbars (body[143-147] in NE6).
- * Stage oracle: 117-1..136-1 drawbar 1..9 (group o).
- */
-function readDrawbars(body: Uint8Array, bodyOffset: number): Ne4Drawbars {
-  const bars: number[] = [];
-  // Bytes 0-3: 8 drawbars, 2 per byte (high nibble first)
-  for (let i = 0; i < 4; i++) {
-    const byte = u8(body, bodyOffset + i);
-    bars.push((byte >>> 4) & 0xf);
-    bars.push(byte & 0xf);
-  }
-  // Byte 4: drawbar 9 in the high nibble, unknown in the low nibble
-  const last = u8(body, bodyOffset + 4);
-  bars.push((last >>> 4) & 0xf);
-  return { bars, _trailing: last & 0xf };
-}
 
 /**
  * Decode the NE4 organ section.
@@ -136,9 +116,7 @@ export function decodeNe4(bytes: Uint8Array): Ne4Program {
   }
   const body = bytes.slice(BODY_OFFSET);
 
-  // Version from CBIN header (versionRaw LE u16 at 0x14)
-  const versionRaw = (bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8);
-  const version = (versionRaw / 100).toFixed(2);
+  const version = formatCbinVersion(bytes);
 
   const organ = readOrgan(body);
   const sample = readSample(body);

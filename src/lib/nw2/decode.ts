@@ -31,9 +31,9 @@
  * Source: 26-file corpus statistical analysis (2026-06-22).
  */
 
-import type { Nw2Drawbars, Nw2VoiceSlot, Nw2Waveform, Nw2Program } from './types';
-
-const BODY_OFFSET = 0x2c; // 44 — the CBIN header length
+import { CBIN_BODY_OFFSET as BODY_OFFSET, formatCbinVersion } from '../clavia/cbin';
+import { readDrawbars } from '../clavia/drawbars';
+import type { Nw2VoiceSlot, Nw2Waveform, Nw2Program } from './types';
 
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
 
@@ -43,25 +43,6 @@ const DRAWBAR_OFFSETS = [143, 387, 631, 875] as const;
 // Slot start offsets (body-relative), confirmed by ~244-byte period
 const SLOT_STARTS = [0, 244, 488, 732] as const;
 const SLOT_SIZE = 244;
-
-/**
- * Decode 9 nibble-packed drawbar values from 5 body bytes at `bodyOffset`.
- * Identical encoding to NE6: each nibble is 4 bits (value 0-8).
- * Source: corpus RE (2026-06-22); confirmed by Eli Bass 6 fixture.
- */
-function readDrawbars(body: Uint8Array, bodyOffset: number): Nw2Drawbars {
-  const bars: number[] = [];
-  // Bytes 0-3: drawbars 1-8, 2 per byte (high nibble first)
-  for (let i = 0; i < 4; i++) {
-    const byte = u8(body, bodyOffset + i);
-    bars.push((byte >>> 4) & 0xf);
-    bars.push(byte & 0xf);
-  }
-  // Byte 4: drawbar 9 in the high nibble; low nibble is unidentified (always 0 in corpus)
-  const last = u8(body, bodyOffset + 4);
-  bars.push((last >>> 4) & 0xf);
-  return { bars, _trailing: last & 0xf };
-}
 
 /**
  * Decode the waveform / oscillator selector from body local[77-79].
@@ -103,9 +84,7 @@ export function decodeNw2(bytes: Uint8Array): Nw2Program {
   }
   const body = bytes.slice(BODY_OFFSET);
 
-  // Version from CBIN header (versionRaw LE u16 at 0x14)
-  const versionRaw = (bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8);
-  const version = (versionRaw / 100).toFixed(2);
+  const version = formatCbinVersion(bytes);
 
   return {
     parsed: true,

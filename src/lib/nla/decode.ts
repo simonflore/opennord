@@ -32,9 +32,8 @@
  * All fixtures are version raw=7 → '0.07'.
  */
 
+import { CBIN_BODY_OFFSET as BODY_OFFSET, formatCbinVersion } from '../clavia/cbin';
 import type { NlaProgram } from './types';
-
-const BODY_OFFSET = 0x2c; // 44 — the CBIN header length
 
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
 
@@ -48,9 +47,7 @@ export function decodeNla(bytes: Uint8Array): NlaProgram {
 
   const body = bytes.slice(BODY_OFFSET);
 
-  // Version from CBIN header (versionRaw LE u16 at 0x14)
-  const versionRaw = (bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8);
-  const version = (versionRaw / 100).toFixed(2);
+  const version = formatCbinVersion(bytes);
 
   // Confirmed structural fields.
   const headerNibble = (u8(body, 0) >>> 4) & 0xf; // const 0 — bitstream marker

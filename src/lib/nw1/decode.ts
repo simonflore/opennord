@@ -33,9 +33,9 @@
  *   - body[289]            : packed flag pair {0,64,128,192}
  */
 
+import { CBIN_BODY_OFFSET as BODY_OFFSET, formatCbinVersion } from '../clavia/cbin';
 import type { Nw1Global, Nw1Program, Nw1Slot } from './types';
 
-const BODY_OFFSET = 0x2c;
 const SLOT1_OFFSET = 0;
 const SLOT2_OFFSET = 140;
 const SLOT_LEN = 116;
@@ -69,8 +69,7 @@ export function decodeNw1(bytes: Uint8Array): Nw1Program {
     warnings.push(`File too short: ${bytes.length} bytes`);
   }
   const body = bytes.slice(BODY_OFFSET);
-  const versionRaw = (bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8);
-  const version = (versionRaw / 100).toFixed(2);
+  const version = formatCbinVersion(bytes);
 
   // body[304-305]: uint16 LE checksum over the body.
   const checksum = u8(body, 304) | (u8(body, 305) << 8);

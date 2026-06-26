@@ -62,35 +62,16 @@
  * Drawbar order: 16', 8', 5⅓', 4', 2⅔', 2', 1⅗', 1⅓', 1'  (standard Hammond).
  */
 
+import { CBIN_BODY_OFFSET as BODY_OFFSET, formatCbinVersion } from '../clavia/cbin';
+import { readDrawbars } from '../clavia/drawbars';
 import type {
-  Ne6Drawbars,
   Ne6Organ,
   Ne6Program,
   Ne6Sample,
   Ne6SectionEnable,
 } from './types';
 
-const BODY_OFFSET = 0x2c; // 44 — the CBIN header length
-
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
-
-/**
- * Decode 9 nibble-packed drawbar values from 5 body bytes at `bodyOffset`.
- * Each nibble is 4 bits (value 0-8); the 10th nibble is an unidentified field.
- */
-function readDrawbars(body: Uint8Array, bodyOffset: number): Ne6Drawbars {
-  const bars: number[] = [];
-  // Bytes 0-3: 8 drawbars, 2 per byte (high nibble first)
-  for (let i = 0; i < 4; i++) {
-    const byte = u8(body, bodyOffset + i);
-    bars.push((byte >>> 4) & 0xf);
-    bars.push(byte & 0xf);
-  }
-  // Byte 4: drawbar 9 in the high nibble, unknown in the low nibble
-  const last = u8(body, bodyOffset + 4);
-  bars.push((last >>> 4) & 0xf);
-  return { bars, _trailing: last & 0xf };
-}
 
 function readOrgan(body: Uint8Array): Ne6Organ {
   // Confirmed by 16-fixture corpus diff (2026-06-22). All 14 non-organ presets
@@ -158,9 +139,7 @@ export function decodeNe6(bytes: Uint8Array): Ne6Program {
 
   const body = bytes.slice(BODY_OFFSET);
 
-  // Version from CBIN header (versionRaw LE u16 at 0x14)
-  const versionRaw = (bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8);
-  const version = (versionRaw / 100).toFixed(2);
+  const version = formatCbinVersion(bytes);
 
   return {
     parsed: true,

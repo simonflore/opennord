@@ -43,9 +43,8 @@
  * | 73-89       | 0x00×17        | zero tail |
  */
 
+import { CBIN_BODY_OFFSET as BODY_OFFSET, formatCbinVersion } from '../clavia/cbin';
 import type { Np4PianoFamily, Np4VelocityCurve, Np4Program } from './types';
-
-const BODY_OFFSET = 0x2c; // 44 — the CBIN header length
 
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
 
@@ -82,9 +81,7 @@ export function decodeNp4(bytes: Uint8Array): Np4Program {
 
   const body = bytes.slice(BODY_OFFSET);
 
-  // Version from CBIN header (versionRaw LE u16 at 0x14)
-  const versionRaw = (bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8);
-  const version = (versionRaw / 100).toFixed(2);
+  const version = formatCbinVersion(bytes);
 
   // Confirmed: body[25] bit7 piano family flag.
   // Stage oracle: 244-3 piano type [3b], group p (binarized).

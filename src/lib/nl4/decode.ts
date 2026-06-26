@@ -30,9 +30,9 @@
  * Source: corpus RE 2026-06-22.
  */
 
+import { CBIN_BODY_OFFSET as BODY_OFFSET, formatCbinVersion } from '../clavia/cbin';
 import type { Nl4Program } from './types';
 
-const BODY_OFFSET = 0x2c;
 const NL4S_BODY_LEN = 299;
 
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
@@ -43,8 +43,7 @@ export function decodeNl4(bytes: Uint8Array): Nl4Program {
     warnings.push(`File too short: ${bytes.length} bytes`);
   }
   const body = bytes.slice(BODY_OFFSET);
-  const versionRaw = (bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8);
-  const version = (versionRaw / 100).toFixed(2);
+  const version = formatCbinVersion(bytes);
   const tagBytes = bytes.slice(8, 12);
   const tag = String.fromCharCode(...Array.from(tagBytes).filter(b => b > 0));
 

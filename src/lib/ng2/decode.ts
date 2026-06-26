@@ -65,9 +65,9 @@
  *    in-cluster FX/packed field, left raw.
  */
 
+import { CBIN_BODY_OFFSET as BODY_OFFSET, formatCbinVersion } from '../clavia/cbin';
+import { readBits } from '../clavia/bitstream';
 import type { Ng2PianoLayer, Ng2PianoType, Ng2Program } from './types';
-
-const BODY_OFFSET = 0x2c; // 44 — CBIN header length
 
 /** Body bit offset of the Layer A piano cluster (= body byte 22). */
 const LAYER_A_BIT = 176;
@@ -75,18 +75,6 @@ const LAYER_A_BIT = 176;
 const LAYER_B_BIT = 288;
 
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
-
-/** Read `len` bits MSB-first starting at body bit `startBit`. */
-function readBits(body: Uint8Array, startBit: number, len: number): number {
-  let v = 0;
-  for (let i = 0; i < len; i++) {
-    const bit = startBit + i;
-    const byte = u8(body, bit >> 3);
-    const b = (byte >> (7 - (bit & 7))) & 1;
-    v = (v << 1) | b;
-  }
-  return v >>> 0;
-}
 
 /** Map the 3-bit Stage piano-type value to a label (244-3 piano type, group p). */
 function pianoTypeLabel(raw: number): Ng2PianoType {
@@ -169,9 +157,7 @@ export function decodeNg2(bytes: Uint8Array): Ng2Program {
 
   const body = bytes.slice(BODY_OFFSET);
 
-  // Version from CBIN header (versionRaw LE u16 at 0x14)
-  const versionRaw = (bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8);
-  const version = (versionRaw / 100).toFixed(2);
+  const version = formatCbinVersion(bytes);
 
   // ── Decoded piano layers (Stage group-p oracle alignment) ─────────────────
   const layerA = decodePianoLayer(body, LAYER_A_BIT, 22); // body[22..30]

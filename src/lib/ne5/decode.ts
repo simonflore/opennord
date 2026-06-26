@@ -37,28 +37,11 @@
  * Source: 13-file corpus statistical analysis + Stage oracle alignment (2026-06-22).
  */
 
-import type { Ne5Drawbars, Ne5Organ, Ne5Program } from './types';
-
-const BODY_OFFSET = 0x2c;
+import { CBIN_BODY_OFFSET as BODY_OFFSET, formatCbinVersion } from '../clavia/cbin';
+import { readDrawbars } from '../clavia/drawbars';
+import type { Ne5Organ, Ne5Program } from './types';
 
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
-
-/**
- * Decode 9 nibble-packed drawbar values from 5 body bytes at `bodyOffset`.
- * Encoding is identical to NE6: 9×4-bit nibbles, high-nibble-first within each byte.
- * Bytes 0-3: 8 drawbars (2 per byte); byte 4 hi nibble: drawbar 9; byte 4 lo nibble: _trailing.
- */
-function readDrawbars(body: Uint8Array, bodyOffset: number): Ne5Drawbars {
-  const bars: number[] = [];
-  for (let i = 0; i < 4; i++) {
-    const byte = u8(body, bodyOffset + i);
-    bars.push((byte >>> 4) & 0xf);
-    bars.push(byte & 0xf);
-  }
-  const last = u8(body, bodyOffset + 4);
-  bars.push((last >>> 4) & 0xf);
-  return { bars, _trailing: last & 0xf };
-}
 
 function readOrgan(body: Uint8Array): Ne5Organ {
   // Stage oracle: organ drawbar 1..9 (group o, ids 117-1..136-1), nibble-relocated
@@ -87,9 +70,7 @@ export function decodeNe5(bytes: Uint8Array): Ne5Program {
 
   const body = bytes.slice(BODY_OFFSET);
 
-  // Version from CBIN header (versionRaw LE u16 at 0x14)
-  const versionRaw = (bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8);
-  const version = (versionRaw / 100).toFixed(2);
+  const version = formatCbinVersion(bytes);
 
   const sampleModelId = body.slice(7, 13); // 6 bytes — Stage oracle: piano model ID
 

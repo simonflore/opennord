@@ -49,6 +49,8 @@
  * or 58 bytes (FX/EQ) with trailing zeros. 175 of 237 bytes are constant (74%).
  */
 
+import { CBIN_BODY_OFFSET as BODY_OFFSET, formatCbinVersion } from '../clavia/cbin';
+import { readBits } from '../clavia/bitstream';
 import type {
   Np5FxSlot,
   Np5PianoCore,
@@ -56,8 +58,6 @@ import type {
   Np5Program,
   Np5SoundSlot,
 } from './types';
-
-const BODY_OFFSET = 0x2c; // 44 — CBIN header length
 
 /** Body bit offset of the Layer A core piano cluster (modelId anchor at +28 = bit 489). */
 const CORE_A_BIT = 461;
@@ -71,18 +71,6 @@ const CORE_B_BIT = 717;
 const FORMAT_TAG = 0x0c65;
 
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
-
-/** Read `len` bits MSB-first starting at body bit `startBit`. */
-function readBits(body: Uint8Array, startBit: number, len: number): number {
-  let v = 0;
-  for (let i = 0; i < len; i++) {
-    const bit = startBit + i;
-    const byte = u8(body, bit >> 3);
-    const b = (byte >> (7 - (bit & 7))) & 1;
-    v = (v << 1) | b;
-  }
-  return v >>> 0;
-}
 
 /** Map the 3-bit Stage piano-type value to a label (244-3 piano type, group p). */
 function pianoTypeLabel(raw: number): Np5PianoType {
@@ -201,9 +189,7 @@ export function decodeNp5(bytes: Uint8Array): Np5Program {
 
   const body = bytes.slice(BODY_OFFSET);
 
-  // Version from CBIN header (versionRaw LE u16 at 0x14)
-  const versionRaw = (bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8);
-  const version = (versionRaw / 100).toFixed(2);
+  const version = formatCbinVersion(bytes);
 
   // Confirmed: NP5 body sub-format tag (constant across all 25 fixtures)
   const formatTag = readFormatTag(body);
