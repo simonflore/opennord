@@ -31,6 +31,14 @@
   color: var(--ink);
 }
 
+/* Hovering an occupied slot while dragging — signals a swap (not a move). */
+.slot-grid__cell--swap-over {
+  border-style: solid;
+  border-color: var(--red-bright);
+  background: color-mix(in srgb, var(--red-bright) 16%, var(--surface-2));
+  color: var(--ink);
+}
+
 /* Occupied slots: solid, interactive, grabbable. */
 .slot-grid__cell--occupied {
   cursor: grab;

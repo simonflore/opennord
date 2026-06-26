@@ -55,4 +55,24 @@ describe('SlotGrid drag-and-drop (repro)', () => {
     fireEvent.drop(dst, { dataTransfer: shared });
     expect(onGesture).toHaveBeenCalledWith({ kind: 'move', from: { bank: 0, slot: 0 }, to: { bank: 1, slot: 0 } });
   });
+
+  it('drops onto an OCCUPIED slot too (swap gesture), but not onto itself', () => {
+    const onGesture = vi.fn();
+    const { container } = render(
+      <SlotGrid bank={0} slotCount={4} entries={[prog(0, 0, 'A'), prog(0, 1, 'B')]} onGesture={onGesture} />);
+    const cells = container.querySelectorAll('[data-slot]');
+    const a = cells[0]; const b = cells[1]; // both occupied
+    const shared = dt();
+    // drop A onto B → gesture (swap decided downstream)
+    fireEvent.dragStart(a, { dataTransfer: shared });
+    fireEvent.dragOver(b, { dataTransfer: shared });
+    fireEvent.drop(b, { dataTransfer: shared });
+    expect(onGesture).toHaveBeenCalledWith({ kind: 'move', from: { bank: 0, slot: 0 }, to: { bank: 0, slot: 1 } });
+    // drop A onto itself → no gesture
+    onGesture.mockClear();
+    const shared2 = dt();
+    fireEvent.dragStart(a, { dataTransfer: shared2 });
+    fireEvent.drop(a, { dataTransfer: shared2 });
+    expect(onGesture).not.toHaveBeenCalled();
+  });
 });

@@ -35,7 +35,7 @@ export function SlotGrid({ bank, slotCount, entries, onGesture }: Props) {
             key={slot}
             data-slot={slot}
             data-occupied={occupied}
-            className={`slot-grid__cell${occupied ? ' slot-grid__cell--occupied' : ''}${!occupied && overSlot === slot ? ' slot-grid__cell--over' : ''}`}
+            className={`slot-grid__cell${occupied ? ' slot-grid__cell--occupied' : ''}${overSlot === slot ? (occupied ? ' slot-grid__cell--swap-over' : ' slot-grid__cell--over') : ''}`}
             draggable={occupied}
             aria-label={`${formatSlot(bank, slot)}${occupied ? `: ${e!.name}` : ' (empty)'}`}
             onDragStart={(ev) => {
@@ -43,8 +43,7 @@ export function SlotGrid({ bank, slotCount, entries, onGesture }: Props) {
               ev.dataTransfer.effectAllowed = 'move';
             }}
             onDragOver={(ev) => {
-              // Empty cells accept our drag; calling preventDefault is what permits the drop.
-              if (!occupied && [...ev.dataTransfer.types].includes(DRAG_MIME)) {
+              if ([...ev.dataTransfer.types].includes(DRAG_MIME)) {
                 ev.preventDefault();
                 ev.dataTransfer.dropEffect = 'move';
                 setOverSlot(slot);
@@ -53,7 +52,6 @@ export function SlotGrid({ bank, slotCount, entries, onGesture }: Props) {
             onDragLeave={() => setOverSlot((s) => (s === slot ? null : s))}
             onDrop={(ev) => {
               setOverSlot(null);
-              if (occupied) return;
               const raw = ev.dataTransfer.getData(DRAG_MIME);
               if (!raw) return;
               ev.preventDefault();
