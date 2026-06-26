@@ -115,13 +115,14 @@ describe('electro5Slot (CElectro5::ConvertLocation @0x0000000100194844)', () => 
     const fixturesDir = join(process.cwd(), 'fixtures/electro-5');
     if (!existsSync(fixturesDir)) return; // corpus is gitignored — skip in CI
 
-    // All 5 fixtures confirmed with bank/loc bytes at 0x0C / 0x0E (cbin.ts)
+    // Stable, uniquely-named fixtures, bank/loc bytes at 0x0C / 0x0E (cbin.ts).
+    // The "Nord Stage Electro Lead Samples" copies (base + "(N)" browser-download
+    // duplicates) are intentionally excluded: they re-download to default slots and
+    // drift per machine, so hardcoding their slots tested corpus state, not the code.
+    // electro5Slot's mapping itself is pinned by the explicit (bank,loc)→slot pairs above.
     const expectedSlots: Record<string, string> = {
       'CP 80 Grandpad Sample.ne5p': 'C:21',
       'In The Air 2Nite Samples.ne5p': 'F:25',
-      'Nord Stage Electro Lead Samples (1).ne5p': 'H:45',
-      'Nord Stage Electro Lead Samples (2).ne5p': 'F:09',
-      'Nord Stage Electro Lead Samples.ne5p': 'E:46',
     };
 
     for (const [filename, expected] of Object.entries(expectedSlots)) {
