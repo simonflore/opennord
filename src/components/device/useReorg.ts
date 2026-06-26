@@ -60,9 +60,9 @@ export function useReorg({ io, partition, entries, refresh, backupOnce, run }: U
       if (backupOnce) await backupOnce();
       const res = await wrap(() => executePlan(io, partition, plan, occRef.current, { onProgress: setProgress }));
       setResult(res);
+      setPendingPlan(null);
       if (res.ok) {
         await refresh();
-        setPendingPlan(null);
       } else {
         setError(`${plan.title} failed; nothing was changed.${res.warnings.length ? ` (${res.warnings.join('; ')})` : ''}`);
       }

@@ -19,6 +19,16 @@ function ioFor(entries: ProgramEntry[]): DeviceIO {
   };
 }
 
+// DeviceIO that always fails on push
+function ioForFailure(_entries: ProgramEntry[]): DeviceIO {
+  return {
+    pull: async () => new Uint8Array(144),
+    push: async () => { throw new Error('Push failed'); },
+    delete: async () => { throw new Error('Delete failed'); },
+    info: async () => null,
+  };
+}
+
 beforeEach(() => vi.clearAllMocks());
 
 describe('useReorg', () => {
@@ -51,5 +61,16 @@ describe('useReorg', () => {
     await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
     expect(result.current.pendingPlan).toBeNull();
     expect(result.current.error).toBe('');
+  });
+
+  it('confirm on failed execute clears plan AND sets error', async () => {
+    const entries = [prog(0, 0, 'A')];
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const run = vi.fn(async <T,>(fn: () => Promise<T>): Promise<T> => fn()) as <T,>(fn: () => Promise<T>) => Promise<T>;
+    const { result } = renderHook(() => useReorg({ io: ioForFailure(entries), partition: 6, entries, refresh, run }));
+    act(() => result.current.onGesture({ kind: 'move', from: { bank: 0, slot: 0 }, to: { bank: 0, slot: 5 } }));
+    await act(async () => { await result.current.confirm(); });
+    expect(result.current.pendingPlan).toBeNull();
+    expect(result.current.error).toMatch(/failed/i);
   });
 });
