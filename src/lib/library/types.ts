@@ -1,6 +1,6 @@
 import type { NordProgram } from '../formats';
 
-export type LibrarySource = 'nord' | 'local';
+export type LibrarySource = 'nord' | 'local' | 'backup';
 
 /** Library sort order. `default` keeps the natural source order (Nord → folder → local). */
 export type LibrarySort = 'default' | 'name' | 'source';

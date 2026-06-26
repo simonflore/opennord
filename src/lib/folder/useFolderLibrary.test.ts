@@ -14,11 +14,11 @@ function prog(id: string) {
 function fakeScanner(bundles: BundleDescriptor[]): Scanner {
   return {
     async scanLoose(_source, onBatch) {
-      onBatch({ programs: [prog('folder:loose.ns4p')], presets: [], pianos: [], samples: [], errors: [] });
+      onBatch({ programs: [prog('folder:loose.ns4p')], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
       return bundles;
     },
     async expandBundles(paths, onBatch) {
-      for (const p of paths) onBatch({ programs: [prog(`folder:${p}!x.ns4p`)], presets: [], pianos: [], samples: [], errors: [] });
+      for (const p of paths) onBatch({ programs: [prog(`folder:${p}!x.ns4p`)], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
     },
   };
 }

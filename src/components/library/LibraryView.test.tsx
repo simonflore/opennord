@@ -17,7 +17,7 @@ const prefs = (over: Partial<LibraryPrefsApi> = {}): LibraryPrefsApi => ({
 
 const folder = (over: Partial<FolderLibrary> = {}): FolderLibrary => ({
   folderName: null,
-  result: { programs: [], presets: [], pianos: [], samples: [], errors: [] },
+  result: { programs: [], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] },
   bundles: [],
   newBundles: [],
   pickerOpen: false,

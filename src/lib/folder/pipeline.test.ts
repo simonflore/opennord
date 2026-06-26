@@ -101,4 +101,44 @@ describe('mainThreadScanner', () => {
     expect(programs[0].path).toBe('Backup.ns4b!Program/Bank A/Lead.ns4p');
     expect(presets[0].kind).toBe('synth-preset');
   });
+
+  it('Pass B surfaces backup pianos and samples as byte-free BackupRefs, with correct native flag', async () => {
+    // Build a ZIP with meta.xml, one factory piano, one factory sample, one user sample.
+    const metaXml = strToU8('<?xml version="1.0"?><backup product_id="46"/>');
+
+    const zip = zipSync({
+      'meta.xml': metaXml,
+      'Piano/Grand Lady D.npno': new Uint8Array(100),          // factory piano (always native)
+      'Samp Lib/Choir/Choir.nsmp4': new Uint8Array(512),        // factory sample ("Samp Lib/" folder)
+      'User Samples/MyPad.nsmp3': new Uint8Array(64),           // user sample (other folder)
+    });
+
+    const scanner = mainThreadScanner();
+    await scanner.scanLoose([file('F/Backup.ns4b', zip)], () => {});
+
+    const batches: ScanBatch[] = [];
+    await scanner.expandBundles(['Backup.ns4b'], (b) => batches.push(b));
+
+    const backupPianos = batches.flatMap((b) => b.backupPianos);
+    const backupSamples = batches.flatMap((b) => b.backupSamples);
+
+    // Piano: one factory entry, no bytes anywhere in the batch.
+    expect(backupPianos).toHaveLength(1);
+    expect(backupPianos[0].entry.path).toBe('Piano/Grand Lady D.npno');
+    expect(backupPianos[0].native).toBe(true);
+    expect(backupPianos[0].bundlePath).toBe('Backup.ns4b');
+
+    // Samples: factory under "Samp Lib/", user under "User Samples/"
+    expect(backupSamples).toHaveLength(2);
+    const choir = backupSamples.find((r) => r.entry.path.includes('Choir'));
+    const mypad = backupSamples.find((r) => r.entry.path.includes('MyPad'));
+    expect(choir?.native).toBe(true);
+    expect(mypad?.native).toBe(false);
+
+    // No bytes in the batches for piano/sample refs.
+    for (const b of batches) {
+      expect(b.backupPianos.every((r) => !('bytes' in r))).toBe(true);
+      expect(b.backupSamples.every((r) => !('bytes' in r))).toBe(true);
+    }
+  });
 });

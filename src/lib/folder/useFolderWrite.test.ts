@@ -17,7 +17,7 @@ function mockFolder(overrides: Record<string, unknown> = {}) {
     writeBack: vi.fn().mockResolvedValue({ target: 'download' }),
     bundles: [], newBundles: [], pickerOpen: false,
     needsReconnect: false, reconnectError: null, busy: false, canPersist: false,
-    result: { programs: [], presets: [], pianos: [], samples: [], errors: [] },
+    result: { programs: [], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] },
     choose: async () => {}, reconnect: async () => {}, refresh: async () => {},
     forget: async () => {}, openBundlePicker: () => {}, closeBundlePicker: () => {},
     applyBundleSelection: async () => {}, openBundle: async () => { throw new Error('no'); },

@@ -4,7 +4,8 @@ import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedSamples } from '@/lib/library/useImportedSamples';
 import { useSamplesPrefs } from '@/lib/library/prefs';
 import {
-  sampleEntriesFromScanned, nordSampleEntriesFromDevice, filterSamples, sortSamples,
+  sampleEntriesFromScanned, nordSampleEntriesFromDevice, sampleEntriesFromBackupRefs,
+  filterSamples, sortSamples,
   type SampleEntry, type SampleGeneration,
 } from '@/lib/library/sample-entries';
 import type { LibrarySource } from '@/lib/library/types';
@@ -60,6 +61,7 @@ function useSamplesStateValue() {
     ...nordSampleEntriesFromDevice(sampleEntries).map((e) =>
       unusedNames ? { ...e, unused: unusedNames.has(normalizeSampleName(e.name)) } : e),
     ...sampleEntriesFromScanned(folder.result.samples),
+    ...sampleEntriesFromBackupRefs(folder.result.backupSamples),
     ...imported.entries,
   ];
   const nordCount = allEntries.filter((e) => e.source === 'nord').length;

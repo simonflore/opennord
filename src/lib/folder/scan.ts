@@ -7,6 +7,7 @@ import { classifyFile } from './classify';
 import { identifyNordFile } from '../clavia/nord-file';
 import { presetKindForTag, type PresetKind } from '../clavia/preset-kind';
 import { getErrorMessage } from '../errors';
+import type { BackupRef } from '../clavia/backup/backup-index';
 
 /** A flat file pulled from the folder — what both access paths produce. */
 export interface RawFile {
@@ -58,6 +59,10 @@ export interface ScanResult {
   pianos: ScannedPiano[];
   samples: ScannedSample[];
   errors: ScanError[];
+  /** Byte-free piano refs extracted from backup bundles (no audio loaded). */
+  backupPianos: BackupRef[];
+  /** Byte-free sample refs extracted from backup bundles (no audio loaded). */
+  backupSamples: BackupRef[];
 }
 
 /**
@@ -141,5 +146,5 @@ export function scanFiles(files: RawFile[]): ScanResult {
     }
   }
 
-  return { programs, presets, pianos, samples, errors };
+  return { programs, presets, pianos, samples, errors, backupPianos: [], backupSamples: [] };
 }

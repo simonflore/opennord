@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   sampleGeneration, sampleEntriesFromScanned, nordSampleEntriesFromDevice,
+  sampleEntriesFromBackupRefs,
   filterSamples, sortSamples, sampleEntryFromImport, type SampleEntry,
 } from './sample-entries';
 import { writeNsmp } from '../ns4/nsmp-write';
 import type { NsmpFile } from '../ns4/nsmp';
 import type { ScannedSample } from '../folder/scan';
+import type { BackupRef } from '../clavia/backup/backup-index';
 
 const file = (over: Partial<NsmpFile>): NsmpFile => ({
   recognized: true, legacy: false, checksumValid: true, sections: [],
@@ -99,5 +101,40 @@ describe('sampleEntryFromImport', () => {
     const bytes = writeNsmp({ name: '', channels: [new Int16Array(64)], codec: 3 });
     const e = sampleEntryFromImport({ id: 'local:x', name: 'My Loop.nsmp3', bytes });
     expect(e.name).toBe('My Loop');
+  });
+});
+
+describe('sampleEntriesFromBackupRefs', () => {
+  const ref = (path: string, size: number, native: boolean): BackupRef => ({
+    bundlePath: 'MyBackup.ns4b',
+    entry: { path, size, compressedSize: size, offset: 0, method: 0 },
+    kind: 'samplib',
+    native,
+  });
+
+  it('produces a byte-free entry with correct source, factory, size, and backupRef', () => {
+    const r = ref('Samp Lib/Choir/Choir.nsmp4', 8192, true);
+    const [e] = sampleEntriesFromBackupRefs([r]);
+    expect(e.id).toBe('backup:MyBackup.ns4b!Samp Lib/Choir/Choir.nsmp4');
+    expect(e.name).toBe('Choir');
+    expect(e.source).toBe('backup');
+    expect(e.factory).toBe(true);
+    expect(e.size).toBe(8192);
+    expect(e.generation).toBe('4');
+    expect(e.bytes).toBeUndefined();
+    expect(e.backupRef).toBe(r);
+  });
+
+  it('marks user-imported samples as factory=false', () => {
+    const r = ref('User Samples/MyPad.nsmp3', 4096, false);
+    const [e] = sampleEntriesFromBackupRefs([r]);
+    expect(e.factory).toBe(false);
+    expect(e.generation).toBe('3');
+  });
+
+  it('maps .nsmp (bare) → og, .npno → npno, unknown ext → unknown', () => {
+    expect(sampleEntriesFromBackupRefs([ref('Samp Lib/X.nsmp', 1, true)])[0].generation).toBe('og');
+    expect(sampleEntriesFromBackupRefs([ref('Piano/X.npno', 1, true)])[0].generation).toBe('npno');
+    expect(sampleEntriesFromBackupRefs([ref('Other/X.wav', 1, false)])[0].generation).toBe('unknown');
   });
 });
