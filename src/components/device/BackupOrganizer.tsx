@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   loadBackup, loadBackupStreaming, backupDeviceIO, listPrograms, serializeBackup, streamBackupTo,
   type BackupModel,
@@ -47,6 +47,7 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
   const [pendingWrite, setPendingWrite] = useState<PendingWrite | null>(null);
   const [progress, setProgress] = useState<ExecProgress | null>(null);
   const [busy, setBusy] = useState(false);
+  const triedAutoOpen = useRef(false);
 
   /** Open a bundle from the linked folder directly (no file picker needed). */
   async function openFromFolder(path: string) {
@@ -62,8 +63,10 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
   }
 
   // Auto-open when there is exactly one bundle in the linked folder and no model is loaded.
+  // Guard with a ref so a rescan that changes `folder.bundles` identity doesn't retry on error.
   useEffect(() => {
-    if (!model && !initialModel && folder.bundles.length === 1) {
+    if (!model && !initialModel && folder.bundles.length === 1 && !triedAutoOpen.current) {
+      triedAutoOpen.current = true;
       void openFromFolder(folder.bundles[0].path);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

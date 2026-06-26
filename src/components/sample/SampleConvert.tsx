@@ -54,7 +54,7 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
 
   async function performFolderWrite(out: Uint8Array, filename: string, mode: 'new' | 'overwrite') {
     try {
-      const res = await folder.writeBack(filename, async (w) => { await w.write(out.buffer as ArrayBuffer); }, { mode });
+      const res = await folder.writeBack(filename, async (w) => { await w.write(out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer); }, { mode });
       if (res.target === 'folder') {
         setStatus({ kind: 'done', msg: `Saved to ${folder.folderName ?? ''}/${res.path}`, warnings: [] });
         return;
