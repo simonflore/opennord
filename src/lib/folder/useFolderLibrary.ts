@@ -9,7 +9,7 @@ import type { FolderSource } from './source';
 import type { ScanResult } from './scan';
 import { getErrorMessage } from '../errors';
 
-const EMPTY: ScanResult = { programs: [], presets: [], samples: [], errors: [] };
+const EMPTY: ScanResult = { programs: [], presets: [], pianos: [], samples: [], errors: [] };
 
 /** A user dismissing the folder picker is not an error worth surfacing. */
 function isCancel(err: unknown): boolean {
@@ -65,6 +65,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     setResult((r) => ({
       programs: [...r.programs, ...b.programs],
       presets: [...r.presets, ...(b.presets ?? [])],
+      pianos: [...r.pianos, ...b.pianos],
       samples: [...r.samples, ...b.samples],
       errors: [...r.errors, ...b.errors],
     }));
@@ -132,7 +133,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     } catch (err) {
       if (!isCancel(err)) {
         console.error('Folder pick failed', err);
-        setResult({ programs: [], presets: [], samples: [], errors: [{ path: '(folder)', reason: getErrorMessage(err) }] });
+        setResult({ programs: [], presets: [], pianos: [], samples: [], errors: [{ path: '(folder)', reason: getErrorMessage(err) }] });
       }
     } finally { setBusy(false); }
   }, [runScan]);

@@ -54,6 +54,15 @@ describe('scanFiles', () => {
     expect(r.presets[0].name).toBeTruthy();
   });
 
+  it('routes .npno to result.pianos, not result.samples', () => {
+    const r = scanFiles([{ path: 'Lib/Grand Lady D.npno', bytes: new Uint8Array([1, 2, 3]) }]);
+    expect(r.samples).toHaveLength(0);
+    expect(r.pianos).toHaveLength(1);
+    expect(r.pianos[0].id).toBe('folder:Lib/Grand Lady D.npno');
+    expect(r.pianos[0].name).toBeTruthy();
+    expect([...r.pianos[0].bytes]).toEqual([1, 2, 3]);
+  });
+
   it('collects per-file errors without aborting the scan', () => {
     const badZip = new Uint8Array([0, 1, 2, 3]);
     const files: RawFile[] = [

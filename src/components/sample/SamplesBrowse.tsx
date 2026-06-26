@@ -50,7 +50,6 @@ export function SamplesBrowse(
     { key: 'og', label: GEN_LABEL.og },
     { key: '3', label: GEN_LABEL['3'] },
     { key: '4', label: GEN_LABEL['4'] },
-    { key: 'npno', label: GEN_LABEL.npno },
     ...(showUnknownGen ? [{ key: 'unknown' as const, label: GEN_LABEL.unknown }] : []),
   ];
 

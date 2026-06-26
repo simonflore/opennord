@@ -25,6 +25,9 @@ export interface ScannedProgram {
   summary?: string;
 }
 
+/** A recognized piano-library file — listed by name/size, never decoded. */
+export interface ScannedPiano { id: string; name: string; bytes: Uint8Array }
+
 /** A recognized preset file — listed by tag+kind, never decoded. */
 export interface ScannedPreset {
   id: string;        // "folder:<path>"
@@ -52,6 +55,7 @@ export interface ScanError {
 export interface ScanResult {
   programs: ScannedProgram[];
   presets: ScannedPreset[];
+  pianos: ScannedPiano[];
   samples: ScannedSample[];
   errors: ScanError[];
 }
@@ -85,6 +89,7 @@ function reason(err: unknown): string {
 export function scanFiles(files: RawFile[]): ScanResult {
   const programs: ScannedProgram[] = [];
   const presets: ScannedPreset[] = [];
+  const pianos: ScannedPiano[] = [];
   const samples: ScannedSample[] = [];
   const errors: ScanError[] = [];
 
@@ -119,6 +124,8 @@ export function scanFiles(files: RawFile[]): ScanResult {
         const info = identifyNordFile(bytes);              // real CBIN tag
         const pk = presetKindForTag(info.tag);
         if (pk) presets.push({ id: `folder:${path}`, name: programNameFromFilename(path), path, tag: info.tag, kind: pk, bytes });
+      } else if (kind === 'piano') {
+        pianos.push({ id: `folder:${path}`, name: programNameFromFilename(path), bytes });
       } else {
         const file = readNsmp(bytes);
         samples.push({
@@ -134,5 +141,5 @@ export function scanFiles(files: RawFile[]): ScanResult {
     }
   }
 
-  return { programs, presets, samples, errors };
+  return { programs, presets, pianos, samples, errors };
 }
