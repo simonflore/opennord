@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   pickFolder, restoreFolder, rescan, grantAndScan, forgetFolder, supportsPersistentFolders,
+  fileFromHandle,
 } from './access';
 import { type Scanner, type ScanBatch, type BundleDescriptor } from './pipeline';
 import { createScanner } from './scanner';
@@ -44,6 +45,8 @@ export interface FolderLibrary {
   closeBundlePicker: () => void;
   /** Load the chosen backups (the rest are remembered as skipped), then close the picker. */
   applyBundleSelection: (loadPaths: string[]) => Promise<void>;
+  /** Open a folder-relative path as a File (e.g. to stream a `.ns4b`). Throws if no folder is connected. */
+  openBundle: (path: string) => Promise<File>;
 }
 
 export function useFolderLibrary(makeScanner: () => Scanner = createScanner): FolderLibrary {
@@ -173,6 +176,11 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
   const openBundlePicker = useCallback(() => setPickerOpen(true), []);
   const closeBundlePicker = useCallback(() => setPickerOpen(false), []);
 
+  const openBundle = useCallback(async (path: string): Promise<File> => {
+    if (!handle) throw new Error('No folder is connected.');
+    return fileFromHandle(handle, path);
+  }, [handle]);
+
   const applyBundleSelection = useCallback(async (loadPaths: string[]) => {
     const scanner = scannerRef.current;
     if (!scanner || !folderName) { setPickerOpen(false); return; }
@@ -195,5 +203,6 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     canPersist: supportsPersistentFolders(),
     choose, reconnect, refresh, forget,
     openBundlePicker, closeBundlePicker, applyBundleSelection,
+    openBundle,
   };
 }
