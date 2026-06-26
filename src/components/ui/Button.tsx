@@ -1,13 +1,13 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
-type Variant = 'primary' | 'secondary' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'outline';
 
 export function Button(
-  { variant = 'secondary', children, className = '', ...rest }:
+  { variant = 'secondary', type = 'button', children, className = '', ...rest }:
   { variant?: Variant; children: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>,
 ) {
   return (
-    <button className={`on-btn on-btn--${variant} ${className}`.trim()} {...rest}>
+    <button type={type} className={`on-btn on-btn--${variant} ${className}`.trim()} {...rest}>
       {children}
     </button>
   );

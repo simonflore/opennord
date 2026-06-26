@@ -5,6 +5,7 @@ import { resolveFactory } from '../../lib/device/factory';
 import { downloadBytes } from '../../lib/download';
 import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
+import { Button, FileInput } from '../ui';
 
 /** Backup → download a .ns4b; Restore → confirm, write, summarize. */
 export function BackupPanel({ session, deviceName, onAfterRestore }: {
@@ -66,14 +67,10 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
           presets, Live and settings. Factory sample files in the backup are skipped.
         </p>
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-          <button onClick={confirmRestore} disabled={busy}
-            style={{ padding: '8px 14px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 700, border: '1px solid var(--red)', background: 'var(--red)', color: 'var(--text-on-accent)' }}>
+          <Button variant="primary" onClick={confirmRestore} disabled={busy}>
             {busy ? 'Restoring…' : 'Restore'}
-          </button>
-          <button onClick={() => setPendingZip(null)} disabled={busy}
-            style={{ padding: '8px 14px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', border: '1px solid var(--line)' }}>
-            Cancel
-          </button>
+          </Button>
+          <Button variant="secondary" onClick={() => setPendingZip(null)} disabled={busy}>Cancel</Button>
         </div>
         {status && <p className="ps-sub" style={{ marginTop: 8 }}>{status}</p>}
       </div>
@@ -83,15 +80,10 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button onClick={runBackup} disabled={busy}
-          style={{ padding: '8px 12px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontSize: 12, border: '1px solid var(--red)', color: 'var(--deps-ink)', background: 'transparent' }}>
-          Back up
-        </button>
-        <label style={{ padding: '8px 12px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontSize: 12, border: '1px solid var(--red)', color: 'var(--deps-ink)' }}>
+        <Button variant="outline" onClick={runBackup} disabled={busy}>Back up</Button>
+        <FileInput accept=".ns4b" disabled={busy} onFile={(f) => void pickRestore(f)} className="on-btn on-btn--outline">
           Restore…
-          <input type="file" accept=".ns4b" style={{ display: 'none' }} disabled={busy}
-            onChange={(ev) => ev.target.files?.[0] && void pickRestore(ev.target.files[0])} />
-        </label>
+        </FileInput>
         {status && <span className="ps-sub" style={{ margin: 0 }}>{status}</span>}
       </div>
       {skipped.length > 0 && (

@@ -5,6 +5,7 @@ import { BANK_LETTERS } from '../../lib/clavia/slot';
 import type { Addr } from '../../lib/device/reorg';
 import { StorageMeter } from './StorageMeter';
 import { SlotGrid } from './SlotGrid';
+import { Button, FileInput } from '../ui';
 
 /** Programs grouped by bank A–H. Open, delete, or send a file to the Nord. */
 export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelete, onSendFile, onReorg }: {
@@ -36,20 +37,12 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
           {capacity && <StorageMeter label="STORAGE" capacity={capacity} mode="slots" />}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button
-            type="button"
-            onClick={() => setOrganize((v) => !v)}
-            style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, border: '1px solid var(--line)', background: 'transparent', color: 'var(--ink)' }}
-          >
+          <Button variant="secondary" onClick={() => setOrganize((v) => !v)}>
             {organize ? 'Done organizing' : 'Organize'}
-          </button>
-          <label
-            style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, border: '1px solid var(--red)', color: 'var(--deps-ink)' }}
-          >
+          </Button>
+          <FileInput accept=".ns4p" onFile={onSendFile} className="on-btn on-btn--outline">
             Send a file to the Nord
-            <input type="file" accept=".ns4p" style={{ display: 'none' }}
-              onChange={(ev) => ev.target.files?.[0] && onSendFile(ev.target.files[0])} />
-          </label>
+          </FileInput>
         </div>
       </div>
       {organize ? (

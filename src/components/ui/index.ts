@@ -6,5 +6,6 @@ export { SourceBadge, type LibrarySource } from './SourceBadge';
 export { SearchField } from './SearchField';
 export { BrowseToolbar, type FacetGroup, type FacetOption, type SortOption } from './BrowseToolbar';
 export { SectionLabel } from './SectionLabel';
+export { FileInput } from './FileInput';
 export { SplitView } from './SplitView';
 export { Dialog, type DialogProps } from './Dialog';

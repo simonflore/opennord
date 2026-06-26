@@ -14,6 +14,7 @@ import { PlanProgress } from './PlanProgress';
 import { ConfirmPanel } from './ConfirmPanel';
 import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
+import { Button, FileInput } from '../ui';
 
 /** Above this size, read the backup all at once would exceed the browser's ~2 GiB single-ArrayBuffer
  *  limit (and blow the tab's memory), so we stream instead. Mirrors the folder scan's cap. */
@@ -114,21 +115,20 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
           <div className="ps-meta"><span>{model ? `${entries.length} programs` : 'No backup open'}</span></div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={onBack}
-            style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, border: '1px solid var(--line)', background: 'transparent', color: 'var(--ink)' }}>← Back</button>
-          <button type="button" onClick={download} disabled={!model || busy}
-            style={{ padding: '8px 12px', borderRadius: 8, cursor: model && !busy ? 'pointer' : 'not-allowed', fontSize: 12, border: '1px solid var(--red)', background: 'transparent', color: 'var(--deps-ink)' }}>{busy ? 'Saving…' : 'Download reorganized backup'}</button>
+          <Button variant="secondary" onClick={onBack}>← Back</Button>
+          <Button variant="outline" onClick={download} disabled={!model || busy}>
+            {busy ? 'Saving…' : 'Download reorganized backup'}
+          </Button>
         </div>
       </div>
 
       {planError && <p className="ps-sub on-error">{planError}</p>}
 
       {!model ? (
-        <label style={{ display: 'inline-block', padding: '10px 16px', borderRadius: 8, cursor: 'pointer', border: '1px dashed var(--line)', color: 'var(--ink)' }}>
+        <FileInput accept=".ns4b" onFile={onFile}
+          style={{ display: 'inline-block', padding: '10px 16px', borderRadius: 8, cursor: 'pointer', border: '1px dashed var(--line)', color: 'var(--ink)' }}>
           Open a backup (.ns4b) to organize offline
-          <input type="file" accept=".ns4b" style={{ display: 'none' }}
-            onChange={(ev) => ev.target.files?.[0] && onFile(ev.target.files[0])} />
-        </label>
+        </FileInput>
       ) : (
         BANK_LETTERS.split('').map((_, bank) => (
           <div key={bank} style={{ marginBottom: 14 }}>

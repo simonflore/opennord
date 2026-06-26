@@ -14,6 +14,12 @@
 /* Ghost stays flat — it's the quiet, chromeless action. */
 .on-btn--ghost { background: transparent; color: var(--dim); box-shadow: none; }
 .on-btn--ghost:hover { color: var(--ink); transform: none; }
+/* Outline — transparent with a red rule: the pointed-but-secondary action (Download, Restore…, Send a file). */
+.on-btn--outline { background: transparent; color: var(--red-bright); border-color: var(--red); box-shadow: none; }
+.on-btn--outline:hover { background: color-mix(in srgb, var(--red) 10%, transparent); color: var(--red-bright); }
+
+.on-btn:disabled { cursor: not-allowed; opacity: .55; }
+.on-btn:disabled:hover { transform: none; }
 
 .on-card {
   background: var(--grad-surface); border: 1px solid var(--line); border-radius: var(--r-md);

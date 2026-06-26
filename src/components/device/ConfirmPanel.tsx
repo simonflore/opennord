@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Button } from '../ui';
 
 /**
  * A plain-language confirm used for destructive device actions. No protocol
@@ -20,23 +21,10 @@ export function ConfirmPanel({ title, message, confirmLabel, onConfirm, onCancel
       <p className="ps-sub" style={{ marginTop: 6 }}>{message}</p>
       {children}
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-        <button
-          onClick={onConfirm}
-          disabled={busy}
-          style={{
-            padding: '8px 14px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 700,
-            border: '1px solid var(--red)', background: 'var(--red)', color: 'var(--text-on-accent)',
-          }}
-        >
+        <Button variant="primary" onClick={onConfirm} disabled={busy}>
           {busy ? 'Working…' : confirmLabel}
-        </button>
-        <button
-          onClick={onCancel}
-          disabled={busy}
-          style={{ padding: '8px 14px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', border: '1px solid var(--line)' }}
-        >
-          Cancel
-        </button>
+        </Button>
+        <Button variant="secondary" onClick={onCancel} disabled={busy}>Cancel</Button>
       </div>
     </div>
   );
