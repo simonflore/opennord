@@ -1,9 +1,9 @@
 import type { ProgramEntry } from './transfer';
 import type { DeviceIO } from './device-io';
-import type { Addr } from './reorg';
+import { addrKey, type Addr } from './reorg';
 
 type Call = 'pull' | 'push' | 'delete' | 'info';
-const k = (partition: number, a: Addr) => `${partition}:${a.bank}:${a.slot}`;
+const k = (partition: number, a: Addr) => `${partition}:${addrKey(a)}`;
 
 interface Cell { file: Uint8Array; entry: ProgramEntry }
 

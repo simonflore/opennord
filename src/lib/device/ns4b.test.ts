@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { USER_PARTITIONS, partitionForPath, backupPath, buildMetaXml } from './ns4b';
+import { USER_PARTITIONS, partitionForPath, backupPath, disambiguatePath, buildMetaXml } from './ns4b';
 
 describe('ns4b helpers', () => {
   it('USER_PARTITIONS covers the six user partitions', () => {
@@ -28,6 +28,14 @@ describe('ns4b helpers', () => {
     const synth = USER_PARTITIONS.find((p) => p.partition === 9)!;
     expect(backupPath(program, 2, 'Euphoria')).toBe('Program/Bank C/Euphoria.ns4p');
     expect(backupPath(synth, 3, 'Pulse Pluck')).toBe('Synth Preset/Bank 4/Pulse Pluck.ns4y');
+  });
+
+  it('disambiguatePath suffixes "(slot N)" only when the plain path is already taken', () => {
+    const program = USER_PARTITIONS.find((p) => p.partition === 6)!;
+    const taken = new Set(['Program/Bank A/Lead.ns4p']);
+    const has = (p: string) => taken.has(p);
+    expect(disambiguatePath(program, 0, 'Pad', 1, has)).toBe('Program/Bank A/Pad.ns4p'); // free
+    expect(disambiguatePath(program, 0, 'Lead', 5, has)).toBe('Program/Bank A/Lead (slot 5).ns4p'); // collision
   });
 
   it('buildMetaXml is well-formed with the backup format version', () => {

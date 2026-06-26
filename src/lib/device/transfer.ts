@@ -9,6 +9,7 @@ import { buildCbinHeader, readCbinHeader } from '../clavia/cbin';
 import { patchNs4Checksum } from '../clavia/checksum';
 import { formatSlot } from '../clavia/slot';
 import { programCategoryName } from '../clavia/categories';
+import { readU32BE as u32 } from './payload-io';
 
 /** A program file on the device, from FileInfo. */
 export interface ProgramEntry {
@@ -24,9 +25,6 @@ export interface ProgramEntry {
   fourcc: string;
 }
 
-function u32(payload: Uint8Array, byteOffset: number): number {
-  return new DataView(payload.buffer, payload.byteOffset + byteOffset, 4).getUint32(0);
-}
 
 /** Decode a FileIterate reply payload (0x21): code, bank, slot. */
 export function decodeFileIterate(payload: Uint8Array): { code: number; bank: number; slot: number } {

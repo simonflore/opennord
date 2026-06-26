@@ -2,14 +2,13 @@ import { zipSync, unzipSync, Zip, ZipPassThrough } from 'fflate';
 import { hasCbinMagic, readCbinHeader } from '../clavia/cbin';
 import { patchNs4Checksum } from '../clavia/checksum';
 import { streamUnzip } from '../folder/unzip-stream';
-import { USER_PARTITIONS, backupPath, partitionForPath, type PartitionSpec } from './ns4b';
+import { USER_PARTITIONS, disambiguatePath, partitionForPath, type PartitionSpec } from './ns4b';
 import { PARTITION_PROGRAM } from './opcodes';
 import type { ProgramEntry } from './transfer';
 import type { DeviceIO } from './device-io';
-import type { Addr } from './reorg';
+import { addrKey as key, type Addr } from './reorg';
 
 const PROGRAM_SPEC: PartitionSpec = USER_PARTITIONS.find((s) => s.partition === PARTITION_PROGRAM)!;
-const key = (a: Addr) => `${a.bank}:${a.slot}`;
 
 /** Something a streamed-in backup can be re-read from (a `File` satisfies this). */
 export interface BackupSource {
@@ -95,8 +94,7 @@ export async function loadBackupStreaming(source: BackupSource): Promise<BackupM
  */
 function* finalProgramFiles(model: BackupModel, used: Set<string>): Generator<[string, Uint8Array]> {
   for (const p of model.programs.values()) {
-    let path = backupPath(PROGRAM_SPEC, p.addr.bank, p.name);
-    if (used.has(path)) path = backupPath(PROGRAM_SPEC, p.addr.bank, `${p.name} (slot ${p.addr.slot})`);
+    const path = disambiguatePath(PROGRAM_SPEC, p.addr.bank, p.name, p.addr.slot, (pp) => used.has(pp));
     used.add(path);
     yield [path, p.bytes];
   }

@@ -15,11 +15,12 @@ import { enumerateFiles, type ProgramEntry } from './transfer';
 import { CQryFileGetDependency, PARTITION_PROGRAM, PARTITION_SAMP_LIB } from './opcodes';
 import { NordError } from './protocol';
 import { readAsciiFixed } from '../clavia/ascii';
+import { readU32BE } from './payload-io';
 
-/** Big-endian u32 (the FileTransfer protocol is BE — matches capacity.ts/transfer.ts). */
+/** Bounds-checked big-endian u32 — dependency replies are variable-length and may be truncated. */
 function u32(payload: Uint8Array, byteOffset: number): number {
   if (byteOffset + 4 > payload.length) throw new NordError('dependency reply truncated');
-  return new DataView(payload.buffer, payload.byteOffset + byteOffset, 4).getUint32(0);
+  return readU32BE(payload, byteOffset);
 }
 
 /** One sample a program depends on (a `CRpyFileGetDependency` 0x29 entry). */

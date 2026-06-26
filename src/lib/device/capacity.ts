@@ -4,6 +4,7 @@ import {
 } from './opcodes';
 import { NordError } from './protocol';
 import { readAsciiFixed } from '../clavia/ascii';
+import { readU32BE as u32 } from './payload-io';
 
 /**
  * Erase-block size in bytes per partition (Nord Stage 4). The device does NOT
@@ -62,9 +63,6 @@ export interface PartitionCapacity extends PartitionState, BankList {
   blockSizeBytes?: number;
 }
 
-function u32(payload: Uint8Array, byteOffset: number): number {
-  return new DataView(payload.buffer, payload.byteOffset + byteOffset, 4).getUint32(0);
-}
 
 /**
  * Decode a `CRpyPartState` (0x09) reply payload: `u32 status` then 5 payload u32s

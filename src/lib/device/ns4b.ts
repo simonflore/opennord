@@ -46,6 +46,19 @@ export function backupPath(spec: PartitionSpec, bank: number, name: string): str
   return `${spec.folder}/${spec.bankLabel(bank)}/${name}.${spec.ext}`;
 }
 
+/**
+ * The zip path for a file, suffixing ` (slot N)` only when the plain `<name>` path is
+ * already `taken` — two files can share a name within a bank (the slot differentiates
+ * them), so this keeps both instead of silently overwriting. Shared by the device
+ * backup writer and the offline organizer's re-serializer.
+ */
+export function disambiguatePath(
+  spec: PartitionSpec, bank: number, name: string, slot: number, taken: (path: string) => boolean,
+): string {
+  const path = backupPath(spec, bank, name);
+  return taken(path) ? backupPath(spec, bank, `${name} (slot ${slot})`) : path;
+}
+
 /** The root meta.xml (NSM-compatible attributes; product_content_version is the device's). */
 export function buildMetaXml(contentVersion: number): string {
   return (

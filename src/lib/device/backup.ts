@@ -4,7 +4,8 @@ import { NordError } from './protocol';
 import { enumerateFiles, pullFile, pushFile, type ProgramEntry } from './transfer';
 import { readPartitionCapacity, type PartitionCapacity } from './capacity';
 import { readCbinHeader, hasCbinMagic } from '../clavia/cbin';
-import { USER_PARTITIONS, partitionForPath, backupPath, buildMetaXml, type PartitionSpec } from './ns4b';
+import { USER_PARTITIONS, partitionForPath, disambiguatePath, buildMetaXml, type PartitionSpec } from './ns4b';
+import { addrKey } from './reorg';
 import { getErrorMessage } from '../errors';
 
 export interface RestoreResult {
@@ -47,10 +48,7 @@ export async function backup(
     await session.begin(spec.partition);
     try {
       for (const { entry } of group) {
-        let path = backupPath(spec, entry.bank, entry.name);
-        // Two files can share a name within a bank (the slot differentiates them);
-        // disambiguate so neither is silently lost from the zip.
-        if (files[path]) path = backupPath(spec, entry.bank, `${entry.name} (slot ${entry.slot})`);
+        const path = disambiguatePath(spec, entry.bank, entry.name, entry.slot, (p) => Boolean(files[p]));
         files[path] = await pullFile(session, entry);
         onProgress?.(++done, items.length);
       }
@@ -139,7 +137,7 @@ export async function restore(
   return result;
 }
 
-const slotKey = (bank: number, slot: number) => `${bank}:${slot}`;
+const slotKey = (bank: number, slot: number) => addrKey({ bank, slot });
 
 /** Currently-occupied {bank, slot} keys in the begun partition; empty set on failure. */
 async function safeOccupiedSlots(session: NordSession): Promise<Set<string>> {
