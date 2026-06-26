@@ -4,6 +4,7 @@ import { pullPiano } from '@/lib/device/pianos';
 import { downloadBytes } from '@/lib/download';
 import { formatBytes } from '@/lib/format';
 import type { NordSession } from '@/lib/device/session';
+import { Button } from '@/components/ui';
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -48,16 +49,9 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
           {entry.factory.sizeDescription ? ` (${entry.factory.sizeDescription})` : ''}
         </p>
       )}
-      <button
-        onClick={() => void download()}
-        disabled={busy}
-        style={{
-          padding: '8px 14px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer',
-          fontWeight: 700, border: '1px solid var(--red)', background: 'var(--red)', color: 'var(--text-on-accent)',
-        }}
-      >
+      <Button variant="primary" onClick={() => void download()} disabled={busy}>
         {busy ? (pct !== null ? `Pulling… ${pct}%` : 'Working…') : 'Download'}
-      </button>
+      </Button>
       {error && <p className="ps-sub on-error" style={{ marginTop: 8 }}>{error}</p>}
     </div>
   );

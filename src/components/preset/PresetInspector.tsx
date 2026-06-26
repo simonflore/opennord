@@ -4,6 +4,7 @@ import { downloadBytes } from '@/lib/download';
 import type { NordSession } from '@/lib/device/session';
 import { getErrorMessage } from '../../lib/errors';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
+import { Button } from '@/components/ui';
 
 const KIND_LABEL: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'Organ preset', 'piano-preset': 'Piano preset', 'synth-preset': 'Synth preset',
@@ -36,10 +37,9 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
         {KIND_LABEL[entry.kind]} · {entry.source === 'nord' ? `On Nord${entry.slot ? ` · ${entry.slot}` : ''}` : 'Local file'}
       </p>
       <p className="ps-sub">This preset is recognized but not opened in detail — OpenNord lists and moves presets without decoding them.</p>
-      <button onClick={() => void download()} disabled={busy}
-        style={{ padding: '8px 14px', borderRadius: 8, cursor: busy ? 'not-allowed' : 'pointer', fontWeight: 700, border: '1px solid var(--red)', background: 'var(--red)', color: 'var(--text-on-accent)' }}>
+      <Button variant="primary" onClick={() => void download()} disabled={busy}>
         {busy ? 'Working…' : 'Download'}
-      </button>
+      </Button>
       {error && <p className="ps-sub on-error" style={{ marginTop: 8 }}>{error}</p>}
     </div>
   );
