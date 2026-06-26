@@ -39,6 +39,40 @@ describe('indexBackup', () => {
   });
 });
 
+describe('classifyBackupEntry (model=null — unidentified/missing meta.xml)', () => {
+  it('classifies ns4p as program via family fallback', () => {
+    expect(classifyBackupEntry('Program/Bank A/X.ns4p', null)).toEqual({ kind: 'program', native: false });
+  });
+  it('classifies ns4y as synth-preset via family fallback', () => {
+    expect(classifyBackupEntry('Synth Preset/Bank 1/Y.ns4y', null)).toEqual({ kind: 'synth-preset', native: false });
+  });
+  it('library extensions still work when model is null', () => {
+    expect(classifyBackupEntry('Piano/Grand/Royal Grand.npno', null)).toEqual({ kind: 'piano', native: true });
+    expect(classifyBackupEntry('Samp Lib/Factory/Pad.nsmp4', null)).toEqual({ kind: 'samplib', native: true });
+  });
+  it('returns null for truly unknown extensions', () => {
+    expect(classifyBackupEntry('Settings/settings.dat', null)).toBeNull();
+  });
+});
+
+describe('indexBackup (no meta.xml — model=null)', () => {
+  it('still buckets programs and presets by extension when model is unidentified', async () => {
+    const blob = new Blob([zipSync({
+      // deliberately NO meta.xml
+      'Program/Bank A/Lead.ns4p': new Uint8Array([1, 2, 3]),
+      'Synth Preset/Bank 1/Pad.ns4y': new Uint8Array([4, 5]),
+      'Piano/Grand/Royal Grand.npno': new Uint8Array(10),
+      'Samp Lib/Factory/Bell.nsmp4': new Uint8Array(8),
+    }).buffer as ArrayBuffer]);
+    const c = await indexBackup(blob, 'unknown.ns4b');
+    expect(c.model).toBeNull();
+    expect(c.programs.map((e) => e.path)).toEqual(['Program/Bank A/Lead.ns4p']);
+    expect(c.presets.map((e) => e.path)).toEqual(['Synth Preset/Bank 1/Pad.ns4y']);
+    expect(c.pianos.map((r) => r.kind)).toEqual(['piano']);
+    expect(c.samples.map((r) => r.kind)).toEqual(['samplib']);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Real-backup smoke test — skipped if the file is absent or openAsBlob is
 // unavailable (browser / old Node).  Only reads the zip central directory

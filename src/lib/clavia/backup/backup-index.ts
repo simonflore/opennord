@@ -40,8 +40,15 @@ export function classifyBackupEntry(path: string, model: NordModelId | null): Ba
   if (path.endsWith('/') || path === 'meta.xml' || path.startsWith('__MACOSX/')) return null;
   const e = ext(path);
   // 1) program/preset/live: match the partition fourcc in the model registry.
-  const specs = model ? MODELS[model].partitions : [];
-  const byFourcc = specs.find((s) => s.fourcc && s.fourcc.toLowerCase() === e);
+  //    If the model is identified, prefer its own partition; then fall back to
+  //    scanning all registered models (covers unidentified/null model and any
+  //    not-yet-registered model whose files we still want to surface).
+  const preferredSpecs = model ? MODELS[model].partitions : [];
+  const byFourcc =
+    preferredSpecs.find((s) => s.fourcc && s.fourcc.toLowerCase() === e) ??
+    Object.values(MODELS)
+      .flatMap((m) => m.partitions)
+      .find((s) => s.fourcc && s.fourcc.toLowerCase() === e);
   if (byFourcc) return { kind: byFourcc.kind, native: byFourcc.native };
   // 2) library files (.npno/.nsmp*): kind by extension, native by folder.
   const libKind = LIB_EXTS[e];
