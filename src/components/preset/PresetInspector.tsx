@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import { pullPreset } from '@/lib/device/presets';
 import { downloadBytes } from '@/lib/download';
 import type { NordSession } from '@/lib/device/session';
 import { getErrorMessage } from '../../lib/errors';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 
 const KIND_LABEL: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'Organ preset', 'piano-preset': 'Piano preset', 'synth-preset': 'Synth preset',
@@ -15,24 +15,18 @@ const KIND_EXT: Record<PresetEntry['kind'], string> = {
 
 /** Thin, decode-free detail for a recognized preset: metadata + download. */
 export function PresetInspector({ entry, session }: { entry: PresetEntry; session: NordSession | null }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const { busy, error, run } = useAsyncAction();
 
   async function download() {
     if (busy) return;
-    setError(''); setBusy(true);
-    try {
+    await run(async () => {
       const bytes = entry.bytes
         ?? (entry.device && entry.partition != null && session
           ? await pullPreset(session, entry.device, entry.partition)
           : null);
       if (!bytes) throw new Error('Connect your Nord to download this preset.');
       downloadBytes(bytes, `${entry.name}.${KIND_EXT[entry.kind]}`);
-    } catch (e) {
-      setError(`Couldn't download ${entry.name}: ${getErrorMessage(e)}`);
-    } finally {
-      setBusy(false);
-    }
+    }, (e) => `Couldn't download ${entry.name}: ${getErrorMessage(e)}`);
   }
 
   return (

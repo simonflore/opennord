@@ -3,15 +3,14 @@ import { Button } from '../ui';
 import { useDevice } from '../../lib/device/DeviceContext';
 import { probeDevice, type ProbeReport } from '../../lib/device/probe';
 import { probeIssueUrl } from '../../lib/device/report';
-import { getErrorMessage } from '../../lib/errors';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 
 /** "Check my Nord" — a read-only probe whose result an owner can share to help
  *  validate their model. Gated on a connected session (USB, desktop/iPad). */
 export function ProbePanel() {
   const { session, deviceName, productId } = useDevice();
   const [report, setReport] = useState<ProbeReport | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const { busy, error, run: runProbe } = useAsyncAction();
 
   if (!session) {
     return (
@@ -23,14 +22,9 @@ export function ProbePanel() {
 
   async function run() {
     if (!session) return;
-    setBusy(true); setError('');
-    try {
+    await runProbe(async () => {
       setReport(await probeDevice(session, { deviceName: deviceName || 'Nord', productId, now: () => new Date() }));
-    } catch (e) {
-      setError(getErrorMessage(e));
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   return (

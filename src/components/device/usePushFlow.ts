@@ -8,6 +8,7 @@ import type { SlotTarget } from './TargetSlotPicker';
 
 import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 
 export interface PushSource { bytes: Uint8Array; name: string; }
 
@@ -20,8 +21,7 @@ export function usePushFlow(session: NordSession | null, refresh: (s: NordSessio
   const [pushSource, setPushSource] = useState<PushSource | null>(null);
   const [pushName, setPushName] = useState('');
   const [picked, setPicked] = useState<SlotTarget | null>(null);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const { busy, error, setError, run } = useAsyncAction();
 
   function startPush(source: PushSource) {
     setError('');
@@ -58,17 +58,12 @@ export function usePushFlow(session: NordSession | null, refresh: (s: NordSessio
 
   async function confirmPush() {
     if (!session || !pushSource || !picked || busy) return;
-    setError(''); setBusy(true);
-    try {
+    await run(async () => {
       await session.withSession(PARTITION_PROGRAM, () =>
         pushProgram(session, picked.bank, picked.slot, pushSource.bytes, pushName.trim() || pushSource.name));
       await refresh(session);
       cancel();
-    } catch (e) {
-      setError(`Could not write to ${formatSlot(picked.bank, picked.slot)}: ${getErrorMessage(e)}`);
-    } finally {
-      setBusy(false);
-    }
+    }, (e) => `Could not write to ${formatSlot(picked.bank, picked.slot)}: ${getErrorMessage(e)}`);
   }
 
   return { pushSource, pushName, setPushName, picked, pickSlot, unpick, error, busy, startPush, startSendFile, confirmPush, cancel };

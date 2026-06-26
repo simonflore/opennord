@@ -6,6 +6,7 @@ import { executePlan, type ExecResult, type ExecProgress } from '../../lib/devic
 import { buildOccupancy, type Occupancy, type Plan } from '../../lib/device/reorg';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import { getErrorMessage } from '../../lib/errors';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 
 /**
  * Reorg flow: hold a pending plan, take a one-time session backup, execute with
@@ -19,8 +20,7 @@ export function useReorgFlow(
   entries: ProgramEntry[] = [],
 ) {
   const [pendingPlan, setPendingPlanState] = useState<Plan | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const { busy, error, run } = useAsyncAction();
   const [result, setResult] = useState<ExecResult | null>(null);
   const [progress, setProgress] = useState<ExecProgress | null>(null);
   const occRef = useRef<Occupancy>(new Map());
@@ -34,9 +34,9 @@ export function useReorgFlow(
 
   async function confirmReorg() {
     if (!session || !pendingPlan || busy) return;
-    setError(''); setBusy(true); setProgress(null);
+    setProgress(null);
     const plan = pendingPlan;
-    try {
+    await run(async () => {
       await backupOnce();
       const occ = occRef.current;
       const res = await session.withSession(PARTITION_PROGRAM, () =>
@@ -44,11 +44,8 @@ export function useReorgFlow(
       setResult(res);
       if (res.ok) await refresh(session);
       setPendingPlan(null);
-    } catch (e) {
-      setError(`Could not complete the move: ${getErrorMessage(e)}`);
-    } finally {
-      setBusy(false); setProgress(null);
-    }
+    }, (e) => `Could not complete the move: ${getErrorMessage(e)}`);
+    setProgress(null);
   }
 
   return { pendingPlan, setPendingPlan, busy, error, result, progress, confirmReorg, clearResult };

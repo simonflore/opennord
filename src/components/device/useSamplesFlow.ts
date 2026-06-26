@@ -6,6 +6,7 @@ import { PARTITION_SAMP_LIB, PARTITION_PIANO } from '../../lib/device/opcodes';
 import type { NordSession } from '../../lib/device/session';
 import type { InspectorInput } from '../sample/SampleInspector';
 import { getErrorMessage } from '../../lib/errors';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 
 /**
  * Samples flow: browse the Samp Lib partition (enumerated lazily on first switch)
@@ -19,8 +20,7 @@ export function useSamplesFlow(session: NordSession | null) {
   // Sample Library + Piano are the byte-constrained ("how full?") partitions; null until read.
   const [sampleCapacity, setSampleCapacity] = useState<PartitionCapacity | null>(null);
   const [pianoCapacity, setPianoCapacity] = useState<PartitionCapacity | null>(null);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const { busy, error, setError, run } = useAsyncAction();
 
   // Reset when the connection changes (reconnect to a different Nord) — the flow
   // stays mounted across sessions, so the lazy-enumerate cache would otherwise
@@ -38,33 +38,25 @@ export function useSamplesFlow(session: NordSession | null) {
     if (!session || busy) return;
     setView(next); setSampleInput(null); setError('');
     if (next === 'samples') {
-      setBusy(true);
-      try {
+      await run(async () => {
         if (sampleEntries.length === 0) setSampleEntries(await enumerateSampleLibrary(session));
         // Storage readouts — best-effort, so a failed query never blocks browsing.
         if (!sampleCapacity) setSampleCapacity(await readPartitionCapacity(session, PARTITION_SAMP_LIB).catch(() => null));
         if (!pianoCapacity) setPianoCapacity(await readPartitionCapacity(session, PARTITION_PIANO).catch(() => null));
-      } catch (e) {
-        setError(`Could not list samples: ${getErrorMessage(e)}`);
-      } finally {
-        setBusy(false);
-      }
+      }, (e) => `Could not list samples: ${getErrorMessage(e)}`);
     }
   }
 
   /** Pull a sample off the board (with progress) and open it in the inspector. */
   async function openSample(entry: ProgramEntry) {
     if (!session || busy) return;
-    setError(''); setBusy(true); setPullPct(0);
-    try {
+    setPullPct(0);
+    await run(async () => {
       const bytes = await pullSample(session, entry,
         (done, total) => setPullPct(total ? Math.round((done / total) * 100) : 0));
       setSampleInput({ bytes, name: entry.name });
-    } catch (e) {
-      setError(`Could not read ${entry.name}: ${getErrorMessage(e)}`);
-    } finally {
-      setBusy(false); setPullPct(null);
-    }
+    }, (e) => `Could not read ${entry.name}: ${getErrorMessage(e)}`);
+    setPullPct(null);
   }
 
   return {
