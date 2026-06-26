@@ -90,3 +90,13 @@ export type PresetsPrefsApi = PrefsApi<PresetSort>;
 export function usePresetsPrefs(): PresetsPrefsApi {
   return usePrefs('opennord.presets.prefs', parsePresetSort);
 }
+
+const parsePianoSort = (raw: unknown): PianoSort =>
+  raw === 'name' || raw === 'size' ? raw : 'default';
+
+export type PianosPrefsApi = PrefsApi<PianoSort>;
+
+/** Pianos view prefs — persisted under `opennord.pianos.prefs`. */
+export function usePianosPrefs(): PianosPrefsApi {
+  return usePrefs('opennord.pianos.prefs', parsePianoSort);
+}
