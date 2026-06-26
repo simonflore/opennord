@@ -32,7 +32,7 @@ const saveFilePicker = (): SaveFilePicker | undefined =>
   (window as unknown as { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
 
 /** Reorganize a .ns4b backup offline — open, drag a program to an empty slot, download the result. */
-export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; initialModel?: BackupModel }) {
+export function BackupOrganizer({ onBack, initialModel, initialBundlePath }: { onBack: () => void; initialModel?: BackupModel; initialBundlePath?: string }) {
   const folder = useFolder();
   const [model, setModel] = useState<BackupModel | null>(initialModel ?? null);
   const [entries, setEntries] = useState<ProgramEntry[]>(initialModel ? listPrograms(initialModel) : []);
@@ -65,15 +65,21 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
     }
   }
 
-  // Auto-open when there is exactly one bundle in the linked folder and no model is loaded.
-  // Guard with a ref so a rescan that changes `folder.bundles` identity doesn't retry on error.
+  // Auto-open a bundle and skip the chooser: an explicitly-chosen `initialBundlePath`
+  // (picked on the Device landing) takes priority; otherwise auto-open when the folder
+  // holds exactly one backup. Guard with a ref so a rescan that changes `folder.bundles`
+  // identity doesn't retry on error.
   useEffect(() => {
-    if (!model && !initialModel && folder.bundles.length === 1 && !triedAutoOpen.current) {
+    if (model || initialModel || triedAutoOpen.current) return;
+    if (initialBundlePath) {
+      triedAutoOpen.current = true;
+      void openFromFolder(initialBundlePath);
+    } else if (folder.bundles.length === 1) {
       triedAutoOpen.current = true;
       void openFromFolder(folder.bundles[0].path);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folder.bundles, model, initialModel]);
+  }, [folder.bundles, model, initialModel, initialBundlePath]);
 
   async function onFile(file: File) {
     setPlanError('');

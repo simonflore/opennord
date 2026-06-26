@@ -11,6 +11,7 @@ import { slotLabel } from '../../lib/clavia/slot';
 import { ProgramView } from '../program/ProgramView';
 import { ConnectPanel } from './ConnectPanel';
 import { BackupOrganizer } from './BackupOrganizer';
+import { BundleChooser } from './BundleChooser';
 import { DeviceBrowser } from './DeviceBrowser';
 import { TargetSlotPicker } from './TargetSlotPicker';
 import { ConfirmPanel } from './ConfirmPanel';
@@ -27,6 +28,7 @@ import { PlanProgress } from './PlanProgress';
 import { backup } from '../../lib/device/backup';
 import { downloadBytes } from '../../lib/download';
 import { getErrorMessage } from '../../lib/errors';
+import { useFolder } from '../../lib/folder/FolderContext';
 
 /**
  * Orchestrates the device screen: connect, browse, and view a pulled program.
@@ -35,11 +37,14 @@ import { getErrorMessage } from '../../lib/errors';
  */
 export function DeviceManager() {
   const { session, entries, deviceName, capacity, setConnection, setEntries, setCapacity } = useDevice();
+  const folder = useFolder();
   // Program-open (pull-to-view) state stays local — it's this component's own concern.
   const [program, setProgram] = useState<NordProgram | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [organizingBackup, setOrganizingBackup] = useState(false);
+  // When set, the Organizer opens this specific folder backup (picked on the landing).
+  const [organizingBundlePath, setOrganizingBundlePath] = useState<string | undefined>(undefined);
 
   async function refresh(s: NordSession) {
     await s.withSession(PARTITION_PROGRAM, async () => {
@@ -111,12 +116,29 @@ export function DeviceManager() {
   }
 
   if (!session) {
-    if (organizingBackup) return <BackupOrganizer onBack={() => setOrganizingBackup(false)} />;
+    if (organizingBackup) {
+      return (
+        <BackupOrganizer
+          initialBundlePath={organizingBundlePath}
+          onBack={() => { setOrganizingBackup(false); setOrganizingBundlePath(undefined); }}
+        />
+      );
+    }
+    const openBundle = (path: string) => { setOrganizingBundlePath(path); setOrganizingBackup(true); };
     return (
-      <ConnectPanel
-        onConnected={(s, e, name, pid) => setConnection(s, e, name, pid)}
-        onOpenBackup={() => setOrganizingBackup(true)}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {folder.bundles.length > 0 && (
+          <BundleChooser
+            title={`Backups in ${folder.folderName ?? 'your folder'}`}
+            bundles={folder.bundles}
+            onPick={openBundle}
+          />
+        )}
+        <ConnectPanel
+          onConnected={(s, e, name, pid) => setConnection(s, e, name, pid)}
+          onOpenBackup={() => { setOrganizingBundlePath(undefined); setOrganizingBackup(true); }}
+        />
+      </div>
     );
   }
 
