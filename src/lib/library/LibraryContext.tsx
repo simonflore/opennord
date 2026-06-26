@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
-import { useFolderLibrary } from '@/lib/folder/useFolderLibrary';
+import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedLibrary } from '@/lib/library/useImportedLibrary';
 import { useLibraryPrefs } from '@/lib/library/prefs';
 import { nordEntriesFromDevice, entriesFromScannedPrograms, filterEntries, sortEntries } from '@/lib/library/entries';
@@ -13,7 +13,7 @@ function useLibraryStateValue() {
   const { entries: deviceEntries } = useDevice();
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
   const [query, setQuery] = useState('');
-  const folder = useFolderLibrary();
+  const folder = useFolder();
   const imported = useImportedLibrary();
   const prefs = useLibraryPrefs();
 
