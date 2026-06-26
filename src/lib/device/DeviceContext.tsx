@@ -16,6 +16,9 @@ interface DeviceState {
   /** Preset groups enumerated from the device (organ/piano/synth partitions). */
   presetEntries: PresetGroup[];
   setPresetEntries: (g: PresetGroup[]) => void;
+  /** User Piano Library files enumerated from the device (partition 1). */
+  pianoEntries: ProgramEntry[];
+  setPianoEntries: (e: ProgramEntry[]) => void;
   /** Program partition capacity (slots + free space), or null until read. */
   capacity: PartitionCapacity | null;
   setCapacity: (c: PartitionCapacity | null) => void;
@@ -31,6 +34,7 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
   const [entries, setEntries] = useState<ProgramEntry[]>([]);
   const [sampleEntries, setSampleEntries] = useState<ProgramEntry[]>([]);
   const [presetEntries, setPresetEntries] = useState<PresetGroup[]>([]);
+  const [pianoEntries, setPianoEntries] = useState<ProgramEntry[]>([]);
   const [deviceName, setDeviceName] = useState('');
   const [productId, setProductId] = useState(0);
   const [capacity, setCapacity] = useState<PartitionCapacity | null>(null);
@@ -39,11 +43,12 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     session, entries, deviceName, productId,
     sampleEntries, setSampleEntries,
     presetEntries, setPresetEntries,
+    pianoEntries, setPianoEntries,
     capacity, setCapacity,
     setConnection: (s, e, name, pid) => { setSession(s); setEntries(e); setDeviceName(name); setProductId(pid); },
     setEntries,
     disconnect: () => {
-      setSession(null); setEntries([]); setSampleEntries([]); setPresetEntries([]); setDeviceName(''); setProductId(0); setCapacity(null);
+      setSession(null); setEntries([]); setSampleEntries([]); setPresetEntries([]); setPianoEntries([]); setDeviceName(''); setProductId(0); setCapacity(null);
     },
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
