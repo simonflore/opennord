@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { FakeDevice } from './fake-device';
-import { buildOccupancy, planMove, type Plan } from './reorg';
+import { buildOccupancy, planMove, planSwap, type Plan } from './reorg';
 import { executePlan } from './execute';
 import type { ProgramEntry } from './transfer';
 
@@ -73,5 +73,35 @@ describe('executePlan', () => {
     });
     expect(res.ok).toBe(false);
     expect([...dev.snapshot()]).toEqual([...initial]);
+  });
+
+  it('executes a swap: the two programs end exchanged', async () => {
+    const a = entry({ bank: 2, slot: 12, name: 'Wurli' });
+    const b = entry({ bank: 2, slot: 20, name: 'Beat' });
+    const dev = new FakeDevice([
+      { partition: PART, file: file(4), entry: a },
+      { partition: PART, file: file(6), entry: b },
+    ]);
+    const occ = buildOccupancy([a, b]);
+    const plan = planSwap(occ, { bank: 2, slot: 12 }, { bank: 2, slot: 20 }) as Plan;
+    const res = await executePlan(dev, PART, plan, occ);
+    expect(res.ok).toBe(true);
+    expect((await dev.info(PART, { bank: 2, slot: 12 }))?.name).toBe('Beat');   // a now holds B
+    expect((await dev.info(PART, { bank: 2, slot: 20 }))?.name).toBe('Wurli');  // b now holds A
+  });
+
+  it('rolls a failed swap back to the original layout', async () => {
+    const a = entry({ bank: 2, slot: 12, name: 'Wurli' });
+    const b = entry({ bank: 2, slot: 20, name: 'Beat' });
+    const dev = new FakeDevice([
+      { partition: PART, file: file(4), entry: a },
+      { partition: PART, file: file(6), entry: b },
+    ]);
+    const initial = dev.snapshot();
+    dev.failNext('push', PART, { bank: 2, slot: 12 }); // second copy (b→a) fails
+    const occ = buildOccupancy([a, b]);
+    const res = await executePlan(dev, PART, planSwap(occ, { bank: 2, slot: 12 }, { bank: 2, slot: 20 }) as Plan, occ);
+    expect(res.ok).toBe(false);
+    expect([...dev.snapshot()]).toEqual([...initial]); // both slots restored
   });
 });
