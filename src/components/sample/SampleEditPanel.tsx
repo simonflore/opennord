@@ -111,11 +111,11 @@ export function SampleEditPanel({ initial, bytes, codec, unison, onPlayZone, onN
       {gd && (
         <div className="ps-sub" style={{ display: 'flex', gap: 18, alignItems: 'center', margin: '12px 0 0', flexWrap: 'wrap' }}>
           <label>Gain&nbsp;
-            <input type="number" step={0.1} value={gainDb} className="ps-kbd-num" style={{ width: 64 }}
+            <input type="number" step={0.1} value={gainDb} className="ps-kbd-num ps-kbd-num--compact"
               onChange={(e) => setGainDb(e.target.value)} /> dB
           </label>
           <label>Detune&nbsp;
-            <input type="number" step={1} value={detuneCents} className="ps-kbd-num" style={{ width: 64 }}
+            <input type="number" step={1} value={detuneCents} className="ps-kbd-num ps-kbd-num--compact"
               onChange={(e) => setDetuneCents(e.target.value)} /> ¢
           </label>
         </div>

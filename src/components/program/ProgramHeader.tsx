@@ -1,4 +1,5 @@
 import type { HeaderView } from '../../lib/clavia/engine-view';
+import { Pill } from '../ui';
 
 export function ProgramHeader({ header: h }: { header: HeaderView }) {
   return (
@@ -6,10 +7,10 @@ export function ProgramHeader({ header: h }: { header: HeaderView }) {
       <div>
         <div className="ps-nm">{h.name}</div>
         <div className="ps-meta">
-          <span className="ps-pill">{h.slot}</span>
-          <span className="ps-pill">{h.category}</span>
-          <span className="ps-pill">{h.version}</span>
-          <span className="ps-pill">{h.sizeBytes} B</span>
+          <Pill>{h.slot}</Pill>
+          <Pill>{h.category}</Pill>
+          <Pill>{h.version}</Pill>
+          <Pill>{h.sizeBytes} B</Pill>
           <span>· {h.summary}</span>
         </div>
       </div>

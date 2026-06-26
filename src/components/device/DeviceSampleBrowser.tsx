@@ -35,11 +35,8 @@ export function DeviceSampleBrowser({ entries, deviceName, sampleCapacity, piano
             <button
               key={`${e.bank}-${e.slot}`}
               onClick={() => onSelect(e)}
-              style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, textAlign: 'left',
-                cursor: 'pointer', background: 'var(--surface)', border: '1px solid var(--line)',
-                borderLeft: '3px solid var(--red)', borderRadius: 8, padding: '8px 12px', color: 'var(--ink)',
-              }}
+              className="ps-accent-row"
+              style={{ textAlign: 'left', cursor: 'pointer' }}
             >
               <span style={{ fontWeight: 600 }}>{e.name || `(slot ${formatSlot(e.bank, e.slot)})`}</span>
               <span className="ps-sub" style={{ margin: 0 }}>{formatSlot(e.bank, e.slot)} · {formatBytes(e.sizeBytes)}</span>

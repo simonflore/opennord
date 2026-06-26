@@ -5,6 +5,7 @@ import { BANK_LETTERS } from '../../lib/clavia/slot';
 import type { Addr } from '../../lib/device/reorg';
 import { StorageMeter } from './StorageMeter';
 import { SlotGrid } from './SlotGrid';
+import { BankLabel } from './BankLabel';
 import { Button, FileInput } from '../ui';
 
 /** Programs grouped by bank A–H. Open, delete, or send a file to the Nord. */
@@ -48,18 +49,14 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
       {organize ? (
         BANK_LETTERS.split('').map((_, bank) => (
           <div key={bank} style={{ marginBottom: 14 }}>
-            <h4 style={{ margin: '0 0 6px', color: 'var(--red-bright)', letterSpacing: 1.5 }}>
-              BANK {BANK_LETTERS[bank]}
-            </h4>
+            <BankLabel bank={bank} />
             <SlotGrid bank={bank} slotCount={64} entries={entries} onGesture={(g) => onReorg?.(g)} />
           </div>
         ))
       ) : (
         [...byBank.keys()].sort((a, b) => a - b).map((bank) => (
           <div key={bank} style={{ marginBottom: 14 }}>
-            <h4 style={{ margin: '0 0 6px', color: 'var(--red-bright)', letterSpacing: 1.5 }}>
-              BANK {BANK_LETTERS[bank] ?? bank}
-            </h4>
+            <BankLabel bank={bank} />
             <div style={{ display: 'grid', gap: 6 }}>
               {byBank.get(bank)!
                 .slice()
@@ -67,14 +64,7 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
                 .map((e) => {
                   const v = programEntryView(e);
                   return (
-                    <div
-                      key={`${e.bank}-${e.slot}`}
-                      style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
-                        background: 'var(--surface)', border: '1px solid var(--line)',
-                        borderLeft: '3px solid var(--red)', borderRadius: 8, padding: '8px 12px', color: 'var(--ink)',
-                      }}
-                    >
+                    <div key={`${e.bank}-${e.slot}`} className="ps-accent-row">
                       <button
                         onClick={() => onSelect(e)}
                         style={{

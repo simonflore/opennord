@@ -12,6 +12,7 @@ import type { ProgramEntry } from '../../lib/device/transfer';
 import { SlotGrid } from './SlotGrid';
 import { PlanProgress } from './PlanProgress';
 import { ConfirmPanel } from './ConfirmPanel';
+import { BankLabel } from './BankLabel';
 import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
 import { Button, FileInput } from '../ui';
@@ -132,7 +133,7 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
       ) : (
         BANK_LETTERS.split('').map((_, bank) => (
           <div key={bank} style={{ marginBottom: 14 }}>
-            <h4 style={{ margin: '0 0 6px', color: 'var(--red-bright)', letterSpacing: 1.5 }}>BANK {BANK_LETTERS[bank]}</h4>
+            <BankLabel bank={bank} />
             <SlotGrid bank={bank} slotCount={64} entries={entries} onGesture={onGesture} />
           </div>
         ))

@@ -1,5 +1,6 @@
 import type { ProgramEntry } from '../../lib/device/transfer';
-import { formatSlot, BANK_LETTERS } from '../../lib/clavia/slot';
+import { formatSlot } from '../../lib/clavia/slot';
+import { BankLabel } from './BankLabel';
 
 /** A chosen write target. `occupiedBy` is the existing program name, if any. */
 export interface SlotTarget {
@@ -31,7 +32,7 @@ export function TargetSlotPicker({ entries, onPick, onCancel }: {
       </div>
       {Array.from({ length: 8 }, (_, bank) => (
         <div key={bank} style={{ marginBottom: 12 }}>
-          <h4 style={{ margin: '0 0 6px', color: 'var(--red-bright)', letterSpacing: 1.5 }}>BANK {BANK_LETTERS[bank]}</h4>
+          <BankLabel bank={bank} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4 }}>
             {Array.from({ length: 64 }, (_, slot) => {
               const name = occupied.get(`${bank}-${slot}`);
