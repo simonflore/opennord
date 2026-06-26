@@ -1,19 +1,16 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { NsmpFile } from '../../lib/ns4/nsmp';
 import { convertNsmp, type TargetCodec } from '../../lib/ns4/nsmp-convert';
 import { downloadBytes } from '../../lib/download';
 import { getErrorMessage } from '../../lib/errors';
 import { useFolder } from '../../lib/folder/FolderContext';
-import { useWriteBackPref } from '../../lib/library/writeBackPrefs';
+import { useFolderWrite } from '../../lib/folder/useFolderWrite';
 import { WriteTargetDialog } from '../ui';
 
 type Status =
   | { kind: 'idle' }
   | { kind: 'done'; msg: string; warnings: string[] }
   | { kind: 'error'; msg: string };
-
-/** Pending write-to-folder dialog state. */
-type PendingWrite = { out: Uint8Array; filename: string; existing: boolean };
 
 /**
  * Every Nord Sample generation OpenNord can write, newest first. The `code` is the
@@ -44,71 +41,56 @@ function sourceGeneration(file: NsmpFile): TargetCodec | 0 {
  */
 export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: NsmpFile; name?: string }) {
   const folder = useFolder();
-  const writeBackPref = useWriteBackPref();
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
-  const [pendingWrite, setPendingWrite] = useState<PendingWrite | null>(null);
+
+  // Keep a ref to the latest pending output so onFallback can always access it.
+  const pendingRef = useRef<{ out: Uint8Array; filename: string } | null>(null);
+
+  const folderWrite = useFolderWrite({
+    onSaved: (path, folderName) =>
+      setStatus({ kind: 'done', msg: `Saved to ${folderName}/${path}`, warnings: [] }),
+    onFallback: () => {
+      const p = pendingRef.current;
+      if (p) {
+        downloadBytes(p.out, p.filename);
+        setStatus({ kind: 'done', msg: `Saved ${p.filename}`, warnings: [] });
+      }
+    },
+  });
 
   const source = sourceGeneration(file);
   const targets = GENERATIONS.filter((g) => g.code !== source);
   if (targets.length === 0) return null;
-
-  async function performFolderWrite(out: Uint8Array, filename: string, mode: 'new' | 'overwrite') {
-    try {
-      const res = await folder.writeBack(filename, async (w) => { await w.write(out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer); }, { mode });
-      if (res.target === 'folder') {
-        setStatus({ kind: 'done', msg: `Saved to ${folder.folderName ?? ''}/${res.path}`, warnings: [] });
-        return;
-      }
-      // writeBack returned 'download' (no FSA / denied) -- fall through to download.
-      downloadBytes(out, filename);
-      setStatus({ kind: 'done', msg: `Saved ${filename}`, warnings: [] });
-    } catch (e) {
-      setStatus({ kind: 'error', msg: getErrorMessage(e) });
-    }
-  }
 
   async function convert(target: TargetCodec) {
     try {
       const { bytes: out, extension, warnings } = convertNsmp(bytes, target);
       const filename = `${file.name?.trim() || name?.trim() || 'sample'}${extension}`;
 
-      // Folder-first: if a folder is linked, route through writeBack.
-      if (folder.folderName) {
-        if (writeBackPref.mode === 'ask') {
-          const existing = folder.result.samples.some((s) => s.name === filename);
-          setPendingWrite({ out, filename, existing });
-          setStatus({ kind: 'idle' });
-          return;
-        }
-        // Remembered preference -- use it directly.
-        setStatus({ kind: 'idle' });
-        await performFolderWrite(out, filename, writeBackPref.mode);
-        return;
-      }
+      // Capture output so onFallback can access it when writeBack returns 'download'
+      // or when there is no folder linked.
+      pendingRef.current = { out, filename };
 
-      // No folder linked -- download verbatim.
-      downloadBytes(out, filename);
-      setStatus({ kind: 'done', msg: `Saved ${filename}`, warnings });
+      const existing = folder.result.samples.some((s) => s.name === filename);
+      await folderWrite.save({ name: filename, existing, write: async (w) => {
+        await w.write(out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer);
+      } });
+
+      // If we fell back via onFallback (no folder), warnings came from convertNsmp; surface them.
+      if (!folder.folderName) {
+        setStatus((s) => s.kind === 'done' ? { ...s, warnings } : s);
+      }
     } catch (e) {
       setStatus({ kind: 'error', msg: getErrorMessage(e) });
     }
   }
 
-  async function handleDialogChoose(mode: 'new' | 'overwrite', remember: boolean) {
-    if (!pendingWrite) return;
-    const { out, filename } = pendingWrite;
-    if (remember) writeBackPref.setMode(mode);
-    setPendingWrite(null);
-    await performFolderWrite(out, filename, mode);
-  }
-
-  if (pendingWrite && folder.folderName) {
+  if (folderWrite.dialogProps) {
     return (
       <WriteTargetDialog
-        folderName={folder.folderName}
-        existing={pendingWrite.existing}
-        onChoose={(mode, remember) => void handleDialogChoose(mode, remember)}
-        onCancel={() => setPendingWrite(null)}
+        {...folderWrite.dialogProps}
+        onChoose={(mode, remember) => void folderWrite.dialogProps!.onChoose(mode, remember)}
+        onCancel={folderWrite.dialogProps.onCancel}
       />
     );
   }
