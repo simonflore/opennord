@@ -19,6 +19,13 @@ export type Capability =
 export const CAPABILITIES: readonly Capability[] =
   ['file-read', 'enumerate', 'pull', 'push', 'delete', 'backup', 'samples'];
 
+/** The capability columns shown in the compatibility matrix, in display order.
+ *  A musician-facing subset of {@link CAPABILITIES}: `file-read` is folded into
+ *  the decoded-parameter ("Program Parameters") column (0 params ≈ can't open it),
+ *  and `enumerate` is implied by `pull` (Copy from Nord). The full set stays in
+ *  CAPABILITIES / VALIDATION — this only changes what the matrix renders. */
+export const MATRIX_COLUMNS: readonly Capability[] = ['samples', 'pull', 'push', 'delete', 'backup'];
+
 export const CAPABILITY_LABEL: Record<Capability, string> = {
   'file-read': 'Open files', enumerate: 'List patches', pull: 'Copy from Nord',
   push: 'Copy to Nord', delete: 'Delete on Nord', backup: 'Back up', samples: 'Samples',

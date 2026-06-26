@@ -2,7 +2,7 @@ import { useState, Fragment } from 'react';
 import './compatibility.css';
 import { ProbePanel } from './ProbePanel';
 import { ALL_MODELS } from '../../lib/clavia/partitions';
-import { CAPABILITIES, CAPABILITY_LABEL, statusFor, type ValidationStatus } from '../../lib/clavia/validation';
+import { MATRIX_COLUMNS, CAPABILITY_LABEL, statusFor, type ValidationStatus } from '../../lib/clavia/validation';
 import { decodeForModel, getModelProgress, DECODE_LABEL, type DecodeStatus } from '../../lib/contribute/coverage';
 import { ByteMapView } from './ByteMapView';
 
@@ -31,8 +31,8 @@ export function MatrixView() {
           <thead>
             <tr>
               <th className="cmp__model">Model</th>
-              <th className="cmp__cap">Sounds</th>
-              {CAPABILITIES.map((c) => <th key={c} className="cmp__cap">{CAPABILITY_LABEL[c]}</th>)}
+              <th className="cmp__cap">Program Parameters</th>
+              {MATRIX_COLUMNS.map((c) => <th key={c} className="cmp__cap">{CAPABILITY_LABEL[c]}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -62,7 +62,7 @@ export function MatrixView() {
                         : '—';
                       return <td className={`cmp-cell cmp-cell--${DECODE_CELL[d.status]}`} title={DECODE_LABEL[d.status]}>{text}</td>;
                     })()}
-                    {CAPABILITIES.map((c) => {
+                    {MATRIX_COLUMNS.map((c) => {
                       const s = statusFor(m.id, c).status;
                       return <td key={c} className={`cmp-cell cmp-cell--${s}`} title={CHIP[s]}>{CHIP[s]}</td>;
                     })}
@@ -70,7 +70,7 @@ export function MatrixView() {
 
                   {isOpen && (
                     <tr className="cmp__detail-row">
-                      <td colSpan={CAPABILITIES.length + 2}>
+                      <td colSpan={MATRIX_COLUMNS.length + 2}>
                         <div className="cmp__detail">
                           {progress?.regions
                             ? <ByteMapView progress={progress} />

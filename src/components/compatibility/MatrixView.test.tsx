@@ -26,9 +26,17 @@ describe('MatrixView', () => {
   it('links to the Contribute tool for undecoded models', () => {
     expect(render()).toContain('href="#/contribute"');
   });
-  it('shows a Sounds-decoded column with Stage 4 parameter count', () => {
+  it('shows a Program Parameters column with Stage 4 parameter count', () => {
     const html = render();
-    expect(html).toContain('Sounds');
+    expect(html).toContain('Program Parameters');
     expect(html).toContain('params'); // Stage 4 → "406 params"
+  });
+  it('renders Fred’s six columns and drops Open files / List patches', () => {
+    const html = render();
+    for (const label of ['Program Parameters', 'Samples', 'Copy from Nord', 'Copy to Nord', 'Delete on Nord', 'Back up']) {
+      expect(html).toContain(label);
+    }
+    expect(html).not.toContain('Open files');
+    expect(html).not.toContain('List patches');
   });
 });
