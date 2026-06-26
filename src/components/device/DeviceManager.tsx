@@ -21,10 +21,8 @@ import { SampleInspector } from '../sample/SampleInspector';
 import { usePushFlow } from './usePushFlow';
 import { useDeleteFlow } from './useDeleteFlow';
 import { useSamplesFlow } from './useSamplesFlow';
-import { useReorgFlow } from './useReorgFlow';
-import { planMove, isPlanError, buildOccupancy, type Addr } from '../../lib/device/reorg';
-import { PlanReview } from './PlanReview';
-import { PlanProgress } from './PlanProgress';
+import { useReorg } from './useReorg';
+import { sessionDeviceIO } from '../../lib/device/device-io';
 import { backup } from '../../lib/device/backup';
 import { downloadBytes } from '../../lib/download';
 import { getErrorMessage } from '../../lib/errors';
@@ -78,7 +76,6 @@ export function DeviceManager() {
   const samples = useSamplesFlow(session);
 
   const [backupWanted, setBackupWanted] = useState(true);
-  const [reorgError, setReorgError] = useState('');
   const backedUp = useRef(false);
   const backupOnce = useCallback(async () => {
     if (!session || !backupWanted || backedUp.current) return;
@@ -86,14 +83,19 @@ export function DeviceManager() {
     downloadBytes(bytes, `OpenNord Safety Backup ${new Date().toISOString().slice(0, 10)}.ns4b`);
     backedUp.current = true;
   }, [session, backupWanted]);
-  const reorg = useReorgFlow(session, refresh, backupOnce, entries);
-  function onGesture(g: { kind: 'move'; from: Addr; to: Addr }) {
-    reorg.clearResult();
-    setReorgError('');
-    const plan = planMove(buildOccupancy(entries), g.from, g.to);
-    if (isPlanError(plan)) { setReorgError(plan.error); return; }
-    reorg.setPendingPlan(plan);
-  }
+  const reorg = useReorg({
+    io: sessionDeviceIO(session!),
+    partition: PARTITION_PROGRAM,
+    entries,
+    refresh: () => refresh(session!),
+    backupOnce,
+    run: (fn) => session!.withSession(PARTITION_PROGRAM, fn),
+  });
+  const reorgConfirmExtra = (
+    <label className="ps-sub" style={{ display: 'block', marginTop: 8 }}>
+      <input type="checkbox" checked={backupWanted} onChange={(e) => setBackupWanted(e.target.checked)} /> Back up my Nord first
+    </label>
+  );
 
   async function open(entry: ProgramEntry) {
     if (!session || busy) return;
@@ -184,23 +186,6 @@ export function DeviceManager() {
     );
   }
 
-  // Reorg confirm.
-  if (reorg.pendingPlan) {
-    return (
-      <>
-        <PlanReview
-          plan={reorg.pendingPlan}
-          backup={backupWanted}
-          onBackupChange={setBackupWanted}
-          busy={reorg.busy}
-          onConfirm={reorg.confirmReorg}
-          onCancel={() => reorg.setPendingPlan(null)}
-        />
-        <PlanProgress progress={reorg.progress} />
-      </>
-    );
-  }
-
   // Viewing a pulled program — offer "Send to Nord".
   if (program) {
     return (
@@ -228,10 +213,7 @@ export function DeviceManager() {
 
   // Default browser. error/busy here come from the program-open action or the
   // samples flow — only one is ever active at a time in this branch.
-  const reorgFail = reorg.result && !reorg.result.ok
-    ? `Move failed; your Nord was restored.${reorg.result.warnings.length ? ` (${reorg.result.warnings.join('; ')})` : ''}`
-    : '';
-  const browserError = error || samples.error || reorgError || reorg.error || reorgFail;
+  const browserError = error || samples.error || reorg.error;
   const browserBusy = busy || samples.busy;
   return (
     <div>
@@ -253,7 +235,8 @@ export function DeviceManager() {
             onSelect={open}
             onDelete={del.setPendingDelete}
             onSendFile={push.startSendFile}
-            onReorg={onGesture}
+            reorg={reorg}
+            reorgConfirmExtra={reorgConfirmExtra}
           />
         </>
       ) : (

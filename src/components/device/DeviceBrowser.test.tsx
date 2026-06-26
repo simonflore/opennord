@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { DeviceBrowser } from './DeviceBrowser';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import type { PartitionCapacity } from '../../lib/device/capacity';
+import type { ReorgApi } from './useReorg';
 
 const entry = (over: Partial<ProgramEntry>): ProgramEntry => ({
   bank: 0, slot: 0, name: 'Lead', categoryId: 6, version: 313, sizeBytes: 600, fourcc: 'ns4p', ...over,
@@ -13,9 +14,13 @@ const cap = (over: Partial<PartitionCapacity> = {}): PartitionCapacity => ({
 });
 
 const noop = () => {};
+const stubReorg: ReorgApi = {
+  pendingPlan: null, busy: false, progress: null, error: '', result: null,
+  onGesture: noop, confirm: async () => {}, cancel: noop,
+};
 const render = (capacity: PartitionCapacity | null, entries: ProgramEntry[] = [entry({})]) =>
   renderToStaticMarkup(
-    <DeviceBrowser entries={entries} deviceName="Nord Stage 4" capacity={capacity} onSelect={noop} onDelete={noop} onSendFile={noop} />,
+    <DeviceBrowser entries={entries} deviceName="Nord Stage 4" capacity={capacity} onSelect={noop} onDelete={noop} onSendFile={noop} reorg={stubReorg} />,
   );
 
 describe('DeviceBrowser organize mode', () => {

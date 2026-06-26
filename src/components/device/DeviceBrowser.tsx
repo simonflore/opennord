@@ -1,15 +1,15 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { programEntryView, type ProgramEntry } from '../../lib/device/transfer';
 import type { PartitionCapacity } from '../../lib/device/capacity';
-import { BANK_LETTERS } from '../../lib/clavia/slot';
-import type { Addr } from '../../lib/device/reorg';
 import { StorageMeter } from './StorageMeter';
-import { SlotGrid } from './SlotGrid';
+import { OrganizeGrids } from './OrganizeGrids';
 import { BankLabel } from './BankLabel';
 import { Button, FileInput } from '../ui';
+import type { ReorgApi } from './useReorg';
 
 /** Programs grouped by bank A–H. Open, delete, or send a file to the Nord. */
-export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelete, onSendFile, onReorg }: {
+export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelete, onSendFile, reorg, reorgConfirmExtra }: {
   entries: ProgramEntry[];
   deviceName: string;
   /** Program partition capacity for the storage readout, or null while it loads. */
@@ -18,7 +18,8 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
   onDelete: (entry: ProgramEntry) => void;
   /** Hand the chosen file to the caller, which reads it (error handling lives there). */
   onSendFile: (file: File) => void;
-  onReorg?: (g: { kind: 'move'; from: Addr; to: Addr }) => void;
+  reorg: ReorgApi;
+  reorgConfirmExtra?: ReactNode;
 }) {
   const [organize, setOrganize] = useState(false);
 
@@ -47,12 +48,7 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
         </div>
       </div>
       {organize ? (
-        BANK_LETTERS.split('').map((_, bank) => (
-          <div key={bank} style={{ marginBottom: 14 }}>
-            <BankLabel bank={bank} />
-            <SlotGrid bank={bank} slotCount={64} entries={entries} onGesture={(g) => onReorg?.(g)} />
-          </div>
-        ))
+        <OrganizeGrids entries={entries} reorg={reorg} confirmExtra={reorgConfirmExtra} />
       ) : (
         [...byBank.keys()].sort((a, b) => a - b).map((bank) => (
           <div key={bank} style={{ marginBottom: 14 }}>
