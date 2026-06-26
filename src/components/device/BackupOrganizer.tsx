@@ -11,11 +11,10 @@ import { downloadBytes } from '../../lib/download';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import { SlotGrid } from './SlotGrid';
 import { PlanProgress } from './PlanProgress';
-import { ConfirmPanel } from './ConfirmPanel';
 import { BankLabel } from './BankLabel';
 import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
-import { Button, FileInput, WriteTargetDialog } from '../ui';
+import { Button, FileInput, WriteTargetDialog, Dialog } from '../ui';
 import { useFolder } from '../../lib/folder/FolderContext';
 import { useFolderWrite } from '../../lib/folder/useFolderWrite';
 import { BundleChooser } from './BundleChooser';
@@ -135,16 +134,6 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
     await folderWrite.save({ name, existing: false, write: (w) => streamBackupTo(model, w) });
   }
 
-  if (pendingPlan) {
-    return (
-      <>
-        <ConfirmPanel title="Move program" message={pendingPlan.summary} confirmLabel="Move"
-          busy={busy} onConfirm={confirmMove} onCancel={() => setPendingPlan(null)} />
-        <PlanProgress progress={progress} />
-      </>
-    );
-  }
-
   if (folderWrite.dialogProps) {
     return (
       <WriteTargetDialog
@@ -156,6 +145,7 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
   }
 
   return (
+    <>
     <div className="ps">
       <div className="ps-hd">
         <div>
@@ -195,13 +185,34 @@ export function BackupOrganizer({ onBack, initialModel }: { onBack: () => void; 
           </FileInput>
         )
       ) : (
-        BANK_LETTERS.split('').map((_, bank) => (
-          <div key={bank} style={{ marginBottom: 14 }}>
-            <BankLabel bank={bank} />
-            <SlotGrid bank={bank} slotCount={64} entries={entries} onGesture={onGesture} />
-          </div>
-        ))
+        <>
+          <p className="ps-sub" style={{ marginTop: 0, marginBottom: 10 }}>
+            Drag a program onto an empty (dashed) slot to move it.
+          </p>
+          {BANK_LETTERS.split('').map((_, bank) => (
+            <div key={bank} style={{ marginBottom: 14 }}>
+              <BankLabel bank={bank} />
+              <SlotGrid bank={bank} slotCount={64} entries={entries} onGesture={onGesture} />
+            </div>
+          ))}
+        </>
       )}
-    </div>
+      </div>
+
+      <Dialog
+        open={!!pendingPlan}
+        onClose={() => { if (!busy) setPendingPlan(null); }}
+        title="Move program"
+        footer={
+          <>
+            <Button variant="primary" onClick={confirmMove} disabled={busy}>{busy ? 'Working…' : 'Move'}</Button>
+            <Button variant="secondary" onClick={() => setPendingPlan(null)} disabled={busy}>Cancel</Button>
+          </>
+        }
+      >
+        <p className="ps-sub" style={{ margin: 0 }}>{pendingPlan?.summary}</p>
+        <PlanProgress progress={progress} />
+      </Dialog>
+    </>
   );
 }

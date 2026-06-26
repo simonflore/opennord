@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import type { Addr } from '../../lib/device/reorg';
 import { formatSlot, BANK_LETTERS } from '../../lib/clavia/slot';
@@ -19,6 +20,10 @@ const DRAG_MIME = 'application/x-nord-slot';
 export function SlotGrid({ bank, slotCount, entries, onGesture }: Props) {
   const bySlot = new Map(entries.filter((e) => e.bank === bank).map((e) => [e.slot, e]));
   const bankLabel = BANK_LETTERS[bank & 0x7] ?? String(bank);
+  // Highlight-only: which empty cell a drag is currently over. Local to this grid
+  // (you hover one grid at a time) — it does NOT carry the drag source, which
+  // lives in dataTransfer so cross-bank drops still resolve it.
+  const [overSlot, setOverSlot] = useState<number | null>(null);
 
   return (
     <div className="slot-grid" role="grid" aria-label={`Bank ${bankLabel}`}>
@@ -30,7 +35,7 @@ export function SlotGrid({ bank, slotCount, entries, onGesture }: Props) {
             key={slot}
             data-slot={slot}
             data-occupied={occupied}
-            className={`slot-grid__cell${occupied ? ' slot-grid__cell--occupied' : ''}`}
+            className={`slot-grid__cell${occupied ? ' slot-grid__cell--occupied' : ''}${!occupied && overSlot === slot ? ' slot-grid__cell--over' : ''}`}
             draggable={occupied}
             aria-label={`${formatSlot(bank, slot)}${occupied ? `: ${e!.name}` : ' (empty)'}`}
             onDragStart={(ev) => {
@@ -42,9 +47,12 @@ export function SlotGrid({ bank, slotCount, entries, onGesture }: Props) {
               if (!occupied && [...ev.dataTransfer.types].includes(DRAG_MIME)) {
                 ev.preventDefault();
                 ev.dataTransfer.dropEffect = 'move';
+                setOverSlot(slot);
               }
             }}
+            onDragLeave={() => setOverSlot((s) => (s === slot ? null : s))}
             onDrop={(ev) => {
+              setOverSlot(null);
               if (occupied) return;
               const raw = ev.dataTransfer.getData(DRAG_MIME);
               if (!raw) return;

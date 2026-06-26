@@ -23,6 +23,14 @@
   border-style: dashed;
 }
 
+/* The empty slot a drag is currently over — clearly the landing spot. */
+.slot-grid__cell--over {
+  border-style: solid;
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 14%, var(--surface-2));
+  color: var(--ink);
+}
+
 /* Occupied slots: solid, interactive, grabbable. */
 .slot-grid__cell--occupied {
   cursor: grab;
