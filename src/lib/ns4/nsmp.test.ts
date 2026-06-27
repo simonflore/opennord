@@ -297,7 +297,8 @@ describe.skipIf(!existsSync(other4))('readNsmpZones — codec-4 Other.nsmp4 (gro
   });
 });
 
-const tbm4 = '/Users/simonflore/Documents/TBM/VibesNoVibrato Mellotron_M300A 4.1.nsmp4';
+// Local-only RE corpus (gitignored, docs/LEGAL.md); set OPENNORD_NSMP4_CORPUS to run.
+const tbm4 = process.env.OPENNORD_NSMP4_CORPUS ?? '';
 describe.skipIf(!existsSync(tbm4))('global + per-note level/detune (read-only)', () => {
   const bytes = existsSync(tbm4) ? new Uint8Array(readFileSync(tbm4)) : new Uint8Array();
 

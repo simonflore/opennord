@@ -197,15 +197,19 @@ Then **Stage 2 / 2EX** are largely M2–M3 deltas off NS3 (same docs, same oracl
 
 ## Out of scope: device transfer for other instruments
 
-The Stage 4 USB work (`docs/PROTOCOL-RE.md`) is a **vendor USB bulk protocol
-specific to the Stage 4**, RE'd and validated on Stage 4 hardware. It does **not**
-generalize to the NS3:
+The Stage 4 USB work (`docs/PROTOCOL-RE.md`) is a **vendor USB bulk protocol**,
+RE'd and validated on Stage 4 hardware. The *transport* is shared line-wide — the
+same vendor-USB FileTransfer family is hardware-validated on the NS2
+(`ATTRIBUTION.md`, issue #31; `docs/NORD-PRODUCT-LINE.md`), so transfer is **not**
+a separate MIDI/SysEx path the way the early framing here once guessed (the NS4
+notably does *not* service SysEx — `docs/SYSEX-SPIKE.md`). What's missing for the
+other models is validation, not a different protocol:
 
-- NS3 is an earlier generation and most likely uses a **different transfer
-  mechanism** — plausibly MIDI SysEx, which the NS4 notably does *not* service
-  (`docs/SYSEX-SPIKE.md`). We have **zero NS3 transfer RE and no NS3 hardware.**
-- That is a from-scratch RE effort gated on owning the device — high cost, low
-  leverage, and orthogonal to file reading.
+- We have **per-model transfer details unverified and little non-NS4 hardware** on
+  hand; each generation needs its FileTransfer version + addressing confirmed
+  against a real instrument.
+- That is a hardware-gated validation effort — high cost, low leverage, and
+  orthogonal to file reading.
 
 **Therefore: file reading only. No device support for non-NS4 models in this
 proposal.** Reading is hardware-free and stands on existing public research;

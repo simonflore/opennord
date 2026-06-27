@@ -1,6 +1,6 @@
 // UNVALIDATED — needs com.apple.developer.driverkit entitlement + M1+ iPad + Nord
 // Stage 4 to sign/run/validate (docs/IPAD.md). Pipe logic ports scripts/nordusb.c
-// / scripts/nordpull.c: claim vendor interface 0, bulk OUT 0x03, bulk IN 0x82.
+// / scripts/re-archive/nordpull.c: claim vendor interface 0, bulk OUT 0x03, bulk IN 0x82.
 #include <os/log.h>
 #include <DriverKit/IOLib.h>
 #include <DriverKit/IOUserClient.h>
