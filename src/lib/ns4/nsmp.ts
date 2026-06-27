@@ -61,19 +61,6 @@ export interface NsmpFile {
   warnings: string[];
 }
 
-/**
- * Best-effort guess: is this likely factory/library content (Clavia IP) rather
- * than a user's own recording? Mirrors the editor's own user-created-only gate
- * ("NSMP v3 Factory Library files are not supported"). Conservative — when
- * unsure, returns false so we never block a user's own sample; the UI surfaces
- * the suspicion rather than refusing. See docs/LEGAL.md, docs/FORMAT.md.
- */
-export function looksFactory(name: string | undefined): boolean {
-  if (!name) return false;
-  // Factory sample names carry a vendor/library marker + version, e.g.
-  // "Strings Multi … ST 4.1", "… PS 4.1", "… CL v4", "… PH_v2".
-  return /\b(PS|CL|PH|ST|GP|EP)\s?v?\d+(\.\d+)?$/i.test(name.trim());
-}
 
 const u32be = (b: Uint8Array, o: number) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
 
@@ -218,10 +205,12 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
   const name = hdr ? readName(bytes, hdr) : undefined;
   const strokeCount = sections.filter((s) => s.tag.endsWith('stk')).length;
 
-  // Structural origin (codec 3 & 4, where it's RE-validated) is ground truth; the
-  // name-based guess is only a fallback for codecs where the flag isn't confirmed.
-  const structural = codec === 3 || codec === 4;
-  const suspectedFactory = hdr && structural ? hdrFactoryFlag(bytes, hdr) : looksFactory(name);
+  // Origin is claimed ONLY from the structural factory flag (codec 3 & 4, RE-
+  // validated). Where there's no reliable signal — OG/legacy `.nsmp`, or a sample
+  // with no `hdr` — we make NO claim rather than guess from the name (which both
+  // over- and under-matches the factory naming convention). `.npno` pianos keep
+  // their factory default (handled in the pianoLibrary branch above).
+  const suspectedFactory = hdr && (codec === 3 || codec === 4) ? hdrFactoryFlag(bytes, hdr) : false;
 
   return { recognized: true, version, versionRaw, codec, legacy, checksumValid, name, sections, strokeCount, suspectedFactory, warnings };
 }
