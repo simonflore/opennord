@@ -59,6 +59,7 @@
 .on-badge--nord { color: var(--red); }
 .on-badge--local { color: var(--muted); }
 .on-badge--backup { color: var(--focus); }
+.on-badge--cloud { color: var(--warn); }
 
 .on-search {
   display: flex; align-items: center; gap: 8px; flex: 1;
