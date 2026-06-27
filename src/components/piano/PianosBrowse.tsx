@@ -1,12 +1,19 @@
 import { useState } from 'react';
 import '../library/library.css';
-import { BrowseToolbar, Button, Card, Dialog, Pill, SourceBadge, Tag, type FacetGroup } from '../ui';
+import { BrowseToolbar, Button, Card, Dialog, Pill, SourceBadge, type FacetGroup } from '../ui';
 import type { PianoEntry } from '@/lib/library/piano-entries';
 import type { LibrarySource } from '@/lib/library/types';
 import type { PianoSort } from '@/lib/library/prefs';
 import { formatBytes } from '@/lib/format';
 
 const SORT_LABEL: Record<PianoSort, string> = { default: 'Default', name: 'Name (A–Z)', size: 'Size' };
+
+/** Which selected pianos to keep a local copy of before removal: all of them when
+ *  the toggle is on. Every Nord piano is factory content (no user/custom pianos)
+ *  and pulling your own device's .npno is fine, so there's no factory exclusion. */
+export function keepCopyIdsFor(entries: PianoEntry[], selected: Set<string>, keepCopy: boolean): Set<string> {
+  return keepCopy ? new Set(entries.filter((e) => selected.has(e.id)).map((e) => e.id)) : new Set<string>();
+}
 
 const parsePianoSort = (raw: string): PianoSort =>
   raw === 'name' || raw === 'size' ? raw : 'default';
@@ -69,30 +76,25 @@ export function PianosBrowse({
 
   // Confirm-remove dialog state
   const selectedEntries = entries.filter((e) => selected.has(e.id));
-  const anyNonFactory = selectedEntries.some((e) => e.factory == null);
-  const anyFactory = selectedEntries.some((e) => e.factory != null);
 
   const [confirmOpen, setConfirmOpen] = useState(_testConfirmOpen ?? false);
-  // Default keepCopy = true only when selection includes a non-factory piano
-  // (factory pianos are re-downloadable from Nord and potentially multi-GB — no auto-copy)
-  const [keepCopy, setKeepCopy] = useState(anyNonFactory);
+  // Every Nord piano is factory content (there are no user/custom pianos), and
+  // pulling an .npno off your own device is fine. So there's no factory/user
+  // distinction: keep-a-copy works for any piano. Default OFF only because pianos
+  // are multi-GB and re-installable from Nord — an opt-in, not the common path.
+  const [keepCopy, setKeepCopy] = useState(false);
   const [removeError, setRemoveError] = useState('');
   const [removeResult, setRemoveResult] = useState<{ removed: number; failed: number } | null>(null);
 
   function openConfirm() {
-    // Recompute default on open
-    const nonFactory = entries.filter((e) => selected.has(e.id)).some((e) => e.factory == null);
-    setKeepCopy(nonFactory);
+    setKeepCopy(false);
     setRemoveError('');
     setRemoveResult(null);
     setConfirmOpen(true);
   }
 
   async function handleRemove() {
-    // Only copy non-factory pianos (factory ones are re-downloadable and potentially multi-GB)
-    const keepCopyIds = keepCopy
-      ? new Set(entries.filter((e) => selected.has(e.id) && e.factory == null).map((e) => e.id))
-      : new Set<string>();
+    const keepCopyIds = keepCopyIdsFor(entries, selected, keepCopy);
     setRemoveError('');
     try {
       const result = await removeFromNord({ keepCopyIds });
@@ -202,7 +204,6 @@ export function PianosBrowse({
                     <Pill>{entry.isFactory ? 'Factory' : 'Yours'}</Pill>
                   )}
                   {entry.size != null && <span className="lib-slot">{formatBytes(entry.size)}</span>}
-                  {entry.factory && <Tag>Factory</Tag>}
                 </div>
               </Card>
             ))}
@@ -224,9 +225,9 @@ export function PianosBrowse({
           </div>
         }
       >
-        {anyFactory && (
+        {selectedEntries.some((entry) => entry.factory != null) && (
           <p className="lib-reclaim-disclaimer">
-            Some of these are factory pianos. You can re-download them any time from Nord's library.
+            You can re-install these from Nord's library any time:
             {selectedEntries.filter((entry) => entry.factory != null).map((entry) => (
               <span key={entry.id}>
                 {' '}<a href={entry.factory!.url} target="_blank" rel="noopener noreferrer">{entry.name}</a>
