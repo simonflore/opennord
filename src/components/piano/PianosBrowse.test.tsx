@@ -16,7 +16,7 @@ describe('PianosBrowse', () => {
     expect(html).not.toContain('1900000');
   });
   it('shows a Factory tag only for factory pianos', () => {
-    const factory = { url: 'https://nord/x', sizeKb: 1, sizeDescription: '1 GB', type: 'piano' as const };
+    const factory = { filename: 'Grand_XL_1.0.npno', url: 'https://nord/x', sizeKb: 1, sizeDescription: '1 GB', type: 'piano' as const };
     const withTag = renderToStaticMarkup(<PianosBrowse {...base} entries={[e({ factory })]} />);
     const without = renderToStaticMarkup(<PianosBrowse {...base} entries={[e({ factory: null })]} />);
     expect(withTag).toContain('Factory');
