@@ -6,6 +6,8 @@ import { downloadBytes } from '../../lib/download';
 import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
 import { Button, FileInput } from '../ui';
+import { analyzeRestore, type RestoreImpact as Impact } from '../../lib/device/restore-diff';
+import { RestoreImpact } from './RestoreImpact';
 
 /** Backup → download a .ns4b; Restore → confirm, write, summarize. */
 export function BackupPanel({ session, deviceName, onAfterRestore }: {
@@ -17,6 +19,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
   const [busy, setBusy] = useState(false);
   const [pendingZip, setPendingZip] = useState<Uint8Array | null>(null);
   const [skipped, setSkipped] = useState<string[]>([]);
+  const [impact, setImpact] = useState<Impact | 'loading' | 'error' | null>(null);
 
   async function runBackup() {
     if (busy) return;
@@ -37,6 +40,12 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
     setPendingZip(await readFileBytes(file));
     setStatus('');
     setSkipped([]); // clear any prior restore's skipped list
+    setImpact('loading');
+    try {
+      setImpact(await analyzeRestore(session, file));
+    } catch {
+      setImpact('error'); // preview is best-effort — never blocks the restore
+    }
   }
 
   async function confirmRestore() {
@@ -50,6 +59,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
       const failed = result.failures.length ? `; ${result.failures.length} couldn't be written` : '';
       setStatus(`Restored ${result.restored} files${skippedMsg}${failed}.`);
       setPendingZip(null);
+      setImpact(null);
       onAfterRestore();
     } catch (e) {
       setStatus(`Restore failed: ${getErrorMessage(e)}`);
@@ -66,11 +76,14 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
           This writes the backup's user content back to your Nord, overwriting the current programs,
           presets, Live and settings. Factory sample files in the backup are skipped.
         </p>
+        {impact === 'loading' && <p className="ps-sub" style={{ marginTop: 8 }}>Analyzing changes…</p>}
+        {impact === 'error' && <p className="ps-sub" style={{ marginTop: 8, color: 'var(--muted)' }}>Couldn't preview changes — you can still restore.</p>}
+        {impact && impact !== 'loading' && impact !== 'error' && <RestoreImpact impact={impact} />}
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
           <Button variant="primary" onClick={confirmRestore} disabled={busy}>
             {busy ? 'Restoring…' : 'Restore'}
           </Button>
-          <Button variant="secondary" onClick={() => setPendingZip(null)} disabled={busy}>Cancel</Button>
+          <Button variant="secondary" onClick={() => { setPendingZip(null); setImpact(null); }} disabled={busy}>Cancel</Button>
         </div>
         {status && <p className="ps-sub" style={{ marginTop: 8 }}>{status}</p>}
       </div>
