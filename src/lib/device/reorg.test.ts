@@ -176,6 +176,18 @@ describe('planInsert', () => {
     expect(p.bulk).toBe(true);
   });
 
+  it('inserts later with an internal gap — symmetric ripple stops at the gap, source freed', () => {
+    // X@0, P1@1, A3 empty, P3@3, P4@4 ; insert X(slot0) at slot4
+    const p = planInsert(occOf(prog(0,0,'X'),prog(0,1,'P1'),prog(0,3,'P3'),prog(0,4,'P4')),
+      { bank:0, slot:0 }, { bank:0, slot:4 }) as Plan;
+    expect(p.ops).toEqual([
+      { kind:'copy', from:{bank:0,slot:3}, to:{bank:0,slot:2} }, // P3 fills the gap at slot2
+      { kind:'copy', from:{bank:0,slot:4}, to:{bank:0,slot:3} }, // P4 shifts up
+      { kind:'copy', from:{bank:0,slot:0}, to:{bank:0,slot:4} }, // X → slot4
+      { kind:'delete', at:{bank:0,slot:0} },                      // X's old slot freed
+    ]);
+  });
+
   it('dropping onto an empty slot is a plain move (not bulk)', () => {
     const p = planInsert(occOf(prog(0,0,'X')), { bank:0, slot:0 }, { bank:0, slot:5 }) as Plan;
     expect(p.title).toBe('Move program');

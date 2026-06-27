@@ -26,7 +26,9 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
   return (
     <>
       <p className="ps-sub" style={{ marginTop: 0, marginBottom: 10 }}>
-        Drag a program onto an empty slot to move it, or onto another program to swap them.
+        {mode === 'insert'
+          ? 'Drag a program onto another to insert it there — the programs after it shift down. Drop on an empty slot to just move it.'
+          : 'Drag a program onto an empty slot to move it, or onto another program to swap them.'}
       </p>
       <div role="group" aria-label="Reorder mode" style={{ display: 'flex', gap: 'var(--s-2)', alignItems: 'center', marginBottom: 10 }}>
         <span className="ps-sub" style={{ margin: 0 }}>Reorder:</span>

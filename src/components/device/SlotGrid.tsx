@@ -45,6 +45,9 @@ export function SlotGrid({ bank, slotCount, entries, onGesture, mode = 'swap' }:
             }`}
             draggable={occupied}
             aria-label={`${formatSlot(bank, slot)}${occupied ? `: ${e!.name}` : ' (empty)'}`}
+            title={occupied
+              ? (mode === 'insert' ? 'Drop a program here to insert it — the programs after it shift down' : 'Drop a program here to swap')
+              : undefined}
             onDragStart={(ev) => {
               ev.dataTransfer.setData(DRAG_MIME, JSON.stringify({ bank, slot }));
               ev.dataTransfer.effectAllowed = 'move';
