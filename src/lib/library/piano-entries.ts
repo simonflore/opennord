@@ -45,7 +45,7 @@ export function pianoEntriesFromBackupRefs(refs: BackupRef[]): PianoEntry[] {
       source: 'backup' as const,
       size: ref.entry.size,
       factory: resolveFactory(name, 'npno'),
-      isFactory: ref.native,
+      isFactory: undefined,
       backupRef: ref,
     };
   });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { zipSync, strToU8, type ZipOptions } from 'fflate';
-import { readZipDirectory, extractZipEntry } from './zip-directory';
+import { readZipDirectory, extractZipEntry, extractZipEntryHead } from './zip-directory';
 
 // fflate zipSync builds a real ZIP we can index + extract from. level 0 = stored, else deflate.
 function zipBlob(files: Record<string, [Uint8Array, ZipOptions['level']]>): Blob {
@@ -35,6 +35,30 @@ describe('zip-directory', () => {
     const entries = await readZipDirectory(blob);
     const e = entries.find((x) => x.path === 'b/deflated.bin')!;
     expect([...await extractZipEntry(blob, e)]).toEqual([...deflated]);
+  });
+
+  it('extractZipEntryHead returns head of a STORED entry (method 0)', async () => {
+    const entries = await readZipDirectory(blob);
+    const e = entries.find((x) => x.path === 'a/stored.bin')!;
+    const full = await extractZipEntry(blob, e);
+    const head = await extractZipEntryHead(blob, e, 5);
+    expect([...head]).toEqual([...full.subarray(0, 5)]);
+  });
+
+  it('extractZipEntryHead returns head of a DEFLATE entry (method 8)', async () => {
+    const entries = await readZipDirectory(blob);
+    const e = entries.find((x) => x.path === 'b/deflated.bin')!;
+    const full = await extractZipEntry(blob, e);
+    const head = await extractZipEntryHead(blob, e, 100);
+    expect([...head]).toEqual([...full.subarray(0, 100)]);
+  });
+
+  it('extractZipEntryHead clamps to entry size when n > size', async () => {
+    const entries = await readZipDirectory(blob);
+    const e = entries.find((x) => x.path === 'a/stored.bin')!;
+    const full = await extractZipEntry(blob, e);
+    const head = await extractZipEntryHead(blob, e, 9999);
+    expect([...head]).toEqual([...full]);
   });
 
   // ZIP64 guard: when 32-bit fields are saturated but no ZIP64 locator is present,

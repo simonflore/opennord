@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, openAsBlob } from 'node:fs';
 import { join } from 'node:path';
 import { patchNs4Checksum } from '../clavia/checksum';
-import { readNsmp, readNpnoName, parseNsmpSections, hdrFactoryFlag, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, type NsmpSection } from './nsmp';
+import { readNsmp, readNpnoName, parseNsmpSections, hdrFactoryFlag, nsmpHeadFactory, NSMP_FACTORY_HEAD_BYTES, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, type NsmpSection } from './nsmp';
 import { writeNsmp } from './nsmp-write';
 import { indexBackup } from '../clavia/backup/backup-index';
-import { extractZipEntry } from '../clavia/backup/zip-directory';
+import { extractZipEntry, extractZipEntryHead } from '../clavia/backup/zip-directory';
 
 describe('hdrFactoryFlag — structural origin signal (RE: hdr payload +8)', () => {
   const hdr: NsmpSection = { tag: '\0hdr', version: 11, size: 16, payloadOffset: 4, endOffset: 20 };
@@ -27,6 +27,69 @@ describe('structural factory flag vs the real backup', () => {
     expect(mello, 'a Mellotron factory sample present').toBeTruthy();
     expect(readNsmp(await extractZipEntry(blob, toxic!.entry)).suspectedFactory).toBe(false); // yours
     expect(readNsmp(await extractZipEntry(blob, mello!.entry)).suspectedFactory).toBe(true);  // factory
+  });
+});
+
+// Real-backup head integration test: same assertions as the full-extract test but
+// via the cheap HEAD path (extractZipEntryHead + nsmpHeadFactory).
+const REAL_BACKUP_HEAD = '/Users/simonflore/Documents/TBM/Backup 2026-06-13.ns4b';
+describe('nsmpHeadFactory via extractZipEntryHead — real backup head probe', () => {
+  it.skipIf(!existsSync(REAL_BACKUP_HEAD))('User import → false, factory sample → true (via head)', async () => {
+    const blob = await openAsBlob(REAL_BACKUP_HEAD);
+    const contents = await indexBackup(blob, 'TBM.ns4b');
+    const toxic = contents.samples.find((r) => /\/User\/Toxic\.nsmp4$/.test(r.entry.path));
+    const mello = contents.samples.find((r) => /\/Mellotron\//.test(r.entry.path));
+    expect(toxic, 'Toxic.nsmp4 present').toBeTruthy();
+    expect(mello, 'a Mellotron factory sample present').toBeTruthy();
+    const toxicHead = await extractZipEntryHead(blob, toxic!.entry, NSMP_FACTORY_HEAD_BYTES);
+    const melloHead = await extractZipEntryHead(blob, mello!.entry, NSMP_FACTORY_HEAD_BYTES);
+    expect(nsmpHeadFactory(toxicHead)).toBe(false);  // user import
+    expect(nsmpHeadFactory(melloHead)).toBe(true);   // factory
+  });
+});
+
+describe('nsmpHeadFactory — factory-vs-user from file head only', () => {
+  // Build a minimal codec-4 .nsmp4 head: CBIN header (0x2c bytes) +
+  // NSMP section (tag + ver=400 + size=4 + 4-byte pad = 16 bytes) +
+  // hdr section (tag + ver + size + 16-byte payload where bytes +8 are the flag).
+  // Version 400 → codec 4 (identifyNsmp: codec = floor(versionRaw/100)).
+  function makeCodec4Head(flagByte8: number, flagByte9: number): Uint8Array {
+    const buf = new Uint8Array(NSMP_FACTORY_HEAD_BYTES);
+    const ascii = (s: string, at: number) => { for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i); };
+    const u32be = (v: number, at: number) => { buf[at] = (v >>> 24) & 0xff; buf[at + 1] = (v >>> 16) & 0xff; buf[at + 2] = (v >>> 8) & 0xff; buf[at + 3] = v & 0xff; };
+    ascii('CBIN', 0x00);
+    buf[0x04] = 1;
+    ascii('nsmp', 0x08);
+    // version 4.00 in LE u16 at 0x14
+    buf[0x14] = (400 & 0xff); buf[0x15] = (400 >> 8) & 0xff;
+    // NSMP root section @0x2c: tag NSMP, ver=40, size=4
+    u32be(0x4e534d50, 0x2c); u32be(40, 0x30); u32be(4, 0x34);
+    // hdr section @0x3c: tag \0hdr (0x00686472), ver=11, size=16 (holds flag at +8)
+    u32be(0x00686472, 0x3c); u32be(11, 0x40); u32be(16, 0x44);
+    // hdr payload @0x48; flag word at +8 (bytes 0x50, 0x51)
+    buf[0x48 + 8] = flagByte8;
+    buf[0x48 + 9] = flagByte9;
+    return buf;
+  }
+
+  it('returns true for factory head (hdr +8 non-zero, codec 4)', () => {
+    expect(nsmpHeadFactory(makeCodec4Head(0x0a, 0x01))).toBe(true);
+  });
+
+  it('returns false for user head (hdr +8 zero, codec 4)', () => {
+    expect(nsmpHeadFactory(makeCodec4Head(0x00, 0x00))).toBe(false);
+  });
+
+  it('returns undefined for a non-codec-4 head (codec 3)', () => {
+    const buf = new Uint8Array(NSMP_FACTORY_HEAD_BYTES);
+    const ascii = (s: string, at: number) => { for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i); };
+    ascii('CBIN', 0x00); buf[0x04] = 1; ascii('nsmp', 0x08);
+    buf[0x14] = (300 & 0xff); buf[0x15] = (300 >> 8) & 0xff; // codec 3
+    expect(nsmpHeadFactory(buf)).toBeUndefined();
+  });
+
+  it('returns undefined for garbage input', () => {
+    expect(nsmpHeadFactory(new Uint8Array(10))).toBeUndefined();
   });
 });
 
