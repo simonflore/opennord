@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { FakeDevice } from './fake-device';
 import { buildOccupancy, planMove, planSwap, planArrange, planInsert, type Plan } from './reorg';
 import { executePlan } from './execute';
+import { planOffload } from './offload';
 import type { ProgramEntry } from './transfer';
 
 const PART = 6;
@@ -175,5 +176,37 @@ describe('executePlan', () => {
     expect(res.ok).toBe(false);
     expect(res.rolledBack).toBe(true);
     expect([...dev.snapshot()]).toEqual([...initial]);
+  });
+
+  it('executes an offload: the targeted slots end empty', async () => {
+    const a = entry({ bank: 5, slot: 2, name: 'Old Pad' });
+    const b = entry({ bank: 5, slot: 4, name: 'Old Bell' });
+    const dev = new FakeDevice([
+      { partition: PART, file: file(8), entry: a },
+      { partition: PART, file: file(9), entry: b },
+    ]);
+    const occ = buildOccupancy([a, b]);
+    const res = await executePlan(dev, PART, planOffload([{ bank:5, slot:2 }, { bank:5, slot:4 }]), occ);
+    expect(res.ok).toBe(true);
+    expect(await dev.info(PART, { bank:5, slot:2 })).toBeNull();
+    expect(await dev.info(PART, { bank:5, slot:4 })).toBeNull();
+  });
+
+  it('rolls a failed offload back — deleted samples restored', async () => {
+    const a = entry({ bank: 5, slot: 2, name: 'Old Pad' });
+    const b = entry({ bank: 5, slot: 4, name: 'Old Bell' });
+    const dev = new FakeDevice([
+      { partition: PART, file: file(8), entry: a },
+      { partition: PART, file: file(9), entry: b },
+    ]);
+    const initial = dev.snapshot();
+    dev.failNext('delete', PART, { bank: 5, slot: 4 }); // second delete fails
+    const occ = buildOccupancy([a, b]);
+    const res = await executePlan(dev, PART, planOffload([{ bank:5, slot:2 }, { bank:5, slot:4 }]), occ);
+    expect(res.ok).toBe(false);
+    expect(res.rolledBack).toBe(true);
+    // compare as sorted arrays — Map insertion order shifts when rollback re-inserts a deleted slot
+    const sort = (m: Map<string, number>) => [...m].sort(([a], [b]) => a.localeCompare(b));
+    expect(sort(dev.snapshot())).toEqual(sort(initial)); // both restored
   });
 });
