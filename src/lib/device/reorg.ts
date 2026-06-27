@@ -72,6 +72,55 @@ export function planReorg(occ: Occupancy, from: Addr, to: Addr): Plan | PlanErro
   return occ.has(addrKey(to)) ? planSwap(occ, from, to) : planMove(occ, from, to);
 }
 
+/** Insert the program at `from` so it lands at `to`, rippling the run between by
+ *  one toward the first empty slot (the vacated source counts as empty). Same bank
+ *  only — a clean rotation that never needs a free slot. Dropping onto an empty
+ *  slot degenerates to a plain move. Bulk (remaps a run of slots). */
+export function planInsert(occ: Occupancy, from: Addr, to: Addr): Plan | PlanError {
+  if (from.bank !== to.bank) return { error: 'Insert works within one bank for now.' };
+  if (addrKey(from) === addrKey(to)) return { error: 'Dropped on the same slot.' };
+  const src = occ.get(addrKey(from));
+  if (!src) return { error: 'There is no program in the source slot.' };
+  if (!occ.has(addrKey(to))) return planMove(occ, from, to); // onto an empty slot → plain move
+
+  const bank = from.bank;
+  // `from` empties as the program leaves, so treat it as empty while scanning.
+  const has = (slot: number) => slot !== from.slot && occ.has(addrKey({ bank, slot }));
+  const ops: Op[] = [];
+  let moved = 0;
+  if (to.slot < from.slot) {
+    let e = to.slot;
+    while (has(e)) e++;                       // first empty at/above `to` (≤ from)
+    for (let s = e - 1; s >= to.slot; s--) {  // shift [to, e-1] down by one
+      ops.push({ kind: 'copy', from: { bank, slot: s }, to: { bank, slot: s + 1 } });
+      moved++;
+    }
+  } else {
+    let e = to.slot;
+    while (has(e)) e--;                        // first empty at/below `to` (≥ from)
+    for (let s = e + 1; s <= to.slot; s++) {   // shift [e+1, to] up by one
+      ops.push({ kind: 'copy', from: { bank, slot: s }, to: { bank, slot: s - 1 } });
+      moved++;
+    }
+  }
+  ops.push({ kind: 'copy', from, to });        // place the program at `to`
+  const refilled = ops.some((o) => o.kind === 'copy' && addrKey(o.to) === addrKey(from));
+  if (!refilled) ops.push({ kind: 'delete', at: from }); // source left empty
+
+  const seen = new Set<string>();
+  const journalSlots: Addr[] = [];
+  for (const op of ops) {
+    for (const a of op.kind === 'copy' ? [op.from, op.to] : [op.at]) {
+      if (!seen.has(addrKey(a))) { seen.add(addrKey(a)); journalSlots.push(a); }
+    }
+  }
+  const direction = to.slot < from.slot ? 'down' : 'up';
+  return {
+    ops, journalSlots, title: 'Insert program', bulk: true,
+    summary: `Insert "${src.name || formatSlot(from.bank, from.slot)}" at ${formatSlot(to.bank, to.slot)} — ${moved} ${moved === 1 ? 'program' : 'programs'} shift ${direction}`,
+  };
+}
+
 export type ArrangeMode = 'name' | 'compact';
 
 /** Tidy one bank in a single batch: 'name' sorts A–Z, 'compact' removes gaps

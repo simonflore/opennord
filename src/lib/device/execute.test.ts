@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { FakeDevice } from './fake-device';
-import { buildOccupancy, planMove, planSwap, planArrange, type Plan } from './reorg';
+import { buildOccupancy, planMove, planSwap, planArrange, planInsert, type Plan } from './reorg';
 import { executePlan } from './execute';
 import type { ProgramEntry } from './transfer';
 
@@ -139,5 +139,41 @@ describe('executePlan', () => {
     expect(res.ok).toBe(false);
     expect(res.rolledBack).toBe(true);
     expect([...dev.snapshot()]).toEqual([...initial]); // whole bank restored
+  });
+
+  it('executes an insert: the run ripples and lands in order', async () => {
+    const a = entry({ bank: 2, slot: 0, name: 'P1' });
+    const b = entry({ bank: 2, slot: 1, name: 'P2' });
+    const x = entry({ bank: 2, slot: 2, name: 'X' });
+    const dev = new FakeDevice([
+      { partition: PART, file: file(4), entry: a },
+      { partition: PART, file: file(5), entry: b },
+      { partition: PART, file: file(6), entry: x },
+    ]);
+    const occ = buildOccupancy([a, b, x]);
+    // insert X(slot2) at slot0 → X, P1, P2 (rotation, no slot freed)
+    const res = await executePlan(dev, PART, planInsert(occ, { bank:2, slot:2 }, { bank:2, slot:0 }) as Plan, occ);
+    expect(res.ok).toBe(true);
+    expect((await dev.info(PART, { bank:2, slot:0 }))?.name).toBe('X');
+    expect((await dev.info(PART, { bank:2, slot:1 }))?.name).toBe('P1');
+    expect((await dev.info(PART, { bank:2, slot:2 }))?.name).toBe('P2');
+  });
+
+  it('rolls a failed insert back to the original layout', async () => {
+    const a = entry({ bank: 2, slot: 0, name: 'P1' });
+    const b = entry({ bank: 2, slot: 1, name: 'P2' });
+    const x = entry({ bank: 2, slot: 2, name: 'X' });
+    const dev = new FakeDevice([
+      { partition: PART, file: file(4), entry: a },
+      { partition: PART, file: file(5), entry: b },
+      { partition: PART, file: file(6), entry: x },
+    ]);
+    const initial = dev.snapshot();
+    dev.failNext('push', PART, { bank: 2, slot: 0 }); // the X→slot0 copy fails
+    const occ = buildOccupancy([a, b, x]);
+    const res = await executePlan(dev, PART, planInsert(occ, { bank:2, slot:2 }, { bank:2, slot:0 }) as Plan, occ);
+    expect(res.ok).toBe(false);
+    expect(res.rolledBack).toBe(true);
+    expect([...dev.snapshot()]).toEqual([...initial]);
   });
 });

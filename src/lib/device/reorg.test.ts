@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildOccupancy, planMove, planSwap, planReorg, isPlanError, addrKey, planArrange, type Plan } from './reorg';
+import { buildOccupancy, planMove, planSwap, planReorg, isPlanError, addrKey, planArrange, planInsert, type Plan } from './reorg';
 import type { ProgramEntry } from './transfer';
 
 const entry = (over: Partial<ProgramEntry>): ProgramEntry => ({
@@ -129,5 +129,70 @@ describe('planArrange', () => {
   it('returns a PlanError when the bank is already arranged', () => {
     expect(planArrange(occOf(prog(0, 0, 'A'), prog(0, 1, 'B')), 0, 'name'))
       .toEqual({ error: 'This bank is already arranged.' });
+  });
+});
+
+describe('planInsert', () => {
+  const prog = (bank: number, slot: number, name: string): ProgramEntry => ({
+    bank, slot, name, categoryId: 0, version: 313, sizeBytes: 100, fourcc: 'ns4p',
+  });
+  const occOf = (...e: ProgramEntry[]) => buildOccupancy(e);
+
+  it('inserts earlier into a full run — a clean rotation, no slot freed', () => {
+    // A1 P1, A2 P2, A3 P3, A4 P4, A5 X ; insert X(slot4) at slot1
+    const p = planInsert(occOf(prog(0,0,'P1'),prog(0,1,'P2'),prog(0,2,'P3'),prog(0,3,'P4'),prog(0,4,'X')),
+      { bank:0, slot:4 }, { bank:0, slot:1 }) as Plan;
+    expect(p.title).toBe('Insert program');
+    expect(p.bulk).toBe(true);
+    // shifts P2,P3,P4 down one, X→slot1, no delete (rotation)
+    expect(p.ops).toEqual([
+      { kind:'copy', from:{bank:0,slot:3}, to:{bank:0,slot:4} },
+      { kind:'copy', from:{bank:0,slot:2}, to:{bank:0,slot:3} },
+      { kind:'copy', from:{bank:0,slot:1}, to:{bank:0,slot:2} },
+      { kind:'copy', from:{bank:0,slot:4}, to:{bank:0,slot:1} },
+    ]);
+  });
+
+  it('inserts earlier with an internal gap — ripple stops at the gap, source freed', () => {
+    // A1 P1, A2 P2, A3 empty, A4 P4, A5 X ; insert X(slot4) at slot1
+    const p = planInsert(occOf(prog(0,0,'P1'),prog(0,1,'P2'),prog(0,3,'P4'),prog(0,4,'X')),
+      { bank:0, slot:4 }, { bank:0, slot:1 }) as Plan;
+    expect(p.ops).toEqual([
+      { kind:'copy', from:{bank:0,slot:1}, to:{bank:0,slot:2} }, // P2 fills the gap at slot2
+      { kind:'copy', from:{bank:0,slot:4}, to:{bank:0,slot:1} }, // X → slot1
+      { kind:'delete', at:{bank:0,slot:4} },                      // X's old slot freed
+    ]);
+  });
+
+  it('inserts later — symmetric ripple toward the source', () => {
+    // A1 P1, A2 X, A3 P3, A4 P4, A5 P5 ; insert X(slot1) at slot3
+    const p = planInsert(occOf(prog(0,0,'P1'),prog(0,1,'X'),prog(0,2,'P3'),prog(0,3,'P4'),prog(0,4,'P5')),
+      { bank:0, slot:1 }, { bank:0, slot:3 }) as Plan;
+    expect(p.ops).toEqual([
+      { kind:'copy', from:{bank:0,slot:2}, to:{bank:0,slot:1} },
+      { kind:'copy', from:{bank:0,slot:3}, to:{bank:0,slot:2} },
+      { kind:'copy', from:{bank:0,slot:1}, to:{bank:0,slot:3} },
+    ]);
+    expect(p.bulk).toBe(true);
+  });
+
+  it('dropping onto an empty slot is a plain move (not bulk)', () => {
+    const p = planInsert(occOf(prog(0,0,'X')), { bank:0, slot:0 }, { bank:0, slot:5 }) as Plan;
+    expect(p.title).toBe('Move program');
+    expect(p.bulk).toBeFalsy();
+  });
+
+  it('every copy source is journaled', () => {
+    const p = planInsert(occOf(prog(0,0,'P1'),prog(0,1,'P2'),prog(0,2,'X')),
+      { bank:0, slot:2 }, { bank:0, slot:0 }) as Plan;
+    const keys = new Set(p.journalSlots.map(addrKey));
+    for (const op of p.ops) if (op.kind === 'copy') expect(keys.has(addrKey(op.from))).toBe(true);
+  });
+
+  it('rejects cross-bank, same-slot, and empty-source', () => {
+    const occ = occOf(prog(0,0,'X'), prog(1,0,'Y'));
+    expect(planInsert(occ, { bank:0, slot:0 }, { bank:1, slot:0 })).toEqual({ error: 'Insert works within one bank for now.' });
+    expect(planInsert(occ, { bank:0, slot:0 }, { bank:0, slot:0 })).toEqual({ error: 'Dropped on the same slot.' });
+    expect(planInsert(occ, { bank:0, slot:9 }, { bank:0, slot:0 })).toEqual({ error: 'There is no program in the source slot.' });
   });
 });
