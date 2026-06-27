@@ -9,6 +9,7 @@ interface Props {
   slotCount: number;
   entries: ProgramEntry[];
   onGesture(g: { kind: 'move'; from: Addr; to: Addr }): void;
+  mode?: 'swap' | 'insert';
 }
 
 /** MIME carried on the drag so the source {bank,slot} travels with it — across grid
@@ -17,7 +18,7 @@ const DRAG_MIME = 'application/x-nord-slot';
 
 /** A grid of one bank's slots. Drag an occupied slot onto an empty one — in this or
  *  any other bank's grid — to move it. */
-export function SlotGrid({ bank, slotCount, entries, onGesture }: Props) {
+export function SlotGrid({ bank, slotCount, entries, onGesture, mode = 'swap' }: Props) {
   const bySlot = new Map(entries.filter((e) => e.bank === bank).map((e) => [e.slot, e]));
   const bankLabel = BANK_LETTERS[bank & 0x7] ?? String(bank);
   // Highlight-only: which empty cell a drag is currently over. Local to this grid
@@ -35,7 +36,13 @@ export function SlotGrid({ bank, slotCount, entries, onGesture }: Props) {
             key={slot}
             data-slot={slot}
             data-occupied={occupied}
-            className={`slot-grid__cell${occupied ? ' slot-grid__cell--occupied' : ''}${overSlot === slot ? (occupied ? ' slot-grid__cell--swap-over' : ' slot-grid__cell--over') : ''}`}
+            className={`slot-grid__cell${occupied ? ' slot-grid__cell--occupied' : ''}${
+              overSlot === slot
+                ? occupied
+                  ? (mode === 'insert' ? ' slot-grid__cell--insert-over' : ' slot-grid__cell--swap-over')
+                  : ' slot-grid__cell--over'
+                : ''
+            }`}
             draggable={occupied}
             aria-label={`${formatSlot(bank, slot)}${occupied ? `: ${e!.name}` : ' (empty)'}`}
             onDragStart={(ev) => {

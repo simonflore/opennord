@@ -45,4 +45,9 @@ describe('OrganizeGrids', () => {
     const html = renderToStaticMarkup(<OrganizeGrids entries={[prog(0, 0, 'Solo')]} reorg={baseReorg()} />);
     expect(html).not.toMatch(/Sort A–Z/);
   });
+  it('renders the Swap/Insert reorder mode toggle', () => {
+    const html = renderToStaticMarkup(<OrganizeGrids entries={[prog(0,0,'A'),prog(0,1,'B')]} reorg={baseReorg()} />);
+    expect(html).toMatch(/Swap/);
+    expect(html).toMatch(/Insert/);
+  });
 });

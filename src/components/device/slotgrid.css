@@ -39,6 +39,15 @@
   color: var(--ink);
 }
 
+/* Hovering an occupied slot in Insert mode — signals a shift-insert (not a swap). */
+.slot-grid__cell--insert-over {
+  border-style: solid;
+  border-color: var(--red-bright);
+  background: color-mix(in srgb, var(--red-bright) 16%, var(--surface-2));
+  color: var(--ink);
+  box-shadow: inset 0 2px 0 var(--red-bright);
+}
+
 /* Occupied slots: solid, interactive, grabbable. */
 .slot-grid__cell--occupied {
   cursor: grab;
