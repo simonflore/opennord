@@ -1,9 +1,34 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, openAsBlob } from 'node:fs';
 import { join } from 'node:path';
 import { patchNs4Checksum } from '../clavia/checksum';
-import { readNsmp, readNpnoName, parseNsmpSections, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison } from './nsmp';
+import { readNsmp, readNpnoName, parseNsmpSections, hdrFactoryFlag, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, type NsmpSection } from './nsmp';
 import { writeNsmp } from './nsmp-write';
+import { indexBackup } from '../clavia/backup/backup-index';
+import { extractZipEntry } from '../clavia/backup/zip-directory';
+
+describe('hdrFactoryFlag — structural origin signal (RE: hdr payload +8)', () => {
+  const hdr: NsmpSection = { tag: '\0hdr', version: 11, size: 16, payloadOffset: 4, endOffset: 20 };
+  const withFlag = (b8: number, b9: number) => { const a = new Uint8Array(20); a[4 + 8] = b8; a[4 + 9] = b9; return a; };
+  it('zero flag word ⇒ user import', () => { expect(hdrFactoryFlag(withFlag(0x00, 0x00), hdr)).toBe(false); });
+  it('non-zero flag word ⇒ factory', () => { expect(hdrFactoryFlag(withFlag(0x0a, 0x01), hdr)).toBe(true); });
+  it('truncated flag region ⇒ false (no false-positive)', () => { expect(hdrFactoryFlag(new Uint8Array(8), hdr)).toBe(false); });
+});
+
+// End-to-end against the real Stage-4 backup (gitignored corpus; skips when absent).
+const REAL_BACKUP = '/Users/simonflore/Documents/TBM/Backup 2026-06-13.ns4b';
+describe('structural factory flag vs the real backup', () => {
+  it.skipIf(!existsSync(REAL_BACKUP))('User-bank import = user, factory category = factory', async () => {
+    const blob = await openAsBlob(REAL_BACKUP);
+    const contents = await indexBackup(blob, 'TBM.ns4b');
+    const toxic = contents.samples.find((r) => /\/User\/Toxic\.nsmp4$/.test(r.entry.path));
+    const mello = contents.samples.find((r) => /\/Mellotron\//.test(r.entry.path));
+    expect(toxic, 'Toxic.nsmp4 present').toBeTruthy();
+    expect(mello, 'a Mellotron factory sample present').toBeTruthy();
+    expect(readNsmp(await extractZipEntry(blob, toxic!.entry)).suspectedFactory).toBe(false); // yours
+    expect(readNsmp(await extractZipEntry(blob, mello!.entry)).suspectedFactory).toBe(true);  // factory
+  });
+});
 
 /** Build a minimal synthetic `.nsmp` (CBIN header + NSMP + hdr sections). */
 function makeSyntheticNsmp(name = 'Hi'): Uint8Array {
