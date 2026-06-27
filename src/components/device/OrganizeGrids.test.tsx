@@ -8,7 +8,7 @@ const noop = () => {};
 const baseReorg = (over: Partial<ReorgApi> = {}): ReorgApi => ({
   pendingPlan: null, busy: false, progress: null, error: '', result: null,
   dontAsk: false, setDontAsk: noop,
-  onGesture: noop, confirm: async () => {}, cancel: noop, ...over,
+  propose: noop, onGesture: noop, confirm: async () => {}, cancel: noop, ...over,
 });
 const prog = (bank: number, slot: number, name: string): ProgramEntry => ({
   bank, slot, name, categoryId: 0, version: 313, sizeBytes: 100, fourcc: 'ns4p',

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { DeviceIO } from '../../lib/device/device-io';
 import { executePlan, type ExecProgress, type ExecResult } from '../../lib/device/execute';
-import { planReorg, buildOccupancy, isPlanError, type Addr, type Occupancy, type Plan } from '../../lib/device/reorg';
+import { planReorg, buildOccupancy, isPlanError, type Addr, type Occupancy, type Plan, type PlanError } from '../../lib/device/reorg';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import { getErrorMessage } from '../../lib/errors';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
@@ -32,6 +32,8 @@ export interface ReorgApi {
   /** "Don't ask again this session" — once set, gestures apply without confirming. */
   dontAsk: boolean;
   setDontAsk(v: boolean): void;
+  /** Generic entry point: build occupancy, run any planner, then confirm/apply. */
+  propose(makePlan: (occ: Occupancy) => Plan | PlanError): void;
   onGesture(g: { kind: 'move'; from: Addr; to: Addr }): void;
   confirm(): Promise<void>;
   cancel(): void;
@@ -67,11 +69,11 @@ export function useReorg({ io, partition, entries, refresh, backupOnce, run, aut
     setProgress(null);
   }
 
-  function onGesture(g: { kind: 'move'; from: Addr; to: Addr }) {
+  function propose(makePlan: (occ: Occupancy) => Plan | PlanError) {
     setError('');
     setResult(null);
     const occ = buildOccupancy(entries);
-    const plan = planReorg(occ, g.from, g.to);
+    const plan = makePlan(occ);
     if (isPlanError(plan)) { setError(plan.error); return; }
     occRef.current = occ; // freeze the exact occupancy the plan was validated against
     if (autoApply || dontAsk) {
@@ -81,10 +83,14 @@ export function useReorg({ io, partition, entries, refresh, backupOnce, run, aut
     }
   }
 
+  function onGesture(g: { kind: 'move'; from: Addr; to: Addr }) {
+    propose((occ) => planReorg(occ, g.from, g.to));
+  }
+
   async function confirm() {
     if (!pendingPlan || busy) return;
     await apply(pendingPlan);
   }
 
-  return { pendingPlan, busy, progress, error, result, dontAsk, setDontAsk, onGesture, confirm, cancel: () => setPendingPlan(null) };
+  return { pendingPlan, busy, progress, error, result, dontAsk, setDontAsk, propose, onGesture, confirm, cancel: () => setPendingPlan(null) };
 }

@@ -4,6 +4,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useReorg } from './useReorg';
 import type { DeviceIO } from '../../lib/device/device-io';
 import type { ProgramEntry } from '../../lib/device/transfer';
+import { type Occupancy, planArrange } from '../../lib/device/reorg';
 
 const prog = (bank: number, slot: number, name: string): ProgramEntry => ({
   bank, slot, name, categoryId: 0, version: 313, sizeBytes: 100, fourcc: 'ns4p',
@@ -92,5 +93,29 @@ describe('useReorg', () => {
     await act(async () => { await result.current.confirm(); });
     expect(result.current.pendingPlan).toBeNull();
     expect(result.current.error).toMatch(/failed/i);
+  });
+
+  it('propose routes a ready plan through the confirm flow (non-auto shows pending)', () => {
+    const entries = [prog(0, 0, 'B'), prog(0, 1, 'A')];
+    const { result } = renderHook(() => useReorg({ io: ioFor(entries), partition: 6, entries, refresh: vi.fn() }));
+    act(() => result.current.propose((occ: Occupancy) => planArrange(occ, 0, 'name')));
+    expect(result.current.pendingPlan?.title).toBe('Sort bank A–Z');
+  });
+
+  it('propose surfaces a PlanError as error, no pending plan', () => {
+    const entries = [prog(0, 0, 'A'), prog(0, 1, 'B')]; // already arranged
+    const { result } = renderHook(() => useReorg({ io: ioFor(entries), partition: 6, entries, refresh: vi.fn() }));
+    act(() => result.current.propose((occ: Occupancy) => planArrange(occ, 0, 'name')));
+    expect(result.current.pendingPlan).toBeNull();
+    expect(result.current.error).toMatch(/already arranged/i);
+  });
+
+  it('propose under autoApply applies immediately (refresh called, no pending)', async () => {
+    const entries = [prog(0, 0, 'B'), prog(0, 1, 'A')];
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useReorg({ io: ioFor(entries), partition: 6, entries, refresh, autoApply: true }));
+    await act(async () => { result.current.propose((occ: Occupancy) => planArrange(occ, 0, 'name')); });
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    expect(result.current.pendingPlan).toBeNull();
   });
 });
