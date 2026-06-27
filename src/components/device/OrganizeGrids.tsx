@@ -6,6 +6,7 @@ import { BankLabel } from './BankLabel';
 import { PlanProgress } from './PlanProgress';
 import { Dialog, Button } from '../ui';
 import type { ReorgApi } from './useReorg';
+import { planArrange, type ArrangeMode } from '../../lib/device/reorg';
 
 /** The Organize view: per-bank grids + a Dialog confirm. Shared by the live-device
  *  Organize mode and the backup organizer (which supply the `reorg` flow). */
@@ -22,12 +23,24 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
       <p className="ps-sub" style={{ marginTop: 0, marginBottom: 10 }}>
         Drag a program onto an empty slot to move it, or onto another program to swap them.
       </p>
-      {BANK_LETTERS.split('').map((_, bank) => (
-        <div key={bank} style={{ marginBottom: 14 }}>
-          <BankLabel bank={bank} />
-          <SlotGrid bank={bank} slotCount={64} entries={entries} onGesture={reorg.onGesture} />
-        </div>
-      ))}
+      {BANK_LETTERS.split('').map((_, bank) => {
+        const count = entries.filter((e) => e.bank === bank).length;
+        const arrange = (mode: ArrangeMode) => reorg.propose((occ) => planArrange(occ, bank, mode));
+        return (
+          <div key={bank} style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--s-2)' }}>
+              <BankLabel bank={bank} />
+              {count >= 2 && (
+                <div style={{ display: 'flex', gap: 'var(--s-2)' }}>
+                  <Button variant="ghost" disabled={reorg.busy} onClick={() => arrange('name')}>Sort A–Z</Button>
+                  <Button variant="ghost" disabled={reorg.busy} onClick={() => arrange('compact')}>Compact</Button>
+                </div>
+              )}
+            </div>
+            <SlotGrid bank={bank} slotCount={64} entries={entries} onGesture={reorg.onGesture} />
+          </div>
+        );
+      })}
       <Dialog
         open={!!plan}
         onClose={() => { if (!reorg.busy) reorg.cancel(); }}

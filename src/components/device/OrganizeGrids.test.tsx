@@ -27,4 +27,15 @@ describe('OrganizeGrids', () => {
     expect(html).toContain('Swap &quot;A&quot; and &quot;B&quot;');
     expect(html).toMatch(/don.t ask again/i); // the remember toggle is in the confirm
   });
+  it('shows Sort/Compact controls only for banks with two or more programs', () => {
+    // bank 0 has 2 programs; everything else empty
+    const entries = [prog(0, 0, 'B'), prog(0, 1, 'A')];
+    const html = renderToStaticMarkup(<OrganizeGrids entries={entries} reorg={baseReorg()} />);
+    expect((html.match(/Sort A–Z/g) ?? []).length).toBe(1);
+    expect((html.match(/Compact/g) ?? []).length).toBe(1);
+  });
+  it('shows no Sort/Compact controls when no bank has two programs', () => {
+    const html = renderToStaticMarkup(<OrganizeGrids entries={[prog(0, 0, 'Solo')]} reorg={baseReorg()} />);
+    expect(html).not.toMatch(/Sort A–Z/);
+  });
 });
