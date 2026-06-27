@@ -9,9 +9,23 @@ import {
   type SampleEntry, type SampleGeneration,
 } from '@/lib/library/sample-entries';
 import type { LibrarySource } from '@/lib/library/types';
-import { enumerateSampleLibrary } from '@/lib/device/samples';
+import { enumerateSampleLibrary, pullSample } from '@/lib/device/samples';
 import { findUnusedSamples, normalizeSampleName, type SampleUsage } from '@/lib/device/dependencies';
 import { useBackupOrigins } from './useBackupOrigins';
+import { planOffload } from '@/lib/device/offload';
+import { executePlan } from '@/lib/device/execute';
+import { sessionDeviceIO } from '@/lib/device/device-io';
+import { buildOccupancy, type Addr } from '@/lib/device/reorg';
+import { PARTITION_SAMP_LIB } from '@/lib/device/opcodes';
+import { downloadBytes } from '@/lib/download';
+
+// pure helper, exported for tests
+export function selectedBytes(entries: SampleEntry[], selected: Set<string>): number {
+  return entries.filter((e) => selected.has(e.id)).reduce((n, e) => n + (e.device?.sizeBytes ?? e.size ?? 0), 0);
+}
+
+const SAMPLE_EXT: Record<string, string> = { og: 'nsmp', '3': 'nsmp3', '4': 'nsmp4', npno: 'npno' };
+const extForGeneration = (g: string) => SAMPLE_EXT[g] ?? 'nsmp4';
 
 /** Merges device + folder samples into one filtered/sorted list and owns the
  *  Samples-screen view state. Mirrors useLibraryStateValue for programs. */
@@ -30,6 +44,12 @@ function useSamplesStateValue() {
   const [usage, setUsage] = useState<SampleUsage | null>(null);
   const [scanPct, setScanPct] = useState<number | null>(null);
   const [unusedOnly, setUnusedOnly] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [removing, setRemoving] = useState(false);
+  const [removePct, setRemovePct] = useState<number | null>(null);
+  const toggleSelected = (id: string) =>
+    setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const clearSelected = () => setSelected(new Set());
 
   async function scanUsage() {
     if (!session) return;
@@ -78,6 +98,47 @@ function useSamplesStateValue() {
     filterSamples(allEntries, source, generation, query, unusedOnly), prefs.sort, prefs.favorites);
   const entryById = (id: string) => allEntries.find((e) => e.id === id);
 
+  const removableUnused = allEntries.filter((e) => e.source === 'nord' && e.unused && e.device);
+  const selectAllUnused = () => setSelected(new Set(removableUnused.map((e) => e.id)));
+  const selectedFreeBytes = selectedBytes(allEntries, selected);
+
+  async function removeFromNord({ keepCopyIds }: { keepCopyIds: Set<string> }): Promise<{ removed: number; failed: number }> {
+    if (!session) return { removed: 0, failed: 0 };
+    const targets = removableUnused.filter((e) => selected.has(e.id));
+    if (targets.length === 0) return { removed: 0, failed: 0 };
+    setRemoving(true);
+    setRemovePct(0);
+    let copyFailed = 0;
+    const skip = new Set<string>(); // copy requested but failed → don't delete
+    try {
+      // 1. keep-a-copy (download) for the requested user samples, BEFORE deleting
+      for (const e of targets) {
+        if (!keepCopyIds.has(e.id)) continue;
+        try {
+          const bytes = await pullSample(session, e.device!, () => {});
+          downloadBytes(bytes, `${e.name}.${extForGeneration(e.generation)}`);
+        } catch {
+          copyFailed++; skip.add(e.id); // couldn't copy → keep it on the device
+        }
+      }
+      const toRemove = targets.filter((e) => !skip.has(e.id));
+      if (toRemove.length === 0) return { removed: 0, failed: copyFailed };
+      const occ = buildOccupancy(toRemove.map((e) => e.device!));
+      const addrs: Addr[] = toRemove.map((e) => ({ bank: e.device!.bank, slot: e.device!.slot }));
+      const res = await session.withSession(PARTITION_SAMP_LIB, () =>
+        executePlan(sessionDeviceIO(session), PARTITION_SAMP_LIB, planOffload(addrs), occ,
+          { onProgress: (p) => setRemovePct(Math.round((p.opIndex / p.opCount) * 100)) }));
+      // 2. refresh the device sample list
+      try { setSampleEntries(await enumerateSampleLibrary(session)); } catch { /* leave as-is */ }
+      clearSelected();
+      return res.ok
+        ? { removed: toRemove.length, failed: copyFailed }
+        : { removed: 0, failed: copyFailed + toRemove.length };
+    } finally {
+      setRemoving(false); setRemovePct(null);
+    }
+  }
+
   return {
     shown, source, setSource, generation, setGeneration, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, showUnknownGen, folder,
@@ -85,6 +146,9 @@ function useSamplesStateValue() {
     canScanUsage: !!session, scanUsage, scanPct, unusedCount,
     unusedOnly, setUnusedOnly, missingCount: usage ? usage.missing.length : null,
     importSample: imported.add, removeSample: imported.remove, storedCount, storedBytes,
+    // Selection + removal
+    selected, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
+    removeFromNord, removing, removePct,
   };
 }
 
