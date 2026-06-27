@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { diffPrograms, type ProgramSlot } from './restore-diff';
+import { zipSync, strToU8 } from 'fflate';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { readCbinHeader } from '../clavia/cbin';
+import { diffPrograms, listBackupProgramSlots, type ProgramSlot } from './restore-diff';
 
 const p = (bank: number, slot: number, name: string): ProgramSlot => ({ bank, slot, name });
 
@@ -33,5 +37,22 @@ describe('diffPrograms', () => {
 
   it('handles both sides empty', () => {
     expect(diffPrograms([], [])).toEqual({ changed: 0, added: 0, unchanged: 0, untouched: 0 });
+  });
+});
+
+const fixture = (name: string) =>
+  new Uint8Array(readFileSync(fileURLToPath(new URL(`../ns4/__fixtures__/${name}`, import.meta.url))));
+
+describe('listBackupProgramSlots', () => {
+  it("reads each program file's {bank, slot} from its CBIN header + name from the path", async () => {
+    const prog = fixture('BreakFreeSolo.ns4p');
+    const h = readCbinHeader(prog); // ground truth: where this program actually lives
+    const blob = new Blob([zipSync({
+      'meta.xml': strToU8('<?xml version="1.0"?><backup product_id="46"/>'),
+      'Program/Bank A/My Lead.ns4p': prog,
+      'Samp Lib/Factory/Bell.nsmp4': new Uint8Array(8), // must be ignored (not a program)
+    }).buffer as ArrayBuffer]);
+    const slots = await listBackupProgramSlots(blob, 'TBM.ns4b');
+    expect(slots).toEqual([{ bank: h.bank, slot: h.location, name: 'My Lead' }]);
   });
 });
