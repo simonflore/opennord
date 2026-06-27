@@ -118,17 +118,17 @@ describe('sampleEntriesFromBackupRefs', () => {
     expect(e.id).toBe('backup:MyBackup.ns4b!Samp Lib/Choir/Choir.nsmp4');
     expect(e.name).toBe('Choir');
     expect(e.source).toBe('backup');
-    expect(e.factory).toBe(true);
+    expect(e.factory).toBeUndefined(); // lazily resolved; not set at build time
     expect(e.size).toBe(8192);
     expect(e.generation).toBe('4');
     expect(e.bytes).toBeUndefined();
     expect(e.backupRef).toBe(r);
   });
 
-  it('marks user-imported samples as factory=false', () => {
+  it('marks user-imported samples as factory=undefined (lazy resolution, not set at build time)', () => {
     const r = ref('User Samples/MyPad.nsmp3', 4096, false);
     const [e] = sampleEntriesFromBackupRefs([r]);
-    expect(e.factory).toBe(false);
+    expect(e.factory).toBeUndefined();
     expect(e.generation).toBe('3');
   });
 

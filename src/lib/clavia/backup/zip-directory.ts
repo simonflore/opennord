@@ -103,3 +103,19 @@ export async function extractZipEntry(file: Blob, entry: ZipEntry): Promise<Uint
   if (entry.method === 8) return inflateSync(comp); // deflate (raw)
   throw new Error(`Unsupported zip method ${entry.method} for ${entry.path}.`);
 }
+
+/**
+ * Read only the first `n` decompressed bytes of an entry — cheap origin/header
+ * probes without pulling the whole (possibly multi-MB) file. For STORED entries
+ * it slices just `n` bytes off disk; for DEFLATE it must inflate the entry (no
+ * cheap partial inflate) then take the head. Backups are stored, so this stays
+ * a tiny ranged read in practice.
+ */
+export async function extractZipEntryHead(file: Blob, entry: ZipEntry, n: number): Promise<Uint8Array> {
+  const lh = dv(await slice(file, entry.offset, entry.offset + 30));
+  if (lh.getUint32(0, true) !== 0x04034b50) throw new Error(`Bad local header for ${entry.path}.`);
+  const dataStart = entry.offset + 30 + lh.getUint16(26, true) + lh.getUint16(28, true);
+  if (entry.method === 0) return slice(file, dataStart, dataStart + Math.min(n, entry.compressedSize));
+  if (entry.method === 8) return inflateSync(await slice(file, dataStart, dataStart + entry.compressedSize)).subarray(0, n);
+  throw new Error(`Unsupported zip method ${entry.method} for ${entry.path}.`);
+}

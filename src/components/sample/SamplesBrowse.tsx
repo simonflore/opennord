@@ -151,7 +151,7 @@ export function SamplesBrowse(
               </div>
               <div className="lib-patch__foot">
                 <SourceBadge source={e.source} />
-                {e.source === 'backup' && (
+                {e.source === 'backup' && e.factory !== undefined && (
                   <Pill>{e.factory ? 'Factory' : 'Yours'}</Pill>
                 )}
                 <span className="lib-slot">{e.size != null ? fmtSize(e.size) : ''}</span>

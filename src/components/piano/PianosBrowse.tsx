@@ -81,7 +81,7 @@ export function PianosBrowse({
                 </div>
                 <div className="lib-patch__foot">
                   <SourceBadge source={e.source} />
-                  {e.source === 'backup' && (
+                  {e.source === 'backup' && e.isFactory !== undefined && (
                     <Pill>{e.isFactory ? 'Factory' : 'Yours'}</Pill>
                   )}
                   {e.size != null && <span className="lib-slot">{formatBytes(e.size)}</span>}

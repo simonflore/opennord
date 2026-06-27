@@ -96,7 +96,7 @@ export function sampleEntriesFromBackupRefs(refs: BackupRef[]): SampleEntry[] {
       source: 'backup' as const,
       generation: generationFromExtension(ref.entry.path),
       size: ref.entry.size,
-      factory: ref.native,
+      factory: undefined,
       backupRef: ref,
     };
   });

@@ -174,6 +174,23 @@ export function hdrFactoryFlag(bytes: Uint8Array, hdr: NsmpSection): boolean {
   return ((bytes[at] ?? 0) | (bytes[at + 1] ?? 0)) !== 0;
 }
 
+/** Smallest head that contains the whole `hdr` section (so `parseNsmpSections`
+ *  includes it before breaking on the next, truncated section). */
+export const NSMP_FACTORY_HEAD_BYTES = 320;
+
+/**
+ * Resolve factory-vs-user from just a file **head** (≥ {@link NSMP_FACTORY_HEAD_BYTES}),
+ * so the badge can be filled lazily from a tiny ranged read instead of the whole
+ * sample. Codec 4 only (where the flag is RE-validated); `undefined` when it
+ * can't be determined (other codec, truncated, or no `hdr`).
+ */
+export function nsmpHeadFactory(head: Uint8Array): boolean | undefined {
+  const id = identifyNsmp(head);
+  if (!id.recognized || id.codec !== 4) return undefined;
+  const hdr = parseNsmpSections(head).find((s) => s.tag.endsWith('hdr'));
+  return hdr ? hdrFactoryFlag(head, hdr) : undefined;
+}
+
 export function readNsmp(bytes: Uint8Array): NsmpFile {
   const warnings: string[] = [];
   const id = identifyNsmp(bytes);

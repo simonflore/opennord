@@ -51,7 +51,7 @@ describe('pianoEntriesFromBackupRefs', () => {
     expect(e.id).toBe('backup:MyBackup.ns4b!Piano/Grand Lady D.npno');
     expect(e.name).toBe('Grand Lady D');
     expect(e.source).toBe('backup');
-    expect(e.isFactory).toBe(true);
+    expect(e.isFactory).toBeUndefined(); // lazily resolved; not set at build time
     expect(e.size).toBe(204800);
     expect(e.bytes).toBeUndefined();
     expect(e.backupRef).toBe(r);
@@ -59,10 +59,10 @@ describe('pianoEntriesFromBackupRefs', () => {
     expect(e.factory?.url).toBe('https://nord/grand');
   });
 
-  it('marks user-created pianos as isFactory=false', () => {
+  it('marks user-created pianos as isFactory=undefined (lazy resolution, not set at build time)', () => {
     const r = ref('Piano/My Custom Piano.npno', 1024, false);
     const [e] = pianoEntriesFromBackupRefs([r]);
-    expect(e.isFactory).toBe(false);
+    expect(e.isFactory).toBeUndefined();
     expect(e.factory).toBeNull(); // no factory match for unknown name
   });
 });

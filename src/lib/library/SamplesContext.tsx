@@ -11,6 +11,7 @@ import {
 import type { LibrarySource } from '@/lib/library/types';
 import { enumerateSampleLibrary } from '@/lib/device/samples';
 import { findUnusedSamples, normalizeSampleName, type SampleUsage } from '@/lib/device/dependencies';
+import { useBackupOrigins } from './useBackupOrigins';
 
 /** Merges device + folder samples into one filtered/sorted list and owns the
  *  Samples-screen view state. Mirrors useLibraryStateValue for programs. */
@@ -19,6 +20,7 @@ function useSamplesStateValue() {
   const folder = useFolder();
   const imported = useImportedSamples();
   const prefs = useSamplesPrefs();
+  const origins = useBackupOrigins(folder.result.backupSamples, folder.openBundle);
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
   const [generation, setGeneration] = useState<SampleGeneration | 'all'>('all');
   const [query, setQuery] = useState('');
@@ -61,7 +63,7 @@ function useSamplesStateValue() {
     ...nordSampleEntriesFromDevice(sampleEntries).map((e) =>
       unusedNames ? { ...e, unused: unusedNames.has(normalizeSampleName(e.name)) } : e),
     ...sampleEntriesFromScanned(folder.result.samples),
-    ...sampleEntriesFromBackupRefs(folder.result.backupSamples),
+    ...sampleEntriesFromBackupRefs(folder.result.backupSamples).map((e) => ({ ...e, factory: origins.get(e.id) })),
     ...imported.entries,
   ];
   const nordCount = allEntries.filter((e) => e.source === 'nord').length;
