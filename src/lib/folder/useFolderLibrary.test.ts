@@ -14,11 +14,11 @@ function prog(id: string) {
 function fakeScanner(bundles: BundleDescriptor[]): Scanner {
   return {
     async scanLoose(_source, onBatch) {
-      onBatch({ programs: [prog('folder:loose.ns4p')], presets: [], pianos: [], samples: [], errors: [] });
+      onBatch({ programs: [prog('folder:loose.ns4p')], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
       return bundles;
     },
     async expandBundles(paths, onBatch) {
-      for (const p of paths) onBatch({ programs: [prog(`folder:${p}!x.ns4p`)], presets: [], pianos: [], samples: [], errors: [] });
+      for (const p of paths) onBatch({ programs: [prog(`folder:${p}!x.ns4p`)], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
     },
   };
 }
@@ -117,5 +117,27 @@ describe('useFolderLibrary openBundle', () => {
     await waitFor(() => expect(result.current.folderName).toBeNull());
 
     await expect(result.current.openBundle('TBM.ns4b')).rejects.toThrow('No folder is connected.');
+  });
+
+  it('openBundle delegates to scanner.openBundle when no FSA handle is present (File[] source)', async () => {
+    const fakeFile = new File([new Uint8Array([9, 8, 7])], 'TBM.ns4b');
+    // pickFolder returns a File[] source (no handle) — simulates webkitdirectory
+    vi.mocked(access.pickFolder).mockResolvedValueOnce({ name: 'F', handle: undefined, source: [] as File[] });
+
+    const scannerWithOpenBundle = {
+      ...fakeScanner([]),
+      openBundle: vi.fn(async (_path: string) => fakeFile),
+    };
+
+    const { result } = renderHook(() => useFolderLibrary(() => scannerWithOpenBundle));
+    await act(async () => { await result.current.choose(); });
+    await waitFor(() => expect(result.current.folderName).toBe('F'));
+
+    let file!: File;
+    await act(async () => { file = await result.current.openBundle('TBM.ns4b'); });
+
+    expect(scannerWithOpenBundle.openBundle).toHaveBeenCalledWith('TBM.ns4b');
+    expect(file.name).toBe('TBM.ns4b');
+    expect(file.size).toBe(3);
   });
 });

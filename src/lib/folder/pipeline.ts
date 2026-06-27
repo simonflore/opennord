@@ -3,12 +3,22 @@ import {
   scanFiles, MAX_READ_BYTES, tooLargeReason,
   type RawFile, type ScannedProgram, type ScannedPreset, type ScannedPiano, type ScannedSample, type ScanError,
 } from './scan';
-import { streamUnzip } from './unzip-stream';
-import { isBundleProgramEntry } from '../ns4/bundle';
+import { indexBackup, type BackupRef } from '../clavia/backup/backup-index';
+import { extractZipEntry } from '../clavia/backup/zip-directory';
 import { getErrorMessage } from '../errors';
 
 /** A chunk of decoded results emitted as a scan progresses. */
-export interface ScanBatch { programs: ScannedProgram[]; presets: ScannedPreset[]; pianos: ScannedPiano[]; samples: ScannedSample[]; errors: ScanError[]; }
+export interface ScanBatch {
+  programs: ScannedProgram[];
+  presets: ScannedPreset[];
+  pianos: ScannedPiano[];
+  samples: ScannedSample[];
+  errors: ScanError[];
+  /** Byte-free piano refs from a backup bundle (no audio loaded). */
+  backupPianos: BackupRef[];
+  /** Byte-free sample refs from a backup bundle (no audio loaded). */
+  backupSamples: BackupRef[];
+}
 /** A detected `.ns4b` backup — name + size only, never its contents. */
 export interface BundleDescriptor { path: string; size: number; }
 export type BatchSink = (batch: ScanBatch) => void;
@@ -17,6 +27,8 @@ export type BatchSink = (batch: ScanBatch) => void;
 export interface Scanner {
   scanLoose(source: FolderSource, onBatch: BatchSink): Promise<BundleDescriptor[]>;
   expandBundles(paths: string[], onBatch: BatchSink): Promise<void>;
+  /** Return the File for a previously-located bundle (by path). Used by File[] sources that have no FSA handle. */
+  openBundle?(path: string): Promise<File>;
   dispose?(): void;
 }
 
@@ -24,7 +36,7 @@ export interface Scanner {
 export const BATCH_SIZE = 16;
 
 function errBatch(path: string, reason: string): ScanBatch {
-  return { programs: [], presets: [], pianos: [], samples: [], errors: [{ path, reason }] };
+  return { programs: [], presets: [], pianos: [], samples: [], errors: [{ path, reason }], backupPianos: [], backupSamples: [] };
 }
 
 /** Buffers RawFiles, parsing + flushing via scanFiles every BATCH_SIZE. */
@@ -56,17 +68,34 @@ class MainThreadScanner implements Scanner {
     return descriptors;
   }
 
+  async openBundle(path: string): Promise<File> {
+    const bundle = this.bundles.get(path);
+    if (!bundle) throw new Error(`openBundle: "${path}" is not a known bundle.`);
+    return bundle.file();
+  }
+
   async expandBundles(paths: string[], onBatch: BatchSink): Promise<void> {
     const { push, flush } = makeBuffer(onBatch);
     for (const path of paths) {
       const bundle = this.bundles.get(path);
       if (!bundle) continue;
       try {
-        await streamUnzip(
-          bundle.stream(),
-          (entry) => push({ path: `${path}!${entry.path}`, bytes: entry.bytes }),
-          isBundleProgramEntry,
-        );
+        const file = await bundle.file();
+        const contents = await indexBackup(file, path);
+        for (const entry of [...contents.programs, ...contents.presets]) {
+          const bytes = await extractZipEntry(file, entry);
+          push({ path: `${path}!${entry.path}`, bytes });
+        }
+        // Flush any buffered programs/presets before emitting refs — so refs
+        // arrive in a clean batch and the caller can aggregate them separately.
+        flush();
+        if (contents.pianos.length > 0 || contents.samples.length > 0) {
+          onBatch({
+            programs: [], presets: [], pianos: [], samples: [], errors: [],
+            backupPianos: contents.pianos,
+            backupSamples: contents.samples,
+          });
+        }
       } catch (err) {
         flush(); // emit whatever decoded before the failure
         onBatch(errBatch(path, getErrorMessage(err)));

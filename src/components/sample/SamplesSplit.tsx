@@ -9,6 +9,8 @@ import { useSplitLayout } from '@/lib/responsive';
 import type { SampleEntry } from '@/lib/library/sample-entries';
 import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
+import { useFolder } from '@/lib/folder/FolderContext';
+import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
@@ -21,6 +23,7 @@ export function SamplesSplit() {
   const wide = useSplitLayout();
   const s = useSamplesState();
   const { session } = useDevice();
+  const folder = useFolder();
   // The thing currently shown in the detail pane: pulled/folder bytes, or null.
   const [inspect, setInspect] = useState<InspectorInput | null>(null);
   const [loadNew, setLoadNew] = useState(false);
@@ -45,6 +48,19 @@ export function SamplesSplit() {
       } finally {
         setPullPct(null);
       }
+      return;
+    }
+    if (e.source === 'backup' && e.backupRef) {
+      setLoadNew(false); setInspect(null); setPullPct(0);
+      try {
+        const bytes = await extractBackupEntry(folder, e.backupRef);
+        setInspect({ bytes, name: e.name });
+      } catch (err) {
+        setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
+      } finally {
+        setPullPct(null);
+      }
+      return;
     }
   }
   const startLoadNew = () => { setInspect(null); setLoadNew(true); setPullError(''); };

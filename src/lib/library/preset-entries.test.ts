@@ -25,6 +25,20 @@ describe('preset-entries', () => {
     expect(out[0].bytes).toBeInstanceOf(Uint8Array);
   });
 
+  it('tags a bundle-sourced preset (id contains !) as source=backup', () => {
+    const out = presetEntriesFromScanned([
+      { id: 'folder:Backup.ns4b!Organ Preset/Bank 1/X.ns4o', name: 'X', path: 'Backup.ns4b → Organ Preset/Bank 1/X.ns4o', tag: 'ns4o', kind: 'organ-preset', bytes: new Uint8Array(10) },
+    ]);
+    expect(out[0].source).toBe('backup');
+  });
+
+  it('tags a loose preset (no ! in id) as source=local', () => {
+    const out = presetEntriesFromScanned([
+      { id: 'folder:a.ns4o', name: 'My Organ', path: 'a.ns4o', tag: 'ns4o', kind: 'organ-preset', bytes: new Uint8Array(10) },
+    ]);
+    expect(out[0].source).toBe('local');
+  });
+
   it('filters by source, kind, and name query', () => {
     const es: PresetEntry[] = [
       { id: '1', name: 'Organ A', source: 'local', kind: 'organ-preset' },

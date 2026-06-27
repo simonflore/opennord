@@ -6,19 +6,24 @@ import type { PianoSort } from './prefs';
 import { formatSlot } from '../clavia/slot';
 import { PARTITION_PIANO } from '../device/opcodes';
 import { matchesQuery, sortWithFavorites } from './browse';
+import type { BackupRef } from '../clavia/backup/backup-index';
 
 /** One row in the Pianos browser — a folder piano-library file or a device-listed one. */
 export interface PianoEntry {
-  id: string;            // "folder:<path>" | "nord-piano:<slot>"
+  id: string;            // "folder:<path>" | "nord-piano:<slot>" | "backup:<bundlePath>!<entryPath>"
   name: string;
   source: LibrarySource;
-  size?: number;         // folder — byte length
+  size?: number;         // folder/backup — byte length
   slot?: string;         // device — "A:26"
   device?: ProgramEntry; // device — for pullPiano
   partition?: number;    // device — PARTITION_PIANO
-  bytes?: Uint8Array;     // folder — raw file, for download
+  bytes?: Uint8Array;    // folder — raw file, for download
   /** Precomputed factory deep-link (resolveFactory), or null for user-created. */
   factory: FactoryMatch | null;
+  /** Whether this is a factory (Nord-installed) entry. Set for backup entries. */
+  isFactory?: boolean;
+  /** Backup entries only: the zip reference for on-demand extraction. */
+  backupRef?: BackupRef;
 }
 
 /** Map folder-scanned pianos into local entries (factory match precomputed). */
@@ -27,6 +32,23 @@ export function pianoEntriesFromScanned(pianos: ScannedPiano[]): PianoEntry[] {
     id: p.id, name: p.name, source: 'local' as const, size: p.bytes.length, bytes: p.bytes,
     factory: resolveFactory(p.name, 'npno'),
   }));
+}
+
+/** Build byte-free backup Piano entries — no bytes loaded, factory/user tagged via `native`. */
+export function pianoEntriesFromBackupRefs(refs: BackupRef[]): PianoEntry[] {
+  return refs.map((ref) => {
+    const basename = ref.entry.path.replace(/^.*\//, '');
+    const name = basename.replace(/\.[^.]+$/, '') || basename;
+    return {
+      id: `backup:${ref.bundlePath}!${ref.entry.path}`,
+      name,
+      source: 'backup' as const,
+      size: ref.entry.size,
+      factory: resolveFactory(name, 'npno'),
+      isFactory: ref.native,
+      backupRef: ref,
+    };
+  });
 }
 
 /** Map the device's enumerated Piano Library files into nord entries. */

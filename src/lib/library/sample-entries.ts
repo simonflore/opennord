@@ -5,24 +5,29 @@ import type { LibrarySource } from './types';
 import type { SampleSort } from './prefs';
 import { formatSlot } from '../clavia/slot';
 import { matchesQuery, sortWithFavorites } from './browse';
+import type { BackupRef } from '../clavia/backup/backup-index';
 
 /** Sample codec generation, in musician-facing buckets. `npno` = piano library. */
 export type SampleGeneration = 'og' | '3' | '4' | 'npno' | 'unknown';
 
 /** One row in the Samples browser — a folder sample or a device-listed sample. */
 export interface SampleEntry {
-  id: string;                 // "folder:<path>" | "nord-sample:<slot>"
+  id: string;                 // "folder:<path>" | "nord-sample:<slot>" | "backup:<bundlePath>!<entryPath>"
   name: string;
   source: LibrarySource;
   generation: SampleGeneration;
   strokeCount?: number;       // folder samples
-  size?: number;              // folder samples — byte length
+  size?: number;              // folder samples — byte length; backup entries — entry.size
   slot?: string;              // device samples — "A:26"
   file?: NsmpFile;            // folder samples — parsed file
   bytes?: Uint8Array;         // folder samples — raw bytes for the inspector
   device?: ProgramEntry;      // device samples — the enumerated entry, for pullSample
   /** Device samples only: not referenced by any program (safe to remove). Set after a usage scan. */
   unused?: boolean;
+  /** Whether this is a factory (Nord-installed) entry. Set for backup entries. */
+  factory?: boolean;
+  /** Backup entries only: the zip reference for on-demand extraction. */
+  backupRef?: BackupRef;
 }
 
 /** Classify a parsed sample file into a generation bucket. */
@@ -68,6 +73,33 @@ export function sampleEntryFromImport(rec: { id: string; name: string; bytes: Ui
     file,
     bytes: rec.bytes,
   };
+}
+
+/** Derive a generation bucket from a file extension alone (backup entries, no parsed body). */
+function generationFromExtension(path: string): SampleGeneration {
+  const ext = path.replace(/^.*\./, '').toLowerCase();
+  if (ext === 'npno') return 'npno';
+  if (ext === 'nsmp4') return '4';
+  if (ext === 'nsmp3') return '3';
+  if (ext === 'nsmp') return 'og';   // bare .nsmp = legacy OG format
+  return 'unknown';
+}
+
+/** Build byte-free backup Sample entries — no bytes loaded, factory/user tagged via `native`. */
+export function sampleEntriesFromBackupRefs(refs: BackupRef[]): SampleEntry[] {
+  return refs.map((ref) => {
+    const basename = ref.entry.path.replace(/^.*\//, '');
+    const name = basename.replace(/\.[^.]+$/, '') || basename;
+    return {
+      id: `backup:${ref.bundlePath}!${ref.entry.path}`,
+      name,
+      source: 'backup' as const,
+      generation: generationFromExtension(ref.entry.path),
+      size: ref.entry.size,
+      factory: ref.native,
+      backupRef: ref,
+    };
+  });
 }
 
 /** Map the device's enumerated sample-partition files into nord Sample entries. */

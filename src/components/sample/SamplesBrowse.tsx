@@ -1,5 +1,5 @@
 import '../library/library.css';
-import { BrowseToolbar, Card, SourceBadge, type FacetGroup } from '../ui';
+import { BrowseToolbar, Card, Pill, SourceBadge, type FacetGroup } from '../ui';
 import type { SampleEntry, SampleGeneration } from '../../lib/library/sample-entries';
 import type { SamplesPrefsApi, SampleSort } from '../../lib/library/prefs';
 import type { LibrarySource } from '../../lib/library/types';
@@ -151,6 +151,9 @@ export function SamplesBrowse(
               </div>
               <div className="lib-patch__foot">
                 <SourceBadge source={e.source} />
+                {e.source === 'backup' && (
+                  <Pill>{e.factory ? 'Factory' : 'Yours'}</Pill>
+                )}
                 <span className="lib-slot">{e.size != null ? fmtSize(e.size) : ''}</span>
                 {e.id.startsWith('local:') && (
                   <button

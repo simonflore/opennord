@@ -3,7 +3,8 @@ import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { usePianosPrefs } from '@/lib/library/prefs';
 import {
-  pianoEntriesFromScanned, pianoEntriesFromDevice, filterPianos, sortPianos,
+  pianoEntriesFromScanned, pianoEntriesFromDevice, pianoEntriesFromBackupRefs,
+  filterPianos, sortPianos,
   type PianoEntry,
 } from '@/lib/library/piano-entries';
 import type { LibrarySource } from '@/lib/library/types';
@@ -30,6 +31,7 @@ function usePianosStateValue() {
   const allEntries: PianoEntry[] = [
     ...pianoEntriesFromDevice(pianoEntries),
     ...pianoEntriesFromScanned(folder.result.pianos),
+    ...pianoEntriesFromBackupRefs(folder.result.backupPianos),
   ];
   const nordCount = allEntries.filter((e) => e.source === 'nord').length;
   const localCount = allEntries.length - nordCount;

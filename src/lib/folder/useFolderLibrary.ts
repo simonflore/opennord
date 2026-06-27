@@ -11,7 +11,7 @@ import type { FolderSource } from './source';
 import type { ScanResult } from './scan';
 import { getErrorMessage } from '../errors';
 
-const EMPTY: ScanResult = { programs: [], presets: [], pianos: [], samples: [], errors: [] };
+const EMPTY: ScanResult = { programs: [], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] };
 
 /** A user dismissing the folder picker is not an error worth surfacing. */
 function isCancel(err: unknown): boolean {
@@ -82,6 +82,8 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
       pianos: [...r.pianos, ...b.pianos],
       samples: [...r.samples, ...b.samples],
       errors: [...r.errors, ...b.errors],
+      backupPianos: [...r.backupPianos, ...(b.backupPianos ?? [])],
+      backupSamples: [...r.backupSamples, ...(b.backupSamples ?? [])],
     }));
   }, []);
 
@@ -147,7 +149,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     } catch (err) {
       if (!isCancel(err)) {
         console.error('Folder pick failed', err);
-        setResult({ programs: [], presets: [], pianos: [], samples: [], errors: [{ path: '(folder)', reason: getErrorMessage(err) }] });
+        setResult({ programs: [], presets: [], pianos: [], samples: [], errors: [{ path: '(folder)', reason: getErrorMessage(err) }], backupPianos: [], backupSamples: [] });
       }
     } finally { setBusy(false); }
   }, [runScan]);
@@ -188,8 +190,10 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
   const closeBundlePicker = useCallback(() => setPickerOpen(false), []);
 
   const openBundle = useCallback(async (path: string): Promise<File> => {
-    if (!handle) throw new Error('No folder is connected.');
-    return fileFromHandle(handle, path);
+    if (handle) return fileFromHandle(handle, path);
+    const scanner = scannerRef.current;
+    if (scanner?.openBundle) return scanner.openBundle(path);
+    throw new Error('No folder is connected.');
   }, [handle]);
 
   const writeBack = useCallback(async (

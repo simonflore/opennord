@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { pianoEntriesFromScanned, pianoEntriesFromDevice, filterPianos, sortPianos, type PianoEntry } from './piano-entries';
+import { pianoEntriesFromScanned, pianoEntriesFromDevice, pianoEntriesFromBackupRefs, filterPianos, sortPianos, type PianoEntry } from './piano-entries';
 import type { ProgramEntry } from '../device/transfer';
+import type { BackupRef } from '../clavia/backup/backup-index';
 
 vi.mock('../device/factory', () => ({
   resolveFactory: (name: string) => (name === 'Grand Lady D' ? { url: 'https://nord/grand', sizeKb: 1000, sizeDescription: '1 GB', type: 'piano' } : null),
@@ -33,5 +34,35 @@ describe('piano-entries', () => {
     expect(filterPianos(es, 'all', 'a').map((e) => e.id)).toEqual(['2']);
     expect(sortPianos(es, 'size', new Set()).map((e) => e.id)).toEqual(['2', '1']); // 99 before 10
     expect(sortPianos(es, 'name', new Set()).map((e) => e.name)).toEqual(['A', 'B']);
+  });
+});
+
+describe('pianoEntriesFromBackupRefs', () => {
+  const ref = (path: string, size: number, native: boolean): BackupRef => ({
+    bundlePath: 'MyBackup.ns4b',
+    entry: { path, size, compressedSize: size, offset: 0, method: 0 },
+    kind: 'piano',
+    native,
+  });
+
+  it('produces a byte-free entry with correct source, isFactory, size, and backupRef', () => {
+    const r = ref('Piano/Grand Lady D.npno', 204800, true);
+    const [e] = pianoEntriesFromBackupRefs([r]);
+    expect(e.id).toBe('backup:MyBackup.ns4b!Piano/Grand Lady D.npno');
+    expect(e.name).toBe('Grand Lady D');
+    expect(e.source).toBe('backup');
+    expect(e.isFactory).toBe(true);
+    expect(e.size).toBe(204800);
+    expect(e.bytes).toBeUndefined();
+    expect(e.backupRef).toBe(r);
+    // resolveFactory is mocked → should return a match for 'Grand Lady D'
+    expect(e.factory?.url).toBe('https://nord/grand');
+  });
+
+  it('marks user-created pianos as isFactory=false', () => {
+    const r = ref('Piano/My Custom Piano.npno', 1024, false);
+    const [e] = pianoEntriesFromBackupRefs([r]);
+    expect(e.isFactory).toBe(false);
+    expect(e.factory).toBeNull(); // no factory match for unknown name
   });
 });

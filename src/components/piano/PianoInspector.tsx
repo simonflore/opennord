@@ -5,11 +5,14 @@ import { downloadBytes } from '@/lib/download';
 import { formatBytes } from '@/lib/format';
 import type { NordSession } from '@/lib/device/session';
 import { Button } from '@/components/ui';
+import { useFolder } from '@/lib/folder/FolderContext';
+import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Thin, decode-free detail for a recognized piano: metadata, factory deep-link, download (with progress). */
 export function PianoInspector({ entry, session }: { entry: PianoEntry; session: NordSession | null }) {
+  const folder = useFolder();
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -19,7 +22,9 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
     setError(''); setBusy(true); setPct(null);
     try {
       let bytes = entry.bytes ?? null;
-      if (!bytes && entry.device && entry.partition != null && session) {
+      if (!bytes && entry.backupRef) {
+        bytes = await extractBackupEntry(folder, entry.backupRef);
+      } else if (!bytes && entry.device && entry.partition != null && session) {
         bytes = await pullPiano(session, entry.device, (done, total) => setPct(total ? Math.round((done / total) * 100) : 0));
       }
       if (!bytes) throw new Error('Connect your Nord to download this piano.');
@@ -31,14 +36,18 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
     }
   }
 
+  const sourceLabel =
+    entry.source === 'nord'
+      ? ` · On Nord${entry.slot ? ` · ${entry.slot}` : ''}`
+      : entry.source === 'backup'
+        ? ` · From backup${entry.size != null ? ` · ${formatBytes(entry.size)}` : ''}`
+        : ` · Local file${entry.size != null ? ` · ${formatBytes(entry.size)}` : ''}`;
+
   return (
     <div className="ps" style={{ maxWidth: 460 }}>
       <div className="ps-nm">{entry.name}</div>
       <p className="ps-sub" style={{ marginTop: 6 }}>
-        Piano library
-        {entry.source === 'nord'
-          ? ` · On Nord${entry.slot ? ` · ${entry.slot}` : ''}`
-          : ` · Local file${entry.size != null ? ` · ${formatBytes(entry.size)}` : ''}`}
+        Piano library{sourceLabel}
       </p>
       {entry.factory && (
         <p className="ps-sub">

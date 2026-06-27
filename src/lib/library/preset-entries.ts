@@ -21,10 +21,12 @@ export interface PresetEntry {
 
 const KIND_ORDER: PresetKind[] = ['organ-preset', 'piano-preset', 'synth-preset'];
 
-/** Map folder-scanned presets into local entries. */
+/** Map folder-scanned presets into local or backup entries.
+ * Bundle-sourced presets (id contains `!`) are tagged `source:'backup'`;
+ * loose-file presets are tagged `source:'local'`. */
 export function presetEntriesFromScanned(presets: ScannedPreset[]): PresetEntry[] {
   return presets.map((p) => ({
-    id: p.id, name: p.name, source: 'local' as const, kind: p.kind, size: p.bytes.length, bytes: p.bytes,
+    id: p.id, name: p.name, source: (p.id.includes('!') ? 'backup' : 'local') as LibrarySource, kind: p.kind, size: p.bytes.length, bytes: p.bytes,
   }));
 }
 
