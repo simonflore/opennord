@@ -4,7 +4,7 @@ Thanks for helping build a commons for Nord Stage 4 players. The hard reverse-en
 
 ## Highest-impact contributions
 
-1. **Product & UI.** A program-visualization view (piano/sample, organ, synth, FX), the community library (upload/search/rate/fork), and the AI features (search, explain, generate). This is where most value is now.
+1. **Product & UI.** The program views, the unified Library, the sample workshop, sharing (programs only — `docs/LEGAL.md`), and the local AI search behind its `ProgramRanker` interface. This is where most value is now.
 2. **Transfer runtimes & UI.** The proven USB protocol is already wrapped as a **WebUSB** client (`src/lib/device/`, `docs/PROTOCOL-RE.md`); help build out the transfer/backup **UI** and additional runtimes — an Electron/**node-usb** wrapper for non-Chromium desktops, and a native iPad (M1+) **DriverKit** path.
 3. **Validate the decoder at scale.** Run the parser over more real programs and file a fixture + test for any mismatch against ns4decode.
 4. **A native iPad transfer client** — transfer runs over vendor USB (not SysEx). A native iPad app (M1+) with a `USBDriverKit` DEXT can drive it on-device (Apple allows vendor-class access; needs a DriverKit distribution entitlement) — see `docs/SYSEX-SPIKE.md`. Desktop (WebUSB/node-usb) is the easier first target. (iPhone and PWAs can't reach vendor USB.)
@@ -25,9 +25,11 @@ npm test
 npm run typecheck
 ```
 
-## License of contributions
+## Contributing: license, sign-off, and grant
 
-By contributing you agree your work is licensed under the project's **AGPL-3.0-or-later**. Don't paste in code from incompatibly-licensed projects (e.g. copying GPLv3 source is fine for AGPL, but verify; prefer re-implementing from documented facts — see `ATTRIBUTION.md`).
+- **Inbound = outbound.** Your contributions are licensed under the project's **AGPL-3.0-or-later**, same as the project. Don't paste in code from incompatibly-licensed projects (copying GPLv3 into AGPL is fine, but verify); prefer re-implementing from documented facts — see `ATTRIBUTION.md`.
+- **Sign off your commits (DCO).** Add a `Signed-off-by: Name <email>` line to each commit — `git commit -s` — certifying you wrote the patch or otherwise have the right to submit it under the project license. This is the [Developer Certificate of Origin](https://developercertificate.org/).
+- **License grant.** You retain copyright to your contribution, and you grant the project maintainer(s) the right to license it under the project's license **and** under other terms the maintainers may choose for the project. This keeps the project's licensing flexible over time.
 
 ## Community
 
