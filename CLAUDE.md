@@ -137,6 +137,9 @@ the bar). When extending the decoder, validate against the fixture.
   describe compatibility.
 - License is **AGPL-3.0-or-later**; ported code (ns4decode, MIT) is credited in
   `THIRD_PARTY_LICENSES.md` / `ATTRIBUTION.md`. Preserve attribution.
+- **Server/hosted backends are out of scope for this repo.** This is the open
+  client. Keep networked services behind an interface (e.g. `ProgramRanker`);
+  don't add backend/server code here.
 
 ## Scope tips for agents
 

@@ -39,9 +39,14 @@ Device sample browsing (read a sample off the board, edit, download) is local ac
 
 Reverse engineering a file format or protocol **for interoperability** is broadly defensible (and explicitly protected in several jurisdictions, e.g. the EU Software Directive's interop provisions). OpenNord reverse-engineers **only** to read/write the user's own data and interoperate with their own instrument. Capturing traffic from Nord Sound Manager is for understanding the protocol — **do not** redistribute Clavia's software or its assets.
 
-## User-generated content
+## Sharing & community features (when they exist)
 
-When the community library exists: users keep ownership of programs they upload; uploading grants OpenNord a license to host/display; provide takedown on request; don't allow upload of obviously infringing or sample-laden content.
+Any feature that uploads or shares files follows the authorship bright line above, plus standard hygiene for user-generated content:
+
+- **User-created content only.** Sharing carries programs (and user-created samples carried with them) — **never** Nord factory/library content. Enforce it at the point of upload: refuse factory/library content, and refuse a program whose referenced samples can't be established as user-created (point those at the official source instead).
+- **Ownership stays with the uploader.** Sharing a file grants OpenNord a license to host and display it for the sharing feature; it does not transfer ownership.
+- **A clear content license / terms** governs what an uploader grants and how shared files may be used — in place **before** any upload feature ships.
+- **Takedown & moderation.** Honor takedown requests, provide a report path, and remove infringing, factory-laden, or abusive content.
 
 ## This is not legal advice
 
