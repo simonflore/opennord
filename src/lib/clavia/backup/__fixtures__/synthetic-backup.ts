@@ -31,8 +31,10 @@ import { NSMP_FACTORY_HEAD_BYTES } from '@/lib/ns4/nsmp';
  *
  * All audio-bearing payload bytes are zero (synthetic — no real audio).
  */
-export function makeSyntheticSample(opts: { factory: boolean }): Uint8Array {
+export function makeSyntheticSample(opts: { factory: boolean; codec?: 3 | 4 }): Uint8Array {
   const buf = new Uint8Array(NSMP_FACTORY_HEAD_BYTES);
+  // Same hdr+8 flag offset for codec 3 & 4 (RE-validated); only the version differs.
+  const versionRaw = opts.codec === 3 ? 300 : 400;
 
   const ascii = (s: string, at: number) => {
     for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i);
@@ -44,12 +46,12 @@ export function makeSyntheticSample(opts: { factory: boolean }): Uint8Array {
     buf[at + 3] =  v         & 0xff;
   };
 
-  // CBIN header: magic, formatType=1, tag='nsmp', version=400 (LE u16 @0x14)
+  // CBIN header: magic, formatType=1, tag='nsmp', version (LE u16 @0x14)
   ascii('CBIN', 0x00);
   buf[0x04] = 1;
   ascii('nsmp', 0x08);
-  buf[0x14] = 400 & 0xff;
-  buf[0x15] = (400 >> 8) & 0xff; // codec 4 (floor(400/100)=4)
+  buf[0x14] = versionRaw & 0xff;
+  buf[0x15] = (versionRaw >> 8) & 0xff; // floor(version/100) = codec
 
   // NSMP root section @0x2c: tag NSMP (0x4e534d50), version=40, size=4
   u32be(0x4e534d50, 0x2c); u32be(40, 0x30); u32be(4, 0x34);
