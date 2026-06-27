@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import '../library/library.css';
-import { BrowseToolbar, Card, Pill, SourceBadge, Tag, type FacetGroup } from '../ui';
+import { BrowseToolbar, Button, Card, Dialog, Pill, SourceBadge, Tag, type FacetGroup } from '../ui';
 import type { PianoEntry } from '@/lib/library/piano-entries';
 import type { LibrarySource } from '@/lib/library/types';
 import type { PianoSort } from '@/lib/library/prefs';
@@ -10,9 +11,21 @@ const SORT_LABEL: Record<PianoSort, string> = { default: 'Default', name: 'Name 
 const parsePianoSort = (raw: string): PianoSort =>
   raw === 'name' || raw === 'size' ? raw : 'default';
 
+/** Round bytes to nearest MB for the reclaim bar. */
+function fmtMB(bytes: number): string {
+  return `${Math.round(bytes / 1048576)} MB`;
+}
+
 export function PianosBrowse({
   entries, source, setSource, query, setQuery,
   showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect,
+  // Piano-usage cleanup (device-connected)
+  canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly,
+  // Reclaim-space selection
+  selected, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
+  removeFromNord, removing, removePct,
+  // Test escape hatch: open the confirm dialog without a click event
+  _testConfirmOpen,
 }: {
   entries: PianoEntry[];
   source: LibrarySource | 'all'; setSource: (s: LibrarySource | 'all') => void;
@@ -22,6 +35,24 @@ export function PianosBrowse({
   isFavorite: (id: string) => boolean;
   toggleFavorite: (id: string) => void;
   onSelect: (e: PianoEntry) => void;
+  // Piano-usage cleanup
+  canScanUsage: boolean;
+  onScanUsage: () => void;
+  scanPct: number | null;
+  unusedCount: number | null;
+  unusedOnly: boolean;
+  onUnusedOnly: (v: boolean) => void;
+  // Reclaim-space selection
+  selected: Set<string>;
+  toggleSelected: (id: string) => void;
+  selectAllUnused: () => void;
+  clearSelected: () => void;
+  selectedFreeBytes: number;
+  removeFromNord: (opts: { keepCopyIds: Set<string> }) => Promise<{ removed: number; failed: number }>;
+  removing: boolean;
+  removePct: number | null;
+  /** For tests only: force the confirm dialog open on first render. */
+  _testConfirmOpen?: boolean;
 }) {
   const facets: FacetGroup[] = showSourceFacet
     ? [{
@@ -36,6 +67,44 @@ export function PianosBrowse({
 
   const sortOptions = (Object.keys(SORT_LABEL) as PianoSort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }));
 
+  // Confirm-remove dialog state
+  const selectedEntries = entries.filter((e) => selected.has(e.id));
+  const anyNonFactory = selectedEntries.some((e) => e.factory == null);
+  const anyFactory = selectedEntries.some((e) => e.factory != null);
+
+  const [confirmOpen, setConfirmOpen] = useState(_testConfirmOpen ?? false);
+  // Default keepCopy = true only when selection includes a non-factory piano
+  // (factory pianos are re-downloadable from Nord and potentially multi-GB — no auto-copy)
+  const [keepCopy, setKeepCopy] = useState(anyNonFactory);
+  const [removeError, setRemoveError] = useState('');
+  const [removeResult, setRemoveResult] = useState<{ removed: number; failed: number } | null>(null);
+
+  function openConfirm() {
+    // Recompute default on open
+    const nonFactory = entries.filter((e) => selected.has(e.id)).some((e) => e.factory == null);
+    setKeepCopy(nonFactory);
+    setRemoveError('');
+    setRemoveResult(null);
+    setConfirmOpen(true);
+  }
+
+  async function handleRemove() {
+    // Only copy non-factory pianos (factory ones are re-downloadable and potentially multi-GB)
+    const keepCopyIds = keepCopy
+      ? new Set(entries.filter((e) => selected.has(e.id) && e.factory == null).map((e) => e.id))
+      : new Set<string>();
+    setRemoveError('');
+    try {
+      const result = await removeFromNord({ keepCopyIds });
+      setRemoveResult(result);
+      setConfirmOpen(false);
+    } catch (err) {
+      setRemoveError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+    }
+  }
+
+  const confirmTitle = `Remove ${selected.size} ${selected.size === 1 ? 'piano' : 'pianos'} · frees ~${fmtMB(selectedFreeBytes)}`;
+
   return (
     <div className="lib-panel">
       <div className="lib-panel__head">
@@ -46,6 +115,22 @@ export function PianosBrowse({
               <span className="lib-counts__total">{entries.length} piano{entries.length !== 1 ? 's' : ''}</span>
             </div>
           </div>
+          <div className="lib-actions">
+            {canScanUsage && (
+              <button className="on-btn" onClick={onScanUsage} disabled={scanPct !== null}>
+                {scanPct !== null ? `Scanning… ${scanPct}%` : 'Find unused pianos'}
+              </button>
+            )}
+            {unusedCount !== null && scanPct === null && (
+              <button
+                className={`on-btn${unusedOnly ? ' is-active' : ''}`}
+                aria-pressed={unusedOnly}
+                onClick={() => onUnusedOnly(!unusedOnly)}
+              >
+                {unusedCount === 0 ? 'No unused pianos' : `${unusedOnly ? 'Show all' : `Unused only (${unusedCount})`}`}
+              </button>
+            )}
+          </div>
         </div>
         <BrowseToolbar
           query={query} onQuery={setQuery} placeholder="Search pianos…"
@@ -53,45 +138,114 @@ export function PianosBrowse({
           sort={sort} sortOptions={sortOptions} onSort={(k) => setSort(parsePianoSort(k))} sortAriaLabel="Sort pianos"
         />
       </div>
+
+      {/* Reclaim bar — shown when at least one piano is selected */}
+      {selected.size > 0 && (
+        <div className="lib-reclaim-bar" role="region" aria-label="Selected pianos">
+          <span className="lib-reclaim-bar__info">
+            {selected.size} selected · frees ~{fmtMB(selectedFreeBytes)}
+          </span>
+          <Button variant="ghost" onClick={selectAllUnused}>Select all unused</Button>
+          <Button variant="primary" onClick={openConfirm}>Remove from Nord</Button>
+          <Button variant="ghost" onClick={clearSelected}>Clear</Button>
+        </div>
+      )}
+
+      {/* Remove result feedback */}
+      {removeResult && (
+        <p className="lib-reclaim-bar__result" role="status">
+          {removeResult.removed} {removeResult.removed === 1 ? 'piano' : 'pianos'} removed
+          {removeResult.failed > 0 && ` · ${removeResult.failed} could not be removed`}
+        </p>
+      )}
+
       <div className="lib-panel__body">
         {entries.length === 0 ? (
           <p className="lib-empty">No pianos match your filter.</p>
         ) : (
           <div className="lib-grid">
-            {entries.map((e) => (
+            {entries.map((entry) => (
               <Card
-                key={e.id}
-                accent={e.source === 'nord'}
+                key={entry.id}
+                accent={entry.source === 'nord'}
                 className="lib-patch"
                 role="button"
                 tabIndex={0}
-                onClick={() => onSelect(e)}
-                onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onSelect(e); } }}
+                onClick={() => onSelect(entry)}
+                onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onSelect(entry); } }}
               >
                 <div className="lib-patch__top">
+                  {unusedOnly && entry.source === 'nord' && entry.unused && (
+                    <input
+                      type="checkbox"
+                      className="lib-patch__select"
+                      aria-label={`Select ${entry.name}`}
+                      checked={selected.has(entry.id)}
+                      onChange={() => toggleSelected(entry.id)}
+                      onClick={(ev) => ev.stopPropagation()}
+                    />
+                  )}
                   <button
-                    className={`lib-fav${isFavorite(e.id) ? ' is-fav' : ''}`}
-                    aria-label={isFavorite(e.id) ? `Unfavorite ${e.name}` : `Favorite ${e.name}`}
-                    aria-pressed={isFavorite(e.id)}
-                    onClick={(ev) => { ev.stopPropagation(); toggleFavorite(e.id); }}
+                    className={`lib-fav${isFavorite(entry.id) ? ' is-fav' : ''}`}
+                    aria-label={isFavorite(entry.id) ? `Unfavorite ${entry.name}` : `Favorite ${entry.name}`}
+                    aria-pressed={isFavorite(entry.id)}
+                    onClick={(ev) => { ev.stopPropagation(); toggleFavorite(entry.id); }}
                     onKeyDown={(ev) => ev.stopPropagation()}
-                  >{isFavorite(e.id) ? '★' : '☆'}</button>
-                  <span className="lib-patch__nm">{e.name}</span>
-                  {e.slot && <span className="lib-slot">{e.slot}</span>}
+                  >{isFavorite(entry.id) ? '★' : '☆'}</button>
+                  <span className="lib-patch__nm">{entry.name}</span>
+                  {entry.unused && <span className="lib-tag lib-tag--unused" title="Not used by any program">unused</span>}
+                  {entry.slot && <span className="lib-slot">{entry.slot}</span>}
                 </div>
                 <div className="lib-patch__foot">
-                  <SourceBadge source={e.source} />
-                  {e.source === 'backup' && e.isFactory !== undefined && (
-                    <Pill>{e.isFactory ? 'Factory' : 'Yours'}</Pill>
+                  <SourceBadge source={entry.source} />
+                  {entry.source === 'backup' && entry.isFactory !== undefined && (
+                    <Pill>{entry.isFactory ? 'Factory' : 'Yours'}</Pill>
                   )}
-                  {e.size != null && <span className="lib-slot">{formatBytes(e.size)}</span>}
-                  {e.factory && <Tag>Factory</Tag>}
+                  {entry.size != null && <span className="lib-slot">{formatBytes(entry.size)}</span>}
+                  {entry.factory && <Tag>Factory</Tag>}
                 </div>
               </Card>
             ))}
           </div>
         )}
       </div>
+
+      {/* Confirm-remove dialog */}
+      <Dialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title={confirmTitle}
+        footer={
+          <div className="on-dialog__footer-actions">
+            <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={removing}>Cancel</Button>
+            <Button variant="primary" onClick={() => void handleRemove()} disabled={removing}>
+              {removing && removePct !== null ? `Removing… ${removePct}%` : 'Remove'}
+            </Button>
+          </div>
+        }
+      >
+        {anyFactory && (
+          <p className="lib-reclaim-disclaimer">
+            Some of these are factory pianos. You can re-download them any time from Nord's library.
+            {selectedEntries.filter((entry) => entry.factory != null).map((entry) => (
+              <span key={entry.id}>
+                {' '}<a href={entry.factory!.url} target="_blank" rel="noopener noreferrer">{entry.name}</a>
+              </span>
+            ))}
+          </p>
+        )}
+        <label className="lib-reclaim-keepcopy">
+          <input
+            type="checkbox"
+            checked={keepCopy}
+            onChange={(ev) => setKeepCopy(ev.currentTarget.checked)}
+          />
+          {' '}Download a copy first
+        </label>
+        {removeError && (
+          <p className="lib-reclaim-error" role="alert">{removeError}</p>
+        )}
+      </Dialog>
     </div>
   );
 }

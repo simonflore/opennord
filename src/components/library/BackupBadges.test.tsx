@@ -62,6 +62,12 @@ const pianoBase = {
   source: 'all' as const, setSource: noop, query: '', setQuery: noop,
   showSourceFacet: false, sort: 'default' as const, setSort: noop,
   isFavorite: () => false, toggleFavorite: noop, onSelect: noop,
+  canScanUsage: false, onScanUsage: noop, scanPct: null as number | null,
+  unusedCount: null as number | null, unusedOnly: false, onUnusedOnly: noop,
+  selected: new Set<string>(), toggleSelected: noop, selectAllUnused: noop,
+  clearSelected: noop, selectedFreeBytes: 0,
+  removeFromNord: () => Promise.resolve({ removed: 0, failed: 0 }),
+  removing: false, removePct: null as number | null,
 };
 
 const makePiano = (over: Partial<PianoEntry>): PianoEntry => ({

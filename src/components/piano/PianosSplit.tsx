@@ -22,6 +22,13 @@ export function PianosSplit() {
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
         onSelect={(e) => setSelectedId(e.id)}
+        canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct}
+        unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
+        selected={s.selected} toggleSelected={s.toggleSelected}
+        selectAllUnused={s.selectAllUnused} clearSelected={s.clearSelected}
+        selectedFreeBytes={s.selectedFreeBytes}
+        removeFromNord={s.removeFromNord}
+        removing={s.removing} removePct={s.removePct}
       />
     </div>
   );
