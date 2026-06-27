@@ -162,11 +162,14 @@ export function readNpnoName(bytes: Uint8Array): string | undefined {
  * name/folder/category (all of which are user-configurable). The `hdr` section
  * payload carries a non-zero flag word at **+8** (the two bytes immediately
  * before the name) on Nord factory-library samples, and zero on user imports.
- * RE'd against a real Stage-4 backup: 15/15 `Samp Lib/User` imports = `00 00`,
- * 8/8 factory across every category = `0a 01`. Mirrors the Sample Editor's
- * `CPeekBundle::IsFactorySound` gate (`docs/NSMP-CODEC.md`, `nse_decomp`).
- * Verified for codec 4 (`.nsmp4`); codec 3 not yet confirmed, so callers gate on
- * codec. Returns false when the flag region is missing/truncated.
+ * RE'd against real installed/backup content: codec 4 — 15/15 user imports =
+ * `00 00`, 8/8 factory = `0a 01`; codec 3 — an installed factory sound bank is
+ * uniformly non-zero (`0a 01` at v3.10, `00 01` at v3.00) while a user import is
+ * `00 00`. Mirrors the Sample Editor's `CPeekBundle::IsFactorySound` gate
+ * (`docs/NSMP-CODEC.md`, `nse_decomp`). Same `+8` offset for codec 3 and 4.
+ * CAVEAT: reliable for samples read from a backup/partition (installed); a
+ * factory sample re-exported loose can have the flag stripped → reads as user.
+ * Returns false when the flag region is missing/truncated.
  */
 export function hdrFactoryFlag(bytes: Uint8Array, hdr: NsmpSection): boolean {
   const at = hdr.payloadOffset + 8;
@@ -181,12 +184,12 @@ export const NSMP_FACTORY_HEAD_BYTES = 320;
 /**
  * Resolve factory-vs-user from just a file **head** (≥ {@link NSMP_FACTORY_HEAD_BYTES}),
  * so the badge can be filled lazily from a tiny ranged read instead of the whole
- * sample. Codec 4 only (where the flag is RE-validated); `undefined` when it
+ * sample. Codec 3 & 4 (where the flag is RE-validated); `undefined` when it
  * can't be determined (other codec, truncated, or no `hdr`).
  */
 export function nsmpHeadFactory(head: Uint8Array): boolean | undefined {
   const id = identifyNsmp(head);
-  if (!id.recognized || id.codec !== 4) return undefined;
+  if (!id.recognized || (id.codec !== 3 && id.codec !== 4)) return undefined;
   const hdr = parseNsmpSections(head).find((s) => s.tag.endsWith('hdr'));
   return hdr ? hdrFactoryFlag(head, hdr) : undefined;
 }
@@ -215,9 +218,10 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
   const name = hdr ? readName(bytes, hdr) : undefined;
   const strokeCount = sections.filter((s) => s.tag.endsWith('stk')).length;
 
-  // Structural origin (codec 4, where it's RE-validated) is ground truth; the
+  // Structural origin (codec 3 & 4, where it's RE-validated) is ground truth; the
   // name-based guess is only a fallback for codecs where the flag isn't confirmed.
-  const suspectedFactory = hdr && codec === 4 ? hdrFactoryFlag(bytes, hdr) : looksFactory(name);
+  const structural = codec === 3 || codec === 4;
+  const suspectedFactory = hdr && structural ? hdrFactoryFlag(bytes, hdr) : looksFactory(name);
 
   return { recognized: true, version, versionRaw, codec, legacy, checksumValid, name, sections, strokeCount, suspectedFactory, warnings };
 }

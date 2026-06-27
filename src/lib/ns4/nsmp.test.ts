@@ -6,6 +6,7 @@ import { readNsmp, readNpnoName, parseNsmpSections, hdrFactoryFlag, nsmpHeadFact
 import { writeNsmp } from './nsmp-write';
 import { indexBackup } from '../clavia/backup/backup-index';
 import { extractZipEntry, extractZipEntryHead } from '../clavia/backup/zip-directory';
+import { makeSyntheticSample } from '../clavia/backup/__fixtures__/synthetic-backup';
 
 describe('hdrFactoryFlag — structural origin signal (RE: hdr payload +8)', () => {
   const hdr: NsmpSection = { tag: '\0hdr', version: 11, size: 16, payloadOffset: 4, endOffset: 20 };
@@ -13,6 +14,31 @@ describe('hdrFactoryFlag — structural origin signal (RE: hdr payload +8)', () 
   it('zero flag word ⇒ user import', () => { expect(hdrFactoryFlag(withFlag(0x00, 0x00), hdr)).toBe(false); });
   it('non-zero flag word ⇒ factory', () => { expect(hdrFactoryFlag(withFlag(0x0a, 0x01), hdr)).toBe(true); });
   it('truncated flag region ⇒ false (no false-positive)', () => { expect(hdrFactoryFlag(new Uint8Array(8), hdr)).toBe(false); });
+});
+
+// Same +8 flag offset works for BOTH codec 3 and codec 4 (RE-validated against an
+// installed factory sound bank: factory = non-zero, user = zero).
+describe('nsmpHeadFactory — codec 3 & 4', () => {
+  for (const codec of [3, 4] as const) {
+    it(`codec ${codec}: factory ⇒ true, user ⇒ false`, () => {
+      expect(nsmpHeadFactory(makeSyntheticSample({ factory: true, codec }))).toBe(true);
+      expect(nsmpHeadFactory(makeSyntheticSample({ factory: false, codec }))).toBe(false);
+      expect(readNsmp(makeSyntheticSample({ factory: true, codec })).suspectedFactory).toBe(true);
+      expect(readNsmp(makeSyntheticSample({ factory: false, codec })).suspectedFactory).toBe(false);
+    });
+  }
+  it('garbage / non-nsmp ⇒ undefined', () => { expect(nsmpHeadFactory(new Uint8Array(64))).toBe(undefined); });
+});
+
+// Real codec-3 validation (gitignored corpus; skips when absent): an installed
+// factory sound bank reads factory, a user-authored .nsmp3 reads user.
+const FACTORY_NSMP3 = 'fixtures/wave-2/Elijah Fox Signature Sound Bank Bundle/Samp Lib/Strings Ensemble/SymphStr XSoft Cls_Project SAM 3.0.nsmp3';
+const USER_NSMP3 = '/Users/simonflore/Documents/NordSampleEditor3Projects/VLV Strings/VLV Strings.nsmp3';
+describe('structural factory flag vs real codec-3 samples', () => {
+  it.skipIf(!existsSync(FACTORY_NSMP3) || !existsSync(USER_NSMP3))('installed factory = factory, user import = user', () => {
+    expect(readNsmp(new Uint8Array(readFileSync(FACTORY_NSMP3))).suspectedFactory).toBe(true);
+    expect(readNsmp(new Uint8Array(readFileSync(USER_NSMP3))).suspectedFactory).toBe(false);
+  });
 });
 
 // End-to-end against the real Stage-4 backup (gitignored corpus; skips when absent).
@@ -80,11 +106,11 @@ describe('nsmpHeadFactory — factory-vs-user from file head only', () => {
     expect(nsmpHeadFactory(makeCodec4Head(0x00, 0x00))).toBe(false);
   });
 
-  it('returns undefined for a non-codec-4 head (codec 3)', () => {
+  it('returns undefined when there is no hdr section (recognized but no flag region)', () => {
     const buf = new Uint8Array(NSMP_FACTORY_HEAD_BYTES);
     const ascii = (s: string, at: number) => { for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i); };
     ascii('CBIN', 0x00); buf[0x04] = 1; ascii('nsmp', 0x08);
-    buf[0x14] = (300 & 0xff); buf[0x15] = (300 >> 8) & 0xff; // codec 3
+    buf[0x14] = (400 & 0xff); buf[0x15] = (400 >> 8) & 0xff; // codec 4, but no NSMP/hdr sections
     expect(nsmpHeadFactory(buf)).toBeUndefined();
   });
 
