@@ -62,6 +62,23 @@
 @media (hover: none) { .lib-patch__rm { opacity: 1; } }
 .lib-empty { color: var(--dim); font: 12px var(--font); padding: var(--s-6) 0; text-align: center; }
 @media (max-width: 560px) { .lib-grid { grid-template-columns: 1fr; } }
+/* Reclaim-space (offload) — the sticky action bar shown when unused samples are
+   selected for removal, plus the per-card select checkbox and the confirm copy. */
+.lib-reclaim-bar {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 10px 12px; margin-bottom: 12px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+}
+.lib-reclaim-bar__info { font: 13px var(--font); color: var(--ink); margin-right: auto; }
+.lib-reclaim-bar__result { font: 12px var(--font); color: var(--dim); margin: 0 0 12px; }
+.lib-reclaim-disclaimer { font: 12px var(--font); color: var(--dim);
+  margin: 0 0 8px; padding-left: 10px; border-left: 2px solid var(--red); }
+.lib-reclaim-keepcopy { display: flex; align-items: center; gap: 8px;
+  font: 13px var(--font); color: var(--ink); margin: 8px 0; }
+.lib-reclaim-error { font: 12px var(--font); color: var(--red); margin: 8px 0 0; }
+.lib-patch__select { margin-right: 8px; flex: none; }
+
 .lib-actions { display: flex; gap: 8px; align-items: center; }
 .lib-folder { display: inline-flex; align-items: center; gap: 8px; color: var(--dim); font-size: 13px; }
 .lib-folder__btn { padding: 2px 8px; }
