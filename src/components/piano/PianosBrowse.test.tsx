@@ -138,24 +138,10 @@ describe('PianosBrowse', () => {
   });
 
   it('confirm dialog: factory disclaimer shown, keepCopy defaults off for all-factory selection', () => {
-    // To test dialog content we need to force the confirm dialog open.
-    // PianosBrowse controls this internally via useState; we test by rendering
-    // a wrapper that exercises the export. Since renderToStaticMarkup doesn't
-    // run effects or handle events, we use a prop-driven `_testConfirmOpen` escape hatch.
-    // If PianosBrowse doesn't expose this, the test should still pass by checking
-    // the rendered non-dialog markup. The implementation will expose factory
-    // disclaimer logic through the keep-copy default behavior.
-    //
-    // Alternative: test via the confirmOpen being passed as a prop for testability.
-    // For now, verify the structural invariant: a factory piano's url appears in
-    // the rendered markup only in the dialog when open. Since we can't open dialog
-    // without user interaction in static markup, we test the key observable:
-    // the reclaim bar is shown and factory is tagged, so the user can trigger confirm.
+    // _testConfirmOpen forces the confirm dialog open in static markup (no events).
     const factoryMatch = { filename: 'Grand_XL_1.0.npno', url: 'https://nord/grand-xl', sizeKb: 1024, sizeDescription: '1 GB', type: 'piano' as const };
     const unusedId = 'nord-piano:A:01';
     const factoryPiano = e({ id: unusedId, name: 'Grand XL', source: 'nord', unused: true, factory: factoryMatch });
-
-    // Test: rendering with _testConfirmOpen prop (if implemented) shows disclaimer
     const html = renderToStaticMarkup(
       <PianosBrowse
         {...base} {...reclaimBase}
@@ -166,15 +152,29 @@ describe('PianosBrowse', () => {
         _testConfirmOpen={true}
       />,
     );
-    // Dialog open → factory disclaimer visible
-    expect(html).toContain('factory');
-    // The Nord download link should appear
-    expect(html).toContain('https://nord/grand-xl');
-    // keepCopy checkbox should be unchecked (default off for all-factory)
-    expect(html).toMatch(/checked/); // keepCopy might not have checked attr when false
-    // The checkbox for keepCopy should NOT have the checked attribute for all-factory
-    // We verify "Download a copy first" appears
+    expect(html).toContain('factory');                 // disclaimer shown
+    expect(html).toContain('https://nord/grand-xl');    // Nord deep-link to get it back
     expect(html).toContain('Download a copy first');
+    // keepCopy defaults OFF for an all-factory selection: the ONLY checked box is the
+    // card's select checkbox (the piano is selected) — NOT the keep-copy one.
+    expect((html.match(/checked/g) ?? []).length).toBe(1);
+  });
+
+  it('confirm dialog: keepCopy defaults ON when a non-factory (user) piano is selected', () => {
+    const unusedId = 'nord-piano:A:02';
+    const userPiano = e({ id: unusedId, name: 'My Piano', source: 'nord', unused: true, factory: null });
+    const html = renderToStaticMarkup(
+      <PianosBrowse
+        {...base} {...reclaimBase}
+        entries={[userPiano]}
+        unusedOnly={true}
+        selected={new Set([unusedId])}
+        selectedFreeBytes={1024 * 1024}
+        _testConfirmOpen={true}
+      />,
+    );
+    // card checkbox (selected) + keep-copy checkbox (default ON for a user piano) = 2 checked
+    expect((html.match(/checked/g) ?? []).length).toBe(2);
   });
 
   it('shows "Find unused pianos" button when canScanUsage is true', () => {
