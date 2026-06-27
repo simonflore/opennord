@@ -17,7 +17,9 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
   confirmExtra?: ReactNode;
 }) {
   const plan = reorg.pendingPlan;
-  const verb = plan?.title.startsWith('Swap') ? 'Swap' : 'Move';
+  const verb = plan?.bulk
+    ? plan.title.split(' ')[0]                       // 'Sort' / 'Compact'
+    : plan?.title.startsWith('Swap') ? 'Swap' : 'Move';
   return (
     <>
       <p className="ps-sub" style={{ marginTop: 0, marginBottom: 10 }}>
@@ -55,6 +57,11 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
         }
       >
         <p className="ps-sub" style={{ margin: 0 }}>{plan?.summary}</p>
+        {plan?.bulk && (
+          <p className="ps-sub" style={{ margin: '8px 0 0', paddingLeft: 10, borderLeft: '2px solid var(--red)', color: 'var(--dim)' }}>
+            This changes slot numbers across the bank. MIDI Program Change and set-list automations that point at slots will shift to match.
+          </p>
+        )}
         {confirmExtra}
         <label className="ps-sub" style={{ display: 'block', marginTop: 8 }}>
           <input type="checkbox" checked={reorg.dontAsk} onChange={(e) => reorg.setDontAsk(e.target.checked)} />{' '}

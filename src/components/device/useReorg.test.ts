@@ -4,7 +4,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useReorg } from './useReorg';
 import type { DeviceIO } from '../../lib/device/device-io';
 import type { ProgramEntry } from '../../lib/device/transfer';
-import { type Occupancy, planArrange } from '../../lib/device/reorg';
+import { type Occupancy, planArrange, planReorg } from '../../lib/device/reorg';
 
 const prog = (bank: number, slot: number, name: string): ProgramEntry => ({
   bank, slot, name, categoryId: 0, version: 313, sizeBytes: 100, fourcc: 'ns4p',
@@ -110,12 +110,30 @@ describe('useReorg', () => {
     expect(result.current.error).toMatch(/already arranged/i);
   });
 
-  it('propose under autoApply applies immediately (refresh called, no pending)', async () => {
+  it('propose under autoApply applies a non-bulk move immediately (refresh called, no pending)', async () => {
     const entries = [prog(0, 0, 'B'), prog(0, 1, 'A')];
     const refresh = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() => useReorg({ io: ioFor(entries), partition: 6, entries, refresh, autoApply: true }));
-    await act(async () => { result.current.propose((occ: Occupancy) => planArrange(occ, 0, 'name')); });
+    // a single move (planReorg → planMove, not bulk) applies on drop
+    await act(async () => { result.current.propose((occ: Occupancy) => planReorg(occ, { bank: 0, slot: 0 }, { bank: 0, slot: 5 })); });
     await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
     expect(result.current.pendingPlan).toBeNull();
+  });
+
+  it('a bulk plan ALWAYS confirms — autoApply does not skip it', async () => {
+    const entries = [prog(0, 0, 'B'), prog(0, 1, 'A')];
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useReorg({ io: ioFor(entries), partition: 6, entries, refresh, autoApply: true }));
+    act(() => result.current.propose((occ: Occupancy) => planArrange(occ, 0, 'name')));
+    expect(result.current.pendingPlan?.title).toBe('Sort bank A–Z'); // shows the confirm, not applied
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('a bulk plan confirms even with "don\'t ask again" set', () => {
+    const entries = [prog(0, 0, 'B'), prog(0, 1, 'A')];
+    const { result } = renderHook(() => useReorg({ io: ioFor(entries), partition: 6, entries, refresh: vi.fn() }));
+    act(() => result.current.setDontAsk(true));
+    act(() => result.current.propose((occ: Occupancy) => planArrange(occ, 0, 'name')));
+    expect(result.current.pendingPlan?.bulk).toBe(true); // still confirms
   });
 });

@@ -3,7 +3,16 @@ import { formatSlot, BANK_LETTERS } from '../clavia/slot';
 
 export interface Addr { bank: number; slot: number }
 export type Op = { kind: 'copy'; from: Addr; to: Addr } | { kind: 'delete'; at: Addr };
-export interface Plan { ops: Op[]; journalSlots: Addr[]; title: string; summary: string }
+export interface Plan {
+  ops: Op[];
+  journalSlots: Addr[];
+  title: string;
+  summary: string;
+  /** A mass rearrangement (sort/compact a whole bank) that remaps many slot
+   *  numbers at once. These ALWAYS confirm (even on the apply-on-drop backup path)
+   *  and carry the MIDI-Program-Change advisory — a single move/swap does not. */
+  bulk?: boolean;
+}
 export interface PlanError { error: string }
 export type Occupancy = Map<string, ProgramEntry>;
 
@@ -97,6 +106,6 @@ export function planArrange(occ: Occupancy, bank: number, mode: ArrangeMode): Pl
   }
   const label = BANK_LETTERS[bank & 0x7] ?? String(bank);
   return mode === 'name'
-    ? { ops, journalSlots, title: 'Sort bank A–Z', summary: `Sort ${n} programs in Bank ${label} alphabetically` }
-    : { ops, journalSlots, title: 'Compact bank', summary: `Compact ${n} programs in Bank ${label}` };
+    ? { ops, journalSlots, title: 'Sort bank A–Z', summary: `Sort ${n} programs in Bank ${label} alphabetically`, bulk: true }
+    : { ops, journalSlots, title: 'Compact bank', summary: `Compact ${n} programs in Bank ${label}`, bulk: true };
 }

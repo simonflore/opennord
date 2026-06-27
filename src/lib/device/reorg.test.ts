@@ -93,6 +93,7 @@ describe('planArrange', () => {
     expect(isPlanError(p)).toBe(false);
     const plan = p as Plan;
     expect(plan.title).toBe('Sort bank A–Z');
+    expect(plan.bulk).toBe(true); // mass rearrange → always confirms + MIDI advisory
     // Alpha 1→0, Mid 5→1, Zeta 0→2 ; delete original slot 5 (>= n=3)
     expect(plan.ops).toEqual([
       { kind: 'copy', from: { bank: 2, slot: 1 }, to: { bank: 2, slot: 0 } },

@@ -26,6 +26,13 @@ describe('OrganizeGrids', () => {
     expect(html).toContain('Swap programs');
     expect(html).toContain('Swap &quot;A&quot; and &quot;B&quot;');
     expect(html).toMatch(/don.t ask again/i); // the remember toggle is in the confirm
+    expect(html).not.toMatch(/MIDI Program Change/); // single swap is not a bulk remap — no advisory
+  });
+  it('shows the MIDI-remap advisory in the confirm for a bulk (sort/compact) plan', () => {
+    const reorg = baseReorg({ pendingPlan: { ops: [], journalSlots: [], title: 'Sort bank A–Z', summary: 'Sort 3 programs in Bank A alphabetically', bulk: true } });
+    const html = renderToStaticMarkup(<OrganizeGrids entries={[]} reorg={reorg} />);
+    expect(html).toMatch(/MIDI Program Change/);
+    expect(html).toContain('Sort'); // the action button reads "Sort", not "Move"
   });
   it('shows Sort/Compact controls only for banks with two or more programs', () => {
     // bank 0 has 2 programs; everything else empty
