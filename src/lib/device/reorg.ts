@@ -1,5 +1,5 @@
 import type { ProgramEntry } from './transfer';
-import { formatSlot } from '../clavia/slot';
+import { formatSlot, BANK_LETTERS } from '../clavia/slot';
 
 export interface Addr { bank: number; slot: number }
 export type Op = { kind: 'copy'; from: Addr; to: Addr } | { kind: 'delete'; at: Addr };
@@ -61,4 +61,42 @@ export function planSwap(occ: Occupancy, a: Addr, b: Addr): Plan | PlanError {
 export function planReorg(occ: Occupancy, from: Addr, to: Addr): Plan | PlanError {
   if (addrKey(from) === addrKey(to)) return { error: 'Dropped on the same slot.' };
   return occ.has(addrKey(to)) ? planSwap(occ, from, to) : planMove(occ, from, to);
+}
+
+export type ArrangeMode = 'name' | 'compact';
+
+/** Tidy one bank in a single batch: 'name' sorts A–Z, 'compact' removes gaps
+ *  (order preserved). Because the executor journals every source up front and
+ *  each copy reads its pre-mutation bytes, an arbitrary in-bank rearrangement is
+ *  just copies-to-targets + tail deletes — no scratch slot, no execute.ts change. */
+export function planArrange(occ: Occupancy, bank: number, mode: ArrangeMode): Plan | PlanError {
+  const progs = [...occ.values()].filter((e) => e.bank === bank);
+  if (progs.length < 2) return { error: 'Nothing to arrange in this bank.' };
+  const ordered = [...progs].sort((a, b) =>
+    mode === 'name'
+      ? (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }) || a.slot - b.slot
+      : a.slot - b.slot,
+  );
+  const n = ordered.length;
+  const ops: Op[] = [];
+  ordered.forEach((p, i) => {
+    if (p.slot !== i) ops.push({ kind: 'copy', from: { bank, slot: p.slot }, to: { bank, slot: i } });
+  });
+  for (const p of progs) {
+    if (p.slot >= n) ops.push({ kind: 'delete', at: { bank, slot: p.slot } });
+  }
+  if (ops.length === 0) return { error: 'This bank is already arranged.' };
+  // Journal every slot any op touches — guarantees each copy's source is journaled
+  // and rollback can restore the whole bank.
+  const seen = new Set<string>();
+  const journalSlots: Addr[] = [];
+  for (const op of ops) {
+    for (const a of op.kind === 'copy' ? [op.from, op.to] : [op.at]) {
+      if (!seen.has(addrKey(a))) { seen.add(addrKey(a)); journalSlots.push(a); }
+    }
+  }
+  const label = BANK_LETTERS[bank & 0x7] ?? String(bank);
+  return mode === 'name'
+    ? { ops, journalSlots, title: 'Sort bank A–Z', summary: `Sort ${n} programs in Bank ${label} alphabetically` }
+    : { ops, journalSlots, title: 'Compact bank', summary: `Compact ${n} programs in Bank ${label}` };
 }

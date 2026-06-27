@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildOccupancy, planMove, planSwap, planReorg, isPlanError, addrKey } from './reorg';
+import { buildOccupancy, planMove, planSwap, planReorg, isPlanError, addrKey, planArrange, type Plan } from './reorg';
 import type { ProgramEntry } from './transfer';
 
 const entry = (over: Partial<ProgramEntry>): ProgramEntry => ({
@@ -78,5 +78,55 @@ describe('planReorg dispatch', () => {
   });
   it('rejects a drop on itself', () => {
     expect(isPlanError(planReorg(occ, { bank: 0, slot: 0 }, { bank: 0, slot: 0 })) && true).toBe(true);
+  });
+});
+
+describe('planArrange', () => {
+  const prog = (bank: number, slot: number, name: string): ProgramEntry => ({
+    bank, slot, name, categoryId: 0, version: 313, sizeBytes: 100, fourcc: 'ns4p',
+  });
+  const occOf = (...e: ProgramEntry[]) => buildOccupancy(e);
+
+  it('sorts a bank alphabetically: copies each program to its sorted index + deletes the vacated tail', () => {
+    // slots 0,1,5 = Zeta, Alpha, Mid → sorted Alpha,Mid,Zeta at 0,1,2
+    const p = planArrange(occOf(prog(2, 0, 'Zeta'), prog(2, 1, 'Alpha'), prog(2, 5, 'Mid')), 2, 'name');
+    expect(isPlanError(p)).toBe(false);
+    const plan = p as Plan;
+    expect(plan.title).toBe('Sort bank A–Z');
+    // Alpha 1→0, Mid 5→1, Zeta 0→2 ; delete original slot 5 (>= n=3)
+    expect(plan.ops).toEqual([
+      { kind: 'copy', from: { bank: 2, slot: 1 }, to: { bank: 2, slot: 0 } },
+      { kind: 'copy', from: { bank: 2, slot: 5 }, to: { bank: 2, slot: 1 } },
+      { kind: 'copy', from: { bank: 2, slot: 0 }, to: { bank: 2, slot: 2 } },
+      { kind: 'delete', at: { bank: 2, slot: 5 } },
+    ]);
+  });
+
+  it('compact preserves order and pulls programs up, removing gaps', () => {
+    // slots 2,5,9 = B,A,C → compact keeps slot order (B,A,C) at 0,1,2
+    const plan = planArrange(occOf(prog(0, 2, 'B'), prog(0, 5, 'A'), prog(0, 9, 'C')), 0, 'compact') as Plan;
+    expect(plan.title).toBe('Compact bank');
+    expect(plan.ops).toEqual([
+      { kind: 'copy', from: { bank: 0, slot: 2 }, to: { bank: 0, slot: 0 } },
+      { kind: 'copy', from: { bank: 0, slot: 5 }, to: { bank: 0, slot: 1 } },
+      { kind: 'copy', from: { bank: 0, slot: 9 }, to: { bank: 0, slot: 2 } },
+      { kind: 'delete', at: { bank: 0, slot: 5 } },
+      { kind: 'delete', at: { bank: 0, slot: 9 } },
+    ]);
+  });
+
+  it('every copy source is journaled (no "not journaled" gap)', () => {
+    const plan = planArrange(occOf(prog(1, 0, 'Z'), prog(1, 1, 'A'), prog(1, 7, 'M')), 1, 'name') as Plan;
+    const keys = new Set(plan.journalSlots.map(addrKey));
+    for (const op of plan.ops) if (op.kind === 'copy') expect(keys.has(addrKey(op.from))).toBe(true);
+  });
+
+  it('returns a PlanError when the bank has fewer than two programs', () => {
+    expect(planArrange(occOf(prog(0, 3, 'Solo')), 0, 'name')).toEqual({ error: 'Nothing to arrange in this bank.' });
+  });
+
+  it('returns a PlanError when the bank is already arranged', () => {
+    expect(planArrange(occOf(prog(0, 0, 'A'), prog(0, 1, 'B')), 0, 'name'))
+      .toEqual({ error: 'This bank is already arranged.' });
   });
 });

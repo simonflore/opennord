@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { FakeDevice } from './fake-device';
-import { buildOccupancy, planMove, planSwap, type Plan } from './reorg';
+import { buildOccupancy, planMove, planSwap, planArrange, type Plan } from './reorg';
 import { executePlan } from './execute';
 import type { ProgramEntry } from './transfer';
 
@@ -103,5 +103,41 @@ describe('executePlan', () => {
     const res = await executePlan(dev, PART, planSwap(occ, { bank: 2, slot: 12 }, { bank: 2, slot: 20 }) as Plan, occ);
     expect(res.ok).toBe(false);
     expect([...dev.snapshot()]).toEqual([...initial]); // both slots restored
+  });
+
+  it('executes a batch sort: programs end alphabetized at the top, tail cleared', async () => {
+    const z = entry({ bank: 2, slot: 0, name: 'Zeta' });
+    const a = entry({ bank: 2, slot: 1, name: 'Alpha' });
+    const m = entry({ bank: 2, slot: 5, name: 'Mid' });
+    const dev = new FakeDevice([
+      { partition: PART, file: file(4), entry: z },
+      { partition: PART, file: file(5), entry: a },
+      { partition: PART, file: file(6), entry: m },
+    ]);
+    const occ = buildOccupancy([z, a, m]);
+    const res = await executePlan(dev, PART, planArrange(occ, 2, 'name') as Plan, occ);
+    expect(res.ok).toBe(true);
+    expect((await dev.info(PART, { bank: 2, slot: 0 }))?.name).toBe('Alpha');
+    expect((await dev.info(PART, { bank: 2, slot: 1 }))?.name).toBe('Mid');
+    expect((await dev.info(PART, { bank: 2, slot: 2 }))?.name).toBe('Zeta');
+    expect(await dev.info(PART, { bank: 2, slot: 5 })).toBeNull(); // vacated tail cleared
+  });
+
+  it('rolls a failed batch sort back to the original layout', async () => {
+    const z = entry({ bank: 2, slot: 0, name: 'Zeta' });
+    const a = entry({ bank: 2, slot: 1, name: 'Alpha' });
+    const m = entry({ bank: 2, slot: 5, name: 'Mid' });
+    const dev = new FakeDevice([
+      { partition: PART, file: file(4), entry: z },
+      { partition: PART, file: file(5), entry: a },
+      { partition: PART, file: file(6), entry: m },
+    ]);
+    const initial = dev.snapshot();
+    dev.failNext('push', PART, { bank: 2, slot: 2 }); // third copy (Zeta→slot2) fails
+    const occ = buildOccupancy([z, a, m]);
+    const res = await executePlan(dev, PART, planArrange(occ, 2, 'name') as Plan, occ);
+    expect(res.ok).toBe(false);
+    expect(res.rolledBack).toBe(true);
+    expect([...dev.snapshot()]).toEqual([...initial]); // whole bank restored
   });
 });
