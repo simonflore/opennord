@@ -137,7 +137,8 @@ describe.skipIf(!existsSync(real))('zoneMapRows — real Strings.nsmp3', () => {
   });
 });
 
-const tbm = '/Users/simonflore/Documents/TBM/VibesNoVibrato Mellotron_M300A 4.1.nsmp4';
+// Local-only RE corpus (gitignored, docs/LEGAL.md); set OPENNORD_NSMP4_CORPUS to run.
+const tbm = process.env.OPENNORD_NSMP4_CORPUS ?? '';
 describe.skipIf(!existsSync(tbm))('zoneMapRows key range', () => {
   it('includes the zone bottom note as a range', () => {
     const bytes = new Uint8Array(readFileSync(tbm));

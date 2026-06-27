@@ -77,7 +77,8 @@ describe('patchStrokeLoopBytes', () => {
 });
 
 const u32be = (b: Uint8Array, o: number) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
-const takeOnMe = '/Users/simonflore/Documents/TBM/TAKE ON ME.nsmp';
+// Local-only looped .nsmp RE corpus (gitignored, docs/LEGAL.md); set OPENNORD_NSMP_LOOP_CORPUS to run.
+const takeOnMe = process.env.OPENNORD_NSMP_LOOP_CORPUS ?? '';
 describe.skipIf(!existsSync(takeOnMe))('loop points round-trip in place', () => {
   it('moves loop-in/out and reads them back, preserving size', () => {
     const src = new Uint8Array(readFileSync(takeOnMe));
