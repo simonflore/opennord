@@ -31,6 +31,14 @@ const sampleHandlers = {
   onImport: noop, onRemove: noop,
   canScanUsage: false, onScanUsage: noop, scanPct: null, unusedCount: null,
   unusedOnly: false, onUnusedOnly: noop,
+  selected: new Set<string>(),
+  toggleSelected: noop,
+  selectAllUnused: noop,
+  clearSelected: noop,
+  selectedFreeBytes: 0,
+  removeFromNord: () => Promise.resolve({ removed: 0, failed: 0 }),
+  removing: false,
+  removePct: null as number | null,
 };
 
 const baseSampleProps = {

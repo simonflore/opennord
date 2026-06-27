@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import '../library/library.css';
-import { BrowseToolbar, Card, Pill, SourceBadge, type FacetGroup } from '../ui';
+import { BrowseToolbar, Button, Card, Dialog, Pill, SourceBadge, type FacetGroup } from '../ui';
 import type { SampleEntry, SampleGeneration } from '../../lib/library/sample-entries';
 import type { SamplesPrefsApi, SampleSort } from '../../lib/library/prefs';
 import type { LibrarySource } from '../../lib/library/types';
@@ -11,6 +12,11 @@ function fmtSize(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Round bytes to nearest MB for the reclaim bar. */
+function fmtMB(bytes: number): string {
+  return `${Math.round(bytes / 1048576)} MB`;
+}
+
 const GEN_LABEL: Record<SampleGeneration, string> = { og: '.nsmp', '3': '.nsmp3', '4': '.nsmp4', npno: 'Piano (.npno)', unknown: 'Unrecognized' };
 const SORT_LABEL: Record<SampleSort, string> = { default: 'Default', name: 'Name (A–Z)', size: 'Size', strokes: 'Samples' };
 
@@ -18,7 +24,9 @@ export function SamplesBrowse(
   { entries, source, generation, query, nordCount, localCount, showSourceFacet, showUnknownGen,
     onSource, onGeneration, onQuery, onOpen, onLoadNew, onImport, onRemove,
     storedCount, storedBytes, prefs,
-    canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly }: {
+    canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly,
+    selected, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
+    removeFromNord, removing, removePct }: {
     entries: SampleEntry[];
     source: LibrarySource | 'all'; generation: SampleGeneration | 'all'; query: string;
     nordCount: number; localCount: number;
@@ -40,10 +48,55 @@ export function SamplesBrowse(
     unusedCount: number | null;
     unusedOnly: boolean;
     onUnusedOnly: (v: boolean) => void;
+    // Reclaim-space selection
+    selected: Set<string>;
+    toggleSelected: (id: string) => void;
+    selectAllUnused: () => void;
+    clearSelected: () => void;
+    selectedFreeBytes: number;
+    removeFromNord: (opts: { keepCopyIds: Set<string> }) => Promise<{ removed: number; failed: number }>;
+    removing: boolean;
+    removePct: number | null;
   },
 ) {
   const { favorites, toggleFavorite: onToggleFavorite } = prefs;
   const total = nordCount + localCount;
+
+  // Confirm-remove dialog state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  // Default keepCopy = true if any selected sample is non-factory
+  const selectedEntries = entries.filter((e) => selected.has(e.id));
+  const anyNonFactory = selectedEntries.some((e) => e.factory !== true);
+  const anyFactory = selectedEntries.some((e) => e.factory === true);
+  const [keepCopy, setKeepCopy] = useState(anyNonFactory);
+  const [removeError, setRemoveError] = useState('');
+  const [removeResult, setRemoveResult] = useState<{ removed: number; failed: number } | null>(null);
+
+  // Re-sync keepCopy default when selection changes (derive from latest selectedEntries)
+  // We do this imperatively only when the dialog opens; dialog re-renders each open.
+
+  function openConfirm() {
+    // Recompute default on open
+    const nonFactory = entries.filter((e) => selected.has(e.id)).some((e) => e.factory !== true);
+    setKeepCopy(nonFactory);
+    setRemoveError('');
+    setRemoveResult(null);
+    setConfirmOpen(true);
+  }
+
+  async function handleRemove() {
+    const keepCopyIds = keepCopy
+      ? new Set(entries.filter((e) => selected.has(e.id) && e.factory !== true).map((e) => e.id))
+      : new Set<string>();
+    setRemoveError('');
+    try {
+      const result = await removeFromNord({ keepCopyIds });
+      setRemoveResult(result);
+      setConfirmOpen(false);
+    } catch (err) {
+      setRemoveError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+    }
+  }
 
   const genOptions: Array<{ key: SampleGeneration | 'all'; label: string }> = [
     { key: 'all', label: 'All' },
@@ -69,6 +122,8 @@ export function SamplesBrowse(
       onChange: (k: string) => onGeneration(k as SampleGeneration | 'all'),
     },
   ];
+
+  const confirmTitle = `Remove ${selected.size} ${selected.size === 1 ? 'sample' : 'samples'} · frees ~${fmtMB(selectedFreeBytes)}`;
 
   return (
     <div className="lib-panel">
@@ -113,6 +168,26 @@ export function SamplesBrowse(
       />
       </div>
 
+      {/* Reclaim bar — shown when at least one sample is selected */}
+      {selected.size > 0 && (
+        <div className="lib-reclaim-bar" role="region" aria-label="Selected samples">
+          <span className="lib-reclaim-bar__info">
+            {selected.size} selected · frees ~{fmtMB(selectedFreeBytes)}
+          </span>
+          <Button variant="ghost" onClick={selectAllUnused}>Select all unused</Button>
+          <Button variant="primary" onClick={openConfirm}>Remove from Nord</Button>
+          <Button variant="ghost" onClick={clearSelected}>Clear</Button>
+        </div>
+      )}
+
+      {/* Remove result feedback */}
+      {removeResult && (
+        <p className="lib-reclaim-bar__result" role="status">
+          {removeResult.removed} {removeResult.removed === 1 ? 'sample' : 'samples'} removed
+          {removeResult.failed > 0 && ` · ${removeResult.failed} could not be removed`}
+        </p>
+      )}
+
       <div className="lib-panel__body">
       {entries.length === 0 ? (
         <div className="lib-empty"><p>No samples match.</p></div>
@@ -129,6 +204,16 @@ export function SamplesBrowse(
               onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onOpen(e); } }}
             >
               <div className="lib-patch__top">
+                {unusedOnly && e.source === 'nord' && e.unused && (
+                  <input
+                    type="checkbox"
+                    className="lib-patch__select"
+                    aria-label={`Select ${e.name}`}
+                    checked={selected.has(e.id)}
+                    onChange={() => toggleSelected(e.id)}
+                    onClick={(ev) => ev.stopPropagation()}
+                  />
+                )}
                 <button
                   className={`lib-fav${favorites.has(e.id) ? ' is-fav' : ''}`}
                   aria-label={favorites.has(e.id) ? `Unfavorite ${e.name}` : `Favorite ${e.name}`}
@@ -170,6 +255,38 @@ export function SamplesBrowse(
         </div>
       )}
       </div>
+
+      {/* Confirm-remove dialog */}
+      <Dialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title={confirmTitle}
+        footer={
+          <div className="on-dialog__footer-actions">
+            <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={removing}>Cancel</Button>
+            <Button variant="primary" onClick={() => void handleRemove()} disabled={removing}>
+              {removing && removePct !== null ? `Removing… ${removePct}%` : 'Remove'}
+            </Button>
+          </div>
+        }
+      >
+        {anyFactory && (
+          <p className="lib-reclaim-disclaimer">
+            Some of these are factory samples. You can always re-download them from Nord's library.
+          </p>
+        )}
+        <label className="lib-reclaim-keepcopy">
+          <input
+            type="checkbox"
+            checked={keepCopy}
+            onChange={(ev) => setKeepCopy(ev.currentTarget.checked)}
+          />
+          {' '}Download a copy first
+        </label>
+        {removeError && (
+          <p className="lib-reclaim-error" role="alert">{removeError}</p>
+        )}
+      </Dialog>
     </div>
   );
 }

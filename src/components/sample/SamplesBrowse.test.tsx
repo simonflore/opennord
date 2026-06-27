@@ -22,14 +22,75 @@ const handlers = {
   unusedOnly: false, onUnusedOnly: () => {},
 };
 
+const noop = () => {};
+const reclaimHandlers = {
+  selected: new Set<string>(),
+  toggleSelected: noop,
+  selectAllUnused: noop,
+  clearSelected: noop,
+  selectedFreeBytes: 0,
+  removeFromNord: () => Promise.resolve({ removed: 0, failed: 0 }),
+  removing: false,
+  removePct: null as number | null,
+};
+
 describe('SamplesBrowse', () => {
+  it('shows a select checkbox on unused device samples and a reclaim bar when selected', () => {
+    const unusedNordId = 'nord-sample:U:01';
+    const unusedNordEntry: SampleEntry = {
+      id: unusedNordId, name: 'Unused Choir', source: 'nord', generation: 'unknown', slot: 'U:01', unused: true,
+    };
+    const html = renderToStaticMarkup(
+      <SamplesBrowse
+        entries={[unusedNordEntry]}
+        source="nord" generation="all" query=""
+        nordCount={1} localCount={0}
+        showSourceFacet={false} showUnknownGen={false}
+        storedCount={0} storedBytes={0}
+        prefs={prefs()} {...handlers}
+        unusedOnly={true}
+        selected={new Set([unusedNordId])}
+        toggleSelected={noop}
+        selectAllUnused={noop}
+        clearSelected={noop}
+        selectedFreeBytes={48 * 1024 * 1024}
+        removeFromNord={() => Promise.resolve({ removed: 0, failed: 0 })}
+        removing={false}
+        removePct={null}
+      />,
+    );
+    // Reclaim bar appears when selection is non-empty
+    expect(html).toMatch(/Remove from Nord/);
+    // Shows MB figure from selectedFreeBytes
+    expect(html).toMatch(/48 MB/);
+    // Checkbox is rendered for the unused nord sample
+    expect(html).toMatch(/type="checkbox"/);
+  });
+
+  it('does not show checkbox on used or folder samples even in unusedOnly view', () => {
+    const html = renderToStaticMarkup(
+      <SamplesBrowse
+        entries={entries}
+        source="all" generation="all" query=""
+        nordCount={1} localCount={2}
+        showSourceFacet showUnknownGen={false}
+        storedCount={0} storedBytes={0}
+        prefs={prefs()} {...handlers}
+        unusedOnly={true}
+        {...reclaimHandlers}
+      />,
+    );
+    // No unused nord samples in `entries` fixture → no checkbox
+    expect(html).not.toMatch(/type="checkbox"/);
+  });
+
   it('renders title, counts, both samples, generation chips, and source badges', () => {
     const html = renderToStaticMarkup(
       <SamplesBrowse
         entries={entries} source="all" generation="all" query=""
         nordCount={1} localCount={2} showSourceFacet showUnknownGen={false}
         storedCount={1} storedBytes={1_000_000}
-        prefs={prefs()} {...handlers}
+        prefs={prefs()} {...handlers} {...reclaimHandlers}
       />,
     );
     expect(html).toContain('Samples');
@@ -48,7 +109,7 @@ describe('SamplesBrowse', () => {
         nordCount={1} localCount={2} showSourceFacet showUnknownGen={false}
         storedCount={0} storedBytes={0}
         prefs={prefs({ favorites: new Set(['folder:Bell.nsmp4']), isFavorite: (id) => id === 'folder:Bell.nsmp4' })}
-        {...handlers}
+        {...handlers} {...reclaimHandlers}
       />,
     );
     expect(html).toContain('★');
@@ -60,7 +121,7 @@ describe('SamplesBrowse', () => {
         entries={entries} source="all" generation="all" query=""
         nordCount={1} localCount={2} showSourceFacet showUnknownGen={false}
         storedCount={1} storedBytes={1_000_000}
-        prefs={prefs()} {...handlers}
+        prefs={prefs()} {...handlers} {...reclaimHandlers}
       />,
     );
     expect(html).toContain('Import sample');
@@ -75,7 +136,7 @@ describe('SamplesBrowse', () => {
         entries={entries} source="all" generation="all" query=""
         nordCount={1} localCount={2} showSourceFacet showUnknownGen={false}
         storedCount={1} storedBytes={1_000_000}
-        prefs={prefs()} {...handlers}
+        prefs={prefs()} {...handlers} {...reclaimHandlers}
       />,
     );
     expect(html).toContain('Remove My Loop');        // imported → removable

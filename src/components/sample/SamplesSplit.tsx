@@ -108,6 +108,11 @@ export function SamplesSplit() {
         prefs={s.prefs}
         canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct}
         unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
+        selected={s.selected} toggleSelected={s.toggleSelected}
+        selectAllUnused={s.selectAllUnused} clearSelected={s.clearSelected}
+        selectedFreeBytes={s.selectedFreeBytes}
+        removeFromNord={s.removeFromNord}
+        removing={s.removing} removePct={s.removePct}
       />
     </div>
   );
