@@ -16,6 +16,14 @@ The bright line is **authorship**, not file type:
 
 So a `.nsmp4` is only off-limits when it's **factory/library** content. OpenNord should default to caution: when it can't establish that a sample is user-created, treat it as not-shareable. The receiving user already owns the factory samples (they came with the instrument), so program-only sharing "just works" regardless.
 
+### Factory catalog metadata & download links — references, not content
+
+The absolute line above is about factory **audio** — the actual sample/library payloads OpenNord never hosts, transfers, or redistributes. It is **not** the same as factory *metadata*. OpenNord ships an index of factory sample/piano/library entries (names, filenames, versions, sizes, categories) and, for some, the vendor's **own public download URLs** — the same endpoints Nord already exposes through its website and Nord Sound Manager. This is intentional and stays on the right side of the line:
+
+- It exists for **interoperability**: mapping a sample id → its human name so a user's own program shows readable references, and pointing users at Nord's official download for a library they're missing.
+- These are **facts and links, not the works** — publicly-available metadata plus references to Nord's own hosted files. OpenNord **links** to those endpoints; it never mirrors, re-hosts, or bundles the audio they serve.
+- The factory **content** itself remains off-limits per the bright line above. Nothing here lets OpenNord redistribute Clavia's sample/library audio.
+
 > **Recognizing vs. sharing.** For the **community library / sharing** features, OpenNord uses only a `.nsmp4`'s small metadata header (name, version, checksum) — it never publishes, transmits, or hosts the compressed audio payload. Local features — the Sample Inspector, the sample editor, and pulling a sample off your own board — *do* read and decode the full audio, but only on your own machine for your own use (see *Local device access vs. community sharing* below). Distinguishing user-created from factory samples is an open problem (see `docs/FORMAT.md`); until it's reliable, sample *audio* is never part of any sharing/library feature.
 
 ## Local device access vs. community sharing
