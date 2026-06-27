@@ -38,9 +38,11 @@ interface Loaded {
   strokesByGlobalID: Map<number, DecodedStrokeResult>;
   /** Polyphonic player, null when audio isn't decodable. */
   sampler: Sampler | null;
+  /** Nord factory content — drives the editor's "edit it for your own use" disclaimer. */
+  factory: boolean;
 }
 
-export interface InspectorInput { bytes: Uint8Array; name: string; }
+export interface InspectorInput { bytes: Uint8Array; name: string; factory?: boolean; }
 
 /**
  * Audition the sample mapped to zone `index`. A zone references its stroke by
@@ -80,7 +82,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     return () => midi.setSink(null);
   }, [loaded?.sampler, loaded?.decodable, midi, transport]);
 
-  async function loadBytes(bytes: Uint8Array, name: string) {
+  async function loadBytes(bytes: Uint8Array, name: string, factory = false) {
     const file = readNsmp(bytes);
     const decodable = file.codec === 3 || file.codec === 4 || file.legacy;
     let decoded: DecodedStrokeResult[] = [];
@@ -103,15 +105,15 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     const order = strokeKeyboardOrder(zones);
     const strokesByGlobalID = new Map(decoded.map((d) => [d.globalID, d]));
     const sampler = decodable ? createSampler(playableZones, strokesByGlobalID) : null;
-    setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current, playableZones, order, strokesByGlobalID, sampler });
+    setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current, playableZones, order, strokesByGlobalID, sampler, factory });
   }
 
   async function onFile(f: File) {
-    await loadBytes(await readFileBytes(f), f.name);
+    await loadBytes(await readFileBytes(f), f.name); // a dropped/picked file is the user's own — not factory
   }
 
   useEffect(() => {
-    if (initial) void loadBytes(initial.bytes, initial.name);
+    if (initial) void loadBytes(initial.bytes, initial.name, !!initial.factory);
   }, [initial]);
 
   return (
@@ -150,6 +152,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                 initial={editModel(loaded.file, loaded.zones)}
                 bytes={loaded.bytes}
                 codec={loaded.file.codec === 4 ? 4 : 3}
+                factory={loaded.factory}
                 unison={sampleUnisonView(loaded.bytes)?.summary ?? null}
                 onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
                 onNoteOn={(midi) => { loaded.sampler?.noteOn(midi, 100); transport.refresh(); }}

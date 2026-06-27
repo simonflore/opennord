@@ -15,10 +15,13 @@ const round1 = (n: number): number => Math.round(n * 10) / 10;
  *  zone in the synced table below; rename, then patch + download a new .nsmp.
  *  Edits are written back into the original file in place — audio and everything
  *  we don't model are preserved exactly. */
-export function SampleEditPanel({ initial, bytes, codec, unison, onPlayZone, onNoteOn, onNoteOff, soundingMidis, playableZones }: {
+export function SampleEditPanel({ initial, bytes, codec, factory, unison, onPlayZone, onNoteOn, onNoteOff, soundingMidis, playableZones }: {
   initial: EditModel;
   bytes: Uint8Array;
   codec: 3 | 4;
+  /** This sample is Nord factory content. We don't block editing it — just show a
+   *  disclaimer (factory audio stays on the user's device, never re-shared). */
+  factory?: boolean;
   /** Read-only unison summary (codec-4 voicing block), or null when absent. */
   unison?: string | null;
   /** Audition a zone's sample by index — wired to the keyboard + table rows. */
@@ -69,6 +72,12 @@ export function SampleEditPanel({ initial, bytes, codec, unison, onPlayZone, onN
   return (
     <div className="ps-card" style={{ marginTop: 12 }}>
       <h4>EDIT · KEYBOARD MAP</h4>
+
+      {factory && (
+        <p className="ps-sub" style={{ margin: '0 0 10px', paddingLeft: 10, borderLeft: '2px solid var(--red)', color: 'var(--dim)' }}>
+          Nord factory sample — tweak it for your own use. Factory sounds stay on your device; OpenNord doesn’t share them.
+        </p>
+      )}
 
       <KeyboardZoneMap
         zones={zones}

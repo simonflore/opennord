@@ -54,7 +54,7 @@ export function SamplesSplit() {
       setLoadNew(false); setInspect(null); setPullPct(0);
       try {
         const bytes = await extractBackupEntry(folder, e.backupRef);
-        setInspect({ bytes, name: e.name });
+        setInspect({ bytes, name: e.name, factory: e.factory });
       } catch (err) {
         setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
       } finally {
