@@ -8,6 +8,7 @@ import { DeviceRoute } from '@/routes/device';
 import { AboutRoute } from '@/routes/about';
 import { CompatibilityRoute } from '@/routes/compatibility';
 import { RE_ROUTES } from '@/router-re';
+import { PRO_ROUTES } from '@/router-pro';
 
 // Index `/` → the Library (the home door).
 const IndexRoute = createRoute({
@@ -29,6 +30,7 @@ const routeTree = rootRoute.addChildren([
   CompatibilityRoute,
   AboutRoute,
   ...RE_ROUTES, // /contribute, /dev/inspect, /dev/decode — empty on the native build
+  ...PRO_ROUTES, // cloud/AI/community — empty in the open build, aliased by the product build
 ]);
 
 export const router = createRouter({

@@ -22,8 +22,8 @@ interface Props {
   folder: FolderLibrary;
 }
 
-const TABS: Array<LibrarySource | 'all'> = ['all', 'nord', 'local', 'backup'];
-const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', nord: 'On Nord', local: 'Local', backup: 'Backup' };
+const TABS: Array<LibrarySource | 'all'> = ['all', 'nord', 'local', 'backup', 'cloud'];
+const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', nord: 'On Nord', local: 'Local', backup: 'Backup', cloud: 'Cloud' };
 
 const SORT_LABEL: Record<LibrarySort, string> = { default: 'Default', name: 'Name (A–Z)', source: 'Source' };
 
