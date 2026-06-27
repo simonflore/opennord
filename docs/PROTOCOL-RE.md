@@ -150,7 +150,7 @@ CQryFileInfo{bank, slot} names each: reply = {status, …, size, fourccType, ver
 
 Validated: walked Program → **356 files** across banks A–H (the 355 user programs
 + the "OPENNORD TEST" we wrote at C:88), names matching NSM exactly. Tool:
-`scripts/nordcorpus.c`.
+`scripts/re-archive/nordcorpus.c`.
 
 **Read a file** (read-only, safe):
 ```
@@ -159,7 +159,7 @@ Begin(partition) → FileOpen{bank,slot} → FileRead{bank,slot,offset,length} �
 The read reply (`0x13`) is: protocol header + read-ack header (`status, …, u32
 dataLen`) + the **parameter body** + CRC16. The device returns the *body only*;
 the 44-byte `CBIN` file header is reconstructed from `FileInfo` metadata. Tools:
-`scripts/nordprobe.c`, `scripts/nordcopy.c`.
+`scripts/nordprobe.c`, `scripts/re-archive/nordcopy.c`.
 
 **Write a file** (validated by writing a playable program to C:88):
 ```
@@ -198,7 +198,7 @@ read/share/AI + live MIDI only. Full breakdown + sources: `docs/SYSEX-SPIKE.md`.
 
 - **Settings are readable** over USB: `Begin(11)` → the Settings partition holds a
   single file at `{bank 0, slot 0}`, type **`ns4t`**, ~80 bytes, name "Settings"
-  (`scripts/nordsettings.c`). The blob is **bit-packed parameter data** (same
+  (`scripts/re-archive/nordsettings.c`). The blob is **bit-packed parameter data** (same
   style as a program body), holding the device global config (MIDI channel, local
   control, transpose, …). Isolating a specific field would need a **differential**
   (change one setting, re-read, diff) since there's no settings parameter-map.
@@ -215,7 +215,7 @@ read/share/AI + live MIDI only. Full breakdown + sources: `docs/SYSEX-SPIKE.md`.
   empty = unused slot. `id2` is the sample's unique id; `name` the factory
   name+version. Verified live — e.g. A:01 "Dont look back" → *Royal Grand 3D XL
   6.1*, *3 Violins Mellotron_MKII 4.1*, *White Grand XL 6.3 (absent)*. All 5
-  slots/program decode cleanly. Tool: `scripts/nordeps.c`.
+  slots/program decode cleanly. Tool: `scripts/re-archive/nordeps.c`.
 - **Notifications** (`CFTNotify*` on interrupt `0x81`) only fire during long
   transfers (progress); nothing arrives at idle. A transfer UI polls `0x81` for
   progress while a download/upload runs.

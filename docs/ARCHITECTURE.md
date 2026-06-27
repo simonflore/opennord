@@ -26,7 +26,7 @@ OpenNord is a Web PWA (React + Vite) wrapped to iOS with Capacitor, so one codeb
 - **`lib/ns4`** — the heart. A typed `NS4Program` model and a `.ns4p` parser/decoder. The format is decoded and validated (0-mismatch against ns4decode; see `docs/FORMAT.md`); each field stays traceable to a source.
 - **`lib/ai`** — provider-pluggable. Ships a naive local ranker so the app works with zero config; the real implementation calls an LLM (default: Claude) to rank programs against a natural-language query, explain a patch, and translate intent into parameter targets. Keep it behind an interface so contributors can swap providers.
 - **`lib/device`** — the **USB transfer client**, where the reverse-engineered vendor protocol (`docs/PROTOCOL-RE.md`, `scripts/nord*.c`) lands in the app: a pluggable `NordTransport` (`WebUsbTransport` for Chromium desktop now; node-usb / DriverKit later) under `session` → `transfer` (enumerate / read / write) and `backup` (`.ns4b`). CRC-16, opcodes, and partition/`{bank,slot}` addressing live here.
-- **`lib/midi`** — `sysex.ts`, an experimental MIDI/SysEx scaffold. *Program transfer* turned out to be the vendor **USB** protocol above (not MIDI/SysEx), so this scaffold survives only for live CC/NRPN and the iOS-transfer retest (`docs/SYSEX-SPIKE.md`).
+- **`lib/midi`** — live **CC/NRPN** only (note input, sustain gate, MIDI control) for playing/auditioning a patch, **not** device transfer. *Program transfer* is the vendor **USB** protocol above, not MIDI/SysEx — `docs/SYSEX-SPIKE.md` records why the SysEx approach was tested and dropped.
 
 ## Community library (Phase 1, server side — not in this scaffold yet)
 

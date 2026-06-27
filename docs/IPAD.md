@@ -55,7 +55,7 @@ The TS bridge + native source already live in `plugins/capacitor-nord-usb/`
 6. **StatusBar polish.** Add `@capacitor/status-bar`, style to Studio Dark
    near-black behind `isCapacitorPlatform()`.
 7. **Hardware-validate.** Against a real Stage 4: enumerate (FileIterate) / read /
-   write, matching `scripts/nordpull.c` / `scripts/nordcreate.c`. The DEXT cannot
+   write, matching `scripts/re-archive/nordpull.c` / `scripts/nordcreate.c`. The DEXT cannot
    run on the simulator.
 
 ## Validation gates (cannot be verified without entitlement + hardware)

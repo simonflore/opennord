@@ -3,7 +3,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { nsmpClaimedRegions, nsmpGapRanges } from './nsmp-coverage';
 import { readNsmp } from './nsmp';
 
-const CORPUS = '/Users/simonflore/Documents/TBM/VibesNoVibrato Mellotron_M300A 4.1.nsmp4';
+// Local-only RE corpus (gitignored, see docs/LEGAL.md). Point OPENNORD_NSMP4_CORPUS
+// at a local .nsmp4 to run these characterization checks; skipped when unset/missing.
+const CORPUS = process.env.OPENNORD_NSMP4_CORPUS ?? '';
 
 describe('nsmp-coverage', () => {
   it('claimed regions are sorted, non-overlapping, in-bounds', () => {
