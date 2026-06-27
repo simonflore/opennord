@@ -41,6 +41,17 @@ describe('structural factory flag vs real codec-3 samples', () => {
   });
 });
 
+// OG/legacy `.nsmp` (codec 0, NWS container) has no structural factory flag, so we
+// make NO origin claim — even when the name carries a factory-library marker the
+// old name heuristic would have (wrongly) matched. `SynthPad2 … CLv4` ends in
+// "CL v4" → old regex = factory; structural-only = no claim.
+const OG_NAME_MARKER = '/Users/simonflore/Documents/TBM/SynthPad2__ste CLv4.nsmp';
+describe('OG .nsmp makes no factory claim (name heuristic dropped)', () => {
+  it.skipIf(!existsSync(OG_NAME_MARKER))('a factory-named OG sample is not claimed factory', () => {
+    expect(readNsmp(new Uint8Array(readFileSync(OG_NAME_MARKER))).suspectedFactory).toBe(false);
+  });
+});
+
 // End-to-end against the real Stage-4 backup (gitignored corpus; skips when absent).
 const REAL_BACKUP = '/Users/simonflore/Documents/TBM/Backup 2026-06-13.ns4b';
 describe('structural factory flag vs the real backup', () => {
