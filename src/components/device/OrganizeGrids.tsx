@@ -43,6 +43,10 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
       >
         <p className="ps-sub" style={{ margin: 0 }}>{plan?.summary}</p>
         {confirmExtra}
+        <label className="ps-sub" style={{ display: 'block', marginTop: 8 }}>
+          <input type="checkbox" checked={reorg.dontAsk} onChange={(e) => reorg.setDontAsk(e.target.checked)} />{' '}
+          Don’t ask again this session
+        </label>
         <PlanProgress progress={reorg.progress} />
       </Dialog>
     </>

@@ -16,6 +16,7 @@ const cap = (over: Partial<PartitionCapacity> = {}): PartitionCapacity => ({
 const noop = () => {};
 const stubReorg: ReorgApi = {
   pendingPlan: null, busy: false, progress: null, error: '', result: null,
+  dontAsk: false, setDontAsk: noop,
   onGesture: noop, confirm: async () => {}, cancel: noop,
 };
 const render = (capacity: PartitionCapacity | null, entries: ProgramEntry[] = [entry({})]) =>

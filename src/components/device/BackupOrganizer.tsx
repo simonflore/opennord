@@ -50,6 +50,7 @@ export function BackupOrganizer({ onBack, initialModel, initialBundlePath }: { o
     partition: PARTITION_PROGRAM,
     entries,
     refresh: () => { if (model) setEntries(listPrograms(model)); },
+    autoApply: true, // non-destructive in-memory edit — apply on drop, no per-move confirm
   });
 
   const folderWrite = useFolderWrite({

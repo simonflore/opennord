@@ -7,6 +7,7 @@ import type { ProgramEntry } from '../../lib/device/transfer';
 const noop = () => {};
 const baseReorg = (over: Partial<ReorgApi> = {}): ReorgApi => ({
   pendingPlan: null, busy: false, progress: null, error: '', result: null,
+  dontAsk: false, setDontAsk: noop,
   onGesture: noop, confirm: async () => {}, cancel: noop, ...over,
 });
 const prog = (bank: number, slot: number, name: string): ProgramEntry => ({
@@ -24,5 +25,6 @@ describe('OrganizeGrids', () => {
     const html = renderToStaticMarkup(<OrganizeGrids entries={[]} reorg={reorg} />);
     expect(html).toContain('Swap programs');
     expect(html).toContain('Swap &quot;A&quot; and &quot;B&quot;');
+    expect(html).toMatch(/don.t ask again/i); // the remember toggle is in the confirm
   });
 });

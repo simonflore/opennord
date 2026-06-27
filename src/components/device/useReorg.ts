@@ -18,6 +18,9 @@ export interface UseReorgOpts {
   backupOnce?: () => Promise<void>;
   /** Live only: wrap the execute in a device session, e.g. session.withSession(partition, fn). */
   run?: <T>(fn: () => Promise<T>) => Promise<T>;
+  /** Apply a gesture immediately with no confirm dialog (the non-destructive backup
+   *  organizer — nothing is written until the user downloads). Default false. */
+  autoApply?: boolean;
 }
 
 export interface ReorgApi {
@@ -26,6 +29,9 @@ export interface ReorgApi {
   progress: ExecProgress | null;
   error: string;
   result: ExecResult | null;
+  /** "Don't ask again this session" — once set, gestures apply without confirming. */
+  dontAsk: boolean;
+  setDontAsk(v: boolean): void;
   onGesture(g: { kind: 'move'; from: Addr; to: Addr }): void;
   confirm(): Promise<void>;
   cancel(): void;
@@ -34,27 +40,18 @@ export interface ReorgApi {
 /** The one reorg flow: gesture → plan (move|swap) → confirm → execute (journal
  *  rollback) → refresh. Shared by the live-device Organize mode and the backup
  *  organizer; they differ only in io / refresh / backupOnce / run. */
-export function useReorg({ io, partition, entries, refresh, backupOnce, run }: UseReorgOpts): ReorgApi {
+export function useReorg({ io, partition, entries, refresh, backupOnce, run, autoApply = false }: UseReorgOpts): ReorgApi {
   const { busy, error, setError, run: runAction } = useAsyncAction();
   const [pendingPlan, setPendingPlan] = useState<Plan | null>(null);
   const [progress, setProgress] = useState<ExecProgress | null>(null);
   const [result, setResult] = useState<ExecResult | null>(null);
+  const [dontAsk, setDontAsk] = useState(false);
   const occRef = useRef<Occupancy>(new Map());
   const wrap = run ?? (<T,>(fn: () => Promise<T>) => fn());
 
-  function onGesture(g: { kind: 'move'; from: Addr; to: Addr }) {
-    setError('');
-    setResult(null);
-    const occ = buildOccupancy(entries);
-    const plan = planReorg(occ, g.from, g.to);
-    if (isPlanError(plan)) { setError(plan.error); return; }
-    occRef.current = occ; // freeze the exact occupancy the plan was validated against
-    setPendingPlan(plan);
-  }
-
-  async function confirm() {
-    if (!pendingPlan || busy) return;
-    const plan = pendingPlan;
+  /** Run a planned reorg: optional session backup → execute (journal rollback) →
+   *  refresh on success, error on failure. Always clears the pending plan. */
+  async function apply(plan: Plan) {
     setProgress(null);
     await runAction(async () => {
       if (backupOnce) await backupOnce();
@@ -70,5 +67,24 @@ export function useReorg({ io, partition, entries, refresh, backupOnce, run }: U
     setProgress(null);
   }
 
-  return { pendingPlan, busy, progress, error, result, onGesture, confirm, cancel: () => setPendingPlan(null) };
+  function onGesture(g: { kind: 'move'; from: Addr; to: Addr }) {
+    setError('');
+    setResult(null);
+    const occ = buildOccupancy(entries);
+    const plan = planReorg(occ, g.from, g.to);
+    if (isPlanError(plan)) { setError(plan.error); return; }
+    occRef.current = occ; // freeze the exact occupancy the plan was validated against
+    if (autoApply || dontAsk) {
+      if (!busy) void apply(plan); // apply on drop — no confirm
+    } else {
+      setPendingPlan(plan); // show the confirm dialog
+    }
+  }
+
+  async function confirm() {
+    if (!pendingPlan || busy) return;
+    await apply(pendingPlan);
+  }
+
+  return { pendingPlan, busy, progress, error, result, dontAsk, setDontAsk, onGesture, confirm, cancel: () => setPendingPlan(null) };
 }

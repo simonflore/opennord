@@ -63,6 +63,26 @@ describe('useReorg', () => {
     expect(result.current.error).toBe('');
   });
 
+  it('autoApply: a gesture applies immediately — no pending plan, refresh called', async () => {
+    const entries = [prog(0, 0, 'A')];
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useReorg({ io: ioFor(entries), partition: 6, entries, refresh, autoApply: true }));
+    await act(async () => { result.current.onGesture({ kind: 'move', from: { bank: 0, slot: 0 }, to: { bank: 0, slot: 5 } }); });
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    expect(result.current.pendingPlan).toBeNull(); // never showed a confirm
+    expect(result.current.error).toBe('');
+  });
+
+  it('dontAsk: after setDontAsk(true), gestures apply without a confirm', async () => {
+    const entries = [prog(0, 0, 'A')];
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useReorg({ io: ioFor(entries), partition: 6, entries, refresh }));
+    act(() => result.current.setDontAsk(true));
+    await act(async () => { result.current.onGesture({ kind: 'move', from: { bank: 0, slot: 0 }, to: { bank: 0, slot: 5 } }); });
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    expect(result.current.pendingPlan).toBeNull(); // applied without confirming
+  });
+
   it('confirm on failed execute clears plan AND sets error', async () => {
     const entries = [prog(0, 0, 'A')];
     const refresh = vi.fn().mockResolvedValue(undefined);
