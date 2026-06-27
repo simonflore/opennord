@@ -20,6 +20,8 @@ export interface PianoEntry {
   bytes?: Uint8Array;    // folder — raw file, for download
   /** Precomputed factory deep-link (resolveFactory), or null for user-created. */
   factory: FactoryMatch | null;
+  /** Device pianos only: not referenced by any program (safe to remove). Set after a usage scan. */
+  unused?: boolean;
   /** Whether this is a factory (Nord-installed) entry. Set for backup entries. */
   isFactory?: boolean;
   /** Backup entries only: the zip reference for on-demand extraction. */
