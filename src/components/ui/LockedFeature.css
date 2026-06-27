@@ -1,0 +1,19 @@
+.on-locked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--dim);
+}
+.on-locked__title {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink);
+}
+.on-locked__blurb {
+  margin: 0;
+  font-size: 11px;
+}
