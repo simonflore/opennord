@@ -7,9 +7,9 @@ import { LibraryProvider } from './lib/library/LibraryContext';
 import { SamplesProvider } from './lib/library/SamplesContext';
 import { PresetsProvider } from './lib/library/PresetsContext';
 import { PianosProvider } from './lib/library/PianosContext';
-import { router } from './router';
+import type { AppRouter } from './router';
 
-export function App() {
+export function App({ router }: { router: AppRouter }) {
   return (
     <DeviceProvider>
       <FolderProvider>
