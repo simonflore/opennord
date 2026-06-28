@@ -1,4 +1,5 @@
 import { LIBRARY_CATEGORIES } from '../../lib/library/categories';
+import { useCapabilities } from '../../lib/capabilities/CapabilitiesContext';
 import { DeviceStatus } from './DeviceStatus';
 import type { NavTo } from './nav';
 export type { NavTo } from './nav';
@@ -18,6 +19,10 @@ const DESTS: Array<{ to: NavTo; label: string }> = [
 // RE-only destinations — present only in the web/dev build (__RE__).
 const RE_DESTS: Array<{ to: NavTo; label: string }> = [{ to: '/contribute', label: 'Contribute' }];
 
+// Cloud is a build-injected route (present only when a proprietary build supplies it +
+// the cloud capability is available), so it sits outside the base NavTo union — cast once.
+const CLOUD_TO = '/cloud' as NavTo;
+
 // Device transfer rides vendor-USB (WebUSB) — desktop Chrome/Edge or the iPad app
 // only. Where it's unavailable, Device stays visible but disabled with a reason.
 const usbSupported = typeof navigator !== 'undefined' && 'usb' in navigator;
@@ -29,6 +34,7 @@ const DEV_DESTS: Array<{ to: NavTo; label: string }> = [
 ];
 
 export function Rail({ active, onNavigate, onManageDevice }: Props) {
+  const caps = useCapabilities();
   const path = '/' + active;
   // A nav item is active when the path equals it or sits beneath it (e.g.
   // /library/$id keeps Library lit).
@@ -74,6 +80,18 @@ export function Rail({ active, onNavigate, onManageDevice }: Props) {
           </button>
         );
       })}
+
+      {/* Cloud — proprietary builds light this up via the capability seam; the open
+          client (cloud unavailable) never shows a dead link. */}
+      {caps.cloud.available && (
+        <button
+          className={`on-nav ${isActive(CLOUD_TO) ? 'on-nav--active' : ''}`.trim()}
+          aria-current={isActive(CLOUD_TO) ? 'page' : undefined}
+          onClick={() => onNavigate(CLOUD_TO)}
+        >
+          Cloud
+        </button>
+      )}
 
       {__RE__ && RE_DESTS.map((d) => (
         <button
