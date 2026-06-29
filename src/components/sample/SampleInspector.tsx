@@ -4,7 +4,8 @@ import { readNsmp, decodeNsmp, readNsmpZones, type NsmpFile, type DecodedStrokeR
 import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary, sampleUnisonView, noteName } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
 import { buildPlayableZones, strokeKeyboardOrder, type PlayableZone } from '../../lib/ns4/playable-zones';
-import { createSampler, type Sampler } from './sampleEngine';
+import { createSampler, DEFAULT_ENVELOPE, type Sampler, type AmpEnvelope } from './sampleEngine';
+import { EnvelopePanel } from './EnvelopePanel';
 import { useSampleTransport } from './useSampleTransport';
 import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
@@ -61,6 +62,13 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
   const [dragOver, setDragOver] = useState(false);
   const loadCount = useRef(0);
 
+  // Synth-playground envelope (optional, off by default — not part of the sample).
+  // A ref mirrors it so the sampler's getter reads current values without rebuilding.
+  const [envEnabled, setEnvEnabled] = useState(false);
+  const [env, setEnv] = useState<AmpEnvelope>(DEFAULT_ENVELOPE);
+  const envRef = useRef<AmpEnvelope | null>(null);
+  useEffect(() => { envRef.current = envEnabled ? env : null; }, [envEnabled, env]);
+
   const transport = useSampleTransport(loaded?.sampler ?? null);
   // sounding is a state value (Map), not a function
   const soundingMidis = new Set(transport.sounding.keys());
@@ -80,7 +88,11 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
       noteOff: (n) => sampler.noteOff(n),
     });
     return () => midi.setSink(null);
-  }, [loaded?.sampler, loaded?.decodable, midi, transport]);
+    // Depend on transport.refresh (stable per sampler), NOT the whole transport
+    // object — it's a fresh literal each render, and re-running this effect mid-note
+    // calls setSink → gate.allNotesOff(), releasing the held MIDI note after ~1 frame.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded?.sampler, loaded?.decodable, midi, transport.refresh]);
 
   async function loadBytes(bytes: Uint8Array, name: string, factory = false) {
     const file = readNsmp(bytes);
@@ -104,7 +116,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     const playableZones = buildPlayableZones(zones);
     const order = strokeKeyboardOrder(zones);
     const strokesByGlobalID = new Map(decoded.map((d) => [d.globalID, d]));
-    const sampler = decodable ? createSampler(playableZones, strokesByGlobalID) : null;
+    const sampler = decodable ? createSampler(playableZones, strokesByGlobalID, () => envRef.current) : null;
     setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current, playableZones, order, strokesByGlobalID, sampler, factory });
   }
 
@@ -189,6 +201,9 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
               )}
 
           {loaded.decodable && <MidiConnect />}
+          {loaded.decodable && (
+            <EnvelopePanel enabled={envEnabled} env={env} onToggle={setEnvEnabled} onChange={setEnv} />
+          )}
           {loaded.decodable && <SampleConvert bytes={loaded.bytes} file={loaded.file} name={loaded.name} />}
           <StrokeList
             strokes={loaded.strokes}

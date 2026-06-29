@@ -483,6 +483,39 @@ Stage 2, it proves the envelope + `map` + section assembly, isolating the only
 open problem to region-recompute-for-new-length. Then calibrate the region/align
 constants against hardware (2–3 iterations) rather than a blind port.
 
+## Loop / sustain playback model — VERIFIED (NSE binary, 2026-06-28)
+
+How a held key sustains. Reverse-engineered from the decompiled NSE
+(`nse_decomp/` + `nse/nse-arm64`), cross-checked against `.nsmpproj` editor
+ground truth and a corpus survey (TBM, VLV).
+
+- **Loop-on/off flag = `loop-out ≠ end` (U3 ≠ U4).** This is the encoder's own
+  one-shot/loop decision, not a guess: `NW1::CSectionStroke::Read` sets the
+  `SStrokeAttributes+0x14` bool as `(wordA != wordB)` of two header position
+  words, and `EncodeStrokePhase0` (`if attr[0x14]==0`) *forces* loop-out = end on
+  one-shots. Validated on **OG** (TAKE ON ME = 4/9 looped, the known pattern) and
+  **codec-4** (VLV Strings + Mellotron = all one-shot, `U3==U4` everywhere). The
+  editor's *capital* `LoopEnabled` proj field is loop-tool UI state and does **not**
+  equal the exported loop — trust the file's `U3≠U4`, not the proj's `LoopEnabled`.
+  Corpus reality: most sustained instruments **do** loop (flute/DX7/pad/motif =
+  100% looped); one-shots are the minority.
+- **Sustain algorithm = hard-jump modulo loop**
+  `pos = loopBegin + ((pos − loopBegin) mod loopLength)`
+  (`NAudio::CAStroke::GetModuloPos`/`RenderLoopRange`), with an optional
+  **exponential loop-decay** gain `pow(decayBase, samplesPastLoopBegin)`
+  (`RenderLoop`/`GetLoopDecay`). No detune/pitch ramp in the read path.
+- **Crossfade is hardware-DSP-only.** The NSE desktop *preview* hard-jumps the
+  loop (audible click); the `loopXFade*` params exist in the model but are applied
+  only on the instrument's DSP, not in the preview. Our Web-Audio sampler
+  approximates the DSP by baking an **equal-power crossfade** into the loop seam
+  (`sampleEngine.ts` `crossfadeLoop`/`loopXfadeLen`) so a sustained note doesn't
+  click — closer to hardware than the editor's own preview.
+- Field map (codec / playback structs), cited: `SSmpAttributes` = level@0,
+  chan@4, bitdepth@8, secondStart@0xc, **loopBegin@0x10**, **end/length@0x14**
+  (all ×channelCnt); playback `CAStroke` cache = begin@0xa0, end@0xa4,
+  **loopBegin@0xac**, **loopLength@0xb0**, loopEnable byte@0xc1, decayEnable@0xc2,
+  decayBase(double)@0xc8.
+
 ### DECISIVE BLOCKER — byte-exact OG header needs a byte-exact *encoder*
 
 Ground-truth proof (editor-made `.nsmp4` + `.nsmpproj`, all single one-shot
