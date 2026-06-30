@@ -13,19 +13,20 @@ type Status =
   | { kind: 'error'; msg: string };
 
 /**
- * Every Nord Sample generation OpenNord can write, newest first. The `code` is the
- * `convertNsmp` target; `2` is the original `.nsmp` (OG `NWS` container). Listing
- * all three lets the UI offer any generation as a target, so a loaded sample can be
- * converted from *any* generation to *any other* -- including the downconverts the
- * official editor refuses (`.nsmp4`/`.nsmp3` -> original `.nsmp`).
+ * Every Nord Sample generation OpenNord can write, newest first. Labels match
+ * Nord's own Sample Editor export names ("NSMP 2/3/4"); the `code` is the
+ * `convertNsmp` target (2 = `.nsmp`, 3 = `.nsmp3`, 4 = `.nsmp4`). Listing all three
+ * lets the UI offer any generation as a target, so a loaded sample can be converted
+ * from *any* generation to *any other* -- including the downconverts the official
+ * editor refuses (`.nsmp4`/`.nsmp3` -> `.nsmp`).
  */
 const GENERATIONS: { code: TargetCodec; ext: string; label: string; experimental?: boolean }[] = [
-  { code: 4, ext: '.nsmp4', label: 'Stage 4 (.nsmp4)' },
-  { code: 3, ext: '.nsmp3', label: 'Stage 3 (.nsmp3)' },
-  { code: 2, ext: '.nsmp', label: 'Original (.nsmp)', experimental: true },
+  { code: 4, ext: '.nsmp4', label: 'NSMP 4 (.nsmp4)' },
+  { code: 3, ext: '.nsmp3', label: 'NSMP 3 (.nsmp3)' },
+  { code: 2, ext: '.nsmp', label: 'NSMP 2 (.nsmp)', experimental: true },
 ];
 
-/** Which generation a loaded file is, as a {@link GENERATIONS} code (OG -> 2). */
+/** Which generation a loaded file is, as a {@link GENERATIONS} code (`.nsmp` -> 2). */
 function sourceGeneration(file: NsmpFile): TargetCodec | 0 {
   if (file.legacy) return 2;
   if (file.codec === 3 || file.codec === 4) return file.codec;

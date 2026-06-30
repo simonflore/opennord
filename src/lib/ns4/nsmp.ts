@@ -199,6 +199,16 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
   const { legacy, version, versionRaw, codec } = id;
   const checksumValid = verifyNs4Checksum(bytes);
   if (!checksumValid && !legacy) warnings.push('Sample checksum mismatch — possibly truncated/modified.');
+  // `NWS` containers cover two codecs (NW1::PeekFormat): v8 → codec 1 (rev A,
+  // Library 1.x) and v11 → codec 2 (rev B, Library 2.0; CBIN ver 200, `map`
+  // version 10). Both are now read (audio + name + zones; see docs/NSMP-CODEC.md).
+  // Warn only for a legacy file that is *neither* — a generation we haven't mapped.
+  if (legacy && versionRaw !== undefined && versionRaw !== 8 && codec !== 2) {
+    warnings.push(
+      `Unverified Nord Sample generation (NWS v${versionRaw}). Only Library 1.x ` +
+        `(.nsmp v8) and Library 2.0 (codec 2) are validated — readout may be incomplete.`,
+    );
+  }
 
   const sections = parseNsmpSections(bytes);
   const hdr = sections.find((s) => s.tag === '.hdr' || s.tag.endsWith('hdr'));
@@ -311,7 +321,7 @@ function readZoneRecord(bytes: Uint8Array, e: number, L: ZoneRecordLayout): Nsmp
  * fall back to scanning for the run of `strokeCount` valid records.
  */
 export function parseCodec4ZoneRecords(
-  bytes: Uint8Array, map: NsmpSection, strokeCount: number,
+  bytes: Uint8Array, map: NsmpSection, strokeCount: number, gidSet?: Set<number>,
 ): NsmpZone[] {
   if (strokeCount <= 0) return [];
   const REC = 16;
@@ -319,38 +329,41 @@ export function parseCodec4ZoneRecords(
   const HEADER = 32;             // zone-table header; its last byte is the zone count
 
   // Records are root-aligned (ZONE_LAYOUT_C4): rootKey@+0, keyHigh@+1, keyLow@+2,
-  // globalID@+11, trailer `00 01 00`@+12, velTop@+15.
-  // Preferred path: fixed header offset, self-validated by the section size equation.
+  // globalID@+11, trailer `00 01 00`@+12, velTop@+15. A real record has all three
+  // key bytes ≤127, a global id that names a real stroke, and the `00 01 00` trailer.
+  const valid = (o: number) =>
+    o + REC <= map.endOffset && bytes[o] <= 127 && bytes[o + 1] <= 127 && bytes[o + 2] <= 127 &&
+    (gidSet ? gidSet.has(bytes[o + 11]) : bytes[o + 11] >= 1) &&
+    bytes[o + 12] === 0 && bytes[o + 13] === 1 && bytes[o + 14] === 0;
+
+  // Preferred path: the table sits at the fixed header offset. Its **trailer length
+  // varies** (both 6 B and 2 B observed) — it tracks the `SampleUnison`/random-stroke
+  // config, not the instrument — so accept any small trailer and validate the first
+  // record is real (guards against false accept).
   const recStart = map.payloadOffset + PER_NOTE + HEADER;
   const count = bytes[recStart - 1];
-  if (count >= 1 && recStart + count * REC + 6 === map.endOffset) {
+  const trailer = map.endOffset - (recStart + count * REC);
+  if (count >= 1 && trailer >= 0 && trailer <= 8 && valid(recStart)) {
     const zones: NsmpZone[] = [];
     for (let i = 0; i < count; i++) zones.push(readZoneRecord(bytes, recStart + i * REC, ZONE_LAYOUT_C4));
     return zones;
   }
 
-  // Fallback: skip the per-note rows, then scan for `strokeCount` valid records.
-  let o = map.payloadOffset + 6;
-  const isPerNoteRow = (p: number) => p + 10 <= map.endOffset &&
-    bytes[p] === 0x10 && bytes[p + 1] === 0 && bytes[p + 2] === 0 &&
-    bytes[p + 3] === 0 && bytes[p + 4] === 0 && bytes[p + 5] === 0;
-  while (isPerNoteRow(o)) o += 10;
-  const runValid = (start: number): boolean => {
-    if (start + strokeCount * REC > map.endOffset) return false;
-    for (let i = 0; i < strokeCount; i++) {
-      const e = start + i * REC;
-      if (bytes[e] > 127 || bytes[e + 1] > 127 || bytes[e + 11] < 1) return false; // rootKey / keyHigh / globalID
-      if (bytes[e + 12] !== 0 || bytes[e + 13] !== 1 || bytes[e + 14] !== 0) return false; // trailer `00 01 00`
-    }
-    return true;
-  };
-  for (let p = o; p + strokeCount * REC <= map.endOffset; p++) {
-    if (!runValid(p)) continue;
-    const zones: NsmpZone[] = [];
-    for (let i = 0; i < strokeCount; i++) zones.push(readZoneRecord(bytes, p + i * REC, ZONE_LAYOUT_C4));
-    return zones;
+  // Fallback: the zone-table header (`SampleUnison` block) can be a different size and
+  // per-note rows aren't always unity, so the fixed offset can be wrong. Locate the
+  // table as the maximal run of valid 16-byte records anywhere after the global block.
+  // Zone count need not equal stroke count (a spare stroke may be unmapped). The
+  // `keyLow ≤ 127` check in `valid` is what rejects the off-by-a-few-bytes phantom run.
+  let best = { start: -1, n: 0 };
+  for (let p = map.payloadOffset + 6; p + REC <= map.endOffset; p++) {
+    let n = 0;
+    for (let o = p; valid(o); o += REC) n++;
+    if (n > best.n) best = { start: p, n };
   }
-  return [];
+  if (best.start < 0) return [];
+  const zones: NsmpZone[] = [];
+  for (let i = 0; i < best.n; i++) zones.push(readZoneRecord(bytes, best.start + i * REC, ZONE_LAYOUT_C4));
+  return zones;
 }
 
 /**
@@ -471,6 +484,12 @@ export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
   // table sits at the tail. Parse it separately. (Reverse-engineered from real OG
   // files — see parseLegacyZoneRecords.)
   if (nsmpLayout(bytes).legacy) {
+    // Codec-2 / NSMP-2 revision B (Library 2.0) uses `map` version 10 — a 15-byte
+    // record table distinct from v8's (version 9) legacy 12-byte records. Route it
+    // to the dedicated parser; the v8 path below would yield garbage.
+    if (map.version === 10) {
+      return parseCodec2ZoneRecords(bytes, map, strokeRootByGlobalId(bytes, sections));
+    }
     const strokeCount = sections.filter((s) => s.tag.endsWith('stk')).length;
     const zones = parseLegacyZoneRecords(bytes, map.payloadOffset, map.endOffset, strokeCount);
     // The OG `map` record carries no root key (the byte we'd read there is ~0, far
@@ -485,8 +504,16 @@ export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
   // 10-byte rows, so the codec-3 6-byte unity-skip below misaligns and yields
   // garbage zones. Parse it with the dedicated codec-4 reader.
   if (map.version >= 21) {
-    const strokeCount = sections.filter((s) => s.tag.endsWith('stk')).length;
-    return parseCodec4ZoneRecords(bytes, map, strokeCount);
+    const stk = sections.filter((s) => s.tag.endsWith('stk'));
+    const gidSet = new Set(stk.map((s) => bytes[s.payloadOffset + 3]));
+    return parseCodec4ZoneRecords(bytes, map, stk.length, gidSet);
+  }
+
+  // Codec-3 format-0 / Library-3.0 `.nsmp3` (`map` version 12) uses an 11-byte
+  // stroke-reference record, distinct from the v13/v14 16-byte form below. Route it
+  // to the dedicated reader (the v14 parser would misread it as garbage zones).
+  if (map.version === 12) {
+    return parseCodec3V12ZoneRecords(bytes, map, strokeRootByGlobalId(bytes, sections));
   }
 
   // Codec-3 `map`: [6B global][128 × 6B per-note level/detune][1B zone count][N × 16B
@@ -543,6 +570,78 @@ export function parseLegacyZoneRecords(
     return zones;
   }
   return [];
+}
+
+/**
+ * Layout of a "stroke-reference" zone record — the family of `map` tables that
+ * reference a stroke by global id and store a split point, deriving everything else
+ * (keyLow by tiling, rootKey from the `stk` header). Two known members:
+ *   - **v10** (codec-2 / Library-2.0 `.nsmp`): 15-byte, `gid@0`, `keyHigh@7`,
+ *     signature `[+8]=0x00 [+9]=0x01`.
+ *   - **v12** (codec-3 / format-0 Library-3.0 `.nsmp3`): 11-byte, `gid@4`,
+ *     `keyHigh@8`, signature `[+6]=0x01`.
+ * Both validated against their corpora (gids match strokes, zones tile, roots are
+ * musical — `docs/NSMP-CODEC.md`).
+ */
+interface StrokeRefRecSpec {
+  rec: number;
+  gidOff: number;
+  keyHighOff: number;
+  ok: (bytes: Uint8Array, o: number, gidSet: Set<number>) => boolean;
+}
+
+/**
+ * Generic reader for the stroke-reference `map` families above. Locates the table
+ * as the maximal run of valid fixed-size records after the global+per-note block,
+ * then derives `keyLow` by top-down tiling and `rootKey` from the `stk` header by
+ * global id (no separate count field is relied upon).
+ */
+function parseStrokeRefZoneRecords(
+  bytes: Uint8Array, map: NsmpSection, rootByGid: Map<number, number>, spec: StrokeRefRecSpec,
+): NsmpZone[] {
+  const gidSet = new Set(rootByGid.keys());
+  const { rec, gidOff, keyHighOff } = spec;
+  let best = { start: -1, n: 0 };
+  for (let start = map.payloadOffset + 6; start + rec <= map.endOffset; start++) {
+    let n = 0;
+    for (let o = start; o + rec <= map.endOffset && spec.ok(bytes, o, gidSet); o += rec) n++;
+    if (n > best.n) best = { start, n };
+  }
+  if (best.start < 0) return [];
+  const raw: { globalID: number; keyHigh: number; recordOffset: number }[] = [];
+  for (let i = 0; i < best.n; i++) {
+    const o = best.start + i * rec;
+    raw.push({ globalID: bytes[o + gidOff], keyHigh: bytes[o + keyHighOff], recordOffset: o });
+  }
+  raw.sort((a, b) => b.keyHigh - a.keyHigh); // top-down, defensive
+  return raw.map((r, i) => ({
+    velTop: 127, velLow: 0,
+    keyHigh: r.keyHigh,
+    keyLow: i + 1 < raw.length ? raw[i + 1].keyHigh + 1 : 0,
+    rootKey: rootByGid.get(r.globalID) ?? r.keyHigh,
+    zoneMode: 0, zonePlayback: 0, zoneIsOneShot: 0,
+    globalID: r.globalID, recordOffset: r.recordOffset,
+  }));
+}
+
+/** Codec-2 / NSMP-2 rev B (`map` v10) zone table — 15-byte records. */
+export function parseCodec2ZoneRecords(
+  bytes: Uint8Array, map: NsmpSection, rootByGid: Map<number, number>,
+): NsmpZone[] {
+  return parseStrokeRefZoneRecords(bytes, map, rootByGid, {
+    rec: 15, gidOff: 0, keyHighOff: 7,
+    ok: (b, o, g) => g.has(b[o]) && b[o + 7] <= 127 && b[o + 8] === 0 && b[o + 9] === 1,
+  });
+}
+
+/** Codec-3 format-0 / Library-3.0 (`map` v12) zone table — 11-byte records. */
+export function parseCodec3V12ZoneRecords(
+  bytes: Uint8Array, map: NsmpSection, rootByGid: Map<number, number>,
+): NsmpZone[] {
+  return parseStrokeRefZoneRecords(bytes, map, rootByGid, {
+    rec: 11, gidOff: 4, keyHighOff: 8,
+    ok: (b, o, g) => g.has(b[o + 4]) && b[o + 8] <= 127 && b[o + 6] === 1,
+  });
 }
 
 export interface StrokeLoop {

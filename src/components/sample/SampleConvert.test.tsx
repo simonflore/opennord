@@ -64,8 +64,8 @@ describe('SampleConvert -- folder linked', () => {
 
     render(<SampleConvert bytes={bytes} file={file} name="TakeOnMe" />);
 
-    // Convert to OG (.nsmp) button
-    const btn = screen.getByRole('button', { name: /convert to original/i });
+    // Convert to NSMP 2 (.nsmp) button
+    const btn = screen.getByRole('button', { name: /convert to nsmp 2/i });
     await act(async () => { fireEvent.click(btn); });
 
     expect(downloadBytes).not.toHaveBeenCalled();
@@ -82,7 +82,7 @@ describe('SampleConvert -- no folder linked', () => {
 
     render(<SampleConvert bytes={bytes} file={file} name="TakeOnMe" />);
 
-    const btn = screen.getByRole('button', { name: /convert to original/i });
+    const btn = screen.getByRole('button', { name: /convert to nsmp 2/i });
     await act(async () => { fireEvent.click(btn); });
 
     expect(downloadBytes).toHaveBeenCalledTimes(1);

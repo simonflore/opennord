@@ -19,15 +19,19 @@ const NSMP_MAGIC = 0x4e534d50; // "NSMP" — codec 3/4 body root @0x2c
 const NWS_MAGIC = 0x4e5753; // "NWS"  — OG/legacy body root @0x18
 
 /**
- * Where the section tree starts and how its headers are framed. Two real shapes:
- * **modern** (codec 3/4) — `NSMP` root at `0x2c`, 12-byte `[tag:u32][version:u32]
- * [size:u32]` headers; **OG/legacy** (`.nsmp` v8) — `NWS` root at `0x18`, 9-byte
- * `[tag:u24][version:u16][size:u32]` headers (24-bit NW1 variant). Detected by
- * magic; falls back to the CBIN version (`0x14`) for the speculative codec-1/2
- * form. (`CSectionIterator::Read_` / `PeekFormat`.)
+ * Where the section tree starts and how its headers are framed. The CBIN **format
+ * type** (`0x04`) sets the envelope length: format **1** carries a CRC-32 block so
+ * the body root sits at `0x2c`; format **0** has none, so the root sits at `0x18`.
+ * Two container kinds: **`NSMP`** (codec 3/4) with 12-byte `[tag:u32][version:u32]
+ * [size:u32]` headers, and **`NWS`** (OG/legacy + codec 1/2) with 9-byte
+ * `[tag:u24][version:u16][size:u32]` headers. So a `.nsmp3` exists both as format-1
+ * (`NSMP`@0x2c) and format-0 (`NSMP`@0x18, e.g. some Library-3.0 exports). Detected
+ * by the root magic at each candidate offset; falls back to the CBIN version for the
+ * speculative case. (`CSectionIterator::Read_` / `PeekFormat`.)
  */
 export function nsmpLayout(bytes: Uint8Array): { bodyStart: number; headerSize: number; legacy: boolean } {
   if (u32be(bytes, 0x2c) === NSMP_MAGIC) return { bodyStart: 0x2c, headerSize: 12, legacy: false };
+  if (u32be(bytes, 0x18) === NSMP_MAGIC) return { bodyStart: 0x18, headerSize: 12, legacy: false };
   if (u24be(bytes, 0x18) === NWS_MAGIC) return { bodyStart: 0x18, headerSize: 9, legacy: true };
   const codec = Math.trunc((bytes[0x14] | (bytes[0x15] << 8)) / 100);
   const legacy = codec === 1 || codec === 2;

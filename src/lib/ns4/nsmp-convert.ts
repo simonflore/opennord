@@ -13,7 +13,7 @@
 
 import { readNsmp, decodeNsmp, readNsmpZones } from './nsmp';
 import { writeNsmpMulti, type WriteZone } from './nsmp-write';
-import { writeOgNsmp, type OgWriteZone } from './nsmp-og';
+import { writeCodec2Nsmp, type Codec2WriteZone } from './nsmp-codec2-write';
 import { parseWav } from './wav';
 import { resampleNW1 } from './nw1-resample';
 
@@ -21,6 +21,12 @@ import { resampleNW1 } from './nw1-resample';
  * Target generation for {@link convertNsmp}: `2` = original `.nsmp` (OG `NWS`
  * container), `3` = `.nsmp3`, `4` = `.nsmp4`. Any source generation converts to
  * any of these.
+ */
+/**
+ * Target generation, numbered as **Nord names it** in the Sample Editor export
+ * menu: `2` = "NSMP 2" (`.nsmp`), `3` = "NSMP 3" (`.nsmp3`), `4` = "NSMP 4"
+ * (`.nsmp4`). This matches the Nord Sample Library version (1 & 2 both ship as
+ * `.nsmp`; we write the broadly-compatible v8 variant). See docs/NSMP-CODEC.md.
  */
 export type TargetCodec = 2 | 3 | 4;
 
@@ -32,7 +38,7 @@ export interface ConvertResult {
 }
 
 export interface ImportWavOptions {
-  /** Target codec: 2 = OG `.nsmp`, 3 = `.nsmp3`, 4 = `.nsmp4` (default 4). */
+  /** Target: 2 = "NSMP 2" (`.nsmp`), 3 = `.nsmp3`, 4 = `.nsmp4` (default 4). */
   codec?: TargetCodec;
   /** Sample name stored in the file. Default "Imported". */
   name?: string;
@@ -75,9 +81,12 @@ export function convertNsmp(bytes: Uint8Array, targetCodec: TargetCodec): Conver
   }
   const name = file.name ?? 'Converted';
 
-  // OG / Stage-2 (codec 1) target — the downconvert the official editor refuses.
+  // "NSMP 2" (`.nsmp`) target — the downconvert the official editor refuses. We
+  // emit the **codec-2 / Library-2.0 (`NWS` v11)** variant: the newest `.nsmp`,
+  // which (unlike v8) preserves the sample name + zone map. Needs Library-2.0-capable
+  // firmware (the assumption: keyboards are updated). See docs/NSMP-CODEC.md.
   if (targetCodec === 2) {
-    const ogZones: OgWriteZone[] = strokes.map((s, i) => {
+    const c2Zones: Codec2WriteZone[] = strokes.map((s, i) => {
       const z = zones.find((z) => z.globalID === s.globalID) ?? zones[i];
       return {
         channels: s.channels,
@@ -87,11 +96,12 @@ export function convertNsmp(bytes: Uint8Array, targetCodec: TargetCodec): Conver
         segmentsInterleaved: s.segments, // carry loop/region structure from the source
       };
     });
-    const out = writeOgNsmp({ name, zones: ogZones });
+    const out = writeCodec2Nsmp({ name, zones: c2Zones });
     warnings.push(
-      'OG (.nsmp) output is EXPERIMENTAL: audio + zones are preserved exactly and the ' +
-        'file round-trips, but the stroke-header loop pointers / normalize gain are ' +
-        'best-effort and not hardware-validated (docs/NSMP-CODEC.md).',
+      'NSMP 2 (.nsmp, Library 2.0) output is EXPERIMENTAL: audio, name + zones are ' +
+        'preserved and the file round-trips, but the stroke-header loop pointers / ' +
+        'normalize gain are best-effort and not hardware-validated. Requires updated ' +
+        '(Library-2.0-capable) keyboard firmware (docs/NSMP-CODEC.md).',
     );
     return { bytes: out, extension: '.nsmp', warnings };
   }
@@ -141,7 +151,7 @@ export function importWavToNsmp(wavBytes: Uint8Array, opts: ImportWavOptions = {
 
   let bytes: Uint8Array;
   if (codec === 2) {
-    bytes = writeOgNsmp({ name, zones: [{ channels, globalID: 1, rootKey, keyHigh }] });
+    bytes = writeCodec2Nsmp({ name, zones: [{ channels, globalID: 1, rootKey, keyHigh }] });
   } else {
     bytes = writeNsmpMulti({ name, codec, zones: [{ channels, rootKey, keyHigh, velTop: 127 }] });
   }

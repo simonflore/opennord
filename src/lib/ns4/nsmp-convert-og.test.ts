@@ -23,10 +23,10 @@ const sources = [
   'nsmp conversion demo files/BrassAlesis 2.nsmp',
 ];
 
-describe.skipIf(!hasGt(...sources))('convertNsmp(x, 2) — downconvert any Nord sample to OG (.nsmp)', () => {
+describe.skipIf(!hasGt(...sources))('convertNsmp(x, 2) — downconvert any Nord sample to NSMP 2 (.nsmp)', () => {
 
   for (const src of sources) {
-    it(`lossless + valid OG from ${src.split('/').pop()}`, () => {
+    it(`lossless + valid .nsmp from ${src.split('/').pop()}`, () => {
       const bytes = load(src);
       const before = decodeNsmp(bytes);
       const { bytes: og, extension, warnings } = convertNsmp(bytes, 2);

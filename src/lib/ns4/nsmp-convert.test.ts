@@ -60,7 +60,7 @@ describe('convertNsmp — audio preserved across generations (synthetic)', () =>
   it('converts from every generation to every other generation, audio preserved', () => {
     // The headline ask: any generation → any other. Build a source in each
     // generation, then convert it to all three targets and confirm the audio
-    // survives and the output is the requested generation (OG/2, .nsmp3, .nsmp4).
+    // survives and the output is the requested generation (NSMP 2/.nsmp, .nsmp3, .nsmp4).
     const gens = [
       { code: 2 as const, ext: '.nsmp', isGen: (b: Uint8Array) => readNsmp(b).legacy === true },
       { code: 3 as const, ext: '.nsmp3', isGen: (b: Uint8Array) => readNsmp(b).codec === 3 },

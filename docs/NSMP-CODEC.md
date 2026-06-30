@@ -22,6 +22,143 @@ Same universal Clavia CBIN header as programs (`docs/FORMAT.md`):
 So the **generation is the version field** (300 vs 400); the type tag stays
 `nsmp` across revisions.
 
+### Generation ↔ codec numbering (mind the numbers)
+
+**Naming validated against Nord — web + binary (2026-06-30).** `TargetCodec`
+follows Nord's own product numbers (2/3/4). Confirmed straight from the NSE binary
+(`nse/nse-arm64`):
+
+- ✅ **`NW1::PeekFormat` (`@1002d81a4`) reads BOTH legacy versions** — it compares
+  the version against `#0x8` and `#0xb` (= 8 and 11) and `csel`s each to a distinct
+  `Zevs::NordSmp::EFormat`. So v8 (codec 1) and v11 (codec 2) are *both* valid
+  `.nsmp` read formats — directly confirming our codec map. (NSMP path compares
+  `#0x1e`/`#0x28` → 3/4.)
+- ✅ **Nord's internal format table literally numbers them v2/v3/v4.** Debug strings
+  at `0x9164a0`: `"… v2 A (nsmp)"`, `"… v2 B (nsmp)"`, `"v3 A (nsmp3)"`,
+  `"v3 B (nsmp3)"`, `"v4 (nsmp4)"`. So `.nsmp` = "v2", `.nsmp3` = "v3", `.nsmp4` =
+  "v4" — `TargetCodec=2/3/4` is Nord's own scheme.
+- ✅ **The "A/B" axis is the NSMP *revision*** — a per-format sub-version the editor
+  exposes as a "Revision" spin control (XRC `ID_SPINCTRL_NSMP_REVISION`, tooltip
+  "Set Current Revision for NSMP"; code `m_revision`,
+  `SCommonAttributes::SetRevision`, `CEncodeName::NSMP_GetRevision`,
+  `CTabInstrument::OnProjectRevisionChanged`). So the table is (format × revision):
+  `.nsmp`/v2 and `.nsmp3`/v3 each have **two** revisions (A,B); `.nsmp4`/v4 has one.
+  For v2/`.nsmp` the two revisions line up with the two NWS versions `PeekFormat`
+  reads — **revision A = v8 (codec 1), revision B = v11 (codec 2)** (consistent,
+  not byte-proven). This is *not* a keyboard-model axis (not Stage 2 vs Stage 2 EX),
+  though newer revisions likely exist *because* newer boards needed them.
+- ✅ **The two `.nsmp` (v2) table entries are prefixed `"NOT DONE -"`; the v3/v4
+  entries are not.** Read with the standing RE note that *"the current editor
+  cannot write OG at all,"* this indicates **this NSE build does not generate
+  `.nsmp` output at all** — only `.nsmp3`/`.nsmp4`. (Interpretation of a debug
+  string; the table→export-function link couldn't be pinned by static disasm.)
+- ✅ **Both revisions now in the corpus.** Revision A = **`NWS` v8 / CBIN ver 8**
+  (Sample Library 1.x). Revision B = **`NWS` v11 / CBIN ver 200** (Sample Library
+  **2.0** — the `… 2.0.nsmp` files). *(Earlier note said v11 was unobserved; that was
+  before the Library-2.0 fixtures arrived — corrected 2026-06-30.)*
+
+| Nord name | Container | CBIN ver (0x14) | `NWS` body ver (0x1c) | `PeekFormat` codec | `readNsmp().codec` | `TargetCodec` |
+|---|---|---|---|---|---|---|
+| NSMP 2 rev A (Lib 1.x) | `.nsmp` (`NWS`) | 8 | 8 | **1** | 0 † | 2 |
+| NSMP 2 rev B (Lib 2.0) | `.nsmp` (`NWS`) | **200** | **11** | **2** | **2** | 2 |
+| NSMP 3 | `.nsmp3` (`NSMP`) | 300 | — | 3 | 3 | 3 |
+| NSMP 4 | `.nsmp4` (`NSMP`) | 400 | — | 4 | 4 | 4 |
+
+† rev A: `floor(8/100)=0` so `readNsmp().codec` is 0 (the `legacy` flag is the real
+signal). rev B: `floor(200/100)=2`, which happens to equal the true codec. `PeekFormat`
+keys off the **`NWS` body version** (8/11) at 0x1c; our `identifyNsmp` keys off the
+**CBIN version** (8/200) at 0x14 — both land on the right codec.
+
+**What we read for rev B (v11 / Library 2.0)** — measured on 5 fixtures
+(`12 String Guitar`, `ARP Quadra Str`, `Cathedral Organ 3`, `BassGit`, `Vibes`):
+- ✅ **Audio decodes** — all strokes → bounded, plausible PCM (same NW1 block codec;
+  the stream-scanner finds the start past rev-B's `0x3c` header offset).
+- ✅ **Name + category read** — rev B adds a 111-byte `hdr` (with name) and a `cat`
+  section. *(Correction: "`.nsmp` has no embedded name" is true only for rev A/v8;
+  rev B carries names — matching Nord's ".nsmp2 introduced categories".)*
+#### CBIN format-type envelope variants + `map` version table (2026-06-30)
+
+The CBIN **format-type byte (0x04)** sets the envelope length, *independent* of the
+container kind: **format 1** carries a CRC-32 block → body root at **0x2c**; **format
+0** has none → body root at **0x18**. So a `.nsmp3` exists as both format-1
+(`NSMP`@0x2c) and **format-0 (`NSMP`@0x18**, some Library-3.0 exports). `nsmpLayout`
+now detects `NSMP` at either offset (it previously only knew 0x2c, so format-0
+`.nsmp3` decoded to **zero strokes** — fixed). The `map` zone-record layout varies by
+**`map` section version**, not just codec:
+
+| `map` ver | used by | record | gid @ | keyHigh @ | reader |
+|---|---|---|---|---|---|
+| 9 | `.nsmp` v8 (rev A) | 12 B | +0 | u32 @+4 | `parseLegacyZoneRecords` |
+| 10 | `.nsmp` v11 (rev B / Lib 2.0) | 15 B | +0 | +7 | `parseCodec2ZoneRecords` |
+| 12 | `.nsmp3` format-0 (Lib 3.0) | 11 B | +4 | +8 | `parseCodec3V12ZoneRecords` |
+| 13/14 | `.nsmp3` format-1 | 16 B | u32 @+8 | +1 | `readZoneRecord` (ZONE_LAYOUT) |
+| 21 | `.nsmp4` | 16 B | u32 @+8 | +1 | `parseCodec4ZoneRecords` |
+
+v10/v12 are the "stroke-reference" family (`parseStrokeRefZoneRecords`): the record
+names a stroke by global id + a split point; `keyLow` tiles top-down and `rootKey`
+comes from the `stk` header. All validated against their corpora (gids match strokes,
+zones tile, roots musical).
+
+**Codec-4 (v21) zone-table robustness (2026-06-30).** The v21 zone table sits after a
+**variable-size** `SampleUnison`/random-stroke header and a **variable trailer** —
+their lengths track that config (the unison/random settings), *not* the instrument
+type; 32 B / 26 B headers and 6 B / 2 B trailers are both observed (Cathedral Organ is
+just where it first showed up). Per-note rows aren't always unity either.
+`parseCodec4ZoneRecords` now (a) accepts any small trailer on the fixed-offset path and
+validates the first record, and (b) falls back to a maximal valid-record run keyed by
+the **stroke global-id set** with `keyLow ≤ 127` (that key check rejects an
+off-by-6-bytes phantom run that otherwise produced 30 garbage zones). Cathedral Organ
+previously returned **0 zones**; now 30. Records keep their *explicit* `keyLow`/velocity
+(ZONE_LAYOUT_C4) — they needn't tile like v10/v12.
+
+- ✅ **Zones read** (RE'd 2026-06-30, `parseCodec2ZoneRecords`). rev B's `map` is
+  **version 10** — a 15-byte record table (`globalID@0`, `0x10@1`, detune s24`@4`,
+  `keyHigh@7`, `0x0001@8`); `keyLow` tiles top-down (next zone's `keyHigh+1`, bottom
+  → 0); `rootKey` from the `stk` header via global id. Validated on all 5 fixtures:
+  global ids match real strokes, zones tile the keyboard with no gaps/overlaps, roots
+  are musical (`nsmp-codec2.test.ts`). *Known minor limitation:* each file has one
+  unmapped spare stroke (likely a velocity/round-robin alternate) — coverage is still
+  complete; per-zone velocity layers aren't modeled yet.
+
+- **`TargetCodec` uses Nord's product numbers (2/3/4)** — `2` = "NSMP 2" (`.nsmp`),
+  matching both the editor's strings and the user-facing menu.
+- **We now WRITE the v11 / codec-2 (Library 2.0) variant of `.nsmp` by default**
+  (`writeCodec2Nsmp`, 2026-06-30) — it preserves the sample **name** and **zone map**
+  that the older v8 (rev A) drops. Requires updated (Library-2.0-capable) firmware,
+  which we assume. The v8 writer (`writeOgNsmp`) is retained but no longer the default.
+  See "Writing codec 2" below.
+
+### Do we need to support the A/B revision? — NO (decision 2026-06-30)
+
+Researched against Nord's own Sound Manager changelog
+([NSM update history](https://www.nordkeyboards.com/update-history/nord-sound-manager-update-history/)).
+The revision (A/B = v8/v11) is a format sub-version that tracked **keyboard OS**
+capability ("OS 2.02 introduced nsmp2 / Sample Library compatibility"). Two axes,
+only one matters to us:
+
+- **Revision — READING: both supported.** rev A (v8) and rev B (v11 / Library 2.0)
+  both read fully — audio + zones, plus name for rev B (the v10 `map` was RE'd,
+  `parseCodec2ZoneRecords`). The shared `Ymer::NW1` codec `PeekFormat`-reads both.
+- **Revision — WRITING: v11 is now the default** (was v8). Decision updated
+  2026-06-30: write the newer rev-B variant so down-converts keep the name + zone
+  map; the firmware-compat cost is accepted (assume updated keyboards). v8 narrows
+  to nothing v11 loses *except* old-firmware reach, which we've ruled out of scope.
+- **Generation (2/3/4): does NOT auto-resolve** (a Stage 2 can't read `.nsmp3`) —
+  already handled by `convertNsmp`, mirroring NSM's "on-the-fly `.nsmp`→`.nsmp3`
+  conversion" (v7.22).
+- **The only thing worth building (later):** generation-gating at *transfer* time —
+  NSM "checks prior to download whether the OS supports the files" (v6.80). When we
+  add device sample transfer-back, detect the target board's generation and
+  convert/warn. That's a transfer-layer feature, not a codec/revision one.
+- **`readNsmp().codec` = `floor(versionRaw/100)`** → correct for 3/4 but **0 for
+  both legacy versions** (v8 *and* v11). The real signal for `.nsmp` is the
+  `legacy` flag; `codec` is left as the extension digit (it feeds `.nsmp${codec}`,
+  which must stay `.nsmp` for legacy — never `.nsmp0`/`.nsmp1`).
+- **v11 / codec 2 is UNREAD.** No `NWS` v11 file has ever been observed, so the
+  codec-2 stroke framing (`GetStrokeBinOffset = 0x3c`, vs codec-1's `0x60`) is
+  untested. `readNsmp` emits an "unverified generation" warning for any legacy
+  `versionRaw !== 8` so such a file isn't silently decoded with the v8 layout.
+
 ## Body chunk grammar — partly verified
 
 Chunks use **`[4-byte tag][4-byte BIG-ENDIAN length][payload]`**. Tags shorter
@@ -746,6 +883,41 @@ any Nord sample to it (the downconvert the official editor refuses):
 Validated (`nsmp-convert-og.test.ts`): `.nsmp4/.nsmp3/.nsmp` → OG is **lossless**
 (audio identical) and structurally valid (parses, zones round-trip).
 
+### Writing codec 2 / Library 2.0 (v11) — now the `.nsmp` default ✓ (2026-06-30)
+
+`nsmp-codec2-write.ts` (`writeCodec2Nsmp`) writes the **newer** `.nsmp` variant, and
+`convertNsmp(x, 2)` + `importWavToNsmp({codec:2})` now emit it instead of v8. Why:
+v11 preserves the sample **name** + **zone map**; v8 (rev A) drops both. (User
+directive: assume keyboards have updated, Library-2.0-capable firmware.)
+
+Container (RE'd from the 5 Library-2.0 fixtures): CBIN envelope **version 200**,
+format 0, `0xff×8`@0x0c; body sections (9-byte `[tag][ver u16][size u32]` framing)
+**`NWS`(v11) → `hdr`(v9) → `cat`(v5) → `map`(v10) → `stk`(v9)×N → `sty`(v5)**; then the
+same trailing **LE CRC-16/CCITT** as OG (`crc16Ccitt`, reproduced exactly). Reuses
+`assembleOgNsmp(sections, 200)`.
+
+- **`hdr`** = 12-byte constant prefix `00 00 db 00 01 54 00 00 00 01 00 00` + NUL-padded
+  name (111 bytes total).
+- **`map`** (v10) = `[6B global unity][128×6B per-note unity]` + the 15-byte zone
+  records (`globalID@0, 0x10@1, detune@4, keyHigh@7, 0x0001@8`) — the inverse of
+  `parseCodec2ZoneRecords`.
+- **`stk`** = 60-byte (`0x3c` binOffset) header — same field layout as the OG/codec-1
+  header (gid/key/pitch/ch/normGain/peak + region pointers U1–U4 with `0x80` markers)
+  **minus** the v8 keyHigh trailer (keyHigh lives in the map) — then the 24-bit NW1
+  stream (`encodeStrokeNW1({u24, blockPerCh: 24})`).
+
+Validated (`nsmp-codec2-write.test.ts`): round-trips **name + zones + audio** through
+`readNsmp`/`readNsmpZones`/`decodeNsmp`; `convertNsmp(x,2)` keeps the source name; and
+re-encoding a real fixture's decoded audio is **lossless**.
+
+⚠️ **Experimental / not hardware-validated** (same posture as the v8 writer): the
+stroke-header region pointers + normalize gain and the `map` per-note block are
+best-effort — no editor writes a *generated* file to byte-match against. Audio, name,
+zones, container + CRC are exact. **Known limitation (shared with the v8 writer):** a
+single stroke shorter than ~8000 samples isn't re-locatable by the reader's
+stream-scanner, so very short samples don't round-trip; real multi-thousand-sample
+strokes are unaffected.
+
 ### Full generation matrix exposed in the UI ✓ (2026-06-23)
 
 `convertNsmp` already wrote all three generations (OG `2`, `.nsmp3` `3`, `.nsmp4`
@@ -768,6 +940,30 @@ byte-match against (the editor can't write OG), and the exact loop-pointer domai
 needs the source header's loop model. Audio + container + CRC are exact; hardware
 acceptance of a *generated* OG file is unverified (no Stage 2). Flagged in the
 convert `warnings`.
+
+### Corpus validation widened ✓ (2026-06-30, `nsmp-corpus.test.ts`)
+
+Re-ran the read/encode path over the **full local OG corpus** (5 files — ABBA
+Gimme Gimme Flute, DX7IIC Crystal BR, Stereophonic Motif, SynthPad2 CLv4, TAKE ON
+ME) plus a 41-stroke codec-4 instrument (VibesNoVibrato Mellotron). Results,
+locked into `nsmp-corpus.test.ts` (git-ignored corpus, `hasGt`-guarded):
+
+- **OG `stk` header re-serialization: 75 / 75 strokes byte-exact** (`parse → write
+  → cmp`) — up from the earlier 17-stroke / 2-file bar. The fixed 54-byte codec-1
+  header writer reproduces every real OG stroke we have.
+- **Lossless re-encode round-trip: 116 / 116 strokes** (`decode → encode → decode`
+  identical) across all generations present — the encoder is an exact inverse of
+  the decoder on real audio.
+- **Decode: every `stk` lands bounded PCM** with the right channel count
+  (mono DX7 vs stereo ABBA both correct).
+
+This is the strongest hardware-free statement available; the only remaining OG
+unknown is a real keyboard accepting a *generated* OG file (needs a Stage 2). The
+codec-4 file also re-confirms the word-interleaved decode + lossless round-trip on
+a fresh 41-stroke instrument. **Note:** OG files carry **no embedded sample name**
+(the 18-byte `hdr` has no name field — confirmed: no ASCII name anywhere in the
+file); the keyboard names them by slot/file, so `readNsmp().name` is `undefined`
+for OG by design, not a decode miss.
 
 ## Resampler + WAV import — FAITHFUL (not byte-exact) ✓ (2026-06-20)
 
