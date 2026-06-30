@@ -68,9 +68,16 @@ export function identifyNsmp(bytes: Uint8Array): NsmpIdentity {
 
   const { legacy } = nsmpLayout(bytes);
   const versionRaw = bytes[0x14] | (bytes[0x15] << 8);
-  const major = Math.trunc(versionRaw / 100);
+  // `0xffff` = the "Undefined" version stamp on some old `.nsmp` files (old Factory
+  // Restore / Electro-4-era bundles) that Nord Sound Manager explicitly accepts. It's
+  // a legacy codec-1 `NWS` container — treat it as such (codec 0 like v8), not the
+  // garbage `floor(65535/100)=655`.
+  const undefinedVer = versionRaw === 0xffff;
+  const major = undefinedVer ? 0 : Math.trunc(versionRaw / 100);
   // Modern codecs carry an x.yy library version (300 → "3.00"); the OG `.nsmp` uses
   // a small format revision (8) and has no CRC field, so don't fake either.
-  const version = legacy ? `${versionRaw}` : `${major}.${String(versionRaw - major * 100).padStart(2, '0')}`;
+  const version = legacy
+    ? (undefinedVer ? 'undefined' : `${versionRaw}`)
+    : `${major}.${String(versionRaw - major * 100).padStart(2, '0')}`;
   return { recognized: true, version, versionRaw, codec: major, legacy };
 }

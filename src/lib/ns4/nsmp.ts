@@ -202,11 +202,13 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
   // `NWS` containers cover two codecs (NW1::PeekFormat): v8 → codec 1 (rev A,
   // Library 1.x) and v11 → codec 2 (rev B, Library 2.0; CBIN ver 200, `map`
   // version 10). Both are now read (audio + name + zones; see docs/NSMP-CODEC.md).
-  // Warn only for a legacy file that is *neither* — a generation we haven't mapped.
-  if (legacy && versionRaw !== undefined && versionRaw !== 8 && codec !== 2) {
+  // `0xffff` is the accepted "Undefined" legacy stamp (codec-1 family). Warn only for
+  // a legacy file that is *none* of these — a generation we haven't mapped.
+  if (legacy && versionRaw !== undefined && versionRaw !== 8 && versionRaw !== 0xffff && codec !== 2) {
     warnings.push(
       `Unverified Nord Sample generation (NWS v${versionRaw}). Only Library 1.x ` +
-        `(.nsmp v8) and Library 2.0 (codec 2) are validated — readout may be incomplete.`,
+        `(.nsmp v8), Library 2.0 (codec 2), and the "Undefined" legacy stamp are ` +
+        `validated — readout may be incomplete.`,
     );
   }
 
@@ -578,10 +580,14 @@ export function parseLegacyZoneRecords(
  * (keyLow by tiling, rootKey from the `stk` header). Two known members:
  *   - **v10** (codec-2 / Library-2.0 `.nsmp`): 15-byte, `gid@0`, `keyHigh@7`,
  *     signature `[+8]=0x00 [+9]=0x01`.
- *   - **v12** (codec-3 / format-0 Library-3.0 `.nsmp3`): 11-byte, `gid@4`,
- *     `keyHigh@8`, signature `[+6]=0x01`.
- * Both validated against their corpora (gids match strokes, zones tile, roots are
- * musical — `docs/NSMP-CODEC.md`).
+ *   - **v12** (codec-3 `.nsmp3`, both format-0 and format-1): 11-byte
+ *     `00 01 [keyLow] [keyHigh] 00 00 01 00 00 00 [gid]` — `gid@10`, `keyHigh@3`,
+ *     signature `[0]=0x00 [1]=0x01 [6]=0x01`. (An earlier RE used `gid@4`/`keyHigh@8`;
+ *     that only *coincidentally* validated on a few files — it read the gid off by one
+ *     record and landed on a false all-zeros run elsewhere, yielding all-same-root
+ *     garbage. `gid@10` is the real field.)
+ * Both validated across their corpora (gids match strokes + are distinct, zones tile,
+ * roots are musical — `docs/NSMP-CODEC.md`).
  */
 interface StrokeRefRecSpec {
   rec: number;
@@ -634,13 +640,13 @@ export function parseCodec2ZoneRecords(
   });
 }
 
-/** Codec-3 format-0 / Library-3.0 (`map` v12) zone table — 11-byte records. */
+/** Codec-3 (`map` v12, both `.nsmp3` envelope formats) zone table — 11-byte records. */
 export function parseCodec3V12ZoneRecords(
   bytes: Uint8Array, map: NsmpSection, rootByGid: Map<number, number>,
 ): NsmpZone[] {
   return parseStrokeRefZoneRecords(bytes, map, rootByGid, {
-    rec: 11, gidOff: 4, keyHighOff: 8,
-    ok: (b, o, g) => g.has(b[o + 4]) && b[o + 8] <= 127 && b[o + 6] === 1,
+    rec: 11, gidOff: 10, keyHighOff: 3,
+    ok: (b, o, g) => b[o] === 0 && b[o + 1] === 1 && b[o + 6] === 1 && g.has(b[o + 10]) && b[o + 3] <= 127,
   });
 }
 

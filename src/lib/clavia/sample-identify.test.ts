@@ -30,6 +30,29 @@ describe('identifyNsmp', () => {
   it('rejects non-Nord bytes', () => {
     expect(identifyNsmp(new Uint8Array([1, 2, 3, 4]))).toEqual({ recognized: false, legacy: false });
   });
+
+  /** Synthetic legacy `NWS` container (format 0, root @0x18) at a given version. */
+  function makeNws(versionRaw: number): Uint8Array {
+    const buf = new Uint8Array(0x18 + 12);
+    const ascii = (s: string, at: number) => { for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i); };
+    ascii('CBIN', 0x00);
+    buf[0x04] = 0; // format 0 → body @0x18
+    ascii('nsmp', 0x08);
+    buf[0x14] = versionRaw & 0xff; buf[0x15] = (versionRaw >> 8) & 0xff;
+    ascii('NWS', 0x18); // legacy root
+    return buf;
+  }
+
+  it('classifies the legacy NWS container (v8) as codec 0 / legacy', () => {
+    expect(identifyNsmp(makeNws(8))).toMatchObject({ recognized: true, legacy: true, codec: 0, version: '8' });
+  });
+
+  it('treats the "Undefined" (0xffff) legacy version as codec 0, not floor(65535/100)', () => {
+    // Old Factory-Restore / Electro-4-era `.nsmp` files carry this stamp; NSM accepts
+    // them. Must not become codec 655 (which would render ".nsmp655").
+    const id = identifyNsmp(makeNws(0xffff));
+    expect(id).toMatchObject({ recognized: true, legacy: true, codec: 0, version: 'undefined', versionRaw: 0xffff });
+  });
 });
 
 describe('nsmpLayout', () => {

@@ -60,9 +60,16 @@ follows Nord's own product numbers (2/3/4). Confirmed straight from the NSE bina
 | Nord name | Container | CBIN ver (0x14) | `NWS` body ver (0x1c) | `PeekFormat` codec | `readNsmp().codec` | `TargetCodec` |
 |---|---|---|---|---|---|---|
 | NSMP 2 rev A (Lib 1.x) | `.nsmp` (`NWS`) | 8 | 8 | **1** | 0 † | 2 |
+| "Undefined" legacy | `.nsmp` (`NWS`) | **0xffff** | — | (1) | **0** | 2 |
 | NSMP 2 rev B (Lib 2.0) | `.nsmp` (`NWS`) | **200** | **11** | **2** | **2** | 2 |
 | NSMP 3 | `.nsmp3` (`NSMP`) | 300 | — | 3 | 3 | 3 |
 | NSMP 4 | `.nsmp4` (`NSMP`) | 400 | — | 4 | 4 | 4 |
+
+The **"Undefined" (0xffff) version** appears on some old `.nsmp` files (Factory-Restore
+/ Electro-4-era bundles); NSM explicitly accepts them. They're a legacy codec-1 `NWS`
+container — `identifyNsmp` maps `0xffff` → codec 0 (not the garbage `floor(65535/100)=
+655`), version "undefined", and `readNsmp` does not warn. They read via the v8/v9 legacy
+path (audio + zones).
 
 † rev A: `floor(8/100)=0` so `readNsmp().codec` is 0 (the `legacy` flag is the real
 signal). rev B: `floor(200/100)=2`, which happens to equal the true codec. `PeekFormat`
@@ -90,7 +97,7 @@ now detects `NSMP` at either offset (it previously only knew 0x2c, so format-0
 |---|---|---|---|---|---|
 | 9 | `.nsmp` v8 (rev A) | 12 B | +0 | u32 @+4 | `parseLegacyZoneRecords` |
 | 10 | `.nsmp` v11 (rev B / Lib 2.0) | 15 B | +0 | +7 | `parseCodec2ZoneRecords` |
-| 12 | `.nsmp3` format-0 (Lib 3.0) | 11 B | +4 | +8 | `parseCodec3V12ZoneRecords` |
+| 12 | `.nsmp3` (both envelope formats) | 11 B | +10 | +3 | `parseCodec3V12ZoneRecords` |
 | 13/14 | `.nsmp3` format-1 | 16 B | u32 @+8 | +1 | `readZoneRecord` (ZONE_LAYOUT) |
 | 21 | `.nsmp4` | 16 B | u32 @+8 | +1 | `parseCodec4ZoneRecords` |
 
