@@ -331,3 +331,42 @@ hardware-only: (a) **capture audio off the Nord** (play the known `.npno`, recor
 ground truth to brute-force the firmware serialization the way `.nsmpproj` cracked
 `.nsmp`; (b) **dump/trace the keyboard** (ARM RAM for the directory; DSP for the codec).
 Heuristic + desktop-oracle RE is exhausted.
+
+## 2026-06-30 — brute-force offset search (the "can't we just brute force it?" test)
+
+Confirmed the decoder is correct, then proved blind brute force can't locate strokes.
+
+**Decoder confirmed correct (decompiler oracle).** `NW1::CBlockHdr::Read` matches our
+`readBlockHeader` byte-exact: `sampleCnt = word & 0x3FFF`, `filterOrder = (word>>14)&0xF`,
+`bitWidth = ((word>>19)&0xF)+1`, word = U32 or U24 (per SMetric). `NW1::CDecode::
+DecodeStroke` is a plain **contiguous** block loop (read hdr → if stop break → decode →
+repeat); the `CBinStream` 0x1000 reads are buffered file I/O, not format chunking. So if
+we land on a real stroke's audio start, our existing `decodeStroke` would run it.
+
+**Brute force, four escalating oracles — all fail.** Swept every offset with our real
+`decodeStroke` (u24 + u32):
+- *run length*: long decodes exist (up to 107k samples) but most are predictor
+  **overflow** (peak ≈ 2³¹) — calibration: real CP80 audio peaks ~5–7k (13-bit).
+- *periodicity*: high scorers were saturation oscillation (period = autocorr floor).
+- *peak-sanity + no-runaway*: still **70 "sane" hits in 512 KB** (≫ 16 strokes).
+- *pitch-ladder* (the real oracle: roots 30→107 must ladder by 1.335×): all 63
+  peak-matched candidates report the **identical** `period=8, score=0.663` — no pitch
+  content, no ladder. Outputs are content-dependent (0.1% identical across offsets) but
+  a uniform **low-amplitude smooth wander**, not music.
+
+**Why brute force can't work here:** the NW1 fixed-polynomial predictor smooths *arbitrary*
+residuals (any offset, misaligned or wrong-param) into plausible bounded smooth output.
+No intrinsic signal (run length, periodicity, peak, decay, pitch) distinguishes a true
+stroke start from the rest — and the rate/fidelity mismatch already broke correlation vs
+the `.nsmp` twin. Likely compounded by wrong decode params for `.npno` (SMetric/
+normalization differ from `.nsmp`), so even a correct start may not decode right.
+
+**Why more agents don't help:** this is a single numerical needle-in-haystack where the
+needle and hay look identical to every available detector — not a breadth problem.
+Parallel agents just produce more identical-looking false positives; they can't
+manufacture the missing verification signal.
+
+**The one unlock that works:** aligned ground truth from **hardware** — record the Nord
+playing a known `.npno`. That makes correlation valid AND lets us brute-force the decode
+params (try combos until the decode matches the recording), which then pins stroke
+starts. The verification signal must come from outside the file.
