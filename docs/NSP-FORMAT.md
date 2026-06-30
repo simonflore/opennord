@@ -242,3 +242,53 @@ coding, and a different block header (no `0xFFF8` sync). Confirmed by decompiler
 inspected here are fixed-width (4-bit nibble patterns), consistent with NW1, not Rice.
 So the FLAC theory and the "shared codec" creator report both just restate that the
 codec is solved — the open problem is the container framing, not the codec.
+
+## 2026-06-30 — encode-and-search + block-header sanity: the wall is the block format
+
+Pushed the rate-tolerant path with the ground-truth pairs (CP80 mono `.nsmp`↔`.npno`
+the cleanest). Outcome: **the blocker is at the NW1 *block-header* level, not just
+chunk wrapping.** Evidence, in order:
+
+1. **Rate-tolerant correlation** (decode `.npno` stroke → resample to the `.nsmp`
+   stroke length → NCC): no match >0.6. Then de-interleave (even/odd channels) +
+   resample: no match >0.7.
+2. **Coherence was a red herring.** Scanning every offset, `decodeStroke` produces
+   2065 "tonal" (ZCR<0.15) decodes — but the most-tonal (ZCR 0.000 @0x2080) is a
+   **slow integrator drift** (avg |Δ| = 0.4 over a peak of 7893), i.e. the predictor
+   running away on near-zero residuals = a *wrong decode*, not audio. Low ZCR caught
+   ramps, not music.
+3. **The early file is the overview, not audio.** Raw @0x2000 = `ff ec 00 7f / ff ed
+   00 7f / …` — the 4-byte peak/thumbnail records. Every earlier decode attempt was
+   decoding the thumbnail as NW1 → drift garbage.
+4. **Encode-and-search**: re-encoded each `.nsmp` CP80 stroke with our NW1 encoder
+   (u24/u32 × block sizes 24/32) and byte-searched the `.npno`. No hit; longest
+   common run = 2 bytes (noise). (Only valid at identical rate; resampling isn't
+   bit-exact, so this only rules out *same-rate same-encoder*.)
+5. **Decisive — block-header sanity scan.** Walking our block-header layout
+   (`sampleCnt[0:13]/order[14:17]/bitWidth[19:22]/linMode[23]`) advancing by the
+   residual size, the **longest run of sane chained headers anywhere is 18 blocks
+   (u32be) / 14 (u24be)** — in *both* the overview region and the audio region. A
+   real NW1 stroke is hundreds of sane blocks ending in a stop. **No such run exists
+   anywhere.** ⇒ our `.nsmp` block-header bit layout does not parse the `.npno`
+   bitstream.
+
+**Verdict (well-evidenced):** the `.npno` packs its NW1 residuals with a *different
+block-header/framing* than `.nsmp` (different header bit fields and/or
+`CChunkBuffer` wrapping). Our decoder structurally cannot read it, and the
+correlation/encode tactics all silently assume our framing applies — which is why
+they uniformly fail. The ground-truth pairs confirm same instrument/recording but
+cannot bridge a framing we can't parse.
+
+**What remains (all heavy, oracle-dependent — not in-reach trial-and-error):**
+- **Differential across `.npno` versions/instruments** (CP80 5.3, RainPiano 5.3,
+  Clavinet 6.1, Wurlitzer 6.3 in hand) to RE the container *directory* + any
+  rate/channel/block-format fields — metadata RE that does NOT assume our codec.
+- **Recover the block-header bit layout** by brute-forcing field positions against a
+  known stroke's expected residuals — needs a pinned stroke location + content
+  alignment (chicken-and-egg without the directory).
+- **Firmware/DSP oracle** (parked: RAM-relocated, no symbols, NW1 decode is DSP-side)
+  or a **community piano-RE drop** (the cheap unblock).
+
+Bottom line: the in-reach decode/correlate/encode tactics are exhausted and converge
+on this structural wall. Cracking `.npno` audio now needs container-directory RE or
+an oracle, not another correlation pass.
