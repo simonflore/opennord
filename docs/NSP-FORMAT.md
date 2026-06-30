@@ -292,3 +292,42 @@ cannot bridge a framing we can't parse.
 Bottom line: the in-reach decode/correlate/encode tactics are exhausted and converge
 on this structural wall. Cracking `.npno` audio now needs container-directory RE or
 an oracle, not another correlation pass.
+
+## 2026-06-30 — container-directory differential + decompiler oracle check: no desktop oracle
+
+Ran the directory-differential RE across all five `.npno` (CP80 5.3, RainPiano 5.3,
+Clavinet 6.1, Wurlitzer 1 6.3, Wurlitzer 2 6.1) and cross-checked the decompiled NSE.
+Structural facts established (positive):
+- Shared layout: CNSP header → metadata → key map @`0xB7` → **overview thumbnails**
+  (`xx xx 00 7f` peak records, start ~`0x7e0`) → **per-sample data** to EOF.
+- Entropy is a uniform ~6–8 bits/byte across the *whole* file (no header/audio split):
+  the audio is **per-sample records**, not one blob after a directory.
+- Header carries per-sample runs of a repeated byte + small attack-waveform snippets,
+  a recurring `39 39 …` field, and **4-byte big-endian size-like values** (CP80:
+  0x15b09≈89k, 0x3a90b≈240k, 0x4d818≈317k — stroke-length range).
+
+What the per-sample audio region is **NOT** (all tested, all negative):
+- not an **offset-table directory** (monotonic-u32 "hits" were the overview's rising
+  thumbnail values misread);
+- not **length-prefixed chunks** (no `[len][data]` chain tiles to EOF, any framing);
+- not the **`.nsmp` ASCII section tree** — walking `[tag][ver][size]` from 0x2c/0x137
+  yields only zero-size padding, and **no section tag** (`map`/`stk`/`cat`/`sty`/`NSMP`)
+  appears anywhere in the file.
+
+**Decompiler oracle check (decisive):** the desktop NSE has the `.nsmp` section codec
+(`CSectionStroke::Read` etc., ASCII-tagged, via `CSectionIterator` — tag/len/size) and
+the in-memory project struct (`CProject2Struct::Populate*`, which takes a `CEncodeName`
+= the **encode/write** side). For `.npno` it has **only** `CNSPFileInputStream::
+PopulateMetaData` (name/version/bank/entry — the librarian tier). There is **no
+`.npno` audio read or serialize path in the desktop binary**, and `.npno` does not use
+the ASCII-tagged `CSection*` format. ⇒ The `.npno` (CProject2) per-sample container is
+**firmware-side only** — the desktop-oracle route the librarian tier relied on does not
+extend to the audio container.
+
+**Verdict:** the directory differential is also blocked — not by effort, but by the
+absence of any desktop oracle for the `.npno` audio container, now confirmed three
+ways (heuristics, section-tree walk, decompiler). Real remaining paths are
+hardware-only: (a) **capture audio off the Nord** (play the known `.npno`, record) →
+ground truth to brute-force the firmware serialization the way `.nsmpproj` cracked
+`.nsmp`; (b) **dump/trace the keyboard** (ARM RAM for the directory; DSP for the codec).
+Heuristic + desktop-oracle RE is exhausted.
