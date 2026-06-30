@@ -370,3 +370,35 @@ manufacture the missing verification signal.
 playing a known `.npno`. That makes correlation valid AND lets us brute-force the decode
 params (try combos until the decode matches the recording), which then pins stroke
 starts. The verification signal must come from outside the file.
+
+## 2026-06-30 — full NSM symbol dump: desktop has NO .npno audio decoder (conclusive)
+
+Followed the "dump NSM too" lead — surveyed the entire `nsm/nsm-arm64` symbol table
+(30,663 functions) and read the format-detection path. Three independent confirmations
+that the desktop NW1 codec does not decode CNSP/`.npno` audio:
+
+1. **`NW1::PeekFormat`** reads the inner stream's first tag: `"NSMP"`(0x4e534d50)→codec 3/4
+   (by version 0x1e/0x28), `"NWS"`(0x4e5753)→codec 1/2 (by version 11/8), **else → 0**. A
+   `.npno` inner stream starts with `CNSP`, so PeekFormat/`ProbeFormat` return 0 — the NW1
+   section/chunk codec never engages for pianos.
+2. **`CNSPFileInputStream`** (the piano file-stream class) exposes only `S_IsNSP`,
+   `S_GetMainType`, `S_GetVersion`, `VerifyChecksum`, `PopulateMetaData`, `GetStreamType`
+   — metadata + checksum, no audio.
+3. **`Zevs::Piano`** namespace is only `GetFormat`/`BCD2Version`/`Version2BCD` (version
+   utilities); `CPiano2–6` have only `IsSampleEditor3Supported`; `CPartitionPnoV5/V6` only
+   `FormatEntry`. No CNSP audio/stroke/sample reader exists in NSM at all.
+
+Valuable byproducts (not blockers, but worth keeping):
+- **Our NW1 decoder is confirmed byte-exact** vs `CBlockHdr::Read` (sampleCnt=word&0x3FFF,
+  order=(w>>14)&0xF, bitWidth=((w>>19)&0xF)+1) and `CDecode::DecodeStroke` is a plain
+  contiguous block loop. The decoder is *not* the problem.
+- **Format detection is now fully pinned** (PeekFormat versions; SCodec = Format/SubFormat/
+  Metric/version; the codec-3 subformat flag comes from a follow-on section seek).
+- NSM *does* carry `CChunkBuffer`/`CDecode::DecodeChunk` and `CScopedSectionReader`
+  (pad-aligned sections) — but for the NSMP/NWS + bundle path, not CNSP.
+
+**Conclusion (both desktop binaries now fully checked — NSE and NSM):** there is no
+desktop `.npno` audio decoder. The CNSP audio container is firmware/DSP-only. Every
+desktop-oracle and file-only avenue is exhausted; the audio is unreachable without
+hardware ground truth (record the Nord) or a device/DSP dump. The librarian tier
+(name/version/key map → samples + ranges) remains fully recovered and shippable.
