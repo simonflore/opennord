@@ -520,3 +520,30 @@ layout (underdetermined — the predictor fakes plausible output). A single grou
 resolves both at once: correlation locates the offset whose decode matches (= a true stroke
 start) and selects the layout. Harness: `scripts/npno-crack.ts`. File-side hypotheses
 (brute force / chunk framing / old firmware / DSP-in-a-file) are now exhausted & ruled out.
+
+## 2026-07-02 — fresh pass: whole desktop codec read; comprehensive packing-negative
+
+Read *every* NW1 decode function (not just headers): `CBlockHdr::Read`, `DecodeChunk`,
+`DecodeSamples`, `UnpackSamples`, `FilterSamples`, `CFilter::Tick/SetOrder/Put`. The desktop
+NW1/NSMP codec is fully pinned and dead simple: self-describing blocks (sampleCnt[0:14],
+order[14:18], bitWidth[19:23]+1), `ceil(sc·bw/wordBits)` **word-aligned** words per block, a
+7-tap FIR from `g_coeff[order]` (binomial), sample-interleaved, stop-terminated. Corrects the
+earlier "NW1 variant" framing — there is no variant; this is the whole codec.
+
+Real `.nsmp` block fingerprint (from Cathedral Organ / Clavinet5 / Acoustic Guitar): stroke
+header ≈ 0x74–0x80, then small blocks — sampleCnt mostly **64/96/128** (max a few k),
+**bitWidth 8–14**, stop-terminated.
+
+Then scanned the CP80 `.npno` for that fingerprint under **every packing**: byte-aligned
+BE/LE × {16,24,32}, and **bit-continuous** × {24,32}. Require ≥12 realistic blocks (sc 16–6000,
+bw 5–15). **Zero chains in all cases** — while a real `.nsmp` stroke satisfies it immediately.
+(This also explains the White-Grand shared blob decoding to sc=16127/bw=2 nonsense: it starts
+mid-stream, not at a block.)
+
+Conclusion (sharpened, not overturned): the desktop NW1 codec is fully known, but the CNSP
+`.npno` **as-stored bytes do not match it under any word/bit packing**. So the CNSP container
+applies a packing/transform on top of (or instead of) the desktop block layout that is
+DSP/firmware-defined and not reconstructable from files. The remaining unknown is precisely a
+*container byte-packing*, not the codec. Ground-truth PCM would let us fit that packing
+(offset/alignment/wrapper) to a known note; without it, it is underdetermined. This closes the
+"maybe just the wrong layout" hope with a comprehensive negative.
