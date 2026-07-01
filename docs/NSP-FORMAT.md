@@ -605,3 +605,28 @@ identical blob shared across Sml/Med (position-dependent ciphers would destroy i
 encrypted.** The DSP-side transform is *packing/framing* (interleave / separated param+residual
 streams / container records / padding), not a cipher. This is favorable: a recording enables a
 known-plaintext attack against a packing/permutation (tractable), which a cipher would deny.
+
+## 2026-07-02 — systematic packing search exhausted; blocker is the block-param directory
+
+Ran the full packing search with the CP80 `.nsmp` decode as a verifying oracle (same
+instrument → same performance). All null:
+- structural transforms (byte/word de-interleave, per-word endian swap, nibble/bit reversal,
+  XOR) → NW1 fingerprint chains stay at noise level (3–6);
+- flat residual stream (fixed bitWidth, order 2/3), envelope-matched to the 16 `.nsmp`
+  strokes → 0 matches;
+- **exact known-plaintext**: compute a stroke's residuals from `.nsmp` PCM, pack at every
+  bitWidth, search all 71M bit positions for the exact bytes → 0 matches.
+
+The exact-residual null is decisive: residuals are **not stored flat at `.nsmp` fidelity**.
+Together with the ~3× size ratio, that means the `.npno` stores **higher-fidelity** audio, so
+its residual integers differ from the `.nsmp`'s — the `.nsmp` (and any lower-fidelity/colored
+hardware recording) can only ever be a *fuzzy correlation* reference, never exact plaintext.
+
+Precise diagnosis: the CNSP container **separates per-block parameters (sampleCnt/order/
+bitWidth, which vary per block) from the residual stream**. Without that parameter directory
+the residuals are unsegmentable (you can't find variable-width block boundaries), which is why
+nothing chains/de-interleaves/decodes. The remaining lever is not brute force — it's locating
+that **block-parameter directory** in the CNSP structure (a per-stroke table of ~100
+(sampleCnt,order,bitWidth) triples), which is the firmware-side container index we've never
+parsed. `.nsmp`-as-oracle (removes the hardware dependency for *verification*) stands, but
+verification can't compensate for a search space set by the missing directory.
