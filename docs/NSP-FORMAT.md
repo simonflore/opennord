@@ -568,3 +568,21 @@ the byte level. Ground-truth PCM would turn this into a *known-plaintext* proble
 expected residuals from the recording, find how they're stored) — tractable if the transform is
 simple, hard if it's a real wrapper. (White-Grand exhaustive scan queued to confirm on
 confirmed-real audio bytes.)
+
+## 2026-07-02 — exhaustive scan complete (both bit orders): file-side avenue closed
+
+Completed the exhaustive proof. LSB-first bit order (8 modes: 24/32-bit hdr × pad/cont ×
+LSBval/MSBval accumulation) over all 71M CP80 bit positions: longest chain 10, **zero ≥12** —
+same as MSB-first. Full tally across the investigation: **both CP80 and White Grand Sml**
+(incl. the White Grand's confirmed-real byte-identical audio blobs), **every bit position**
+(71M / 578M), **~12 packing configs** (bit-continuous + word-padded × 24/32-bit × MSB/LSB bit
+order × both value endiannesses). Every configuration: longest chain 8–12 = pure chance; no
+stroke-length chains anywhere.
+
+**Definitive:** the CNSP `.npno` audio is provably NOT a directly-readable NW1 block stream
+under any bit-level interpretation. The desktop NW1 codec is fully known; the CNSP bytes do not
+match it at any alignment/order/packing. ⇒ A DSP-side container transform (interleave / wrapper
+/ separated parameter+residual streams / different codec) sits between the stored bytes and the
+logical audio, and is not recoverable from files. The file-side avenue is exhausted with
+maximal rigor. Remaining levers are all off-file: ground-truth recording (→ known-plaintext vs.
+the transform), firmware Thumb RE (walled), or DSP chip readout.
