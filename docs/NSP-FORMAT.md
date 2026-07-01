@@ -458,3 +458,23 @@ same trap that fools every intrinsic oracle here.
    *evolved* (a "pre-NPNO" era existed). An older Nord Sound Manager / Nord Piano Manager
    build, or first-gen Stage/Piano firmware, may carry the piano codec in an ARM-side or
    simpler form that spells out the exact block header. Worth sourcing.
+
+## 2026-07-01 — old firmware (Electro 3 / Nord Stage, PreNPNO): codec is ARM-side but RE-walled
+
+Extracted the PreNPNO-era firmware (Electro 3 OS `os.cab` → CODE 470 KB @VA 0x30000400;
+Nord Stage OS 5.08 payload in the updater `.rsrc`). Key result: the **Electro 3 CODE
+references `CNSP`, `nsmp`, `Piano`, `Blocks`, `Samples`** — i.e. the piano/sample codec
+logic lives **host/ARM-side** in this older generation (unlike the modern DSP-gated path
+that `PeekFormat` gates out). So a desktop-reachable codec reference *does* exist here.
+
+But extracting the exact block-header layout from it hits the parked firmware wall:
+- CODE is **Thumb** (ARM-mode disasm yields nothing; Thumb yields valid insns).
+- **No resolvable xrefs** — the `CNSP`/`nsmp`/`Blocks` string VAs appear *zero* times as
+  absolute pointers at any tested base (0x30000000/0x30000400/0/0x80000000), so the code
+  addresses them via relocated/computed bases, not literal pools — the same
+  no-symbols/relocated-data blocker as `firmware/rehost/FINDINGS.md`.
+
+Status: genuine lead (host-side codec confirmed to exist in PreNPNO firmware), but turning
+it into the layout is a multi-session Thumb RE task (proper Ghidra load at 0x30000400 with
+Thumb seeding is the next tool), not a quick win. Saved: `firmware/old/electro3-CODE.bin`.
+Fastest reliable crack remains hardware ground truth + the NW1-variant header search.
