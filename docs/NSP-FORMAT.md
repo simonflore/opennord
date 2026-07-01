@@ -547,3 +547,24 @@ DSP/firmware-defined and not reconstructable from files. The remaining unknown i
 *container byte-packing*, not the codec. Ground-truth PCM would let us fit that packing
 (offset/alignment/wrapper) to a known note; without it, it is underdetermined. This closes the
 "maybe just the wrong layout" hope with a comprehensive negative.
+
+## 2026-07-02 — EXHAUSTIVE bit-level scan: CNSP audio is not directly-readable NW1 anywhere
+
+Ran the complete scan (no coarse steps, no byte-alignment assumption): **every one of the
+71,039,936 bit positions** in the CP80 `.npno` × 4 packings (bit-continuous + word-padded,
+24- and 32-bit headers), chained against the real `.nsmp` block fingerprint (sc 16–6000, bw
+5–15, order ≤7).
+
+Result — longest chain found per mode: **8 / 9 / 11 / 8 blocks. Zero chains ≥10.** Those maxima
+are pure chance (random data yields 8–11-block runs at this validity over 71M positions); a real
+stroke chains dozens–hundreds of blocks to a stop. So the CP80 CNSP audio contains **no
+directly-readable NW1 block stream at any bit offset under any packing.**
+
+This closes, airtight, the "we just haven't found the right alignment/word-size/packing"
+hypothesis. Combined with the fully-read desktop codec, the conclusion is firm: the CNSP
+container stores the audio behind a **DSP-side transform** (additional packing / interleave /
+wrapper — or a different codec entirely); the stored bytes are opaque to the known NW1 reader at
+the byte level. Ground-truth PCM would turn this into a *known-plaintext* problem (compute
+expected residuals from the recording, find how they're stored) — tractable if the transform is
+simple, hard if it's a real wrapper. (White-Grand exhaustive scan queued to confirm on
+confirmed-real audio bytes.)
