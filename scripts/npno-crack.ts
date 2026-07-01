@@ -192,7 +192,10 @@ function crack(wavPath: string, root: number, npnoPath: string) {
   console.log(best.c > 0.8 ? '✓ LIKELY CRACKED — verify by decoding neighboring strokes with this layout.' : '~ no strong lock; check recording (line-out? root note? FX off?) or widen search.');
 }
 
-const [cmd, ...rest] = process.argv.slice(2);
-if (cmd === 'validate') validate();
-else if (cmd === 'crack') crack(rest[0], parseInt(rest[1], 10), rest[2] ?? 'fixtures/Electric_Grand_1_CP80__5.3.npno');
-else console.log('usage: npno-crack.ts validate | crack <wav> <rootNote> [npno]');
+// CLI dispatch — only when run directly (not when imported by npno-wavs.ts)
+if (process.argv[1]?.endsWith('npno-crack.ts')) {
+  const [cmd, ...rest] = process.argv.slice(2);
+  if (cmd === 'validate') validate();
+  else if (cmd === 'crack') crack(rest[0], parseInt(rest[1], 10), rest[2] ?? 'fixtures/Electric_Grand_1_CP80__5.3.npno');
+  else console.log('usage: npno-crack.ts validate | crack <wav> <rootNote> [npno]');
+}
