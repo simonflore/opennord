@@ -630,3 +630,21 @@ that **block-parameter directory** in the CNSP structure (a per-stroke table of 
 (sampleCnt,order,bitWidth) triples), which is the firmware-side container index we've never
 parsed. `.nsmp`-as-oracle (removes the hardware dependency for *verification*) stands, but
 verification can't compensate for a search space set by the missing directory.
+
+## 2026-07-02 — block-param directory absent; the NW1 assumption is now in doubt
+
+Searched for the separated block-parameter directory (the last structural lever): a contiguous
+array of block-header words (each a valid sampleCnt/order/bitWidth), or a compact 16b-sc+8b-par
+table. Longest run of realistic *data* headers anywhere = 8–9, with unrealistic sampleCnts
+(repeated 127, or 512/8192/4608) — nothing like the real `.nsmp` block-size distribution
+(64/96/128). **No directory exists** in any tried form.
+
+Honest reconsideration: the "CNSP audio is NW1" premise is now doubtful. Every NW1-based
+attack has failed — no blocks (71M bit positions × all packings), no interleave/transform, no
+flat residuals, no exact known-plaintext, no header directory. And the desktop NW1 codec
+*rejects* CNSP (`PeekFormat`→0); the code we read decodes `.nsmp`, not `.npno`. The CNSP audio
+is DSP-decoded, and nothing forces it to be NW1. The weight of exhaustive negatives now
+suggests **CNSP piano audio is a different codec** (DSP-native — ADPCM-family or proprietary)
+with no desktop reference, which would explain the uniform noise-level results. Not
+confirmable from files; would need the DSP firmware or hardware. File-side investigation is
+complete and exhausted across every hypothesis.
