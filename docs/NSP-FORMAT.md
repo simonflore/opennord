@@ -429,3 +429,32 @@ lacking a CNSP audio path. The smooth onset is a predictor artifact, not an NW1 
 Cracking the CNSP codec from raw compressed bytes with no decoder reference is not
 tractable file-only; it needs the firmware/DSP algorithm or hardware ground-truth PCM.
 The isolated blobs make a good substrate if either becomes available.
+
+## 2026-07-01 — header-layout search: CNSP audio looks like an NW1 *variant* (not confirmed)
+
+Using the Sml/Med differential's isolated real-audio blob as an oracle, brute-forced the
+block-header bit layout (word size, field positions/widths for sampleCnt/order/bitWidth)
+looking for a parse that decodes the blob to *bounded* audio instead of a runaway.
+
+- Our `.nsmp` layout (sc[0:13]/order[14:17]/bw[19:22]) runs away on the blob (order-3
+  predictor, 2-bit residuals).
+- A **rearranged layout** — sampleCnt[0:14], **bitWidth[14:19] (5b)**, **order[19:21] (2b)**
+  → order=1, bw=4 — decodes the **first block** (16127 samples) to **bounded peak ~8600**
+  (real audio amplitude). So the field positions differ from `.nsmp`.
+
+⇒ Evidence the CNSP audio is **NW1-family with a different block-header packing** (an NW1
+*variant*), not an unrelated codec. BUT not a confirmed decode: subsequent blocks blow up
+(sampleCnt / word-alignment not exactly right — the "one bounded 16127-block" is likely
+several real blocks read as one), and the pitch is unconvincing (period pinned near the
+autocorr floor). Without ground-truth PCM, bounded-vs-correct can't be separated — the
+same trap that fools every intrinsic oracle here.
+
+**Two ways to pin the exact layout (resolve the chaining):**
+1. **Hardware ground truth** — record a known `.npno`; brute-force layout+alignment until
+   the decode matches the recording.
+2. **Older firmware / older desktop tool as a codec reference.** NSM carries `CStage_
+   PreNPNOv5` / `CStageEX_PreNPNOv5` / `CElectro3_PreNPNOv5` and `CPiano5/CPiano6`
+   generations with `ConvertLocation`/`IsTranscode` — the piano format demonstrably
+   *evolved* (a "pre-NPNO" era existed). An older Nord Sound Manager / Nord Piano Manager
+   build, or first-gen Stage/Piano firmware, may carry the piano codec in an ARM-side or
+   simpler form that spells out the exact block header. Worth sourcing.
