@@ -76,15 +76,37 @@ export function decodeCand(bytes: Uint8Array, start: number, L: Layout, maxSampl
 }
 
 /** Downsample-normalized cross-correlation, rate-tolerant. Returns |NCC| in [0,1]. */
-export function corr(a: number[], b: number[]): number {
-  const L = Math.min(2000, a.length, b.length);
-  if (L < 256) return 0;
-  const rs = (src: number[]): number[] => { const o = new Array(L); const n = src.length; for (let i = 0; i < L; i++) { const x = i * (n - 1) / (L - 1), j = Math.floor(x), f = x - j; o[i] = (src[j] ?? 0) * (1 - f) + (src[Math.min(j + 1, n - 1)] ?? 0) * f; } return o; };
-  const x = rs(a), y = rs(b);
+const resampleTo = (src: number[], L: number): number[] => { const o = new Array(L); const n = src.length; for (let i = 0; i < L; i++) { const x = i * (n - 1) / (L - 1), j = Math.floor(x), f = x - j; o[i] = (src[j] ?? 0) * (1 - f) + (src[Math.min(j + 1, n - 1)] ?? 0) * f; } return o; };
+function ncc(x: number[], y: number[]): number {
+  const L = Math.min(x.length, y.length); if (L < 128) return 0;
   let sa = 0, sb = 0, saa = 0, sbb = 0, sab = 0;
   for (let i = 0; i < L; i++) { sa += x[i]; sb += y[i]; saa += x[i] * x[i]; sbb += y[i] * y[i]; sab += x[i] * y[i]; }
   const cov = sab - sa * sb / L, va = saa - sa * sa / L, vb = sbb - sb * sb / L;
   return va > 0 && vb > 0 ? Math.abs(cov / Math.sqrt(va * vb)) : 0;
+}
+/**
+ * Rate- AND alignment-tolerant correlation. A musical waveform is periodic, so naive NCC
+ * collapses under even a fractional-period time shift — a real recording (unknown start
+ * offset + possibly different sample rate) needs lag-search AND a rate sweep. We slide `b`
+ * against a fixed window of `a` over lags × length-ratios and keep the best |NCC|.
+ * Empirically: colored recording of the correct note → ~0.92; any wrong signal → <0.1.
+ */
+export function corr(a: number[], b: number[]): number {
+  const L = 2048;                                    // fixed comparison resolution
+  const W = Math.min(a.length, b.length, 8000);      // reference time-span (samples of a)
+  if (W < 512) return 0;
+  const xa = resampleTo(a.slice(0, W), L);           // a's first W samples → L points
+  let best = 0;
+  for (const ratio of [1, 0.5, 2, 0.75, 1.5, 0.66, 1.33]) { // b may be at a different rate
+    const win = Math.round(W * ratio);               // matching time-span in b
+    if (win < 256 || win > b.length) continue;
+    const step = Math.max(1, Math.floor(win / 8));   // slide to align (unknown start offset)
+    for (let lag = 0; lag + win <= b.length; lag += step) {
+      const c = ncc(xa, resampleTo(b.slice(lag, lag + win), L));
+      if (c > best) best = c;
+    }
+  }
+  return best;
 }
 
 /** Minimal PCM-16/24 WAV → mono float samples. */
