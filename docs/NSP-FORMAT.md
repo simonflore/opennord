@@ -586,3 +586,22 @@ match it at any alignment/order/packing. ⇒ A DSP-side container transform (int
 logical audio, and is not recoverable from files. The file-side avenue is exhausted with
 maximal rigor. Remaining levers are all off-file: ground-truth recording (→ known-plaintext vs.
 the transform), firmware Thumb RE (walled), or DSP chip readout.
+
+## 2026-07-02 — not encrypted: the transform is packing/framing, not a cipher
+
+Tested the encryption hypothesis directly. Encrypted data ≈ random: entropy 8.0, uniform
+histogram (χ²/df≈1), ~0 repeats. Measured on the `.npno` audio:
+
+| signal | CP80 .npno | WhiteGrand .npno | .nsmp (plain) | encrypted |
+|---|---|---|---|---|
+| entropy | 7.275 | 6.893 | 7.656 | ~8.000 |
+| χ²/df (uniformity) | 56,980 | 762,147 | 3,081 | ~1 |
+| repeated 16B blocks | 11 | 18,713 | 166 | ~0 |
+| longest byte-run | 10 | 2,043 | 335 | ~0 |
+
+Every axis is the opposite of encryption (entropy below the known-plain `.nsmp`, wildly
+non-uniform histogram, thousands of repeats, kilobyte byte-runs), plus the 5.3 MB byte-
+identical blob shared across Sml/Med (position-dependent ciphers would destroy it). ⇒ **Not
+encrypted.** The DSP-side transform is *packing/framing* (interleave / separated param+residual
+streams / container records / padding), not a cipher. This is favorable: a recording enables a
+known-plaintext attack against a packing/permutation (tractable), which a cipher would deny.
