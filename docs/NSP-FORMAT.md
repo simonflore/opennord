@@ -402,3 +402,30 @@ desktop `.npno` audio decoder. The CNSP audio container is firmware/DSP-only. Ev
 desktop-oracle and file-only avenue is exhausted; the audio is unreachable without
 hardware ground truth (record the Nord) or a device/DSP dump. The librarian tier
 (name/version/key map → samples + ranges) remains fully recovered and shippable.
+
+## 2026-07-01 — Sml/Med differential: locates real audio, proves CNSP ≠ NW1
+
+Downloaded White_Grand Sml (72MB) + Med (119MB) from the factory endpoint
+(`nordkeyboards.com/wt/api/main/v1/file/from_file_name/<name>/`, gitignored under
+`fixtures/variants/`) and ran a longest-common-substring subset diff.
+
+Findings:
+- Both variants have the **same 37 samples / same root notes** — Med differs by higher
+  fidelity + added middle-range string-resonance, not by extra key zones.
+- Only **~14% shared**, in **4 large contiguous identical blocks** (5.3/2.1/1.4/1.1 MB)
+  at *different offsets* in each file → these are real, relocatable **audio blobs** with
+  exact boundaries. (The rest is re-encoded per variant, so not a clean subset.)
+- Decoding a blob with our NW1 decoder yields a **smooth cubic that runs away**
+  (`0,0,1,3,6,…,56,52,42,27,7,−18,−48,…` accelerating to −210k by sample 140) — the
+  order-3 binomial predictor extrapolating with residuals too small to correct it. No
+  stroke-header offset (0x3c/0x60/0x6c/…) fixes it.
+- **Decisive byte test:** the blob does **not** chain sane NW1 block headers (2/0/1
+  blocks before an invalid order>7 field), while entropy is 7.38 bits/byte (compressed).
+
+Conclusion: the differential *works* (it isolates genuine audio blobs — a clean RE
+substrate we never had), but confirms **CNSP audio is a different codec than the desktop
+NW1** — consistent with `PeekFormat` structurally rejecting CNSP and both binaries
+lacking a CNSP audio path. The smooth onset is a predictor artifact, not an NW1 decode.
+Cracking the CNSP codec from raw compressed bytes with no decoder reference is not
+tractable file-only; it needs the firmware/DSP algorithm or hardware ground-truth PCM.
+The isolated blobs make a good substrate if either becomes available.
