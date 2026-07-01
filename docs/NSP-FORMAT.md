@@ -499,3 +499,24 @@ Thumb RE with manual function/flow recovery (multi-session, uncertain), and may 
 regardless. Combined with everything prior, **hardware ground-truth PCM remains the only
 reliable unlock** for the CNSP codec; the NW1-variant header search + isolated blobs are
 staged to make that recording session fast.
+
+## 2026-07-01 — chunk hypothesis ruled out; blocker is stroke-start history, not framing
+
+Read the authoritative NW1 decode path (`CDecode::DecodeChunk` + `DecodeBegin`, NSM
+0x100186524 / 0x100185f94). `DecodeChunk` reads **one block header → stop? done : DecodeSamples**;
+the caller loops until a stop sentinel. There is **no chunk-framing layer** — "chunk" == one
+block, and the stream is **contiguous blocks + stop**, identical structure to `.nsmp`.
+`CChunkBuffer`/`WriteChunk` are encode-side buffering, not a decode frame.
+
+⇒ The systematic 242-layout sweep's "bounded for a few thousand samples, then explode to
+1e17" is NOT a chunk boundary. The predictor carries a **history ring across blocks**;
+starting **mid-stroke** (which every offset does, since stroke starts are unlocatable in the
+CNSP container) seeds wrong history, and the marginally-stable order-3 filter accumulates
+error until it overflows. Only a stroke's *first* block starts from legitimate zero history.
+
+Net: the CNSP audio is contiguous NW1-family blocks; the two coupled unknowns are (1) the
+per-stroke start offsets (in the DSP-only CNSP directory) and (2) the exact header bit
+layout (underdetermined — the predictor fakes plausible output). A single ground-truth note
+resolves both at once: correlation locates the offset whose decode matches (= a true stroke
+start) and selects the layout. Harness: `scripts/npno-crack.ts`. File-side hypotheses
+(brute force / chunk framing / old firmware / DSP-in-a-file) are now exhausted & ruled out.
