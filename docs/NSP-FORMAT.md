@@ -478,3 +478,24 @@ Status: genuine lead (host-side codec confirmed to exist in PreNPNO firmware), b
 it into the layout is a multi-session Thumb RE task (proper Ghidra load at 0x30000400 with
 Thumb seeding is the next tool), not a quick win. Saved: `firmware/old/electro3-CODE.bin`.
 Fastest reliable crack remains hardware ground truth + the NW1-variant header search.
+
+## 2026-07-01 — Electro 3 firmware RE attempt: hits the parked Thumb wall
+
+Gave the PreNPNO firmware a real, tooled RE pass (Ghidra headless, raw binary @0x30000400):
+- ARM-mode disasm = 0 insns; **Thumb** confirmed. Forced TMode=1 + seeded 418 push{lr}
+  prologues → **419 functions** — but auto-analysis **does not propagate** (indirect control
+  flow / jump tables), so most of the 470 KB stays undisassembled.
+- **String xrefs = 0** for CNSP/nsmp/Blocks/Samples/Piano at any base — the code addresses
+  them via relocated/computed bases, not literal pools (same no-symbols blocker).
+- **Block-header mask constants absent**: 0x3fff / 0x1fff / 0x7fff / 0xfff each occur **0×**
+  as u32 literals in the whole CODE. A sampleCnt-mask load would be expected if the block
+  decoder lived here — its absence suggests the actual audio *decode* is **DSP-side even on
+  the Electro 3** (the ARM code references CNSP/nsmp for container/metadata handling only,
+  mirroring the modern split).
+
+Verdict: the old firmware confirms a host-side *container* path exists but not a host-side
+*audio decoder* we can reach — extracting the exact block layout would need deep interactive
+Thumb RE with manual function/flow recovery (multi-session, uncertain), and may be DSP-gated
+regardless. Combined with everything prior, **hardware ground-truth PCM remains the only
+reliable unlock** for the CNSP codec; the NW1-variant header search + isolated blobs are
+staged to make that recording session fast.
