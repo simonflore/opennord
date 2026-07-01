@@ -1,12 +1,99 @@
 /**
  * Polyphonic sample player. The pure helpers below decide each voice's zone,
- * pitch, gain, and loop; createSampler (added next) wires them to Web Audio.
- * Plays the SAMPLE only — pitch + loop + velocity, no program filters/FX.
+ * pitch, and gain; createSampler wires them to Web Audio. Plays the SAMPLE only
+ * — pitch + velocity, no program filters/FX.
+ *
+ * Audition looping is decided per-sample by stationarity, not by the stored loop
+ * flag alone (RE session 2026-07-01). Every `.nsmp` stroke carries hardware loop
+ * points (`stroke.loop`) so a held key can sustain past the recording — but
+ * applying them blindly makes *decaying* instruments (piano, guitar, vibes)
+ * flutter: their loop window is still decaying, so each ~0.3s wrap is an audible
+ * repeat that no seam crossfade / phase-align / decay envelope removes (the
+ * flutter *is* the repeat). *Sustaining* instruments (strings, organ, pad) sit
+ * flat in their loop window and loop seamlessly. Window length can't tell them
+ * apart (organ loops are as short as CP80's), but the loop-window RMS decay can:
+ * see {@link sampleShouldLoop}. Decaying samples ring out on their natural decay;
+ * steady samples sustain by looping. The loop metadata itself stays decoded,
+ * shown, and editable elsewhere regardless — this only gates preview playback.
  */
 import type { PlayableZone } from '../../lib/ns4/playable-zones';
 import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
 import { normalizeChannels, toAudioBuffer } from '../../lib/ns4/nsmp-audio';
 import { SAMPLE_RATE, getSharedCtx } from './audioPlayer';
+
+/** Loop region of a stroke in seconds (for AudioBufferSourceNode loop points). */
+export function loopSeconds(stroke: DecodedStrokeResult): { loop: boolean; start: number; end: number } {
+  const l = stroke.loop;
+  if (!l || !l.loops) return { loop: false, start: 0, end: 0 };
+  return { loop: true, start: l.loopStart / SAMPLE_RATE, end: l.loopEnd / SAMPLE_RATE };
+}
+
+/** Crossfade length (per-channel samples) for a loop window. Capped at ~40 ms, a
+ *  quarter of the loop window, and the pre-loop headroom (`loopStart`) — so there
+ *  is always real audio before the loop to blend the tail into. */
+export function loopXfadeLen(loopStart: number, loopEnd: number): number {
+  const win = loopEnd - loopStart;
+  return Math.max(0, Math.min(Math.floor(win / 4), Math.floor(0.04 * SAMPLE_RATE), loopStart));
+}
+
+/**
+ * Bake an equal-power crossfade into a channel's loop seam, in place. The loop
+ * tail `[loopEnd-xf, loopEnd)` is faded from the original tail toward the pre-loop
+ * audio `[loopStart-xf, loopStart)`, so when the native AudioBufferSource loop
+ * wraps loopEnd→loopStart the join is continuous. No-op without headroom.
+ */
+export function crossfadeLoop(ch: Float32Array, loopStart: number, loopEnd: number, xfade: number): void {
+  if (xfade < 2 || loopStart < xfade || loopEnd - loopStart < xfade || loopEnd > ch.length) return;
+  for (let k = 0; k < xfade; k++) {
+    const t = k / (xfade - 1);
+    const wOut = Math.cos((t * Math.PI) / 2); // tail fades out 1→0
+    const wIn = Math.sin((t * Math.PI) / 2);  // pre-loop fades in 0→1
+    ch[loopEnd - xfade + k] = ch[loopEnd - xfade + k] * wOut + ch[loopStart - xfade + k] * wIn;
+  }
+}
+
+/** RMS decay in dB across a stroke's loop window (loud start → quieter end):
+ *  positive = the loop region is still decaying, ~0 = steady/sustaining, negative
+ *  = swelling. Null when the stroke has no loop. Uses up to a third of the window
+ *  (capped 1024 samples) at each edge. Channel 0 is representative for the decay. */
+export function loopWindowDecayDb(stroke: DecodedStrokeResult): number | null {
+  const l = stroke.loop;
+  if (!l || !l.loops) return null;
+  const ch = stroke.channels[0];
+  if (!ch || ch.length === 0) return null;
+  const w = Math.min(1024, Math.floor((l.loopEnd - l.loopStart) / 3));
+  if (w < 1) return null;
+  const rms = (s: number, e: number): number => {
+    let x = 0, n = 0;
+    for (let i = s; i < e; i++) if (i >= 0 && i < ch.length) { x += ch[i] * ch[i]; n++; }
+    return Math.sqrt(x / Math.max(1, n));
+  };
+  const rStart = rms(l.loopStart, l.loopStart + w);
+  const rEnd = rms(l.loopEnd - w, l.loopEnd);
+  return 20 * Math.log10(rStart / Math.max(1e-9, rEnd));
+}
+
+/** dB decay at or below which a sample's loops are considered steady enough to
+ *  sustain seamlessly. Above it the loop region is still decaying and looping
+ *  flutters, so the sample rings out instead. Tuned 2026-07-01 against the local
+ *  corpus: strings/violins/pad/organ ≤0.7 dB (loop); CP80/vibes/12-string/rain-
+ *  piano ≥2.0 dB (ring out). See docs/… / the [[audition-does-not-loop]] note. */
+export const LOOP_MAX_DECAY_DB = 1.2;
+
+/**
+ * Whether a sample should apply its loops in audition, decided once per sample by
+ * the median loop-window decay across its looping strokes (per-sample so a patch
+ * is consistent — no mix of sustaining and ringing-out notes). False when nothing
+ * loops. Steady instruments (low decay) sustain; decaying ones ring out.
+ */
+export function sampleShouldLoop(strokes: Iterable<DecodedStrokeResult>, maxDecayDb = LOOP_MAX_DECAY_DB): boolean {
+  const decays: number[] = [];
+  for (const s of strokes) { const d = loopWindowDecayDb(s); if (d !== null) decays.push(d); }
+  if (decays.length === 0) return false;
+  decays.sort((a, b) => a - b);
+  const median = decays[Math.floor(decays.length / 2)];
+  return median <= maxDecayDb;
+}
 
 /** The zone a note plays: the one covering `midi`; among overlaps, the one whose
  *  velocity range fits, else the first. Null when no zone covers the key. */
@@ -25,39 +112,6 @@ export function playbackRate(rootKey: number, midi: number): number {
 /** MIDI velocity → linear gain, clamped to 0..1. */
 export function velocityGain(velocity: number): number {
   return Math.max(0, Math.min(1, velocity / 127));
-}
-
-/** Loop region of a stroke in seconds (for AudioBufferSourceNode loop points). */
-export function loopSeconds(stroke: DecodedStrokeResult): { loop: boolean; start: number; end: number } {
-  const l = stroke.loop;
-  if (!l || !l.loops) return { loop: false, start: 0, end: 0 };
-  return { loop: true, start: l.loopStart / SAMPLE_RATE, end: l.loopEnd / SAMPLE_RATE };
-}
-
-/** Crossfade length (per-channel samples) for a loop window. Capped at ~40 ms, a
- *  quarter of the loop window, and the pre-loop headroom (`loopStart`) — so there
- *  is always real audio before the loop to blend the tail into. */
-export function loopXfadeLen(loopStart: number, loopEnd: number): number {
-  const win = loopEnd - loopStart;
-  return Math.max(0, Math.min(Math.floor(win / 4), Math.floor(0.04 * SAMPLE_RATE), loopStart));
-}
-
-/**
- * Bake an equal-power crossfade into a channel's loop seam, in place. The real
- * Nord crossfades the loop point on its DSP (the NSE desktop preview just
- * hard-jumps and clicks); we approximate it so a held key sustains smoothly.
- * The loop tail `[loopEnd-xf, loopEnd)` is faded from the original tail toward the
- * pre-loop audio `[loopStart-xf, loopStart)`, so when the native AudioBufferSource
- * loop wraps loopEnd→loopStart the join is continuous. No-op without headroom.
- */
-export function crossfadeLoop(ch: Float32Array, loopStart: number, loopEnd: number, xfade: number): void {
-  if (xfade < 2 || loopStart < xfade || loopEnd - loopStart < xfade || loopEnd > ch.length) return;
-  for (let k = 0; k < xfade; k++) {
-    const t = k / (xfade - 1);
-    const wOut = Math.cos((t * Math.PI) / 2); // tail fades out 1→0
-    const wIn = Math.sin((t * Math.PI) / 2);  // pre-loop fades in 0→1
-    ch[loopEnd - xfade + k] = ch[loopEnd - xfade + k] * wOut + ch[loopStart - xfade + k] * wIn;
-  }
 }
 
 /**
@@ -114,6 +168,9 @@ export function createSampler(
 ): Sampler {
   const buffers = new Map<number, AudioBuffer>(); // globalID → decoded audio (lazy)
   const live = new Map<number, { src: AudioBufferSourceNode; gain: GainNode; voice: Voice; release: number }>();
+  // Decide once per sample: sustain steady loops, ring out decaying ones (see
+  // sampleShouldLoop). Gates both the seam crossfade and the source loop below.
+  const loopSample = sampleShouldLoop(strokesByGlobalID.values());
 
   function bufferFor(ctx: AudioContext, globalID: number): AudioBuffer | null {
     const cached = buffers.get(globalID);
@@ -121,9 +178,9 @@ export function createSampler(
     const stroke = strokesByGlobalID.get(globalID);
     if (!stroke || stroke.channels[0]?.length === 0) return null;
     const norm = normalizeChannels(stroke.channels);
-    // Looped strokes get a crossfaded seam so a sustained note doesn't click on
-    // each loop wrap (matches the Nord DSP; one-shots are left untouched).
-    if (stroke.loop?.loops) {
+    // Only crossfade the seam of loops we'll actually play (steady samples); a
+    // ringing-out sample plays straight through, so its buffer is left untouched.
+    if (loopSample && stroke.loop?.loops) {
       const { loopStart, loopEnd } = stroke.loop;
       const xf = loopXfadeLen(loopStart, loopEnd);
       for (const ch of norm) crossfadeLoop(ch, loopStart, loopEnd, xf);
@@ -161,12 +218,13 @@ export function createSampler(
       src.buffer = buf;
       const rate = playbackRate(zone.rootKey, midi);
       src.playbackRate.value = rate;
-      // Looped strokes (loop-out ≠ end — the encoder's own one-shot/loop flag,
-      // validated vs ns4decode + the NSE binary) sustain by looping their region;
-      // one-shots ring out for the recording's length. The buffer already carries
-      // a crossfaded seam (see bufferFor) so the wrap doesn't click.
-      const ls = loopSeconds(stroke);
-      if (ls.loop) { src.loop = true; src.loopStart = ls.start; src.loopEnd = ls.end; }
+      // Steady samples sustain by looping their region (the buffer already carries
+      // a crossfaded seam); decaying samples leave `src.loop` false and ring out on
+      // the recorded decay. Per-sample decision — see sampleShouldLoop / module header.
+      if (loopSample) {
+        const ls = loopSeconds(stroke);
+        if (ls.loop) { src.loop = true; src.loopStart = ls.start; src.loopEnd = ls.end; }
+      }
       const gain = ctx.createGain();
       const peak = velocityGain(velocity);
       const e = env?.() ?? null;

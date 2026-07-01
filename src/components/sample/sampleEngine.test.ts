@@ -1,7 +1,32 @@
-import { describe, it, expect } from 'vitest';
-import { resolveZone, playbackRate, velocityGain, loopSeconds, loopXfadeLen, crossfadeLoop, envGainAt, type AmpEnvelope } from './sampleEngine';
+import { describe, it, expect, vi } from 'vitest';
+import { resolveZone, playbackRate, velocityGain, envGainAt, createSampler, loopSeconds, loopXfadeLen, crossfadeLoop, loopWindowDecayDb, sampleShouldLoop, type AmpEnvelope } from './sampleEngine';
 import type { PlayableZone } from '../../lib/ns4/playable-zones';
 import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
+
+// Minimal Web-Audio fake so createSampler runs headless; records every source
+// node it creates so we can assert whether audition enabled looping.
+type FakeParam = { value: number; setValueAtTime: () => void; linearRampToValueAtTime: () => void; cancelScheduledValues: () => void };
+type FakeSource = { buffer: unknown; loop: boolean; loopStart: number; loopEnd: number; playbackRate: FakeParam; onended: (() => void) | null; connect: (n: unknown) => unknown; start: () => void; stop: () => void };
+const audioMock = vi.hoisted(() => {
+  const created: FakeSource[] = [];
+  const param = (): FakeParam => ({ value: 0, setValueAtTime: () => {}, linearRampToValueAtTime: () => {}, cancelScheduledValues: () => {} });
+  const ctx = {
+    currentTime: 0,
+    destination: {},
+    createBuffer: (channels: number, length: number, sampleRate: number) => {
+      const data = Array.from({ length: channels }, () => new Float32Array(length));
+      return { numberOfChannels: channels, length, sampleRate, getChannelData: (i: number) => data[i] };
+    },
+    createBufferSource: (): FakeSource => {
+      const s: FakeSource = { buffer: null, loop: false, loopStart: 0, loopEnd: 0, playbackRate: param(), onended: null, connect: (n) => n, start: () => {}, stop: () => {} };
+      created.push(s);
+      return s;
+    },
+    createGain: () => ({ gain: param(), connect: (n: unknown) => n }),
+  };
+  return { created, ctx };
+});
+vi.mock('./audioPlayer', () => ({ SAMPLE_RATE: 44100, getSharedCtx: () => audioMock.ctx }));
 
 const pz = (globalID: number, keyLow: number, keyHigh: number, velLow = 0, velTop = 127): PlayableZone =>
   ({ globalID, rootKey: 60, keyLow, keyHigh, velLow, velTop });
@@ -38,50 +63,6 @@ describe('velocityGain', () => {
   });
 });
 
-describe('loopSeconds', () => {
-  it('converts a looping stroke region to seconds', () => {
-    const s = { loop: { loopStart: 44100, loopEnd: 88200, loops: true } } as DecodedStrokeResult;
-    expect(loopSeconds(s)).toEqual({ loop: true, start: 1, end: 2 });
-  });
-  it('reports no loop when the region is absent or non-looping', () => {
-    expect(loopSeconds({ loop: null } as DecodedStrokeResult).loop).toBe(false);
-    expect(loopSeconds({ loop: { loopStart: 0, loopEnd: 1, loops: false } } as DecodedStrokeResult).loop).toBe(false);
-  });
-});
-
-describe('loopXfadeLen', () => {
-  it('caps at ~40ms, a quarter of the loop window, and the pre-loop headroom', () => {
-    // long loop, plenty of pre-loop headroom → 40ms cap wins
-    expect(loopXfadeLen(44100, 44100 + 44100)).toBe(Math.floor(0.04 * 44100));
-    // narrow loop window → quarter-window wins
-    expect(loopXfadeLen(44100, 44100 + 400)).toBe(100);
-    // little pre-loop audio → headroom (loopStart) wins
-    expect(loopXfadeLen(50, 50 + 44100)).toBe(50);
-  });
-});
-
-describe('crossfadeLoop', () => {
-  it('blends the loop tail toward the pre-loop audio (equal-power), seamless at the wrap', () => {
-    const ch = new Float32Array(100);
-    const loopStart = 40, loopEnd = 80, xf = 10;
-    ch.fill(1, loopStart - xf, loopStart); // pre-loop region [30,40) = 1.0
-    ch.fill(2, loopEnd - xf, loopEnd);     // loop tail     [70,80) = 2.0
-    crossfadeLoop(ch, loopStart, loopEnd, xf);
-    expect(ch[loopEnd - xf]).toBeCloseTo(2, 5); // window start: untouched tail
-    expect(ch[loopEnd - 1]).toBeCloseTo(1, 5);  // window end: equals pre-loop → smooth jump to loopStart
-    // equal-power blend: the seam (end) lands on the pre-loop value, not the tail value
-    expect(Math.abs(ch[loopEnd - 1] - 1)).toBeLessThan(Math.abs(ch[loopEnd - xf] - 1));
-    // pre-loop region itself is left intact (only the tail is rewritten)
-    expect(ch[loopStart - 1]).toBe(1);
-  });
-  it('is a no-op when there is not enough headroom or window', () => {
-    const ch = new Float32Array([0, 1, 2, 3, 4, 5]);
-    const copy = Float32Array.from(ch);
-    crossfadeLoop(ch, 1, 5, 10); // xf > window and > loopStart
-    expect(ch).toEqual(copy);
-  });
-});
-
 describe('envGainAt', () => {
   const env: AmpEnvelope = { attack: 1, decay: 1, sustain: 0.5, release: 2 };
   it('ramps up over attack, decays to sustain, then holds (key held)', () => {
@@ -104,5 +85,91 @@ describe('envGainAt', () => {
   it('handles instant attack and zero decay without dividing by zero', () => {
     const instant: AmpEnvelope = { attack: 0, decay: 0, sustain: 0.8, release: 0.1 };
     expect(envGainAt(instant, 1, 0, null)).toBeCloseTo(0.8, 5); // jumps straight to sustain
+  });
+});
+
+describe('loopSeconds', () => {
+  it('converts a looping stroke region to seconds', () => {
+    const s = { loop: { loopStart: 44100, loopEnd: 88200, loops: true } } as DecodedStrokeResult;
+    expect(loopSeconds(s)).toEqual({ loop: true, start: 1, end: 2 });
+  });
+  it('reports no loop when the region is absent or non-looping', () => {
+    expect(loopSeconds({ loop: null } as DecodedStrokeResult).loop).toBe(false);
+    expect(loopSeconds({ loop: { loopStart: 0, loopEnd: 1, loops: false } } as DecodedStrokeResult).loop).toBe(false);
+  });
+});
+
+describe('loopXfadeLen', () => {
+  it('caps at ~40ms, a quarter of the loop window, and the pre-loop headroom', () => {
+    expect(loopXfadeLen(44100, 44100 + 44100)).toBe(Math.floor(0.04 * 44100)); // 40ms cap
+    expect(loopXfadeLen(44100, 44100 + 400)).toBe(100);                        // quarter-window
+    expect(loopXfadeLen(50, 50 + 44100)).toBe(50);                             // headroom
+  });
+});
+
+describe('crossfadeLoop', () => {
+  it('blends the loop tail toward the pre-loop audio, seamless at the wrap', () => {
+    const ch = new Float32Array(100);
+    const loopStart = 40, loopEnd = 80, xf = 10;
+    ch.fill(1, loopStart - xf, loopStart); // pre-loop [30,40) = 1
+    ch.fill(2, loopEnd - xf, loopEnd);     // tail     [70,80) = 2
+    crossfadeLoop(ch, loopStart, loopEnd, xf);
+    expect(ch[loopEnd - xf]).toBeCloseTo(2, 5); // window start: untouched tail
+    expect(ch[loopEnd - 1]).toBeCloseTo(1, 5);  // window end: equals pre-loop → smooth wrap
+    expect(ch[loopStart - 1]).toBe(1);          // pre-loop region left intact
+  });
+  it('is a no-op without enough headroom or window', () => {
+    const ch = new Float32Array([0, 1, 2, 3, 4, 5]);
+    const copy = Float32Array.from(ch);
+    crossfadeLoop(ch, 1, 5, 10);
+    expect(ch).toEqual(copy);
+  });
+});
+
+// Build a stroke whose loop window has a given start→end amplitude ratio.
+const strokeWithDecay = (globalID: number, startAmp: number, endAmp: number): DecodedStrokeResult => {
+  const ch = new Float32Array(1000);
+  const loopStart = 100, loopEnd = 400;
+  for (let i = loopStart; i < loopEnd; i++) {
+    const t = (i - loopStart) / (loopEnd - loopStart);
+    ch[i] = startAmp * (1 - t) + endAmp * t;
+  }
+  return { globalID, channels: [ch], loop: { loopStart, loopEnd, loops: true } } as unknown as DecodedStrokeResult;
+};
+
+describe('loopWindowDecayDb / sampleShouldLoop', () => {
+  it('is ~0 dB for a steady loop and positive for a decaying one', () => {
+    expect(loopWindowDecayDb(strokeWithDecay(1, 0.5, 0.5)) ?? NaN).toBeCloseTo(0, 1);
+    expect(loopWindowDecayDb(strokeWithDecay(1, 1.0, 0.25)) ?? NaN).toBeGreaterThan(3);
+  });
+  it('is null when the stroke does not loop', () => {
+    expect(loopWindowDecayDb({ loop: null, channels: [new Float32Array(10)] } as unknown as DecodedStrokeResult)).toBeNull();
+  });
+  it('sustains steady samples and rings out decaying ones (per-sample median)', () => {
+    expect(sampleShouldLoop([strokeWithDecay(1, 0.5, 0.5), strokeWithDecay(2, 0.5, 0.48)])).toBe(true);
+    expect(sampleShouldLoop([strokeWithDecay(1, 1.0, 0.3), strokeWithDecay(2, 1.0, 0.25)])).toBe(false);
+    expect(sampleShouldLoop([])).toBe(false);
+  });
+});
+
+describe('createSampler audition playback', () => {
+  const zone = { globalID: 7, rootKey: 60, keyLow: 21, keyHigh: 108, velLow: 0, velTop: 127 };
+  const play = (stroke: DecodedStrokeResult): FakeSource => {
+    audioMock.created.length = 0;
+    createSampler([zone], new Map([[7, stroke]])).noteOn(60, 100);
+    expect(audioMock.created).toHaveLength(1);
+    return audioMock.created[0];
+  };
+
+  it('sustains a steady sample by looping the stored region', () => {
+    const src = play(strokeWithDecay(7, 0.5, 0.5)); // ~0 dB decay → loop
+    expect(src.loop).toBe(true);
+    expect(src.loopStart).toBeCloseTo(100 / 44100, 6);
+    expect(src.loopEnd).toBeCloseTo(400 / 44100, 6);
+  });
+
+  it('rings out a decaying sample — no loop even though loops=true (the CP80 case)', () => {
+    const src = play(strokeWithDecay(7, 1.0, 0.25)); // strong decay → play once
+    expect(src.loop).toBe(false);
   });
 });
