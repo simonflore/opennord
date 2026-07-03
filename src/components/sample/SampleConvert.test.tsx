@@ -74,6 +74,29 @@ describe('SampleConvert -- folder linked', () => {
   });
 });
 
+describe('SampleConvert -- write in flight', () => {
+  it('disables the convert buttons while a save runs (a double-click must not race two writes)', async () => {
+    let release!: () => void;
+    const writeBack = vi.fn().mockImplementation(
+      () => new Promise((res) => { release = () => res({ target: 'folder', path: 'TakeOnMe.nsmp' }); }),
+    );
+    (useFolder as ReturnType<typeof vi.fn>).mockReturnValue(
+      mockFolder({ folderName: 'TBM', writeBack }),
+    );
+    (useWriteBackPref as ReturnType<typeof vi.fn>).mockReturnValue({ mode: 'new', setMode: vi.fn() });
+
+    render(<SampleConvert bytes={bytes} file={file} name="TakeOnMe" />);
+
+    const btn = screen.getByRole('button', { name: /convert to nsmp 2/i });
+    fireEvent.click(btn);
+    await act(async () => {}); // flush the saving state
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn); // must be a no-op while the first write is in flight
+    await act(async () => { release(); });
+    expect(writeBack).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('SampleConvert -- no folder linked', () => {
   it('falls back to downloadBytes when folderName is null', async () => {
     (useFolder as ReturnType<typeof vi.fn>).mockReturnValue(mockFolder({ folderName: null }));

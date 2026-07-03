@@ -108,6 +108,7 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
             key={g.code}
             className="on-btn on-btn--secondary"
             onClick={() => void convert(g.code)}
+            disabled={folderWrite.saving}
             title={g.experimental ? 'Experimental -- not yet hardware-validated' : undefined}
           >
             Convert to {g.label}{g.experimental ? ' -- experimental' : ''}
