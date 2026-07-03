@@ -46,7 +46,7 @@ export async function readZipDirectory(file: Blob): Promise<ZipEntry[]> {
     }
     const z64Off = Number(t.getBigUint64(locAt + 8, true));
     const z64 = dv(await slice(file, z64Off, z64Off + 56));
-    if (z64.getUint32(0, true) !== EOCD64_SIG) throw new Error('Bad ZIP64 end record.');
+    if (z64.byteLength < 56 || z64.getUint32(0, true) !== EOCD64_SIG) throw new Error('Bad ZIP64 end record.');
     cdCount = Number(z64.getBigUint64(32, true));
     cdOffset = Number(z64.getBigUint64(48, true));
   }
@@ -55,8 +55,13 @@ export async function readZipDirectory(file: Blob): Promise<ZipEntry[]> {
   const cd = await slice(file, cdOffset, file.size);
   const c = dv(cd);
   const entries: ZipEntry[] = [];
+  const truncated = new Error('Corrupt or truncated zip central directory.');
   let p = 0;
   for (let i = 0; i < cdCount; i++) {
+    // Record head (46 bytes) and, once its lengths are known, the whole record
+    // must fit — cdCount and the length fields come from the (possibly clipped
+    // or corrupted) file, so never trust them past the directory's end.
+    if (p + 46 > cd.length) throw truncated;
     if (c.getUint32(p, true) !== CD_SIG) break;
     const method = c.getUint16(p + 10, true);
     let compressedSize = c.getUint32(p + 20, true);
@@ -64,6 +69,7 @@ export async function readZipDirectory(file: Blob): Promise<ZipEntry[]> {
     const nameLen = c.getUint16(p + 28, true);
     const extraLen = c.getUint16(p + 30, true);
     const commentLen = c.getUint16(p + 32, true);
+    if (p + 46 + nameLen + extraLen + commentLen > cd.length) throw truncated;
     let offset = c.getUint32(p + 42, true);
     const path = new TextDecoder().decode(cd.subarray(p + 46, p + 46 + nameLen));
 
@@ -93,8 +99,9 @@ export async function readZipDirectory(file: Blob): Promise<ZipEntry[]> {
 /** Read + decompress a single entry: seek its local header, slice the data, inflate/copy. */
 export async function extractZipEntry(file: Blob, entry: ZipEntry): Promise<Uint8Array> {
   // Local header is 30 bytes + name + extra; its name/extra lengths can differ from the CD.
+  // A short slice means the CD's offset points past EOF (corrupted directory).
   const lh = dv(await slice(file, entry.offset, entry.offset + 30));
-  if (lh.getUint32(0, true) !== 0x04034b50) throw new Error(`Bad local header for ${entry.path}.`);
+  if (lh.byteLength < 30 || lh.getUint32(0, true) !== 0x04034b50) throw new Error(`Bad local header for ${entry.path}.`);
   const nameLen = lh.getUint16(26, true);
   const extraLen = lh.getUint16(28, true);
   const dataStart = entry.offset + 30 + nameLen + extraLen;
@@ -113,7 +120,7 @@ export async function extractZipEntry(file: Blob, entry: ZipEntry): Promise<Uint
  */
 export async function extractZipEntryHead(file: Blob, entry: ZipEntry, n: number): Promise<Uint8Array> {
   const lh = dv(await slice(file, entry.offset, entry.offset + 30));
-  if (lh.getUint32(0, true) !== 0x04034b50) throw new Error(`Bad local header for ${entry.path}.`);
+  if (lh.byteLength < 30 || lh.getUint32(0, true) !== 0x04034b50) throw new Error(`Bad local header for ${entry.path}.`);
   const dataStart = entry.offset + 30 + lh.getUint16(26, true) + lh.getUint16(28, true);
   if (entry.method === 0) return slice(file, dataStart, dataStart + Math.min(n, entry.compressedSize));
   if (entry.method === 8) return inflateSync(await slice(file, dataStart, dataStart + entry.compressedSize)).subarray(0, n);

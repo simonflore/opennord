@@ -83,4 +83,28 @@ describe('zip-directory', () => {
       'Backup needs ZIP64 but the locator is missing.',
     );
   });
+
+  it('reports a truncated central directory as corrupt, not a raw RangeError', async () => {
+    // Clip the archive mid-central-directory (keep the EOCD tail intact) — the
+    // classic shape of an interrupted download. The reader must fail with its
+    // own message, not "Offset is outside the bounds of the DataView".
+    const whole = new Uint8Array(await zipBlob({ 'a/stored.bin': [stored, 0] }).arrayBuffer());
+    expect(await readZipDirectory(new Blob([whole]))).toHaveLength(1); // sanity: intact zip reads fine
+    const cdStart = whole.length - 22 - (46 + 'a/stored.bin'.length); // EOCD + one CD record
+    // Keep only 20 bytes of the 58-byte CD record, then the EOCD verbatim: the
+    // record head no longer fits before the directory's end.
+    const clipped = new Uint8Array(cdStart + 20 + 22);
+    clipped.set(whole.subarray(0, cdStart + 20));
+    clipped.set(whole.subarray(whole.length - 22), cdStart + 20);
+    await expect(readZipDirectory(new Blob([clipped]))).rejects.toThrow(
+      'Corrupt or truncated zip central directory.',
+    );
+  });
+
+  it('reports an out-of-range local-header offset as a bad header, not a RangeError', async () => {
+    const entries = await readZipDirectory(blob);
+    const e = { ...entries.find((x) => x.path === 'a/stored.bin')!, offset: blob.size + 1000 };
+    await expect(extractZipEntry(blob, e)).rejects.toThrow('Bad local header for a/stored.bin.');
+    await expect(extractZipEntryHead(blob, e, 4)).rejects.toThrow('Bad local header for a/stored.bin.');
+  });
 });
