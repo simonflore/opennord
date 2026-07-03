@@ -7,6 +7,7 @@ import type { NordSession } from '@/lib/device/session';
 import { Button } from '@/components/ui';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
+import { noteName } from '@/lib/ns4/sample-view';
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -43,12 +44,20 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
         ? ` · From backup${entry.size != null ? ` · ${formatBytes(entry.size)}` : ''}`
         : ` · Local file${entry.size != null ? ` · ${formatBytes(entry.size)}` : ''}`;
 
+  // Librarian detail parsed from the .npno header (folder pianos): version + multisample layout.
+  const detail = [
+    entry.version && `Nord Piano v${entry.version}`,
+    entry.sampleCount != null && `${entry.sampleCount} sampled note${entry.sampleCount === 1 ? '' : 's'}`,
+    entry.keyLow != null && entry.keyHigh != null && `${noteName(entry.keyLow)}–${noteName(entry.keyHigh)}`,
+  ].filter(Boolean).join(' · ');
+
   return (
     <div className="ps" style={{ maxWidth: 460 }}>
       <div className="ps-nm">{entry.name}</div>
       <p className="ps-sub" style={{ marginTop: 6 }}>
         Piano library{sourceLabel}
       </p>
+      {detail && <p className="ps-sub" style={{ marginTop: 2 }}>{detail}</p>}
       {entry.factory && (
         <p className="ps-sub">
           This is a Nord factory piano.{' '}

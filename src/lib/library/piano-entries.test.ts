@@ -2,6 +2,18 @@ import { describe, it, expect, vi } from 'vitest';
 import { pianoEntriesFromScanned, pianoEntriesFromDevice, pianoEntriesFromBackupRefs, filterPianos, sortPianos, type PianoEntry } from './piano-entries';
 import type { ProgramEntry } from '../device/transfer';
 import type { BackupRef } from '../clavia/backup/backup-index';
+import { patchNs4Checksum } from '../clavia/checksum';
+
+/** Minimal synthetic .npno (CBIN+npno+CNSP header, name, version, key map @0xB7). */
+function makeNpno(name: string, versionRaw: number, keymap: number[]): Uint8Array {
+  const buf = new Uint8Array(0x140);
+  const ascii = (s: string, at: number) => { for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i); };
+  ascii('CBIN', 0); buf[4] = 1; ascii('npno', 8);
+  buf[0x14] = versionRaw & 0xff; buf[0x15] = (versionRaw >> 8) & 0xff;
+  ascii('CNSP', 0x2c); ascii(name, 0x48);
+  for (let i = 0; i < 128; i++) buf[0xb7 + i] = keymap[i] ?? 0xff;
+  return patchNs4Checksum(buf);
+}
 
 vi.mock('../device/factory', () => ({
   resolveFactory: (name: string) => (name === 'Grand Lady D' ? { url: 'https://nord/grand', sizeKb: 1000, sizeDescription: '1 GB', type: 'piano' } : null),
@@ -23,6 +35,18 @@ describe('piano-entries', () => {
     expect(out[0]).toMatchObject({ source: 'local', name: 'Grand Lady D', size: 40 });
     expect(out[0].factory?.url).toBe('https://nord/grand');
     expect(out[0].bytes).toBeInstanceOf(Uint8Array);
+  });
+
+  it('enriches scanned .npno with version, sample count, and key range from the header', () => {
+    const km: number[] = []; for (let n = 0; n < 128; n++) km[n] = n <= 43 ? 40 : n <= 53 ? 50 : 60;
+    const out = pianoEntriesFromScanned([{ id: 'folder:p.npno', name: 'My Piano', bytes: makeNpno('My Piano', 610, km) }]);
+    expect(out[0]).toMatchObject({ version: '6.10', sampleCount: 3, keyLow: 0, keyHigh: 127 });
+  });
+
+  it('leaves metadata unset for an unreadable piano file (does not throw)', () => {
+    const out = pianoEntriesFromScanned([{ id: 'folder:x.npno', name: 'Bad', bytes: new Uint8Array(8) }]);
+    expect(out[0].version).toBeUndefined();
+    expect(out[0].sampleCount).toBeUndefined();
   });
 
   it('filters by source + query; sorts by size (largest first) and name', () => {

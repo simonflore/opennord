@@ -1,5 +1,6 @@
 import type { ScannedPiano } from '../folder/scan';
 import type { ProgramEntry } from '../device/transfer';
+import { readNsp } from '../ns4/nsp';
 import { resolveFactory, type FactoryMatch } from '../device/factory';
 import type { LibrarySource } from './types';
 import type { PianoSort } from './prefs';
@@ -26,14 +27,36 @@ export interface PianoEntry {
   isFactory?: boolean;
   /** Backup entries only: the zip reference for on-demand extraction. */
   backupRef?: BackupRef;
+  /** Library version from the `.npno` header (e.g. "6.10"). Folder entries with bytes. */
+  version?: string;
+  /** Number of sampled notes (multisample zones), from the key map. */
+  sampleCount?: number;
+  /** Overall covered key range (lowest/highest MIDI note the multisample maps). */
+  keyLow?: number;
+  keyHigh?: number;
 }
 
-/** Map folder-scanned pianos into local entries (factory match precomputed). */
+/** Map folder-scanned pianos into local entries (factory match + header metadata). */
 export function pianoEntriesFromScanned(pianos: ScannedPiano[]): PianoEntry[] {
-  return pianos.map((p) => ({
-    id: p.id, name: p.name, source: 'local' as const, size: p.bytes.length, bytes: p.bytes,
-    factory: resolveFactory(p.name, 'npno'),
-  }));
+  return pianos.map((p) => {
+    const base: PianoEntry = {
+      id: p.id, name: p.name, source: 'local' as const, size: p.bytes.length, bytes: p.bytes,
+      factory: resolveFactory(p.name, 'npno'),
+    };
+    // Enrich with the .npno header (name/version/key-map). Never throws on a bad file.
+    try {
+      const nsp = readNsp(p.bytes);
+      if (nsp.recognized) {
+        base.version = nsp.version;
+        base.sampleCount = nsp.sampleCount;
+        if (nsp.zones?.length) {
+          base.keyLow = Math.min(...nsp.zones.map((z) => z.lowNote));
+          base.keyHigh = Math.max(...nsp.zones.map((z) => z.highNote));
+        }
+      }
+    } catch { /* header unreadable — leave metadata unset */ }
+    return base;
+  });
 }
 
 /** Build byte-free backup Piano entries — no bytes loaded, factory/user tagged via `native`. */
