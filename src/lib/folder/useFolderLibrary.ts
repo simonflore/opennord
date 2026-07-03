@@ -128,13 +128,22 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const state = await restoreFolder();
-      if (cancelled) return;
-      if (state.status === 'granted') {
-        setFolderName(state.name); setHandle(state.handle);
-        await runScan(state.name, state.source);
-      } else if (state.status === 'needs-permission') {
-        setFolderName(state.name); setPending(state.handle);
+      try {
+        const state = await restoreFolder();
+        if (cancelled) return;
+        if (state.status === 'granted') {
+          setFolderName(state.name); setHandle(state.handle);
+          await runScan(state.name, state.source);
+        } else if (state.status === 'needs-permission') {
+          setFolderName(state.name); setPending(state.handle);
+        }
+      } catch (err) {
+        // A saved handle can go stale (folder deleted/renamed outside the
+        // browser). Say why the linked folder vanished — the banner offers
+        // Re-pick — instead of leaving a silent empty state.
+        if (cancelled) return;
+        console.error('Folder restore failed', err);
+        setReconnectError(getErrorMessage(err));
       }
     })();
     return () => { cancelled = true; };

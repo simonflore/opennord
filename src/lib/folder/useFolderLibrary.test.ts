@@ -78,6 +78,19 @@ describe('useFolderLibrary gate', () => {
   });
 });
 
+describe('useFolderLibrary mount-time restore', () => {
+  it('surfaces a failed restore instead of an unhandled rejection', async () => {
+    // A saved directory handle can go stale (folder deleted/renamed outside the
+    // browser) — the user must see why their linked folder vanished, not a
+    // silent empty state.
+    vi.mocked(access.restoreFolder).mockRejectedValueOnce(new Error('stale handle'));
+    const scanner = fakeScanner([]);
+    const { result } = renderHook(() => useFolderLibrary(() => scanner));
+    await waitFor(() => expect(result.current.reconnectError).toBe('stale handle'));
+    expect(result.current.folderName).toBeNull();
+  });
+});
+
 describe('useFolderLibrary openBundle', () => {
   it('openBundle resolves a discovered .ns4b to a File via the folder handle', async () => {
     // Arrange: a fake handle and a fake File returned by fileFromHandle.
