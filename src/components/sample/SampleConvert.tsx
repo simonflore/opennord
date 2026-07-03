@@ -48,6 +48,7 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
   const pendingRef = useRef<{ out: Uint8Array; filename: string } | null>(null);
 
   const folderWrite = useFolderWrite({
+    prefScope: 'sample',
     onSaved: (path, folderName) =>
       setStatus({ kind: 'done', msg: `Saved to ${folderName}/${path}`, warnings: [] }),
     onFallback: () => {

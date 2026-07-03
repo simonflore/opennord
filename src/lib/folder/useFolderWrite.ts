@@ -19,12 +19,15 @@ export interface FolderWriteJob {
  * and the write-in-progress flag; the caller supplies the per-output streamer and
  * its own download fallback, and renders the dialog from `dialogProps`.
  */
-export function useFolderWrite({ onSaved, onFallback }: {
+export function useFolderWrite({ onSaved, onFallback, prefScope }: {
   onSaved: (path: string, folderName: string) => void;
   onFallback: () => void | Promise<void>;
+  /** Scope for the remembered overwrite policy — keep flows with different
+   *  stakes (sample convert vs backup re-export) from sharing one "remember". */
+  prefScope?: string;
 }) {
   const folder = useFolder();
-  const pref = useWriteBackPref();
+  const pref = useWriteBackPref(prefScope);
   const [pending, setPending] = useState<FolderWriteJob | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

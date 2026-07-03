@@ -54,6 +54,7 @@ export function BackupOrganizer({ onBack, initialModel, initialBundlePath }: { o
   });
 
   const folderWrite = useFolderWrite({
+    prefScope: 'backup',
     onSaved: (path, folderName) => { setPlanError(''); setSaveStatus(`Saved to ${folderName}/${path}`); },
     onFallback: () => saveToFilePicker(model, makeName()),
   });
