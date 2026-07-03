@@ -17,7 +17,9 @@ function RootLayout() {
         onManageDevice={() => navigate({ to: '/device' })}
       />
       <main className="on-content">
-        <ErrorBoundary>
+        {/* resetKey: navigating clears a caught error, so one bad program
+            view doesn't dead-end the content pane for the whole session. */}
+        <ErrorBoundary resetKey={active}>
           <Outlet />
         </ErrorBoundary>
       </main>

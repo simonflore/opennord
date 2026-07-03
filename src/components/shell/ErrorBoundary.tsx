@@ -2,6 +2,10 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
+  /** Clears a caught error when it changes (e.g. the route pathname), so
+   *  navigating away recovers the app instead of dead-ending it on the
+   *  fallback until a full reload. */
+  resetKey?: unknown;
 }
 
 interface State {
@@ -23,6 +27,12 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     // Keep a console trail for debugging; the UI shows a friendly recover path.
     console.error('UI error caught by ErrorBoundary:', error, info.componentStack);
+  }
+
+  componentDidUpdate(prev: Props) {
+    if (this.state.error && prev.resetKey !== this.props.resetKey) {
+      this.setState({ error: null });
+    }
   }
 
   render() {
