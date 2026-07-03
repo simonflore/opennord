@@ -118,6 +118,27 @@ describe('restore', () => {
     expect(create.words.slice(0, 2)).toEqual([header.bank, header.location]);
   });
 
+  it('restores from a Blob using ranged reads only (multi-GB safe)', async () => {
+    const zip = zipSync({
+      'meta.xml': strToU8(buildMetaXml(0)),
+      'Program/Bank H/regressionTest.ns4p': fixtureBytes,
+    }, { level: 0 });
+    const blob = new Blob([zip as unknown as BlobPart]);
+    // A real .ns4b runs multi-GB and can't be materialized (Blob.arrayBuffer has
+    // a ~2 GiB wall) — restore must only take ranged slice() reads.
+    Object.defineProperty(blob, 'arrayBuffer', {
+      value: () => Promise.reject(new Error('whole-file read — restore must stream')),
+    });
+    const replies = [
+      ack(CReqBegin), ...preflight(),
+      ack(CReqFileCreate), ack(CReqFileWrite), ack(CReqFileClose),
+      ack(CReqEnd), ack(CReqBegin),
+    ];
+    const result = await restore(new NordSession(new MockTransport(replies)), blob);
+    expect(result.restored).toBe(1);
+    expect(result.failures).toEqual([]);
+  });
+
   it('rejects a zip without meta.xml', async () => {
     const zip = zipSync({ 'Program/Bank H/x.ns4p': fixtureBytes }, { level: 0 });
     await expect(restore(new NordSession(new MockTransport([])), zip)).rejects.toThrow();

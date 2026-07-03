@@ -1,5 +1,6 @@
-import { zipSync, unzipSync, strToU8 } from 'fflate';
+import { zipSync, strToU8 } from 'fflate';
 import type { NordSession } from './session';
+import { readZipDirectory, extractZipEntry, type ZipEntry } from '../clavia/backup/zip-directory';
 import { NordError } from './protocol';
 import { enumerateFiles, pullFile, pushFile, type ProgramEntry } from './transfer';
 import { readPartitionCapacity, type PartitionCapacity } from './capacity';
@@ -77,25 +78,31 @@ async function backupUnlocked(
  */
 export function restore(
   session: NordSession,
-  zipBytes: Uint8Array,
+  backup: Blob | Uint8Array,
   onProgress?: Progress,
 ): Promise<RestoreResult> {
+  // Real .ns4b backups run multi-GB — never materialize the whole archive.
+  // A Blob source is read via ranged slices only (central directory + one
+  // small program/preset entry at a time); factory piano/sample payloads are
+  // classified from the directory and never decompressed.
+  const blob = backup instanceof Uint8Array ? new Blob([backup as unknown as BlobPart]) : backup;
   // Exclusive: see backup() — same shared-pipe rule for the write brackets.
-  return session.exclusive(() => restoreUnlocked(session, zipBytes, onProgress));
+  return session.exclusive(() => restoreUnlocked(session, blob, onProgress));
 }
 
 async function restoreUnlocked(
   session: NordSession,
-  zipBytes: Uint8Array,
+  blob: Blob,
   onProgress?: Progress,
 ): Promise<RestoreResult> {
-  const unzipped = unzipSync(zipBytes);
-  if (!unzipped['meta.xml']) throw new NordError('Not a Nord backup (no meta.xml).');
+  const entries = await readZipDirectory(blob);
+  if (!entries.some((e) => e.path === 'meta.xml')) throw new NordError('Not a Nord backup (no meta.xml).');
 
   const result: RestoreResult = { restored: 0, skippedFactory: 0, skippedFactoryFiles: [], failures: [] };
-  const byPartition = new Map<number, { path: string; bytes: Uint8Array }[]>();
-  for (const path of Object.keys(unzipped)) {
-    if (path === 'meta.xml') continue;
+  const byPartition = new Map<number, { path: string; entry: ZipEntry }[]>();
+  for (const entry of entries) {
+    const path = entry.path;
+    if (path === 'meta.xml' || path.endsWith('/')) continue;
     const partition = partitionForPath(path);
     if (partition === null) {
       result.skippedFactory++;
@@ -103,7 +110,7 @@ async function restoreUnlocked(
       continue;
     }
     const list = byPartition.get(partition) ?? [];
-    list.push({ path, bytes: unzipped[path] });
+    list.push({ path, entry });
     byPartition.set(partition, list);
   }
   const total = [...byPartition.values()].reduce((n, l) => n + l.length, 0);
@@ -131,8 +138,9 @@ async function restoreUnlocked(
       const cap = await safeCapacity(session, partition);
       let freeSlots = cap ? cap.freeSlots : Infinity;
 
-      for (const { path, bytes } of items) {
+      for (const { path, entry } of items) {
         try {
+          const bytes = await extractZipEntry(blob, entry); // one small file at a time
           if (!hasCbinMagic(bytes)) throw new NordError('not a Nord file (no CBIN magic)');
           const header = readCbinHeader(bytes);
           const isNewSlot = !occupied.has(slotKey(header.bank, header.location));

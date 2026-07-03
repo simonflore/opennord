@@ -4,7 +4,6 @@ import { backup, restore, type RestoreResult } from '../../lib/device/backup';
 import { resolveFactory } from '../../lib/device/factory';
 import { downloadBytes } from '../../lib/download';
 import { getErrorMessage } from '../../lib/errors';
-import { readFileBytes } from '../../lib/file';
 import { Button, FileInput } from '../ui';
 import { analyzeRestore, type RestoreImpact as Impact } from '../../lib/device/restore-diff';
 import { RestoreImpact } from './RestoreImpact';
@@ -17,7 +16,9 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
 }) {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
-  const [pendingZip, setPendingZip] = useState<Uint8Array | null>(null);
+  // The picked .ns4b stays a File — real backups run multi-GB, so restore()
+  // reads it via ranged slices instead of materializing it in memory.
+  const [pendingZip, setPendingZip] = useState<File | null>(null);
   const [skipped, setSkipped] = useState<string[]>([]);
   const [impact, setImpact] = useState<Impact | 'loading' | 'error' | null>(null);
 
@@ -37,7 +38,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
   }
 
   async function pickRestore(file: File) {
-    setPendingZip(await readFileBytes(file));
+    setPendingZip(file);
     setStatus('');
     setSkipped([]); // clear any prior restore's skipped list
     setImpact('loading');
