@@ -69,7 +69,9 @@ export function decodeDependencyReply(payload: Uint8Array): FileDependencies {
   return { bank, slot, deps };
 }
 
-/** Query one program's sample dependency list. Session-independent (no begin needed). */
+/** Query one program's sample dependency list. Session-independent (no begin
+ *  needed) — but the exchange must still run inside `session.exclusive` (the
+ *  gather/scan entry points above provide it). */
 export async function getDependencies(session: NordSession, bank: number, slot: number): Promise<FileDependencies> {
   const reply = await session.request(CQryFileGetDependency, [bank, slot]);
   if (reply.status !== 0) throw new NordError(`dependency query failed for ${bank}:${slot} (status ${reply.status})`);
@@ -120,7 +122,15 @@ export function computeSampleUsage(allDeps: SampleDep[], installed: ProgramEntry
 /** Gather every program's dependency list (samples AND pianos — the reply carries
  *  both). Shared by the sample and piano usage scans. One round-trip per program;
  *  an unreadable program is skipped, not fatal. */
-export async function gatherProgramDeps(
+export function gatherProgramDeps(
+  session: NordSession,
+  onProgress?: (done: number, total: number) => void,
+): Promise<SampleDep[]> {
+  return session.exclusive(() => gatherProgramDepsUnlocked(session, onProgress));
+}
+
+/** Core of {@link gatherProgramDeps} — caller must hold `session.exclusive`. */
+async function gatherProgramDepsUnlocked(
   session: NordSession,
   onProgress?: (done: number, total: number) => void,
 ): Promise<SampleDep[]> {
@@ -147,28 +157,32 @@ export async function gatherProgramDeps(
  * program — for a full board this is hundreds of queries, so callers should show
  * progress. `onProgress(done, total)` is called as programs are queried.
  */
-export async function findUnusedSamples(
+export function findUnusedSamples(
   session: NordSession,
   onProgress?: (done: number, total: number) => void,
 ): Promise<SampleUsage> {
-  const allDeps = await gatherProgramDeps(session, onProgress);
-  await session.begin(PARTITION_SAMP_LIB);
-  const installed = await enumerateFiles(session);
-  await session.end();
-  return computeSampleUsage(allDeps, installed);
+  return session.exclusive(async () => {
+    const allDeps = await gatherProgramDepsUnlocked(session, onProgress);
+    await session.begin(PARTITION_SAMP_LIB);
+    const installed = await enumerateFiles(session);
+    await session.end();
+    return computeSampleUsage(allDeps, installed);
+  });
 }
 
 /** Installed pianos no program references — the dependency reply already carries
  *  piano refs, so this is the sample scan reconciled against the piano partition.
  *  `.unused` is what offload uses; `.missing` is ignored (it would include sample
  *  deps not in the piano partition). */
-export async function findUnusedPianos(
+export function findUnusedPianos(
   session: NordSession,
   onProgress?: (done: number, total: number) => void,
 ): Promise<SampleUsage> {
-  const allDeps = await gatherProgramDeps(session, onProgress);
-  await session.begin(PARTITION_PIANO);
-  const installed = await enumerateFiles(session);
-  await session.end();
-  return computeSampleUsage(allDeps, installed);
+  return session.exclusive(async () => {
+    const allDeps = await gatherProgramDepsUnlocked(session, onProgress);
+    await session.begin(PARTITION_PIANO);
+    const installed = await enumerateFiles(session);
+    await session.end();
+    return computeSampleUsage(allDeps, installed);
+  });
 }

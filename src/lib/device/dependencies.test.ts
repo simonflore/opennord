@@ -165,6 +165,9 @@ function makeFakeSession(opts: {
     ({ msgId, status, payload });
 
   return {
+    exclusive<T>(fn: () => Promise<T>) {
+      return fn();
+    },
     begin(partition: number) {
       currentPartition = partition;
       iterateCursors[partition] = 0;

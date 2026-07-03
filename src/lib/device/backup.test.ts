@@ -64,6 +64,31 @@ describe('backup', () => {
     // the stored file is a full CBIN file (header + body)
     expect(files['Program/Bank H/regressionTest.ns4p'].length).toBe(fixtureBytes.length);
   });
+
+  it('excludes concurrent session use while a backup runs', async () => {
+    const programSpec = USER_PARTITIONS.find((p) => p.partition === 6)!;
+    const header = readCbinHeader(fixtureBytes);
+    const body = fixtureBytes.subarray(44);
+    const replies = [
+      // The backup starts first, so it must own the pipe end-to-end…
+      ack(CReqBegin), iter(0, header.bank, header.location),
+      info({ size: body.length, version: header.versionRaw, category: header.category, name: 'regressionTest' }),
+      iter(2, header.bank, 0), ack(CReqEnd),
+      ack(CReqBegin), ack(CReqFileOpen), readReply(body), ack(CReqFileClose), ack(CReqEnd),
+      // …and only then does the racing withSession op get its frames.
+      ack(CReqBegin),
+      info({ size: 1, version: 0, category: 0, name: 'x' }),
+      ack(CReqEnd),
+    ];
+    const session = new NordSession(new MockTransport(replies));
+
+    const [zip, reply] = await Promise.all([
+      backup(session, undefined, [programSpec]),
+      session.withSession(6, () => session.request(CQryFileInfo, [0, 0])),
+    ]);
+    expect(Object.keys(unzipSync(zip))).toContain('Program/Bank H/regressionTest.ns4p');
+    expect(reply.msgId).toBe(CQryFileInfo | 1);
+  });
 });
 
 describe('restore', () => {

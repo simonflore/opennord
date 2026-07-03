@@ -23,10 +23,20 @@ type Progress = (done: number, total: number) => void;
  * Read-only on the device. Manages a begin/end session per partition, then
  * re-begins the Program partition so the caller's browser session is intact.
  */
-export async function backup(
+export function backup(
   session: NordSession,
   onProgress?: Progress,
   specs: PartitionSpec[] = USER_PARTITIONS,
+): Promise<Uint8Array> {
+  // Exclusive: the manual begin/end brackets must not interleave with any
+  // other flow's frames on the shared pipe.
+  return session.exclusive(() => backupUnlocked(session, onProgress, specs));
+}
+
+async function backupUnlocked(
+  session: NordSession,
+  onProgress: Progress | undefined,
+  specs: PartitionSpec[],
 ): Promise<Uint8Array> {
   const files: Record<string, Uint8Array> = { 'meta.xml': strToU8(buildMetaXml(0)) };
   // Pass 1: enumerate each partition (for the total + the work list). Each
@@ -65,7 +75,16 @@ export async function backup(
  * target {bank, slot}, and writes it. Best-effort: per-file failures are
  * collected, not fatal. Re-begins the Program partition at the finish.
  */
-export async function restore(
+export function restore(
+  session: NordSession,
+  zipBytes: Uint8Array,
+  onProgress?: Progress,
+): Promise<RestoreResult> {
+  // Exclusive: see backup() — same shared-pipe rule for the write brackets.
+  return session.exclusive(() => restoreUnlocked(session, zipBytes, onProgress));
+}
+
+async function restoreUnlocked(
   session: NordSession,
   zipBytes: Uint8Array,
   onProgress?: Progress,
