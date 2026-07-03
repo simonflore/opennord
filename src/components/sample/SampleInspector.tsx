@@ -94,7 +94,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded?.sampler, loaded?.decodable, midi, transport.refresh]);
 
-  async function loadBytes(bytes: Uint8Array, name: string, factory = false) {
+  function loadBytes(bytes: Uint8Array, name: string, factory = false) {
     const file = readNsmp(bytes);
     const decodable = file.codec === 3 || file.codec === 4 || file.legacy;
     let decoded: DecodedStrokeResult[] = [];
@@ -121,11 +121,17 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
   }
 
   async function onFile(f: File) {
-    await loadBytes(await readFileBytes(f), f.name); // a dropped/picked file is the user's own — not factory
+    // Generation token: reading a big file takes time, and a second pick (or a
+    // library selection) must win even if this read resolves later — otherwise
+    // the view shows one file's name over another file's bytes.
+    const gen = ++loadCount.current;
+    const bytes = await readFileBytes(f);
+    if (gen !== loadCount.current) return; // superseded while reading
+    loadBytes(bytes, f.name); // a dropped/picked file is the user's own — not factory
   }
 
   useEffect(() => {
-    if (initial) void loadBytes(initial.bytes, initial.name, !!initial.factory);
+    if (initial) { ++loadCount.current; loadBytes(initial.bytes, initial.name, !!initial.factory); }
   }, [initial]);
 
   return (
