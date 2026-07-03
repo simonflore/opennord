@@ -154,8 +154,10 @@ export function BackupOrganizer({ onBack, initialModel, initialBundlePath }: { o
         </div>
       </div>
 
-      {(planError || reorg.error) && <p className="ps-sub on-error">{planError || reorg.error}</p>}
-      {saveStatus && !planError && !reorg.error && <p className="ps-sub">{saveStatus}</p>}
+      {(planError || reorg.error || folderWrite.error) && (
+        <p className="ps-sub on-error">{planError || reorg.error || (`Couldn't save the backup: ${folderWrite.error}`)}</p>
+      )}
+      {saveStatus && !planError && !reorg.error && !folderWrite.error && <p className="ps-sub">{saveStatus}</p>}
 
       {!model ? (
         folder.bundles.length >= 2 ? (

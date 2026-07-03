@@ -108,6 +108,47 @@ describe('useFolderWrite — folder linked, pref "ask"', () => {
   });
 });
 
+describe('useFolderWrite — write failure', () => {
+  it('surfaces a writeBack failure as error instead of an unhandled rejection', async () => {
+    // A revoked permission or disk error mid-stream must not vanish: the user
+    // would believe a backup exists that doesn't.
+    const writeBack = vi.fn().mockRejectedValue(new Error('disk full'));
+    const folder = mockFolder({ folderName: 'MyNord', writeBack });
+    (useFolder as ReturnType<typeof vi.fn>).mockReturnValue(folder);
+    (useWriteBackPref as ReturnType<typeof vi.fn>).mockReturnValue(mockPref('overwrite'));
+
+    const onSaved = vi.fn();
+    const onFallback = vi.fn();
+    const { result } = renderHook(() => useFolderWrite({ onSaved, onFallback }));
+
+    await act(async () => { await result.current.save(makeJob()); });
+
+    expect(result.current.error).toBe('disk full');
+    expect(result.current.saving).toBe(false);
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(onFallback).not.toHaveBeenCalled();
+  });
+
+  it('clears the error when the next save starts', async () => {
+    const writeBack = vi.fn()
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockResolvedValueOnce({ target: 'folder', path: 'test-file.nsmp' });
+    const folder = mockFolder({ folderName: 'MyNord', writeBack });
+    (useFolder as ReturnType<typeof vi.fn>).mockReturnValue(folder);
+    (useWriteBackPref as ReturnType<typeof vi.fn>).mockReturnValue(mockPref('overwrite'));
+
+    const onSaved = vi.fn();
+    const { result } = renderHook(() => useFolderWrite({ onSaved, onFallback: vi.fn() }));
+
+    await act(async () => { await result.current.save(makeJob()); });
+    expect(result.current.error).toBe('disk full');
+
+    await act(async () => { await result.current.save(makeJob()); });
+    expect(result.current.error).toBeNull();
+    expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('useFolderWrite — folder linked but FSA denied (target=download)', () => {
   it('calls onFallback when writeBack returns {target:"download"}', async () => {
     const writeBack = vi.fn().mockResolvedValue({ target: 'download' });

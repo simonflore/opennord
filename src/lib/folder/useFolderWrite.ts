@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useFolder } from './FolderContext';
 import { useWriteBackPref } from '../library/writeBackPrefs';
+import { getErrorMessage } from '../errors';
 
 /** One pending "save into the folder" job. */
 export interface FolderWriteJob {
@@ -26,6 +27,7 @@ export function useFolderWrite({ onSaved, onFallback }: {
   const pref = useWriteBackPref();
   const [pending, setPending] = useState<FolderWriteJob | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const runWrite = useCallback(async (job: FolderWriteJob, mode: 'new' | 'overwrite') => {
     setSaving(true);
@@ -33,6 +35,11 @@ export function useFolderWrite({ onSaved, onFallback }: {
       const res = await folder.writeBack(job.name, job.write, { mode });
       if (res.target === 'folder') onSaved(res.path, folder.folderName ?? '');
       else await onFallback();
+    } catch (e) {
+      // Surface the failure (revoked permission, disk error mid-stream) — a
+      // silent stop here reads as "saved" when nothing was written. Kept out
+      // of the caller's hands because the dialog path floats this promise.
+      setError(getErrorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -40,6 +47,7 @@ export function useFolderWrite({ onSaved, onFallback }: {
 
   /** Begin a save: no folder → fallback; policy 'ask' → open the dialog; else write now. */
   const save = useCallback(async (job: FolderWriteJob) => {
+    setError(null);
     if (!folder.folderName) { await onFallback(); return; }
     if (pref.mode === 'ask') { setPending(job); return; }
     await runWrite(job, pref.mode);
@@ -59,5 +67,5 @@ export function useFolderWrite({ onSaved, onFallback }: {
     ? { folderName: folder.folderName, existing: pending.existing, onChoose: choose, onCancel: cancel }
     : null;
 
-  return { save, saving, dialogProps };
+  return { save, saving, error, dialogProps };
 }

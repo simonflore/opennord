@@ -127,6 +127,9 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
       {status.kind === 'error' && (
         <p className="ps-sub" style={{ marginTop: 10, color: 'var(--warn)' }}>{"Couldn't convert:"} {status.msg}</p>
       )}
+      {folderWrite.error && (
+        <p className="ps-sub" style={{ marginTop: 10, color: 'var(--warn)' }}>{"Couldn't save:"} {folderWrite.error}</p>
+      )}
     </div>
   );
 }
