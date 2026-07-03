@@ -31,5 +31,6 @@ export function ne6Decoded(bytes: Uint8Array): DecodedProgram {
       manual('OL', 'ORGAN LOWER', p.organ.lower.bars),
     ],
     note: 'Electro 6: organ drawbars confirmed (B3 footage). Sample/piano section identified (sound id is a fingerprint, not yet name-resolved); FX/synth params not yet decoded.',
+    warnings: p.warnings,
   };
 }

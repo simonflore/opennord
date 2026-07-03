@@ -40,6 +40,10 @@ export interface DecodedProgram {
   sections: DecodedSection[];
   /** Footer status note describing what's decoded. */
   note: string;
+  /** Decoder anomalies (truncated file, family mismatch, …). Rendered prominently
+   *  by the view — without them a corrupt file shows a normal-looking card of
+   *  zeroed fields with no indication anything is wrong. */
+  warnings?: readonly string[];
   /**
    * Optional lazy enrichment: resolves factory model/sample names off-thread
    * (typically a dynamic import of a large catalog). Resolves to a map of

@@ -30,5 +30,6 @@ export function ne5Decoded(bytes: Uint8Array): DecodedProgram {
     ],
     sections,
     note: 'Electro 5: organ drawbars confirmed (upper/lower/pedal, B3 footage). Sample section identified; FX and organ model enum not yet decoded.',
+    warnings: p.warnings,
   };
 }

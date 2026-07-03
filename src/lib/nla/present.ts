@@ -14,5 +14,6 @@ export function nlaDecoded(bytes: Uint8Array): DecodedProgram {
     header: [['Version', `v${p.version}`]],
     sections: [{ id: 'V', label: 'VOICE', engines: [{ label: 'Synth', parts }] }],
     note: 'Lead A1: layer on/off + volume confirmed. The rest of the 7-bit bitstream (osc/filter/envelope/FX) is identified but not yet field-decoded.',
+    warnings: p.warnings,
   };
 }

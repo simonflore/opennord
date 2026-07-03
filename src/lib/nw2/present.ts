@@ -19,5 +19,6 @@ export function nw2Decoded(bytes: Uint8Array): DecodedProgram {
     header: [['Version', `v${p.version}`]],
     sections: p.slots.map((s, i) => slotSection(i, s)),
     note: 'Wave 2: per-slot layer on/off + volume confirmed (Stage synth engine head). Oscillator/filter/envelope params identified but not yet decoded.',
+    warnings: p.warnings,
   };
 }

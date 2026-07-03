@@ -21,5 +21,6 @@ export function np4Decoded(bytes: Uint8Array): DecodedProgram {
     ],
     sections: [{ id: 'A', label: 'PIANO', engines: [{ label: 'Piano', parts }] }],
     note: 'Piano 4: family (EP/Grand), level and velocity curve confirmed. Exact sound name and FX are firmware-gated / not yet decoded.',
+    warnings: p.warnings,
   };
 }

@@ -38,5 +38,6 @@ export function np5Decoded(bytes: Uint8Array): DecodedProgram {
       coreSection('B', 'LAYER B', p.coreLayerB, p.layerBActive),
     ],
     note: 'Piano 5: per-layer piano core (type, level, character, sound id) confirmed via the Stage-4 piano oracle. FX and exact octave/timbre labels still to come.',
+    warnings: p.warnings,
   };
 }

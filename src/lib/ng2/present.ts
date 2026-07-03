@@ -40,5 +40,6 @@ export function ng2Decoded(bytes: Uint8Array): DecodedProgram {
       layerSection('B', 'LAYER B', p.layerB, p.layerBActiveFlag),
     ],
     note: 'Grand 2: per-layer piano core (type, level, character, sound id) confirmed via the Stage-4 piano oracle. FX chain and exact octave/timbre labels still to come.',
+    warnings: p.warnings,
   };
 }

@@ -61,6 +61,15 @@ export function DecodedProgramView({ program }: { program: DecodedProgram }) {
         </div>
       </div>
 
+      {program.warnings && program.warnings.length > 0 && (
+        <div className="ps-card" style={{ marginTop: 12 }}>
+          <h4>Readout warnings</h4>
+          <ul className="ps-sub" style={{ margin: '8px 0 0', paddingLeft: 18, color: 'var(--warn)' }}>
+            {program.warnings.map((w) => <li key={w}>{w}</li>)}
+          </ul>
+        </div>
+      )}
+
       {program.sections.map((s) => <SectionCard key={s.id} section={s} names={names} />)}
 
       <p className="ps-sub" style={{ marginTop: 12 }}>{program.note}</p>
