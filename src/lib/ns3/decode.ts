@@ -152,6 +152,26 @@ const ARP_RATE_MC: readonly string[] = [
   '1/32','1/32','1/32','1/32','1/32','1/32','1/32','1/32','1/32','1/32','1/32','1/32','1/32','1/32','1/32',
 ];
 
+// ns3-mapping.js: ns3SynthArpRateMap (128 entries) — free-run (non-master-clock) arp rate
+const ARP_RATE: readonly string[] = [
+  '16 bpm','16 bpm','18 bpm','20 bpm','24 bpm','26 bpm','28 bpm','30 bpm',
+  '34 bpm','36 bpm','38 bpm','42 bpm','44 bpm','46 bpm','48 bpm','50 bpm',
+  '54 bpm','56 bpm','58 bpm','60 bpm','62 bpm','64 bpm','66 bpm','68 bpm',
+  '70 bpm','72 bpm','74 bpm','76 bpm','78 bpm','78 bpm','80 bpm','82 bpm',
+  '84 bpm','86 bpm','86 bpm','88 bpm','90 bpm','92 bpm','94 bpm','94 bpm',
+  '96 bpm','98 bpm','100 bpm','100 bpm','102 bpm','104 bpm','106 bpm','108 bpm',
+  '108 bpm','110 bpm','112 bpm','114 bpm','116 bpm','118 bpm','120 bpm','122 bpm',
+  '124 bpm','126 bpm','128 bpm','130 bpm','132 bpm','134 bpm','138 bpm','140 bpm',
+  '142 bpm','146 bpm','148 bpm','152 bpm','154 bpm','158 bpm','162 bpm','166 bpm',
+  '170 bpm','174 bpm','178 bpm','182 bpm','186 bpm','190 bpm','196 bpm','200 bpm',
+  '204 bpm','210 bpm','216 bpm','220 bpm','226 bpm','232 bpm','238 bpm','244 bpm',
+  '252 bpm','258 bpm','266 bpm','274 bpm','282 bpm','290 bpm','298 bpm','308 bpm',
+  '318 bpm','328 bpm','338 bpm','350 bpm','362 bpm','376 bpm','392 bpm','410 bpm',
+  '428 bpm','450 bpm','472 bpm','494 bpm','520 bpm','546 bpm','574 bpm','602 bpm',
+  '632 bpm','662 bpm','696 bpm','728 bpm','762 bpm','798 bpm','834 bpm','872 bpm',
+  '910 bpm','950 bpm','990 bpm','Fast 1','Fast 2','Fast 3','Fast 4','Fast 5',
+];
+
 import { NORD_DB } from '../clavia/volume';
 import { NS3_FILTER_FREQ } from './filter-freq';
 
@@ -594,7 +614,7 @@ function synth(b: Uint8Array, base: number): Ns3Synth {
       on: arpOn,
       range: lut(ARP_RANGE, arpRangeIdx),
       pattern: lut(ARP_PATTERN, arpPatternIdx),
-      rate: arpMC ? lut(ARP_RATE_MC, arpRateMidi) : lut([], arpRateMidi),
+      rate: arpMC ? lut(ARP_RATE_MC, arpRateMidi) : lut(ARP_RATE, arpRateMidi),
       masterClock: arpMC,
     },
     sampleId,

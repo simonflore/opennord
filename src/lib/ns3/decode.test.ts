@@ -209,6 +209,17 @@ describe('decodeNs3', () => {
     expect(arp.masterClock).toBe(false);
   });
 
+  it('decodes free-run arp rate in BPM from 0x81(b7-1) (oracle ns3SynthArpRateMap)', () => {
+    const b = new Uint8Array(600);
+    b[0x80] = 0x40; // arp on, master clock off → rate is a BPM value, not a division
+    b[0x81] = 54 << 1; // rateMidi 54
+    expect(decodeNs3(b).panels[0].synth.arp.rate).toBe('120 bpm');
+    b[0x81] = 0 << 1;
+    expect(decodeNs3(b).panels[0].synth.arp.rate).toBe('16 bpm');
+    b[0x81] = 127 << 1;
+    expect(decodeNs3(b).panels[0].synth.arp.rate).toBe('Fast 5');
+  });
+
   it('decodes organ octave shift from 0xBA(b3-0)', () => {
     const b = new Uint8Array(600);
     // octRaw = (0xBA & 0x0f); shift = raw - 6; raw=8 → shift=+2
