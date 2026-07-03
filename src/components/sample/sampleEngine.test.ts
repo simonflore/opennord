@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolveZone, playbackRate, velocityGain, envGainAt, createSampler, loopSeconds, loopXfadeLen, crossfadeLoop, loopWindowDecayDb, sampleShouldLoop, type AmpEnvelope } from './sampleEngine';
+import { resolveZone, playbackRate, velocityGain, envGainAt, scheduleAttackDecay, createSampler, loopSeconds, loopXfadeLen, crossfadeLoop, loopWindowDecayDb, sampleShouldLoop, type AmpEnvelope } from './sampleEngine';
 import type { PlayableZone } from '../../lib/ns4/playable-zones';
 import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
 
@@ -85,6 +85,48 @@ describe('envGainAt', () => {
   it('handles instant attack and zero decay without dividing by zero', () => {
     const instant: AmpEnvelope = { attack: 0, decay: 0, sustain: 0.8, release: 0.1 };
     expect(envGainAt(instant, 1, 0, null)).toBeCloseTo(0.8, 5); // jumps straight to sustain
+  });
+});
+
+describe('scheduleAttackDecay', () => {
+  function recorder() {
+    const events: { kind: 'set' | 'ramp'; value: number; time: number }[] = [];
+    return {
+      events,
+      g: {
+        setValueAtTime: (value: number, time: number) => void events.push({ kind: 'set', value, time }),
+        linearRampToValueAtTime: (value: number, time: number) => void events.push({ kind: 'ramp', value, time }),
+      },
+    };
+  }
+
+  it('starts AT peak when attack is 0, then decays down to sustain', () => {
+    // The bug this pins: zero attack scheduled gain 0 at note-on and the decay
+    // ramped UP from silence — the opposite of an instant punch.
+    const env: AmpEnvelope = { attack: 0, decay: 0.5, sustain: 0.5, release: 0.1 };
+    const { events, g } = recorder();
+    scheduleAttackDecay(g, env, 0.8, 10);
+    expect(events[0]).toEqual({ kind: 'set', value: 0.8, time: 10 }); // = envGainAt(env, 0.8, 0, null)
+    expect(events[0].value).toBeCloseTo(envGainAt(env, 0.8, 0, null), 6);
+    expect(events.at(-1)).toEqual({ kind: 'ramp', value: 0.4, time: 10.5 });
+  });
+
+  it('ramps 0 → peak over the attack, then decays to sustain', () => {
+    const env: AmpEnvelope = { attack: 0.2, decay: 0.5, sustain: 0.5, release: 0.1 };
+    const { events, g } = recorder();
+    scheduleAttackDecay(g, env, 1, 10);
+    expect(events).toEqual([
+      { kind: 'set', value: 0, time: 10 },
+      { kind: 'ramp', value: 1, time: 10.2 },
+      { kind: 'ramp', value: 0.5, time: 10.7 },
+    ]);
+  });
+
+  it('steps to sustain at attack end when there is no decay', () => {
+    const env: AmpEnvelope = { attack: 0.2, decay: 0, sustain: 0.8, release: 0.1 };
+    const { events, g } = recorder();
+    scheduleAttackDecay(g, env, 1, 10);
+    expect(events.at(-1)).toEqual({ kind: 'set', value: 0.8, time: 10.2 });
   });
 });
 

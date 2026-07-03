@@ -145,6 +145,31 @@ export function envGainAt(env: AmpEnvelope, peak: number, t: number, releaseAt: 
   return dt >= release ? 0 : held(releaseAt) * (1 - dt / release);
 }
 
+/** The slice of AudioParam the envelope schedule needs — lets the schedule be
+ *  unit-tested with a recorder instead of a live AudioContext. */
+export interface GainSchedule {
+  setValueAtTime(value: number, time: number): unknown;
+  linearRampToValueAtTime(value: number, time: number): unknown;
+}
+
+/**
+ * Schedule the attack→decay→sustain automation at `t0` (the release fires on
+ * note-off). Kept in lockstep with {@link envGainAt}, the unit-tested reference:
+ * in particular, zero attack starts AT `peak` — not at 0 with the decay ramping
+ * up from silence.
+ */
+export function scheduleAttackDecay(g: GainSchedule, e: AmpEnvelope, peak: number, t0: number): void {
+  const aEnd = t0 + e.attack;
+  if (e.attack > 0) {
+    g.setValueAtTime(0, t0);
+    g.linearRampToValueAtTime(peak, aEnd);
+  } else {
+    g.setValueAtTime(peak, t0); // instant punch, matching envGainAt(…, 0, null)
+  }
+  if (e.decay > 0 && e.sustain < 1) g.linearRampToValueAtTime(peak * e.sustain, aEnd + e.decay);
+  else g.setValueAtTime(peak * e.sustain, aEnd); // no decay → step to sustain
+}
+
 export interface Voice { midi: number; globalID: number; startedAt: number; rate: number }
 
 export interface Sampler {
@@ -231,13 +256,7 @@ export function createSampler(
       const t0 = ctx.currentTime;
       let release = RELEASE;
       if (e) {
-        // Schedule the ADSR attack→decay→sustain (the release fires on note-off).
-        const g = gain.gain;
-        g.setValueAtTime(0, t0);
-        const aEnd = t0 + e.attack;
-        if (e.attack > 0) g.linearRampToValueAtTime(peak, aEnd);
-        if (e.decay > 0 && e.sustain < 1) g.linearRampToValueAtTime(peak * e.sustain, aEnd + e.decay);
-        else g.setValueAtTime(peak * e.sustain, aEnd); // no decay → step to sustain
+        scheduleAttackDecay(gain.gain, e, peak, t0);
         release = e.release;
       } else {
         gain.gain.value = peak; // playground off → flat gain (today's behavior)
