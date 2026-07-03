@@ -65,6 +65,17 @@ describe('executePlan', () => {
     expect([...dev.snapshot()]).toEqual([...initial]);
   });
 
+  it('rolls back on a verify mismatch (same-size corruption in transit)', async () => {
+    // A size-only verify passes this case and the move then deletes the good
+    // source — silent data loss. The verify must compare content.
+    const { dev, occ, plan, initial } = setup();
+    dev.corruptNextPush();
+    const res = await executePlan(dev, PART, plan, occ);
+    expect(res.ok).toBe(false);
+    expect(res.rolledBack).toBe(true);
+    expect([...dev.snapshot()]).toEqual([...initial]);
+  });
+
   it('rolls back when cancelled mid-plan', async () => {
     const { dev, occ, plan, initial } = setup();
     const ac = new AbortController();

@@ -7,6 +7,15 @@ export interface ExecResult { ok: boolean; completedOps: number; rolledBack: boo
 
 interface JournalEntry { addr: Addr; before: { file: Uint8Array; name: string } | null }
 
+const CBIN_HEADER = 44;
+
+/** Byte-compare two full CBIN files past the header. */
+function bodiesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = CBIN_HEADER; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 /** Execute a plan with per-plan journal rollback and verify-before-delete. */
 export async function executePlan(
   io: DeviceIO,
@@ -43,6 +52,13 @@ export async function executePlan(
         const landed = await io.info(partition, op.to);
         if (!landed || landed.sizeBytes !== j.before.file.length - 44) {
           throw new Error(`copy to ${addrKey(op.to)} did not verify`);
+        }
+        // Size alone would pass a same-size corruption — and a move then deletes
+        // the good source. Re-pull and compare the body (the CBIN header carries
+        // the new bank/slot, so only bytes past it are copy-invariant).
+        const landedBytes = await io.pull(partition, landed);
+        if (!bodiesEqual(landedBytes, j.before.file)) {
+          throw new Error(`copy to ${addrKey(op.to)} did not verify (content mismatch)`);
         }
       } else {
         onProgress?.({ opIndex: i, opCount: plan.ops.length, phase: 'delete' });

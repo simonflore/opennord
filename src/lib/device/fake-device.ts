@@ -12,6 +12,7 @@ export class FakeDevice implements DeviceIO {
   private cells = new Map<string, Cell>();
   private failures = new Set<string>();
   private truncate = false;
+  private corrupt = false;
 
   constructor(seed: Array<{ partition: number; file: Uint8Array; entry: ProgramEntry }>) {
     for (const s of seed) this.cells.set(k(s.partition, s.entry), { file: s.file, entry: s.entry });
@@ -23,6 +24,9 @@ export class FakeDevice implements DeviceIO {
   }
   /** Make the next push store a wrong-sized body, to exercise verify-mismatch. */
   truncateNextPush(): void { this.truncate = true; }
+  /** Make the next push flip one body byte (same size) — a device-side write
+   *  corruption that a size-only verify would miss. */
+  corruptNextPush(): void { this.corrupt = true; }
   /** key → stored body size, for asserting "final == initial". */
   snapshot(): Map<string, number> {
     return new Map([...this.cells].map(([key, c]) => [key, c.file.length - 44]));
@@ -42,8 +46,13 @@ export class FakeDevice implements DeviceIO {
 
   async push(partition: number, addr: Addr, file: Uint8Array, name: string): Promise<void> {
     this.trip('push', partition, addr);
-    const stored = this.truncate ? file.subarray(0, file.length - 1) : file;
+    let stored = this.truncate ? file.subarray(0, file.length - 1) : file;
     this.truncate = false;
+    if (this.corrupt) {
+      stored = stored.slice();
+      stored[44] ^= 0xff; // flip one body byte, size unchanged
+      this.corrupt = false;
+    }
     const entry: ProgramEntry = {
       bank: addr.bank, slot: addr.slot, name,
       categoryId: 0, version: 313, sizeBytes: stored.length - 44, fourcc: 'ns4p',
