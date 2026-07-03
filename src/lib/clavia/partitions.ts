@@ -40,6 +40,8 @@ export interface ModelInfo {
   programTag: string | null;
   sampleCodec: SampleCodec;
   partitions: PartitionSpec[]; // ordered Native → user
+  /** USB product id (Clavia vendor 0x0FFC) — set only when hardware-confirmed. */
+  productId?: number;
 }
 
 const P = (kind: PartitionKind, label: string, native: boolean, fourcc?: string, index?: number): PartitionSpec =>
@@ -56,7 +58,7 @@ const baseline = (tag: string, sampleCapable: boolean): PartitionSpec[] => [
 
 export const MODELS: Record<NordModelId, ModelInfo> = {
   'stage-4': {
-    id: 'stage-4', name: 'Nord Stage 4', generation: 'NW1-v4', programTag: 'ns4p', sampleCodec: 'codec4',
+    id: 'stage-4', name: 'Nord Stage 4', generation: 'NW1-v4', programTag: 'ns4p', sampleCodec: 'codec4', productId: 0x002e,
     partitions: [ // PROTOCOL-RE.md — hardware-validated indices
       P('piano-native', 'Piano (factory)', true, undefined, 0),
       P('piano', 'Piano', false, undefined, 1),
@@ -73,7 +75,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     ],
   },
   'stage-3': {
-    id: 'stage-3', name: 'Nord Stage 3', generation: 'NW1-v3', programTag: 'ns3f', sampleCodec: 'codec3',
+    id: 'stage-3', name: 'Nord Stage 3', generation: 'NW1-v3', programTag: 'ns3f', sampleCodec: 'codec3', productId: 0x0026,
     partitions: [
       P('piano-native', 'Piano (factory)', true),
       P('pedal-native', 'Pedal (factory)', true),
@@ -91,7 +93,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // Program partition index = 6 (same as NS4). NS2 swaps indices 2/3 (user Piano
     // Pedal ↔ native Pedal) relative to the NS4, and — unlike the NS4 — has no
     // separate Organ/Piano/Synth *Preset* partitions. See docs/PROTOCOL-RE.md.
-    id: 'stage-2', name: 'Nord Stage 2', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og',
+    id: 'stage-2', name: 'Nord Stage 2', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og', productId: 0x0021,
     partitions: [
       P('piano-native', 'Piano (factory)', true, undefined, 0),
       P('piano', 'Piano', false, undefined, 1),
@@ -276,4 +278,20 @@ export function modelById(id: NordModelId): ModelInfo | undefined {
 export function modelByTag(tag: string | undefined): ModelInfo | undefined {
   if (!tag) return undefined;
   return ALL_MODELS.find((m) => m.programTag === tag);
+}
+
+/** Model for a USB product id, or undefined if that PID isn't hardware-confirmed. */
+export function modelByProductId(productId: number | undefined): ModelInfo | undefined {
+  if (productId === undefined) return undefined;
+  return ALL_MODELS.find((m) => m.productId === productId);
+}
+
+/**
+ * The protocol partition index of a model's user Programs, or undefined when the
+ * model's partition layout isn't hardware-confirmed (index left unset). Callers
+ * needing a value should fall back deliberately (see `resolveProgramPartition`),
+ * never silently assume the Stage-4 index.
+ */
+export function programPartitionIndex(model: ModelInfo | undefined): number | undefined {
+  return model?.partitions.find((p) => p.kind === 'program')?.index;
 }

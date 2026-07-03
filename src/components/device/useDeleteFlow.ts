@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { deleteProgram, type ProgramEntry } from '../../lib/device/transfer';
-import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import type { NordSession } from '../../lib/device/session';
 import { getErrorMessage } from '../../lib/errors';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
@@ -13,7 +12,7 @@ export function useDeleteFlow(session: NordSession | null, refresh: (s: NordSess
   async function confirmDelete() {
     if (!session || !pendingDelete || busy) return;
     await run(async () => {
-      await session.withSession(PARTITION_PROGRAM, () =>
+      await session.withSession(session.programPartition, () =>
         deleteProgram(session, pendingDelete.bank, pendingDelete.slot));
       await refresh(session);
       setPendingDelete(null);

@@ -4,7 +4,7 @@ import { WebUsbTransport } from '../../lib/device/webusb';
 import { CapacitorUsbTransport, nordUsbAvailable, usbAvailability } from '../../lib/device/capacitor-usb';
 import { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
-import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
+import { resolveProgramPartition } from '../../lib/device/program-partition';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
 import { shouldNegotiateVersion } from '../../lib/device/negotiate';
 import { Button, SectionLabel } from '../ui';
@@ -90,8 +90,11 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     if (shouldNegotiateVersion(productId)) {
       await session.negotiateVersion().catch(() => undefined);
     }
+    // Address the model's Program partition (Stage-4 index for confirmed/unknown
+    // devices; the model's own once recorded) for every later program op.
+    session.programPartition = resolveProgramPartition(productId);
     // Bracket enumerate in a begin/end session so the Nord returns to idle after.
-    const entries = await session.withSession(PARTITION_PROGRAM, () => enumeratePrograms(session));
+    const entries = await session.withSession(session.programPartition, () => enumeratePrograms(session));
     setStatus('connected');
     onConnected(session, entries, deviceName, productId);
   }

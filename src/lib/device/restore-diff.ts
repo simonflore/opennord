@@ -1,7 +1,6 @@
 import { addrKey } from './reorg';
 import { enumerateFiles } from './transfer';
 import type { NordSession } from './session';
-import { PARTITION_PROGRAM } from './opcodes';
 import { indexBackup } from '../clavia/backup/backup-index';
 import { extractZipEntry, type ZipEntry } from '../clavia/backup/zip-directory';
 import { readCbinHeader, hasCbinMagic } from '../clavia/cbin';
@@ -76,7 +75,7 @@ export async function listBackupProgramSlots(file: Blob, bundlePath = 'backup'):
 export async function analyzeRestore(session: NordSession, file: File): Promise<RestoreImpact> {
   const contents = await indexBackup(file, file.name);
   const backup = await programSlotsFrom(file, contents.programs);
-  const device = (await session.withSession(PARTITION_PROGRAM, () => enumerateFiles(session)))
+  const device = (await session.withSession(session.programPartition, () => enumerateFiles(session)))
     .map((e) => ({ bank: e.bank, slot: e.slot, name: e.name }));
   return {
     ...diffPrograms(device, backup),

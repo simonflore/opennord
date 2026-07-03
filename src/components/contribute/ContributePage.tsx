@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { useDevice } from '../../lib/device/DeviceContext';
 import { ConnectPanel } from '../device/ConnectPanel';
 import { Button } from '../ui';
-import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import type { NordSession } from '../../lib/device/session';
 import { getFocusedSlot, type ProgramEntry } from '../../lib/device/transfer';
 import { slotCaptureSource, fileCaptureSource } from '../../lib/contribute/source';
@@ -158,7 +157,7 @@ function CaptureWizard({ session, entries, productId }: {
   // supported the slot list below is the fallback.
   useEffect(() => {
     let alive = true;
-    session.withSession(PARTITION_PROGRAM, () => getFocusedSlot(session))
+    session.withSession(session.programPartition, () => getFocusedSlot(session))
       .then((f) => {
         if (!alive || !f) return;
         const match = entries.find((e) => e.bank === f.bank && e.slot === f.slot);
@@ -169,7 +168,7 @@ function CaptureWizard({ session, entries, productId }: {
   }, [session, entries]);
 
   const readSlot = (entry: ProgramEntry) =>
-    session.withSession(PARTITION_PROGRAM, () => slotCaptureSource(session, entry).capture());
+    session.withSession(session.programPartition, () => slotCaptureSource(session, entry).capture());
 
   async function captureBaseline(entry: ProgramEntry) {
     setBusy(true); setError('');

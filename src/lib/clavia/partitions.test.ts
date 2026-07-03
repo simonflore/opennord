@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MODELS, ALL_MODELS, modelById, modelByTag } from './partitions';
+import { MODELS, ALL_MODELS, modelById, modelByTag, modelByProductId, programPartitionIndex } from './partitions';
 
 describe('partition registry', () => {
   it('resolves a model from its program tag (anchor for shared tags)', () => {
@@ -34,6 +34,21 @@ describe('partition registry', () => {
 
   it('exposes MODELS keyed by id', () => {
     expect(MODELS['stage-2'].generation).toBe('OG');
+  });
+
+  it('resolves a model from its USB product id (hardware-confirmed PIDs only)', () => {
+    expect(modelByProductId(0x002e)?.id).toBe('stage-4'); // in code (negotiate.ts)
+    expect(modelByProductId(0x0026)?.id).toBe('stage-3'); // Fred's probe, issues #38-40
+    expect(modelByProductId(0x0021)?.id).toBe('stage-2'); // issue #31
+    expect(modelByProductId(0x9999)).toBeUndefined();
+  });
+
+  it('reports the program partition index only when hardware-confirmed', () => {
+    expect(programPartitionIndex(modelById('stage-4')!)).toBe(6);
+    expect(programPartitionIndex(modelById('stage-2')!)).toBe(6);
+    // Stage 3 layout is NOT hardware-confirmed yet — no index, so resolution must
+    // fall back rather than assume the Stage-4 value. Unblocked by the probe's Types column.
+    expect(programPartitionIndex(modelById('stage-3')!)).toBeUndefined();
   });
 
   // Hardware-validated via a live CQryPartList probe on a Nord Stage 2 (fw 3.00),

@@ -12,7 +12,7 @@
  */
 import type { NordSession } from './session';
 import { enumerateFiles, type ProgramEntry } from './transfer';
-import { CQryFileGetDependency, PARTITION_PROGRAM, PARTITION_SAMP_LIB, PARTITION_PIANO } from './opcodes';
+import { CQryFileGetDependency, PARTITION_SAMP_LIB, PARTITION_PIANO } from './opcodes';
 import { NordError } from './protocol';
 import { readAsciiFixed } from '../clavia/ascii';
 import { readU32BE } from './payload-io';
@@ -134,7 +134,7 @@ async function gatherProgramDepsUnlocked(
   session: NordSession,
   onProgress?: (done: number, total: number) => void,
 ): Promise<SampleDep[]> {
-  await session.begin(PARTITION_PROGRAM);
+  await session.begin(session.programPartition);
   const programs = await enumerateFiles(session);
   await session.end();
   const allDeps: SampleDep[] = [];

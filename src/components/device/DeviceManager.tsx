@@ -45,10 +45,10 @@ export function DeviceManager() {
   const [organizingBundlePath, setOrganizingBundlePath] = useState<string | undefined>(undefined);
 
   async function refresh(s: NordSession) {
-    await s.withSession(PARTITION_PROGRAM, async () => {
+    await s.withSession(s.programPartition, async () => {
       setEntries(await enumeratePrograms(s));
       // Best-effort: a failed capacity read shouldn't break the program list.
-      setCapacity(await readPartitionCapacity(s, PARTITION_PROGRAM).catch(() => null));
+      setCapacity(await readPartitionCapacity(s, s.programPartition).catch(() => null));
     });
   }
 
@@ -57,7 +57,7 @@ export function DeviceManager() {
   const loadCapacity = useCallback(
     async (s: NordSession) => {
       try {
-        setCapacity(await s.withSession(PARTITION_PROGRAM, () => readPartitionCapacity(s, PARTITION_PROGRAM)));
+        setCapacity(await s.withSession(s.programPartition, () => readPartitionCapacity(s, s.programPartition)));
       } catch {
         /* ignore — the readout simply doesn't show */
       }
@@ -85,11 +85,11 @@ export function DeviceManager() {
   }, [session, backupWanted]);
   const reorg = useReorg({
     io: sessionDeviceIO(session!),
-    partition: PARTITION_PROGRAM,
+    partition: session?.programPartition ?? PARTITION_PROGRAM,
     entries,
     refresh: () => refresh(session!),
     backupOnce,
-    run: (fn) => session!.withSession(PARTITION_PROGRAM, fn),
+    run: (fn) => session!.withSession(session!.programPartition, fn),
   });
   const reorgConfirmExtra = (
     <label className="ps-sub" style={{ display: 'block', marginTop: 8 }}>
@@ -101,7 +101,7 @@ export function DeviceManager() {
     if (!session || busy) return;
     setError(''); setBusy(true);
     try {
-      const bytes = await session.withSession(PARTITION_PROGRAM, () => pullProgram(session, entry));
+      const bytes = await session.withSession(session.programPartition, () => pullProgram(session, entry));
       const prog = parseClaviaFile(bytes).program;
       prog.name = entry.name;
       setProgram(prog);

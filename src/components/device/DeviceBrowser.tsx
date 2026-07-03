@@ -6,7 +6,15 @@ import { StorageMeter } from './StorageMeter';
 import { OrganizeGrids } from './OrganizeGrids';
 import { BankLabel } from './BankLabel';
 import { Button, FileInput } from '../ui';
+import { ALL_MODELS } from '../../lib/clavia/partitions';
 import type { ReorgApi } from './useReorg';
+
+/** Program file extensions across the whole Nord line (ns4p, ns3f, ns2p, …) — the
+ *  push flow reads each file's own CBIN tag, so the picker accepts any of them
+ *  rather than Stage 4 alone. */
+const PROGRAM_ACCEPT = [...new Set(ALL_MODELS.map((m) => m.programTag).filter(Boolean))]
+  .map((tag) => `.${tag}`)
+  .join(',');
 
 /** Programs grouped by bank A–H. Open, delete, or send a file to the Nord. */
 export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelete, onSendFile, reorg, reorgConfirmExtra }: {
@@ -42,7 +50,7 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
           <Button variant="secondary" onClick={() => setOrganize((v) => !v)}>
             {organize ? 'Done organizing' : 'Organize'}
           </Button>
-          <FileInput accept=".ns4p" onFile={onSendFile} className="on-btn on-btn--outline">
+          <FileInput accept={PROGRAM_ACCEPT} onFile={onSendFile} className="on-btn on-btn--outline">
             Send a file to the Nord
           </FileInput>
         </div>

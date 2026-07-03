@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { pushProgram } from '../../lib/device/transfer';
 import { programNameFromFilename } from '../../lib/clavia/name';
 import { formatSlot } from '../../lib/clavia/slot';
-import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import type { NordSession } from '../../lib/device/session';
 import type { SlotTarget } from './TargetSlotPicker';
 
@@ -59,7 +58,7 @@ export function usePushFlow(session: NordSession | null, refresh: (s: NordSessio
   async function confirmPush() {
     if (!session || !pushSource || !picked || busy) return;
     await run(async () => {
-      await session.withSession(PARTITION_PROGRAM, () =>
+      await session.withSession(session.programPartition, () =>
         pushProgram(session, picked.bank, picked.slot, pushSource.bytes, pushName.trim() || pushSource.name));
       await refresh(session);
       cancel();

@@ -1,7 +1,14 @@
 import type { NordSession } from './session';
 import { enumerateFiles } from './transfer';
 
-export interface ProbePartition { index: number; fileCount: number; }
+export interface ProbePartition {
+  index: number;
+  fileCount: number;
+  /** Distinct file types (fourccs) found in the partition, sorted. Identifies which
+   *  raw partition holds Programs (e.g. `ns3f`), Synth presets (`ns3y`), etc. — the
+   *  datum needed to map a non-Stage-4 model's partition layout. */
+  fourccs: string[];
+}
 
 export interface ProbeReport {
   deviceName: string;
@@ -26,7 +33,8 @@ export async function probeDevice(session: NordSession, opts: ProbeOptions): Pro
   for (let index = 0; index < SCAN; index++) {
     try {
       const files = await session.withSession(index, () => enumerateFiles(session));
-      partitions.push({ index, fileCount: files.length });
+      const fourccs = [...new Set(files.map((f) => f.fourcc))].sort();
+      partitions.push({ index, fileCount: files.length, fourccs });
     } catch {
       // begin failed → this model doesn't have a partition at this index; skip.
     }

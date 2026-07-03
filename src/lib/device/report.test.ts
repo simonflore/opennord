@@ -4,16 +4,20 @@ import type { ProbeReport } from './probe';
 
 const r: ProbeReport = {
   deviceName: 'Nord Stage 3', productId: 0x0030,
-  partitions: [{ index: 6, fileCount: 89 }, { index: 5, fileCount: 12 }],
+  partitions: [
+    { index: 6, fileCount: 89, fourccs: ['ns3f'] },
+    { index: 5, fileCount: 12, fourccs: [] },
+  ],
   capturedAt: '2026-06-20T00:00:00.000Z',
 };
 
 describe('report', () => {
-  it('renders a markdown report naming device, PID, and partition counts', () => {
+  it('renders a markdown report naming device, PID, and partition counts + types', () => {
     const md = probeReportMarkdown(r);
     expect(md).toContain('Nord Stage 3');
     expect(md).toContain('0x0030');
-    expect(md).toContain('| 6 | 89 |');
+    expect(md).toContain('| 6 | 89 | ns3f |');
+    expect(md).toContain('| Partition | Files | Types |');
   });
   it('builds a pre-filled hardware-validation issue url', () => {
     const url = probeIssueUrl(r);
