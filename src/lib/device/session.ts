@@ -39,6 +39,16 @@ export class NordSession {
   }
 
   /**
+   * Release the underlying transport (WebUSB: releaseInterface + device.close).
+   * Queued behind in-flight operations so an active transfer isn't cut mid-frame.
+   * Without this a disconnect leaks the claimed interface and the next connect
+   * fails "busy" — looking like Nord Sound Manager holds the device.
+   */
+  close(): Promise<void> {
+    return this.exclusive(() => this.transport.close());
+  }
+
+  /**
    * Ask the device which protocol versions it supports and adopt its FileTransfer
    * version for all later frames (the pre-FileTransfer handshake, protocolId `0x07`).
    * If the device doesn't advertise FileTransfer (`0x0c`), the default `0x0a` stands.

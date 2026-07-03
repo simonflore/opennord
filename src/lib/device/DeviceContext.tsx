@@ -48,6 +48,9 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     setConnection: (s, e, name, pid) => { setSession(s); setEntries(e); setDeviceName(name); setProductId(pid); },
     setEntries,
     disconnect: () => {
+      // Release the USB interface, or the next connect fails "busy" as if NSM
+      // held the device. Best-effort: the state reset must not hinge on it.
+      void session?.close().catch(() => undefined);
       setSession(null); setEntries([]); setSampleEntries([]); setPresetEntries([]); setPianoEntries([]); setDeviceName(''); setProductId(0); setCapacity(null);
     },
   };

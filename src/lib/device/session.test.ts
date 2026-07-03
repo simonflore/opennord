@@ -67,6 +67,21 @@ describe('NordSession', () => {
     expect(b.msgId).toBe(CQryFileInfo | 1);
   });
 
+  it('close() releases the underlying transport, after in-flight operations finish', async () => {
+    let closed = false;
+    const order: string[] = [];
+    class ClosableTransport extends MockTransport {
+      override async close() { closed = true; order.push('close'); }
+    }
+    const session = new NordSession(new ClosableTransport([]));
+    // An in-flight operation must complete before the pipe is torn down.
+    const op = session.exclusive(async () => { await Promise.resolve(); order.push('op'); });
+    await session.close();
+    await op;
+    expect(closed).toBe(true);
+    expect(order).toEqual(['op', 'close']);
+  });
+
   it('exclusive() runs operations one at a time, releasing the lock on failure', async () => {
     const t = new MockTransport([]);
     const session = new NordSession(t);
