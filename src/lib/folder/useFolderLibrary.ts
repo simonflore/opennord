@@ -87,8 +87,10 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     }));
   }, []);
 
-  /** Run Pass A on a source, then apply remembered choices / open the gate. */
-  const runScan = useCallback(async (name: string, source: FolderSource) => {
+  /** Run Pass A on a source, then apply remembered choices / open the gate.
+   *  `dirHandle` (when the source has one) keys the remembered bundle choices
+   *  to the actual directory, not just its display name. */
+  const runScan = useCallback(async (name: string, source: FolderSource, dirHandle?: FileSystemDirectoryHandle | null) => {
     const gen = ++genRef.current;
     scannerRef.current?.dispose?.();
     const scanner = makeScanner();
@@ -100,7 +102,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     if (gen !== genRef.current) return;
     setBundles(found);
 
-    const choice = await loadBundleChoice(name);
+    const choice = await loadBundleChoice(name, dirHandle ?? undefined);
     if (gen !== genRef.current) return;
     const decided = new Set(choice?.decided ?? []);
     const skipped = new Set(choice?.skipped ?? []);
@@ -118,7 +120,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
       // First sight of this folder, single backup → auto-expand and remember.
       const only = undecided[0].path;
       await scanner.expandBundles([only], onBatch);
-      await saveBundleChoice({ folderName: name, decided: [only], skipped: [] });
+      await saveBundleChoice({ folderName: name, handle: dirHandle ?? undefined, decided: [only], skipped: [] });
       if (gen !== genRef.current) return;
       setNewBundles([]);
     }
@@ -133,7 +135,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
         if (cancelled) return;
         if (state.status === 'granted') {
           setFolderName(state.name); setHandle(state.handle);
-          await runScan(state.name, state.source);
+          await runScan(state.name, state.source, state.handle);
         } else if (state.status === 'needs-permission') {
           setFolderName(state.name); setPending(state.handle);
         }
@@ -154,7 +156,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     try {
       const r = await pickFolder();
       setFolderName(r.name); setHandle(r.handle ?? null); setPending(null);
-      await runScan(r.name, r.source);
+      await runScan(r.name, r.source, r.handle);
     } catch (err) {
       if (!isCancel(err)) {
         console.error('Folder pick failed', err);
@@ -170,7 +172,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
       const source = await grantAndScan(pending);
       if (source) {
         setHandle(pending); setPending(null);
-        await runScan(folderName ?? pending.name, source);
+        await runScan(folderName ?? pending.name, source, pending);
       } else {
         // Permission wasn't granted — say so rather than silently doing nothing.
         setReconnectError(`Couldn't read “${folderName ?? 'the folder'}” — your browser blocked access. Click Reconnect and choose Allow, or Re-pick the folder.`);
@@ -183,7 +185,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
   const refresh = useCallback(async () => {
     if (!handle || !folderName) return;
     setBusy(true);
-    try { await runScan(folderName, rescan(handle)); } finally { setBusy(false); }
+    try { await runScan(folderName, rescan(handle), handle); } finally { setBusy(false); }
   }, [handle, folderName, runScan]);
 
   const forget = useCallback(async () => {
@@ -225,15 +227,16 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     const gen = genRef.current;
     const load = newBundles.filter((b) => loadPaths.includes(b.path)).map((b) => b.path);
     const skip = newBundles.filter((b) => !loadPaths.includes(b.path)).map((b) => b.path);
-    const prior = await loadBundleChoice(folderName);
+    const prior = await loadBundleChoice(folderName, handle ?? undefined);
     await saveBundleChoice({
       folderName,
+      handle: handle ?? undefined,
       decided: [...new Set([...(prior?.decided ?? []), ...load])],
       skipped: [...new Set([...(prior?.skipped ?? []), ...skip])],
     });
     setPickerOpen(false); setNewBundles([]);
     await scanner.expandBundles(load, append(gen));
-  }, [folderName, newBundles, append]);
+  }, [folderName, handle, newBundles, append]);
 
   return {
     folderName, result, bundles, newBundles, pickerOpen,
