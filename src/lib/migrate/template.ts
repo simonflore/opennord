@@ -15,6 +15,9 @@ let cached: Uint8Array | null = null;
 /** Browser builds import the fixture via Vite ?url — see Task 8 for the UI
  *  loader; this Node path serves tests and scripts. */
 export function buildMigrationTemplate(fixtureBytes?: Uint8Array): Uint8Array {
+  // Injected-bytes path is uncached by design: the browser caller fetches the
+  // fixture once and holds the result; only the Node/test path benefits from
+  // memoization. editNs4Program returns a fresh copy, so no .slice() needed here.
   if (fixtureBytes) return editNs4Program(fixtureBytes, MIGRATION_DEFAULTS);
   if (!cached) {
     const raw = new Uint8Array(

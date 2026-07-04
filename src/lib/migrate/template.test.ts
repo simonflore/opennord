@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { buildMigrationTemplate } from './template';
 import { MIGRATION_DEFAULTS } from './defaults';
 import { parseNs4Program } from '../ns4/parse';
@@ -33,5 +35,13 @@ describe('buildMigrationTemplate', () => {
     expect(getRawParam(tpl, 'o', 'layer on/off', 0)).toBe(0);
     expect(getRawParam(tpl, 'p', 'layer on/off', 0)).toBe(0);
     expect(getRawParam(tpl, 'y', 'layer on/off', 0)).toBe(0);
+  });
+
+  it('injected-bytes path (browser UI) produces identical result', () => {
+    const fixtureBytes = new Uint8Array(
+      readFileSync(fileURLToPath(new URL('../ns4/__fixtures__/regressionTest.ns4p', import.meta.url))),
+    );
+    const injected = buildMigrationTemplate(fixtureBytes);
+    expect(injected).toEqual(tpl);
   });
 });
