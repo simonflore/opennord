@@ -93,27 +93,53 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNw2', () => {
     }
   });
 
-  // Candidate: waveform bank=0 / id=0x65 for Choir (wavetable catalog entry).
-  // Choir has oscFlag=0xff (extended mode) + bank=0x00 + id=0x65.
-  it('Choir has wavetable-mode oscFlag and non-zero waveform id on slot 0', () => {
+  // CONFIRMED (bundle meta.xml, dep0 = Men+Women Mm choir sample): Choir's
+  // slot 0 is a sample slot at library index 0x196.
+  it('Choir slot 0 is a sample slot at index 0x196', () => {
     const prog = decodeNw2(load('EF__Program_Bank O_Choir.nw2p'));
-    expect(prog.slots[0].waveform.oscFlag).toBe(0xff);
-    expect(prog.slots[0].waveform.bank).toBe(0x00);
-    expect(prog.slots[0].waveform.id).toBe(0x65);
+    expect(prog.slots[0].waveform.kind).toBe('sample');
+    expect(prog.slots[0].waveform.sampleIndex).toBe(0x196);
   });
 
-  // Candidate: Eli Bass 6 is a pure synth program — standard mode, bank 0, id 0 (Sine).
-  it('Eli Bass 6 has standard-mode oscFlag and zero waveform id on slot 0', () => {
+  // CONFIRMED (meta.xml depCnt=0): Eli Bass 6 is a pure oscillator program.
+  it('Eli Bass 6 slot 0 is an oscillator slot', () => {
     const prog = decodeNw2(load('EF__Program_Bank O_Eli    Bass 6.nw2p'));
+    expect(prog.slots[0].waveform.kind).toBe('oscillator');
     expect(prog.slots[0].waveform.oscFlag).toBe(0xfe);
-    expect(prog.slots[0].waveform.bank).toBe(0x00);
-    expect(prog.slots[0].waveform.id).toBe(0x00);
   });
 
-  // Candidate: One Vision Queen uses bank=1 (extended wavetable bank).
-  it('One Vision Queen has bank=1 (extended wavetables) on slot 0', () => {
-    const prog = decodeNw2(load('One Vision Queen.nw2p'));
-    expect(prog.slots[0].waveform.bank).toBe(0x01);
+  // "Sine Pad" anchors waveform selector 0 = Sine (manual Basic category order).
+  it('Sine Pad reads waveform 0 (Sine) on all four oscillator slots', () => {
+    const prog = decodeNw2(load('EF__Program_Bank O_Sine Pad.nw2p'));
+    for (const slot of prog.slots) {
+      expect(slot.waveform.kind).toBe('oscillator');
+      expect(slot.waveform.waveformId).toBe(0);
+    }
+  });
+
+  // The same sample referenced from different programs keeps the same index —
+  // Wurlitzer_CL mono 3.1 (meta.xml dep0 of all three programs) = 0x51f.
+  it('Drip / Infinity EP / Infinity EP 2 share the Wurlitzer sample index 0x51f', () => {
+    for (const name of ['Drip', 'Infinity EP', 'Infinity EP 2']) {
+      const prog = decodeNw2(load(`EF__Program_Bank O_${name}.nw2p`));
+      expect(prog.slots[0].waveform.kind, name).toBe('sample');
+      expect(prog.slots[0].waveform.sampleIndex, name).toBe(0x51f);
+    }
+  });
+
+  // Ground-truth regression: for every program listed in the bundle's meta.xml,
+  // the number of sample slots equals the declared sample-dependency count.
+  it('sample-slot count matches bundle meta.xml depCnt for every program', () => {
+    const metaPath = join(FIXTURE_DIR, 'Elijah Fox Signature Sound Bank Bundle/meta.xml');
+    if (!existsSync(metaPath)) return;
+    const meta = readFileSync(metaPath, 'utf8');
+    for (const m of meta.matchAll(/<file name="Program\/Bank O\/([^"]+)\.nw2p" depCnt="(\d+)"/g)) {
+      const fixture = `EF__Program_Bank O_${m[1]}.nw2p`;
+      if (!existsSync(join(FIXTURE_DIR, fixture))) continue;
+      const prog = decodeNw2(load(fixture));
+      const sampleSlots = prog.slots.filter(s => s.waveform.kind === 'sample').length;
+      expect(sampleSlots, m[1]).toBe(Number(m[2]));
+    }
   });
 
   it('global preamble is 5 bytes, constant 00 00 01 2d 3f', () => {

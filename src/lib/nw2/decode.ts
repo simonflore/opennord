@@ -16,10 +16,12 @@
  *   bytes[0-3] = bars 1-8 (2 per byte), byte[4] high nibble = bar 9,
  *   byte[4] low nibble = trailing (always 0 in the 26-file corpus).
  *
- * Waveform selector (candidate, body local[77-79] per slot):
- *   local[77] = oscFlag (0xfe=standard, 0xff=extended/wavetable mode)
- *   local[78] = bank    (0=classic synth waveforms, 1=wavetable catalog)
- *   local[79] = id      (waveform index; low=synth primitive, high=named wavetable)
+ * Slot source selector (body local[77-80] per slot) — CONFIRMED vs the Elijah
+ * Fox bundle meta.xml dependency list (26/26 programs: count of 0xff slots ==
+ * depCnt, slot order == dep order; see types.ts header for the evidence):
+ *   local[77] = source kind (0xfe = oscillator waveform, 0xff = sample slot)
+ *   sample slots: 10-bit sample index ((local[78]<<8|local[79])<<2)|(local[80]>>6)
+ *   oscillator slots: local[79] = waveform selector (0 = Sine, "Sine Pad" anchor)
  *
  * NOTE on skeleton bug: the original DRAWBAR_OFFSETS were [144, 388, 631, 876].
  * Offsets for slots 0, 1, and 3 were off by 1 (the first byte 0x37 at local[143]
@@ -45,15 +47,20 @@ const SLOT_STARTS = [0, 244, 488, 732] as const;
 const SLOT_SIZE = 244;
 
 /**
- * Decode the waveform / oscillator selector from body local[77-79].
- * Confidence: candidate — statistically derived from 26 fixtures, not hardware-validated.
+ * Decode the slot sound source from body local[77-80].
+ * kind + sample index are CONFIRMED against bundle meta.xml dependencies; the
+ * oscillator waveform selector is anchored (0 = Sine) but not fully mapped.
  */
 function readWaveform(slotBody: Uint8Array): Nw2Waveform {
-  return {
-    oscFlag: u8(slotBody, 77),
-    bank: u8(slotBody, 78),
-    id: u8(slotBody, 79),
-  };
+  const oscFlag = u8(slotBody, 77);
+  if (oscFlag === 0xff) {
+    return {
+      kind: 'sample',
+      oscFlag,
+      sampleIndex: (((u8(slotBody, 78) << 8) | u8(slotBody, 79)) << 2) | (u8(slotBody, 80) >> 6),
+    };
+  }
+  return { kind: 'oscillator', oscFlag, waveformId: u8(slotBody, 79) };
 }
 
 function readSlot(body: Uint8Array, slotIndex: number): Nw2VoiceSlot {

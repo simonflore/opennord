@@ -9,6 +9,8 @@ import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 
 function slotSection(i: number, s: Nw2VoiceSlot): DecodedSection {
   const parts = [s.on ? `on · level ${s.volume}` : 'off'];
+  // Slot source kind is confirmed (bundle meta.xml correlation, see types.ts).
+  parts.push(s.waveform.kind === 'sample' ? 'Sample' : 'Oscillator');
   return { id: `S${i}`, label: `SLOT ${i + 1}`, engines: [{ label: 'Voice', parts }] };
 }
 

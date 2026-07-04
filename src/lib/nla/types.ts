@@ -6,8 +6,8 @@
  *   - Body 79 bytes at file offset 0x2c; a MIDI-style 7-bit-packed parameter
  *     BITSTREAM (NOT byte-aligned fields), beginning at bit 4 of body[0].
  *   - body[0] high nibble is a constant-0 header (verified: 0 in all 51 files).
- *   - bytes 77-78 are a 16-bit body checksum (50/51 distinct — max entropy,
- *     end-of-body, matches Clavia/CBIN checksum convention). Not a parameter.
+ *   - bytes 77-78 are the LE CRC-16/CCITT-FALSE file-trailer checksum shared
+ *     by the legacy formats (.nwp/.nl4s/.nlas — see clavia/crc16.ts).
  *   - Constant-0 section padding bytes: 32, 48-50, 53, 61, 71, 74-75
  *     (all verified const-0 across the corpus).
  *
@@ -42,8 +42,10 @@ export interface NlaProgram {
    */
   readonly volume: number;
   /**
-   * 16-bit body checksum (bytes 77-78, big-endian). 50/51 distinct across the
-   * corpus — a CRC/checksum over the program data, not a parameter.
+   * File trailer checksum (body[77-78], little-endian): CRC-16/CCITT-FALSE
+   * over the whole file except the final 2 bytes (clavia/crc16.ts).
+   * Confirmed 50/51 corpus files 2026-07-04 (the miss is a 141-byte oddball
+   * with a zeroed trailer).
    */
   readonly checksum: number;
   /**

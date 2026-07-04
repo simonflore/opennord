@@ -20,7 +20,7 @@
  * | Global / tail | 280-289   | 10b  | candidate |
  * | (zero pad)    | 290-302   | 13b  | constant  |
  * | byte[303]     | 303       | 1b   | unknown (near-const 0) |
- * | checksum      | 304-305   | 2b   | candidate (uint16 CRC) |
+ * | checksum      | 304-305   | 2b   | confirmed (LE CRC-16/CCITT-FALSE over file[0:-2], 1018/1018) |
  *
  * CBIN header: slot @0x0e, category @0x10, versionRaw @0x14 (raw 6/7/8).
  *
@@ -67,7 +67,10 @@ export interface Nw1Program {
   readonly slot2: Nw1Slot;
   /** Global / FX / master tail: body[280-289]. */
   readonly global: Nw1Global;
-  /** body[304-305]: uint16 body checksum (LE, CRC-16/CCITT family). */
+  /**
+   * body[304-305]: LE CRC-16/CCITT-FALSE over the whole file except the final
+   * 2 bytes (clavia/crc16.ts). Confirmed 1018/1018 corpus files 2026-07-04.
+   */
   readonly checksum: number;
   readonly _rawBody: Uint8Array;
   readonly warnings: readonly string[];

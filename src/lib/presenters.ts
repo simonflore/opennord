@@ -15,6 +15,7 @@ import { ns2Decoded } from './ns2/present';
 import { ng2Decoded } from './ng2/present';
 import { np5Decoded } from './np5/present';
 import { np4Decoded } from './np4/present';
+import { PIANO_NAMES } from './ns4/names.generated';
 import { ne5Decoded } from './ne5/present';
 import { ne6Decoded } from './ne6/present';
 import { nw2Decoded } from './nw2/present';
@@ -36,7 +37,9 @@ const PRESENTERS: readonly PresenterEntry[] = [
   // Lite piano/organ models: surface the Stage-oracle-confirmed core fields.
   { match: (i) => i.tag === 'ng2p', present: ng2Decoded },
   { match: (i) => i.tag === 'np5p', present: np5Decoded },
-  { match: (i) => i.tag === 'np4p', present: np4Decoded },
+  // np4 gets the family-wide piano-name table injected here — the np4 module
+  // itself treats ns4 as a transcribe-only oracle and never imports it.
+  { match: (i) => i.tag === 'np4p', present: (bytes) => np4Decoded(bytes, (id) => PIANO_NAMES[id]) },
   { match: (i) => i.tag === 'ne5p', present: ne5Decoded },
   { match: (i) => i.tag === 'ne6p', present: ne6Decoded },
   { match: (i) => i.tag === 'nw2p', present: nw2Decoded },

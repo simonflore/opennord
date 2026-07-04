@@ -13,7 +13,7 @@
  * | Body offset | Field | Source / status |
  * |-------------|-------|-----------------|
  * | 0 (hi nibble) | Bitstream header (const 0) | confirmed (all 51) |
- * | 77-78 | 16-bit checksum (50/51 distinct) | confirmed |
+ * | 77-78 | LE CRC-16/CCITT-FALSE over file[0:-2] (clavia/crc16.ts) | confirmed 50/51 |
  * | 32, 48-50, 53, 61, 71, 74-75 | Section padding (const 0) | confirmed |
  *
  * ## What's staged for future RE
@@ -51,7 +51,10 @@ export function decodeNla(bytes: Uint8Array): NlaProgram {
 
   // Confirmed structural fields.
   const headerNibble = (u8(body, 0) >>> 4) & 0xf; // const 0 — bitstream marker
-  const checksum = (u8(body, 77) << 8) | u8(body, 78); // 16-bit big-endian
+  // CRC-16/CCITT-FALSE over the whole file except the final 2 bytes, stored
+  // little-endian (clavia/crc16.ts; confirmed 50/51 corpus 2026-07-04 — the
+  // one miss is an odd-length file with a zeroed trailer).
+  const checksum = u8(body, 77) | (u8(body, 78) << 8);
 
   // Leading params of the 7-bit bitstream (which starts at bit 4). Per the Stage
   // synth engine order the first fields are layer on/off then volume.

@@ -14,12 +14,29 @@
  *   byte[4] low nibble = trailing (always 0 in corpus).
  *   Default position across 25/26 factory programs: [3,7,3,7,3,7,3,7,0].
  *
- * Candidate fields (statistically derived, not yet hardware-validated):
- *   - local[77] = oscillator flag (0xfe=standard, 0xff=extended/wavetable)
- *   - local[78] = waveform bank (0=classic synth, 1=extended wavetables)
- *   - local[79] = waveform/wavetable index
+ * Slot source selector (local[77-80]) — CONFIRMED 2026-07-04 against the
+ * Elijah Fox Signature Sound Bank Bundle's meta.xml dependency list (ground
+ * truth: per-program `depCnt` + `depN` sample filenames):
+ *   - local[77] = slot source kind: 0xfe = oscillator (analog/wavetable/FM),
+ *     0xff = sample from the Nord Sample Library partition. Across all 26
+ *     programs the count of 0xff slots equals the program's meta.xml depCnt,
+ *     and slot order matches dep order.
+ *   - sample slots: 10-bit sample index, big-endian, ending 2 bits into
+ *     local[80]: ((local[78]<<8 | local[79]) << 2) | (local[80] >> 6).
+ *     Evidence: the same sample reused across programs keeps the same index
+ *     (Wurlitzer 3.1 = 0x51f in three programs; Men+Women Mm = 0x196 in two),
+ *     and related library entries are adjacent (E Guitar LP 55 = 0x2c8 /
+ *     E Guitar S 62 = 0x2c9; Grandmas Upright/RainPiano = 0x517/0x518).
+ *     Indices cluster by category in alphabetical category order (Choir <
+ *     Guitar < Piano < Strings…), i.e. this is the device's sorted sample-list
+ *     position — bundle-verified, so treat cross-device stability as unproven.
+ *   - oscillator slots: local[79] = waveform selector; the all-default
+ *     "Sine Pad" program reads 0 on all four slots, anchoring 0 = Sine (the
+ *     first Basic-category waveform in the Nord Wave 2 User Manual v1.2x
+ *     Edition G, p.20). Full selector→waveform table still unmapped.
  *
- * Source: 26-file corpus statistical analysis (2026-06-22).
+ * Source: 26-file corpus statistical analysis (2026-06-22); slot source
+ * selector confirmed vs bundle meta.xml + manual anchor (2026-07-04).
  */
 
 /** 9 drawbar positions (4-bit nibbles, 0-8 each) — identical encoding to NE6. */
@@ -31,26 +48,30 @@ export interface Nw2Drawbars {
 }
 
 /**
- * Oscillator / waveform selection for one voice slot.
- * Source: corpus RE (2026-06-22); confidence = candidate (not hardware-validated).
+ * Slot sound source (body local[77-80]).
+ *
+ * `kind` is CONFIRMED against bundle meta.xml dependency counts (see module
+ * header): 0xff slots are Nord Sample Library samples, 0xfe slots are
+ * oscillator waveforms (analog/wavetable/FM — the Wave 2's four oscillator
+ * types minus Sample, per the user manual p.20).
  */
 export interface Nw2Waveform {
-  /**
-   * Oscillator mode flag (body local[77]).
-   * 0xfe = standard mode; 0xff = extended/wavetable mode.
-   */
+  /** Slot source kind — sample slots carry a library index, oscillator slots a waveform selector. */
+  readonly kind: 'oscillator' | 'sample';
+  /** Raw source flag byte (body local[77]): 0xfe = oscillator, 0xff = sample. */
   readonly oscFlag: number;
   /**
-   * Waveform bank selector (body local[78]).
-   * 0 = classic synth waveforms (Sine, Saw, Square, …); 1 = named wavetable catalog.
+   * Sample slots only: 10-bit sample-list index,
+   * ((local[78]<<8 | local[79]) << 2) | (local[80] >> 6). Same sample → same
+   * index across programs (bundle-verified); cross-device stability unproven.
    */
-  readonly bank: number;
+  readonly sampleIndex?: number;
   /**
-   * Waveform or wavetable index within the bank (body local[79]).
-   * Low values (0, 2, 3, 7) = classic synth waveforms.
-   * High values (e.g. 0x65=Choir, 0xb2=E Guitar, 0x95=?) = named wavetable catalog entries.
+   * Oscillator slots only: waveform selector (body local[79]).
+   * 0 = Sine ("Sine Pad" anchor; first Basic waveform in the manual).
+   * Other observed values (1-9) not yet mapped to the manual's category lists.
    */
-  readonly id: number;
+  readonly waveformId?: number;
 }
 
 /** One voice slot in a Wave 2 program (exactly 244 bytes). */

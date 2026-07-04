@@ -98,12 +98,16 @@ function readOrgan(body: Uint8Array): Ne4Organ {
 
 /**
  * Decode the NE4 Piano/Sample section reference + voice params.
- * Stage oracle: piano model ID [32b] (group p) for refId; piano touch/timbre/
- * level family (group p) for voiceParams. Both candidate (exact split unverified).
+ * refId is CONFIRMED as the sample/piano reference by the electro-4 backup
+ * meta.xml (2026-07-04): the three programs whose meta.xml all declare
+ * InfectedSquares_FedericoSolazzo.nsmp share identical body[37-41]=a941cb3d51,
+ * while programs with other deps differ there. (The id is device-generated, not
+ * a content hash of the .nsmp — same story as the v3 sample hash; resolve via
+ * the name endpoints, not the bytes.) voiceParams split remains candidate.
  */
 function readSample(body: Uint8Array): Ne4Sample {
   return {
-    refId: body.slice(37, 42),       // body[37-41] — ~40-bit factory sample-set ID
+    refId: body.slice(37, 42),       // body[37-41] — factory sample/piano reference id
     voiceParams: body.slice(43, 45), // body[43-44] — per-sound level/timbre/zone
   };
 }

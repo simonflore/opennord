@@ -19,7 +19,7 @@
  * | Global / tail | 280-289   | 10b  | candidate |
  * | (zero pad)    | 290-302   | 13b  | constant  |
  * | byte[303]     | 303       | 1b   | unknown (near-const 0) |
- * | checksum      | 304-305   | 2b   | candidate (uint16 LE CRC) |
+ * | checksum      | 304-305   | 2b   | confirmed — LE CRC-16/CCITT-FALSE over file[0:-2] (clavia/crc16.ts; 1018/1018) |
  *
  * Byte-aligned per-slot fields (the rest of the voice is bit-packed and
  * straddles byte boundaries — see `coverage.ts` differential workflow to pin
@@ -71,7 +71,8 @@ export function decodeNw1(bytes: Uint8Array): Nw1Program {
   const body = bytes.slice(BODY_OFFSET);
   const version = formatCbinVersion(bytes);
 
-  // body[304-305]: uint16 LE checksum over the body.
+  // body[304-305]: LE CRC-16/CCITT-FALSE over the whole file except the final
+  // 2 bytes (clavia/crc16.ts; confirmed 1018/1018 corpus 2026-07-04).
   const checksum = u8(body, 304) | (u8(body, 305) << 8);
 
   return {
