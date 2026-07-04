@@ -27,6 +27,8 @@ nse_decomp/
 # publicly for body-parser RE (Tier B oracle). NEVER commit/redistribute (docs/LEGAL.md).
 firmware/
 firmware_decomp/
+# Wave-editor / firmware recon material (os.cab, .dmg) — same Clavia IP, local only.
+research/nwe/
 # Full real sample audio used for local decoder validation — the user's own
 # recordings, kept out of the repo (size + scope). Trimmed fixtures live under
 # src/lib/ns4/__fixtures__/nsmp/ instead.
