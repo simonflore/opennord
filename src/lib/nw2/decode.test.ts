@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync, existsSync } from 'fs';
-import { join } from 'path';
+import { join, basename } from 'path';
 import { describe, it, expect } from 'vitest';
 import { decodeNw2 } from './decode';
+import { parseBundleDeps } from '../contribute/bundle-deps';
 
 const FIXTURE_DIR = join(__dirname, '../../../fixtures/wave-2');
 const load = (name: string) => new Uint8Array(readFileSync(join(FIXTURE_DIR, name)));
@@ -129,16 +130,20 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNw2', () => {
 
   // Ground-truth regression: for every program listed in the bundle's meta.xml,
   // the number of sample slots equals the declared sample-dependency count.
+  // Uses the shared bundle-deps parser (validates it against a real bundle).
   it('sample-slot count matches bundle meta.xml depCnt for every program', () => {
     const metaPath = join(FIXTURE_DIR, 'Elijah Fox Signature Sound Bank Bundle/meta.xml');
     if (!existsSync(metaPath)) return;
-    const meta = readFileSync(metaPath, 'utf8');
-    for (const m of meta.matchAll(/<file name="Program\/Bank O\/([^"]+)\.nw2p" depCnt="(\d+)"/g)) {
-      const fixture = `EF__Program_Bank O_${m[1]}.nw2p`;
+    const deps = parseBundleDeps(readFileSync(metaPath, 'utf8'));
+    const programs = deps.filter((d) => d.program.endsWith('.nw2p'));
+    expect(programs.length).toBeGreaterThan(0);
+    for (const { program, deps: fileDeps } of programs) {
+      const fixture = `EF__Program_Bank O_${basename(program)}`;
       if (!existsSync(join(FIXTURE_DIR, fixture))) continue;
-      const prog = decodeNw2(load(fixture));
-      const sampleSlots = prog.slots.filter(s => s.waveform.kind === 'sample').length;
-      expect(sampleSlots, m[1]).toBe(Number(m[2]));
+      // Only sample deps (.nsmp*) map to sample slots — pianos/other deps don't.
+      const sampleDeps = fileDeps.filter((d) => /\.nsmp\d?$/.test(d)).length;
+      const sampleSlots = decodeNw2(load(fixture)).slots.filter((s) => s.waveform.kind === 'sample').length;
+      expect(sampleSlots, program).toBe(sampleDeps);
     }
   });
 
