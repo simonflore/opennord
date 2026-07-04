@@ -605,6 +605,8 @@ export const MODEL_PROGRESS: Record<string, ModelProgress> = {
       { label: 'Slot 2 enum param (default 7)',                     ranges: [{ start: 185, end: 186 }] },
       { label: 'Slot 1 stepped param (even-only steps)',            ranges: [{ start: 39,  end: 40  }] },
       { label: 'Slot 2 stepped param (even-only steps)',            ranges: [{ start: 179, end: 180 }] },
+      { label: 'Slot 1 selector enum2 (0-6) / enum3 (0-3)',         ranges: [{ start: 49, end: 50 }, { start: 84, end: 85 }] },
+      { label: 'Slot 2 selector enum2 (0-6) / enum3 (0-3)',         ranges: [{ start: 189, end: 190 }, { start: 224, end: 225 }] },
       { label: 'Slot 1 voice params (osc/filter/env/LFO, packed)',  ranges: [{ start: 0,   end: 116 }] },
       { label: 'Slot 2 voice params (mirror of slot 1, +140)',      ranges: [{ start: 140, end: 256 }] },
       { label: 'Global / FX / master tail',                         ranges: [{ start: 280, end: 290 }] },

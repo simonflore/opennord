@@ -41,6 +41,10 @@ export interface Nw1Slot {
   readonly steppedParam: number;
   /** body[+45]: enum 0-7 (mode 7), likely osc-config / filter-type. */
   readonly enumParam: number;
+  /** body[+49]: enum 0-6 (7 values), per-slot mirrored. Corpus-confirmed, unnamed. */
+  readonly enum2: number;
+  /** body[+84]: enum 0-3 (4 values), per-slot mirrored. Corpus-confirmed, unnamed. */
+  readonly enum3: number;
   /** Full 116-byte bit-packed voice block (osc/filter/env/LFO). */
   readonly _raw: Uint8Array;
 }
@@ -52,6 +56,8 @@ export interface Nw1Slot {
 export interface Nw1Global {
   /** body[280] low nibble: mode / octave-shift enum (0-15). */
   readonly mode: number;
+  /** body[286] bit0: near-binary global toggle (0/1 in 1017/1018 files). Candidate. */
+  readonly toggle: number;
   /** body[289]: packed 2-bit flag pair {0,64,128,192} (e.g. arp on/off + FX on/off). */
   readonly flags: number;
   /** Full 10-byte tail block. */

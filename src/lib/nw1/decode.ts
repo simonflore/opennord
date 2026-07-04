@@ -27,6 +27,20 @@
  *   - slot+0  : oscSelect    (enum 0-8, mode 4)
  *   - slot+39 : steppedParam (even-only {0,2,4,6,8,10})
  *   - slot+45 : enumParam    (enum 0-7, mode 7)
+ *   - slot+49 : enum2        (enum 0-6, per-slot mirrored; census 2026-07-04)
+ *   - slot+84 : enum3        (enum 0-3, per-slot mirrored; census 2026-07-04)
+ *
+ * ## Hardware-free ceiling (Phase 5, 2026-07-04)
+ *
+ * Wave 1 resists further hardware-free decode: the 1,018-file corpus is all
+ * distinct artist patches with **no natural minimal pairs** (the miner found 2
+ * at K=2), so differential RE via near-duplicates yields nothing. The firmware
+ * (`nw1/params.reference.ts`, from research/nwe/os.cab) supplies the parameter
+ * NAME + enum pool, but the byte→name mapping needs a differential the corpus
+ * can't provide. So the byte-aligned selectors above are surfaced (offsets
+ * corpus-confirmed) but left UNNAMED — naming them, and the sub-byte voice
+ * fields, needs a hardware single-knob differential. Do not assign firmware
+ * names on cardinality match alone (that overfit was the np4 6-file mistake).
  *
  * Global:
  *   - body[280] low nibble : mode/octave enum (0-15)
@@ -50,6 +64,13 @@ function readSlot(body: Uint8Array, slotOffset: number): Nw1Slot {
     oscSelect: u8(body, slotOffset + 0),
     steppedParam: u8(body, slotOffset + 39),
     enumParam: u8(body, slotOffset + 45),
+    // Two more byte-aligned per-slot selectors surfaced by the 1,018-file census
+    // (2026-07-04): both mirror across the +140 slot stride and are low-
+    // cardinality. Names not yet assigned — the firmware oracle
+    // (params.reference.ts) supplies the candidate param pool, but the byte→name
+    // mapping needs a differential the corpus lacks (no natural minimal pairs).
+    enum2: u8(body, slotOffset + 49),
+    enum3: u8(body, slotOffset + 84),
     _raw: body.slice(slotOffset, slotOffset + SLOT_LEN),
   };
 }
@@ -58,6 +79,8 @@ function readSlot(body: Uint8Array, slotOffset: number): Nw1Slot {
 function readGlobal(body: Uint8Array): Nw1Global {
   return {
     mode: u8(body, GLOBAL_OFFSET) & 0x0f,
+    // body[286]: near-binary global flag (0/1 in 1017/1018 files). Candidate.
+    toggle: u8(body, GLOBAL_OFFSET + 6) & 0x01,
     flags: u8(body, GLOBAL_OFFSET + 9),
     _raw: body.slice(GLOBAL_OFFSET, GLOBAL_OFFSET + GLOBAL_LEN),
   };

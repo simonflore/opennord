@@ -49,6 +49,11 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNw1', () => {
         // steppedParam: even-only {0,2,4,6,8,10}
         expect(slot.steppedParam % 2, `${name} steppedParam even`).toBe(0);
         expect(slot.steppedParam, `${name} steppedParam`).toBeLessThanOrEqual(10);
+        // enum2 (body[+49]): 0-6, enum3 (body[+84]): 0-3 — census 2026-07-04
+        expect(slot.enum2, `${name} enum2`).toBeGreaterThanOrEqual(0);
+        expect(slot.enum2, `${name} enum2`).toBeLessThanOrEqual(6);
+        expect(slot.enum3, `${name} enum3`).toBeGreaterThanOrEqual(0);
+        expect(slot.enum3, `${name} enum3`).toBeLessThanOrEqual(3);
       }
     }
   });
@@ -60,9 +65,13 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNw1', () => {
     expect(prog.slot1.oscSelect).toBe(body[0]);
     expect(prog.slot1.steppedParam).toBe(body[39]);
     expect(prog.slot1.enumParam).toBe(body[45]);
+    expect(prog.slot1.enum2).toBe(body[49]);
+    expect(prog.slot1.enum3).toBe(body[84]);
     expect(prog.slot2.oscSelect).toBe(body[140]);
     expect(prog.slot2.steppedParam).toBe(body[179]);
     expect(prog.slot2.enumParam).toBe(body[185]);
+    expect(prog.slot2.enum2).toBe(body[189]);
+    expect(prog.slot2.enum3).toBe(body[224]);
   });
 
   it('decodes the global block fields and a uint16 checksum', () => {
