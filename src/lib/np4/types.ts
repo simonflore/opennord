@@ -8,31 +8,29 @@
  * piano oracle param map (cross-model mapping, 2026-06-22). The Stage oracle is a
  * REFERENCE we transcribe from — never a runtime import (lib/ns4 is off-limits here).
  *
- * ## Confirmed fields (Stage oracle alignment, 2026-06-22, 6 fixtures × 134 bytes)
+ * ## Confirmed fields (Ondre bundle meta.xml 2026-07-04, re-validated over the
+ * ## 212-file factory-restore corpus)
  *
- * | Body offset | Field | Stage oracle param | Source |
- * |-------------|-------|--------------------|--------|
- * | 19-23       | pianoModelId — 5-byte model reference | 245-5 piano model ID/name [32b], group p | George=Tea shared bytes confirm model, not program |
- * | 25          | pianoFamily — bit7: 1=EP, 0=Grand | 244-3 piano type [3b], group p (binarized) | Clean binary split, 4 EP + 2 Grand |
- * | 72          | pianoFamilyCheck — 0x0c=EP, 0x90=Grand | 244-3 piano type [3b], group p (redundant) | Second discriminator, perfectly correlated with b25 |
+ * | Body offset | Field | Source |
+ * |-------------|-------|--------|
+ * | 19 lo-nibble | pianoSlot — piano partition slot | Matches the paired .npno's CBIN slot byte @0x0e, 6/6 bundle pairs |
+ * | 20-24 bit1  | pianoModelId — family-wide 32-bit model id | BE(body[20:24])·4 + body[24]>>6; resolves via PIANO_NAMES to the correct piano name across the corpus |
  *
- * ## Candidate fields (high confidence, unconfirmed without differential RE)
+ * ## Candidate fields
  *
- * | Body offset | Field | Stage oracle param | Notes |
- * |-------------|-------|--------------------|-------|
- * | 35          | pianoLevel — output level 0-127 | 230-7 volume [7b], group p | Observed 71-95 across corpus; bit7 always clear |
- * | 36 bits 7-6 | velocityCurve — 2-bit enum | 249-8 touch [2b], group p | 0,1,3 observed; label mapping unverified |
- * | 59-60       | fxModWord — big-endian uint16 FX-mod region head | 267-1 FX mod 1 on/off + 275-5 FX mod 2 on/off | Region sound; no clean isolated on/off bit |
- * | 66-69       | fxModParams — 4-byte FX modulation block | 267-3 FX mod 1 rate [7b] / 271-2 FX mod 1 amount [7b] | Tea Phaser distinctly non-zero |
+ * | Body offset | Field | Notes |
+ * |-------------|-------|-------|
+ * | 59-60       | fxModWord — big-endian uint16 FX-mod region head | Region sound; no clean isolated on/off bit |
+ * | 66-69       | fxModParams — 4-byte FX modulation block | Tea Phaser distinctly non-zero |
  *
- * Source: 6 real .np4p fixtures aligned against the Stage piano (group p) param map (2026-06-22).
+ * ## Falsified by the 212-file re-census (2026-07-04)
+ *
+ * The 6-file corpus produced spurious "confirmed" fields — all removed:
+ * body[25] bit7 pianoFamily (doesn't track modelId→name family), body[72]
+ * pianoFamilyCheck (16 values, not a 0x0c/0x90 binary), body[35] pianoLevel
+ * (sample-section data, not a level), body[36] velocityCurve (sample section).
+ * See decode.ts for the census figures.
  */
-
-/** Piano family: which instrument type is loaded in this program. */
-export type Np4PianoFamily = 'EP' | 'Grand';
-
-/** Velocity curve setting (byte 36 bits 7-6). */
-export type Np4VelocityCurve = 'Soft' | 'Medium' | 'Heavy' | 'Unknown';
 
 /**
  * Decoded Nord Piano 4 program.
@@ -42,67 +40,31 @@ export type Np4VelocityCurve = 'Soft' | 'Medium' | 'Heavy' | 'Unknown';
  */
 export interface Np4Program {
   readonly parsed: true;
-  /** Program version string derived from CBIN versionRaw, e.g. "1.00". */
+  /** Program version string derived from CBIN versionRaw, e.g. "1.00" or "1.01". */
   readonly version: string;
 
-  // ── Confirmed fields ────────────────────────────────────────────────────────
+  // ── Confirmed fields (bundle-validated over the 212-file corpus) ─────────────
 
   /**
-   * Piano family (EP vs Grand).
-   * Stage oracle: 244-3 piano type [3b], group p (binarized in np4).
-   * Derived from body[25] bit7: 1=EP/Electric family, 0=Grand family.
-   * (np4 collapses the Stage 3-bit piano-type enum to a single discriminating
-   * flag; the full type is implied by the model-family nibble at body[19].)
-   * Confirmed: clean binary discriminator across all 6 corpus programs;
-   * redundantly confirmed by `pianoFamilyCheck` (body[72]).
+   * Family-wide 32-bit piano model id, MSB-packed with a 2-bit continuation:
+   * BE(body[20:24])·4 + (body[24]>>6). Same id space as the Stage 4 piano
+   * model id (ns4 PIANO_NAMES resolves it — resolution happens at the
+   * presenter layer; ns4 is transcribe-only inside this module).
+   * Confirmed 2026-07-04 vs the Ondre bundle meta.xml and re-validated over the
+   * 212-file factory-restore corpus (George Model E & Tea Phaser → 1691162699 =
+   * "EP5 BrightTines XL" — they share the same piano).
    */
-  readonly pianoFamily: Np4PianoFamily;
+  readonly pianoModelId: number;
 
   /**
-   * 5-byte piano model reference (body[19-23]).
-   * Stage oracle: 245-5 piano model ID/name [32b], group p.
-   * body[19] = 0x4N: high nibble 0x4 is the piano category prefix; low nibble N
-   * is the model-family selector (0=Grand1, 3=Grand2, 4=Wurlitzer, 5=Suitcase2,
-   * 7=FunkySuitcase). body[20-23] are the Stage 32-bit modelID (the model hash).
-   * Confirmed: George Model E and Tea Phaser (two different Wurlitzer EP programs)
-   * share identical bytes [0x44, 0x19, 0x33, 0x46, 0x12] — proves it identifies
-   * the MODEL, not the program.
+   * The piano's partition slot — low nibble of body[19] (high nibble 0x4 is
+   * the piano-section prefix). Matches the paired .npno's CBIN slot byte
+   * (@0x0e) for all 6 bundle pairs: 4,4,7,5,3,0 across [George, Tea, Funky,
+   * Jazz, Corea, Utility].
    */
-  readonly pianoModelId: Uint8Array;
-
-  /**
-   * Model-family selector — low nibble of body[19].
-   * Derived from `pianoModelId[0] & 0x0f`. Distinguishes models within a family
-   * (e.g. Grand1 vs Grand2, Wurlitzer vs Suitcase2 vs FunkySuitcase).
-   * Confirmed: 4,4,7,5,3,0 across [George, Tea, Funky, Jazz, Corea, Utility].
-   */
-  readonly pianoModelFamily: number;
-
-  /**
-   * Redundant piano family check from body[72].
-   * Stage oracle: 244-3 piano type [3b], group p (second copy in the FX/output
-   * sub-block). 0x0c=EP, 0x90=Grand. Always agrees with `pianoFamily`.
-   */
-  readonly pianoFamilyCheck: number;
+  readonly pianoSlot: number;
 
   // ── Candidate fields ─────────────────────────────────────────────────────────
-
-  /**
-   * Piano output level (body[35]).
-   * Stage oracle: 230-7 volume [7b], group p.
-   * 7-bit value, 0-127 scale (bit7 always clear); observed 71-95 across corpus.
-   * Candidate — not confirmed by knob-diff RE.
-   */
-  readonly pianoLevel: number;
-
-  /**
-   * Velocity curve / touch (body[36] bits 7-6).
-   * Stage oracle: 249-8 touch [2b], group p.
-   * 2-bit enum: Soft=0, Medium=1, Heavy=3 (2 not observed).
-   * Candidate — value range fits a 2-bit field but the value→label mapping is
-   * unverified (no semantic differential).
-   */
-  readonly velocityCurve: Np4VelocityCurve;
 
   /**
    * FX-mod region head word (body[59-60] as big-endian uint16).
@@ -131,22 +93,25 @@ export interface Np4Program {
 
   /**
    * Piano sound selection cluster: body[17-25].
-   * Contains the confirmed model ID (b19-23) and family flag (b25).
-   * Bytes 17-18 and 24 carry per-program variation (transpose/tuning candidate).
+   * Contains the confirmed slot (b19 lo-nibble) and model id (b20-b24 bit1).
+   * Bytes 17-18, b25 and the low 6 bits of b24 carry per-program variation
+   * (b25 was a falsified "family flag" — see decode.ts re-census notes).
    */
   readonly _soundSection: Uint8Array;
 
   /**
-   * Piano engine parameters cluster: body[35-47].
-   * Contains confirmed level (b35) and velocity curve (b36 bits 7-6).
-   * Bytes 37-47 likely encode pedal noise, string resonance, release, cabinet, etc.
+   * Sample-synth section: body[35-47].
+   * Holds a device-generated sample reference (hash family — every bundle
+   * program declares exactly one .nsmp3 dep, and the George-vs-Tea same-piano
+   * diff covers this region contiguously) plus sample params. High-entropy
+   * across the corpus; not a set of clean scalar fields.
    */
-  readonly _pianoParams: Uint8Array;
+  readonly _sampleSection: Uint8Array;
 
   /**
    * FX and output cluster: body[59-72].
-   * Contains the FX-mod word (b59-60), FX-mod params (b66-69),
-   * output param (b70), routing param (b71), and family check (b72).
+   * Contains the FX-mod word (b59-60) and FX-mod params (b66-69); the rest is
+   * unidentified (b72 was a falsified "family check").
    */
   readonly _fxSection: Uint8Array;
 

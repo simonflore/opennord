@@ -8,20 +8,35 @@
  * (group p) oracle param map (cross-model mapping, 2026-06-22). The Stage oracle
  * is a REFERENCE we transcribe from, never a runtime import (lib/ns4 is off-limits).
  *
- * ## Confirmed body fields (Stage oracle alignment, 2026-06-22, 6 fixtures × 134 bytes)
+ * ## Confirmed body fields (Ondre bundle meta.xml ground truth 2026-07-04,
+ * ## re-validated over the 212-file factory-restore corpus)
  *
- * | Body offset | File offset | Field | Stage oracle param | Notes |
- * |-------------|-------------|-------|--------------------|-------|
- * | 19-23       | 63-67       | pianoModelId | 245-5 piano model ID/name [32b], group p | b19=0x4N family selector; b20-23 = 32b modelID. George=Tea shared bytes confirm model, not program |
- * | 25          | 69          | pianoFamily | 244-3 piano type [3b], group p (binarized) | bit7: 1=EP, 0=Grand; clean binary split |
- * | 72          | 116         | pianoFamilyCheck | 244-3 piano type [3b], group p (redundant) | 0x0c=EP, 0x90=Grand; perfectly correlated with b25 |
+ * | Body offset | File offset | Field | Notes |
+ * |-------------|-------------|-------|-------|
+ * | 19 lo-nibble | 63         | pianoSlot | The piano's partition slot: matches the paired .npno's CBIN slot byte (@0x0e), 6/6 bundle pairs. High nibble 0x4 = piano-section prefix |
+ * | 20-24 bit1  | 64-68       | pianoModelId | FAMILY-WIDE 32-bit piano model id, MSB-packed with a 2-bit continuation: BE(body[20:24])·4 + (body[24]>>6). Resolves through the Stage 4 PIANO_NAMES table to the correct piano name across the corpus (George Model E & Tea Phaser → 1691162699 = "EP5 BrightTines XL") |
  *
- * ## Candidate fields (Stage oracle param / evidence)
+ * ## Sample section (body[35-47])
+ *
+ * Every bundle program declares exactly one .nsmp3 sample dep, and the
+ * George-vs-Tea diff (same piano, different sample) covers body[35-47]
+ * contiguously — this 13-byte region is the SAMPLE-SYNTH section, holding a
+ * device-generated sample reference (hash family) plus sample params. It is
+ * high-entropy across the corpus and NOT a set of clean scalar fields.
+ *
+ * ## Falsified by the 212-file re-census (2026-07-04) — were 6-file artifacts
+ *
+ * | Body offset | Discarded claim | Why |
+ * |-------------|-----------------|-----|
+ * | 25 bit7     | pianoFamily EP/Grand | Does not track the modelId→name family (bit7=0 → 106 Grand/26 EP; bit7=1 → 34 Grand/19 EP) |
+ * | 72          | pianoFamilyCheck 0x0c/0x90 | 16 distinct values, most common 0x00 (96 files) — not a binary check |
+ * | 35          | pianoLevel 71-95 | 59 distinct values, full-byte range with bit7 set — sample-section data, not a level |
+ * | 36 bits 7-6 | velocityCurve | Inside the sample section; unverified |
+ *
+ * ## Candidate fields
  *
  * | Body offset | Field | Stage oracle param | Evidence |
  * |-------------|-------|--------------------|----------|
- * | 35          | pianoLevel | 230-7 volume [7b], group p | Range 71-95, monotone variation, 0-127 (bit7 clear) |
- * | 36 bits 7-6 | velocityCurve | 249-8 touch [2b], group p | 2-bit enum (0,1,3 observed); label map unverified |
  * | 59-60       | fxModWord | 267-1/275-5 FX mod on/off region, group p | FX sub-block head; 0x0202≠"off" (Tea Phaser is active) |
  * | 66-69       | fxModParams | 267-3 rate [7b] / 271-2 amount [7b], group p | Tea Phaser distinctly non-zero [0x3f, 0x8d, 0x70, 0xf2] |
  *
@@ -44,32 +59,11 @@
  */
 
 import { CBIN_BODY_OFFSET as BODY_OFFSET, formatCbinVersion } from '../clavia/cbin';
-import type { Np4PianoFamily, Np4VelocityCurve, Np4Program } from './types';
+import type { Np4Program } from './types';
 
 const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
-
-/**
- * Decode piano family from body[25] bit7.
- * Stage oracle: 244-3 piano type [3b], group p (binarized in np4).
- * Confirmed: bit7=1 → EP, bit7=0 → Grand.
- */
-function readPianoFamily(body: Uint8Array): Np4PianoFamily {
-  return (u8(body, 25) & 0x80) !== 0 ? 'EP' : 'Grand';
-}
-
-/**
- * Decode velocity curve from body[36] bits 7-6.
- * Stage oracle: 249-8 touch [2b], group p. Candidate field.
- */
-function readVelocityCurve(body: Uint8Array): Np4VelocityCurve {
-  const bits = (u8(body, 36) >>> 6) & 0x3;
-  switch (bits) {
-    case 0: return 'Soft';
-    case 1: return 'Medium';
-    case 3: return 'Heavy';
-    default: return 'Unknown';
-  }
-}
+const int32be = (b: Uint8Array, o: number): number =>
+  u8(b, o) * 0x1000000 + u8(b, o + 1) * 0x10000 + u8(b, o + 2) * 0x100 + u8(b, o + 3);
 
 /** Decode Nord Piano 4 program body (full file bytes including CBIN header). */
 export function decodeNp4(bytes: Uint8Array): Np4Program {
@@ -83,28 +77,15 @@ export function decodeNp4(bytes: Uint8Array): Np4Program {
 
   const version = formatCbinVersion(bytes);
 
-  // Confirmed: body[25] bit7 piano family flag.
-  // Stage oracle: 244-3 piano type [3b], group p (binarized).
-  const pianoFamily = readPianoFamily(body);
-
-  // Confirmed: body[72] redundant family check.
-  // Stage oracle: 244-3 piano type [3b], group p (second copy in FX sub-block).
-  const pianoFamilyCheck = u8(body, 72);
-
-  // Confirmed: body[19-23] = 5-byte model reference.
-  // Stage oracle: 245-5 piano model ID/name [32b], group p.
-  // body[19]=0x4N (high nibble 0x4 = piano prefix; low nibble = family selector),
-  // body[20-23] = the Stage 32-bit modelID.
-  const pianoModelId = body.slice(19, 24);
-  const pianoModelFamily = u8(body, 19) & 0x0f;
-
-  // Candidate: body[35] = output level.
-  // Stage oracle: 230-7 volume [7b], group p (0-127, bit7 clear; observed 71-95).
-  const pianoLevel = u8(body, 35);
-
-  // Candidate: body[36] bits 7-6 = velocity curve / touch.
-  // Stage oracle: 249-8 touch [2b], group p.
-  const velocityCurve = readVelocityCurve(body);
+  // Confirmed: family-wide 32-bit piano model id, MSB-packed with a 2-bit
+  // continuation into body[24]. Multiplication (not <<2) — values exceed 2^31.
+  // Ground truth: the 6 Ondre-bundle programs resolve through the Stage 4
+  // PIANO_NAMES table to exactly the .npno their meta.xml declares, and the id
+  // matches the correct piano name across the 212-file corpus.
+  const pianoModelId = int32be(body, 20) * 4 + (u8(body, 24) >> 6);
+  // Confirmed: body[19] low nibble = the piano's partition slot (matches the
+  // paired .npno CBIN slot byte @0x0e, 6/6). High nibble 0x4 = section prefix.
+  const pianoSlot = u8(body, 19) & 0x0f;
 
   // Candidate: body[59-60] big-endian uint16 = FX-mod region head word.
   // Stage oracle: 267-1 FX mod 1 on/off + 275-5 FX mod 2 on/off region, group p.
@@ -115,34 +96,31 @@ export function decodeNp4(bytes: Uint8Array): Np4Program {
   // Stage oracle: 267-3 FX mod 1 rate [7b] / 271-2 FX mod 1 amount [7b], group p.
   const fxModParams = body.slice(66, 70);
 
-  // Family check cross-validation (both confirmed independently; mismatch is anomalous)
-  const familyCheckEP = pianoFamilyCheck === 0x0c;
-  const familyCheckGrand = pianoFamilyCheck === 0x90;
-  const familyFromB25IsEP = pianoFamily === 'EP';
-  if (familyFromB25IsEP !== familyCheckEP || (!familyCheckEP && !familyCheckGrand)) {
-    warnings.push(
-      `Piano family mismatch: body[25]=0x${u8(body, 25).toString(16)} → ${pianoFamily}, ` +
-      `body[72]=0x${pianoFamilyCheck.toString(16)} (expected 0x0c=EP or 0x90=Grand)`
-    );
-  }
+  // RE-CENSUS 2026-07-04 (212 files, factory-restore corpus) FALSIFIED the
+  // small-corpus (6-file) family/level claims — they were artifacts:
+  //   - body[25] bit7 "piano family EP/Grand": does NOT track the modelId→name
+  //     family (bit7=0 → 106 Grand / 26 EP; bit7=1 → 34 Grand / 19 EP). Removed.
+  //   - body[72] "redundant family check 0x0c/0x90": 16 distinct values across
+  //     the corpus, most common 0x00 (96 files). Not a binary check. Removed.
+  //   - body[35] "piano level 71-95": 59 distinct values spanning the full byte
+  //     with bit7 set — it is high-entropy SAMPLE-section data, not a level.
+  //   - body[36] "velocity curve": also inside the sample section; unverified.
+  // Surviving confirmed fields: pianoModelId (name) + pianoSlot, both bundle-
+  // validated. The sample section (body[35-47]) is kept raw pending real RE.
 
   return {
     parsed: true,
     version,
-    // Confirmed fields
-    pianoFamily,
+    // Confirmed (bundle-validated across the 212-file corpus)
     pianoModelId,
-    pianoModelFamily,
-    pianoFamilyCheck,
-    // Candidate fields
-    pianoLevel,
-    velocityCurve,
+    pianoSlot,
+    // Candidate FX region
     fxModWord,
     fxModParams,
     // Raw clusters — meaningful section names by body byte range
-    _soundSection: body.slice(17, 26),  // 9 bytes: model ID + family flag
-    _pianoParams: body.slice(35, 48),   // 13 bytes: level + velocity + voicing
-    _fxSection: body.slice(59, 73),     // 14 bytes: FX + output + family check
+    _soundSection: body.slice(17, 26),   // 9 bytes: slot + model id
+    _sampleSection: body.slice(35, 48),  // 13 bytes: sample ref (device-gen hash) + sample params
+    _fxSection: body.slice(59, 73),      // 14 bytes: FX region
     _rawBody: body,
     bytes,
     warnings,

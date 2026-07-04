@@ -78,15 +78,18 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNe5', () => {
 
   // --- CONFIRMED: organ preset 2 (second preset, body[39-49]) ---
 
-  it('preset-2 upper default is [8,8,8,8,0,0,0,0,0] for 11/13 fixtures', () => {
+  it('preset-2 upper defaults to [8,8,8,8,0,0,0,0,0] for the majority of fixtures', () => {
+    // Re-census 2026-07-04 (213 files): the default voicing is the corpus
+    // majority (was "11/13" on the 13-file corpus — an overfit count). VCS3 and
+    // Walk of Life deviate (they use preset 1 / a custom preset-2 respectively).
     const DEFAULT = [8, 8, 8, 8, 0, 0, 0, 0, 0].join(',');
-    let defaultCount = 0;
-    for (const name of fixtures()) {
-      if (decodeNe5(load(name)).organ.preset2Upper.bars.join(',') === DEFAULT) defaultCount++;
-    }
-    // The 2 deviators: VCS3 (preset-2 all-zero — it uses preset 1) and Walk of
-    // Life (custom preset-2 voicing — it uses preset 2).
-    expect(defaultCount).toBe(11);
+    const all = fixtures();
+    const defaultCount = all.filter(
+      (n) => decodeNe5(load(n)).organ.preset2Upper.bars.join(',') === DEFAULT,
+    ).length;
+    expect(defaultCount).toBeGreaterThan(all.length / 2);
+    expect(decodeNe5(load(VCS3)).organ.preset2Upper.bars.join(',')).not.toBe(DEFAULT);
+    expect(decodeNe5(load(WALK)).organ.preset2Upper.bars.join(',')).not.toBe(DEFAULT);
   });
 
   it('Walk of Life carries custom preset-2 upper + lower (it uses organ preset 2)', () => {
@@ -97,17 +100,18 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNe5', () => {
 
   // --- CONFIRMED: piano/sample section active (body[17] bit7) ---
 
-  it('sampleSectionActive flips exactly with sample-based vs organ-only presets', () => {
+  it('reads sampleSectionActive as a boolean for every fixture', () => {
     for (const name of fixtures()) {
-      const prog = decodeNe5(load(name));
-      const expected = name !== VCS3 && name !== WALK; // the 2 organ-only presets
-      expect(prog.sampleSectionActive, name).toBe(expected);
+      expect(typeof decodeNe5(load(name)).sampleSectionActive, name).toBe('boolean');
     }
   });
 
-  it('exactly 2 fixtures (the organ-only presets) have sampleSectionActive=false', () => {
-    const inactive = fixtures().filter(n => !decodeNe5(load(n)).sampleSectionActive);
-    expect(inactive.sort()).toEqual([VCS3, WALK].sort());
+  it('the organ-only presets read sampleSectionActive=false', () => {
+    // VCS3 and Walk of Life are organ-only (no sample layer). Re-census
+    // 2026-07-04: the 213-file corpus has more organ-only presets than these two,
+    // so the earlier "exactly 2" claim was overfit — but these two still hold.
+    expect(decodeNe5(load(VCS3)).sampleSectionActive).toBe(false);
+    expect(decodeNe5(load(WALK)).sampleSectionActive).toBe(false);
   });
 
   // --- CONFIRMED: factory sample / model id (body[7-12]) ---
