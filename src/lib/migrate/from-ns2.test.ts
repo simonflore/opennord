@@ -171,6 +171,14 @@ describe('fromNs2', () => {
     expect(common.synth?.ampEnv?.velocity).toBe(true);
   });
 
+  it('lifts synth cutoffHz from the freq string (e.g. "1 kHz")', () => {
+    expect(common.synth?.cutoffHz).toBe(1000);
+  });
+
+  it('lifts synth LFO rateHz from the lfoRate string (e.g. "2.0 Hz")', () => {
+    expect(common.synth?.lfo?.rateHz).toBe(2);
+  });
+
   it('lifts global reverb into a CommonFxUnit', () => {
     const reverb = common.fx?.find((f) => f.slot === 'reverb');
     expect(reverb).toMatchObject({ on: true, type: 'Hall', amountMidi: 80 });

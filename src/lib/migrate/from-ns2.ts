@@ -5,7 +5,7 @@
  */
 import type { Ns2Program, Ns2Slot, Ns2Fx } from '../ns2/decode';
 import type { CommonProgram, CommonFxUnit, LiftResult } from './common';
-import { timeStringToMs } from './units';
+import { freqStringToHz, timeStringToMs } from './units';
 
 export type { LiftResult } from './common';
 
@@ -106,6 +106,9 @@ export function fromNs2(
         cutoffMidi: y.filter.freqMidi,
         resonanceMidi: y.filter.resonanceMidi,
       },
+      // Cutoff: carry the display string's Hz for the emitter's nearest-match
+      // (source: Ns2SynthFilter.freq, e.g. '1 kHz').
+      cutoffHz: freqStringToHz(y.filter.freq) ?? undefined,
       ampEnv: {
         attackMs: timeStringToMs(y.ampEnv.attack) ?? undefined,
         decayMs: timeStringToMs(y.ampEnv.decay) ?? undefined,
@@ -118,7 +121,9 @@ export function fromNs2(
         releaseMs: timeStringToMs(y.modEnv.release) ?? undefined,
         velocity: y.modEnv.velocity,
       },
-      lfo: { wave: y.lfoWave, rateMidi: y.lfoRateMidi },
+      // LFO: carry wave, MIDI rate, and the display string's Hz for the emitter's
+      // nearest-match (source: Ns2SynthSlot.lfoRate, e.g. '2.0 Hz').
+      lfo: { wave: y.lfoWave, rateMidi: y.lfoRateMidi, rateHz: freqStringToHz(y.lfoRate) ?? undefined },
       unison: y.unison,
       volumeMidi: y.volumeMidi, // decode.ts:875 — already MIDI
       octaveShift: y.octaveShift,
