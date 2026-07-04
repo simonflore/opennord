@@ -47,6 +47,10 @@ export interface CommonSynth {
   /** Source waveform/osc label when mode==='analog' (e.g. "Saw", "Pulse"). */
   waveform?: string;
   filter?: { type?: string; cutoffMidi?: number; resonanceMidi?: number };
+  /** Cutoff carried in Hz (display value) for the emitter's nearest-match scan. */
+  cutoffHz?: number;
+  /** Resonance normalized 0-1 from the source's 0-10 display value (e.g. ns3 "2.0" -> 0.2). */
+  resonance01?: number;
   ampEnv?: CommonEnv;
   modEnv?: CommonEnv;
   lfo?: { wave?: string; rateHz?: number; rateMidi?: number };
