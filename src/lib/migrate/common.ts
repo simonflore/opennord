@@ -102,3 +102,10 @@ export interface MigrationReport {
   /** One-time global caveats (e.g. unmapped-byte disclaimer). */
   globalNotes: string[];
 }
+
+/** Result of lifting a source-generation program into CommonProgram. */
+export interface LiftResult {
+  common: CommonProgram;
+  /** Musician-language names of source features that were ON but can't carry. */
+  dropped: string[];
+}

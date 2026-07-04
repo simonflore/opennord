@@ -3,14 +3,10 @@
  * into CommonProgram. Pure model→model; every mapping cites its source field.
  */
 import type { Ns3Program, Ns3Panel } from '../ns3/decode';
-import type { CommonProgram, CommonFxUnit, CommonFxSlot } from './common';
+import type { CommonProgram, CommonFxUnit, CommonFxSlot, LiftResult } from './common';
 import { dbStringToMidi, timeStringToMs, freqStringToHz } from './units';
 
-export interface LiftResult {
-  common: CommonProgram;
-  /** Musician-language names of source features that were ON but can't carry. */
-  dropped: string[];
-}
+export type { LiftResult } from './common';
 
 // Ns3Fx.name values, per ns3/decode.ts `readFx` (ns3-fx-*.js): 'Rotary',
 // 'Effect 1', 'Effect 2', 'Amp/EQ', 'Comp', 'Delay', 'Reverb'.
