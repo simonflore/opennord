@@ -118,6 +118,15 @@ export const EMITTER_PARAMS: ReadonlyArray<readonly [Ns4Group, string]> = [
   ['p', 'FX comp on/off'],
   ['p', 'FX reverb on/off'],
   ['p', 'FX reverb type'],
+  // organ FX (master-scoped, single-layer — see emitFx/ORGAN_FX_PARAM)
+  ['m', 'organ FX mod 1 on/off'],
+  ['m', 'organ FX mod 1 mode'],
+  ['m', 'organ FX mod 2 on/off'],
+  ['m', 'organ FX mod 2 mode'],
+  ['m', 'organ FX delay on/off'],
+  ['m', 'organ FX comp on/off'],
+  ['m', 'organ FX reverb on/off'],
+  ['m', 'organ FX reverb type'],
 ] as const;
 
 // ─── shared helpers ──────────────────────────────────────────────────────────
@@ -534,16 +543,40 @@ const FX_TYPE_PARAM: Record<string, FxSlotParams> = {
 };
 
 /**
- * Which ns4 group hosts an FX unit for this program. Organ FX lives in group
- * 'm' (master, single-layer, "organ FX …" names — a structurally different
- * table); to avoid that complexity and the single-layer throw, we route FX to
- * the active *sound* engine's own per-layer FX (piano 'p' or synth 'y'). The
- * source program's FX apply to whichever slot engine is present.
+ * Organ FX slot → its master-scoped ns4 param names (group 'm', single
+ * layer — Task 3's discovery: organ FX is shared across the organ's A/B
+ * layers, so a layer-1 edit throws). Only slots with a confirmed "organ FX
+ * ... on/off" param are listed; slots absent here (e.g. ampsim) have no
+ * organ-FX counterpart and fall through to an honest not-migratable note.
+ * Type/mode params (`organ FX reverb type` / `organ FX mod N mode`) have no
+ * PARAM_TABLE alias but share the same interpret ids as their engine-hosted
+ * counterparts (224-6/183-1/191-4), so `invertByInterpret` — the same
+ * fallback used for "organ model" — inverts their labels through the real
+ * enum tables (FXreverbType/FXmod1mode/FXmod2mode).
+ */
+const ORGAN_FX_PARAM: Record<string, FxSlotParams> = {
+  mod1: { on: 'organ FX mod 1 on/off', typeParam: 'organ FX mod 1 mode' },
+  mod2: { on: 'organ FX mod 2 on/off', typeParam: 'organ FX mod 2 mode' },
+  delay: { on: 'organ FX delay on/off' },
+  reverb: { on: 'organ FX reverb on/off', typeParam: 'organ FX reverb type' },
+  comp: { on: 'organ FX comp on/off' },
+};
+
+/**
+ * Which ns4 group hosts an FX unit for this program.
+ *
+ * - Piano or synth on: route to that engine's own per-layer FX ('p'/'y') —
+ *   unchanged from before.
+ * - Organ-only (no piano/synth active): 'p'/'y' are disabled layers on
+ *   Stage 4 — an FX edit there is silently inaudible on hardware, so we must
+ *   NOT route there. Route to the organ's own master-scoped FX (group 'm')
+ *   instead; see emitFx/ORGAN_FX_PARAM for the honest per-slot fallback when
+ *   a unit has no organ-FX counterpart.
  */
 function fxHostGroup(common: CommonProgram): Ns4Group {
   if (common.synth?.on) return 'y';
   if (common.piano?.on) return 'p';
-  return 'y';
+  return 'm';
 }
 
 function emitFx(common: CommonProgram, out: SectionOut): void {
@@ -551,7 +584,63 @@ function emitFx(common: CommonProgram, out: SectionOut): void {
   if (!fx || !fx.length) return;
   const group = fxHostGroup(common);
   for (const unit of fx) {
-    emitFxUnit(unit, group, out);
+    if (group === 'm') {
+      emitOrganFxUnit(unit, out);
+    } else {
+      emitFxUnit(unit, group, out);
+    }
+  }
+}
+
+/**
+ * Organ-only FX routing (group 'm', layer 0 only). Every branch here either
+ * emits a real edit against a param that actually reaches the organ engine,
+ * or leaves a 'defaulted'/'not-migratable' note — never a 'mapped'/"carried
+ * over" note without the corresponding edit, since that would claim an
+ * inaudible effect succeeded.
+ */
+function emitOrganFxUnit(unit: CommonFxUnit, out: SectionOut): void {
+  const spec = ORGAN_FX_PARAM[unit.slot];
+  if (!spec) {
+    out.notes.push({
+      field: `Effect (${unit.slot})`,
+      status: 'not-migratable',
+      note: `The "${unit.slot}" effect couldn't be carried onto the organ — add it on your Stage 4.`,
+    });
+    return;
+  }
+  const onParam = param('m', spec.on);
+  if (!onParam) {
+    out.notes.push({
+      field: `Effect (${unit.slot})`,
+      status: 'not-migratable',
+      note: `The "${unit.slot}" effect couldn't be carried onto the organ — add it on your Stage 4.`,
+    });
+    return;
+  }
+  out.edits.push({ group: 'm', name: spec.on, layer: 0, value: unit.on ? 1 : 0 });
+  if (!unit.on) return;
+
+  const typeParamName = spec.typeParam;
+  const typeParam = typeParamName ? param('m', typeParamName) : undefined;
+  if (typeParamName && typeParam && unit.type) {
+    const raw = invertByInterpret(typeParam, unit.type);
+    if (raw != null) {
+      out.edits.push({ group: 'm', name: typeParamName, layer: 0, value: raw });
+      out.notes.push({ field: `Effect (${unit.slot})`, status: 'mapped', note: `${unit.type} turned on for the organ.` });
+    } else {
+      out.notes.push({
+        field: `Effect (${unit.slot})`,
+        status: 'approximated',
+        note: 'Effect turned on for the organ; check its character on the instrument.',
+      });
+    }
+  } else {
+    out.notes.push({
+      field: `Effect (${unit.slot})`,
+      status: 'approximated',
+      note: 'Effect turned on for the organ; check its character on the instrument.',
+    });
   }
 }
 

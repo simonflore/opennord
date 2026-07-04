@@ -169,6 +169,90 @@ describe('emitNs4 fx', () => {
   });
 });
 
+describe('emitNs4 organ-only fx (never targets a disabled layer)', () => {
+  const organOnly: CommonProgram = {
+    sourceModel: 'ns3',
+    organ: {
+      on: true,
+      type: 'B3',
+      drawbars: [8, 8, 8, 0, 0, 0, 0, 0, 0],
+    },
+    fx: [{ slot: 'reverb', on: true, type: 'Hall', amountMidi: 64 }],
+  };
+
+  it('never targets group y or p for FX when piano/synth are absent', async () => {
+    const { edits } = await emitNs4(organOnly, [], { advisor: naiveAdvisor, sounds: [] });
+    // No FX edit should land on a disabled synth/piano layer.
+    expect(edits.some((e) => (e.group === 'y' || e.group === 'p') && /FX/i.test(e.name))).toBe(false);
+  });
+
+  it('routes reverb to the organ FX (group m) on/off param, readable back through editNs4Program', async () => {
+    const { edits, report } = await emitNs4(organOnly, [], { advisor: naiveAdvisor, sounds: [] });
+    const onEdit = edits.find((e) => e.group === 'm' && e.name === 'organ FX reverb on/off');
+    expect(onEdit).toBeDefined();
+    expect(onEdit?.layer ?? 0).toBe(0);
+    expect(onEdit?.value).toBe(1);
+
+    const bytes = editNs4Program(buildMigrationTemplate(), edits);
+    expect(getRawParam(bytes, 'm', 'organ FX reverb on/off', 0)).toBe(1);
+
+    // The report must not claim a mapped success for reverb unless the
+    // on/off edit was actually emitted (it was, here).
+    const note = report.notes.find((n) => n.field === 'Effect (reverb)');
+    expect(note).toBeDefined();
+    if (note?.status === 'mapped') {
+      expect(edits.some((e) => e.group === 'm' && e.name === 'organ FX reverb on/off' && e.value === 1)).toBe(true);
+    }
+  });
+
+  it('never emits a "carried over"/mapped note for FX aimed at a disabled layer', async () => {
+    const { edits, report } = await emitNs4(organOnly, [], { advisor: naiveAdvisor, sounds: [] });
+    const disabledLayerEdit = edits.some((e) => (e.group === 'y' || e.group === 'p') && /FX/i.test(e.name));
+    expect(disabledLayerEdit).toBe(false);
+    // Since no edit ever targets a disabled layer, no note may attribute a
+    // "carried over"/mapped success to one either.
+    const reverbNote = report.notes.find((n) => n.field === 'Effect (reverb)');
+    expect(reverbNote?.note).not.toMatch(/carried over/i);
+  });
+
+  it('gives an honest non-mapped note for an fx unit with no organ-FX counterpart (ampsim)', async () => {
+    const noCounterpart: CommonProgram = {
+      sourceModel: 'ns3',
+      organ: { on: true, type: 'B3', drawbars: [0, 0, 0, 0, 0, 0, 0, 0, 0] },
+      fx: [{ slot: 'ampsim', on: true }],
+    };
+    const { edits, report } = await emitNs4(noCounterpart, [], { advisor: naiveAdvisor, sounds: [] });
+    expect(edits.some((e) => /ampsim/i.test(e.name))).toBe(false);
+    expect(edits.some((e) => (e.group === 'y' || e.group === 'p') && /FX/i.test(e.name))).toBe(false);
+    const note = report.notes.find((n) => n.field === 'Effect (ampsim)');
+    expect(note).toBeDefined();
+    expect(note?.status).not.toBe('mapped');
+    expect(note?.note).not.toMatch(/carried over/i);
+  });
+
+  it('keeps engine-hosted FX routing unchanged when piano is on', async () => {
+    const pianoOn: CommonProgram = {
+      sourceModel: 'ns3',
+      piano: { on: true, typeName: 'Grand' },
+      fx: [{ slot: 'reverb', on: true, type: 'Hall', amountMidi: 64 }],
+    };
+    const { edits } = await emitNs4(pianoOn, [], { advisor: naiveAdvisor, sounds: [] });
+    expect(edits.some((e) => e.group === 'p' && e.name === 'FX reverb on/off' && e.value === 1)).toBe(true);
+    expect(edits.some((e) => e.group === 'm' && /organ FX/i.test(e.name))).toBe(false);
+  });
+
+  it('keeps engine-hosted FX routing unchanged when synth is on', async () => {
+    const synthOn: CommonProgram = {
+      sourceModel: 'ns3',
+      synth: { on: true, mode: 'analog' },
+      fx: [{ slot: 'reverb', on: true, type: 'Hall', amountMidi: 64 }],
+    };
+    const { edits } = await emitNs4(synthOn, [], { advisor: naiveAdvisor, sounds: [] });
+    expect(edits.some((e) => e.group === 'y' && e.name === 'FX reverb on/off' && e.value === 1)).toBe(true);
+    expect(edits.some((e) => e.group === 'm' && /organ FX/i.test(e.name))).toBe(false);
+  });
+});
+
 describe('emitNs4 off-engines and dropped features', () => {
   it('emits only layer-off for engines that were off', async () => {
     const { edits } = await emitNs4(
