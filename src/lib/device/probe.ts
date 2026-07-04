@@ -41,3 +41,38 @@ export async function probeDevice(session: NordSession, opts: ProbeOptions): Pro
   }
   return { deviceName: opts.deviceName, productId: opts.productId, partitions, capturedAt: opts.now().toISOString() };
 }
+
+/**
+ * The protocol index of the Program partition according to a real device probe:
+ * the partition whose fourccs include the model's program tag (e.g. "ne5p").
+ * This is the hardware-truth path — it needs no pre-known product id, and it is
+ * what promotes a registry `staticIndex` to a hardware-confirmed `index`.
+ * Returns undefined when no probed partition carries the tag.
+ */
+export function inferProgramPartition(report: ProbeReport, programTag: string): number | undefined {
+  return report.partitions.find((p) => p.fourccs.includes(programTag))?.index;
+}
+
+/** Result of cross-checking a device probe against a statically-recovered index. */
+export interface ProgramPartitionCheck {
+  /** What the probe found (undefined if the program tag wasn't seen). */
+  probed: number | undefined;
+  /** The registry's expected (static or hardware) index. */
+  expected: number;
+  /** True only when the probe saw the tag at exactly the expected index. */
+  agrees: boolean;
+}
+
+/**
+ * Cross-check a device probe against the registry's expected program partition
+ * index. Agreement promotes a `staticIndex` to hardware-confirmed; disagreement
+ * flags the static recovery for correction before it's trusted for transfers.
+ */
+export function crossCheckProgramPartition(
+  report: ProbeReport,
+  programTag: string,
+  expected: number,
+): ProgramPartitionCheck {
+  const probed = inferProgramPartition(report, programTag);
+  return { probed, expected, agrees: probed === expected };
+}

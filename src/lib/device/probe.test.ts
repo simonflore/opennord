@@ -3,7 +3,8 @@ import { encodeMessage } from './protocol';
 import { ext2Type } from './opcodes';
 import { NordSession } from './session';
 import { MockTransport } from './transport';
-import { probeDevice } from './probe';
+import { probeDevice, inferProgramPartition, crossCheckProgramPartition } from './probe';
+import type { ProbeReport } from './probe';
 
 const WRITE_OPCODES = [0x0a, 0x10, 0x14]; // Create, Write, Delete
 const reply = (msgId: number, words: number[]) => encodeMessage(msgId, words);
@@ -46,5 +47,39 @@ describe('probeDevice', () => {
     await probeDevice(new NordSession(t), { deviceName: 'Nord X', productId: 0x0030, now: at });
     const used = t.sent.map(opcodeOf);
     for (const w of WRITE_OPCODES) expect(used).not.toContain(w);
+  });
+});
+
+const report = (parts: Array<[number, string[]]>): ProbeReport => ({
+  deviceName: 'Nord X', productId: 0x0030, capturedAt: at().toISOString(),
+  partitions: parts.map(([index, fourccs]) => ({ index, fileCount: fourccs.length, fourccs })),
+});
+
+describe('inferProgramPartition', () => {
+  it('returns the index of the partition whose fourccs include the program tag', () => {
+    // A real Electro 5 probe: "ne5p" lives at partition 4, not the default 6.
+    const r = report([[1, ['ne5o']], [4, ['ne5p']], [6, ['ne5l']]]);
+    expect(inferProgramPartition(r, 'ne5p')).toBe(4);
+  });
+
+  it('returns undefined when no partition carries the program tag', () => {
+    expect(inferProgramPartition(report([[4, ['ne5o']]]), 'ne5p')).toBeUndefined();
+  });
+});
+
+describe('crossCheckProgramPartition', () => {
+  it('agrees when the probe confirms the static index', () => {
+    const r = report([[4, ['ne5p']]]);
+    expect(crossCheckProgramPartition(r, 'ne5p', 4)).toEqual({ probed: 4, expected: 4, agrees: true });
+  });
+
+  it('flags a disagreement so the static index can be corrected', () => {
+    const r = report([[2, ['ne5p']]]);
+    expect(crossCheckProgramPartition(r, 'ne5p', 4)).toEqual({ probed: 2, expected: 4, agrees: false });
+  });
+
+  it('reports no agreement when the tag is absent from the probe', () => {
+    const r = report([[4, ['ne5o']]]);
+    expect(crossCheckProgramPartition(r, 'ne5p', 4)).toEqual({ probed: undefined, expected: 4, agrees: false });
   });
 });

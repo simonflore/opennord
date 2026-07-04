@@ -29,6 +29,16 @@ export interface PartitionSpec {
   native: boolean;  // read-only factory content
   fourcc?: string;
   index?: number;   // protocol index — set only when hardware-confirmed
+  /**
+   * Protocol index recovered statically from NSM's product constructor (the
+   * partition's ordinal in the `CModel::CModel` `Add()` sequence). Medium-high
+   * confidence — the ordinal==protocol-index equivalence is the documented
+   * assumption (docs/NORD-PRODUCT-LINE.md), hardware-validated only for Stage 4.
+   * `index` (hardware-confirmed) always takes precedence; a device probe
+   * promotes `staticIndex` → `index` once it agrees. Strictly better than the
+   * Stage-4 default for non-Stage-4 models whose real index differs.
+   */
+  staticIndex?: number;
 }
 
 export type SampleCodec = 'og' | 'codec3' | 'codec4' | null;
@@ -48,10 +58,13 @@ const P = (kind: PartitionKind, label: string, native: boolean, fourcc?: string,
   ({ kind, label, native, fourcc, index });
 
 /** Baseline for models whose full partition order wasn't disassembled — concrete
- *  and refinable as hardware/Ghidra confirms (docs/NORD-PRODUCT-LINE.md). */
-const baseline = (tag: string, sampleCapable: boolean): PartitionSpec[] => [
+ *  and refinable as hardware/Ghidra confirms (docs/NORD-PRODUCT-LINE.md).
+ *  `programStaticIndex` carries the NSM-constructor-recovered protocol ordinal
+ *  for the Program partition when known (see `PartitionSpec.staticIndex`); the
+ *  baseline list order itself is still curated, not the real Add() order. */
+const baseline = (tag: string, sampleCapable: boolean, programStaticIndex?: number): PartitionSpec[] => [
   ...(sampleCapable ? [P('samplib-native', 'Sample Library (factory)', true)] : []),
-  P('program', 'Programs', false, tag),
+  { ...P('program', 'Programs', false, tag), staticIndex: programStaticIndex },
   P('live', 'Live', false),
   P('settings', 'Settings', false),
 ];
@@ -178,7 +191,11 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('piano-native', 'Piano (factory)', true),
       P('pedal-native', 'Pedal (factory)', true),
       P('samplib-native', 'Sample Library (factory)', true),
-      P('program', 'Programs', false, 'ng2p'),
+      // NSM Product__SCapsconst@0x1000ccfc4: with the Pedal partition at Add-3,
+      // "ng2p" is the 7th Add → ordinal 6 (matches Stage 2's HW-validated
+      // Program=6 pedal-shift pattern). This curated list omits some natives, so
+      // staticIndex is set explicitly rather than derived from array position.
+      { ...P('program', 'Programs', false, 'ng2p'), staticIndex: 6 },
       P('live', 'Live', false, 'ng2l'),
       P('setlist', 'Set Lists', false, 'ng2t'),
       P('settings', 'Settings', false),
@@ -200,7 +217,10 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     partitions: [
       P('samplib-native', 'Sample Library (factory)', true),
       P('samplib',        'Sample Library',           false),
-      P('program',        'Programs',                 false, 'nw2p'),
+      // "nw2p" is the 3rd Add → ordinal 2. The conditional Transient ROMFlash
+      // that would shift it to 3 is OG-mode only; Wave 2 is an NW1-v3 device
+      // and skips it, so 2 is well-determined (not the variant-ambiguous case).
+      { ...P('program',   'Programs',                 false, 'nw2p'), staticIndex: 2 },
       P('live',           'Live',                     false, 'nw2l'),
       P('settings',       'Settings',                 false, 'nw2s'),
       P('ffs',            'E2P FFS',                  true),
@@ -233,7 +253,9 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('piano', 'Piano', false),
       P('samplib-native', 'Sample Library (factory)', true),
       P('samplib', 'Sample Library', false),
-      P('program', 'Programs', false, 'ne5p'),
+      // Program is the 5th Add() → ordinal 4 (NOT the Stage-4 default 6, which
+      // is Electro 5's Live partition). Static-recovered; wants probe confirm.
+      { ...P('program', 'Programs', false, 'ne5p'), staticIndex: 4 },
       P('setlist', 'Set Lists', false, 'ne5t'),
       P('live', 'Live', false, 'ne5l'),
       P('settings', 'Settings', false, 'ne5s'),
@@ -241,8 +263,8 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   },
   'piano-1': { id: 'piano-1', name: 'Nord Piano', generation: 'OG', programTag: 'nppg', sampleCodec: 'og', partitions: baseline('nppg', true) },
   'piano-2': { id: 'piano-2', name: 'Nord Piano 2', generation: 'OG', programTag: 'np2p', sampleCodec: 'og', partitions: baseline('np2p', true) },
-  'piano-4': { id: 'piano-4', name: 'Nord Piano 4', generation: 'NW1-v3', programTag: 'np4p', sampleCodec: 'codec3', partitions: baseline('np4p', true) },
-  'piano-5': { id: 'piano-5', name: 'Nord Piano 5', generation: 'NW1-v4', programTag: 'np5p', sampleCodec: 'codec4', partitions: baseline('np5p', true) },
+  'piano-4': { id: 'piano-4', name: 'Nord Piano 4', generation: 'NW1-v3', programTag: 'np4p', sampleCodec: 'codec3', partitions: baseline('np4p', true, 6) },
+  'piano-5': { id: 'piano-5', name: 'Nord Piano 5', generation: 'NW1-v4', programTag: 'np5p', sampleCodec: 'codec4', partitions: baseline('np5p', true, 6) },
   'lead-4': {
     // CLead4Base::CLead4Base @0x00000001000dd364 — constructor Add() order:
     //   SPartitionUserE2P  "Performance" (CFileSpec from CFileType(this+0x118)="nl4p") → program
@@ -251,13 +273,15 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // No piano, no samples, no live, no setlist — purely synth: program + preset + settings.
     id: 'lead-4', name: 'Nord Lead 4', generation: 'OG', programTag: 'nl4p', sampleCodec: null,
     partitions: [
-      P('program',      'Performances', false, 'nl4p'),
+      // "nl4p" (Performance) is the 1st Add → ordinal 0. Lead 4 has only 3
+      // partitions, so the old Stage-4 default of 6 addressed a nonexistent one.
+      { ...P('program', 'Performances', false, 'nl4p'), staticIndex: 0 },
       P('synth-preset', 'Programs',     false, 'nl4s'),
       P('settings',     'Settings',     false, 'nl4t'),
     ],
   },
   'lead-a1': { id: 'lead-a1', name: 'Nord Lead A1', generation: 'OG', programTag: 'nlap', sampleCodec: null, partitions: baseline('nlap', false) },
-  'wave': { id: 'wave', name: 'Nord Wave', generation: 'OG', programTag: 'nwp', sampleCodec: 'og', partitions: baseline('nwp', true) },
+  'wave': { id: 'wave', name: 'Nord Wave', generation: 'OG', programTag: 'nwp', sampleCodec: 'og', partitions: baseline('nwp', true, 1) },
   'c2': { id: 'c2', name: 'Nord C2', generation: 'OG', programTag: 'nc2p', sampleCodec: null, partitions: baseline('nc2p', false) },
   'c2d': { id: 'c2d', name: 'Nord C2D', generation: 'OG', programTag: 'nc2p', sampleCodec: null, partitions: baseline('nc2p', false) },
   'grand': { id: 'grand', name: 'Nord Grand', generation: 'NW1-v3', programTag: 'ngp', sampleCodec: 'codec3', partitions: baseline('ngp', true) },
@@ -294,4 +318,13 @@ export function modelByProductId(productId: number | undefined): ModelInfo | und
  */
 export function programPartitionIndex(model: ModelInfo | undefined): number | undefined {
   return model?.partitions.find((p) => p.kind === 'program')?.index;
+}
+
+/**
+ * The NSM-constructor-recovered program partition index (medium-high confidence,
+ * not yet hardware-validated), or undefined when no static evidence exists.
+ * Below `programPartitionIndex` in trust — see `PartitionSpec.staticIndex`.
+ */
+export function programPartitionStaticIndex(model: ModelInfo | undefined): number | undefined {
+  return model?.partitions.find((p) => p.kind === 'program')?.staticIndex;
 }
