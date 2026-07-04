@@ -31,16 +31,25 @@ export const naiveAdvisor: MigrationAdvisor = {
   async choose(calls) {
     return calls.map((c) => {
       const src = new Set(tokenize(c.description));
-      let best: { id: string; score: number } | null = null;
+      let best: { id: string; score: number; matchedCount: number } | null = null;
       for (const o of c.options) {
         const toks = tokenize(o.label);
-        const score = toks.reduce((s, t) => s + (src.has(t) ? 1 : 0), 0) / Math.max(toks.length, 1);
-        if (score > 0 && (!best || score > best.score)) best = { id: o.id, score };
+        const matchedCount = toks.reduce((s, t) => s + (src.has(t) ? 1 : 0), 0);
+        const score = matchedCount / Math.max(toks.length, 1);
+        if (score > 0 && (!best || score > best.score)) best = { id: o.id, score, matchedCount };
+      }
+      let confidence: 'high' | 'medium' | 'low';
+      if (!best) {
+        confidence = 'low';
+      } else if (best.score >= 0.99 && best.matchedCount >= 2) {
+        confidence = 'high';
+      } else {
+        confidence = 'medium';
       }
       return {
         id: c.id,
-        optionId: best?.id ?? null,
-        confidence: best && best.score >= 0.99 ? 'high' : best ? 'medium' : 'low',
+        optionId: best ? best.id : null,
+        confidence,
         rationale: best ? 'closest name match' : 'no similar option found',
       } satisfies JudgmentAnswer;
     });
@@ -48,7 +57,7 @@ export const naiveAdvisor: MigrationAdvisor = {
 };
 
 export function validateAnswers(calls: JudgmentCall[], answers: JudgmentAnswer[]): JudgmentAnswer[] {
-  const byId = new Map(answers.map((a) => [a.id, a]));
+  const byId = new Map<string, JudgmentAnswer>(answers.map((a) => [a.id, a]));
   return calls.map((c) => {
     const a = byId.get(c.id);
     if (a && (a.optionId === null || c.options.some((o) => o.id === a.optionId))) return a;
