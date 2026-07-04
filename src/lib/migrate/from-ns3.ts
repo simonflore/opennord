@@ -119,11 +119,14 @@ export function fromNs3(
   if (common.synth && hz != null) common.synth.cutoffHz = hz;
 
   // Resonance: ns3 emits a "0.0".."10.0" 0-10 display string (lin10() in
-  // ns3/decode.ts); normalize to 0-1. Non-numeric values (e.g. the LP+HP mode's
-  // HP-cutoff-frequency label) are left undefined rather than mis-parsed.
-  const resonanceRaw = parseFloat(y.filter.resonance);
-  if (common.synth && !Number.isNaN(resonanceRaw)) {
-    common.synth.resonance01 = resonanceRaw / 10;
+  // ns3/decode.ts); normalize to 0-1. When filter.type === 'LP+HP', the
+  // resonance field carries the HP cutoff frequency label instead (see
+  // ns3/decode.ts:523–526), so leave resonance01 undefined in that case.
+  if (common.synth && y.filter.type !== 'LP+HP') {
+    const resonanceRaw = parseFloat(y.filter.resonance);
+    if (!Number.isNaN(resonanceRaw)) {
+      common.synth.resonance01 = resonanceRaw / 10;
+    }
   }
 
   return { common, dropped };

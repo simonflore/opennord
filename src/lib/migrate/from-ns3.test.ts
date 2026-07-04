@@ -98,3 +98,43 @@ describe('fromNs3 — dropped-feature reporting', () => {
     expect(dropped.some((d) => d.toLowerCase().includes('panel'))).toBe(true);
   });
 });
+
+describe('fromNs3 — LP+HP filter mode', () => {
+  it('leaves resonance01 undefined when filter type is LP+HP', () => {
+    const progLpHp: Ns3Program = {
+      name: 'LP+HP Test',
+      panels: [
+        {
+          id: 'A',
+          organ: {
+            on: false, type: 'B3', volume: 'Off',
+            drawbars: [0, 0, 0, 0, 0, 0, 0, 0, 0], octaveShift: 0,
+            vibChorus: { on: false, mode: 'C1' },
+            percussion: { on: false, third: false, fast: false, soft: false },
+          },
+          piano: {
+            on: false, type: 'Grand', volume: 'Off',
+            sampleId: 0, sampleVariation: 0, timbre: 'None', octaveShift: 0,
+          },
+          synth: {
+            on: true, volume: '-6.2 dB', voice: 'Poly', glide: '0.0', unison: 'Off',
+            vibrato: 'Off',
+            oscillator: { type: 'Classic', waveform: 'Saw', config: 'None', pitch: '0 semi' },
+            filter: { type: 'LP+HP', cutoff: '1 kHz', resonance: '14 Hz', kbTrack: 'Off', drive: 'Off' },
+            lfo: { wave: 'Triangle', rate: '2.0 Hz', masterClock: false },
+            envMod: { attack: '0.5 ms', decay: '3.0 ms', release: '3.0 ms' },
+            envAmp: { attack: '0.5 ms', decay: '45 s', release: '3.0 ms', velocity: 'Off' },
+            arp: { on: false, range: '1 Octave', pattern: 'Up', rate: '120 bpm', masterClock: false },
+            sampleId: 0,
+            osc: '', cutoff: '', filter_type: '',
+          },
+          fx: [],
+        },
+      ],
+    };
+
+    const { common } = fromNs3(progLpHp);
+    expect(common.synth?.filter?.type).toBe('LP+HP');
+    expect(common.synth?.resonance01).toBeUndefined();
+  });
+});
