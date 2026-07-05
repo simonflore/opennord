@@ -75,8 +75,12 @@ describe('ConvertToStage4', () => {
     expect(screen.getByRole('button', { name: /convert to stage 4/i })).toBeInTheDocument();
   });
 
+  // Inject a synchronous no-op sample-name resolver so tests don't lazy-load
+  // the ~1.3 MB ns3 catalog (which wouldn't settle inside the act() window).
+  const resolveSampleName = () => Promise.resolve(() => undefined);
+
   it('opens the report dialog with all four groups and a dropped-feature note on click', async () => {
-    render(<ConvertToStage4 bytes={ns3Bytes()} name="Boston" templateBytes={templateBytes} />);
+    render(<ConvertToStage4 bytes={ns3Bytes()} name="Boston" templateBytes={templateBytes} resolveSampleName={resolveSampleName} />);
     const btn = screen.getByRole('button', { name: /convert to stage 4/i });
     await act(async () => { fireEvent.click(btn); });
 
@@ -94,7 +98,7 @@ describe('ConvertToStage4', () => {
   });
 
   it('disables the trigger button while conversion is pending', async () => {
-    render(<ConvertToStage4 bytes={ns3Bytes()} name="Boston" templateBytes={templateBytes} />);
+    render(<ConvertToStage4 bytes={ns3Bytes()} name="Boston" templateBytes={templateBytes} resolveSampleName={resolveSampleName} />);
     const btn = screen.getByRole('button', { name: /convert to stage 4/i }) as HTMLButtonElement;
 
     expect(btn.disabled).toBe(false);

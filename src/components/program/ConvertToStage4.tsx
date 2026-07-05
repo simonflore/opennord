@@ -60,18 +60,41 @@ function availableSounds(): AvailableSound[] {
   return [];
 }
 
+/**
+ * Source-sound name resolver for the migration's `sampleName` seam — the same
+ * `resolveSample` catalog Ns3ProgramView uses to label Stage 3 piano/sample
+ * refs on screen. Lazy-loaded so the ~1.3 MB catalog only pulls when a
+ * conversion actually runs. Feeds the emitter a real source-sound name so the
+ * "pick on your Stage 4" note reads e.g. "Couldn't find 'Silver Grand' …"
+ * instead of the generic fallback. (ns2 sample ids don't live in this catalog,
+ * so ns2 sources fall back to generic wording — no ns2 resolver exists yet.)
+ */
+async function makeSampleNameResolver(): Promise<(id: number, variation?: number) => string | undefined> {
+  const { resolveSample } = await import('../../lib/ns3/library/service');
+  return (id: number, variation?: number) => {
+    const r = resolveSample(id, variation ?? 0);
+    if (!r) return undefined;
+    return r.version ? `${r.name} ${r.version}` : r.name;
+  };
+}
+
+export type SampleNameResolver = (id: number, variation?: number) => string | undefined;
+
 /** Fetch the template (or use the injected test seam) and run the migration. */
 async function runConversion(
   bytes: Uint8Array,
   name: string | undefined,
   templateBytes: Uint8Array | undefined,
+  resolveSampleName: (() => Promise<SampleNameResolver>) | undefined,
 ): Promise<MigrationResult> {
   const tmpl = templateBytes ?? new Uint8Array(await (await fetch(templateUrl)).arrayBuffer());
+  const sampleName = await (resolveSampleName ?? makeSampleNameResolver)();
   return migrateToNs4(bytes, {
     advisor: naiveAdvisor,
     sounds: availableSounds(),
     sourceName: name,
     templateBytes: tmpl,
+    sampleName,
   });
 }
 
@@ -80,6 +103,9 @@ export interface ConvertToStage4Props {
   name?: string;
   /** Test seam: inject template bytes directly instead of fetching templateUrl. */
   templateBytes?: Uint8Array;
+  /** Test seam: inject a source-sound-name resolver instead of lazy-loading the
+   *  ns3 catalog (see makeSampleNameResolver). */
+  resolveSampleName?: () => Promise<SampleNameResolver>;
 }
 
 /**
@@ -99,7 +125,7 @@ export function ConvertToStage4(props: ConvertToStage4Props) {
 }
 
 /** Save path used outside a linked folder (or no FolderProvider at all): always downloads. */
-function ConvertToStage4NoFolder({ bytes, name, templateBytes }: ConvertToStage4Props) {
+function ConvertToStage4NoFolder({ bytes, name, templateBytes, resolveSampleName }: ConvertToStage4Props) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
@@ -109,7 +135,7 @@ function ConvertToStage4NoFolder({ bytes, name, templateBytes }: ConvertToStage4
     setSaveMsg(null);
     setStatus({ kind: 'loading' });
     try {
-      const result = await runConversion(bytes, name, templateBytes);
+      const result = await runConversion(bytes, name, templateBytes, resolveSampleName);
       setStatus({ kind: 'ready', result });
     } catch (e) {
       setStatus({ kind: 'error', msg: getErrorMessage(e) });
@@ -153,7 +179,7 @@ function ConvertToStage4NoFolder({ bytes, name, templateBytes }: ConvertToStage4
 }
 
 /** Save path used inside a linked FolderProvider — offers the folder-write flow with a download fallback. */
-function ConvertToStage4WithFolder({ bytes, name, templateBytes }: ConvertToStage4Props) {
+function ConvertToStage4WithFolder({ bytes, name, templateBytes, resolveSampleName }: ConvertToStage4Props) {
   const folder = useFolder();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
@@ -177,7 +203,7 @@ function ConvertToStage4WithFolder({ bytes, name, templateBytes }: ConvertToStag
     setSaveMsg(null);
     setStatus({ kind: 'loading' });
     try {
-      const result = await runConversion(bytes, name, templateBytes);
+      const result = await runConversion(bytes, name, templateBytes, resolveSampleName);
       setStatus({ kind: 'ready', result });
     } catch (e) {
       setStatus({ kind: 'error', msg: getErrorMessage(e) });
