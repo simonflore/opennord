@@ -44,6 +44,12 @@ function buildPrompt(calls: JudgmentCall[]): string {
  * Models often prefix responses with draft reasoning (e.g., `[old_answer] final_answer`)
  * or bracket notation in prose (e.g., "see [1] and [2,3]"); the real answer is typically last.
  * If no candidate qualifies, returns null (caller will fall back to naiveAdvisor).
+ *
+ * The scan is string- and escape-aware: `[`/`]` characters inside JSON string
+ * values (e.g. a rationale like `"[p1] fits better than [p2]"`) do not affect
+ * bracket depth. This matters because the prompt itself renders options as
+ * `[optionId] label`, so models often echo that notation back inside prose
+ * fields of their own JSON response.
  */
 function extractJsonArray(text: string): string | null {
   const candidates: string[] = [];
@@ -53,22 +59,49 @@ function extractJsonArray(text: string): string | null {
   while (searchPos < text.length) {
     const start = text.indexOf('[', searchPos);
     if (start === -1) break;
+
     let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let end = -1;
     for (let i = start; i < text.length; i++) {
       const ch = text[i];
-      if (ch === '[') depth++;
-      else if (ch === ']') {
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === '\\') {
+          escaped = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+      } else if (ch === '[') {
+        depth++;
+      } else if (ch === ']') {
         depth--;
         if (depth === 0) {
-          candidates.push(text.slice(start, i + 1));
-          searchPos = i + 1;
+          end = i;
           break;
         }
       }
     }
-    // If we get here and depth !== 0, we ran out of text without closing the bracket.
-    // Skip this malformed attempt and continue searching.
-    if (depth !== 0) break;
+
+    if (end !== -1) {
+      candidates.push(text.slice(start, end + 1));
+      // Resume scanning for the next candidate right after this one's
+      // opening bracket, not after its (possibly bogus) end — a malformed
+      // or non-JSON `[...]` region here must not stop us from finding a
+      // later, well-formed candidate.
+      searchPos = start + 1;
+    } else {
+      // Ran out of text without closing the bracket (or never left a string).
+      // This start position doesn't yield a candidate; keep looking for the
+      // next '[' rather than aborting the whole scan.
+      searchPos = start + 1;
+    }
   }
 
   if (candidates.length === 0) return null;

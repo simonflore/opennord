@@ -65,4 +65,44 @@ describe('createLlmAdvisor', () => {
     expect(a.optionId).toBe('p1');
     expect(a.rationale).toBe('matches description');
   });
+
+  it('parses when a rationale contains balanced brackets, e.g. "see [p1] and [p2]"', async () => {
+    const adv = createLlmAdvisor(async () =>
+      JSON.stringify([{ id: 'c1', optionId: 'p1', confidence: 'high', rationale: 'see [p1] and [p2]' }]));
+    const [a] = await adv.choose(calls);
+    expect(a.optionId).toBe('p1');
+    expect(a.rationale).toBe('see [p1] and [p2]');
+  });
+
+  it('parses when a rationale contains a lone closing bracket', async () => {
+    const adv = createLlmAdvisor(async () =>
+      '[{"id":"c1","optionId":"p1","confidence":"high","rationale":"see footnote ]"}]');
+    const [a] = await adv.choose(calls);
+    expect(a.optionId).toBe('p1');
+    expect(a.rationale).toBe('see footnote ]');
+  });
+
+  it('parses a multi-entry array when one rationale contains a lone opening bracket', async () => {
+    const twoCalls: JudgmentCall[] = [
+      calls[0],
+      {
+        id: 'c2', kind: 'piano-sound',
+        description: 'Stage 2 piano "Grand" (Acoustic)',
+        options: [{ id: 'p3', label: 'White Grand' }],
+      },
+    ];
+    const adv = createLlmAdvisor(async () =>
+      JSON.stringify([
+        { id: 'c1', optionId: 'p1', confidence: 'high', rationale: 'fits better than [p2' },
+        { id: 'c2', optionId: 'p3', confidence: 'medium', rationale: 'closest acoustic match' },
+      ]));
+    const answers = await adv.choose(twoCalls);
+    expect(answers).toHaveLength(2);
+    const a1 = answers.find((a) => a.id === 'c1');
+    const a2 = answers.find((a) => a.id === 'c2');
+    expect(a1?.optionId).toBe('p1');
+    expect(a1?.rationale).toBe('fits better than [p2');
+    expect(a2?.optionId).toBe('p3');
+    expect(a2?.rationale).toBe('closest acoustic match');
+  });
 });
