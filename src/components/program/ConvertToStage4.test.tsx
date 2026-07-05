@@ -92,4 +92,18 @@ describe('ConvertToStage4', () => {
     // deterministic not-migratable feature regardless of the source program shape.
     expect(screen.getByText(/morphs/i)).toBeInTheDocument();
   });
+
+  it('disables the trigger button while conversion is pending', async () => {
+    render(<ConvertToStage4 bytes={ns3Bytes()} name="Boston" templateBytes={templateBytes} />);
+    const btn = screen.getByRole('button', { name: /convert to stage 4/i }) as HTMLButtonElement;
+
+    expect(btn.disabled).toBe(false);
+    fireEvent.click(btn);
+    // After click, state updates synchronously; button should be disabled during loading
+    expect(btn.disabled).toBe(true);
+    // Wait for the async conversion to complete and dialog to appear
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 100)); });
+    // After conversion completes, button re-enables (dialog is open but conversion done)
+    expect(btn.disabled).toBe(false);
+  });
 });

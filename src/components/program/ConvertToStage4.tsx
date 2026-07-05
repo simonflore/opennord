@@ -127,7 +127,12 @@ function ConvertToStage4NoFolder({ bytes, name, templateBytes }: ConvertToStage4
 
   return (
     <>
-      <Button variant="secondary" aria-label="Convert to Stage 4" onClick={() => void handleOpen()}>
+      <Button
+        variant="secondary"
+        aria-label="Convert to Stage 4"
+        disabled={status.kind === 'loading'}
+        onClick={() => void handleOpen()}
+      >
         Convert to Stage 4
       </Button>
       <Dialog
@@ -211,6 +216,7 @@ function ConvertToStage4WithFolder({ bytes, name, templateBytes }: ConvertToStag
       <Button
         variant="secondary"
         aria-label="Convert to Stage 4"
+        disabled={status.kind === 'loading'}
         onClick={() => void handleOpen()}
       >
         Convert to Stage 4
