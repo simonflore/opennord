@@ -108,6 +108,49 @@ export function electroBankCategoryIds(bank: number): number[] | undefined {
 }
 
 /**
+ * Piano-family (Nord Piano 5 / Piano 6 / Grand 2) — program bank → CategoryID set.
+ *
+ * These three models share ONE identical `BankToCategories` switch table (the
+ * program path, `ECategoryInstrumentType == 0`). Transcribed from the decompiled
+ * NSM `switch(bank)` bodies with inline `*p = <id>` stores:
+ *   - CPiano5::BankToCategories @0x1000558dc
+ *   - CPiano6::BankToCategories @0x10002d8fc
+ *   - CGrand2::BankToCategories @0x1000cdb38
+ * The extractor was cross-validated by reproducing the already-hand-transcribed
+ * Electro 5 table byte-for-byte, then applied to these three. Values resolve
+ * through PROGRAM_CATEGORY above. The `0xffffffff` sentinel seen in these
+ * functions belongs to the SAMPLE path (`type == 1` → CStage4::SampleBankCategories),
+ * not the program switch, and is excluded.
+ *
+ * Note: Electro 6 and Piano 4 do NOT share this — they delegate to a Stage 3
+ * shared impl (CStage3::BankToCategoriesImpl + MergeWoodWindAndBrass) that isn't
+ * present in the decompile set, so their bank tables are not recoverable here.
+ */
+// CPiano5/CPiano6/CGrand2::BankToCategories — shared switch table
+export const PIANO_FAMILY_BANK_CATEGORIES: Record<number, number[]> = {
+  0: [5, 1],      // FX, Bass
+  1: [6],         // Lead
+  2: [3, 2],      // Drum/Perc, Wind
+  3: [4, 7],      // Fantasy, Organ
+  4: [14, 15],    // User, User 2
+  5: [16, 8, 0],  // User 3, Pad, Acoustic
+};
+
+/** Models that share the piano-family bank→category table (NSM-confirmed). */
+const PIANO_FAMILY_MODELS = new Set(['piano-5', 'piano-6', 'grand-2']);
+
+/**
+ * Return the CategoryID set for a program bank on a model whose bank→category
+ * map is NSM-recovered, or `undefined` when the model/bank isn't mapped.
+ * Covers Electro 5 and the piano-family trio (Piano 5 / Piano 6 / Grand 2).
+ */
+export function bankCategoryIds(model: string, bank: number): number[] | undefined {
+  if (model === 'electro-5') return ELECTRO5_BANK_CATEGORIES[bank];
+  if (PIANO_FAMILY_MODELS.has(model)) return PIANO_FAMILY_BANK_CATEGORIES[bank];
+  return undefined;
+}
+
+/**
  * Nord Wave 2 — program-partition category whitelist.
  *
  * Transcribed from `CWave2::CWave2 @0x100033a7c` (NSM binary, Ghidra decompile).

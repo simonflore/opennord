@@ -12,6 +12,8 @@ import {
   programCategoryName,
   ELECTRO5_BANK_CATEGORIES,
   electroBankCategoryIds,
+  PIANO_FAMILY_BANK_CATEGORIES,
+  bankCategoryIds,
   WAVE2_PROGRAM_CATEGORIES,
   isWave2ProgramCategory,
 } from './categories';
@@ -72,6 +74,47 @@ describe('ELECTRO5_BANK_CATEGORIES (NSM-traced, CElectro5::BankToCategories @0x1
   // bank 5 → [7]  (Organ)
   it('bank 5 → [7] (Organ) per oracle', () => {
     expect(ELECTRO5_BANK_CATEGORIES[5]).toEqual([7]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PIANO_FAMILY_BANK_CATEGORIES (Piano 5 / Piano 6 / Grand 2 shared switch table)
+// ---------------------------------------------------------------------------
+describe('PIANO_FAMILY_BANK_CATEGORIES (NSM-traced, CPiano5/6 + CGrand2::BankToCategories)', () => {
+  it('maps all 6 program banks, resolving to known category names', () => {
+    expect(Object.keys(PIANO_FAMILY_BANK_CATEGORIES)).toHaveLength(6);
+    for (const ids of Object.values(PIANO_FAMILY_BANK_CATEGORIES)) {
+      for (const id of ids) expect(programCategoryName(id), `id ${id}`).toBeTypeOf('string');
+    }
+  });
+
+  it('matches the transcribed oracle table exactly', () => {
+    expect(PIANO_FAMILY_BANK_CATEGORIES[0]).toEqual([5, 1]);       // FX, Bass
+    expect(PIANO_FAMILY_BANK_CATEGORIES[1]).toEqual([6]);          // Lead
+    expect(PIANO_FAMILY_BANK_CATEGORIES[2]).toEqual([3, 2]);       // Drum/Perc, Wind
+    expect(PIANO_FAMILY_BANK_CATEGORIES[3]).toEqual([4, 7]);       // Fantasy, Organ
+    expect(PIANO_FAMILY_BANK_CATEGORIES[4]).toEqual([14, 15]);     // User, User 2
+    expect(PIANO_FAMILY_BANK_CATEGORIES[5]).toEqual([16, 8, 0]);   // User 3, Pad, Acoustic
+  });
+});
+
+// ---------------------------------------------------------------------------
+// bankCategoryIds() — model-aware accessor
+// ---------------------------------------------------------------------------
+describe('bankCategoryIds', () => {
+  it('routes Electro 5 to the Electro table', () => {
+    expect(bankCategoryIds('electro-5', 1)).toEqual([6]);
+  });
+
+  it('routes Piano 5 / Piano 6 / Grand 2 to the shared piano-family table', () => {
+    for (const model of ['piano-5', 'piano-6', 'grand-2']) {
+      expect(bankCategoryIds(model, 3), model).toEqual([4, 7]);
+    }
+  });
+
+  it('returns undefined for a model without a recovered table or an unknown bank', () => {
+    expect(bankCategoryIds('electro-6', 0)).toBeUndefined();
+    expect(bankCategoryIds('piano-5', 99)).toBeUndefined();
   });
 });
 
