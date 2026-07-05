@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emitNs4, EMITTER_PARAMS } from './to-ns4';
 import { buildParamMap } from '../ns4/maps';
 import { findParam, editNs4Program, getRawParam } from '../ns4/writer';
-import { buildMigrationTemplate } from './template';
+import { buildMigrationTemplateFromDisk } from './template-node';
 import { naiveAdvisor } from './advisor';
 import type { CommonProgram } from './common';
 
@@ -29,7 +29,7 @@ describe('emitNs4 organ', () => {
 
   it('round-trips through the template bytes', async () => {
     const { edits, report } = await emitNs4(common, [], { advisor: naiveAdvisor, sounds: [] });
-    const bytes = editNs4Program(buildMigrationTemplate(), edits);
+    const bytes = editNs4Program(buildMigrationTemplateFromDisk(), edits);
     expect(getRawParam(bytes, 'o', 'layer on/off', 0)).toBe(1);
     expect(getRawParam(bytes, 'o', 'drawbar 1', 0)).toBe(8);
     expect(getRawParam(bytes, 'o', 'drawbar 4', 0)).toBe(0);
@@ -193,7 +193,7 @@ describe('emitNs4 organ-only fx (never targets a disabled layer)', () => {
     expect(onEdit?.layer ?? 0).toBe(0);
     expect(onEdit?.value).toBe(1);
 
-    const bytes = editNs4Program(buildMigrationTemplate(), edits);
+    const bytes = editNs4Program(buildMigrationTemplateFromDisk(), edits);
     expect(getRawParam(bytes, 'm', 'organ FX reverb on/off', 0)).toBe(1);
 
     // The report must not claim a mapped success for reverb unless the

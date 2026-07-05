@@ -2,13 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { buildMigrationTemplate } from './template';
+import { buildMigrationTemplateFromDisk } from './template-node';
 import { MIGRATION_DEFAULTS } from './defaults';
 import { parseNs4Program } from '../ns4/parse';
 import { getRawParam } from '../ns4/writer';
 import { computeNs4Checksum } from '../clavia/checksum';
 
-describe('buildMigrationTemplate', () => {
-  const tpl = buildMigrationTemplate();
+const fixtureBytes = new Uint8Array(
+  readFileSync(fileURLToPath(new URL('../ns4/__fixtures__/regressionTest.ns4p', import.meta.url))),
+);
+
+describe('buildMigrationTemplate (pure, injected bytes — the browser path)', () => {
+  const tpl = buildMigrationTemplate(fixtureBytes);
 
   it('produces a parseable, checksum-valid .ns4p', () => {
     const prog = parseNs4Program(tpl);
@@ -25,23 +30,29 @@ describe('buildMigrationTemplate', () => {
     }
   });
 
-  it('is idempotent (memoized copy each call, equal bytes)', () => {
-    const again = buildMigrationTemplate();
-    expect(again).toEqual(tpl);
-    expect(again).not.toBe(tpl); // caller gets a copy it may mutate
-  });
-
   it('has all engines off by default', () => {
     expect(getRawParam(tpl, 'o', 'layer on/off', 0)).toBe(0);
     expect(getRawParam(tpl, 'p', 'layer on/off', 0)).toBe(0);
     expect(getRawParam(tpl, 'y', 'layer on/off', 0)).toBe(0);
   });
 
-  it('injected-bytes path (browser UI) produces identical result', () => {
-    const fixtureBytes = new Uint8Array(
-      readFileSync(fileURLToPath(new URL('../ns4/__fixtures__/regressionTest.ns4p', import.meta.url))),
-    );
+  it('is deterministic (same input bytes → same output bytes)', () => {
+    const again = buildMigrationTemplate(fixtureBytes);
+    expect(again).toEqual(tpl);
+  });
+});
+
+describe('buildMigrationTemplateFromDisk (Node/test helper)', () => {
+  it('matches the pure path fed the same on-disk fixture', () => {
+    const fromDisk = buildMigrationTemplateFromDisk();
     const injected = buildMigrationTemplate(fixtureBytes);
-    expect(injected).toEqual(tpl);
+    expect(fromDisk).toEqual(injected);
+  });
+
+  it('is idempotent (memoized copy each call, equal bytes, distinct arrays)', () => {
+    const a = buildMigrationTemplateFromDisk();
+    const b = buildMigrationTemplateFromDisk();
+    expect(a).toEqual(b);
+    expect(a).not.toBe(b); // caller gets a copy it may mutate
   });
 });

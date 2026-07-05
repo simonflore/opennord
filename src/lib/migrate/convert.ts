@@ -8,6 +8,13 @@
  * emitNs4 → editNs4Program(template, edits) → patch the CBIN header (carry the
  * donor's category, force the ns4p tag) → re-checksum. The program name never
  * lands in the file (ns4p stores no name) — it becomes the suggested filename.
+ *
+ * `templateBytes`: the browser UI (Task 9) always supplies these (fetched via
+ * Vite's `?url` asset pipeline), so `buildMigrationTemplate` (pure, no Node
+ * builtins) is all that path needs. When omitted — tests, scripts — this
+ * module falls back to the on-disk fixture via a dynamic import of
+ * `template-node.ts`, keeping `node:fs`/`node:url` out of the browser bundle
+ * (see `docs/MIGRATION.md`).
  */
 import { identifyNordFile } from '../clavia/nord-file';
 import { decodeNs2 } from '../ns2/decode';
@@ -75,8 +82,15 @@ export async function migrateToNs4(
   const common: CommonProgram = lifted.common;
   const { edits, report } = await emitNs4(common, lifted.dropped, { advisor, sounds });
 
-  // Apply edits onto the neutralized donor template.
-  const template = buildMigrationTemplate(opts.templateBytes);
+  // Apply edits onto the neutralized donor template. The browser UI always
+  // supplies raw templateBytes (fetched via `?url`), built here via the pure
+  // buildMigrationTemplate. The dynamic import below — the on-disk fixture
+  // fallback for tests/scripts — only ever executes on the Node path (no
+  // caller in src/components reaches it), keeping node:fs/node:url out of
+  // the browser bundle.
+  const template = opts.templateBytes
+    ? buildMigrationTemplate(opts.templateBytes)
+    : (await import('./template-node')).buildMigrationTemplateFromDisk();
   let bytes = editNs4Program(template, edits);
 
   // Carry the CBIN header: keep the ns4 template's header shape, force the
