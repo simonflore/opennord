@@ -4,6 +4,7 @@ import {
   decodePartState,
   decodeBankList,
   checkDownloadFit,
+  partitionFreeBytes,
   readPartitionCapacity,
   type PartitionCapacity,
 } from './capacity';
@@ -117,5 +118,21 @@ describe('checkDownloadFit', () => {
     const r = checkDownloadFit(cap(512), 1, 'Program');
     expect(r.fits).toBe(false);
     expect(r.reason).toMatch(/Program memory is full \(512 of 512 used\)/);
+  });
+});
+
+describe('partitionFreeBytes (NSM CPartitionCtrl::GetFreeBytes @0x100132314)', () => {
+  const cap = (over: Partial<PartitionCapacity>): PartitionCapacity => ({
+    fileCount: 0, usedBlocks: 0, freeBlocks: 0, reservedBlocks: 0,
+    banks: [], totalSlots: 0, freeSlots: 0, ...over,
+  });
+
+  it('computes (freeBlocks + reservedBlocks) × blockSize for byte-constrained partitions', () => {
+    expect(partitionFreeBytes(cap({ freeBlocks: 10, reservedBlocks: 2, blockSizeBytes: 65536 })))
+      .toBe((10 + 2) * 65536);
+  });
+
+  it('returns undefined for a slot-constrained partition (no block size)', () => {
+    expect(partitionFreeBytes(cap({ freeBlocks: 1000, reservedBlocks: 0 }))).toBeUndefined();
   });
 });

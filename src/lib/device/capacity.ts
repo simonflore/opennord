@@ -126,6 +126,21 @@ export async function readPartitionCapacity(session: NordSession, partition: num
   };
 }
 
+/**
+ * Free space in bytes for a byte-constrained partition (Sample / Piano), or
+ * `undefined` for slot-constrained partitions (Programs — no block size).
+ *
+ * Formula transcribed from `CPartitionCtrl::GetFreeBytes @0x100132314`:
+ *   freeBytes = (freeBlocks + reservedBlocks) × blockSize
+ * (NSM reads `(mem[+0xf14] + mem[+0xf0c]) × mem[+0x3bc]` — free + reserved
+ * blocks, times the per-partition block size held at +0x3bc.) This pins the
+ * bytes-per-block conversion that `checkDownloadFit` had deferred.
+ */
+export function partitionFreeBytes(cap: PartitionCapacity): number | undefined {
+  if (cap.blockSizeBytes === undefined) return undefined;
+  return (cap.freeBlocks + cap.reservedBlocks) * cap.blockSizeBytes;
+}
+
 /** The outcome of a fit check — and, when it doesn't fit, a musician-facing reason. */
 export interface FitResult {
   fits: boolean;
