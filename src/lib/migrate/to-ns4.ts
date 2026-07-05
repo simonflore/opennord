@@ -42,6 +42,23 @@ export interface AvailableSound {
   name: string;
   kind: 'piano' | 'sample';
 }
+
+/**
+ * Musician-facing label for each FX slot. The internal slot ids (mod1/mod2/…)
+ * are engineer vocabulary and must never surface in a report — every
+ * user-visible `field`/note routes a slot through this map first.
+ */
+const FX_SLOT_LABEL: Record<string, string> = {
+  mod1: 'Modulation effect 1',
+  mod2: 'Modulation effect 2',
+  delay: 'Delay',
+  reverb: 'Reverb',
+  comp: 'Compressor',
+  ampsim: 'Amp simulation',
+};
+function fxLabel(slot: string): string {
+  return FX_SLOT_LABEL[slot] ?? 'Effect';
+}
 export interface EmitContext {
   advisor: MigrationAdvisor;
   sounds: AvailableSound[];
@@ -91,6 +108,10 @@ export const EMITTER_PARAMS: ReadonlyArray<readonly [Ns4Group, string]> = [
   ['y', 'amp env attack'], // 584-4 (continuous, nearest by ms)
   ['y', 'amp env decay'], // 585-3
   ['y', 'amp env release'], // 586-2
+  ['y', 'amp env velocity'], // 587-1 (2-bit; on/off carry from source velocity flag)
+  ['y', 'osc env attack'], // 568-8 (mod env → osc env; nearest by ms)
+  ['y', 'osc env decay'], // 569-7
+  ['y', 'osc env release'], // 570-6
   ['y', 'LFO shape'], // 576-2 (LFOshape table)
   ['y', 'LFO rate/time'], // 576-6 (continuous 7-bit)
   // fx (per-layer in p/y, organ FX master-scoped in m — see emitFx)
@@ -104,8 +125,11 @@ export const EMITTER_PARAMS: ReadonlyArray<readonly [Ns4Group, string]> = [
   ['y', 'FX mod 2 rate'],
   ['y', 'FX delay on/off'],
   ['y', 'FX comp on/off'],
+  ['y', 'FX comp amount'], // 733-1
   ['y', 'FX reverb on/off'],
   ['y', 'FX reverb type'], // FXreverbType table
+  ['y', 'FX reverb amount'], // 750-5
+  ['y', 'FX amp sim/EQ on/off'], // 721-8 (ampsim carry — on/off only)
   ['p', 'FX mod 1 on/off'],
   ['p', 'FX mod 1 mode'],
   ['p', 'FX mod 1 amount'],
@@ -116,8 +140,11 @@ export const EMITTER_PARAMS: ReadonlyArray<readonly [Ns4Group, string]> = [
   ['p', 'FX mod 2 rate'],
   ['p', 'FX delay on/off'],
   ['p', 'FX comp on/off'],
+  ['p', 'FX comp amount'], // 295-1
   ['p', 'FX reverb on/off'],
   ['p', 'FX reverb type'],
+  ['p', 'FX reverb amount'], // 312-5
+  ['p', 'FX amp sim/EQ on/off'], // 283-8 (ampsim carry — on/off only)
   // organ FX (master-scoped, single-layer — see emitFx/ORGAN_FX_PARAM)
   ['m', 'organ FX mod 1 on/off'],
   ['m', 'organ FX mod 1 mode'],
@@ -125,8 +152,11 @@ export const EMITTER_PARAMS: ReadonlyArray<readonly [Ns4Group, string]> = [
   ['m', 'organ FX mod 2 mode'],
   ['m', 'organ FX delay on/off'],
   ['m', 'organ FX comp on/off'],
+  ['m', 'organ FX comp amount'], // 203-1
   ['m', 'organ FX reverb on/off'],
   ['m', 'organ FX reverb type'],
+  ['m', 'organ FX reverb amount'], // 220-5
+  ['m', 'organ FX amp sim/EQ on/off'], // 191-8 (exists — see ORGAN_FX_PARAM)
 ] as const;
 
 // ─── shared helpers ──────────────────────────────────────────────────────────
@@ -351,8 +381,10 @@ function emitPiano(p: CommonPiano | undefined, out: SectionOut, ctx: EmitContext
     }
   }
 
-  // piano sound — 245-5, 32-bit id. Picked from ctx.sounds via advisor; no
-  // pick → leave the donor default + a re-pick note.
+  // piano sound — 245-5, 32-bit id. Picked from ctx.sounds via advisor. The
+  // engine is ON here, so a real playable piano MUST be chosen: whenever we
+  // don't emit a matched sound-reference edit, ALWAYS fire the "pick on your
+  // Stage 4" note — named when the source sound is known, generic otherwise.
   const pianoSounds = ctx.sounds.filter((s) => s.kind === 'piano');
   if (p.soundName && pianoSounds.length) {
     const options: JudgmentOption[] = pianoSounds.map((s) => ({ id: String(s.id), label: s.name }));
@@ -374,23 +406,39 @@ function emitPiano(p: CommonPiano | undefined, out: SectionOut, ctx: EmitContext
           rationale,
         });
       } else {
-        out.notes.push({
-          field: 'Piano sound',
-          status: 'defaulted',
-          note: `Couldn't find a Stage 4 piano matching "${p.soundName}" — please re-pick this sound on the keyboard.`,
-        });
+        out.notes.push(pianoRepickNote(p.soundName));
       }
     };
-  } else if (p.soundName) {
+  } else {
+    // No advisor pick was even attempted (no sounds available or the source
+    // sound name is unknown) — still fire the re-pick note so the player knows
+    // to choose a piano.
+    out.notes.push(pianoRepickNote(p.soundName));
+  }
+
+  // dynamics/touch response — no clean ns4 enum target; surface an honest
+  // note rather than a silent drop when the source set it.
+  if (p.dynamics) {
     out.notes.push({
-      field: 'Piano sound',
+      field: 'Piano touch response',
       status: 'defaulted',
-      note: `Couldn't find a Stage 4 piano matching "${p.soundName}" — please re-pick this sound on the keyboard.`,
+      note: 'Touch response settings need a quick check on the instrument.',
     });
   }
 
   emitVolume(out, 'p', 0, p.volumeMidi);
   emitOctaveShift(out, 'p', 0, p.octaveShift, 'Piano octave shift');
+}
+
+/** The "pick a piano on your Stage 4" note — named when the source is known. */
+function pianoRepickNote(soundName: string | undefined): MigrationNote {
+  return {
+    field: 'Piano sound',
+    status: 'defaulted',
+    note: soundName
+      ? `Couldn't find "${soundName}" — pick a piano on your Stage 4.`
+      : 'Couldn’t identify the source piano sound — pick one on your Stage 4.',
+  };
 }
 
 // ─── synth ───────────────────────────────────────────────────────────────────
@@ -408,7 +456,10 @@ function emitSynth(y: CommonSynth | undefined, out: SectionOut, ctx: EmitContext
   out.edits.push({ group: 'y', name: 'samples/analog', layer: 0, value: y.mode === 'analog' ? 1 : 0 });
 
   if (y.mode === 'sample') {
-    // sample id — 410-3, 32-bit. Advisor pick from kind 'sample'.
+    // sample id — 410-3, 32-bit. Advisor pick from kind 'sample'. Same honesty
+    // contract as piano: sample mode is on, so whenever we don't emit a matched
+    // sample-reference edit we ALWAYS fire the "pick on your Stage 4" note —
+    // named when the source sample is known, generic otherwise.
     const sampleSounds = ctx.sounds.filter((s) => s.kind === 'sample');
     if (y.sampleName && sampleSounds.length) {
       const callId = 'sample-sound';
@@ -429,19 +480,11 @@ function emitSynth(y: CommonSynth | undefined, out: SectionOut, ctx: EmitContext
             rationale,
           });
         } else {
-          out.notes.push({
-            field: 'Synth sample',
-            status: 'defaulted',
-            note: `Couldn't find a Stage 4 sample matching "${y.sampleName}" — please re-pick this sound on the keyboard.`,
-          });
+          out.notes.push(sampleRepickNote(y.sampleName));
         }
       };
-    } else if (y.sampleName) {
-      out.notes.push({
-        field: 'Synth sample',
-        status: 'defaulted',
-        note: `Couldn't find a Stage 4 sample matching "${y.sampleName}" — please re-pick this sound on the keyboard.`,
-      });
+    } else {
+      out.notes.push(sampleRepickNote(y.sampleName));
     }
   } else {
     // analog waveform — the analog cat/wave params have no invertible label
@@ -491,6 +534,34 @@ function emitSynth(y: CommonSynth | undefined, out: SectionOut, ctx: EmitContext
   if (y.ampEnv && (y.ampEnv.attackMs != null || y.ampEnv.decayMs != null || y.ampEnv.releaseMs != null)) {
     out.notes.push({ field: 'Synth amp envelope', status: 'approximated', note: 'Amplitude envelope brought to the nearest Stage 4 settings.' });
   }
+  // amp env velocity — 587-1, 2-bit (no OnOff table). Carry the source's
+  // velocity flag as on(1)/off(0); exact depth is unknown so this is a coarse
+  // on/off, not a mapped value.
+  if (y.ampEnv?.velocity != null) {
+    const velParam = param('y', 'amp env velocity');
+    if (velParam) {
+      out.edits.push({ group: 'y', name: 'amp env velocity', layer: 0, value: y.ampEnv.velocity ? 1 : 0 });
+    }
+  }
+
+  // mod envelope → ns4 osc envelope — 568-8 / 569-7 / 570-6, continuous;
+  // same nearest-by-ms mechanism as the amp envelope.
+  emitEnvTime(out, 'osc env attack', y.modEnv?.attackMs);
+  emitEnvTime(out, 'osc env decay', y.modEnv?.decayMs);
+  emitEnvTime(out, 'osc env release', y.modEnv?.releaseMs);
+  if (y.modEnv && (y.modEnv.attackMs != null || y.modEnv.decayMs != null || y.modEnv.releaseMs != null)) {
+    out.notes.push({ field: 'Synth modulation envelope', status: 'approximated', note: 'Modulation envelope brought to the nearest Stage 4 settings.' });
+  }
+
+  // unison — no clean ns4 target/enum; surface an honest note rather than a
+  // silent drop when the source set it.
+  if (y.unison && y.unison.toLowerCase() !== 'off') {
+    out.notes.push({
+      field: 'Synth unison',
+      status: 'defaulted',
+      note: 'Unison settings need a quick check on the instrument.',
+    });
+  }
 
   // LFO — shape (576-2, LFOshape table); rate (576-6, continuous 7-bit).
   if (y.lfo?.wave) {
@@ -520,6 +591,17 @@ function emitEnvTime(out: SectionOut, name: string, ms: number | undefined): voi
   if (raw != null) out.edits.push({ group: 'y', name, layer: 0, value: raw });
 }
 
+/** The "pick a sample on your Stage 4" note — named when the source is known. */
+function sampleRepickNote(sampleName: string | undefined): MigrationNote {
+  return {
+    field: 'Synth sample',
+    status: 'defaulted',
+    note: sampleName
+      ? `Couldn't find "${sampleName}" — pick a sample on your Stage 4.`
+      : 'Couldn’t identify the source sample — pick one on your Stage 4.',
+  };
+}
+
 // ─── fx ──────────────────────────────────────────────────────────────────────
 
 // FX slot → its ns4 param names. The mod/reverb type enum tables (FXmod1mode /
@@ -538,53 +620,66 @@ const FX_TYPE_PARAM: Record<string, FxSlotParams> = {
   mod1: { on: 'FX mod 1 on/off', typeParam: 'FX mod 1 mode', amount: 'FX mod 1 amount', rate: 'FX mod 1 rate' },
   mod2: { on: 'FX mod 2 on/off', typeParam: 'FX mod 2 mode', amount: 'FX mod 2 amount', rate: 'FX mod 2 rate' },
   delay: { on: 'FX delay on/off' },
-  reverb: { on: 'FX reverb on/off', typeParam: 'FX reverb type' },
-  comp: { on: 'FX comp on/off' },
+  reverb: { on: 'FX reverb on/off', typeParam: 'FX reverb type', amount: 'FX reverb amount' },
+  comp: { on: 'FX comp on/off', amount: 'FX comp amount' },
+  ampsim: { on: 'FX amp sim/EQ on/off' }, // on/off only — amp character not modelled
 };
 
 /**
  * Organ FX slot → its master-scoped ns4 param names (group 'm', single
  * layer — Task 3's discovery: organ FX is shared across the organ's A/B
- * layers, so a layer-1 edit throws). Only slots with a confirmed "organ FX
- * ... on/off" param are listed; slots absent here (e.g. ampsim) have no
- * organ-FX counterpart and fall through to an honest not-migratable note.
- * Type/mode params (`organ FX reverb type` / `organ FX mod N mode`) have no
- * PARAM_TABLE alias but share the same interpret ids as their engine-hosted
- * counterparts (224-6/183-1/191-4), so `invertByInterpret` — the same
- * fallback used for "organ model" — inverts their labels through the real
- * enum tables (FXreverbType/FXmod1mode/FXmod2mode).
+ * layers, so a layer-1 edit throws). Every source FX slot — including
+ * ampsim (`organ FX amp sim/EQ on/off`, offset-map 191-8; MIGRATION_DEFAULTS
+ * already writes it) — has a confirmed organ-FX on/off counterpart, so all
+ * carry as on/off. Type/mode params (`organ FX reverb type` / `organ FX mod
+ * N mode`) have no PARAM_TABLE alias but share the same interpret ids as
+ * their engine-hosted counterparts (224-6/183-1/191-4), so `invertByInterpret`
+ * — the same fallback used for "organ model" — inverts their labels through
+ * the real enum tables (FXreverbType/FXmod1mode/FXmod2mode).
  */
 const ORGAN_FX_PARAM: Record<string, FxSlotParams> = {
   mod1: { on: 'organ FX mod 1 on/off', typeParam: 'organ FX mod 1 mode' },
   mod2: { on: 'organ FX mod 2 on/off', typeParam: 'organ FX mod 2 mode' },
   delay: { on: 'organ FX delay on/off' },
-  reverb: { on: 'organ FX reverb on/off', typeParam: 'organ FX reverb type' },
-  comp: { on: 'organ FX comp on/off' },
+  reverb: { on: 'organ FX reverb on/off', typeParam: 'organ FX reverb type', amount: 'organ FX reverb amount' },
+  comp: { on: 'organ FX comp on/off', amount: 'organ FX comp amount' },
+  ampsim: { on: 'organ FX amp sim/EQ on/off' }, // on/off only — amp character not modelled
 };
 
 /**
- * Which ns4 group hosts an FX unit for this program.
+ * Which ns4 group hosts an FX unit — or null when no engine is on to host it.
  *
- * - Piano or synth on: route to that engine's own per-layer FX ('p'/'y') —
- *   unchanged from before.
- * - Organ-only (no piano/synth active): 'p'/'y' are disabled layers on
- *   Stage 4 — an FX edit there is silently inaudible on hardware, so we must
- *   NOT route there. Route to the organ's own master-scoped FX (group 'm')
- *   instead; see emitFx/ORGAN_FX_PARAM for the honest per-slot fallback when
- *   a unit has no organ-FX counterpart.
+ * - Prefer the unit's own source host ('organ'→'m', 'piano'→'p', 'synth'→'y')
+ *   when that engine is actually on (ns2 carries a per-effect source select).
+ * - Otherwise fall back to the synth→piano→organ priority, over engines that
+ *   are on: an FX edit on a disabled 'p'/'y' layer is silently inaudible on
+ *   Stage 4, and group 'm' only reaches the organ when the organ is on.
+ * - If NO engine is on, there's nowhere audible to host it → null.
  */
-function fxHostGroup(common: CommonProgram): Ns4Group {
-  if (common.synth?.on) return 'y';
-  if (common.piano?.on) return 'p';
-  return 'm';
+function fxHostGroup(common: CommonProgram, unit: CommonFxUnit): Ns4Group | null {
+  const on = { organ: !!common.organ?.on, piano: !!common.piano?.on, synth: !!common.synth?.on };
+  if (unit.host === 'organ' && on.organ) return 'm';
+  if (unit.host === 'piano' && on.piano) return 'p';
+  if (unit.host === 'synth' && on.synth) return 'y';
+  if (on.synth) return 'y';
+  if (on.piano) return 'p';
+  if (on.organ) return 'm';
+  return null;
 }
 
 function emitFx(common: CommonProgram, out: SectionOut): void {
   const fx = common.fx;
   if (!fx || !fx.length) return;
-  const group = fxHostGroup(common);
   for (const unit of fx) {
-    if (group === 'm') {
+    const group = fxHostGroup(common, unit);
+    if (group == null) {
+      // No engine on → nothing audible to host the effect on.
+      out.notes.push({
+        field: fxLabel(unit.slot),
+        status: 'not-migratable',
+        note: `${fxLabel(unit.slot)} had no engine to attach to and wasn't carried over — add it on your Stage 4.`,
+      });
+    } else if (group === 'm') {
       emitOrganFxUnit(unit, out);
     } else {
       emitFxUnit(unit, group, out);
@@ -600,26 +695,29 @@ function emitFx(common: CommonProgram, out: SectionOut): void {
  * inaudible effect succeeded.
  */
 function emitOrganFxUnit(unit: CommonFxUnit, out: SectionOut): void {
+  const label = fxLabel(unit.slot);
   const spec = ORGAN_FX_PARAM[unit.slot];
-  if (!spec) {
+  const onParam = spec ? param('m', spec.on) : undefined;
+  if (!spec || !onParam) {
     out.notes.push({
-      field: `Effect (${unit.slot})`,
+      field: label,
       status: 'not-migratable',
-      note: `The "${unit.slot}" effect couldn't be carried onto the organ — add it on your Stage 4.`,
-    });
-    return;
-  }
-  const onParam = param('m', spec.on);
-  if (!onParam) {
-    out.notes.push({
-      field: `Effect (${unit.slot})`,
-      status: 'not-migratable',
-      note: `The "${unit.slot}" effect couldn't be carried onto the organ — add it on your Stage 4.`,
+      note: `${label} couldn't be carried onto the organ — add it on your Stage 4.`,
     });
     return;
   }
   out.edits.push({ group: 'm', name: spec.on, layer: 0, value: unit.on ? 1 : 0 });
   if (!unit.on) return;
+
+  // ampsim carries as on/off only (amp character isn't modelled) → approximated.
+  if (unit.slot === 'ampsim') {
+    out.notes.push({
+      field: label,
+      status: 'approximated',
+      note: 'Amp character needs a check on the instrument.',
+    });
+    return;
+  }
 
   const typeParamName = spec.typeParam;
   const typeParam = typeParamName ? param('m', typeParamName) : undefined;
@@ -627,34 +725,43 @@ function emitOrganFxUnit(unit: CommonFxUnit, out: SectionOut): void {
     const raw = invertByInterpret(typeParam, unit.type);
     if (raw != null) {
       out.edits.push({ group: 'm', name: typeParamName, layer: 0, value: raw });
-      out.notes.push({ field: `Effect (${unit.slot})`, status: 'mapped', note: `${unit.type} turned on for the organ.` });
+      out.notes.push({ field: label, status: 'mapped', note: `${label} (${unit.type}) turned on for the organ.` });
     } else {
       out.notes.push({
-        field: `Effect (${unit.slot})`,
+        field: label,
         status: 'approximated',
-        note: 'Effect turned on for the organ; check its character on the instrument.',
+        note: `${label} turned on for the organ; check its character on the instrument.`,
       });
     }
   } else {
     out.notes.push({
-      field: `Effect (${unit.slot})`,
+      field: label,
       status: 'approximated',
-      note: 'Effect turned on for the organ; check its character on the instrument.',
+      note: `${label} turned on for the organ; check its character on the instrument.`,
     });
   }
+
+  // amount — direct midi when the field is 7-bit; else leave the donor default.
+  emitFxAmount(out, 'm', spec.amount, unit.amountMidi, label);
 }
 
 function emitFxUnit(unit: CommonFxUnit, group: Ns4Group, out: SectionOut): void {
+  const label = fxLabel(unit.slot);
   const spec = FX_TYPE_PARAM[unit.slot];
   if (!spec) {
-    // ampsim etc. — no clean host param here; note and move on.
-    out.notes.push({ field: `Effect (${unit.slot})`, status: 'defaulted', note: `The "${unit.slot}" effect couldn't be placed and was left at a sensible default.` });
+    out.notes.push({ field: label, status: 'defaulted', note: `${label} couldn't be placed and was left at a sensible default.` });
     return;
   }
   const onParam = param(group, spec.on);
   if (!onParam) return;
   out.edits.push({ group, name: spec.on, layer: 0, value: unit.on ? 1 : 0 });
   if (!unit.on) return;
+
+  // ampsim carries as on/off only (amp character isn't modelled) → approximated.
+  if (unit.slot === 'ampsim') {
+    out.notes.push({ field: label, status: 'approximated', note: 'Amp character needs a check on the instrument.' });
+    return;
+  }
 
   const typeParamName = spec.typeParam;
   if (typeParamName && unit.type) {
@@ -663,25 +770,43 @@ function emitFxUnit(unit: CommonFxUnit, group: Ns4Group, out: SectionOut): void 
     const raw = invertEnum(typeParamName, unit.type);
     if (raw != null) {
       out.edits.push({ group, name: typeParamName, layer: 0, value: raw });
-      out.notes.push({ field: `Effect (${unit.slot})`, status: 'mapped', note: `${unit.type} carried over.` });
+      out.notes.push({ field: label, status: 'mapped', note: `${label} (${unit.type}) carried over.` });
     } else {
-      out.notes.push({ field: `Effect (${unit.slot})`, status: 'approximated', note: `Effect enabled; its exact type ("${unit.type}") was left at a sensible default.` });
+      out.notes.push({ field: label, status: 'approximated', note: `${label} enabled; its exact type ("${unit.type}") was left at a sensible default.` });
     }
   } else {
-    out.notes.push({ field: `Effect (${unit.slot})`, status: 'mapped', note: 'Effect turned on.' });
+    out.notes.push({ field: label, status: 'mapped', note: `${label} turned on.` });
   }
 
   // amount/rate — direct midi when the field is 7-bit; else leave the donor
   // default (amountMidi/rateMidi are often absent for ns2/ns3 FX).
-  if (spec.amount && unit.amountMidi != null) {
-    const p = param(group, spec.amount);
-    if (p && paramWidthBits(p) === 7) out.edits.push({ group, name: spec.amount, layer: 0, value: Math.max(0, Math.min(127, unit.amountMidi)) });
-  } else if (spec.amount && unit.amountMidi == null && unit.on) {
-    out.notes.push({ field: `Effect (${unit.slot})`, status: 'approximated', note: 'Effect enabled; depth left at a sensible default.' });
-  }
+  emitFxAmount(out, group, spec.amount, unit.amountMidi, label);
   if (spec.rate && unit.rateMidi != null) {
     const p = param(group, spec.rate);
     if (p && paramWidthBits(p) === 7) out.edits.push({ group, name: spec.rate, layer: 0, value: Math.max(0, Math.min(127, unit.rateMidi)) });
+  }
+}
+
+/**
+ * Emit an FX amount edit: direct 7-bit midi when present, else an honest
+ * "depth left at a sensible default" note. `label` is the musician-facing slot
+ * name. No-op when the slot has no amount param.
+ */
+function emitFxAmount(
+  out: SectionOut,
+  group: Ns4Group,
+  amountName: string | undefined,
+  amountMidi: number | undefined,
+  label: string,
+): void {
+  if (!amountName) return;
+  if (amountMidi != null) {
+    const p = param(group, amountName);
+    if (p && paramWidthBits(p) === 7) {
+      out.edits.push({ group, name: amountName, layer: 0, value: Math.max(0, Math.min(127, amountMidi)) });
+    }
+  } else {
+    out.notes.push({ field: label, status: 'approximated', note: `${label} enabled; depth left at a sensible default.` });
   }
 }
 

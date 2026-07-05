@@ -24,7 +24,9 @@ export interface CommonPiano {
   on: boolean;
   /** Source sound name when resolvable (e.g. "Silver Grand"). */
   soundName?: string;
-  /** ns4 PianoType-style category guess: Grand|Upright|Electric|Clav|Digital|Misc. */
+  /** Instrument-ish type name straight from the source decoder (e.g. 'Grand',
+   *  'E Piano 1', 'Wurl') — NOT a clean ns4 category. The emitter keyword-maps
+   *  it to an ns4 PianoType label (pianoTypeLabel in to-ns4.ts). */
   typeName?: string;
   volumeMidi?: number;
   octaveShift?: number;
@@ -66,6 +68,14 @@ export interface CommonFxUnit {
   on: boolean;
   /** Source type label ("Phaser", "Flanger", "Hall"...). */
   type?: string;
+  /**
+   * Which engine the source routed this FX unit through, when the source
+   * carries it (ns2's per-effect source select — 'Organ'|'Piano'|'Synth').
+   * The ns4 emitter prefers this host when picking the FX group, falling back
+   * to the synth→piano→organ priority when it's absent (ns3 panel FX are
+   * panel-wide, so ns3 leaves this unset).
+   */
+  host?: 'organ' | 'piano' | 'synth';
   amountMidi?: number;
   rateMidi?: number;
 }

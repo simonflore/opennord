@@ -193,6 +193,12 @@ describe('fromNs2', () => {
     expect(delay?.on).toBe(true);
   });
 
+  it('carries the ns2 per-effect source select as CommonFxUnit.host', () => {
+    // The fixture's Delay has source: 'Synth' (from-ns2.test.ts fixture).
+    const delay = common.fx?.find((f) => f.slot === 'delay');
+    expect(delay?.host).toBe('synth');
+  });
+
   it('does not report the arpeggiator as dropped when it was off', () => {
     expect(dropped).not.toContain('arpeggiator');
   });

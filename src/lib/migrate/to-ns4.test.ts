@@ -106,6 +106,62 @@ describe('emitNs4 sound matching', () => {
     expect(n?.status).toBe('defaulted');
     expect(n?.note).toContain('Royal Grand 3D XL');
   });
+
+  it('ALWAYS fires a re-pick note when the piano is on but the source sound name is unknown', async () => {
+    // Critical 1 regression guard: engine on, no soundName, no sounds → the
+    // player must still be told to pick a piano (generic wording).
+    const noName: CommonProgram = { sourceModel: 'ns3', piano: { on: true, typeName: 'Grand' } };
+    const { edits, report } = await emitNs4(noName, [], { advisor: naiveAdvisor, sounds: [] });
+    expect(edits.some((e) => e.name === 'piano model ID/name')).toBe(false);
+    const n = report.notes.find((n) => n.field === 'Piano sound');
+    expect(n?.status).toBe('defaulted');
+    expect(n?.note).toMatch(/pick .* on your Stage 4/i);
+  });
+
+  it('ALWAYS fires a re-pick note for a sample synth when the source sample name is unknown', async () => {
+    const noName: CommonProgram = { sourceModel: 'ns3', synth: { on: true, mode: 'sample' } };
+    const { edits, report } = await emitNs4(noName, [], { advisor: naiveAdvisor, sounds: [] });
+    expect(edits.some((e) => e.name === 'sample ID/name')).toBe(false);
+    const n = report.notes.find((n) => n.field === 'Synth sample');
+    expect(n?.status).toBe('defaulted');
+    expect(n?.note).toMatch(/pick .* on your Stage 4/i);
+  });
+});
+
+describe('emitNs4 fx host routing (ns2 source select)', () => {
+  it('routes a piano-hosted FX unit to group p when both piano and synth are on', async () => {
+    const common: CommonProgram = {
+      sourceModel: 'ns2',
+      piano: { on: true, typeName: 'Grand' },
+      synth: { on: true, mode: 'analog' },
+      fx: [{ slot: 'reverb', on: true, type: 'Hall', host: 'piano' }],
+    };
+    const { edits } = await emitNs4(common, [], { advisor: naiveAdvisor, sounds: [] });
+    // host 'piano' wins over the synth→piano→organ default (which would pick y).
+    expect(edits.some((e) => e.group === 'p' && e.name === 'FX reverb on/off' && e.value === 1)).toBe(true);
+    expect(edits.some((e) => e.group === 'y' && e.name === 'FX reverb on/off')).toBe(false);
+  });
+
+  it('falls back to the priority when the hosted engine is off', async () => {
+    const common: CommonProgram = {
+      sourceModel: 'ns2',
+      synth: { on: true, mode: 'analog' },
+      fx: [{ slot: 'reverb', on: true, type: 'Hall', host: 'piano' }], // piano is off
+    };
+    const { edits } = await emitNs4(common, [], { advisor: naiveAdvisor, sounds: [] });
+    expect(edits.some((e) => e.group === 'y' && e.name === 'FX reverb on/off' && e.value === 1)).toBe(true);
+  });
+
+  it('gives a not-migratable note (no edits) when no engine is on to host FX', async () => {
+    const common: CommonProgram = {
+      sourceModel: 'ns2',
+      fx: [{ slot: 'reverb', on: true, type: 'Hall' }],
+    };
+    const { edits, report } = await emitNs4(common, [], { advisor: naiveAdvisor, sounds: [] });
+    expect(edits.some((e) => /FX|reverb/i.test(e.name))).toBe(false);
+    const n = report.notes.find((n) => n.field === 'Reverb');
+    expect(n?.status).toBe('not-migratable');
+  });
 });
 
 describe('emitNs4 synth', () => {
@@ -198,7 +254,7 @@ describe('emitNs4 organ-only fx (never targets a disabled layer)', () => {
 
     // The report must not claim a mapped success for reverb unless the
     // on/off edit was actually emitted (it was, here).
-    const note = report.notes.find((n) => n.field === 'Effect (reverb)');
+    const note = report.notes.find((n) => n.field === 'Reverb');
     expect(note).toBeDefined();
     if (note?.status === 'mapped') {
       expect(edits.some((e) => e.group === 'm' && e.name === 'organ FX reverb on/off' && e.value === 1)).toBe(true);
@@ -211,22 +267,23 @@ describe('emitNs4 organ-only fx (never targets a disabled layer)', () => {
     expect(disabledLayerEdit).toBe(false);
     // Since no edit ever targets a disabled layer, no note may attribute a
     // "carried over"/mapped success to one either.
-    const reverbNote = report.notes.find((n) => n.field === 'Effect (reverb)');
+    const reverbNote = report.notes.find((n) => n.field === 'Reverb');
     expect(reverbNote?.note).not.toMatch(/carried over/i);
   });
 
-  it('gives an honest non-mapped note for an fx unit with no organ-FX counterpart (ampsim)', async () => {
-    const noCounterpart: CommonProgram = {
+  it('carries ampsim as an on/off edit with an approximated amp-character note', async () => {
+    const ampsimUnit: CommonProgram = {
       sourceModel: 'ns3',
       organ: { on: true, type: 'B3', drawbars: [0, 0, 0, 0, 0, 0, 0, 0, 0] },
       fx: [{ slot: 'ampsim', on: true }],
     };
-    const { edits, report } = await emitNs4(noCounterpart, [], { advisor: naiveAdvisor, sounds: [] });
-    expect(edits.some((e) => /ampsim/i.test(e.name))).toBe(false);
+    const { edits, report } = await emitNs4(ampsimUnit, [], { advisor: naiveAdvisor, sounds: [] });
+    // ampsim now has an organ-FX counterpart (organ FX amp sim/EQ on/off).
+    expect(edits.some((e) => e.group === 'm' && e.name === 'organ FX amp sim/EQ on/off' && e.value === 1)).toBe(true);
     expect(edits.some((e) => (e.group === 'y' || e.group === 'p') && /FX/i.test(e.name))).toBe(false);
-    const note = report.notes.find((n) => n.field === 'Effect (ampsim)');
+    const note = report.notes.find((n) => n.field === 'Amp simulation');
     expect(note).toBeDefined();
-    expect(note?.status).not.toBe('mapped');
+    expect(note?.status).toBe('approximated');
     expect(note?.note).not.toMatch(/carried over/i);
   });
 

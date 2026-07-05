@@ -33,7 +33,9 @@ function liftFx(fx: Ns3Panel['fx'], dropped: string[]): CommonFxUnit[] {
   for (const f of fx) {
     const slot = FX_SLOT_BY_NAME[f.name.toLowerCase()];
     if (!slot) {
-      dropped.push(`effect "${f.name}"`);
+      dropped.push(
+        f.name.toLowerCase() === 'rotary' ? 'rotary speaker' : 'an effect from the original program',
+      );
       continue;
     }
     const amount = f.params?.amount;

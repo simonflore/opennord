@@ -14,6 +14,19 @@ export type { LiftResult } from './common';
 // 'Effect 2', 'Amp/EQ', 'Delay', 'Rotary'. Unlike ns3, reverb/comp are never
 // pushed into a slot's `fx` array — they live on `program.reverb` /
 // `program.compressor` and are lifted separately below.
+// ns2 per-effect source select (Ns2Fx.source, EFFECT_SRC = ['Organ','Piano',
+// 'Synth'], decode.ts:42) tells us which engine the effect was routed through.
+// Carry it as CommonFxUnit.host so the ns4 emitter can host the FX on that
+// engine rather than the default synth→piano→organ priority.
+function fxHost(source: string | undefined): CommonFxUnit['host'] {
+  switch (source) {
+    case 'Organ': return 'organ';
+    case 'Piano': return 'piano';
+    case 'Synth': return 'synth';
+    default: return undefined;
+  }
+}
+
 function liftSlotFx(fx: Ns2Fx[], dropped: string[]): CommonFxUnit[] {
   const out: CommonFxUnit[] = [];
   for (const f of fx) {
@@ -22,18 +35,19 @@ function liftSlotFx(fx: Ns2Fx[], dropped: string[]): CommonFxUnit[] {
     const rate = f.params?.rate;
     const amountMidi = typeof amount === 'number' ? amount : undefined;
     const rateMidi = typeof rate === 'number' ? rate : undefined;
+    const host = fxHost(f.source);
     if (name === 'delay') {
-      out.push({ slot: 'delay', on: true, type: f.type, amountMidi, rateMidi });
+      out.push({ slot: 'delay', on: true, type: f.type, host, amountMidi, rateMidi });
     } else if (name === 'effect 1') {
-      out.push({ slot: 'mod1', on: true, type: f.type, amountMidi, rateMidi });
+      out.push({ slot: 'mod1', on: true, type: f.type, host, amountMidi, rateMidi });
     } else if (name === 'effect 2') {
-      out.push({ slot: 'mod2', on: true, type: f.type, amountMidi, rateMidi });
+      out.push({ slot: 'mod2', on: true, type: f.type, host, amountMidi, rateMidi });
     } else if (name === 'amp/eq') {
-      out.push({ slot: 'ampsim', on: true, type: f.type, amountMidi, rateMidi });
+      out.push({ slot: 'ampsim', on: true, type: f.type, host, amountMidi, rateMidi });
     } else if (name === 'rotary') {
       dropped.push('rotary speaker'); // no CommonFxSlot maps to rotary yet
     } else {
-      dropped.push(`effect "${f.name}"`);
+      dropped.push('an effect from the original program');
     }
   }
   return out;
