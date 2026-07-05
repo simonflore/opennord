@@ -32,10 +32,38 @@ export interface CommunityClient {
   readonly available: boolean;
 }
 
+/**
+ * A structured diagnostic event — chiefly device-connect outcomes, so failures
+ * on models we can't test locally (e.g. a user's Stage 2 EX) reach us with the
+ * device's actual USB layout instead of a screenshot days later. Payloads are
+ * descriptor/metadata only — never program content or PII.
+ */
+export interface DiagnosticEvent {
+  /** Event kind, e.g. 'device.connect' | 'device.error'. */
+  kind: string;
+  /** Whether the operation succeeded (omit for informational events). */
+  ok?: boolean;
+  /** Human-readable summary (used as the log line). */
+  message: string;
+  /** Structured detail: USB descriptor snapshot, error name/message, model guess, etc. */
+  detail?: Record<string, unknown>;
+}
+
+/**
+ * Diagnostics sink. The local build logs to the console; the product build
+ * supplies an implementation that ships events to the backend so they surface
+ * in the server (Coolify) logs. Never throws — diagnostics must not break a
+ * user flow.
+ */
+export interface Diagnostics {
+  record(event: DiagnosticEvent): void;
+}
+
 /** The full set of pluggable capabilities the UI consumes through the seam. */
 export interface Capabilities {
   auth: AuthProvider;
   cloud: CloudSync;
   community: CommunityClient;
   ranker: ProgramRanker;
+  diagnostics: Diagnostics;
 }

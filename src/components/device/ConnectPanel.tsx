@@ -7,9 +7,17 @@ import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer'
 import { resolveProgramPartition } from '../../lib/device/program-partition';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
 import { shouldNegotiateVersion } from '../../lib/device/negotiate';
+import { describeUsbDevice, findBulkInterface, type UsbDeviceSnapshot } from '../../lib/device/usb-descriptors';
+import { useCapabilities } from '../../lib/capabilities/CapabilitiesContext';
 import { Button, SectionLabel } from '../ui';
 import { getErrorMessage } from '../../lib/errors';
 import './connect.css';
+
+/** Compact, log-safe shape of a caught error for diagnostics. */
+function errorShape(e: unknown): Record<string, unknown> {
+  if (e instanceof Error) return { name: e.name, message: e.message };
+  return { message: String(e) };
+}
 
 // Vendor-only (Clavia DMI AB) — accept the whole Nord line, as NSM does. The
 // Stage 4 transfer flows are validated; other models connect read-only (probe).
@@ -21,8 +29,14 @@ type Status = 'idle' | 'connecting' | 'connected' | 'error';
 function describeError(e: unknown): string {
   const m = getErrorMessage(e);
   if (/no device selected|cancel/i.test(m)) return '';
-  if (/claim|interface|access|busy/i.test(m)) {
-    return 'Could not connect — quit Nord Sound Manager (it holds the Nord), then try again.';
+  if (/claim|interface|access|busy|security|denied|network/i.test(m)) {
+    // Two common causes, and we can't tell them apart from the error alone:
+    // another app holds the device (Nord Sound Manager), or the OS hasn't bound a
+    // browser-usable USB driver to this model. Name both instead of only blaming
+    // NSM — the diagnostics we just recorded carry the device's real USB layout.
+    return 'Couldn’t open your Nord over USB. If Nord Sound Manager (or similar) is running, ' +
+      'quit it and try again. If that doesn’t help, this model may need its USB driver enabled ' +
+      'for the browser — let us know which Nord you have and we’ll help.';
   }
   return `Could not connect: ${m}`;
 }
@@ -43,6 +57,7 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
 }) {
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState('');
+  const { diagnostics } = useCapabilities();
 
   const reach = usbAvailability();
   // null = probing; only meaningful on the iPad native path.
@@ -103,6 +118,10 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     setStatus('connecting');
     setMessage('');
     let transport: NordTransport | undefined;
+    // Held for diagnostics so a failure reports the device's actual USB layout.
+    let usb: UsbDeviceSnapshot | undefined;
+    let bulk: ReturnType<typeof findBulkInterface> | undefined;
+    let productId = 0;
     try {
       if (reach === 'ipad-dext-pending') {
         transport = new CapacitorUsbTransport();
@@ -110,14 +129,26 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
         // can't report device identity yet; surface the real model/PID once the
         // DriverKit DEXT lands (docs/IPAD.md).
         await runSession(transport, 'Nord Stage 4', 0);
+        diagnostics.record({ kind: 'device.connect', ok: true, message: 'Connected (iPad DEXT)', detail: { path: 'ipad-dext' } });
         return;
       }
       // WebUSB: reconnect silently if authorized before; else show the chooser.
       const device =
         findAuthorizedDevice(await navigator.usb.getDevices(), NORD_FILTER) ??
         (await navigator.usb.requestDevice({ filters: [NORD_FILTER] }));
+      // Capture the descriptors up front — available pre-open, and the one datum
+      // we most want when a connect fails on a model we can't test locally.
+      usb = describeUsbDevice(device);
+      bulk = findBulkInterface(device);
+      productId = device.productId;
       transport = new WebUsbTransport(device);
       await runSession(transport, device.productName ?? 'Nord', device.productId);
+      diagnostics.record({
+        kind: 'device.connect',
+        ok: true,
+        message: `Connected ${device.productName ?? 'Nord'} (pid 0x${productId.toString(16)})`,
+        detail: { usb, bulk },
+      });
     } catch (e) {
       if (transport) await transport.close().catch(() => {});
       const friendly = describeError(e);
@@ -125,6 +156,12 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
         setStatus('idle'); // user cancelled the picker
         return;
       }
+      diagnostics.record({
+        kind: 'device.error',
+        ok: false,
+        message: `Connect failed (pid 0x${productId.toString(16)})`,
+        detail: { usb, bulk, error: errorShape(e) },
+      });
       setStatus('error');
       setMessage(friendly);
     }
