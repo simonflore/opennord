@@ -8,6 +8,10 @@ const NATIVE = process.env.OPENNORD_NATIVE === '1';
 export default defineConfig({
   plugins: [react(), fixturesDevPlugin()],
   server: { port: process.env.PORT ? Number(process.env.PORT) : 5173 },
+  // .ns4p isn't a Vite-recognized asset extension by default; the migration
+  // template fixture is imported via `?url` (ConvertToStage4.tsx) and served
+  // to the browser as a static asset — needs this to resolve/bundle correctly.
+  assetsInclude: ['**/*.ns4p'],
   define: {
     // RE tooling (capture/inference/review + /contribute,/dev routes) is web-only.
     // The native (Capacitor/iOS) build sets OPENNORD_NATIVE=1 so __RE__ is false and

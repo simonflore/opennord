@@ -12,6 +12,7 @@ import { NordFileCard } from './NordFileCard';
 import { DecodedProgramView } from './DecodedProgramView';
 import { Ns3ProgramView } from './Ns3ProgramView';
 import { Ns2ProgramView } from './Ns2ProgramView';
+import { ConvertToStage4 } from './ConvertToStage4';
 import { decodedProgramFor } from '../../lib/presenters';
 import { identifyNordFile } from '../../lib/clavia/nord-file';
 import { ProgramExtern } from './ProgramExtern';
@@ -52,8 +53,22 @@ export function ProgramView({ program }: { program: NordProgram }) {
     const info = identifyNordFile(program.bytes);
     // Stage 3 & Stage 2 graduate to the rich per-engine view; other leaner models
     // (future: Electro/Lead/Wave) stay on the shared decoded-program view via their presenter.
-    if (info.generation === 'Stage 3' && info.kind === 'performance') return <Ns3ProgramView bytes={program.bytes} />;
-    if (info.generation === 'Stage 2' && info.kind === 'program') return <Ns2ProgramView bytes={program.bytes} />;
+    if (info.generation === 'Stage 3' && info.kind === 'performance') {
+      return (
+        <>
+          <ConvertToStage4 bytes={program.bytes} name={program.name} />
+          <Ns3ProgramView bytes={program.bytes} />
+        </>
+      );
+    }
+    if (info.generation === 'Stage 2' && info.kind === 'program') {
+      return (
+        <>
+          <ConvertToStage4 bytes={program.bytes} name={program.name} />
+          <Ns2ProgramView bytes={program.bytes} />
+        </>
+      );
+    }
     const decoded = decodedProgramFor(program.bytes);
     if (decoded) return <DecodedProgramView program={decoded} />;
     if (info.recognized) return <NordFileCard bytes={program.bytes} />;
