@@ -18,8 +18,8 @@ Stage 4"** on any Stage 2/3 program in the Library. Conversion only ever goes
 |---|---|---|
 | **Organ** | On/off, model (B3/Vox/Farfisa/Pipe…), all 9 drawbars per manual (second manual → Stage 4's organ B layer), vibrato/chorus on-state, percussion (on, soft, fast, third harmonic), volume, octave shift | Vibrato/chorus is turned on but its exact character is left at a sensible default (Stage 4's vib/chorus mode is a different kind of field than the source) |
 | **Piano** | On/off, instrument type (Grand/Upright/Electric/Clav/Digital), volume, octave shift | The exact piano *sound* only carries over if OpenNord can match it to one in your linked Library folder — see "How sound matching works" below |
-| **Synth** | On/off, sample vs. analog oscillator mode, filter type + cutoff + resonance, amp envelope (attack/decay/release), LFO shape + rate, volume, octave shift | Sample-based synth sounds follow the same matching path as piano; analog oscillator waveform has no equivalent field on Stage 4 and is left at a default (see Fidelity notes) |
-| **Effects** | Mod 1/2, delay, compressor, reverb — on/off plus type where the two instruments' effect menus line up | If your program is organ-only, effects route to the organ's own effects rather than the (disabled) piano/synth layers, so they're actually audible |
+| **Synth** | On/off, sample vs. analog oscillator mode, filter type + cutoff + resonance, amp envelope (attack/decay/release + velocity on/off), modulation envelope (→ Stage 4's oscillator envelope), LFO shape + rate, volume, octave shift | Sample-based synth sounds follow the same matching path as piano; analog oscillator waveform has no equivalent field on Stage 4 and is left at a default (see Fidelity notes). Unison and piano touch-response have no clean Stage 4 target and get a "check on the instrument" note rather than a guess |
+| **Effects** | Mod 1/2, delay, compressor, reverb, amp simulation — on/off plus type where the two instruments' effect menus line up, and effect depth where the source carried a number | Effects route to the engine the source assigned them to when it's on (Stage 2 carries a per-effect engine select); otherwise they follow the synth → piano → organ priority. Organ-only programs route to the organ's own effects rather than the (disabled) piano/synth layers, so they're actually audible |
 
 ## What doesn't carry over
 
@@ -31,9 +31,14 @@ Stage 4"** on any Stage 2/3 program in the Library. Conversion only ever goes
 - **Sounds not on your Stage 4** — a piano or sample sound is only carried
   over if OpenNord can match it in your linked Library folder; otherwise
   you'll see a note to pick a similar sound yourself once the file is loaded.
-- Organ-only programs: a couple of effect types (like amp simulation) have no
-  organ-side counterpart on Stage 4 and are dropped with a note rather than
-  guessed at.
+  This note **always** appears when a piano or sample-synth engine is on and no
+  automatic match was made — naming the original sound when OpenNord could read
+  its name, generic otherwise — so an engine is never left silently pointing at
+  the donor's sound.
+- **Effects with no engine to attach to** — if a program has no engine turned
+  on at all, its effects have nowhere audible to live on Stage 4 and are noted
+  rather than written. Amp simulation *does* carry (on/off) on every engine,
+  including the organ, with a note to check its character.
 
 Nothing above is silently dropped — every one of these shows up in the
 conversion report so you know exactly what to touch up.
