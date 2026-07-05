@@ -70,15 +70,20 @@ export async function getFocusedSlot(session: NordSession): Promise<{ bank: numb
 const MAX_BANKS = 64;
 
 /**
- * Enumerate every file in the session's CURRENT partition by walking the
+ * Enumerate the files in the session's CURRENT partition by walking the
  * FileIterate cursor across banks: code 0 → record (FileInfo); code 1 → next
  * bank; any other code → stop. The caller sets the partition via begin().
+ *
+ * `limit` caps how many files are read (default: all). The read-only probe
+ * passes a small limit because it only needs the partition's file types
+ * (fourccs), not every entry — keeping a connect-time probe fast on partitions
+ * that hold hundreds of programs.
  */
-export async function enumerateFiles(session: NordSession): Promise<ProgramEntry[]> {
+export async function enumerateFiles(session: NordSession, limit = Infinity): Promise<ProgramEntry[]> {
   const out: ProgramEntry[] = [];
   let bank = 0;
   let cursor = 0xffffffff;
-  while (bank < MAX_BANKS) {
+  while (bank < MAX_BANKS && out.length < limit) {
     const it = decodeFileIterate((await session.request(CQryFileIterate, [bank, cursor, 0])).payload);
     if (it.code === 0) {
       const info = await session.request(CQryFileInfo, [it.bank, it.slot]);

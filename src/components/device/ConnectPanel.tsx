@@ -5,6 +5,8 @@ import { CapacitorUsbTransport, nordUsbAvailable, usbAvailability } from '../../
 import { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
 import { resolveProgramPartition } from '../../lib/device/program-partition';
+import { confirmProgramPartition } from '../../lib/device/connect-probe';
+import { modelByProductId, programPartitionIndex } from '../../lib/clavia/partitions';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
 import { shouldNegotiateVersion } from '../../lib/device/negotiate';
 import { describeUsbDevice, findBulkInterface, type UsbDeviceSnapshot } from '../../lib/device/usb-descriptors';
@@ -105,9 +107,20 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     if (shouldNegotiateVersion(productId)) {
       await session.negotiateVersion().catch(() => undefined);
     }
-    // Address the model's Program partition (Stage-4 index for confirmed/unknown
-    // devices; the model's own once recorded) for every later program op.
-    session.programPartition = resolveProgramPartition(productId);
+    // Address the model's Program partition. Start from the registry (Stage-4
+    // index for confirmed/unknown; the model's own where recorded)...
+    const model = modelByProductId(productId);
+    let programPartition = resolveProgramPartition(productId);
+    // ...then, for models WITHOUT a hardware-confirmed index, run the read-only
+    // probe to observe the device's real partition map and adopt the partition
+    // that actually holds this model's program files — self-correcting a wrong
+    // guess (e.g. Stage 3, whose index isn't statically recoverable) and logging
+    // the observation so we can confirm the registry over time. Only Stage 2 and
+    // Stage 4 (index hardware-validated) skip the probe.
+    if (programPartitionIndex(model) === undefined) {
+      programPartition = await confirmProgramPartition(session, model, programPartition, diagnostics);
+    }
+    session.programPartition = programPartition;
     // Bracket enumerate in a begin/end session so the Nord returns to idle after.
     const entries = await session.withSession(session.programPartition, () => enumeratePrograms(session));
     setStatus('connected');

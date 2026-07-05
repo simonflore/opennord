@@ -3,6 +3,7 @@ import { enumerateFiles } from './transfer';
 
 export interface ProbePartition {
   index: number;
+  /** Files sampled from this partition (bounded — not the partition total). */
   fileCount: number;
   /** Distinct file types (fourccs) found in the partition, sorted. Identifies which
    *  raw partition holds Programs (e.g. `ns3f`), Synth presets (`ns3y`), etc. — the
@@ -19,20 +20,24 @@ export interface ProbeReport {
 
 /** Scan this many partition indices (Stage 4 uses 0..11; extra headroom is harmless). */
 const SCAN = 14;
+/** Files read per partition — enough to learn its fourccs without walking hundreds of entries. */
+const PROBE_FILES_PER_PARTITION = 8;
 
 export interface ProbeOptions { deviceName: string; productId: number; now: () => Date; }
 
 /**
- * READ-ONLY device probe: for each candidate partition, open a session and count
- * its files via enumerateFiles (FileIterate/FileInfo). Absent partitions (begin
- * fails) are skipped. Emits only begin/iterate/info/end — never a write opcode.
- * Safe to run against any Clavia device; surfaces the partition map for RE.
+ * READ-ONLY device probe: for each candidate partition, open a session and read
+ * up to a few files via enumerateFiles (FileIterate/FileInfo) to learn its file
+ * types (fourccs). Absent partitions (begin fails) are skipped. Emits only
+ * begin/iterate/info/end — never a write opcode. Safe to run against any Clavia
+ * device; surfaces the partition map for RE. `fileCount` is the SAMPLED count
+ * (bounded), not the partition total — the probe only needs the fourccs.
  */
 export async function probeDevice(session: NordSession, opts: ProbeOptions): Promise<ProbeReport> {
   const partitions: ProbePartition[] = [];
   for (let index = 0; index < SCAN; index++) {
     try {
-      const files = await session.withSession(index, () => enumerateFiles(session));
+      const files = await session.withSession(index, () => enumerateFiles(session, PROBE_FILES_PER_PARTITION));
       const fourccs = [...new Set(files.map((f) => f.fourcc))].sort();
       partitions.push({ index, fileCount: files.length, fourccs });
     } catch {
