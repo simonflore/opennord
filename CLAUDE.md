@@ -56,6 +56,7 @@ Path alias: `@/` → `src/` (see `vite.config.ts`).
 | `src/lib/clavia/` | the shared, model-agnostic container: CBIN header (`cbin.ts`), checksum, name/slot/category, `nord-file.ts` identifier, the `ModelCodec` registry (`model.ts`), and the capability/partition tables for the whole Nord line |
 | `src/lib/ns4/` | the **Stage 4** `.ns4p` body codec — model + parser + bit/byte decode (the heart), plus the `.nsmp`/`.nsmp4` sample codec family (NW1 + OG encode, WAV import) |
 | `src/lib/ns3/`, `src/lib/ns2/` | Stage 3 / Stage 2 body decoders + factory-library catalogs (Tier 2, `docs/MULTI-MODEL.md`) |
+| `src/lib/migrate/` | cross-generation program migration (ns2/ns3 → ns4): CommonProgram + advisor seam + ns4 emitter (`docs/MIGRATION.md`) |
 | `src/lib/device/` | WebUSB device layer: transport → session → transfer (read/write), backup, hardware probe/report |
 | `src/lib/folder/`, `src/lib/library/` | local-folder scan/classify/index → the unified **Library** model |
 | `src/lib/ai/` | AI-native search / explanation, provider-pluggable behind an interface |
