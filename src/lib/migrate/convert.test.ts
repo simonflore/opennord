@@ -2,8 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { migrateToNs4 } from './convert';
+import { buildMigrationTemplateFromDisk } from './template-node';
 import { parseNs4Program } from '../ns4/parse';
 import { fileTypeTag, readCbinHeader } from '../clavia/cbin';
+
+/** Donor template bytes, loaded off disk (browser passes its own via `?url`). */
+const templateBytes = buildMigrationTemplateFromDisk();
 
 /**
  * Synthetic donor buffers. The ns2/ns3 decoders read their body at fixed
@@ -47,7 +51,7 @@ const ns4Fixture = new Uint8Array(
 
 describe('migrateToNs4', () => {
   it('converts an ns3 program end-to-end', async () => {
-    const { bytes, report, suggestedFilename } = await migrateToNs4(ns3Bytes(), { sourceName: 'Boston' });
+    const { bytes, report, suggestedFilename } = await migrateToNs4(ns3Bytes(), { sourceName: 'Boston', templateBytes });
     expect(fileTypeTag(bytes)).toBe('ns4p');
     expect(parseNs4Program(bytes).parsed).toBe(true);
     expect(suggestedFilename).toBe('Boston.ns4p');
@@ -56,7 +60,7 @@ describe('migrateToNs4', () => {
   });
 
   it('converts an ns2 program end-to-end', async () => {
-    const { bytes, report, suggestedFilename } = await migrateToNs4(ns2Bytes(), { sourceName: 'My Patch' });
+    const { bytes, report, suggestedFilename } = await migrateToNs4(ns2Bytes(), { sourceName: 'My Patch', templateBytes });
     expect(fileTypeTag(bytes)).toBe('ns4p');
     expect(parseNs4Program(bytes).parsed).toBe(true);
     expect(suggestedFilename).toBe('My Patch.ns4p');
@@ -64,22 +68,22 @@ describe('migrateToNs4', () => {
   });
 
   it('carries the source category into the ns4 header', async () => {
-    const { bytes } = await migrateToNs4(ns3Bytes(), { sourceName: 'Boston' });
+    const { bytes } = await migrateToNs4(ns3Bytes(), { sourceName: 'Boston', templateBytes });
     // category 9 = Piano, set in the synthetic donor header
     expect(readCbinHeader(bytes).category).toBe(9);
   });
 
   it('falls back to a default filename when no source name is given', async () => {
-    const { suggestedFilename } = await migrateToNs4(ns3Bytes());
+    const { suggestedFilename } = await migrateToNs4(ns3Bytes(), { templateBytes });
     expect(suggestedFilename.endsWith('.ns4p')).toBe(true);
     expect(suggestedFilename.length).toBeGreaterThan('.ns4p'.length);
   });
 
   it('rejects non-ns2/ns3 input', async () => {
-    await expect(migrateToNs4(ns4Fixture)).rejects.toThrow(/Stage 2 and Stage 3/);
+    await expect(migrateToNs4(ns4Fixture, { templateBytes })).rejects.toThrow(/Stage 2 and Stage 3/);
   });
 
   it('rejects a non-Nord buffer', async () => {
-    await expect(migrateToNs4(new Uint8Array(100))).rejects.toThrow(/Stage 2 and Stage 3/);
+    await expect(migrateToNs4(new Uint8Array(100), { templateBytes })).rejects.toThrow(/Stage 2 and Stage 3/);
   });
 });
