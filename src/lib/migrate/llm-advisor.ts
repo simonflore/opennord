@@ -38,19 +38,55 @@ function buildPrompt(calls: JudgmentCall[]): string {
   ].join('\n');
 }
 
-/** Extracts the first top-level `[...]` JSON array substring from free-form text. */
+/**
+ * Extracts all top-level `[...]` JSON array substrings from free-form text,
+ * then returns the LAST one that parses and coerces to at least one valid answer.
+ * Models often prefix responses with draft reasoning (e.g., `[old_answer] final_answer`)
+ * or bracket notation in prose (e.g., "see [1] and [2,3]"); the real answer is typically last.
+ * If no candidate qualifies, returns null (caller will fall back to naiveAdvisor).
+ */
 function extractJsonArray(text: string): string | null {
-  const start = text.indexOf('[');
-  if (start === -1) return null;
-  let depth = 0;
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === '[') depth++;
-    else if (ch === ']') {
-      depth--;
-      if (depth === 0) return text.slice(start, i + 1);
+  const candidates: string[] = [];
+  let searchPos = 0;
+
+  // Collect all balanced top-level [...] candidates.
+  while (searchPos < text.length) {
+    const start = text.indexOf('[', searchPos);
+    if (start === -1) break;
+    let depth = 0;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '[') depth++;
+      else if (ch === ']') {
+        depth--;
+        if (depth === 0) {
+          candidates.push(text.slice(start, i + 1));
+          searchPos = i + 1;
+          break;
+        }
+      }
+    }
+    // If we get here and depth !== 0, we ran out of text without closing the bracket.
+    // Skip this malformed attempt and continue searching.
+    if (depth !== 0) break;
+  }
+
+  if (candidates.length === 0) return null;
+
+  // Walk backward through candidates: use the LAST one that parses and yields
+  // at least one valid answer. Fallback returns null if none qualify.
+  for (let i = candidates.length - 1; i >= 0; i--) {
+    try {
+      const parsed = JSON.parse(candidates[i]);
+      const answers = coerceAnswers(parsed);
+      if (answers.length > 0) {
+        return candidates[i];
+      }
+    } catch {
+      // This candidate is malformed JSON; try the next one backward.
     }
   }
+
   return null;
 }
 

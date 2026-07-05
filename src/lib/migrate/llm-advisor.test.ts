@@ -48,4 +48,21 @@ describe('createLlmAdvisor', () => {
     expect(a.optionId).toBe('p1');
     expect(a.rationale).toBe('close enough');
   });
+
+  it('prefers the last valid JSON array when multiple are present', async () => {
+    const adv = createLlmAdvisor(async () =>
+      `draft thinking: [{"id":"c1","optionId":"p2","confidence":"low","rationale":"first attempt"}] ` +
+      `final answer: [{"id":"c1","optionId":"p1","confidence":"high","rationale":"correct choice"}]`);
+    const [a] = await adv.choose(calls);
+    expect(a.optionId).toBe('p1');
+    expect(a.rationale).toBe('correct choice');
+  });
+
+  it('ignores non-conforming bracket noise before the real array', async () => {
+    const adv = createLlmAdvisor(async () =>
+      `see [1] and [2,3]: relevant answer: [{"id":"c1","optionId":"p1","confidence":"high","rationale":"matches description"}]`);
+    const [a] = await adv.choose(calls);
+    expect(a.optionId).toBe('p1');
+    expect(a.rationale).toBe('matches description');
+  });
 });
