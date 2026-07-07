@@ -55,3 +55,7 @@ piano_library_*
 # Real Nord files for reverse-engineering; factory content stays put (docs/LEGAL.md).
 fixtures/*
 !fixtures/README.md
+
+# Electron build output
+release/
+electron/dist/

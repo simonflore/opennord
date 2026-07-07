@@ -103,11 +103,13 @@ async function createWindow(): Promise<void> {
   const win = new BrowserWindow({
     width: 1200,
     height: 820,
-    webPreferences: { preload: join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+    webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false },
   });
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (devUrl) await win.loadURL(devUrl);
-  else await win.loadFile(join(__dirname, '../dist/index.html'));
+  // Packed layout: <app>/electron/dist/main.cjs + <app>/dist/index.html, so the
+  // web build is two levels up from __dirname (electron/dist), at the app root.
+  else await win.loadFile(join(__dirname, '../../dist/index.html'));
 }
 
 app.whenReady().then(() => {

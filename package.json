@@ -5,6 +5,7 @@
   "license": "AGPL-3.0-or-later",
   "description": "Open, AI-native companion for the Nord Stage 4 — browse, share and visualize programs, and (experimental) talk to your Nord directly.",
   "type": "module",
+  "main": "electron/dist/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -16,7 +17,11 @@
     "lint:fix": "eslint src --fix && stylelint \"src/**/*.css\" --fix",
     "fixtures:scan": "vitest run src/lib/clavia/fixtures-scan.test.ts",
     "build:native": "OPENNORD_NATIVE=1 tsc -b && OPENNORD_NATIVE=1 vite build",
-    "cap:sync": "npm run build:native && cap sync"
+    "cap:sync": "npm run build:native && cap sync",
+    "electron:build": "esbuild electron/main.ts electron/preload.ts --bundle --platform=node --format=cjs --external:electron --external:usb --outdir=electron/dist --out-extension:.js=.cjs",
+    "electron:rebuild": "electron-rebuild -f -w usb",
+    "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron electron/dist/main.cjs\"",
+    "electron:pack": "npm run build && npm run electron:build && electron-builder --mac"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.84",
@@ -27,10 +32,12 @@
     "fflate": "^0.8.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "usb": "^2.15.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.0",
+    "@electron/rebuild": "^4.0.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^25.9.3",
@@ -38,6 +45,11 @@
     "@types/react-dom": "^19.2.3",
     "@types/w3c-web-usb": "^1.0.14",
     "@vitejs/plugin-react": "^6.0.2",
+    "concurrently": "^9.1.2",
+    "cross-env": "^10.0.0",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.28.0",
     "eslint": "^10.5.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "fake-indexeddb": "^6.2.5",
@@ -47,6 +59,24 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.1",
     "vite": "^8.0.16",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.9",
+    "wait-on": "^9.0.1"
+  },
+  "build": {
+    "appId": "app.gigmeister.opennord",
+    "productName": "OpenNord",
+    "files": [
+      "dist/**/*",
+      "electron/dist/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "npmRebuild": false,
+    "mac": {
+      "target": "dir",
+      "identity": null,
+      "category": "public.app-category.music"
+    }
   }
 }
