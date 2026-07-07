@@ -31,14 +31,20 @@ type Status = 'idle' | 'connecting' | 'connected' | 'error';
 function describeError(e: unknown): string {
   const m = getErrorMessage(e);
   if (/no device selected|cancel/i.test(m)) return '';
-  if (/claim|interface|access|busy|security|denied|network/i.test(m)) {
-    // Two common causes, and we can't tell them apart from the error alone:
-    // another app holds the device (Nord Sound Manager), or the OS hasn't bound a
-    // browser-usable USB driver to this model. Name both instead of only blaming
-    // NSM — the diagnostics we just recorded carry the device's real USB layout.
-    return 'Couldn’t open your Nord over USB. If Nord Sound Manager (or similar) is running, ' +
-      'quit it and try again. If that doesn’t help, this model may need its USB driver enabled ' +
-      'for the browser — let us know which Nord you have and we’ll help.';
+  if (/unable to claim|claim.*interface|network/i.test(m)) {
+    // "Unable to claim interface" = the OS has a driver bound to the Nord's USB
+    // interface. On Windows this hits older models (e.g. Stage 2) whose firmware
+    // doesn't auto-request the browser-usable WinUSB driver — confirmed from real
+    // device diagnostics (identical interface layout to a Stage 4 that connects
+    // fine, so it's the driver, not the layout). Two ways out; NSM is only one.
+    return 'Windows won’t let the browser open your Nord’s USB port. First quit Nord Sound ' +
+      'Manager if it’s open. If it still fails (common on older models like the Stage 2), the ' +
+      'device needs the WinUSB driver — tell us your model and we’ll walk you through it, or ' +
+      'use the desktop app once it’s available.';
+  }
+  if (/access|busy|security|denied/i.test(m)) {
+    return 'Couldn’t open your Nord over USB — another app may be holding it. Quit Nord Sound ' +
+      'Manager (or similar) and try again.';
   }
   return `Could not connect: ${m}`;
 }
