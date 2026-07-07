@@ -2,17 +2,23 @@ import type { NordTransport } from './transport';
 import { getCapacitorPlatform, isCapacitorPlatform } from '@/lib/platform';
 import { NordUsb } from 'capacitor-nord-usb';
 import { base64ToBytes, bytesToBase64 } from './base64';
+import { isElectronUsb } from './electron-usb';
 
 /** Why USB transfer is or isn't reachable on this host. */
-export type UsbAvailability = 'webusb' | 'ipad-dext-pending' | 'unsupported';
+export type UsbAvailability = 'electron' | 'webusb' | 'ipad-dext-pending' | 'unsupported';
 
 /**
  * Classify the host's USB-transfer reach:
- *   - 'webusb'            Chromium desktop — use WebUsbTransport.
+ *   - 'electron'          desktop app — use ElectronUsbTransport (node-usb; can
+ *                         detach the kernel driver, so it reaches the pre-WinUSB
+ *                         Nords the browser can't claim). Checked FIRST because
+ *                         Electron's renderer also exposes navigator.usb.
+ *   - 'webusb'            Chromium desktop browser — use WebUsbTransport.
  *   - 'ipad-dext-pending' native iPad — the DriverKit path; gate on nordUsbAvailable().
  *   - 'unsupported'       any other browser/device (iPhone, Safari, etc.).
  */
 export function usbAvailability(): UsbAvailability {
+  if (isElectronUsb()) return 'electron';
   if (typeof navigator !== 'undefined' && 'usb' in navigator) return 'webusb';
   if (isCapacitorPlatform() && getCapacitorPlatform() === 'ios') return 'ipad-dext-pending';
   return 'unsupported';

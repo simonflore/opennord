@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { NordTransport } from '../../lib/device/transport';
 import { WebUsbTransport } from '../../lib/device/webusb';
 import { CapacitorUsbTransport, nordUsbAvailable, usbAvailability } from '../../lib/device/capacitor-usb';
+import { ElectronUsbTransport } from '../../lib/device/electron-usb';
 import { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
 import { resolveProgramPartition } from '../../lib/device/program-partition';
@@ -142,6 +143,23 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     let bulk: ReturnType<typeof findBulkInterface> | undefined;
     let productId = 0;
     try {
+      if (reach === 'electron') {
+        // Desktop app: node-usb in the main process can detach the kernel driver
+        // and claim, so this reaches the pre-WinUSB Nords (pid < 0x0024, e.g.
+        // Stage 2) the browser can't. Pick the first connected Nord.
+        const nords = await window.nordNativeUsb!.list();
+        if (nords.length === 0) throw new Error('No Nord found over USB.');
+        const dev = nords[0];
+        productId = dev.productId;
+        transport = new ElectronUsbTransport(productId);
+        await runSession(transport, dev.productName ?? 'Nord', productId);
+        diagnostics.record({
+          kind: 'device.connect', ok: true,
+          message: `Connected ${dev.productName ?? 'Nord'} (pid 0x${productId.toString(16)}, desktop)`,
+          detail: { path: 'electron', productId },
+        });
+        return;
+      }
       if (reach === 'ipad-dext-pending') {
         transport = new CapacitorUsbTransport();
         // TODO(ipad-dext): placeholder name + productId 0 — the four-method seam
