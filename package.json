@@ -77,6 +77,9 @@
       "target": "dir",
       "identity": null,
       "category": "public.app-category.music"
+    },
+    "win": {
+      "target": "zip"
     }
   }
 }

@@ -12,6 +12,9 @@ import type { NordTransport } from './transport';
  * native transport.
  */
 export interface NordNativeUsb {
+  /** USB backend status — on Windows, `usbDkActive` false means UsbDk isn't
+   *  installed, so pre-WinUSB Nords (e.g. Stage 2) still can't be claimed. */
+  backend(): Promise<{ platform: string; usbDkActive: boolean }>;
   /** List connected Nord devices (USB vendor 0x0FFC). */
   list(): Promise<Array<{ productId: number; productName?: string }>>;
   /** Open + (detach kernel driver) + claim the vendor bulk interface. */

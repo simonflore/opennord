@@ -9,6 +9,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('nordNativeUsb', {
+  backend: () => ipcRenderer.invoke('nord-usb:backend'),
   list: () => ipcRenderer.invoke('nord-usb:list'),
   open: (productId?: number) => ipcRenderer.invoke('nord-usb:open', productId),
   bulkOut: (dataB64: string) => ipcRenderer.invoke('nord-usb:bulkOut', dataB64),

@@ -4,6 +4,7 @@ import { ElectronUsbTransport, isElectronUsb, type NordNativeUsb } from './elect
 function installBridge(over: Partial<NordNativeUsb> = {}) {
   const calls: { bulkOut: string[] } = { bulkOut: [] };
   const bridge: NordNativeUsb = {
+    backend: async () => ({ platform: 'win32', usbDkActive: true }),
     list: async () => [{ productId: 0x0021, productName: 'Nord Stage 2' }],
     open: vi.fn(async () => {}),
     bulkOut: async (b64) => { calls.bulkOut.push(b64); },
