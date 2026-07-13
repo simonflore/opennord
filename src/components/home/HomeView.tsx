@@ -19,7 +19,10 @@ export function HomeView() {
       <main>
         <Hero />
         <Features />
+        <More />
+        <Proof />
         <Coverage />
+        <Matrix />
         <Why />
         <OpenSource />
       </main>
@@ -61,7 +64,7 @@ function Hero() {
   return (
     <section className="home-hero">
       <div className="home-hero__copy">
-        <span className="on-overline">Open · AI-native companion</span>
+        <span className="on-overline">Open source · in your browser</span>
         <h1 className="home-hero__title">
           Know your Nord — <span className="home-hero__title-em">without the keyboard.</span>
         </h1>
@@ -147,20 +150,19 @@ const FEATURES: { icon: ReactNode; title: string; body: string }[] = [
     body: 'Audition your sample instruments on an on-screen keyboard, or from a MIDI controller — a lightweight rompler with no Nord plugged in.',
   },
   {
+    icon: <IconConvert />,
+    title: 'Convert & export',
+    body: 'Convert sample instruments across Nord generations — even the downconverts the official editor won’t do — and export any sample to WAV or a zip.',
+  },
+  {
     icon: <IconUsb />,
-    title: 'Talk to your Nord',
-    body: 'On desktop and iPad, pull programs off the keyboard and write them back over USB — a hardware-validated transfer path. Back up your instrument first.',
+    title: 'Transfer over USB',
+    body: 'On a computer with Chrome or Edge, pull programs off your Nord and write them back — a transfer path proven live on real hardware. Back up first.',
   },
   {
-    icon: <IconSparkle />,
-    title: 'AI search & explain',
-    body: 'Find the right patch by describing the sound, and get a plain-language explanation of any program. Designed and on the way.',
-    // (planned — see docs/ROADMAP.md)
-  },
-  {
-    icon: <IconLock />,
-    title: 'Private by design',
-    body: 'Everything runs in your browser. Your files are read on your own device — nothing is uploaded, and there’s no tracking.',
+    icon: <IconBackup />,
+    title: 'Back up & restore',
+    body: 'Save your whole keyboard to a single file, then restore it with a preview of exactly what will change — a safety net before you experiment.',
   },
 ];
 
@@ -178,6 +180,98 @@ function Features() {
             <div className="home-feat__icon" aria-hidden="true">{f.icon}</div>
             <div className="home-feat__title">{f.title}</div>
             <p className="home-feat__body">{f.body}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ── More (secondary, still-shipped capabilities) ────────────────────────── */
+
+const MORE: { icon: ReactNode; title: string; body: string; to?: string }[] = [
+  {
+    icon: <IconSearch />,
+    title: 'Check my Nord',
+    body: 'Connect over USB for a safe, read-only look at what’s on your keyboard — and exactly what OpenNord supports for it.',
+    to: '/compatibility',
+  },
+  {
+    icon: <IconDownload />,
+    title: 'Find missing samples',
+    body: 'When a program needs factory samples you don’t have, OpenNord points you straight to the official Nord downloads.',
+  },
+  {
+    icon: <IconDesktop />,
+    title: 'Reach older Nords',
+    body: 'A desktop build talks to pre-WinUSB instruments — Stage 2-era Nords a browser can’t claim over USB.',
+  },
+];
+
+function More() {
+  return (
+    <section className="home-sec home-sec--tight">
+      <span className="on-overline">Also in the app</span>
+      <div className="home-more">
+        {MORE.map((m) => {
+          const inner = (
+            <>
+              <div className="home-more__icon" aria-hidden="true">{m.icon}</div>
+              <div>
+                <div className="home-more__title">{m.title}</div>
+                <p className="home-more__body">{m.body}</p>
+              </div>
+            </>
+          );
+          return m.to ? (
+            <Link to={m.to} className="home-more__item home-more__item--link" key={m.title}>
+              {inner}
+            </Link>
+          ) : (
+            <div className="home-more__item" key={m.title}>{inner}</div>
+          );
+        })}
+      </div>
+      <p className="home-roadmap">
+        <span className="home-roadmap__tag">On the roadmap</span>
+        Community patch sharing, AI-assisted search &amp; explanations, and USB
+        transfer on iPad are designed — not shipped yet.
+      </p>
+    </section>
+  );
+}
+
+/* ── Proof ───────────────────────────────────────────────────────────────── */
+
+const PROOF: { icon: ReactNode; lead: string; body: string }[] = [
+  {
+    icon: <IconCheck />,
+    lead: 'Matched, not guessed',
+    body: 'Stage 4 programs are validated field-for-field against real exports from the keyboard — nothing invented.',
+  },
+  {
+    icon: <IconUsb />,
+    lead: 'Proven on hardware',
+    body: 'Reading and writing over USB is tested live — enumerate, read and write, on a real Nord Stage 4.',
+  },
+  {
+    icon: <IconLock />,
+    lead: 'Stays on your device',
+    body: 'Your files are read locally in your browser. No upload, no account, no tracking, no server.',
+  },
+];
+
+function Proof() {
+  return (
+    <section className="home-sec home-sec--tight">
+      <div className="home-proof">
+        {PROOF.map((p) => (
+          <div className="home-proof__item" key={p.lead}>
+            <div className="home-proof__icon" aria-hidden="true">{p.icon}</div>
+            <div>
+              <div className="home-proof__lead">{p.lead}</div>
+              <p className="home-proof__body">{p.body}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -220,6 +314,90 @@ function Coverage() {
   );
 }
 
+/* ── Compatibility matrix ────────────────────────────────────────────────── */
+
+// Status codes mirror src/lib/clavia/validation.ts. Only Stage 4 is
+// hardware-validated; everything else is reverse-engineered (works in the app,
+// not yet checked on the instrument) or inferred from a sibling model. The
+// live, per-model source of truth is the in-app /compatibility matrix.
+type Cell = 'v' | 're' | 'inf' | 'na';
+
+const MATRIX_COLS = ['Read', 'Transfer', 'Back up', 'Samples'] as const;
+
+const MATRIX: { model: string; cells: Cell[] }[] = [
+  { model: 'Nord Stage 4', cells: ['v', 'v', 'v', 'v'] },
+  { model: 'Nord Stage 3', cells: ['re', 're', 're', 're'] },
+  { model: 'Nord Stage 2', cells: ['re', 're', 're', 're'] },
+  { model: 'Nord Electro 6', cells: ['re', 'inf', 'inf', 're'] },
+  { model: 'Nord Piano 5', cells: ['re', 'inf', 'inf', 're'] },
+  { model: 'Nord Grand 2', cells: ['re', 'inf', 'inf', 're'] },
+  { model: 'Nord Wave 2', cells: ['re', 'inf', 're', 're'] },
+  { model: 'Nord Lead 4', cells: ['re', 'inf', 're', 'na'] },
+];
+
+const CELL_META: Record<Cell, { glyph: string; label: string; cls: string }> = {
+  v: { glyph: '✓', label: 'Validated on hardware', cls: 'home-cell--v' },
+  re: { glyph: '●', label: 'Reverse-engineered — works in the app, not yet hardware-tested', cls: 'home-cell--re' },
+  inf: { glyph: '○', label: 'Inferred — likely, needs a tester', cls: 'home-cell--inf' },
+  na: { glyph: '–', label: 'Not applicable', cls: 'home-cell--na' },
+};
+
+function Matrix() {
+  return (
+    <section className="home-sec">
+      <SectionHead
+        overline="Honest by model"
+        title="What works on which Nord"
+        sub="Only the Stage 4 is validated on real hardware; the rest is reverse-engineered and gets promoted as owners test it. Nothing here is dressed up."
+      />
+      <div className="home-matrix__scroll">
+        <table className="home-matrix">
+          <thead>
+            <tr>
+              <th scope="col">Model</th>
+              {MATRIX_COLS.map((c) => (
+                <th scope="col" key={c}>{c}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {MATRIX.map((row) => (
+              <tr key={row.model}>
+                <th scope="row">{row.model}</th>
+                {row.cells.map((cell, i) => {
+                  const meta = CELL_META[cell];
+                  return (
+                    <td key={MATRIX_COLS[i]}>
+                      <span
+                        className={`home-cell ${meta.cls}`}
+                        title={meta.label}
+                        aria-label={`${MATRIX_COLS[i]}: ${meta.label}`}
+                      >
+                        {meta.glyph}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="home-matrix__foot">
+        <ul className="home-legend">
+          <li><span className="home-cell home-cell--v">✓</span> Validated on hardware</li>
+          <li><span className="home-cell home-cell--re">●</span> Reverse-engineered</li>
+          <li><span className="home-cell home-cell--inf">○</span> Likely · needs a tester</li>
+          <li><span className="home-cell home-cell--na">–</span> N/A</li>
+        </ul>
+        <Link to="/compatibility" className="home-cov__link">
+          Open the live, per-model matrix →
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 /* ── Why ─────────────────────────────────────────────────────────────────── */
 
 function Why() {
@@ -239,12 +417,12 @@ function Why() {
         <WhyItem
           n="02"
           title="Works from a file alone"
-          body="Reading, organizing and sharing all work without a keyboard connected. Device transfer is a bonus, never a requirement."
+          body="Reading, organizing and playing your patches all work without a keyboard connected. Device transfer is a bonus, never a requirement."
         />
         <WhyItem
           n="03"
           title="Your work stays yours"
-          body="OpenNord shares the patches you create — never Nord’s factory sounds. Programs point to samples by name; the audio stays on your instrument."
+          body="Programs describe your own settings and point to samples by name — OpenNord never copies Nord’s factory sounds. Your creative work stays yours."
         />
       </div>
     </section>
@@ -314,7 +492,7 @@ function SiteFooter() {
             Open<span className="home-brand__accent">Nord</span>
           </div>
           <p className="home-ft__tagline">
-            An open, AI-native companion for Nord® keyboards.
+            An open companion for Nord® keyboards.
           </p>
         </div>
         <nav className="home-ft__links" aria-label="Footer">
@@ -411,11 +589,56 @@ function IconUsb() {
   );
 }
 
-function IconSparkle() {
+function IconConvert() {
   return (
     <svg {...svgProps()}>
-      <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />
-      <path d="M19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" />
+      <path d="M4 8h13l-3-3M20 16H7l3 3" />
+    </svg>
+  );
+}
+
+function IconBackup() {
+  return (
+    <svg {...svgProps()}>
+      <path d="M12 3l7 3v5c0 4-3 6.5-7 8-4-1.5-7-4-7-8V6z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
+
+function IconCheck() {
+  return (
+    <svg {...svgProps()}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8.5 12.5l2.5 2.5 4.5-5" />
+    </svg>
+  );
+}
+
+function IconSearch() {
+  return (
+    <svg {...svgProps()}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </svg>
+  );
+}
+
+function IconDownload() {
+  return (
+    <svg {...svgProps()}>
+      <path d="M12 4v11" />
+      <path d="M8 11l4 4 4-4" />
+      <path d="M5 19h14" />
+    </svg>
+  );
+}
+
+function IconDesktop() {
+  return (
+    <svg {...svgProps()}>
+      <rect x="3" y="4" width="18" height="12" rx="1.5" />
+      <path d="M8 20h8M12 16v4" />
     </svg>
   );
 }
