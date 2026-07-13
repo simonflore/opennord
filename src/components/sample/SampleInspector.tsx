@@ -116,7 +116,13 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     const playableZones = buildPlayableZones(zones);
     const order = strokeKeyboardOrder(zones);
     const strokesByGlobalID = new Map(decoded.map((d) => [d.globalID, d]));
-    const sampler = decodable ? createSampler(playableZones, strokesByGlobalID, () => envRef.current) : null;
+    // Play at the sample's authored pitch: apply its stored global detune (0 for
+    // the common default). Gain is deliberately NOT applied — the audio is peak-
+    // normalized per stroke, so the stored level would fight that, not reproduce it.
+    const detuneCents = gainDetuneView(bytes)?.detuneCents ?? 0;
+    const sampler = decodable
+      ? createSampler(playableZones, strokesByGlobalID, () => envRef.current, { detuneCents })
+      : null;
     setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current, playableZones, order, strokesByGlobalID, sampler, factory });
   }
 

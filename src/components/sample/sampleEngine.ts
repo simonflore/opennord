@@ -109,6 +109,13 @@ export function playbackRate(rootKey: number, midi: number): number {
   return 2 ** ((midi - rootKey) / 12);
 }
 
+/** Pitch ratio for a detune in cents (100 cents = one semitone). The sample's
+ *  stored global detune (`DSP2Detune` scale) shifts every voice by this factor so
+ *  audition plays at the authored pitch, not just the zone root. */
+export function detuneRatio(cents: number): number {
+  return 2 ** (cents / 1200);
+}
+
 /** MIDI velocity → linear gain, clamped to 0..1. */
 export function velocityGain(velocity: number): number {
   return Math.max(0, Math.min(1, velocity / 127));
@@ -190,7 +197,11 @@ export function createSampler(
   /** Optional synth-playground envelope, read at each note-on. Returns null (or is
    *  omitted) when the playground is off → flat gain + short anti-click release. */
   env?: () => AmpEnvelope | null,
+  /** Sample-level voicing applied to every voice. `detuneCents` shifts pitch to
+   *  the sample's stored global detune so audition matches the authored pitch. */
+  opts?: { detuneCents?: number },
 ): Sampler {
+  const detuneMul = detuneRatio(opts?.detuneCents ?? 0);
   const buffers = new Map<number, AudioBuffer>(); // globalID → decoded audio (lazy)
   const live = new Map<number, { src: AudioBufferSourceNode; gain: GainNode; voice: Voice; release: number }>();
   // Decide once per sample: sustain steady loops, ring out decaying ones (see
@@ -241,7 +252,7 @@ export function createSampler(
       noteOff(midi); // retrigger: drop any voice already on this key
       const src = ctx.createBufferSource();
       src.buffer = buf;
-      const rate = playbackRate(zone.rootKey, midi);
+      const rate = playbackRate(zone.rootKey, midi) * detuneMul;
       src.playbackRate.value = rate;
       // Steady samples sustain by looping their region (the buffer already carries
       // a crossfaded seam); decaying samples leave `src.loop` false and ring out on

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolveZone, playbackRate, velocityGain, envGainAt, scheduleAttackDecay, createSampler, loopSeconds, loopXfadeLen, crossfadeLoop, loopWindowDecayDb, sampleShouldLoop, type AmpEnvelope } from './sampleEngine';
+import { resolveZone, playbackRate, detuneRatio, velocityGain, envGainAt, scheduleAttackDecay, createSampler, loopSeconds, loopXfadeLen, crossfadeLoop, loopWindowDecayDb, sampleShouldLoop, type AmpEnvelope } from './sampleEngine';
 import type { PlayableZone } from '../../lib/ns4/playable-zones';
 import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
 
@@ -52,6 +52,15 @@ describe('playbackRate', () => {
     expect(playbackRate(60, 60)).toBe(1);
     expect(playbackRate(60, 72)).toBeCloseTo(2, 6);
     expect(playbackRate(60, 48)).toBeCloseTo(0.5, 6);
+  });
+});
+
+describe('detuneRatio', () => {
+  it('is 1 at 0 cents, doubles at +1200, halves at −1200, one semitone at 100', () => {
+    expect(detuneRatio(0)).toBe(1);
+    expect(detuneRatio(1200)).toBeCloseTo(2, 6);
+    expect(detuneRatio(-1200)).toBeCloseTo(0.5, 6);
+    expect(detuneRatio(100)).toBeCloseTo(2 ** (1 / 12), 6);
   });
 });
 
@@ -213,5 +222,12 @@ describe('createSampler audition playback', () => {
   it('rings out a decaying sample — no loop even though loops=true (the CP80 case)', () => {
     const src = play(strokeWithDecay(7, 1.0, 0.25)); // strong decay → play once
     expect(src.loop).toBe(false);
+  });
+
+  it('applies the sample global detune to the playback rate', () => {
+    audioMock.created.length = 0;
+    createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined, { detuneCents: 1200 })
+      .noteOn(60, 100); // root note (rate 1) + one octave of detune → 2
+    expect(audioMock.created[0].playbackRate.value).toBeCloseTo(2, 6);
   });
 });
