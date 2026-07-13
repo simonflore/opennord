@@ -1,5 +1,6 @@
-import { createRouter, createHashHistory, createRoute, redirect, type AnyRoute } from '@tanstack/react-router';
+import { createRouter, createHashHistory, type AnyRoute } from '@tanstack/react-router';
 import { rootRoute } from '@/routes/root';
+import { HomeRoute } from '@/routes/home';
 import { LibraryIndexRoute, ProgramsRoute, ProgramRoute } from '@/routes/library';
 import { SamplesRoute, SamplesRedirectRoute } from '@/routes/samples';
 import { PresetsRoute } from '@/routes/presets';
@@ -9,18 +10,11 @@ import { AboutRoute } from '@/routes/about';
 import { CompatibilityRoute } from '@/routes/compatibility';
 import { RE_ROUTES } from '@/router-re';
 
-// Index `/` → the Library (the home door).
-const IndexRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/',
-  beforeLoad: () => { throw redirect({ to: '/library/programs' }); },
-});
-
 /** Build the app router, optionally with extra (proprietary) routes injected by the
  *  commercial build. The open build calls it with no args. */
 export function createAppRouter(extra: AnyRoute[] = []) {
   const routeTree = rootRoute.addChildren([
-    IndexRoute,
+    HomeRoute,
     LibraryIndexRoute, ProgramsRoute, ProgramRoute,
     SamplesRedirectRoute, SamplesRoute,
     PresetsRoute, PianosRoute, DeviceRoute, CompatibilityRoute, AboutRoute,
