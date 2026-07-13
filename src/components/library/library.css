@@ -25,6 +25,11 @@
 .lib-patch__nm { font: 700 14px var(--font); color: var(--ink); flex: 1 1 auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lib-slot { font: 9px var(--mono); color: var(--muted); flex: none; }
+/* Per-codec color on the sample type badge (nsmp/nsmp3/nsmp4/piano). */
+.lib-slot--nsmp  { color: var(--muted); }
+.lib-slot--nsmp3 { color: var(--lcd-cyan); }
+.lib-slot--nsmp4 { color: var(--red); }
+.lib-slot--npno  { color: var(--warn); }
 
 /* Sort selector */
 .lib-sort { margin-left: auto; font: 12px var(--font); color: var(--ink);

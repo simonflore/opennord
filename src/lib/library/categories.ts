@@ -11,10 +11,10 @@ export type LibraryCategory =
   | (CategoryBase & { ready: false; path: string });
 
 export const LIBRARY_CATEGORIES: LibraryCategory[] = [
-  { id: 'programs', label: 'Programs', path: '/library/programs', ready: true },
-  { id: 'pianos',   label: 'Pianos',   path: '/library/pianos',   ready: true },
-  { id: 'samples',  label: 'Samples',  path: '/library/samples',  ready: true },
-  { id: 'presets',  label: 'Presets',  path: '/library/presets',  ready: true },
+  { id: 'programs', label: 'Programs',      path: '/library/programs', ready: true },
+  { id: 'presets',  label: 'Presets',       path: '/library/presets',  ready: true },
+  { id: 'samples',  label: 'User Samples',  path: '/library/samples',  ready: true },
+  { id: 'pianos',   label: 'Piano Samples', path: '/library/pianos',   ready: true },
 ];
 
 /** Match a pathname (e.g. `/library/programs` or `/library/programs/$id`) to its category. */

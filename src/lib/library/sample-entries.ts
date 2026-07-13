@@ -131,7 +131,9 @@ export function sortSamples(
 ): SampleEntry[] {
   const byKey = (a: SampleEntry, b: SampleEntry): number => {
     if (sort === 'name') return a.name.localeCompare(b.name);
-    if (sort === 'size') return (b.size ?? -1) - (a.size ?? -1);       // largest first, missing last
+    if (sort === 'name-desc') return b.name.localeCompare(a.name);
+    if (sort === 'size') return (b.size ?? -1) - (a.size ?? -1);                 // largest first, missing last
+    if (sort === 'size-asc') return (a.size ?? Infinity) - (b.size ?? Infinity); // smallest first, missing last
     if (sort === 'strokes') return (b.strokeCount ?? -1) - (a.strokeCount ?? -1);
     return 0; // default → input order (nord, then folder)
   };

@@ -18,7 +18,16 @@ function fmtMB(bytes: number): string {
 }
 
 const GEN_LABEL: Record<SampleGeneration, string> = { og: '.nsmp', '3': '.nsmp3', '4': '.nsmp4', npno: 'Piano (.npno)', unknown: 'Unrecognized' };
-const SORT_LABEL: Record<SampleSort, string> = { default: 'Default', name: 'Name (A–Z)', size: 'Size', strokes: 'Samples' };
+/** Per-codec color on the type badge so nsmp/nsmp3/nsmp4 read apart at a glance. */
+const GEN_CLASS: Record<SampleGeneration, string> = { og: 'lib-slot--nsmp', '3': 'lib-slot--nsmp3', '4': 'lib-slot--nsmp4', npno: 'lib-slot--npno', unknown: '' };
+const SORT_LABEL: Record<SampleSort, string> = {
+  default: 'Default',
+  name: 'Name (A–Z)',
+  'name-desc': 'Name (Z–A)',
+  size: 'Largest first',
+  'size-asc': 'Smallest first',
+  strokes: 'Most samples',
+};
 
 export function SamplesBrowse(
   { entries, source, generation, query, nordCount, localCount, showSourceFacet, showUnknownGen,
@@ -223,7 +232,7 @@ export function SamplesBrowse(
                 >{favorites.has(e.id) ? '★' : '☆'}</button>
                 <span className="lib-patch__nm">{e.name}</span>
                 {e.unused && <span className="lib-tag lib-tag--unused" title="Not used by any program">unused</span>}
-                <span className="lib-slot">{e.slot ?? GEN_LABEL[e.generation]}</span>
+                <span className={`lib-slot${e.slot ? '' : ` ${GEN_CLASS[e.generation]}`}`}>{e.slot ?? GEN_LABEL[e.generation]}</span>
               </div>
               <div className="lib-patch__engines">
                 <span className="lib-eng">

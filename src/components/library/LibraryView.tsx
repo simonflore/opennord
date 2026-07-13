@@ -140,7 +140,7 @@ export function LibraryView({
                   onKeyDown={(ev) => ev.stopPropagation()}
                 >{favorites.has(e.id) ? '★' : '☆'}</button>
                 <span className="lib-patch__nm">{e.name}</span>
-                <span className="lib-slot">{e.slot ?? 'file'}</span>
+                <span className="lib-slot">{e.slot ?? e.typeLabel ?? 'file'}</span>
               </div>
               {e.summary
                 ? (

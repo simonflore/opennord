@@ -21,9 +21,9 @@ describe('Rail', () => {
 
   it('renders the four category sub-items under Library, none disabled', () => {
     const html = render('library/programs');
-    for (const label of ['Programs', 'Pianos', 'Samples', 'Presets']) expect(html).toContain(label);
+    for (const label of ['Programs', 'Presets', 'User Samples', 'Piano Samples']) expect(html).toContain(label);
     // All four categories are now ready — no disabled category sub-items.
-    for (const label of ['Programs', 'Pianos', 'Samples', 'Presets']) {
+    for (const label of ['Programs', 'Presets', 'User Samples', 'Piano Samples']) {
       const idx = html.indexOf(`>${label}<`);
       const btnStart = html.lastIndexOf('<button', idx);
       expect(html.slice(btnStart, idx)).not.toContain('disabled');

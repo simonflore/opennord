@@ -3,6 +3,7 @@ import type { ProgramEntry } from '../device/transfer';
 import type { ScannedProgram } from '../folder/scan';
 import { formatSlot } from '../clavia/slot';
 import { parseClaviaFile, type NordProgram } from '../formats';
+import { identifyNordFile } from '../clavia/nord-file';
 import { programNameFromFilename } from '../clavia/name';
 import { activeLayers } from '../ns4/view';
 import type { NS4Program } from '../ns4/types';
@@ -19,6 +20,12 @@ export function summarize(program: NS4Program): string {
 /** True when `program` is a fully-structured NS4 program (has `kind`). */
 export function isNs4Program(program: NordProgram): program is NS4Program {
   return 'kind' in program;
+}
+
+/** File-type badge for a local/backup file, e.g. ".ns4p" — undefined if unrecognized. */
+function typeLabelFor(bytes: Uint8Array): string | undefined {
+  const info = identifyNordFile(bytes);
+  return info.recognized && info.tag ? `.${info.tag}` : undefined;
 }
 
 /** Map the device's enumerated programs into Library entries. */
@@ -41,6 +48,7 @@ export function entryFromImport(rec: { id: string; name: string; bytes: Uint8Arr
     id: rec.id,
     name: program.name ?? rec.name,
     source: 'local',
+    typeLabel: typeLabelFor(rec.bytes),
     summary: program.parsed && isNs4Program(program) ? summarize(program) : undefined,
     program,
     bytes: rec.bytes,
@@ -78,6 +86,7 @@ export function entriesFromScannedPrograms(programs: ScannedProgram[]): LibraryE
     id: p.id,
     name: p.name,
     source: (p.id.includes('!') ? 'backup' : 'local') as LibrarySource,
+    typeLabel: typeLabelFor(p.bytes),
     summary: p.summary,
     program: p.program,
     bytes: p.bytes,

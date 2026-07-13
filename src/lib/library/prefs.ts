@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { LibrarySort } from './types';
 
-export type SampleSort = 'default' | 'name' | 'size' | 'strokes';
+export type SampleSort = 'default' | 'name' | 'name-desc' | 'size' | 'size-asc' | 'strokes';
 
 /** Preset browse sort vocabulary — presets have name + size (no strokes). */
 export type PresetSort = 'default' | 'name' | 'size';
@@ -66,7 +66,8 @@ function usePrefs<S extends string>(key: string, parseSort: (raw: unknown) => S)
 const parseLibrarySort = (raw: unknown): LibrarySort =>
   raw === 'name' || raw === 'source' ? raw : 'default';
 const parseSampleSort = (raw: unknown): SampleSort =>
-  raw === 'name' || raw === 'size' || raw === 'strokes' ? raw : 'default';
+  raw === 'name' || raw === 'name-desc' || raw === 'size' || raw === 'size-asc' || raw === 'strokes'
+    ? raw : 'default';
 
 export type LibraryPrefsApi = PrefsApi<LibrarySort>;
 export type SamplesPrefsApi = PrefsApi<SampleSort>;

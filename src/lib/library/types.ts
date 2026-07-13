@@ -11,6 +11,7 @@ export interface LibraryEntry {
   name: string;
   source: LibrarySource;
   slot?: string;         // "A:26" for nord entries; undefined for local
+  typeLabel?: string;    // file-type badge for local/backup files, e.g. ".ns4p"
   summary?: string;      // engine summary, e.g. "organ + synth"
   program?: NordProgram; // parsed program when available (local: from file; nord: when pulled)
   bytes?: Uint8Array;    // raw bytes when available

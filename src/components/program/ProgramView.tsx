@@ -57,7 +57,7 @@ export function ProgramView({ program }: { program: NordProgram }) {
       return (
         <>
           <ConvertToStage4 bytes={program.bytes} name={program.name} />
-          <Ns3ProgramView bytes={program.bytes} />
+          <Ns3ProgramView bytes={program.bytes} name={program.name} />
         </>
       );
     }
