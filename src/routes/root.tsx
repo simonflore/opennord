@@ -9,6 +9,16 @@ function RootLayout() {
   const navigate = useNavigate();
   // Current path, minus the leading slash — Rail matches nav items against it.
   const active = useRouterState({ select: (s) => s.location.pathname.replace(/^\//, '') });
+
+  // The landing page (`/`) is its own full-bleed marketing surface — no app rail.
+  if (active === '') {
+    return (
+      <ErrorBoundary resetKey={active}>
+        <Outlet />
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <div className="on-app">
       <Rail
