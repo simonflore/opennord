@@ -3,6 +3,18 @@ import type { MouseEvent, ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 
 /**
+ * Desktop-app download targets. The desktop build is published as a GitHub
+ * (pre-)release; these are the direct asset URLs for the current version plus
+ * the release page (which carries the first-launch / driver setup notes). URLs
+ * are version-pinned by design — bump them when a new desktop build ships.
+ */
+const DESKTOP_VERSION = '0.0.1';
+const RELEASE_BASE = 'https://github.com/simonflore/opennord/releases';
+const DOWNLOAD_MAC = `${RELEASE_BASE}/download/v${DESKTOP_VERSION}/OpenNord-${DESKTOP_VERSION}-mac-arm64.zip`;
+const DOWNLOAD_WIN = `${RELEASE_BASE}/download/v${DESKTOP_VERSION}/OpenNord-${DESKTOP_VERSION}-win.zip`;
+const RELEASE_PAGE = `${RELEASE_BASE}/tag/v${DESKTOP_VERSION}`;
+
+/**
  * Scroll to an in-page section without writing to the URL hash.
  *
  * The app uses hash-based routing (createHashHistory), so a bare
@@ -36,6 +48,7 @@ export function HomeView() {
         <Hero />
         <Features />
         <More />
+        <DesktopApp />
         <Proof />
         <Coverage />
         <Matrix />
@@ -58,6 +71,7 @@ function SiteHeader() {
       <nav className="home-hd__nav" aria-label="Primary">
         <a className="home-hd__link" href="#features" onClick={scrollToSection('features')}>What it does</a>
         <a className="home-hd__link" href="#coverage" onClick={scrollToSection('coverage')}>Keyboards</a>
+        <a className="home-hd__link" href="#download" onClick={scrollToSection('download')}>Download</a>
         <a
           className="home-hd__link"
           href="https://github.com/simonflore/opennord"
@@ -253,6 +267,58 @@ function More() {
         Community patch sharing, AI-assisted search &amp; explanations, and USB
         transfer on iPad are designed — not shipped yet.
       </p>
+    </section>
+  );
+}
+
+/* ── Desktop app download ────────────────────────────────────────────────── */
+
+/**
+ * The desktop app is a general download, not an "older Nords only" fallback:
+ * it talks to any Nord over USB without a browser, and additionally reaches the
+ * pre-WinUSB models a browser can't claim. Direct per-platform links; the
+ * release page (RELEASE_PAGE) carries the first-launch / driver setup notes.
+ */
+function DesktopApp() {
+  return (
+    <section id="download" className="home-sec">
+      <div className="home-dl">
+        <div className="home-dl__copy">
+          <span className="on-overline">Desktop app</span>
+          <h2 className="home-dl__title">Talk to your Nord from the desktop</h2>
+          <p className="home-dl__sub">
+            A native build for macOS and Windows — connect over USB with no
+            browser, and reach older pre-WinUSB Nords a browser can’t. Everything
+            the web app does works here too.
+          </p>
+          <div className="home-dl__actions">
+            <a className="on-btn on-btn--primary home-hero__btn" href={DOWNLOAD_MAC} rel="noopener noreferrer">
+              <span className="home-dl__btn-ico" aria-hidden="true"><IconApple /></span>
+              macOS
+              <span className="home-dl__arch">Apple Silicon</span>
+            </a>
+            <a className="on-btn on-btn--secondary home-hero__btn" href={DOWNLOAD_WIN} rel="noopener noreferrer">
+              <span className="home-dl__btn-ico" aria-hidden="true"><IconWindows /></span>
+              Windows
+              <span className="home-dl__arch">x64</span>
+            </a>
+          </div>
+          <p className="home-dl__note">
+            <span className="home-roadmap__tag">Alpha</span>
+            First launch needs a quick step (Gatekeeper on macOS, the UsbDk driver
+            for older Nords on Windows) —{' '}
+            <a
+              className="home-cov__link"
+              href={RELEASE_PAGE}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              setup notes &amp; all downloads
+            </a>
+            .
+          </p>
+        </div>
+      </div>
     </section>
   );
 }
@@ -665,6 +731,23 @@ function IconLock() {
       <rect x="4.5" y="10" width="15" height="10" rx="2" />
       <path d="M8 10V7a4 4 0 0 1 8 0v3" />
       <path d="M12 14v2" />
+    </svg>
+  );
+}
+
+/** Filled glyphs for the download buttons (brand marks, not line icons). */
+function IconApple() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M16.4 12.9c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.8-3-.8c-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2-.05 1.6-.75 3-.75s1.8.75 3 .72c1.2-.02 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.3-2.6-.03-.01-2.4-.9-2.4-3.6zM14.3 5.9c.65-.8 1.1-1.9.95-3-1 .04-2.2.66-2.9 1.46-.6.7-1.15 1.83-1 2.9 1.1.08 2.3-.56 2.95-1.36z" />
+    </svg>
+  );
+}
+
+function IconWindows() {
+  return (
+    <svg width={15} height={15} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M3 5.5 10.5 4.4v7.1H3zM11.5 4.3 21 3v8.5h-9.5zM3 12.5h7.5v7.1L3 18.5zM11.5 12.5H21V21l-9.5-1.3z" />
     </svg>
   );
 }

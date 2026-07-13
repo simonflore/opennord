@@ -289,6 +289,50 @@
   .home-more { grid-template-columns: 1fr; gap: var(--s-3); }
 }
 
+/* ── Desktop app download ────────────────────────────────────────────────── */
+.home-dl {
+  padding: clamp(var(--s-5), 4vw, 44px);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--red) 12%, transparent), transparent 60%),
+    var(--grad-raised);
+  box-shadow: var(--edge-hi);
+}
+.home-dl__copy { max-width: 60ch; }
+.home-dl__title {
+  margin: var(--s-2) 0 0;
+  font: 700 clamp(20px, 3vw, 28px)/1.2 var(--font);
+  color: var(--ink);
+}
+.home-dl__sub {
+  margin: var(--s-2) 0 0;
+  font: 400 14px/1.6 var(--font);
+  color: var(--dim);
+}
+.home-dl__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+.home-dl__btn-ico { display: inline-flex; align-items: center; }
+.home-dl__arch {
+  font: 600 10px var(--font);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: color-mix(in srgb, currentColor 65%, transparent);
+}
+.home-dl__note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-4) 0 0;
+  font: 400 12px/1.55 var(--font);
+  color: var(--muted);
+}
+
 /* ── Proof band ──────────────────────────────────────────────────────────── */
 .home-sec--tight { padding-block: clamp(var(--s-4), 3vw, 32px); }
 .home-proof {
