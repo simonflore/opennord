@@ -23,6 +23,9 @@ export function SampleHeader({ view }: { view: SampleHeaderView }) {
           {view.isFactory && (
             <Pill variant="warning">factory?</Pill>
           )}
+          {view.truVibrato && (
+            <Pill title="This sample has Tru-Vibrato engaged">Tru-Vibrato</Pill>
+          )}
           {view.gainDetune && !view.gainDetune.isDefault && (
             <Pill title={`global gain ${fmtDb(view.gainDetune.gainDb)}, detune ${fmtCents(view.gainDetune.detuneCents)}`}>
               {[

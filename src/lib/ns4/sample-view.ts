@@ -3,7 +3,7 @@
  * display data. No DOM, no audio. Reused by the Sample Inspector components.
  */
 import type { NsmpFile, DecodedStrokeResult } from './nsmp';
-import { readNsmpZones, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison } from './nsmp';
+import { readNsmpZones, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, readTruVibrato } from './nsmp';
 import { dsp2Level, dsp2Detune } from './nw1-dsp';
 import { peakAmplitude } from './nsmp-audio';
 
@@ -26,6 +26,8 @@ export interface SampleHeaderView {
   strokeCount: number;
   sizeBytes: number;
   isFactory: boolean;
+  /** Tru-Vibrato engaged (codec-4.2 samples only; undefined when not applicable). */
+  truVibrato?: boolean;
   /** Global + per-note level/detune, read-only. Computed by {@link gainDetuneView}
    *  (kept off {@link sampleHeaderView} so its callers/tests stay unchanged). */
   gainDetune?: {
@@ -77,6 +79,12 @@ export function gainDetuneView(bytes: Uint8Array): SampleHeaderView['gainDetune'
  * real files are "off" (the whole known corpus is). Detune/pan are shown raw
  * (their value scale isn't pinned); gains use the known dB scale.
  */
+/** Tru-Vibrato engaged? Undefined when not applicable (not a codec-4.2 sample).
+ *  Kept off {@link sampleHeaderView} so its callers/tests stay unchanged. */
+export function truVibratoView(bytes: Uint8Array): boolean | undefined {
+  return readTruVibrato(bytes)?.on;
+}
+
 export function sampleUnisonView(bytes: Uint8Array): { active: boolean; summary: string } | null {
   const u = readSampleUnison(bytes);
   if (!u) return null;
@@ -85,7 +93,7 @@ export function sampleUnisonView(bytes: Uint8Array): { active: boolean; summary:
   if (u.detuneMax) parts.push(`detune ${u.detuneMax}`);
   if (u.panMax) parts.push(`pan ${u.panMax}`);
   if (Math.abs(u.gainDbSame) >= 0.05) parts.push(`gain ${u.gainDbSame >= 0 ? '+' : '−'}${Math.abs(u.gainDbSame).toFixed(1)} dB`);
-  if (u.randomStrokeMode) parts.push('random');
+  if (u.randomStrokeMode) parts.push('round-robin');
   return { active: true, summary: `on · ${parts.join(' · ')}` };
 }
 

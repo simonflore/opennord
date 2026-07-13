@@ -476,6 +476,34 @@ export function readSampleUnison(bytes: Uint8Array): SampleUnison | null {
   };
 }
 
+/** Tru-Vibrato state from the codec-4 `.sty` (style) section. */
+export interface TruVibrato {
+  on: boolean;
+  /** The 9 raw parameter bytes (3 groups of 3); per-byte meaning not yet pinned. */
+  params: number[];
+}
+
+/**
+ * Read Tru-Vibrato from the `.sty` section. Tru-Vibrato is a **codec-4.2** style
+ * feature: the 4.2 layout stores a `flag + 9-byte block` in the trailing 13 bytes
+ * of a 108-byte `.sty` (the older 4.1 layout is 92 bytes and carries no vibrato).
+ * We only report it for that validated layout — off/on was proven against the
+ * Spitfire String Quintet corpus (bowed = on, pizzicato/spiccato = off). The
+ * `.sty` section is `Ymer::Codec::NW1::CSectionPreset` / `CEmbeddedStyle::SStyle`
+ * (NSE decompilation); the individual param scales aren't pinned yet.
+ */
+export function readTruVibrato(bytes: Uint8Array): TruVibrato | null {
+  if ((readNsmp(bytes).codec ?? 0) < 4) return null;
+  const sty = parseNsmpSections(bytes).find((s) => s.tag.endsWith('sty'));
+  if (!sty) return null;
+  const len = sty.endOffset - sty.payloadOffset;
+  if (len !== 108) return null; // only the 4.2 style layout carries the vibrato block
+  const o = sty.payloadOffset + 95; // flag byte, then the 9-byte block
+  const flag = bytes[o];
+  if (flag !== 0 && flag !== 1) return null; // not the expected flag → don't guess
+  return { on: flag === 1, params: [...bytes.slice(o + 1, o + 10)] };
+}
+
 export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
   const sections = parseNsmpSections(bytes);
   const map = sections.find((s) => s.tag.endsWith('map'));
