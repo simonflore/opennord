@@ -125,6 +125,10 @@ export interface UnisonVoice { detuneCents: number; pan: number; gain: number }
  *  for the real scale once a min/max unison export pins it. */
 const UNISON_AUDITION_DETUNE = 8;
 
+/** Max per-note detune jitter (± cents) for round-robin audition — small enough to
+ *  read as human variation, not a tuning error. */
+const ROUND_ROBIN_JITTER = 4;
+
 /**
  * Voice spreads for a unison stack, or a single centered voice when unison is off.
  * Voice count and pan% come from the decoded {@link SampleUnison}; the detune
@@ -225,11 +229,15 @@ export function createSampler(
    *  omitted) when the playground is off → flat gain + short anti-click release. */
   env?: () => AmpEnvelope | null,
   /** Sample-level voicing. `detuneCents` shifts pitch to the sample's stored global
-   *  detune; `unison` (when active) stacks detuned/panned voices — see {@link unisonVoices}. */
-  opts?: { detuneCents?: number; unison?: SampleUnison | null },
+   *  detune; `unison` (when active) stacks detuned/panned voices ({@link unisonVoices});
+   *  `roundRobin` applies a subtle per-note detune jitter so repeated notes aren't
+   *  identical (these libraries are single-sample-per-key, so there are no recorded
+   *  takes to cycle — this is the audition analogue of the Nord's DSP-side variation). */
+  opts?: { detuneCents?: number; unison?: SampleUnison | null; roundRobin?: boolean },
 ): Sampler {
   const detuneMul = detuneRatio(opts?.detuneCents ?? 0);
   const stack = unisonVoices(opts?.unison ?? null); // 1 centered voice when unison is off
+  const roundRobin = opts?.roundRobin ?? false;
   const buffers = new Map<number, AudioBuffer>(); // globalID → decoded audio (lazy)
   const live = new Map<number, { srcs: { src: AudioBufferSourceNode; gain: GainNode }[]; voice: Voice; release: number }>();
   // Decide once per sample: sustain steady loops, ring out decaying ones (see
@@ -280,7 +288,9 @@ export function createSampler(
       const buf = bufferFor(ctx, zone.globalID);
       if (!buf) return;
       noteOff(midi); // retrigger: drop any voice already on this key
-      const baseRate = playbackRate(zone.rootKey, midi) * detuneMul;
+      // Round-robin: nudge the whole note by a fresh random detune so repeats vary.
+      const rrCents = roundRobin ? (Math.random() * 2 - 1) * ROUND_ROBIN_JITTER : 0;
+      const baseRate = playbackRate(zone.rootKey, midi) * detuneMul * detuneRatio(rrCents);
       const peak = velocityGain(velocity);
       const e = env?.() ?? null;
       const t0 = ctx.currentTime;

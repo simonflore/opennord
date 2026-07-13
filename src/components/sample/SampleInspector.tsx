@@ -123,8 +123,9 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     // When the sample has unison engaged, audition it as a stacked/panned voice
     // (approximate — see unisonVoices); off → a single voice, unchanged.
     const unison = readSampleUnison(bytes);
+    const roundRobin = (unison?.randomStrokeMode ?? 0) !== 0;
     const sampler = decodable
-      ? createSampler(playableZones, strokesByGlobalID, () => envRef.current, { detuneCents, unison })
+      ? createSampler(playableZones, strokesByGlobalID, () => envRef.current, { detuneCents, unison, roundRobin })
       : null;
     setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current, playableZones, order, strokesByGlobalID, sampler, factory });
   }

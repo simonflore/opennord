@@ -271,4 +271,18 @@ describe('createSampler audition playback', () => {
       { unison: unison({ numVoiceSame: 3, panMax3: 80 }) }).noteOn(60, 100);
     expect(audioMock.created).toHaveLength(3); // one source per unison voice
   });
+
+  it('round-robin jitters the rate per note; off plays every note identically', () => {
+    const s = createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined, { roundRobin: true });
+    audioMock.created.length = 0;
+    s.noteOn(60, 100); s.noteOff(60); s.noteOn(60, 100); s.noteOff(60); s.noteOn(60, 100);
+    const rates = audioMock.created.map((x) => x.playbackRate.value);
+    expect(new Set(rates).size).toBeGreaterThan(1);       // repeats differ (jittered)
+    for (const r of rates) expect(r).toBeCloseTo(1, 1);   // …but only slightly (~±4¢)
+
+    const off = createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined, {});
+    audioMock.created.length = 0;
+    off.noteOn(60, 100); off.noteOff(60); off.noteOn(60, 100);
+    expect(new Set(audioMock.created.map((x) => x.playbackRate.value)).size).toBe(1); // identical
+  });
 });
