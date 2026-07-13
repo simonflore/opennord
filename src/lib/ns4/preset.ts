@@ -18,8 +18,10 @@
  */
 import { buildParamMap, type Param } from './maps';
 import { decodeAllParams } from './coverage';
-import { collapseMorphs, groupParams, type ParamRow, type ParamGroup } from './params-view';
+import { collapseMorphs, type ParamRow } from './params-view';
 import { identifyNordFile } from '../clavia/nord-file';
+
+const LETTERS = ['A', 'B', 'C'] as const;
 
 export type PresetEngine = 'organ' | 'piano' | 'synth';
 
@@ -31,14 +33,22 @@ const PRESET_SPEC: Record<string, { engine: PresetEngine; group: 'o' | 'p' | 'y'
   ns4y: { engine: 'synth', group: 'y', shift: 327 }, // synth block:  program byte 376 → 49
 };
 
+/** One enabled voice inside a preset. A Stage 4 synth preset stacks 1–3 layers
+ *  (a "single" vs a "section" sound); organ up to 2. Only enabled layers appear. */
+export interface PresetLayer {
+  letter: 'A' | 'B' | 'C';
+  /** Per-voice summary (osc/filter, model, registration…). */
+  headline?: string;
+  /** This layer's parameters, morph variants collapsed into ✎ badges. */
+  rows: ParamRow[];
+}
+
 export interface Ns4Preset {
   engine: PresetEngine;
-  /** A short musician-facing summary (model / registration), when derivable. */
+  /** Overall summary — the single voice's headline, or "N layers" when stacked. */
   headline?: string;
-  /** Layer-A parameters, morph variants collapsed into ✎ badges. */
-  rows: ParamRow[];
-  /** The single engine section, ready to render as a table. */
-  groups: ParamGroup[];
+  /** The enabled voices (1–3). */
+  layers: PresetLayer[];
 }
 
 /** The parenthesized human label from an interpreted value like
@@ -73,14 +83,38 @@ export function parseNs4Preset(bytes: Uint8Array): Ns4Preset | null {
 
   const db = spec.shift * 8;
   const maxBit = bytes.length * 8;
-  const shifted: Param[] = buildParamMap()
-    .filter((p) => p.group === spec.group)
-    .map((p) => {
-      const a = p.layers[0]; // layer A — the preset's single voice
-      return { ...p, layers: [{ ...a, begBit: a.begBit - db, endBit: a.endBit - db }] };
-    })
-    .filter((p) => p.layers[0].begBit >= 0 && p.layers[0].endBit < maxBit);
+  const groupParams = buildParamMap().filter((p) => p.group === spec.group);
+  const layerCount = groupParams.reduce((n, p) => Math.max(n, p.layers.length), 1);
 
-  const rows = collapseMorphs(decodeAllParams(bytes, shifted));
-  return { engine: spec.engine, headline: headlineFor(spec.engine, rows), rows, groups: groupParams(rows) };
+  // Decode one layer at a time with a single-layer map: that keeps the field
+  // names clean (the decoder appends "[A]/[B]" only when >1 layer is present,
+  // which would break morph collapsing and name lookups).
+  const decodeLayer = (L: number): ParamRow[] => {
+    const single: Param[] = groupParams
+      .filter((p) => p.layers[L])
+      .map((p) => {
+        const a = p.layers[L];
+        return { ...p, layers: [{ ...a, begBit: a.begBit - db, endBit: a.endBit - db }] };
+      })
+      .filter((p) => p.layers[0].begBit >= 0 && p.layers[0].endBit < maxBit);
+    return collapseMorphs(decodeAllParams(bytes, single));
+  };
+
+  const layers: PresetLayer[] = [];
+  for (let L = 0; L < layerCount; L++) {
+    const rows = decodeLayer(L);
+    const on = rows.find((r) => r.name === 'layer on/off')?.display;
+    // Include an enabled layer; always keep A if the file carries no on/off flag.
+    if (on === 'on' || (L === 0 && on === undefined)) {
+      layers.push({ letter: LETTERS[L], headline: headlineFor(spec.engine, rows), rows });
+    }
+  }
+  // Defensive: if nothing reported enabled, still show layer A.
+  if (layers.length === 0) {
+    const rows = decodeLayer(0);
+    layers.push({ letter: 'A', headline: headlineFor(spec.engine, rows), rows });
+  }
+
+  const headline = layers.length === 1 ? layers[0].headline : `${layers.length} layers`;
+  return { engine: spec.engine, headline, layers };
 }

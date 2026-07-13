@@ -14,34 +14,32 @@ function preset(tag: string, size: number): Uint8Array {
 }
 
 describe('parseNs4Preset', () => {
-  it('decodes an organ preset (.ns4o) into the Organ section with drawbars', () => {
+  it('decodes an organ preset (.ns4o) with drawbars', () => {
     const p = parseNs4Preset(preset('ns4o', 183));
     expect(p?.engine).toBe('organ');
-    expect(p?.groups.map((g) => g.label)).toEqual(['Organ']);
-    const names = p!.rows.map((r) => r.name);
+    expect(p?.layers.length).toBeGreaterThanOrEqual(1);
+    const names = p!.layers[0].rows.map((r) => r.name);
     expect(names).toContain('organ model');
     expect(names).toContain('drawbar 1');
     expect(names).toContain('drawbar 9');
   });
 
-  it('decodes a piano preset (.ns4n) into the Piano section', () => {
+  it('decodes a piano preset (.ns4n)', () => {
     const p = parseNs4Preset(preset('ns4n', 195));
     expect(p?.engine).toBe('piano');
-    expect(p?.groups.map((g) => g.label)).toEqual(['Piano']);
-    expect(p!.rows.map((r) => r.name)).toContain('piano type');
+    expect(p!.layers[0].rows.map((r) => r.name)).toContain('piano type');
   });
 
-  it('decodes a synth preset (.ns4y) into the Synth section with a filter', () => {
+  it('decodes a synth preset (.ns4y) with a filter', () => {
     const p = parseNs4Preset(preset('ns4y', 541));
     expect(p?.engine).toBe('synth');
-    expect(p?.groups.map((g) => g.label)).toEqual(['Synth']);
-    expect(p!.rows.map((r) => r.name)).toContain('filter type');
+    expect(p!.layers[0].rows.map((r) => r.name)).toContain('filter type');
   });
 
-  it('builds a headline for organ (model · drawbars)', () => {
-    const p = parseNs4Preset(preset('ns4o', 183));
-    // Zeroed body → the first enum value; the point is the shape is populated.
-    expect(p?.headline).toMatch(/·/);
+  it('exposes one layer per enabled voice (A/B/C), each with rows', () => {
+    const p = parseNs4Preset(preset('ns4y', 541));
+    expect(p!.layers.every((l) => ['A', 'B', 'C'].includes(l.letter))).toBe(true);
+    expect(p!.layers[0].rows.length).toBeGreaterThan(0);
   });
 
   it('returns null for a program, a sample, or an older-generation preset', () => {

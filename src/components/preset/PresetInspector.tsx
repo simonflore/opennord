@@ -46,22 +46,29 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
       </p>
 
       {decoded ? (
-        decoded.groups.map((g) => (
-          <table className="ps-params" key={g.key}>
-            <tbody>
-              {g.rows.map((r, i) => (
-                <tr key={i}>
-                  <td>{r.name}</td>
-                  <td>
-                    {r.display}
-                    {r.morphs.wheel && <span className="ps-morph" title={`wheel → ${r.morphs.wheel}`}>✎W</span>}
-                    {r.morphs.at && <span className="ps-morph" title={`aftertouch → ${r.morphs.at}`}>✎A</span>}
-                    {r.morphs.pedal && <span className="ps-morph" title={`pedal → ${r.morphs.pedal}`}>✎P</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        decoded.layers.map((layer) => (
+          <div key={layer.letter}>
+            {decoded.layers.length > 1 && (
+              <p className="ps-sub" style={{ fontWeight: 700, marginTop: 12 }}>
+                Layer {layer.letter}{layer.headline ? ` · ${layer.headline}` : ''}
+              </p>
+            )}
+            <table className="ps-params">
+              <tbody>
+                {layer.rows.map((r, i) => (
+                  <tr key={i}>
+                    <td>{r.name}</td>
+                    <td>
+                      {r.display}
+                      {r.morphs.wheel && <span className="ps-morph" title={`wheel → ${r.morphs.wheel}`}>✎W</span>}
+                      {r.morphs.at && <span className="ps-morph" title={`aftertouch → ${r.morphs.at}`}>✎A</span>}
+                      {r.morphs.pedal && <span className="ps-morph" title={`pedal → ${r.morphs.pedal}`}>✎P</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ))
       ) : (
         <p className="ps-sub">This preset is recognized but not opened in detail — OpenNord lists and moves presets without decoding them.</p>
