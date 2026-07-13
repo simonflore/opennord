@@ -22,10 +22,13 @@ export function isNs4Program(program: NordProgram): program is NS4Program {
   return 'kind' in program;
 }
 
-/** File-type badge for a local/backup file, e.g. ".ns4p" — undefined if unrecognized. */
-function typeLabelFor(bytes: Uint8Array): string | undefined {
+/** Type badge (e.g. ".ns4p") + generation for a local/backup file's entry. */
+function fileMetaFor(bytes: Uint8Array): Pick<LibraryEntry, 'typeLabel' | 'generation'> {
   const info = identifyNordFile(bytes);
-  return info.recognized && info.tag ? `.${info.tag}` : undefined;
+  if (!info.recognized) return {};
+  const generation = info.generation === 'Stage 2' || info.generation === 'Stage 3' || info.generation === 'Stage 4'
+    ? info.generation : undefined;
+  return { typeLabel: info.tag ? `.${info.tag}` : undefined, generation };
 }
 
 /** Map the device's enumerated programs into Library entries. */
@@ -48,19 +51,22 @@ export function entryFromImport(rec: { id: string; name: string; bytes: Uint8Arr
     id: rec.id,
     name: program.name ?? rec.name,
     source: 'local',
-    typeLabel: typeLabelFor(rec.bytes),
+    ...fileMetaFor(rec.bytes),
     summary: program.parsed && isNs4Program(program) ? summarize(program) : undefined,
     program,
     bytes: rec.bytes,
   };
 }
 
-/** Filter by source tab + case-insensitive name query. */
+/** Filter by source tab + format generation + case-insensitive name query. */
 export function filterEntries(
   entries: LibraryEntry[], source: LibrarySource | 'all', query: string,
+  generation: LibraryEntry['generation'] | 'all' = 'all',
 ): LibraryEntry[] {
   return entries.filter((e) =>
-    (source === 'all' || e.source === source) && matchesQuery(e.name, query));
+    (source === 'all' || e.source === source) &&
+    (generation === 'all' || e.generation === generation) &&
+    matchesQuery(e.name, query));
 }
 
 /**
@@ -86,7 +92,7 @@ export function entriesFromScannedPrograms(programs: ScannedProgram[]): LibraryE
     id: p.id,
     name: p.name,
     source: (p.id.includes('!') ? 'backup' : 'local') as LibrarySource,
-    typeLabel: typeLabelFor(p.bytes),
+    ...fileMetaFor(p.bytes),
     summary: p.summary,
     program: p.program,
     bytes: p.bytes,

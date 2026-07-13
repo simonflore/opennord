@@ -7,19 +7,31 @@
  * so callers pass the same audition rate used for playback — pitch matches what
  * you hear in-app even if it differs from the original capture rate.
  */
-export function encodeWav(channels: Float32Array[], sampleRate: number): Uint8Array {
+/** Loop metadata to embed as a `smpl` chunk so tools (e.g. Nord Sample Editor)
+ *  can recover the loop points and pitch from an exported WAV. */
+export interface WavLoop {
+  /** Loop in/out, in sample frames from the start of the audio. */
+  start: number;
+  end: number;
+  /** MIDI note the sample is pitched for (`dwMIDIUnityNote`). Default 60 (C4). */
+  unityNote?: number;
+}
+
+export function encodeWav(channels: Float32Array[], sampleRate: number, loop?: WavLoop): Uint8Array {
   const numChannels = Math.max(1, channels.length);
   const numFrames = channels[0]?.length ?? 0;
   const bytesPerSample = 2;
   const blockAlign = numChannels * bytesPerSample;
   const dataBytes = numFrames * blockAlign;
 
-  const buf = new ArrayBuffer(44 + dataBytes);
+  // A `smpl` chunk is 8 (id+size) + 36 (fields) + 24 (one loop) = 68 bytes.
+  const smplBytes = loop ? 68 : 0;
+  const buf = new ArrayBuffer(44 + dataBytes + smplBytes);
   const view = new DataView(buf);
   const writeStr = (off: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
 
   writeStr(0, 'RIFF');
-  view.setUint32(4, 36 + dataBytes, true);
+  view.setUint32(4, 36 + dataBytes + smplBytes, true);
   writeStr(8, 'WAVE');
   writeStr(12, 'fmt ');
   view.setUint32(16, 16, true);              // PCM fmt chunk size
@@ -41,6 +53,26 @@ export function encodeWav(channels: Float32Array[], sampleRate: number): Uint8Ar
       view.setInt16(off, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
       off += 2;
     }
+  }
+
+  if (loop) {
+    writeStr(off, 'smpl'); off += 4;
+    view.setUint32(off, 36 + 24, true); off += 4;                        // chunk size (fields + 1 loop)
+    view.setUint32(off, 0, true); off += 4;                              // manufacturer
+    view.setUint32(off, 0, true); off += 4;                              // product
+    view.setUint32(off, Math.round(1e9 / sampleRate), true); off += 4;   // sample period (ns)
+    view.setUint32(off, loop.unityNote ?? 60, true); off += 4;           // MIDI unity note
+    view.setUint32(off, 0, true); off += 4;                              // MIDI pitch fraction
+    view.setUint32(off, 0, true); off += 4;                              // SMPTE format
+    view.setUint32(off, 0, true); off += 4;                              // SMPTE offset
+    view.setUint32(off, 1, true); off += 4;                              // number of sample loops
+    view.setUint32(off, 0, true); off += 4;                              // sampler-specific data bytes
+    view.setUint32(off, 0, true); off += 4;                              // loop id
+    view.setUint32(off, 0, true); off += 4;                              // loop type: 0 = forward
+    view.setUint32(off, loop.start, true); off += 4;                     // loop start (frame)
+    view.setUint32(off, loop.end, true); off += 4;                       // loop end (frame)
+    view.setUint32(off, 0, true); off += 4;                              // fraction
+    view.setUint32(off, 0, true); off += 4;                              // play count: 0 = infinite
   }
   return new Uint8Array(buf);
 }

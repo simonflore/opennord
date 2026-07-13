@@ -22,6 +22,9 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
       source={s.source}
       query={s.query}
       onSource={s.setSource}
+      generation={s.generation}
+      onGeneration={s.setGeneration}
+      generationsPresent={s.generationsPresent}
       onQuery={s.setQuery}
       onOpen={(e) => {
         if (e.program) navigate({ to: '/library/programs/$programId', params: { programId: e.id } });
@@ -29,6 +32,8 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
       }}
       onImport={s.importFile}
       onRemove={s.imported.remove}
+      importError={s.importError}
+      onDismissImportError={s.clearImportError}
       prefs={s.prefs}
       folder={s.folder}
     />

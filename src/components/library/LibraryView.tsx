@@ -1,5 +1,5 @@
 import './library.css';
-import { Button, BrowseToolbar, Card, SourceBadge } from '../ui';
+import { Button, BrowseToolbar, Card, SourceBadge, type FacetGroup } from '../ui';
 import { BundlePicker } from './BundlePicker';
 import { NewBackupsBanner } from './NewBackupsBanner';
 import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
@@ -11,11 +11,18 @@ interface Props {
   source: LibrarySource | 'all';
   query: string;
   onSource: (s: LibrarySource | 'all') => void;
+  /** Format-generation facet (Stage 2/3/4). Shown only when >1 generation is present. */
+  generation?: LibraryEntry['generation'] | 'all';
+  onGeneration?: (g: LibraryEntry['generation'] | 'all') => void;
+  generationsPresent?: Array<NonNullable<LibraryEntry['generation']>>;
   onQuery: (q: string) => void;
   onOpen: (e: LibraryEntry) => void;
   onImport: () => void;
   /** Remove an imported program (local source only). */
   onRemove: (id: string) => void;
+  /** Message shown when an import was rejected (wrong file type); '' when none. */
+  importError?: string;
+  onDismissImportError?: () => void;
   /** Sort order + favorites (organize). */
   prefs: LibraryPrefsApi;
   /** The connected folder source (name, scan results, connect/refresh/forget). */
@@ -29,7 +36,8 @@ const SORT_LABEL: Record<LibrarySort, string> = { default: 'Default', name: 'Nam
 
 export function LibraryView({
   entries, source, query, onSource, onQuery, onOpen, onImport, onRemove,
-  prefs, folder,
+  generation = 'all', onGeneration, generationsPresent = [],
+  importError, onDismissImportError, prefs, folder,
 }: Props) {
   // Unpack the grouped props so the JSX below reads the same as before.
   const { sort, setSort: onSort, favorites, toggleFavorite: onToggleFavorite } = prefs;
@@ -40,6 +48,21 @@ export function LibraryView({
 
   const nord = entries.filter((e) => e.source === 'nord').length;
   const local = entries.length - nord;
+
+  const facets: FacetGroup[] = [
+    {
+      ariaLabel: 'Filter by source',
+      value: source,
+      options: TABS.map((t) => ({ key: t, label: TAB_LABEL[t] })),
+      onChange: (k) => onSource(k as LibrarySource | 'all'),
+    },
+    ...(generationsPresent.length > 1 ? [{
+      ariaLabel: 'Filter by format',
+      value: generation ?? 'all',
+      options: [{ key: 'all', label: 'All' }, ...generationsPresent.map((g) => ({ key: g, label: g }))],
+      onChange: (k: string) => onGeneration?.(k as LibraryEntry['generation'] | 'all'),
+    }] : []),
+  ];
 
   return (
     <div className="lib-panel">
@@ -84,6 +107,13 @@ export function LibraryView({
         </div>
       )}
 
+      {importError && (
+        <div className="lib-reconnect" role="alert">
+          <span className="lib-reconnect__err">{importError}</span>
+          <button className="on-btn on-btn--ghost" onClick={onDismissImportError}>Dismiss</button>
+        </div>
+      )}
+
       {!folder.pickerOpen && (
         <NewBackupsBanner count={folder.newBundles.length} onReview={folder.openBundlePicker} />
       )}
@@ -98,12 +128,7 @@ export function LibraryView({
         query={query}
         onQuery={onQuery}
         placeholder="Search patches by name…"
-        facets={[{
-          ariaLabel: 'Filter by source',
-          value: source,
-          options: TABS.map((t) => ({ key: t, label: TAB_LABEL[t] })),
-          onChange: (k) => onSource(k as LibrarySource | 'all'),
-        }]}
+        facets={facets}
         sort={sort}
         sortOptions={(Object.keys(SORT_LABEL) as LibrarySort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }))}
         onSort={(k) => onSort(k as LibrarySort)}

@@ -109,7 +109,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     for (const z of zones) if (!rootByGlobalID.has(z.globalID)) rootByGlobalID.set(z.globalID, z.rootKey);
     const strokes: InspectorStroke[] = decoded.map((d) => {
       const root = rootByGlobalID.get(d.globalID);
-      const summary = root != null ? { ...strokeSummary(d), rootNote: noteName(root) } : strokeSummary(d);
+      const summary = root != null ? { ...strokeSummary(d), rootNote: noteName(root), rootMidi: root } : strokeSummary(d);
       return { summary, channels: d.channels };
     });
     const stem = name.replace(/\.[^./]+$/, '');

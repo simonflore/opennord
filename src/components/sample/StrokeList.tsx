@@ -22,9 +22,15 @@ function safeStem(name: string): string {
  *  Encodes the root note into the name (e.g. `Pad_S3_C4.wav`) so the pitch is
  *  recoverable from the file alone when rebuilding a sample project in NSE. */
 function strokeWav(stroke: InspectorStroke, baseName: string): { bytes: Uint8Array; filename: string } {
-  const bytes = encodeWav(normalizeChannels(stroke.channels), SAMPLE_RATE);
-  const root = stroke.summary.rootNote ? `_${safeStem(stroke.summary.rootNote)}` : '';
-  return { bytes, filename: `${safeStem(baseName)}_S${stroke.summary.index + 1}${root}.wav` };
+  const s = stroke.summary;
+  // Preserve loop points as a `smpl` chunk so the loop survives round-tripping
+  // back into a Nord Sample Editor project (the community "looping hack").
+  const loop = s.loops && s.loopStart != null && s.loopEnd != null
+    ? { start: s.loopStart, end: s.loopEnd, unityNote: s.rootMidi }
+    : undefined;
+  const bytes = encodeWav(normalizeChannels(stroke.channels), SAMPLE_RATE, loop);
+  const root = s.rootNote ? `_${safeStem(s.rootNote)}` : '';
+  return { bytes, filename: `${safeStem(baseName)}_S${s.index + 1}${root}.wav` };
 }
 
 export function StrokeList({ strokes, playable, name = 'sample', order, globalIDOf, soundingGlobalIDs, playheadOf }: {

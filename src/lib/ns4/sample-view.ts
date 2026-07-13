@@ -125,6 +125,8 @@ export interface StrokeSummary {
   /** Root note (e.g. "E3") of the zone that plays this stroke. Joined from the
    *  key map by globalID at load time; undefined when no zone references it. */
   rootNote?: string;
+  /** The same root note as a MIDI number (for WAV `smpl` dwMIDIUnityNote). */
+  rootMidi?: number;
   /** Whether the stroke loops; undefined when the loop region wasn't decodable. */
   loops?: boolean;
   /** Loop in/out, per-channel samples from stroke start (only when looping). */

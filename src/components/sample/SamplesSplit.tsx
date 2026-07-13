@@ -77,6 +77,11 @@ export function SamplesSplit() {
       const f = input.files?.[0];
       cleanup();
       if (!f) return;
+      if (!['.nsmp', '.nsmp3', '.nsmp4'].some((e) => f.name.toLowerCase().endsWith(e))) {
+        setPullError(`“${f.name}” isn’t a Nord sample (.nsmp, .nsmp3 or .nsmp4). Programs belong on the Library page.`);
+        return;
+      }
+      setPullError('');
       const bytes = await readFileBytes(f);
       await s.importSample(f);                  // persist + add to the list
       setLoadNew(false);

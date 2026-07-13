@@ -18,6 +18,20 @@ import { parseWav } from './wav';
 import { resampleNW1 } from './nw1-resample';
 
 /**
+ * Evenly split the 128-key range into `n` contiguous bands — the default keymap
+ * used when the source zone map can't be read. Each stroke gets its own slice
+ * (rooted at the slice centre) instead of every stroke stacking on middle C, so
+ * a keymap-less source spreads across the keyboard and each wave is playable.
+ */
+function spreadKeyRanges(n: number): Array<{ keyLow: number; keyHigh: number; rootKey: number }> {
+  return Array.from({ length: n }, (_, i) => {
+    const keyLow = Math.round((i * 128) / n);
+    const keyHigh = Math.round(((i + 1) * 128) / n) - 1; // last band ends at 127
+    return { keyLow, keyHigh, rootKey: Math.round((keyLow + keyHigh) / 2) };
+  });
+}
+
+/**
  * Target generation for {@link convertNsmp}: `2` = original `.nsmp` (OG `NWS`
  * container), `3` = `.nsmp3`, `4` = `.nsmp4`. Any source generation converts to
  * any of these.
@@ -76,8 +90,11 @@ export function convertNsmp(bytes: Uint8Array, targetCodec: TargetCodec): Conver
     throw new Error(`convertNsmp: could not decode any strokes (codec ${file.codec})`);
   }
   const zones = readNsmpZones(bytes); // [] when the source map isn't parseable yet
-  if (zones.length === 0 && strokes.length > 1) {
-    warnings.push('Source zone map not read — placing each stroke across the full keyboard.');
+  // No readable source map + multiple strokes → give each stroke its own even
+  // slice of the keyboard rather than stacking them all on middle C.
+  const spread = zones.length === 0 && strokes.length > 1 ? spreadKeyRanges(strokes.length) : null;
+  if (spread) {
+    warnings.push('Source zone map not read — spreading each stroke across an even key range.');
   }
   const name = file.name ?? 'Converted';
 
@@ -88,11 +105,12 @@ export function convertNsmp(bytes: Uint8Array, targetCodec: TargetCodec): Conver
   if (targetCodec === 2) {
     const c2Zones: Codec2WriteZone[] = strokes.map((s, i) => {
       const z = zones.find((z) => z.globalID === s.globalID) ?? zones[i];
+      const d = spread?.[i];
       return {
         channels: s.channels,
         globalID: s.globalID || i + 1,
-        rootKey: z?.rootKey ?? 60,
-        keyHigh: z?.keyHigh ?? 127,
+        rootKey: z?.rootKey ?? d?.rootKey ?? 60,
+        keyHigh: z?.keyHigh ?? d?.keyHigh ?? 127, // ascending tops = contiguous splits
         segmentsInterleaved: s.segments, // carry loop/region structure from the source
       };
     });
@@ -109,10 +127,12 @@ export function convertNsmp(bytes: Uint8Array, targetCodec: TargetCodec): Conver
   const writeZones: WriteZone[] = strokes.map((s, i) => {
     // Zones reference strokes by global id (not position); fall back to index order.
     const z = zones.find((z) => z.globalID === s.globalID) ?? zones[i];
+    const d = spread?.[i];
     return {
       channels: s.channels,
-      keyHigh: z?.keyHigh ?? 127,
-      rootKey: z?.rootKey ?? 60,
+      keyLow: d?.keyLow, // only set for the spread fallback; existing zones keep prior behavior
+      keyHigh: z?.keyHigh ?? d?.keyHigh ?? 127,
+      rootKey: z?.rootKey ?? d?.rootKey ?? 60,
       velTop: z?.velTop ?? 127,
     };
   });
