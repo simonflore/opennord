@@ -61,7 +61,7 @@ function Hero() {
   return (
     <section className="home-hero">
       <div className="home-hero__copy">
-        <span className="on-overline">Open · AI-native companion</span>
+        <span className="on-overline">Open source · in your browser</span>
         <h1 className="home-hero__title">
           Know your Nord — <span className="home-hero__title-em">without the keyboard.</span>
         </h1>
@@ -147,15 +147,14 @@ const FEATURES: { icon: ReactNode; title: string; body: string }[] = [
     body: 'Audition your sample instruments on an on-screen keyboard, or from a MIDI controller — a lightweight rompler with no Nord plugged in.',
   },
   {
+    icon: <IconConvert />,
+    title: 'Convert & import',
+    body: 'Convert samples across Nord generations, import your own WAVs, and export anything — your imports become a local sample library.',
+  },
+  {
     icon: <IconUsb />,
     title: 'Talk to your Nord',
     body: 'On desktop and iPad, pull programs off the keyboard and write them back over USB — a hardware-validated transfer path. Back up your instrument first.',
-  },
-  {
-    icon: <IconSparkle />,
-    title: 'AI search & explain',
-    body: 'Find the right patch by describing the sound, and get a plain-language explanation of any program. Designed and on the way.',
-    // (planned — see docs/ROADMAP.md)
   },
   {
     icon: <IconLock />,
@@ -181,6 +180,11 @@ function Features() {
           </div>
         ))}
       </div>
+      <p className="home-roadmap">
+        <span className="home-roadmap__tag">On the roadmap</span>
+        Community patch sharing and AI-assisted search &amp; explanations are
+        designed — not shipped yet.
+      </p>
     </section>
   );
 }
@@ -239,12 +243,12 @@ function Why() {
         <WhyItem
           n="02"
           title="Works from a file alone"
-          body="Reading, organizing and sharing all work without a keyboard connected. Device transfer is a bonus, never a requirement."
+          body="Reading, organizing and playing your patches all work without a keyboard connected. Device transfer is a bonus, never a requirement."
         />
         <WhyItem
           n="03"
           title="Your work stays yours"
-          body="OpenNord shares the patches you create — never Nord’s factory sounds. Programs point to samples by name; the audio stays on your instrument."
+          body="Programs describe your own settings and point to samples by name — OpenNord never copies Nord’s factory sounds. Your creative work stays yours."
         />
       </div>
     </section>
@@ -314,7 +318,7 @@ function SiteFooter() {
             Open<span className="home-brand__accent">Nord</span>
           </div>
           <p className="home-ft__tagline">
-            An open, AI-native companion for Nord® keyboards.
+            An open companion for Nord® keyboards.
           </p>
         </div>
         <nav className="home-ft__links" aria-label="Footer">
@@ -411,11 +415,10 @@ function IconUsb() {
   );
 }
 
-function IconSparkle() {
+function IconConvert() {
   return (
     <svg {...svgProps()}>
-      <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />
-      <path d="M19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" />
+      <path d="M4 8h13l-3-3M20 16H7l3 3" />
     </svg>
   );
 }

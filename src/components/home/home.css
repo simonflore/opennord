@@ -225,6 +225,26 @@
   .home-grid { grid-template-columns: 1fr; }
 }
 
+/* Honest roadmap line — future work, clearly set apart from the shipped grid. */
+.home-roadmap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-4) 0 0;
+  font: 400 12px/1.5 var(--font);
+  color: var(--muted);
+}
+.home-roadmap__tag {
+  font: 700 9px var(--font);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--warn);
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line));
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
 /* ── Coverage ────────────────────────────────────────────────────────────── */
 .home-cov {
   display: flex;
