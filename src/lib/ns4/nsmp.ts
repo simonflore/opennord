@@ -331,12 +331,16 @@ export function parseCodec4ZoneRecords(
   const HEADER = 32;             // zone-table header; its last byte is the zone count
 
   // Records are root-aligned (ZONE_LAYOUT_C4): rootKey@+0, keyHigh@+1, keyLow@+2,
-  // globalID@+11, trailer `00 01 00`@+12, velTop@+15. A real record has all three
-  // key bytes ≤127, a global id that names a real stroke, and the `00 01 00` trailer.
+  // globalID@+11, velTop@+15. A real record has all three key bytes ≤127, a global
+  // id that names a real stroke, and the "strength=1" marker. That marker moved
+  // between codec-4 revisions — the older layout writes `00 01 00` at +12, the newer
+  // (`.nsmp4` 4.2, e.g. unison-on libraries) writes `01` at +7 — so accept either.
+  // All the fields we read are identical across both; only the marker offset differs.
+  const marker = (o: number) =>
+    (bytes[o + 12] === 0 && bytes[o + 13] === 1 && bytes[o + 14] === 0) || bytes[o + 7] === 1;
   const valid = (o: number) =>
     o + REC <= map.endOffset && bytes[o] <= 127 && bytes[o + 1] <= 127 && bytes[o + 2] <= 127 &&
-    (gidSet ? gidSet.has(bytes[o + 11]) : bytes[o + 11] >= 1) &&
-    bytes[o + 12] === 0 && bytes[o + 13] === 1 && bytes[o + 14] === 0;
+    (gidSet ? gidSet.has(bytes[o + 11]) : bytes[o + 11] >= 1) && marker(o);
 
   // Preferred path: the table sits at the fixed header offset. Its **trailer length
   // varies** (both 6 B and 2 B observed) — it tracks the `SampleUnison`/random-stroke
@@ -662,9 +666,14 @@ function parseStrokeRefZoneRecords(
 export function parseCodec2ZoneRecords(
   bytes: Uint8Array, map: NsmpSection, rootByGid: Map<number, number>,
 ): NsmpZone[] {
+  // gid@+0, keyHigh@+7. The "strength" marker varies between codec-2 revisions —
+  // most write `00 01` at +8/+9; the Spitfire-era libraries write `10` at +1 with
+  // +8/+9 clear — so accept either. The maximal-run + gid-in-set guard rejects
+  // phantom alignments regardless.
   return parseStrokeRefZoneRecords(bytes, map, rootByGid, {
     rec: 15, gidOff: 0, keyHighOff: 7,
-    ok: (b, o, g) => g.has(b[o]) && b[o + 7] <= 127 && b[o + 8] === 0 && b[o + 9] === 1,
+    ok: (b, o, g) => g.has(b[o]) && b[o + 7] <= 127 &&
+      ((b[o + 8] === 0 && b[o + 9] === 1) || b[o + 1] === 0x10),
   });
 }
 
@@ -672,9 +681,12 @@ export function parseCodec2ZoneRecords(
 export function parseCodec3V12ZoneRecords(
   bytes: Uint8Array, map: NsmpSection, rootByGid: Map<number, number>,
 ): NsmpZone[] {
+  // 11-byte records: keyHigh@+3, gid@+10, "strength=1" marker@+6. Earlier readers
+  // also required @+1===1, but that byte isn't stable across v12 exports (Spitfire-
+  // era libraries leave it 0/varying) — @+6 is the reliable marker, so drop @+1.
   return parseStrokeRefZoneRecords(bytes, map, rootByGid, {
     rec: 11, gidOff: 10, keyHighOff: 3,
-    ok: (b, o, g) => b[o] === 0 && b[o + 1] === 1 && b[o + 6] === 1 && g.has(b[o + 10]) && b[o + 3] <= 127,
+    ok: (b, o, g) => b[o] === 0 && b[o + 6] === 1 && b[o + 3] <= 127 && b[o + 3] >= 1 && g.has(b[o + 10]),
   });
 }
 
