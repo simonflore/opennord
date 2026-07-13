@@ -32,8 +32,10 @@
     "fflate": "^0.8.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "usb": "^2.15.0",
     "zod": "^4.4.3"
+  },
+  "optionalDependencies": {
+    "usb": "^2.15.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.0",

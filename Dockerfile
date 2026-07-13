@@ -6,6 +6,11 @@ WORKDIR /app
 
 # Install deps from the lockfile first so this layer caches across source edits.
 # devDependencies are required here (tsc, vite live in devDependencies).
+# `usb` is an optionalDependency (native node-gyp module) used only by the local
+# Electron shell — the web bundle uses WebUSB and never imports it. alpine has no
+# Python toolchain, so its build fails; because it's optional, npm warns and
+# continues rather than failing the install. (Don't use --omit=optional: it would
+# also drop rolldown/esbuild's platform-native bindings that Vite needs.)
 COPY package.json package-lock.json ./
 RUN npm ci
 
