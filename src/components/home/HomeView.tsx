@@ -19,6 +19,7 @@ export function HomeView() {
       <main>
         <Hero />
         <Features />
+        <Proof />
         <Coverage />
         <Why />
         <OpenSource />
@@ -148,18 +149,18 @@ const FEATURES: { icon: ReactNode; title: string; body: string }[] = [
   },
   {
     icon: <IconConvert />,
-    title: 'Convert & import',
-    body: 'Convert samples across Nord generations, import your own WAVs, and export anything — your imports become a local sample library.',
+    title: 'Convert & export',
+    body: 'Convert sample instruments across Nord generations — even the downconverts the official editor won’t do — and export any sample to WAV or a zip.',
   },
   {
     icon: <IconUsb />,
-    title: 'Talk to your Nord',
-    body: 'On desktop and iPad, pull programs off the keyboard and write them back over USB — a hardware-validated transfer path. Back up your instrument first.',
+    title: 'Transfer over USB',
+    body: 'On a computer with Chrome or Edge, pull programs off your Nord and write them back — a transfer path proven live on real hardware. Back up first.',
   },
   {
-    icon: <IconLock />,
-    title: 'Private by design',
-    body: 'Everything runs in your browser. Your files are read on your own device — nothing is uploaded, and there’s no tracking.',
+    icon: <IconBackup />,
+    title: 'Back up & restore',
+    body: 'Save your whole keyboard to a single file, then restore it with a preview of exactly what will change — a safety net before you experiment.',
   },
 ];
 
@@ -182,9 +183,47 @@ function Features() {
       </div>
       <p className="home-roadmap">
         <span className="home-roadmap__tag">On the roadmap</span>
-        Community patch sharing and AI-assisted search &amp; explanations are
-        designed — not shipped yet.
+        Community patch sharing, AI-assisted search &amp; explanations, and USB
+        transfer on iPad are designed — not shipped yet.
       </p>
+    </section>
+  );
+}
+
+/* ── Proof ───────────────────────────────────────────────────────────────── */
+
+const PROOF: { icon: ReactNode; lead: string; body: string }[] = [
+  {
+    icon: <IconCheck />,
+    lead: 'Matched, not guessed',
+    body: 'Stage 4 programs are validated field-for-field against real exports from the keyboard — nothing invented.',
+  },
+  {
+    icon: <IconUsb />,
+    lead: 'Proven on hardware',
+    body: 'Reading and writing over USB is tested live — enumerate, read and write, on a real Nord Stage 4.',
+  },
+  {
+    icon: <IconLock />,
+    lead: 'Stays on your device',
+    body: 'Your files are read locally in your browser. No upload, no account, no tracking, no server.',
+  },
+];
+
+function Proof() {
+  return (
+    <section className="home-sec home-sec--tight">
+      <div className="home-proof">
+        {PROOF.map((p) => (
+          <div className="home-proof__item" key={p.lead}>
+            <div className="home-proof__icon" aria-hidden="true">{p.icon}</div>
+            <div>
+              <div className="home-proof__lead">{p.lead}</div>
+              <p className="home-proof__body">{p.body}</p>
+            </div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -220,6 +259,9 @@ function Coverage() {
           </div>
         </div>
       </div>
+      <Link to="/compatibility" className="home-cov__link">
+        See the full compatibility matrix →
+      </Link>
     </section>
   );
 }
@@ -419,6 +461,24 @@ function IconConvert() {
   return (
     <svg {...svgProps()}>
       <path d="M4 8h13l-3-3M20 16H7l3 3" />
+    </svg>
+  );
+}
+
+function IconBackup() {
+  return (
+    <svg {...svgProps()}>
+      <path d="M12 3l7 3v5c0 4-3 6.5-7 8-4-1.5-7-4-7-8V6z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
+
+function IconCheck() {
+  return (
+    <svg {...svgProps()}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8.5 12.5l2.5 2.5 4.5-5" />
     </svg>
   );
 }

@@ -245,6 +245,38 @@
   padding: 2px 8px;
 }
 
+/* ── Proof band ──────────────────────────────────────────────────────────── */
+.home-sec--tight { padding-block: clamp(var(--s-4), 3vw, 32px); }
+.home-proof {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-4);
+  padding: var(--s-6) var(--s-4);
+  background: var(--grad-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--edge-hi), var(--shadow-1);
+}
+.home-proof__item { display: flex; gap: var(--s-3); align-items: flex-start; }
+.home-proof__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  color: var(--red-bright);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--red) 22%, var(--line));
+}
+.home-proof__lead { font: 700 13px var(--font); color: var(--ink); }
+.home-proof__body { margin: 4px 0 0; font: 400 12px/1.55 var(--font); color: var(--dim); }
+
+@media (max-width: 860px) {
+  .home-proof { grid-template-columns: 1fr; gap: var(--s-4); }
+}
+
 /* ── Coverage ────────────────────────────────────────────────────────────── */
 .home-cov {
   display: flex;
@@ -279,6 +311,15 @@
   color: var(--ink);
   border-color: color-mix(in srgb, var(--red) 45%, var(--line));
 }
+.home-cov__link {
+  display: inline-block;
+  margin-top: var(--s-4);
+  font: 600 12px var(--font);
+  color: var(--red-bright);
+  text-decoration: none;
+  transition: color var(--t-fast);
+}
+.home-cov__link:hover { color: var(--red); }
 
 /* ── Why ─────────────────────────────────────────────────────────────────── */
 .home-why {
