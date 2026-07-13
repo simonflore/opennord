@@ -4,8 +4,16 @@ import { fileURLToPath, URL } from 'node:url';
 import { fixturesDevPlugin } from './src/dev/fixtures-plugin';
 
 const NATIVE = process.env.OPENNORD_NATIVE === '1';
+// The Electron shell loads the packed build over file://, where Vite's default
+// absolute base (`/assets/...`) resolves to the filesystem root and 404s — a
+// blank window. A relative base makes assets resolve next to index.html. Safe
+// for every target because the app uses hash routing (the document URL is
+// always the root index.html), so we only scope it to Electron to keep the
+// web/Capacitor bundles unchanged. Set by the `build:electron` script.
+const ELECTRON = process.env.OPENNORD_ELECTRON === '1';
 
 export default defineConfig({
+  base: ELECTRON ? './' : '/',
   plugins: [react(), fixturesDevPlugin()],
   server: { port: process.env.PORT ? Number(process.env.PORT) : 5173 },
   // .ns4p isn't a Vite-recognized asset extension by default; the migration

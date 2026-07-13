@@ -18,10 +18,11 @@
     "fixtures:scan": "vitest run src/lib/clavia/fixtures-scan.test.ts",
     "build:native": "OPENNORD_NATIVE=1 tsc -b && OPENNORD_NATIVE=1 vite build",
     "cap:sync": "npm run build:native && cap sync",
+    "build:electron": "OPENNORD_ELECTRON=1 tsc -b && OPENNORD_ELECTRON=1 vite build",
     "electron:build": "esbuild electron/main.ts electron/preload.ts --bundle --platform=node --format=cjs --external:electron --external:usb --outdir=electron/dist --out-extension:.js=.cjs",
     "electron:rebuild": "electron-rebuild -f -w usb",
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron electron/dist/main.cjs\"",
-    "electron:pack": "npm run build && npm run electron:build && electron-builder --mac"
+    "electron:pack": "npm run build:electron && npm run electron:build && electron-builder --mac"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.84",

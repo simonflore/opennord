@@ -125,6 +125,12 @@ function registerUsbIpc(): void {
   );
 }
 
+// The web build's `/` route is the public marketing landing page (the website's
+// front door). A downloaded desktop app has already "arrived", so it should open
+// straight into the tool — the Library is the app's home. The app uses hash
+// routing, so we point the initial load at the Library route's hash.
+const APP_ENTRY_HASH = '/library/programs';
+
 async function createWindow(): Promise<void> {
   const win = new BrowserWindow({
     width: 1200,
@@ -132,10 +138,10 @@ async function createWindow(): Promise<void> {
     webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false },
   });
   const devUrl = process.env.VITE_DEV_SERVER_URL;
-  if (devUrl) await win.loadURL(devUrl);
+  if (devUrl) await win.loadURL(`${devUrl}#${APP_ENTRY_HASH}`);
   // Packed layout: <app>/electron/dist/main.cjs + <app>/dist/index.html, so the
   // web build is two levels up from __dirname (electron/dist), at the app root.
-  else await win.loadFile(join(__dirname, '../../dist/index.html'));
+  else await win.loadFile(join(__dirname, '../../dist/index.html'), { hash: APP_ENTRY_HASH });
 }
 
 app.whenReady().then(() => {
