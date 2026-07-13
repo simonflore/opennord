@@ -17,7 +17,7 @@
  * shown, and editable elsewhere regardless — this only gates preview playback.
  */
 import type { PlayableZone } from '../../lib/ns4/playable-zones';
-import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
+import type { DecodedStrokeResult, SampleUnison } from '../../lib/ns4/nsmp';
 import { normalizeChannels, toAudioBuffer } from '../../lib/ns4/nsmp-audio';
 import { SAMPLE_RATE, getSharedCtx } from './audioPlayer';
 
@@ -116,6 +116,33 @@ export function detuneRatio(cents: number): number {
   return 2 ** (cents / 1200);
 }
 
+/** One voice of a unison stack: its detune (cents), stereo pan (−1..+1) and gain. */
+export interface UnisonVoice { detuneCents: number; pan: number; gain: number }
+
+/** Outer-voice detune for the audition unison stack, in cents. The unison block's
+ *  detune-spread SCALE isn't pinned yet (the known corpus stores detune 0), so the
+ *  stack choruses with a small musical default rather than a raw value — swap this
+ *  for the real scale once a min/max unison export pins it. */
+const UNISON_AUDITION_DETUNE = 8;
+
+/**
+ * Voice spreads for a unison stack, or a single centered voice when unison is off.
+ * Voice count and pan% come from the decoded {@link SampleUnison}; the detune
+ * spread is an audition approximation ({@link UNISON_AUDITION_DETUNE}) and gains are
+ * 1/√n so the stack stays level. APPROXIMATE — an audition aid, not a faithful
+ * reproduction of the Nord's unison engine (which we can't fully decode yet).
+ */
+export function unisonVoices(u: SampleUnison | null): UnisonVoice[] {
+  if (!u || !u.active) return [{ detuneCents: 0, pan: 0, gain: 1 }];
+  const n = Math.max(2, Math.min(4, u.numVoiceSame || 2));
+  const panW = Math.min(1, Math.max(0, u.panMax, u.panMax2, u.panMax3) / 100);
+  const g = 1 / Math.sqrt(n);
+  return Array.from({ length: n }, (_, i) => {
+    const t = (i / (n - 1)) * 2 - 1; // −1..+1 across the stack
+    return { detuneCents: t * UNISON_AUDITION_DETUNE, pan: t * panW, gain: g };
+  });
+}
+
 /** MIDI velocity → linear gain, clamped to 0..1. */
 export function velocityGain(velocity: number): number {
   return Math.max(0, Math.min(1, velocity / 127));
@@ -197,13 +224,14 @@ export function createSampler(
   /** Optional synth-playground envelope, read at each note-on. Returns null (or is
    *  omitted) when the playground is off → flat gain + short anti-click release. */
   env?: () => AmpEnvelope | null,
-  /** Sample-level voicing applied to every voice. `detuneCents` shifts pitch to
-   *  the sample's stored global detune so audition matches the authored pitch. */
-  opts?: { detuneCents?: number },
+  /** Sample-level voicing. `detuneCents` shifts pitch to the sample's stored global
+   *  detune; `unison` (when active) stacks detuned/panned voices — see {@link unisonVoices}. */
+  opts?: { detuneCents?: number; unison?: SampleUnison | null },
 ): Sampler {
   const detuneMul = detuneRatio(opts?.detuneCents ?? 0);
+  const stack = unisonVoices(opts?.unison ?? null); // 1 centered voice when unison is off
   const buffers = new Map<number, AudioBuffer>(); // globalID → decoded audio (lazy)
-  const live = new Map<number, { src: AudioBufferSourceNode; gain: GainNode; voice: Voice; release: number }>();
+  const live = new Map<number, { srcs: { src: AudioBufferSourceNode; gain: GainNode }[]; voice: Voice; release: number }>();
   // Decide once per sample: sustain steady loops, ring out decaying ones (see
   // sampleShouldLoop). Gates both the seam crossfade and the source loop below.
   const loopSample = sampleShouldLoop(strokesByGlobalID.values());
@@ -232,12 +260,14 @@ export function createSampler(
     live.delete(midi);
     const ctx = getSharedCtx();
     const now = ctx.currentTime;
-    // Linear release from the current level to silence — works for both the flat
-    // path (release = RELEASE) and a scheduled ADSR (release = env.release).
-    v.gain.gain.cancelScheduledValues(now);
-    v.gain.gain.setValueAtTime(v.gain.gain.value, now);
-    v.gain.gain.linearRampToValueAtTime(0, now + v.release);
-    try { v.src.stop(now + v.release); } catch { /* already stopped */ }
+    // Linear release from the current level to silence, on every voice of the stack
+    // — works for both the flat path (release = RELEASE) and a scheduled ADSR.
+    for (const { src, gain } of v.srcs) {
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setValueAtTime(gain.gain.value, now);
+      gain.gain.linearRampToValueAtTime(0, now + v.release);
+      try { src.stop(now + v.release); } catch { /* already stopped */ }
+    }
   }
 
   return {
@@ -250,33 +280,44 @@ export function createSampler(
       const buf = bufferFor(ctx, zone.globalID);
       if (!buf) return;
       noteOff(midi); // retrigger: drop any voice already on this key
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      const rate = playbackRate(zone.rootKey, midi) * detuneMul;
-      src.playbackRate.value = rate;
-      // Steady samples sustain by looping their region (the buffer already carries
-      // a crossfaded seam); decaying samples leave `src.loop` false and ring out on
-      // the recorded decay. Per-sample decision — see sampleShouldLoop / module header.
-      if (loopSample) {
-        const ls = loopSeconds(stroke);
-        if (ls.loop) { src.loop = true; src.loopStart = ls.start; src.loopEnd = ls.end; }
-      }
-      const gain = ctx.createGain();
+      const baseRate = playbackRate(zone.rootKey, midi) * detuneMul;
       const peak = velocityGain(velocity);
       const e = env?.() ?? null;
       const t0 = ctx.currentTime;
-      let release = RELEASE;
-      if (e) {
-        scheduleAttackDecay(gain.gain, e, peak, t0);
-        release = e.release;
-      } else {
-        gain.gain.value = peak; // playground off → flat gain (today's behavior)
-      }
-      src.connect(gain).connect(ctx.destination);
-      const voice: Voice = { midi, globalID: zone.globalID, startedAt: t0, rate };
-      src.onended = () => { if (live.get(midi)?.src === src) live.delete(midi); };
-      src.start();
-      live.set(midi, { src, gain, voice, release });
+      const release = e ? e.release : RELEASE;
+      const ls = loopSample ? loopSeconds(stroke) : null;
+
+      // Build the voice stack: one centered voice normally, or the unison spread
+      // (detuned + panned copies) when the sample has unison engaged.
+      const srcs = stack.map((uv) => {
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.playbackRate.value = baseRate * detuneRatio(uv.detuneCents);
+        // Steady samples sustain by looping (the buffer carries a crossfaded seam);
+        // decaying samples leave loop false and ring out. See sampleShouldLoop.
+        if (ls?.loop) { src.loop = true; src.loopStart = ls.start; src.loopEnd = ls.end; }
+        const gain = ctx.createGain();
+        const vpeak = peak * uv.gain;
+        if (e) scheduleAttackDecay(gain.gain, e, vpeak, t0);
+        else gain.gain.value = vpeak; // playground off → flat gain
+        src.connect(gain);
+        // Pan the copy only when the stack spreads; a single centered voice keeps
+        // the original gain→destination path (and mono/stereo passthrough) exactly.
+        if (uv.pan !== 0 && ctx.createStereoPanner) {
+          const panner = ctx.createStereoPanner();
+          panner.pan.value = uv.pan;
+          gain.connect(panner).connect(ctx.destination);
+        } else {
+          gain.connect(ctx.destination);
+        }
+        src.start();
+        return { src, gain };
+      });
+
+      const voice: Voice = { midi, globalID: zone.globalID, startedAt: t0, rate: baseRate };
+      // Clean up the key when the primary (center) source ends, if it's still ours.
+      srcs[0].src.onended = () => { if (live.get(midi)?.srcs[0]?.src === srcs[0].src) live.delete(midi); };
+      live.set(midi, { srcs, voice, release });
     },
     noteOff,
     stopAll() { for (const midi of [...live.keys()]) noteOff(midi); },

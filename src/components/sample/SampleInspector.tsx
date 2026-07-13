@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import '../../styles/nord.css';
-import { readNsmp, decodeNsmp, readNsmpZones, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
+import { readNsmp, decodeNsmp, readNsmpZones, readSampleUnison, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
 import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary, sampleUnisonView, truVibratoView, noteName } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
 import { buildPlayableZones, strokeKeyboardOrder, type PlayableZone } from '../../lib/ns4/playable-zones';
@@ -120,8 +120,11 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     // the common default). Gain is deliberately NOT applied — the audio is peak-
     // normalized per stroke, so the stored level would fight that, not reproduce it.
     const detuneCents = gainDetuneView(bytes)?.detuneCents ?? 0;
+    // When the sample has unison engaged, audition it as a stacked/panned voice
+    // (approximate — see unisonVoices); off → a single voice, unchanged.
+    const unison = readSampleUnison(bytes);
     const sampler = decodable
-      ? createSampler(playableZones, strokesByGlobalID, () => envRef.current, { detuneCents })
+      ? createSampler(playableZones, strokesByGlobalID, () => envRef.current, { detuneCents, unison })
       : null;
     setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current, playableZones, order, strokesByGlobalID, sampler, factory });
   }

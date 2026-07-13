@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolveZone, playbackRate, detuneRatio, velocityGain, envGainAt, scheduleAttackDecay, createSampler, loopSeconds, loopXfadeLen, crossfadeLoop, loopWindowDecayDb, sampleShouldLoop, type AmpEnvelope } from './sampleEngine';
+import { resolveZone, playbackRate, detuneRatio, unisonVoices, velocityGain, envGainAt, scheduleAttackDecay, createSampler, loopSeconds, loopXfadeLen, crossfadeLoop, loopWindowDecayDb, sampleShouldLoop, type AmpEnvelope } from './sampleEngine';
+import type { SampleUnison } from '../../lib/ns4/nsmp';
 import type { PlayableZone } from '../../lib/ns4/playable-zones';
 import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
 
@@ -23,6 +24,7 @@ const audioMock = vi.hoisted(() => {
       return s;
     },
     createGain: () => ({ gain: param(), connect: (n: unknown) => n }),
+    createStereoPanner: () => ({ pan: param(), connect: (n: unknown) => n }),
   };
   return { created, ctx };
 });
@@ -30,6 +32,14 @@ vi.mock('./audioPlayer', () => ({ SAMPLE_RATE: 44100, getSharedCtx: () => audioM
 
 const pz = (globalID: number, keyLow: number, keyHigh: number, velLow = 0, velTop = 127): PlayableZone =>
   ({ globalID, rootKey: 60, keyLow, keyHigh, velLow, velTop });
+
+const unison = (over: Partial<SampleUnison> = {}): SampleUnison => ({
+  mode: 1, topKey: 108, detuneMax: 0, sameDetuneMin: 0, panMax: 0,
+  detuneMax2: 0, panMax2: 0, detuneMax3: 0, panMax3: 0,
+  numVoice1: 2, numVoice2: 2, numVoice3: 2, numVoiceSame: 2,
+  gainDb1: 0, gainDb2: 0, gainDb3: 0, gainDbSame: 0,
+  randomStrokeMode: 0, blockRandomSustPed: 0, active: true, ...over,
+});
 
 describe('resolveZone', () => {
   const zones = [pz(1, 21, 59), pz(2, 60, 108)];
@@ -61,6 +71,25 @@ describe('detuneRatio', () => {
     expect(detuneRatio(1200)).toBeCloseTo(2, 6);
     expect(detuneRatio(-1200)).toBeCloseTo(0.5, 6);
     expect(detuneRatio(100)).toBeCloseTo(2 ** (1 / 12), 6);
+  });
+});
+
+describe('unisonVoices', () => {
+  it('returns a single centered voice when unison is off', () => {
+    expect(unisonVoices(null)).toEqual([{ detuneCents: 0, pan: 0, gain: 1 }]);
+    expect(unisonVoices(unison({ active: false }))).toEqual([{ detuneCents: 0, pan: 0, gain: 1 }]);
+  });
+  it('stacks n symmetric voices, panned across the decoded width, with 1/√n gain', () => {
+    const v = unisonVoices(unison({ numVoiceSame: 2, panMax3: 100 }));
+    expect(v).toHaveLength(2);
+    expect(v[0].pan).toBeCloseTo(-1, 6);
+    expect(v[1].pan).toBeCloseTo(1, 6);
+    expect(v[0].detuneCents).toBeCloseTo(-v[1].detuneCents, 6); // symmetric detune
+    expect(v[0].gain).toBeCloseTo(1 / Math.SQRT2, 6);
+  });
+  it('clamps the voice count to 2..4', () => {
+    expect(unisonVoices(unison({ numVoiceSame: 9 }))).toHaveLength(4);
+    expect(unisonVoices(unison({ numVoiceSame: 0 }))).toHaveLength(2);
   });
 });
 
@@ -229,5 +258,17 @@ describe('createSampler audition playback', () => {
     createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined, { detuneCents: 1200 })
       .noteOn(60, 100); // root note (rate 1) + one octave of detune → 2
     expect(audioMock.created[0].playbackRate.value).toBeCloseTo(2, 6);
+  });
+
+  it('plays a single source when unison is off, one per voice when engaged', () => {
+    audioMock.created.length = 0;
+    createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined, {})
+      .noteOn(60, 100);
+    expect(audioMock.created).toHaveLength(1);
+
+    audioMock.created.length = 0;
+    createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined,
+      { unison: unison({ numVoiceSame: 3, panMax3: 80 }) }).noteOn(60, 100);
+    expect(audioMock.created).toHaveLength(3); // one source per unison voice
   });
 });
