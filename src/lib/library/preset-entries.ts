@@ -1,9 +1,11 @@
-import type { PresetKind } from '../clavia/preset-kind';
+import { presetKindForTag, type PresetKind } from '../clavia/preset-kind';
 import type { ScannedPreset } from '../folder/scan';
 import type { ProgramEntry } from '../device/transfer';
 import type { LibrarySource } from './types';
 import type { PresetSort } from './prefs';
 import { formatSlot } from '../clavia/slot';
+import { identifyNordFile } from '../clavia/nord-file';
+import { programNameFromFilename } from '../clavia/name';
 import { matchesQuery, sortWithFavorites } from './browse';
 
 /** One row in the Presets browser — a folder preset or a device-listed preset. */
@@ -28,6 +30,15 @@ export function presetEntriesFromScanned(presets: ScannedPreset[]): PresetEntry[
   return presets.map((p) => ({
     id: p.id, name: p.name, source: (p.id.includes('!') ? 'backup' : 'local') as LibrarySource, kind: p.kind, size: p.bytes.length, bytes: p.bytes,
   }));
+}
+
+/** Build a local Preset entry from a persisted import (id + filename + bytes).
+ *  Returns null when the bytes aren't a recognized preset — so the shared import
+ *  store (which also holds programs) yields only presets here. */
+export function presetEntryFromImport(rec: { id: string; name: string; bytes: Uint8Array }): PresetEntry | null {
+  const kind = presetKindForTag(identifyNordFile(rec.bytes).tag);
+  if (!kind) return null;
+  return { id: rec.id, name: programNameFromFilename(rec.name) ?? rec.name, source: 'local', kind, size: rec.bytes.length, bytes: rec.bytes };
 }
 
 /** Map the device's enumerated preset partitions into nord entries. */

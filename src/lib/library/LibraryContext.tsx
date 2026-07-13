@@ -6,10 +6,12 @@ import { useLibraryPrefs } from '@/lib/library/prefs';
 import { nordEntriesFromDevice, entriesFromScannedPrograms, filterEntries, sortEntries } from '@/lib/library/entries';
 import type { LibraryEntry, LibrarySource } from '@/lib/library/types';
 
-/** Extensions the Programs importer accepts — programs, Stage-4 presets, and
- *  older-generation performances. Samples (`.nsmp*`) and archives (`.zip`) are
- *  rejected here so they can't be silently stored on the wrong page. */
-const PROGRAM_IMPORT_EXTS = ['.ns4p', '.ns4o', '.ns4n', '.ns4y', '.ns3p', '.ns3f', '.ns2p'];
+/** Extensions the Programs importer accepts — programs/performances only.
+ *  Presets (.ns4o/.ns4n/.ns4y) go to the Presets page and samples (.nsmp*) to
+ *  Samples, so they can't be silently stored on the wrong page. */
+const PROGRAM_IMPORT_EXTS = ['.ns4p', '.ns3p', '.ns3f', '.ns2p'];
+const PRESET_EXTS = ['.ns4o', '.ns4n', '.ns4y', '.ns3y', '.ns2y'];
+const SAMPLE_EXTS = ['.nsmp', '.nsmp3', '.nsmp4'];
 
 /** Merges the three program sources (device, folder, imports) into one list and
  *  owns the library-screen view state. Lifted out of the old Shell so both the
@@ -39,7 +41,7 @@ function useLibraryStateValue() {
   function importFile() {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.ns4p,.ns4o,.ns4n,.ns4y,.ns3p,.ns3f,.ns2p';
+    input.accept = PROGRAM_IMPORT_EXTS.join(',');
     // Append to the DOM: a detached file input's click() is silently ignored on
     // some WebKit/iOS WKWebView builds (we wrap to iOS via Capacitor).
     input.style.display = 'none';
@@ -49,8 +51,15 @@ function useLibraryStateValue() {
       const f = input.files?.[0];
       cleanup();
       if (!f) return;
-      if (!PROGRAM_IMPORT_EXTS.some((e) => f.name.toLowerCase().endsWith(e))) {
-        setImportError(`“${f.name}” isn’t a Nord program file. Samples (.nsmp) belong on the Samples page.`);
+      const lower = f.name.toLowerCase();
+      if (!PROGRAM_IMPORT_EXTS.some((e) => lower.endsWith(e))) {
+        setImportError(
+          PRESET_EXTS.some((e) => lower.endsWith(e))
+            ? `“${f.name}” is a preset — import it from the Presets page.`
+            : SAMPLE_EXTS.some((e) => lower.endsWith(e))
+              ? `“${f.name}” is a sample — import it from the Samples page.`
+              : `“${f.name}” isn’t a Nord program file.`,
+        );
         return;
       }
       setImportError('');

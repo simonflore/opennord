@@ -12,6 +12,22 @@ export function PresetsSplit() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const entry = selectedId ? s.entryById(selectedId) : undefined;
 
+  function importPreset() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.ns4o,.ns4n,.ns4y,.ns3y,.ns2y';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    const cleanup = () => input.remove();
+    input.onchange = async () => {
+      const f = input.files?.[0];
+      cleanup();
+      if (f) await s.importPreset(f);
+    };
+    input.oncancel = cleanup;
+    input.click();
+  }
+
   const list = (
     <div className="lib-master">
       <PresetsBrowse
@@ -23,6 +39,8 @@ export function PresetsSplit() {
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
         onSelect={(e) => setSelectedId(e.id)}
+        onImport={importPreset}
+        onRemove={(id) => void s.removePreset(id)}
       />
     </div>
   );

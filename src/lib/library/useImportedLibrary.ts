@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import type { LibraryEntry } from './types';
 import { entryFromImport } from './entries';
 import { saveImport, listImports, deleteImport, type StoredImport } from './importStore';
+import { identifyNordFile } from '../clavia/nord-file';
+import { presetKindForTag } from '../clavia/preset-kind';
 import { readFileBytes } from '../file';
+
+/** The shared import store also holds presets (imported on the Presets page);
+ *  keep only program records here. */
+const isProgramRecord = (r: StoredImport) => !presetKindForTag(identifyNordFile(r.bytes).tag);
 
 export interface ImportedLibrary {
   /** Imported programs, restored from IndexedDB on mount. */
@@ -25,7 +31,7 @@ export function useImportedLibrary(): ImportedLibrary {
   useEffect(() => {
     let cancelled = false;
     listImports()
-      .then((recs) => { if (!cancelled) setEntries(recs.map(entryFromImport)); })
+      .then((recs) => { if (!cancelled) setEntries(recs.filter(isProgramRecord).map(entryFromImport)); })
       .catch(() => { /* no persisted imports / storage unavailable */ });
     return () => { cancelled = true; };
   }, []);

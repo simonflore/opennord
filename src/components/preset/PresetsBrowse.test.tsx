@@ -18,6 +18,8 @@ const baseProps = {
   isFavorite: () => false,
   toggleFavorite: noop,
   onSelect: noop,
+  onImport: noop,
+  onRemove: noop,
 };
 
 describe('PresetsBrowse', () => {

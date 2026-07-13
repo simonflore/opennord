@@ -1,9 +1,11 @@
+import { useMemo } from 'react';
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import { pullPreset } from '@/lib/device/presets';
 import { downloadBytes } from '@/lib/download';
 import type { NordSession } from '@/lib/device/session';
 import { getErrorMessage } from '../../lib/errors';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
+import { parseNs4Preset } from '@/lib/ns4/preset';
 import { Button } from '@/components/ui';
 
 const KIND_LABEL: Record<PresetEntry['kind'], string> = {
@@ -14,9 +16,13 @@ const KIND_EXT: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'ns4o', 'piano-preset': 'ns4n', 'synth-preset': 'ns4y',
 };
 
-/** Thin, decode-free detail for a recognized preset: metadata + download. */
+/** Preset detail: for Stage 4 organ/piano/synth presets we have the bytes for,
+ *  the decoded engine parameters; otherwise metadata + download. */
 export function PresetInspector({ entry, session }: { entry: PresetEntry; session: NordSession | null }) {
   const { busy, error, run } = useAsyncAction();
+  // Decode when we already hold the bytes (folder/local files); device presets
+  // stay metadata-only until pulled. parseNs4Preset returns null for ns3y/ns2y.
+  const decoded = useMemo(() => (entry.bytes ? parseNs4Preset(entry.bytes) : null), [entry.bytes]);
 
   async function download() {
     if (busy) return;
@@ -30,13 +36,37 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
     }, (e) => `Couldn't download ${entry.name}: ${getErrorMessage(e)}`);
   }
 
+  const where = entry.source === 'nord' ? `On Nord${entry.slot ? ` · ${entry.slot}` : ''}` : 'Local file';
+
   return (
-    <div className="ps" style={{ maxWidth: 460 }}>
+    <div className="ps" style={{ maxWidth: 560 }}>
       <div className="ps-nm">{entry.name}</div>
       <p className="ps-sub" style={{ marginTop: 6 }}>
-        {KIND_LABEL[entry.kind]} · {entry.source === 'nord' ? `On Nord${entry.slot ? ` · ${entry.slot}` : ''}` : 'Local file'}
+        {KIND_LABEL[entry.kind]}{decoded?.headline ? ` · ${decoded.headline}` : ''} · {where}
       </p>
-      <p className="ps-sub">This preset is recognized but not opened in detail — OpenNord lists and moves presets without decoding them.</p>
+
+      {decoded ? (
+        decoded.groups.map((g) => (
+          <table className="ps-params" key={g.key}>
+            <tbody>
+              {g.rows.map((r, i) => (
+                <tr key={i}>
+                  <td>{r.name}</td>
+                  <td>
+                    {r.display}
+                    {r.morphs.wheel && <span className="ps-morph" title={`wheel → ${r.morphs.wheel}`}>✎W</span>}
+                    {r.morphs.at && <span className="ps-morph" title={`aftertouch → ${r.morphs.at}`}>✎A</span>}
+                    {r.morphs.pedal && <span className="ps-morph" title={`pedal → ${r.morphs.pedal}`}>✎P</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ))
+      ) : (
+        <p className="ps-sub">This preset is recognized but not opened in detail — OpenNord lists and moves presets without decoding them.</p>
+      )}
+
       <Button variant="primary" onClick={() => void download()} disabled={busy}>
         {busy ? 'Working…' : 'Download'}
       </Button>

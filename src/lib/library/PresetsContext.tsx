@@ -6,6 +6,7 @@ import {
   presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds,
   type PresetEntry,
 } from '@/lib/library/preset-entries';
+import { useImportedPresets } from '@/lib/library/useImportedPresets';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
 import { enumeratePresets } from '@/lib/device/presets';
@@ -17,6 +18,7 @@ function usePresetsStateValue() {
   const { session, presetEntries, setPresetEntries } = useDevice();
   const folder = useFolder();
   const prefs = usePresetsPrefs();
+  const imported = useImportedPresets();
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
   const [kind, setKind] = useState<PresetKind | 'all'>('all');
   const [query, setQuery] = useState('');
@@ -35,6 +37,7 @@ function usePresetsStateValue() {
   const allEntries: PresetEntry[] = [
     ...presetEntriesFromDevice(presetEntries),
     ...presetEntriesFromScanned(folder.result.presets),
+    ...imported.entries,
   ];
   const nordCount = allEntries.filter((e) => e.source === 'nord').length;
   const localCount = allEntries.length - nordCount;
@@ -47,6 +50,7 @@ function usePresetsStateValue() {
   return {
     shown, source, setSource, kind, setKind, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, kinds, folder, session,
+    importPreset: imported.add, removePreset: imported.remove,
   };
 }
 

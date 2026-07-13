@@ -1,5 +1,5 @@
 import '../library/library.css';
-import { BrowseToolbar, Card, SourceBadge, type FacetGroup } from '../ui';
+import { BrowseToolbar, Button, Card, SourceBadge, type FacetGroup } from '../ui';
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
@@ -16,7 +16,7 @@ const parsePresetSort = (raw: string): PresetSort =>
 
 export function PresetsBrowse({
   entries, source, setSource, kind, setKind, query, setQuery,
-  kinds, showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect,
+  kinds, showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect, onImport, onRemove,
 }: {
   entries: PresetEntry[];
   source: LibrarySource | 'all'; setSource: (s: LibrarySource | 'all') => void;
@@ -28,6 +28,8 @@ export function PresetsBrowse({
   isFavorite: (id: string) => boolean;
   toggleFavorite: (id: string) => void;
   onSelect: (e: PresetEntry) => void;
+  onImport: () => void;
+  onRemove: (id: string) => void;
 }) {
   const facets: FacetGroup[] = [
     ...(showSourceFacet ? [{
@@ -60,6 +62,9 @@ export function PresetsBrowse({
             <div className="lib-counts">
               <span className="lib-counts__total">{entries.length} preset{entries.length !== 1 ? 's' : ''}</span>
             </div>
+          </div>
+          <div className="lib-actions">
+            <Button variant="primary" onClick={onImport}>+ Import preset</Button>
           </div>
         </div>
         <BrowseToolbar
@@ -97,6 +102,15 @@ export function PresetsBrowse({
                 <div className="lib-patch__foot">
                   <SourceBadge source={e.source} />
                   {e.size != null && <span className="lib-slot">{formatBytes(e.size)}</span>}
+                  {e.id.startsWith('local:') && (
+                    <button
+                      className="lib-patch__rm"
+                      aria-label={`Remove ${e.name}`}
+                      title="Remove from library"
+                      onClick={(ev) => { ev.stopPropagation(); onRemove(e.id); }}
+                      onKeyDown={(ev) => ev.stopPropagation()}
+                    >✕</button>
+                  )}
                 </div>
               </Card>
             ))}
