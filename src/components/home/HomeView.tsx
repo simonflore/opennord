@@ -1,6 +1,22 @@
 import './home.css';
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
+
+/**
+ * Scroll to an in-page section without writing to the URL hash.
+ *
+ * The app uses hash-based routing (createHashHistory), so a bare
+ * `href="#features"` is parsed by the router as the route `/features` — which
+ * swaps this full-bleed landing page for the app shell (left rail). We keep the
+ * href for accessibility and right-click, but intercept the click and scroll
+ * manually so the router's hash is never touched.
+ */
+function scrollToSection(id: string) {
+  return (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  };
+}
 
 /**
  * The public landing page — OpenNord's front door at `/`.
@@ -40,8 +56,8 @@ function SiteHeader() {
         Open<span className="home-brand__accent">Nord</span>
       </Link>
       <nav className="home-hd__nav" aria-label="Primary">
-        <a className="home-hd__link" href="#features">What it does</a>
-        <a className="home-hd__link" href="#coverage">Keyboards</a>
+        <a className="home-hd__link" href="#features" onClick={scrollToSection('features')}>What it does</a>
+        <a className="home-hd__link" href="#coverage" onClick={scrollToSection('coverage')}>Keyboards</a>
         <a
           className="home-hd__link"
           href="https://github.com/simonflore/opennord"
