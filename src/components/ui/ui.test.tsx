@@ -9,15 +9,16 @@ import { SearchField } from './SearchField';
 import { SectionLabel } from './SectionLabel';
 
 describe('Button', () => {
-  it('renders label and the variant class', () => {
+  it('renders label and the primary variant fill', () => {
     const html = renderToStaticMarkup(<Button variant="primary">Send to Nord</Button>);
     expect(html).toContain('Send to Nord');
-    expect(html).toContain('on-btn');
-    expect(html).toContain('on-btn--primary');
+    // primary carries the red gradient fill (distinct from secondary)
+    expect(html).toContain('bg-[var(--grad-red)]');
   });
   it('defaults to the secondary variant', () => {
     const html = renderToStaticMarkup(<Button>Cancel</Button>);
-    expect(html).toContain('on-btn--secondary');
+    expect(html).toContain('bg-[var(--grad-raised)]');
+    expect(html).not.toContain('bg-[var(--grad-red)]');
   });
 });
 

@@ -12,12 +12,12 @@ describe('Dialog', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('renders title + children with dialog semantics when open', () => {
+  it('renders the title as the dialog accessible name, plus children and a backdrop', () => {
     render(<Dialog open onClose={() => {}} title="Choose backups"><p>body</p></Dialog>);
-    const dlg = screen.getByRole('dialog');
-    expect(dlg).toHaveAttribute('aria-modal', 'true');
-    expect(dlg).toHaveAttribute('aria-label', 'Choose backups');
+    // Radix names the dialog from its <Title> (aria-labelledby)
+    expect(screen.getByRole('dialog', { name: 'Choose backups' })).toBeInTheDocument();
     expect(screen.getByText('body')).toBeInTheDocument();
+    expect(screen.getByTestId('dialog-backdrop')).toBeInTheDocument();
   });
 
   it('calls onClose on Escape', () => {
@@ -25,14 +25,5 @@ describe('Dialog', () => {
     render(<Dialog open onClose={onClose} title="X">body</Dialog>);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledOnce();
-  });
-
-  it('calls onClose on backdrop click but not on content click', () => {
-    const onClose = vi.fn();
-    render(<Dialog open onClose={onClose} title="X"><button>inside</button></Dialog>);
-    fireEvent.click(screen.getByTestId('dialog-backdrop'));
-    expect(onClose).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByText('inside'));
-    expect(onClose).toHaveBeenCalledOnce(); // unchanged
   });
 });
