@@ -169,8 +169,13 @@ the bar). When extending the decoder, validate against the fixture.
 
 Guides all UI/UX work. The design system is **Studio Dark**, defined in
 `src/styles/tokens.css` (the single source of truth — never hardcode a color;
-route everything through a `var(--…)` token) and composed from the primitives in
-`src/components/ui/`. Spec + plan: `docs/superpowers/{specs,plans}/2026-06-14-ui-redesign*`.
+route everything through a token) and built with **Tailwind v4** utilities +
+`cva`/`cn()` + Radix, composed from the primitives in `src/components/ui/`.
+Tokens flow into Tailwind via `@theme`; composite treatments are semantic
+`@utility` classes (`fill-*`, `elev-*`, `glow`). Cheatsheet:
+`src/styles/tailwind-baseline.md`. `nord.css` (instrument panel) stays hand-CSS.
+Spec + plan: `docs/superpowers/{specs,plans}/2026-06-14-ui-redesign*`,
+`docs/plans/2026-07-14-tailwind-migration.md`.
 
 ### Users
 Nord players — gigging/practicing musicians, not engineers (Nord Stage owners
@@ -198,13 +203,21 @@ controls, and token colors that meet contrast on dark surfaces.
 
 ### Design Principles
 1. **One token source.** Every color/space/radius/type step comes from
-   `tokens.css`. A hardcoded hex in a component is a review failure (rare,
-   intentional one-offs like LCD blues are the documented exception).
+   `tokens.css` — the CSS custom properties AND the Tailwind `@theme` block that
+   mirrors them (so `bg-surface` == `var(--surface)`). A hardcoded hex in a
+   component is a review failure (rare, intentional one-offs like LCD blues are
+   the documented exception). New composite treatments (gradients / layered
+   shadows / glow) go as semantic `@utility` in `tokens.css` (`fill-*`, `elev-*`,
+   `glow`, …), never as inline arbitrary values.
 2. **Speak musician, not protocol.** Hide the machine; show the sound. If a label
    reads like the RE notes, rewrite it.
 3. **Two equal front doors.** Patch exploration and device management are both
    first-class; don't let one become a second-class tab.
-4. **Composed, not bespoke.** Build screens from `src/components/ui/` primitives;
-   reach for a new primitive before re-styling inline.
+4. **Composed, not bespoke.** Build with **Tailwind utilities** (via `cn()`) +
+   the `src/components/ui/` primitives; variants use `cva`; interactive primitives
+   (Dialog, Menu, …) wrap **Radix**. Reach for a primitive/utility before writing
+   a new CSS file. See `src/styles/tailwind-baseline.md` for the token→utility
+   cheatsheet. (The instrument-panel visuals in `nord.css` — dials/LCD/drawbars —
+   stay hand-written CSS; they're not utility-shaped.)
 5. **Calm and legible on a dark stage.** Whitespace and hierarchy over density;
    readable at phone width; the instrument's job is the music, not the UI.
