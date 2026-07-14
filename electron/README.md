@@ -69,11 +69,42 @@ that finally confirms the Stage 2 partition map. That's the acceptance test.
 
 ## Notes / gotchas
 
-- **Windows**: `detachKernelDriver` on Windows requires the interface to be on a
-  libusb-compatible driver; if it's on `ClaviaUSB64.sys`, libusb (WinUSB backend)
-  can still claim via the kernel-driver detach on modern libusb. If a device
-  resists, a one-time WinUSB swap (Zadig) is the fallback — but the goal is no
-  Zadig. Verify on Fred's Stage 2.
+- **Windows**: libusb's default WinUSB backend **cannot** take a device off a
+  foreign kernel driver (`ClaviaUSB64.sys`, bound to pre-0x0024 PIDs like the
+  Stage 2) — `detachKernelDriver` is a no-op there, same wall as the browser.
+  `main.ts` switches libusb to the **UsbDk backend** on Windows
+  (`useUsbDkBackend()`) when the UsbDk runtime is installed, which captures the
+  device without replacing NSM's driver. Falls back to WinUSB otherwise (fine
+  for the already-WinUSB-bound Stage 3/4). If a device still resists, a one-time
+  WinUSB swap via Zadig is the fallback — not yet verified on real hardware
+  (a Stage 2 test machine).
+- **HVCI / Core Isolation ("Memory Integrity") can block `ClaviaUSB64.sys` from
+  loading at all** — a different, more fundamental failure than the claim-wall
+  above, and on by default on Secured-core PCs (Surface being the canonical
+  example). A community forum reported this broke even **NSM itself** on a
+  Surface Pro 7+ (Windows 11), "fixed" by disabling HVCI via registry.
+  **Confirmed by direct inspection (2026-07-14) of Clavia's own "USB Driver
+  v4.08" installer** (extracted, not run — it's a Windows binary):
+  - `ClaviaUSB64.sys` is **byte-identical in behavior** to the old driver —
+    still `DriverVer=08/06/2015,3.0.2.0`, same `Class=Media`, same PID list. No
+    code changed.
+  - What *is* new: `Clavia.cat`'s signing chain now includes **Microsoft
+    Windows Hardware Compatibility Publisher (WHCP)** — the attestation-signing
+    trust chain HVCI actually checks for. The old catalog almost certainly
+    lacked it. So **the real fix is Clavia re-signing the same driver**, not a
+    code change and not disabling a Windows security feature.
+  - **This should be the first thing recommended** for HVCI/Secured-core users
+    over the registry hack — install Clavia's current driver package and HVCI
+    can stay on.
+  - It does **not** touch the claim-wall above: `ClaviaWinUSB.inf` still only
+    covers PID `0x0024`–`0x002E`/`0x0038`–`0x003F`, unchanged, still excluding
+    the Stage 2. Zadig or this Electron app is still required below that
+    cutoff regardless of driver signing.
+  - **Narrows, doesn't close, the "never tested on real Windows hardware"
+    gap:** with the signed driver installed, `ClaviaUSB64.sys` should load
+    reliably even under HVCI, giving `detachKernelDriver`/UsbDk a properly
+    loaded driver to work against instead of an uncertain HVCI-blocked state —
+    still needs a real Secured-core machine to confirm.
 - **Endpoints** are discovered from the descriptors (`findBulk`), mirroring the
   web transport — not hardcoded to the Stage 4 layout.
 - Keep `contextIsolation: true` / `nodeIntegration: false`; the renderer only
