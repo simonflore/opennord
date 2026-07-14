@@ -83,8 +83,9 @@ that finally confirms the Stage 2 partition map. That's the acceptance test.
   above, and on by default on Secured-core PCs (Surface being the canonical
   example). A community forum reported this broke even **NSM itself** on a
   Surface Pro 7+ (Windows 11), "fixed" by disabling HVCI via registry.
-  **Confirmed by direct inspection (2026-07-14) of Clavia's own "USB Driver
-  v4.08" installer** (extracted, not run — it's a Windows binary):
+  **Confirmed by direct inspection (2026-07-14) of Clavia's own ["USB Driver
+  v4.08" installer](https://www.nordkeyboards.com/wt/documents/19/Clavia%20USB%20Driver%20installer%20v4.08.zip)**
+  (extracted, not run — it's a Windows binary):
   - `ClaviaUSB64.sys` is **byte-identical in behavior** to the old driver —
     still `DriverVer=08/06/2015,3.0.2.0`, same `Class=Media`, same PID list. No
     code changed.
@@ -94,8 +95,9 @@ that finally confirms the Stage 2 partition map. That's the acceptance test.
     lacked it. So **the real fix is Clavia re-signing the same driver**, not a
     code change and not disabling a Windows security feature.
   - **This should be the first thing recommended** for HVCI/Secured-core users
-    over the registry hack — install Clavia's current driver package and HVCI
-    can stay on.
+    over the registry hack — install
+    [Clavia's current driver package](https://www.nordkeyboards.com/wt/documents/19/Clavia%20USB%20Driver%20installer%20v4.08.zip)
+    and HVCI can stay on.
   - It does **not** touch the claim-wall above: `ClaviaWinUSB.inf` still only
     covers PID `0x0024`–`0x002E`/`0x0038`–`0x003F`, unchanged, still excluding
     the Stage 2. Zadig or this Electron app is still required below that
