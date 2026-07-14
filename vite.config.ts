@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath, URL } from 'node:url';
 import { fixturesDevPlugin } from './src/dev/fixtures-plugin';
 
@@ -14,7 +15,7 @@ const ELECTRON = process.env.OPENNORD_ELECTRON === '1';
 
 export default defineConfig({
   base: ELECTRON ? './' : '/',
-  plugins: [react(), fixturesDevPlugin()],
+  plugins: [react(), tailwindcss(), fixturesDevPlugin()],
   server: { port: process.env.PORT ? Number(process.env.PORT) : 5173 },
   // .ns4p isn't a Vite-recognized asset extension by default; the migration
   // template fixture is imported via `?url` (ConvertToStage4.tsx) and served
