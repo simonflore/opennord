@@ -1,5 +1,6 @@
 import '../library/library.css';
 import { BrowseToolbar, Button, Card, SourceBadge, type FacetGroup } from '../ui';
+import { CategoryPanel } from '../library/CategoryPanel';
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
@@ -54,30 +55,20 @@ export function PresetsBrowse({
   const sortOptions = (Object.keys(SORT_LABEL) as PresetSort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }));
 
   return (
-    <div className="lib-panel">
-      <div className="lib-panel__head">
-        <div className="lib-head">
-          <div>
-            <h1 className="lib-title">Presets</h1>
-            <div className="lib-counts">
-              <span className="lib-counts__total">{entries.length} preset{entries.length !== 1 ? 's' : ''}</span>
-            </div>
-          </div>
-          <div className="lib-actions">
-            <Button variant="primary" onClick={onImport}>+ Import preset</Button>
-          </div>
-        </div>
+    <CategoryPanel
+      title="Presets"
+      counts={<span className="lib-counts__total">{entries.length} preset{entries.length !== 1 ? 's' : ''}</span>}
+      actions={<Button variant="primary" onClick={onImport}>+ Import preset</Button>}
+      toolbar={
         <BrowseToolbar
           query={query} onQuery={setQuery} placeholder="Search presets…"
           facets={facets}
           sort={sort} sortOptions={sortOptions} onSort={(k) => setSort(parsePresetSort(k))} sortAriaLabel="Sort presets"
         />
-      </div>
-      <div className="lib-panel__body">
-        {entries.length === 0 ? (
-          <p className="lib-empty">No presets match your filter.</p>
-        ) : (
-          <div className="lib-grid">
+      }
+      isEmpty={entries.length === 0}
+      emptyState={<p className="lib-empty">No presets match your filter.</p>}
+    >
             {entries.map((e) => (
               <Card
                 key={e.id}
@@ -114,9 +105,6 @@ export function PresetsBrowse({
                 </div>
               </Card>
             ))}
-          </div>
-        )}
-      </div>
-    </div>
+    </CategoryPanel>
   );
 }

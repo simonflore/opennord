@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import '../library/library.css';
 import { BrowseToolbar, Button, Card, Dialog, Pill, SourceBadge, type FacetGroup } from '../ui';
+import { CategoryPanel } from '../library/CategoryPanel';
 import type { PianoEntry } from '@/lib/library/piano-entries';
 import type { LibrarySource } from '@/lib/library/types';
 import type { PianoSort } from '@/lib/library/prefs';
@@ -107,40 +108,27 @@ export function PianosBrowse({
 
   const confirmTitle = `Remove ${selected.size} ${selected.size === 1 ? 'piano' : 'pianos'} · frees ~${fmtMB(selectedFreeBytes)}`;
 
-  return (
-    <div className="lib-panel">
-      <div className="lib-panel__head">
-        <div className="lib-head">
-          <div>
-            <h1 className="lib-title">Pianos</h1>
-            <div className="lib-counts">
-              <span className="lib-counts__total">{entries.length} piano{entries.length !== 1 ? 's' : ''}</span>
-            </div>
-          </div>
-          <div className="lib-actions">
-            {canScanUsage && (
-              <button className="on-btn" onClick={onScanUsage} disabled={scanPct !== null}>
-                {scanPct !== null ? `Scanning… ${scanPct}%` : 'Find unused pianos'}
-              </button>
-            )}
-            {unusedCount !== null && scanPct === null && (
-              <button
-                className={`on-btn${unusedOnly ? ' is-active' : ''}`}
-                aria-pressed={unusedOnly}
-                onClick={() => onUnusedOnly(!unusedOnly)}
-              >
-                {unusedCount === 0 ? 'No unused pianos' : `${unusedOnly ? 'Show all' : `Unused only (${unusedCount})`}`}
-              </button>
-            )}
-          </div>
-        </div>
-        <BrowseToolbar
-          query={query} onQuery={setQuery} placeholder="Search pianos…"
-          facets={facets}
-          sort={sort} sortOptions={sortOptions} onSort={(k) => setSort(parsePianoSort(k))} sortAriaLabel="Sort pianos"
-        />
-      </div>
+  const actions = (canScanUsage || (unusedCount !== null && scanPct === null)) ? (
+    <>
+      {canScanUsage && (
+        <button className="on-btn" onClick={onScanUsage} disabled={scanPct !== null}>
+          {scanPct !== null ? `Scanning… ${scanPct}%` : 'Find unused pianos'}
+        </button>
+      )}
+      {unusedCount !== null && scanPct === null && (
+        <button
+          className={`on-btn${unusedOnly ? ' is-active' : ''}`}
+          aria-pressed={unusedOnly}
+          onClick={() => onUnusedOnly(!unusedOnly)}
+        >
+          {unusedCount === 0 ? 'No unused pianos' : `${unusedOnly ? 'Show all' : `Unused only (${unusedCount})`}`}
+        </button>
+      )}
+    </>
+  ) : undefined;
 
+  const banners = (
+    <>
       {/* Reclaim bar — shown when at least one piano is selected */}
       {selected.size > 0 && (
         <div className="lib-reclaim-bar" role="region" aria-label="Selected pianos">
@@ -152,7 +140,6 @@ export function PianosBrowse({
           <Button variant="ghost" onClick={clearSelected}>Clear</Button>
         </div>
       )}
-
       {/* Remove result feedback */}
       {removeResult && (
         <p className="lib-reclaim-bar__result" role="status">
@@ -160,12 +147,26 @@ export function PianosBrowse({
           {removeResult.failed > 0 && ` · ${removeResult.failed} could not be removed`}
         </p>
       )}
+    </>
+  );
 
-      <div className="lib-panel__body">
-        {entries.length === 0 ? (
-          <p className="lib-empty">No pianos match your filter.</p>
-        ) : (
-          <div className="lib-grid">
+  return (
+    <>
+      <CategoryPanel
+        title="Piano Samples"
+        counts={<span className="lib-counts__total">{entries.length} piano{entries.length !== 1 ? 's' : ''}</span>}
+        actions={actions}
+        toolbar={
+          <BrowseToolbar
+            query={query} onQuery={setQuery} placeholder="Search pianos…"
+            facets={facets}
+            sort={sort} sortOptions={sortOptions} onSort={(k) => setSort(parsePianoSort(k))} sortAriaLabel="Sort pianos"
+          />
+        }
+        banners={banners}
+        isEmpty={entries.length === 0}
+        emptyState={<p className="lib-empty">No pianos match your filter.</p>}
+      >
             {entries.map((entry) => (
               <Card
                 key={entry.id}
@@ -207,9 +208,7 @@ export function PianosBrowse({
                 </div>
               </Card>
             ))}
-          </div>
-        )}
-      </div>
+      </CategoryPanel>
 
       {/* Confirm-remove dialog */}
       <Dialog
@@ -247,6 +246,6 @@ export function PianosBrowse({
           <p className="lib-reclaim-error" role="alert">{removeError}</p>
         )}
       </Dialog>
-    </div>
+    </>
   );
 }

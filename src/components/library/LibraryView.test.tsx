@@ -52,7 +52,7 @@ describe('LibraryView', () => {
     const html = renderToStaticMarkup(
       <LibraryView entries={entries} source="all" query="" {...handlers} prefs={prefs()} folder={folder()} />,
     );
-    expect(html).toContain('Library');
+    expect(html).toContain('Programs'); // page title matches the rail label
     expect(html).toContain('2 programs');
     expect(html).toContain('Wurli Dream');
     expect(html).toContain('A:14');

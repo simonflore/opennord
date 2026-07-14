@@ -1,5 +1,6 @@
 import './library.css';
 import { Button, BrowseToolbar, Card, SourceBadge, type FacetGroup } from '../ui';
+import { CategoryPanel } from './CategoryPanel';
 import { BundlePicker } from './BundlePicker';
 import { NewBackupsBanner } from './NewBackupsBanner';
 import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
@@ -64,31 +65,26 @@ export function LibraryView({
     }] : []),
   ];
 
-  return (
-    <div className="lib-panel">
-      <div className="lib-panel__head">
-      <div className="lib-head">
-        <div>
-          <h1 className="lib-title">Library</h1>
-          <div className="lib-counts">{entries.length} programs · {nord} on Nord · {local} local</div>
-        </div>
-        <div className="lib-actions">
-          {folderName ? (
-            <span className="lib-folder" title={folderName}>
-              📁 {folderName} · {folderCount} {folderCount === 1 ? 'file' : 'files'}
-              {canPersist && !needsReconnect
-                ? <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onRefresh} disabled={busy} aria-label="Refresh folder">⟳</button>
-                : <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onChooseFolder} disabled={busy}>Re-pick</button>}
-              {/* Disconnect only forgets the folder pointer — it never touches the user's files. */}
-              <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onForget} aria-label="Disconnect folder" title="Disconnect this folder">✕</button>
-            </span>
-          ) : (
-            <Button variant="ghost" onClick={onChooseFolder} disabled={busy}>Choose folder</Button>
-          )}
-          <Button variant="primary" onClick={onImport}>+ Import file</Button>
-        </div>
-      </div>
+  const actions = (
+    <>
+      {folderName ? (
+        <span className="lib-folder" title={folderName}>
+          📁 {folderName} · {folderCount} {folderCount === 1 ? 'file' : 'files'}
+          {canPersist && !needsReconnect
+            ? <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onRefresh} disabled={busy} aria-label="Refresh folder">⟳</button>
+            : <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onChooseFolder} disabled={busy}>Re-pick</button>}
+          {/* Disconnect only forgets the folder pointer — it never touches the user's files. */}
+          <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onForget} aria-label="Disconnect folder" title="Disconnect this folder">✕</button>
+        </span>
+      ) : (
+        <Button variant="ghost" onClick={onChooseFolder} disabled={busy}>Choose folder</Button>
+      )}
+      <Button variant="primary" onClick={onImport}>+ Import file</Button>
+    </>
+  );
 
+  const headExtra = (
+    <>
       {needsReconnect && folderName && (
         <div className="lib-reconnect">
           {reconnectError
@@ -100,20 +96,17 @@ export function LibraryView({
           <button className="on-btn on-btn--ghost" onClick={onForget}>Forget</button>
         </div>
       )}
-
       {scanErrors.length > 0 && (
         <div className="lib-errnote" title={scanErrors.map((e) => `${e.path} — ${e.reason}`).join('\n')}>
           {scanErrors.length} {scanErrors.length === 1 ? 'file' : 'files'} couldn't be read — hover for details.
         </div>
       )}
-
       {importError && (
         <div className="lib-reconnect" role="alert">
           <span className="lib-reconnect__err">{importError}</span>
           <button className="on-btn on-btn--ghost" onClick={onDismissImportError}>Dismiss</button>
         </div>
       )}
-
       {!folder.pickerOpen && (
         <NewBackupsBanner count={folder.newBundles.length} onReview={folder.openBundlePicker} />
       )}
@@ -123,28 +116,36 @@ export function LibraryView({
         onConfirm={(paths) => { void folder.applyBundleSelection(paths); }}
         onClose={() => { void folder.applyBundleSelection([]); }}
       />
+    </>
+  );
 
-      <BrowseToolbar
-        query={query}
-        onQuery={onQuery}
-        placeholder="Search patches by name…"
-        facets={facets}
-        sort={sort}
-        sortOptions={(Object.keys(SORT_LABEL) as LibrarySort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }))}
-        onSort={(k) => onSort(k as LibrarySort)}
-        sortAriaLabel="Sort patches"
-      />
-      </div>
-
-      <div className="lib-panel__body">
-      {entries.length === 0 ? (
+  return (
+    <CategoryPanel
+      title="Programs"
+      counts={<>{entries.length} programs · {nord} on Nord · {local} local</>}
+      actions={actions}
+      headExtra={headExtra}
+      toolbar={
+        <BrowseToolbar
+          query={query}
+          onQuery={onQuery}
+          placeholder="Search patches by name…"
+          facets={facets}
+          sort={sort}
+          sortOptions={(Object.keys(SORT_LABEL) as LibrarySort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }))}
+          onSort={(k) => onSort(k as LibrarySort)}
+          sortAriaLabel="Sort patches"
+        />
+      }
+      isEmpty={entries.length === 0}
+      emptyState={
         <div className="lib-empty">
           <p>Nothing here yet.</p>
           <Button variant="primary" onClick={onChooseFolder} disabled={busy}>Choose a folder of Nord files</Button>
           <p className="lib-empty__hint">Subfolders and <code>.ns4b</code> backups are included. Or import a single file, or connect your Nord.</p>
         </div>
-      ) : (
-        <div className="lib-grid">
+      }
+    >
           {entries.map((e) => (
             <Card
               key={e.id}
@@ -196,9 +197,6 @@ export function LibraryView({
               </div>
             </Card>
           ))}
-        </div>
-      )}
-      </div>
-    </div>
+    </CategoryPanel>
   );
 }

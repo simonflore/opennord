@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import '../library/library.css';
 import { BrowseToolbar, Button, Card, Dialog, Pill, SourceBadge, type FacetGroup } from '../ui';
+import { CategoryPanel } from '../library/CategoryPanel';
 import type { SampleEntry, SampleGeneration } from '../../lib/library/sample-entries';
 import type { SamplesPrefsApi, SampleSort } from '../../lib/library/prefs';
 import type { LibrarySource } from '../../lib/library/types';
@@ -134,49 +135,29 @@ export function SamplesBrowse(
 
   const confirmTitle = `Remove ${selected.size} ${selected.size === 1 ? 'sample' : 'samples'} · frees ~${fmtMB(selectedFreeBytes)}`;
 
-  return (
-    <div className="lib-panel">
-      <div className="lib-panel__head">
-      <div className="lib-head">
-        <div>
-          <h1 className="lib-title">Samples</h1>
-          <div className="lib-counts">
-            {total} {total === 1 ? 'sample' : 'samples'} · {nordCount} on Nord · {localCount} local
-            {storedCount > 0 && <> · {storedCount} stored ({fmtSize(storedBytes)})</>}
-          </div>
-        </div>
-        <div className="lib-actions">
-          {canScanUsage && (
-            <button className="on-btn" onClick={onScanUsage} disabled={scanPct !== null}>
-              {scanPct !== null ? `Scanning… ${scanPct}%` : 'Find unused samples'}
-            </button>
-          )}
-          {unusedCount !== null && scanPct === null && (
-            <button
-              className={`on-btn${unusedOnly ? ' is-active' : ''}`}
-              aria-pressed={unusedOnly}
-              onClick={() => onUnusedOnly(!unusedOnly)}
-            >
-              {unusedCount === 0 ? 'No unused samples' : `${unusedOnly ? 'Show all' : `Unused only (${unusedCount})`}`}
-            </button>
-          )}
-          <button className="on-btn" onClick={onLoadNew}>Preview a file</button>
-          <button className="on-btn on-btn--primary" onClick={onImport}>+ Import sample</button>
-        </div>
-      </div>
+  const actions = (
+    <>
+      {canScanUsage && (
+        <button className="on-btn" onClick={onScanUsage} disabled={scanPct !== null}>
+          {scanPct !== null ? `Scanning… ${scanPct}%` : 'Find unused samples'}
+        </button>
+      )}
+      {unusedCount !== null && scanPct === null && (
+        <button
+          className={`on-btn${unusedOnly ? ' is-active' : ''}`}
+          aria-pressed={unusedOnly}
+          onClick={() => onUnusedOnly(!unusedOnly)}
+        >
+          {unusedCount === 0 ? 'No unused samples' : `${unusedOnly ? 'Show all' : `Unused only (${unusedCount})`}`}
+        </button>
+      )}
+      <button className="on-btn" onClick={onLoadNew}>Preview a file</button>
+      <button className="on-btn on-btn--primary" onClick={onImport}>+ Import sample</button>
+    </>
+  );
 
-      <BrowseToolbar
-        query={query}
-        onQuery={onQuery}
-        placeholder="Search samples by name…"
-        facets={facets}
-        sort={prefs.sort}
-        sortOptions={(Object.keys(SORT_LABEL) as SampleSort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }))}
-        onSort={(k) => prefs.setSort(k as SampleSort)}
-        sortAriaLabel="Sort samples"
-      />
-      </div>
-
+  const banners = (
+    <>
       {/* Reclaim bar — shown when at least one sample is selected */}
       {selected.size > 0 && (
         <div className="lib-reclaim-bar" role="region" aria-label="Selected samples">
@@ -188,7 +169,6 @@ export function SamplesBrowse(
           <Button variant="ghost" onClick={clearSelected}>Clear</Button>
         </div>
       )}
-
       {/* Remove result feedback */}
       {removeResult && (
         <p className="lib-reclaim-bar__result" role="status">
@@ -196,12 +176,36 @@ export function SamplesBrowse(
           {removeResult.failed > 0 && ` · ${removeResult.failed} could not be removed`}
         </p>
       )}
+    </>
+  );
 
-      <div className="lib-panel__body">
-      {entries.length === 0 ? (
-        <div className="lib-empty"><p>No samples match.</p></div>
-      ) : (
-        <div className="lib-grid">
+  return (
+    <>
+      <CategoryPanel
+        title="User Samples"
+        counts={
+          <>
+            {total} {total === 1 ? 'sample' : 'samples'} · {nordCount} on Nord · {localCount} local
+            {storedCount > 0 && <> · {storedCount} stored ({fmtSize(storedBytes)})</>}
+          </>
+        }
+        actions={actions}
+        toolbar={
+          <BrowseToolbar
+            query={query}
+            onQuery={onQuery}
+            placeholder="Search samples by name…"
+            facets={facets}
+            sort={prefs.sort}
+            sortOptions={(Object.keys(SORT_LABEL) as SampleSort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }))}
+            onSort={(k) => prefs.setSort(k as SampleSort)}
+            sortAriaLabel="Sort samples"
+          />
+        }
+        banners={banners}
+        isEmpty={entries.length === 0}
+        emptyState={<div className="lib-empty"><p>No samples match.</p></div>}
+      >
           {entries.map((e) => (
             <Card
               key={e.id}
@@ -261,9 +265,7 @@ export function SamplesBrowse(
               </div>
             </Card>
           ))}
-        </div>
-      )}
-      </div>
+      </CategoryPanel>
 
       {/* Confirm-remove dialog */}
       <Dialog
@@ -296,6 +298,6 @@ export function SamplesBrowse(
           <p className="lib-reclaim-error" role="alert">{removeError}</p>
         )}
       </Dialog>
-    </div>
+    </>
   );
 }
