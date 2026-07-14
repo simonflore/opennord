@@ -12,19 +12,19 @@ const button = cva(
   cn(
     'inline-flex items-center justify-center gap-2 font-bold tracking-[.2px] rounded-sm',
     'border border-transparent cursor-pointer select-none',
-    'shadow-[var(--edge-hi),var(--shadow-1)]',
+    '[box-shadow:var(--edge-hi),var(--shadow-1)]',
     'transition-[transform,box-shadow,background,border-color] duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)]',
-    'hover:-translate-y-px active:translate-y-0 active:shadow-[var(--shadow-inset)]',
-    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]',
-    'disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0 disabled:shadow-[var(--shadow-1)]',
+    'hover:-translate-y-px active:translate-y-0 active:[box-shadow:var(--shadow-inset)]',
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]',
+    'disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0 disabled:[box-shadow:var(--shadow-1)]',
   ),
   {
     variants: {
       variant: {
-        primary: 'bg-[var(--grad-red)] text-text-on-accent shadow-[var(--glow-red)] hover:shadow-[var(--glow-red),var(--shadow-2)]',
-        secondary: 'bg-[var(--grad-raised)] text-ink border-line hover:border-muted',
-        ghost: 'bg-transparent text-dim shadow-none hover:text-ink hover:translate-y-0',
-        outline: 'bg-transparent text-red-bright border-red shadow-none hover:bg-[color-mix(in_srgb,var(--red)_10%,transparent)]',
+        primary: 'text-text-on-accent [background:var(--grad-red)] [box-shadow:var(--glow-red)] hover:[box-shadow:var(--glow-red),var(--shadow-2)]',
+        secondary: 'text-ink border-line [background:var(--grad-raised)] hover:border-muted',
+        ghost: 'bg-transparent text-dim [box-shadow:none] hover:text-ink hover:translate-y-0',
+        outline: 'bg-transparent text-red-bright border-red [box-shadow:none] hover:[background:color-mix(in_srgb,var(--red)_10%,transparent)]',
       },
       size: {
         sm: 'text-[11px] px-[14px] py-2',
