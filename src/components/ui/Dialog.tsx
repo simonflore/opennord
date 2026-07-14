@@ -1,4 +1,6 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import * as RD from '@radix-ui/react-dialog';
+import { cn } from '@/lib/cn';
 
 export interface DialogProps {
   open: boolean;
@@ -9,43 +11,33 @@ export interface DialogProps {
 }
 
 /**
- * A modal dialog: dark scrim, centered panel, `role="dialog"` + `aria-modal`.
- * Escape and backdrop click call `onClose`; focus moves into the panel on open
- * and returns to the previously focused element on close. All color/space/radius
- * via tokens (tokens.css).
+ * A modal dialog built on Radix — focus trap, scroll lock, Escape/backdrop
+ * close, and correct `role="dialog"` + `aria-modal` come from the primitive.
+ * Styled entirely with tokens via utilities. Drop-in for the previous
+ * hand-rolled Dialog (same props: open / onClose / title / children / footer?).
  */
 export function Dialog({ open, onClose, title, children, footer }: DialogProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const lastFocused = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    lastFocused.current = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      lastFocused.current?.focus?.();
-    };
-  }, [open, onClose]);
-
-  if (!open) return null;
   return (
-    <div className="on-dialog-backdrop" data-testid="dialog-backdrop" onClick={onClose}>
-      <div
-        ref={panelRef}
-        className="on-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="on-dialog__title">{title}</h2>
-        <div className="on-dialog__body">{children}</div>
-        {footer && <div className="on-dialog__footer">{footer}</div>}
-      </div>
-    </div>
+    <RD.Root open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <RD.Portal>
+        <RD.Overlay
+          data-testid="dialog-backdrop"
+          className="fixed inset-0 z-40 bg-[var(--scrim)]"
+        />
+        <RD.Content
+          className={cn(
+            'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
+            'w-[min(92vw,480px)] max-h-[85vh] overflow-auto',
+            'rounded-lg border border-line bg-surface p-4 shadow-[var(--shadow-3)]',
+            'focus:outline-none',
+          )}
+        >
+          <RD.Title className="mb-3 text-lg font-semibold text-ink">{title}</RD.Title>
+          <RD.Description className="sr-only">{title}</RD.Description>
+          <div className="text-ink">{children}</div>
+          {footer && <div className="mt-4 flex justify-end gap-2">{footer}</div>}
+        </RD.Content>
+      </RD.Portal>
+    </RD.Root>
   );
 }

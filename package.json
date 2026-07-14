@@ -27,12 +27,16 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.84",
     "@capacitor/core": "^8.4.0",
+    "@radix-ui/react-dialog": "^1.1.19",
     "@tanstack/react-router": "^1.170.16",
     "ai": "^6.0.206",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "comlink": "^4.4.2",
     "fflate": "^0.8.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
   },
   "optionalDependencies": {
