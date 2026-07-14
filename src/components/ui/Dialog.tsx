@@ -15,29 +15,32 @@ export interface DialogProps {
  * close, and correct `role="dialog"` + `aria-modal` come from the primitive.
  * Styled entirely with tokens via utilities. Drop-in for the previous
  * hand-rolled Dialog (same props: open / onClose / title / children / footer?).
+ *
+ * Rendered inline (no Radix Portal) to match the previous dialog: it keeps the
+ * content in the SSR/static markup that several callers assert against, and the
+ * fixed-position overlay still stacks correctly. Focus trap / scroll lock / aria
+ * live on the Content and are unaffected by skipping the portal.
  */
 export function Dialog({ open, onClose, title, children, footer }: DialogProps) {
   return (
     <RD.Root open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <RD.Portal>
-        <RD.Overlay
-          data-testid="dialog-backdrop"
-          className="fixed inset-0 z-40 bg-[var(--scrim)]"
-        />
-        <RD.Content
-          className={cn(
-            'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
-            'w-[min(92vw,480px)] max-h-[85vh] overflow-auto',
-            'rounded-lg border border-line bg-surface p-4 shadow-[var(--shadow-3)]',
-            'focus:outline-none',
-          )}
-        >
-          <RD.Title className="mb-3 text-lg font-semibold text-ink">{title}</RD.Title>
-          <RD.Description className="sr-only">{title}</RD.Description>
-          <div className="text-ink">{children}</div>
-          {footer && <div className="mt-4 flex justify-end gap-2">{footer}</div>}
-        </RD.Content>
-      </RD.Portal>
+      <RD.Overlay
+        data-testid="dialog-backdrop"
+        className="fixed inset-0 z-40 bg-[var(--scrim)]"
+      />
+      <RD.Content
+        aria-describedby={undefined}
+        className={cn(
+          'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
+          'w-[min(92vw,480px)] max-h-[85vh] overflow-auto',
+          'rounded-lg border border-line bg-surface p-4 shadow-[var(--shadow-3)]',
+          'focus:outline-none',
+        )}
+      >
+        <RD.Title className="mb-3 text-lg font-semibold text-ink">{title}</RD.Title>
+        <div className="text-ink">{children}</div>
+        {footer && <div className="mt-4 flex justify-end gap-2">{footer}</div>}
+      </RD.Content>
     </RD.Root>
   );
 }

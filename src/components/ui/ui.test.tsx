@@ -23,27 +23,35 @@ describe('Button', () => {
 });
 
 describe('Card', () => {
-  it('renders children and adds the accent modifier when accent is set', () => {
-    const html = renderToStaticMarkup(<Card accent>hello</Card>);
-    expect(html).toContain('hello');
-    expect(html).toContain('on-card');
-    expect(html).toContain('on-card--accent');
+  it('renders children with the surface fill, and swaps to the accent treatment when accent is set', () => {
+    const plain = renderToStaticMarkup(<Card>hello</Card>);
+    expect(plain).toContain('hello');
+    expect(plain).toContain('fill-surface');
+
+    const accented = renderToStaticMarkup(<Card accent>hello</Card>);
+    expect(accented).toContain('fill-surface-accent');
+    expect(accented).toContain('border-l-red');
   });
 });
 
 describe('Tag', () => {
-  it('renders its label inside a tag', () => {
+  it('renders its label inside a raised badge', () => {
     const html = renderToStaticMarkup(<Tag>Rhodes</Tag>);
     expect(html).toContain('Rhodes');
-    expect(html).toContain('on-tag');
+    expect(html).toContain('fill-raised');
   });
 });
 
 describe('FilterChip', () => {
-  it('marks the active chip', () => {
+  it('marks the active chip with the primary fill', () => {
     const html = renderToStaticMarkup(<FilterChip active>On Nord</FilterChip>);
     expect(html).toContain('On Nord');
-    expect(html).toContain('on-chip--active');
+    expect(html).toContain('fill-primary');
+  });
+  it('renders the inactive chip with the raised fill', () => {
+    const html = renderToStaticMarkup(<FilterChip>Local</FilterChip>);
+    expect(html).toContain('fill-raised');
+    expect(html).not.toContain('fill-primary');
   });
 });
 
@@ -51,22 +59,23 @@ describe('SourceBadge', () => {
   it('renders the On Nord label for the nord source', () => {
     const html = renderToStaticMarkup(<SourceBadge source="nord" />);
     expect(html).toContain('On Nord');
-    expect(html).toContain('on-badge--nord');
+    expect(html).toContain('text-red');
   });
   it('renders the Local label for the local source', () => {
     const html = renderToStaticMarkup(<SourceBadge source="local" />);
     expect(html).toContain('Local');
-    expect(html).toContain('on-badge--local');
+    expect(html).toContain('text-muted');
   });
 });
 
 describe('SearchField', () => {
-  it('renders the placeholder', () => {
+  it('renders the placeholder on a search input inside the sunken field', () => {
     const html = renderToStaticMarkup(
       <SearchField value="" onChange={() => {}} placeholder="Search patches…" />,
     );
     expect(html).toContain('Search patches…');
-    expect(html).toContain('on-search');
+    expect(html).toContain('type="search"');
+    expect(html).toContain('fill-sink');
   });
 });
 
@@ -74,6 +83,6 @@ describe('SectionLabel', () => {
   it('renders uppercase overline text', () => {
     const html = renderToStaticMarkup(<SectionLabel>Surfaces</SectionLabel>);
     expect(html).toContain('Surfaces');
-    expect(html).toContain('on-overline');
+    expect(html).toContain('uppercase');
   });
 });
