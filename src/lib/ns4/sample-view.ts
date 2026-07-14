@@ -105,11 +105,13 @@ export function sampleUnisonView(bytes: Uint8Array): { active: boolean; summary:
   const u = readSampleUnison(bytes);
   if (!u) return null;
   if (!u.active) return { active: false, summary: 'off' };
+  // Round-robin is intentionally NOT included here — it's surfaced on its own
+  // (voicingView.roundRobin → its own pill), so listing it in the unison summary
+  // too would signal it twice.
   const parts = [`${u.numVoiceSame} voices`];
   if (u.detuneMax) parts.push(`detune ${u.detuneMax}`);
   if (u.panMax) parts.push(`pan ${u.panMax}`);
   if (Math.abs(u.gainDbSame) >= 0.05) parts.push(`gain ${u.gainDbSame >= 0 ? '+' : '−'}${Math.abs(u.gainDbSame).toFixed(1)} dB`);
-  if (u.randomStrokeMode) parts.push('round-robin');
   return { active: true, summary: `on · ${parts.join(' · ')}` };
 }
 

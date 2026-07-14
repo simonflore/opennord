@@ -122,4 +122,6 @@
   padding: 3px 5px; border-radius: 4px; flex-shrink: 0;
 }
 .lib-tag--unused { color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn); }
+/* Voicing badge (Unison / Round-robin / Tru-Vibrato) — subtle, informational. */
+.lib-tag--voicing { color: var(--text-tertiary); box-shadow: inset 0 0 0 1px var(--line); }
 .on-btn.is-active { box-shadow: inset 0 0 0 1px var(--warn); color: var(--ink); }

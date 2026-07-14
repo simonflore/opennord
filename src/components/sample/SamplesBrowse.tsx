@@ -246,6 +246,9 @@ export function SamplesBrowse(
                       ? `${e.strokeCount} ${e.strokeCount === 1 ? 'sample' : 'samples'}`
                       : (e.source === 'nord' ? 'on Nord' : 'unrecognized')}
                   </span>
+                  {e.voicing?.map((v) => (
+                    <span key={v} className="lib-tag lib-tag--voicing" title={`${v} voicing`}>{v}</span>
+                  ))}
                 </div>
               }
               footExtras={

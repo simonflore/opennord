@@ -1,4 +1,5 @@
 import { readNsmp, readSampleCategory, type NsmpFile } from '../ns4/nsmp';
+import { voicingView, truVibratoView } from '../ns4/sample-view';
 import type { ScannedSample } from '../folder/scan';
 import type { ProgramEntry } from '../device/transfer';
 import type { LibrarySource } from './types';
@@ -17,6 +18,16 @@ function categoryFor(bytes: Uint8Array): string | undefined {
   return sampleCategoryLabel(main, sub);
 }
 
+/** At-a-glance voicing badges from a sample file's bytes; undefined when none apply. */
+function voicingFor(bytes: Uint8Array): string[] | undefined {
+  const v = voicingView(bytes);
+  const chips: string[] = [];
+  if (v.unison) chips.push('Unison');
+  if (v.roundRobin) chips.push('Round-robin');
+  if (truVibratoView(bytes)) chips.push('Tru-Vibrato');
+  return chips.length ? chips : undefined;
+}
+
 /** Sample codec generation, in musician-facing buckets. `npno` = piano library. */
 export type SampleGeneration = 'og' | '3' | '4' | 'npno' | 'unknown';
 
@@ -28,6 +39,7 @@ export interface SampleEntry {
   generation: SampleGeneration;
   strokeCount?: number;       // folder samples
   category?: string;          // folder/local samples — Nord sample category (cat chunk), e.g. "Drums"
+  voicing?: string[];         // folder/local samples — voicing badges: "Unison", "Round-robin", "Tru-Vibrato"
   size?: number;              // folder samples — byte length; backup entries — entry.size
   slot?: string;              // device samples — "A:26"
   file?: NsmpFile;            // folder samples — parsed file
@@ -60,6 +72,7 @@ export function sampleEntriesFromScanned(samples: ScannedSample[]): SampleEntry[
     generation: sampleGeneration(s.file),
     strokeCount: s.file.recognized ? s.file.strokeCount : undefined,
     category: categoryFor(s.bytes),
+    voicing: voicingFor(s.bytes),
     size: s.bytes.length,
     file: s.file,
     bytes: s.bytes,
@@ -82,6 +95,7 @@ export function sampleEntryFromImport(rec: { id: string; name: string; bytes: Ui
     generation: sampleGeneration(file),
     strokeCount: file.recognized ? file.strokeCount : undefined,
     category: categoryFor(rec.bytes),
+    voicing: voicingFor(rec.bytes),
     size: rec.bytes.length,
     file,
     bytes: rec.bytes,

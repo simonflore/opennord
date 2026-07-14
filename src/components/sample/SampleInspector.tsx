@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import '../../styles/nord.css';
 import { readNsmp, decodeNsmp, readNsmpZones, readSampleUnison, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
-import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary, sampleUnisonView, truVibratoView, voicingView, noteName } from '../../lib/ns4/sample-view';
+import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary, truVibratoView, voicingView, noteName } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
 import { buildPlayableZones, strokeKeyboardOrder, type PlayableZone } from '../../lib/ns4/playable-zones';
 import { createSampler, DEFAULT_ENVELOPE, type Sampler, type AmpEnvelope } from './sampleEngine';
@@ -181,7 +181,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                 bytes={loaded.bytes}
                 codec={loaded.file.codec === 4 ? 4 : 3}
                 factory={loaded.factory}
-                unison={sampleUnisonView(loaded.bytes)?.summary ?? null}
+                unison={voicingView(loaded.bytes).unison ?? null}
                 onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
                 onNoteOn={(midi) => { loaded.sampler?.noteOn(midi, 100); transport.refresh(); }}
                 onNoteOff={(midi) => loaded.sampler?.noteOff(midi)}
@@ -236,7 +236,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
 
           {/* Raw key/velocity table — only when we couldn't build the editor. */}
           {!((loaded.file.codec === 3 || loaded.file.codec === 4) && loaded.zones.length > 0)
-            && <ZoneMap rows={zoneMapRows(loaded.bytes)} unison={sampleUnisonView(loaded.bytes)?.summary ?? null} />}
+            && <ZoneMap rows={zoneMapRows(loaded.bytes)} unison={voicingView(loaded.bytes).unison ?? null} />}
         </div>
       )}
     </div>
