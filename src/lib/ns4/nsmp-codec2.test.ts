@@ -87,7 +87,9 @@ for (const rel of FILES) {
 // the Wave / Electro-3 / Stage-2 versions of this content).
 const SPITFIRE_C2 = 'fixtures/Spitfire String Quintet Nord Stage 2/SpitfireStrQPizz 2.2.nsmp';
 describe.skipIf(!hasGt(SPITFIRE_C2))('codec-2: Spitfire per-zone-value records decode fully', () => {
-  const bytes = new Uint8Array(readFileSync(resolve(REPO_ROOT, SPITFIRE_C2)));
+  const bytes = hasGt(SPITFIRE_C2)
+    ? new Uint8Array(readFileSync(resolve(REPO_ROOT, SPITFIRE_C2)))
+    : new Uint8Array();
   it('decodes a zone for (nearly) every stroke, not a truncated 8-record run', () => {
     const strokes = new Set(
       parseNsmpSections(bytes).filter((s) => s.tag.endsWith('stk')).map((s) => bytes[s.payloadOffset + 3]),
