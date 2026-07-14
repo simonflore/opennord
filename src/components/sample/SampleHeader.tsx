@@ -21,7 +21,7 @@ export function SampleHeader({ view }: { view: SampleHeaderView }) {
             <Pill>{view.checksumOk ? 'checksum ✓' : 'checksum ✗'}</Pill>
           )}
           {view.isFactory && (
-            <Pill variant="warning">factory?</Pill>
+            <Pill title="Looks like factory content — you can always re-download it from Nord's library">Factory?</Pill>
           )}
           {view.unison && (
             <Pill title={`Unison ${view.unison} — auditioned as a stacked, panned voice`}>Unison</Pill>
