@@ -27,16 +27,23 @@ describe('Rail', () => {
     const html = render('library/programs');
     for (const label of ['Programs', 'Presets', 'User Samples', 'Piano Samples']) expect(html).toContain(label);
     // All four categories are now ready — no disabled category sub-items.
+    // (Checks the literal `disabled=""` HTML attribute, not the substring
+    // "disabled" — the button's className carries `disabled:*` Tailwind
+    // variants unconditionally, so a plain substring match would false-positive.)
     for (const label of ['Programs', 'Presets', 'User Samples', 'Piano Samples']) {
       const idx = html.indexOf(`>${label}<`);
       const btnStart = html.lastIndexOf('<button', idx);
-      expect(html.slice(btnStart, idx)).not.toContain('disabled');
+      expect(html.slice(btnStart, idx)).not.toContain('disabled=""');
     }
   });
 
   it('keeps Library lit while on a category path', () => {
     const html = render('library/samples');
-    expect(html).toContain('on-nav--active');
+    // The Library entry and its active "Samples" sub-item both carry
+    // aria-current="page" for their respective matched paths.
+    const libraryIdx = html.indexOf('>Library<');
+    const libraryBtnStart = html.lastIndexOf('<button', libraryIdx);
+    expect(html.slice(libraryBtnStart, libraryIdx)).toContain('aria-current="page"');
   });
 
   it('shows the disconnected device state by default', () => {

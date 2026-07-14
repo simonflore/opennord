@@ -20,13 +20,15 @@ function RootLayout() {
   }
 
   return (
-    <div className="on-app">
+    <div className="flex min-h-screen stage-backdrop max-[720px]:flex-col">
       <Rail
         active={active}
         onNavigate={(to) => navigate({ to })}
         onManageDevice={() => navigate({ to: '/device' })}
       />
-      <main className="on-content">
+      {/* Plain "on-content" class kept as a hook: `[data-native] .on-content` in
+          shell.css layers Capacitor safe-area insets on top of the utilities below. */}
+      <main className="on-content flex-1 max-w-[1100px] px-6 py-4 max-[720px]:px-4 max-[720px]:py-3">
         {/* resetKey: navigating clears a caught error, so one bad program
             view doesn't dead-end the content pane for the whole session. */}
         <ErrorBoundary resetKey={active}>
