@@ -5,6 +5,9 @@ import { CategoryPanel } from '../library/CategoryPanel';
 import { LibraryCard } from '../library/LibraryCard';
 import { LibraryEmpty } from '../library/LibraryEmpty';
 import { FactoryPill } from '../library/FactoryPill';
+import { EngineTag } from '../library/EngineTag';
+import { SlotTag } from '../library/SlotTag';
+import { CardRemoveButton } from '../library/CardRemoveButton';
 import type { SampleEntry, SampleGeneration } from '../../lib/library/sample-entries';
 import type { SamplesPrefsApi, SampleSort } from '../../lib/library/prefs';
 import type { LibrarySource } from '../../lib/library/types';
@@ -23,7 +26,7 @@ function fmtMB(bytes: number): string {
 
 const GEN_LABEL: Record<SampleGeneration, string> = { og: '.nsmp', '3': '.nsmp3', '4': '.nsmp4', npno: 'Piano (.npno)', unknown: 'Unrecognized' };
 /** Per-codec color on the type badge so nsmp/nsmp3/nsmp4 read apart at a glance. */
-const GEN_CLASS: Record<SampleGeneration, string> = { og: 'lib-slot--nsmp', '3': 'lib-slot--nsmp3', '4': 'lib-slot--nsmp4', npno: 'lib-slot--npno', unknown: '' };
+const GEN_TONE: Record<SampleGeneration, 'nsmp' | 'nsmp3' | 'nsmp4' | 'npno' | undefined> = { og: 'nsmp', '3': 'nsmp3', '4': 'nsmp4', npno: 'npno', unknown: undefined };
 const SORT_LABEL: Record<SampleSort, string> = {
   default: 'Default',
   name: 'Name (A–Z)',
@@ -156,21 +159,22 @@ export function SamplesBrowse(
   const actions = (
     <>
       {canScanUsage && (
-        <button className="on-btn" onClick={onScanUsage} disabled={scanPct !== null}>
+        <Button variant="secondary" onClick={onScanUsage} disabled={scanPct !== null}>
           {scanPct !== null ? `Scanning… ${scanPct}%` : 'Find unused samples'}
-        </button>
+        </Button>
       )}
       {unusedCount !== null && scanPct === null && (
-        <button
-          className={`on-btn${unusedOnly ? ' is-active' : ''}`}
+        <Button
+          variant="secondary"
+          className={unusedOnly ? 'border-warn' : undefined}
           aria-pressed={unusedOnly}
           onClick={() => onUnusedOnly(!unusedOnly)}
         >
           {unusedCount === 0 ? 'No unused samples' : `${unusedOnly ? 'Show all' : `Unused only (${unusedCount})`}`}
-        </button>
+        </Button>
       )}
-      <button className="on-btn" onClick={onLoadNew}>Preview a file</button>
-      <button className="on-btn on-btn--primary" onClick={onImport}>+ Import sample</button>
+      <Button variant="secondary" onClick={onLoadNew}>Preview a file</Button>
+      <Button variant="primary" onClick={onImport}>+ Import sample</Button>
     </>
   );
 
@@ -178,8 +182,12 @@ export function SamplesBrowse(
     <>
       {/* Reclaim bar — shown when at least one sample is selected */}
       {selected.size > 0 && (
-        <div className="lib-reclaim-bar" role="region" aria-label="Selected samples">
-          <span className="lib-reclaim-bar__info">
+        <div
+          className="sticky top-0 z-[2] mb-3 flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-2.5"
+          role="region"
+          aria-label="Selected samples"
+        >
+          <span className="mr-auto text-[13px] text-ink">
             {selected.size} selected · frees ~{fmtMB(selectedFreeBytes)}
           </span>
           <Button variant="ghost" onClick={selectAllUnused}>Select all unused</Button>
@@ -189,7 +197,7 @@ export function SamplesBrowse(
       )}
       {/* Remove result feedback */}
       {removeResult && (
-        <p className="lib-reclaim-bar__result" role="status">
+        <p className="mb-3 text-xs text-dim" role="status">
           {removeResult.removed} {removeResult.removed === 1 ? 'sample' : 'samples'} removed
           {removeResult.failed > 0 && ` · ${removeResult.failed} could not be removed`}
         </p>
@@ -236,16 +244,16 @@ export function SamplesBrowse(
               select={unusedOnly && e.source === 'nord' && e.unused
                 ? { checked: selected.has(e.id), onToggle: () => toggleSelected(e.id) }
                 : undefined}
-              badge={<span className={`lib-slot${e.slot ? '' : ` ${GEN_CLASS[e.generation]}`}`}>{e.slot ?? GEN_LABEL[e.generation]}</span>}
+              badge={<SlotTag tone={e.slot ? undefined : GEN_TONE[e.generation]}>{e.slot ?? GEN_LABEL[e.generation]}</SlotTag>}
               engines={
-                <div className="lib-patch__engines">
-                  <span className="lib-eng">
+                <div className="mt-2.5 flex flex-wrap gap-[5px]">
+                  <EngineTag>
                     {e.generation === 'npno'
                       ? 'piano library'
                       : e.strokeCount != null
                       ? `${e.strokeCount} ${e.strokeCount === 1 ? 'sample' : 'samples'}`
                       : (e.source === 'nord' ? 'on Nord' : 'unrecognized')}
-                  </span>
+                  </EngineTag>
                 </div>
               }
               footExtras={
@@ -253,15 +261,9 @@ export function SamplesBrowse(
                   {e.source === 'backup' && e.factory !== undefined && (
                     <FactoryPill factory={e.factory} />
                   )}
-                  <span className="lib-slot">{e.size != null ? fmtSize(e.size) : ''}</span>
+                  <SlotTag>{e.size != null ? fmtSize(e.size) : ''}</SlotTag>
                   {e.id.startsWith('local:') && (
-                    <button
-                      className="lib-patch__rm"
-                      aria-label={`Remove ${e.name}`}
-                      title="Remove from library"
-                      onClick={(ev) => { ev.stopPropagation(); onRemove(e.id); }}
-                      onKeyDown={(ev) => ev.stopPropagation()}
-                    >✕</button>
+                    <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
                   )}
                 </>
               }
@@ -284,11 +286,11 @@ export function SamplesBrowse(
         }
       >
         {anyFactory && (
-          <p className="lib-reclaim-disclaimer">
+          <p className="mb-2 border-l-2 border-l-red pl-2.5 text-xs text-dim">
             Some of these are factory samples. You can always re-download them from Nord's library.
           </p>
         )}
-        <label className="lib-reclaim-keepcopy">
+        <label className="my-2 flex items-center gap-2 text-[13px] text-ink">
           <input
             type="checkbox"
             checked={keepCopy}
@@ -297,7 +299,7 @@ export function SamplesBrowse(
           {' '}Download a copy first
         </label>
         {removeError && (
-          <p className="lib-reclaim-error" role="alert">{removeError}</p>
+          <p className="mt-2 text-xs text-red" role="alert">{removeError}</p>
         )}
       </Dialog>
     </>

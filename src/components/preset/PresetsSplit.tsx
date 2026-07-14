@@ -3,6 +3,7 @@ import { usePresetsState } from '@/lib/library/PresetsContext';
 import { PresetsBrowse } from './PresetsBrowse';
 import { PresetInspector } from './PresetInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
+import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSplitLayout } from '@/lib/responsive';
 
 /** Presets master/detail: the browse list + a thin recognized-preset inspector. */
@@ -47,7 +48,7 @@ export function PresetsSplit() {
 
   const detail = entry
     ? <PresetInspector entry={entry} session={s.session} />
-    : <p className="lib-empty" style={{ padding: 16 }}>Pick a preset to see its details.</p>;
+    : <EmptyNote className="p-4">Pick a preset to see its details.</EmptyNote>;
 
   return (
     <CategorySplit

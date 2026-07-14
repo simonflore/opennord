@@ -5,6 +5,9 @@ import { LibraryCard } from './LibraryCard';
 import { LibraryEmpty } from './LibraryEmpty';
 import { BundlePicker } from './BundlePicker';
 import { NewBackupsBanner } from './NewBackupsBanner';
+import { EngineTag } from './EngineTag';
+import { SlotTag } from './SlotTag';
+import { CardRemoveButton } from './CardRemoveButton';
 import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
 import type { LibraryPrefsApi } from '../../lib/library/prefs';
 import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
@@ -88,13 +91,13 @@ export function LibraryView({
   const actions = (
     <>
       {folderName ? (
-        <span className="lib-folder" title={folderName}>
+        <span className="inline-flex items-center gap-2 text-[13px] text-dim" title={folderName}>
           📁 {folderName} · {folderCount} {folderCount === 1 ? 'file' : 'files'}
           {canPersist && !needsReconnect
-            ? <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onRefresh} disabled={busy} aria-label="Refresh folder">⟳</button>
-            : <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onChooseFolder} disabled={busy}>Re-pick</button>}
+            ? <Button variant="ghost" className="px-2 py-0.5" onClick={onRefresh} disabled={busy} aria-label="Refresh folder">⟳</Button>
+            : <Button variant="ghost" className="px-2 py-0.5" onClick={onChooseFolder} disabled={busy}>Re-pick</Button>}
           {/* Disconnect only forgets the folder pointer — it never touches the user's files. */}
-          <button className="on-btn on-btn--ghost lib-folder__btn" onClick={onForget} aria-label="Disconnect folder" title="Disconnect this folder">✕</button>
+          <Button variant="ghost" className="px-2 py-0.5" onClick={onForget} aria-label="Disconnect folder" title="Disconnect this folder">✕</Button>
         </span>
       ) : (
         <Button variant="ghost" onClick={onChooseFolder} disabled={busy}>Choose folder</Button>
@@ -106,25 +109,25 @@ export function LibraryView({
   const headExtra = (
     <>
       {needsReconnect && folderName && (
-        <div className="lib-reconnect">
+        <div className="mb-3 flex items-center gap-3 rounded-md border border-line px-[14px] py-2.5 text-ink">
           {reconnectError
-            ? <span className="lib-reconnect__err">{reconnectError}</span>
+            ? <span className="text-red">{reconnectError}</span>
             : <span>Reconnect <strong>{folderName}</strong> to load your patches.</span>}
-          <button className="on-btn on-btn--ghost" onClick={onReconnect} disabled={busy}>Reconnect</button>
+          <Button variant="ghost" onClick={onReconnect} disabled={busy}>Reconnect</Button>
           {/* Never disabled: Forget only clears local state, so it stays the
               escape hatch when a pending browser dialog has wedged `busy`. */}
-          <button className="on-btn on-btn--ghost" onClick={onForget}>Forget</button>
+          <Button variant="ghost" onClick={onForget}>Forget</Button>
         </div>
       )}
       {scanErrors.length > 0 && (
-        <div className="lib-errnote" title={scanErrors.map((e) => `${e.path} — ${e.reason}`).join('\n')}>
+        <div className="mb-3 text-[13px] text-dim" title={scanErrors.map((e) => `${e.path} — ${e.reason}`).join('\n')}>
           {scanErrors.length} {scanErrors.length === 1 ? 'file' : 'files'} couldn't be read — hover for details.
         </div>
       )}
       {importError && (
-        <div className="lib-reconnect" role="alert">
-          <span className="lib-reconnect__err">{importError}</span>
-          <button className="on-btn on-btn--ghost" onClick={onDismissImportError}>Dismiss</button>
+        <div className="mb-3 flex items-center gap-3 rounded-md border border-line px-[14px] py-2.5 text-ink" role="alert">
+          <span className="text-red">{importError}</span>
+          <Button variant="ghost" onClick={onDismissImportError}>Dismiss</Button>
         </div>
       )}
       {!folder.pickerOpen && (
@@ -162,7 +165,7 @@ export function LibraryView({
         <LibraryEmpty noun="program" filtered={filtered} onClear={clearFilters}>
           <p>Nothing here yet.</p>
           <Button variant="primary" onClick={onChooseFolder} disabled={busy}>Choose a folder of Nord files</Button>
-          <p className="lib-empty__hint">Subfolders and <code>.ns4b</code> backups are included. Or import a single file, or connect your Nord.</p>
+          <p className="mt-2 text-[13px] text-dim [&_code]:text-ink">Subfolders and <code>.ns4b</code> backups are included. Or import a single file, or connect your Nord.</p>
         </LibraryEmpty>
       }
     >
@@ -174,30 +177,24 @@ export function LibraryView({
               favorite={favorites.has(e.id)}
               onToggleFavorite={() => onToggleFavorite(e.id)}
               onOpen={() => onOpen(e)}
-              badge={<span className="lib-slot">{e.slot ?? e.typeLabel ?? 'file'}</span>}
+              badge={<SlotTag>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>}
               engines={e.summary
                 ? (
-                  <div className="lib-patch__engines">
+                  <div className="mt-2.5 flex flex-wrap gap-[5px]">
                     {e.summary.split(' + ').map((part, i) => {
                       const kind = part.trim().toLowerCase();
                       const known = kind === 'organ' || kind === 'piano' || kind === 'synth';
                       return (
-                        <span key={i} className={`lib-eng${known ? ` lib-eng--${kind}` : ''}`}>
+                        <EngineTag key={i} kind={known ? (kind as 'organ' | 'piano' | 'synth') : undefined}>
                           {part.trim()}
-                        </span>
+                        </EngineTag>
                       );
                     })}
                   </div>
                 )
-                : <div className="lib-patch__sub">—</div>}
+                : <div className="mt-2.5 text-[11px] text-muted">—</div>}
               footExtras={e.source === 'local' && (
-                <button
-                  className="lib-patch__rm"
-                  aria-label={`Remove ${e.name}`}
-                  title="Remove from library"
-                  onClick={(ev) => { ev.stopPropagation(); onRemove(e.id); }}
-                  onKeyDown={(ev) => ev.stopPropagation()}
-                >✕</button>
+                <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
               )}
             />
           ))}

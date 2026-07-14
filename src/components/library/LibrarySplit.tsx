@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { LibraryView } from './LibraryView';
 import { ProgramView } from '@/components/program/ProgramView';
 import { CategorySplit } from './CategorySplit';
+import { EmptyNote } from './EmptyNote';
 import { useLibraryState } from '@/lib/library/LibraryContext';
 import { useSplitLayout } from '@/lib/responsive';
 
@@ -51,8 +52,8 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
     <CategorySplit
       wide={wide}
       master={list}
-      detail={program ?? <p className="lib-empty">Pick a program to see its details.</p>}
-      narrowDetail={program ?? <p className="lib-empty">This program isn’t open. Pick it from the Library.</p>}
+      detail={program ?? <EmptyNote>Pick a program to see its details.</EmptyNote>}
+      narrowDetail={program ?? <EmptyNote>This program isn’t open. Pick it from the Library.</EmptyNote>}
       hasDetail={!!selectedId}
       onBack={() => navigate({ to: '/library/programs' })}
       backLabel="← Library"

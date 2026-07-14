@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
+import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSamplesState } from '@/lib/library/SamplesContext';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { pullSample } from '@/lib/device/samples';
@@ -129,7 +130,7 @@ export function SamplesSplit() {
     <SampleInspector key={initial ? `${initial.name}-${initial.bytes.length}` : 'new'} initial={initial} />
   );
   const hasDetail = loadNew || inspect !== null;
-  const detail = hasDetail ? inspector : <p className="lib-empty">Pick a sample to inspect it.</p>;
+  const detail = hasDetail ? inspector : <EmptyNote>Pick a sample to inspect it.</EmptyNote>;
 
   return (
     <CategorySplit

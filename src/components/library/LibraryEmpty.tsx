@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Button } from '../ui';
+import { EmptyNote } from './EmptyNote';
 
 /**
  * Consistent empty state for every Library category (Programs, Presets, User
@@ -22,11 +23,11 @@ export function LibraryEmpty({ noun, filtered, onClear, children }: {
 }) {
   if (filtered) {
     return (
-      <div className="lib-empty">
+      <EmptyNote>
         <p>No {noun}s match your filter.</p>
         {onClear && <Button variant="ghost" onClick={onClear}>Clear filters</Button>}
-      </div>
+      </EmptyNote>
     );
   }
-  return <div className="lib-empty">{children ?? <p>Nothing here yet.</p>}</div>;
+  return <EmptyNote>{children ?? <p>Nothing here yet.</p>}</EmptyNote>;
 }

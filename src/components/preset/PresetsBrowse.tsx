@@ -3,6 +3,8 @@ import { BrowseToolbar, Button, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
 import { LibraryCard } from '../library/LibraryCard';
 import { LibraryEmpty } from '../library/LibraryEmpty';
+import { SlotTag } from '../library/SlotTag';
+import { CardRemoveButton } from '../library/CardRemoveButton';
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
@@ -62,7 +64,7 @@ export function PresetsBrowse({
   return (
     <CategoryPanel
       title="Presets"
-      counts={<span className="lib-counts__total">{entries.length} preset{entries.length !== 1 ? 's' : ''}</span>}
+      counts={`${entries.length} preset${entries.length !== 1 ? 's' : ''}`}
       actions={<Button variant="primary" onClick={onImport}>+ Import preset</Button>}
       toolbar={
         <BrowseToolbar
@@ -82,18 +84,12 @@ export function PresetsBrowse({
                 favorite={isFavorite(e.id)}
                 onToggleFavorite={() => toggleFavorite(e.id)}
                 onOpen={() => onSelect(e)}
-                badge={<span className="lib-slot">{e.slot ?? KIND_LABEL[e.kind]}</span>}
+                badge={<SlotTag>{e.slot ?? KIND_LABEL[e.kind]}</SlotTag>}
                 footExtras={
                   <>
-                    {e.size != null && <span className="lib-slot">{formatBytes(e.size)}</span>}
+                    {e.size != null && <SlotTag>{formatBytes(e.size)}</SlotTag>}
                     {e.id.startsWith('local:') && (
-                      <button
-                        className="lib-patch__rm"
-                        aria-label={`Remove ${e.name}`}
-                        title="Remove from library"
-                        onClick={(ev) => { ev.stopPropagation(); onRemove(e.id); }}
-                        onKeyDown={(ev) => ev.stopPropagation()}
-                      >✕</button>
+                      <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
                     )}
                   </>
                 }
