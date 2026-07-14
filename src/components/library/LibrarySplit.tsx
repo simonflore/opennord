@@ -25,6 +25,9 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
       generation={s.generation}
       onGeneration={s.setGeneration}
       generationsPresent={s.generationsPresent}
+      category={s.category}
+      onCategory={s.setCategory}
+      categoriesPresent={s.categoriesPresent}
       onQuery={s.setQuery}
       onOpen={(e) => {
         if (e.program) navigate({ to: '/library/programs/$programId', params: { programId: e.id } });

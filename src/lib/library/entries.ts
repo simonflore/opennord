@@ -5,9 +5,13 @@ import { formatSlot } from '../clavia/slot';
 import { parseClaviaFile, type NordProgram } from '../formats';
 import { identifyNordFile } from '../clavia/nord-file';
 import { programNameFromFilename } from '../clavia/name';
+import { programCategoryName, PROGRAM_CATEGORY } from '../clavia/categories';
 import { activeLayers } from '../ns4/view';
 import type { NS4Program } from '../ns4/types';
-import { matchesQuery, sortWithFavorites } from './browse';
+import { matchesAny, sortWithFavorites } from './browse';
+
+/** Category names in Nord's canonical id order, de-duplicated — for the facet. */
+const CATEGORY_ORDER: string[] = [...new Set(Object.values(PROGRAM_CATEGORY))];
 
 /** One-line engine summary for a parsed NS4 program, e.g. "organ + synth". */
 export function summarize(program: NS4Program): string {
@@ -22,20 +26,20 @@ export function isNs4Program(program: NordProgram): program is NS4Program {
   return 'kind' in program;
 }
 
-/** Type badge (e.g. ".ns4p") + generation for a local/backup file's entry. */
-function fileMetaFor(bytes: Uint8Array): Pick<LibraryEntry, 'typeLabel' | 'generation'> {
+/** Type badge (e.g. ".ns4p") + generation + category for a local/backup file's entry. */
+function fileMetaFor(bytes: Uint8Array): Pick<LibraryEntry, 'typeLabel' | 'generation' | 'category'> {
   const info = identifyNordFile(bytes);
   if (!info.recognized) return {};
   const generation = info.generation === 'Stage 2' || info.generation === 'Stage 3' || info.generation === 'Stage 4'
     ? info.generation : undefined;
-  return { typeLabel: info.tag ? `.${info.tag}` : undefined, generation };
+  return { typeLabel: info.tag ? `.${info.tag}` : undefined, generation, category: info.categoryName };
 }
 
 /** Map the device's enumerated programs into Library entries. */
 export function nordEntriesFromDevice(entries: ProgramEntry[]): LibraryEntry[] {
   return entries.map((e) => {
     const slot = formatSlot(e.bank, e.slot);
-    return { id: `nord:${slot}`, name: e.name, source: 'nord', slot };
+    return { id: `nord:${slot}`, name: e.name, source: 'nord', slot, category: programCategoryName(e.categoryId) };
   });
 }
 
@@ -58,15 +62,23 @@ export function entryFromImport(rec: { id: string; name: string; bytes: Uint8Arr
   };
 }
 
-/** Filter by source tab + format generation + case-insensitive name query. */
+/** Filter by source tab + format generation + category + query (name/category/engine). */
 export function filterEntries(
   entries: LibraryEntry[], source: LibrarySource | 'all', query: string,
   generation: LibraryEntry['generation'] | 'all' = 'all',
+  category: string | 'all' = 'all',
 ): LibraryEntry[] {
   return entries.filter((e) =>
     (source === 'all' || e.source === source) &&
     (generation === 'all' || e.generation === generation) &&
-    matchesQuery(e.name, query));
+    (category === 'all' || e.category === category) &&
+    matchesAny([e.name, e.category, e.summary], query));
+}
+
+/** Distinct categories present in the entries, in Nord's canonical order — for the facet. */
+export function presentCategories(entries: LibraryEntry[]): string[] {
+  const have = new Set(entries.map((e) => e.category).filter((c): c is string => c != null));
+  return CATEGORY_ORDER.filter((c) => have.has(c));
 }
 
 /**

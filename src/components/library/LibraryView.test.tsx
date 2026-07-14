@@ -66,6 +66,30 @@ describe('LibraryView', () => {
     expect(html).toContain('lib-eng--organ');
   });
 
+  it('renders the category facet only when more than one category is present', () => {
+    const twoCats: LibraryEntry[] = [
+      { id: 'nord:A:14', name: 'Wurli Dream', source: 'nord', slot: 'A:14', category: 'EPiano' },
+      { id: 'local:0', name: 'Sunday Organ', source: 'local', category: 'Organ' },
+    ];
+    const html = renderToStaticMarkup(
+      <LibraryView entries={twoCats} source="all" query="" {...handlers}
+        category="all" onCategory={() => {}} categoriesPresent={['Organ', 'EPiano']}
+        prefs={prefs()} folder={folder()} />,
+    );
+    expect(html).toContain('Filter by category');
+    expect(html).toContain('Organ');
+    expect(html).toContain('EPiano');
+  });
+
+  it('hides the category facet when only one category is present', () => {
+    const html = renderToStaticMarkup(
+      <LibraryView entries={entries} source="all" query="" {...handlers}
+        category="all" onCategory={() => {}} categoriesPresent={['Organ']}
+        prefs={prefs()} folder={folder()} />,
+    );
+    expect(html).not.toContain('Filter by category');
+  });
+
   it('marks the active source chip and makes cards keyboard-activatable', () => {
     const html = renderToStaticMarkup(
       <LibraryView entries={entries} source="nord" query="" {...handlers} prefs={prefs()} folder={folder()} />,

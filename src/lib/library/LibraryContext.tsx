@@ -3,7 +3,7 @@ import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedLibrary } from '@/lib/library/useImportedLibrary';
 import { useLibraryPrefs } from '@/lib/library/prefs';
-import { nordEntriesFromDevice, entriesFromScannedPrograms, filterEntries, sortEntries } from '@/lib/library/entries';
+import { nordEntriesFromDevice, entriesFromScannedPrograms, filterEntries, sortEntries, presentCategories } from '@/lib/library/entries';
 import type { LibraryEntry, LibrarySource } from '@/lib/library/types';
 
 /** Extensions the Programs importer accepts — programs/performances only.
@@ -20,6 +20,7 @@ function useLibraryStateValue() {
   const { entries: deviceEntries } = useDevice();
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
   const [generation, setGeneration] = useState<LibraryEntry['generation'] | 'all'>('all');
+  const [category, setCategory] = useState<string | 'all'>('all');
   const [query, setQuery] = useState('');
   const [importError, setImportError] = useState('');
   const folder = useFolder();
@@ -35,7 +36,10 @@ function useLibraryStateValue() {
   // facet is worth showing (only when there's more than one). Stage 4 → 2 order.
   const generationsPresent = (['Stage 4', 'Stage 3', 'Stage 2'] as const)
     .filter((g) => allEntries.some((e) => e.generation === g));
-  const shown = sortEntries(filterEntries(allEntries, source, query, generation), prefs.sort, prefs.favorites);
+  // Categories present across the *unfiltered* list — drives whether the
+  // category facet is worth showing (only when there's more than one).
+  const categoriesPresent = presentCategories(allEntries);
+  const shown = sortEntries(filterEntries(allEntries, source, query, generation, category), prefs.sort, prefs.favorites);
   const entryById = (id: string) => allEntries.find((e) => e.id === id);
 
   function importFile() {
@@ -70,7 +74,8 @@ function useLibraryStateValue() {
   }
 
   return {
-    shown, source, setSource, generation, setGeneration, generationsPresent, query, setQuery,
+    shown, source, setSource, generation, setGeneration, generationsPresent,
+    category, setCategory, categoriesPresent, query, setQuery,
     importFile, importError, clearImportError: () => setImportError(''), imported, prefs, folder, entryById,
   };
 }

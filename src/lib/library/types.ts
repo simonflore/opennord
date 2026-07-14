@@ -13,6 +13,7 @@ export interface LibraryEntry {
   slot?: string;         // "A:26" for nord entries; undefined for local
   typeLabel?: string;    // file-type badge for local/backup files, e.g. ".ns4p"
   generation?: 'Stage 2' | 'Stage 3' | 'Stage 4'; // file generation, for the format facet
+  category?: string;     // Nord category name, e.g. "Pad" (CBIN header byte 0x10), for the category facet
   summary?: string;      // engine summary, e.g. "organ + synth"
   program?: NordProgram; // parsed program when available (local: from file; nord: when pulled)
   bytes?: Uint8Array;    // raw bytes when available

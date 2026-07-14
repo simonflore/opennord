@@ -18,6 +18,10 @@ interface Props {
   generation?: LibraryEntry['generation'] | 'all';
   onGeneration?: (g: LibraryEntry['generation'] | 'all') => void;
   generationsPresent?: Array<NonNullable<LibraryEntry['generation']>>;
+  /** Musical-category facet (Bass, Pad, Organ…). Shown only when >1 category is present. */
+  category?: string | 'all';
+  onCategory?: (c: string | 'all') => void;
+  categoriesPresent?: string[];
   onQuery: (q: string) => void;
   onOpen: (e: LibraryEntry) => void;
   onImport: () => void;
@@ -40,6 +44,7 @@ const SORT_LABEL: Record<LibrarySort, string> = { default: 'Default', name: 'Nam
 export function LibraryView({
   entries, source, query, onSource, onQuery, onOpen, onImport, onRemove,
   generation = 'all', onGeneration, generationsPresent = [],
+  category = 'all', onCategory, categoriesPresent = [],
   importError, onDismissImportError, prefs, folder,
 }: Props) {
   // Unpack the grouped props so the JSX below reads the same as before.
@@ -55,8 +60,9 @@ export function LibraryView({
   // When a search/facet is hiding everything, show the shared "no match" state
   // rather than the first-run onboarding (which would wrongly read as "empty").
   const filtered = query.trim() !== '' || source !== 'all'
-    || (generationsPresent.length > 1 && (generation ?? 'all') !== 'all');
-  const clearFilters = () => { onQuery(''); onSource('all'); onGeneration?.('all'); };
+    || (generationsPresent.length > 1 && (generation ?? 'all') !== 'all')
+    || (categoriesPresent.length > 1 && (category ?? 'all') !== 'all');
+  const clearFilters = () => { onQuery(''); onSource('all'); onGeneration?.('all'); onCategory?.('all'); };
 
   const facets: FacetGroup[] = [
     {
@@ -70,6 +76,12 @@ export function LibraryView({
       value: generation ?? 'all',
       options: [{ key: 'all', label: 'All' }, ...generationsPresent.map((g) => ({ key: g, label: g }))],
       onChange: (k: string) => onGeneration?.(k as LibraryEntry['generation'] | 'all'),
+    }] : []),
+    ...(categoriesPresent.length > 1 ? [{
+      ariaLabel: 'Filter by category',
+      value: category ?? 'all',
+      options: [{ key: 'all', label: 'All' }, ...categoriesPresent.map((c) => ({ key: c, label: c }))],
+      onChange: (k: string) => onCategory?.(k),
     }] : []),
   ];
 

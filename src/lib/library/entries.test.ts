@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms, sortEntries } from './entries';
+import { nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms, sortEntries, presentCategories } from './entries';
 import type { LibraryEntry } from './types';
 import type { ScannedProgram } from '../folder/scan';
 import type { NS4Program } from '../ns4/types';
@@ -9,9 +9,9 @@ import type { NS4Program } from '../ns4/types';
 //  formatSlot uses a 6-bit page×8 encoding: digit1=(loc/8)+1, digit2=(loc%8)+1)
 
 const sample: LibraryEntry[] = [
-  { id: 'nord:A:14', name: 'Wurli Dream', source: 'nord', slot: 'A:14' },
-  { id: 'local:1', name: 'Sunday Organ', source: 'local' },
-  { id: 'nord:B:03', name: 'Deep Stab', source: 'nord', slot: 'B:03' },
+  { id: 'nord:A:14', name: 'Wurli Dream', source: 'nord', slot: 'A:14', category: 'EPiano' },
+  { id: 'local:1', name: 'Sunday Organ', source: 'local', category: 'Organ' },
+  { id: 'nord:B:03', name: 'Deep Stab', source: 'nord', slot: 'B:03', category: 'Pad' },
 ];
 
 describe('nordEntriesFromDevice', () => {
@@ -22,6 +22,10 @@ describe('nordEntriesFromDevice', () => {
     expect(out[0].name).toBe('Wurli Dream');
     expect(out[0].slot).toBe('A:26');   // formatSlot(0,13) → 'A:26' (page 2, position 6)
     expect(out[0].id).toBe('nord:A:26');
+  });
+  it('resolves the Nord category name from the enumerated categoryId', () => {
+    const out = nordEntriesFromDevice([{ bank: 0, slot: 0, name: 'Lyle Lead', categoryId: 6, version: 313, sizeBytes: 0, fourcc: 'ns4p' }]);
+    expect(out[0].category).toBe('Lead'); // id 6 = Lead
   });
 });
 
@@ -37,6 +41,26 @@ describe('filterEntries', () => {
     const out = filterEntries(sample, 'all', 'deep');
     expect(out).toHaveLength(1);
     expect(out[0].name).toBe('Deep Stab');
+  });
+  it('filters by the category facet', () => {
+    const out = filterEntries(sample, 'all', '', 'all', 'Pad');
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe('Deep Stab');
+  });
+  it('search matches on category even when the name does not', () => {
+    // No entry name contains "pad"; only "Deep Stab" (category "Pad") should match.
+    const out = filterEntries(sample, 'all', 'pad');
+    expect(out.map((e) => e.name)).toEqual(['Deep Stab']);
+  });
+});
+
+describe('presentCategories', () => {
+  it('returns categories present in the entries, in Nord canonical order', () => {
+    // canonical order: Organ (7), Pad (8), EPiano (23)
+    expect(presentCategories(sample)).toEqual(['Organ', 'Pad', 'EPiano']);
+  });
+  it('ignores entries with no category', () => {
+    expect(presentCategories([{ id: 'x', name: 'n', source: 'local' }])).toEqual([]);
   });
 });
 

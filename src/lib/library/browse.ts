@@ -8,6 +8,17 @@ export function matchesQuery(name: string, query: string): boolean {
 }
 
 /**
+ * Case-insensitive substring match across several fields (name, category,
+ * engine summary…); an empty query matches anything. Lets a search for "pad"
+ * surface a program whose *category* is Pad even when its name isn't.
+ */
+export function matchesAny(fields: Array<string | undefined>, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (q === '') return true;
+  return fields.some((f) => f != null && f.toLowerCase().includes(q));
+}
+
+/**
  * Order entries for display: favorites always float to the top, then `byKey`
  * within each group. Stable — equal keys keep input order. Non-mutating.
  */
