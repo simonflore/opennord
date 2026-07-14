@@ -1,7 +1,17 @@
 import type { ModelProgress, BodyRegion, RegionStatus } from '../../lib/contribute/coverage-data';
 import { summarizeProgress } from '../../lib/contribute/coverage';
+import { cn } from '@/lib/cn';
 
 const COLS = 16;
+
+const CELL_COLOR: Record<RegionStatus, string> = {
+  confirmed: 'bg-connected',
+  candidate: 'bg-warn opacity-75',
+  unknown: 'bg-red-bright opacity-60',
+  constant: 'bg-line',
+};
+const cellCls = (status: RegionStatus) =>
+  cn('inline-block h-2.5 w-2.5 flex-shrink-0 rounded-[2px] max-[560px]:h-2 max-[560px]:w-2', CELL_COLOR[status]);
 
 const LABEL: Record<RegionStatus, string> = {
   confirmed: 'Confirmed',
@@ -35,50 +45,46 @@ export function ByteMapView({ progress }: { progress: ModelProgress }) {
   for (let i = 0; i < bodyBytes; i += COLS) rows.push(Array.from({ length: COLS }, (_, j) => i + j).filter(b => b < bodyBytes));
 
   return (
-    <div className="bmap">
-      <div className="bmap__meta">
-        <span className="bmap__stat bmap__stat--confirmed">{coveredBytes} decoded</span>
-        {candidateBytes > 0 && <><span className="bmap__sep">·</span><span className="bmap__stat">{candidateBytes} identified</span></>}
-        <span className="bmap__sep">·</span>
-        <span className="bmap__stat">{controlCount} controls</span>
-        {pct != null && <><span className="bmap__sep">·</span><span className="bmap__stat">{pct}% decoded</span></>}
+    <div className="mt-4">
+      <div className="mb-2 flex items-center gap-1.5 text-xs text-dim">
+        <span className="font-semibold text-connected">{coveredBytes} decoded</span>
+        {candidateBytes > 0 && <><span className="text-muted">·</span><span>{candidateBytes} identified</span></>}
+        <span className="text-muted">·</span>
+        <span>{controlCount} controls</span>
+        {pct != null && <><span className="text-muted">·</span><span>{pct}% decoded</span></>}
       </div>
 
-      <div className="bmap__grid" style={{ '--bmap-cols': COLS } as React.CSSProperties}>
+      <div className="flex flex-col gap-0.5">
         {rows.map((row, ri) => (
-          <div key={ri} className="bmap__row">
-            <span className="bmap__addr">{ri * COLS}</span>
+          <div key={ri} className="flex items-center gap-0.5">
+            <span className="mr-1 w-6 flex-shrink-0 text-right font-mono text-[10px] leading-none text-muted max-[560px]:w-5 max-[560px]:text-[9px]">
+              {ri * COLS}
+            </span>
             {row.map(b => {
               const r = lookup[b];
               const status = r?.status ?? 'constant';
-              return (
-                <span
-                  key={b}
-                  className={`bmap__cell bmap__cell--${status}`}
-                  title={tip(b, r)}
-                />
-              );
+              return <span key={b} className={cellCls(status)} title={tip(b, r)} />;
             })}
           </div>
         ))}
       </div>
 
-      <div className="bmap__legend">
+      <div className="mt-2 flex flex-wrap gap-2.5 text-[11px] text-dim">
         {(['confirmed', 'candidate', 'unknown', 'constant'] as RegionStatus[]).map(s => (
-          <span key={s} className="bmap__leg-item">
-            <span className={`bmap__cell bmap__cell--${s}`} />
+          <span key={s} className="flex items-center gap-1">
+            <span className={cellCls(s)} />
             {LABEL[s]}
           </span>
         ))}
       </div>
 
       {controls.length > 0 && (
-        <ul className="bmap__controls">
+        <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0">
           {controls.map((c, i) => (
-            <li key={i} className="bmap__control">
-              <span className="bmap__cell bmap__cell--confirmed" />
+            <li key={i} className="flex items-center gap-1.5 text-[11px] text-dim">
+              <span className={cellCls('confirmed')} />
               {c.label}
-              <span className="bmap__range">
+              <span className="font-mono text-muted">
                 {c.ranges.map(r => r.start === r.end ? `b${r.start}` : `b${r.start}–${r.end}`).join(', ')}
               </span>
             </li>

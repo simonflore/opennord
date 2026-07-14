@@ -1,6 +1,11 @@
 import './home.css';
 import type { MouseEvent, ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
+import { buttonVariants, SectionLabel, BuyMeACoffeeButton } from '@/components/ui';
+import { cn } from '@/lib/cn';
+
+/** Shared max-width content wrapper used by every full-bleed section on the landing page. */
+const CONTENT = 'mx-auto max-w-[1080px] px-6';
 
 /**
  * Desktop-app download targets. The desktop build is published as a GitHub
@@ -42,7 +47,7 @@ function scrollToSection(id: string) {
  */
 export function HomeView() {
   return (
-    <div className="home">
+    <div className="min-h-screen stage-backdrop text-ink">
       <SiteHeader />
       <main>
         <Hero />
@@ -62,25 +67,35 @@ export function HomeView() {
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
 
+const navLink = cn(
+  'text-xs font-semibold text-dim no-underline',
+  'transition-colors duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)] hover:text-ink',
+  'max-[720px]:hidden',
+);
+
 function SiteHeader() {
   return (
-    <header className="home-hd">
-      <Link to="/" className="home-brand" aria-label="OpenNord home">
-        Open<span className="home-brand__accent">Nord</span>
+    <header className={cn(CONTENT, 'flex items-center justify-between gap-4 py-4')}>
+      <Link
+        to="/"
+        className="text-[19px] font-extrabold tracking-[-0.3px] text-ink no-underline"
+        aria-label="OpenNord home"
+      >
+        Open<span className="italic text-red">Nord</span>
       </Link>
-      <nav className="home-hd__nav" aria-label="Primary">
-        <a className="home-hd__link" href="#features" onClick={scrollToSection('features')}>What it does</a>
-        <a className="home-hd__link" href="#coverage" onClick={scrollToSection('coverage')}>Keyboards</a>
-        <a className="home-hd__link" href="#download" onClick={scrollToSection('download')}>Download</a>
+      <nav className="flex items-center gap-6 max-[720px]:gap-3" aria-label="Primary">
+        <a className={navLink} href="#features" onClick={scrollToSection('features')}>What it does</a>
+        <a className={navLink} href="#coverage" onClick={scrollToSection('coverage')}>Keyboards</a>
+        <a className={navLink} href="#download" onClick={scrollToSection('download')}>Download</a>
         <a
-          className="home-hd__link"
+          className={navLink}
           href="https://github.com/simonflore/opennord"
           target="_blank"
           rel="noopener noreferrer"
         >
           GitHub
         </a>
-        <Link to="/library/programs" className="on-btn on-btn--primary home-hd__cta">
+        <Link to="/library/programs" className={buttonVariants({ variant: 'primary', size: 'sm' })}>
           Open the app
         </Link>
       </nav>
@@ -90,25 +105,33 @@ function SiteHeader() {
 
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 
+const heroBtn = buttonVariants({ variant: 'primary', size: 'lg' });
+
 function Hero() {
   return (
-    <section className="home-hero">
-      <div className="home-hero__copy">
-        <span className="on-overline">Open source · in your browser</span>
-        <h1 className="home-hero__title">
-          Know your Nord — <span className="home-hero__title-em">without the keyboard.</span>
+    <section
+      className={cn(
+        CONTENT,
+        'grid grid-cols-[1.05fr_0.95fr] items-center gap-6 py-[clamp(24px,8vw,88px)]',
+        'max-[860px]:grid-cols-1 max-[860px]:py-6',
+      )}
+    >
+      <div>
+        <SectionLabel>Open source · in your browser</SectionLabel>
+        <h1 className="m-0 mt-3 font-extrabold leading-[1.05] tracking-[-1px] text-ink text-[clamp(30px,5.4vw,52px)]">
+          Know your Nord — <span className="text-dim">without the keyboard.</span>
         </h1>
-        <p className="home-hero__sub">
+        <p className="mt-4 max-w-[30rem] text-[clamp(14px,1.6vw,17px)] leading-[1.6] text-dim max-[860px]:max-w-none">
           OpenNord reads your Nord Stage program and preset files right in the
           browser. Browse, understand and organize your patches — no keyboard, no
           Sound Manager, nothing to install.
         </p>
-        <div className="home-hero__actions">
-          <Link to="/library/programs" className="on-btn on-btn--primary home-hero__btn">
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link to="/library/programs" className={heroBtn}>
             Open the app
           </Link>
           <a
-            className="on-btn on-btn--outline home-hero__btn"
+            className={buttonVariants({ variant: 'outline', size: 'lg' })}
             href="https://github.com/simonflore/opennord"
             target="_blank"
             rel="noopener noreferrer"
@@ -116,7 +139,7 @@ function Hero() {
             View on GitHub
           </a>
         </div>
-        <p className="home-hero__note">
+        <p className="mt-4 text-[11px] font-medium tracking-[0.2px] text-muted">
           Free &amp; open source · runs entirely on your device · works from a file alone
         </p>
       </div>
@@ -128,24 +151,30 @@ function Hero() {
 /** A stylized "program" card — a taste of what OpenNord shows when you open a file. */
 function HeroCard() {
   return (
-    <div className="home-demo" aria-hidden="true">
-      <div className="home-demo__card">
-        <div className="home-demo__top">
+    <div className="flex justify-center" aria-hidden="true">
+      <div className="w-full max-w-[340px] rounded-lg border border-line border-l-[3px] border-l-red fill-surface-accent elev-3 p-4">
+        <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
           <div>
-            <div className="home-demo__name">Sunday Grand</div>
-            <div className="home-demo__meta">Nord Stage 4 · Piano</div>
+            <div className="text-base font-extrabold text-ink">Sunday Grand</div>
+            <div className="mt-0.5 text-[11px] font-medium text-dim">Nord Stage 4 · Piano</div>
           </div>
-          <span className="home-demo__badge">A · B</span>
+          <span className="whitespace-nowrap rounded-full fill-raised px-[9px] py-[3px] text-[9px] font-bold tracking-[0.5px] text-text-tertiary edge-hi">
+            A · B
+          </span>
         </div>
-        <div className="home-demo__rows">
+        <div className="mt-3 flex flex-col gap-px">
           <DemoRow k="Piano" v="Grand · Royal Grand XL" />
           <DemoRow k="Organ" v="B3 · perc 3rd" />
           <DemoRow k="Synth" v="Analog saw · unison" />
           <DemoRow k="Effects" v="Delay · Reverb Hall" />
         </div>
-        <div className="home-demo__foot">
-          <span className="home-demo__tag">Read locally</span>
-          <span className="home-demo__tag">No upload</span>
+        <div className="mt-3 flex gap-2">
+          <span className="rounded-full border border-[color-mix(in_srgb,var(--connected)_40%,var(--line))] px-2 py-0.5 text-[9px] font-semibold text-connected">
+            Read locally
+          </span>
+          <span className="rounded-full border border-[color-mix(in_srgb,var(--connected)_40%,var(--line))] px-2 py-0.5 text-[9px] font-semibold text-connected">
+            No upload
+          </span>
         </div>
       </div>
     </div>
@@ -154,9 +183,9 @@ function HeroCard() {
 
 function DemoRow({ k, v }: { k: string; v: string }) {
   return (
-    <div className="home-demo__row">
-      <span className="home-demo__k">{k}</span>
-      <span className="home-demo__v">{v}</span>
+    <div className="flex items-baseline justify-between gap-3 border-b border-[color-mix(in_srgb,var(--line)_55%,transparent)] py-[7px]">
+      <span className="text-[10px] font-bold uppercase tracking-[0.6px] text-muted">{k}</span>
+      <span className="text-right font-mono text-xs font-medium text-ink">{v}</span>
     </div>
   );
 }
@@ -196,20 +225,31 @@ const FEATURES: { icon: ReactNode; title: string; body: string }[] = [
   },
 ];
 
+const SEC = cn(CONTENT, 'py-[clamp(24px,6vw,72px)]');
+const SEC_TIGHT = cn(CONTENT, 'py-[clamp(16px,3vw,32px)]');
+const iconTile = 'mb-3 inline-flex h-10 w-10 items-center justify-center rounded-sm border border-[color-mix(in_srgb,var(--red)_22%,var(--line))] bg-[color-mix(in_srgb,var(--red)_12%,transparent)] text-red-bright';
+
 function Features() {
   return (
-    <section id="features" className="home-sec">
+    <section id="features" className={SEC}>
       <SectionHead
         overline="What it does"
         title="One companion for your patches and your keyboard"
         sub="Two equal front doors: understand and organize your sounds, and manage the instrument itself."
       />
-      <div className="home-grid">
+      <div className="grid grid-cols-3 gap-4 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1">
         {FEATURES.map((f) => (
-          <div className="home-feat" key={f.title}>
-            <div className="home-feat__icon" aria-hidden="true">{f.icon}</div>
-            <div className="home-feat__title">{f.title}</div>
-            <p className="home-feat__body">{f.body}</p>
+          <div
+            key={f.title}
+            className={cn(
+              'rounded-md border border-line fill-surface elev-1 p-4',
+              'transition-[transform,box-shadow,border-color] duration-200 ease-[cubic-bezier(.2,.6,.2,1)]',
+              'hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--red)_40%,var(--line))] hover:elev-2',
+            )}
+          >
+            <div className={iconTile} aria-hidden="true">{f.icon}</div>
+            <div className="text-[15px] font-bold text-ink">{f.title}</div>
+            <p className="mt-1.5 text-[13px] leading-[1.6] text-dim">{f.body}</p>
           </div>
         ))}
       </div>
@@ -238,32 +278,42 @@ const MORE: { icon: ReactNode; title: string; body: string; to?: string }[] = [
   },
 ];
 
+const roadmapTag = 'rounded-full border border-[color-mix(in_srgb,var(--warn)_45%,var(--line))] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[1px] text-warn';
+const moreItem = 'flex items-start gap-3 rounded-md border border-transparent p-3 text-inherit no-underline';
+const moreItemLink = cn(
+  moreItem,
+  'transition-[border-color,background] duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)]',
+  'hover:border-[color-mix(in_srgb,var(--red)_40%,var(--line))] hover:bg-[color-mix(in_srgb,var(--lift)_3%,transparent)]',
+);
+
 function More() {
   return (
-    <section className="home-sec home-sec--tight">
-      <span className="on-overline">Also in the app</span>
-      <div className="home-more">
+    <section className={SEC_TIGHT}>
+      <SectionLabel>Also in the app</SectionLabel>
+      <div className="mt-3 grid grid-cols-3 gap-4 max-[860px]:grid-cols-1 max-[860px]:gap-3">
         {MORE.map((m) => {
           const inner = (
             <>
-              <div className="home-more__icon" aria-hidden="true">{m.icon}</div>
+              <div className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-sm border border-line fill-raised text-ink edge-hi" aria-hidden="true">
+                {m.icon}
+              </div>
               <div>
-                <div className="home-more__title">{m.title}</div>
-                <p className="home-more__body">{m.body}</p>
+                <div className="text-[13px] font-bold text-ink">{m.title}</div>
+                <p className="mt-1 text-xs leading-[1.55] text-dim">{m.body}</p>
               </div>
             </>
           );
           return m.to ? (
-            <Link to={m.to} className="home-more__item home-more__item--link" key={m.title}>
+            <Link to={m.to} className={moreItemLink} key={m.title}>
               {inner}
             </Link>
           ) : (
-            <div className="home-more__item" key={m.title}>{inner}</div>
+            <div className={moreItem} key={m.title}>{inner}</div>
           );
         })}
       </div>
-      <p className="home-roadmap">
-        <span className="home-roadmap__tag">On the roadmap</span>
+      <p className="mt-4 flex flex-wrap items-center gap-2 text-xs leading-[1.5] text-muted">
+        <span className={roadmapTag}>On the roadmap</span>
         Community patch sharing, AI-assisted search &amp; explanations, and USB
         transfer on iPad are designed — not shipped yet.
       </p>
@@ -279,40 +329,41 @@ function More() {
  * pre-WinUSB models a browser can't claim. Direct per-platform links; the
  * release page (RELEASE_PAGE) carries the first-launch / driver setup notes.
  */
+const covLink = 'whitespace-nowrap text-xs font-semibold text-red-bright no-underline transition-colors duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)] hover:text-red';
+const archLabel = 'text-[10px] font-semibold uppercase tracking-[0.4px] text-[color-mix(in_srgb,currentColor_65%,transparent)]';
+
 function DesktopApp() {
   return (
-    <section id="download" className="home-sec">
-      <div className="home-dl">
-        <div className="home-dl__copy">
-          <span className="on-overline">Desktop app</span>
-          <h2 className="home-dl__title">Talk to your Nord from the desktop</h2>
-          <p className="home-dl__sub">
+    <section id="download" className={SEC}>
+      {/* home-dl-glow: the one-off corner glow behind the panel — see home.css. */}
+      <div className="home-dl-glow rounded-lg border border-line p-[clamp(24px,4vw,44px)] edge-hi">
+        <div className="max-w-[60ch]">
+          <SectionLabel>Desktop app</SectionLabel>
+          <h2 className="m-0 mt-2 font-bold leading-[1.2] text-ink text-[clamp(20px,3vw,28px)]">
+            Talk to your Nord from the desktop
+          </h2>
+          <p className="mt-2 text-sm leading-[1.6] text-dim">
             A native build for macOS and Windows — connect over USB with no
             browser, and reach older pre-WinUSB Nords a browser can’t. Everything
             the web app does works here too.
           </p>
-          <div className="home-dl__actions">
-            <a className="on-btn on-btn--primary home-hero__btn" href={DOWNLOAD_MAC} rel="noopener noreferrer">
-              <span className="home-dl__btn-ico" aria-hidden="true"><IconApple /></span>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <a className={heroBtn} href={DOWNLOAD_MAC} rel="noopener noreferrer">
+              <span className="inline-flex items-center" aria-hidden="true"><IconApple /></span>
               macOS
-              <span className="home-dl__arch">Apple Silicon</span>
+              <span className={archLabel}>Apple Silicon</span>
             </a>
-            <a className="on-btn on-btn--secondary home-hero__btn" href={DOWNLOAD_WIN} rel="noopener noreferrer">
-              <span className="home-dl__btn-ico" aria-hidden="true"><IconWindows /></span>
+            <a className={buttonVariants({ variant: 'secondary', size: 'lg' })} href={DOWNLOAD_WIN} rel="noopener noreferrer">
+              <span className="inline-flex items-center" aria-hidden="true"><IconWindows /></span>
               Windows
-              <span className="home-dl__arch">x64</span>
+              <span className={archLabel}>x64</span>
             </a>
           </div>
-          <p className="home-dl__note">
-            <span className="home-roadmap__tag">Alpha</span>
+          <p className="mt-4 flex flex-wrap items-center gap-2 text-xs leading-[1.55] text-muted">
+            <span className={roadmapTag}>Alpha</span>
             First launch needs a quick step (Gatekeeper on macOS, the UsbDk driver
             for older Nords on Windows) —{' '}
-            <a
-              className="home-cov__link"
-              href={RELEASE_PAGE}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <a className={covLink} href={RELEASE_PAGE} target="_blank" rel="noopener noreferrer">
               setup notes &amp; all downloads
             </a>
             .
@@ -345,14 +396,14 @@ const PROOF: { icon: ReactNode; lead: string; body: string }[] = [
 
 function Proof() {
   return (
-    <section className="home-sec home-sec--tight">
-      <div className="home-proof">
+    <section className={SEC_TIGHT}>
+      <div className="grid grid-cols-3 gap-4 rounded-lg border border-line fill-raised elev-1 p-6 px-4 max-[860px]:grid-cols-1">
         {PROOF.map((p) => (
-          <div className="home-proof__item" key={p.lead}>
-            <div className="home-proof__icon" aria-hidden="true">{p.icon}</div>
+          <div className="flex items-start gap-3" key={p.lead}>
+            <div className={cn(iconTile, 'mb-0 h-[34px] w-[34px] flex-none')} aria-hidden="true">{p.icon}</div>
             <div>
-              <div className="home-proof__lead">{p.lead}</div>
-              <p className="home-proof__body">{p.body}</p>
+              <div className="text-[13px] font-bold text-ink">{p.lead}</div>
+              <p className="mt-1 text-xs leading-[1.55] text-dim">{p.body}</p>
             </div>
           </div>
         ))}
@@ -366,28 +417,31 @@ function Proof() {
 const READS_TODAY = ['Nord Stage 4', 'Nord Stage 3', 'Nord Stage 2'];
 const MAPPED_NEXT = ['Nord Electro', 'Nord Piano', 'Nord Lead', 'Nord Wave'];
 
+const covChip = 'rounded-full border border-line fill-raised px-[13px] py-1.5 text-xs font-semibold text-text-tertiary edge-hi';
+const covChipOn = 'text-ink border-[color-mix(in_srgb,var(--red)_45%,var(--line))]';
+
 function Coverage() {
   return (
-    <section id="coverage" className="home-sec">
+    <section id="coverage" className={SEC}>
       <SectionHead
         overline="Built for the whole line"
         title="The Nord Stage series first — the rest of the family next"
         sub="Every Nord generation shares one file container, so OpenNord grows across the line one model at a time."
       />
-      <div className="home-cov">
-        <div className="home-cov__group">
-          <div className="home-cov__label">Reads today</div>
-          <div className="home-cov__chips">
+      <div className="flex flex-wrap gap-6">
+        <div className="flex-1 min-w-[240px] rounded-md border border-line fill-surface elev-1 p-4">
+          <div className="mb-3 text-[9px] font-bold uppercase tracking-[1.4px] text-muted">Reads today</div>
+          <div className="flex flex-wrap gap-2">
             {READS_TODAY.map((m) => (
-              <span className="home-chip home-chip--on" key={m}>{m}</span>
+              <span className={cn(covChip, covChipOn)} key={m}>{m}</span>
             ))}
           </div>
         </div>
-        <div className="home-cov__group">
-          <div className="home-cov__label">Mapped &amp; next</div>
-          <div className="home-cov__chips">
+        <div className="flex-1 min-w-[240px] rounded-md border border-line fill-surface elev-1 p-4">
+          <div className="mb-3 text-[9px] font-bold uppercase tracking-[1.4px] text-muted">Mapped &amp; next</div>
+          <div className="flex flex-wrap gap-2">
             {MAPPED_NEXT.map((m) => (
-              <span className="home-chip" key={m}>{m}</span>
+              <span className={covChip} key={m}>{m}</span>
             ))}
           </div>
         </div>
@@ -417,62 +471,94 @@ const MATRIX: { model: string; cells: Cell[] }[] = [
   { model: 'Nord Lead 4', cells: ['re', 'inf', 're', 'na'] },
 ];
 
+const cellBase = 'inline-flex h-[22px] w-[22px] items-center justify-center rounded-full text-xs leading-none';
 const CELL_META: Record<Cell, { glyph: string; label: string; cls: string }> = {
-  v: { glyph: '✓', label: 'Validated on hardware', cls: 'home-cell--v' },
-  re: { glyph: '●', label: 'Reverse-engineered — works in the app, not yet hardware-tested', cls: 'home-cell--re' },
-  inf: { glyph: '○', label: 'Inferred — likely, needs a tester', cls: 'home-cell--inf' },
-  na: { glyph: '–', label: 'Not applicable', cls: 'home-cell--na' },
+  v: { glyph: '✓', label: 'Validated on hardware', cls: 'text-connected bg-[color-mix(in_srgb,var(--connected)_15%,transparent)]' },
+  re: { glyph: '●', label: 'Reverse-engineered — works in the app, not yet hardware-tested', cls: 'text-red-bright bg-[color-mix(in_srgb,var(--red)_15%,transparent)]' },
+  inf: { glyph: '○', label: 'Inferred — likely, needs a tester', cls: 'text-dim bg-[color-mix(in_srgb,var(--lift)_6%,transparent)]' },
+  na: { glyph: '–', label: 'Not applicable', cls: 'text-muted bg-transparent' },
 };
 
 function Matrix() {
   return (
-    <section className="home-sec">
+    <section className={SEC}>
       <SectionHead
         overline="Honest by model"
         title="What works on which Nord"
         sub="Only the Stage 4 is validated on real hardware; the rest is reverse-engineered and gets promoted as owners test it. Nothing here is dressed up."
       />
-      <div className="home-matrix__scroll">
-        <table className="home-matrix">
+      <div className="overflow-x-auto rounded-md border border-line fill-surface elev-1">
+        <table className="w-full min-w-[420px] border-collapse">
           <thead>
             <tr>
-              <th scope="col">Model</th>
+              <th className="border-b border-line px-3 py-[11px] text-left text-[9px] font-bold uppercase tracking-[1px] text-muted" scope="col">Model</th>
               {MATRIX_COLS.map((c) => (
-                <th scope="col" key={c}>{c}</th>
+                <th
+                  key={c}
+                  className="border-b border-line px-3 py-[11px] text-center text-[9px] font-bold uppercase tracking-[1px] text-muted"
+                  scope="col"
+                >
+                  {c}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {MATRIX.map((row) => (
-              <tr key={row.model}>
-                <th scope="row">{row.model}</th>
-                {row.cells.map((cell, i) => {
-                  const meta = CELL_META[cell];
-                  return (
-                    <td key={MATRIX_COLS[i]}>
-                      <span
-                        className={`home-cell ${meta.cls}`}
-                        title={meta.label}
-                        aria-label={`${MATRIX_COLS[i]}: ${meta.label}`}
+            {MATRIX.map((row, ri) => {
+              const last = ri === MATRIX.length - 1;
+              return (
+                <tr key={row.model}>
+                  <th
+                    className={cn(
+                      'whitespace-nowrap px-3 py-[11px] text-left text-xs font-semibold text-ink',
+                      !last && 'border-b border-[color-mix(in_srgb,var(--line)_55%,transparent)]',
+                    )}
+                    scope="row"
+                  >
+                    {row.model}
+                  </th>
+                  {row.cells.map((cell, i) => {
+                    const meta = CELL_META[cell];
+                    return (
+                      <td
+                        key={MATRIX_COLS[i]}
+                        className={cn(
+                          'px-3 py-[11px] text-center',
+                          !last && 'border-b border-[color-mix(in_srgb,var(--line)_55%,transparent)]',
+                        )}
                       >
-                        {meta.glyph}
-                      </span>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+                        <span
+                          className={cn(cellBase, meta.cls)}
+                          title={meta.label}
+                          aria-label={`${MATRIX_COLS[i]}: ${meta.label}`}
+                        >
+                          {meta.glyph}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-      <div className="home-matrix__foot">
-        <ul className="home-legend">
-          <li><span className="home-cell home-cell--v">✓</span> Validated on hardware</li>
-          <li><span className="home-cell home-cell--re">●</span> Reverse-engineered</li>
-          <li><span className="home-cell home-cell--inf">○</span> Likely · needs a tester</li>
-          <li><span className="home-cell home-cell--na">–</span> N/A</li>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <ul className="m-0 flex flex-wrap gap-4 p-0 list-none">
+          <li className="inline-flex items-center gap-1.5 text-[11px] font-medium text-dim">
+            <span className={cn(cellBase, 'h-[18px] w-[18px] text-[10px]', CELL_META.v.cls)}>✓</span> Validated on hardware
+          </li>
+          <li className="inline-flex items-center gap-1.5 text-[11px] font-medium text-dim">
+            <span className={cn(cellBase, 'h-[18px] w-[18px] text-[10px]', CELL_META.re.cls)}>●</span> Reverse-engineered
+          </li>
+          <li className="inline-flex items-center gap-1.5 text-[11px] font-medium text-dim">
+            <span className={cn(cellBase, 'h-[18px] w-[18px] text-[10px]', CELL_META.inf.cls)}>○</span> Likely · needs a tester
+          </li>
+          <li className="inline-flex items-center gap-1.5 text-[11px] font-medium text-dim">
+            <span className={cn(cellBase, 'h-[18px] w-[18px] text-[10px]', CELL_META.na.cls)}>–</span> N/A
+          </li>
         </ul>
-        <Link to="/compatibility" className="home-cov__link">
+        <Link to="/compatibility" className={covLink}>
           Open the live, per-model matrix →
         </Link>
       </div>
@@ -484,13 +570,13 @@ function Matrix() {
 
 function Why() {
   return (
-    <section className="home-sec">
+    <section className={SEC}>
       <SectionHead
         overline="Why it exists"
         title="Community knowledge, given a lasting home"
         sub="Everything that makes OpenNord possible was figured out by the community, in the open. This gives that work a place that outlives any one person."
       />
-      <div className="home-why">
+      <div className="grid grid-cols-3 gap-6 max-[860px]:grid-cols-1 max-[860px]:gap-4">
         <WhyItem
           n="01"
           title="Traceable, not guessed"
@@ -513,11 +599,11 @@ function Why() {
 
 function WhyItem({ n, title, body }: { n: string; title: string; body: string }) {
   return (
-    <div className="home-why__item">
-      <div className="home-why__n">{n}</div>
+    <div className="flex gap-3">
+      <div className="pt-0.5 font-mono text-[13px] font-extrabold text-red">{n}</div>
       <div>
-        <div className="home-why__title">{title}</div>
-        <p className="home-why__body">{body}</p>
+        <div className="text-[15px] font-bold text-ink">{title}</div>
+        <p className="mt-1.5 text-[13px] leading-[1.6] text-dim">{body}</p>
       </div>
     </div>
   );
@@ -527,36 +613,29 @@ function WhyItem({ n, title, body }: { n: string; title: string; body: string })
 
 function OpenSource() {
   return (
-    <section className="home-sec">
-      <div className="home-os">
-        <span className="on-overline">Open source</span>
-        <h2 className="home-os__title">Built in the open, licensed AGPL-3.0</h2>
-        <p className="home-os__sub">
+    <section className={SEC}>
+      <div className="rounded-lg border border-line fill-raised elev-2 px-4 py-[clamp(24px,5vw,56px)] text-center">
+        <SectionLabel>Open source</SectionLabel>
+        <h2 className="m-0 mt-2 font-extrabold leading-[1.15] tracking-[-0.6px] text-ink text-[clamp(22px,3.4vw,30px)]">
+          Built in the open, licensed AGPL-3.0
+        </h2>
+        <p className="mx-auto mt-3 max-w-[34rem] text-[15px] leading-[1.6] text-dim">
           OpenNord is free software, developed in public. Try it, read the code,
           file an issue, or help decode the next model in the family.
         </p>
-        <div className="home-os__actions">
-          <Link to="/library/programs" className="on-btn on-btn--primary home-hero__btn">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <Link to="/library/programs" className={heroBtn}>
             Open the app
           </Link>
           <a
-            className="on-btn on-btn--secondary home-hero__btn"
+            className={buttonVariants({ variant: 'secondary', size: 'lg' })}
             href="https://github.com/simonflore/opennord"
             target="_blank"
             rel="noopener noreferrer"
           >
             Contribute on GitHub
           </a>
-          <a
-            className="bmc-btn"
-            href="https://buymeacoffee.com/simonflore"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Buy me a coffee on Buy Me a Coffee"
-          >
-            <span className="bmc-btn__icon" aria-hidden="true">☕</span>
-            Buy me a coffee
-          </a>
+          <BuyMeACoffeeButton />
         </div>
       </div>
     </section>
@@ -565,23 +644,25 @@ function OpenSource() {
 
 /* ── Footer ──────────────────────────────────────────────────────────────── */
 
+const footerLink = 'text-xs font-semibold text-dim no-underline transition-colors duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)] hover:text-ink';
+
 function SiteFooter() {
   return (
-    <footer className="home-ft">
-      <div className="home-ft__cols">
-        <div className="home-ft__brand-col">
-          <div className="home-brand">
-            Open<span className="home-brand__accent">Nord</span>
+    <footer className={cn(CONTENT, 'mt-6 border-t border-line py-6')}>
+      <div className="flex flex-wrap items-start justify-between gap-6">
+        <div>
+          <div className="text-[19px] font-extrabold tracking-[-0.3px] text-ink">
+            Open<span className="italic text-red">Nord</span>
           </div>
-          <p className="home-ft__tagline">
+          <p className="mt-2 max-w-[20rem] text-[13px] leading-[1.55] text-dim">
             An open companion for Nord® keyboards.
           </p>
         </div>
-        <nav className="home-ft__links" aria-label="Footer">
-          <Link to="/library/programs" className="home-ft__link">Open the app</Link>
-          <Link to="/about" className="home-ft__link">About &amp; legal</Link>
+        <nav className="flex flex-wrap gap-4" aria-label="Footer">
+          <Link to="/library/programs" className={footerLink}>Open the app</Link>
+          <Link to="/about" className={footerLink}>About &amp; legal</Link>
           <a
-            className="home-ft__link"
+            className={footerLink}
             href="https://github.com/simonflore/opennord"
             target="_blank"
             rel="noopener noreferrer"
@@ -590,9 +671,9 @@ function SiteFooter() {
           </a>
         </nav>
       </div>
-      <p className="home-ft__legal">
+      <p className="mt-6 text-[11px] leading-[1.6] text-muted">
         OpenNord is an independent, community-built project. It is{' '}
-        <strong>not affiliated with, endorsed by, or connected to Clavia DMI AB or
+        <strong className="font-semibold text-dim">not affiliated with, endorsed by, or connected to Clavia DMI AB or
         Nord Keyboards.</strong> “Nord”, “Nord Stage” and related names are
         trademarks of their owner, used here only to describe compatibility.
         Free software under the GNU AGPL-3.0-or-later, provided as-is without
@@ -606,10 +687,12 @@ function SiteFooter() {
 
 function SectionHead({ overline, title, sub }: { overline: string; title: string; sub: string }) {
   return (
-    <div className="home-sec__head">
-      <span className="on-overline">{overline}</span>
-      <h2 className="home-sec__title">{title}</h2>
-      <p className="home-sec__sub">{sub}</p>
+    <div className="mb-6 max-w-[40rem]">
+      <SectionLabel>{overline}</SectionLabel>
+      <h2 className="m-0 mt-2 font-extrabold leading-[1.15] tracking-[-0.6px] text-ink text-[clamp(22px,3.4vw,32px)]">
+        {title}
+      </h2>
+      <p className="mt-3 text-[15px] leading-[1.6] text-dim">{sub}</p>
     </div>
   );
 }
