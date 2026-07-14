@@ -50,6 +50,10 @@
   box-shadow: var(--glow-red);
 }
 .on-chip--active:hover { color: var(--text-on-accent); border-color: var(--red); }
+/* Expand/collapse affordance in a facet group — dashed so it reads as an action,
+   not a selectable filter value. */
+.on-chip--toggle { background: none; border-style: dashed; box-shadow: none; color: var(--muted); }
+.on-chip--toggle:hover { color: var(--ink); border-color: var(--muted); }
 
 .on-badge {
   font: 600 9px var(--font); letter-spacing: .4px; color: var(--muted);

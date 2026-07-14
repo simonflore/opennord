@@ -107,8 +107,18 @@ export function parseNsmpSections(bytes: Uint8Array): NsmpSection[] {
  * Editor (`CSectionCategory::Read` / `PopulateCategory`).
  */
 export function readSampleCategoryId(bytes: Uint8Array): number | undefined {
+  return readSampleCategory(bytes).main;
+}
+
+/**
+ * Read the sample instrument's main + sub category ids from the `cat` section
+ * (byte 0 = `m_categoryCategory`, byte 1 = `m_categorySubCategory`). Resolve to
+ * a display label with `sampleCategoryLabel` (`clavia/sample-categories`).
+ */
+export function readSampleCategory(bytes: Uint8Array): { main?: number; sub?: number } {
   const cat = parseNsmpSections(bytes).find((s) => s.tag.endsWith('cat'));
-  return cat && cat.payloadOffset < bytes.length ? bytes[cat.payloadOffset] : undefined;
+  if (!cat || cat.payloadOffset >= bytes.length) return {};
+  return { main: bytes[cat.payloadOffset], sub: bytes[cat.payloadOffset + 1] };
 }
 
 /** Read the printable name from the `hdr` section payload. */

@@ -37,7 +37,56 @@ export const SAMPLE_CATEGORY: Record<number, string> = {
   18: 'Wind',            // export: Teenage Dirtbag Wind Ensemble (sub 2)
 };
 
+/**
+ * Per-main **subcategory** names (the `.nsmp` `cat` section byte 1 =
+ * `m_categorySubCategory`), indexed `[mainId][subId]`. Reconstructed from the
+ * Nord Sample Editor's `Zevs::NordSmp::GetSubCategoryName(main, sub)` tables
+ * (the `SampLib` initializer), and cross-checked against real files (Brass
+ * sub 2 = Ensemble, Synth sub 3 = Bass, Strings sub 1/2/3 = Solo/Ensemble/
+ * Analog, Percussion sub 1 = Tuned). Empty string = "no subcategory" (the bare
+ * main); mains not listed here expose no subcategories. The full display label
+ * is `"<main> <sub>"` (e.g. "Synth Bass"), or just the main when the sub is empty.
+ */
+export const SAMPLE_SUBCATEGORY: Record<number, string[]> = {
+  1: ['', 'Acoustic', 'Electric', 'Synth'],          // Bass
+  2: ['', 'Acoustic', 'Electric', 'Loops'],          // Drums
+  3: ['', 'Accordion', 'Harmonica', 'Organ'],        // Accordion/Harm
+  5: ['', 'Acoustic', 'Electric', 'Traditional'],    // Guitar/Plucked
+  6: ['', 'Pipe', 'Transistor', 'Tonewheel'],        // Organ
+  7: ['', 'Tuned', 'Percussive'],                    // Percussion
+  8: ['', 'Acoustic', 'Electric', 'Synth'],          // Piano
+  9: ['', 'Solo', 'Ensemble', 'Analog'],             // Strings
+  10: ['Misc', 'Pad', 'FX', 'Bass', 'Classic', 'Rhythmic', 'Brass', 'Lead'], // Synth
+  11: ['', 'Solo', 'Ensemble'],                      // Choir
+  12: ['', 'Solo', 'Ensemble'],                      // Brass
+  18: ['', 'Solo', 'Ensemble'],                      // Wind
+};
+
 /** Resolve a sample main-category id to its name, or `undefined` if unconfirmed. */
 export function sampleCategoryName(id: number | undefined): string | undefined {
   return id == null ? undefined : SAMPLE_CATEGORY[id];
 }
+
+/**
+ * Full display label for a (main, sub) pair — e.g. `(10,3)` → "Synth Bass",
+ * `(12,2)` → "Brass Ensemble", `(9,0)` → "Strings". Returns just the main name
+ * when the subcategory is empty/absent, and `undefined` when the main is unknown.
+ */
+export function sampleCategoryLabel(main: number | undefined, sub?: number): string | undefined {
+  const name = sampleCategoryName(main);
+  if (!name || main == null) return name;
+  const subName = sub != null ? SAMPLE_SUBCATEGORY[main]?.[sub] : undefined;
+  return subName ? `${name} ${subName}` : name;
+}
+
+/** All category labels (main + sub) in canonical id order — for facet ordering. */
+export const SAMPLE_CATEGORY_LABELS: string[] = (() => {
+  const out: string[] = [];
+  for (const idStr of Object.keys(SAMPLE_CATEGORY)) {
+    const main = Number(idStr);
+    const subs = SAMPLE_SUBCATEGORY[main];
+    if (!subs) { out.push(SAMPLE_CATEGORY[main]); continue; }
+    subs.forEach((_, sub) => out.push(sampleCategoryLabel(main, sub)!));
+  }
+  return [...new Set(out)];
+})();

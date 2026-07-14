@@ -1,15 +1,21 @@
-import { readNsmp, readSampleCategoryId, type NsmpFile } from '../ns4/nsmp';
+import { readNsmp, readSampleCategory, type NsmpFile } from '../ns4/nsmp';
 import type { ScannedSample } from '../folder/scan';
 import type { ProgramEntry } from '../device/transfer';
 import type { LibrarySource } from './types';
 import type { SampleSort } from './prefs';
 import { formatSlot } from '../clavia/slot';
-import { sampleCategoryName, SAMPLE_CATEGORY } from '../clavia/sample-categories';
+import { sampleCategoryLabel, SAMPLE_CATEGORY_LABELS } from '../clavia/sample-categories';
 import { matchesAny, sortWithFavorites } from './browse';
 import type { BackupRef } from '../clavia/backup/backup-index';
 
-/** Sample category names in id order, de-duplicated — for the facet. */
-const SAMPLE_CATEGORY_ORDER: string[] = [...new Set(Object.values(SAMPLE_CATEGORY))];
+/** Full category labels (main + sub) in canonical order — for the facet. */
+const SAMPLE_CATEGORY_ORDER = SAMPLE_CATEGORY_LABELS;
+
+/** Resolve the display category label from a sample file's bytes. */
+function categoryFor(bytes: Uint8Array): string | undefined {
+  const { main, sub } = readSampleCategory(bytes);
+  return sampleCategoryLabel(main, sub);
+}
 
 /** Sample codec generation, in musician-facing buckets. `npno` = piano library. */
 export type SampleGeneration = 'og' | '3' | '4' | 'npno' | 'unknown';
@@ -53,7 +59,7 @@ export function sampleEntriesFromScanned(samples: ScannedSample[]): SampleEntry[
     source: 'local' as const,
     generation: sampleGeneration(s.file),
     strokeCount: s.file.recognized ? s.file.strokeCount : undefined,
-    category: sampleCategoryName(readSampleCategoryId(s.bytes)),
+    category: categoryFor(s.bytes),
     size: s.bytes.length,
     file: s.file,
     bytes: s.bytes,
@@ -75,7 +81,7 @@ export function sampleEntryFromImport(rec: { id: string; name: string; bytes: Ui
     source: 'local',
     generation: sampleGeneration(file),
     strokeCount: file.recognized ? file.strokeCount : undefined,
-    category: sampleCategoryName(readSampleCategoryId(rec.bytes)),
+    category: categoryFor(rec.bytes),
     size: rec.bytes.length,
     file,
     bytes: rec.bytes,
