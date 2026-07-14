@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { usePianosState } from '@/lib/library/PianosContext';
 import { PianosBrowse } from './PianosBrowse';
 import { PianoInspector } from './PianoInspector';
-import { Button, SplitView } from '@/components/ui';
+import { CategorySplit } from '@/components/library/CategorySplit';
 import { useSplitLayout } from '@/lib/responsive';
 
 /** Pianos master/detail: the browse list + a thin piano inspector. */
@@ -37,16 +37,14 @@ export function PianosSplit() {
     ? <PianoInspector entry={entry} session={s.session} />
     : <p className="lib-empty" style={{ padding: 16 }}>Pick a piano to see its details.</p>;
 
-  // Narrow: one pane at a time.
-  if (!wide) {
-    if (!entry) return list;
-    return (
-      <div>
-        <Button variant="ghost" onClick={() => setSelectedId(null)}>← Pianos</Button>
-        {detail}
-      </div>
-    );
-  }
-
-  return <SplitView master={list} detail={detail} />;
+  return (
+    <CategorySplit
+      wide={wide}
+      master={list}
+      detail={detail}
+      hasDetail={!!entry}
+      onBack={() => setSelectedId(null)}
+      backLabel="← Pianos"
+    />
+  );
 }

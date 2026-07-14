@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
-import { Button, SplitView } from '@/components/ui';
+import { CategorySplit } from '@/components/library/CategorySplit';
 import { useSamplesState } from '@/lib/library/SamplesContext';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { pullSample } from '@/lib/device/samples';
@@ -128,19 +128,16 @@ export function SamplesSplit() {
     <SampleInspector key={initial ? `${initial.name}-${initial.bytes.length}` : 'new'} initial={initial} />
   );
   const hasDetail = loadNew || inspect !== null;
-
-  // Narrow: one pane at a time.
-  if (!wide) {
-    if (!hasDetail) return list;
-    return (
-      <div>
-        <Button variant="ghost" onClick={back}>← Samples</Button>
-        {inspector}
-      </div>
-    );
-  }
-
-  // Wide: master list + detail side by side.
   const detail = hasDetail ? inspector : <p className="lib-empty">Pick a sample to inspect it.</p>;
-  return <SplitView master={list} detail={detail} />;
+
+  return (
+    <CategorySplit
+      wide={wide}
+      master={list}
+      detail={detail}
+      hasDetail={hasDetail}
+      onBack={back}
+      backLabel="← Samples"
+    />
+  );
 }

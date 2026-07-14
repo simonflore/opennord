@@ -1,7 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { LibraryView } from './LibraryView';
 import { ProgramView } from '@/components/program/ProgramView';
-import { Button, SplitView } from '@/components/ui';
+import { CategorySplit } from './CategorySplit';
 import { useLibraryState } from '@/lib/library/LibraryContext';
 import { useSplitLayout } from '@/lib/responsive';
 
@@ -39,26 +39,20 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
     />
   );
 
-  // Narrow: one pane at a time.
-  if (!wide) {
-    if (!selectedId) return list;
-    return (
-      <div>
-        <Button variant="ghost" onClick={() => navigate({ to: '/library/programs' })}>← Library</Button>
-        {entry?.program ? (
-          <ProgramView program={entry.program} />
-        ) : (
-          <p className="lib-empty">This program isn’t open. Pick it from the Library.</p>
-        )}
-      </div>
-    );
-  }
+  // The program view (when loaded) is the same node in both layouts; only the
+  // "nothing to show" copy differs — narrow points back to the list (which is
+  // hidden behind the back button), wide points at the list beside it.
+  const program = entry?.program ? <ProgramView program={entry.program} /> : null;
 
-  // Wide: master list + detail side by side.
-  const detail = entry?.program ? (
-    <ProgramView program={entry.program} />
-  ) : (
-    <p className="lib-empty">Pick a program to see its details.</p>
+  return (
+    <CategorySplit
+      wide={wide}
+      master={list}
+      detail={program ?? <p className="lib-empty">Pick a program to see its details.</p>}
+      narrowDetail={program ?? <p className="lib-empty">This program isn’t open. Pick it from the Library.</p>}
+      hasDetail={!!selectedId}
+      onBack={() => navigate({ to: '/library/programs' })}
+      backLabel="← Library"
+    />
   );
-  return <SplitView master={list} detail={detail} />;
 }
