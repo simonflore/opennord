@@ -14,3 +14,18 @@
   font: 12px var(--font); line-height: 1.5; color: var(--muted);
   margin: var(--s-4) 0 0; padding-top: var(--s-3); border-top: 1px solid var(--line);
 }
+/* Proactive setup note, not an error — a calmer tone than .on-error. */
+.connect__notice {
+  margin: 0 0 var(--s-4);
+  padding: var(--s-3);
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, var(--line));
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--warn) 6%, transparent);
+}
+.connect__notice-title { font: 700 12px var(--font); color: var(--ink); margin: 0 0 4px; }
+.connect__notice-body { font: 12px var(--font); line-height: 1.55; color: var(--dim); margin: 0; }
+.connect__notice-link {
+  display: inline-block; margin-top: var(--s-2);
+  font: 700 12px var(--font); color: var(--warn); text-decoration: underline;
+}
+.connect__notice-link:hover { color: var(--red-bright); }

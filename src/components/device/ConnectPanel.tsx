@@ -84,6 +84,22 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     };
   }, [reach]);
 
+  // Desktop app, Windows only: without the UsbDk runtime, older Nords (e.g. the
+  // Stage 2) still can't be reached — the app silently falls back to the same
+  // WinUSB backend the browser has, which can't detach NSM's driver. Surface
+  // this up front so a Stage 2 owner doesn't hit a bare, confusing failure.
+  const [needsUsbDk, setNeedsUsbDk] = useState(false);
+  useEffect(() => {
+    if (reach !== 'electron') return;
+    let alive = true;
+    window.nordNativeUsb!.backend().then(({ platform, usbDkActive }) => {
+      if (alive) setNeedsUsbDk(platform === 'win32' && !usbDkActive);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [reach]);
+
   // Info cards: a plain browser without WebUSB, or an iPad whose DEXT isn't ready.
   if (reach === 'unsupported' || (reach === 'ipad-dext-pending' && ipadReady !== true)) {
     const ipad = reach === 'ipad-dext-pending';
@@ -210,6 +226,24 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
         <SectionLabel>Your Nord</SectionLabel>
         <h2 className="connect__title">{title}</h2>
         <p className="connect__lead">{lead}</p>
+        {needsUsbDk && (
+          <div className="connect__notice" role="note">
+            <p className="connect__notice-title">Connecting an older Nord, like the Stage 2?</p>
+            <p className="connect__notice-body">
+              This app can already reach newer Nords (Stage 3 and 4) — no extra steps. An older
+              Nord needs one more thing first: a free, one-time driver called <strong>UsbDk</strong>.
+              It won’t stop Nord Sound Manager from working, and you only install it once.
+            </p>
+            <a
+              className="connect__notice-link"
+              href="https://github.com/daynix/UsbDk/releases"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Get UsbDk →
+            </a>
+          </div>
+        )}
         <Button
           variant="primary"
           className="connect__cta"
