@@ -54,6 +54,15 @@
 @utility fill-raised  { background: var(--grad-raised); }
 @utility fill-sink    { background: var(--grad-sink); }
 @utility fill-primary { background: var(--grad-red); }
+/* Card's "this one matters" treatment — the top-lit surface fill plus a faint
+   red wash bleeding in from the accent rail. Kept as its own composite (rather
+   than layering fill-surface + an arbitrary background) so it stays one
+   cascade-safe declaration. */
+@utility fill-surface-accent {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--red) 9%, transparent), transparent 18%),
+    var(--grad-surface);
+}
 @utility edge-hi      { box-shadow: var(--edge-hi); }
 @utility elev-1       { box-shadow: var(--edge-hi), var(--shadow-1); }
 @utility elev-2       { box-shadow: var(--edge-hi), var(--shadow-2); }

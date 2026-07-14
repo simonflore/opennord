@@ -94,7 +94,7 @@ describe('LibraryView', () => {
     const html = renderToStaticMarkup(
       <LibraryView entries={entries} source="nord" query="" {...handlers} prefs={prefs()} folder={folder()} />,
     );
-    expect(html).toContain('on-chip--active');
+    expect(html).toContain('fill-primary');
     expect(html).toContain('role="button"');
     expect(html).toContain('tabindex="0"');
   });
