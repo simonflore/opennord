@@ -3,6 +3,12 @@
 
 @import "tailwindcss";
 
+/* Tailwind's auto content-detection doesn't cross the workspace-package boundary
+   into packages/core when the composed app (apps/web) builds, so scan core's own
+   source explicitly. Path is relative to this file (packages/core/src/styles/),
+   so it stays valid in the standalone public mirror too. */
+@source "../";
+
 /* Tailwind v4 theme — generated utilities resolve to the SAME values as the
    custom properties below, so `bg-surface` == `background: var(--surface)`.
    tokens.css stays the single source of truth; this block just exposes the

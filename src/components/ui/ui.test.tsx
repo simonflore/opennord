@@ -13,12 +13,12 @@ describe('Button', () => {
     const html = renderToStaticMarkup(<Button variant="primary">Send to Nord</Button>);
     expect(html).toContain('Send to Nord');
     // primary carries the red gradient fill (distinct from secondary)
-    expect(html).toContain('bg-[var(--grad-red)]');
+    expect(html).toContain('[background:var(--grad-red)]');
   });
   it('defaults to the secondary variant', () => {
     const html = renderToStaticMarkup(<Button>Cancel</Button>);
-    expect(html).toContain('bg-[var(--grad-raised)]');
-    expect(html).not.toContain('bg-[var(--grad-red)]');
+    expect(html).toContain('[background:var(--grad-raised)]');
+    expect(html).not.toContain('[background:var(--grad-red)]');
   });
 });
 
