@@ -5,6 +5,7 @@ import { CategoryPanel } from '../library/CategoryPanel';
 import { LibraryCard } from '../library/LibraryCard';
 import { LibraryEmpty } from '../library/LibraryEmpty';
 import { FactoryPill } from '../library/FactoryPill';
+import { SlotTag } from '../library/SlotTag';
 import type { PianoEntry } from '@/lib/library/piano-entries';
 import type { LibrarySource } from '@/lib/library/types';
 import type { PianoSort } from '@/lib/library/prefs';
@@ -117,18 +118,19 @@ export function PianosBrowse({
   const actions = (canScanUsage || (unusedCount !== null && scanPct === null)) ? (
     <>
       {canScanUsage && (
-        <button className="on-btn" onClick={onScanUsage} disabled={scanPct !== null}>
+        <Button variant="secondary" onClick={onScanUsage} disabled={scanPct !== null}>
           {scanPct !== null ? `Scanning… ${scanPct}%` : 'Find unused pianos'}
-        </button>
+        </Button>
       )}
       {unusedCount !== null && scanPct === null && (
-        <button
-          className={`on-btn${unusedOnly ? ' is-active' : ''}`}
+        <Button
+          variant="secondary"
+          className={unusedOnly ? 'border-warn' : undefined}
           aria-pressed={unusedOnly}
           onClick={() => onUnusedOnly(!unusedOnly)}
         >
           {unusedCount === 0 ? 'No unused pianos' : `${unusedOnly ? 'Show all' : `Unused only (${unusedCount})`}`}
-        </button>
+        </Button>
       )}
     </>
   ) : undefined;
@@ -137,8 +139,12 @@ export function PianosBrowse({
     <>
       {/* Reclaim bar — shown when at least one piano is selected */}
       {selected.size > 0 && (
-        <div className="lib-reclaim-bar" role="region" aria-label="Selected pianos">
-          <span className="lib-reclaim-bar__info">
+        <div
+          className="sticky top-0 z-[2] mb-3 flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-2.5"
+          role="region"
+          aria-label="Selected pianos"
+        >
+          <span className="mr-auto text-[13px] text-ink">
             {selected.size} selected · frees ~{fmtMB(selectedFreeBytes)}
           </span>
           <Button variant="ghost" onClick={selectAllUnused}>Select all unused</Button>
@@ -148,7 +154,7 @@ export function PianosBrowse({
       )}
       {/* Remove result feedback */}
       {removeResult && (
-        <p className="lib-reclaim-bar__result" role="status">
+        <p className="mb-3 text-xs text-dim" role="status">
           {removeResult.removed} {removeResult.removed === 1 ? 'piano' : 'pianos'} removed
           {removeResult.failed > 0 && ` · ${removeResult.failed} could not be removed`}
         </p>
@@ -160,7 +166,7 @@ export function PianosBrowse({
     <>
       <CategoryPanel
         title="Piano Samples"
-        counts={<span className="lib-counts__total">{entries.length} piano{entries.length !== 1 ? 's' : ''}</span>}
+        counts={`${entries.length} piano${entries.length !== 1 ? 's' : ''}`}
         actions={actions}
         toolbar={
           <BrowseToolbar
@@ -185,13 +191,13 @@ export function PianosBrowse({
                 select={unusedOnly && entry.source === 'nord' && entry.unused
                   ? { checked: selected.has(entry.id), onToggle: () => toggleSelected(entry.id) }
                   : undefined}
-                badge={entry.slot && <span className="lib-slot">{entry.slot}</span>}
+                badge={entry.slot && <SlotTag>{entry.slot}</SlotTag>}
                 footExtras={
                   <>
                     {entry.source === 'backup' && entry.isFactory !== undefined && (
                       <FactoryPill factory={entry.isFactory} />
                     )}
-                    {entry.size != null && <span className="lib-slot">{formatBytes(entry.size)}</span>}
+                    {entry.size != null && <SlotTag>{formatBytes(entry.size)}</SlotTag>}
                   </>
                 }
               />
@@ -213,7 +219,7 @@ export function PianosBrowse({
         }
       >
         {selectedEntries.some((entry) => entry.factory != null) && (
-          <p className="lib-reclaim-disclaimer">
+          <p className="mb-2 border-l-2 border-l-red pl-2.5 text-xs text-dim">
             You can re-install these from Nord's library any time:
             {selectedEntries.filter((entry) => entry.factory != null).map((entry) => (
               <span key={entry.id}>
@@ -222,7 +228,7 @@ export function PianosBrowse({
             ))}
           </p>
         )}
-        <label className="lib-reclaim-keepcopy">
+        <label className="my-2 flex items-center gap-2 text-[13px] text-ink">
           <input
             type="checkbox"
             checked={keepCopy}
@@ -231,7 +237,7 @@ export function PianosBrowse({
           {' '}Download a copy first
         </label>
         {removeError && (
-          <p className="lib-reclaim-error" role="alert">{removeError}</p>
+          <p className="mt-2 text-xs text-red" role="alert">{removeError}</p>
         )}
       </Dialog>
     </>

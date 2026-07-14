@@ -47,6 +47,20 @@ function buttonFor(html: string, label: string): string {
   return m[0];
 }
 
+/** True when a rendered tag carries the actual `disabled` DOM attribute —
+ * distinct from the always-present `disabled:…` Tailwind variant classes the
+ * shared `Button` component's className carries whether or not it's disabled. */
+function isDisabled(tagHtml: string): boolean {
+  return /\sdisabled(=|>|\/)/.test(tagHtml);
+}
+
+/** Pull the `<span>…</span>` whose text content is exactly `label`. */
+function spanFor(html: string, label: string): string {
+  const m = html.match(new RegExp(`<span[^>]*>${label}</span>`));
+  if (!m) throw new Error(`no <span>${label}</span> in markup`);
+  return m[0];
+}
+
 describe('LibraryView', () => {
   it('renders the title, counts, every entry, and source badges', () => {
     const html = renderToStaticMarkup(
@@ -60,10 +74,11 @@ describe('LibraryView', () => {
     expect(html).toContain('On Nord');
     expect(html).toContain('Local');
     expect(html).toContain('Import file');
-    // engine glimpse chips from the summary ("piano + synth", "organ")
-    expect(html).toContain('lib-eng--piano');
-    expect(html).toContain('lib-eng--synth');
-    expect(html).toContain('lib-eng--organ');
+    // engine glimpse chips from the summary ("piano + synth", "organ") —
+    // each color-codes by kind so a multi-engine patch reads apart at a glance
+    expect(spanFor(html, 'piano')).toContain('text-ink');
+    expect(spanFor(html, 'synth')).toContain('text-lcd-cyan');
+    expect(spanFor(html, 'organ')).toContain('text-red');
   });
 
   it('renders the category facet only when more than one category is present', () => {
@@ -115,8 +130,8 @@ describe('LibraryView', () => {
     );
     // A pending browser dialog flips `busy`; Reconnect rightly disables to avoid
     // double-triggering, but Forget must stay clickable to break the deadlock.
-    expect(buttonFor(html, 'Reconnect')).toContain('disabled');
-    expect(buttonFor(html, 'Forget')).not.toContain('disabled');
+    expect(isDisabled(buttonFor(html, 'Reconnect'))).toBe(true);
+    expect(isDisabled(buttonFor(html, 'Forget'))).toBe(false);
   });
 
   it('surfaces a reconnect error in the banner instead of failing silently', () => {

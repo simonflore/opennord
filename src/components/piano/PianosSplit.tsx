@@ -3,6 +3,7 @@ import { usePianosState } from '@/lib/library/PianosContext';
 import { PianosBrowse } from './PianosBrowse';
 import { PianoInspector } from './PianoInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
+import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSplitLayout } from '@/lib/responsive';
 
 /** Pianos master/detail: the browse list + a thin piano inspector. */
@@ -35,7 +36,7 @@ export function PianosSplit() {
 
   const detail = entry
     ? <PianoInspector entry={entry} session={s.session} />
-    : <p className="lib-empty" style={{ padding: 16 }}>Pick a piano to see its details.</p>;
+    : <EmptyNote className="p-4">Pick a piano to see its details.</EmptyNote>;
 
   return (
     <CategorySplit

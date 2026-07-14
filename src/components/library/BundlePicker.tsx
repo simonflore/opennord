@@ -38,14 +38,14 @@ export function BundlePicker({ open, bundles, onConfirm, onClose }: BundlePicker
         </>
       }
     >
-      <p className="bundle-picker__hint">This folder has several backups. Pick the ones to add to your library.</p>
-      <ul className="bundle-picker__list">
+      <p className="mb-3 text-[11px] text-dim">This folder has several backups. Pick the ones to add to your library.</p>
+      <ul className="m-0 flex list-none flex-col gap-1 p-0">
         {bundles.map((b) => (
-          <li key={b.path} className="bundle-picker__row">
-            <label>
+          <li key={b.path}>
+            <label className="flex cursor-pointer items-center gap-2 rounded-sm border border-line p-2 text-xs text-ink">
               <input type="checkbox" checked={checked.has(b.path)} onChange={() => toggle(b.path)} />
-              <span className="bundle-picker__name">{backupName(b.path)}</span>
-              <span className="bundle-picker__size">{sizeLabel(b.size)}</span>
+              <span className="flex-1">{backupName(b.path)}</span>
+              <span className="text-[10px] text-muted">{sizeLabel(b.size)}</span>
             </label>
           </li>
         ))}
