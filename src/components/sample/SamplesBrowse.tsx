@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import '../library/library.css';
-import { BrowseToolbar, Button, Card, Dialog, Pill, SourceBadge, type FacetGroup } from '../ui';
+import { BrowseToolbar, Button, Dialog, Pill, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
+import { LibraryCard } from '../library/LibraryCard';
 import type { SampleEntry, SampleGeneration } from '../../lib/library/sample-entries';
 import type { SamplesPrefsApi, SampleSort } from '../../lib/library/prefs';
 import type { LibrarySource } from '../../lib/library/types';
@@ -207,63 +208,47 @@ export function SamplesBrowse(
         emptyState={<div className="lib-empty"><p>No samples match.</p></div>}
       >
           {entries.map((e) => (
-            <Card
+            <LibraryCard
               key={e.id}
-              accent={e.source === 'nord'}
-              className="lib-patch"
-              role="button"
-              tabIndex={0}
-              onClick={() => onOpen(e)}
-              onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onOpen(e); } }}
-            >
-              <div className="lib-patch__top">
-                {unusedOnly && e.source === 'nord' && e.unused && (
-                  <input
-                    type="checkbox"
-                    className="lib-patch__select"
-                    aria-label={`Select ${e.name}`}
-                    checked={selected.has(e.id)}
-                    onChange={() => toggleSelected(e.id)}
-                    onClick={(ev) => ev.stopPropagation()}
-                  />
-                )}
-                <button
-                  className={`lib-fav${favorites.has(e.id) ? ' is-fav' : ''}`}
-                  aria-label={favorites.has(e.id) ? `Unfavorite ${e.name}` : `Favorite ${e.name}`}
-                  aria-pressed={favorites.has(e.id)}
-                  onClick={(ev) => { ev.stopPropagation(); onToggleFavorite(e.id); }}
-                  onKeyDown={(ev) => ev.stopPropagation()}
-                >{favorites.has(e.id) ? '★' : '☆'}</button>
-                <span className="lib-patch__nm">{e.name}</span>
-                {e.unused && <span className="lib-tag lib-tag--unused" title="Not used by any program">unused</span>}
-                <span className={`lib-slot${e.slot ? '' : ` ${GEN_CLASS[e.generation]}`}`}>{e.slot ?? GEN_LABEL[e.generation]}</span>
-              </div>
-              <div className="lib-patch__engines">
-                <span className="lib-eng">
-                  {e.generation === 'npno'
-                    ? 'piano library'
-                    : e.strokeCount != null
-                    ? `${e.strokeCount} ${e.strokeCount === 1 ? 'sample' : 'samples'}`
-                    : (e.source === 'nord' ? 'on Nord' : 'unrecognized')}
-                </span>
-              </div>
-              <div className="lib-patch__foot">
-                <SourceBadge source={e.source} />
-                {e.source === 'backup' && e.factory !== undefined && (
-                  <Pill>{e.factory ? 'Factory' : 'Yours'}</Pill>
-                )}
-                <span className="lib-slot">{e.size != null ? fmtSize(e.size) : ''}</span>
-                {e.id.startsWith('local:') && (
-                  <button
-                    className="lib-patch__rm"
-                    aria-label={`Remove ${e.name}`}
-                    title="Remove from library"
-                    onClick={(ev) => { ev.stopPropagation(); onRemove(e.id); }}
-                    onKeyDown={(ev) => ev.stopPropagation()}
-                  >✕</button>
-                )}
-              </div>
-            </Card>
+              name={e.name}
+              source={e.source}
+              favorite={favorites.has(e.id)}
+              onToggleFavorite={() => onToggleFavorite(e.id)}
+              onOpen={() => onOpen(e)}
+              unused={e.unused}
+              select={unusedOnly && e.source === 'nord' && e.unused
+                ? { checked: selected.has(e.id), onToggle: () => toggleSelected(e.id) }
+                : undefined}
+              badge={<span className={`lib-slot${e.slot ? '' : ` ${GEN_CLASS[e.generation]}`}`}>{e.slot ?? GEN_LABEL[e.generation]}</span>}
+              engines={
+                <div className="lib-patch__engines">
+                  <span className="lib-eng">
+                    {e.generation === 'npno'
+                      ? 'piano library'
+                      : e.strokeCount != null
+                      ? `${e.strokeCount} ${e.strokeCount === 1 ? 'sample' : 'samples'}`
+                      : (e.source === 'nord' ? 'on Nord' : 'unrecognized')}
+                  </span>
+                </div>
+              }
+              footExtras={
+                <>
+                  {e.source === 'backup' && e.factory !== undefined && (
+                    <Pill>{e.factory ? 'Factory' : 'Yours'}</Pill>
+                  )}
+                  <span className="lib-slot">{e.size != null ? fmtSize(e.size) : ''}</span>
+                  {e.id.startsWith('local:') && (
+                    <button
+                      className="lib-patch__rm"
+                      aria-label={`Remove ${e.name}`}
+                      title="Remove from library"
+                      onClick={(ev) => { ev.stopPropagation(); onRemove(e.id); }}
+                      onKeyDown={(ev) => ev.stopPropagation()}
+                    >✕</button>
+                  )}
+                </>
+              }
+            />
           ))}
       </CategoryPanel>
 

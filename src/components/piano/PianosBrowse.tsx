@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import '../library/library.css';
-import { BrowseToolbar, Button, Card, Dialog, Pill, SourceBadge, type FacetGroup } from '../ui';
+import { BrowseToolbar, Button, Dialog, Pill, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
+import { LibraryCard } from '../library/LibraryCard';
 import type { PianoEntry } from '@/lib/library/piano-entries';
 import type { LibrarySource } from '@/lib/library/types';
 import type { PianoSort } from '@/lib/library/prefs';
@@ -168,45 +169,27 @@ export function PianosBrowse({
         emptyState={<p className="lib-empty">No pianos match your filter.</p>}
       >
             {entries.map((entry) => (
-              <Card
+              <LibraryCard
                 key={entry.id}
-                accent={entry.source === 'nord'}
-                className="lib-patch"
-                role="button"
-                tabIndex={0}
-                onClick={() => onSelect(entry)}
-                onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onSelect(entry); } }}
-              >
-                <div className="lib-patch__top">
-                  {unusedOnly && entry.source === 'nord' && entry.unused && (
-                    <input
-                      type="checkbox"
-                      className="lib-patch__select"
-                      aria-label={`Select ${entry.name}`}
-                      checked={selected.has(entry.id)}
-                      onChange={() => toggleSelected(entry.id)}
-                      onClick={(ev) => ev.stopPropagation()}
-                    />
-                  )}
-                  <button
-                    className={`lib-fav${isFavorite(entry.id) ? ' is-fav' : ''}`}
-                    aria-label={isFavorite(entry.id) ? `Unfavorite ${entry.name}` : `Favorite ${entry.name}`}
-                    aria-pressed={isFavorite(entry.id)}
-                    onClick={(ev) => { ev.stopPropagation(); toggleFavorite(entry.id); }}
-                    onKeyDown={(ev) => ev.stopPropagation()}
-                  >{isFavorite(entry.id) ? '★' : '☆'}</button>
-                  <span className="lib-patch__nm">{entry.name}</span>
-                  {entry.unused && <span className="lib-tag lib-tag--unused" title="Not used by any program">unused</span>}
-                  {entry.slot && <span className="lib-slot">{entry.slot}</span>}
-                </div>
-                <div className="lib-patch__foot">
-                  <SourceBadge source={entry.source} />
-                  {entry.source === 'backup' && entry.isFactory !== undefined && (
-                    <Pill>{entry.isFactory ? 'Factory' : 'Yours'}</Pill>
-                  )}
-                  {entry.size != null && <span className="lib-slot">{formatBytes(entry.size)}</span>}
-                </div>
-              </Card>
+                name={entry.name}
+                source={entry.source}
+                favorite={isFavorite(entry.id)}
+                onToggleFavorite={() => toggleFavorite(entry.id)}
+                onOpen={() => onSelect(entry)}
+                unused={entry.unused}
+                select={unusedOnly && entry.source === 'nord' && entry.unused
+                  ? { checked: selected.has(entry.id), onToggle: () => toggleSelected(entry.id) }
+                  : undefined}
+                badge={entry.slot && <span className="lib-slot">{entry.slot}</span>}
+                footExtras={
+                  <>
+                    {entry.source === 'backup' && entry.isFactory !== undefined && (
+                      <Pill>{entry.isFactory ? 'Factory' : 'Yours'}</Pill>
+                    )}
+                    {entry.size != null && <span className="lib-slot">{formatBytes(entry.size)}</span>}
+                  </>
+                }
+              />
             ))}
       </CategoryPanel>
 

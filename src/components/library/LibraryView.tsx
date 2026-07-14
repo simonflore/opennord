@@ -1,6 +1,7 @@
 import './library.css';
-import { Button, BrowseToolbar, Card, SourceBadge, type FacetGroup } from '../ui';
+import { Button, BrowseToolbar, type FacetGroup } from '../ui';
 import { CategoryPanel } from './CategoryPanel';
+import { LibraryCard } from './LibraryCard';
 import { BundlePicker } from './BundlePicker';
 import { NewBackupsBanner } from './NewBackupsBanner';
 import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
@@ -147,28 +148,15 @@ export function LibraryView({
       }
     >
           {entries.map((e) => (
-            <Card
+            <LibraryCard
               key={e.id}
-              accent={e.source === 'nord'}
-              className="lib-patch"
-              role="button"
-              tabIndex={0}
-              onClick={() => onOpen(e)}
-              onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onOpen(e); } }}
-            >
-              <div className="lib-patch__top">
-                <button
-                  className={`lib-fav${favorites.has(e.id) ? ' is-fav' : ''}`}
-                  aria-label={favorites.has(e.id) ? `Unfavorite ${e.name}` : `Favorite ${e.name}`}
-                  aria-pressed={favorites.has(e.id)}
-                  title={favorites.has(e.id) ? 'Remove from favorites' : 'Add to favorites'}
-                  onClick={(ev) => { ev.stopPropagation(); onToggleFavorite(e.id); }}
-                  onKeyDown={(ev) => ev.stopPropagation()}
-                >{favorites.has(e.id) ? '★' : '☆'}</button>
-                <span className="lib-patch__nm">{e.name}</span>
-                <span className="lib-slot">{e.slot ?? e.typeLabel ?? 'file'}</span>
-              </div>
-              {e.summary
+              name={e.name}
+              source={e.source}
+              favorite={favorites.has(e.id)}
+              onToggleFavorite={() => onToggleFavorite(e.id)}
+              onOpen={() => onOpen(e)}
+              badge={<span className="lib-slot">{e.slot ?? e.typeLabel ?? 'file'}</span>}
+              engines={e.summary
                 ? (
                   <div className="lib-patch__engines">
                     {e.summary.split(' + ').map((part, i) => {
@@ -183,19 +171,16 @@ export function LibraryView({
                   </div>
                 )
                 : <div className="lib-patch__sub">—</div>}
-              <div className="lib-patch__foot">
-                <SourceBadge source={e.source} />
-                {e.source === 'local' && (
-                  <button
-                    className="lib-patch__rm"
-                    aria-label={`Remove ${e.name}`}
-                    title="Remove from library"
-                    onClick={(ev) => { ev.stopPropagation(); onRemove(e.id); }}
-                    onKeyDown={(ev) => ev.stopPropagation()}
-                  >✕</button>
-                )}
-              </div>
-            </Card>
+              footExtras={e.source === 'local' && (
+                <button
+                  className="lib-patch__rm"
+                  aria-label={`Remove ${e.name}`}
+                  title="Remove from library"
+                  onClick={(ev) => { ev.stopPropagation(); onRemove(e.id); }}
+                  onKeyDown={(ev) => ev.stopPropagation()}
+                >✕</button>
+              )}
+            />
           ))}
     </CategoryPanel>
   );

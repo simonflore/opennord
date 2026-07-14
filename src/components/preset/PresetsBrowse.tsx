@@ -1,6 +1,7 @@
 import '../library/library.css';
-import { BrowseToolbar, Button, Card, SourceBadge, type FacetGroup } from '../ui';
+import { BrowseToolbar, Button, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
+import { LibraryCard } from '../library/LibraryCard';
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
@@ -70,40 +71,29 @@ export function PresetsBrowse({
       emptyState={<p className="lib-empty">No presets match your filter.</p>}
     >
             {entries.map((e) => (
-              <Card
+              <LibraryCard
                 key={e.id}
-                accent={e.source === 'nord'}
-                className="lib-patch"
-                role="button"
-                tabIndex={0}
-                onClick={() => onSelect(e)}
-                onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onSelect(e); } }}
-              >
-                <div className="lib-patch__top">
-                  <button
-                    className={`lib-fav${isFavorite(e.id) ? ' is-fav' : ''}`}
-                    aria-label={isFavorite(e.id) ? `Unfavorite ${e.name}` : `Favorite ${e.name}`}
-                    aria-pressed={isFavorite(e.id)}
-                    onClick={(ev) => { ev.stopPropagation(); toggleFavorite(e.id); }}
-                    onKeyDown={(ev) => ev.stopPropagation()}
-                  >{isFavorite(e.id) ? '★' : '☆'}</button>
-                  <span className="lib-patch__nm">{e.name}</span>
-                  <span className="lib-slot">{e.slot ?? KIND_LABEL[e.kind]}</span>
-                </div>
-                <div className="lib-patch__foot">
-                  <SourceBadge source={e.source} />
-                  {e.size != null && <span className="lib-slot">{formatBytes(e.size)}</span>}
-                  {e.id.startsWith('local:') && (
-                    <button
-                      className="lib-patch__rm"
-                      aria-label={`Remove ${e.name}`}
-                      title="Remove from library"
-                      onClick={(ev) => { ev.stopPropagation(); onRemove(e.id); }}
-                      onKeyDown={(ev) => ev.stopPropagation()}
-                    >✕</button>
-                  )}
-                </div>
-              </Card>
+                name={e.name}
+                source={e.source}
+                favorite={isFavorite(e.id)}
+                onToggleFavorite={() => toggleFavorite(e.id)}
+                onOpen={() => onSelect(e)}
+                badge={<span className="lib-slot">{e.slot ?? KIND_LABEL[e.kind]}</span>}
+                footExtras={
+                  <>
+                    {e.size != null && <span className="lib-slot">{formatBytes(e.size)}</span>}
+                    {e.id.startsWith('local:') && (
+                      <button
+                        className="lib-patch__rm"
+                        aria-label={`Remove ${e.name}`}
+                        title="Remove from library"
+                        onClick={(ev) => { ev.stopPropagation(); onRemove(e.id); }}
+                        onKeyDown={(ev) => ev.stopPropagation()}
+                      >✕</button>
+                    )}
+                  </>
+                }
+              />
             ))}
     </CategoryPanel>
   );
