@@ -138,9 +138,12 @@ the bar). When extending the decoder, validate against the fixture.
   describe compatibility.
 - License is **AGPL-3.0-or-later**; ported code (ns4decode, MIT) is credited in
   `THIRD_PARTY_LICENSES.md` / `ATTRIBUTION.md`. Preserve attribution.
-- **Server/hosted backends are out of scope for this repo.** This is the open
-  client. Keep networked services behind an interface (e.g. `ProgramRanker`);
-  don't add backend/server code here.
+- **`packages/core` is the AGPL open client.** It is developed inside the private
+  `opennord-backend` monorepo and mirrored (AGPL-only) to the public `opennord`
+  repo on release. The proprietary backend lives in that same monorepo but behind
+  the dependency-cruiser firewall — **core must never import it**, and no
+  server/backend code goes in `packages/core`. Keep networked services behind an
+  interface (e.g. `ProgramRanker`).
 
 ## Scope tips for agents
 
