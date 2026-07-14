@@ -2,12 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Rail } from './Rail';
 import { DeviceProvider } from '../../lib/device/DeviceContext';
+import { CapabilitiesProvider } from '../../lib/capabilities/CapabilitiesContext';
+import type { Capabilities } from '../../lib/capabilities/types';
 
-function render(active: string) {
+function render(active: string, caps?: Partial<Capabilities>) {
   return renderToStaticMarkup(
-    <DeviceProvider>
-      <Rail active={active} onNavigate={() => {}} onManageDevice={() => {}} />
-    </DeviceProvider>,
+    <CapabilitiesProvider value={caps}>
+      <DeviceProvider>
+        <Rail active={active} onNavigate={() => {}} onManageDevice={() => {}} />
+      </DeviceProvider>
+    </CapabilitiesProvider>,
   );
 }
 
@@ -43,5 +47,15 @@ describe('Rail', () => {
   it('exposes the developer tools entry', () => {
     const html = render('library');
     expect(html).toContain('Developer');
+  });
+
+  it('hides Community when the community capability is unavailable (open build)', () => {
+    expect(render('library')).not.toContain('Community');
+  });
+
+  it('shows Community with its sub-items when the capability is available and active', () => {
+    const html = render('community', { community: { available: true } });
+    expect(html).toContain('Community');
+    for (const label of ['Browse', 'Share a patch', 'My shares']) expect(html).toContain(label);
   });
 });

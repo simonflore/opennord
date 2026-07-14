@@ -23,6 +23,15 @@ const RE_DESTS: Array<{ to: NavTo; label: string }> = [{ to: '/contribute', labe
 // the cloud capability is available), so it sits outside the base NavTo union — cast once.
 const CLOUD_TO = '/cloud' as NavTo;
 
+// Community is likewise build-injected (proprietary build + community capability). Same
+// cast rationale as Cloud. The sub-items are the reachable community destinations.
+const COMMUNITY_TO = '/community' as NavTo;
+const COMMUNITY_SUB: Array<{ to: NavTo; label: string }> = [
+  { to: '/community' as NavTo, label: 'Browse' },
+  { to: '/community/share' as NavTo, label: 'Share a patch' },
+  { to: '/community/mine' as NavTo, label: 'My shares' },
+];
+
 // Device transfer rides vendor-USB (WebUSB) — desktop Chrome/Edge or the iPad app
 // only. Where it's unavailable, Device stays visible but disabled with a reason.
 const usbSupported = typeof navigator !== 'undefined' && 'usb' in navigator;
@@ -91,6 +100,31 @@ export function Rail({ active, onNavigate, onManageDevice }: Props) {
         >
           Cloud
         </button>
+      )}
+
+      {/* Community — proprietary builds light this up via the capability seam; the open
+          client (community unavailable) never shows a dead link. Sub-items appear while
+          on any community route. */}
+      {caps.community.available && (
+        <>
+          <button
+            className={`on-nav ${isActive(COMMUNITY_TO) ? 'on-nav--active' : ''}`.trim()}
+            aria-current={isActive(COMMUNITY_TO) ? 'page' : undefined}
+            onClick={() => onNavigate(COMMUNITY_TO)}
+          >
+            Community
+          </button>
+          {isActive(COMMUNITY_TO) && COMMUNITY_SUB.map((d) => (
+            <button
+              key={d.to}
+              className={`on-nav on-nav--sub ${path === d.to ? 'on-nav--active' : ''}`.trim()}
+              aria-current={path === d.to ? 'page' : undefined}
+              onClick={() => onNavigate(d.to)}
+            >
+              {d.label}
+            </button>
+          ))}
+        </>
       )}
 
       {__RE__ && RE_DESTS.map((d) => (
