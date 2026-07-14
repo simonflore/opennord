@@ -79,3 +79,20 @@ for (const rel of FILES) {
     }, 120_000);
   });
 }
+
+// Regression guard for the per-zone-value truncation bug: Spitfire-era codec-2
+// libraries carry a value at record +1..+3 (not the `0x10` unity), which the old
+// marker mistook for the run end — Pizzicato decoded only 8 of 37 zones, orphaning
+// 29 strokes in the rompler. All zones must now decode (whole-line: same fix serves
+// the Wave / Electro-3 / Stage-2 versions of this content).
+const SPITFIRE_C2 = 'fixtures/Spitfire String Quintet Nord Stage 2/SpitfireStrQPizz 2.2.nsmp';
+describe.skipIf(!hasGt(SPITFIRE_C2))('codec-2: Spitfire per-zone-value records decode fully', () => {
+  const bytes = new Uint8Array(readFileSync(resolve(REPO_ROOT, SPITFIRE_C2)));
+  it('decodes a zone for (nearly) every stroke, not a truncated 8-record run', () => {
+    const strokes = new Set(
+      parseNsmpSections(bytes).filter((s) => s.tag.endsWith('stk')).map((s) => bytes[s.payloadOffset + 3]),
+    );
+    const zones = readNsmpZones(bytes);
+    expect(zones.length).toBeGreaterThanOrEqual(strokes.size - 1); // was 8 of 37 before the fix
+  });
+});

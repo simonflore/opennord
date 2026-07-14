@@ -667,13 +667,24 @@ export function parseCodec2ZoneRecords(
   bytes: Uint8Array, map: NsmpSection, rootByGid: Map<number, number>,
 ): NsmpZone[] {
   // gid@+0, keyHigh@+7. The "strength" marker varies between codec-2 revisions —
-  // most write `00 01` at +8/+9; the Spitfire-era libraries write `10` at +1 with
-  // +8/+9 clear — so accept either. The maximal-run + gid-in-set guard rejects
-  // phantom alignments regardless.
+  // most write `00 01` at +8/+9. The Spitfire-era libraries instead carry a per-zone
+  // value (detune/gain) at +1..+3: `10 00 00` (unity) OR a real value like `0c db 3e`.
+  // The old `+1 == 0x10` check only caught the unity case, so records with a real
+  // value truncated the run (e.g. Pizzicato → 8 of 37 zones). The value region is
+  // always followed by structural zeros (+4..+6 and +8, +10..+14) — a reliable
+  // marker independent of the value. Accept any of the three; the maximal-run +
+  // gid-in-set guard rejects phantom alignments regardless.
   return parseStrokeRefZoneRecords(bytes, map, rootByGid, {
     rec: 15, gidOff: 0, keyHighOff: 7,
-    ok: (b, o, g) => g.has(b[o]) && b[o + 7] <= 127 &&
-      ((b[o + 8] === 0 && b[o + 9] === 1) || b[o + 1] === 0x10),
+    ok: (b, o, g) => g.has(b[o]) && b[o + 7] <= 127 && (
+      (b[o + 8] === 0 && b[o + 9] === 1) ||
+      b[o + 1] === 0x10 ||
+      // Structural marker — but require a real keyHigh (≥ 1): all-zero padding
+      // trivially satisfies the zero checks and (when a stroke has gid 0) would
+      // otherwise form a giant phantom run of identical zeros.
+      (b[o + 7] >= 1 && b[o + 4] === 0 && b[o + 5] === 0 && b[o + 6] === 0 && b[o + 8] === 0 &&
+       b[o + 10] === 0 && b[o + 11] === 0 && b[o + 12] === 0 && b[o + 13] === 0 && b[o + 14] === 0)
+    ),
   });
 }
 
