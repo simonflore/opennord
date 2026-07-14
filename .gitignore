@@ -1,0 +1,46 @@
+node_modules/
+dist/
+*.local
+.env
+.env.*
+ios/App/App/public/
+.DS_Store
+coverage/
+*.log
+*.tsbuildinfo
+scripts/__pycache__/
+
+# Internal AI-agent planning docs (specs/plans). Kept locally only — not part of
+# the public/open-source tree. Removed from git history on 2026-06-15.
+docs/superpowers/
+
+# Full real sample audio used for local decoder validation — the user's own
+# recordings, kept out of the repo (size + scope). Trimmed fixtures live under
+# src/lib/ns4/__fixtures__/nsmp/ instead.
+research/nsmp/
+# Sample binaries are never repo content — they're real sample audio (the user's
+# or shared third-party files), kept local only (docs/LEGAL.md).
+*.nsmp
+*.nsmp3
+*.nsmp4
+nsmp conversion demo files/
+# Nord FACTORY library content (Clavia IP) — never commit/redistribute
+# (docs/LEGAL.md). Kept locally for interop format study only.
+*.npno
+piano_library_*
+# Nord app-bundle debris extracted into the repo root — proprietary, not ours.
+/Info.plist
+/PkgInfo
+/MacOS/
+/Resources/
+/_CodeSignature/
+.superpowers/
+
+# Sourced per-model RE corpus — local only, never committed (see fixtures/README.md).
+# Real Nord files for reverse-engineering; factory content stays put (docs/LEGAL.md).
+fixtures/*
+!fixtures/README.md
+
+# Electron build output
+release/
+electron/dist/

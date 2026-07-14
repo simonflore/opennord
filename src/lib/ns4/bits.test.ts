@@ -1,0 +1,144 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { bytesToBitString, locToBit, bitToLoc, readField } from './bits';
+import { fileTypeTag, hasCbinMagic, buildCbinHeader, readCbinHeader, type CbinHeader } from '../clavia/cbin';
+import { buildParamMap } from './maps';
+import { NS4_OFFSET_MAP } from './offset-map.generated';
+import { NS4_EXTRA_PARAMS } from './extra-params';
+import { decodeAllParams } from './coverage';
+
+// The real ns4decode regression fixture (a genuine Nord Stage 4 program) — our
+// ground truth. Expected values cross-checked against ns4decode's own CSV output.
+const bytes = new Uint8Array(
+  readFileSync(fileURLToPath(new URL('./__fixtures__/regressionTest.ns4p', import.meta.url))),
+);
+
+describe('bits engine — validated against the ns4decode regression fixture', () => {
+  it('recognizes the file magic and type', () => {
+    expect(bytes.length).toBe(868);
+    expect(hasCbinMagic(bytes)).toBe(true);
+    expect(fileTypeTag(bytes)).toBe('ns4p');
+  });
+
+  it('round-trips location strings <-> absolute bit indices', () => {
+    expect(locToBit('009-1')).toBe(64);
+    expect(bitToLoc(64)).toBe('009-1');
+    expect(locToBit('025-1')).toBe(192);
+    expect(locToBit('028-8')).toBe(223);
+  });
+
+  it('reads in-byte and 32-bit cross-byte fields correctly', () => {
+    const bits = bytesToBitString(bytes);
+    // bank = H (0-7 => A-H), from master map 013-6..013-8
+    expect(readField(bits, locToBit('013-6'), locToBit('013-8'))).toBe(7);
+    // 32-bit checksum from 025-1..028-8 — matches the expected CSV exactly
+    expect(readField(bits, locToBit('025-1'), locToBit('028-8'))).toBe(2872364241);
+  });
+});
+
+describe('complete param map decodes the fixture', () => {
+  const map = buildParamMap();
+  const decoded = decodeAllParams(bytes, map);
+  const valueOf = (name: string) => decoded.find((d) => d.name === name)?.value;
+
+  it('covers all four engines (ns4decode port + corpus-RE extras)', () => {
+    // The canonical map = the 406-param ns4decode port + our corpus-RE'd extras.
+    expect(NS4_OFFSET_MAP.length).toBe(406); // the port stays pinned at 406
+    expect(map.length).toBe(NS4_OFFSET_MAP.length + NS4_EXTRA_PARAMS.length);
+    const groups = new Set(map.map((p) => p.group));
+    expect(groups).toEqual(new Set(['m', 'o', 'p', 'y']));
+  });
+
+  it('decodes master fields to their expected values', () => {
+    expect(valueOf('file type')).toBe(readFieldAscii('ns4p'));
+    expect(valueOf('bank')).toBe(7);
+    expect(valueOf('checksum')).toBe(2872364241);
+  });
+
+  it('decodes per-layer synth fields A/B/C — layer on/off = off,on,on', () => {
+    const synthLayerVals = (param: string) =>
+      decoded.filter((d) => d.group === 'y' && d.name.startsWith(`${param} [`)).map((d) => d.value);
+    expect(synthLayerVals('layer on/off')).toEqual([0, 1, 1]);
+  });
+
+  it('interprets enum AND numeric values to human form (validated against the CSV)', () => {
+    const synthDisplay = (param: string) =>
+      decoded.filter((d) => d.group === 'y' && d.name.startsWith(`${param} [`)).map((d) => d.display);
+    // enums
+    expect(synthDisplay('filter type')).toEqual(['LP24', 'BP', 'LPHP']);
+    expect(synthDisplay('LFO shape')).toEqual(['triangle', 'saw', 'S/H']);
+    expect(decoded.find((d) => d.name === 'bank')?.display).toBe('H');
+    // numeric formulas (volume->dB, pan) — exhaustively evaluated from the real interpreter
+    expect(synthDisplay('volume')).toEqual(['-0.3 dB', '-11.9 dB', '-3.6 dB']);
+    expect(synthDisplay('pan')).toEqual(['L  4.7', '0.0', '0.0']);
+  });
+
+  it('resolves morph values from their base (two-pass decode)', () => {
+    const synthDisplay = (param: string) =>
+      decoded.filter((d) => d.group === 'y' && d.name.startsWith(`${param} [`)).map((d) => d.display);
+    expect(synthDisplay('filter freq with wheel')).toEqual(['none', '21 kHz', '1.3 kHz']);
+    expect(synthDisplay('volume change with wheel')).toEqual(['none', 'none', '0.0 dB']);
+  });
+
+  it('decodes synth oscillator category and wave', () => {
+    // Fixture: layers A/B/C have synth types ANALOG/FM-H/FM-I → categories and waves depend on type
+    const synth = (name: string) =>
+      decoded.filter((d) => d.group === 'y' && d.name.startsWith(`${name} [`)).map((d) => d.display);
+    // Synth cat: ANALOG layer shows "N (category)", FM-H/FM-I show letter grade
+    const cats = synth('analog cat (knob 2)');
+    expect(cats).toHaveLength(3);
+    expect(cats[0]).toMatch(/\d/);    // ANALOG: "N (CategoryName)"
+    expect(cats[1]).toMatch(/^[A-Z]$/); // FM-H: letter
+    expect(cats[2]).toMatch(/^[A-Z]$/); // FM-I: letter
+    // Wave field decoded (not raw number)
+    const waves = synth('analog wave/partial (knob 3)');
+    expect(waves).toHaveLength(3);
+    expect(waves[1]).not.toMatch(/^\d+$/); // FM-H: shows "N.5" or partial number
+  });
+
+  it('decodes LFO rate, filter res, delay tempo as human values', () => {
+    const synth = (name: string) =>
+      decoded.filter((d) => d.group === 'y' && d.name.startsWith(`${name} [`)).map((d) => d.display);
+    // LFO rate — shows Hz or fraction depending on MST CLK
+    const lfoRates = synth('LFO rate/time');
+    expect(lfoRates.some((v) => v.includes('Hz') || v.includes('/'))).toBe(true);
+    // Filter res — shows 0.0-10.0 or freq
+    const filterRes = synth('filter resonance / freq HP');
+    expect(filterRes.some((v) => /^\d/.test(v))).toBe(true);
+    // Delay tempo — shows ms or fraction
+    const delay = synth('FX delay tempo');
+    expect(delay.some((v) => v.includes('ms') || v.includes('/') || v.includes('sec'))).toBe(true);
+  });
+
+  it('decodes organ drawbars to human values', () => {
+    const organDrawbars = decoded.filter((d) => d.group === 'o' && d.name.startsWith('drawbar '));
+    expect(organDrawbars.length).toBeGreaterThan(0);
+    // B3 drawbars show 0-8 as raw numbers (passthrough for B3/PIPE)
+    // VOX drawbar 9 shows special names
+    expect(organDrawbars.every((d) => typeof d.display === 'string')).toBe(true);
+  });
+
+  it('decodes arp rate/time', () => {
+    const arpRates = decoded.filter((d) => d.group === 'y' && d.name.startsWith('arp rate/time ['));
+    expect(arpRates.length).toBeGreaterThan(0);
+    expect(arpRates.some((d) => d.display.includes('bpm') || d.display.includes('/'))).toBe(true);
+  });
+});
+
+/** "ns4p" as the integer its 32 bits would decode to (for the 'file type' field). */
+function readFieldAscii(s: string): number {
+  let v = 0;
+  for (const ch of s) v = v * 256 + ch.charCodeAt(0);
+  return v;
+}
+
+describe('buildCbinHeader', () => {
+  it('round-trips through readCbinHeader', () => {
+    const h: CbinHeader = { formatType: 1, tag: 'ns4p', bank: 7, location: 56, category: 17, versionRaw: 313 };
+    const header = buildCbinHeader(h);
+    expect(header.length).toBe(44);
+    expect(hasCbinMagic(header)).toBe(true);
+    expect(readCbinHeader(header)).toEqual(h);
+  });
+});

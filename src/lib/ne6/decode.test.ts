@@ -1,0 +1,145 @@
+/**
+ * NE6 decoder smoke tests — pinned against the 16 real .ne6p fixtures.
+ *
+ * Confirmed invariants (corpus RE, 2026-06-22):
+ *   - CBIN tag is `ne6p`
+ *   - Version is 2.04 for all fixtures (OS 2.66 era)
+ *   - All-drawbar-8 presets: both upper & lower bars = [8,8,8,8,8,8,8,8,8]
+ *   - Drunken_Brass upper drawbars: [8,5,7,0,5,0,0,0,0]
+ *   - Drunken_Brass lower drawbars: [7,5,6,0,4,5,5,0,0]
+ */
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+import { describe, it, expect } from 'vitest';
+import { decodeNe6 } from './decode';
+
+const FIXTURE_DIR = join(__dirname, '../../../fixtures/electro-6');
+
+function load(name: string): Uint8Array {
+  return new Uint8Array(readFileSync(join(FIXTURE_DIR, name)));
+}
+
+describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNe6', () => {
+  it('decodes without warnings on a valid fixture', () => {
+    const prog = decodeNe6(load('BUNDLE__Brass_Boy.ne6p'));
+    expect(prog.parsed).toBe(true);
+    expect(prog.warnings).toHaveLength(0);
+  });
+
+  it('reads version 2.04 from all fixtures', () => {
+    const names = [
+      'BUNDLE__Brass_Boy.ne6p',
+      'BUNDLE__Drunken_Brass.ne6p',
+      'BUNDLE__Logan_Synth.ne6p',
+    ];
+    for (const name of names) {
+      const prog = decodeNe6(load(name));
+      expect(prog.version, name).toBe('2.04');
+    }
+  });
+
+  describe('organ drawbars', () => {
+    it('Brass_Boy: upper drawbars all at 8', () => {
+      const prog = decodeNe6(load('BUNDLE__Brass_Boy.ne6p'));
+      expect(prog.organ.upper.bars).toEqual([8,8,8,8,8,8,8,8,8]);
+    });
+
+    it('Brass_Boy: lower drawbars all at 8', () => {
+      const prog = decodeNe6(load('BUNDLE__Brass_Boy.ne6p'));
+      expect(prog.organ.lower.bars).toEqual([8,8,8,8,8,8,8,8,8]);
+    });
+
+    it('Drunken_Brass: upper drawbars match known brass registration', () => {
+      const prog = decodeNe6(load('BUNDLE__Drunken_Brass.ne6p'));
+      // 85 70 50 00 03 → nibbles [8,5,7,0,5,0,0,0,0]
+      expect(prog.organ.upper.bars).toEqual([8,5,7,0,5,0,0,0,0]);
+    });
+
+    it('Drunken_Brass: lower drawbars match known setting', () => {
+      const prog = decodeNe6(load('BUNDLE__Drunken_Brass.ne6p'));
+      // 75 60 45 50 03 → nibbles [7,5,6,0,4,5,5,0,0]
+      expect(prog.organ.lower.bars).toEqual([7,5,6,0,4,5,5,0,0]);
+    });
+
+    it('synth presets have default all-8 drawbars (organ section inactive)', () => {
+      const prog = decodeNe6(load('BUNDLE__Logan_Synth.ne6p'));
+      expect(prog.organ.upper.bars).toEqual([8,8,8,8,8,8,8,8,8]);
+      expect(prog.organ.lower.bars).toEqual([8,8,8,8,8,8,8,8,8]);
+    });
+
+    it('Duvet_Pad: upper drawbars match corpus', () => {
+      const prog = decodeNe6(load('BUNDLE__Duvet_Pad.ne6p'));
+      // 62 54 32 11 0b → nibbles [6,2,5,4,3,2,1,1,0]
+      expect(prog.organ.upper.bars).toEqual([6,2,5,4,3,2,1,1,0]);
+    });
+
+    it('post-drawbar trailing nibble: 0x3 default, 0xb on fully-edited Duvet_Pad', () => {
+      // The 4 bits after drawbar 9 (Stage vib/chorus + perc flags region). Default
+      // 0x3 for every preset; only Duvet_Pad (the one organ preset with non-default
+      // perc/vib) flips the high bit → 0xb. Validated 16-file corpus.
+      expect(decodeNe6(load('BUNDLE__Brass_Boy.ne6p')).organ.upper._trailing).toBe(0x3);
+      expect(decodeNe6(load('BUNDLE__Brass_Boy.ne6p')).organ.lower._trailing).toBe(0x3);
+      const duvet = decodeNe6(load('BUNDLE__Duvet_Pad.ne6p'));
+      expect(duvet.organ.upper._trailing).toBe(0xb);
+      expect(duvet.organ.lower._trailing).toBe(0xb);
+    });
+  });
+
+  describe('section/layer enable (candidate, Stage m:084-5/6 / m:095-3)', () => {
+    // byte5 bit0 reads 0 exactly for the two organ-drawbar-edited presets.
+    it('organEnableBit is 0 for the organ-edited presets', () => {
+      expect(decodeNe6(load('BUNDLE__Drunken_Brass.ne6p')).sectionEnable.organEnableBit).toBe(0);
+      expect(decodeNe6(load('BUNDLE__Duvet_Pad.ne6p')).sectionEnable.organEnableBit).toBe(0);
+    });
+
+    it('organEnableBit is 1 for non-organ-edited presets', () => {
+      expect(decodeNe6(load('BUNDLE__Brass_Boy.ne6p')).sectionEnable.organEnableBit).toBe(1);
+      expect(decodeNe6(load('BUNDLE__Logan_Synth.ne6p')).sectionEnable.organEnableBit).toBe(1);
+    });
+
+    it('pianoEnableBit (byte6 0x80) is set for all but Duvet_Pad', () => {
+      // 82/c2/82 → bit set; 42 → bit clear
+      expect(decodeNe6(load('BUNDLE__Brass_Boy.ne6p')).sectionEnable.pianoEnableBit).toBe(1);
+      expect(decodeNe6(load('BUNDLE__Drunken_Brass.ne6p')).sectionEnable.pianoEnableBit).toBe(1);
+      expect(decodeNe6(load('BUNDLE__Duvet_Pad.ne6p')).sectionEnable.pianoEnableBit).toBe(0);
+    });
+  });
+
+  describe('sample section (candidate, Stage p:244-3/6 / p:245-3/5)', () => {
+    it('exposes the 4-byte model ID, unique per preset', () => {
+      const tiffany = decodeNe6(load('BUNDLE__Tiffany-Bell.ne6p'));
+      // body 40-43 = 49 2f d7 3b
+      expect(Array.from(tiffany.sample.modelId)).toEqual([0x49, 0x2f, 0xd7, 0x3b]);
+
+      const drunken = decodeNe6(load('BUNDLE__Drunken_Brass.ne6p'));
+      // body 40-43 = 75 1f ef 06
+      expect(Array.from(drunken.sample.modelId)).toEqual([0x75, 0x1f, 0xef, 0x06]);
+    });
+
+    it('exposes the type/slot/variation header bytes', () => {
+      const brass = decodeNe6(load('BUNDLE__Brass_Boy.ne6p'));
+      // body 38-39 = df c2 (most common)
+      expect(Array.from(brass.sample._header)).toEqual([0xdf, 0xc2]);
+      // Logan's variant byte 39 = fe
+      const logan = decodeNe6(load('BUNDLE__Logan_Synth.ne6p'));
+      expect(Array.from(logan.sample._header)).toEqual([0xdf, 0xfe]);
+    });
+  });
+
+  it('organ lead-in varies only for organ-edited presets (candidate)', () => {
+    // Stage o:113-1 KB zones / 113-5 octave / 114-1 susped / 114-2 model / 114-5 preset
+    const brass = decodeNe6(load('BUNDLE__Drunken_Brass.ne6p'));
+    expect(Array.from(brass.organ._leadIn ?? [])).toEqual([0x8e, 0x00]);
+    const duvet = decodeNe6(load('BUNDLE__Duvet_Pad.ne6p'));
+    expect(Array.from(duvet.organ._leadIn ?? [])).toEqual([0xeb, 0x00]);
+  });
+
+  it('exposes raw body clusters + full body for RE tooling', () => {
+    const prog = decodeNe6(load('BUNDLE__Brass_Boy.ne6p'));
+    expect(prog.sectionEnable._raw).toHaveLength(2);
+    expect(prog.sample._raw).toHaveLength(13);
+    expect(prog._clusterB).toHaveLength(9);
+    expect(prog._clusterD).toHaveLength(14);
+    expect(prog._rawBody.length).toBeGreaterThan(0);
+  });
+});

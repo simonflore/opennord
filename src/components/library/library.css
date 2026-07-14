@@ -1,0 +1,125 @@
+/* Two-zone panel: a fixed head (title/counts/search/sort) over a scrollable
+   card list. The height/overflow only kick in inside the wide split — narrow
+   and mobile keep the normal full-page scroll. The panel fills its pane via the
+   flex chain (.on-split__master is display:flex, stretching its child to full
+   height), so no explicit height is needed — which lets a sibling (Samples'
+   pull-status line) coexist above it without overflowing. */
+.lib-panel { display: flex; flex-direction: column; }
+.lib-panel__head { flex: none; }
+.on-split .lib-panel { flex: 1; min-width: 0; min-height: 0; }
+.on-split .lib-panel__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* Samples wraps its browse panel with a transient "Pulling sample…" line. */
+.on-split .lib-master { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+
+.lib-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--s-3); }
+.lib-title { font: 800 18px var(--font); color: var(--ink); margin: 0; }
+.lib-counts { font: 11px var(--font); color: var(--dim); margin-top: 2px; }
+.lib-controls { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; margin-bottom: var(--s-3); }
+.lib-facet { display: contents; }
+.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 12px; }
+.lib-patch { cursor: pointer; padding: 14px;
+  transition: transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast); }
+.lib-patch:hover { transform: translateY(-2px); border-color: var(--muted); box-shadow: var(--edge-hi), var(--shadow-3); }
+.lib-patch:focus-visible { transform: translateY(-2px); }
+.lib-patch__top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.lib-patch__nm { font: 700 14px var(--font); color: var(--ink); flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-slot { font: 9px var(--mono); color: var(--muted); flex: none; }
+/* Per-codec color on the sample type badge (nsmp/nsmp3/nsmp4/piano). */
+.lib-slot--nsmp  { color: var(--muted); }
+.lib-slot--nsmp3 { color: var(--lcd-cyan); }
+.lib-slot--nsmp4 { color: var(--red); }
+.lib-slot--npno  { color: var(--warn); }
+
+/* Sort selector */
+.lib-sort { margin-left: auto; font: 12px var(--font); color: var(--ink);
+  background: var(--grad-raised); border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 6px 10px; cursor: pointer; box-shadow: var(--edge-hi), var(--shadow-1);
+  transition: border-color var(--t-fast); }
+.lib-sort:hover { border-color: var(--muted); }
+
+/* Favorite star — hidden until hover when off, always shown (red) when favorited. */
+.lib-fav { flex: none; border: none; background: transparent; cursor: pointer;
+  min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+  margin: -8px 0; font-size: 16px; line-height: 1; color: var(--muted); opacity: 0;
+  transition: opacity .12s, color .12s; }
+.lib-patch:hover .lib-fav, .lib-fav:focus-visible { opacity: 1; }
+.lib-fav.is-fav { opacity: 1; color: var(--red); }
+.lib-fav:hover { color: var(--red-bright); }
+@media (hover: none) { .lib-fav { opacity: 1; } }
+.lib-patch__engines { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.lib-eng { font: 700 9px var(--font); letter-spacing: .4px; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--dim); }
+.lib-eng--organ { color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
+.lib-eng--piano { color: var(--ink); box-shadow: inset 0 0 0 1px var(--muted); }
+.lib-eng--synth { color: var(--lcd-cyan); box-shadow: inset 0 0 0 1px var(--lcd-cyan); }
+.lib-patch__sub { font: 11px var(--font); color: var(--muted); margin-top: 10px; }
+.lib-patch__foot { margin-top: 11px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lib-patch__rm {
+  border: none; background: transparent; cursor: pointer; border-radius: var(--r-sm);
+  min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+  margin: -10px 0; color: var(--muted); font-size: 13px; line-height: 1; opacity: 0;
+  transition: opacity .12s, color .12s, background .12s;
+}
+.lib-patch:hover .lib-patch__rm, .lib-patch__rm:focus-visible { opacity: 1; }
+.lib-patch__rm:hover { color: var(--red); background: var(--surface); }
+/* Touch devices have no hover — keep the control visible. */
+@media (hover: none) { .lib-patch__rm { opacity: 1; } }
+.lib-empty { color: var(--dim); font: 12px var(--font); padding: var(--s-6) 0; text-align: center; }
+@media (max-width: 560px) { .lib-grid { grid-template-columns: 1fr; } }
+/* Reclaim-space (offload) — the sticky action bar shown when unused samples are
+   selected for removal, plus the per-card select checkbox and the confirm copy. */
+.lib-reclaim-bar {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 10px 12px; margin-bottom: 12px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+}
+.lib-reclaim-bar__info { font: 13px var(--font); color: var(--ink); margin-right: auto; }
+.lib-reclaim-bar__result { font: 12px var(--font); color: var(--dim); margin: 0 0 12px; }
+.lib-reclaim-disclaimer { font: 12px var(--font); color: var(--dim);
+  margin: 0 0 8px; padding-left: 10px; border-left: 2px solid var(--red); }
+.lib-reclaim-keepcopy { display: flex; align-items: center; gap: 8px;
+  font: 13px var(--font); color: var(--ink); margin: 8px 0; }
+.lib-reclaim-error { font: 12px var(--font); color: var(--red); margin: 8px 0 0; }
+.lib-patch__select { margin-right: 8px; flex: none; }
+
+.lib-actions { display: flex; gap: 8px; align-items: center; }
+.lib-folder { display: inline-flex; align-items: center; gap: 8px; color: var(--dim); font-size: 13px; }
+.lib-folder__btn { padding: 2px 8px; }
+.lib-reconnect {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; margin-bottom: 12px;
+  border: 1px solid var(--line); border-radius: var(--r-md); color: var(--ink);
+}
+.lib-reconnect__err { color: var(--red); }
+.lib-empty__hint { color: var(--dim); font-size: 13px; margin-top: 8px; }
+.lib-empty__hint code { color: var(--ink); }
+.lib-errnote { color: var(--dim); font-size: 13px; margin-bottom: 12px; }
+
+/* Multi-bundle confirmation — picker rows + the quiet "new backups" banner. */
+.bundle-picker__hint { margin: 0 0 var(--s-3); color: var(--dim); font: 11px var(--font); }
+.bundle-picker__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-1); }
+.bundle-picker__row label {
+  display: flex; align-items: center; gap: var(--s-2);
+  padding: var(--s-2); border: 1px solid var(--line); border-radius: var(--r-sm);
+  cursor: pointer; color: var(--ink); font: 12px var(--font);
+}
+.bundle-picker__name { flex: 1; }
+.bundle-picker__size { color: var(--muted); font: 10px var(--font); }
+
+.new-backups {
+  display: flex; align-items: center; gap: var(--s-2);
+  margin-bottom: var(--s-3); padding: var(--s-2) var(--s-3);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm);
+  color: var(--ink); font: 11px var(--font);
+}
+.new-backups span { flex: 1; }
+
+/* Sample-usage cleanup (device-connected): "unused" tag + active filter button. */
+.lib-tag {
+  font: 600 9px/1 var(--font); text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 3px 5px; border-radius: 4px; flex-shrink: 0;
+}
+.lib-tag--unused { color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn); }
+.on-btn.is-active { box-shadow: inset 0 0 0 1px var(--warn); color: var(--ink); }

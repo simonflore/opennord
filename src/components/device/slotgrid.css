@@ -1,0 +1,69 @@
+/* SlotGrid — a single bank's slot cells, drag-droppable. */
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: var(--s-2);
+}
+
+.slot-grid__cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  min-height: 3.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--dim);
+  user-select: none;
+}
+
+/* Empty slots: dashed border signals a drop target. */
+.slot-grid__cell:not(.slot-grid__cell--occupied) {
+  border-style: dashed;
+}
+
+/* The empty slot a drag is currently over — clearly the landing spot. */
+.slot-grid__cell--over {
+  border-style: solid;
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 14%, var(--surface-2));
+  color: var(--ink);
+}
+
+/* Hovering an occupied slot while dragging — signals a swap (not a move). */
+.slot-grid__cell--swap-over {
+  border-style: solid;
+  border-color: var(--red-bright);
+  background: color-mix(in srgb, var(--red-bright) 16%, var(--surface-2));
+  color: var(--ink);
+}
+
+/* Hovering an occupied slot in Insert mode — signals a shift-insert (not a swap). */
+.slot-grid__cell--insert-over {
+  border-style: solid;
+  border-color: var(--red-bright);
+  background: color-mix(in srgb, var(--red-bright) 16%, var(--surface-2));
+  color: var(--ink);
+  box-shadow: inset 0 2px 0 var(--red-bright);
+}
+
+/* Occupied slots: solid, interactive, grabbable. */
+.slot-grid__cell--occupied {
+  cursor: grab;
+  color: var(--ink);
+}
+
+.slot-grid__cell--occupied:active {
+  cursor: grabbing;
+}
+
+.slot-grid__label {
+  font: 11px var(--font);
+  color: var(--muted);
+}
+
+.slot-grid__name {
+  font: 13px var(--font);
+  color: var(--ink);
+}

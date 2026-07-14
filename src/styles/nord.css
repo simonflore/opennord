@@ -1,0 +1,192 @@
+/* NS4 palette + Program Studio component styles (direction C — Nord-flavored, clean). */
+.ps {
+  --navy: var(--bg); --card: var(--surface); --led: var(--red-bright); --grn: var(--connected); --lcd: var(--lcd-deep);
+  background: var(--navy); color: var(--ink); border-radius: var(--r-lg); padding: var(--s-3) var(--s-4);
+  font-family: var(--font);
+}
+.ps * { box-sizing: border-box; }
+
+.ps-hd { display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 14px; }
+.ps-nm { font-size: 20px; font-weight: 800; }
+.ps-meta { color: var(--dim); font-size: 12px; margin-top: 3px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.ps-pill { background: var(--panel-pill); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; font-size: 11px; }
+/* Caution pill — e.g. a "factory?" / unverified marker in a header. */
+.ps-pill--warning { color: var(--warn); border-color: var(--deps-border); }
+/* The red "BANK X" heading above a bank's slot grid/list (device views). */
+.ps-bank-head { margin: 0 0 6px; color: var(--red-bright); letter-spacing: 1.5px; }
+/* A list row with the red accent rail — a program/sample entry in a device browser. */
+.ps-accent-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--red);
+  border-radius: 8px; padding: 8px 12px; color: var(--ink);
+}
+.ps-logo { color: var(--red); font-style: italic; font-weight: 800; font-size: 22px; }
+
+.ps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.ps-card { background: var(--grad-surface); border: 1px solid var(--line); border-left: 3px solid var(--red);
+  border-radius: 10px; padding: 11px 12px; box-shadow: var(--edge-hi), var(--shadow-2); }
+.ps-card h4 { margin: 0 0 2px; font-size: 11px; letter-spacing: 1.5px; color: var(--red-bright); }
+.ps-sub { color: var(--dim); font-size: 11px; margin-bottom: 9px; }
+
+.ps-knobs { display: flex; gap: 14px; flex-wrap: wrap; }
+.ps-knob { text-align: center; width: 52px; }
+.ps-dial { width: 40px; height: 40px; border-radius: 50%; margin: 0 auto;
+  background: conic-gradient(var(--red) calc(var(--v, 50) * 1%), var(--dial-bg) 0); padding: 4px; }
+.ps-dial i { display: block; width: 100%; height: 100%; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--dial-shell-hi), var(--dial-shell-lo)); }
+/* Neutral dial (no arc) — used when there is no real 0–100 value to show. */
+.ps-dial-flat { background: var(--dial-bg); }
+.ps-knob b { display: block; font-size: 11px; margin-top: 3px; }
+.ps-knob span { font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
+
+/* ── Organ panel (faithful Stage 4 replica) ───────────────────────────────── */
+.ps-organ-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+.ps-models { display: flex; gap: 3px; }
+.ps-model { background: var(--surface-2); border: 1px solid var(--line); color: var(--dim);
+  border-radius: 6px; padding: 4px 7px; font-size: 10px; font-weight: 600; }
+.ps-model.on { background: var(--red); border-color: var(--red); color: var(--text-on-accent); }
+
+.ps-dbstack { display: flex; gap: 5px; justify-content: space-between; align-items: flex-end; margin: 6px 0; }
+.ps-db { flex: 1; text-align: center; }
+.ps-db-num { font-size: 9px; color: var(--ink); margin-bottom: 2px; }
+.ps-db-track { position: relative; height: 120px; width: 100%; max-width: 22px; margin: 0 auto 4px;
+  background: var(--organ-db-track); border: 1px solid var(--line); border-radius: 4px;
+  box-shadow: var(--shadow-inset); }
+.ps-db-tab { position: absolute; left: -1px; right: -1px; bottom: 0; border-radius: 3px; }
+.ps-db-tab.brown { background: var(--organ-db-brown); }
+.ps-db-tab.white { background: var(--organ-db-white); }
+.ps-db-tab.black { background: var(--organ-db-black); border: 1px solid var(--organ-db-black-edge); }
+.ps-db-tab.default { background: var(--organ-db-default); }
+.ps-db-morph { position: absolute; left: -3px; right: -3px; border-top: 2px dashed var(--organ-morph); }
+.ps-db-foot { font-size: 8px; color: var(--muted); }
+
+.ps-tgroup { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 12px; }
+.ps-tgroup.dim { opacity: 0.4; }
+.ps-tgroup-lbl { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin: 0 0 7px; }
+.ps-tgroup-lbl .shared { text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 500; }
+.ps-tgrow { display: flex; gap: 4px; flex-wrap: wrap; }
+.ps-tg-btn { background: var(--surface-2); border: 1px solid var(--line); color: var(--dim);
+  border-radius: 6px; padding: 5px 9px; font-size: 10.5px; font-weight: 600; }
+.ps-tg-btn.on { background: var(--organ-on-bg); border-color: var(--red); color: var(--text-on-accent); }
+.ps-tg-btn.off { opacity: 0.5; }
+
+.ps-lcd { background: linear-gradient(var(--lcd-bg), var(--lcd)); border: 1px solid var(--lcd-edge); border-radius: 6px;
+  padding: 8px 10px; font-family: ui-monospace, monospace; color: var(--lcd-cyan); margin-bottom: 9px; }
+.ps-lcd .big { font-size: 14px; color: var(--text-on-accent); }
+
+.ps-meter { margin-top: 9px; }
+.ps-meter-label { font-size: 9px; letter-spacing: 1px; color: var(--dim); display: flex; justify-content: space-between; }
+.ps-meter-track { height: 6px; border-radius: 3px; background: var(--meter-track); margin-top: 3px; overflow: hidden;
+  box-shadow: var(--shadow-inset); }
+.ps-meter-fill { height: 100%; background: var(--grad-red); }
+
+.ps-fx { border-left-color: var(--fx-border); margin-top: 12px; }
+.ps-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.ps-chip { background: var(--panel-pill); border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px;
+  font-size: 11px; flex: 1; min-width: 120px; }
+.ps-chip .t { font-size: 9px; letter-spacing: 1px; color: var(--dim); }
+
+.ps-scene { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+.ps-scene-l { font: 700 9px var(--font); letter-spacing: 1.5px; color: var(--red-bright); }
+.ps-scene-btn { font: 700 11px var(--font); cursor: pointer; padding: 4px 13px; border-radius: 7px;
+  background: var(--surface-2); color: var(--dim); border: 1px solid var(--line); }
+.ps-scene-btn.on { background: var(--red); color: var(--text-on-accent); border-color: var(--red); }
+
+.ps-zones { margin: 0 0 14px; }
+.ps-zones-hd { display: flex; align-items: baseline; gap: 12px; margin-bottom: 7px; }
+.ps-zones-t { font-size: 9px; letter-spacing: 1.5px; font-weight: 700; color: var(--red-bright); }
+/* Transpose reads as an accent pill so a transposed program is obvious at a glance. */
+.ps-zones-tr { font: 700 9px var(--font); letter-spacing: .3px; text-transform: uppercase;
+  color: var(--red-bright); background: var(--surface-2); border: 1px solid var(--red);
+  border-radius: 999px; padding: 2px 8px; }
+.ps-zonebar { display: flex; align-items: center; }
+.ps-zone { flex: 1; display: flex; align-items: center; }
+.ps-zone-cell { flex: 1; min-height: 36px; display: flex; flex-wrap: wrap; gap: 4px;
+  align-content: center; justify-content: center; padding: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.ps-zone-chip { font-size: 9px; font-weight: 700; letter-spacing: .3px; padding: 2px 7px;
+  border-radius: 999px; background: var(--surface-2); color: var(--ink); }
+.ps-zone-organ { box-shadow: inset 0 0 0 1px var(--red); }
+.ps-zone-piano { box-shadow: inset 0 0 0 1px var(--muted); }
+.ps-zone-synth { box-shadow: inset 0 0 0 1px var(--lcd-cyan); }
+.ps-zone-empty { color: var(--muted); font-size: 12px; }
+.ps-zone-split { font-size: 9px; font-family: var(--mono); color: var(--muted); padding: 0 5px; white-space: nowrap;
+  display: inline-flex; flex-direction: column; align-items: center; gap: 1px; }
+.ps-zone-xfade { color: var(--lcd-cyan); font-size: 8px; }
+.ps-perf-chip { font: 700 9px var(--font); letter-spacing: .3px; color: var(--dim);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+
+.ps-morph-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ps-morph-item { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ps-morph-sec { font: 700 9px var(--font); letter-spacing: .5px; text-transform: uppercase;
+  color: var(--dim); min-width: 46px; }
+.ps-morph-nm { color: var(--ink); font-size: 13px; }
+.ps-morph-srcs { display: inline-flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.ps-morph-src { font: 11px var(--mono); color: var(--dim);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+.ps-morph-src b { color: var(--red-bright); font-weight: 700; }
+
+.ps-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 14px; margin-top: 11px; }
+.ps-stat { display: flex; justify-content: space-between; gap: 8px; align-items: baseline;
+  border-bottom: 1px solid var(--line); padding-bottom: 3px; }
+.ps-stat-l { font-size: 9px; letter-spacing: .5px; text-transform: uppercase; color: var(--dim); }
+.ps-stat-v { font-size: 11px; font-weight: 600; color: var(--ink); text-align: right; font-family: var(--mono); }
+
+.ps-env { margin-top: 11px; }
+.ps-env-svg { width: 100%; height: 38px; display: block; }
+.ps-env-cap { font-size: 9px; letter-spacing: .5px; text-transform: uppercase; color: var(--dim); }
+
+.ps-kbd { width: 100%; display: block; margin: 6px 0 12px; touch-action: none; user-select: none; }
+.ps-kbd-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 11px; color: var(--dim); }
+.ps-kbd-edit__t { font-weight: 700; color: var(--ink); letter-spacing: .5px; }
+.ps-kbd-edit label { display: inline-flex; align-items: center; gap: 5px; }
+.ps-kbd-edit em { color: var(--muted); font-style: normal; font-family: var(--mono); }
+.ps-kbd-num { width: 44px; padding: 3px 5px; background: var(--sink); border: 1px solid var(--line);
+  border-radius: 6px; color: var(--ink); font: 11px var(--mono); }
+/* Wider variant for signed dB/cent values that need the extra room. */
+.ps-kbd-num--compact { width: 64px; }
+/* The zone table can exceed a narrow detail pane (6 columns of inputs) — scroll
+   it instead of clipping the rightmost velocity column. */
+.ps-zone-scroll { overflow-x: auto; }
+.ps-zone-tbl { margin-top: 4px; }
+.ps-zone-tbl th, .ps-zone-tbl td { padding: 2px 6px; white-space: nowrap; }
+.ps-zone-tbl tbody tr { cursor: pointer; }
+.ps-zone-tbl tbody tr.sel td { background: var(--surface-2); }
+.ps-zone-tbl tbody tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--red); }
+.ps-zone-tbl em { color: var(--muted); font-style: normal; font-family: var(--mono); margin-left: 5px; }
+
+.ps-extern { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.ps-extern-t { font: 700 10px var(--font); letter-spacing: 1px; color: var(--lcd-cyan); margin-bottom: 5px; }
+.ps-extern-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 5px; }
+.ps-extern-tag { font: 700 9px var(--font); letter-spacing: .3px; color: var(--ink);
+  background: var(--surface-2); border-radius: 999px; padding: 2px 7px; }
+.ps-extern-v { font: 11px var(--mono); color: var(--dim); }
+
+.ps-deps { margin-top: 12px; background: var(--deps-bg); border: 1px solid var(--deps-border); border-radius: 10px; padding: 10px 12px; }
+.ps-deps-t { font-size: 10px; letter-spacing: 1px; color: var(--deps-ink); font-weight: 700; }
+.ps-dep { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; margin: 5px 10px 0 0;
+  color: var(--grn); text-decoration: none; }
+.ps-dep:hover { text-decoration: underline; }
+
+/* Stage 3 panel band: a labelled group wrapping one panel's cards + FX. */
+.ps-panel { margin-top: 18px; }
+.ps-panel-lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); font-weight: 700; margin: 0 0 8px; }
+
+.ps-drawer { margin-top: 12px; color: var(--ink); }
+.ps-drawer summary { cursor: pointer; font-size: 12px; color: var(--dim); }
+.ps-params { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
+.ps-params th, .ps-params td { text-align: left; padding: 2px 8px; border-bottom: 1px solid var(--line); }
+
+.ps-param-search { width: 100%; margin: 10px 0 4px; padding: 7px 11px; background: var(--sink);
+  border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font: 12px var(--font); }
+.ps-param-search::placeholder { color: var(--muted); }
+.ps-pgroup { margin-top: 8px; }
+.ps-pgroup > summary { cursor: pointer; font: 700 11px var(--font); letter-spacing: .5px; color: var(--ink);
+  padding: 6px 9px; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; }
+.ps-pgroup-n { color: var(--muted); font-weight: 400; margin-left: 7px; }
+.ps-player { display: inline-block; margin-left: 6px; font-size: 8px; font-weight: 700; color: var(--dim);
+  background: var(--surface-2); border-radius: 3px; padding: 1px 4px; vertical-align: middle; }
+.ps-morph { margin-left: 6px; font-size: 9px; font-weight: 700; color: var(--red-bright); cursor: help; }
+.ps-morphmark { margin-left: 4px; font-size: 9px; font-weight: 400; color: var(--red-bright); cursor: help; }

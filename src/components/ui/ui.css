@@ -1,0 +1,125 @@
+/* OpenNord UI primitives — all color/space/radius via tokens (tokens.css). */
+.on-btn {
+  font: 700 11px var(--font); letter-spacing: .2px; border-radius: var(--r-sm);
+  padding: 8px 14px; cursor: pointer; border: 1px solid transparent;
+  box-shadow: var(--edge-hi), var(--shadow-1);
+  transition: transform var(--t-fast), box-shadow var(--t-fast), background var(--t-fast), border-color var(--t-fast);
+}
+.on-btn:hover { transform: translateY(-1px); }
+.on-btn:active { transform: translateY(0); box-shadow: var(--shadow-inset); }
+.on-btn--primary { background: var(--grad-red); color: var(--text-on-accent); box-shadow: var(--glow-red); }
+.on-btn--primary:hover { box-shadow: var(--glow-red), var(--shadow-2); }
+.on-btn--secondary { background: var(--grad-raised); color: var(--ink); border-color: var(--line); }
+.on-btn--secondary:hover { border-color: var(--muted); }
+/* Ghost stays flat — it's the quiet, chromeless action. */
+.on-btn--ghost { background: transparent; color: var(--dim); box-shadow: none; }
+.on-btn--ghost:hover { color: var(--ink); transform: none; }
+/* Outline — transparent with a red rule: the pointed-but-secondary action (Download, Restore…, Send a file). */
+.on-btn--outline { background: transparent; color: var(--red-bright); border-color: var(--red); box-shadow: none; }
+.on-btn--outline:hover { background: color-mix(in srgb, var(--red) 10%, transparent); color: var(--red-bright); }
+
+.on-btn:disabled { cursor: not-allowed; opacity: .55; }
+.on-btn:disabled:hover { transform: none; }
+
+.on-card {
+  background: var(--grad-surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: var(--s-3); color: var(--ink);
+  box-shadow: var(--edge-hi), var(--shadow-2);
+}
+/* The red accent rail, plus a faint warm wash bleeding in from that edge. */
+.on-card--accent {
+  border-left: 3px solid var(--red);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--red) 9%, transparent), transparent 18%),
+    var(--grad-surface);
+}
+
+.on-tag {
+  font: 600 9px var(--font); background: var(--grad-raised); color: var(--text-tertiary);
+  border-radius: 999px; padding: 2px 8px; box-shadow: var(--edge-hi);
+}
+
+.on-chip {
+  font: 600 10px var(--font); background: var(--grad-raised); color: var(--text-tertiary);
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; cursor: pointer;
+  box-shadow: var(--edge-hi); transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast);
+}
+.on-chip:hover { color: var(--ink); border-color: var(--muted); }
+.on-chip--active {
+  background: var(--grad-red); color: var(--text-on-accent); border-color: var(--red);
+  box-shadow: var(--glow-red);
+}
+.on-chip--active:hover { color: var(--text-on-accent); border-color: var(--red); }
+/* Expand/collapse affordance in a facet group — dashed so it reads as an action,
+   not a selectable filter value. */
+.on-chip--toggle { background: none; border-style: dashed; box-shadow: none; color: var(--muted); }
+.on-chip--toggle:hover { color: var(--ink); border-color: var(--muted); }
+
+.on-badge {
+  font: 600 9px var(--font); letter-spacing: .4px; color: var(--muted);
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.on-badge__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.on-badge--nord { color: var(--red); }
+.on-badge--local { color: var(--muted); }
+.on-badge--backup { color: var(--focus); }
+.on-badge--cloud { color: var(--warn); }
+
+.on-search {
+  display: flex; align-items: center; gap: 8px; flex: 1;
+  background: var(--grad-sink); border: 1px solid var(--line); border-radius: 9px; padding: 7px 11px;
+  box-shadow: var(--shadow-inset);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+.on-search:focus-within { border-color: var(--muted); box-shadow: var(--shadow-inset), 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent); }
+.on-search__icon { color: var(--muted); font-size: 13px; }
+.on-search__input {
+  flex: 1; background: transparent; border: 0; outline: none;
+  color: var(--ink); font: 11px var(--font);
+}
+.on-search__input::placeholder { color: var(--muted); }
+
+.on-overline {
+  font: 700 9px var(--font); letter-spacing: 1.4px; text-transform: uppercase;
+  color: var(--red-bright);
+}
+
+.on-error { color: var(--warn); font: 11px var(--font); }
+
+/* Master/detail split — used by the Library at wide widths. The parent only
+   renders this when useSplitLayout() is true, so no media query is needed here. */
+.on-split {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: var(--s-6);
+  align-items: stretch;
+  /* Bound the split to the viewport so each pane scrolls independently instead
+     of growing the whole page. var(--s-4) mirrors .on-content's vertical pad. */
+  height: calc(100vh - 2 * var(--s-4));
+  min-height: 0;
+}
+.on-split__master { min-width: 0; min-height: 0; display: flex; }
+/* The detail pane owns its own scroll; its header is pinned below. */
+.on-split__detail { min-width: 0; min-height: 0; overflow-y: auto; }
+/* Program header stays put while the body (engines, FX, samples…) scrolls.
+   The margin→padding swap keeps the divider's gap inside the opaque bg so
+   scrolling content doesn't bleed through beneath it. */
+.on-split__detail .ps-hd {
+  position: sticky; top: 0; z-index: 3;
+  background: var(--bg);
+  margin-bottom: 0; padding-bottom: 14px;
+}
+
+/* Modal dialog — scrim + centered panel (Dialog.tsx). Tokens only. */
+.on-dialog-backdrop {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--s-4); background: var(--scrim);
+}
+.on-dialog {
+  width: 100%; max-width: 28rem; max-height: 85vh; overflow: auto;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s-4);
+}
+.on-dialog__title { margin: 0 0 var(--s-3); font: 700 15px var(--font); }
+.on-dialog__footer { display: flex; gap: var(--s-2); justify-content: flex-end; margin-top: var(--s-4); }
