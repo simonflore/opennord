@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { readTruVibrato } from './nsmp';
+import { voicingView } from './sample-view';
 import { hasGt } from './gt-fixtures';
 
 /**
@@ -49,5 +50,17 @@ describe.skipIf(!hasGt(BOWED[0]))('Tru-Vibrato (.sty codec-4.2)', () => {
 describe('readTruVibrato — guards', () => {
   it('returns null for non-codec-4 / no .sty bytes', () => {
     expect(readTruVibrato(new Uint8Array(64))).toBeNull();
+  });
+});
+
+describe.skipIf(!hasGt(BOWED[0]))('voicingView — header badges', () => {
+  it('surfaces unison + round-robin for a short-articulation library', () => {
+    const v = voicingView(load(`${D}/Spitfire StrQuintPizzicato 4.2.nsmp4`));
+    expect(v.unison).toMatch(/on ·/);
+    expect(v.roundRobin).toBe(true);
+  });
+  it('reports no voicing badges for a codec-2 (OG) sample', () => {
+    const rel = 'fixtures/Spitfire String Quintet Nord Wave/SpitfireStrQTrem 2.2.nsmp';
+    if (hasGt(rel)) expect(voicingView(load(rel))).toEqual({});
   });
 });

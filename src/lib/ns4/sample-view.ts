@@ -28,6 +28,10 @@ export interface SampleHeaderView {
   isFactory: boolean;
   /** Tru-Vibrato engaged (codec-4.2 samples only; undefined when not applicable). */
   truVibrato?: boolean;
+  /** Unison voicing summary (codec-4 only), e.g. "on · 2 voices · round-robin". */
+  unison?: string;
+  /** Round-robin engaged (RandomStrokeMode set) — surfaced independently of unison. */
+  roundRobin?: boolean;
   /** Global + per-note level/detune, read-only. Computed by {@link gainDetuneView}
    *  (kept off {@link sampleHeaderView} so its callers/tests stay unchanged). */
   gainDetune?: {
@@ -83,6 +87,18 @@ export function gainDetuneView(bytes: Uint8Array): SampleHeaderView['gainDetune'
  *  Kept off {@link sampleHeaderView} so its callers/tests stay unchanged. */
 export function truVibratoView(bytes: Uint8Array): boolean | undefined {
   return readTruVibrato(bytes)?.on;
+}
+
+/** At-a-glance voicing badges for the header: unison summary + round-robin flag.
+ *  Codec-4 only ({} otherwise). Round-robin is reported independently of unison
+ *  because the rompler applies it whenever RandomStrokeMode is set. */
+export function voicingView(bytes: Uint8Array): { unison?: string; roundRobin?: boolean } {
+  const u = readSampleUnison(bytes);
+  if (!u) return {};
+  return {
+    unison: u.active ? sampleUnisonView(bytes)?.summary : undefined,
+    roundRobin: u.randomStrokeMode !== 0,
+  };
 }
 
 export function sampleUnisonView(bytes: Uint8Array): { active: boolean; summary: string } | null {

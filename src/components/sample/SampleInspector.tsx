@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import '../../styles/nord.css';
 import { readNsmp, decodeNsmp, readNsmpZones, readSampleUnison, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
-import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary, sampleUnisonView, truVibratoView, noteName } from '../../lib/ns4/sample-view';
+import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary, sampleUnisonView, truVibratoView, voicingView, noteName } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
 import { buildPlayableZones, strokeKeyboardOrder, type PlayableZone } from '../../lib/ns4/playable-zones';
 import { createSampler, DEFAULT_ENVELOPE, type Sampler, type AmpEnvelope } from './sampleEngine';
@@ -169,7 +169,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
 
       {loaded && loaded.file.recognized && (
         <div className="ps">
-          <SampleHeader view={{ ...sampleHeaderView(loaded.file, loaded.bytes.length, loaded.name), gainDetune: gainDetuneView(loaded.bytes), truVibrato: truVibratoView(loaded.bytes) }} />
+          <SampleHeader view={{ ...sampleHeaderView(loaded.file, loaded.bytes.length, loaded.name), gainDetune: gainDetuneView(loaded.bytes), truVibrato: truVibratoView(loaded.bytes), ...voicingView(loaded.bytes) }} />
 
           {/* Keyboard-map editor leads once we've decoded the key map; edits patch
               back into the file in place (audio preserved). Otherwise a friendly

@@ -23,6 +23,12 @@ export function SampleHeader({ view }: { view: SampleHeaderView }) {
           {view.isFactory && (
             <Pill variant="warning">factory?</Pill>
           )}
+          {view.unison && (
+            <Pill title={`Unison ${view.unison} — auditioned as a stacked, panned voice`}>Unison</Pill>
+          )}
+          {view.roundRobin && (
+            <Pill title="Round-robin (RandomStrokeMode) — repeated notes vary in audition">Round-robin</Pill>
+          )}
           {view.truVibrato && (
             <Pill title="This sample has Tru-Vibrato engaged">Tru-Vibrato</Pill>
           )}
