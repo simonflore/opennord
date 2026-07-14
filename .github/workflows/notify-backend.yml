@@ -1,0 +1,34 @@
+name: Notify backend of core change
+
+# On every push to opennord main, tell the (private) opennord-backend repo to
+# pull this core revision in — it re-pins the submodule, regenerates its
+# lockfile, runs its gates, and deploys if green. See
+# opennord-backend/.github/workflows/core-sync.yml.
+#
+# Requires a repo secret CORE_SYNC_TOKEN: a fine-grained PAT scoped to
+# simonflore/opennord-backend with "Contents: Read and write" (the
+# repository_dispatch API needs write). The default GITHUB_TOKEN cannot reach
+# another repository, so a PAT is required.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch core-updated to opennord-backend
+        env:
+          TOKEN: ${{ secrets.CORE_SYNC_TOKEN }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "CORE_SYNC_TOKEN is not set — add it in this repo's secrets to enable backend sync." >&2
+            exit 1
+          fi
+          curl -sSf -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/simonflore/opennord-backend/dispatches \
+            -d "$(jq -n --arg sha "$SOURCE_SHA" '{event_type:"core-updated",client_payload:{sha:$sha}}')"
