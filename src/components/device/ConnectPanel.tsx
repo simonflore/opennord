@@ -14,7 +14,10 @@ import { describeUsbDevice, findBulkInterface, type UsbDeviceSnapshot } from '..
 import { useCapabilities } from '../../lib/capabilities/CapabilitiesContext';
 import { Button, SectionLabel } from '../ui';
 import { getErrorMessage } from '../../lib/errors';
-import './connect.css';
+import { cn } from '@/lib/cn';
+
+const connectTitle = 'mx-0 mt-2 mb-3 text-[22px] font-extrabold text-ink';
+const connectLead = 'm-0 mb-4 text-[13px] leading-[1.55] text-dim';
 
 /** Compact, log-safe shape of a caught error for diagnostics. */
 function errorShape(e: unknown): Record<string, unknown> {
@@ -104,13 +107,13 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
   if (reach === 'unsupported' || (reach === 'ipad-dext-pending' && ipadReady !== true)) {
     const ipad = reach === 'ipad-dext-pending';
     return (
-      <div className="connect">
-        <div className="connect__card">
+      <div className="flex justify-center px-4 py-6">
+        <div className="w-full max-w-[460px] rounded-lg border border-line bg-surface p-6">
           <SectionLabel>Your Nord</SectionLabel>
-          <h2 className="connect__title">
+          <h2 className={connectTitle}>
             {ipad ? 'USB transfer is coming to iPad' : 'Open this in Chrome or Edge to connect'}
           </h2>
-          <p className="connect__lead">
+          <p className={connectLead}>
             {ipad
               ? "Moving programs to and from your Nord over USB is on the way for iPad. Everything else — browsing, samples, sharing — works right here today."
               : "Talking to your Nord over USB needs Chrome or Edge on a computer. Everything else in OpenNord — browsing, samples, sharing — works in any browser; switch over when you're ready to move programs to and from the keyboard."}
@@ -221,21 +224,24 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
   }
 
   return (
-    <div className="connect" aria-live="polite">
-      <div className="connect__card">
+    <div className="flex justify-center px-4 py-6" aria-live="polite">
+      <div className="w-full max-w-[460px] rounded-lg border border-line bg-surface p-6">
         <SectionLabel>Your Nord</SectionLabel>
-        <h2 className="connect__title">{title}</h2>
-        <p className="connect__lead">{lead}</p>
+        <h2 className={connectTitle}>{title}</h2>
+        <p className={connectLead}>{lead}</p>
         {needsUsbDk && (
-          <div className="connect__notice" role="note">
-            <p className="connect__notice-title">Connecting an older Nord, like the Stage 2?</p>
-            <p className="connect__notice-body">
+          <div
+            className="mb-4 rounded-md border border-[color-mix(in_srgb,var(--warn)_35%,var(--line))] bg-[color-mix(in_srgb,var(--warn)_6%,transparent)] p-3"
+            role="note"
+          >
+            <p className="m-0 mb-1 text-xs font-bold text-ink">Connecting an older Nord, like the Stage 2?</p>
+            <p className="m-0 text-xs leading-[1.55] text-dim">
               This app can already reach newer Nords (Stage 3 and 4) — no extra steps. An older
               Nord needs one more thing first: a free, one-time driver called <strong>UsbDk</strong>.
               It won’t stop Nord Sound Manager from working, and you only install it once.
             </p>
             <a
-              className="connect__notice-link"
+              className="mt-2 inline-block text-xs font-bold text-warn underline hover:text-red-bright"
               href="https://github.com/daynix/UsbDk/releases"
               target="_blank"
               rel="noopener noreferrer"
@@ -246,22 +252,25 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
         )}
         <Button
           variant="primary"
-          className="connect__cta"
+          size="md"
           onClick={connect}
           disabled={status === 'connecting'}
         >
           {status === 'connecting' ? 'Connecting…' : 'Connect your Nord'}
         </Button>
-        {status === 'error' && <p className="on-error connect__error">{message}</p>}
-        <p className="connect__hint">
+        {status === 'error' && <p className="on-error mt-3">{message}</p>}
+        <p className="mt-4 border-t border-line pt-3 text-xs leading-[1.5] text-muted">
           Using Nord Sound Manager? Quit it first — it keeps the USB connection to itself, so only
           one app can talk to the Nord at a time.
         </p>
         {onOpenBackup && (
-          <p className="connect__hint">
+          <p className="mt-4 border-t border-line pt-3 text-xs leading-[1.5] text-muted">
             No Nord handy?{' '}
-            <button type="button" onClick={onOpenBackup}
-              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--deps-ink)', textDecoration: 'underline', font: 'inherit' }}>
+            <button
+              type="button"
+              onClick={onOpenBackup}
+              className={cn('cursor-pointer border-0 bg-transparent p-0 underline [font:inherit]', 'text-[var(--deps-ink)]')}
+            >
               Open a backup to organize offline
             </button>
           </p>

@@ -12,7 +12,7 @@ describe('MatrixView', () => {
     const html = render();
     expect(html).toContain('Nord Stage 4');
     expect(html).toContain('Nord Stage 3');
-    expect(html).toContain('cmp-cell--validated');
+    expect(html).toContain('text-connected'); // validated status color
   });
   it('shows graded statuses across the line (works / in progress / likely)', () => {
     const html = render();

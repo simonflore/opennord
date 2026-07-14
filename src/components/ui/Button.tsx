@@ -7,8 +7,12 @@ import { cn } from '@/lib/cn';
  * `cva`. Honors the Studio Dark button language — top-lit fills, a lift on hover,
  * a press-down on active, the single red accent for primary — and adds a `size`
  * axis + a visible focus ring. Drop-in for the old API (`variant` unchanged).
+ *
+ * `buttonVariants` is exported (shadcn-style) so non-`<button>` elements that
+ * need the same visual language — an `<a>`/`<Link>` styled as a CTA — can apply
+ * the identical classes without hand-rolling a duplicate treatment.
  */
-const button = cva(
+export const buttonVariants = cva(
   cn(
     'inline-flex items-center justify-center gap-2 font-bold tracking-[.2px] rounded-sm',
     'border border-transparent cursor-pointer select-none',
@@ -28,18 +32,21 @@ const button = cva(
       size: {
         sm: 'text-[11px] px-[14px] py-2',
         md: 'text-[13px] px-4 py-2.5',
+        /* Larger touch target for marketing-surface CTAs (the landing page),
+           which sit apart from the app's compact chrome buttons. */
+        lg: 'text-xs px-5 py-[11px]',
       },
     },
     defaultVariants: { variant: 'secondary', size: 'sm' },
   },
 );
 
-type ButtonProps = VariantProps<typeof button> &
+type ButtonProps = VariantProps<typeof buttonVariants> &
   Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'color'> & { children: ReactNode };
 
 export function Button({ variant, size, type = 'button', className, children, ...rest }: ButtonProps) {
   return (
-    <button type={type} className={cn(button({ variant, size }), className)} {...rest}>
+    <button type={type} className={cn(buttonVariants({ variant, size }), className)} {...rest}>
       {children}
     </button>
   );
