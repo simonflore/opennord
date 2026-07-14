@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import '../library/library.css';
-import { BrowseToolbar, Button, Dialog, Pill, type FacetGroup } from '../ui';
+import { BrowseToolbar, Button, Dialog, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
 import { LibraryCard } from '../library/LibraryCard';
+import { LibraryEmpty } from '../library/LibraryEmpty';
+import { FactoryPill } from '../library/FactoryPill';
 import type { SampleEntry, SampleGeneration } from '../../lib/library/sample-entries';
 import type { SamplesPrefsApi, SampleSort } from '../../lib/library/prefs';
 import type { LibrarySource } from '../../lib/library/types';
@@ -136,6 +138,9 @@ export function SamplesBrowse(
 
   const confirmTitle = `Remove ${selected.size} ${selected.size === 1 ? 'sample' : 'samples'} · frees ~${fmtMB(selectedFreeBytes)}`;
 
+  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || generation !== 'all' || unusedOnly;
+  const clearFilters = () => { onQuery(''); onSource('all'); onGeneration('all'); onUnusedOnly(false); };
+
   const actions = (
     <>
       {canScanUsage && (
@@ -205,7 +210,7 @@ export function SamplesBrowse(
         }
         banners={banners}
         isEmpty={entries.length === 0}
-        emptyState={<div className="lib-empty"><p>No samples match.</p></div>}
+        emptyState={<LibraryEmpty noun="sample" filtered={filtered} onClear={clearFilters} />}
       >
           {entries.map((e) => (
             <LibraryCard
@@ -234,7 +239,7 @@ export function SamplesBrowse(
               footExtras={
                 <>
                   {e.source === 'backup' && e.factory !== undefined && (
-                    <Pill>{e.factory ? 'Factory' : 'Yours'}</Pill>
+                    <FactoryPill factory={e.factory} />
                   )}
                   <span className="lib-slot">{e.size != null ? fmtSize(e.size) : ''}</span>
                   {e.id.startsWith('local:') && (

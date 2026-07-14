@@ -2,6 +2,7 @@ import '../library/library.css';
 import { BrowseToolbar, Button, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
 import { LibraryCard } from '../library/LibraryCard';
+import { LibraryEmpty } from '../library/LibraryEmpty';
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
@@ -55,6 +56,9 @@ export function PresetsBrowse({
 
   const sortOptions = (Object.keys(SORT_LABEL) as PresetSort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }));
 
+  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || kind !== 'all';
+  const clearFilters = () => { setQuery(''); setSource('all'); setKind('all'); };
+
   return (
     <CategoryPanel
       title="Presets"
@@ -68,7 +72,7 @@ export function PresetsBrowse({
         />
       }
       isEmpty={entries.length === 0}
-      emptyState={<p className="lib-empty">No presets match your filter.</p>}
+      emptyState={<LibraryEmpty noun="preset" filtered={filtered} onClear={clearFilters} />}
     >
             {entries.map((e) => (
               <LibraryCard

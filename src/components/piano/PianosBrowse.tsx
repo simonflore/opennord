@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import '../library/library.css';
-import { BrowseToolbar, Button, Dialog, Pill, type FacetGroup } from '../ui';
+import { BrowseToolbar, Button, Dialog, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
 import { LibraryCard } from '../library/LibraryCard';
+import { LibraryEmpty } from '../library/LibraryEmpty';
+import { FactoryPill } from '../library/FactoryPill';
 import type { PianoEntry } from '@/lib/library/piano-entries';
 import type { LibrarySource } from '@/lib/library/types';
 import type { PianoSort } from '@/lib/library/prefs';
@@ -75,6 +77,9 @@ export function PianosBrowse({
     : [];
 
   const sortOptions = (Object.keys(SORT_LABEL) as PianoSort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }));
+
+  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || unusedOnly;
+  const clearFilters = () => { setQuery(''); setSource('all'); onUnusedOnly(false); };
 
   // Confirm-remove dialog state
   const selectedEntries = entries.filter((e) => selected.has(e.id));
@@ -166,7 +171,7 @@ export function PianosBrowse({
         }
         banners={banners}
         isEmpty={entries.length === 0}
-        emptyState={<p className="lib-empty">No pianos match your filter.</p>}
+        emptyState={<LibraryEmpty noun="piano" filtered={filtered} onClear={clearFilters} />}
       >
             {entries.map((entry) => (
               <LibraryCard
@@ -184,7 +189,7 @@ export function PianosBrowse({
                 footExtras={
                   <>
                     {entry.source === 'backup' && entry.isFactory !== undefined && (
-                      <Pill>{entry.isFactory ? 'Factory' : 'Yours'}</Pill>
+                      <FactoryPill factory={entry.isFactory} />
                     )}
                     {entry.size != null && <span className="lib-slot">{formatBytes(entry.size)}</span>}
                   </>

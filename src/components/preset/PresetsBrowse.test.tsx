@@ -114,7 +114,20 @@ describe('PresetsBrowse', () => {
     expect(html).toContain('★');
   });
 
-  it('shows empty message when no entries match', () => {
+  it('shows the "no match" message with a Clear affordance when a filter hides everything', () => {
+    const html = renderToStaticMarkup(
+      <PresetsBrowse
+        {...baseProps}
+        query="zzz"
+        entries={[]}
+        kinds={['organ-preset']}
+      />,
+    );
+    expect(html).toContain('No presets match your filter.');
+    expect(html).toContain('Clear filters');
+  });
+
+  it('shows a plain empty state (not the "no match" copy) when nothing is loaded', () => {
     const html = renderToStaticMarkup(
       <PresetsBrowse
         {...baseProps}
@@ -122,6 +135,7 @@ describe('PresetsBrowse', () => {
         kinds={['organ-preset']}
       />,
     );
-    expect(html).toContain('No presets match your filter.');
+    expect(html).toContain('Nothing here yet.');
+    expect(html).not.toContain('No presets match your filter.');
   });
 });

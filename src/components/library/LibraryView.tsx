@@ -2,6 +2,7 @@ import './library.css';
 import { Button, BrowseToolbar, type FacetGroup } from '../ui';
 import { CategoryPanel } from './CategoryPanel';
 import { LibraryCard } from './LibraryCard';
+import { LibraryEmpty } from './LibraryEmpty';
 import { BundlePicker } from './BundlePicker';
 import { NewBackupsBanner } from './NewBackupsBanner';
 import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
@@ -50,6 +51,12 @@ export function LibraryView({
 
   const nord = entries.filter((e) => e.source === 'nord').length;
   const local = entries.length - nord;
+
+  // When a search/facet is hiding everything, show the shared "no match" state
+  // rather than the first-run onboarding (which would wrongly read as "empty").
+  const filtered = query.trim() !== '' || source !== 'all'
+    || (generationsPresent.length > 1 && (generation ?? 'all') !== 'all');
+  const clearFilters = () => { onQuery(''); onSource('all'); onGeneration?.('all'); };
 
   const facets: FacetGroup[] = [
     {
@@ -140,11 +147,11 @@ export function LibraryView({
       }
       isEmpty={entries.length === 0}
       emptyState={
-        <div className="lib-empty">
+        <LibraryEmpty noun="program" filtered={filtered} onClear={clearFilters}>
           <p>Nothing here yet.</p>
           <Button variant="primary" onClick={onChooseFolder} disabled={busy}>Choose a folder of Nord files</Button>
           <p className="lib-empty__hint">Subfolders and <code>.ns4b</code> backups are included. Or import a single file, or connect your Nord.</p>
-        </div>
+        </LibraryEmpty>
       }
     >
           {entries.map((e) => (
