@@ -45,6 +45,23 @@
      which already equals the 4·8·12·16·24 scale — no spacing overrides needed. */
 }
 
+/* ── Studio Dark composite utilities ─────────────────────────────────────────
+   The gradients / layered shadows / glow are composite tokens that don't map to
+   a single Tailwind utility. Expose them as a small SEMANTIC vocabulary so
+   components read cleanly (`fill-raised elev-1`) instead of inline arbitrary
+   values. All values come from the tokens above — the single source holds. */
+@utility fill-surface { background: var(--grad-surface); }
+@utility fill-raised  { background: var(--grad-raised); }
+@utility fill-sink    { background: var(--grad-sink); }
+@utility fill-primary { background: var(--grad-red); }
+@utility edge-hi      { box-shadow: var(--edge-hi); }
+@utility elev-1       { box-shadow: var(--edge-hi), var(--shadow-1); }
+@utility elev-2       { box-shadow: var(--edge-hi), var(--shadow-2); }
+@utility elev-3       { box-shadow: var(--shadow-3); }
+@utility inset-1      { box-shadow: var(--shadow-inset); }
+@utility glow         { box-shadow: var(--glow-red); }
+@utility glow-hi      { box-shadow: var(--glow-red), var(--shadow-2); }
+
 :root,
 :root[data-theme='dark'] {
   /* surfaces */
