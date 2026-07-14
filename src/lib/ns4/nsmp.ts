@@ -98,6 +98,19 @@ export function parseNsmpSections(bytes: Uint8Array): NsmpSection[] {
   return sections;
 }
 
+/**
+ * Read the sample instrument's **main category id** from the `cat` section
+ * (byte 0 = `m_categoryCategory`; byte 1 is the subcategory). Present for OG,
+ * codec-3 and codec-4 stroke files; absent for `.npno` piano libraries. Returns
+ * `undefined` when there's no `cat` section. Resolve to a name via
+ * `sampleCategoryName` (`clavia/sample-categories`). RE'd from the Nord Sample
+ * Editor (`CSectionCategory::Read` / `PopulateCategory`).
+ */
+export function readSampleCategoryId(bytes: Uint8Array): number | undefined {
+  const cat = parseNsmpSections(bytes).find((s) => s.tag.endsWith('cat'));
+  return cat && cat.payloadOffset < bytes.length ? bytes[cat.payloadOffset] : undefined;
+}
+
 /** Read the printable name from the `hdr` section payload. */
 function readName(bytes: Uint8Array, hdr: NsmpSection): string | undefined {
   let run = '';

@@ -35,6 +35,7 @@ const SORT_LABEL: Record<SampleSort, string> = {
 
 export function SamplesBrowse(
   { entries, source, generation, query, nordCount, localCount, showSourceFacet, showUnknownGen,
+    category = 'all', onCategory, categoriesPresent = [],
     onSource, onGeneration, onQuery, onOpen, onLoadNew, onImport, onRemove,
     storedCount, storedBytes, prefs,
     canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly,
@@ -44,6 +45,10 @@ export function SamplesBrowse(
     source: LibrarySource | 'all'; generation: SampleGeneration | 'all'; query: string;
     nordCount: number; localCount: number;
     showSourceFacet: boolean; showUnknownGen: boolean;
+    /** Sample-category facet (Drums, Brass…). Shown only when >1 category is present. */
+    category?: string | 'all';
+    onCategory?: (c: string | 'all') => void;
+    categoriesPresent?: string[];
     onSource: (s: LibrarySource | 'all') => void;
     onGeneration: (g: SampleGeneration | 'all') => void;
     onQuery: (q: string) => void;
@@ -134,12 +139,19 @@ export function SamplesBrowse(
       options: genOptions.map((o) => ({ key: o.key, label: o.label })),
       onChange: (k: string) => onGeneration(k as SampleGeneration | 'all'),
     },
+    ...(categoriesPresent.length > 1 ? [{
+      ariaLabel: 'Filter by category',
+      value: category ?? 'all',
+      options: [{ key: 'all', label: 'All' }, ...categoriesPresent.map((c) => ({ key: c, label: c }))],
+      onChange: (k: string) => onCategory?.(k),
+    }] : []),
   ];
 
   const confirmTitle = `Remove ${selected.size} ${selected.size === 1 ? 'sample' : 'samples'} · frees ~${fmtMB(selectedFreeBytes)}`;
 
-  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || generation !== 'all' || unusedOnly;
-  const clearFilters = () => { onQuery(''); onSource('all'); onGeneration('all'); onUnusedOnly(false); };
+  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || generation !== 'all' || unusedOnly
+    || (categoriesPresent.length > 1 && (category ?? 'all') !== 'all');
+  const clearFilters = () => { onQuery(''); onSource('all'); onGeneration('all'); onUnusedOnly(false); onCategory?.('all'); };
 
   const actions = (
     <>

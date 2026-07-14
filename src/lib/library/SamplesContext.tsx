@@ -5,7 +5,7 @@ import { useImportedSamples } from '@/lib/library/useImportedSamples';
 import { useSamplesPrefs } from '@/lib/library/prefs';
 import {
   sampleEntriesFromScanned, nordSampleEntriesFromDevice, sampleEntriesFromBackupRefs,
-  filterSamples, sortSamples,
+  filterSamples, sortSamples, presentSampleCategories,
   type SampleEntry, type SampleGeneration,
 } from '@/lib/library/sample-entries';
 import type { LibrarySource } from '@/lib/library/types';
@@ -37,6 +37,7 @@ function useSamplesStateValue() {
   const origins = useBackupOrigins(folder.result.backupSamples, folder.openBundle);
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
   const [generation, setGeneration] = useState<SampleGeneration | 'all'>('all');
+  const [category, setCategory] = useState<string | 'all'>('all');
   const [query, setQuery] = useState('');
 
   // Sample-usage scan (device-connected): which installed samples no program uses.
@@ -93,9 +94,12 @@ function useSamplesStateValue() {
   const showSourceFacet = nordCount > 0 && localCount > 0;
   const showUnknownGen = allEntries.some((e) => e.generation === 'unknown' && e.source === 'local');
   const unusedCount = usage ? usage.unused.length : null;
+  // Categories present across the *unfiltered* list — drives whether the
+  // category facet is worth showing (only when there's more than one).
+  const categoriesPresent = presentSampleCategories(allEntries);
 
   const shown = sortSamples(
-    filterSamples(allEntries, source, generation, query, unusedOnly), prefs.sort, prefs.favorites);
+    filterSamples(allEntries, source, generation, query, unusedOnly, category), prefs.sort, prefs.favorites);
   const entryById = (id: string) => allEntries.find((e) => e.id === id);
 
   const removableUnused = allEntries.filter((e) => e.source === 'nord' && e.unused && e.device);
@@ -140,7 +144,8 @@ function useSamplesStateValue() {
   }
 
   return {
-    shown, source, setSource, generation, setGeneration, query, setQuery,
+    shown, source, setSource, generation, setGeneration,
+    category, setCategory, categoriesPresent, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, showUnknownGen, folder,
     // Sample-usage cleanup (device-connected)
     canScanUsage: !!session, scanUsage, scanPct, unusedCount,

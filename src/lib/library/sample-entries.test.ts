@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   sampleGeneration, sampleEntriesFromScanned, nordSampleEntriesFromDevice,
   sampleEntriesFromBackupRefs,
-  filterSamples, sortSamples, sampleEntryFromImport, type SampleEntry,
+  filterSamples, sortSamples, sampleEntryFromImport, presentSampleCategories, type SampleEntry,
 } from './sample-entries';
 import { writeNsmp } from '../ns4/nsmp-write';
 import type { NsmpFile } from '../ns4/nsmp';
@@ -50,8 +50,8 @@ describe('nordSampleEntriesFromDevice', () => {
 
 const sample: SampleEntry[] = [
   { id: 'nord-sample:A:01', name: 'Choir', source: 'nord', generation: 'unknown' },
-  { id: 'folder:Bell.nsmp4', name: 'Bell', source: 'local', generation: '4', strokeCount: 3, size: 4000 },
-  { id: 'folder:Old.nsmp', name: 'Old Pad', source: 'local', generation: 'og', strokeCount: 1, size: 9000 },
+  { id: 'folder:Bell.nsmp4', name: 'Bell', source: 'local', generation: '4', strokeCount: 3, size: 4000, category: 'Drums' },
+  { id: 'folder:Old.nsmp', name: 'Old Pad', source: 'local', generation: 'og', strokeCount: 1, size: 9000, category: 'Brass' },
 ];
 
 describe('filterSamples', () => {
@@ -61,6 +61,21 @@ describe('filterSamples', () => {
     expect(filterSamples(sample, 'all', '4', '')).toHaveLength(1);
     expect(filterSamples(sample, 'all', 'all', 'pad')).toHaveLength(1);
     expect(filterSamples(sample, 'local', 'og', 'bell')).toHaveLength(0);
+  });
+  it('filters by the category facet', () => {
+    const out = filterSamples(sample, 'all', 'all', '', false, 'Drums');
+    expect(out.map((e) => e.name)).toEqual(['Bell']);
+  });
+  it('search matches on category even when the name does not', () => {
+    // No name contains "brass"; only the "Brass"-category entry should match.
+    expect(filterSamples(sample, 'all', 'all', 'brass').map((e) => e.name)).toEqual(['Old Pad']);
+  });
+});
+
+describe('presentSampleCategories', () => {
+  it('returns categories present, in id order, ignoring category-less entries', () => {
+    // Drums (id 2) before Brass (id 12); the nord entry has no category.
+    expect(presentSampleCategories(sample)).toEqual(['Drums', 'Brass']);
   });
 });
 

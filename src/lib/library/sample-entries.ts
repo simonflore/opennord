@@ -1,11 +1,15 @@
-import { readNsmp, type NsmpFile } from '../ns4/nsmp';
+import { readNsmp, readSampleCategoryId, type NsmpFile } from '../ns4/nsmp';
 import type { ScannedSample } from '../folder/scan';
 import type { ProgramEntry } from '../device/transfer';
 import type { LibrarySource } from './types';
 import type { SampleSort } from './prefs';
 import { formatSlot } from '../clavia/slot';
-import { matchesQuery, sortWithFavorites } from './browse';
+import { sampleCategoryName, SAMPLE_CATEGORY } from '../clavia/sample-categories';
+import { matchesAny, sortWithFavorites } from './browse';
 import type { BackupRef } from '../clavia/backup/backup-index';
+
+/** Sample category names in id order, de-duplicated — for the facet. */
+const SAMPLE_CATEGORY_ORDER: string[] = [...new Set(Object.values(SAMPLE_CATEGORY))];
 
 /** Sample codec generation, in musician-facing buckets. `npno` = piano library. */
 export type SampleGeneration = 'og' | '3' | '4' | 'npno' | 'unknown';
@@ -17,6 +21,7 @@ export interface SampleEntry {
   source: LibrarySource;
   generation: SampleGeneration;
   strokeCount?: number;       // folder samples
+  category?: string;          // folder/local samples — Nord sample category (cat chunk), e.g. "Drums"
   size?: number;              // folder samples — byte length; backup entries — entry.size
   slot?: string;              // device samples — "A:26"
   file?: NsmpFile;            // folder samples — parsed file
@@ -48,6 +53,7 @@ export function sampleEntriesFromScanned(samples: ScannedSample[]): SampleEntry[
     source: 'local' as const,
     generation: sampleGeneration(s.file),
     strokeCount: s.file.recognized ? s.file.strokeCount : undefined,
+    category: sampleCategoryName(readSampleCategoryId(s.bytes)),
     size: s.bytes.length,
     file: s.file,
     bytes: s.bytes,
@@ -69,6 +75,7 @@ export function sampleEntryFromImport(rec: { id: string; name: string; bytes: Ui
     source: 'local',
     generation: sampleGeneration(file),
     strokeCount: file.recognized ? file.strokeCount : undefined,
+    category: sampleCategoryName(readSampleCategoryId(rec.bytes)),
     size: rec.bytes.length,
     file,
     bytes: rec.bytes,
@@ -110,19 +117,27 @@ export function nordSampleEntriesFromDevice(entries: ProgramEntry[]): SampleEntr
   });
 }
 
-/** Filter by source tab + generation tab + case-insensitive name query + optional unused-only. */
+/** Filter by source + generation + category + query (name/category) + optional unused-only. */
 export function filterSamples(
   entries: SampleEntry[],
   source: LibrarySource | 'all',
   generation: SampleGeneration | 'all',
   query: string,
   unusedOnly = false,
+  category: string | 'all' = 'all',
 ): SampleEntry[] {
   return entries.filter((e) =>
     (source === 'all' || e.source === source) &&
     (generation === 'all' || e.generation === generation) &&
+    (category === 'all' || e.category === category) &&
     (!unusedOnly || e.unused === true) &&
-    matchesQuery(e.name, query));
+    matchesAny([e.name, e.category], query));
+}
+
+/** Distinct sample categories present in the entries, in id order — for the facet. */
+export function presentSampleCategories(entries: SampleEntry[]): string[] {
+  const have = new Set(entries.map((e) => e.category).filter((c): c is string => c != null));
+  return SAMPLE_CATEGORY_ORDER.filter((c) => have.has(c));
 }
 
 /** Order samples: favorites first, then the chosen sort. Pure, non-mutating. */
