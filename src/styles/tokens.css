@@ -1,0 +1,149 @@
+/* OpenNord design tokens — the single source of truth for color/space/type.
+   Studio Dark is the only theme today; a light theme is a second [data-theme] block. */
+:root,
+:root[data-theme='dark'] {
+  /* surfaces */
+  --bg: #15171c;
+  --surface: #1d2027;
+  --surface-2: #23272f;
+  --sink: #101216;       /* rail, inputs */
+  --line: #2b2f39;
+  --devbox-bg: #191b21;  /* device-status box on the rail (between bg and surface) */
+  --scrim: rgb(0 0 0 / 60%);  /* modal/dialog backdrop over the app */
+
+  /* accent + state */
+  --red: #e0202e;
+  --red-bright: #ff5a52;
+  --connected: #34d36b;
+  --lcd-cyan: #aee9ff;
+  --warn: #ffb454;
+  --focus: #6aa9ff;      /* keyboard focus ring — distinct from --red action */
+
+  /* text */
+  --ink: #e9ebf0;
+  --dim: #8a909c;
+  --muted: #6f7480;
+  --text-on-accent: #ffffff;   /* text on --red fills (buttons, active chips) */
+  --text-tertiary: #aeb4c0;    /* tag/chip label — one step brighter than --dim */
+
+  /* radius */
+  --r-sm: 8px;
+  --r-md: 11px;
+  --r-lg: 14px;
+
+  /* ── Depth & material ──────────────────────────────────────────────────────
+     The front-panel feel: surfaces are lit from above, so they carry a faint
+     top highlight and cast a shadow below. Everything here is derived from the
+     palette tokens (color-mix) or neutral elevation black — no new raw hues,
+     so the "one token source" rule still holds. Use these instead of inventing
+     per-component gradients/shadows. */
+  --lift: #ffffff;             /* virtual light source, mixed in at low % for top edges */
+
+  /* Top-lit surface fills — replace flat solid backgrounds to read as physical. */
+  --grad-surface: linear-gradient(180deg, color-mix(in srgb, var(--lift) 5%, var(--surface)), var(--surface));
+  --grad-raised:  linear-gradient(180deg, color-mix(in srgb, var(--lift) 7%, var(--surface-2)), var(--surface-2));
+  --grad-sink:    linear-gradient(180deg, color-mix(in srgb, #000 22%, var(--sink)), var(--sink));
+  --grad-red:     linear-gradient(180deg, var(--red-bright), var(--red));
+
+  /* Hairline highlight along a panel's top edge — the light catching the bevel. */
+  --edge-hi: inset 0 1px 0 color-mix(in srgb, var(--lift) 7%, transparent);
+
+  /* Elevation — neutral black shadows, layered for soft contact + ambient cast. */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .35);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, .38), 0 1px 2px rgba(0, 0, 0, .3);
+  --shadow-3: 0 10px 30px rgba(0, 0, 0, .5), 0 2px 6px rgba(0, 0, 0, .35);
+  /* Recessed inputs/tracks — content sits below the panel plane. */
+  --shadow-inset: inset 0 1px 3px rgba(0, 0, 0, .5);
+  /* The single red accent, as a soft halo for active/primary affordances. */
+  --glow-red: 0 1px 0 color-mix(in srgb, var(--lift) 18%, transparent) inset, 0 3px 14px color-mix(in srgb, var(--red) 35%, transparent);
+
+  /* Motion — one easing curve + two durations so interactions feel consistent. */
+  --ease: cubic-bezier(.2, .6, .2, 1);
+  --t-fast: .12s var(--ease);
+  --t-med: .2s var(--ease);
+
+  /* layout breakpoints — mirrored in src/lib/responsive.ts (BP_SPLIT).
+     CSS media queries can't read a var(), so these are documented constants
+     kept in sync by hand; the JS hook is the runtime source of truth. */
+  --bp-split: 900px;
+
+  /* space scale 4·8·12·16·24 */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-6: 24px;
+
+  /* Organ drawbar tab colors — the classic Hammond brown/white/black coding.
+     Documented exception to "no hardcoded color" (like the LCD blues): these are
+     instrument-faithful drawbar colors, kept as named tokens so the rule holds. */
+  --organ-db-brown: #7a4a2a;
+  --organ-db-white: #efeff1;
+  --organ-db-black: #15151a;
+  --organ-db-default: var(--red-bright);
+  --organ-morph: var(--lcd-cyan);
+  --organ-db-track: #0c0c0e;
+  --organ-db-black-edge: #3a3a42;
+  --organ-on-bg: #2a1416;
+
+  /* Instrument-panel surfaces — faithful front-panel greys/LCD, like the organ
+     drawbars above. Tokenized so the "no hardcoded color" rule holds in nord.css. */
+  --dial-bg: #353d4b;
+  --dial-shell-hi: #4c5563;    /* radial highlight at top of a dial */
+  --meter-track: #333b49;
+  --fx-border: #5b6472;
+  --deps-bg: #221b1d;
+  --deps-border: #43222a;
+  --deps-ink: #ff7a72;         /* dependency warning text (brighter red) */
+  --lcd-bg: #10384e;           /* sample-waveform LCD backdrop */
+  --lcd-deep: #0d2a3a;         /* LCD gradient floor */
+  --lcd-edge: #1d5775;         /* LCD bezel border */
+  --wave: #ff3b3b;             /* waveform trace */
+  --accent-soft: rgba(224, 32, 46, 0.18); /* translucent red — loop region on the waveform */
+  --panel-pill: #2c3340;       /* dark pill/chip backdrop on the panel */
+  --dial-shell-lo: #171b22;    /* dial inner shadow floor */
+  /* Keyboard-zone fills — a 6-hue data-viz palette for the zone map. */
+  --zone-1: #2f4a59;
+  --zone-2: #473a59;
+  --zone-3: #593a3f;
+  --zone-4: #3a5945;
+  --zone-5: #534a2c;
+  --zone-6: #3f3a59;
+
+  /* Buy Me a Coffee brand button — fixed external-brand colors (like the LCD
+     blues, a documented exception). Tokenized so nothing hardcodes hex outside
+     here and the button matches buymeacoffee.com's recognizable yellow. */
+  --bmc-yellow: #ffdd00;
+  --bmc-yellow-hi: #ffe84d;    /* hover lift */
+  --bmc-ink: #000000;          /* black text/icon on the yellow */
+
+  /* type */
+  --font: -apple-system, system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Global default so any unstyled text uses the UI font, not the browser serif. */
+html { background: var(--bg); color: var(--ink); font-family: var(--font); }
+/* Zero the UA body margin — otherwise it stacks on top of the 100vh app shell
+   and forces a permanent ~16px scrollbar. */
+body { margin: 0; }
+
+/* Keyboard focus: a single visible ring on every interactive element.
+   Mouse/touch users never see it (:focus-visible only fires for keyboard). */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+/* Never remove the ring without replacing it. */
+:focus:not(:focus-visible) { outline: none; }
+
+/* Respect the OS "reduce motion" setting — near-instant, no removal of state. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,28 @@
+# Keep the build context small and keep RE / factory artifacts out of it.
+node_modules
+dist
+.git
+.github
+.claude
+.superpowers
+
+# Capacitor native shell — not part of the web build
+ios
+android
+
+# RE tooling, decompiles, and Nord factory content (see docs/LEGAL.md) —
+# never needed for the web build, never bake into an image.
+nse
+nse_decomp
+nsm
+research
+*.nsmp
+*.npno
+*.ns4p
+piano_library_*
+download.log
+
+# Local cruft
+.DS_Store
+*.log
+tsconfig.tsbuildinfo

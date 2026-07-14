@@ -1,0 +1,14 @@
+/* Decode Inspector — engineer-facing RE tool, dark-themed via tokens.
+   The byte-state and engine-group swatches below are a documented data-viz
+   exception (like the LCD blues): dark tints with light text so the grid stays
+   readable on the Studio-Dark shell. Components reference these as var(--di-*). */
+.di {
+  --di-known: #1f3d24;    /* byte claimed by a known parameter */
+  --di-gap: #3d1f23;      /* undecoded gap */
+  --di-changed: #4a3d12;  /* changed between file A and B */
+  --di-m: #9aa0ac;        /* engine group: master / global */
+  --di-o: #d957e8;        /* organ */
+  --di-p: #2cc46a;        /* piano */
+  --di-y: #4f8cff;        /* synth */
+  color: var(--ink);
+}
