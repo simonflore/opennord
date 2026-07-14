@@ -1,5 +1,44 @@
 /* OpenNord design tokens — the single source of truth for color/space/type.
    Studio Dark is the only theme today; a light theme is a second [data-theme] block. */
+
+@import "tailwindcss";
+
+/* Tailwind v4 theme — generated utilities resolve to the SAME values as the
+   custom properties below, so `bg-surface` == `background: var(--surface)`.
+   tokens.css stays the single source of truth; this block just exposes the
+   scalar tokens to Tailwind's utility generator. Values are copied verbatim.
+   Composite tokens (gradients, shadows, glows, motion) stay as CSS custom
+   properties below and are used via arbitrary values, e.g. shadow-[var(--shadow-2)]. */
+@theme {
+  --color-bg: #15171c;
+  --color-surface: #1d2027;
+  --color-surface-2: #23272f;
+  --color-sink: #101216;
+  --color-line: #2b2f39;
+  --color-devbox-bg: #191b21;
+  --color-red: #e0202e;
+  --color-red-bright: #ff5a52;
+  --color-connected: #34d36b;
+  --color-lcd-cyan: #aee9ff;
+  --color-warn: #ffb454;
+  --color-focus: #6aa9ff;
+  --color-ink: #e9ebf0;
+  --color-dim: #8a909c;
+  --color-muted: #6f7480;
+  --color-text-on-accent: #ffffff;
+  --color-text-tertiary: #aeb4c0;
+
+  --radius-sm: 8px;
+  --radius-md: 11px;
+  --radius-lg: 14px;
+
+  --font-sans: -apple-system, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Tailwind's default spacing step is 4px (p-1=4px … p-4=16px, p-6=24px),
+     which already equals the 4·8·12·16·24 scale — no spacing overrides needed. */
+}
+
 :root,
 :root[data-theme='dark'] {
   /* surfaces */
