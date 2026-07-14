@@ -24,13 +24,23 @@ export function useSamplesFlow(session: NordSession | null) {
 
   // Reset when the connection changes (reconnect to a different Nord) — the flow
   // stays mounted across sessions, so the lazy-enumerate cache would otherwise
-  // show the previous board's list.
+  // show the previous board's list. Then read the Sample/Piano storage eagerly so
+  // the memory-budget panel can show the whole board's fullness up front (not only
+  // after the Samples tab is opened). Best-effort — a failed query just leaves it null.
   useEffect(() => {
     setView('programs');
     setSampleEntries([]);
     setSampleInput(null);
     setSampleCapacity(null);
     setPianoCapacity(null);
+    if (!session) return;
+    let cancelled = false;
+    void (async () => {
+      const s = await readPartitionCapacity(session, PARTITION_SAMP_LIB).catch(() => null);
+      const p = await readPartitionCapacity(session, PARTITION_PIANO).catch(() => null);
+      if (!cancelled) { setSampleCapacity(s); setPianoCapacity(p); }
+    })();
+    return () => { cancelled = true; };
   }, [session]);
 
   /** Switch between programs and samples; enumerate Samp Lib + read storage once (lazily). */

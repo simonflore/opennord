@@ -17,6 +17,8 @@ import { TargetSlotPicker } from './TargetSlotPicker';
 import { ConfirmPanel } from './ConfirmPanel';
 import { BackupPanel } from './BackupPanel';
 import { DeviceSampleBrowser } from './DeviceSampleBrowser';
+import { MemoryBudget } from './MemoryBudget';
+import { useReclaimScan } from './useReclaimScan';
 import { SampleInspector } from '../sample/SampleInspector';
 import { usePushFlow } from './usePushFlow';
 import { useDeleteFlow } from './useDeleteFlow';
@@ -74,6 +76,7 @@ export function DeviceManager() {
   const push = usePushFlow(session, refresh);
   const del = useDeleteFlow(session, refresh);
   const samples = useSamplesFlow(session);
+  const reclaim = useReclaimScan(session);
 
   const [backupWanted, setBackupWanted] = useState(true);
   const backedUp = useRef(false);
@@ -217,6 +220,13 @@ export function DeviceManager() {
   const browserBusy = busy || samples.busy;
   return (
     <div>
+      <MemoryBudget
+        program={capacity}
+        sample={samples.sampleCapacity}
+        piano={samples.pianoCapacity}
+        reclaim={reclaim.state}
+        onScan={reclaim.scan}
+      />
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <FilterChip active={samples.view === 'programs'} onClick={() => toggleView('programs')}>Programs</FilterChip>
         <FilterChip active={samples.view === 'samples'} onClick={() => toggleView('samples')}>Samples</FilterChip>
