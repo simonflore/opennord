@@ -63,6 +63,19 @@
     linear-gradient(90deg, color-mix(in srgb, var(--red) 9%, transparent), transparent 18%),
     var(--grad-surface);
 }
+/* The rail's device-status box — same top-lit recipe as the others but mixed
+   into --devbox-bg (its own step between --bg and --surface) rather than
+   --surface/--surface-2, so it reads as a distinct panel on the rail. */
+@utility fill-devbox {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lift) 4%, var(--devbox-bg)), var(--devbox-bg));
+}
+/* The app shell's stage backdrop — a faint top glow over near-black so the
+   whole app reads as sitting on a lit stage rather than a flat page. */
+@utility stage-backdrop {
+  background:
+    radial-gradient(120% 80% at 50% -10%, color-mix(in srgb, var(--surface) 60%, transparent), transparent 60%),
+    var(--bg);
+}
 @utility edge-hi      { box-shadow: var(--edge-hi); }
 @utility elev-1       { box-shadow: var(--edge-hi), var(--shadow-1); }
 @utility elev-2       { box-shadow: var(--edge-hi), var(--shadow-2); }

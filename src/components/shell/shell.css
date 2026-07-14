@@ -1,84 +1,12 @@
-/* Stage backdrop — a faint top glow over near-black gives the app depth without
-   competing with content. Fixed so it doesn't scroll. All via tokens. */
-.on-app {
-  display: flex; min-height: 100vh;
-  background:
-    radial-gradient(120% 80% at 50% -10%, color-mix(in srgb, var(--surface) 60%, transparent), transparent 60%),
-    var(--bg);
-}
-.on-rail {
-  width: 188px; flex: none; background: var(--grad-sink); border-right: 1px solid var(--line);
-  padding: var(--s-4) var(--s-3); display: flex; flex-direction: column; gap: 2px;
-  position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto;
-  box-sizing: border-box;
-  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--lift) 3%, transparent);
-}
-.on-rail__brand { font: 800 16px var(--font); letter-spacing: -.2px; color: var(--ink); padding: 2px 8px var(--s-4); }
-.on-rail__brand-accent { color: var(--red); font-style: italic; }
-.on-nav {
-  position: relative; text-align: left; background: transparent; border: 0; cursor: pointer;
-  font: 600 12px var(--font); color: var(--dim); padding: 7px 10px; border-radius: var(--r-sm);
-  transition: color var(--t-fast), background var(--t-fast);
-}
-.on-nav:hover:not(:disabled):not(.on-nav--active) { color: var(--ink); background: color-mix(in srgb, var(--lift) 3%, transparent); }
-/* Active item: raised panel chip + a red indicator bar marking the current page. */
-.on-nav--active { background: var(--grad-raised); color: var(--ink); box-shadow: var(--edge-hi), var(--shadow-1); }
-.on-nav--active::before {
-  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-  width: 3px; height: 16px; border-radius: 0 2px 2px 0; background: var(--red);
-}
-.on-nav:disabled { color: var(--muted); cursor: not-allowed; opacity: .55; }
-.on-nav--sub { font-size: 11px; padding-left: 16px; }
-.on-nav--sub.on-nav--active::before { height: 12px; }
-.on-rail__spacer { flex: 1; }
-.on-rail__dev { margin-top: var(--s-2); }
-.on-rail__dev summary { font: 9px var(--font); color: var(--muted); cursor: pointer; padding: 6px 8px; }
-
-.on-rail__about { margin-top: var(--s-1); color: var(--muted); }
-
-.on-rail__note {
-  margin-top: var(--s-2); padding: 8px; border-top: 1px solid var(--line);
-  display: flex; flex-direction: column; gap: 3px;
-}
-.on-rail__note-tag {
-  align-self: flex-start; font: 700 8px var(--font); letter-spacing: 1px;
-  color: var(--warn); border: 1px solid var(--warn); border-radius: var(--r-sm);
-  padding: 1px 5px;
-}
-.on-rail__note-text { font: 9px/1.4 var(--font); color: var(--muted); }
-
-.on-devbox {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--lift) 4%, var(--devbox-bg)), var(--devbox-bg));
-  border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px;
-  box-shadow: var(--edge-hi), var(--shadow-1);
-}
-.on-devbox--off { display: flex; flex-direction: column; gap: 8px; }
-.on-devbox__state { font: 700 9px var(--font); letter-spacing: 1px; color: var(--muted); }
-.on-devbox__state--on { color: var(--connected); }
-.on-devbox__name { font: 600 11px var(--font); color: var(--ink); margin-top: 3px; }
-.on-devbox__meta { font: 9px var(--font); color: var(--muted); margin-top: 1px; }
-.on-devbox__actions { margin-top: 8px; }
-
-.on-content { flex: 1; padding: var(--s-4) var(--s-6); max-width: 1100px; }
-
-@media (max-width: 720px) {
-  .on-app { flex-direction: column; }
-  .on-rail {
-    width: auto; flex-direction: row; align-items: center; overflow-x: auto;
-    border-right: 0; border-bottom: 1px solid var(--line); padding: var(--s-2) var(--s-3);
-    position: static; height: auto; align-self: auto; overflow-y: visible;
-  }
-  /* Device transfer rides vendor-USB — unreachable from a phone browser
-     (desktop / native iPad only). Hide the status box on the mobile rail. */
-  .on-rail__spacer, .on-rail__dev, .on-devbox { display: none; }
-  /* Keep the alpha tag visible on mobile, but compact: just the pill, inline. */
-  .on-rail__note { margin: 0 0 0 auto; padding: 0; border-top: 0; }
-  .on-rail__note-text { display: none; }
-  .on-content { padding: var(--s-3) var(--s-4); }
-}
-
 /* Native shell only (Capacitor) — additive, scoped under [data-native] so the
-   web build is byte-identical. index.html already sets viewport-fit=cover. */
+   web build is byte-identical. `[data-native]` is a document-level attribute
+   (set once for the native wrapper), not component state, so these stay as
+   CSS attribute-selector rules rather than component-level Tailwind utilities.
+   `.on-rail` / `.on-content` here are plain hook classes kept on the shell
+   frame (Rail.tsx / root.tsx) purely so these selectors have something to
+   target — all other rail/content/nav styling lives in those components as
+   Tailwind utilities (see tailwind-baseline.md). index.html already sets
+   viewport-fit=cover. */
 [data-native] .on-rail {
   padding-top: max(var(--s-4), env(safe-area-inset-top));
   padding-left: max(var(--s-3), env(safe-area-inset-left));

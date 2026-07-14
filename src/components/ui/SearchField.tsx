@@ -12,7 +12,7 @@ export function SearchField(
   return (
     <div
       className={cn(
-        'flex flex-1 items-center gap-2 rounded-md border border-line px-3 py-2 fill-sink inset-1',
+        'flex flex-1 min-w-[240px] items-center gap-2 rounded-md border border-line px-3 py-2 fill-sink inset-1',
         'transition-colors duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)]',
         'focus-within:border-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--color-focus)]',
       )}
