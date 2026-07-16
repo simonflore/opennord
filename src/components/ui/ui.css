@@ -1,4 +1,21 @@
-/* OpenNord UI primitives — all color/space/radius via tokens (tokens.css). */
+/* Legacy UI classes — all color/space/radius via tokens (tokens.css).
+ *
+ * The `ui/` primitives themselves are Tailwind now (see tailwind-baseline.md), so
+ * the rules for Card/Tag/Chip/Badge/Search/Overline/Dialog have been deleted. What
+ * remains is only what live code still references:
+ *
+ *  - .on-btn*   — 7 components that predate the sweep and still hand-roll buttons
+ *                 instead of composing <Button>: ProbePanel, ErrorBoundary,
+ *                 StrokeList, SampleConvert, MidiConnect, BackupPanel,
+ *                 DeviceBrowser. Migrate those to <Button variant=…> and these
+ *                 rules can go.
+ *  - .on-error  — the shared inline-error text used by 9 components.
+ *  - .on-split* — SplitView's master/detail layout. Kept deliberately: these are
+ *                 ancestor/descendant selectors (incl. `.on-split__detail .ps-hd`)
+ *                 that Tailwind utilities (in @layer utilities) cannot override,
+ *                 so converting them would be dead code. See SplitView.tsx.
+ */
+
 .on-btn {
   font: 700 11px var(--font); letter-spacing: .2px; border-radius: var(--r-sm);
   padding: 8px 14px; cursor: pointer; border: 1px solid transparent;
@@ -20,69 +37,6 @@
 
 .on-btn:disabled { cursor: not-allowed; opacity: .55; }
 .on-btn:disabled:hover { transform: none; }
-
-.on-card {
-  background: var(--grad-surface); border: 1px solid var(--line); border-radius: var(--r-md);
-  padding: var(--s-3); color: var(--ink);
-  box-shadow: var(--edge-hi), var(--shadow-2);
-}
-/* The red accent rail, plus a faint warm wash bleeding in from that edge. */
-.on-card--accent {
-  border-left: 3px solid var(--red);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--red) 9%, transparent), transparent 18%),
-    var(--grad-surface);
-}
-
-.on-tag {
-  font: 600 9px var(--font); background: var(--grad-raised); color: var(--text-tertiary);
-  border-radius: 999px; padding: 2px 8px; box-shadow: var(--edge-hi);
-}
-
-.on-chip {
-  font: 600 10px var(--font); background: var(--grad-raised); color: var(--text-tertiary);
-  border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; cursor: pointer;
-  box-shadow: var(--edge-hi); transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast);
-}
-.on-chip:hover { color: var(--ink); border-color: var(--muted); }
-.on-chip--active {
-  background: var(--grad-red); color: var(--text-on-accent); border-color: var(--red);
-  box-shadow: var(--glow-red);
-}
-.on-chip--active:hover { color: var(--text-on-accent); border-color: var(--red); }
-/* Expand/collapse affordance in a facet group — dashed so it reads as an action,
-   not a selectable filter value. */
-.on-chip--toggle { background: none; border-style: dashed; box-shadow: none; color: var(--muted); }
-.on-chip--toggle:hover { color: var(--ink); border-color: var(--muted); }
-
-.on-badge {
-  font: 600 9px var(--font); letter-spacing: .4px; color: var(--muted);
-  display: inline-flex; align-items: center; gap: 4px;
-}
-.on-badge__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.on-badge--nord { color: var(--red); }
-.on-badge--local { color: var(--muted); }
-.on-badge--backup { color: var(--focus); }
-.on-badge--cloud { color: var(--warn); }
-
-.on-search {
-  display: flex; align-items: center; gap: 8px; flex: 1;
-  background: var(--grad-sink); border: 1px solid var(--line); border-radius: 9px; padding: 7px 11px;
-  box-shadow: var(--shadow-inset);
-  transition: border-color var(--t-fast), box-shadow var(--t-fast);
-}
-.on-search:focus-within { border-color: var(--muted); box-shadow: var(--shadow-inset), 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent); }
-.on-search__icon { color: var(--muted); font-size: 13px; }
-.on-search__input {
-  flex: 1; background: transparent; border: 0; outline: none;
-  color: var(--ink); font: 11px var(--font);
-}
-.on-search__input::placeholder { color: var(--muted); }
-
-.on-overline {
-  font: 700 9px var(--font); letter-spacing: 1.4px; text-transform: uppercase;
-  color: var(--red-bright);
-}
 
 .on-error { color: var(--warn); font: 11px var(--font); }
 
@@ -109,17 +63,3 @@
   background: var(--bg);
   margin-bottom: 0; padding-bottom: 14px;
 }
-
-/* Modal dialog — scrim + centered panel (Dialog.tsx). Tokens only. */
-.on-dialog-backdrop {
-  position: fixed; inset: 0; z-index: 100;
-  display: flex; align-items: center; justify-content: center;
-  padding: var(--s-4); background: var(--scrim);
-}
-.on-dialog {
-  width: 100%; max-width: 28rem; max-height: 85vh; overflow: auto;
-  background: var(--surface); color: var(--ink);
-  border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s-4);
-}
-.on-dialog__title { margin: 0 0 var(--s-3); font: 700 15px var(--font); }
-.on-dialog__footer { display: flex; gap: var(--s-2); justify-content: flex-end; margin-top: var(--s-4); }
