@@ -41,6 +41,39 @@
   --font-sans: -apple-system, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
+  /* ── Display scale — weight follows size ───────────────────────────────────
+     The weight/leading/tracking travel WITH the size token, so a component
+     cannot take a display size without its light weight. Thin only ever appears
+     where it is big enough to stay legible on --bg. UI text (≤17px) is NOT in
+     this scale and keeps its 600–800 weights.
+     Weight 300 is the lightest real cut across SF Pro, Segoe UI, and Roboto.
+     display-1 may drop to 200–250 on Apple after visual review. */
+  --text-display-1: clamp(3.5rem, 11vw, 9.25rem);
+  --text-display-1--font-weight: 300;
+  --text-display-1--line-height: 0.92;
+  --text-display-1--letter-spacing: -0.04em;
+
+  --text-display-2: clamp(2.25rem, 6vw, 4.75rem);
+  --text-display-2--font-weight: 300;
+  --text-display-2--line-height: 1;
+  --text-display-2--letter-spacing: -0.03em;
+
+  --text-display-3: clamp(1.5rem, 3.2vw, 2.5rem);
+  --text-display-3--font-weight: 400;
+  --text-display-3--line-height: 1.1;
+  --text-display-3--letter-spacing: -0.02em;
+
+  /* The blueprint grid's own step. A dashed rule shows roughly half the ink of
+     a solid one, and --line (#2b2f39) is already near threshold on --bg
+     (#15171c), so the grid would vanish if it reused --line. */
+  --color-grid: #343a47;
+
+  /* The editorial content column. HomeView's CONTENT and the Blueprint frame
+     both resolve to this, so they cannot drift apart. NOTE: the app shell's
+     <main> (routes/root.tsx) is max-w-[1100px] and is deliberately NOT changed
+     here — it sits beside the rail and is a different column. */
+  --container-content: 1080px;
+
   /* Tailwind's default spacing step is 4px (p-1=4px … p-4=16px, p-6=24px),
      which already equals the 4·8·12·16·24 scale — no spacing overrides needed. */
 }
