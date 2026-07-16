@@ -7,6 +7,7 @@ import { FilterChip } from './FilterChip';
 import { SourceBadge } from './SourceBadge';
 import { SearchField } from './SearchField';
 import { SectionLabel } from './SectionLabel';
+import { Blueprint } from './Blueprint';
 
 describe('Button', () => {
   it('renders label and the primary variant fill', () => {
@@ -102,5 +103,35 @@ describe('SectionLabel', () => {
   it('gives the eyebrow a decorative bullet that screen readers skip', () => {
     const html = renderToStaticMarkup(<SectionLabel variant="eyebrow">Hardware optional</SectionLabel>);
     expect(html).toContain('aria-hidden="true"');
+  });
+});
+
+describe('Blueprint', () => {
+  it('is decorative and inert — never in the a11y tree or the hit region', () => {
+    const html = renderToStaticMarkup(<Blueprint />);
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain('pointer-events-none');
+  });
+
+  it('draws dashed rails at its container edges', () => {
+    const html = renderToStaticMarkup(<Blueprint />);
+    expect(html).toContain('border-dashed');
+    expect(html).toContain('border-grid');
+  });
+
+  it('sits at z-0, not behind the parent stage-backdrop', () => {
+    const html = renderToStaticMarkup(<Blueprint />);
+    expect(html).toContain('z-0');
+    expect(html).not.toContain('-z-10');
+  });
+
+  it('defaults to the full editorial frame', () => {
+    const html = renderToStaticMarkup(<Blueprint />);
+    expect(html).not.toContain('opacity-40');
+  });
+
+  it('drops back on dense tool surfaces via the quiet variant', () => {
+    const html = renderToStaticMarkup(<Blueprint variant="quiet" />);
+    expect(html).toContain('opacity-40');
   });
 });
