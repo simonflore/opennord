@@ -85,4 +85,22 @@ describe('SectionLabel', () => {
     expect(html).toContain('Surfaces');
     expect(html).toContain('uppercase');
   });
+
+  it('defaults to the red accent overline (the 9 existing call sites)', () => {
+    const html = renderToStaticMarkup(<SectionLabel>Your Nord</SectionLabel>);
+    expect(html).toContain('text-red-bright');
+    expect(html).not.toContain('font-mono');
+  });
+
+  it('renders the eyebrow variant as muted monospace', () => {
+    const html = renderToStaticMarkup(<SectionLabel variant="eyebrow">Stage first, family next</SectionLabel>);
+    expect(html).toContain('font-mono');
+    expect(html).toContain('text-muted');
+    expect(html).not.toContain('text-red-bright');
+  });
+
+  it('gives the eyebrow a decorative bullet that screen readers skip', () => {
+    const html = renderToStaticMarkup(<SectionLabel variant="eyebrow">Hardware optional</SectionLabel>);
+    expect(html).toContain('aria-hidden="true"');
+  });
 });
