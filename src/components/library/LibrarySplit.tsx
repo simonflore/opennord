@@ -1,4 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
+import { Blueprint } from '@/components/ui';
 import { LibraryView } from './LibraryView';
 import { ProgramView } from '@/components/program/ProgramView';
 import { CategorySplit } from './CategorySplit';
@@ -48,15 +49,26 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
   // hidden behind the back button), wide points at the list beside it.
   const program = entry?.program ? <ProgramView program={entry.program} /> : null;
 
+  // The blueprint frame is mounted HERE rather than on the shell's <main>
+  // (routes/root.tsx) on purpose: <main> is shared by every app screen, and
+  // mounting it there would silently ship the grid to device, samples,
+  // compatibility and dev before any of them has been looked at.
+  // `quiet` keeps patch density the subject; the frame stays at the page
+  // boundary and never enters a row or card.
   return (
-    <CategorySplit
-      wide={wide}
-      master={list}
-      detail={program ?? <EmptyNote>Pick a program to see its details.</EmptyNote>}
-      narrowDetail={program ?? <EmptyNote>This program isn’t open. Pick it from the Library.</EmptyNote>}
-      hasDetail={!!selectedId}
-      onBack={() => navigate({ to: '/library/programs' })}
-      backLabel="← Library"
-    />
+    <div className="relative">
+      <Blueprint variant="quiet" />
+      <div className="relative z-10">
+        <CategorySplit
+          wide={wide}
+          master={list}
+          detail={program ?? <EmptyNote>Pick a program to see its details.</EmptyNote>}
+          narrowDetail={program ?? <EmptyNote>This program isn’t open. Pick it from the Library.</EmptyNote>}
+          hasDetail={!!selectedId}
+          onBack={() => navigate({ to: '/library/programs' })}
+          backLabel="← Library"
+        />
+      </div>
+    </div>
   );
 }
