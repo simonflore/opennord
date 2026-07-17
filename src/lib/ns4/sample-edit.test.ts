@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { writeNsmpMulti } from './nsmp-write';
+import { writeOgNsmp } from './nsmp-og';
 import { readNsmp, decodeNsmp, readNsmpZones, parseNsmpSections, readStrokeLoop, patchStrokeLoopBytes } from './nsmp';
 import { editModel, buildEditedNsmp, patchEditedNsmp } from './sample-edit';
 import { gainDetuneView } from './sample-view';
@@ -180,5 +181,49 @@ describe('patchEditedNsmp', () => {
     expect(changed).toContain(e0 + 0); // rootKey byte (ZONE_LAYOUT_C4.rootKey === 0)
     // CRC lives at 0x18..0x1b; every other changed byte must be in that range.
     expect(changed.every((i) => i === e0 || (i >= 0x18 && i <= 0x1b))).toBe(true);
+  });
+});
+
+/**
+ * In-place patching does not work on legacy (`.nsmp` v8/v9) files — in two ways, both
+ * of which silently produced a broken download:
+ *  - the zone record is 12 bytes with an unrelated shape (`[X:u16][gid:u8][level:u24]
+ *    [keyHigh:u32][strength:u16]` — no root/keyLow/velocity slot), but
+ *    `zoneRecordLayout` hands back the 16-byte codec-3/4 layout for every codec, so
+ *    `rootKey` landed on the gid, `keyHigh`/`keyLow` on the level, and the velocities
+ *    in the *next* record;
+ *  - `patchNs4Checksum` writes the NS4 CRC at 0x18..0x1b, which in an `NWS` container
+ *    is the **magic itself** — the patched file stops being recognized at all (legacy
+ *    → false, section tree gone). Legacy carries its own CRC-16 (`crc16Ccitt`).
+ * Refusing is the honest behaviour: `SampleEditPanel` already surfaces the throw, so
+ * the user is told rather than handed a corrupt file. Real legacy editing needs its
+ * own writer (keyHigh at the record's +4 u32, root via the `stk` header, OG CRC).
+ */
+describe('patchEditedNsmp — legacy (v9) files', () => {
+  const tone = (n: number) => Int32Array.from({ length: n }, (_, i) => Math.round(2000 * Math.sin(i / 8)));
+  const legacySrc = () => writeOgNsmp({
+    name: 'OG Src',
+    zones: [
+      { channels: [tone(256), tone(256)], globalID: 13, rootKey: 96, keyHigh: 108 },
+      { channels: [tone(256), tone(256)], globalID: 12, rootKey: 60, keyHigh: 60 },
+    ],
+  });
+
+  it('refuses to patch rather than corrupting the container', () => {
+    const src = legacySrc();
+    const model = editModel(readNsmp(src), readNsmpZones(src));
+    model.zones[0].rootKey = 30;
+    expect(() => patchEditedNsmp(src, model)).toThrow(/legacy/i);
+  });
+
+  it('does not mutate the source bytes when it refuses', () => {
+    const src = legacySrc();
+    const before = src.slice();
+    const model = editModel(readNsmp(src), readNsmpZones(src));
+    expect(() => patchEditedNsmp(src, model)).toThrow();
+    expect([...src]).toEqual([...before]);
+    // The file is still readable — the zones survive untouched.
+    expect(readNsmpZones(src).map((z) => [z.globalID, z.keyLow, z.keyHigh, z.rootKey]))
+      .toEqual([[13, 61, 108, 96], [12, 0, 60, 60]]);
   });
 });

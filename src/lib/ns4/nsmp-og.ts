@@ -214,14 +214,19 @@ export function assembleOgNsmp(sections: OgSection[], versionRaw = 8): Uint8Arra
 }
 
 import { encodeStrokeNW1, BLOCK_PER_CH_OG } from './nw1-encode';
+import { level2DSP } from './nw1-dsp';
 
 /** One OG zone/stroke to write: audio + keyboard placement + loop segments. */
 export interface OgWriteZone {
   /** Per-channel integer PCM (internal domain — what `decodeStroke` returns). */
   channels: ArrayLike<number>[];
-  /** Stroke global id (header +0x00, map record +0). */
+  /** Stroke global id (header +0x00, map record's gid). */
   globalID: number;
-  /** Root key the sample is pitched for (header +0x05, map record +1). */
+  /**
+   * Root key the sample is pitched for — **`stk` header +0x05 only**. The v9 map
+   * record has no root slot (that byte is the level's high byte), and the reader
+   * takes the root from the header, so this still round-trips.
+   */
   rootKey: number;
   /** Zone top key / split point (map record keyHigh). */
   keyHigh: number;
@@ -236,7 +241,12 @@ export interface OgWriteZone {
 /** Build the OG legacy `map` payload: global + per-note unity + zone records. */
 function writeOgMap(zones: OgWriteZone[]): Uint8Array {
   // 15-byte global prefix + 128 × 6-byte unity rows (`10 00 00 00 00 00`), then
-  // [count:u16 BE][00 00] then 12-byte records — matches `parseLegacyZoneRecords`.
+  // [count:u16 BE][00 00] then 12-byte record cores — `parseLegacyZoneRecords` reads
+  // this back (it locates the count by search, so the cores land at count + 4 + 12i).
+  // This is a **template**, not a byte-faithful NSM map: real v9 files lead each
+  // record with the un-identified u16 X (so their table is 2 B shorter than ours) and
+  // carry a 16-byte global prefix. Byte-faithfulness to NSM is unverified — same
+  // caveat as the rest of this writer, which is retained but no longer the default.
   const prefix = new Uint8Array(15);
   prefix[0] = 0x22; prefix[1] = 0x06; prefix[2] = 0x04; // templated global level marker
   const perNote = new Uint8Array(128 * 6);
@@ -247,8 +257,13 @@ function writeOgMap(zones: OgWriteZone[]): Uint8Array {
   zones.forEach((z, i) => {
     const o = i * 12;
     recs[o] = z.globalID & 0xff;
-    recs[o + 1] = z.rootKey & 0xff;
-    // tune u16 @+2 = 0 (no detune); keyHigh u32 BE @+4; trailer `00 01 00 00` @+8
+    // level u24 BE @+1 = unity (`10 00 00` = level2DSP(0) = 0 dB). This slot is a
+    // DSP2Level gain, NOT a root key — writing the root here made every zone play
+    // that value as gain (root 60 → 0x3c0000 ≈ +15.5 dB). We model no per-zone gain,
+    // so unity is the lossless write; the root rides the `stk` header (+0x05).
+    putU24(recs, o + 1, level2DSP(0));
+    // keyHigh u32 BE @+4; strength `00 01` @+8; the un-identified u16 X @+10 = 0
+    // (what the OG corpus carries) — see parseLegacyZoneRecords.
     putU32(recs, o + 4, z.keyHigh >>> 0);
     recs[o + 9] = 0x01;
   });
