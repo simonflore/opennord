@@ -1,3 +1,4 @@
+import { Blueprint } from '@/components/ui';
 import { SiteHeader } from './SiteHeader';
 import { Hero } from './Hero';
 import { Features } from './Features';
@@ -24,20 +25,30 @@ import { SiteFooter } from './SiteFooter';
  */
 export function HomeView() {
   return (
-    <div className="min-h-screen stage-backdrop text-ink">
-      <SiteHeader />
-      <main>
-        <Hero />
-        <Features />
-        <More />
-        <DesktopApp />
-        <Proof />
-        <Coverage />
-        <Matrix />
-        <Why />
-        <OpenSource />
-      </main>
-      <SiteFooter />
+    <div className="relative min-h-screen stage-backdrop text-ink">
+      {/* The blueprint frame's rails land at max-w-content — the same
+          --container-content that CONTENT gives every section — so the frame
+          traces the real column and the two cannot drift. z-0, not a negative
+          index: this div carries stage-backdrop, and -z-10 would paint the
+          frame behind that background and hide it. */}
+      <div className="absolute inset-0 mx-auto max-w-content">
+        <Blueprint />
+      </div>
+      <div className="relative z-10">
+        <SiteHeader />
+        <main>
+          <Hero />
+          <Features />
+          <More />
+          <DesktopApp />
+          <Proof />
+          <Coverage />
+          <Matrix />
+          <Why />
+          <OpenSource />
+        </main>
+        <SiteFooter />
+      </div>
     </div>
   );
 }

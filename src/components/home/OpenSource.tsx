@@ -7,7 +7,7 @@ export function OpenSource() {
   return (
     <section className={SEC}>
       <div className="rounded-lg border border-line fill-raised elev-2 px-4 py-[clamp(24px,5vw,56px)] text-center">
-        <SectionLabel>Open source</SectionLabel>
+        <SectionLabel variant="eyebrow">Free, and staying that way</SectionLabel>
         <h2 className="m-0 mt-2 font-extrabold leading-[1.15] tracking-[-0.6px] text-ink text-[clamp(22px,3.4vw,30px)]">
           Built in the open, licensed AGPL-3.0
         </h2>

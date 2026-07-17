@@ -42,7 +42,7 @@ export function Features() {
   return (
     <section id="features" className={SEC}>
       <SectionHead
-        overline="What it does"
+        overline="Two front doors, both first-class"
         title="One companion for your patches and your keyboard"
         sub="Two equal front doors: understand and organize your sounds, and manage the instrument itself."
       />

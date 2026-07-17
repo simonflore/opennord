@@ -17,7 +17,11 @@ export const sectionLabelVariants = cva('uppercase', {
   variants: {
     variant: {
       accent: 'text-[9px] font-bold tracking-[1.4px] text-red-bright',
-      eyebrow: 'flex items-center gap-2 font-mono text-[10px] font-medium tracking-[1.6px] text-muted',
+      // inline-flex, not flex: a block-level flex box would ignore a centring
+      // parent's text-align and silently left-align the eyebrow (OpenSource's
+      // panel is text-center). inline-flex behaves identically when the parent
+      // is left-aligned.
+      eyebrow: 'inline-flex items-center gap-2 font-mono text-[10px] font-medium tracking-[1.6px] text-muted',
     },
   },
   defaultVariants: { variant: 'accent' },

@@ -12,7 +12,7 @@ export function Coverage() {
   return (
     <section id="coverage" className={SEC}>
       <SectionHead
-        overline="Built for the whole line"
+        overline="Stage first, family next"
         title="The Nord Stage series first — the rest of the family next"
         sub="Every Nord generation shares one file container, so OpenNord grows across the line one model at a time."
       />
