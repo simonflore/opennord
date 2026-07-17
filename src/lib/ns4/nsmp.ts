@@ -548,12 +548,15 @@ export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
       return parseCodec2ZoneRecords(bytes, map, strokeRootByGlobalId(bytes, sections));
     }
     const strokeCount = sections.filter((s) => s.tag.endsWith('stk')).length;
-    const zones = parseLegacyZoneRecords(bytes, map.payloadOffset, map.endOffset, strokeCount);
-    // The OG `map` record carries no root key (the byte we'd read there is ~0, far
-    // below the zone) — the real per-zone root lives in the `stk` header (+5), keyed
-    // by global id, exactly as NSE reads it (CSectionStroke). Codec 3/4 keep their
-    // map-record root, which is correct for NSE-authored files and round-trips edits.
+    // The OG `map` record carries no root key at all — the byte we'd read there is the
+    // high byte of its `u24` level (0x10 at unity, hence the "root ≈ 16" the OG corpus
+    // shows). The real per-zone root lives in the `stk` header (+5), keyed by global
+    // id, exactly as NSE reads it (CSectionStroke). Codec 3/4 keep their map-record
+    // root, which is correct for NSE-authored files and round-trips edits.
     const roots = strokeRootByGlobalId(bytes, sections);
+    const zones = parseLegacyZoneRecords(
+      bytes, map.payloadOffset, map.endOffset, strokeCount, new Set(roots.keys()),
+    );
     return zones.map((z) => ({ ...z, rootKey: roots.get(z.globalID) ?? z.rootKey }));
   }
 
@@ -588,43 +591,75 @@ export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
 }
 
 /**
- * OG/legacy (.nsmp v8) zone table, reverse-engineered from real files. After the
- * per-note level block, the `map` ends with `[count:u16][00 00]` then `count`
- * 12-byte records:
- *   [strokeIndex:u8][rootKey:u8][tune:u16][keyHigh:u32 BE][00 01 00 00]
- * `keyHigh` is the zone's top key (split point); velocity isn't per-zone (single
- * layer → 127). The records can overrun the map's declared size by a couple of
- * bytes, so we bound by the buffer and locate the table by the count marker that
- * is followed by `count` records whose keyHigh is a valid key (≤127).
+ * OG/legacy (.nsmp, `map` version 9) zone table, reverse-engineered from real files.
+ * After the per-note level block the `map` ends with `[count:u16]` then `count`
+ * 12-byte records, each an un-identified `u16 X` followed by a **10-byte core**:
+ *   [X:u16][gid:u8][level:u24][keyHigh:u32 BE][strength:u16]
+ * We anchor on the core (so `recordOffset` points at `gid`, and the cores sit at
+ * `count + 4 + 12i`). `keyHigh` is the zone's top key (split point); velocity isn't
+ * per-zone (single layer → 127). `strength` is the same field the codec-3/4 record
+ * carries at +12 (`SetStrength`) and is **1** in all known content — it's the
+ * per-record marker we anchor on.
+ *
+ * This is a **stroke-reference** table, the same family as v10/v12
+ * ({@link parseStrokeRefZoneRecords}): it names a stroke by global id and stores a
+ * split point, and everything else is derived. There is **no `rootKey` and no
+ * `keyLow` slot** — `keyLow` tiles top-down from the next zone's split point, and
+ * the root rides the `stk` header (+5), which is where {@link readNsmpZones} takes
+ * it from. v9 and v10 wrap the identical 10-byte core differently: v9 **leads** with
+ * the u16 X (12 B), v10 **trails** 5 zero bytes (15 B — {@link parseCodec2ZoneRecords}).
+ *
+ * `[+1..+3]` is a `u24` **`DSP2Level` gain**, not a root+tune: unity is `10 00 00`
+ * (= `level2DSP(0)`), and the Stage-2 RedLib corpus carries real per-zone trims
+ * (`2d 18 18` = +9.00 dB exactly — a hand-dialed value). Reading its high byte as
+ * `keyLow` produced overlapping zones (docs/NSMP-CODEC.md).
+ *
+ * **X is a u16 we do not interpret.** It leads every record: the RedLib map payload
+ * ends flush at `recStart + 12·count` only when X is counted as each record's head,
+ * and the 2 bytes after the last core are the next section's `stk` tag. It is
+ * `00 00` across the OG corpus this table was first RE'd from, but `00 02`
+ * throughout the Stage-2 RedLib corpus (`Ambiente Pad RedLib SML.nsmp`: 7 strokes,
+ * gids 155–161). Treating it as mandatory zero padding rejected the count marker on
+ * those files and dropped every zone silently (7 strokes → 0 zones — caught by
+ * `nsmp-corpus-sweep.test.ts`). Its meaning stays open (no decompiled
+ * `CSectionMap::Read` path for the v9 map has been read yet — see docs/NSMP-CODEC.md).
+ *
+ * `gidSet` (the strokes' global ids) pins the table to records naming real strokes,
+ * the same guard `parseCodec2/3/4ZoneRecords` use; omitted → the check is skipped.
  */
 export function parseLegacyZoneRecords(
-  bytes: Uint8Array, searchStart: number, searchEnd: number, count: number,
+  bytes: Uint8Array, searchStart: number, searchEnd: number, count: number, gidSet?: Set<number>,
 ): NsmpZone[] {
   if (count <= 0) return [];
   const REC = 12;
   const recordsValid = (recStart: number): boolean => {
     for (let i = 0; i < count; i++) {
       const o = recStart + i * REC;
-      if (o + 8 > bytes.length || u32be(bytes, o + 4) > 127) return false;
+      if (o + 10 > bytes.length || u32be(bytes, o + 4) > 127) return false;
+      if (u16be(bytes, o + 8) !== 1) return false; // strength — 1 in all known content
+      if (gidSet && !gidSet.has(bytes[o])) return false;
     }
     return true;
   };
   for (let p = searchStart; p < searchEnd; p++) {
-    if (u16be(bytes, p) !== count || bytes[p + 2] !== 0 || bytes[p + 3] !== 0) continue;
-    const recStart = p + 4; // count u16 + 2 pad bytes
+    if (u16be(bytes, p) !== count) continue;
+    const recStart = p + 4; // count u16 + the first record's leading u16 X
     if (!recordsValid(recStart)) continue;
-    const zones: NsmpZone[] = [];
-    for (let i = 0; i < count; i++) {
+    const raw = Array.from({ length: count }, (_, i) => {
       const o = recStart + i * REC;
-      // Legacy 12B layout: strokeIndex@+0 (the global id), rootKey@+1, keyHigh u32be@+4.
-      // No separate bottom key in this generation; keyLow mirrors rootKey.
-      const keyHigh = u32be(bytes, o + 4);
-      zones.push({
-        velTop: 127, velLow: 0, keyHigh, keyLow: bytes[o + 1], rootKey: bytes[o + 1],
-        zoneMode: 0, zonePlayback: 0, zoneIsOneShot: 0, globalID: bytes[o], recordOffset: o,
-      });
-    }
-    return zones;
+      return { globalID: bytes[o], keyHigh: u32be(bytes, o + 4), recordOffset: o };
+    });
+    raw.sort((a, b) => b.keyHigh - a.keyHigh); // top-down, defensive (already file order)
+    return raw.map((r, i) => ({
+      velTop: 127, velLow: 0,
+      keyHigh: r.keyHigh,
+      // No bottom-key slot: tile from the next zone down; the last zone runs to 0.
+      keyLow: i + 1 < raw.length ? raw[i + 1].keyHigh + 1 : 0,
+      // No root slot either — `readNsmpZones` overrides this from the `stk` header.
+      rootKey: r.keyHigh,
+      zoneMode: 0, zonePlayback: 0, zoneIsOneShot: 0,
+      globalID: r.globalID, recordOffset: r.recordOffset,
+    }));
   }
   return [];
 }

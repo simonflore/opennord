@@ -323,29 +323,123 @@ describe.skipIf(!existsSync(ogNsmp))('readNsmp / decodeNsmp — OG .nsmp (legacy
 });
 
 describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
-  // Layout reverse-engineered from real OG files: [count:u16][00 00] then
-  // count × 12-byte records [strokeIndex][rootKey][tune:u16][keyHigh:u32][00 01 00 00].
-  const rec = (idx: number, root: number, keyHigh: number) =>
-    [idx, root, 0x04, 0x1a, 0, 0, 0, keyHigh, 0, 1, 0, 0];
+  // v9 record core (12B stride): [gid:u8][level:u24][keyHigh:u32 BE][strength:u16],
+  // preceded by the un-identified u16 X. There is NO rootKey and NO tune field — the
+  // `10 00 00` at +1 is a DSP2Level gain at unity (docs/NSMP-CODEC.md). `keyLow` has
+  // no slot at all: it tiles from the next zone's split point.
+  const rec = (gid: number, keyHigh: number, level = [0x10, 0x00, 0x00]) =>
+    [gid, ...level, 0, 0, 0, keyHigh, 0, 1, 0, 0];
 
-  it('decodes count + 12-byte records (keyHigh u32, stroke index, single vel layer)', () => {
+  it('decodes count + 12-byte records (keyHigh u32, gid, single vel layer)', () => {
     const buf = new Uint8Array([
       // per-note level junk that ends in 0x10 — must NOT false-match the count
       0, 0, 0, 0, 0, 0x10, 0, 0, 0, 0, 0, 0x10,
-      0x00, 0x02, 0x00, 0x00, // count = 2, then 2 pad bytes
-      ...rec(13, 19, 108),
-      ...rec(12, 22, 90),
+      0x00, 0x02, 0x00, 0x00, // count = 2, then the record's leading u16 X
+      ...rec(13, 108),
+      ...rec(12, 90),
     ]);
     const z0 = { velLow: 0, zoneMode: 0, zonePlayback: 0, zoneIsOneShot: 0 };
+    // keyLow tiles top-down: 108 sits above 90, so it bottoms out at 91; the last
+    // zone runs to 0. rootKey has no record slot — it falls back to keyHigh here and
+    // `readNsmpZones` overrides it from the `stk` header.
     expect(parseLegacyZoneRecords(buf, 0, buf.length, 2)).toEqual([
-      { velTop: 127, keyHigh: 108, keyLow: 19, rootKey: 19, globalID: 13, recordOffset: 16, ...z0 },
-      { velTop: 127, keyHigh: 90, keyLow: 22, rootKey: 22, globalID: 12, recordOffset: 28, ...z0 },
+      { velTop: 127, keyHigh: 108, keyLow: 91, rootKey: 108, globalID: 13, recordOffset: 16, ...z0 },
+      { velTop: 127, keyHigh: 90, keyLow: 0, rootKey: 90, globalID: 12, recordOffset: 28, ...z0 },
     ]);
+  });
+
+  // The zones must partition the keyboard — the bug this layout replaced read `keyLow`
+  // off the level's high byte, yielding zones that overlap instead of tiling.
+  it('tiles keyLow top-down so zones partition the keyboard without overlap', () => {
+    const buf = new Uint8Array([
+      0x00, 0x03, 0x00, 0x00,
+      ...rec(13, 108), ...rec(12, 90), ...rec(11, 60),
+    ]);
+    const zones = parseLegacyZoneRecords(buf, 0, buf.length, 3);
+    expect(zones.map((z) => [z.keyLow, z.keyHigh])).toEqual([[91, 108], [61, 90], [0, 60]]);
+  });
+
+  // A real per-zone gain (not unity) must not disturb the table: the level is a u24
+  // whose high byte can be any value — the reader must not read a key out of it.
+  it('decodes records carrying a real (non-unity) u24 level', () => {
+    const buf = new Uint8Array([
+      0x00, 0x02, 0x00, 0x00,
+      ...rec(13, 108, [0x2d, 0x18, 0x18]), // +9.00 dB — the RedLib top zone
+      ...rec(12, 90, [0x08, 0x12, 0xcc]), // −5.94 dB
+    ]);
+    const zones = parseLegacyZoneRecords(buf, 0, buf.length, 2);
+    expect(zones.map((z) => [z.keyLow, z.keyHigh])).toEqual([[91, 108], [0, 90]]);
+    expect(zones.map((z) => z.globalID)).toEqual([13, 12]);
   });
 
   it('returns [] when no count marker / valid record block is found', () => {
     expect(parseLegacyZoneRecords(new Uint8Array([1, 2, 3, 4, 5, 6]), 0, 6, 2)).toEqual([]);
     expect(parseLegacyZoneRecords(new Uint8Array(20), 0, 20, 0)).toEqual([]);
+  });
+
+  // Regression: the 2 bytes between the count and the first record are NOT always
+  // `00 00`. The Stage-2 RedLib corpus (`Ambiente Pad RedLib SML.nsmp`, 7 strokes)
+  // carries `00 02` there, and the same u16 leads every record. Requiring it to be
+  // zero rejected the count marker outright and dropped every zone (7 strokes → 0
+  // zones, silently). The records themselves are unchanged; only the marker gate was
+  // wrong.
+  it('decodes records when the leading u16 is non-zero (Stage-2 RedLib `00 02`)', () => {
+    const recX = (gid: number, keyHigh: number) =>
+      [gid, 0x10, 0x00, 0x00, 0, 0, 0, keyHigh, 0, 1, 0, 2]; // next record's X = 00 02
+    const buf = new Uint8Array([
+      0, 0, 0, 0, 0, 0x10, 0, 0, 0, 0, 0, 0x10, // per-note level junk
+      0x00, 0x02, 0x00, 0x02, // count = 2, then the non-zero X (00 02)
+      ...recX(13, 108),
+      ...recX(12, 90),
+    ]);
+    const z0 = { velLow: 0, zoneMode: 0, zonePlayback: 0, zoneIsOneShot: 0 };
+    expect(parseLegacyZoneRecords(buf, 0, buf.length, 2)).toEqual([
+      { velTop: 127, keyHigh: 108, keyLow: 91, rootKey: 108, globalID: 13, recordOffset: 16, ...z0 },
+      { velTop: 127, keyHigh: 90, keyLow: 0, rootKey: 90, globalID: 12, recordOffset: 28, ...z0 },
+    ]);
+  });
+
+  // The relaxed marker must not open the door to phantom runs: a `strength` u16 that
+  // isn't 1 is not a zone record, however well the count/keyHigh bytes line up.
+  it('rejects a run whose strength marker is not 1', () => {
+    const bad = (gid: number, keyHigh: number) =>
+      [gid, 0x10, 0x00, 0x00, 0, 0, 0, keyHigh, 0, 0, 0, 0]; // strength = 0 → not a record
+    const buf = new Uint8Array([0x00, 0x02, 0x00, 0x00, ...bad(13, 108), ...bad(12, 90)]);
+    expect(parseLegacyZoneRecords(buf, 0, buf.length, 2)).toEqual([]);
+  });
+
+  // The global-id set (when supplied) pins the table to records that name real
+  // strokes — the same guard the codec-2/3/4 readers use.
+  it('rejects a run whose global ids name no real stroke when a gid set is given', () => {
+    const buf = new Uint8Array([
+      0x00, 0x02, 0x00, 0x00,
+      ...rec(13, 108),
+      ...rec(12, 90),
+    ]);
+    expect(parseLegacyZoneRecords(buf, 0, buf.length, 2, new Set([13, 12]))).toHaveLength(2);
+    expect(parseLegacyZoneRecords(buf, 0, buf.length, 2, new Set([99]))).toEqual([]);
+  });
+});
+
+// The evidence that pinned the v9 layout, kept as a regression. Gitignored corpus —
+// skips when absent (CI never sees it; `nsmp-corpus-sweep.test.ts` is the CI net).
+const redLib = join(process.cwd(), 'fixtures/stage-2-ex/Ambiente Pad RedLib SML.nsmp');
+describe.skipIf(!existsSync(redLib))('legacy v9 zones — Ambiente Pad RedLib SML.nsmp', () => {
+  const bytes = existsSync(redLib) ? new Uint8Array(readFileSync(redLib)) : new Uint8Array();
+
+  it('tiles the keyboard, one octave-rooted zone per stroke', () => {
+    const zones = readNsmpZones(bytes);
+    expect(zones.length).toBe(7); // === strokeCount, gids 155–161
+    expect(zones.map((z) => [z.keyLow, z.keyHigh])).toEqual([
+      [91, 108], [79, 90], [67, 78], [55, 66], [43, 54], [31, 42], [0, 30],
+    ]);
+    // Every `stk` root (C1–C7, an octave apart) lands inside its own zone — the
+    // invariant the old `keyLow = level >> 16` read broke.
+    expect(zones.map((z) => z.rootKey)).toEqual([96, 84, 72, 60, 48, 36, 24]);
+    for (const z of zones) {
+      expect(z.rootKey).toBeGreaterThanOrEqual(z.keyLow);
+      expect(z.rootKey).toBeLessThanOrEqual(z.keyHigh);
+    }
   });
 });
 

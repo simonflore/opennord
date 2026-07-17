@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { parseNsmpSections, nsmpLayout } from './nsmp';
-import { writeOgStrokeHeader, parseOgStrokeHeader, OG_STROKE_HEADER_FIXED, assembleOgNsmp, ogEnvelope, type OgSection } from './nsmp-og';
+import { parseNsmpSections, nsmpLayout, readNsmpZones, readNsmp } from './nsmp';
+import { writeOgStrokeHeader, parseOgStrokeHeader, OG_STROKE_HEADER_FIXED, assembleOgNsmp, ogEnvelope, writeOgNsmp, type OgSection } from './nsmp-og';
 import { level2DSP, dsp2Level, get0dB, decay2DSP, getDSPNormalize, dsp2Detune, detune2DSP } from './nw1-dsp';
 import { hasGt } from './gt-fixtures';
 
@@ -112,4 +112,38 @@ describe.skipIf(!HAS_OG)('OG stroke header — byte-exact re-serialization (17 r
       });
     });
   }
+});
+
+// The v8 writer is retained but no longer the default (docs/NSMP-CODEC.md), so it had
+// no coverage — and it wrote `rootKey` into the map record's `[+1..+3]` level slot,
+// which a v9 reader decodes as a gain (root 60 → 0x3c0000 ≈ +15.5 dB per zone). These
+// pin the map record it emits: unity level, and a zone table our own reader reads back.
+describe('writeOgNsmp — legacy v9 map round-trip', () => {
+  const tone = (n: number) => Int32Array.from({ length: n }, (_, i) => Math.round(3000 * Math.sin(i / 8)));
+  const zones = () => [
+    { channels: [tone(256), tone(256)], globalID: 13, rootKey: 96, keyHigh: 108 },
+    { channels: [tone(256), tone(256)], globalID: 12, rootKey: 60, keyHigh: 90 },
+    { channels: [tone(256), tone(256)], globalID: 11, rootKey: 24, keyHigh: 60 },
+  ];
+
+  it('writes a v9 map whose zones read back tiled, with roots from the stk headers', () => {
+    const bytes = writeOgNsmp({ name: 'OG RT', zones: zones() });
+    expect(readNsmp(bytes).legacy).toBe(true);
+    const z = readNsmpZones(bytes);
+    expect(z.map((x) => x.globalID)).toEqual([13, 12, 11]);
+    expect(z.map((x) => [x.keyLow, x.keyHigh])).toEqual([[91, 108], [61, 90], [0, 60]]);
+    // rootKey survives the map record having no root slot: it rides the `stk` header
+    // (+0x05), which is where the reader takes it from.
+    expect(z.map((x) => x.rootKey)).toEqual([96, 60, 24]);
+  });
+
+  it('writes the map record level at unity (0 dB), not the root key', () => {
+    const bytes = writeOgNsmp({ name: 'OG RT', zones: zones() });
+    const z = readNsmpZones(bytes);
+    expect(z.length).toBe(3);
+    for (const x of z) {
+      const o = x.recordOffset;
+      expect([bytes[o + 1], bytes[o + 2], bytes[o + 3]]).toEqual([0x10, 0x00, 0x00]);
+    }
+  });
 });

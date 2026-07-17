@@ -63,10 +63,27 @@ const clampKey = (n: number): number => Math.max(0, Math.min(127, Math.round(n))
  * shared across codec 3 & 4); everything else — audio, per-note data, the bytes we
  * don't decode — is preserved untouched. Zones without a `recordOffset` are
  * skipped. Renaming is capped to the stored name's length.
+ *
+ * **Throws for legacy (`.nsmp` v8/v9) files** — in-place patching does not model that
+ * generation, and doing it anyway produced a silently broken download two ways:
+ *  - its zone record is 12 bytes with an unrelated shape (`[X:u16][gid:u8][level:u24]
+ *    [keyHigh:u32][strength:u16]` — see `parseLegacyZoneRecords`): no root, keyLow or
+ *    velocity slot exists, so {@link ZONE_LAYOUT}'s offsets put `rootKey` on the gid,
+ *    `keyHigh`/`keyLow` on the level, and the velocities in the *next* record;
+ *  - {@link patchNs4Checksum} writes the NS4 CRC at 0x18..0x1b, which in an `NWS`
+ *    container is the **magic** — the result stops being recognized as an `.nsmp` at
+ *    all. Legacy carries its own CRC-16 (`crc16Ccitt`, `nsmp-og.ts`).
+ * Editing legacy needs its own writer (keyHigh at the record's +4 u32, root via the
+ * `stk` header, OG CRC). Until then, refusing beats corrupting: the caller
+ * (`SampleEditPanel`) surfaces the message.
  */
 export function patchEditedNsmp(original: Uint8Array, model: EditModel): Uint8Array {
+  const file = readNsmp(original);
+  if (file.legacy) {
+    throw new Error('Editing legacy .nsmp files isn’t supported yet — this sample can’t be saved.');
+  }
   const out = original.slice();
-  const layout = zoneRecordLayout(readNsmp(out).codec);
+  const layout = zoneRecordLayout(file.codec);
   for (const z of model.zones) {
     if (z.recordOffset == null) continue;
     const e = z.recordOffset;
