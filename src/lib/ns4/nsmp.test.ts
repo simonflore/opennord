@@ -323,18 +323,22 @@ describe.skipIf(!existsSync(ogNsmp))('readNsmp / decodeNsmp — OG .nsmp (legacy
 });
 
 describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
-  // v9 record core (12B stride): [gid:u8][level:u24][keyHigh:u32 BE][strength:u16],
-  // preceded by the un-identified u16 X. There is NO rootKey and NO tune field — the
-  // `10 00 00` at +1 is a DSP2Level gain at unity (docs/NSMP-CODEC.md). `keyLow` has
-  // no slot at all: it tiles from the next zone's split point.
+  // v9 record: a **flush** 12-byte stride, no leading padding —
+  // [gid:u24 BE][level:u24 BE][keyHigh:u32 BE][strength:u16 BE]. There is NO rootKey
+  // and NO tune field — the `10 00 00` at +3 is a DSP2Level gain at unity
+  // (docs/NSMP-CODEC.md). `keyLow` has no slot at all: it tiles from the next zone's
+  // split point. What earlier looked like an "un-identified u16 X" leading each
+  // record was actually the gid's own high two bytes (below).
+  const u24 = (v: number) => [(v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff];
+  const u32 = (v: number) => [(v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff];
   const rec = (gid: number, keyHigh: number, level = [0x10, 0x00, 0x00]) =>
-    [gid, ...level, 0, 0, 0, keyHigh, 0, 1, 0, 0];
+    [...u24(gid), ...level, ...u32(keyHigh), 0, 1];
 
-  it('decodes count + 12-byte records (keyHigh u32, gid, single vel layer)', () => {
+  it('decodes count + 12-byte records (keyHigh u32, gid u24, single vel layer)', () => {
     const buf = new Uint8Array([
       // per-note level junk that ends in 0x10 — must NOT false-match the count
       0, 0, 0, 0, 0, 0x10, 0, 0, 0, 0, 0, 0x10,
-      0x00, 0x02, 0x00, 0x00, // count = 2, then the record's leading u16 X
+      0x00, 0x02, // count = 2, records start immediately (no leading padding)
       ...rec(13, 108),
       ...rec(12, 90),
     ]);
@@ -343,8 +347,8 @@ describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
     // zone runs to 0. rootKey has no record slot — it falls back to keyHigh here and
     // `readNsmpZones` overrides it from the `stk` header.
     expect(parseLegacyZoneRecords(buf, 0, buf.length, 2)).toEqual([
-      { velTop: 127, keyHigh: 108, keyLow: 91, rootKey: 108, globalID: 13, recordOffset: 16, ...z0 },
-      { velTop: 127, keyHigh: 90, keyLow: 0, rootKey: 90, globalID: 12, recordOffset: 28, ...z0 },
+      { velTop: 127, keyHigh: 108, keyLow: 91, rootKey: 108, globalID: 13, recordOffset: 14, ...z0 },
+      { velTop: 127, keyHigh: 90, keyLow: 0, rootKey: 90, globalID: 12, recordOffset: 26, ...z0 },
     ]);
   });
 
@@ -352,7 +356,7 @@ describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
   // off the level's high byte, yielding zones that overlap instead of tiling.
   it('tiles keyLow top-down so zones partition the keyboard without overlap', () => {
     const buf = new Uint8Array([
-      0x00, 0x03, 0x00, 0x00,
+      0x00, 0x03,
       ...rec(13, 108), ...rec(12, 90), ...rec(11, 60),
     ]);
     const zones = parseLegacyZoneRecords(buf, 0, buf.length, 3);
@@ -363,7 +367,7 @@ describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
   // whose high byte can be any value — the reader must not read a key out of it.
   it('decodes records carrying a real (non-unity) u24 level', () => {
     const buf = new Uint8Array([
-      0x00, 0x02, 0x00, 0x00,
+      0x00, 0x02,
       ...rec(13, 108, [0x2d, 0x18, 0x18]), // +9.00 dB — the RedLib top zone
       ...rec(12, 90, [0x08, 0x12, 0xcc]), // −5.94 dB
     ]);
@@ -377,25 +381,24 @@ describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
     expect(parseLegacyZoneRecords(new Uint8Array(20), 0, 20, 0)).toEqual([]);
   });
 
-  // Regression: the 2 bytes between the count and the first record are NOT always
-  // `00 00`. The Stage-2 RedLib corpus (`Ambiente Pad RedLib SML.nsmp`, 7 strokes)
-  // carries `00 02` there, and the same u16 leads every record. Requiring it to be
-  // zero rejected the count marker outright and dropped every zone (7 strokes → 0
-  // zones, silently). The records themselves are unchanged; only the marker gate was
-  // wrong.
-  it('decodes records when the leading u16 is non-zero (Stage-2 RedLib `00 02`)', () => {
-    const recX = (gid: number, keyHigh: number) =>
-      [gid, 0x10, 0x00, 0x00, 0, 0, 0, keyHigh, 0, 1, 0, 2]; // next record's X = 00 02
+  // Regression: what looked like an "un-identified u16 X" leading every record (and
+  // was `00 00` in the OG corpus this table was first RE'd from) is really the gid's
+  // own high two bytes — `00 02` throughout the Stage-2 RedLib corpus (`Ambiente Pad
+  // RedLib SML.nsmp`, 7 strokes, gids 667–673) because those gids exceed a byte.
+  // Treating it as mandatory zero padding rejected the count marker outright and
+  // dropped every zone (7 strokes → 0 zones, silently). Reframing the gid as u24
+  // fixes this and recovers the real gid instead of a truncated low byte.
+  it('decodes gid > 255 — the high bytes are the gid, not a separate marker (Stage-2 RedLib)', () => {
     const buf = new Uint8Array([
       0, 0, 0, 0, 0, 0x10, 0, 0, 0, 0, 0, 0x10, // per-note level junk
-      0x00, 0x02, 0x00, 0x02, // count = 2, then the non-zero X (00 02)
-      ...recX(13, 108),
-      ...recX(12, 90),
+      0x00, 0x02, // count = 2
+      ...rec(673, 108),
+      ...rec(667, 90),
     ]);
     const z0 = { velLow: 0, zoneMode: 0, zonePlayback: 0, zoneIsOneShot: 0 };
     expect(parseLegacyZoneRecords(buf, 0, buf.length, 2)).toEqual([
-      { velTop: 127, keyHigh: 108, keyLow: 91, rootKey: 108, globalID: 13, recordOffset: 16, ...z0 },
-      { velTop: 127, keyHigh: 90, keyLow: 0, rootKey: 90, globalID: 12, recordOffset: 28, ...z0 },
+      { velTop: 127, keyHigh: 108, keyLow: 91, rootKey: 108, globalID: 673, recordOffset: 14, ...z0 },
+      { velTop: 127, keyHigh: 90, keyLow: 0, rootKey: 90, globalID: 667, recordOffset: 26, ...z0 },
     ]);
   });
 
@@ -403,8 +406,8 @@ describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
   // isn't 1 is not a zone record, however well the count/keyHigh bytes line up.
   it('rejects a run whose strength marker is not 1', () => {
     const bad = (gid: number, keyHigh: number) =>
-      [gid, 0x10, 0x00, 0x00, 0, 0, 0, keyHigh, 0, 0, 0, 0]; // strength = 0 → not a record
-    const buf = new Uint8Array([0x00, 0x02, 0x00, 0x00, ...bad(13, 108), ...bad(12, 90)]);
+      [...u24(gid), 0x10, 0x00, 0x00, ...u32(keyHigh), 0, 0]; // strength = 0 → not a record
+    const buf = new Uint8Array([0x00, 0x02, ...bad(13, 108), ...bad(12, 90)]);
     expect(parseLegacyZoneRecords(buf, 0, buf.length, 2)).toEqual([]);
   });
 
@@ -412,7 +415,7 @@ describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
   // strokes — the same guard the codec-2/3/4 readers use.
   it('rejects a run whose global ids name no real stroke when a gid set is given', () => {
     const buf = new Uint8Array([
-      0x00, 0x02, 0x00, 0x00,
+      0x00, 0x02,
       ...rec(13, 108),
       ...rec(12, 90),
     ]);

@@ -354,62 +354,78 @@ trailing. **OG/legacy** uses a different 12-byte record with no root/keyLow slot
 The **writer** (`nsmp-write.ts`) emits this exact record (one `zoneEntry`, root-
 aligned) for both generations, with the codec-3 count byte + pad.
 
-### Legacy v9 — the zone record (resolved 2026-07-17)
+### Legacy v9 — the zone record (resolved 2026-07-17, re-anchored 2026-07-17)
 
 The v9 table is a **stroke-reference** table, the same family as v10/v12: it names a
 stroke by global id and stores a split point, and everything else is derived. After
-the per-note block the `map` ends with `[count:u16]` then `count` **12-byte** records
-— an un-identified `u16 X` followed by a **10-byte core**:
+the per-note block the `map` ends with `[count:u16]` then `count` **flush 12-byte**
+records — no leading padding, no un-identified field:
 
-| off (core) | field | meaning |
+| off | field | meaning |
 |---|---|---|
-| −2 | `u16 X` | **un-identified** — leads each record (see below) |
-| +0 | `gid` | stroke this zone plays — matches **`stk` header +3** |
-| +1 | `u24 level` | per-zone gain (`DSP2Level`; unity `10 00 00` = `level2DSP(0)`) |
-| +4 | `u32 keyHigh` | **split point** — zone's top key |
-| +8 | `u16 strength` | `SetStrength` = 1 in all known content — the record marker |
+| +0 | `u24 gid` | stroke this zone plays — matches the **`stk` header's u32 gid @+0** |
+| +3 | `u24 level` | per-zone gain (`DSP2Level`; unity `10 00 00` = `level2DSP(0)`) |
+| +6 | `u32 keyHigh` | **split point** — zone's top key |
+| +10 | `u16 strength` | `SetStrength` = 1 in all known content — the record marker |
 
 There is **no `rootKey` and no `keyLow` slot.** `keyLow` tiles top-down from the next
 zone's split point (last zone → 0), and the root rides the **`stk` header (+5)**,
-which is where `readNsmpZones` already took it from. v9 and v10 wrap this identical
-10-byte core differently: v9 **leads** with the `u16 X` (12 B), v10 **trails** 5 zero
-bytes (15 B — `parseCodec2ZoneRecords`).
+which is where `readNsmpZones` takes it from — keyed by the full u24 gid via
+`legacyStrokeRootByGlobalId` (the OG `stk` header stores gid as a **u32 @+0**, not the
+u8 @+3 that codec 3/4 use; `strokeRootByGlobalId` stays u8 @+3 for those). v9 and v10
+wrap the identical 10-byte `[gid-low-24 dropped]…` core differently in framing: v9 is
+now flush 12 B, v10 **trails** 5 zero bytes (15 B — `parseCodec2ZoneRecords`).
 
-**`[+1..+3]` is a level, not a root+tune.** It was first RE'd as `[rootKey][tune:u16]`,
-and `keyLow` was read off `+1`. On `Ambiente Pad RedLib SML.nsmp` that gave `keyLow`
-`45,45,31,15,8,9,9` against `keyHigh` `108,90,78,66,54,42,30` — zones that **overlap**
-instead of partitioning the keyboard. What settled it: two records carry `2d 18 18`,
-which through `DSP2Level` is **+9.00 dB exactly** (a hand-dialed value — unrelated
-bytes don't land there); the rest are ordinary trims (+5.81, −0.40, −5.94, −4.22,
-−4.95 dB). Unity is `10 00 00` — the "root ≈ 16" the OG corpus shows is the level's
-high byte at 0 dB. Tiling instead gives `91–108, 79–90, 67–78, 55–66, 43–54, 31–42,
-0–30`, and **every** `stk` root (96, 84, 72, 60, 48, 36, 24 — C1–C7) lands inside its
-own zone. We don't model per-zone gain, so `writeOgMap` writes unity; the root it used
-to emit at `+1` rides the `stk` header, so the round-trip is unaffected.
+**`[+3..+5]` is a level, not a root+tune.** It was first RE'd as `[rootKey][tune:u16]`,
+and `keyLow` was read off `+1` (of the old, misframed core). On `Ambiente Pad RedLib
+SML.nsmp` that gave `keyLow` `45,45,31,15,8,9,9` against `keyHigh`
+`108,90,78,66,54,42,30` — zones that **overlap** instead of partitioning the keyboard.
+What settled it: two records carry `2d 18 18`, which through `DSP2Level` is **+9.00
+dB exactly** (a hand-dialed value — unrelated bytes don't land there); the rest are
+ordinary trims (+5.81, −0.40, −5.94, −4.22, −4.95 dB). Unity is `10 00 00` — the
+"root ≈ 16" the OG corpus shows is the level's high byte at 0 dB. Tiling instead
+gives `91–108, 79–90, 67–78, 55–66, 43–54, 31–42, 0–30`, and **every** `stk` root
+(96, 84, 72, 60, 48, 36, 24 — C1–C7) lands inside its own zone. We don't model
+per-zone gain, so `writeOgMap` writes unity; the root it used to emit at `+1` rides
+the `stk` header, so the round-trip is unaffected.
 
-**X leads each record; the table does not overrun.** Earlier notes said "the records
-can overrun the map's declared size by a couple of bytes" and placed X at each
-record's `+10`. The byte accounting says otherwise: on the RedLib file the `map`
+**The "un-identified `u16 X`" was the gid's own high two bytes — not padding.** The
+record was first framed as `[X:u16][gid:u8][level:u24][keyHigh:u32][strength:u16]`,
+with `X` read as an un-explained field leading every record (`00 00` across the OG
+corpus the table was first RE'd from, `00 02` throughout the Stage-2 RedLib corpus).
+Record 0 of `Ambiente Pad RedLib SML.nsmp` is `00 02 a1 | 2d 18 18 | 00 00 00 6c | 00
+01`: read as `[X=00 02][gid=a1=161]…` that's an unexplained marker plus a truncated
+gid; read as the true flush framing, `00 02 a1` is `gid = 673` (`u24` BE) — and the
+same file's first `stk` section header opens `00 00 02 a1 …`, i.e. `globalID = 673`
+as a **u32**. The two agree exactly: `X` was always the gid's high bytes, and the old
+reader's byte-0 read (`bytes[o]`) was silently truncating gid to its low byte for
+every gid > 255. That also means `NsmpZone.globalID` for v9 zones used to be a
+**truncated low byte** (e.g. 161), not the real catalog id (673) — re-anchoring
+recovers the true gid, and fixes the matching latent bug in `writeOgMap`, which wrote
+only `z.globalID & 0xff` and so desynced the map from the `stk` header for any
+written gid > 255.
+
+**The table does not overrun.** Earlier notes said "the records can overrun the
+map's declared size by a couple of bytes" (an artifact of the old, misframed core).
+The byte accounting confirms the flush framing instead: on the RedLib file the `map`
 payload is `[69..939)` and the table is 7 × 12 = 84 B, which fits **exactly** at
-`855..939` — while anchoring the first core at 857 ends at 941, i.e. 2 bytes into the
-next section's `stk` **tag** (`73 74 6b`). A record table cannot contain the next
-section's header, so X is each record's head and the "overrun" was a framing error.
-X is `00 00` across the OG corpus the table was RE'd from, but **`00 02` throughout
-the Stage-2 RedLib corpus** (7 strokes, gids 155–161). Because the reader required it
-to be zero, it never matched the count marker on those files and returned **zero
-zones, silently** — caught only by `nsmp-corpus-sweep.test.ts` (fixtures are local /
-git-ignored, so CI never saw it). `parseLegacyZoneRecords` skips X and anchors on
-`strength == 1` per record (strictly tighter than the old 2-byte zero gate) plus the
-stroke **global-id set**, the same guard the codec-2/3/4 readers use.
+`855..939` — the count marker sits at 853, and the first record starts immediately
+at 855 with no gap. `parseLegacyZoneRecords` locates the table by the count marker,
+then anchors each record on `strength == 1` plus the stroke **global-id set** (now
+matched against the full u24 gid), the same guard the codec-2/3/4 readers use.
 
-> **Open.** X's meaning (`00 00` OG vs `00 02` RedLib) is still unknown, and no
-> decompiled `CSectionMap::Read` path for the **v9** map has been read (the
-> `@1002ed4e4` path above is the codec-3/4 reader) — everything here is derived from
-> real files. Reading that path would also confirm whether v9 should simply route
-> through `parseStrokeRefZoneRecords`: with `rec:12, gidOff:0, keyHighOff:7` it is the
-> *identical* shape to v10's `rec:15`, but that swaps the count-anchored search for a
-> maximal-run search, which can't be re-validated while the OG corpus
-> (`research/nsmp/TAKE ON ME.nsmp`) is off-machine.
+Other RE notes pinned down alongside this reframe, on the same RedLib fixture:
+- **CRC.** The file tail carries a CRC-16/CCITT-FALSE, little-endian, over
+  `bytes[0..len-2]` (`crc16Ccitt`, `nsmp-og.ts`) — the legacy analogue of codec 3/4's
+  header-embedded CRC-32, but living at the true file tail rather than inside the
+  header, so it has none of the `0x18..0x1b` magic-collision hazard those generations
+  have.
+- **`hdr` carries no name.** The section is a flush 18 bytes with no printable run —
+  legacy files are identified by filename only, not an embedded name field.
+- **`keyHigh` is stored twice** — once in the map record (`+6`, u32 BE) and once in
+  the `stk` header (`+0x33`, u8) — and the two copies agree on every RedLib stroke,
+  consistent with the map record being the authoritative split point and the `stk`
+  copy mirroring it.
 
 Editing patches these fields (`rootKey`/`keyHigh`/`keyLow`/`velMin`/`velMax`) back
 **in place** (`patchEditedNsmp`) and re-checksums — audio and every byte we don't
@@ -417,8 +433,8 @@ model are preserved exactly. **Codec 3 & 4 only:** `patchEditedNsmp` throws for
 legacy. That generation shares neither the record (12 B, no root/keyLow/velocity
 slot) nor the checksum — `patchNs4Checksum` writes at `0x18..0x1b`, which in an `NWS`
 container is the **magic**, so patching it destroyed the file's identity outright.
-Legacy editing needs its own writer (keyHigh at the record's `+4` u32, root via the
-`stk` header, CRC-16 via `crc16Ccitt`).
+Legacy editing needs its own writer (keyHigh at the record's `+6` u32, gid at `+0`
+u24, root via the `stk` header, CRC-16 via `crc16Ccitt`).
 
 The **writer** (`nsmp-write.ts`) emits this exact layout per generation:
 codec-3 `map` = `[6B global][128 × 6B unity][N × 16B C3 records]`; codec-4 `map` =

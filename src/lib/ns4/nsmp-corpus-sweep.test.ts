@@ -3,6 +3,8 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { readNsmp, readNsmpZones, parseNsmpSections } from './nsmp';
 
+const u32be = (b: Uint8Array, o: number) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
+
 /**
  * Whole-corpus **read/zone** health sweep — every `.nsmp/.nsmp3/.nsmp4` under
  * `fixtures/` (git-ignored; suite skips when the folder is absent/empty). This is
@@ -46,8 +48,14 @@ describe.skipIf(FILES.length === 0)('corpus sweep — all fixtures read cleanly'
       expect(id.warnings.some((w) => /unverified/i.test(w))).toBe(false); // every variant is mapped
 
       const secs = parseNsmpSections(b);
+      const mapVer = secs.find((s) => s.tag.endsWith('map'))?.version;
+      // The reader takes the legacy stk gid as u32 BE @+0 ONLY for the non-v10 legacy
+      // branch; the nested map.version === 10 (codec-2) case keeps the u8 @+3 read, as
+      // do codec 3/4. Mirror that exactly so this guard can't mis-key a v10 gid > 255.
       const gidSet = new Set(
-        secs.filter((s) => s.tag.endsWith('stk')).map((s) => b[s.payloadOffset + 3]),
+        secs.filter((s) => s.tag.endsWith('stk')).map((s) => (
+          id.legacy && mapVer !== 10 ? u32be(b, s.payloadOffset) : b[s.payloadOffset + 3]
+        )),
       );
       const strokes = secs.filter((s) => s.tag.endsWith('stk')).length;
 
