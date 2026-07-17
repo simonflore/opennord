@@ -412,6 +412,22 @@ function strokeRootByGlobalId(bytes: Uint8Array, sections: NsmpSection[]): Map<n
 }
 
 /**
+ * Legacy (`NWS`) analogue of {@link strokeRootByGlobalId}: the OG `stk` header
+ * stores the global id as a **u32 BE at +0** (not a u8 at +3), so key by that.
+ * Root is at +0x05, same as every generation. Used by the v9 (non-v10 legacy)
+ * zone reader, whose map records now carry the full u24 gid.
+ */
+function legacyStrokeRootByGlobalId(bytes: Uint8Array, sections: NsmpSection[]): Map<number, number> {
+  const roots = new Map<number, number>();
+  for (const s of sections) {
+    if (!s.tag.endsWith('stk')) continue;
+    const root = bytes[s.payloadOffset + 5];
+    if (root <= 127) roots.set(u32be(bytes, s.payloadOffset), root);
+  }
+  return roots;
+}
+
+/**
  * Read the per-zone splits/layers table from the `map` section. Skips the global
  * + per-note level/detune block (unity entries `10 00 00 00 00 00`), then parses
  * 16-byte zone entries. (Codec-3 `map` form; verified against Strings.nsmp3.)
@@ -552,8 +568,10 @@ export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
     // high byte of its `u24` level (0x10 at unity, hence the "root ≈ 16" the OG corpus
     // shows). The real per-zone root lives in the `stk` header (+5), keyed by global
     // id, exactly as NSE reads it (CSectionStroke). Codec 3/4 keep their map-record
-    // root, which is correct for NSE-authored files and round-trips edits.
-    const roots = strokeRootByGlobalId(bytes, sections);
+    // root, which is correct for NSE-authored files and round-trips edits. The v9 map
+    // record now carries the full u24 gid, so key the root lookup on the header's u32
+    // (not the u8 `+3` read codec 3/4 use) — see legacyStrokeRootByGlobalId.
+    const roots = legacyStrokeRootByGlobalId(bytes, sections);
     const zones = parseLegacyZoneRecords(
       bytes, map.payloadOffset, map.endOffset, strokeCount, new Set(roots.keys()),
     );
@@ -593,10 +611,10 @@ export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
 /**
  * OG/legacy (.nsmp, `map` version 9) zone table, reverse-engineered from real files.
  * After the per-note level block the `map` ends with `[count:u16]` then `count`
- * 12-byte records, each an un-identified `u16 X` followed by a **10-byte core**:
- *   [X:u16][gid:u8][level:u24][keyHigh:u32 BE][strength:u16]
- * We anchor on the core (so `recordOffset` points at `gid`, and the cores sit at
- * `count + 4 + 12i`). `keyHigh` is the zone's top key (split point); velocity isn't
+ * **flush** 12-byte records, no leading padding:
+ *   [gid:u24 BE][level:u24 BE][keyHigh:u32 BE][strength:u16 BE]
+ * `recordOffset` points at the record start (the `gid`'s first byte); the records
+ * sit at `count + 12i`. `keyHigh` is the zone's top key (split point); velocity isn't
  * per-zone (single layer → 127). `strength` is the same field the codec-3/4 record
  * carries at +12 (`SetStrength`) and is **1** in all known content — it's the
  * per-record marker we anchor on.
@@ -606,23 +624,24 @@ export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
  * split point, and everything else is derived. There is **no `rootKey` and no
  * `keyLow` slot** — `keyLow` tiles top-down from the next zone's split point, and
  * the root rides the `stk` header (+5), which is where {@link readNsmpZones} takes
- * it from. v9 and v10 wrap the identical 10-byte core differently: v9 **leads** with
- * the u16 X (12 B), v10 **trails** 5 zero bytes (15 B — {@link parseCodec2ZoneRecords}).
+ * it from — keyed by the full u24 gid via {@link legacyStrokeRootByGlobalId}, since
+ * the OG `stk` header stores the gid as a u32 at +0, not a u8 at +3.
  *
- * `[+1..+3]` is a `u24` **`DSP2Level` gain**, not a root+tune: unity is `10 00 00`
+ * `gid` was previously misread as a single low byte at `+0`, with the record framed
+ * as `[X:u16][gid:u8][level:u24][keyHigh:u32][strength:u16]` — an "un-identified u16
+ * X" leading every record. That `X` is not padding: it is the gid's own **high two
+ * bytes**. The RedLib fixture makes this unambiguous — record 0 is
+ * `00 02 a1 | 2d 18 18 | 00 00 00 6c | 00 01`: `00 02 a1` is gid **673** (u24 BE),
+ * matching the `stk` header's u32 gid `00 00 02 a1` exactly; the old reader took only
+ * the low byte (`a1` = 161) and called `00 02` an unidentified marker. Reframing on
+ * the true `[gid:u24]` fixes the latent desync in `writeOgMap` for gids > 255 (it
+ * wrote only the low byte) and makes `NsmpZone.globalID` for v9 zones the real
+ * catalog id, not a truncation.
+ *
+ * `[+3..+5]` is a `u24` **`DSP2Level` gain**, not a root+tune: unity is `10 00 00`
  * (= `level2DSP(0)`), and the Stage-2 RedLib corpus carries real per-zone trims
  * (`2d 18 18` = +9.00 dB exactly — a hand-dialed value). Reading its high byte as
  * `keyLow` produced overlapping zones.
- *
- * **X is a u16 we do not interpret.** It leads every record: the RedLib map payload
- * ends flush at `recStart + 12·count` only when X is counted as each record's head,
- * and the 2 bytes after the last core are the next section's `stk` tag. It is
- * `00 00` across the OG corpus this table was first RE'd from, but `00 02`
- * throughout the Stage-2 RedLib corpus (`Ambiente Pad RedLib SML.nsmp`: 7 strokes,
- * gids 155–161). Treating it as mandatory zero padding rejected the count marker on
- * those files and dropped every zone silently (7 strokes → 0 zones — caught by
- * `nsmp-corpus-sweep.test.ts`). Its meaning stays open (the v9 map's use of
- * this field isn't pinned yet).
  *
  * `gidSet` (the strokes' global ids) pins the table to records naming real strokes,
  * the same guard `parseCodec2/3/4ZoneRecords` use; omitted → the check is skipped.
@@ -635,19 +654,19 @@ export function parseLegacyZoneRecords(
   const recordsValid = (recStart: number): boolean => {
     for (let i = 0; i < count; i++) {
       const o = recStart + i * REC;
-      if (o + 10 > bytes.length || u32be(bytes, o + 4) > 127) return false;
-      if (u16be(bytes, o + 8) !== 1) return false; // strength — 1 in all known content
-      if (gidSet && !gidSet.has(bytes[o])) return false;
+      if (o + REC > bytes.length || u32be(bytes, o + 6) > 127) return false;
+      if (u16be(bytes, o + 10) !== 1) return false; // strength — 1 in all known content
+      if (gidSet && !gidSet.has(u24be(bytes, o))) return false; // gid is u24 BE @+0
     }
     return true;
   };
   for (let p = searchStart; p < searchEnd; p++) {
     if (u16be(bytes, p) !== count) continue;
-    const recStart = p + 4; // count u16 + the first record's leading u16 X
+    const recStart = p + 2; // count:u16, then the first record starts immediately (no leading X)
     if (!recordsValid(recStart)) continue;
     const raw = Array.from({ length: count }, (_, i) => {
       const o = recStart + i * REC;
-      return { globalID: bytes[o], keyHigh: u32be(bytes, o + 4), recordOffset: o };
+      return { globalID: u24be(bytes, o), keyHigh: u32be(bytes, o + 6), recordOffset: o };
     });
     raw.sort((a, b) => b.keyHigh - a.keyHigh); // top-down, defensive (already file order)
     return raw.map((r, i) => ({

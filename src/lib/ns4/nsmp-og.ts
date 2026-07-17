@@ -241,31 +241,28 @@ export interface OgWriteZone {
 /** Build the OG legacy `map` payload: global + per-note unity + zone records. */
 function writeOgMap(zones: OgWriteZone[]): Uint8Array {
   // 15-byte global prefix + 128 × 6-byte unity rows (`10 00 00 00 00 00`), then
-  // [count:u16 BE][00 00] then 12-byte record cores — `parseLegacyZoneRecords` reads
-  // this back (it locates the count by search, so the cores land at count + 4 + 12i).
-  // This is a **template**, not a byte-faithful NSM map: real v9 files lead each
-  // record with the un-identified u16 X (so their table is 2 B shorter than ours) and
-  // carry a 16-byte global prefix. Byte-faithfulness to NSM is unverified — same
-  // caveat as the rest of this writer, which is retained but no longer the default.
+  // flush `[count:u16 BE]` immediately followed by `count` 12-byte record cores —
+  // `parseLegacyZoneRecords` reads this back (it locates the count by search, so the
+  // records land at count + 12i, no leading padding). This is a **template**, not a
+  // byte-faithful NSM map: byte-faithfulness to NSM is unverified beyond the record
+  // framing itself — same caveat as the rest of this writer, which is retained but no
+  // longer the default.
   const prefix = new Uint8Array(15);
   prefix[0] = 0x22; prefix[1] = 0x06; prefix[2] = 0x04; // templated global level marker
   const perNote = new Uint8Array(128 * 6);
   for (let i = 0; i < 128; i++) perNote[i * 6] = 0x10;
-  const count = new Uint8Array(4);
+  const count = new Uint8Array(2);
   putU16(count, 0, zones.length);
   const recs = new Uint8Array(zones.length * 12);
   zones.forEach((z, i) => {
     const o = i * 12;
-    recs[o] = z.globalID & 0xff;
-    // level u24 BE @+1 = unity (`10 00 00` = level2DSP(0) = 0 dB). This slot is a
-    // DSP2Level gain, NOT a root key — writing the root here made every zone play
-    // that value as gain (root 60 → 0x3c0000 ≈ +15.5 dB). We model no per-zone gain,
-    // so unity is the lossless write; the root rides the `stk` header (+0x05).
-    putU24(recs, o + 1, level2DSP(0));
-    // keyHigh u32 BE @+4; strength `00 01` @+8; the un-identified u16 X @+10 = 0
-    // (what the OG corpus carries) — see parseLegacyZoneRecords.
-    putU32(recs, o + 4, z.keyHigh >>> 0);
-    recs[o + 9] = 0x01;
+    // Flush 12-byte v9 record: [gid:u24 BE][level:u24 BE][keyHigh:u32 BE][strength:u16 BE].
+    // gid is u24 to match the stk header's u32 (writeOgStrokeHeader +0x00) — writing only
+    // the low byte desynced the map from the header for gids > 255.
+    putU24(recs, o, z.globalID & 0xffffff);
+    putU24(recs, o + 3, level2DSP(0));   // unity gain (we model no per-zone level)
+    putU32(recs, o + 6, z.keyHigh >>> 0);
+    putU16(recs, o + 10, 1);             // strength — the record marker
   });
   const out = new Uint8Array(prefix.length + perNote.length + count.length + recs.length);
   let p = 0;

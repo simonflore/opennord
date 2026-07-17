@@ -143,7 +143,28 @@ describe('writeOgNsmp — legacy v9 map round-trip', () => {
     expect(z.length).toBe(3);
     for (const x of z) {
       const o = x.recordOffset;
-      expect([bytes[o + 1], bytes[o + 2], bytes[o + 3]]).toEqual([0x10, 0x00, 0x00]);
+      expect([bytes[o + 3], bytes[o + 4], bytes[o + 5]]).toEqual([0x10, 0x00, 0x00]);
     }
+  });
+});
+
+describe('writeOgNsmp — gid > 255 map/stk agreement', () => {
+  const tone = (n: number) => Int32Array.from({ length: n }, (_, i) => Math.round(2000 * Math.sin(i / 8)));
+  it('round-trips a zone whose globalID exceeds a byte', () => {
+    const src = writeOgNsmp({
+      name: 'Big GID',
+      zones: [
+        { channels: [tone(256), tone(256)], globalID: 673, rootKey: 96, keyHigh: 108 },
+        { channels: [tone(256), tone(256)], globalID: 667, rootKey: 24, keyHigh: 30 },
+      ],
+    });
+    const z = readNsmpZones(src);
+    // gid survives as the full value (map u24 == stk u32), not truncated to 161/155.
+    expect(z.map((x) => x.globalID).sort((a, b) => a - b)).toEqual([667, 673]);
+    // roots come off the stk header, keyed by the full gid.
+    const byGid = new Map(z.map((x) => [x.globalID, x]));
+    expect(byGid.get(673)!.rootKey).toBe(96);
+    expect(byGid.get(667)!.rootKey).toBe(24);
+    expect(byGid.get(673)!.keyHigh).toBe(108);
   });
 });
