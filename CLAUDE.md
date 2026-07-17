@@ -174,8 +174,11 @@ route everything through a token) and built with **Tailwind v4** utilities +
 Tokens flow into Tailwind via `@theme`; composite treatments are semantic
 `@utility` classes (`fill-*`, `elev-*`, `glow`). Cheatsheet:
 `src/styles/tailwind-baseline.md`. `nord.css` (instrument panel) stays hand-CSS.
-Spec + plan: `docs/superpowers/{specs,plans}/2026-06-14-ui-redesign*`,
-`docs/plans/2026-07-14-tailwind-migration.md`.
+Core's specs live in `docs/specs/`, plans in `docs/plans/` (core-relative, like
+every other path here). Current: `docs/specs/2026-07-16-blueprint-motifs-design.md`
++ `docs/plans/2026-07-16-blueprint-motifs.md`. The Tailwind migration that
+preceded them is monorepo-level and sits at the **repo root**:
+`../../docs/plans/2026-07-14-tailwind-migration.md`.
 
 ### Users
 Nord players — gigging/practicing musicians, not engineers (Nord Stage owners
@@ -196,6 +199,18 @@ raw bank/slot numbers) in product UI — translate to what a player understands.
 Dark, instrument-front-panel feel: near-black surfaces, one red accent, generous
 hierarchy and whitespace, focus over density. Dark-only for now, but built on
 tokens so a light theme is a second `[data-theme]` block, not a rewrite.
+
+The system also carries a **blueprint register**: monospace eyebrow labels that
+state a claim, and a dashed content-column frame with crosshairs — reading as a
+technical drawing of the instrument, which is on-brand for a tool whose premise
+is that the format was mapped. Display type is **thin and large**; UI text stays
+bold and small ("weight follows size" — the `text-display-*` tokens carry their
+own weight, so `tokens.css` enforces the rule rather than reviewer memory).
+Studio Dark's palette is unchanged by it: the reference (slashwork.com/roadmap)
+is a light, four-colour editorial page, and **only its structure was taken**.
+Decorative colour stays out — `--warn`/`--connected`/`--lcd-cyan`/`--focus` are
+semantic status colours, so a green card would quietly claim "connected".
+Spec: `docs/specs/2026-07-16-blueprint-motifs-design.md`.
 **Anti-references:** Nord Sound Manager (dense, dated, wall-of-rows desktop UI we
 are explicitly beating) and generic SaaS/admin-dashboard chrome. Accessibility is
 part of "precise": real labels (`aria-label`/`aria-current`), keyboard-operable
