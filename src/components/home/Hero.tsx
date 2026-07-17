@@ -4,43 +4,52 @@ import { cn } from '@/lib/cn';
 import { CONTENT } from './layout';
 import { heroBtn } from './styles';
 
+/**
+ * The hero: eyebrow, a full-bleed display title, then the supporting copy and
+ * the demo card in two columns beneath it.
+ *
+ * The title spans the whole content column on purpose. `text-display-1` is
+ * calibrated against the column width (11vw, up to 148px), and it only reads as
+ * intended when it has the full 1080px to run in — inside the old half-width
+ * grid cell it set 140px type in a 529px box and stacked six lines deep.
+ */
 export function Hero() {
   return (
-    <section
-      className={cn(
-        CONTENT,
-        'grid grid-cols-[1.05fr_0.95fr] items-center gap-6 py-[clamp(24px,8vw,88px)]',
-        'max-[860px]:grid-cols-1 max-[860px]:py-6',
-      )}
-    >
-      <div>
-        <SectionLabel>Open source · in your browser</SectionLabel>
-        <h1 className="m-0 mt-3 font-extrabold leading-[1.05] tracking-[-1px] text-ink text-[clamp(30px,5.4vw,52px)]">
-          Know your Nord — <span className="text-dim">without the keyboard.</span>
-        </h1>
-        <p className="mt-4 max-w-[30rem] text-[clamp(14px,1.6vw,17px)] leading-[1.6] text-dim max-[860px]:max-w-none">
-          OpenNord reads your Nord Stage program and preset files right in the
-          browser. Browse, understand and organize your patches — no keyboard, no
-          Sound Manager, nothing to install.
-        </p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link to="/library/programs" className={heroBtn}>
-            Open the app
-          </Link>
-          <a
-            className={buttonVariants({ variant: 'outline', size: 'lg' })}
-            href="https://github.com/simonflore/opennord"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            View on GitHub
-          </a>
+    <section className={cn(CONTENT, 'py-[clamp(48px,8vw,112px)]')}>
+      <SectionLabel variant="eyebrow">Open source · in your browser</SectionLabel>
+      {/* text-display-1 carries its own weight/leading/tracking — do not add
+          font-*, leading-* or tracking-* here. Tailwind emits
+          font-weight: var(--tw-font-weight, …), so any font-* on this element
+          would silently override the scale. */}
+      <h1 className="m-0 mt-6 text-display-1 text-ink">
+        Know your Nord — <span className="text-dim">without the keyboard.</span>
+      </h1>
+      <div className="mt-10 grid grid-cols-[1.05fr_0.95fr] items-start gap-6 max-[860px]:grid-cols-1 max-[860px]:mt-8">
+        <div>
+          <p className="max-w-[34rem] text-[clamp(14px,1.6vw,17px)] leading-[1.6] text-dim max-[860px]:max-w-none">
+            OpenNord reads your Nord Stage program and preset files right in the
+            browser. Browse, understand and organize your patches — no keyboard, no
+            Sound Manager, nothing to install.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link to="/library/programs" className={heroBtn}>
+              Open the app
+            </Link>
+            <a
+              className={buttonVariants({ variant: 'outline', size: 'lg' })}
+              href="https://github.com/simonflore/opennord"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View on GitHub
+            </a>
+          </div>
+          <p className="mt-4 text-[11px] font-medium tracking-[0.2px] text-muted">
+            Free &amp; open source · runs entirely on your device · works from a file alone
+          </p>
         </div>
-        <p className="mt-4 text-[11px] font-medium tracking-[0.2px] text-muted">
-          Free &amp; open source · runs entirely on your device · works from a file alone
-        </p>
+        <HeroCard />
       </div>
-      <HeroCard />
     </section>
   );
 }

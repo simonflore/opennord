@@ -7,11 +7,17 @@ import { cn } from '@/lib/cn';
  */
 export const CONTENT = 'mx-auto max-w-content px-6';
 
-/** The standard section rhythm. */
-export const SEC = cn(CONTENT, 'py-[clamp(24px,6vw,72px)]');
+/**
+ * The standard section rhythm.
+ *
+ * Clamped hard at the low end on purpose: the editorial reference's whitespace
+ * is a desktop luxury, and unclamped at phone width it is just scrolling. The
+ * app is mobile-first (working principle 4).
+ */
+export const SEC = cn(CONTENT, 'py-[clamp(64px,10vw,160px)]');
 
 /** The tighter rhythm, for sections that ride close to their neighbour. */
-export const SEC_TIGHT = cn(CONTENT, 'py-[clamp(16px,3vw,32px)]');
+export const SEC_TIGHT = cn(CONTENT, 'py-[clamp(32px,5vw,80px)]');
 
 /**
  * Scroll to an in-page section without writing to the URL hash.

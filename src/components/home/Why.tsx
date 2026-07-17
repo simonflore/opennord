@@ -5,7 +5,7 @@ export function Why() {
   return (
     <section className={SEC}>
       <SectionHead
-        overline="Why it exists"
+        overline="Knowledge that outlives us"
         title="Community knowledge, given a lasting home"
         sub="Everything that makes OpenNord possible was figured out by the community, in the open. This gives that work a place that outlives any one person."
       />

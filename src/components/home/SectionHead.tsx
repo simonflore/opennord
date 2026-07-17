@@ -1,14 +1,20 @@
 import { SectionLabel } from '@/components/ui';
 
-/** The shared section heading: overline, title, standfirst. */
+/**
+ * The shared section heading: eyebrow, title, standfirst.
+ *
+ * `overline` must state the section's CLAIM, not its name — "Stage first,
+ * family next", not "Coverage". An eyebrow that merely labels its section is a
+ * review failure. See docs/specs/2026-07-16-blueprint-motifs-design.md §4.
+ */
 export function SectionHead({ overline, title, sub }: { overline: string; title: string; sub: string }) {
   return (
-    <div className="mb-6 max-w-[40rem]">
-      <SectionLabel>{overline}</SectionLabel>
-      <h2 className="m-0 mt-2 font-extrabold leading-[1.15] tracking-[-0.6px] text-ink text-[clamp(22px,3.4vw,32px)]">
-        {title}
-      </h2>
-      <p className="mt-3 text-[15px] leading-[1.6] text-dim">{sub}</p>
+    <div className="mb-8 max-w-[40rem]">
+      <SectionLabel variant="eyebrow">{overline}</SectionLabel>
+      {/* text-display-2 carries its own weight/leading/tracking — adding a
+          font-*, leading-* or tracking-* here would silently override it. */}
+      <h2 className="m-0 mt-4 text-display-2 text-ink">{title}</h2>
+      <p className="mt-4 text-[15px] leading-[1.6] text-dim">{sub}</p>
     </div>
   );
 }

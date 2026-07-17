@@ -30,7 +30,7 @@ export function DesktopApp() {
       {/* home-dl-glow: the one-off corner glow behind the panel — see home.css. */}
       <div className="home-dl-glow rounded-lg border border-line p-[clamp(24px,4vw,44px)] edge-hi">
         <div className="max-w-[60ch]">
-          <SectionLabel>Desktop app</SectionLabel>
+          <SectionLabel variant="eyebrow">Where USB actually works</SectionLabel>
           <h2 className="m-0 mt-2 font-bold leading-[1.2] text-ink text-[clamp(20px,3vw,28px)]">
             Talk to your Nord from the desktop
           </h2>

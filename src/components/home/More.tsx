@@ -35,7 +35,7 @@ const moreItemLink = cn(
 export function More() {
   return (
     <section className={SEC_TIGHT}>
-      <SectionLabel>Also in the app</SectionLabel>
+      <SectionLabel variant="eyebrow">Also in the app</SectionLabel>
       <div className="mt-3 grid grid-cols-3 gap-4 max-[860px]:grid-cols-1 max-[860px]:gap-3">
         {MORE.map((m) => {
           const inner = (
