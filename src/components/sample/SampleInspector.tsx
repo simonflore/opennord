@@ -54,7 +54,7 @@ function playZone(loaded: Loaded, index: number): void {
   const zone = loaded.zones[index];
   if (!zone) return;
   const stroke = loaded.decoded.find((s) => s.globalID === zone.globalID);
-  if (stroke) playPcm(stroke.channels);
+  if (stroke) playPcm(stroke.channels, undefined, stroke.sampleRate);
 }
 
 export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) {
@@ -144,6 +144,11 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     if (initial) { ++loadCount.current; loadBytes(initial.bytes, initial.name, !!initial.factory); }
   }, [initial]);
 
+  // Legacy (NWS-container, OG) files edit in place too, but only when the map is
+  // a version patchLegacyNsmp knows how to rewrite (v9/v10) and zones decoded.
+  const mapVersion = loaded?.file.sections.find((s) => s.tag.endsWith('map'))?.version;
+  const legacyEditable = !!loaded?.file.legacy && (mapVersion === 9 || mapVersion === 10) && (loaded?.zones.length ?? 0) > 0;
+
   return (
     <div>
       <label
@@ -172,14 +177,17 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
           <SampleHeader view={{ ...sampleHeaderView(loaded.file, loaded.bytes.length, loaded.name), gainDetune: gainDetuneView(loaded.bytes), truVibrato: truVibratoView(loaded.bytes), ...voicingView(loaded.bytes) }} />
 
           {/* Keyboard-map editor leads once we've decoded the key map; edits patch
-              back into the file in place (audio preserved). Otherwise a friendly
-              note + the read-only key map. */}
-          {(loaded.file.codec === 3 || loaded.file.codec === 4) && loaded.zones.length > 0
+              back into the file in place (audio preserved). Legacy (NWS-container,
+              OG) files edit in place too when legacyEditable (v9/v10 map with
+              zones) — see patchLegacyNsmp. Otherwise a friendly note + the
+              read-only key map. */}
+          {((loaded.file.codec === 3 || loaded.file.codec === 4) && loaded.zones.length > 0) || legacyEditable
             ? <SampleEditPanel
                 key={loaded.loadId}
                 initial={editModel(loaded.file, loaded.zones)}
                 bytes={loaded.bytes}
-                codec={loaded.file.codec === 4 ? 4 : 3}
+                codec={loaded.file.codec === 4 ? 4 : loaded.file.legacy ? 'og' : 3}
+                legacy={loaded.file.legacy}
                 factory={loaded.factory}
                 unison={sampleUnisonView(loaded.bytes)?.summary ?? null}
                 onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
@@ -190,8 +198,9 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
               />
             : loaded.file.legacy && loaded.zones.length > 0
               ? (
-                // Legacy .nsmp: decoded but not editable in place — show the map
-                // read-only (click a band to audition), and point to conversion.
+                // Legacy .nsmp we can't patch (unrecognized map version): decoded
+                // but not editable in place — show the map read-only (click a
+                // band to audition), and point to conversion.
                 <>
                   <SampleKeyboard
                     zones={editModel(loaded.file, loaded.zones).zones}
@@ -235,7 +244,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
           />
 
           {/* Raw key/velocity table — only when we couldn't build the editor. */}
-          {!((loaded.file.codec === 3 || loaded.file.codec === 4) && loaded.zones.length > 0)
+          {!(((loaded.file.codec === 3 || loaded.file.codec === 4) && loaded.zones.length > 0) || legacyEditable)
             && <ZoneMap rows={zoneMapRows(loaded.bytes)} unison={sampleUnisonView(loaded.bytes)?.summary ?? null} />}
         </div>
       )}

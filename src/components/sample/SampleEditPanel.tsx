@@ -15,10 +15,15 @@ const round1 = (n: number): number => Math.round(n * 10) / 10;
  *  zone in the synced table below; rename, then patch + download a new .nsmp.
  *  Edits are written back into the original file in place — audio and everything
  *  we don't model are preserved exactly. */
-export function SampleEditPanel({ initial, bytes, codec, factory, unison, onPlayZone, onNoteOn, onNoteOff, soundingMidis, playableZones }: {
+export function SampleEditPanel({ initial, bytes, codec, legacy, factory, unison, onPlayZone, onNoteOn, onNoteOff, soundingMidis, playableZones }: {
   initial: EditModel;
   bytes: Uint8Array;
-  codec: 3 | 4;
+  /** 3/4 = .nsmp3/.nsmp4; 'og' = legacy .nsmp (no digit suffix, root + split only). */
+  codec: 3 | 4 | 'og';
+  /** Legacy (NWS-container, OG) file: no velocity slots, no name slot (filename
+   *  only), and `keyLow` isn't independently editable — it's the neighbour's
+   *  split + 1, moved by dragging that split on the keybed. */
+  legacy?: boolean;
   /** This sample is Nord factory content. We don't block editing it — just show a
    *  disclaimer (factory audio stays on the user's device, never re-shared). */
   factory?: boolean;
@@ -49,15 +54,17 @@ export function SampleEditPanel({ initial, bytes, codec, factory, unison, onPlay
     setZones((zs) => zs.map((z, j) => (j === i ? { ...z, ...patch } : z)));
   }
 
+  const ext = codec === 'og' ? 'nsmp' : `nsmp${codec}`;
+
   function download() {
     setError('');
     try {
       const out = patchEditedNsmp(bytes, {
         name, zones,
-        globalGainDb: gd ? (Number(gainDb) || 0) : undefined,
-        globalDetuneCents: gd ? Math.round(Number(detuneCents) || 0) : undefined,
+        globalGainDb: (!legacy && gd) ? (Number(gainDb) || 0) : undefined,
+        globalDetuneCents: (!legacy && gd) ? Math.round(Number(detuneCents) || 0) : undefined,
       });
-      downloadBytes(out, `${name.trim() || 'sample'}.nsmp${codec}`);
+      downloadBytes(out, `${name.trim() || 'sample'}.${ext}`);
     } catch (e) {
       setError(getErrorMessage(e));
     }
@@ -94,7 +101,8 @@ export function SampleEditPanel({ initial, bytes, codec, factory, unison, onPlay
       <div className="ps-zone-scroll">
       <table className="ps-params ps-zone-tbl">
         <thead><tr>
-          <th>sample</th><th>root</th><th>from</th><th>up to (split)</th><th>vel ≥</th><th>vel ≤</th>
+          <th>sample</th><th>root</th><th>from</th><th>up to (split)</th>
+          {!legacy && <><th>vel ≥</th><th>vel ≤</th></>}
         </tr></thead>
         <tbody>
           {/* Rows in keyboard order (left→right) so S-numbers match the map above;
@@ -106,10 +114,16 @@ export function SampleEditPanel({ initial, bytes, codec, factory, unison, onPlay
               <tr key={i} className={i === selected ? 'sel' : ''} onClick={() => { setSelected(i); onPlayZone?.(i); }}>
                 <td>S{pos + 1}</td>
                 <td>{num(z.rootKey, (n) => setZone(i, { rootKey: n }))}<em>{noteName(z.rootKey)}</em></td>
-                <td>{num(z.keyLow, (n) => setZone(i, { keyLow: n }))}<em>{noteName(z.keyLow)}</em></td>
+                <td>
+                  {legacy
+                    ? <>{tz.keyLow} <em>{noteName(tz.keyLow)}</em></>
+                    : <>{num(z.keyLow, (n) => setZone(i, { keyLow: n }))}<em>{noteName(z.keyLow)}</em></>}
+                </td>
                 <td>{num(z.keyHigh, (n) => setZone(i, { keyHigh: n }))}<em>{noteName(z.keyHigh)}</em></td>
-                <td>{num(z.velLow, (n) => setZone(i, { velLow: n }))}</td>
-                <td>{num(z.velTop, (n) => setZone(i, { velTop: n }))}</td>
+                {!legacy && <>
+                  <td>{num(z.velLow, (n) => setZone(i, { velLow: n }))}</td>
+                  <td>{num(z.velTop, (n) => setZone(i, { velTop: n }))}</td>
+                </>}
               </tr>
             );
           })}
@@ -117,7 +131,7 @@ export function SampleEditPanel({ initial, bytes, codec, factory, unison, onPlay
       </table>
       </div>
 
-      {gd && (
+      {gd && !legacy && (
         <div className="ps-sub" style={{ display: 'flex', gap: 18, alignItems: 'center', margin: '12px 0 0', flexWrap: 'wrap' }}>
           <label>Gain&nbsp;
             <input type="number" step={0.1} value={gainDb} className="ps-kbd-num ps-kbd-num--compact"
@@ -134,15 +148,19 @@ export function SampleEditPanel({ initial, bytes, codec, factory, unison, onPlay
         <p className="ps-sub" style={{ margin: '10px 0 0' }}>Unison: {unison} <em>(read-only)</em></p>
       )}
 
-      <label className="ps-sub" style={{ display: 'block', margin: '12px 0 8px' }}>
-        Name:&nbsp;
-        <input value={name} onChange={(e) => setName(e.target.value)} style={{ padding: 4 }} />
-      </label>
+      {!legacy && (
+        <label className="ps-sub" style={{ display: 'block', margin: '12px 0 8px' }}>
+          Name:&nbsp;
+          <input value={name} onChange={(e) => setName(e.target.value)} style={{ padding: 4 }} />
+        </label>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <Button variant="primary" onClick={download}>Download edited .nsmp{codec}</Button>
+        <Button variant="primary" onClick={download}>Download edited .{ext}</Button>
         <span className="ps-sub" style={{ margin: 0 }}>
-          Edits root / split / velocity / gain / detune and name; audio and all other settings are preserved. Back up first.
+          {legacy
+            ? 'Edits root / split; audio and all other settings — including per-zone levels — are preserved. Back up first.'
+            : 'Edits root / split / velocity / gain / detune and name; audio and all other settings are preserved. Back up first.'}
         </span>
       </div>
       {error && <p className="ps-sub on-error">{error}</p>}
