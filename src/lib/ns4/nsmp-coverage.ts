@@ -25,7 +25,7 @@ export function nsmpClaimedRegions(bytes: Uint8Array): ByteRange[] {
     // The block before the zone records: codec-4 = 31B SampleUnison + 1B count;
     // codec-3 = just the 1B count. (readSampleUnison / readNsmpZones.)
     out.push({ start: afterNotes, end: afterNotes + (codec >= 4 ? 32 : 1) });
-    const layout = zoneRecordLayout(codec);
+    const layout = zoneRecordLayout();
     void layout; // (offsets within each 16B record are claimed by the record range)
     for (const z of readNsmpZones(bytes)) {
       if (z.recordOffset > 0) out.push({ start: z.recordOffset, end: z.recordOffset + 16 });
