@@ -308,8 +308,14 @@ export const ZONE_LAYOUT: ZoneRecordLayout = {
 export const ZONE_LAYOUT_C3 = ZONE_LAYOUT;
 export const ZONE_LAYOUT_C4 = ZONE_LAYOUT;
 
-/** The 16-byte zone-record layout (shared across codec 3 & 4). */
-export function zoneRecordLayout(_codec?: number): ZoneRecordLayout {
+/**
+ * The 16-byte zone-record field layout — **codec 3 & 4 only** (they share it).
+ * Legacy (`NWS`) records are a different shape entirely and are read by
+ * {@link parseLegacyZoneRecords} / written by {@link patchLegacyNsmp}; never apply
+ * this layout to a legacy file (doing so put codec-3/4 offsets onto a 12-byte v9
+ * record and produced a silently broken download — the bug this narrowing prevents).
+ */
+export function zoneRecordLayout(): ZoneRecordLayout {
   return ZONE_LAYOUT;
 }
 

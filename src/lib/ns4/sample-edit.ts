@@ -80,7 +80,7 @@ export function patchEditedNsmp(original: Uint8Array, model: EditModel): Uint8Ar
   const file = readNsmp(original);
   if (file.legacy) return patchLegacyNsmp(original, model);
   const out = original.slice();
-  const layout = zoneRecordLayout(file.codec);
+  const layout = zoneRecordLayout();
   for (const z of model.zones) {
     if (z.recordOffset == null) continue;
     const e = z.recordOffset;
