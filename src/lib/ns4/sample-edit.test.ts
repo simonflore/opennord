@@ -6,6 +6,7 @@ import { writeOgNsmp, crc16Ccitt } from './nsmp-og';
 import { readNsmp, decodeNsmp, readNsmpZones, parseNsmpSections, readStrokeLoop, patchStrokeLoopBytes } from './nsmp';
 import { editModel, buildEditedNsmp, patchEditedNsmp } from './sample-edit';
 import { gainDetuneView } from './sample-view';
+import { hasGt } from './gt-fixtures';
 
 /**
  * A deterministic 2-zone source .nsmp (no gitignored fixture needed). Audio is
@@ -265,5 +266,35 @@ describe('patchEditedNsmp — legacy (v9) files', () => {
     bad[map.payloadOffset - 6] = 0x00; bad[map.payloadOffset - 5] = 0x0b; // version = 11
     const model = editModel(readNsmp(bad), readNsmpZones(bad));
     expect(() => patchEditedNsmp(bad, model)).toThrow(/legacy|version/i);
+  });
+
+  // Real ground-truth legacy multisample: edit one zone, prove everything else
+  // stays byte-exact — including the per-zone level trim we don't model.
+  const redlib = 'fixtures/stage-2-ex/Ambiente Pad RedLib SML.nsmp';
+  const redlibPath = join(process.cwd(), redlib);
+
+  it.skipIf(!hasGt(redlib))('edits one legacy zone, preserving every other byte incl. level trims', () => {
+    const src = new Uint8Array(readFileSync(redlibPath));
+    const model = editModel(readNsmp(src), readNsmpZones(src));
+    const top = model.zones.find((z) => z.globalID === 673)!; // C7 zone, keyHigh 108
+    const rec = top.recordOffset!;
+    const levelBefore = [...src.subarray(rec + 3, rec + 6)]; // u24 level = 2d 18 18 (+9 dB)
+    top.rootKey = 84; // was 96
+
+    const out = patchEditedNsmp(src, model);
+
+    expect(out.length).toBe(src.length);
+    expect(readNsmp(out).legacy).toBe(true);
+    const z = new Map(readNsmpZones(out).map((x) => [x.globalID, x]));
+    expect(z.get(673)!.rootKey).toBe(84);
+    // the per-zone level trim we don't model is preserved byte-exact
+    expect([...out.subarray(rec + 3, rec + 6)]).toEqual(levelBefore);
+    // only the stk root byte, the stk keyHigh mirror (unchanged here), and the 2 CRC bytes move
+    const changed: number[] = [];
+    for (let i = 0; i < src.length; i++) if (src[i] !== out[i]) changed.push(i);
+    const stk = parseNsmpSections(src).find((s) => s.tag.endsWith('stk') && src[s.payloadOffset + 3] === 161)!;
+    const crc0 = src.length - 2;
+    expect(changed.every((i) => i === stk.payloadOffset + 0x05 || i >= crc0)).toBe(true);
+    expect(changed).toContain(stk.payloadOffset + 0x05);
   });
 });
