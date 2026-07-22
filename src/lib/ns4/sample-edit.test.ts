@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { writeNsmpMulti } from './nsmp-write';
-import { writeOgNsmp } from './nsmp-og';
+import { writeOgNsmp, crc16Ccitt } from './nsmp-og';
 import { readNsmp, decodeNsmp, readNsmpZones, parseNsmpSections, readStrokeLoop, patchStrokeLoopBytes } from './nsmp';
 import { editModel, buildEditedNsmp, patchEditedNsmp } from './sample-edit';
 import { gainDetuneView } from './sample-view';
@@ -184,46 +184,86 @@ describe('patchEditedNsmp', () => {
   });
 });
 
-/**
- * In-place patching does not work on legacy (`.nsmp` v8/v9) files — in two ways, both
- * of which silently produced a broken download:
- *  - the zone record is 12 bytes with an unrelated shape (`[X:u16][gid:u8][level:u24]
- *    [keyHigh:u32][strength:u16]` — no root/keyLow/velocity slot), but
- *    `zoneRecordLayout` hands back the 16-byte codec-3/4 layout for every codec, so
- *    `rootKey` landed on the gid, `keyHigh`/`keyLow` on the level, and the velocities
- *    in the *next* record;
- *  - `patchNs4Checksum` writes the NS4 CRC at 0x18..0x1b, which in an `NWS` container
- *    is the **magic itself** — the patched file stops being recognized at all (legacy
- *    → false, section tree gone). Legacy carries its own CRC-16 (`crc16Ccitt`).
- * Refusing is the honest behaviour: `SampleEditPanel` already surfaces the throw, so
- * the user is told rather than handed a corrupt file. Real legacy editing needs its
- * own writer (keyHigh at the record's +4 u32, root via the `stk` header, OG CRC).
- */
 describe('patchEditedNsmp — legacy (v9) files', () => {
   const tone = (n: number) => Int32Array.from({ length: n }, (_, i) => Math.round(2000 * Math.sin(i / 8)));
   const legacySrc = () => writeOgNsmp({
     name: 'OG Src',
     zones: [
-      { channels: [tone(256), tone(256)], globalID: 13, rootKey: 96, keyHigh: 108 },
-      { channels: [tone(256), tone(256)], globalID: 12, rootKey: 60, keyHigh: 60 },
+      { channels: [tone(2000), tone(2000)], globalID: 673, rootKey: 96, keyHigh: 108 },
+      { channels: [tone(2000), tone(2000)], globalID: 667, rootKey: 24, keyHigh: 30 },
     ],
   });
 
-  it('refuses to patch rather than corrupting the container', () => {
+  it('patches root + split in place, preserving length, container and audio', () => {
+    const src = legacySrc();
+    const before = decodeNsmp(src);
+    const model = editModel(readNsmp(src), readNsmpZones(src));
+    const top = model.zones.findIndex((z) => z.globalID === 673);
+    model.zones[top].rootKey = 84;   // was 96
+    model.zones[top].keyHigh = 105;  // was 108
+
+    const out = patchEditedNsmp(src, model);
+
+    expect(out.length).toBe(src.length);          // in-place: same size
+    const f = readNsmp(out);
+    expect(f.recognized).toBe(true);
+    expect(f.legacy).toBe(true);                  // NWS container survived (no NS4 CRC over the magic)
+    const z = new Map(readNsmpZones(out).map((x) => [x.globalID, x]));
+    expect(z.get(673)!.rootKey).toBe(84);
+    expect(z.get(673)!.keyHigh).toBe(105);
+    expect(z.get(667)!.rootKey).toBe(24);         // untouched zone intact
+    expect(z.get(667)!.keyHigh).toBe(30);
+    // audio byte-identical — patching never moves a sample
+    const after = decodeNsmp(out);
+    expect([...after[0].channels[0]]).toEqual([...before[0].channels[0]]);
+    expect([...after[1].channels[0]]).toEqual([...before[1].channels[0]]);
+  });
+
+  it('re-CRCs the OG way (CRC-16/CCITT LE at len-2), not the NS4 CRC', () => {
     const src = legacySrc();
     const model = editModel(readNsmp(src), readNsmpZones(src));
     model.zones[0].rootKey = 30;
-    expect(() => patchEditedNsmp(src, model)).toThrow(/legacy/i);
+    const out = patchEditedNsmp(src, model);
+    const n = out.length - 2;
+    const stored = out[n] | (out[n + 1] << 8);
+    expect(stored).toBe(crc16Ccitt(out.subarray(0, n)));
+    // the NWS magic at 0x18..0x1a is intact (would be clobbered by patchNs4Checksum)
+    expect([out[0x18], out[0x19], out[0x1a]]).toEqual([0x4e, 0x57, 0x53]);
   });
 
-  it('does not mutate the source bytes when it refuses', () => {
-    const src = legacySrc();
-    const before = src.slice();
+  it('saves correctly when two v9 gids share a low byte (no false failure)', () => {
+    // 673 = 0x2A1 and 417 = 0x1A1 — both low byte 0xA1. The stk index used to be keyed
+    // by that shared low byte, so the write would land on the wrong physical `stk` and
+    // the read-back guard in verifyLegacyPatch would throw a false save failure.
+    const src = writeOgNsmp({
+      name: 'Collide',
+      zones: [
+        { channels: [tone(2000), tone(2000)], globalID: 673, rootKey: 96, keyHigh: 108 },
+        { channels: [tone(2000), tone(2000)], globalID: 417, rootKey: 48, keyHigh: 60 },
+      ],
+    });
     const model = editModel(readNsmp(src), readNsmpZones(src));
-    expect(() => patchEditedNsmp(src, model)).toThrow();
-    expect([...src]).toEqual([...before]);
-    // The file is still readable — the zones survive untouched.
-    expect(readNsmpZones(src).map((z) => [z.globalID, z.keyLow, z.keyHigh, z.rootKey]))
-      .toEqual([[13, 61, 108, 96], [12, 0, 60, 60]]);
+    const top = model.zones.findIndex((z) => z.globalID === 673);
+    model.zones[top].rootKey = 84; // was 96
+
+    let out: Uint8Array | undefined;
+    expect(() => { out = patchEditedNsmp(src, model); }).not.toThrow();
+
+    expect(out!.length).toBe(src.length);
+    const z = new Map(readNsmpZones(out!).map((x) => [x.globalID, x]));
+    expect(z.get(673)!.rootKey).toBe(84);   // edited zone updated
+    expect(z.get(417)!.rootKey).toBe(48);   // colliding-low-byte zone untouched
+  });
+
+  it('rejects an unsupported legacy map version rather than guessing', () => {
+    const src = legacySrc();
+    // Corrupt the map section version (v9 -> v11) so neither record path applies.
+    // Legacy section header is 9 bytes [tag:u24][version:u16][size:u32], so the
+    // version u16 BE sits at payloadOffset - 6 (high) / - 5 (low).
+    const map = parseNsmpSections(src).find((s) => s.tag.endsWith('map'))!;
+    const bad = src.slice();
+    bad[map.payloadOffset - 6] = 0x00; bad[map.payloadOffset - 5] = 0x0b; // version = 11
+    const model = editModel(readNsmp(bad), readNsmpZones(bad));
+    expect(() => patchEditedNsmp(bad, model)).toThrow(/legacy|version/i);
   });
 });
