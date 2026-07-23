@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import '../../styles/nord.css';
-import type { NordProgram } from '../../lib/formats';
-import { isNs4Program } from '../../lib/library/entries';
+import { isNs4Program, type NordProgram } from '../../lib/formats';
 import { activeLayers, scenesDiffer, engineCardModel, headerView, fxChips } from '../../lib/ns4/view';
 import { ProgramHeader } from './ProgramHeader';
 import { ProgramZones } from './ProgramZones';

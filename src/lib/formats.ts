@@ -33,6 +33,12 @@ import { ne4Codec } from './ne4/codec';
 import type { Ne4Program } from './ne4/types';
 import { ne5Codec } from './ne5/codec';
 import type { Ne5Program } from './ne5/types';
+import type { EngineSummary } from './clavia/engines';
+import { ns4Engines } from './ns4/engines';
+import { ns3Engines } from './ns3/engines';
+import { ns2Engines } from './ns2/engines';
+import { decodeNs3 } from './ns3/decode';
+import { decodeNs2 } from './ns2/decode';
 
 /** Every decoded program type OpenNord supports. Discriminate on `model` or `parsed`. */
 export type NordProgram =
@@ -60,6 +66,11 @@ const CODECS: readonly ModelCodec<NordProgram>[] = [
   ne5Codec,
 ];
 
+/** True when `program` is a fully-structured NS4 program (has `kind`). */
+export function isNs4Program(program: NordProgram): program is NS4Program {
+  return 'kind' in program;
+}
+
 export interface ClaviaFile {
   /** Which Nord model this file is (from a claiming codec, else the header). */
   model: ClaviaModel;
@@ -67,6 +78,8 @@ export interface ClaviaFile {
   info: NordFileInfo;
   /** The decoded program. Narrow on `model` or `program.parsed` before accessing model-specific fields. */
   program: NordProgram;
+  /** Which engines are active, on this generation's own axis. Undefined when unknown. */
+  engines?: EngineSummary;
 }
 
 const GENERATION_MODEL: Record<string, ClaviaModel> = {
@@ -82,6 +95,20 @@ function resolveCodec(info: NordFileInfo): ModelCodec<NordProgram> | undefined {
 }
 
 /**
+ * Which engines are active, per generation. Stage 2/3 are decoded here rather
+ * than via CODECS: registering them would reroute ProgramView and regress
+ * Ns3ProgramView (see docs/specs/2026-07-17-engine-display-design.md §3a).
+ * `model` is already correct for them via GENERATION_MODEL. The decode is cheap —
+ * real .ns3f/.ns2p files are under 1 KB.
+ */
+function engineSummaryFor(model: ClaviaModel, program: NordProgram, bytes: Uint8Array): EngineSummary | undefined {
+  if (model === 'ns4') return isNs4Program(program) && program.parsed ? ns4Engines(program) : undefined;
+  if (model === 'ns3') return ns3Engines(decodeNs3(bytes).panels);
+  if (model === 'ns2') return ns2Engines(decodeNs2(bytes).slots.filter((s) => s.active));
+  return undefined;
+}
+
+/**
  * Identify and decode any Nord CBIN file. Reads the shared header once, routes to
  * the model codec that claims it, and falls back to the recognized-but-unparsed
  * shell for files no codec decodes yet (Stage 2/3) — preserving today's behavior
@@ -92,5 +119,5 @@ export function parseClaviaFile(bytes: Uint8Array): ClaviaFile {
   const codec = resolveCodec(info);
   const program = codec ? codec.decode(bytes) : parseNs4Program(bytes);
   const model = codec?.model ?? GENERATION_MODEL[info.generation] ?? 'unknown';
-  return { model, info, program };
+  return { model, info, program, engines: engineSummaryFor(model, program, bytes) };
 }

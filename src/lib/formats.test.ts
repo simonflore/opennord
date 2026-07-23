@@ -49,6 +49,29 @@ describe('parseClaviaFile', () => {
   });
 });
 
+describe('parseClaviaFile — engines', () => {
+  it('summarises a Stage 4 program on the engine axis', () => {
+    const bytes = new Uint8Array(
+      readFileSync(fileURLToPath(new URL('./ns4/__fixtures__/regressionTest.ns4p', import.meta.url))),
+    );
+    const s = parseClaviaFile(bytes).engines;
+    expect(s?.axis).toBe('engine');
+    if (s?.axis !== 'engine') throw new Error('unreachable');
+    expect(s.engines.map((e) => e.kind)).toEqual(['organ', 'piano', 'synth']);
+  });
+
+  it('summarises a Stage 3 file on the container axis, without a registered codec', () => {
+    const s = parseClaviaFile(cbin('ns3f', 1, 304)).engines;
+    expect(s?.axis).toBe('container');
+    if (s?.axis !== 'container') throw new Error('unreachable');
+    expect(s.term).toBe('Panel');
+  });
+
+  it('leaves engines undefined for a file no generation claims', () => {
+    expect(parseClaviaFile(new Uint8Array([1, 2, 3, 4])).engines).toBeUndefined();
+  });
+});
+
 function skipBytes(k: string, v: unknown): unknown {
   return k === 'bytes' ? undefined : v;
 }

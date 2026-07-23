@@ -1,8 +1,8 @@
-import { parseClaviaFile, type NordProgram } from '../formats';
+import { parseClaviaFile, isNs4Program, type NordProgram } from '../formats';
 import { programNameFromFilename } from '../clavia/name';
 import { readNs4Bundle } from '../ns4/bundle';
 import { readNsmp, type NsmpFile } from '../ns4/nsmp';
-import { summarize, isNs4Program } from '../library/entries';
+import { summarize } from '../library/entries';
 import { classifyFile } from './classify';
 import { identifyNordFile } from '../clavia/nord-file';
 import { presetKindForTag, type PresetKind } from '../clavia/preset-kind';
