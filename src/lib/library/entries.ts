@@ -2,24 +2,15 @@ import type { LibraryEntry, LibrarySource, LibrarySort } from './types';
 import type { ProgramEntry } from '../device/transfer';
 import type { ScannedProgram } from '../folder/scan';
 import { formatSlot } from '../clavia/slot';
-import { parseClaviaFile, isNs4Program } from '../formats';
+import { parseClaviaFile } from '../formats';
 import { identifyNordFile } from '../clavia/nord-file';
 import { programNameFromFilename } from '../clavia/name';
 import { programCategoryName, PROGRAM_CATEGORY } from '../clavia/categories';
-import { activeLayers } from '../ns4/view';
-import type { NS4Program } from '../ns4/types';
+import { engineSearchText } from '../clavia/engines';
 import { matchesAny, sortWithFavorites } from './browse';
 
 /** Category names in Nord's canonical id order, de-duplicated — for the facet. */
 const CATEGORY_ORDER: string[] = [...new Set(Object.values(PROGRAM_CATEGORY))];
-
-/** One-line engine summary for a parsed NS4 program, e.g. "organ + synth". */
-export function summarize(program: NS4Program): string {
-  const kinds = activeLayers(program).map((l) => l.kind);
-  const order = ['organ', 'piano', 'synth'] as const;
-  const present = order.filter((k) => kinds.includes(k));
-  return present.length ? present.join(' + ') : 'program';
-}
 
 /** Type badge (e.g. ".ns4p") + generation + category for a local/backup file's entry. */
 function fileMetaFor(bytes: Uint8Array): Pick<LibraryEntry, 'typeLabel' | 'generation' | 'category'> {
@@ -44,14 +35,15 @@ export function nordEntriesFromDevice(entries: ProgramEntry[]): LibraryEntry[] {
  * for a freshly-imported file and one restored from IndexedDB on reload.
  */
 export function entryFromImport(rec: { id: string; name: string; bytes: Uint8Array }): LibraryEntry {
-  const program = parseClaviaFile(rec.bytes).program;
+  const file = parseClaviaFile(rec.bytes);
+  const program = file.program;
   program.name = programNameFromFilename(rec.name);
   return {
     id: rec.id,
     name: program.name ?? rec.name,
     source: 'local',
     ...fileMetaFor(rec.bytes),
-    summary: program.parsed && isNs4Program(program) ? summarize(program) : undefined,
+    engines: file.engines,
     program,
     bytes: rec.bytes,
   };
@@ -67,7 +59,7 @@ export function filterEntries(
     (source === 'all' || e.source === source) &&
     (generation === 'all' || e.generation === generation) &&
     (category === 'all' || e.category === category) &&
-    matchesAny([e.name, e.category, e.summary], query));
+    matchesAny([e.name, e.category, e.engines && engineSearchText(e.engines)], query));
 }
 
 /** Distinct categories present in the entries, in Nord's canonical order — for the facet. */
@@ -100,7 +92,7 @@ export function entriesFromScannedPrograms(programs: ScannedProgram[]): LibraryE
     name: p.name,
     source: (p.id.includes('!') ? 'backup' : 'local') as LibrarySource,
     ...fileMetaFor(p.bytes),
-    summary: p.summary,
+    engines: p.engines,
     program: p.program,
     bytes: p.bytes,
   }));

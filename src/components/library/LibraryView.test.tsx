@@ -6,8 +6,10 @@ import type { LibraryPrefsApi } from '../../lib/library/prefs';
 import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
 
 const entries: LibraryEntry[] = [
-  { id: 'nord:A:14', name: 'Wurli Dream', source: 'nord', slot: 'A:14', summary: 'piano + synth' },
-  { id: 'local:0', name: 'Sunday Organ', source: 'local', summary: 'organ' },
+  { id: 'nord:A:14', name: 'Wurli Dream', source: 'nord', slot: 'A:14',
+    engines: { axis: 'engine', engines: [{ kind: 'piano', layers: ['A'] }, { kind: 'synth', layers: ['A'] }] } },
+  { id: 'local:0', name: 'Sunday Organ', source: 'local',
+    engines: { axis: 'engine', engines: [{ kind: 'organ', layers: ['A'] }] } },
 ];
 
 const prefs = (over: Partial<LibraryPrefsApi> = {}): LibraryPrefsApi => ({
@@ -74,7 +76,7 @@ describe('LibraryView', () => {
     expect(html).toContain('On Nord');
     expect(html).toContain('Local');
     expect(html).toContain('Import file');
-    // engine glimpse chips from the summary ("piano + synth", "organ") —
+    // engine glimpse chips from the EngineSummary (piano+synth, organ) —
     // each color-codes by kind so a multi-engine patch reads apart at a glance
     expect(spanFor(html, 'piano')).toContain('text-ink');
     expect(spanFor(html, 'synth')).toContain('text-lcd-cyan');

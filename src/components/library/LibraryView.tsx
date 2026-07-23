@@ -5,7 +5,7 @@ import { LibraryCard } from './LibraryCard';
 import { LibraryEmpty } from './LibraryEmpty';
 import { BundlePicker } from './BundlePicker';
 import { NewBackupsBanner } from './NewBackupsBanner';
-import { EngineTag } from './EngineTag';
+import { EngineTags } from './EngineTags';
 import { SlotTag } from './SlotTag';
 import { CardRemoveButton } from './CardRemoveButton';
 import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
@@ -178,20 +178,8 @@ export function LibraryView({
               onToggleFavorite={() => onToggleFavorite(e.id)}
               onOpen={() => onOpen(e)}
               badge={<SlotTag>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>}
-              engines={e.summary
-                ? (
-                  <div className="mt-2.5 flex flex-wrap gap-[5px]">
-                    {e.summary.split(' + ').map((part, i) => {
-                      const kind = part.trim().toLowerCase();
-                      const known = kind === 'organ' || kind === 'piano' || kind === 'synth';
-                      return (
-                        <EngineTag key={i} kind={known ? (kind as 'organ' | 'piano' | 'synth') : undefined}>
-                          {part.trim()}
-                        </EngineTag>
-                      );
-                    })}
-                  </div>
-                )
+              engines={e.engines
+                ? <div className="mt-2.5"><EngineTags summary={e.engines} /></div>
                 : <div className="mt-2.5 text-[11px] text-muted">—</div>}
               footExtras={e.source === 'local' && (
                 <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />

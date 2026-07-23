@@ -1,4 +1,5 @@
 import type { NordProgram } from '../formats';
+import type { EngineSummary } from '../clavia/engines';
 
 export type LibrarySource = 'nord' | 'local' | 'backup' | 'cloud';
 
@@ -14,7 +15,8 @@ export interface LibraryEntry {
   typeLabel?: string;    // file-type badge for local/backup files, e.g. ".ns4p"
   generation?: 'Stage 2' | 'Stage 3' | 'Stage 4'; // file generation, for the format facet
   category?: string;     // Nord category name, e.g. "Pad" (CBIN header byte 0x10), for the category facet
-  summary?: string;      // engine summary, e.g. "organ + synth"
+  /** Which engines are active, on this file's own generation axis. */
+  engines?: EngineSummary;
   program?: NordProgram; // parsed program when available (local: from file; nord: when pulled)
   bytes?: Uint8Array;    // raw bytes when available
 }

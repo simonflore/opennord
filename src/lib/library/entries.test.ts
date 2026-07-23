@@ -1,8 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms, sortEntries, presentCategories } from './entries';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms, entryFromImport, sortEntries, presentCategories } from './entries';
 import type { LibraryEntry } from './types';
 import type { ScannedProgram } from '../folder/scan';
+import type { EngineSummary } from '../clavia/engines';
 import type { NS4Program } from '../ns4/types';
+
+const ns4Bytes = new Uint8Array(
+  readFileSync(fileURLToPath(new URL('../ns4/__fixtures__/regressionTest.ns4p', import.meta.url))),
+);
+const synthSummary: EngineSummary = { axis: 'engine', engines: [{ kind: 'synth', layers: ['A'] }] };
 
 // formatSlot(0, 13): bank 0 → 'A', loc=13 → Math.floor(13/8)+1=2, (13%8)+1=6 → 'A:26'
 // (Task spec assumed 0-indexed slot displayed 1-indexed as 'A:14', but the real
@@ -64,15 +72,30 @@ describe('presentCategories', () => {
   });
 });
 
+describe('entryFromImport — engines', () => {
+  it('carries the structured engine summary from the parsed file', () => {
+    const e = entryFromImport({ id: 'local:1', name: 'regressionTest.ns4p', bytes: ns4Bytes });
+    expect(e.engines?.axis).toBe('engine');
+  });
+});
+
+describe('filterEntries — engine search', () => {
+  it('matches an entry by an engine name in its summary', () => {
+    const e = entryFromImport({ id: 'local:1', name: 'regressionTest.ns4p', bytes: ns4Bytes });
+    expect(filterEntries([e], 'all', 'organ')).toHaveLength(1);
+    expect(filterEntries([e], 'all', 'zzznope')).toHaveLength(0);
+  });
+});
+
 describe('entriesFromScannedPrograms', () => {
   it('maps scanned programs to local Library entries, preserving id', () => {
     const fakeProgram = { parsed: false, bytes: new Uint8Array() } as unknown as NS4Program;
     const scanned: ScannedProgram[] = [
-      { id: 'folder:Lead.ns4p', name: 'Lead', path: 'Lead.ns4p', program: fakeProgram, bytes: new Uint8Array([1]), summary: 'synth' },
+      { id: 'folder:Lead.ns4p', name: 'Lead', path: 'Lead.ns4p', program: fakeProgram, bytes: new Uint8Array([1]), engines: synthSummary },
     ];
     const entries = entriesFromScannedPrograms(scanned);
     expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({ id: 'folder:Lead.ns4p', name: 'Lead', source: 'local', summary: 'synth' });
+    expect(entries[0]).toMatchObject({ id: 'folder:Lead.ns4p', name: 'Lead', source: 'local', engines: synthSummary });
     expect(entries[0].program).toBe(fakeProgram);
   });
 

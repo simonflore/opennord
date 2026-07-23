@@ -2,7 +2,8 @@ import { parseClaviaFile, isNs4Program, type NordProgram } from '../formats';
 import { programNameFromFilename } from '../clavia/name';
 import { readNs4Bundle } from '../ns4/bundle';
 import { readNsmp, type NsmpFile } from '../ns4/nsmp';
-import { summarize } from '../library/entries';
+import { ns4Engines } from '../ns4/engines';
+import type { EngineSummary } from '../clavia/engines';
 import { classifyFile } from './classify';
 import { identifyNordFile } from '../clavia/nord-file';
 import { presetKindForTag, type PresetKind } from '../clavia/preset-kind';
@@ -23,7 +24,7 @@ export interface ScannedProgram {
   path: string;      // human-facing source path
   program: NordProgram;
   bytes: Uint8Array;
-  summary?: string;
+  engines?: EngineSummary;
 }
 
 /** A recognized piano-library file — listed by name/size, never decoded. */
@@ -104,7 +105,8 @@ export function scanFiles(files: RawFile[]): ScanResult {
 
     try {
       if (kind === 'program') {
-        const program = parseClaviaFile(bytes).program;
+        const file = parseClaviaFile(bytes);
+        const program = file.program;
         program.name = programNameFromFilename(path);
         programs.push({
           id: `folder:${path}`,
@@ -112,7 +114,7 @@ export function scanFiles(files: RawFile[]): ScanResult {
           path,
           program,
           bytes,
-          summary: program.parsed && isNs4Program(program) ? summarize(program) : undefined,
+          engines: file.engines,
         });
       } else if (kind === 'bundle') {
         for (const entry of readNs4Bundle(bytes)) {
@@ -122,7 +124,7 @@ export function scanFiles(files: RawFile[]): ScanResult {
             path: `${path} → ${entry.path}`,
             program: entry.program,
             bytes: entry.bytes,
-            summary: entry.program.parsed && isNs4Program(entry.program) ? summarize(entry.program) : undefined,
+            engines: isNs4Program(entry.program) && entry.program.parsed ? ns4Engines(entry.program) : undefined,
           });
         }
       } else if (kind === 'preset') {
