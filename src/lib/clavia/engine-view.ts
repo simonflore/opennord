@@ -5,6 +5,7 @@
  * from ns4/ or ns3/. Producers (organPanel, synthCard, …) live per-model in
  * <model>/view.ts and return these types.
  */
+import type { EngineSummary } from './engines';
 
 export type DrawbarColor = 'brown' | 'white' | 'black';
 
@@ -76,8 +77,8 @@ export interface HeaderView {
   category: string;
   version: string;
   sizeBytes: number;
-  /** e.g. "organ + piano + synth · 6 layers" or "Panel A: organ + synth · Panel B: piano". */
-  summary: string;
+  /** Which engines are active, on this generation's own axis. */
+  engines: EngineSummary;
 }
 
 export interface VolumeView { value: string; fill: number; morph?: MorphMarkView; }

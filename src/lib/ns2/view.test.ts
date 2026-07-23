@@ -117,7 +117,10 @@ describe('ns2HeaderView', () => {
     const b = slot({ id: 'B' });
     b.organ.on = false; b.synth.on = false;
     const h = ns2HeaderView(new Uint8Array(64), [a, b]);
-    expect(h.summary).toBe('Slot A: organ + piano + synth · Slot B: piano');
+    expect(h.engines).toEqual({
+      axis: 'container', term: 'Slot',
+      groups: [{ id: 'A', engines: ['organ', 'piano', 'synth'] }, { id: 'B', engines: ['piano'] }],
+    });
     expect(h.sizeBytes).toBe(64);
   });
 });

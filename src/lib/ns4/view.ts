@@ -10,6 +10,7 @@ import { decodeAllParams } from './coverage';
 import { collapseMorphs } from './params-view';
 import { buildParamMap } from './maps';
 import { organModelSpec, ORGAN_MODELS } from './organ-models';
+import { ns4Engines } from './engines';
 import type {
   MorphMarkView, DrawbarView, OrganPanelModel, PianoCardModel, SynthCardModel,
   EnvCurveView, Stat, FxChipModel, HeaderView, VolumeView, EngineCardModel,
@@ -29,7 +30,6 @@ export function morphMarks(m?: Morphable<string>): MorphMarkView | undefined {
   return { wheel: m.wheel, at: m.aftertouch, pedal: m.pedal };
 }
 
-const KIND_ORDER: NonNullable<NS4Layer['kind']>[] = ['organ', 'piano', 'synth'];
 
 /**
  * Layers switched on in the given scene (defaults to the program's saved active
@@ -56,16 +56,13 @@ export function scenesDiffer(p: NS4Program): boolean {
 }
 
 export function headerView(p: NS4Program, scene?: 'I' | 'II'): HeaderView {
-  const active = activeLayers(p, scene);
-  const kinds = KIND_ORDER.filter((k) => active.some((l) => l.kind === k));
-  const summary = `${kinds.join(' + ')} · ${active.length} layer${active.length === 1 ? '' : 's'}`;
   return {
     name: p.name ?? 'Unnamed',
     slot: p.slot ?? '—',
     category: p.category ?? (p.categoryId != null ? `#${p.categoryId}` : '—'),
     version: p.programVersion ? `v${p.programVersion}` : '—',
     sizeBytes: p.bytes.length,
-    summary,
+    engines: ns4Engines(p, scene),
   };
 }
 

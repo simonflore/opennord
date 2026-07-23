@@ -32,7 +32,14 @@ describe('headerView', () => {
     expect(h.category).toBe('None');
     expect(h.version).toBe('v3.13');
     expect(h.sizeBytes).toBe(868);
-    expect(h.summary).toBe('organ + piano + synth · 6 layers');
+    expect(h.engines).toEqual({
+      axis: 'engine',
+      engines: [
+        { kind: 'organ', layers: ['A', 'B'] },
+        { kind: 'piano', layers: ['A', 'B'] },
+        { kind: 'synth', layers: ['B', 'C'] },
+      ],
+    });
   });
 });
 
