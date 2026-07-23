@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
-
-type EngineKind = 'organ' | 'piano' | 'synth';
+import type { EngineKind } from '@/lib/clavia/engines';
 
 const COLOR: Record<EngineKind, string> = {
   organ: 'text-red shadow-[inset_0_0_0_1px_var(--red)]',
