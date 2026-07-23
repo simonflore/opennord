@@ -93,13 +93,16 @@ function programWithSampleLayer() {
 }
 
 describe('ProgramHeader', () => {
-  it('renders name, slot, category, version, and summary', () => {
+  it('renders name, slot, category, version, and engine tags', () => {
     const html = renderToStaticMarkup(<ProgramHeader header={headerView(fixtureProgram())} />);
     expect(html).toContain('regressionTest');
     expect(html).toContain('H:81');
     expect(html).toContain('None');
     expect(html).toContain('v3.13');
-    expect(html).toContain('organ + piano + synth · 6 layers');
+    // detail mode names the layers under each engine
+    expect(html).toContain('organ: A, B');
+    expect(html).toContain('piano: A, B');
+    expect(html).toContain('synth: B, C');
   });
 });
 

@@ -125,7 +125,10 @@ describe('ns3HeaderView', () => {
     b.organ.on = false; b.synth.on = false; // Panel B: piano only
     const h = ns3HeaderView(new Uint8Array(64), 'My Patch', [a, b]);
     expect(h.name).toBe('My Patch');
-    expect(h.summary).toBe('Panel A: organ + piano + synth · Panel B: piano');
+    expect(h.engines).toEqual({
+      axis: 'container', term: 'Panel',
+      groups: [{ id: 'A', engines: ['organ', 'piano', 'synth'] }, { id: 'B', engines: ['piano'] }],
+    });
     expect(h.sizeBytes).toBe(64);
   });
 });

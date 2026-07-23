@@ -1,5 +1,6 @@
 import type { HeaderView } from '../../lib/clavia/engine-view';
 import { Pill } from '../ui';
+import { EngineTags } from '../library/EngineTags';
 
 export function ProgramHeader({ header: h }: { header: HeaderView }) {
   return (
@@ -11,7 +12,7 @@ export function ProgramHeader({ header: h }: { header: HeaderView }) {
           <Pill>{h.category}</Pill>
           <Pill>{h.version}</Pill>
           <Pill>{h.sizeBytes} B</Pill>
-          <span>· {h.summary}</span>
+          <EngineTags summary={h.engines} detail />
         </div>
       </div>
       <div className="ps-logo">nord</div>

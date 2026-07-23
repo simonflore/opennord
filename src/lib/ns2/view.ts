@@ -12,6 +12,7 @@ import { volumeFill, envCurve } from '../clavia/engine-view';
 import { drawbarViews, b3DrawbarViews } from '../clavia/drawbars';
 import { identifyNordFile } from '../clavia/nord-file';
 import { ORGAN_TYPE, type Ns2Slot, type Ns2Fx } from './decode';
+import { ns2Engines } from './engines';
 
 export function ns2SampleKey(slotId: string, kind: 'Piano' | 'Synth'): string {
   return `${slotId}-${kind}`;
@@ -164,15 +165,8 @@ export function ns2SampleRefs(slots: Ns2Slot[], names: Record<string, string>): 
   return refs;
 }
 
-const KIND_ORDER = ['organ', 'piano', 'synth'] as const;
-
 export function ns2HeaderView(bytes: Uint8Array, slots: Ns2Slot[]): HeaderView {
   const info = identifyNordFile(bytes);
-  const summary = slots.map((s) => {
-    const kinds = KIND_ORDER.filter((k) =>
-      (k === 'organ' && s.organ.on) || (k === 'piano' && s.piano.on) || (k === 'synth' && s.synth.on));
-    return `Slot ${s.id}: ${kinds.length ? kinds.join(' + ') : 'empty'}`;
-  }).join(' · ');
   return {
     // ns2 stores no program name — show 'Unnamed' (the slot already appears as a pill).
     name: 'Unnamed',
@@ -180,6 +174,6 @@ export function ns2HeaderView(bytes: Uint8Array, slots: Ns2Slot[]): HeaderView {
     category: info.categoryName ?? '—',
     version: info.version ? `v${info.version}` : '—',
     sizeBytes: bytes.length,
-    summary,
+    engines: ns2Engines(slots),
   };
 }

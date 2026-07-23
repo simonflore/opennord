@@ -12,6 +12,7 @@ import { volumeFill, envCurve } from '../clavia/engine-view';
 import { drawbarViews, b3DrawbarViews } from '../clavia/drawbars';
 import { identifyNordFile } from '../clavia/nord-file';
 import { ORGAN_TYPE, type Ns3Panel, type Ns3Fx } from './decode';
+import { ns3Engines } from './engines';
 
 // The model-selector options ARE the decoder's organ-type table — sourced from it
 // so a future decoder relabel can't silently desync the selector.
@@ -162,22 +163,15 @@ export function ns3SampleRefs(panels: Ns3Panel[], names: Record<string, string>)
   return refs;
 }
 
-const KIND_ORDER = ['organ', 'piano', 'synth'] as const;
-
 /** Program header: CBIN slot/category/version + a per-panel engine summary. */
 export function ns3HeaderView(bytes: Uint8Array, name: string | undefined, panels: Ns3Panel[]): HeaderView {
   const info = identifyNordFile(bytes);
-  const summary = panels.map((p) => {
-    const kinds = KIND_ORDER.filter((k) =>
-      (k === 'organ' && p.organ.on) || (k === 'piano' && p.piano.on) || (k === 'synth' && p.synth.on));
-    return `Panel ${p.id}: ${kinds.length ? kinds.join(' + ') : 'empty'}`;
-  }).join(' · ');
   return {
     name: name ?? 'Unnamed',
     slot: info.slot ?? '—',
     category: info.categoryName ?? '—',
     version: info.version ? `v${info.version}` : '—',
     sizeBytes: bytes.length,
-    summary,
+    engines: ns3Engines(panels),
   };
 }
