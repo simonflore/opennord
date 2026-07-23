@@ -2,7 +2,7 @@ import type { LibraryEntry, LibrarySource, LibrarySort } from './types';
 import type { ProgramEntry } from '../device/transfer';
 import type { ScannedProgram } from '../folder/scan';
 import { formatSlot } from '../clavia/slot';
-import { parseClaviaFile, type NordProgram } from '../formats';
+import { parseClaviaFile, isNs4Program } from '../formats';
 import { identifyNordFile } from '../clavia/nord-file';
 import { programNameFromFilename } from '../clavia/name';
 import { programCategoryName, PROGRAM_CATEGORY } from '../clavia/categories';
@@ -19,11 +19,6 @@ export function summarize(program: NS4Program): string {
   const order = ['organ', 'piano', 'synth'] as const;
   const present = order.filter((k) => kinds.includes(k));
   return present.length ? present.join(' + ') : 'program';
-}
-
-/** True when `program` is a fully-structured NS4 program (has `kind`). */
-export function isNs4Program(program: NordProgram): program is NS4Program {
-  return 'kind' in program;
 }
 
 /** Type badge (e.g. ".ns4p") + generation + category for a local/backup file's entry. */
