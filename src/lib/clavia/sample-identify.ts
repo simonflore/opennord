@@ -38,6 +38,19 @@ export function nsmpLayout(bytes: Uint8Array): { bodyStart: number; headerSize: 
   return { bodyStart: 0x2c, headerSize: legacy ? 9 : 12, legacy };
 }
 
+/**
+ * True when the container carries the format-1 CRC-32 field at 0x18–0x1b — i.e.
+ * the NSM-era envelope whose body root sits at `0x2c`. Format-0 exports (and OG/
+ * legacy `NWS` files) put the section-tree root at `0x18`, so there is **no**
+ * checksum slot there: computing/verifying an NS4 checksum against those bytes is
+ * meaningless, and *writing* one clobbers the `NSMP`/`NWS` root (corrupting the
+ * whole file). Gate every `patchNs4Checksum`/`verifyNs4Checksum` on this.
+ */
+export function nsmpHasChecksumField(bytes: Uint8Array): boolean {
+  const { bodyStart, legacy } = nsmpLayout(bytes);
+  return !legacy && bodyStart === 0x2c;
+}
+
 /** Header-only identity of a Nord Sample container (no audio/section decode). */
 export interface NsmpIdentity {
   /** True when this is a recognized Nord Sample (`nsmp`) or piano-library (`npno`) file. */

@@ -148,6 +148,12 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
   // a version patchLegacyNsmp knows how to rewrite (v9/v10) and zones decoded.
   const mapVersion = loaded?.file.sections.find((s) => s.tag.endsWith('map'))?.version;
   const legacyEditable = !!loaded?.file.legacy && (mapVersion === 9 || mapVersion === 10) && (loaded?.zones.length ?? 0) > 0;
+  // Codec-3 `map` v12 `.nsmp3` uses stroke-reference records (root + split only, no
+  // per-zone velocity) — like the legacy path, but with an editable in-file name. It
+  // patches in place via patchV12Nsmp; the editor must not offer velocity edits it
+  // can't honour, so drive the table with rootSplitOnly.
+  const v12 = loaded?.file.codec === 3 && mapVersion === 12;
+  const rootSplitOnly = !!loaded?.file.legacy || v12;
 
   return (
     <div>
@@ -188,6 +194,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                 bytes={loaded.bytes}
                 codec={loaded.file.codec === 4 ? 4 : loaded.file.legacy ? 'og' : 3}
                 legacy={loaded.file.legacy}
+                rootSplitOnly={rootSplitOnly}
                 factory={loaded.factory}
                 unison={sampleUnisonView(loaded.bytes)?.summary ?? null}
                 onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
