@@ -637,9 +637,13 @@ function readPanel(b: Uint8Array, id: 'A' | 'B', base: number): Ns3Panel {
 
 /** Decode a Stage 3 `.ns3f` into its active panel(s). */
 export function decodeNs3(bytes: Uint8Array): Ns3Program {
-  // versionOffset shifts the whole map for pre-NSM (header type 0) exports; the
-  // common NSM-era files (our .ns3f, format-type 1) use 0. (-20 for older — TODO.)
-  const versionOffset = 0;
+  // Legacy (pre-NSM) .ns3f exports pack the body 0x14 bytes earlier than the common
+  // NSM-era files: the NSM-era header inserts 20 bytes before the panel block. Key on
+  // the CBIN formatType at 0x04 (0 = legacy, 1 = NSM-era — see clavia/cbin.ts). The
+  // `11 ?? 2? e0` panel marker plus the `b6`/`3a` body anchors align at exactly -0x14
+  // between a formatType-0 and formatType-1 file (verified against Fred's fmt0 files
+  // Gothic esamble.ns3f / Natural Strings.ns3f, 2026-07-15; the fmt1 corpus is unchanged).
+  const versionOffset = (bytes[0x04] ?? 0) === 0 ? -20 : 0;
   // 0x31 bits 6-5: 0 = panel A only, 1 = panel B only, 2 = both.
   const flag = (u8(bytes, 0x31 + versionOffset) & 0x60) >>> 5;
   const panels: Ns3Panel[] = [];
