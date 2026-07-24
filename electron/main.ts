@@ -12,8 +12,11 @@
  * `nord-usb:*` IPC channels below, which the preload re-exposes as
  * `window.nordNativeUsb` — the ElectronUsbTransport's four-method seam.
  *
- * NOTE: node-usb is a native module; it must be rebuilt for Electron's ABI
- * (`electron-rebuild`/`@electron/rebuild`). See electron/README.md.
+ * NOTE: node-usb is native but N-API (ABI-stable across Node and Electron) and
+ * ships prebuilds for every target, so it must NOT be rebuilt: a local
+ * `electron-rebuild` writes a host-platform `build/Release/usb_bindings.node`,
+ * which node-gyp-build then prefers over the correct `prebuilds/` binary and
+ * which breaks a cross-platform pack. See electron/README.md.
  */
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'node:path';

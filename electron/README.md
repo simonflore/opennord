@@ -31,14 +31,14 @@ a Nord.
 
 1. **Install deps** (native module + shell):
    ```bash
-   npm i -D electron @electron/rebuild electron-builder esbuild
+   npm i -D electron electron-builder esbuild
    npm i usb
    ```
-2. **Rebuild node-usb for Electron's ABI** (node-usb is native; it must match
-   Electron's V8, not system Node):
-   ```bash
-   npx electron-rebuild -f -w usb
-   ```
+2. **Do _not_ rebuild node-usb.** node-usb 2.x is **N-API** (`NAPI_VERSION=8`),
+   whose ABI is stable across Node *and* Electron, and it ships **prebuildify**
+   binaries for every target (`prebuilds/win32-x64/node.napi.node`, …). It works
+   in Electron as installed. See "Never run electron-rebuild" below — this is a
+   trap that has already shipped one broken Windows build.
 3. **Build main + preload** (they're outside the web `tsconfig`; bundle with esbuild):
    ```bash
    npx esbuild electron/main.ts electron/preload.ts \
@@ -51,13 +51,42 @@ a Nord.
    ```
    (start `npm run dev` first). For prod, `npm run build` then point main at `dist/index.html` (already the fallback).
 
-## Suggested package.json scripts
+## Packing
 
-```jsonc
-"electron:build": "esbuild electron/main.ts electron/preload.ts --bundle --platform=node --format=cjs --external:electron --external:usb --outdir=electron/dist",
-"electron:dev":   "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron electron/dist/main.js\"",
-"electron:pack":  "npm run build && npm run electron:build && electron-builder"
+```bash
+npm run electron:pack       # macOS  → release/mac*/OpenNord.app
+npm run electron:pack:win   # Windows x64 → release/OpenNord-<version>-win.zip
 ```
+
+**Pin the Windows arch.** `electron-builder --win` defaults to the *host* arch, so
+on an Apple Silicon Mac it silently builds **win-arm64**, which won't launch on
+the x64 Windows nearly every tester runs. `electron:pack:win` therefore passes
+`--x64` explicitly; use `--arm64` only when you mean it.
+
+**Windows packs must run on Windows.** The app *directory* cross-builds fine from
+a Mac (node-usb's `prebuilds/` carry every platform), but electron-builder shells
+out to **wine** to stamp the .exe metadata (rcedit), and its bundled wine 4.0.1
+aborts on current macOS — so the pack dies before the zip and you get no
+artifact. Build the Windows release on a Windows runner (GitHub Actions
+`windows-latest`) rather than locally on macOS.
+
+## Never run electron-rebuild
+
+`electron-rebuild -f -w usb` compiles node-usb **for the machine you're on** and
+writes `node_modules/usb/build/Release/usb_bindings.node`. That single file is
+what shipped the broken `OpenNord-0.0.1-win` build:
+
+- `node-gyp-build` resolves `build/Release/*.node` **before** `prebuilds/<platform>-<arch>/`,
+  so once `build/` exists it wins on *every* platform.
+- Packed from a Mac, that binary is Mach-O. On Windows, `require('usb')` dlopens
+  it and Electron dies at startup with
+  *"`usb_bindings.node` is not a valid Win32 application"* — before any of our
+  code runs, which is why installing UsbDk doesn't help.
+
+node-usb 2.x is N-API + prebuildify, so the rebuild buys nothing to begin with.
+`build.files` carries `"!**/node_modules/usb/build/**"` as a backstop so a stray
+local rebuild can't ship again, and `npmRebuild: false` stops electron-builder
+from recreating it. If a pack ever misbehaves, `rm -rf node_modules/usb/build`.
 
 ## Verifying the Stage 2 fix
 
