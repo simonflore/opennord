@@ -9,7 +9,7 @@ import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
 
 const voice = (startedAt: number): Voice => ({ midi: 60, globalID: 1, startedAt, rate: 1 });
 const stroke = (len: number, loop?: { loopStart: number; loopEnd: number }): DecodedStrokeResult =>
-  ({ channels: [new Int32Array(len)], loop: loop ? { ...loop, loops: true } : null } as DecodedStrokeResult);
+  ({ sampleRate: SAMPLE_RATE, channels: [new Int32Array(len)], loop: loop ? { ...loop, loops: true } : null } as DecodedStrokeResult);
 
 describe('playheadFraction', () => {
   it('advances linearly through a one-shot at playback rate', () => {

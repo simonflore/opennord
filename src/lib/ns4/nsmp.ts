@@ -831,6 +831,31 @@ export function patchStrokeLoopBytes(out: Uint8Array, stkPayloadOffset: number, 
   put(stkPayloadOffset + 0x24, loopOutAbs >>> 0);
 }
 
+/**
+ * The Nord sample storage/replay rate in Hz — the stroke-header pitch base
+ * (`0x88ba` = 35002; `nsmp-og.ts` `PITCH_BASE`) at 0 cents. It is the rate the
+ * decoded internal PCM is clocked at, constant across every real stroke (the
+ * decoded PCM is a shared internal domain across generations — the maintainers’ notes).
+ * Playing or exporting that PCM at any other rate detunes it: the old 44100
+ * audition placeholder played it `44100/35002 = 2^(4/12)` = **+4 semitones** sharp
+ * (a C sample sounded like E) while the stored root — hence the display note and
+ * WAV filename — stayed correct. Used as the fallback when a stroke carries no
+ * pitch base (OpenNord-authored codec-3/4 strokes before this field was written).
+ */
+export const NSMP_SAMPLE_RATE = 0x88ba; // 35002 Hz
+
+/**
+ * A stroke's replay sample rate from its `stk` header pitch base — u16 BE at
+ * payload `+6` (`… <root> 88 ba …`, the same offset in every generation:
+ * `round(2^(cents/1200)·0x88ba)`, so a fine-tuned root nudges it). Falls back to
+ * {@link NSMP_SAMPLE_RATE} when the field is absent (0) or outside a plausible
+ * audio-rate window — e.g. OpenNord's own writer left it zero before this field.
+ */
+function strokeSampleRate(bytes: Uint8Array, payloadOffset: number): number {
+  const base = u16be(bytes, payloadOffset + 6);
+  return base >= 8000 && base <= 96000 ? base : NSMP_SAMPLE_RATE;
+}
+
 export interface DecodedStrokeResult extends DecodedStroke {
   /** Index of the source `stk` section. */
   index: number;
@@ -840,6 +865,9 @@ export interface DecodedStrokeResult extends DecodedStroke {
   globalID: number;
   /** Loop window from the stroke header, or null when not decodable. */
   loop: StrokeLoop | null;
+  /** Replay sample rate in Hz — the stroke-header pitch base ({@link strokeSampleRate}).
+   *  Feed this to playback/WAV export so the sample sounds at its stored pitch. */
+  sampleRate: number;
 }
 
 const BOUND = 1 << 26; // raw 16-bit reconstructions stay well under this
@@ -979,6 +1007,7 @@ export function decodeNsmp(bytes: Uint8Array): DecodedStrokeResult[] {
       ...decoded.result, index, channelCount: decoded.channelCount,
       globalID: bytes[section.payloadOffset + 3],
       loop: readStrokeLoop(bytes, section.payloadOffset),
+      sampleRate: strokeSampleRate(bytes, section.payloadOffset),
     });
     index++;
   }

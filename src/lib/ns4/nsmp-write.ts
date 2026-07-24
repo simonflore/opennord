@@ -226,6 +226,7 @@ function assembleNsmp(
   const stks = strokes.map((channels, i) => {
     const header = new Uint8Array(STROKE_HEADER_SIZE);
     header[3] = (i + 1) & 0xff; // global id — matches each zone's globalID (map +12)
+    header[6] = 0x88; header[7] = 0xba; // pitch/rate base (PITCH_BASE @ 0 cents) — read back as the replay sampleRate; 44100 would detune +4 semitones
     header[8] = channels.length; // 1 = mono, 2 = stereo
     return section('\0stk', v.stk, concat([header, encodeStroke(channels, { blockSize, wordInterleaved })]));
   });

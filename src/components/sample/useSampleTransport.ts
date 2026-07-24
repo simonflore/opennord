@@ -1,8 +1,8 @@
 // src/components/sample/useSampleTransport.ts
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { SAMPLE_RATE, getSharedCtx } from './audioPlayer';
+import { getSharedCtx } from './audioPlayer';
 import type { Sampler, Voice } from './sampleEngine';
-import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
+import { NSMP_SAMPLE_RATE, type DecodedStrokeResult } from '../../lib/ns4/nsmp';
 
 /** Normalized 0..1 playhead for a sounding voice. One-shots advance and clamp at
  *  1; looping strokes wrap within [loopStart, loopEnd] (matching the sampler's
@@ -13,7 +13,7 @@ export function playheadFraction(
 ): number {
   const len = stroke.channels[0]?.length ?? 0;
   if (len === 0) return 0;
-  let posSamples = (now - voice.startedAt) * rate * SAMPLE_RATE;
+  let posSamples = (now - voice.startedAt) * rate * (stroke.sampleRate || NSMP_SAMPLE_RATE);
   const l = stroke.loop;
   if (l && l.loops && l.loopEnd > l.loopStart && posSamples > l.loopEnd) {
     const span = l.loopEnd - l.loopStart;

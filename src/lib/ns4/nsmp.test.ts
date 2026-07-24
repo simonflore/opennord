@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, openAsBlob } from 'node:fs';
 import { join } from 'node:path';
 import { patchNs4Checksum } from '../clavia/checksum';
-import { readNsmp, readNpnoName, parseNsmpSections, hdrFactoryFlag, nsmpHeadFactory, NSMP_FACTORY_HEAD_BYTES, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, type NsmpSection } from './nsmp';
+import { readNsmp, readNpnoName, parseNsmpSections, hdrFactoryFlag, nsmpHeadFactory, NSMP_FACTORY_HEAD_BYTES, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, NSMP_SAMPLE_RATE, type NsmpSection } from './nsmp';
 import { writeNsmp } from './nsmp-write';
 import { indexBackup } from '../clavia/backup/backup-index';
 import { extractZipEntry, extractZipEntryHead } from '../clavia/backup/zip-directory';
@@ -535,5 +535,33 @@ describe.skipIf(!existsSync(tbm4))('global + per-note level/detune (read-only)',
 
   it('reports 0 custom per-note rows for the all-default corpus file', () => {
     expect(perNoteCustomCount(bytes)).toBe(0);
+  });
+});
+
+describe('stroke replay sample rate (stk-header pitch base @ +6)', () => {
+  const tone = Int32Array.from({ length: 1500 }, (_, i) => Math.round(1000 * Math.sin(i / 8)));
+
+  it('decodes the written pitch base (0x88ba) as the stroke sampleRate — not 44100', () => {
+    const [s] = decodeNsmp(writeNsmp({ name: 'Rate', channels: [tone] }));
+    expect(s.sampleRate).toBe(NSMP_SAMPLE_RATE);       // 0x88ba = 35002 Hz
+    expect(NSMP_SAMPLE_RATE).toBe(0x88ba);
+    // The old 44100 placeholder replayed this PCM 44100/35002 ≈ 2^(4/12) too fast
+    // → +4 semitones (a C-root sample sounded/exported as E). Guard the ratio.
+    expect(44100 / s.sampleRate).toBeCloseTo(2 ** (4 / 12), 2);
+  });
+
+  it('falls back to NSMP_SAMPLE_RATE when a stroke carries no pitch base', () => {
+    const bytes = writeNsmp({ name: 'Rate', channels: [tone] });
+    const stk = parseNsmpSections(bytes).find((s) => s.tag.endsWith('stk'))!;
+    bytes[stk.payloadOffset + 6] = 0; bytes[stk.payloadOffset + 7] = 0; // strip the base
+    expect(decodeNsmp(bytes)[0].sampleRate).toBe(NSMP_SAMPLE_RATE);
+  });
+
+  it.skipIf(!existsSync(tbm4))('reads a plausible storage rate from a real .nsmp4 corpus file', () => {
+    const real = new Uint8Array(readFileSync(tbm4));
+    for (const s of decodeNsmp(real)) {
+      expect(s.sampleRate).toBeGreaterThanOrEqual(30000);
+      expect(s.sampleRate).toBeLessThanOrEqual(40000); // ≈ 0x88ba, well away from 44100/48000
+    }
   });
 });

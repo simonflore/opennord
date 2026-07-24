@@ -19,21 +19,26 @@
 import type { PlayableZone } from '../../lib/ns4/playable-zones';
 import type { DecodedStrokeResult, SampleUnison } from '../../lib/ns4/nsmp';
 import { normalizeChannels, toAudioBuffer } from '../../lib/ns4/nsmp-audio';
-import { SAMPLE_RATE, getSharedCtx } from './audioPlayer';
+import { NSMP_SAMPLE_RATE } from '../../lib/ns4/nsmp';
+import { getSharedCtx } from './audioPlayer';
 
-/** Loop region of a stroke in seconds (for AudioBufferSourceNode loop points). */
+/** Loop region of a stroke in seconds (for AudioBufferSourceNode loop points).
+ *  Uses the stroke's own replay rate so the seconds match the buffer built at that
+ *  same rate ({@link createSampler}) — a rate mismatch would drift the loop points. */
 export function loopSeconds(stroke: DecodedStrokeResult): { loop: boolean; start: number; end: number } {
   const l = stroke.loop;
   if (!l || !l.loops) return { loop: false, start: 0, end: 0 };
-  return { loop: true, start: l.loopStart / SAMPLE_RATE, end: l.loopEnd / SAMPLE_RATE };
+  const sr = stroke.sampleRate || NSMP_SAMPLE_RATE;
+  return { loop: true, start: l.loopStart / sr, end: l.loopEnd / sr };
 }
 
-/** Crossfade length (per-channel samples) for a loop window. Capped at ~40 ms, a
- *  quarter of the loop window, and the pre-loop headroom (`loopStart`) — so there
- *  is always real audio before the loop to blend the tail into. */
-export function loopXfadeLen(loopStart: number, loopEnd: number): number {
+/** Crossfade length (per-channel samples) for a loop window. Capped at ~40 ms (at
+ *  the stroke's replay rate), a quarter of the loop window, and the pre-loop
+ *  headroom (`loopStart`) — so there is always real audio before the loop to blend
+ *  the tail into. */
+export function loopXfadeLen(loopStart: number, loopEnd: number, sampleRate: number = NSMP_SAMPLE_RATE): number {
   const win = loopEnd - loopStart;
-  return Math.max(0, Math.min(Math.floor(win / 4), Math.floor(0.04 * SAMPLE_RATE), loopStart));
+  return Math.max(0, Math.min(Math.floor(win / 4), Math.floor(0.04 * sampleRate), loopStart));
 }
 
 /**
@@ -254,10 +259,10 @@ export function createSampler(
     // ringing-out sample plays straight through, so its buffer is left untouched.
     if (loopSample && stroke.loop?.loops) {
       const { loopStart, loopEnd } = stroke.loop;
-      const xf = loopXfadeLen(loopStart, loopEnd);
+      const xf = loopXfadeLen(loopStart, loopEnd, stroke.sampleRate);
       for (const ch of norm) crossfadeLoop(ch, loopStart, loopEnd, xf);
     }
-    const buf = toAudioBuffer(ctx, norm, SAMPLE_RATE);
+    const buf = toAudioBuffer(ctx, norm, stroke.sampleRate);
     buffers.set(globalID, buf);
     return buf;
   }
