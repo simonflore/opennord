@@ -57,27 +57,27 @@ describe('sampleHeaderView', () => {
 describe('strokeSummary', () => {
   it('summarizes a decoded stroke', () => {
     const d: DecodedStrokeResult = {
-      index: 2, channelCount: 2, endOffset: 0, globalID: 3, segments: [], loop: { loopStart: 1, loopEnd: 3, loops: true },
+      index: 2, channelCount: 2, endOffset: 0, globalID: 3, segments: [], sampleRate: 35002, loop: { loopStart: 1, loopEnd: 3, loops: true },
       channels: [new Int32Array([0, 100, -200, 50]), new Int32Array([0, 0, 0, 0])],
     };
-    expect(strokeSummary(d)).toEqual({ index: 2, sampleCount: 4, channels: 2, peak: 200, ok: true, loops: true, loopStart: 1, loopEnd: 3 });
+    expect(strokeSummary(d)).toEqual({ index: 2, sampleCount: 4, channels: 2, peak: 200, ok: true, sampleRate: 35002, loops: true, loopStart: 1, loopEnd: 3 });
   });
 
   it('marks an empty stroke not-ok; loops is undefined when no loop region decoded', () => {
-    const d: DecodedStrokeResult = { index: 0, channelCount: 1, endOffset: 0, globalID: 1, segments: [], loop: null, channels: [new Int32Array(0)] };
+    const d: DecodedStrokeResult = { index: 0, channelCount: 1, endOffset: 0, globalID: 1, segments: [], sampleRate: 35002, loop: null, channels: [new Int32Array(0)] };
     expect(strokeSummary(d).ok).toBe(false);
     expect(strokeSummary(d).loops).toBeUndefined();
   });
 
   it('exposes loopStart/loopEnd only when the stroke loops', () => {
     const looped: DecodedStrokeResult = {
-      index: 0, channelCount: 1, endOffset: 0, globalID: 1, segments: [],
+      index: 0, channelCount: 1, endOffset: 0, globalID: 1, segments: [], sampleRate: 35002,
       loop: { loopStart: 100, loopEnd: 500, loops: true }, channels: [new Int32Array([1, 2, 3])],
     };
     expect(strokeSummary(looped).loopStart).toBe(100);
     expect(strokeSummary(looped).loopEnd).toBe(500);
     const oneShot: DecodedStrokeResult = {
-      index: 0, channelCount: 1, endOffset: 0, globalID: 1, segments: [],
+      index: 0, channelCount: 1, endOffset: 0, globalID: 1, segments: [], sampleRate: 35002,
       loop: { loopStart: 100, loopEnd: 500, loops: false }, channels: [new Int32Array([1, 2, 3])],
     };
     expect(strokeSummary(oneShot).loopStart).toBeUndefined();

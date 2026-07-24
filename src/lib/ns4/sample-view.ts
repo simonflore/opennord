@@ -146,6 +146,9 @@ export interface StrokeSummary {
   channels: number;
   peak: number;
   ok: boolean;
+  /** Replay sample rate in Hz (the stroke's stored pitch base — see
+   *  `DecodedStrokeResult.sampleRate`). Drives WAV export + duration readout. */
+  sampleRate: number;
   /** Root note (e.g. "E3") of the zone that plays this stroke. Joined from the
    *  key map by globalID at load time; undefined when no zone references it. */
   rootNote?: string;
@@ -163,6 +166,7 @@ export function strokeSummary(d: DecodedStrokeResult): StrokeSummary {
   return {
     index: d.index, sampleCount, channels: d.channelCount,
     peak: peakAmplitude(d.channels), ok: sampleCount > 0,
+    sampleRate: d.sampleRate,
     loops: d.loop ? d.loop.loops : undefined,
     loopStart: d.loop?.loops ? d.loop.loopStart : undefined,
     loopEnd: d.loop?.loops ? d.loop.loopEnd : undefined,

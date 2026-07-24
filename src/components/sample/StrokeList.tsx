@@ -5,7 +5,7 @@ import { encodeWav } from '../../lib/ns4/wav';
 import { downloadBytes } from '../../lib/download';
 import type { StrokeSummary } from '../../lib/ns4/sample-view';
 import { WaveCanvas } from './WaveCanvas';
-import { playPcm, SAMPLE_RATE } from './audioPlayer';
+import { playPcm } from './audioPlayer';
 
 export interface InspectorStroke {
   summary: StrokeSummary;
@@ -28,7 +28,7 @@ function strokeWav(stroke: InspectorStroke, baseName: string): { bytes: Uint8Arr
   const loop = s.loops && s.loopStart != null && s.loopEnd != null
     ? { start: s.loopStart, end: s.loopEnd, unityNote: s.rootMidi }
     : undefined;
-  const bytes = encodeWav(normalizeChannels(stroke.channels), SAMPLE_RATE, loop);
+  const bytes = encodeWav(normalizeChannels(stroke.channels), s.sampleRate, loop);
   const root = s.rootNote ? `_${safeStem(s.rootNote)}` : '';
   return { bytes, filename: `${safeStem(baseName)}_S${s.index + 1}${root}.wav` };
 }
@@ -109,7 +109,7 @@ function StrokeRow({ stroke, playable, name, sNumber, sounding, playhead }: {
   useEffect(() => () => { stopRef.current?.(); }, []);
 
   function play() {
-    stopRef.current = playPcm(stroke.channels, () => { stopRef.current = null; setPlaying(false); });
+    stopRef.current = playPcm(stroke.channels, () => { stopRef.current = null; setPlaying(false); }, stroke.summary.sampleRate);
     setPlaying(true);
   }
   function stop() {
@@ -138,12 +138,12 @@ function StrokeRow({ stroke, playable, name, sNumber, sounding, playhead }: {
           WAV
         </button>
         <span className="ps-sub" style={{ margin: 0 }}>
-          Sample {sNumber != null ? sNumber + 1 : s.index + 1}{s.rootNote ? ` · ${s.rootNote}` : ''} · {s.channels === 2 ? 'stereo' : 'mono'} · {(s.sampleCount / SAMPLE_RATE).toFixed(1)}s
+          Sample {sNumber != null ? sNumber + 1 : s.index + 1}{s.rootNote ? ` · ${s.rootNote}` : ''} · {s.channels === 2 ? 'stereo' : 'mono'} · {(s.sampleCount / s.sampleRate).toFixed(1)}s
           {s.loops !== undefined && (
             <span title={s.loops ? 'Sample loops' : 'Plays once (no loop)'}> · {s.loops ? '↻ loops' : 'one-shot'}</span>
           )}
           {s.loops && s.loopStart != null && s.loopEnd != null && (
-            <span> · loop {(s.loopStart / SAMPLE_RATE).toFixed(2)}–{(s.loopEnd / SAMPLE_RATE).toFixed(2)}s</span>
+            <span> · loop {(s.loopStart / s.sampleRate).toFixed(2)}–{(s.loopEnd / s.sampleRate).toFixed(2)}s</span>
           )}
         </span>
       </div>

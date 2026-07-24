@@ -170,7 +170,7 @@ describe('scheduleAttackDecay', () => {
 
 describe('loopSeconds', () => {
   it('converts a looping stroke region to seconds', () => {
-    const s = { loop: { loopStart: 44100, loopEnd: 88200, loops: true } } as DecodedStrokeResult;
+    const s = { sampleRate: 44100, loop: { loopStart: 44100, loopEnd: 88200, loops: true } } as DecodedStrokeResult;
     expect(loopSeconds(s)).toEqual({ loop: true, start: 1, end: 2 });
   });
   it('reports no loop when the region is absent or non-looping', () => {
@@ -181,7 +181,7 @@ describe('loopSeconds', () => {
 
 describe('loopXfadeLen', () => {
   it('caps at ~40ms, a quarter of the loop window, and the pre-loop headroom', () => {
-    expect(loopXfadeLen(44100, 44100 + 44100)).toBe(Math.floor(0.04 * 44100)); // 40ms cap
+    expect(loopXfadeLen(44100, 44100 + 44100, 44100)).toBe(Math.floor(0.04 * 44100)); // 40ms cap
     expect(loopXfadeLen(44100, 44100 + 400)).toBe(100);                        // quarter-window
     expect(loopXfadeLen(50, 50 + 44100)).toBe(50);                             // headroom
   });
@@ -214,7 +214,7 @@ const strokeWithDecay = (globalID: number, startAmp: number, endAmp: number): De
     const t = (i - loopStart) / (loopEnd - loopStart);
     ch[i] = startAmp * (1 - t) + endAmp * t;
   }
-  return { globalID, channels: [ch], loop: { loopStart, loopEnd, loops: true } } as unknown as DecodedStrokeResult;
+  return { globalID, sampleRate: 44100, channels: [ch], loop: { loopStart, loopEnd, loops: true } } as unknown as DecodedStrokeResult;
 };
 
 describe('loopWindowDecayDb / sampleShouldLoop', () => {

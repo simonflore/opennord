@@ -4,7 +4,7 @@ import { StrokeList, type InspectorStroke } from './StrokeList';
 
 function stroke(index: number, ok = true, loops?: boolean): InspectorStroke {
   return {
-    summary: { index, sampleCount: ok ? 4 : 0, channels: 1, peak: 1, ok, loops },
+    summary: { index, sampleCount: ok ? 4 : 0, channels: 1, peak: 1, ok, loops, sampleRate: 35002 },
     channels: [new Int32Array([0, 1, -1, 0])],
   };
 }
@@ -26,7 +26,7 @@ describe('StrokeList loop indicator', () => {
 describe('StrokeList root note', () => {
   it('shows the root note in the description line when known, omits it otherwise', () => {
     const withRoot: InspectorStroke = {
-      summary: { index: 0, sampleCount: 4, channels: 2, peak: 1, ok: true, rootNote: 'E3' },
+      summary: { index: 0, sampleCount: 4, channels: 2, peak: 1, ok: true, rootNote: 'E3', sampleRate: 35002 },
       channels: [new Int32Array([0, 1, -1, 0])],
     };
     const html = renderToStaticMarkup(<StrokeList strokes={[withRoot]} playable name="P" />);
@@ -41,8 +41,8 @@ describe('StrokeList keyboard order', () => {
   it('numbers and orders rows by the keyboard S# when an order map is given', () => {
     // two strokes; globalIDs 5 and 9; keyboard order puts 9 first (S1), 5 second (S2)
     const strokes: InspectorStroke[] = [
-      { summary: { index: 0, sampleCount: 4, channels: 1, peak: 1, ok: true }, channels: [new Int32Array([0,1,-1,0])] },
-      { summary: { index: 1, sampleCount: 4, channels: 1, peak: 1, ok: true }, channels: [new Int32Array([0,1,-1,0])] },
+      { summary: { index: 0, sampleCount: 4, channels: 1, peak: 1, ok: true, sampleRate: 35002 }, channels: [new Int32Array([0,1,-1,0])] },
+      { summary: { index: 1, sampleCount: 4, channels: 1, peak: 1, ok: true, sampleRate: 35002 }, channels: [new Int32Array([0,1,-1,0])] },
     ];
     const order = new Map([[9, 0], [5, 1]]);
     const globalIDOf = (i: number) => (i === 0 ? 5 : 9);

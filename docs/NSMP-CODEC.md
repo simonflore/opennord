@@ -1085,6 +1085,33 @@ storage-rate / pitch model isn't hardware-verified (35256 Hz observed for rootKe
 only) — callers set `targetRate` explicitly. Byte-exact resampling would need the
 runtime `s_newFir48` kernel (or a WASM core for exact float32/FMA); not worth it.
 
+## Audition / WAV-export sample rate — the stroke pitch base ✓ (2026-07-22)
+
+The decoded PCM is in the Nord's internal storage-rate domain, **not** 44100 Hz. The
+`stk` header carries that rate as the **pitch base** — u16 BE at payload **+6** =
+`round(2^(cents/1200)·0x88ba)` (`0x88ba` = **35002 Hz** at 0 cents; the `PITCH_BASE`
+constant, constant across all 17 real OG strokes and the same offset in every
+generation, `… <root> 88 ba …`). `decodeNsmp` now reads it per stroke into
+`DecodedStrokeResult.sampleRate` (`strokeSampleRate`, falling back to
+`NSMP_SAMPLE_RATE` = 0x88ba when absent — e.g. our own writer left it 0; it now emits
+it), and preview playback + WAV export clock the PCM at that rate.
+
+**Why this was the "samples play/export sharp" bug.** Preview + export previously used a
+hardcoded `SAMPLE_RATE = 44100` placeholder. Since neither the root note nor the export
+depend on `rootKey` for pitch, that raised every sample uniformly by
+`44100 / 35002 = 2^(4/12)` = **+4.0 semitones** (a C-root sample sounded and exported as
+E) while the stored root — hence the display note and WAV filename — stayed correct.
+Reported on the forum (Alpha, 2026-07-16). Tests: `nsmp.test.ts` "stroke replay sample
+rate".
+
+⚠️ Not yet Hz-validated against hardware: the pitch base *behaves* as the replay rate
+(it scales with fine-tune exactly as a resample would, and 44100/35002 reproduces the
+reported +4-semitone error to the cent), but decisive confirmation is a period
+measurement on a known-pitch fixture — decode `sine_24` (root 57 = A3 = 220 Hz) and
+check its fundamental period ≈ 35002/220 ≈ 159 samples (vs ≈ 200 if the rate were
+44100). That fixture is gitignored corpus (`docs/LEGAL.md`); the corpus-gated
+`nsmp.test.ts` case only bounds the rate to ≈0x88ba when the files are present.
+
 ## Field-presence in `.nsmp` (discovery 2026-06-21)
 
 The `.nsmpproj` (Nord Sample Editor project, plain ASCII at
