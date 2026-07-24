@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { patchNs4Checksum } from './checksum';
-import { identifyNsmp, nsmpLayout } from './sample-identify';
+import { identifyNsmp, nsmpLayout, nsmpHasChecksumField } from './sample-identify';
 
 /** Minimal synthetic CBIN sample container: `nsmp` type tag + NSMP root @0x2c. */
 function makeNsmp(versionRaw: number): Uint8Array {
@@ -58,5 +58,33 @@ describe('identifyNsmp', () => {
 describe('nsmpLayout', () => {
   it('frames modern codec 3/4 with the 12-byte NSMP header @0x2c', () => {
     expect(nsmpLayout(makeNsmp(300))).toEqual({ bodyStart: 0x2c, headerSize: 12, legacy: false });
+  });
+
+  it('frames a format-0 export with the NSMP root @0x18 (no CRC block)', () => {
+    expect(nsmpLayout(makeNsmpFormat0(300))).toEqual({ bodyStart: 0x18, headerSize: 12, legacy: false });
+  });
+});
+
+/** Minimal **format-0** codec-3 container: NSMP section root at 0x18, no CRC block. */
+function makeNsmpFormat0(versionRaw: number): Uint8Array {
+  const buf = new Uint8Array(0x18 + 12);
+  const ascii = (s: string, at: number) => { for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i); };
+  ascii('CBIN', 0x00);
+  buf[0x04] = 0; // format-0 (legacy envelope)
+  ascii('nsmp', 0x08);
+  buf[0x14] = versionRaw & 0xff; buf[0x15] = (versionRaw >> 8) & 0xff;
+  buf.set([0x4e, 0x53, 0x4d, 0x50], 0x18); // "NSMP" root @0x18
+  return buf;
+}
+
+describe('nsmpHasChecksumField', () => {
+  it('is true for a format-1 (NSM-era) container — CRC-32 lives at 0x18–0x1b', () => {
+    expect(nsmpHasChecksumField(makeNsmp(300))).toBe(true);
+  });
+
+  it('is false for a format-0 export — 0x18 holds the NSMP root, not a checksum', () => {
+    // Guards the "rename → all mapping/samples lost" bug: writing an NS4 CRC here
+    // would overwrite the section-tree root and orphan every stroke/zone.
+    expect(nsmpHasChecksumField(makeNsmpFormat0(300))).toBe(false);
   });
 });

@@ -42,14 +42,14 @@ describe('SampleEditPanel legacy surface', () => {
   };
 
   it('hides velocity columns and the name field for legacy', () => {
-    const html = renderToStaticMarkup(<SampleEditPanel initial={legacyModel} bytes={new Uint8Array(0)} codec="og" legacy />);
+    const html = renderToStaticMarkup(<SampleEditPanel initial={legacyModel} bytes={new Uint8Array(0)} codec="og" legacy rootSplitOnly />);
     expect(html).not.toMatch(/vel ≥/);
     expect(html).not.toMatch(/vel ≤/);
     expect(html).not.toMatch(/Name:/);
   });
 
   it('still edits root and split (those inputs render) for legacy', () => {
-    const html = renderToStaticMarkup(<SampleEditPanel initial={legacyModel} bytes={new Uint8Array(0)} codec="og" legacy />);
+    const html = renderToStaticMarkup(<SampleEditPanel initial={legacyModel} bytes={new Uint8Array(0)} codec="og" legacy rootSplitOnly />);
     expect(html).toMatch(/root/);
     expect(html).toMatch(/up to \(split\)/);
     expect(html).toMatch(/Download edited \.nsmp<\/|Download edited \.nsmp"/); // extension has no digit
@@ -105,5 +105,14 @@ describe('SampleEditPanel legacy surface', () => {
     );
     expect(html).toMatch(/Gain/);
     expect(html).toMatch(/Detune/);
+  });
+
+  // A codec-3 `map` v12 `.nsmp3` is stroke-reference (rootSplitOnly) like legacy, but
+  // it IS an NSMP container with an editable in-file name — so velocity hides, name stays.
+  it('hides velocity but keeps the name field for a v12 stroke-ref .nsmp3', () => {
+    const html = renderToStaticMarkup(<SampleEditPanel initial={legacyModel} bytes={new Uint8Array(0)} codec={3} rootSplitOnly />);
+    expect(html).not.toMatch(/vel ≥/);
+    expect(html).toMatch(/Name:/);
+    expect(html).toMatch(/Download edited \.nsmp3/);
   });
 });

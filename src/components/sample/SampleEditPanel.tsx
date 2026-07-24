@@ -15,15 +15,19 @@ const round1 = (n: number): number => Math.round(n * 10) / 10;
  *  zone in the synced table below; rename, then patch + download a new .nsmp.
  *  Edits are written back into the original file in place — audio and everything
  *  we don't model are preserved exactly. */
-export function SampleEditPanel({ initial, bytes, codec, legacy, factory, unison, onPlayZone, onNoteOn, onNoteOff, soundingMidis, playableZones }: {
+export function SampleEditPanel({ initial, bytes, codec, legacy, rootSplitOnly, factory, unison, onPlayZone, onNoteOn, onNoteOff, soundingMidis, playableZones }: {
   initial: EditModel;
   bytes: Uint8Array;
   /** 3/4 = .nsmp3/.nsmp4; 'og' = legacy .nsmp (no digit suffix, root + split only). */
   codec: 3 | 4 | 'og';
-  /** Legacy (NWS-container, OG) file: no velocity slots, no name slot (filename
-   *  only), and `keyLow` isn't independently editable — it's the neighbour's
-   *  split + 1, moved by dragging that split on the keybed. */
+  /** Legacy (NWS-container, OG) file: no velocity slots, no in-file name (filename
+   *  only). Implies {@link rootSplitOnly}. */
   legacy?: boolean;
+  /** Stroke-reference map (OG/legacy or codec-3 `map` v12): no per-zone velocity
+   *  slot, and `keyLow` isn't independently editable — it's the neighbour's split
+   *  + 1, moved by dragging that split on the keybed. v12 still has an editable
+   *  in-file name (it's an NSMP container), so this is separate from `legacy`. */
+  rootSplitOnly?: boolean;
   /** This sample is Nord factory content. We don't block editing it — just show a
    *  disclaimer (factory audio stays on the user's device, never re-shared). */
   factory?: boolean;
@@ -55,6 +59,9 @@ export function SampleEditPanel({ initial, bytes, codec, legacy, factory, unison
   }
 
   const ext = codec === 'og' ? 'nsmp' : `nsmp${codec}`;
+  // Root+split-only surface (no per-zone velocity slot): every legacy file, plus a
+  // codec-3 `map` v12 `.nsmp3`. `legacy` is the stricter case (also no in-file name).
+  const rootSplit = !!rootSplitOnly || !!legacy;
 
   function download() {
     setError('');
@@ -102,7 +109,7 @@ export function SampleEditPanel({ initial, bytes, codec, legacy, factory, unison
       <table className="ps-params ps-zone-tbl">
         <thead><tr>
           <th>sample</th><th>root</th><th>from</th><th>up to (split)</th>
-          {!legacy && <><th>vel ≥</th><th>vel ≤</th></>}
+          {!rootSplit && <><th>vel ≥</th><th>vel ≤</th></>}
         </tr></thead>
         <tbody>
           {/* Rows in keyboard order (left→right) so S-numbers match the map above;
@@ -115,12 +122,12 @@ export function SampleEditPanel({ initial, bytes, codec, legacy, factory, unison
                 <td>S{pos + 1}</td>
                 <td>{num(z.rootKey, (n) => setZone(i, { rootKey: n }))}<em>{noteName(z.rootKey)}</em></td>
                 <td>
-                  {legacy
+                  {rootSplit
                     ? <>{tz.keyLow} <em>{noteName(tz.keyLow)}</em></>
                     : <>{num(z.keyLow, (n) => setZone(i, { keyLow: n }))}<em>{noteName(z.keyLow)}</em></>}
                 </td>
                 <td>{num(z.keyHigh, (n) => setZone(i, { keyHigh: n }))}<em>{noteName(z.keyHigh)}</em></td>
-                {!legacy && <>
+                {!rootSplit && <>
                   <td>{num(z.velLow, (n) => setZone(i, { velLow: n }))}</td>
                   <td>{num(z.velTop, (n) => setZone(i, { velTop: n }))}</td>
                 </>}
@@ -158,7 +165,7 @@ export function SampleEditPanel({ initial, bytes, codec, legacy, factory, unison
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <Button variant="primary" onClick={download}>Download edited .{ext}</Button>
         <span className="ps-sub" style={{ margin: 0 }}>
-          {legacy
+          {rootSplit
             ? 'Edits root / split; audio and all other settings — including per-zone levels — are preserved. Back up first.'
             : 'Edits root / split / velocity / gain / detune and name; audio and all other settings are preserved. Back up first.'}
         </span>

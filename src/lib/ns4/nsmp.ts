@@ -17,7 +17,7 @@
  */
 
 import { verifyNs4Checksum } from '../clavia/checksum';
-import { identifyNsmp, nsmpLayout } from '../clavia/sample-identify';
+import { identifyNsmp, nsmpLayout, nsmpHasChecksumField } from '../clavia/sample-identify';
 import { decodeStroke, type DecodedStroke } from './nsmp-codec';
 import { dsp2Level } from './nw1-dsp';
 
@@ -220,8 +220,14 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
     return { recognized: false, legacy: false, checksumValid: false, sections: [], strokeCount: 0, suspectedFactory: false, warnings: ['Not a Nord Sample file.'] };
   }
   const { legacy, version, versionRaw, codec } = id;
-  const checksumValid = verifyNs4Checksum(bytes);
-  if (!checksumValid && !legacy) warnings.push('Sample checksum mismatch — possibly truncated/modified.');
+  // Only NSM-era (format-1) `.nsmp3/.nsmp4` carry the CRC-32 field at 0x18–0x1b;
+  // format-0 exports (e.g. some Library-3.0 `.nsmp3`) put the `NSMP` section root
+  // there, so there's nothing to validate — verifying against those bytes falsely
+  // reports a mismatch (and re-checksumming would corrupt the file; see
+  // patchEditedNsmp). Treat "no checksum field" as nothing-wrong.
+  const hasChecksum = nsmpHasChecksumField(bytes);
+  const checksumValid = hasChecksum ? verifyNs4Checksum(bytes) : true;
+  if (hasChecksum && !checksumValid) warnings.push('Sample checksum mismatch — possibly truncated/modified.');
   // `NWS` containers cover two codecs: v8 → codec 1 (rev A,
   // Library 1.x) and v11 → codec 2 (rev B, Library 2.0; CBIN ver 200, `map`
   // version 10). Both are now read (audio + name + zones).

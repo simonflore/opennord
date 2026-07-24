@@ -19,6 +19,7 @@ import { parseNsmpSections, readNsmp, readNsmpZones, zoneRecordLayout, patchStro
 import { writeNsmpMulti, type WriteZone } from './nsmp-write';
 import { level2DSP, detune2DSP } from './nw1-dsp';
 import { patchNs4Checksum } from '../clavia/checksum';
+import { nsmpHasChecksumField } from '../clavia/sample-identify';
 import { crc16Ccitt } from './nsmp-og';
 
 export interface EditZone {
@@ -79,6 +80,13 @@ const clampKey = (n: number): number => Math.max(0, Math.min(127, Math.round(n))
 export function patchEditedNsmp(original: Uint8Array, model: EditModel): Uint8Array {
   const file = readNsmp(original);
   if (file.legacy) return patchLegacyNsmp(original, model);
+  // Codec-3 `map` v12 `.nsmp3` (both envelope formats) stores 11-byte stroke-reference
+  // records (keyHigh@+3, gid@+10; root in the `stk` header), not the 16-byte codec-3/4
+  // record the layout below assumes — writing that layout overruns each record and
+  // clobbers the following `stk` header (7 zones → 6 strokes, 0 zones on read-back).
+  // Route it to the dedicated stroke-reference writer.
+  const mapSection = parseNsmpSections(original).find((s) => s.tag.endsWith('map'));
+  if (mapSection?.version === 12) return patchV12Nsmp(original, model);
   const out = original.slice();
   const layout = zoneRecordLayout();
   for (const z of model.zones) {
@@ -95,7 +103,12 @@ export function patchEditedNsmp(original: Uint8Array, model: EditModel): Uint8Ar
   }
   patchGlobalGainDetune(out, model.globalGainDb, model.globalDetuneCents);
   patchName(out, model.name);
-  return patchNs4Checksum(out);
+  // Re-checksum ONLY when the container actually has the format-1 CRC field at
+  // 0x18–0x1b. A format-0 `.nsmp3` (body root `NSMP`@0x18, no CRC block) has no
+  // such slot: writing a CRC there overwrites the section-tree root, so the file
+  // re-reads with bodyStart mis-anchored at 0x2c and every stroke/zone vanishes.
+  // (Root cause of "rename → all mapping and samples lost" — a format-0 export.)
+  return nsmpHasChecksumField(original) ? patchNs4Checksum(out) : out;
 }
 
 const rU32 = (b: Uint8Array, o: number) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
@@ -181,6 +194,70 @@ function verifyLegacyPatch(original: Uint8Array, out: Uint8Array, model: EditMod
     const stk = after.find((s) => s.tag.endsWith('stk')
       && (mapVersion === 9 ? rU32(out, s.payloadOffset) === z.globalID! : out[s.payloadOffset + 3] === z.globalID!));
     if (stk && out[stk.payloadOffset + 0x33] !== want.high) throw new Error('Legacy patch left the split mirror out of sync — refusing to save.');
+  }
+}
+
+/**
+ * Patch root + split into a codec-3 `map` v12 `.nsmp3` in place, then verify by
+ * read-back. v12's zone table is 11-byte **stroke-reference** records — the same
+ * shape as the legacy v9/v10 path, but inside an `NSMP` (not `NWS`) container, so it
+ * isn't flagged `legacy` and must not run through the 16-byte codec-3/4 writer.
+ * Editable surface (the maintainers’ notes, `parseCodec3V12ZoneRecords`):
+ *  - `keyHigh` (split): map record `+3` (single byte).
+ *  - `keyLow`: map record `+2`. The reader re-derives keyLow by tiling, so this is
+ *    kept self-consistent but isn't independently authoritative — same as legacy.
+ *  - `rootKey`: `stk` header `+0x05`, located by the stroke's global id (`stk` +3
+ *    == record +10, a u8 — the same keying `strokeRootByGlobalId` reads).
+ *  - velocity: no slot (single layer) — not offered, not written.
+ * Never changes length. Re-checksums only a format-1 container (format-0 `.nsmp3`
+ * has no CRC field at 0x18 — writing one there would corrupt the `NSMP` root).
+ */
+export function patchV12Nsmp(original: Uint8Array, model: EditModel): Uint8Array {
+  const sections = parseNsmpSections(original);
+  const out = original.slice();
+  // stk sections keyed by gid (u8 @ payload +3), matching the v12 reader's keying.
+  const stkByGid = new Map<number, NsmpSection>();
+  for (const s of sections) {
+    if (!s.tag.endsWith('stk')) continue;
+    stkByGid.set(original[s.payloadOffset + 3], s);
+  }
+  for (const z of model.zones) {
+    if (z.recordOffset == null) continue;
+    out[z.recordOffset + 3] = clampKey(z.keyHigh); // split, map record +3
+    out[z.recordOffset + 2] = clampKey(z.keyLow);  // low, map record +2 (kept consistent)
+    const stk = z.globalID == null ? undefined : stkByGid.get(z.globalID);
+    if (stk) out[stk.payloadOffset + 0x05] = clampKey(z.rootKey); // root, stk header +5
+  }
+  // v12's `map` opens with the same 6-byte global level/detune block as codec 3/4,
+  // so the shared writer applies unchanged (honours the gain/detune the editor shows).
+  patchGlobalGainDetune(out, model.globalGainDb, model.globalDetuneCents);
+  patchName(out, model.name);
+  const result = nsmpHasChecksumField(original) ? patchNs4Checksum(out) : out;
+  verifyV12Patch(original, result, model);
+  return result;
+}
+
+/**
+ * Read the patched v12 bytes back with the corpus-validated reader and confirm the
+ * section tree is intact and every edited root/split round-trips — the guard that
+ * makes the v12 write safe (a wrong offset becomes an error, never a corrupt
+ * download). Would have caught the 16-byte-layout overrun: the first `stk` tag
+ * corrupts, so the section count and a zone's read-back both change.
+ */
+function verifyV12Patch(original: Uint8Array, out: Uint8Array, model: EditModel): void {
+  const f = readNsmp(out);
+  if (!f.recognized || f.legacy) throw new Error('v12 patch left the file unrecognizable — refusing to save.');
+  const before = parseNsmpSections(original), after = parseNsmpSections(out);
+  if (after.length !== before.length || after.some((s, i) => s.tag !== before[i].tag || s.size !== before[i].size)) {
+    throw new Error('v12 patch disturbed the section tree — refusing to save.');
+  }
+  const back = new Map(readNsmpZones(out).map((z) => [z.globalID, z]));
+  for (const z of model.zones) {
+    if (z.recordOffset == null || z.globalID == null) continue;
+    const got = back.get(z.globalID);
+    if (!got || got.keyHigh !== clampKey(z.keyHigh) || got.rootKey !== clampKey(z.rootKey)) {
+      throw new Error('v12 patch did not round-trip — refusing to save a file that may be corrupt.');
+    }
   }
 }
 
