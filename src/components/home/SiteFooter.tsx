@@ -16,10 +16,9 @@ export function SiteFooter() {
           <p className="mt-2 max-w-[20rem] text-[13px] leading-[1.55] text-dim">
             An open companion for Nord® keyboards.
           </p>
-          {/* The permanent, zero-cost pointer: one muted line, no CTA weight.
-              Copy lives in components/sibling/Gigmeister.tsx with every other
-              mention, so no placement can drift out of its disclosure rules. */}
-          <GigmeisterFooterNote className="mt-4 max-w-[20rem]" />
+          {/* Copy lives in components/sibling/Gigmeister.tsx with every other
+              mention, so the surfaces can't drift apart. */}
+          <GigmeisterFooterNote className="mt-3 max-w-[22rem]" />
         </div>
         <nav className="flex flex-wrap gap-4" aria-label="Footer">
           <Link to="/library/programs" className={footerLink}>Open the app</Link>

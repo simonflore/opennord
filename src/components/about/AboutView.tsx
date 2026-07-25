@@ -1,5 +1,5 @@
 import { Card, BuyMeACoffeeButton } from '../ui';
-import { GigmeisterLink } from '../sibling/Gigmeister';
+import { GigmeisterLink, GIGMEISTER_BLURB } from '../sibling/Gigmeister';
 
 const secH = 'mb-1 text-[13px] font-bold text-ink';
 const secP = 'm-0 text-[13px] leading-[1.55] text-dim';
@@ -85,18 +85,12 @@ export function AboutView() {
           </p>
         </Card>
 
-        {/* Last card by design — this is the "who's behind it" disclosure, not a
-            feature. See components/sibling/Gigmeister.tsx for the rules. */}
+        {/* Last card by design — a credit, not a feature. Keep it to one
+            sentence; see components/sibling/Gigmeister.tsx. */}
         <Card>
-          <div className={secH}>Also from the same workbench</div>
+          <div className={secH}>Also by OpenNord’s author</div>
           <p className={secP}>
-            OpenNord is built by the same person as{' '}
-            <GigmeisterLink>Gigmeister</GigmeisterLink>, a paid app for gigging
-            bands — setlists, a band calendar, and MIDI automation that switches
-            your Nord between songs. <strong className={strong}>Separate app,
-            separate job.</strong> OpenNord stays free and open, works entirely
-            on its own, and nothing here is gated behind it. This is mentioned
-            so you know who is behind the tool — not because you need both.
+            <GigmeisterLink>Gigmeister</GigmeisterLink> — {GIGMEISTER_BLURB}.
           </p>
         </Card>
       </div>
