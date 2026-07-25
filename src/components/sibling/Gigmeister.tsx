@@ -1,48 +1,25 @@
 import { cn } from '@/lib/cn';
 
 /**
- * Every mention of Gigmeister — OpenNord's sibling product — lives in this one
- * file, so the copy stays consistent and a fork can delete the directory to
- * remove all of it at once. (Same posture as `BuyMeACoffeeButton`: an
- * author-level link inside the AGPL client, not a product feature.)
+ * Every mention of Gigmeister — OpenNord's author's other project — lives in
+ * this one file, so a fork can delete the directory to remove all of it at once.
+ * (Same posture as `BuyMeACoffeeButton`: an author-level link inside the AGPL
+ * client, not a product feature.)
  *
- * ## Why this exists, and the rules it follows
- *
- * OpenNord's users are gigging Nord players; Gigmeister is a paid app for
- * gigging bands whose MIDI automation drives a Nord between songs. The overlap
- * is real, so a pointer is genuinely useful — but a cross-promo turns into an
- * *ad* the moment it takes attention it hasn't earned. The rules below are what
- * keep it on the useful side, and they are load-bearing: breaking one is what
- * would make this feel like an ad.
- *
- * 1. **Earned by context, never by prominence.** Every placement sits where the
- *    adjacent problem actually comes up — the Organize view (slot numbers *are*
- *    Program Change numbers), the About screen ("who made this"), and the
- *    bottom of the landing page. Never above the fold, never in the rail, never
- *    an interstitial or a dismissible banner (a banner you must dismiss has
- *    already interrupted).
- * 2. **Frame it as OpenNord's boundary, not Gigmeister's pitch.** "The gig is a
- *    different job and OpenNord won't grow into it" is information about *this*
- *    tool. "Try Gigmeister, it's great" is an ad.
- * 3. **Disclose everything a reader would otherwise suspect** — same author,
- *    separate app, and *paid*. Candour is what separates a recommendation from
- *    a placement; hiding the relationship is what makes people feel sold to.
- * 4. **Never compete with OpenNord's own CTA.** No red accent, no primary
- *    button, no icon tile. `siblingLink` is deliberately quieter than `covLink`
- *    (which is red) — the loudest thing on any page stays "Open the app".
- * 5. **State that it's optional, out loud.** OpenNord is free, complete, and
- *    unaffected if you ignore every link here.
- * 6. **No slogan.** A tagline is the most ad-shaped element there is, and it
- *    adds nothing a plain sentence about what the app does can't. Describe;
- *    don't pitch. (There is deliberately no `GIGMEISTER_TAGLINE` constant.)
+ * Keep these mentions to what they are: *this is my other project, here is what
+ * it does.* No pitch, no benefit claims, no slogan, no CTA weight — the link is
+ * deliberately quieter than `covLink` (which is red), because red is OpenNord's
+ * accent and belongs to OpenNord's own actions. If a mention grows past a
+ * sentence or two, it has turned into an ad.
  */
 
 export const GIGMEISTER_URL = 'https://gigmeister.app';
 
-/**
- * The quiet outbound link. Muted → ink on hover, never red: rule 4 above. Red
- * is OpenNord's accent and belongs to OpenNord's own actions.
- */
+/** What it is, in one line. Shared so the surfaces can't drift into pitching. */
+export const GIGMEISTER_BLURB =
+  'an app for gigging bands — setlists, a band calendar, and MIDI automation that switches your Nord between songs';
+
+/** The quiet outbound link. Muted → ink on hover, never red. */
 const siblingLink = cn(
   'inline-flex items-baseline gap-1 font-semibold text-dim no-underline',
   'underline decoration-line underline-offset-[3px]',
@@ -88,44 +65,31 @@ export function GigmeisterLink({
   );
 }
 
-/**
- * The landing-page footer mention: the permanent, always-available pointer.
- *
- * Rule 3 binds per *placement*, not per site — a visitor who only ever sees the
- * footer still has to be told this is a separate paid app. Keeping the copy here
- * rather than inline in `SiteFooter` is what makes that checkable (`SiteFooter`
- * itself needs a router to render, so it can't be asserted on directly).
- */
+/** The landing-page footer mention. */
 export function GigmeisterFooterNote({ className }: { className?: string }) {
   return (
-    <div className={cn('text-[11px] leading-[1.55] text-muted', className)}>
-      <div>Also by OpenNord&rsquo;s author</div>
-      <div className="mt-1">
-        <GigmeisterLink>Gigmeister</GigmeisterLink> — a separate paid app, for
-        the gig itself.
-      </div>
-    </div>
+    <p className={cn('m-0 text-[11px] leading-[1.55] text-muted', className)}>
+      OpenNord&rsquo;s author also built{' '}
+      <GigmeisterLink>Gigmeister</GigmeisterLink> — {GIGMEISTER_BLURB}.
+    </p>
   );
 }
 
 /**
- * The in-tool mention, for the Organize view.
+ * The in-tool mention, under the Organize bank grids.
  *
- * This is the placement the whole feature is built around, because here the
- * pointer is *information first*: rearranging a bank renumbers the slots, and
- * slot numbers are exactly what a setlist sends as MIDI Program Change. The
- * consequence is real and OpenNord already warns about it in the reorganize
- * dialog — this names a tool that tracks the mapping, and says so plainly.
+ * The first sentence is OpenNord's own advice and earns the placement:
+ * rearranging a bank renumbers slots, and a slot number is what a setlist sends
+ * as MIDI Program Change. The mention is a clause, not a callout.
  */
 export function GigmeisterSlotNote({ className }: { className?: string }) {
   return (
     <p className={cn('m-0 text-[11px] leading-[1.55] text-muted', className)}>
       <strong className="font-semibold text-dim">Slot numbers travel.</strong>{' '}
-      A slot is what a setlist sends as MIDI Program Change, so re-check any
-      saved set that points here after you rearrange a bank.{' '}
-      <GigmeisterLink>Gigmeister</GigmeisterLink>, a separate paid app from
-      OpenNord&rsquo;s author, keeps that song&#8202;→&#8202;slot mapping for
-      you — entirely optional, and nothing here depends on it.
+      A setlist sends MIDI Program Change at a slot, not at a program, so
+      re-check any saved set after you rearrange a bank.{' '}
+      <GigmeisterLink>Gigmeister</GigmeisterLink> — also by OpenNord&rsquo;s
+      author — keeps that song&#8202;→&#8202;slot mapping in step.
     </p>
   );
 }
