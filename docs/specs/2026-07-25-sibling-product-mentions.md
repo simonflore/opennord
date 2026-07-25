@@ -21,9 +21,14 @@ an ad because of its size, whatever the copy said. It was cut.
 
 ## Rule
 
-Say what it is and whose it is, in a sentence or two: *OpenNord's author also
-built Gigmeister — <what it does>.* No pitch, no benefit claims, no slogan, no
-CTA weight. If a mention grows past a couple of sentences, it has become an ad.
+Say what it is and whose it is, in a sentence or two: *I also make Gigmeister —
+&lt;what it does&gt;.* No pitch, no benefit claims, no slogan, no CTA weight. If
+a mention grows past a couple of sentences, it has become an ad.
+
+**First person**, matching the coffee button and the rest of the About copy. The
+third person ("OpenNord's author also built…") reads as a press release, which
+is most of the way to an ad on its own — and it's odd on a page that elsewhere
+says "buy me a coffee".
 
 The link is deliberately quieter than `covLink` (which is red): red is
 OpenNord's accent and belongs to OpenNord's own actions, so the loudest thing on
@@ -44,9 +49,9 @@ point).
 ## Enforcement
 
 `Gigmeister.test.tsx` runs two assertions over every mention as a table, so a
-new surface can't skip them: each says whose project it is, and none carries
-CTA/red-accent classes on its link (scoped to the link, with a guard so it can't
-pass vacuously). `OrganizeGrids.test.tsx` pins that the footnote is ambient
+new surface can't skip them: each claims the project in the first person, and
+none carries CTA/red-accent classes on its link (scoped to the link, with a
+guard so it can't pass vacuously). `OrganizeGrids.test.tsx` pins that the footnote is ambient
 (present with no plan pending, so it can't drift into the confirm step) and
 absent when there is nothing to rearrange.
 

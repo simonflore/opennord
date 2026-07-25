@@ -32,8 +32,11 @@ describe('every mention', () => {
     ['about card', renderToStaticMarkup(<AboutView />)],
   ];
 
-  it.each(placements)('says whose project it is (%s)', (_name, html) => {
-    expect(html).toMatch(/OpenNord’s author/);
+  // First person, like the coffee button and the rest of the About copy — the
+  // third person ("OpenNord's author also built…") reads as a press release,
+  // which is most of the way to an ad on its own.
+  it.each(placements)('claims the project in the first person (%s)', (_name, html) => {
+    expect(html).toMatch(/I also make|My other app/);
   });
 
   it.each(placements)('never takes CTA weight (%s)', (_name, html) => {

@@ -88,9 +88,10 @@ export function AboutView() {
         {/* Last card by design — a credit, not a feature. Keep it to one
             sentence; see components/sibling/Gigmeister.tsx. */}
         <Card>
-          <div className={secH}>Also by OpenNord’s author</div>
+          <div className={secH}>My other project</div>
           <p className={secP}>
-            <GigmeisterLink>Gigmeister</GigmeisterLink> — {GIGMEISTER_BLURB}.
+            I also make <GigmeisterLink>Gigmeister</GigmeisterLink> —{' '}
+            {GIGMEISTER_BLURB}. Different problem, same desk.
           </p>
         </Card>
       </div>
