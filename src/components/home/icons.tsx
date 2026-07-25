@@ -63,6 +63,17 @@ export function IconConvert() {
   );
 }
 
+/** Ascending bars with an arrowhead on the tallest — "step your program up a generation". */
+export function IconUpgrade() {
+  return (
+    <svg {...svgProps()}>
+      <path d="M3 20h18" />
+      <path d="M6 20v-4M12 20v-8M18 20v-11" />
+      <path d="M15 12l3-3 3 3" />
+    </svg>
+  );
+}
+
 export function IconBackup() {
   return (
     <svg {...svgProps()}>
