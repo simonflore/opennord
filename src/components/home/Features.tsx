@@ -3,9 +3,11 @@ import { cn } from '@/lib/cn';
 import { SEC } from './layout';
 import { iconTile } from './styles';
 import { SectionHead } from './SectionHead';
-import { IconFile, IconLibrary, IconWave, IconConvert, IconUsb, IconBackup } from './icons';
+import { IconFile, IconLibrary, IconWave, IconConvert, IconUsb, IconBackup, IconUpgrade } from './icons';
 
-const FEATURES: { icon: ReactNode; title: string; body: string }[] = [
+/** `wide` cards span the whole row — the grid holds 7, so the last one closes it
+ *  out full-width instead of sitting alone in a three-column row. */
+const FEATURES: { icon: ReactNode; title: string; body: string; wide?: boolean }[] = [
   {
     icon: <IconFile />,
     title: 'Read any program',
@@ -36,6 +38,12 @@ const FEATURES: { icon: ReactNode; title: string; body: string }[] = [
     title: 'Back up & restore',
     body: 'Save your whole keyboard to a single file, then restore it with a preview of exactly what will change — a safety net before you experiment.',
   },
+  {
+    icon: <IconUpgrade />,
+    title: 'Bring older patches to Stage 4',
+    body: 'Turn a Stage 2 or 3 program into a real, loadable Stage 4 file. Every conversion comes with a plain-language report — what carried over cleanly, what’s a close match, and what you’ll want to re-pick on the instrument. Nothing is dropped silently.',
+    wide: true,
+  },
 ];
 
 export function Features() {
@@ -54,6 +62,7 @@ export function Features() {
               'rounded-md border border-line fill-surface elev-1 p-4',
               'transition-[transform,box-shadow,border-color] duration-200 ease-[cubic-bezier(.2,.6,.2,1)]',
               'hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--red)_40%,var(--line))] hover:elev-2',
+              f.wide && 'col-span-3 max-[860px]:col-span-2 max-[560px]:col-span-1',
             )}
           >
             <div className={iconTile} aria-hidden="true">{f.icon}</div>
