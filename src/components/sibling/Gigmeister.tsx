@@ -89,6 +89,26 @@ export function GigmeisterLink({
 }
 
 /**
+ * The landing-page footer mention: the permanent, always-available pointer.
+ *
+ * Rule 3 binds per *placement*, not per site — a visitor who only ever sees the
+ * footer still has to be told this is a separate paid app. Keeping the copy here
+ * rather than inline in `SiteFooter` is what makes that checkable (`SiteFooter`
+ * itself needs a router to render, so it can't be asserted on directly).
+ */
+export function GigmeisterFooterNote({ className }: { className?: string }) {
+  return (
+    <div className={cn('text-[11px] leading-[1.55] text-muted', className)}>
+      <div>Also by OpenNord&rsquo;s author</div>
+      <div className="mt-1">
+        <GigmeisterLink>Gigmeister</GigmeisterLink> — a separate paid app, for
+        the gig itself.
+      </div>
+    </div>
+  );
+}
+
+/**
  * The in-tool mention, for the Organize view.
  *
  * This is the placement the whole feature is built around, because here the

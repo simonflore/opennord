@@ -54,9 +54,10 @@ export function Sibling() {
               The slot you drag a program into here —{' '}
               <span className="font-mono text-xs text-ink">A&#8202;:&#8202;1</span>,{' '}
               <span className="font-mono text-xs text-ink">B&#8202;:&#8202;7</span>{' '}
-              — is the number a setlist sends as MIDI Program Change. Rearrange a
-              bank in OpenNord and every set pointing at those slots moves with
-              it.
+              — is the number a setlist sends as MIDI Program Change. The set
+              points at the slot, not at the program, so rearrange a bank here
+              and every set aimed at those slots is now calling up something
+              else.
             </p>
           </aside>
         </div>

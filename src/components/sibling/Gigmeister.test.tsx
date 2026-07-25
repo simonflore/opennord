@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { GigmeisterLink, GigmeisterSlotNote, GIGMEISTER_URL } from './Gigmeister';
+import {
+  GigmeisterLink,
+  GigmeisterSlotNote,
+  GigmeisterFooterNote,
+  GIGMEISTER_URL,
+} from './Gigmeister';
 import { Sibling } from '../home/Sibling';
 import { AboutView } from '../about/AboutView';
 
@@ -47,6 +52,14 @@ describe('Sibling (landing-page section)', () => {
     expect(html).toContain('MIDI Program Change');
   });
 
+  it('describes the slot consequence the way it actually behaves', () => {
+    // A set points at a *slot*, not at a program, so rearranging a bank leaves
+    // it recalling whatever now sits there — it does not follow the program.
+    // Getting this backwards would invert the very point the section makes.
+    expect(html).toContain('points at the slot, not at the program');
+    expect(html).not.toMatch(/moves? with (it|the program)/i);
+  });
+
   it('stays quieter than the page’s own CTAs', () => {
     for (const marker of CTA_MARKERS) expect(html).not.toContain(marker);
     // text-display-* is reserved for sections making a claim about OpenNord.
@@ -64,6 +77,43 @@ describe('GigmeisterSlotNote (in-tool)', () => {
   it('says out loud that it is separate, paid and optional', () => {
     expect(html).toContain('separate paid app');
     expect(html).toContain('optional');
+  });
+});
+
+describe('GigmeisterFooterNote', () => {
+  const html = renderToStaticMarkup(<GigmeisterFooterNote />);
+
+  it('carries the full disclosure on its own', () => {
+    // The footer is reachable without seeing any other placement, so rule 3
+    // has to hold here in isolation: same author, separate, paid.
+    expect(html).toMatch(/OpenNord’s author/);
+    expect(html).toContain('separate paid app');
+  });
+});
+
+describe('every placement', () => {
+  // Rule 3 binds per placement, not per site — each surface is reachable
+  // without the others, so none may rely on a sibling for its disclosure.
+  const placements: [string, string][] = [
+    ['footer', renderToStaticMarkup(<GigmeisterFooterNote />)],
+    ['landing section', renderToStaticMarkup(<Sibling />)],
+    ['organize footnote', renderToStaticMarkup(<GigmeisterSlotNote />)],
+    ['about card', renderToStaticMarkup(<AboutView />)],
+  ];
+
+  it.each(placements)('discloses "separate" and "paid" on its own (%s)', (_name, html) => {
+    expect(html).toMatch(/separate/i);
+    expect(html).toMatch(/paid/i);
+  });
+
+  it.each(placements)('never takes CTA weight (%s)', (_name, html) => {
+    // AboutView legitimately carries other red/CTA chrome (the Nord disclaimer
+    // rail, the coffee button), so scope the check to the sibling link itself.
+    const start = html.indexOf(`<a class="inline-flex items-baseline`);
+    expect(start, 'sibling link not found — assertion would be vacuous').toBeGreaterThan(-1);
+    const link = html.slice(start, html.indexOf('</a>', start));
+    expect(link).toContain(GIGMEISTER_URL);
+    for (const marker of CTA_MARKERS) expect(link).not.toContain(marker);
   });
 });
 

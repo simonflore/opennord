@@ -43,7 +43,9 @@ Each has an inverse, and those inverses are the rules below.
    tool, and is true and useful whether or not the reader ever clicks.
 3. **Disclose what a reader would otherwise suspect** — same author, separate
    app, *paid*. Candour is the thing that separates a recommendation from a
-   placement.
+   placement. This binds **per placement, not per site**: each surface is
+   reachable without the others, so none may lean on a sibling placement for
+   its disclosure.
 4. **Never compete with OpenNord's own CTA.** No red accent, no primary button,
    no icon tile. The loudest element on any page stays "Open the app".
 5. **Say it's optional, out loud.** OpenNord is free, complete, and unaffected
@@ -67,12 +69,27 @@ there taxes it), and anywhere with a dismiss affordance.
 ## Enforcement
 
 `components/sibling/Gigmeister.test.tsx` pins the rules that a well-meaning
-later edit ("make the link stand out more") would otherwise undo silently: no
-CTA/red-accent classes on any mention, no `text-display-*` on the landing
-section, disclosure phrases present, and — in the Organize footnote — the useful
-fact ordered before the product name. `OrganizeGrids.test.tsx` pins that the
-footnote is ambient (present with no plan pending) and absent when there is
-nothing to rearrange.
+later edit ("make the link stand out more") would otherwise undo silently. Two
+of them run over *every* placement as a table, so a new surface cannot be added
+without meeting them: each discloses "separate" and "paid" on its own, and none
+carries CTA/red-accent classes on its link. Per-placement assertions cover the
+landing section's typography (no `text-display-*`) and — in the Organize
+footnote — the useful fact ordered before the product name.
+`OrganizeGrids.test.tsx` pins that the footnote is ambient (present with no plan
+pending) and absent when there is nothing to rearrange.
+
+One assertion is about accuracy rather than tone: a set points at a **slot**,
+not at a program, so rearranging a bank leaves it recalling whatever now sits
+there — it does not follow the program. Saying that backwards would invert the
+whole point, so the test asserts both the correct phrasing and the absence of
+the wrong one.
+
+**Copy lives only in `components/sibling/`.** The footer's line was briefly
+written inline in `SiteFooter` and immediately drifted out of rule 3 — it
+disclosed shared authorship but not that Gigmeister is separate and paid.
+`SiteFooter` needs a router to render, so nothing could assert on it. Copy that
+lives in the module is copy the table can check; that is the reason for the
+factoring, not tidiness.
 
 ## Note for forks
 
