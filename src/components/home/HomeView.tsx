@@ -8,6 +8,7 @@ import { Proof } from './Proof';
 import { Coverage } from './Coverage';
 import { Matrix } from './Matrix';
 import { Why } from './Why';
+import { Sibling } from './Sibling';
 import { OpenSource } from './OpenSource';
 import { SiteFooter } from './SiteFooter';
 
@@ -45,6 +46,10 @@ export function HomeView() {
           <Coverage />
           <Matrix />
           <Why />
+          {/* Sibling sits here on purpose: after every claim OpenNord makes about
+              itself, before the closing CTA. See Sibling.tsx for why it's late
+              and quiet. */}
+          <Sibling />
           <OpenSource />
         </main>
         <SiteFooter />

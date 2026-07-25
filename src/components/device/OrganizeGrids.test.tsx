@@ -45,6 +45,20 @@ describe('OrganizeGrids', () => {
     const html = renderToStaticMarkup(<OrganizeGrids entries={[prog(0, 0, 'Solo')]} reorg={baseReorg()} />);
     expect(html).not.toMatch(/Sort A–Z/);
   });
+  it('footnotes the slot→Program Change consequence under the grids', () => {
+    const html = renderToStaticMarkup(<OrganizeGrids entries={[prog(0, 0, 'A')]} reorg={baseReorg()} />);
+    // Ambient and passive: it is present with no plan pending, so it is a
+    // footnote under the grids rather than anything attached to the confirm
+    // step — which is a decision point (see components/sibling/Gigmeister.tsx).
+    expect(baseReorg().pendingPlan).toBeNull();
+    expect(html).toMatch(/Slot numbers travel/);
+    expect(html).toMatch(/MIDI Program Change/);
+  });
+  it('omits the slot footnote when there is nothing to rearrange', () => {
+    const html = renderToStaticMarkup(<OrganizeGrids entries={[]} reorg={baseReorg()} />);
+    expect(html).not.toMatch(/Slot numbers travel/);
+    expect(html).not.toMatch(/Gigmeister/);
+  });
   it('renders the Swap/Insert reorder mode toggle', () => {
     const html = renderToStaticMarkup(<OrganizeGrids entries={[prog(0,0,'A'),prog(0,1,'B')]} reorg={baseReorg()} />);
     expect(html).toMatch(/Swap/);

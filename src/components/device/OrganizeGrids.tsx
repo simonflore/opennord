@@ -5,6 +5,7 @@ import { SlotGrid } from './SlotGrid';
 import { BankLabel } from './BankLabel';
 import { PlanProgress } from './PlanProgress';
 import { Dialog, Button } from '../ui';
+import { GigmeisterSlotNote } from '../sibling/Gigmeister';
 import type { ReorgApi } from './useReorg';
 import { planArrange, planInsert, type ArrangeMode, type Addr } from '../../lib/device/reorg';
 
@@ -53,6 +54,12 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
           </div>
         );
       })}
+      {/* A passive footnote under the grids, not a banner and not in the confirm
+          dialog: reordering is a decision point, and a third-party mention there
+          would tax it. Only shown when there is something to rearrange. */}
+      {entries.length > 0 && (
+        <GigmeisterSlotNote className="mt-1 border-t border-line pt-3" />
+      )}
       <Dialog
         open={!!plan}
         onClose={() => { if (!reorg.busy) reorg.cancel(); }}

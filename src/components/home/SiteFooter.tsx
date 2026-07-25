@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
+import { GigmeisterLink } from '@/components/sibling/Gigmeister';
 import { CONTENT } from './layout';
 
 const footerLink = 'text-xs font-semibold text-dim no-underline transition-colors duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)] hover:text-ink';
@@ -15,6 +16,14 @@ export function SiteFooter() {
           <p className="mt-2 max-w-[20rem] text-[13px] leading-[1.55] text-dim">
             An open companion for Nord® keyboards.
           </p>
+          {/* The permanent, zero-cost pointer: one muted line, no CTA weight.
+              See components/sibling/Gigmeister.tsx. */}
+          <div className="mt-4 max-w-[20rem] text-[11px] leading-[1.55] text-muted">
+            <div>Also by OpenNord&rsquo;s author</div>
+            <div className="mt-1">
+              <GigmeisterLink>Gigmeister</GigmeisterLink> — for the gig itself.
+            </div>
+          </div>
         </div>
         <nav className="flex flex-wrap gap-4" aria-label="Footer">
           <Link to="/library/programs" className={footerLink}>Open the app</Link>
