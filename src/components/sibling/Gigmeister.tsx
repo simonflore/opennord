@@ -11,13 +11,18 @@ import { cn } from '@/lib/cn';
  * deliberately quieter than `covLink` (which is red), because red is OpenNord's
  * accent and belongs to OpenNord's own actions. If a mention grows past a
  * sentence or two, it has turned into an ad.
+ *
+ * **Written in the first person**, like the coffee button and the About copy —
+ * "I also make", not "OpenNord's author also built". A person telling you about
+ * their other project reads as a person; the third person reads as a press
+ * release, which is most of the way to an ad on its own.
  */
 
 export const GIGMEISTER_URL = 'https://gigmeister.app';
 
 /** What it is, in one line. Shared so the surfaces can't drift into pitching. */
 export const GIGMEISTER_BLURB =
-  'an app for gigging bands — setlists, a band calendar, and MIDI automation that switches your Nord between songs';
+  'an app for gigging bands — setlists, the band calendar, and the MIDI automation that flips your Nord from song to song';
 
 /** The quiet outbound link. Muted → ink on hover, never red. */
 const siblingLink = cn(
@@ -69,8 +74,8 @@ export function GigmeisterLink({
 export function GigmeisterFooterNote({ className }: { className?: string }) {
   return (
     <p className={cn('m-0 text-[11px] leading-[1.55] text-muted', className)}>
-      OpenNord&rsquo;s author also built{' '}
-      <GigmeisterLink>Gigmeister</GigmeisterLink> — {GIGMEISTER_BLURB}.
+      I also make <GigmeisterLink>Gigmeister</GigmeisterLink> —{' '}
+      {GIGMEISTER_BLURB}.
     </p>
   );
 }
@@ -87,9 +92,10 @@ export function GigmeisterSlotNote({ className }: { className?: string }) {
     <p className={cn('m-0 text-[11px] leading-[1.55] text-muted', className)}>
       <strong className="font-semibold text-dim">Slot numbers travel.</strong>{' '}
       A setlist sends MIDI Program Change at a slot, not at a program, so
-      re-check any saved set after you rearrange a bank.{' '}
-      <GigmeisterLink>Gigmeister</GigmeisterLink> — also by OpenNord&rsquo;s
-      author — keeps that song&#8202;→&#8202;slot mapping in step.
+      re-check any saved set after you rearrange a bank. My other app,{' '}
+      <GigmeisterLink>Gigmeister</GigmeisterLink>, keeps that
+      song&#8202;→&#8202;slot mapping in step, if you&rsquo;d rather not think
+      about it.
     </p>
   );
 }
