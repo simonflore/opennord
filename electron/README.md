@@ -64,8 +64,12 @@ carries the target's `prebuilds/` binary and no `build/`. A pack that would ship
 the broken binding fails instead of producing a zip.
 
 **Windows packs run in CI, on Windows.** `.github/workflows/desktop-win.yml`
-(manual `workflow_dispatch`) packs on `windows-latest` from a clean `npm ci` tree
-and uploads `OpenNord-win-x64`. That is the supported way to cut a Windows build —
+packs on `windows-latest` from a clean `npm ci` tree and uploads
+`OpenNord-win-x64-<sha>`, on manual `workflow_dispatch` and on any PR touching an
+input the pack consumes. It exists twice — once here (core-relative paths, the
+copy the public mirror runs) and once at the monorepo root with every path
+prefixed `packages/core/`, because Actions only reads workflows from a repo's own
+root. **Change both together.** This is the supported way to cut a Windows build —
 a local Mac pack cannot produce one at all: the app *directory* cross-builds fine
 (node-usb's `prebuilds/` carry every platform), but electron-builder shells out to
 **wine** to stamp the .exe metadata (rcedit), and its bundled wine 4.0.1 aborts on
