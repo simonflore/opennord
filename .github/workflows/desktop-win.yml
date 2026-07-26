@@ -1,0 +1,59 @@
+name: Desktop pack (Windows)
+
+# TWIN: this repo is the public AGPL mirror of packages/core, split out of the
+# opennord-backend monorepo, where the same job lives at the monorepo root as
+# .github/workflows/desktop-win.yml with every path prefixed `packages/core/`.
+# Actions only reads workflows from the root .github/workflows, so neither repo
+# can run the other's copy — both have to exist. Change them together.
+#
+# The Windows zip can only be built on Windows: electron-builder shells out to
+# wine to stamp the .exe, and its bundled wine dies on current macOS (and is
+# absent on the Linux CI image), so a cross-pack produces no artifact at all.
+#
+# Building in CI also means the zip comes out of a clean `npm ci` tree, which is
+# the durable fix for the failure that has shipped twice — a stray local
+# `node_modules/usb/build/Release/usb_bindings.node` from an `electron-rebuild`,
+# which node-gyp-build prefers over `prebuilds/win32-x64/` and which makes
+# Windows refuse the Mach-O binary as "not a valid Win32 application".
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'electron/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/usb-native-guard.mjs'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - 'index.html'
+      - '.github/workflows/desktop-win.yml'
+
+jobs:
+  pack:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 26 rather than ci.yml's 20: that is the version the pack is verified on.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - run: npm ci
+
+      # Bundles main/preload, builds the SPA, packs, and then verifies the
+      # packed app carries prebuilds/win32-x64 and no usb/build — the pack fails
+      # rather than uploading an app that dies at startup.
+      - run: npm run electron:pack:win
+
+      # The zip inside is named from `version`, which does not move between
+      # builds — so the commit goes in the artifact name, or a tester cannot
+      # tell two downloads apart. On a pull_request event `github.sha` is the
+      # synthetic merge commit, which is not a commit anyone can look up, so
+      # prefer the PR head and fall back to github.sha for workflow_dispatch.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenNord-win-x64-${{ github.event.pull_request.head.sha || github.sha }}
+          path: release/*.zip
+          if-no-files-found: error
