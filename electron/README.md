@@ -59,17 +59,21 @@ npm run electron:pack:win   # Windows x64 → release/OpenNord-<version>-win.zip
 ```
 
 Both targets bracket electron-builder with `scripts/usb-native-guard.mjs`: `clean`
-deletes `node_modules/usb/build` beforehand, `verify` then asserts the packed app
-carries the target's `prebuilds/` binary and no `build/`. A pack that would ship
-the broken binding fails instead of producing a zip.
+empties `node_modules/usb/build` and `release/` beforehand, `verify` then asserts
+the packed app carries the target's `prebuilds/` binary and no `build/`. A pack
+that would ship the broken binding fails instead of producing a zip. (`clean`
+wipes `release/` so `verify` can only see the run that just happened — which
+means packing one target discards the other target's output.)
 
-**Windows packs run in CI, on Windows.** `.github/workflows/desktop-win.yml`
+**Windows packs run in CI, on Windows — from the monorepo.** The pack workflow
+lives in the private `opennord-backend` monorepo, not in this repository: it
 packs on `windows-latest` from a clean `npm ci` tree and uploads
 `OpenNord-win-x64-<sha>`, on manual `workflow_dispatch` and on any PR touching an
-input the pack consumes. It exists twice — once here (core-relative paths, the
-copy the public mirror runs) and once at the monorepo root with every path
-prefixed `packages/core/`, because Actions only reads workflows from a repo's own
-root. **Change both together.** This is the supported way to cut a Windows build —
+input the pack consumes. It is not mirrored here because the mirror's push token
+would need `Workflows: write` to deliver a workflow file, and a failed push there
+wedges every later core mirror update. Releases are therefore cut upstream and
+published to this repo's Releases page. This is the supported way to cut a
+Windows build —
 a local Mac pack cannot produce one at all: the app *directory* cross-builds fine
 (node-usb's `prebuilds/` carry every platform), but electron-builder shells out to
 **wine** to stamp the .exe metadata (rcedit), and its bundled wine 4.0.1 aborts on
