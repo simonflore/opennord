@@ -3,7 +3,6 @@ import { SiteHeader } from './SiteHeader';
 import { Hero } from './Hero';
 import { Features } from './Features';
 import { More } from './More';
-import { DesktopApp } from './DesktopApp';
 import { Proof } from './Proof';
 import { Coverage } from './Coverage';
 import { Matrix } from './Matrix';
@@ -40,7 +39,7 @@ export function HomeView() {
           <Hero />
           <Features />
           <More />
-          <DesktopApp />
+          {/* <DesktopApp /> is parked — see the note at the top of that file. */}
           <Proof />
           <Coverage />
           <Matrix />

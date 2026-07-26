@@ -22,7 +22,8 @@ export function SiteHeader() {
       <nav className="flex items-center gap-6 max-[720px]:gap-3" aria-label="Primary">
         <a className={navLink} href="#features" onClick={scrollToSection('features')}>What it does</a>
         <a className={navLink} href="#coverage" onClick={scrollToSection('coverage')}>Keyboards</a>
-        <a className={navLink} href="#download" onClick={scrollToSection('download')}>Download</a>
+        {/* No "Download" item while DesktopApp is parked — it would scroll to
+            nothing. Restore it with the section (see DesktopApp.tsx). */}
         <a
           className={navLink}
           href="https://github.com/simonflore/opennord"
