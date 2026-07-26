@@ -9,10 +9,18 @@
 // "usb_bindings.node is not a valid Win32 application".
 //
 //   node scripts/usb-native-guard.mjs clean
-//       Deletes node_modules/usb/build. Run before packing.
+//       Deletes node_modules/usb/build AND release/. Run before packing.
 //   node scripts/usb-native-guard.mjs verify [--target <platform>-<arch>]
 //       Fails the pack if any app under release/ still carries usb/build, or is
 //       missing the target's prebuild. Defaults to the host tuple.
+//
+// `clean` empties release/ so that `verify` can only ever see output from the
+// run that just happened. Without that, an app.asar.unpacked left by an earlier
+// local pack is indistinguishable from a fresh one — and since node-usb ships
+// prebuilds for every platform, a stale tree satisfies any --target. A new pack
+// that omitted `usb` entirely would produce no unpacked dir at all, leaving the
+// stale one as the only thing scanned, and it would pass. Note the consequence:
+// packing one target discards the other target's output.
 import { existsSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,12 +35,18 @@ function fatal(message) {
 
 function clean() {
   const build = join(core, 'node_modules', 'usb', 'build');
-  if (!existsSync(build)) {
+  if (existsSync(build)) {
+    rmSync(build, { recursive: true, force: true });
+    console.log('usb native guard: removed node_modules/usb/build (a rebuild artifact — never ship it)');
+  } else {
     console.log('usb native guard: no node_modules/usb/build — prebuilds will be used');
-    return;
   }
-  rmSync(build, { recursive: true, force: true });
-  console.log('usb native guard: removed node_modules/usb/build (a rebuild artifact — never ship it)');
+
+  const release = join(core, 'release');
+  if (existsSync(release)) {
+    rmSync(release, { recursive: true, force: true });
+    console.log('usb native guard: emptied release/ so verify can only see this run’s output');
+  }
 }
 
 /** Every app.asar.unpacked under release/ — one per packed platform/arch. */
