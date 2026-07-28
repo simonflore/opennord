@@ -1080,14 +1080,14 @@ just not worth it, and the editor's encode kernel isn't statically extractable.)
   parse → (optional) resample → encode any generation; round-trips
   (`nsmp-import.test.ts`).
 
-⚠️ Import is EXPERIMENTAL: faithful-not-byte-exact resample, and the Nord's internal
-storage-rate / pitch model isn't hardware-verified (35256 Hz observed for rootKey 57
-only) — callers set `targetRate` explicitly. Byte-exact resampling would need the
+⚠️ Import is EXPERIMENTAL: faithful-not-byte-exact resample, and the stored-rate /
+pitch model isn't hardware-verified (35256 Hz observed for rootKey 57 only) — callers
+set `targetRate` explicitly. Byte-exact resampling would need the
 runtime `s_newFir48` kernel (or a WASM core for exact float32/FMA); not worth it.
 
 ## Audition / WAV-export sample rate — the stroke pitch base ✓ (2026-07-22)
 
-The decoded PCM is in the Nord's internal storage-rate domain, **not** 44100 Hz. The
+The decoded PCM is clocked at the **stroke's own replay rate**, **not** 44100 Hz. The
 `stk` header carries that rate as the **pitch base** — u16 BE at payload **+6** =
 `round(2^(cents/1200)·0x88ba)` (`0x88ba` = **35002 Hz** at 0 cents; the `PITCH_BASE`
 constant, constant across all 17 real OG strokes and the same offset in every
@@ -1095,6 +1095,29 @@ generation, `… <root> 88 ba …`). `decodeNsmp` now reads it per stroke into
 `DecodedStrokeResult.sampleRate` (`strokeSampleRate`, falling back to
 `NSMP_SAMPLE_RATE` = 0x88ba when absent — e.g. our own writer left it 0; it now emits
 it), and preview playback + WAV export clock the PCM at that rate.
+
+**Scope — what 35002 Hz is and isn't.** It is the rate *that stroke's stored PCM is
+clocked at when the zone sounds at its root key*. It is **not** the keyboard's engine
+or output rate, and the three are distinct:
+
+| Rate | What it is |
+|---|---|
+| **35002 Hz** (`PITCH_BASE`) | the stroke's stored PCM clock at root key — a per-stroke header field, not a global constant |
+| **the read rate** | `35002 · 2^((key − root)/12)` — what the engine actually advances at, so it moves with the note |
+| **the DAC / output rate** | the instrument's converter clock (48/96 kHz), independent of both |
+
+So the 17501 Hz Nyquist implied by 35002 bounds **what the file can store**, not what
+the instrument can emit: transposition above the root scales the whole spectrum up, and
+interpolating a 35002 Hz asset to the DAC rate leaves images at `35002 − f`, which land
+above 17501 Hz (typically 60–90 dB down, alongside the analog output noise floor). A
+recording of the instrument therefore shows low-level energy above 17501 Hz that a
+decoded stroke — raw integers, no analog stage, no cheap interpolator — cannot have.
+That difference is a property of the replay/measurement chain, **not** evidence of a
+hidden band in the codec: the block codec is time-domain fixed-predictor LPC emitting
+exactly `sampleCnt` integers per block (no subband split, no spectral layer), and
+`nsmpGapRanges` finds no unclaimed region large enough for a side channel. (Raised on
+the forum 2026-07-28 after a spectrogram A/B; the phrase "the Nord's internal
+storage-rate" in the original wording here is what invited the misreading.)
 
 **Why this was the "samples play/export sharp" bug.** Preview + export previously used a
 hardcoded `SAMPLE_RATE = 44100` placeholder. Since neither the root note nor the export

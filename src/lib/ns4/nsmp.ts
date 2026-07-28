@@ -832,10 +832,13 @@ export function patchStrokeLoopBytes(out: Uint8Array, stkPayloadOffset: number, 
 }
 
 /**
- * The Nord sample storage/replay rate in Hz — the stroke-header pitch base
- * (`0x88ba` = 35002; `nsmp-og.ts` `PITCH_BASE`) at 0 cents. It is the rate the
- * decoded internal PCM is clocked at, constant across every real stroke (the
- * decoded PCM is a shared internal domain across generations — docs/NSMP-CODEC.md).
+ * A stroke's stored-PCM replay rate in Hz at 0 cents — the stroke-header pitch base
+ * (`0x88ba` = 35002; `nsmp-og.ts` `PITCH_BASE`). It is the rate the decoded PCM is
+ * clocked at *when the zone sounds at its root key*, and it carries this same value
+ * in every real stroke across generations. It is **not** the keyboard's engine or
+ * DAC rate: the engine reads at `rate · 2^((key − root)/12)` and converts at 48/96
+ * kHz, so the 17501 Hz Nyquist implied here bounds what the file stores, not what
+ * the instrument emits (docs/NSMP-CODEC.md, "Scope — what 35002 Hz is and isn't").
  * Playing or exporting that PCM at any other rate detunes it: the old 44100
  * audition placeholder played it `44100/35002 = 2^(4/12)` = **+4 semitones** sharp
  * (a C sample sounded like E) while the stored root — hence the display note and
