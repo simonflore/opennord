@@ -1106,15 +1106,24 @@ or output rate, and the three are distinct:
 | **the read rate** | `strokeRate · 2^((key − root)/12)` — what the engine advances at, so it moves with the note. Use the stored `strokeRate`, not the literal 35002, or a fine-tuned stroke comes out wrong |
 | **the DAC / output rate** | the instrument's converter clock (48/96 kHz), independent of both |
 
-So the `strokeRate/2` Nyquist (17501 Hz at 0 cents) bounds **what the file can store**,
-not what the instrument can emit. **Verified** — this part is information-theoretic, not
-a guess about hardware: the block codec is time-domain fixed-predictor LPC emitting
-exactly `sampleCnt` integers per block (no subband split, no spectral layer), and
-`nsmpGapRanges` finds no unclaimed region large enough for a side channel. A decoded
-stroke cannot carry content above `strokeRate/2`.
+That bound is on **what the file can store**, not on what the instrument can emit — but
+mind which half of the claim is established:
+
+- ✅ **Verified, and structural rather than a claim about hardware:** a stroke decodes to
+  **one discrete PCM stream with no hidden spectral side channel**, so its content is
+  bandlimited to **half its own sample rate**, whatever that rate turns out to be in Hz.
+  Evidence: the block codec is time-domain fixed-predictor LPC emitting exactly
+  `sampleCnt` integers per block (no subband split, no spectral layer), and
+  `nsmpGapRanges` finds no unclaimed region large enough for a side channel.
+- ⚠️ **Conditional on the replay-rate interpretation:** the *numeric* bound
+  `strokeRate/2` = 17501 Hz at 0 cents. That follows only if `0x88ba` means 35002
+  samples/s. It behaves that way in every software test, but it is not hardware-measured
+  (see the ⚠️ below) — if it is ultimately a pitch coefficient on some other timebase,
+  the number moves. The structural claim above survives either way; only the Hz figure
+  is at stake.
 
 **Hypothesis (not measured)** — why a *recording of the instrument* nonetheless shows
-low-level energy above 17501 Hz. Three candidates, in descending confidence:
+low-level energy above `strokeRate/2`. Three candidates, in descending confidence:
 
 1. **Transposition above the root** scales the whole spectrum up. Follows directly from
    the read-rate row — though note that row is itself the model, not a hardware
@@ -1122,12 +1131,18 @@ low-level energy above 17501 Hz. Three candidates, in descending confidence:
 2. **The analog output stage + the listener's ADC** contribute a broadband noise floor
    across the full band. Generic to any such measurement; a decoded stroke has no analog
    chain and so cannot have one.
-3. **Imaging from the engine's interpolator** at `strokeRate − f`. ⚠️ **Unverified and
-   filter-dependent** — a sufficiently filtered SRC suppresses these, and the Nord's
-   interpolation filter has not been reverse-engineered or measured. We have **no
-   measurement of the residual image level**; do not quote one. (An earlier revision of
-   this section asserted "typically 60–90 dB down" — that number was inferred from a
-   forum screenshot's colormap, not measured, and has been removed.)
+3. **Imaging from the engine's interpolator**, idealised as `k·readRate ± f_out` — note
+   **`readRate`, not `strokeRate`**: the images ride the *transposed* clock, so they move
+   with the note and only coincide with `strokeRate − f` when the zone sounds at its root
+   key. ⚠️ **Unverified and filter-dependent** — a sufficiently filtered SRC suppresses
+   these entirely, and the Nord's interpolation filter has not been reverse-engineered or
+   measured. (A real engine likely transposes by fractional-increment interpolation
+   straight into the DAC stream rather than literally reclocking, in which case the
+   artifacts are interpolation error whose shape depends on that filter; `k·readRate ±
+   f_out` is the idealised model, not a prediction of what the hardware does.) We have
+   **no measurement of the residual image level**; do not quote one. (An earlier revision
+   of this section asserted "typically 60–90 dB down" — inferred from a forum
+   screenshot's colormap, not measured, and removed.)
 
 What is *not* in doubt is the negative: the difference between a hardware recording and
 a decoded stroke is a property of the replay/measurement chain, **not** evidence of a
