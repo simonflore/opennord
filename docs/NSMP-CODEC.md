@@ -1102,21 +1102,40 @@ or output rate, and the three are distinct:
 
 | Rate | What it is |
 |---|---|
-| **35002 Hz** (`PITCH_BASE`) | the stroke's stored PCM clock at root key — a per-stroke header field, not a global constant |
-| **the read rate** | `35002 · 2^((key − root)/12)` — what the engine actually advances at, so it moves with the note |
+| **`strokeRate`** (the header field) | the stroke's stored PCM clock at root key = `round(2^(cents/1200)·0x88ba)`, so **35002 Hz only at 0 cents** — per-stroke, not a global constant |
+| **the read rate** | `strokeRate · 2^((key − root)/12)` — what the engine advances at, so it moves with the note. Use the stored `strokeRate`, not the literal 35002, or a fine-tuned stroke comes out wrong |
 | **the DAC / output rate** | the instrument's converter clock (48/96 kHz), independent of both |
 
-So the 17501 Hz Nyquist implied by 35002 bounds **what the file can store**, not what
-the instrument can emit: transposition above the root scales the whole spectrum up, and
-interpolating a 35002 Hz asset to the DAC rate leaves images at `35002 − f`, which land
-above 17501 Hz (typically 60–90 dB down, alongside the analog output noise floor). A
-recording of the instrument therefore shows low-level energy above 17501 Hz that a
-decoded stroke — raw integers, no analog stage, no cheap interpolator — cannot have.
-That difference is a property of the replay/measurement chain, **not** evidence of a
-hidden band in the codec: the block codec is time-domain fixed-predictor LPC emitting
+So the `strokeRate/2` Nyquist (17501 Hz at 0 cents) bounds **what the file can store**,
+not what the instrument can emit. **Verified** — this part is information-theoretic, not
+a guess about hardware: the block codec is time-domain fixed-predictor LPC emitting
 exactly `sampleCnt` integers per block (no subband split, no spectral layer), and
-`nsmpGapRanges` finds no unclaimed region large enough for a side channel. (Raised on
-the forum 2026-07-28 after a spectrogram A/B; the phrase "the Nord's internal
+`nsmpGapRanges` finds no unclaimed region large enough for a side channel. A decoded
+stroke cannot carry content above `strokeRate/2`.
+
+**Hypothesis (not measured)** — why a *recording of the instrument* nonetheless shows
+low-level energy above 17501 Hz. Three candidates, in descending confidence:
+
+1. **Transposition above the root** scales the whole spectrum up. Follows directly from
+   the read-rate row — though note that row is itself the model, not a hardware
+   measurement (see the ⚠️ below).
+2. **The analog output stage + the listener's ADC** contribute a broadband noise floor
+   across the full band. Generic to any such measurement; a decoded stroke has no analog
+   chain and so cannot have one.
+3. **Imaging from the engine's interpolator** at `strokeRate − f`. ⚠️ **Unverified and
+   filter-dependent** — a sufficiently filtered SRC suppresses these, and the Nord's
+   interpolation filter has not been reverse-engineered or measured. We have **no
+   measurement of the residual image level**; do not quote one. (An earlier revision of
+   this section asserted "typically 60–90 dB down" — that number was inferred from a
+   forum screenshot's colormap, not measured, and has been removed.)
+
+What is *not* in doubt is the negative: the difference between a hardware recording and
+a decoded stroke is a property of the replay/measurement chain, **not** evidence of a
+hidden band in the codec. Distinguishing (2) from (3) is one measurement — record the
+instrument at the same gain with nothing sounding; if the ultrasonic band persists
+unchanged it is the noise floor, if it tracks the signal it is imaging.
+
+(Raised on the forum 2026-07-28 after a spectrogram A/B; the phrase "the Nord's internal
 storage-rate" in the original wording here is what invited the misreading.)
 
 **Why this was the "samples play/export sharp" bug.** Preview + export previously used a
