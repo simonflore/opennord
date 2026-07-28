@@ -838,9 +838,11 @@ export function patchStrokeLoopBytes(out: Uint8Array, stkPayloadOffset: number, 
  * in every real stroke across generations. It is **not** the keyboard's engine or
  * DAC rate: the engine reads at `strokeRate · 2^((key − root)/12)` — the *stroke's*
  * rate, which a fine-tuned root nudges off 35002 — and converts at 48/96 kHz. So the
- * `strokeRate/2` Nyquist implied here (17501 Hz at 0 cents) bounds what the file
- * stores, not what the instrument emits (the maintainers’ notes, "Scope — what 35002 Hz
- * is and isn't").
+ * implied Nyquist bounds what the file stores, not what the instrument emits. What is
+ * established is structural (a stroke is one discrete PCM stream, bandlimited to half
+ * its own rate); the *numeric* 17501 Hz is conditional on 0x88ba meaning 35002
+ * samples/s, which is unverified against hardware (the maintainers’ notes, "Scope — what
+ * 35002 Hz is and isn't").
  * Playing or exporting that PCM at any other rate detunes it: the old 44100
  * audition placeholder played it `44100/35002 = 2^(4/12)` = **+4 semitones** sharp
  * (a C sample sounded like E) while the stored root — hence the display note and
