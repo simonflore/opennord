@@ -89,9 +89,13 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
 
   /** Run Pass A on a source, then apply remembered choices / open the gate.
    *  `dirHandle` (when the source has one) keys the remembered bundle choices
-   *  to the actual directory, not just its display name. */
-  const runScan = useCallback(async (name: string, source: FolderSource, dirHandle?: FileSystemDirectoryHandle | null) => {
-    const gen = ++genRef.current;
+   *  to the actual directory, not just its display name. `gen` is owned by the
+   *  caller (bumped once per whole operation, before any async work) so a
+   *  completion-time `busy` clear can check it's still current — see the 4
+   *  call sites below. */
+  const runScan = useCallback(async (
+    gen: number, name: string, source: FolderSource, dirHandle?: FileSystemDirectoryHandle | null,
+  ) => {
     scannerRef.current?.dispose?.();
     const scanner = makeScanner();
     scannerRef.current = scanner;
@@ -142,11 +146,16 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
           // the top of the effect) — an immediate state update here can race
           // a re-render that gives `runScan` a new identity before
           // `restoreFolder()` even settles, restarting this effect forever.
+          const gen = ++genRef.current;
           setBusy(true);
           try {
-            await runScan(state.name, state.source, state.handle);
+            await runScan(gen, state.name, state.source, state.handle);
           } finally {
-            if (!cancelled) setBusy(false);
+            // Only clear busy if a newer operation (a fresh choose/reconnect/
+            // refresh, possibly after Forget) hasn't already superseded this
+            // one — otherwise an abandoned/slow restore scan that finally
+            // settles would clobber a legitimately in-flight newer busy state.
+            if (!cancelled && gen === genRef.current) setBusy(false);
           }
         } else if (state.status === 'needs-permission') {
           setFolderName(state.name); setPending(state.handle);
@@ -164,11 +173,16 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
   }, [runScan]);
 
   const choose = useCallback(async () => {
+    // Owned upfront (before any await) so a stale completion — e.g. this call
+    // getting abandoned via Forget and then finally settling — can tell it's
+    // no longer the current operation and skip clearing busy out from under
+    // a newer one.
+    const gen = ++genRef.current;
     setBusy(true); setReconnectError(null);
     try {
       const r = await pickFolder();
       setFolderName(r.name); setHandle(r.handle ?? null); setPending(null);
-      await runScan(r.name, r.source, r.handle);
+      await runScan(gen, r.name, r.source, r.handle);
     } catch (err) {
       if (!isCancel(err)) {
         console.error('Folder pick failed', err);
@@ -178,30 +192,32 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
         // which for a File[] source can never be recovered by a refresh.
         setResult((r) => ({ ...r, errors: [...r.errors, { path: '(folder)', reason: getErrorMessage(err) }] }));
       }
-    } finally { setBusy(false); }
+    } finally { if (gen === genRef.current) setBusy(false); }
   }, [runScan]);
 
   const reconnect = useCallback(async () => {
     if (!pending) return;
+    const gen = ++genRef.current;
     setBusy(true); setReconnectError(null);
     try {
       const source = await grantAndScan(pending);
       if (source) {
         setHandle(pending); setPending(null);
-        await runScan(folderName ?? pending.name, source, pending);
+        await runScan(gen, folderName ?? pending.name, source, pending);
       } else {
         // Permission wasn't granted — say so rather than silently doing nothing.
         setReconnectError(`Couldn't read “${folderName ?? 'the folder'}” — your browser blocked access. Click Reconnect and choose Allow, or Re-pick the folder.`);
       }
     } catch (err) {
       if (!isCancel(err)) { console.error('Folder reconnect failed', err); setReconnectError(getErrorMessage(err)); }
-    } finally { setBusy(false); }
+    } finally { if (gen === genRef.current) setBusy(false); }
   }, [pending, folderName, runScan]);
 
   const refresh = useCallback(async () => {
     if (!handle || !folderName) return;
+    const gen = ++genRef.current;
     setBusy(true);
-    try { await runScan(folderName, rescan(handle), handle); } finally { setBusy(false); }
+    try { await runScan(gen, folderName, rescan(handle), handle); } finally { if (gen === genRef.current) setBusy(false); }
   }, [handle, folderName, runScan]);
 
   const forget = useCallback(async () => {
