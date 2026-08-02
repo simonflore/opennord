@@ -67,6 +67,13 @@ export function LibraryView({
     || (categoriesPresent.length > 1 && (category ?? 'all') !== 'all');
   const clearFilters = () => { onQuery(''); onSource('all'); onGeneration?.('all'); onCategory?.('all'); };
 
+  // A folder is connected but turned up nothing — distinct from never having
+  // picked one. Telling the user to "choose a folder" here reads as if their
+  // pick didn't register at all, which is exactly what happens on Android
+  // when a Google Drive (or other cloud-backed) folder is chosen: the browser
+  // hands back zero readable files with no error, so scanErrors is empty too.
+  const connectedButEmpty = !!folderName && !busy && !needsReconnect && scanErrors.length === 0;
+
   const facets: FacetGroup[] = [
     {
       ariaLabel: 'Filter by source',
@@ -163,9 +170,23 @@ export function LibraryView({
       isEmpty={entries.length === 0}
       emptyState={
         <LibraryEmpty noun="program" filtered={filtered} onClear={clearFilters}>
-          <p>Nothing here yet.</p>
-          <Button variant="primary" onClick={onChooseFolder} disabled={busy}>Choose a folder of Nord files</Button>
-          <p className="mt-2 text-[13px] text-dim [&_code]:text-ink">Subfolders and <code>.ns4b</code> backups are included. Or import a single file, or connect your Nord.</p>
+          {connectedButEmpty ? (
+            <>
+              <p>“{folderName}” is connected, but no Nord files turned up in it.</p>
+              <p className="mt-2 text-[13px] text-dim [&_code]:text-ink">
+                Check that it actually holds <code>.ns4p</code>/<code>.ns4b</code> files. On Android, a folder backed
+                by Google Drive or another cloud app can look connected but hand over nothing readable — try making
+                those files available offline (or moving them to on-device storage) and re-pick.
+              </p>
+              <Button variant="ghost" onClick={onChooseFolder} disabled={busy}>Choose a different folder</Button>
+            </>
+          ) : (
+            <>
+              <p>Nothing here yet.</p>
+              <Button variant="primary" onClick={onChooseFolder} disabled={busy}>Choose a folder of Nord files</Button>
+              <p className="mt-2 text-[13px] text-dim [&_code]:text-ink">Subfolders and <code>.ns4b</code> backups are included. Or import a single file, or connect your Nord.</p>
+            </>
+          )}
         </LibraryEmpty>
       }
     >

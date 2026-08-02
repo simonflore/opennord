@@ -123,6 +123,23 @@ describe('LibraryView', () => {
     expect(html).toContain('Nothing here yet');
   });
 
+  it('shows a distinct message when a folder is connected but nothing was found in it', () => {
+    const html = renderToStaticMarkup(
+      <LibraryView entries={[]} source="all" query="" {...handlers} prefs={prefs()} folder={folder({ folderName: 'Nord Backups' })} />,
+    );
+    expect(html).toContain('“Nord Backups” is connected, but no Nord files turned up in it.');
+    expect(html).not.toContain('Choose a folder of Nord files'); // not the same CTA as never having picked one
+    expect(html).toContain('Choose a different folder');
+  });
+
+  it('does not show the connected-but-empty message while still scanning', () => {
+    const html = renderToStaticMarkup(
+      <LibraryView entries={[]} source="all" query="" {...handlers} prefs={prefs()} folder={folder({ folderName: 'Nord Backups', busy: true })} />,
+    );
+    expect(html).not.toContain('is connected, but no Nord files turned up');
+    expect(html).toContain('Nothing here yet');
+  });
+
   it('keeps Forget enabled while busy so it is always an escape hatch', () => {
     const html = renderToStaticMarkup(
       <LibraryView
