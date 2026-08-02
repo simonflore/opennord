@@ -395,11 +395,16 @@ export function parseCodec4ZoneRecords(
   // table as the maximal run of valid 16-byte records anywhere after the global block.
   // Zone count need not equal stroke count (a spare stroke may be unmapped). The
   // `keyLow ≤ 127` check in `valid` is what rejects the off-by-a-few-bytes phantom run.
-  let best = { start: -1, n: 0 };
+  // Ties break toward the payload end for the same reason as `parseStrokeRefZoneRecords`:
+  // a one-zone table scores 1, which stray matches inside the per-note rows also score,
+  // and the real table is the last structure in the payload.
+  let best = { start: -1, n: 0, trailer: Number.MAX_SAFE_INTEGER };
   for (let p = map.payloadOffset + 6; p + REC <= map.endOffset; p++) {
     let n = 0;
     for (let o = p; valid(o); o += REC) n++;
-    if (n > best.n) best = { start: p, n };
+    if (n === 0) continue;
+    const trailer = map.endOffset - (p + n * REC);
+    if (n > best.n || (n === best.n && trailer < best.trailer)) best = { start: p, n, trailer };
   }
   if (best.start < 0) return [];
   const zones: NsmpZone[] = [];
@@ -672,9 +677,16 @@ export function parseLegacyZoneRecords(
     }
     return true;
   };
-  for (let p = searchStart; p < searchEnd; p++) {
+  // Scan **backwards**: the record table ends the `map`, so the latest candidate that
+  // still fits inside the window is the real one. Forwards-with-first-match was safe
+  // only while `count` was large enough to make `[count:u16]` + `count` valid records a
+  // near-unique byte pattern; at `count === 1` the very first `00 01` pair in the
+  // payload — trivially common inside the per-note level block — was accepted instead,
+  // giving a one-zone file a phantom key map (2026-07-28).
+  for (let p = searchEnd - 1; p >= searchStart; p--) {
     if (u16be(bytes, p) !== count) continue;
     const recStart = p + 2; // count:u16, then the first record starts immediately (no leading X)
+    if (recStart + count * REC > searchEnd) continue; // table lives inside the map
     if (!recordsValid(recStart)) continue;
     const raw = Array.from({ length: count }, (_, i) => {
       const o = recStart + i * REC;
@@ -722,17 +734,30 @@ interface StrokeRefRecSpec {
  * as the maximal run of valid fixed-size records after the global+per-note block,
  * then derives `keyLow` by top-down tiling and `rootKey` from the `stk` header by
  * global id (no separate count field is relied upon).
+ *
+ * **Ties break toward the end of the payload.** Run length alone is ambiguous when
+ * the true table is short: a one-zone file's real run is length 1, which any
+ * accidental record-shaped match also scores — and the scan starts at `+6`, i.e.
+ * *inside* the 128-row per-note level/detune block, which is a rich source of them.
+ * With a strict `>` the lowest offset won, so a single-zone map could resolve to a
+ * phantom zone sitting in the per-note rows (wrong root/`keyHigh`, or no usable key
+ * map at all). The zone table is the **last** structure in the `map` payload — only
+ * a small pad follows it — so among equal-length runs the one ending nearest
+ * `endOffset` is the real one. Multi-zone files are unaffected: a strictly longer
+ * run still wins outright, which is every corpus fixture (2026-07-28).
  */
 function parseStrokeRefZoneRecords(
   bytes: Uint8Array, map: NsmpSection, rootByGid: Map<number, number>, spec: StrokeRefRecSpec,
 ): NsmpZone[] {
   const gidSet = new Set(rootByGid.keys());
   const { rec, gidOff, keyHighOff } = spec;
-  let best = { start: -1, n: 0 };
+  let best = { start: -1, n: 0, trailer: Number.MAX_SAFE_INTEGER };
   for (let start = map.payloadOffset + 6; start + rec <= map.endOffset; start++) {
     let n = 0;
     for (let o = start; o + rec <= map.endOffset && spec.ok(bytes, o, gidSet); o += rec) n++;
-    if (n > best.n) best = { start, n };
+    if (n === 0) continue;
+    const trailer = map.endOffset - (start + n * rec);
+    if (n > best.n || (n === best.n && trailer < best.trailer)) best = { start, n, trailer };
   }
   if (best.start < 0) return [];
   const raw: { globalID: number; keyHigh: number; recordOffset: number }[] = [];

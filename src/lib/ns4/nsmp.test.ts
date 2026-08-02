@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, openAsBlob } from 'node:fs';
 import { join } from 'node:path';
 import { patchNs4Checksum } from '../clavia/checksum';
-import { readNsmp, readNpnoName, parseNsmpSections, hdrFactoryFlag, nsmpHeadFactory, NSMP_FACTORY_HEAD_BYTES, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, NSMP_SAMPLE_RATE, type NsmpSection } from './nsmp';
+import { readNsmp, readNpnoName, parseNsmpSections, hdrFactoryFlag, nsmpHeadFactory, NSMP_FACTORY_HEAD_BYTES, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, NSMP_SAMPLE_RATE, parseCodec3V12ZoneRecords, type NsmpSection } from './nsmp';
 import { writeNsmp } from './nsmp-write';
 import { indexBackup } from '../clavia/backup/backup-index';
 import { extractZipEntry, extractZipEntryHead } from '../clavia/backup/zip-directory';
@@ -421,6 +421,80 @@ describe('parseLegacyZoneRecords (OG .nsmp zone table)', () => {
     ]);
     expect(parseLegacyZoneRecords(buf, 0, buf.length, 2, new Set([13, 12]))).toHaveLength(2);
     expect(parseLegacyZoneRecords(buf, 0, buf.length, 2, new Set([99]))).toEqual([]);
+  });
+
+  // Regression (2026-07-28, reported on the forum): a **one-zone** file. At count = 1
+  // the `[count:u16]` marker degenerates to any `00 01` byte pair, which the per-note
+  // level block is full of — and the reader took the *first* match, so a single-sample
+  // map resolved to a phantom zone in the per-note rows. The record table ends the
+  // `map`, so the scan runs backwards and the trailing table wins. The phantom here is
+  // deliberately fully valid (same gid, plausible keyHigh): position is the only thing
+  // that separates it from the real record.
+  it('takes the trailing table for a single-zone map, not an earlier phantom', () => {
+    const buf = new Uint8Array([
+      0, 0, 0, 0, 0, 0x10, // per-note level junk
+      0x00, 0x01, ...rec(5, 60), // phantom: a well-formed count=1 table inside the block
+      0, 0, 0, 0,
+      0x00, 0x01, ...rec(5, 108), // the real table, flush against the map end
+    ]);
+    const zones = parseLegacyZoneRecords(buf, 0, buf.length, 1, new Set([5]));
+    expect(zones).toHaveLength(1);
+    expect(zones[0].keyHigh).toBe(108); // 60 would be the phantom
+    expect(zones[0].recordOffset).toBe(buf.length - 12);
+  });
+
+  // The backwards scan must not reach past the window into the next section: a
+  // candidate whose records would overrun `searchEnd` is not the table.
+  it('ignores a count marker whose records would overrun the map', () => {
+    const buf = new Uint8Array([
+      0x00, 0x01, ...rec(5, 108), // real table
+      0x00, 0x01, 0, 0, 0, // truncated candidate at the tail — cannot hold a record
+    ]);
+    const zones = parseLegacyZoneRecords(buf, 0, buf.length, 1, new Set([5]));
+    expect(zones).toHaveLength(1);
+    expect(zones[0].recordOffset).toBe(2);
+  });
+});
+
+describe('parseCodec3V12ZoneRecords — single-zone tie-break', () => {
+  // v12 record: `00 01 [keyLow] [keyHigh] 00 00 01 00 00 00 [gid]` — 11 bytes,
+  // keyHigh@+3, gid@+10, marker@+6.
+  const v12 = (gid: number, keyHigh: number) =>
+    [0x00, 0x01, 0x00, keyHigh, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, gid];
+  const section = (payload: Uint8Array): NsmpSection => ({
+    tag: '\0map', version: 12, size: payload.length, payloadOffset: 0, endOffset: payload.length,
+  });
+
+  // Same defect as the v9 case above, reached through the maximal-run scanner: one
+  // zone means a run of length 1, which any record-shaped match also scores, and the
+  // scan starts at +6 — inside the per-note level/detune rows. Strict `>` handed it to
+  // the lowest offset. Ties now break toward the payload end, where the table lives.
+  it('prefers the trailing record over an equal-length phantom in the per-note block', () => {
+    const payload = new Uint8Array([
+      0, 0, 0, 0, 0, 0, // global level/detune
+      ...v12(7, 48), // phantom: record-shaped bytes among the per-note rows
+      0, 0, 0,
+      ...v12(7, 96), // the real table
+    ]);
+    const zones = parseCodec3V12ZoneRecords(payload, section(payload), new Map([[7, 60]]));
+    expect(zones).toHaveLength(1);
+    expect(zones[0].keyHigh).toBe(96); // 48 would be the phantom
+    expect(zones[0].rootKey).toBe(60); // from the `stk` header, by gid
+    expect(zones[0].recordOffset).toBe(payload.length - 11);
+  });
+
+  // The tie-break must not override run length: a genuine multi-zone table still wins
+  // outright over a shorter run nearer the end. This is every corpus fixture's case,
+  // and the property that makes the change safe for files that already read correctly.
+  it('still prefers a longer run over a shorter one closer to the end', () => {
+    const payload = new Uint8Array([
+      0, 0, 0, 0, 0, 0,
+      ...v12(7, 96), ...v12(8, 48), // the real 2-zone table
+      0, 0, 0,
+      ...v12(7, 24), // a later, shorter phantom
+    ]);
+    const zones = parseCodec3V12ZoneRecords(payload, section(payload), new Map([[7, 60], [8, 36]]));
+    expect(zones.map((z) => [z.keyLow, z.keyHigh])).toEqual([[49, 96], [0, 48]]);
   });
 });
 
