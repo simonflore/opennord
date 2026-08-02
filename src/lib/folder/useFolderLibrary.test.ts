@@ -128,6 +128,48 @@ describe('useFolderLibrary mount-time restore', () => {
     await waitFor(() => expect(result.current.busy).toBe(false));
   });
 
+  it('an abandoned restored scan settling late does not clear a newer operation\'s busy state', async () => {
+    // The exact race: forget() mid-restore-scan, then immediately choose()
+    // again. If the abandoned restore scan later resolves, it must not
+    // clobber the new operation's busy=true (Choose/Re-pick staying enabled
+    // mid-scan, or the "connected but empty" message flashing prematurely).
+    let resolveOld!: () => void;
+    let resolveNew!: () => void;
+    const oldScanner: Scanner = {
+      scanLoose: () => new Promise((res) => { resolveOld = () => res([]); }),
+      expandBundles: async () => {},
+    };
+    const newScanner: Scanner = {
+      scanLoose: () => new Promise((res) => { resolveNew = () => res([]); }),
+      expandBundles: async () => {},
+    };
+    let calls = 0;
+    const makeScanner = () => (calls++ === 0 ? oldScanner : newScanner);
+
+    vi.mocked(access.restoreFolder).mockResolvedValueOnce({
+      status: 'granted', name: 'Restored', handle: {} as FileSystemDirectoryHandle, source: [] as File[],
+    });
+    const { result } = renderHook(() => useFolderLibrary(makeScanner));
+    await waitFor(() => expect(result.current.busy).toBe(true)); // old restore scan in flight
+
+    await act(async () => { await result.current.forget(); });
+    expect(result.current.busy).toBe(false);
+
+    await act(async () => { void result.current.choose(); });
+    await waitFor(() => expect(result.current.busy).toBe(true)); // new operation now owns busy
+
+    // The abandoned old scan finally settles — give its continuation (the
+    // stale gen check, then the mount effect's finally) time to run.
+    await act(async () => {
+      resolveOld();
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(result.current.busy).toBe(true); // must still be owned by the new operation
+
+    await act(async () => { resolveNew(); });
+    await waitFor(() => expect(result.current.busy).toBe(false));
+  });
+
   it('surfaces a failed restore instead of an unhandled rejection', async () => {
     // A saved directory handle can go stale (folder deleted/renamed outside the
     // browser) — the user must see why their linked folder vanished, not a
