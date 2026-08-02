@@ -67,12 +67,18 @@ export function LibraryView({
     || (categoriesPresent.length > 1 && (category ?? 'all') !== 'all');
   const clearFilters = () => { onQuery(''); onSource('all'); onGeneration?.('all'); onCategory?.('all'); };
 
-  // A folder is connected but turned up nothing — distinct from never having
-  // picked one. Telling the user to "choose a folder" here reads as if their
-  // pick didn't register at all, which is exactly what happens on Android
-  // when a Google Drive (or other cloud-backed) folder is chosen: the browser
-  // hands back zero readable files with no error, so scanErrors is empty too.
-  const connectedButEmpty = !!folderName && !busy && !needsReconnect && scanErrors.length === 0;
+  // A folder is connected but turned up nothing at all — distinct from never
+  // having picked one, and distinct from "found presets/pianos/samples/backups
+  // but no programs" (those aren't program `entries` but they are real finds,
+  // so the folder isn't actually empty). Telling the user to "choose a folder"
+  // reads as if their pick didn't register at all, which is exactly what
+  // happens on Android when a Google Drive (or other cloud-backed) folder is
+  // chosen: the browser hands back zero readable files with no error, so
+  // scanErrors is empty too.
+  const folderResult = folder.result;
+  const folderFoundNothing = folderResult.presets.length === 0 && folderResult.pianos.length === 0
+    && folderResult.samples.length === 0 && folder.bundles.length === 0;
+  const connectedButEmpty = !!folderName && !busy && !needsReconnect && scanErrors.length === 0 && folderFoundNothing;
 
   const facets: FacetGroup[] = [
     {

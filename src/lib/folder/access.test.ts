@@ -1,11 +1,24 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { supportsPersistentFolders, fileFromHandle } from './access';
+import { supportsPersistentFolders, fileFromHandle, pickFolder } from './access';
 
 describe('access layer', () => {
   it('reports persistent-folder support based on showDirectoryPicker presence', () => {
     // jsdom has no showDirectoryPicker by default → fallback (webkitdirectory) path.
     expect(supportsPersistentFolders()).toBe(false);
+  });
+
+  it('surfaces an empty webkitdirectory selection as a distinguishable error, not a silent cancel', async () => {
+    // This is the exact shape Android hands back when the picked folder is
+    // backed by Google Drive (or another cloud app): onchange fires (a real
+    // selection was made) but with zero readable files. It must not be
+    // mistaken for the user dismissing the picker.
+    const promise = pickFolder();
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input).toBeTruthy();
+    Object.defineProperty(input, 'files', { value: [], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    await expect(promise).rejects.toThrow(/didn't return any files this browser could read/);
   });
 });
 

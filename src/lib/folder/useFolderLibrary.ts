@@ -135,7 +135,19 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
         if (cancelled) return;
         if (state.status === 'granted') {
           setFolderName(state.name); setHandle(state.handle);
-          await runScan(state.name, state.source, state.handle);
+          // Mirrors choose()/reconnect(): busy must cover the restore scan
+          // too, or a restored folder reads as "connected, found nothing"
+          // while the (possibly slow) initial scan is still filling in
+          // results. Set only after the await above (not synchronously at
+          // the top of the effect) — an immediate state update here can race
+          // a re-render that gives `runScan` a new identity before
+          // `restoreFolder()` even settles, restarting this effect forever.
+          setBusy(true);
+          try {
+            await runScan(state.name, state.source, state.handle);
+          } finally {
+            if (!cancelled) setBusy(false);
+          }
         } else if (state.status === 'needs-permission') {
           setFolderName(state.name); setPending(state.handle);
         }
