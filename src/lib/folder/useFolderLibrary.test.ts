@@ -79,6 +79,29 @@ describe('useFolderLibrary gate', () => {
 });
 
 describe('useFolderLibrary mount-time restore', () => {
+  it('marks busy for the duration of the restored folder\'s initial scan', async () => {
+    // Without this, a restored folder reads as "connected, found nothing"
+    // while a slow/large initial scan is still filling in results.
+    let resolveScan!: () => void;
+    const scanner: Scanner = {
+      scanLoose: () => new Promise((res) => { resolveScan = () => res([]); }),
+      expandBundles: async () => {},
+    };
+    vi.mocked(access.restoreFolder).mockResolvedValueOnce({
+      status: 'granted', name: 'Restored', handle: {} as FileSystemDirectoryHandle, source: [] as File[],
+    });
+    // A stable factory, as real callers pass (the default is the module-level
+    // `createScanner`) — an inline `() => scanner` is recreated every render,
+    // which would give `runScan` a new identity on the state updates below and
+    // restart this mount effect mid-scan.
+    const makeScanner = () => scanner;
+    const { result } = renderHook(() => useFolderLibrary(makeScanner));
+    await waitFor(() => expect(result.current.folderName).toBe('Restored'));
+    expect(result.current.busy).toBe(true); // scan still in flight
+    await act(async () => { resolveScan(); });
+    await waitFor(() => expect(result.current.busy).toBe(false));
+  });
+
   it('surfaces a failed restore instead of an unhandled rejection', async () => {
     // A saved directory handle can go stale (folder deleted/renamed outside the
     // browser) — the user must see why their linked folder vanished, not a

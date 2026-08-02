@@ -47,7 +47,18 @@ function pickFolderInput(): Promise<FolderHandleResult> {
     input.onchange = () => {
       const list = input.files;
       cleanup();
-      if (!list || list.length === 0) return reject(new Error('No folder chosen'));
+      // onchange firing at all means a selection was made (unlike oncancel/the
+      // focus heuristic below) — an empty list here isn't a cancel, it's the
+      // browser handing back nothing readable. This is the exact Android shape
+      // when the picked folder is backed by Google Drive or another cloud app:
+      // give it a distinguishable message instead of "No folder chosen", so it
+      // doesn't get swallowed as a cancel and surfaces to the user.
+      if (!list || list.length === 0) {
+        return reject(new Error(
+          "That folder didn't return any files this browser could read. If it's in Google Drive or "
+          + 'another cloud app, try making the files available offline (or move them to on-device storage) and re-pick.',
+        ));
+      }
       const top = (list[0] as File & { webkitRelativePath?: string }).webkitRelativePath?.split('/')[0] ?? 'Folder';
       resolve({ name: top, source: Array.from(list) });
     };

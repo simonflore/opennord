@@ -140,6 +140,23 @@ describe('LibraryView', () => {
     expect(html).toContain('Nothing here yet');
   });
 
+  it('does not claim a folder found nothing when it has presets/pianos/samples/backups but no programs', () => {
+    const withPreset = folder({
+      folderName: 'Nord Backups',
+      result: { programs: [], presets: [{ id: 'p', name: 'Preset', path: 'p.ns4o', tag: 't', kind: 'organ-preset', bytes: new Uint8Array() }], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] },
+    });
+    const html = renderToStaticMarkup(
+      <LibraryView entries={[]} source="all" query="" {...handlers} prefs={prefs()} folder={withPreset} />,
+    );
+    expect(html).not.toContain('is connected, but no Nord files turned up');
+
+    const withBundle = folder({ folderName: 'Nord Backups', bundles: [{ path: 'B.ns4b', size: 10 }] });
+    const html2 = renderToStaticMarkup(
+      <LibraryView entries={[]} source="all" query="" {...handlers} prefs={prefs()} folder={withBundle} />,
+    );
+    expect(html2).not.toContain('is connected, but no Nord files turned up');
+  });
+
   it('keeps Forget enabled while busy so it is always an escape hatch', () => {
     const html = renderToStaticMarkup(
       <LibraryView
