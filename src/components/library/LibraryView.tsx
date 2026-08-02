@@ -56,6 +56,13 @@ export function LibraryView({
   const onChooseFolder = folder.choose, onReconnect = folder.reconnect, onRefresh = folder.refresh, onForget = folder.forget;
   const folderCount = folder.result.programs.length + folder.result.samples.length;
   const scanErrors = folder.result.errors;
+  // Folder-level failures (a failed pick itself, not one unreadable file
+  // inside it — the Android/Google-Drive empty-selection case is exactly
+  // this) carry the actual guidance text. Touch-only Android users can't
+  // hover a tooltip, so those need to render inline; per-file errors keep
+  // the existing hover-summary treatment.
+  const folderScanErrors = scanErrors.filter((e) => e.path === '(folder)');
+  const fileScanErrors = scanErrors.filter((e) => e.path !== '(folder)');
 
   const nord = entries.filter((e) => e.source === 'nord').length;
   const local = entries.length - nord;
@@ -132,9 +139,14 @@ export function LibraryView({
           <Button variant="ghost" onClick={onForget}>Forget</Button>
         </div>
       )}
-      {scanErrors.length > 0 && (
-        <div className="mb-3 text-[13px] text-dim" title={scanErrors.map((e) => `${e.path} — ${e.reason}`).join('\n')}>
-          {scanErrors.length} {scanErrors.length === 1 ? 'file' : 'files'} couldn't be read — hover for details.
+      {folderScanErrors.map((e, i) => (
+        <div key={i} className="mb-3 rounded-md border border-line px-[14px] py-2.5 text-[13px] text-ink" role="alert">
+          {e.reason}
+        </div>
+      ))}
+      {fileScanErrors.length > 0 && (
+        <div className="mb-3 text-[13px] text-dim" title={fileScanErrors.map((e) => `${e.path} — ${e.reason}`).join('\n')}>
+          {fileScanErrors.length} {fileScanErrors.length === 1 ? 'file' : 'files'} couldn't be read — hover for details.
         </div>
       )}
       {importError && (

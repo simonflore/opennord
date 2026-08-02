@@ -157,6 +157,39 @@ describe('LibraryView', () => {
     expect(html2).not.toContain('is connected, but no Nord files turned up');
   });
 
+  it('renders a folder-level scan error inline, not behind a hover-only tooltip', () => {
+    // Touch-only Android users (the exact audience the Google Drive guidance
+    // targets) can't hover a title tooltip — the reason text must be visible.
+    const withFolderError = folder({
+      folderName: 'F',
+      result: {
+        programs: [], presets: [], pianos: [], samples: [],
+        errors: [{ path: '(folder)', reason: 'That folder returned no readable files.' }],
+        backupPianos: [], backupSamples: [],
+      },
+    });
+    const html = renderToStaticMarkup(
+      <LibraryView entries={[]} source="all" query="" {...handlers} prefs={prefs()} folder={withFolderError} />,
+    );
+    expect(html).toContain('That folder returned no readable files.');
+    expect(html).not.toContain('hover for details');
+  });
+
+  it('keeps the hover-summary treatment for per-file scan errors', () => {
+    const withFileErrors = folder({
+      folderName: 'F',
+      result: {
+        programs: [], presets: [], pianos: [], samples: [],
+        errors: [{ path: 'Bad.ns4p', reason: 'corrupt header' }],
+        backupPianos: [], backupSamples: [],
+      },
+    });
+    const html = renderToStaticMarkup(
+      <LibraryView entries={[]} source="all" query="" {...handlers} prefs={prefs()} folder={withFileErrors} />,
+    );
+    expect(html).toContain('hover for details');
+  });
+
   it('keeps Forget enabled while busy so it is always an escape hatch', () => {
     const html = renderToStaticMarkup(
       <LibraryView

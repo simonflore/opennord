@@ -76,6 +76,32 @@ describe('useFolderLibrary gate', () => {
     expect(ids).toContain('folder:A.ns4b!x.ns4p');
     expect(ids).not.toContain('folder:B.ns4b!x.ns4p');
   });
+
+  it('preserves previously loaded programs when a re-pick fails (the Android empty-selection case)', async () => {
+    const scanner = fakeScanner([]);
+    const { result } = renderHook(() => useFolderLibrary(() => scanner));
+    await act(async () => { await result.current.choose(); });
+    await waitFor(() => expect(result.current.result.programs.map((p) => p.id)).toContain('folder:loose.ns4p'));
+
+    vi.mocked(access.pickFolder).mockRejectedValueOnce(
+      new Error("That folder didn't return any files this browser could read."),
+    );
+    await act(async () => { await result.current.choose(); });
+
+    // The old data must survive a failed re-pick — a fallback (File[])
+    // folder has no persisted handle to recover it from otherwise.
+    expect(result.current.result.programs.map((p) => p.id)).toContain('folder:loose.ns4p');
+    expect(result.current.result.errors.some((e) => e.path === '(folder)')).toBe(true);
+  });
+
+  it('forget() clears busy even if the in-flight scan never resolves', async () => {
+    const scanner: Scanner = { scanLoose: () => new Promise(() => {}), expandBundles: async () => {} };
+    const { result } = renderHook(() => useFolderLibrary(() => scanner));
+    await act(async () => { void result.current.choose(); });
+    await waitFor(() => expect(result.current.busy).toBe(true));
+    await act(async () => { await result.current.forget(); });
+    expect(result.current.busy).toBe(false);
+  });
 });
 
 describe('useFolderLibrary mount-time restore', () => {

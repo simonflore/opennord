@@ -172,7 +172,11 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     } catch (err) {
       if (!isCancel(err)) {
         console.error('Folder pick failed', err);
-        setResult({ programs: [], presets: [], pianos: [], samples: [], errors: [{ path: '(folder)', reason: getErrorMessage(err) }], backupPianos: [], backupSamples: [] });
+        // Preserve whatever was already loaded — a failed re-pick (the
+        // Android/Google-Drive empty-selection case included) must not wipe
+        // out a previously connected fallback folder's programs/presets/etc,
+        // which for a File[] source can never be recovered by a refresh.
+        setResult((r) => ({ ...r, errors: [...r.errors, { path: '(folder)', reason: getErrorMessage(err) }] }));
       }
     } finally { setBusy(false); }
   }, [runScan]);
@@ -202,10 +206,14 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
 
   const forget = useCallback(async () => {
     // Reset the UI first so Forget always responds instantly — it's the escape
-    // hatch; never gate it on the IDB write completing.
+    // hatch; never gate it on the IDB write completing. That includes busy: a
+    // restored folder's scan can be slow or hang, and abandoning its
+    // generation above doesn't unblock an in-flight scanLoose() call, so
+    // without this Choose/Re-pick would stay disabled indefinitely.
     genRef.current++; // abandon in-flight batches
     setHandle(null); setPending(null); setFolderName(null); setReconnectError(null);
     setResult(EMPTY); setBundles([]); setNewBundles([]); setPickerOpen(false);
+    setBusy(false);
     await forgetFolder(); await clearBundleChoice();
   }, []);
 
