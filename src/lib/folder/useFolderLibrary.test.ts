@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useFolderLibrary } from './useFolderLibrary';
 import type { Scanner, BundleDescriptor } from './pipeline';
+import type { FolderSource } from './source';
 import * as access from './access';
 
 // A fake program-bearing batch (id is what the hook surfaces).
@@ -140,6 +141,53 @@ describe('useFolderLibrary gate', () => {
     await waitFor(() => expect(result.current.busy).toBe(true));
     await act(async () => { await result.current.forget(); });
     expect(result.current.busy).toBe(false);
+  });
+
+  it('a stale reconnect resolving after Forget + a fresh pick does not overwrite the newer folder', async () => {
+    // The exact race: Reconnect's permission prompt (grantAndScan) is still
+    // open when the user hits Forget, then picks a different folder. The old
+    // prompt finally resolving must not re-scan and stomp the new folder's
+    // results with the old (stale) scanner's output. reconnect() never sets
+    // folderName itself (only the mount effect's "needs-permission" branch
+    // does), so the observable symptom is in `result`/the active scanner —
+    // not folderName, which is why this checks the scan output.
+    let resolveGrant!: (v: FolderSource | null) => void;
+    vi.mocked(access.grantAndScan).mockImplementationOnce(
+      () => new Promise((res) => { resolveGrant = res; }),
+    );
+    const oldHandle = {} as FileSystemDirectoryHandle;
+    vi.mocked(access.restoreFolder).mockResolvedValueOnce({ status: 'needs-permission', name: 'Old', handle: oldHandle });
+
+    const scannerNew = fakeScanner([]); // what the fresh pick after Forget should use
+    const scannerStale: Scanner = {
+      async scanLoose(_source, onBatch) {
+        onBatch({ programs: [prog('folder:STALE.ns4p')], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
+        return [];
+      },
+      expandBundles: async () => {},
+    };
+    let calls = 0;
+    const makeScanner = () => (calls++ === 0 ? scannerNew : scannerStale);
+
+    const { result } = renderHook(() => useFolderLibrary(makeScanner));
+    await waitFor(() => expect(result.current.needsReconnect).toBe(true));
+
+    act(() => { void result.current.reconnect(); }); // grantAndScan() left pending
+    await waitFor(() => expect(result.current.busy).toBe(true));
+
+    await act(async () => { await result.current.forget(); });
+    expect(result.current.folderName).toBeNull();
+
+    await act(async () => { await result.current.choose(); }); // picks the default mocked 'F', uses scannerNew
+    expect(result.current.folderName).toBe('F');
+    expect(result.current.result.programs.map((p) => p.id)).toContain('folder:loose.ns4p');
+
+    // The stale permission prompt finally resolves (granted) for the OLD,
+    // already-forgotten handle.
+    await act(async () => { resolveGrant(oldHandle); });
+    expect(result.current.folderName).toBe('F');
+    expect(result.current.result.programs.map((p) => p.id)).toContain('folder:loose.ns4p');
+    expect(result.current.result.programs.map((p) => p.id)).not.toContain('folder:STALE.ns4p');
   });
 });
 

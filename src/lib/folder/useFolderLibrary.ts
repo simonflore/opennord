@@ -143,19 +143,20 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Owned upfront (before restoreFolder()'s await) — checked again right
+      // after it resolves, before touching any state: if the user manually
+      // picked/reconnected while this was pending, a late "granted" here must
+      // not clobber the newer folder's handle/name with the old one.
+      const op = ++opRef.current;
       try {
         const state = await restoreFolder();
-        if (cancelled) return;
+        if (cancelled || op !== opRef.current) return;
         if (state.status === 'granted') {
           setFolderName(state.name); setHandle(state.handle);
           // Mirrors choose()/reconnect(): busy must cover the restore scan
           // too, or a restored folder reads as "connected, found nothing"
           // while the (possibly slow) initial scan is still filling in
-          // results. Set only after the await above (not synchronously at
-          // the top of the effect) — an immediate state update here can race
-          // a re-render that gives `runScan` a new identity before
-          // `restoreFolder()` even settles, restarting this effect forever.
-          const op = ++opRef.current;
+          // results.
           setBusy(true);
           try {
             await runScan(state.name, state.source, state.handle);
@@ -170,10 +171,10 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
           setFolderName(state.name); setPending(state.handle);
         }
       } catch (err) {
+        if (cancelled || op !== opRef.current) return;
         // A saved handle can go stale (folder deleted/renamed outside the
         // browser). Say why the linked folder vanished — the banner offers
         // Re-pick — instead of leaving a silent empty state.
-        if (cancelled) return;
         console.error('Folder restore failed', err);
         setReconnectError(getErrorMessage(err));
       }
@@ -184,18 +185,24 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
   const choose = useCallback(async () => {
     // Owned upfront (before any await) so a stale completion — e.g. this call
     // getting abandoned via Forget and then finally settling — can tell it's
-    // no longer the current operation and skip clearing busy out from under
-    // a newer one. Deliberately not genRef: bumping that here, before the
-    // pick even resolves, would invalidate a concurrent applyBundleSelection()
-    // in-flight expansion the moment Re-pick is clicked, even if the pick
-    // then fails or is cancelled.
+    // no longer the current operation and skip clearing busy, or (checked
+    // again right after pickFolder() resolves) skip touching state entirely.
+    // Deliberately not genRef: bumping that here, before the pick even
+    // resolves, would invalidate a concurrent applyBundleSelection() in-flight
+    // expansion the moment Re-pick is clicked, even if the pick then fails or
+    // is cancelled.
     const op = ++opRef.current;
     setBusy(true); setReconnectError(null);
     try {
       const r = await pickFolder();
+      // Superseded while the OS picker was open (e.g. Forget + another pick
+      // already completed) — must not overwrite the newer folder's state or
+      // dispose its in-progress scan.
+      if (op !== opRef.current) return;
       setFolderName(r.name); setHandle(r.handle ?? null); setPending(null);
       await runScan(r.name, r.source, r.handle);
     } catch (err) {
+      if (op !== opRef.current) return;
       if (!isCancel(err)) {
         console.error('Folder pick failed', err);
         // Preserve whatever was already loaded — a failed re-pick (the
@@ -213,6 +220,10 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     setBusy(true); setReconnectError(null);
     try {
       const source = await grantAndScan(pending);
+      // Superseded while the permission prompt was open (e.g. Forget + a
+      // fresh pick already completed) — must not overwrite the newer
+      // folder's handle or dispose its in-progress scan.
+      if (op !== opRef.current) return;
       if (source) {
         setHandle(pending); setPending(null);
         await runScan(folderName ?? pending.name, source, pending);
@@ -221,6 +232,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
         setReconnectError(`Couldn't read “${folderName ?? 'the folder'}” — your browser blocked access. Click Reconnect and choose Allow, or Re-pick the folder.`);
       }
     } catch (err) {
+      if (op !== opRef.current) return;
       if (!isCancel(err)) { console.error('Folder reconnect failed', err); setReconnectError(getErrorMessage(err)); }
     } finally { if (op === opRef.current) setBusy(false); }
   }, [pending, folderName, runScan]);
