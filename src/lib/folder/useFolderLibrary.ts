@@ -72,7 +72,14 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
   const [reconnectError, setReconnectError] = useState<string | null>(null);
 
   const scannerRef = useRef<Scanner | null>(null);
-  const genRef = useRef(0); // generation token: ignore batches from a superseded scan
+  const genRef = useRef(0); // scan generation: ignore batches/expansions from a superseded scan
+  // Operation token: which in-flight choose/reconnect/refresh/restore may still
+  // clear `busy` on completion. Deliberately separate from genRef — genRef must
+  // only bump once a new scan actually starts (inside runScan, after a pick
+  // succeeds), or a re-pick that's merely attempted (and fails/cancels) would
+  // invalidate a concurrent applyBundleSelection()'s in-flight expandBundles
+  // calls, silently dropping already-decided-and-persisted bundle entries.
+  const opRef = useRef(0);
 
   const append = useCallback((gen: number) => (b: ScanBatch) => {
     if (gen !== genRef.current) return;
@@ -89,13 +96,15 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
 
   /** Run Pass A on a source, then apply remembered choices / open the gate.
    *  `dirHandle` (when the source has one) keys the remembered bundle choices
-   *  to the actual directory, not just its display name. `gen` is owned by the
-   *  caller (bumped once per whole operation, before any async work) so a
-   *  completion-time `busy` clear can check it's still current — see the 4
-   *  call sites below. */
+   *  to the actual directory, not just its display name. Bumps genRef itself,
+   *  right as the new scan actually starts — not any earlier, so a re-pick
+   *  that's merely attempted (and fails or is cancelled) never invalidates a
+   *  concurrent applyBundleSelection()'s in-flight expansion of the OLD
+   *  folder's bundles. */
   const runScan = useCallback(async (
-    gen: number, name: string, source: FolderSource, dirHandle?: FileSystemDirectoryHandle | null,
+    name: string, source: FolderSource, dirHandle?: FileSystemDirectoryHandle | null,
   ) => {
+    const gen = ++genRef.current;
     scannerRef.current?.dispose?.();
     const scanner = makeScanner();
     scannerRef.current = scanner;
@@ -146,16 +155,16 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
           // the top of the effect) — an immediate state update here can race
           // a re-render that gives `runScan` a new identity before
           // `restoreFolder()` even settles, restarting this effect forever.
-          const gen = ++genRef.current;
+          const op = ++opRef.current;
           setBusy(true);
           try {
-            await runScan(gen, state.name, state.source, state.handle);
+            await runScan(state.name, state.source, state.handle);
           } finally {
             // Only clear busy if a newer operation (a fresh choose/reconnect/
             // refresh, possibly after Forget) hasn't already superseded this
             // one — otherwise an abandoned/slow restore scan that finally
             // settles would clobber a legitimately in-flight newer busy state.
-            if (!cancelled && gen === genRef.current) setBusy(false);
+            if (!cancelled && op === opRef.current) setBusy(false);
           }
         } else if (state.status === 'needs-permission') {
           setFolderName(state.name); setPending(state.handle);
@@ -176,13 +185,16 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     // Owned upfront (before any await) so a stale completion — e.g. this call
     // getting abandoned via Forget and then finally settling — can tell it's
     // no longer the current operation and skip clearing busy out from under
-    // a newer one.
-    const gen = ++genRef.current;
+    // a newer one. Deliberately not genRef: bumping that here, before the
+    // pick even resolves, would invalidate a concurrent applyBundleSelection()
+    // in-flight expansion the moment Re-pick is clicked, even if the pick
+    // then fails or is cancelled.
+    const op = ++opRef.current;
     setBusy(true); setReconnectError(null);
     try {
       const r = await pickFolder();
       setFolderName(r.name); setHandle(r.handle ?? null); setPending(null);
-      await runScan(gen, r.name, r.source, r.handle);
+      await runScan(r.name, r.source, r.handle);
     } catch (err) {
       if (!isCancel(err)) {
         console.error('Folder pick failed', err);
@@ -192,32 +204,32 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
         // which for a File[] source can never be recovered by a refresh.
         setResult((r) => ({ ...r, errors: [...r.errors, { path: '(folder)', reason: getErrorMessage(err) }] }));
       }
-    } finally { if (gen === genRef.current) setBusy(false); }
+    } finally { if (op === opRef.current) setBusy(false); }
   }, [runScan]);
 
   const reconnect = useCallback(async () => {
     if (!pending) return;
-    const gen = ++genRef.current;
+    const op = ++opRef.current;
     setBusy(true); setReconnectError(null);
     try {
       const source = await grantAndScan(pending);
       if (source) {
         setHandle(pending); setPending(null);
-        await runScan(gen, folderName ?? pending.name, source, pending);
+        await runScan(folderName ?? pending.name, source, pending);
       } else {
         // Permission wasn't granted — say so rather than silently doing nothing.
         setReconnectError(`Couldn't read “${folderName ?? 'the folder'}” — your browser blocked access. Click Reconnect and choose Allow, or Re-pick the folder.`);
       }
     } catch (err) {
       if (!isCancel(err)) { console.error('Folder reconnect failed', err); setReconnectError(getErrorMessage(err)); }
-    } finally { if (gen === genRef.current) setBusy(false); }
+    } finally { if (op === opRef.current) setBusy(false); }
   }, [pending, folderName, runScan]);
 
   const refresh = useCallback(async () => {
     if (!handle || !folderName) return;
-    const gen = ++genRef.current;
+    const op = ++opRef.current;
     setBusy(true);
-    try { await runScan(gen, folderName, rescan(handle), handle); } finally { if (gen === genRef.current) setBusy(false); }
+    try { await runScan(folderName, rescan(handle), handle); } finally { if (op === opRef.current) setBusy(false); }
   }, [handle, folderName, runScan]);
 
   const forget = useCallback(async () => {
@@ -226,7 +238,8 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     // restored folder's scan can be slow or hang, and abandoning its
     // generation above doesn't unblock an in-flight scanLoose() call, so
     // without this Choose/Re-pick would stay disabled indefinitely.
-    genRef.current++; // abandon in-flight batches
+    genRef.current++; // abandon in-flight batches/expansions
+    opRef.current++; // and any in-flight operation's claim on clearing busy
     setHandle(null); setPending(null); setFolderName(null); setReconnectError(null);
     setResult(EMPTY); setBundles([]); setNewBundles([]); setPickerOpen(false);
     setBusy(false);

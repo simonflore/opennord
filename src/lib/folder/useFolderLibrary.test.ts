@@ -94,6 +94,45 @@ describe('useFolderLibrary gate', () => {
     expect(result.current.result.errors.some((e) => e.path === '(folder)')).toBe(true);
   });
 
+  it('a failed re-pick does not discard a concurrent bundle expansion still in flight', async () => {
+    // The exact race: applyBundleSelection() is expanding a chosen backup
+    // (already persisted as "decided", newBundles already cleared) when the
+    // user hits Re-pick. If the re-pick fails or is cancelled, the still-open
+    // expansion's remaining programs must still land — they're not
+    // recoverable otherwise for a fallback (File[]) folder.
+    let resolveExpand!: () => void;
+    const scanner: Scanner = {
+      async scanLoose(_source, onBatch) {
+        onBatch({ programs: [], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
+        return [{ path: 'A.ns4b', size: 1 }, { path: 'B.ns4b', size: 2 }];
+      },
+      expandBundles: (paths, onBatch) => new Promise((res) => {
+        resolveExpand = () => {
+          for (const p of paths) onBatch({ programs: [prog(`folder:${p}!x.ns4p`)], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
+          res();
+        };
+      }),
+    };
+    const { result } = renderHook(() => useFolderLibrary(() => scanner));
+    await act(async () => { await result.current.choose(); });
+    await waitFor(() => expect(result.current.pickerOpen).toBe(true)); // 2 bundles → picker
+
+    // Kick off the expansion but don't await it — it stays open until resolveExpand().
+    act(() => { void result.current.applyBundleSelection(['A.ns4b']); });
+    await waitFor(() => expect(result.current.pickerOpen).toBe(false));
+
+    // Re-pick fails while the expansion above is still pending.
+    vi.mocked(access.pickFolder).mockRejectedValueOnce(
+      new Error("That folder didn't return any files this browser could read."),
+    );
+    await act(async () => { await result.current.choose(); });
+
+    // The expansion finally settles — its program must still be appended,
+    // not silently dropped by the failed re-pick attempt.
+    await act(async () => { resolveExpand(); });
+    expect(result.current.result.programs.map((p) => p.id)).toContain('folder:A.ns4b!x.ns4p');
+  });
+
   it('forget() clears busy even if the in-flight scan never resolves', async () => {
     const scanner: Scanner = { scanLoose: () => new Promise(() => {}), expandBundles: async () => {} };
     const { result } = renderHook(() => useFolderLibrary(() => scanner));
