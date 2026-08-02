@@ -118,6 +118,36 @@ off-by-6-bytes phantom run that otherwise produced 30 garbage zones). Cathedral 
 previously returned **0 zones**; now 30. Records keep their *explicit* `keyLow`/velocity
 (ZONE_LAYOUT_C4) — they needn't tile like v10/v12.
 
+**Single-zone maps — the run-length scanners are ambiguous at n = 1 (fixed 2026-07-28).**
+Every scanner above locates the table by pattern-matching a run of record-shaped bytes,
+which is decisive only while the run is long. A **one-sample** file's real table is a run
+of **length 1** — a score any accidental record-shaped match ties — and the scan starts at
+`payloadOffset + 6`, i.e. *inside* the 128-row per-note level/detune block, which is a rich
+source of them. With a strict `>` the **lowest** offset won, so a one-zone map could resolve
+to a phantom sitting in the per-note rows: wrong `keyHigh`/root, or no usable key map at all
+(→ "we couldn't read this sample's key map", no root note on the stroke row, WAV filename
+missing its `_C4` and `smpl.unityNote` falling back to 60). Legacy **v9** was worse: it
+matched `[count:u16]` forwards and took the first hit, so at `count === 1` the **first
+`00 01` byte pair** in the payload won — near-certain to be a false positive.
+
+The fix uses the layout invariant already documented above: **the record table is the last
+structure in the `map` payload** (codec 3 = `[count][N × 16B][1B pad]`; codec 4 self-checks
+`recStart + count*16 + 6 == mapEnd`; v9's records end the map). So
+
+- `parseStrokeRefZoneRecords` (v10/v12) and the `parseCodec4ZoneRecords` fallback keep
+  maximal run length as the primary criterion and break **ties toward the payload end**;
+- `parseLegacyZoneRecords` (v9) scans **backwards** and additionally requires the records to
+  fit inside the map window.
+
+Multi-zone files are untouched — a strictly longer run still wins outright, which is every
+corpus fixture. Regression tests are synthetic (`nsmp.test.ts`, "single-zone tie-break"):
+each puts a *fully valid* phantom earlier in the payload so position is the only
+discriminator, plus guards that a longer run still beats a later shorter one and that a
+candidate overrunning the map is rejected. **No single-zone file exists in the corpus** —
+this was found by code inspection from a forum report of a one-sample `.nsmp3`, and the
+end-of-payload placement is inferred from the documented layout, not measured on a
+single-zone file. A real one-sample `.nsmp3`/`.nsmp` fixture is the outstanding validation.
+
 - ✅ **Zones read** (RE'd 2026-06-30, `parseCodec2ZoneRecords`). rev B's `map` is
   **version 10** — a 15-byte record table (`globalID@0`, `0x10@1`, detune s24`@4`,
   `keyHigh@7`, `0x0001@8`); `keyLow` tiles top-down (next zone's `keyHigh+1`, bottom
