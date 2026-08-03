@@ -5,6 +5,19 @@ import { heroBtn, roadmapTag, covLink } from './styles';
 import { IconApple, IconWindows } from './icons';
 
 /**
+ * PARKED — not rendered. `HomeView` no longer mounts this section, and
+ * `SiteHeader` no longer carries the "Download" nav item that scrolled to it.
+ *
+ * Why: the v0.0.1 assets these link to are the builds that shipped a
+ * host-platform `usb_bindings.node`, so the Windows one dies at launch with
+ * "not a valid Win32 application" before any of our code runs. Sending players
+ * to a download that cannot start is worse than no download.
+ *
+ * To bring it back: publish a release built by `desktop-win.yml` (a clean
+ * Windows runner, verified by `scripts/usb-native-guard.mjs`) plus the macOS
+ * pack, bump DESKTOP_VERSION, then re-add `<DesktopApp />` to HomeView and the
+ * `#download` nav link to SiteHeader. Nothing else here needs to change.
+ *
  * Desktop-app download targets. The desktop build is published as a GitHub
  * (pre-)release; these are the direct asset URLs for the current version plus
  * the release page (which carries the first-launch / driver setup notes). URLs
