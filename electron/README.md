@@ -58,17 +58,36 @@ npm run electron:pack       # macOS  → release/mac*/OpenNord.app
 npm run electron:pack:win   # Windows x64 → release/OpenNord-<version>-win.zip
 ```
 
+Both targets bracket electron-builder with `scripts/usb-native-guard.mjs`: `clean`
+empties `node_modules/usb/build` and `release/` beforehand, `verify` then asserts
+the packed app carries the target's `prebuilds/` binary and no `build/`. A pack
+that would ship the broken binding fails instead of producing a zip. (`clean`
+wipes `release/` so `verify` can only see the run that just happened — which
+means packing one target discards the other target's output.)
+
+**Windows packs run in CI, on Windows — from the monorepo.** The pack workflow
+lives in the private `opennord-backend` monorepo, not in this repository: it
+packs on `windows-latest` from a clean `npm ci` tree and uploads
+`OpenNord-win-x64-<sha>`, on manual `workflow_dispatch` and on any PR touching an
+input the pack consumes. It is not mirrored here because the mirror's push token
+would need `Workflows: write` to deliver a workflow file, and a failed push there
+wedges every later core mirror update. Releases are therefore cut upstream and
+published to this repo's Releases page. This is the supported way to cut a
+Windows build —
+a local Mac pack cannot produce one at all: the app *directory* cross-builds fine
+(node-usb's `prebuilds/` carry every platform), but electron-builder shells out to
+**wine** to stamp the .exe metadata (rcedit), and its bundled wine 4.0.1 aborts on
+current macOS, so the run dies before the zip.
+
 **Pin the Windows arch.** `electron-builder --win` defaults to the *host* arch, so
 on an Apple Silicon Mac it silently builds **win-arm64**, which won't launch on
 the x64 Windows nearly every tester runs. `electron:pack:win` therefore passes
 `--x64` explicitly; use `--arm64` only when you mean it.
 
-**Windows packs must run on Windows.** The app *directory* cross-builds fine from
-a Mac (node-usb's `prebuilds/` carry every platform), but electron-builder shells
-out to **wine** to stamp the .exe metadata (rcedit), and its bundled wine 4.0.1
-aborts on current macOS — so the pack dies before the zip and you get no
-artifact. Build the Windows release on a Windows runner (GitHub Actions
-`windows-latest`) rather than locally on macOS.
+**The zip's name doesn't change between builds.** It is
+`OpenNord-0.0.1-win.zip` before and after any of this, so a tester who kept the
+old download will keep hitting the old crash. Bump `version` (or rename the
+artifact) when handing out a build that fixes a startup failure.
 
 ## Never run electron-rebuild
 
@@ -84,9 +103,21 @@ what shipped the broken `OpenNord-0.0.1-win` build:
   code runs, which is why installing UsbDk doesn't help.
 
 node-usb 2.x is N-API + prebuildify, so the rebuild buys nothing to begin with.
-`build.files` carries `"!**/node_modules/usb/build/**"` as a backstop so a stray
-local rebuild can't ship again, and `npmRebuild: false` stops electron-builder
-from recreating it. If a pack ever misbehaves, `rm -rf node_modules/usb/build`.
+Four things now stand between a stray rebuild and a tester:
+
+1. **`PREBUILDS_ONLY=1`** — node-gyp-build reads it at load and skips
+   `build/Release` and `build/Debug` entirely, so `prebuilds/` always wins. It is
+   injected as an esbuild `--banner:js` on `electron:build` rather than written in
+   `main.ts`, because a banner is guaranteed to run before the bundle's first
+   `require` — an `import` statement is not.
+2. **`build.files`** carries `"!**/node_modules/usb/build/**"`, keeping the file
+   out of the archive (verified: without it, the Mach-O binary lands in
+   `app.asar.unpacked/node_modules/usb/build/Release/`).
+3. **`npmRebuild: false`** stops electron-builder from recreating it during a pack.
+4. **`scripts/usb-native-guard.mjs`** cleans before the pack and verifies after,
+   so a pack that would ship it fails loudly instead.
+
+If a pack ever misbehaves, `rm -rf node_modules/usb/build` and re-run.
 
 ## Verifying the Stage 2 fix
 

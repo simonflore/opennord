@@ -16,7 +16,11 @@
  * ships prebuilds for every target, so it must NOT be rebuilt: a local
  * `electron-rebuild` writes a host-platform `build/Release/usb_bindings.node`,
  * which node-gyp-build then prefers over the correct `prebuilds/` binary and
- * which breaks a cross-platform pack. See electron/README.md.
+ * which breaks a cross-platform pack. The `import` below is therefore fenced on
+ * three sides: `PREBUILDS_ONLY=1` (an esbuild banner, so it is set before this
+ * file's first `require`) makes node-gyp-build skip `build/` outright,
+ * `build.files` drops it from the archive, and `usb-native-guard.mjs` fails the
+ * pack if either slips. See electron/README.md.
  */
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'node:path';
