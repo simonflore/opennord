@@ -7,6 +7,9 @@
  * so callers pass the same audition rate used for playback — pitch matches what
  * you hear in-app even if it differs from the original capture rate.
  */
+import { resampleToRate } from './nw1-resample';
+import { normalizeChannels } from './nsmp-audio';
+
 /** Loop metadata to embed as a `smpl` chunk so tools (e.g. Nord Sample Editor)
  *  can recover the loop points and pitch from an exported WAV. */
 export interface WavLoop {
@@ -75,6 +78,61 @@ export function encodeWav(channels: Float32Array[], sampleRate: number, loop?: W
     view.setUint32(off, 0, true); off += 4;                              // play count: 0 = infinite
   }
   return new Uint8Array(buf);
+}
+
+/**
+ * Sample rates the Nord Sample Editor (NSE) accepts on WAV import. A stroke's
+ * native storage rate — the `stk` pitch base, ~35 kHz (`nsmp.ts`
+ * `NSMP_SAMPLE_RATE`) — is *not* one of them: a WAV written at that rate is
+ * pitch-correct but NSE refuses to re-import it, so a stroke can't round-trip
+ * back into a Sample Editor project. Exports meant for NSE must land on one of
+ * these. (Reported on the forum, 2026-08.)
+ */
+export const NSE_SAMPLE_RATES: readonly number[] = [44100, 48000, 96000];
+
+/**
+ * Default rate for an NSE-re-importable stroke export — NSE's lowest accepted
+ * rate. The storage domain is ~35 kHz so this upsamples; 44.1 kHz is what the
+ * forum request asked for and keeps the file small.
+ */
+export const NSE_EXPORT_SAMPLE_RATE = 44100;
+
+/** The export rate for PCM stored at `srcRate`: keep it when NSE already accepts
+ *  it (no needless resample), else fall back to the 44.1 kHz default. */
+export function nseExportRate(srcRate: number): number {
+  return NSE_SAMPLE_RATES.includes(srcRate) ? srcRate : NSE_EXPORT_SAMPLE_RATE;
+}
+
+/**
+ * Encode one decoded stroke as a WAV the Nord Sample Editor will re-import.
+ *
+ * The decoded PCM is clocked at the stroke's own ~35 kHz rate (`srcRate`), which
+ * NSE rejects. The fix is **not** to relabel the header to 44.1 kHz — that would
+ * detune the sample (the historical "+4 semitones" bug; see `nsmp.ts`
+ * `NSMP_SAMPLE_RATE`). Instead this **resamples** the PCM to an NSE-legal rate
+ * with the editor's own windowed-sinc ({@link resampleToRate}) and writes that
+ * rate, so pitch and duration are preserved. Loop points are rescaled by the same
+ * ratio so the embedded `smpl` chunk still lands on the right frames. Peak
+ * auto-gain (via {@link normalizeChannels}) matches the audition path. Returns the
+ * bytes and the rate actually written.
+ *
+ * A stroke already at an NSE rate is encoded as-is (no resample).
+ */
+export function encodeStrokeWav(
+  channels: Int32Array[],
+  srcRate: number,
+  loop?: WavLoop,
+): { bytes: Uint8Array; sampleRate: number } {
+  const dstRate = nseExportRate(srcRate);
+  if (dstRate === srcRate) {
+    return { bytes: encodeWav(normalizeChannels(channels), srcRate, loop), sampleRate: srcRate };
+  }
+  const resampled = resampleToRate(channels, srcRate, dstRate);
+  const scale = dstRate / srcRate;
+  const scaledLoop: WavLoop | undefined = loop
+    ? { ...loop, start: Math.round(loop.start * scale), end: Math.round(loop.end * scale) }
+    : undefined;
+  return { bytes: encodeWav(normalizeChannels(resampled), dstRate, scaledLoop), sampleRate: dstRate };
 }
 
 /**

@@ -1199,6 +1199,28 @@ check its fundamental period ≈ 35002/220 ≈ 159 samples (vs ≈ 200 if the ra
 44100). That fixture is gitignored corpus (`docs/LEGAL.md`); the corpus-gated
 `nsmp.test.ts` case only bounds the rate to ≈0x88ba when the files are present.
 
+### WAV export resamples to an NSE-legal rate ✓ (2026-08-11)
+
+Writing the stroke's true ~35 kHz rate makes the export *pitch-correct* but NSE
+(the Nord Sample Editor) refuses to import it: NSE only accepts **44.1 / 48 / 96
+kHz** WAVs, so a decoded stroke could not round-trip back into a Sample Editor
+project (reported on the forum, 2026-08 — "exporting to 44.1 kHz to reimport in
+NSE"). The naive fix — stamp `44100` in the header — is exactly the +4-semitone
+bug above in reverse, so it is **wrong**.
+
+`encodeStrokeWav` (`wav.ts`) instead **resamples** the decoded PCM from the
+stroke's own rate to an NSE-legal rate before encoding, via the editor's own
+windowed-sinc (`resampleToRate`, the same faithful kernel used for WAV *import*),
+and writes that rate — header and sample clock move together, so pitch and
+duration are preserved. A stroke already at an NSE rate is passed through
+untouched (`nseExportRate`); everything else upsamples to 44.1 kHz
+(`NSE_EXPORT_SAMPLE_RATE`, the request's suggested default, smallest of the three).
+Loop points are rescaled by `dstRate/srcRate` so the embedded `smpl` chunk still
+lands on the right frames. The resample is faithful-not-byte-exact (sub-LSB phase
+difference, inaudible — see "Resampler + WAV import" above); acceptable for an
+export whose job is auditing/re-use, not byte round-trip. Tests: `wav.test.ts`
+"nseExportRate" / "encodeStrokeWav".
+
 ## Field-presence in `.nsmp` (discovery 2026-06-21)
 
 The `.nsmpproj` (Nord Sample Editor project, plain ASCII at
