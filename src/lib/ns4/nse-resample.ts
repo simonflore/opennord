@@ -15,9 +15,10 @@
  * cutoff tracks the lower of the source/destination Nyquists, so an upsample keeps
  * the entire source band and a (rare, fine-tuned) downsample still anti-aliases.
  *
- * A Kaiser-windowed sinc, computed per call (no static table): linear-phase,
- * ~−90 dB stopband, and each output sample is normalised by its own tap sum so the
- * passband gain is exactly unity (also handling the zero-padded edges cleanly).
+ * A Kaiser-windowed sinc, built once per export as a polyphase table (transcend-
+ * entals precomputed, so the hot loop is a plain multiply-accumulate): linear-
+ * phase, ~−90 dB stopband, and each output sample is normalised by its tap sum so
+ * the passband gain is exactly unity (also handling the zero-padded edges cleanly).
  *
  * ⚠️ SCOPE (docs/LEGAL.md): the user's own decoded audio only.
  */
