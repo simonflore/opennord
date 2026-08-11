@@ -25,8 +25,8 @@ describe('resampleForExport', () => {
   it('preserves a DC offset (unity passband gain, edge-safe normalisation)', () => {
     const inp = new Int32Array(2000).fill(1234);
     const [out] = resampleForExport([inp], 35002, 44100);
-    // Interior is exactly the constant; edges stay close (normalised tap sum).
-    expect(out[out.length >> 1]).toBe(1234);
+    // Interior is the constant (float, so within FP epsilon); edges stay close too.
+    expect(out[out.length >> 1]).toBeCloseTo(1234, 6);
     expect(Math.abs(out[5] - 1234)).toBeLessThan(5);
   });
 
@@ -40,13 +40,22 @@ describe('resampleForExport', () => {
   });
 
   it('preserves the top octave an upsample should keep — where the import kernel would not', () => {
-    // The import downsample kernel drops ~-3.4 dB at 14 kHz / ~-10 dB at 15 kHz;
-    // the ratio-aware export filter must keep those bands ~flat.
+    // The import downsample kernel drops ~-3.4 dB @14 kHz / -10 @15 / -23 @16; the
+    // ratio-aware export filter cuts at ~source Nyquist, so it stays ~flat well up.
     const src = 35002, dst = 44100, n = 8000;
-    expect(gainDb(resampleForExport([tone(14000, src, n)], src, dst)[0], tone(14000, src, n)))
-      .toBeGreaterThan(-1.0);
-    expect(gainDb(resampleForExport([tone(15000, src, n)], src, dst)[0], tone(15000, src, n)))
-      .toBeGreaterThan(-1.5);
+    for (const [f, floor] of [[14000, -0.3], [15000, -0.3], [16000, -1.0]] as const) {
+      expect(gainDb(resampleForExport([tone(f, src, n)], src, dst)[0], tone(f, src, n)))
+        .toBeGreaterThan(floor);
+    }
+  });
+
+  it('keeps convolution results floating-point (no premature integer quantisation)', () => {
+    // Rounding to Int32 before the downstream peak auto-gain would staircase a quiet
+    // stroke; the resampler must return fractional values.
+    const src = 35002, dst = 44100, n = 2000;
+    const out = resampleForExport([tone(8000, src, n)], src, dst)[0];
+    const someFractional = Array.from(out.subarray(500, 1500)).some((v) => !Number.isInteger(v));
+    expect(someFractional).toBe(true);
   });
 
   it('anti-aliases on a (fine-tuned) downsample: a tone above the destination Nyquist is suppressed', () => {
