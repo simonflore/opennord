@@ -1225,16 +1225,28 @@ would bandlimit to that same cutoff and throw away genuine source content betwee
 @15 kHz, −23 dB @16 kHz — a `chatgpt-codex` review flag, reproduced with a sine
 sweep). Since export is an interop/audit path (audition, DAW re-use, NSE
 re-import), not a write-back-to-instrument path, it uses a **ratio-aware
-Kaiser-windowed sinc** whose cutoff tracks the lower Nyquist: an upsample keeps the
-full source band (measured flat to ~14 kHz, −1 dB @15 kHz), a rare fine-tuned
-downsample still anti-aliases (a 23 kHz tone at 45k→44.1k is −59 dB). The import
-kernel stays reserved for the write-back-to-Nord path, where matching the editor
-matters. The kernel is built **once per export as a polyphase table** (1024
-sub-phases) so the per-sample hot loop is a plain multiply-accumulate — a naive
-per-tap Bessel/sinc recompute froze the main thread for seconds on a long stroke
-(second review flag); the table cut a 10 s stereo convert from ~2.6 s/channel to
-~0.12 s/channel. Tests: `nse-resample.test.ts`, `wav.test.ts` "nseExportRate" /
-"encodeStrokeWav".
+Kaiser-windowed sinc** (`resampleForExport`). The cutoff tracks the lower Nyquist,
+and the transition margin applies **only when downsampling**: an *upsample* has no
+aliasing constraint below source Nyquist, so it cuts right at it (fc ≈ 0.4925
+cycles/input-sample) and keeps the whole source band — measured flat to ~16 kHz
+(−0.15 dB), −1 dB @16.5 kHz, −3.6 dB @17 kHz (vs the import kernel's −23 dB @16 kHz
+and an interim −9 dB before the cutoff was made ratio-aware). A rare fine-tuned
+*downsample* backs the cutoff off by the margin and still anti-aliases (a 23 kHz
+tone at 45k→44.1k is −59 dB). The import kernel stays reserved for the
+write-back-to-Nord path, where matching the editor matters.
+
+Two implementation notes, both from review:
+- **Polyphase table.** The kernel is built once per export as a table (1024
+  sub-phases) so the per-sample hot loop is a plain multiply-accumulate — a naive
+  per-tap Bessel/sinc recompute froze the main thread for seconds on a long stroke;
+  the table cut a 10 s stereo convert from ~2.6 s/channel to ~0.12 s/channel.
+- **Float through normalisation.** `resampleForExport` returns floating-point PCM;
+  rounding to integers there would staircase a quiet stroke (small integer peak),
+  which the downstream peak auto-gain (`normalizeChannels`) would then amplify to
+  full scale. The single quantisation to int16 happens once, in `encodeWav`, after
+  normalisation.
+
+Tests: `nse-resample.test.ts`, `wav.test.ts` "nseExportRate" / "encodeStrokeWav".
 
 **Known limitation — loop-boundary filter context.** For a looping stroke, the
 resampler convolves the *linear* signal, so samples reconstructed near loop-in

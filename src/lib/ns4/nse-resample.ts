@@ -106,11 +106,17 @@ function buildKernel(halfWidth: number, beta: number, fc: number, phases: number
   return { coeff, norm, taps, halfWidth, phases };
 }
 
-/** Resample one integer-PCM channel through a prebuilt polyphase kernel. */
-function resampleChannel(input: ArrayLike<number>, ratio: number, outLength: number, k: PolyKernel): Int32Array {
+/**
+ * Resample one channel through a prebuilt polyphase kernel. Output stays
+ * **floating point** — rounding to integers here would quantise a quiet stroke to
+ * a coarse staircase that the downstream peak auto-gain (`normalizeChannels`) then
+ * amplifies to full scale. The single quantisation to int16 happens once, in the
+ * WAV encoder, after normalisation.
+ */
+function resampleChannel(input: ArrayLike<number>, ratio: number, outLength: number, k: PolyKernel): Float64Array {
   const n = input.length;
   const { coeff, norm, taps, halfWidth, phases } = k;
-  const out = new Int32Array(outLength);
+  const out = new Float64Array(outLength);
   for (let o = 0; o < outLength; o++) {
     const pos = o * ratio;
     const center = Math.floor(pos);
@@ -122,7 +128,7 @@ function resampleChannel(input: ArrayLike<number>, ratio: number, outLength: num
     if (first >= 0 && first + taps <= n) {
       // Interior: every tap is in range → use the precomputed per-phase norm.
       for (let t = 0; t < taps; t++) acc += input[first + t] * coeff[base + t];
-      out[o] = Math.round(acc / norm[phase]);
+      out[o] = acc / norm[phase];
     } else {
       // Edge: renormalise over the in-range taps only (keeps DC/unity gain).
       let wsum = 0;
@@ -133,7 +139,7 @@ function resampleChannel(input: ArrayLike<number>, ratio: number, outLength: num
         acc += input[idx] * w;
         wsum += w;
       }
-      out[o] = wsum !== 0 ? Math.round(acc / wsum) : 0;
+      out[o] = wsum !== 0 ? acc / wsum : 0;
     }
   }
   return out;
@@ -141,24 +147,32 @@ function resampleChannel(input: ArrayLike<number>, ratio: number, outLength: num
 
 /**
  * Resample every channel from `srcRate` to `dstRate` with a linear-phase
- * Kaiser-windowed sinc whose cutoff tracks the lower Nyquist — preserving the full
- * source band on upsample and anti-aliasing on downsample. Returns integer PCM
- * (rounded), matching the shape the WAV encoder consumes. The kernel is built once
- * and shared across channels.
+ * Kaiser-windowed sinc. Returns floating-point PCM (unrounded — see
+ * {@link resampleChannel}); the kernel is built once and shared across channels.
+ *
+ * **Cutoff is ratio-aware.** Upsampling has no aliasing constraint below the
+ * source Nyquist, so the cutoff sits right at (just under) it — preserving the
+ * whole source band. Downsampling must reach its stopband before the *new, lower*
+ * Nyquist, so there the cutoff backs off by `cutoffScale` to leave a transition
+ * band and prevent aliasing.
  */
 export function resampleForExport(
   channels: ArrayLike<number>[],
   srcRate: number,
   dstRate: number,
   opts: SincResampleOptions = {},
-): Int32Array[] {
+): Float64Array[] {
   const halfWidth = opts.halfWidth ?? 32;
   const beta = opts.beta ?? 12;
   const cutoffScale = opts.cutoffScale ?? 0.90;
   const phases = opts.phases ?? 1024;
   const ratio = srcRate / dstRate;
-  // Cutoff at the lower Nyquist, expressed in cycles per input sample (≤ 0.5).
-  const fc = 0.5 * Math.min(1, dstRate / srcRate) * cutoffScale;
+  // Cutoff in cycles per input sample (≤ 0.5). Upsample → cut at ~source Nyquist
+  // (a hair under 0.5, so the top bin isn't in the −6 dB half-band roll); downsample
+  // → cut at the new Nyquist minus the transition margin so it anti-aliases.
+  const fc = dstRate >= srcRate
+    ? 0.5 * 0.985
+    : 0.5 * (dstRate / srcRate) * cutoffScale;
   const kernel = buildKernel(halfWidth, beta, fc, phases);
   const inLen = channels[0]?.length ?? 0;
   const outLength = Math.round(inLen / ratio);
