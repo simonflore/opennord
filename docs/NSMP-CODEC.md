@@ -1209,17 +1209,37 @@ NSE"). The naive fix — stamp `44100` in the header — is exactly the +4-semit
 bug above in reverse, so it is **wrong**.
 
 `encodeStrokeWav` (`wav.ts`) instead **resamples** the decoded PCM from the
-stroke's own rate to an NSE-legal rate before encoding, via the editor's own
-windowed-sinc (`resampleToRate`, the same faithful kernel used for WAV *import*),
-and writes that rate — header and sample clock move together, so pitch and
-duration are preserved. A stroke already at an NSE rate is passed through
-untouched (`nseExportRate`); everything else upsamples to 44.1 kHz
-(`NSE_EXPORT_SAMPLE_RATE`, the request's suggested default, smallest of the three).
-Loop points are rescaled by `dstRate/srcRate` so the embedded `smpl` chunk still
-lands on the right frames. The resample is faithful-not-byte-exact (sub-LSB phase
-difference, inaudible — see "Resampler + WAV import" above); acceptable for an
-export whose job is auditing/re-use, not byte round-trip. Tests: `wav.test.ts`
-"nseExportRate" / "encodeStrokeWav".
+stroke's own rate to an NSE-legal rate before encoding, and writes that rate —
+header and sample clock move together, so pitch and duration are preserved. A
+stroke already at an NSE rate is passed through untouched (`nseExportRate`);
+everything else upsamples to 44.1 kHz (`NSE_EXPORT_SAMPLE_RATE`, the request's
+suggested default, smallest of the three). Loop points are rescaled by
+`dstRate/srcRate` so the embedded `smpl` chunk still lands on the right frames.
+
+**Export uses its own resampler, not the import kernel** (`nse-resample.ts`,
+`resampleForExport`). The import path's fixed `gFIRCoeffs` (the editor's own
+kernel, `nw1-resample.ts`) is an anti-alias filter cut for the *import downsample*
+— its cutoff sits at ≈0.367 cycles/input-sample. Reusing it to *upsample* a stroke
+would bandlimit to that same cutoff and throw away genuine source content between
+~13 kHz and the stroke's ~17.5 kHz Nyquist (measured: −3.4 dB @14 kHz, −10 dB
+@15 kHz, −23 dB @16 kHz — a `chatgpt-codex` review flag, reproduced with a sine
+sweep). Since export is an interop/audit path (audition, DAW re-use, NSE
+re-import), not a write-back-to-instrument path, it uses a **ratio-aware
+Kaiser-windowed sinc** whose cutoff tracks the lower Nyquist: an upsample keeps the
+full source band (measured flat to ~14 kHz, −1 dB @15 kHz), a rare fine-tuned
+downsample still anti-aliases (a 23 kHz tone at 45k→44.1k is −59 dB). The import
+kernel stays reserved for the write-back-to-Nord path, where matching the editor
+matters. Tests: `nse-resample.test.ts`, `wav.test.ts` "nseExportRate" /
+"encodeStrokeWav".
+
+**Known limitation — loop-boundary filter context.** For a looping stroke, the
+resampler convolves the *linear* signal, so samples reconstructed near loop-in
+carry pre-loop (attack) context and those near loop-out carry post-loop (tail)
+context. A perfectly seamless native loop can therefore pick up a faint
+discontinuity at the wrap after resampling. Not addressed here (most Nord loops are
+short-crossfade/zero-cross matched, and the effect is sub-LSB for those); a future
+pass could resample the boundary guard region using wrapped loop data. Flagged by
+the same review (P2).
 
 ## Field-presence in `.nsmp` (discovery 2026-06-21)
 
