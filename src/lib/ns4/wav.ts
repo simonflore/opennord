@@ -7,7 +7,7 @@
  * so callers pass the same audition rate used for playback — pitch matches what
  * you hear in-app even if it differs from the original capture rate.
  */
-import { resampleToRate } from './nw1-resample';
+import { resampleForExport } from './nse-resample';
 import { normalizeChannels } from './nsmp-audio';
 
 /** Loop metadata to embed as a `smpl` chunk so tools (e.g. Nord Sample Editor)
@@ -110,11 +110,12 @@ export function nseExportRate(srcRate: number): number {
  * NSE rejects. The fix is **not** to relabel the header to 44.1 kHz — that would
  * detune the sample (the historical "+4 semitones" bug; see `nsmp.ts`
  * `NSMP_SAMPLE_RATE`). Instead this **resamples** the PCM to an NSE-legal rate
- * with the editor's own windowed-sinc ({@link resampleToRate}) and writes that
- * rate, so pitch and duration are preserved. Loop points are rescaled by the same
- * ratio so the embedded `smpl` chunk still lands on the right frames. Peak
- * auto-gain (via {@link normalizeChannels}) matches the audition path. Returns the
- * bytes and the rate actually written.
+ * ({@link resampleForExport}, a ratio-aware Kaiser sinc that preserves the whole
+ * source band — *not* the import kernel, whose fixed cutoff would drop the top
+ * octave on upsample) and writes that rate, so pitch and duration are preserved.
+ * Loop points are rescaled by the same ratio so the embedded `smpl` chunk still
+ * lands on the right frames. Peak auto-gain (via {@link normalizeChannels}) matches
+ * the audition path. Returns the bytes and the rate actually written.
  *
  * A stroke already at an NSE rate is encoded as-is (no resample).
  */
@@ -127,7 +128,7 @@ export function encodeStrokeWav(
   if (dstRate === srcRate) {
     return { bytes: encodeWav(normalizeChannels(channels), srcRate, loop), sampleRate: srcRate };
   }
-  const resampled = resampleToRate(channels, srcRate, dstRate);
+  const resampled = resampleForExport(channels, srcRate, dstRate);
   const scale = dstRate / srcRate;
   const scaledLoop: WavLoop | undefined = loop
     ? { ...loop, start: Math.round(loop.start * scale), end: Math.round(loop.end * scale) }

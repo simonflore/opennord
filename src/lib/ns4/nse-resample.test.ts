@@ -1,0 +1,68 @@
+import { describe, it, expect } from 'vitest';
+import { resampleForExport } from './nse-resample';
+
+/** RMS over the interior (skip filter warm-up at both edges). */
+function rms(a: ArrayLike<number>, skip = 400): number {
+  let s = 0, n = 0;
+  for (let i = skip; i < a.length - skip; i++) { s += a[i] * a[i]; n++; }
+  return Math.sqrt(s / n);
+}
+function tone(freq: number, rate: number, n: number, amp = 10000): Int32Array {
+  const ch = new Int32Array(n);
+  for (let i = 0; i < n; i++) ch[i] = Math.round(amp * Math.sin((2 * Math.PI * freq * i) / rate));
+  return ch;
+}
+const gainDb = (out: ArrayLike<number>, inp: ArrayLike<number>) => 20 * Math.log10(rms(out) / rms(inp));
+
+describe('resampleForExport', () => {
+  it('outputs round(inLen * dst/src) frames per channel', () => {
+    const src = 35002, dst = 44100;
+    const inp = tone(1000, src, 4000);
+    const [out] = resampleForExport([inp], src, dst);
+    expect(out.length).toBe(Math.round((inp.length * dst) / src));
+  });
+
+  it('preserves a DC offset (unity passband gain, edge-safe normalisation)', () => {
+    const inp = new Int32Array(2000).fill(1234);
+    const [out] = resampleForExport([inp], 35002, 44100);
+    // Interior is exactly the constant; edges stay close (normalised tap sum).
+    expect(out[out.length >> 1]).toBe(1234);
+    expect(Math.abs(out[5] - 1234)).toBeLessThan(5);
+  });
+
+  it('keeps the low/mid band flat on a 35 kHz→44.1 kHz upsample', () => {
+    const src = 35002, dst = 44100, n = 8000;
+    for (const f of [1000, 8000, 12000]) {
+      const inp = tone(f, src, n);
+      const [out] = resampleForExport([inp], src, dst);
+      expect(Math.abs(gainDb(out, inp))).toBeLessThan(0.2); // < 0.2 dB deviation
+    }
+  });
+
+  it('preserves the top octave an upsample should keep — where the import kernel would not', () => {
+    // The import downsample kernel drops ~-3.4 dB at 14 kHz / ~-10 dB at 15 kHz;
+    // the ratio-aware export filter must keep those bands ~flat.
+    const src = 35002, dst = 44100, n = 8000;
+    expect(gainDb(resampleForExport([tone(14000, src, n)], src, dst)[0], tone(14000, src, n)))
+      .toBeGreaterThan(-1.0);
+    expect(gainDb(resampleForExport([tone(15000, src, n)], src, dst)[0], tone(15000, src, n)))
+      .toBeGreaterThan(-1.5);
+  });
+
+  it('anti-aliases on a (fine-tuned) downsample: a tone above the destination Nyquist is suppressed', () => {
+    // 45000 → 44100 (dst Nyquist 22050); a 23 kHz tone would alias if not filtered.
+    const inp = tone(23000, 45000, 8000);
+    const [out] = resampleForExport([inp], 45000, 44100);
+    expect(gainDb(out, inp)).toBeLessThan(-40);
+  });
+
+  it('resamples each channel independently', () => {
+    const src = 35002, dst = 44100, n = 4000;
+    const l = tone(1000, src, n);
+    const r = tone(4000, src, n);
+    const [ol, or_] = resampleForExport([l, r], src, dst);
+    expect(ol.length).toBe(or_.length);
+    // Different inputs → different outputs (not accidentally sharing a buffer).
+    expect(ol.some((v, i) => v !== or_[i])).toBe(true);
+  });
+});
