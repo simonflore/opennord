@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { encodeWav, parseWav } from './wav';
+import { encodeWav, parseWav, nseExportRate, encodeStrokeWav, NSE_SAMPLE_RATES, NSE_EXPORT_SAMPLE_RATE } from './wav';
+import { NSMP_SAMPLE_RATE } from './nsmp';
 
 /** Read a little-endian uint at byte offset. */
 function u32(b: Uint8Array, o: number) { return b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24); }
@@ -67,5 +68,55 @@ describe('encodeWav', () => {
     const parsed = parseWav(wav);         // parser skips the unknown chunk
     expect(parsed.channelCount).toBe(1);
     expect(parsed.channels[0].length).toBe(4);
+  });
+});
+
+describe('nseExportRate', () => {
+  it('keeps an NSE-legal rate and upsamples anything else to 44.1 kHz', () => {
+    expect(nseExportRate(44100)).toBe(44100);
+    expect(nseExportRate(48000)).toBe(48000);
+    expect(nseExportRate(96000)).toBe(96000);
+    // the native storage rate (~35 kHz) is exactly what NSE rejects → the default
+    expect(NSMP_SAMPLE_RATE).not.toBe(44100);              // guard: really a non-NSE rate
+    expect(nseExportRate(NSMP_SAMPLE_RATE)).toBe(44100);
+    expect(nseExportRate(22050)).toBe(NSE_EXPORT_SAMPLE_RATE);
+    expect(NSE_SAMPLE_RATES).toContain(NSE_EXPORT_SAMPLE_RATE);
+  });
+});
+
+describe('encodeStrokeWav', () => {
+  it('resamples a native-rate stroke to 44.1 kHz and writes that rate (not the +4-semitone relabel)', () => {
+    const frames = 100;
+    const src = new Int32Array(frames);
+    for (let i = 0; i < frames; i++) src[i] = Math.round(1000 * Math.sin((2 * Math.PI * 8 * i) / frames));
+    const { bytes, sampleRate } = encodeStrokeWav([src], NSMP_SAMPLE_RATE);
+    expect(sampleRate).toBe(44100);
+    expect(u32(bytes, 24)).toBe(44100);                    // header rate is standard → NSE-importable
+    const outFrames = u32(bytes, 40) / 2;                  // mono 16-bit → 2 bytes/frame
+    // Duration is preserved, so pitch stays correct: out/dstRate ≈ in/srcRate.
+    expect(outFrames).toBe(Math.round((frames * 44100) / NSMP_SAMPLE_RATE));
+    expect(Math.abs(outFrames / 44100 - frames / NSMP_SAMPLE_RATE)).toBeLessThan(1e-4);
+  });
+
+  it('rescales loop points into the resampled timebase', () => {
+    const frames = 200;
+    const src = new Int32Array(frames);
+    for (let i = 0; i < frames; i++) src[i] = (i % 20) - 10;
+    const { bytes } = encodeStrokeWav([src], NSMP_SAMPLE_RATE, { start: 35, end: 175, unityNote: 60 });
+    const outFrames = u32(bytes, 40) / 2;
+    const smpl = 44 + outFrames * 2;
+    expect(ascii(bytes, smpl, 4)).toBe('smpl');
+    const scale = 44100 / NSMP_SAMPLE_RATE;
+    expect(u32(bytes, smpl + 52)).toBe(Math.round(35 * scale));   // loop start, scaled
+    expect(u32(bytes, smpl + 56)).toBe(Math.round(175 * scale));  // loop end, scaled
+    expect(u32(bytes, smpl + 20)).toBe(60);                       // unity note unchanged (pitch preserved)
+  });
+
+  it('encodes an already-NSE-rate stroke without resampling (frame count unchanged)', () => {
+    const src = new Int32Array([0, 500, -500, 1000, -1000, 0]);
+    const { bytes, sampleRate } = encodeStrokeWav([src], 48000);
+    expect(sampleRate).toBe(48000);
+    expect(u32(bytes, 24)).toBe(48000);
+    expect(u32(bytes, 40) / 2).toBe(src.length);            // no resample → same frame count
   });
 });

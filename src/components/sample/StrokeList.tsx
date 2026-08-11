@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { zipSync } from 'fflate';
-import { normalizeChannels } from '../../lib/ns4/nsmp-audio';
-import { encodeWav } from '../../lib/ns4/wav';
+import { encodeStrokeWav } from '../../lib/ns4/wav';
 import { downloadBytes } from '../../lib/download';
 import type { StrokeSummary } from '../../lib/ns4/sample-view';
 import { WaveCanvas } from './WaveCanvas';
@@ -20,7 +19,9 @@ function safeStem(name: string): string {
 
 /** WAV bytes + filename for one decoded stroke.
  *  Encodes the root note into the name (e.g. `Pad_S3_C4.wav`) so the pitch is
- *  recoverable from the file alone when rebuilding a sample project in NSE. */
+ *  recoverable from the file alone when rebuilding a sample project in NSE.
+ *  The stroke's native ~35 kHz rate is resampled to an NSE-legal rate on the way
+ *  out (`encodeStrokeWav`) so the WAV re-imports into the Nord Sample Editor. */
 function strokeWav(stroke: InspectorStroke, baseName: string): { bytes: Uint8Array; filename: string } {
   const s = stroke.summary;
   // Preserve loop points as a `smpl` chunk so the loop survives round-tripping
@@ -28,7 +29,7 @@ function strokeWav(stroke: InspectorStroke, baseName: string): { bytes: Uint8Arr
   const loop = s.loops && s.loopStart != null && s.loopEnd != null
     ? { start: s.loopStart, end: s.loopEnd, unityNote: s.rootMidi }
     : undefined;
-  const bytes = encodeWav(normalizeChannels(stroke.channels), s.sampleRate, loop);
+  const { bytes } = encodeStrokeWav(stroke.channels, s.sampleRate, loop);
   const root = s.rootNote ? `_${safeStem(s.rootNote)}` : '';
   return { bytes, filename: `${safeStem(baseName)}_S${s.index + 1}${root}.wav` };
 }
