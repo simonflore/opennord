@@ -54,38 +54,86 @@ export interface SincResampleOptions {
    * to ~0.45·min(src,dst). Lower = flatter passband, wider transition.
    */
   cutoffScale?: number;
+  /**
+   * Fractional-delay resolution (sub-phases) of the precomputed polyphase table.
+   * Default 1024 — the per-output delay is quantised to 1/1024 sample, inaudible
+   * (finer than the import kernel's 512) and it keeps the hot loop a pure
+   * multiply-accumulate.
+   */
+  phases?: number;
 }
 
-/** Resample one channel of integer PCM with a ratio-aware Kaiser-windowed sinc. */
-function resampleChannelSinc(
-  input: ArrayLike<number>,
-  ratio: number,        // input samples advanced per output sample = srcRate / dstRate
-  outLength: number,
-  halfWidth: number,
-  beta: number,
-  fc: number,           // cutoff in cycles per *input* sample (≤ 0.5)
-): Int32Array {
-  const n = input.length;
+/**
+ * A ratio-aware Kaiser-windowed-sinc resampling kernel, precomputed once as a
+ * polyphase table so the per-sample hot loop carries no transcendentals — the
+ * naive form recomputed a Bessel/sinc per tap per output frame, which froze the
+ * export for seconds on a long stroke.
+ */
+interface PolyKernel {
+  /** `taps × phases` coefficients, row-major by phase: `coeff[phase*taps + t]`. */
+  readonly coeff: Float64Array;
+  /** Per-phase sum of all taps — the interior (all-taps-valid) normaliser. */
+  readonly norm: Float64Array;
+  readonly taps: number;
+  readonly halfWidth: number;
+  readonly phases: number;
+}
+
+/** Build the polyphase table for cutoff `fc` (cycles per input sample, ≤ 0.5). */
+function buildKernel(halfWidth: number, beta: number, fc: number, phases: number): PolyKernel {
+  const taps = 2 * halfWidth;            // tap t → k = t - halfWidth + 1, i.e. k ∈ [-halfWidth+1, halfWidth]
   const i0Beta = besselI0(beta);
+  const coeff = new Float64Array(taps * phases);
+  const norm = new Float64Array(phases);
+  for (let p = 0; p < phases; p++) {
+    const frac = p / phases;             // fractional delay this phase represents
+    let sum = 0;
+    for (let t = 0; t < taps; t++) {
+      const k = t - halfWidth + 1;
+      const tau = k - frac;              // tap distance from the (fractional) resample point
+      const r = tau / halfWidth;         // Kaiser window over (-1, 1); zero outside
+      let w = 0;
+      if (r > -1 && r < 1) {
+        const win = besselI0(beta * Math.sqrt(1 - r * r)) / i0Beta;
+        w = 2 * fc * sinc(2 * fc * tau) * win;
+      }
+      coeff[p * taps + t] = w;
+      sum += w;
+    }
+    norm[p] = sum;
+  }
+  return { coeff, norm, taps, halfWidth, phases };
+}
+
+/** Resample one integer-PCM channel through a prebuilt polyphase kernel. */
+function resampleChannel(input: ArrayLike<number>, ratio: number, outLength: number, k: PolyKernel): Int32Array {
+  const n = input.length;
+  const { coeff, norm, taps, halfWidth, phases } = k;
   const out = new Int32Array(outLength);
   for (let o = 0; o < outLength; o++) {
     const pos = o * ratio;
     const center = Math.floor(pos);
+    let phase = ((pos - center) * phases) | 0;
+    if (phase >= phases) phase = phases - 1;
+    const base = phase * taps;
+    const first = center - halfWidth + 1;   // input index of tap 0
     let acc = 0;
-    let wsum = 0;
-    for (let k = -halfWidth + 1; k <= halfWidth; k++) {
-      const idx = center + k;
-      if (idx < 0 || idx >= n) continue;     // edge: renormalise over in-range taps only
-      const tau = idx - pos;                 // distance from the resample point, in input samples
-      // Kaiser window over [-halfWidth, halfWidth]; zero outside.
-      const r = tau / halfWidth;
-      if (r <= -1 || r >= 1) continue;
-      const win = besselI0(beta * Math.sqrt(1 - r * r)) / i0Beta;
-      const w = 2 * fc * sinc(2 * fc * tau) * win;
-      acc += input[idx] * w;
-      wsum += w;
+    if (first >= 0 && first + taps <= n) {
+      // Interior: every tap is in range → use the precomputed per-phase norm.
+      for (let t = 0; t < taps; t++) acc += input[first + t] * coeff[base + t];
+      out[o] = Math.round(acc / norm[phase]);
+    } else {
+      // Edge: renormalise over the in-range taps only (keeps DC/unity gain).
+      let wsum = 0;
+      for (let t = 0; t < taps; t++) {
+        const idx = first + t;
+        if (idx < 0 || idx >= n) continue;
+        const w = coeff[base + t];
+        acc += input[idx] * w;
+        wsum += w;
+      }
+      out[o] = wsum !== 0 ? Math.round(acc / wsum) : 0;
     }
-    out[o] = wsum !== 0 ? Math.round(acc / wsum) : 0;
   }
   return out;
 }
@@ -94,7 +142,8 @@ function resampleChannelSinc(
  * Resample every channel from `srcRate` to `dstRate` with a linear-phase
  * Kaiser-windowed sinc whose cutoff tracks the lower Nyquist — preserving the full
  * source band on upsample and anti-aliasing on downsample. Returns integer PCM
- * (rounded), matching the shape the WAV encoder consumes.
+ * (rounded), matching the shape the WAV encoder consumes. The kernel is built once
+ * and shared across channels.
  */
 export function resampleForExport(
   channels: ArrayLike<number>[],
@@ -105,10 +154,12 @@ export function resampleForExport(
   const halfWidth = opts.halfWidth ?? 32;
   const beta = opts.beta ?? 12;
   const cutoffScale = opts.cutoffScale ?? 0.90;
+  const phases = opts.phases ?? 1024;
   const ratio = srcRate / dstRate;
   // Cutoff at the lower Nyquist, expressed in cycles per input sample (≤ 0.5).
   const fc = 0.5 * Math.min(1, dstRate / srcRate) * cutoffScale;
+  const kernel = buildKernel(halfWidth, beta, fc, phases);
   const inLen = channels[0]?.length ?? 0;
   const outLength = Math.round(inLen / ratio);
-  return channels.map((ch) => resampleChannelSinc(ch, ratio, outLength, halfWidth, beta, fc));
+  return channels.map((ch) => resampleChannel(ch, ratio, outLength, kernel));
 }

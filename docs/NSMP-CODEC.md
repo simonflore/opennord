@@ -1229,7 +1229,11 @@ Kaiser-windowed sinc** whose cutoff tracks the lower Nyquist: an upsample keeps 
 full source band (measured flat to ~14 kHz, −1 dB @15 kHz), a rare fine-tuned
 downsample still anti-aliases (a 23 kHz tone at 45k→44.1k is −59 dB). The import
 kernel stays reserved for the write-back-to-Nord path, where matching the editor
-matters. Tests: `nse-resample.test.ts`, `wav.test.ts` "nseExportRate" /
+matters. The kernel is built **once per export as a polyphase table** (1024
+sub-phases) so the per-sample hot loop is a plain multiply-accumulate — a naive
+per-tap Bessel/sinc recompute froze the main thread for seconds on a long stroke
+(second review flag); the table cut a 10 s stereo convert from ~2.6 s/channel to
+~0.12 s/channel. Tests: `nse-resample.test.ts`, `wav.test.ts` "nseExportRate" /
 "encodeStrokeWav".
 
 **Known limitation — loop-boundary filter context.** For a looping stroke, the
