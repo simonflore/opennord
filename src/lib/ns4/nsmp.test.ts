@@ -506,7 +506,7 @@ describe.skipIf(!existsSync(redLib))('legacy v9 zones — Ambiente Pad RedLib SM
 
   it('tiles the keyboard, one octave-rooted zone per stroke', () => {
     const zones = readNsmpZones(bytes);
-    expect(zones.length).toBe(7); // === strokeCount, gids 155–161
+    expect(zones.length).toBe(7); // === strokeCount, gids 667–673
     expect(zones.map((z) => [z.keyLow, z.keyHigh])).toEqual([
       [91, 108], [79, 90], [67, 78], [55, 66], [43, 54], [31, 42], [0, 30],
     ]);
@@ -517,6 +517,21 @@ describe.skipIf(!existsSync(redLib))('legacy v9 zones — Ambiente Pad RedLib SM
       expect(z.rootKey).toBeGreaterThanOrEqual(z.keyLow);
       expect(z.rootKey).toBeLessThanOrEqual(z.keyHigh);
     }
+  });
+
+  // Regression: the map and the decoded strokes must agree on the global id, or the
+  // keyboard-map → sample join (auditionZone / strokesByGlobalID / StrokeList order)
+  // silently breaks. `decodeNsmp` read the `stk` header's low byte at +3 (→ 155–161),
+  // but the OG NWS container stores the id as a u32 BE at +0 (→ 667–673) — the same
+  // id the v9 map carries. Truncation meant no stroke matched its zone: samples were
+  // mis-numbered (S7 where S1 belonged) and clicking a key found no stroke to sound.
+  it('joins every stroke to its zone by the full u24 gid, not a truncated low byte', () => {
+    const zones = readNsmpZones(bytes);
+    const decoded = decodeNsmp(bytes);
+    const strokeGids = decoded.map((d) => d.globalID).sort((a, b) => a - b);
+    expect(strokeGids).toEqual([667, 668, 669, 670, 671, 672, 673]); // u24 ids, not 155–161
+    expect(strokeGids).toEqual(zones.map((z) => z.globalID).sort((a, b) => a - b));
+    for (const z of zones) expect(decoded.some((d) => d.globalID === z.globalID)).toBe(true);
   });
 });
 
