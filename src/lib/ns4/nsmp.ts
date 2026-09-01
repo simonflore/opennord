@@ -1029,15 +1029,23 @@ function decodeStrokeSection(
 export function decodeNsmp(bytes: Uint8Array): DecodedStrokeResult[] {
   const file = readNsmp(bytes);
   const opts = { wordInterleaved: file.codec === 4, u24: file.legacy };
+  // Which byte carries the stroke's global id depends on the container. Codec 3/4
+  // and codec-2 (`map` v10) store it as a u8 at +3, but the OG `NWS` container
+  // (`map` v9 — legacy `.nsmp` v8) stores the full id as a u32 BE at +0, exactly as
+  // `legacyStrokeRootByGlobalId`/`parseLegacyZoneRecords` key it. Reading +3 there
+  // truncated ids > 255 to their low byte (e.g. 673 → 161), so no decoded stroke's
+  // id matched its zone — breaking the keyboard-map → sample pairing (wrong sample
+  // numbers, and key-clicks that found no stroke to sound).
+  const map = file.sections.find((s) => s.tag.endsWith('map'));
+  const gidIsU32 = file.legacy && map?.version !== 10;
   const out: DecodedStrokeResult[] = [];
   let index = 0;
   for (const section of file.sections) {
     if (!section.tag.endsWith('stk')) continue;
     const decoded = decodeStrokeSection(bytes, section, opts);
-    // `stk` header byte +3 is the stroke's global id (the value a zone's globalID matches).
     if (decoded) out.push({
       ...decoded.result, index, channelCount: decoded.channelCount,
-      globalID: bytes[section.payloadOffset + 3],
+      globalID: gidIsU32 ? u32be(bytes, section.payloadOffset) : bytes[section.payloadOffset + 3],
       loop: readStrokeLoop(bytes, section.payloadOffset),
       sampleRate: strokeSampleRate(bytes, section.payloadOffset),
     });
