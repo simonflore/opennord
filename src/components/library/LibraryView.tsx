@@ -6,7 +6,7 @@ import { LibraryEmpty } from './LibraryEmpty';
 import { BundlePicker } from './BundlePicker';
 import { NewBackupsBanner } from './NewBackupsBanner';
 import { EngineTags } from './EngineTags';
-import { SlotTag } from './SlotTag';
+import { SlotTag, genTone } from './SlotTag';
 import { CardRemoveButton } from './CardRemoveButton';
 import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
 import type { LibraryPrefsApi } from '../../lib/library/prefs';
@@ -216,7 +216,7 @@ export function LibraryView({
               favorite={favorites.has(e.id)}
               onToggleFavorite={() => onToggleFavorite(e.id)}
               onOpen={() => onOpen(e)}
-              badge={<SlotTag>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>}
+              badge={<SlotTag tone={e.slot ? undefined : genTone(e.generation)}>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>}
               engines={e.engines
                 ? <div className="mt-2.5"><EngineTags summary={e.engines} /></div>
                 : <div className="mt-2.5 text-[11px] text-muted">—</div>}
