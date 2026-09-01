@@ -100,16 +100,18 @@ function pcmPeak(channels: ArrayLike<number>[]): number {
 /** Unity normGain (0 dB, no global normalize). */
 const UNITY_NORMGAIN = 524288;
 
+/** Region pointers (`stk` header U1–U4), cumulative positions in the stroke buffer. */
+interface RegionPointers { start: number; loopIn: number; loopOut: number; end: number; }
+
 /**
  * The codec-2 60-byte (`0x3c`) stroke header. Same field layout as the OG/codec-1
  * header (globalID, key, pitch, channels, normGain, peak, region pointers U1–U4
  * with `0x80` markers) but binOffset `0x3c` and **no** keyHigh trailer (keyHigh
- * lives in the v10 map). Region pointers are best-effort (content-adaptive).
+ * lives in the v10 map). `region` carries the cumulative pointers (see
+ * {@link writeCodec2StrokePayload}); normGain/peak stay best-effort.
  */
-function writeCodec2StrokeHeader(z: Codec2WriteZone): Uint8Array {
+function writeCodec2StrokeHeader(z: Codec2WriteZone, region: RegionPointers): Uint8Array {
   const ch = z.channels.length;
-  const lenPerCh = z.channels[0]?.length ?? 0;
-  const segs = (z.segmentsInterleaved ?? []).map((s) => Math.floor(s / Math.max(1, ch)));
   const b = new Uint8Array(CODEC2_BIN_OFFSET);
   putU32(b, 0x00, z.globalID >>> 0);
   b[0x05] = z.rootKey & 0xff;
@@ -118,28 +120,53 @@ function writeCodec2StrokeHeader(z: Codec2WriteZone): Uint8Array {
   putU24(b, 0x09, UNITY_NORMGAIN & 0xffffff);
   b[0x0c] = 0x0a;
   putU24(b, 0x0d, pcmPeak(z.channels));
-  // Region pointers (per-channel positions): start, secondStart, loopOut, end.
-  putU32(b, 0x12, 0); // U1 start
+  // Region pointers: start, loop-in, loop-out, end — cumulative across strokes.
+  putU32(b, 0x12, region.start >>> 0); // U1 start
   putU24(b, 0x16, 0x800000); // decay marker
-  putU32(b, 0x1b, segs[0] ?? 0); // U2 second-start
+  putU32(b, 0x1b, region.loopIn >>> 0); // U2 loop-in
   b[0x1f] = 0x80;
-  putU32(b, 0x24, segs[1] ?? lenPerCh); // U3 loop-out
+  putU32(b, 0x24, region.loopOut >>> 0); // U3 loop-out
   putU24(b, 0x28, 0x800000); // decay marker
-  putU32(b, 0x2d, lenPerCh); // U4 end
+  putU32(b, 0x2d, region.end >>> 0); // U4 end
   // 0x31..0x3b: zero padding to binOffset.
   return b;
 }
 
-/** One `stk` payload: 60-byte codec-2 header + the 24-bit NW1 block stream. */
-export function writeCodec2StrokePayload(z: Codec2WriteZone): Uint8Array {
+/**
+ * One `stk` payload: 60-byte codec-2 header + the 24-bit NW1 block stream, plus the
+ * cumulative `base` where this stroke's region begins in the stroke buffer.
+ *
+ * The region pointers are **cumulative positions in the concatenated compressed
+ * stream** (u24-word domain — 3 bytes each). Every real factory `.nsmp` lays each
+ * stroke's `[start,end)` flush after the previous one (measured: `span/streamBytes`
+ * ≈ ⅓ and `start[n] ≈ end[n-1]` across all 39 strokes of `SupremeClsc 2.2.nsmp`);
+ * the old writer hard-wrote `start = 0` for every stroke, so the hardware streamed
+ * from a colliding offset and hung. Returns the next base for the caller to chain.
+ * (Exact per-stroke framing + the loop domain are unreproduced — see the module
+ * header — so loop points are mapped best-effort within the span.)
+ */
+export function writeCodec2StrokePayload(z: Codec2WriteZone, base = 0): { payload: Uint8Array; nextBase: number } {
   const stream = encodeStrokeNW1(z.channels, {
     u24: true, blockPerCh: BLOCK_PER_CH_OG, segmentsInterleaved: z.segmentsInterleaved,
   });
-  const header = writeCodec2StrokeHeader(z);
+  const words = Math.max(1, Math.floor(stream.length / 3)); // span in u24 words
+  const ch = z.channels.length;
+  const lenPerCh = z.channels[0]?.length ?? 0;
+  const segs = (z.segmentsInterleaved ?? []).map((s) => Math.floor(s / Math.max(1, ch)));
+  // Map loop points (decoded-sample domain) into this stroke's word span so they
+  // stay inside [start,end); best-effort while the exact loop domain is unknown.
+  const toWord = (pos: number) => base + (lenPerCh > 0 ? Math.round(words * Math.min(Math.max(pos, 0), lenPerCh) / lenPerCh) : 0);
+  const region: RegionPointers = {
+    start: base,
+    loopIn: segs[0] != null ? toWord(segs[0]) : base,
+    loopOut: segs[1] != null ? toWord(segs[1]) : base + words,
+    end: base + words,
+  };
+  const header = writeCodec2StrokeHeader(z, region);
   const out = new Uint8Array(header.length + stream.length);
   out.set(header, 0);
   out.set(stream, header.length);
-  return out;
+  return { payload: out, nextBase: base + words };
 }
 
 /**
@@ -149,12 +176,21 @@ export function writeCodec2StrokePayload(z: Codec2WriteZone): Uint8Array {
  * module header for the experimental caveat.
  */
 export function writeCodec2Nsmp(opts: { name?: string; zones: Codec2WriteZone[] }): Uint8Array {
+  // Strokes are written in zone order; each region tiles after the previous one, so
+  // thread the cumulative word offset through them (see writeCodec2StrokePayload).
+  let base = 0;
+  const stkSections: OgSection[] = [];
+  for (const z of opts.zones) {
+    const { payload, nextBase } = writeCodec2StrokePayload(z, base);
+    stkSections.push({ tag: 'stk', version: 9, payload });
+    base = nextBase;
+  }
   const sections: OgSection[] = [
     { tag: 'NWS', version: 11, payload: new Uint8Array(0) },
     { tag: 'hdr', version: 9, payload: writeCodec2Hdr(opts.name ?? '') },
     { tag: 'cat', version: 5, payload: new Uint8Array([0, 0, 0, 0, 1, 0, 0, 0, 0]) },
     { tag: 'map', version: 10, payload: writeCodec2Map(opts.zones) },
-    ...opts.zones.map((z) => ({ tag: 'stk', version: 9, payload: writeCodec2StrokePayload(z) })),
+    ...stkSections,
     { tag: 'sty', version: 5, payload: new Uint8Array([0, 0, 0, 1, 1, 1, 0, 0, 0]) },
   ];
   return assembleOgNsmp(sections, 200);

@@ -53,6 +53,31 @@ describe('writeCodec2Nsmp — codec-2 / Library-2.0 writer', () => {
     expect(secs.find((s) => s.tag.endsWith('hdr'))!.version).toBe(9);
   });
 
+  // Every real factory `.nsmp` gives each stroke a distinct, cumulative region in
+  // the stroke buffer: start[n] === end[n-1], strictly increasing (measured on
+  // `SupremeClsc 2.2.nsmp` — 653 → 4.38M across 39 strokes). The writer hard-wrote
+  // start = 0 for every stroke, so all of them claimed to begin at position 0 —
+  // which hangs the hardware the moment it stops on a sample and streams from there
+  // (OpenNord reads the pointers per-stroke, so it looked fine on screen).
+  it('lays out stroke region pointers cumulatively (start[n] === end[n-1]), not all at 0', () => {
+    const zones: Codec2WriteZone[] = [
+      { channels: [sine(6000, 3000, 7)], globalID: 3, rootKey: 84, keyHigh: 108 },
+      { channels: [sine(9000, 2500, 11)], globalID: 2, rootKey: 72, keyHigh: 83 },
+      { channels: [sine(7500, 2000, 5)], globalID: 1, rootKey: 60, keyHigh: 71 },
+    ];
+    const bytes = writeCodec2Nsmp({ name: 'Cumulative', zones });
+    const stks = parseNsmpSections(bytes).filter((s) => s.tag.endsWith('stk'));
+    const u32 = (o: number) => (bytes[o] * 0x1000000 + (bytes[o + 1] << 16) + (bytes[o + 2] << 8) + bytes[o + 3]);
+    const regions = stks.map((s) => ({ start: u32(s.payloadOffset + 0x12), end: u32(s.payloadOffset + 0x2d) }));
+    expect(regions).toHaveLength(3);
+    expect(regions[0].start).toBe(0);
+    for (let i = 0; i < regions.length; i++) {
+      expect(regions[i].end).toBeGreaterThan(regions[i].start);      // non-empty span
+      if (i > 0) expect(regions[i].start).toBe(regions[i - 1].end);  // contiguous, no overlap
+    }
+    expect(new Set(regions.map((r) => r.start)).size).toBe(3);        // three distinct starts
+  });
+
   it('convertNsmp(x, 2) now preserves the source name (v8 dropped it)', () => {
     // Build a codec-3 source with a name, convert down to .nsmp.
     const src = writeNsmpMulti({
