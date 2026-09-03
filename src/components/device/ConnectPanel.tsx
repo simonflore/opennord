@@ -32,7 +32,7 @@ const NORD_FILTER: USBDeviceFilter = { vendorId: 0x0ffc };
 type Status = 'idle' | 'connecting' | 'connected' | 'error';
 
 /** Maps low-level errors to friendly guidance. Empty string = user cancelled (no error). */
-function describeError(e: unknown): string {
+function describeError(e: unknown, isDesktop: boolean): string {
   const m = getErrorMessage(e);
   if (/no device selected|cancel/i.test(m)) return '';
   if (/unable to claim|claim.*interface|network/i.test(m)) {
@@ -40,7 +40,14 @@ function describeError(e: unknown): string {
     // interface. On Windows this hits older models (e.g. Stage 2) whose firmware
     // doesn't auto-request the browser-usable WinUSB driver — confirmed from real
     // device diagnostics (identical interface layout to a Stage 4 that connects
-    // fine, so it's the driver, not the layout). Two ways out; NSM is only one.
+    // fine, so it's the driver, not the layout). The remedy differs by transport:
+    // the desktop app can capture the port via the UsbDk backend, so point a
+    // desktop user there; the browser can't, so point a browser user at the app.
+    if (isDesktop) {
+      return 'OpenNord couldn’t open your Nord’s USB port. First quit Nord Sound Manager if ' +
+        'it’s open. Reaching older models (like the Stage 2) needs the one-time UsbDk runtime — ' +
+        'install it from the setup notes, then reconnect.';
+    }
     return 'Windows won’t let the browser open your Nord’s USB port. First quit Nord Sound ' +
       'Manager if it’s open. If it still fails (common on older models like the Stage 2), get ' +
       'the OpenNord desktop app — see the Download section on the home page — which can reach ' +
@@ -207,7 +214,7 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
       });
     } catch (e) {
       if (transport) await transport.close().catch(() => {});
-      const friendly = describeError(e);
+      const friendly = describeError(e, reach === 'electron');
       if (!friendly) {
         setStatus('idle'); // user cancelled the picker
         return;
