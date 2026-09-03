@@ -1,23 +1,28 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { parseClaviaFile } from '../formats';
-import { identifyNordFile } from './nord-file';
+import { decodeNs2 } from '../ns2/decode';
+import { decodeNs3 } from '../ns3/decode';
 
 /**
- * Whole-corpus parse-health sweep for Stage 2/3 **program + synth** files — every
+ * Whole-corpus decode-health sweep for Stage 2/3 **program + synth** files — every
  * `.ns2p/.ns2s/.ns3f/.ns3y` under `fixtures/` (git-ignored; the suite skips when
  * the folder is absent or holds none). Sibling to `ns4/nsmp-corpus-sweep.test.ts`,
- * for the program side instead of the sample side.
+ * for the program side.
  *
- * Drop a program corpus into `packages/core/fixtures/` to exercise it. The one
- * this was written against is the public parameter-coverage corpus in
- * `Chris55/ns3-program-viewer` `test/` (~1081 `.ns2p/.ns3f` files, one per asserted
- * parameter) — the same viewer credited as the NS2/NS3 oracle in `ATTRIBUTION.md`.
- * All 1081 parsed clean when this landed; this pins that, so a decoder change that
- * regresses a program variant trips here at once. The corpus itself is **not**
- * committed — it is third-party with an unclear license, used only as a local
- * oracle (same posture as the decode.test.ts oracle notes).
+ * It drives the **actual decoders** — `decodeNs2`/`decodeNs3`, the same entry the
+ * UI presenters use — NOT `parseClaviaFile`, which only structurally decodes Stage
+ * 4 and returns `preset-unknown` for `.ns2p/.ns3f` (so a parseClaviaFile sweep
+ * would pass trivially without exercising the Stage 2/3 codecs at all).
+ *
+ * The corpus this was written against is the public parameter-coverage set in
+ * `Chris55/ns3-program-viewer` `test/` (~1081 files, one per asserted parameter) —
+ * the viewer credited as the NS2/NS3 oracle in `ATTRIBUTION.md`. All 1081 decode
+ * without error today; this pins that, so a decoder change that regresses a
+ * program variant trips here at once. The corpus is third-party with an unclear
+ * license, so it is **not** committed — dropped into `fixtures/` by hand, local
+ * oracle only. (Value-level agreement against Chris's asserted values is a deeper
+ * check — a port of his assertion DSL — and is out of scope for this crash sweep.)
  */
 const FIX = resolve(__dirname, '../../..', 'fixtures');
 function listPrograms(dir: string): string[] {
@@ -34,18 +39,24 @@ function listPrograms(dir: string): string[] {
 }
 const FILES = listPrograms(FIX);
 
-describe.skipIf(FILES.length === 0)('Stage 2/3 program corpus — parse sweep', () => {
-  it(`recognizes + parses every program file (${FILES.length} found)`, () => {
+describe.skipIf(FILES.length === 0)('Stage 2/3 program corpus — decode sweep', () => {
+  it(`decodes every program/synth file without error (${FILES.length} found)`, () => {
     const bad: string[] = [];
     for (const f of FILES) {
       const rel = f.split('/fixtures/')[1] ?? f;
+      const isNs2 = /\.ns2[ps]$/i.test(f);
+      const isMainProgram = /\.(ns2p|ns3f)$/i.test(f);
       let bytes: Uint8Array;
       try { bytes = new Uint8Array(readFileSync(f)); } catch { bad.push(`unreadable: ${rel}`); continue; }
       try {
-        const info = identifyNordFile(bytes);
-        const parsed = parseClaviaFile(bytes);
-        if (!info.recognized) bad.push(`unrecognized: ${rel}`);
-        else if (!parsed?.program) bad.push(`no program: ${rel}`);
+        const prog = isNs2 ? decodeNs2(bytes) : decodeNs3(bytes);
+        if (!prog || typeof prog !== 'object') { bad.push(`no result: ${rel}`); continue; }
+        // A full program must yield its top-level container list; synth files
+        // (.ns2s/.ns3y) are subsets, so for them "decoded without throwing" is enough.
+        if (isMainProgram) {
+          const parts = isNs2 ? (prog as { slots?: unknown }).slots : (prog as { panels?: unknown }).panels;
+          if (!Array.isArray(parts)) bad.push(`missing ${isNs2 ? 'slots' : 'panels'}: ${rel}`);
+        }
       } catch (e) {
         bad.push(`threw "${(e as Error).message}": ${rel}`);
       }
