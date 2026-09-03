@@ -48,10 +48,9 @@ function describeError(e: unknown, isDesktop: boolean): string {
         'it’s open. Reaching older models (like the Stage 2) needs the one-time UsbDk runtime — ' +
         'install it from the setup notes, then reconnect.';
     }
-    return 'Windows won’t let the browser open your Nord’s USB port. First quit Nord Sound ' +
-      'Manager if it’s open. If it still fails (common on older models like the Stage 2), get ' +
-      'the OpenNord desktop app — see the Download section on the home page — which can reach ' +
-      'these older Nords the browser can’t.';
+    return 'Your browser couldn’t open your Nord’s USB port. First quit Nord Sound Manager if ' +
+      'it’s open. Older models (like the Stage 2) often can’t be claimed from a browser at all — ' +
+      'the OpenNord desktop app (Windows) can reach them; see the Download section on the home page.';
   }
   if (/access|busy|security|denied/i.test(m)) {
     return 'Couldn’t open your Nord over USB — another app may be holding it. Quit Nord Sound ' +

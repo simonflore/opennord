@@ -17,10 +17,15 @@ import { IconWindows } from './icons';
  * pack). A macOS button can be re-added here once a mac pack is built and
  * verified the same way.
  */
-const DESKTOP_VERSION = '0.0.1';
+// Dated release, deliberately NOT the old `v0.0.1` asset name: that name is the
+// build that crashed at launch, and replacing it in place would leave anyone
+// holding the old file unable to tell a stale copy from the fix. A new tag +
+// filename makes the working build unambiguous. Bump both when a build ships.
+const RELEASE_TAG = 'desktop-win-2026-09-02';
+const WIN_ASSET = 'OpenNord-win-x64-2026-09-02.zip';
 const RELEASE_BASE = 'https://github.com/simonflore/opennord/releases';
-const DOWNLOAD_WIN = `${RELEASE_BASE}/download/v${DESKTOP_VERSION}/OpenNord-${DESKTOP_VERSION}-win.zip`;
-const RELEASE_PAGE = `${RELEASE_BASE}/tag/v${DESKTOP_VERSION}`;
+const DOWNLOAD_WIN = `${RELEASE_BASE}/download/${RELEASE_TAG}/${WIN_ASSET}`;
+const RELEASE_PAGE = `${RELEASE_BASE}/tag/${RELEASE_TAG}`;
 
 const archLabel = 'text-[10px] font-semibold uppercase tracking-[0.4px] text-[color-mix(in_srgb,currentColor_65%,transparent)]';
 
