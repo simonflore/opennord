@@ -84,10 +84,15 @@ on an Apple Silicon Mac it silently builds **win-arm64**, which won't launch on
 the x64 Windows nearly every tester runs. `electron:pack:win` therefore passes
 `--x64` explicitly; use `--arm64` only when you mean it.
 
-**The zip's name doesn't change between builds.** It is
-`OpenNord-0.0.1-win.zip` before and after any of this, so a tester who kept the
-old download will keep hitting the old crash. Bump `version` (or rename the
-artifact) when handing out a build that fixes a startup failure.
+**Give a startup-fix build a fresh name.** The pack names its zip from `version`,
+which doesn't move between builds — so replacing `OpenNord-0.0.1-win.zip` in place
+leaves a tester who kept the old download hitting the old crash, indistinguishable
+from the fix. When a build fixes a startup failure, publish it under a **new dated
+tag + artifact name** (e.g. release `desktop-win-2026-09-02`, asset
+`OpenNord-win-x64-2026-09-02.zip`) and point the site there — never reuse the
+`v0.0.1` name, which is the known-broken build. The landing page's
+`components/home/DesktopApp.tsx` pins the current `RELEASE_TAG` + `WIN_ASSET`;
+update those when a newer build ships.
 
 ## Never run electron-rebuild
 
