@@ -41,12 +41,10 @@ function describeError(e: unknown): string {
     // doesn't auto-request the browser-usable WinUSB driver — confirmed from real
     // device diagnostics (identical interface layout to a Stage 4 that connects
     // fine, so it's the driver, not the layout). Two ways out; NSM is only one.
-    // No desktop-app pointer while the download is pulled (see
-    // components/home/DesktopApp.tsx) — it would send players hunting for a
-    // link the site no longer has. Restore that sentence with the section.
     return 'Windows won’t let the browser open your Nord’s USB port. First quit Nord Sound ' +
-      'Manager if it’s open. If it still fails, this is most likely an older model (Stage 2-era) ' +
-      'that a browser can’t open over USB at all — support for those is coming.';
+      'Manager if it’s open. If it still fails (common on older models like the Stage 2), get ' +
+      'the OpenNord desktop app — see the Download section on the home page — which can reach ' +
+      'these older Nords the browser can’t.';
   }
   if (/access|busy|security|denied/i.test(m)) {
     return 'Couldn’t open your Nord over USB — another app may be holding it. Quit Nord Sound ' +
