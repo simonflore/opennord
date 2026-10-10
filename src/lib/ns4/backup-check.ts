@@ -8,7 +8,7 @@
  *     (PKWARE APPNOTE 4.4.7). This catches any damage to the backup file itself.
  *  2. **The file's own check value.** The CBIN CRC-32 (`docs/CHECKSUM.md`) is
  *     verified where it is known to hold: programs (`.ns4p`, validated across real
- *     programs + the device corpus), v6 pianos and format-1 samples (the header
+ *     programs + the device corpus), pianos (the v6 CRC-32, or the v5 CRC-16 trailer) and format-1 samples (the header
  *     carries the field — `readNsp` / `readNsmp`). Live, preset and settings files
  *     are not CRC-checked here: their CBIN CRC hasn't been confirmed on files NSM
  *     wrote, so a mismatch would not be evidence of damage.
@@ -158,7 +158,7 @@ export function checkBackupItem(kind: Exclude<BackupItemKind, 'piano'>, bytes: U
 }
 
 /**
- * Check a piano: header, checksum (v6), note directory, then — unless `play` is off —
+ * Check a piano: header, checksum (CRC-32 in v6, CRC-16 trailer in v5), note directory, then — unless `play` is off —
  * decode every note to its full length. Yields between notes; reports per-note
  * progress through `onNote(fraction)`. Returns the problem message (or null) and how
  * many notes decoded.
@@ -170,8 +170,8 @@ export async function checkPiano(
   const header = readNsp(bytes);
   if (!header.recognized) return { problem: MSG.notNord, notes: 0, skipped: 0 };
   if (!header.checksumValid) return { problem: MSG.rejected('piano'), notes: 0, skipped: 0 };
-  // A v6 piano whose checksum holds is byte-for-byte what Nord wrote: anything OpenNord then
-  // fails to read is a gap in its decoder, not damage. Only v5 (no checksum) relies on decoding.
+  // A piano whose checksum holds (v6 CRC-32, v5 CRC-16 trailer) is byte-for-byte what Nord
+  // wrote: anything OpenNord then fails to read is a gap in its decoder, not damage.
   const proven = header.hasChecksum;
   const dir = readNspDirectory(bytes);
   if (!dir) return { problem: proven ? null : MSG.pianoNotes, notes: 0, skipped: 0 };

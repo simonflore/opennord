@@ -59,13 +59,16 @@ describe('readNspDirectory + decodeNspStroke', () => {
     }
   });
 
-  it('checks the CRC-32 only where the header has one (v6), never on a v5 piano', () => {
+  it('checks the CRC-32 in v6 and the CRC-16 trailer in v5, never a CRC-32 in a v5 piano', () => {
     const stroke = [{ pcm: [tone(5000, 0.02, 4000, 5)], velocityFrom: 0, before: [[0, 0, 0, 0]] }];
-    // v5: format-0 header, CNSP sits where a v6 file keeps its CRC — nothing to verify.
-    const v5 = readNsp(makeNpno(stroke, 1, 0x18));
-    expect(v5.hasChecksum).toBe(false);
+    // v5: format-0 header, CNSP sits where a v6 file keeps its CRC; the checksum is the trailer.
+    const v5bytes = makeNpno(stroke, 1, 0x18);
+    const v5 = readNsp(v5bytes);
+    expect(v5.hasChecksum).toBe(true);
     expect(v5.checksumValid).toBe(true);
     expect(v5.warnings).toEqual([]);
+    v5bytes[v5bytes.length - 5] ^= 0x10;
+    expect(readNsp(v5bytes).checksumValid).toBe(false);
     // v6: the CRC is real — intact passes, a flipped audio byte fails.
     const v6bytes = makeNpno(stroke, 1, 0x2c);
     expect(readNsp(v6bytes)).toMatchObject({ hasChecksum: true, checksumValid: true, warnings: [] });

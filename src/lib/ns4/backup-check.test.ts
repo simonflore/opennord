@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { zipSync, strToU8 } from 'fflate';
 import { buildCbinHeader } from '../clavia/cbin';
 import { patchNs4Checksum } from '../clavia/checksum';
+import { crc16ccitt } from '../clavia/crc16';
 import { readZipDirectory } from '../clavia/backup/zip-directory';
 import { buildMetaXml } from '../device/ns4b';
 import { makeNpno, tone, type SynthStroke } from './nsp-synth.testing';
@@ -109,13 +110,18 @@ describe('checkBackup', () => {
     expect(r.problems[0].message).toMatch(/may refuse to load this program/);
   });
 
-  it('decodes piano notes — a broken note shows up even without a checksum (v5)', async () => {
+  it("doesn't call a v5 piano damaged when its checksum holds but a note won't decode", async () => {
     const piano = makeNpno(pianoStrokes(), 1, 0x18);
     const dir = readNspDirectory(piano)!;
     piano[dir.strokes[1].offset + 1] = 0xe0; // block header: width 0, predictor order 7
+    const crc = crc16ccitt(piano.subarray(0, piano.length - 2)); // re-seal the v5 CRC-16 trailer
+    piano[piano.length - 2] = crc & 0xff;
+    piano[piano.length - 1] = crc >>> 8;
     const r = await checkBackup(backupBlob({ 'Piano/Broken.npno': piano }));
-    expect(r.problems.map((p) => p.message)).toEqual(["1 of its 2 notes can't be played back."]);
+    // The trailer proves these are the bytes Nord wrote: an undecodable note is OpenNord's gap.
+    expect(r.problems).toEqual([]);
     expect(r.pianoNotesChecked).toBe(1);
+    expect(r.pianoNotesSkipped).toBe(1);
   });
 
   it("archive-checks meta.xml and stray files too, so damage there isn't missed", async () => {
