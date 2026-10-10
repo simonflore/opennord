@@ -885,7 +885,9 @@ tested against synthetic files in CI; `NPNO_DIR=<folder>` runs it over real pian
 the repo. The piano inspector uses it for local audition (one button per sampled note, at a
 chosen velocity).
 
-**Still open:** the record id at `+0x6E`, and the 0x700–0x1900 region (overview waveforms).
+**Still open:** the record id at `+0x6E`. (The 0x700–0x1900 region once listed here as overview
+waveforms is the end of the layers-per-root table and the stroke records: the Clavinet's 38
+records run from `+0x732` to `+0x18B6`.)
 
 ## 2026-10-10 — the name field, and why programs match pianos by name
 

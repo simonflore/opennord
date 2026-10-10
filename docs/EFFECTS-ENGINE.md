@@ -48,9 +48,10 @@ synth A/B/C, and DSP1 c1 holds the organ chain twice. **Low confidence.**
 
 Memory supports the split. Each DSP0 core reserves a 400 KB L2 buffer (102,400 words), and
 DSP1 c1 reserves 640 KB of L2. Those are the long delay lines. The voice cores reserve 240 KB
-each, which looks like streaming buffers. (*Corrected in §10.1:* on DSP0 the delay line streams
-through TDM slots to external memory; only `0x120AB5` keeps it in L2, 0x3C000 bytes per chain on
-DSP1 (§10.9). What the DSP0 L2 buffers hold has not been re-checked.)
+each, which looks like streaming buffers. (*Corrected in §10.1:* the delay lines either stream
+through TDM slots to external memory (`0x1206B0`, `0x1208AF`) or keep the line in L2 (`0x120AB5`,
+0x3C000 bytes per chain on DSP1), chosen by resources (§10.9). What the DSP0 L2 buffers hold has
+not been re-checked.)
 
 ## 2. The effects framework
 
@@ -418,7 +419,7 @@ two, or the meaning of a field is inferred. **Low**: hypothesis.
 | 0x124D68/0x124E0B = delay filter | They belong to the **amp**. The delay filter is inside the delay module. | §10.7, §10.9 | high |
 | Rotary rates "from system settings" (values unknown) | Decoded (§10.11) | `0xC0112A90` | high |
 | §4 "Audio-rate control": bus compressors read 16-bit control words from the TDM frame | Struck. Those modules are the delay lines, and the 16-bit TDM words are delay samples streamed to external memory (§10.9). | resolver pool `0xC0544AF8`, §10.9 | high |
-| §1/§3: the DSP0 L2 buffers are the long delay lines; `0x123A3E` holds about 2.1 s | On DSP0 the delay streams to external memory; only `0x120AB5` keeps it in L2 (§10.9). `0x123A3E` is the Flam unit's short line (§10.3). What the DSP0 L2 buffers hold is not re-checked. | §10.3, §10.9 | medium |
+| §1/§3: the DSP0 L2 buffers are the long delay lines; `0x123A3E` holds about 2.1 s | The delay lines stream to external memory (`0x1206B0`, `0x1208AF`) or keep the line in L2 (`0x120AB5`), chosen by resources (§10.9). `0x123A3E` is the Flam unit's short line (§10.3). What the DSP0 L2 buffers hold is not re-checked. | §10.3, §10.9 | medium |
 | Untagged 48 kHz times: block ≈ 83 µs (§2), 512-sample buffer ≈ 10.7 ms (§3), smoothing ≈ 9 ms (§2, §4) | ≈ 92 µs, ≈ 11.8 ms and τ ≈ 10 ms at `fs` (§10.4) | §10.12 | high |
 | §7 rotary speeds (public Leslie figures, horn 0.8 → 6.7 Hz, drum 0.7 → 5.8 Hz) | Firmware defaults: horn 0.80/7.0 Hz, drum 0.73/6.4 Hz (§10.11) | `0xC0112A90` | high |
 | Rotary stop position "0–7 → angle" | 0 = Free, 1–6 = six named positions, 7 not decoded (`values.generated.ts`, `108-5`); the angles are not traced | decoder | high (names) |
@@ -544,7 +545,7 @@ The remaining effects:
 
 | Type | Signal flow | Rate → DSP → units | Amount → DSP → units | Conf. |
 |---|---|---|---|---|
-| **Auto-Pan** `0x123707` | Block-rate LFO gain on each channel. L/R in antiphase (Y lane). Soft = sine. Hard = higher pre-clip gain, a near-square wave. | `inc = 256·(64v + 50)`, so **f = 0.0323 + 0.04139·v Hz** (0.03–5.29 Hz) | `depth = 0.25x`, `offset = 1 − 0.5x`. Gain per channel ≈ `offset + depth·k·shape`, with k = 4 before the clip in the variant read. With k = 4 the gain spans `1 − 1.5x … 1 + 0.5x`, so if the clip is at 0 and 1, a sine would clip too once x > 0.5; an unclipped sine needs k ≤ 2. So k = 4 is probably Hard's gain, and Soft's k is not decoded. | high (law), low (k per variant, clip level) |
+| **Auto-Pan** `0x123707` | Block-rate LFO gain on each channel. L/R in antiphase (Y lane). Soft = sine. Hard = higher pre-clip gain, a near-square wave. | `inc = 256·(64v + 50)`, so **f = 0.0323 + 0.04139·v Hz** (0.03–5.29 Hz) | `depth = 0.25x`, `offset = 1 − 0.5x`. Gain per channel ≈ `offset + depth·k·shape`, with k = 4 before the clip in the variant read. With k = 4 the gain spans `1 − 1.5x … 1 + 0.5x`, so if the clip is at 0 and 1, a sine's peaks would clip at any depth (above 1 for every x > 0, below 0 once x > 2/3); an unclipped sine needs k ≤ 2. So k = 4 is probably Hard's gain, and Soft's k is not decoded. | high (law), low (k per variant, clip level) |
 | **Tremolo** `0x1235AD` | Same LFO. Gain = `(1 − x/2) + (x/2)·lfo`, applied to a blend of dry and one-pole-filtered signal (tone). Soft/Hard switch a blend field (0.5 / 0). | same law as Auto-Pan | `I1−0x1A = x/2`, `I1−0x19 = 1 − x/2`: depth up to 100 % | high |
 | **Ring Mod** `0x124344` | Per-sample triangle → poly-sine carrier. `out = in·(1 + d·(1 − g·s(φ) − o))` crossfades dry to fully ring-modulated. The Stereo variant offsets the R carrier phase. | **exponential**: `f = 1.1642·2^(v/12.5) Hz`, i.e. 1.16 Hz to 1.33 kHz at 0.08 octave per step | target `g = x`, complement `1 − x`: dry → ring crossfade | high |
 | **Wah-Wah** `0x124746` | 2-pole Chamberlin SVF band-pass, run twice per sample (2×). Centre from the LFO (variant 2) or the pedal (variant 0). | LFO mode: same law as Auto-Pan. Also writes `I1−0x10 = q`. | `I1+0 = −0.496 + q/2`, the sweep offset. Variant 2 doubles the base to −0.992. | high (structure), medium (field roles) |
@@ -638,11 +639,12 @@ Fast; a hardware check (a fast transient through each Response setting) would co
 
   The firmware stores the inverse map at 1 ms resolution and interpolates it (`0xC010C040` case
   0x1AF). High.
-  Every breakpoint matches the delay-time strings the decoder already carries
+  Every breakpoint matches, to within 1 BPM, the delay-time strings the decoder already carries
   (`deps.generated.ts`, `204-3`, from ns4decode; e.g. p = 71 → "375 ms (80 x2 bpm)", p = 127 →
   "20 ms (750 x4 bpm)"), so the scale can be checked against those strings or on the panel
-  display, without the firmware. Between breakpoints the strings are the reference: p = 90–93
-  and 119–126 depart from the straight lines (p = 90 shows 304 BPM, not 293).
+  display, without the firmware (the strings give 640 and 1,520 BPM at p = 107 and 118). Between
+  breakpoints the strings are the reference: p = 90–99, 102–106 and 119–126 depart from the
+  straight lines (p = 90 shows 304 BPM, not 293; p = 122 shows 2,000, not 2,178).
 - **Tempo, MST CLK on.** The time is `frac × 4 × 60000 / tempo` ms. The knob `p` selects one
   of 17 divisions in steps of 7–8 (index table at `0xC02B9800`):
   1/2, 3/8, 1/3, 0.29, 1/4, 3/16, 1/6, 0.145, 1/8, 3/32, 1/12, 0.0725, 1/16, 1/24, 1/32, 1/48 and
