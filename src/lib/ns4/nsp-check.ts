@@ -20,7 +20,15 @@ import { verifyTrailerChecksum } from '../clavia/crc16';
 import { verifyNs4Checksum } from '../clavia/checksum';
 import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
 import { decodeNspStroke, findCnsp, readLayerTable, readNspDirectory, type NspStroke } from './nsp-audio';
-import { cnspChecksum } from './nsp-write';
+import { nspChecksumKind, readNspZones } from './nsp';
+
+/** CNSP checksum: byte sum of everything after the 22-byte CNSP header, over the CNSP stream
+ *  (`CNSP` tag … last block; NSM CNSPFileInputStream ctor @0x100040254 → Zevs::Checksum::Get32). */
+export function cnspChecksum(stream: Uint8Array): number {
+  let sum = 0;
+  for (let i = 0x16; i < stream.length; i++) sum = (sum + stream[i]) >>> 0;
+  return sum;
+}
 
 export interface NpnoCheck {
   id: string;
@@ -35,6 +43,9 @@ export interface NpnoAcceptance {
   /** NSM's version for the file (e.g. 610), when the header could be read. */
   nsmVersion?: number;
 }
+
+/** Voice-table entries the Stage 4 loader has for every loaded piano's notes together (`0xC00B47B8`). */
+export const VOICE_TABLE_ENTRIES = 0x6000;
 
 /** Header versions NSM's CNSP reader accepts: 0x423–0x430, 0x440, 0x450, 0x464. */
 function headerVersionKnown(v: number): boolean {
@@ -61,6 +72,9 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: { deep?: boolean } 
   if (!add('cbin', hasCbinMagic(bytes) && fileTypeTag(bytes) === 'npno', 'CBIN magic and the `npno` type tag')) return done();
   const cnsp = findCnsp(bytes);
   if (!add('cnsp-tag', cnsp === 0x2c || cnsp === 0x18, `CNSP tag at 0x2C (v6 envelope) or 0x18 (v5); found ${cnsp < 0 ? 'none' : `0x${cnsp.toString(16)}`}`)) return done();
+  // The header's format byte names the envelope (and so the checksum) the CNSP position implies;
+  // `readNsp` and the backup check call a file whose two disagree damaged, and so does this.
+  add('cbin-format', nspChecksumKind(bytes) !== undefined, `CBIN format byte ${bytes[4]} matches the CNSP position (1 → 0x2C, 0 → 0x18)`);
   const v6 = cnsp === 0x2c;
   if (v6) {
     add('cbin-crc32', verifyNs4Checksum(bytes), 'CRC-32 of bytes[0x2C:] at 0x18 (v6 envelope)');
@@ -85,9 +99,12 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: { deep?: boolean } 
     const cbinVersion = bytes[0x14] | (bytes[0x15] << 8);
     add('cbin-version', cbinVersion === nsmVersion, `CBIN version ${cbinVersion} matches the CNSP version ${nsmVersion} (true of every factory file)`);
   }
-  // Stage 4's gate (0xC00B92E4) accepts a header version only when it is at least the
-  // instrument's oldest supported piano generation; NSM lists v5 and v6 for the Stage 4.
-  add('stage4-generation', version === 0x450 || version === 0x464, 'v5 (0x450) or v6 (0x464) piano format — the generations the Stage 4 piano partition lists');
+  // Stage 4's gate (0xC00B92E4) accepts the header version and the metadata version (and the
+  // directory version, below) only when each is at least the instrument's oldest supported
+  // piano generation; NSM lists v5 and v6 for the Stage 4.
+  const stage4 = (v: number) => v === 0x450 || v === 0x464;
+  add('stage4-generation', stage4(version) && stage4(meta),
+    `header (0x${version.toString(16)}) and metadata (0x${meta.toString(16)}) versions are v5 (0x450) or v6 (0x464) — the generations the Stage 4 piano partition lists`);
 
   const dir = readNspDirectory(bytes);
   add('directory', !!dir, 'stroke directory (+0x61C) and records (+0x732) readable, blocks inside the file');
@@ -100,6 +117,18 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: { deep?: boolean } 
   const contiguous = strokes.every((s, i) => i === 0 || s.offset === blockEnd(strokes[i - 1]));
   add('contiguous', contiguous && blockEnd(strokes[strokes.length - 1]) === end, 'strokes are back to back and run to the end of the CNSP stream');
   add('block-size', dir.blockWords === 511 * dir.channels, `block size ${dir.blockWords} words (511 per channel)`);
+  // The loader (0xC00B47B8) stops with an error state when the strokes outnumber the free
+  // voice-table entries: 0x6000 minus what the pianos already loaded use (and a firmware cap
+  // not traced yet). A file can only be held to the empty-instrument bound.
+  add('voice-table', strokes.length <= VOICE_TABLE_ENTRIES,
+    `${strokes.length} notes fit the instrument's voice table (${VOICE_TABLE_ENTRIES} entries, shared with every loaded piano)`);
+  // Strokes are stored by root (lowest first), the key map by key: the two orders must agree,
+  // and every key-map root must have strokes, or a key plays another zone's recording.
+  const zones = readNspZones(bytes);
+  const tableRoots = readLayerTable(bytes, cnsp).flatMap((c, n) => (c > 0 ? [n] : []));
+  const keyRoots = zones.map((z) => z.rootNote);
+  add('key-map', keyRoots.length > 0 && keyRoots.join() === tableRoots.join(),
+    `key-map zones (${keyRoots.length}) match the notes' roots (${tableRoots.length}), with roots rising with the keys`);
   if (opts.deep) {
     let bad = '';
     for (const s of strokes) {

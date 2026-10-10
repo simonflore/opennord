@@ -18,12 +18,14 @@
 import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
 import { verifyNs4Checksum } from '../clavia/checksum';
 import { verifyTrailerChecksum } from '../clavia/crc16';
-import { findCnsp } from './nsp-audio';
+import { findCnsp, LAYER_TABLE_OFFSET, readLayerTable } from './nsp-audio';
 
 const META_OFFSET = 0x16; // from the CNSP tag
 const META_SIZE = 0x67; // 103 bytes
 const KEYMAP_OFFSET = 0x8c; // 128-byte per-note map, from the CNSP tag (RE'd 2026-06-30, re-aligned 2026-10-10)
 const KEYMAP_LEN = 128;
+/** End of the u16[128] layers-per-root table (`nsp-audio.ts`). */
+const LAYER_TABLE_END = LAYER_TABLE_OFFSET + 128 * 2;
 
 /**
  * A piano's recordings sound this many semitones above their key-map root when played at
@@ -51,13 +53,16 @@ export interface NspFile {
   /** Codec generation = floor(versionRaw / 100) (e.g. 6 for Nord Piano V6). */
   codec?: number;
   /**
-   * The file carries a container checksum: v6 pianos (format-1 header, `CNSP` at 0x2C) the
-   * CRC-32 at 0x18; v5 pianos (format-0 header, `CNSP` at 0x18) a 2-byte CRC-16/CCITT-FALSE
+   * The CBIN header promises a container checksum: format byte 1 (v6 pianos, `CNSP` at 0x2C)
+   * the CRC-32 at 0x18; format byte 0 (v5 pianos, `CNSP` at 0x18) a 2-byte CRC-16/CCITT-FALSE
    * trailer over the rest of the file, like the other legacy Clavia formats (verified on
-   * the real v5.30 CP80 and Wurlitzer files). False only when no `CNSP` tag was found.
+   * the real v5.30 CP80 and Wurlitzer files). See {@link nspChecksumKind}.
    */
   hasChecksum: boolean;
-  /** The checksum matches. Vacuously true when the file has no checksum. */
+  /**
+   * The checksum matches. False when the header's format byte and the `CNSP` position
+   * disagree (a damaged header can't vouch for the file) or name no known format.
+   */
   checksumValid: boolean;
   /** Human name from the metadata block, e.g. "Astoria Grand". */
   name?: string;
@@ -76,6 +81,11 @@ export interface NspFile {
  * (and `0x00`) mark unused keys. Consecutive keys sharing a root form one sample's
  * range. RE'd 2026-06-30 against real pianos (Clavinet/CP80/Wurlitzer/RainPiano) —
  * see `docs/NSP-FORMAT.md`. Returns `[]` if the region isn't a plausible key map.
+ *
+ * Any byte run can look like one root, so a single zone counts only when the directory's
+ * layers-per-root table (CNSP+0x622) agrees: strokes at that root and at no other note.
+ * Every factory piano has ≥ 2 zones; a one-zone piano is what a home-made test file
+ * (`docs/NPNO-WRITE.md`, test recipe step 2) looks like.
  */
 function readKeyMap(bytes: Uint8Array, cnsp: number): NspZone[] {
   const at = cnsp + KEYMAP_OFFSET;
@@ -89,10 +99,17 @@ function readKeyMap(bytes: Uint8Array, cnsp: number): NspZone[] {
     if (!e) span.set(r, [note, note]);
     else { if (note < e[0]) e[0] = note; if (note > e[1]) e[1] = note; }
   }
-  if (span.size < 2) return []; // not a key map (a real multisample has ≥2 zones)
+  if (span.size === 0) return [];
+  if (span.size === 1 && !layerTableHasOnly(bytes, cnsp, [...span.keys()][0])) return [];
   const zones = [...span.entries()].map(([rootNote, [lowNote, highNote]]) => ({ rootNote, lowNote, highNote }));
   zones.sort((a, b) => a.lowNote - b.lowNote);
   return zones;
+}
+
+/** The layers-per-root table lists strokes at `root` and at no other note. */
+function layerTableHasOnly(bytes: Uint8Array, cnsp: number, root: number): boolean {
+  if (cnsp + LAYER_TABLE_END > bytes.length) return false;
+  return readLayerTable(bytes, cnsp).every((count, note) => (note === root) === (count > 0));
 }
 
 /** First NUL-terminated printable-ASCII run of length ≥ minLen in [from, to). */
@@ -137,20 +154,36 @@ export function readNspZones(bytes: Uint8Array): NspZone[] {
   return cnsp < 0 ? [] : readKeyMap(bytes, cnsp);
 }
 
-/** Read a Nord Piano (`.npno`) file's header metadata. Does not read audio. */
+/**
+ * Which checksum a piano carries, decided by its CBIN header (`docs/NSP-FORMAT.md`): format
+ * byte 1 (`bytes[4]`, v6) puts a CRC-32 of `bytes[0x2C:]` at 0x18 and the `CNSP` tag at 0x2C;
+ * format byte 0 (v5, a 24-byte header) has the `CNSP` tag at 0x18 and a CRC-16 trailer.
+ * `undefined` when the format byte and the `CNSP` position disagree, or the byte names no
+ * known format: the header itself is damaged, so its checksum can't vouch for the file.
+ */
+export function nspChecksumKind(bytes: Uint8Array): 'crc32' | 'crc16' | undefined {
+  const cnsp = findCnsp(bytes);
+  if (bytes[4] === 1 && cnsp === 0x2c) return 'crc32';
+  if (bytes[4] === 0 && cnsp === 0x18) return 'crc16';
+  return undefined;
+}
+
+/**
+ * Read a Nord Piano (`.npno`) file's header metadata and verify its checksum (a full pass
+ * over the file). Does not read audio. Listings that only show name, version and key range
+ * should use {@link readNspIdentity} and {@link readNspZones}, which skip the checksum.
+ */
 export function readNsp(bytes: Uint8Array): NspFile {
   const id = readNspIdentity(bytes);
   if (!id) {
     return { recognized: false, hasChecksum: false, checksumValid: false, warnings: ['Not a Nord Piano (.npno) file — missing CBIN/npno signature.'] };
   }
-  // Only the format-1 envelope (v6, `CNSP` at 0x2C) has a CRC-32 at 0x18. In a v5 file
-  // the `CNSP` tag itself sits at 0x18 (format-0 header); its checksum is the legacy
-  // CRC-16 trailer instead (the two bytes after the last block, 2026-10-10).
-  const cnsp = findCnsp(bytes);
-  const hasChecksum = cnsp === 0x2c || cnsp === 0x18;
-  const checksumValid = cnsp === 0x2c ? verifyNs4Checksum(bytes) : cnsp === 0x18 ? verifyTrailerChecksum(bytes) : true;
+  const kind = nspChecksumKind(bytes);
+  const hasChecksum = bytes[4] === 0 || bytes[4] === 1;
+  const checksumValid = kind === 'crc32' ? verifyNs4Checksum(bytes) : kind === 'crc16' ? verifyTrailerChecksum(bytes) : false;
   const warnings: string[] = [];
-  if (!checksumValid) warnings.push('Piano checksum mismatch — file may be truncated or modified.');
+  if (!kind) warnings.push('Piano header is inconsistent — the file is damaged.');
+  else if (!checksumValid) warnings.push('Piano checksum mismatch — file may be truncated or modified.');
   const zones = readNspZones(bytes);
   return {
     recognized: true, ...id, codec: Math.trunc(id.versionRaw! / 100), hasChecksum, checksumValid,

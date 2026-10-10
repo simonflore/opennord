@@ -9,7 +9,7 @@
  *  2. **The file's own check value.** The CBIN CRC-32 (`docs/CHECKSUM.md`) is
  *     verified where it is known to hold: programs (`.ns4p`, validated across real
  *     programs + the device corpus), pianos (the v6 CRC-32, or the v5 CRC-16 trailer) and format-1 samples (the header
- *     carries the field — `readNsp` / `readNsmp`). Live, preset and settings files
+ *     carries the field — `nspChecksumKind` / `readNsmp`). Live, preset and settings files
  *     are not CRC-checked here: their CBIN CRC hasn't been confirmed on files NSM
  *     wrote, so a mismatch would not be evidence of damage.
  *  3. **The content reads.** Programs and Live programs decode through
@@ -25,11 +25,12 @@
  * musician-facing — no offsets, opcodes or checksums in the UI.
  */
 import { readZipDirectory, extractZipEntry, type ZipEntry } from '../clavia/backup/zip-directory';
-import { crc32, verifyNs4Checksum } from '../clavia/checksum';
+import { crc32, storedNs4Checksum, verifyNs4Checksum } from '../clavia/checksum';
+import { crc16ccitt, storedTrailerChecksum } from '../clavia/crc16';
 import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
 import { parseNs4Program } from './parse';
 import { parseNs4Preset } from './preset';
-import { readNsp } from './nsp';
+import { nspChecksumKind, readNspIdentity } from './nsp';
 import { readNspDirectory, decodeNspStroke } from './nsp-audio';
 import { readNsmp } from './nsmp';
 
@@ -95,6 +96,8 @@ export interface BackupCheckOptions {
   signal?: AbortSignal;
   /** Decode every piano note (default true). Off = header + note list only. */
   playPianos?: boolean;
+  /** How the check yields to the page (default: every {@link YIELD_EVERY_MS} ms of work). */
+  pace?: Pace;
 }
 
 /** What a backup path holds, by its extension; null for anything that isn't Stage 4 content. */
@@ -115,8 +118,6 @@ const MSG = {
   program: "Can't be read as a Stage 4 program.",
   preset: "Can't be read as a Stage 4 preset.",
   settings: "Isn't a Stage 4 settings file.",
-  pianoNotes: "The piano's notes can't be found in the file.",
-  pianoPlay: (bad: number, all: number) => `${bad} of its ${all} notes can't be played back.`,
   sample: "Isn't a readable Nord sample.",
   silent: 'Holds no sound.',
   incomplete: "This backup file is incomplete or damaged — it can't be restored as is.",
@@ -124,7 +125,10 @@ const MSG = {
 } as const;
 
 /** A check that couldn't finish. Its message is musician-facing and safe to show as is. */
-export class BackupCheckError extends Error {}
+export class BackupCheckError extends Error {
+  // Survives the trip back from a Web Worker, where only name + message cross (`backup-check-host.ts`).
+  override name = 'BackupCheckError';
+}
 
 /** The file couldn't be read at all (moved or re-synced on disk, out of memory) — not archive damage. */
 const isReadFailure = (e: unknown) =>
@@ -132,6 +136,51 @@ const isReadFailure = (e: unknown) =>
 
 /** Let the page breathe between heavy steps (pianos run to hundreds of MB). */
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+/** `await pace()` after each small unit of work: it yields to the page only once its time budget is spent. */
+export type Pace = () => Promise<void>;
+
+/** Work this long between yields: the page stays responsive and a Stop click is seen within it. */
+export const YIELD_EVERY_MS = 50;
+
+/**
+ * A pacer that yields (a macrotask, so input and Stop get through) once `budgetMs` of work
+ * has run since the last yield — by elapsed time, not by item count: a piano note can take
+ * 30 ms to decode while a program takes microseconds, and yielding per item would add a
+ * timer delay to each of thousands of programs.
+ */
+export function pacer(budgetMs = YIELD_EVERY_MS, now = () => performance.now(), sleep = tick): Pace {
+  let last = now();
+  return async () => {
+    if (now() - last < budgetMs) return;
+    await sleep();
+    last = now();
+  };
+}
+
+/** Bytes per CRC slice: a few ms each at table-driven speed, so the time budget is checked often. */
+const CRC_SLICE = 1 << 20;
+
+/** Run a CRC over `data` in slices, pacing between them (one pass over a big piano is ~1 s). */
+async function slicedCrc(data: Uint8Array, step: (slice: Uint8Array, crc: number) => number, init: number, pace: Pace): Promise<number> {
+  let crc = init;
+  for (let at = 0; at < data.length; at += CRC_SLICE) {
+    crc = step(data.subarray(at, at + CRC_SLICE), crc);
+    await pace();
+  }
+  return crc;
+}
+
+/**
+ * The piano's own checksum holds — the kind its CBIN header names (`nspChecksumKind`): v6
+ * CRC-32 of `bytes[0x2C:]` at 0x18, v5 CRC-16 trailer. False when the header is inconsistent.
+ */
+async function pianoChecksumHolds(bytes: Uint8Array, pace: Pace): Promise<boolean> {
+  const kind = nspChecksumKind(bytes);
+  if (kind === 'crc32') return (await slicedCrc(bytes.subarray(0x2c), crc32, 0, pace)) === storedNs4Checksum(bytes);
+  if (kind === 'crc16') return (await slicedCrc(bytes.subarray(0, bytes.length - 2), crc16ccitt, 0xffff, pace)) === storedTrailerChecksum(bytes);
+  return false;
+}
 
 /** Check one non-piano file's content. Returns a problem message, or null when it reads. */
 export function checkBackupItem(kind: Exclude<BackupItemKind, 'piano'>, bytes: Uint8Array): string | null {
@@ -158,24 +207,23 @@ export function checkBackupItem(kind: Exclude<BackupItemKind, 'piano'>, bytes: U
 }
 
 /**
- * Check a piano: header, checksum (CRC-32 in v6, CRC-16 trailer in v5), note directory, then — unless `play` is off —
- * decode every note to its full length. Yields between notes; reports per-note
- * progress through `onNote(fraction)`. Returns the problem message (or null) and how
- * many notes decoded.
+ * Check a piano: header, checksum (CRC-32 in v6, CRC-16 trailer in v5 — which one, the CBIN
+ * header says), note directory, then — unless `play` is off — decode every note to its full
+ * length. Paces itself (`pace`) between CRC slices and between notes; reports per-note
+ * progress through `onNote(fraction)`. Returns the problem message (or null) and how many
+ * notes decoded.
  */
 export async function checkPiano(
   bytes: Uint8Array,
-  opts: { play?: boolean; signal?: AbortSignal; onNote?: (fraction: number) => void } = {},
+  opts: { play?: boolean; signal?: AbortSignal; onNote?: (fraction: number) => void; pace?: Pace } = {},
 ): Promise<{ problem: string | null; notes: number; skipped: number }> {
-  const header = readNsp(bytes);
-  if (!header.recognized) return { problem: MSG.notNord, notes: 0, skipped: 0 };
-  if (!header.checksumValid) return { problem: MSG.rejected('piano'), notes: 0, skipped: 0 };
-  // A piano whose checksum holds (v6 CRC-32, v5 CRC-16 trailer) is byte-for-byte what Nord
-  // wrote: anything OpenNord then fails to read is a gap in its decoder, not damage.
-  const proven = header.hasChecksum;
+  const pace = opts.pace ?? pacer();
+  if (!readNspIdentity(bytes)) return { problem: MSG.notNord, notes: 0, skipped: 0 };
+  if (!(await pianoChecksumHolds(bytes, pace))) return { problem: MSG.rejected('piano'), notes: 0, skipped: 0 };
+  // The checksum holds, so these are byte for byte the bytes Nord wrote: anything OpenNord
+  // then fails to read is a gap in its decoder, not damage.
   const dir = readNspDirectory(bytes);
-  if (!dir) return { problem: proven ? null : MSG.pianoNotes, notes: 0, skipped: 0 };
-  if (opts.play === false) return { problem: null, notes: 0, skipped: 0 };
+  if (!dir || opts.play === false) return { problem: null, notes: 0, skipped: 0 };
   let bad = 0;
   let notes = 0;
   for (let i = 0; i < dir.strokes.length; i++) {
@@ -187,10 +235,9 @@ export async function checkPiano(
       bad++;
     }
     opts.onNote?.((i + 1) / dir.strokes.length);
-    if (i % 8 === 7) await tick();
+    await pace(); // checked per note: the slowest factory note decodes in ~40 ms
   }
-  if (proven) return { problem: null, notes, skipped: bad };
-  return { problem: bad ? MSG.pianoPlay(bad, dir.strokes.length) : null, notes, skipped: 0 };
+  return { problem: null, notes, skipped: bad };
 }
 
 const emptyCounts = (): BackupCheckReport['counts'] =>
@@ -228,6 +275,7 @@ export async function checkBackup(file: Blob, opts: BackupCheckOptions = {}): Pr
   }
   const totalBytes = work.reduce((n, w) => n + w.entry.size, 0);
   let doneBytes = 0;
+  const pace = opts.pace ?? pacer();
 
   for (const { entry, kind } of work) {
     if (opts.signal?.aborted) { report.cancelled = true; break; }
@@ -246,7 +294,7 @@ export async function checkBackup(file: Blob, opts: BackupCheckOptions = {}): Pr
     }
     let skipped = 0;
     try {
-      if (!bytes || (entry.crc32 !== undefined && crc32(bytes) !== entry.crc32)) {
+      if (!bytes || (entry.crc32 !== undefined && (await slicedCrc(bytes, crc32, 0, pace)) !== entry.crc32)) {
         problem = MSG.archive;
       } else if (!kind) {
         problem = null;
@@ -255,6 +303,7 @@ export async function checkBackup(file: Blob, opts: BackupCheckOptions = {}): Pr
         const r = await checkPiano(bytes, {
           play: opts.playPianos !== false,
           signal: opts.signal,
+          pace,
           onNote: (f) => opts.onProgress?.({ doneBytes: base + Math.round(f * entry.size), totalBytes, current: name }),
         });
         problem = r.problem;
@@ -274,10 +323,39 @@ export async function checkBackup(file: Blob, opts: BackupCheckOptions = {}): Pr
     if (problem) report.problems.push({ path: entry.path, name, kind: kind ?? 'file', message: problem });
     else if (kind) report.counts[kind].ok++;
     doneBytes += entry.size;
-    await tick();
+    await pace();
   }
   if (!report.cancelled) opts.onProgress?.({ doneBytes: totalBytes, totalBytes, current: '' });
   return report;
+}
+
+/** What the worker exposes (`backup-check.worker.ts`, started by `runBackupCheck` in `backup-check-host.ts`). One check at a time per worker. */
+export interface BackupCheckWorkerApi {
+  check(file: Blob, playPianos: boolean, onProgress?: (p: BackupCheckProgress) => void): Promise<BackupCheckReport>;
+  /** Stop the running check; it resolves with `cancelled: true` and what it had checked. */
+  cancel(): void;
+}
+
+/**
+ * The worker side: `checkBackup` behind a cancel message (an AbortSignal can't cross). It
+ * still paces itself, so the cancel message gets a turn while it runs.
+ */
+export function createBackupCheckWorkerApi(pace?: () => Pace): BackupCheckWorkerApi {
+  let running: AbortController | null = null;
+  return {
+    async check(file, playPianos, onProgress) {
+      const ac = new AbortController();
+      running = ac;
+      try {
+        return await checkBackup(file, { signal: ac.signal, playPianos, onProgress, pace: pace?.() });
+      } finally {
+        if (running === ac) running = null;
+      }
+    },
+    cancel() {
+      running?.abort();
+    },
+  };
 }
 
 const NOUN: Record<BackupItemKind, [string, string]> = {
