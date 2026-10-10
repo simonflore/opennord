@@ -32,7 +32,13 @@ const { bytes, fileName, notes } = buildNpno({
 checkNpnoAcceptance(bytes, { deep: true }); // every check should be ok
 ```
 
-- `buildNpno(input)` → `{ bytes, fileName, notes, stats }`. Zones are key ranges with a root note
+- `buildNpno(input)` → `{ bytes, fileName, notes, stats }`. It throws a plain-words error on
+  input the file can't hold (overlapping or fractional key ranges, a version minor outside 0–9,
+  an unknown `pianoType`, a recording too long for the u16 block count, more than 0x6000
+  recordings) and on zones whose recorded notes don't rise with their keys: the file stores
+  notes by root and the key map by key, so the two orders must agree. It then runs
+  `checkNpnoAcceptance` on the result and refuses to return a file that fails it.
+  Zones are key ranges with a root note
   and dynamic layers, loudest first: each layer's `floorDb` says how far below the hardest hit it
   takes over (the first is 0 dB; the instrument switches halfway between floors, and the Touch
   setting maps velocity to dB). PCM is int16 per channel at
@@ -48,11 +54,13 @@ checkNpnoAcceptance(bytes, { deep: true }); // every check should be ok
   bytes, each stroke's PCM, record bytes and block levels). `writeNpnoImage(readNpnoImage(x))`
   returns `x` unchanged for all three factory files.
 - `encodeNpnoStroke(stroke, channels)`: the block encoder on its own.
-- `checkNpnoAcceptance(bytes, { deep })`: every check we found in NSM and the Stage 4 firmware
-  (list below), plus a structural walk and, with `deep`, a full decode.
+- `checkNpnoAcceptance(bytes, { deep })`: the checks we found in NSM and the Stage 4 firmware
+  (list below), plus a structural walk and, with `deep`, a full decode. The voice-table check
+  can only hold one file to an empty instrument (see below).
 
 `readNsp`, `readNspIdentity`, `readNspDirectory`, `decodeNspStroke`, `identifyNsmp` and the folder
-classifier all read the output. With PR #23's `hasChecksum`, a v6 file reports
+classifier all read the output, including a one-zone piano (`readNsp` takes a single zone when
+the layers-per-root table agrees with it). With PR #23's `hasChecksum`, a v6 file reports
 `hasChecksum: true, checksumValid: true`.
 
 ## Encoder
@@ -173,7 +181,13 @@ ARM loader come from `0xC00B84CC` (header) and `0xC00AB028`/`0xC0020088` (record
 - Neither the gate nor the loader checks the CNSP byte sum or the CBIN CRC. Whether the
   USB write path does is unknown (the transfer frames carry their own CRC-16).
 
-`checkNpnoAcceptance` re-implements all of these, plus the CBIN CRC and a structural walk.
+`checkNpnoAcceptance` re-implements these, plus the CBIN CRC and a structural walk: the
+header, metadata and directory versions are each held to the Stage 4 generations (v5/v6), and
+the key map's zones must match the notes' roots in the same order. The loader's voice-table
+limit is shared: the free space is `0x6000` minus the entries the pianos already on the
+instrument use (and a firmware cap we haven't traced), so the check only proves the file fits
+an otherwise empty instrument (`stroke count ≤ 0x6000`). Whether it fits next to your other
+pianos is something only the instrument can tell.
 
 ## Hardware test recipe (Stage 4)
 
