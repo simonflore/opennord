@@ -106,12 +106,18 @@ function registerUsbIpc(): void {
     }),
   );
 
-  ipcMain.handle('nord-usb:bulkIn', (_e, maxLength: number) =>
-    new Promise<string>((resolve, reject) => {
+  // `timeoutMs` (0/absent = wait forever) is libusb's own transfer timeout: it
+  // cancels the read, so a silent device can't strand one. A timeout resolves
+  // null (an Error loses its errno crossing IPC); the renderer maps it.
+  ipcMain.handle('nord-usb:bulkIn', (_e, maxLength: number, timeoutMs?: number) =>
+    new Promise<string | null>((resolve, reject) => {
       if (!state) return reject(new Error('Device not open.'));
-      state.inEndpoint.transfer(maxLength, (err, data) =>
-        err ? reject(err) : resolve(Buffer.from(data ?? Buffer.alloc(0)).toString('base64')),
-      );
+      state.inEndpoint.timeout = timeoutMs ?? 0;
+      state.inEndpoint.transfer(maxLength, (err, data) => {
+        if (err?.errno === usb.LIBUSB_TRANSFER_TIMED_OUT) return resolve(null);
+        if (err) return reject(err);
+        resolve(Buffer.from(data ?? Buffer.alloc(0)).toString('base64'));
+      });
     }),
   );
 

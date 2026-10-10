@@ -7,9 +7,23 @@ export interface NordTransport {
   open(): Promise<void>;
   /** Send a request frame to bulk OUT (endpoint 0x03). */
   bulkOut(data: Uint8Array): Promise<void>;
-  /** Read up to maxLength bytes from bulk IN (endpoint 0x82) — one reply frame. */
-  bulkIn(maxLength: number): Promise<Uint8Array>;
+  /**
+   * Read up to maxLength bytes from bulk IN (endpoint 0x82) — one reply frame.
+   * With `timeoutMs`, a transport that can cancel its read rejects with
+   * {@link TransportTimeoutError} once that long passes without a reply, and
+   * leaves no read pending (so it can't swallow a later reply). Transports that
+   * can't cancel a read (the iPad bridge) ignore it.
+   */
+  bulkIn(maxLength: number, timeoutMs?: number): Promise<Uint8Array>;
   close(): Promise<void>;
+}
+
+/** The device didn't reply within the read timeout (see {@link NordTransport.bulkIn}). */
+export class TransportTimeoutError extends Error {
+  constructor(readonly timeoutMs: number) {
+    super(`The Nord didn't answer within ${timeoutMs} ms.`);
+    this.name = 'TransportTimeoutError';
+  }
 }
 
 /** In-memory transport for tests: records sent frames, replays queued replies. */

@@ -13,6 +13,6 @@ contextBridge.exposeInMainWorld('nordNativeUsb', {
   list: () => ipcRenderer.invoke('nord-usb:list'),
   open: (productId?: number) => ipcRenderer.invoke('nord-usb:open', productId),
   bulkOut: (dataB64: string) => ipcRenderer.invoke('nord-usb:bulkOut', dataB64),
-  bulkIn: (maxLength: number) => ipcRenderer.invoke('nord-usb:bulkIn', maxLength),
+  bulkIn: (maxLength: number, timeoutMs?: number) => ipcRenderer.invoke('nord-usb:bulkIn', maxLength, timeoutMs),
   close: () => ipcRenderer.invoke('nord-usb:close'),
 });
