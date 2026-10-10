@@ -797,7 +797,7 @@ Bit-exact means every stroke decodes to exactly its recorded frame count, and it
   | Offset | Type | Field |
   |---|---|---|
   | `+0x06` | u32 | first block offset (relative to the `CNSP` tag) |
-  | `+0x0A` | u16 | attenuation floor in 0.2 dB steps, 0 = the hardest hit (0/25/50 Clavinet; 0/2/5/8/… CP80). The ARM maps velocity through the Touch curve to an attenuation and plays the last layer whose switch point it reaches; a layer's switch point is halfway between its floor and the previous one's. One stroke plays, with no crossfade |
+  | `+0x0A` | u16 | attenuation floor in 0.2 dB steps, 0 = the hardest hit (v6: 0/25/50 Clavinet; v5 files store it in whole dB, so the CP80's 0/2/5/8/… are ×5 in 0.2 dB steps). The ARM maps velocity through the Touch curve to an attenuation and plays the last layer whose switch point it reaches; a layer's switch point is halfway between its floor and the previous one's. One stroke plays, with no crossfade |
   | `+0x0C` | u32 | length in frames |
   | `+0x10` | u16 | block count |
   | `+0x12` | 4×i16 | predictor history for channel 0, oldest first |
