@@ -684,3 +684,39 @@ Re-check the 2026-07-01 Electro 3 notes with this in mind: "strings present, zer
 every base, mask constants absent, analysis doesn't propagate" is exactly what LZO1X-packed
 code looks like. That image hasn't been re-unpacked here (its OS is no longer linked from
 Nord's site), so the Thumb-wall verdict there is unconfirmed rather than disproved.
+
+### The DSP programs are in the image (Stage 4 OS v1.66)
+
+The ARM side boots the DSPs from data inside the unpacked CODE image — the "DSP-only codec,
+no reference" wall is now a *tooling* wall, not a missing-data one.
+
+- **Boot path:** the system init at `0xC024B484` calls `0xC0241C58`; on failure it reports
+  "DSP Boot Error" (literal at `0xC024BBA8`). `0xC0241C58` boots **five DSPs** (indices
+  4→0) via one virtual `boot(dsp, image, size)` call each. "DSP %d Comm Error" comes from the
+  host-port FIFO code at `0xC006CA4C`/`0xC006CCBC`.
+- **Images** (contiguous, `0xC044667C`–`0xC05263A8`, ~900 KB):
+
+  | DSP | address | size | format |
+  |---|---|---|---|
+  | 0 | `0xC044667C` | 0x28410 | ADI boot stream, 2 cores |
+  | 1 | `0xC046EA8C` | 0x46824 | ADI boot stream, 2 cores |
+  | 2 | `0xC04B52B0` | 0x486D0 | ADI boot stream, 2 cores |
+  | 3 | `0xC04FD980` | 0x1DBF4 | other (zero pad, then 6-byte words — older 48-bit SHARC?) |
+  | 4 | `0xC051B574` | 0xAE34 | same format as DSP 3 (identical start) |
+
+- **DSP 0–2 are dual-core ADI SHARC+ (ADSP-2158x / ADSP-SC58x family).** Each image is two
+  Analog Devices boot streams of 16-byte block headers (`block code`, target, byte count,
+  argument; the first block's argument is the stream length; every header's 16-bit XOR is
+  self-consistent) that parse exactly to the image end. Stream `0xAC…` loads L1 at
+  `0x2824xxxx`/`0x283xxxxx` (**core 1**, multiprocessor space), stream `0xAB…` loads
+  `0x28A4xxxx`/`0x28Bxxxxx` (**core 2**), both plus shared L2 at `0x2000xxxx` — the SC58x/2158x
+  memory map. So the Stage 4 runs at least six SHARC+ cores; which one decodes `CNSP` piano
+  audio is not yet known.
+- **Blocker for the codec:** no open SHARC/SHARC+ disassembler or Ghidra processor module
+  exists (checked 2026-10-10). Next steps, in order: (1) split each stream into its load
+  segments (target address + payload) and look for the piano decoder by data — coefficient
+  tables and the piano-voice code are likely on the core that receives `npno` strokes from the
+  ARM; (2) find which DSP the ARM-side `npno` loader talks to (follow the host-port writes);
+  (3) only then consider a SLEIGH module for SHARC+ — a sizeable project in its own right.
+- Also in the image: `0xC0300000–0xC0430000` (~1.2 MB) is 16-bit sample-like data with
+  4-way interleaved slowly-varying streams (wave/table data, not code).
