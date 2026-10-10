@@ -27,7 +27,7 @@ let activeStop: (() => void) | null = null;
  */
 export function playPcm(channels: Int32Array[], onEnded?: () => void, sampleRate: number = SAMPLE_RATE): () => void {
   activeStop?.(); // single voice — stop whatever else is playing
-  const ctx = getCtx();
+  const ctx = getSharedCtx(); // every audition is a tap: resume a suspended/interrupted context
   const src = ctx.createBufferSource();
   src.buffer = toAudioBuffer(ctx, normalizeChannels(channels), sampleRate);
   src.connect(ctx.destination);

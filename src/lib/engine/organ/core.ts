@@ -235,7 +235,7 @@ export class OrganCore {
     this.percLevel = percOn
       ? (p.percussion.volSoft ? PERC_LEVEL_SOFT : PERC_LEVEL_NORMAL) * (p.percussion.decayFast ? 1 : PERC_LEVEL_SLOW)
       : 0;
-    this.vol = (p.volumeDb > VOLUME_OFF_DB ? 10 ** (p.volumeDb / 20) : 0) * this.voicing.level;
+    this.vol = (Number.isFinite(p.volumeDb) && p.volumeDb > VOLUME_OFF_DB ? 10 ** (p.volumeDb / 20) : 0) * this.voicing.level;
     this.dirty = true;
   }
 
