@@ -216,6 +216,13 @@ describe('offline rendering', () => {
     expect(rms(out)).toBe(0);
   });
 
+  it('is silent (never Infinity or NaN) at "volume off", below it, or with a non-finite volume', () => {
+    for (const volumeDb of [-120, -200, -Infinity, Infinity, NaN]) {
+      const out = renderOffline(params({ volumeDb }), [[0, 'on', 60]], 0.05);
+      expect(out.every((s) => s === 0), String(volumeDb)).toBe(true);
+    }
+  });
+
   it('key click adds a transient only at the contacts', () => {
     const clean = renderOffline(params({ drawbars: only8, keyClick: 0 }), [[0, 'on', 60]], 0.1);
     const click = renderOffline(params({ drawbars: only8, keyClick: 1 }), [[0, 'on', 60]], 0.1);

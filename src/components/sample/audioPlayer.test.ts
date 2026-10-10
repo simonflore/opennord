@@ -5,6 +5,14 @@ const resume = vi.fn(async () => {});
 class FakeAudioContext {
   get state() { return state; }
   resume = resume;
+  destination = {};
+  createBuffer(channels: number, length: number) {
+    const data = Array.from({ length: channels }, () => new Float32Array(length));
+    return { getChannelData: (i: number) => data[i] };
+  }
+  createBufferSource() {
+    return { buffer: null, connect: () => {}, start: () => {}, stop: () => {}, onended: null };
+  }
 }
 
 beforeEach(() => {
@@ -38,6 +46,13 @@ describe('getSharedCtx', () => {
     getSharedCtx();
     await Promise.resolve();
     expect(resume).toHaveBeenCalledTimes(2);
+  });
+
+  it('resumes an interrupted context when a sample is auditioned (every playPcm caller is a tap)', async () => {
+    const { playPcm } = await import('./audioPlayer');
+    state = 'interrupted';
+    playPcm([new Int32Array([0, 1000, -1000, 0])]);
+    expect(resume).toHaveBeenCalledTimes(1);
   });
 
   it('does not try to resume a closed context', async () => {
