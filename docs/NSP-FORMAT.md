@@ -648,3 +648,39 @@ suggests **CNSP piano audio is a different codec** (DSP-native — ADPCM-family 
 with no desktop reference, which would explain the uniform noise-level results. Not
 confirmable from files; would need the DSP firmware or hardware. File-side investigation is
 complete and exhausted across every hypothesis.
+
+## 2026-10-10 — the "firmware wall" was compression: `os.cab` CODE is LZO1X
+
+The modern firmware's CODE section was being analysed **packed**. In Stage 4 OS v1.66 (and
+Piano 5 OS v1.34) the CODE section is an **LZO1X** stream; strings survive in its literal
+runs, which is why they were visible while code, xrefs and constants looked absent.
+`scripts/fw-unpack.py` unpacks every section of an `os.cab` and checks Clavia's checksums
+(`~sum(bytes)` of the unpacked data and of the packed stream) — all six sections of both
+images verify. Container layout and offsets are in the script header. Output stays in the
+gitignored `firmware/` folder (`docs/LEGAL.md`).
+
+Stage 4 OS v1.66, program 1 CODE: `0x358D45` packed → `0x53EA70` bytes at `0xC0000000`
+(ARM; first instructions are the reset path `mrs/orr/msr/mcr p15…`). With the image
+unpacked, the piano path is directly visible:
+
+- Literal pool `0xC00BA1B8…` holds the file-type tags `npno`, `nsp`, `npdl`, `map`, `abc`
+  and the magics `CNSP` (`0x50534E43`) / `NPDL`.
+- **`0xC00B92E4`** is the per-file-type compatibility gate (reads headers straight from the
+  piano partition in flash via `0xC0094EA0`):
+  - `npno`: 0x16-byte header at file+0xC → magic `CNSP`, big-endian **u16 version**; a
+    secondary u16 version at +0x22 and +0x628.
+  - Version → minimum piano-engine generation of the instrument: `0x423–0x42F` ≥3,
+    `0x430` ≥4, `0x440` ≥5, `0x450` ≥6, `0x464` ≥7; other values → "unsupported" (rc 4).
+  - `npdl` (piano bundle): 0xC0C-byte header at +0xC → magic `NPDL`, an entry count and
+    a table of up to **256 big-endian u32 offsets**; each embedded file is checked as an
+    `npno` (first `CNSP` header at +0xC18, secondary versions at +0xC2E / +0x1234).
+- This is container/version handling only — the stroke directory and audio decode are not in
+  this function. **Next:** load the unpacked image in Ghidra (ARMv7 LE, base `0xC0000000`;
+  mixed ARM/Thumb) and follow the `npno` loader that streams strokes to the DSP ("DSP Boot"
+  strings show the ARM side also loads DSP code, so the DSP program image may be embedded
+  here too — the missing reference for the CNSP codec if so).
+
+Re-check the 2026-07-01 Electro 3 notes with this in mind: "strings present, zero xrefs at
+every base, mask constants absent, analysis doesn't propagate" is exactly what LZO1X-packed
+code looks like. That image hasn't been re-unpacked here (its OS is no longer linked from
+Nord's site), so the Thumb-wall verdict there is unconfirmed rather than disproved.

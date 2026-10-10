@@ -323,7 +323,11 @@ A prior spike explored extracting decode logic from the Stage 4 firmware binary
 entropy 7.57 bits/byte and zlib can't shrink it (ratio 0.90), whereas SRAM is
 plain ARM (1.10 bits/byte). Earlier "uncompressed mixed ARM+Thumb" and the zero
 string xrefs are consistent with analysing the packed bytes; any firmware pass
-must decompress CODE first. The `.npno` (piano) parser is
+must decompress CODE first. **Format: LZO1X** (stream starts at the section offset,
+ends on the standard `11 00 00` marker); `scripts/fw-unpack.py` unpacks every section
+and verifies Clavia's checksums (`~sum(bytes)`). Verified on Stage 4 OS v1.66 and
+Piano 5 OS v1.34 — see `docs/NSP-FORMAT.md` (2026-10-10) for what the unpacked image
+shows. The `.npno` (piano) parser is
 findable in principle via proper mixed-mode disassembly, but blind Thumb seeding
 makes this a high-effort path. **Parked** — the Stage 4 is already fully decoded
 via the ns4decode oracle; firmware RE adds nothing for models that already have a
