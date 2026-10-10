@@ -52,6 +52,24 @@ export interface ModelInfo {
   partitions: PartitionSpec[]; // ordered Native → user
   /** USB product id (Clavia vendor 0x0FFC) — set only when hardware-confirmed. */
   productId?: number;
+  /**
+   * USB product id recovered statically from Nord Sound Manager 9.22. NSM uses
+   * the PID directly as its instrument id (its device-spec lookup
+   * returns the stored instrument ids) and dispatches on it in
+   * its product factory. Medium-high
+   * confidence, not hardware-validated — `productId` always takes precedence
+   * and `modelByProductId` deliberately ignores this field.
+   */
+  staticProductId?: number;
+  /**
+   * OS versions NSM 9.22 gates this model on, in NSM's encoding (version × 100,
+   * so 90 = v0.90). From `CProductBase` +0x48 (`GetVersion_Min`) and +0x4C
+   * (`GetVersion_Recommended`), set in each product constructor. For models NSM
+   * splits into OS-ranged classes (Stage/EX/Electro 3 `*_PreNPNOv5`/`PreV400`,
+   * Lead 4 FTv7/FTv8) `min` is the oldest supported class's floor and
+   * `recommended` the current class's — mirroring `GetVersionMinAndRecommended`.
+   */
+  os?: { min: number; recommended: number };
 }
 
 const P = (kind: PartitionKind, label: string, native: boolean, fourcc?: string, index?: number): PartitionSpec =>
@@ -72,6 +90,7 @@ const baseline = (tag: string, sampleCapable: boolean, programStaticIndex?: numb
 export const MODELS: Record<NordModelId, ModelInfo> = {
   'stage-4': {
     id: 'stage-4', name: 'Nord Stage 4', generation: 'NW1-v4', programTag: 'ns4p', sampleCodec: 'codec4', productId: 0x002e,
+    os: { min: 90, recommended: 100 },
     partitions: [ // the maintainers’ notes — hardware-validated indices
       P('piano-native', 'Piano (factory)', true, undefined, 0),
       P('piano', 'Piano', false, undefined, 1),
@@ -89,6 +108,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   },
   'stage-3': {
     id: 'stage-3', name: 'Nord Stage 3', generation: 'NW1-v3', programTag: 'ns3f', sampleCodec: 'codec3', productId: 0x0026,
+    os: { min: 250, recommended: 254 },
     partitions: [
       P('piano-native', 'Piano (factory)', true),
       P('pedal-native', 'Pedal (factory)', true),
@@ -107,6 +127,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // Pedal ↔ native Pedal) relative to the NS4, and — unlike the NS4 — has no
     // separate Organ/Piano/Synth *Preset* partitions. See the maintainers’ notes.
     id: 'stage-2', name: 'Nord Stage 2', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og', productId: 0x0021,
+    os: { min: 100, recommended: 300 },
     partitions: [
       P('piano-native', 'Piano (factory)', true, undefined, 0),
       P('piano', 'Piano', false, undefined, 1),
@@ -127,6 +148,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // "EX" is a hardware capacity bump, not a format change — so Stage 2 EX program
     // files read/render through the Stage 2 path unchanged.
     id: 'stage-2-ex', name: 'Nord Stage 2 EX', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og',
+    staticProductId: 0x0021, os: { min: 100, recommended: 300 },
     partitions: [
       P('piano-native', 'Piano (factory)', true, undefined, 0),
       P('piano', 'Piano', false, undefined, 1),
@@ -142,6 +164,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   },
   'electro-4': {
     id: 'electro-4', name: 'Nord Electro 4', generation: 'OG', programTag: 'ne4p', sampleCodec: 'og',
+    staticProductId: 0x0023, os: { min: 100, recommended: 120 },
     partitions: [
       P('piano-native', 'Piano (factory)', true),
       P('samplib-native', 'Sample Library (factory)', true),
@@ -152,6 +175,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   },
   'electro-6': {
     id: 'electro-6', name: 'Nord Electro 6', generation: 'NW1-v3', programTag: 'ne6p', sampleCodec: 'codec3',
+    staticProductId: 0x0029, os: { min: 250, recommended: 250 },
     partitions: [
       P('piano-native', 'Piano (factory)', true),
       P('pedal-native', 'Pedal (factory)', true),
@@ -164,6 +188,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   },
   'piano-3': {
     id: 'piano-3', name: 'Nord Piano 3', generation: 'NW1-v3', programTag: 'np3p', sampleCodec: 'codec3',
+    staticProductId: 0x0028, os: { min: 100, recommended: 122 },
     partitions: [
       P('piano-native', 'Piano (factory)', true),
       P('pedal-native', 'Piano Pedal (factory)', true),
@@ -175,6 +200,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   },
   'piano-6': {
     id: 'piano-6', name: 'Nord Piano 6', generation: 'NW1-v4', programTag: 'np6p', sampleCodec: 'codec4',
+    staticProductId: 0x0039, os: { min: 100, recommended: 100 },
     partitions: [
       P('piano-native', 'Piano (factory)', true),
       P('pedal-native', 'Pedal (factory)', true),
@@ -187,6 +213,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   },
   'grand-2': {
     id: 'grand-2', name: 'Nord Grand 2', generation: 'NW1-v4', programTag: 'ng2p', sampleCodec: 'codec4',
+    staticProductId: 0x0038, os: { min: 100, recommended: 100 },
     partitions: [
       P('piano-native', 'Piano (factory)', true),
       P('pedal-native', 'Pedal (factory)', true),
@@ -214,6 +241,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // Backup extension: "nw2b" (from wxString::wxString(...,"nw2b") in ctor).
     // Validated vs 26 real .nw2p fixtures; not HW-tested.
     id: 'wave-2', name: 'Nord Wave 2', generation: 'NW1-v3', programTag: 'nw2p', sampleCodec: 'codec3',
+    staticProductId: 0x002c, os: { min: 80, recommended: 100 },
     partitions: [
       P('samplib-native', 'Sample Library (factory)', true),
       P('samplib',        'Sample Library',           false),
@@ -227,12 +255,12 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     ],
   },
   // Remaining models — baseline layout from their fourcc family.
-  'stage-classic': { id: 'stage-classic', name: 'Nord Stage Classic', generation: 'OG', programTag: 'nsp', sampleCodec: null, partitions: baseline('nsp', false) },
+  'stage-classic': { id: 'stage-classic', name: 'Nord Stage Classic', generation: 'OG', programTag: 'nsp', sampleCodec: null, staticProductId: 0x0003, os: { min: 312, recommended: 508 }, partitions: baseline('nsp', false) },
   // First-generation Nord Stage EX (extended sibling of Stage Classic), NOT Stage 2 EX.
   // Tag 'nspg' per the maintainers’ notes; no user sample engine (like Stage Classic).
-  'stage-ex': { id: 'stage-ex', name: 'Nord Stage EX', generation: 'OG', programTag: 'nspg', sampleCodec: null, partitions: baseline('nspg', false) },
-  'electro-3': { id: 'electro-3', name: 'Nord Electro 3', generation: 'OG', programTag: 'nepg', sampleCodec: 'og', partitions: baseline('nepg', true) },
-  'electro-3-hp': { id: 'electro-3-hp', name: 'Nord Electro 3 HP', generation: 'OG', programTag: 'nepg', sampleCodec: 'og', partitions: baseline('nepg', true) },
+  'stage-ex': { id: 'stage-ex', name: 'Nord Stage EX', generation: 'OG', programTag: 'nspg', sampleCodec: null, staticProductId: 0x0008, os: { min: 400, recommended: 608 }, partitions: baseline('nspg', false) },
+  'electro-3': { id: 'electro-3', name: 'Nord Electro 3', generation: 'OG', programTag: 'nepg', sampleCodec: 'og', staticProductId: 0x0007, os: { min: 100, recommended: 314 }, partitions: baseline('nepg', true) },
+  'electro-3-hp': { id: 'electro-3-hp', name: 'Nord Electro 3 HP', generation: 'OG', programTag: 'nepg', sampleCodec: 'og', staticProductId: 0x000b, os: { min: 100, recommended: 314 }, partitions: baseline('nepg', true) },
   'electro-5': {
     // Electro 5 partition order:
     //   SPartitionNative "Piano (Native)"  →  piano-native (factory)
@@ -248,6 +276,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // The Electro 5 program file uses a legacy `formatType 0` CBIN header — confirmed from
     // fixtures — not the NW1-v4 formatType used by Stage 4/Piano 6/Grand 2.
     id: 'electro-5', name: 'Nord Electro 5', generation: 'NW1-v3', programTag: 'ne5p', sampleCodec: 'codec3',
+    staticProductId: 0x0027, os: { min: 100, recommended: 140 },
     partitions: [
       P('piano-native', 'Piano (factory)', true),
       P('piano', 'Piano', false),
@@ -261,10 +290,10 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('settings', 'Settings', false, 'ne5s'),
     ],
   },
-  'piano-1': { id: 'piano-1', name: 'Nord Piano', generation: 'OG', programTag: 'nppg', sampleCodec: 'og', partitions: baseline('nppg', true) },
-  'piano-2': { id: 'piano-2', name: 'Nord Piano 2', generation: 'OG', programTag: 'np2p', sampleCodec: 'og', partitions: baseline('np2p', true) },
-  'piano-4': { id: 'piano-4', name: 'Nord Piano 4', generation: 'NW1-v3', programTag: 'np4p', sampleCodec: 'codec3', partitions: baseline('np4p', true, 6) },
-  'piano-5': { id: 'piano-5', name: 'Nord Piano 5', generation: 'NW1-v4', programTag: 'np5p', sampleCodec: 'codec4', partitions: baseline('np5p', true, 6) },
+  'piano-1': { id: 'piano-1', name: 'Nord Piano', generation: 'OG', programTag: 'nppg', sampleCodec: 'og', staticProductId: 0x0020, os: { min: 100, recommended: 148 }, partitions: baseline('nppg', true) },
+  'piano-2': { id: 'piano-2', name: 'Nord Piano 2', generation: 'OG', programTag: 'np2p', sampleCodec: 'og', staticProductId: 0x0022, os: { min: 100, recommended: 120 }, partitions: baseline('np2p', true) },
+  'piano-4': { id: 'piano-4', name: 'Nord Piano 4', generation: 'NW1-v3', programTag: 'np4p', sampleCodec: 'codec3', staticProductId: 0x002a, os: { min: 250, recommended: 250 }, partitions: baseline('np4p', true, 6) },
+  'piano-5': { id: 'piano-5', name: 'Nord Piano 5', generation: 'NW1-v4', programTag: 'np5p', sampleCodec: 'codec4', staticProductId: 0x002d, os: { min: 100, recommended: 100 }, partitions: baseline('np5p', true, 6) },
   'lead-4': {
     // Lead 4 partition order:
     //   SPartitionUserE2P  "Performance" (CFileSpec from CFileType(this+0x118)="nl4p") → program
@@ -272,6 +301,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     //   SPartitionSettings "Settings"   (CFileSpec from CFileType "nl4t")              → settings
     // No piano, no samples, no live, no setlist — purely synth: program + preset + settings.
     id: 'lead-4', name: 'Nord Lead 4', generation: 'OG', programTag: 'nl4p', sampleCodec: null,
+    staticProductId: 0x0024, os: { min: 100, recommended: 130 },
     partitions: [
       // "nl4p" (Performance) is the 1st Add → ordinal 0. Lead 4 has only 3
       // partitions, so the old Stage-4 default of 6 addressed a nonexistent one.
@@ -281,11 +311,11 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     ],
   },
   'lead-a1': { id: 'lead-a1', name: 'Nord Lead A1', generation: 'OG', programTag: 'nlap', sampleCodec: null, partitions: baseline('nlap', false) },
-  'wave': { id: 'wave', name: 'Nord Wave', generation: 'OG', programTag: 'nwp', sampleCodec: 'og', partitions: baseline('nwp', true, 1) },
-  'c2': { id: 'c2', name: 'Nord C2', generation: 'OG', programTag: 'nc2p', sampleCodec: null, partitions: baseline('nc2p', false) },
-  'c2d': { id: 'c2d', name: 'Nord C2D', generation: 'OG', programTag: 'nc2p', sampleCodec: null, partitions: baseline('nc2p', false) },
-  'grand': { id: 'grand', name: 'Nord Grand', generation: 'NW1-v3', programTag: 'ngp', sampleCodec: 'codec3', partitions: baseline('ngp', true) },
-  'organ-3': { id: 'organ-3', name: 'Nord Organ 3', generation: 'OG', programTag: 'no3p', sampleCodec: null, partitions: baseline('no3p', false) },
+  'wave': { id: 'wave', name: 'Nord Wave', generation: 'OG', programTag: 'nwp', sampleCodec: 'og', staticProductId: 0x0005, os: { min: 200, recommended: 214 }, partitions: baseline('nwp', true, 1) },
+  'c2': { id: 'c2', name: 'Nord C2', generation: 'OG', programTag: 'nc2p', sampleCodec: null, staticProductId: 0x0009, os: { min: 100, recommended: 132 }, partitions: baseline('nc2p', false) },
+  'c2d': { id: 'c2d', name: 'Nord C2D', generation: 'OG', programTag: 'nc2p', sampleCodec: null, staticProductId: 0x000c, os: { min: 100, recommended: 112 }, partitions: baseline('nc2p', false) },
+  'grand': { id: 'grand', name: 'Nord Grand', generation: 'NW1-v3', programTag: 'ngp', sampleCodec: 'codec3', staticProductId: 0x002b, os: { min: 150, recommended: 150 }, partitions: baseline('ngp', true) },
+  'organ-3': { id: 'organ-3', name: 'Nord Organ 3', generation: 'OG', programTag: 'no3p', sampleCodec: null, staticProductId: 0x003a, os: { min: 100, recommended: 112 }, partitions: baseline('no3p', false) },
 };
 
 export const ALL_MODELS: ModelInfo[] = Object.values(MODELS);
@@ -308,6 +338,18 @@ export function modelByTag(tag: string | undefined): ModelInfo | undefined {
 export function modelByProductId(productId: number | undefined): ModelInfo | undefined {
   if (productId === undefined) return undefined;
   return ALL_MODELS.find((m) => m.productId === productId);
+}
+
+/**
+ * Best-known model for a USB product id: a hardware-confirmed match first, else
+ * the NSM-recovered `staticProductId`. For identifying a connected device (naming
+ * it, checking its OS) — not for choosing transfer behaviour, which stays on the
+ * hardware-confirmed `modelByProductId`. Shared PIDs resolve to the anchor model
+ * (0x21 → Stage 2; NSM builds Stage 2 EX from the same `CStage2` class).
+ */
+export function identifyModelByProductId(productId: number | undefined): ModelInfo | undefined {
+  if (productId === undefined) return undefined;
+  return modelByProductId(productId) ?? ALL_MODELS.find((m) => m.staticProductId === productId);
 }
 
 /**
