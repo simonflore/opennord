@@ -137,6 +137,8 @@ Notes on the table:
 - an amp EQ offset (stored +60);
 - the amp type labels.
 
+**Status.** All of these are now fixed in `src/lib/ns3/decode.ts`, each with a synthetic-buffer test. The "about 200 parameters" gap is still open. The Stage 2 amp type 0 is now labelled "Clean" in `src/lib/ns2/decode.ts`. Still to do: check the amp-type label order and the meaning of rotary speed 3 against a real `.ns3f`.
+
 **Stage 4.** The Stage 4 image carries the same registry framework. Its program body walks as 24 length-prefixed blocks that end exactly at the end of the file.
 
 ### Stage 2

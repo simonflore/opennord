@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fromNs3 } from './from-ns3';
-import type { Ns3Program } from '../ns3/decode';
+import { decodeNs3, type Ns3Program } from '../ns3/decode';
 
 const prog: Ns3Program = {
   name: 'Boston Organ',
@@ -136,5 +136,22 @@ describe('fromNs3 — LP+HP filter mode', () => {
     const { common } = fromNs3(progLpHp);
     expect(common.synth?.filter?.type).toBe('LP+HP');
     expect(common.synth?.resonance01).toBeUndefined();
+  });
+});
+
+describe('fromNs3 on a decoded buffer (firmware-registry field fixes)', () => {
+  it('carries the corrected effect rates + amp type, and still drops the rotary', () => {
+    const b = new Uint8Array(600);
+    b[0x04] = 1;                 // NSM-era layout
+    b[0x10b] = 0x80 | 0x10;      // rotary on + Effect 1 on (type Panning)
+    b[0x10c] = 0x32; b[0x10d] = 0x80; // Effect 1 rate 101
+    b[0x114] = 0x80 | 0x03; b[0x115] = 0xf8; // Effect 2 on, rate 127
+    b[0x129] = 0x04; b[0x12a] = 1 << 5;     // Amp/EQ on, type 1 → Twin
+    b[0x34] = 0x01;              // rotary speed Fast (program-wide)
+    const { common, dropped } = fromNs3(decodeNs3(b));
+    expect(common.fx?.find((f) => f.slot === 'mod1')?.rateMidi).toBe(101);
+    expect(common.fx?.find((f) => f.slot === 'mod2')?.rateMidi).toBe(127);
+    expect(common.fx?.find((f) => f.slot === 'ampsim')?.type).toBe('Twin');
+    expect(dropped).toContain('rotary speaker');
   });
 });
