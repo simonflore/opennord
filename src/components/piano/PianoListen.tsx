@@ -35,7 +35,13 @@ export function PianoListen({ bytes }: { bytes: Uint8Array }) {
     if (!stroke) return;
     try {
       const pcm = decodeNspStroke(bytes, dir!, stroke);
-      stopRef.current = playPcm(pcm, () => { stopRef.current = null; setPlaying((p) => (p === zone ? null : p)); }, NSP_SAMPLE_RATE);
+      // The previous note's `ended` fires after this one starts: only the current note may clear the handle.
+      const stop = playPcm(pcm, () => {
+        if (stopRef.current !== stop) return;
+        stopRef.current = null;
+        setPlaying((p) => (p === zone ? null : p));
+      }, NSP_SAMPLE_RATE);
+      stopRef.current = stop;
       setPlaying(zone);
     } catch (e) {
       setError(`Couldn't play this note: ${getErrorMessage(e)}`);
