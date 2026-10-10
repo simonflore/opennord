@@ -297,6 +297,35 @@ describe('runBackupCheck (Web Worker host)', () => {
     port1.close(); port2.close();
   });
 
+  /** A worker that never answers `check` (it hangs, or never loaded) and can be made to die. */
+  const silentWorker = (onCheck: (onProgress: (p: unknown) => void) => void = () => {}) => {
+    const { port1, port2 } = new MessageChannel();
+    Comlink.expose({
+      check: (_f: Blob, _p: boolean, onProgress: (p: unknown) => void) => { onCheck(onProgress); return new Promise(() => {}); },
+      cancel() {},
+    }, port1);
+    const die = () => port2.dispatchEvent(new Event('error'));
+    const worker: BackupCheckWorker = { endpoint: port2 as unknown as Comlink.Endpoint, dispose: () => { port1.close(); port2.close(); } };
+    return { worker, die };
+  };
+
+  it('falls back to the inline check when the worker dies before it answers (it never loaded)', async () => {
+    const { worker, die } = silentWorker();
+    const run = runBackupCheck(backupBlob({ 'Piano/A.npno': makeNpno(pianoStrokes(), 1, 0x2c) }), {}, () => worker);
+    setTimeout(die, 10);
+    expect((await run).counts.piano).toEqual({ total: 1, ok: 1 });
+  });
+
+  it('rejects, instead of waiting forever, when the worker dies mid-check', async () => {
+    const { worker, die } = silentWorker((onProgress) => onProgress({ doneBytes: 0, totalBytes: 1, current: 'A' }));
+    const seen: string[] = [];
+    const run = runBackupCheck(backupBlob({}), { onProgress: (p) => { seen.push(p.current); die(); } }, () => worker);
+    const err = await run.catch((e: unknown) => e);
+    expect(seen).toEqual(['A']);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(BackupCheckError); // shown as "Couldn't finish … Try again."
+  });
+
   it('keeps the plain-words error class across the worker boundary', async () => {
     const bytes = new Uint8Array(await backupBlob(fullBackup()).arrayBuffer());
     const err = await runBackupCheck(new Blob([bytes.subarray(0, bytes.length - 200)]), {}, channelWorker).catch((e: unknown) => e);
