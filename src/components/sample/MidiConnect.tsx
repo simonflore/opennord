@@ -4,13 +4,13 @@ import { Button } from '../ui/Button';
 /** Connect-a-MIDI-keyboard affordance for the sample inspector. Works with Web
  *  MIDI on desktop and CoreMIDI in the iPad app (USB or Bluetooth keyboards);
  *  shows a clear note where neither exists instead of a dead button. */
-export function MidiConnect() {
+export function MidiConnect({ what = 'this sample' }: { what?: string } = {}) {
   const midi = useMidi();
 
   if (!midi.supported) {
     return (
       <p className="ps-sub mt-2 mb-0">
-        To play this sample from a MIDI keyboard, open OpenNord in Chrome or Firefox on a computer,
+        To play {what} from a MIDI keyboard, open OpenNord in Chrome or Firefox on a computer,
         or in the iPad app.
       </p>
     );
