@@ -3,6 +3,7 @@
  * decoder can be round-trip tested without Nord's audio. Only tests import this.
  */
 import { framesPerBlock } from './nsp-audio';
+import { patchNs4Checksum } from '../clavia/checksum';
 
 const PRED = [[], [1], [2, -1], [3, -3, 1], [4, -6, 4, -1]];
 
@@ -75,6 +76,7 @@ export function makeNpno(strokes: SynthStroke[], channels: 1 | 2, cnsp: number):
   const view = new DataView(buf.buffer);
   const ascii = (s: string, at: number) => { for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i); };
   ascii('CBIN', 0);
+  if (cnsp === 0x2c) buf[4] = 1; // v6: format-1 envelope with a CRC-32 at 0x18 (v5 has none)
   ascii('npno', 8);
   view.setUint16(0x14, cnsp === 0x18 ? 530 : 610, true);
   ascii('CNSP', cnsp);
@@ -94,7 +96,7 @@ export function makeNpno(strokes: SynthStroke[], channels: 1 | 2, cnsp: number):
     if (s.loop) { view.setUint32(r + 0x22, s.loop.start); view.setUint32(r + 0x26, s.loop.length); }
     for (const blk of encoded[i].blocks) { buf.set(blk, at); at += blk.length; }
   });
-  return buf;
+  return cnsp === 0x2c ? patchNs4Checksum(buf) : buf;
 }
 
 /** A decaying two-partial tone with a little deterministic noise. */

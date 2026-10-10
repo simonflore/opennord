@@ -58,6 +58,22 @@ describe('readNspDirectory + decodeNspStroke', () => {
     }
   });
 
+  it('checks the CRC-32 only where the header has one (v6), never on a v5 piano', () => {
+    const stroke = [{ pcm: [tone(5000, 0.02, 4000, 5)], velocityFrom: 0, before: [[0, 0, 0, 0]] }];
+    // v5: format-0 header, CNSP sits where a v6 file keeps its CRC — nothing to verify.
+    const v5 = readNsp(makeNpno(stroke, 1, 0x18));
+    expect(v5.hasChecksum).toBe(false);
+    expect(v5.checksumValid).toBe(true);
+    expect(v5.warnings).toEqual([]);
+    // v6: the CRC is real — intact passes, a flipped audio byte fails.
+    const v6bytes = makeNpno(stroke, 1, 0x2c);
+    expect(readNsp(v6bytes)).toMatchObject({ hasChecksum: true, checksumValid: true, warnings: [] });
+    v6bytes[v6bytes.length - 3] ^= 0x10;
+    const bad = readNsp(v6bytes);
+    expect(bad.checksumValid).toBe(false);
+    expect(bad.warnings[0]).toMatch(/checksum mismatch/);
+  });
+
   it('picks the velocity layer a key zone plays', () => {
     const mk = (velocityFrom: number) => ({ pcm: [tone(3000, 0.02, 3000, velocityFrom + 1)], velocityFrom, before: [[0, 0, 0, 0]] });
     const dir = readNspDirectory(makeNpno([mk(0), mk(40), mk(90), mk(0)], 1, 0x2c))!;
@@ -91,7 +107,11 @@ describe.skipIf(realFiles.length === 0)('decodeNspStroke — real pianos in $NPN
       const bytes = new Uint8Array(readFileSync(join(npnoDir!, name)));
       const dir = readNspDirectory(bytes)!;
       expect(dir).toBeDefined();
-      expect(dir.strokes.at(-1)!.zone + 1).toBe(readNsp(bytes).sampleCount);
+      const header = readNsp(bytes);
+      expect(dir.strokes.at(-1)!.zone + 1).toBe(header.sampleCount);
+      // An intact factory piano never reports damage — v5 has no CRC, v6's must match.
+      expect(header.checksumValid).toBe(true);
+      expect(header.warnings).toEqual([]);
       for (const s of dir.strokes) {
         const pcm = decodeNspStroke(bytes, dir, s);
         let peak = 0;
