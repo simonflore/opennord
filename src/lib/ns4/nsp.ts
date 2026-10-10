@@ -18,14 +18,14 @@
 import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
 import { verifyNs4Checksum } from '../clavia/checksum';
 import { verifyTrailerChecksum } from '../clavia/crc16';
-import { findCnsp, readLayerTable } from './nsp-audio';
+import { findCnsp, LAYER_TABLE_OFFSET, readLayerTable } from './nsp-audio';
 
 const META_OFFSET = 0x16; // from the CNSP tag
 const META_SIZE = 0x67; // 103 bytes
 const KEYMAP_OFFSET = 0x8c; // 128-byte per-note map, from the CNSP tag (RE'd 2026-06-30, re-aligned 2026-10-10)
 const KEYMAP_LEN = 128;
-/** End of the u16[128] layers-per-root table (CNSP+0x622, `nsp-audio.ts`). */
-const LAYER_TABLE_END = 0x622 + 128 * 2;
+/** End of the u16[128] layers-per-root table (`nsp-audio.ts`). */
+const LAYER_TABLE_END = LAYER_TABLE_OFFSET + 128 * 2;
 
 /**
  * A piano's recordings sound this many semitones above their key-map root when played at
