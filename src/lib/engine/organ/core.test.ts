@@ -4,6 +4,7 @@ import {
 } from './core';
 import { DEFAULT_ORGAN_PARAMS, ORGAN_ENGINE_MODELS, type OrganParams } from './types';
 import { drawbarGain, tonewheelFrequency, wheelFor } from './tonewheel';
+import { voicingFor } from './voicing';
 
 const SR = 48000;
 const params = (o: Partial<OrganParams> = {}): OrganParams => ({
@@ -14,6 +15,8 @@ const params = (o: Partial<OrganParams> = {}): OrganParams => ({
   vibrato: { ...DEFAULT_ORGAN_PARAMS.vibrato, ...o.vibrato },
 });
 const only8 = [0, 0, 8, 0, 0, 0, 0, 0, 0];
+/** B3 output level: one full drawbar on one key peaks about here. */
+const B3_LEVEL = voicingFor('B3').level;
 
 /** Goertzel magnitude of `f` Hz in `x`, normalized to a sine amplitude. */
 function tone(x: Float32Array, f: number, sr = SR): number {
@@ -203,7 +206,7 @@ describe('offline rendering', () => {
   it('a single 8′ key sounds its tonewheel pitch (A4 = 440 Hz)', () => {
     const out = renderOffline(params({ drawbars: only8 }), [[0, 'on', 69]], 0.2);
     const seg = out.subarray(SR / 20);
-    expect(tone(seg, 440)).toBeGreaterThan(0.05);
+    expect(tone(seg, 440)).toBeGreaterThan(0.45 * B3_LEVEL);
     expect(tone(seg, 440)).toBeGreaterThan(50 * tone(seg, 880));
   });
 
@@ -225,7 +228,7 @@ describe('offline rendering', () => {
     const tail = (sustain: boolean) =>
       rms(renderOffline(params({ drawbars: only8, sustain }), [[0, 'on', 60], [0.1, 'off', 60]], 0.3), 0.11 * SR, 0.15 * SR);
     expect(tail(false)).toBe(0);
-    expect(tail(true)).toBeGreaterThan(0.01);
+    expect(tail(true)).toBeGreaterThan(0.09 * B3_LEVEL);
   });
 
   it('vibrato moves the pitch, chorus keeps the dry signal', () => {
@@ -248,6 +251,75 @@ describe('offline rendering', () => {
       expect(rms(out), model).toBeGreaterThan(0.01);
       for (const s of out) expect(Math.abs(s)).toBeLessThanOrEqual(1);
     }
+  });
+
+  it('a ten-note chord on every drawbar peaks below the soft-clip knee before the clip, on every model', () => {
+    const chords = [
+      [36, 48, 55, 60, 64, 67, 72, 76, 79, 84],
+      [24, 36, 48, 60, 72, 84, 96, 43, 55, 67], // octave stack: the most shared wheels
+    ];
+    for (const model of ORGAN_ENGINE_MODELS) {
+      for (const chord of chords) {
+        // Chorus on and default key click: the loudest stock setting.
+        const core = new OrganCore({
+          sampleRate: SR, seed: 3, clip: false,
+          params: params({ model, drawbars: [8, 8, 8, 8, 8, 8, 8, 8, 8], keyClick: 0.5, vibrato: { on: true, type: 'C3' } }),
+        });
+        for (const n of chord) core.noteOn(n);
+        const out = new Float32Array(SR);
+        core.render(out);
+        let peak = 0;
+        for (const s of out) peak = Math.max(peak, Math.abs(s));
+        expect(peak, `${model} ${chord.join(',')}`).toBeLessThan(0.6);
+        expect(peak, `${model} ${chord.join(',')}`).toBeGreaterThan(0.1);
+      }
+    }
+  });
+
+  it('fadeOut ramps to silence and stays silent', () => {
+    const core = new OrganCore({ sampleRate: SR, params: params({ drawbars: [8, 8, 8, 8, 8, 8, 8, 8, 8] }) });
+    for (const n of [48, 60, 64, 67]) core.noteOn(n);
+    core.render(new Float32Array(SR / 10));
+    expect(core.faded()).toBe(false);
+    core.fadeOut(10);
+    const fade = new Float32Array(Math.round(0.011 * SR));
+    core.render(fade);
+    expect(core.faded()).toBe(true);
+    expect(rms(fade, 0, 48)).toBeGreaterThan(10 * rms(fade, fade.length - 48));
+    const after = new Float32Array(1024);
+    core.render(after);
+    expect(rms(after)).toBe(0);
+  });
+
+  it('pipe ranks fold pitches outside MIDI 0..127 back by octaves (no NaN, right pitch)', () => {
+    const peakOf = (x: Float32Array) => x.reduce((m, s) => Math.max(m, Math.abs(s)), 0);
+    // PIPE1, −2 octaves, drawbars 7–9 out, A0: the shifted pitch is MIDI −3.
+    const low = params({ model: 'PIPE1', octaveShift: -2, drawbars: [0, 0, 0, 0, 0, 0, 8, 8, 8] });
+    const lowCore = new OrganCore({ sampleRate: SR, params: low });
+    lowCore.noteOn(21);
+    for (const id of lowCore.settledTargets().keys()) {
+      const f = lowCore.generatorFrequency(id);
+      expect(f).toBeGreaterThan(30);
+      expect(f).toBeLessThan(200);
+    }
+    const lowOut = renderOffline(low, [[0, 'on', 21]], 0.3);
+    expect(lowOut.some(Number.isNaN)).toBe(false);
+    expect(peakOf(lowOut)).toBeGreaterThan(0);
+    // A0 −3 octaves = 13.75 Hz; the 1⅗′ (×5), 1⅓′ (×6) and 1′ (×8) ranks sound 68.75, 82.5 and 110 Hz.
+    const seg = lowOut.subarray(SR / 5);
+    expect(tone(seg, 110)).toBeGreaterThan(0.001);
+
+    // PIPE2, +2 octaves, 16′ out, G#7: the shifted pitch is MIDI 128.
+    const high = params({ model: 'PIPE2', octaveShift: 2, drawbars: [8, 0, 0, 0, 0, 0, 0, 0, 0] });
+    const highCore = new OrganCore({ sampleRate: SR, params: high });
+    highCore.noteOn(104);
+    const ids = [...highCore.settledTargets().keys()];
+    expect(ids).toHaveLength(1);
+    const f = highCore.generatorFrequency(ids[0]);
+    expect(f).toBeCloseTo(440 * 2 ** ((116 - 69) / 12) * 0.5, 3); // MIDI 116 at the 16′ ratio, ~3.3 kHz
+    const highOut = renderOffline(high, [[0, 'on', 104]], 0.3);
+    expect(highOut.some(Number.isNaN)).toBe(false);
+    expect(tone(highOut.subarray(SR / 5), f)).toBeGreaterThan(0.001);
   });
 
   it('changing the model while a key is held re-voices it', () => {

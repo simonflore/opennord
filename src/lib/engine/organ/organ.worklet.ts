@@ -4,7 +4,7 @@
  * All synthesis lives in core.ts so it stays unit-tested off the audio thread.
  */
 import { OrganCore } from './core';
-import { ORGAN_PROCESSOR, applyOrganMessage, type OrganMessage } from './messages';
+import { DISPOSE_FADE_MS, ORGAN_PROCESSOR, applyOrganMessage, type OrganMessage } from './messages';
 import type { OrganParams } from './types';
 
 // AudioWorkletGlobalScope names (not in the DOM lib typings).
@@ -19,20 +19,29 @@ interface OrganProcessorOptions { processorOptions?: { params?: OrganParams; see
 
 class OrganProcessor extends AudioWorkletProcessor {
   private core: OrganCore;
+  private disposed = false;
 
   constructor(options?: OrganProcessorOptions) {
     super(options);
     const o = options?.processorOptions;
     this.core = new OrganCore({ sampleRate, params: o?.params, seed: o?.seed });
-    this.port.onmessage = (e: MessageEvent<OrganMessage>) => applyOrganMessage(this.core, e.data);
+    this.port.onmessage = (e: MessageEvent<OrganMessage>) => {
+      if (e.data.type === 'dispose') {
+        // Fade out, then return false from process() so the processor (and its core) can be released.
+        this.disposed = true;
+        this.core.fadeOut(DISPOSE_FADE_MS);
+      } else {
+        applyOrganMessage(this.core, e.data);
+      }
+    };
   }
 
   process(_inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
     const out = outputs[0];
-    if (!out || out.length === 0) return true;
+    if (!out || out.length === 0) return !this.disposed;
     this.core.render(out[0]);
     for (let c = 1; c < out.length; c++) out[c].set(out[0]);
-    return true;
+    return !(this.disposed && this.core.faded());
   }
 }
 

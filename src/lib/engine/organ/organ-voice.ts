@@ -9,7 +9,9 @@
  * destination). Browser-only; the synthesis itself is tested via core.ts.
  */
 import { OrganCore } from './core';
-import { ORGAN_PROCESSOR, applyOrganMessage, type OrganControl, type OrganMessage } from './messages';
+import {
+  DISPOSE_DISCONNECT_MS, DISPOSE_FADE_MS, ORGAN_PROCESSOR, applyOrganMessage, type OrganControl, type OrganMessage,
+} from './messages';
 import { DEFAULT_ORGAN_PARAMS, type OrganParams } from './types';
 import workletUrl from './organ.worklet.ts?worker&url';
 
@@ -19,7 +21,10 @@ export interface OrganVoice extends OrganControl {
   /** Which engine host is running: audio-thread worklet or main-thread fallback. */
   readonly backend: 'worklet' | 'script';
   noteOn(note: number, velocity?: number): void;
-  /** Disconnect and release the audio graph. */
+  /**
+   * Fade out (~10 ms), then disconnect and release the audio graph and the
+   * engine. Further calls on the voice are ignored.
+   */
   dispose(): void;
 }
 
@@ -65,12 +70,20 @@ export async function createOrganVoice(ctx: BaseAudioContext, opts: OrganVoiceOp
         processorOptions: { params, seed: opts.seed },
       });
       if (destination) node.connect(destination);
-      const post = (m: OrganMessage) => node.port.postMessage(m);
+      let disposed = false;
+      const post = (m: OrganMessage) => { if (!disposed) node.port.postMessage(m); };
       return {
         output: node,
         backend: 'worklet',
         ...controls(post),
-        dispose: () => { post({ type: 'allNotesOff' }); node.disconnect(); node.port.close(); },
+        dispose: () => {
+          if (disposed) return;
+          // The processor fades out and then returns false from process(), which
+          // releases it; disconnect once the fade has played.
+          post({ type: 'dispose' });
+          disposed = true;
+          setTimeout(() => { node.disconnect(); node.port.close(); }, DISPOSE_DISCONNECT_MS);
+        },
       };
     } catch {
       // fall through to the main-thread host
@@ -91,10 +104,17 @@ function createScriptOrganVoice(
     e.outputBuffer.getChannelData(1).set(l);
   };
   if (destination) node.connect(destination);
+  let disposed = false;
   return {
     output: node,
     backend: 'script',
-    ...controls((m) => applyOrganMessage(core, m)),
-    dispose: () => { core.allNotesOff(); node.onaudioprocess = null; node.disconnect(); },
+    ...controls((m) => { if (!disposed) applyOrganMessage(core, m); }),
+    dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      // Let the next buffer or two carry the fade, then drop the callback (and with it the core).
+      core.fadeOut(DISPOSE_FADE_MS);
+      setTimeout(() => { node.onaudioprocess = null; node.disconnect(); }, DISPOSE_DISCONNECT_MS);
+    },
   };
 }

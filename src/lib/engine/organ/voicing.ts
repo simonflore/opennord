@@ -48,7 +48,12 @@ export interface ModelVoicing {
   /** Vibrato rate (Hz) and LFO shape for the vib/chorus section. */
   vibRateHz: number;
   vibShape: 'triangle' | 'sine';
-  /** Output normalization so a full registration chord stays below clipping. */
+  /**
+   * Output level (linear, at 0 dB volume). Set with {@link HEADROOM} so a
+   * ten-note chord on every drawbar peaks below the soft clip's 0.6 knee, before
+   * the clip, on every model; fewer keys or drawbars are quieter, as on the
+   * real instruments.
+   */
   level: number;
 }
 
@@ -88,6 +93,17 @@ const OBOE = series(16, (h) => (h >= 2 && h <= 4 ? 0.9 : 1 / h) * (h === 1 ? 0.6
 const TRUMPET = series(20, (h) => (h <= 6 ? 0.8 + 0.05 * h : 3 / h));
 const STRINGS = series(32, (h) => (h === 1 ? 0.35 : 1 / Math.sqrt(h)) * 0.6);
 
+/*
+ * Output headroom: one fixed trim on every model's level (keeping the balance
+ * between models). Measured pre-clip with renderOffline at 48 kHz, 0 dB volume,
+ * vibrato/chorus C3 on, a ten-note chord with all nine drawbars out: B3 peaks at
+ * about 6–7× its level step (summed shared wheels), the other models at about
+ * 2.4–4.8×. −22 dB brings the B3 to about 0.5–0.56 and the rest to ≤ 0.4, so
+ * the soft clip only catches transients (core.test.ts pins this). A single key
+ * on 888000000 then peaks about −33 dBFS.
+ */
+const HEADROOM = 10 ** (-22 / 20);
+
 /** Generator id layout for non-tonewheel banks: timbre × 128 + MIDI pitch. */
 const id = (timbre: number, midi: number) => timbre * 128 + midi;
 const idTimbre = (gen: number) => Math.floor(gen / 128);
@@ -124,7 +140,7 @@ function tonewheelVoicing(model: 'B3' | 'B3 BASS'): ModelVoicing {
     lowestWheel,
     vibRateHz: 6.9, // scanner: ~7 Hz, triangle sweep of a ~1 ms delay line
     vibShape: 'triangle',
-    level: 0.11,
+    level: 0.11 * HEADROOM,
   };
 }
 
@@ -166,7 +182,7 @@ const voxVoicing: ModelVoicing = {
   // The Stage 4's Vox vibrato is a ~6.1 Hz triangle.
   vibRateHz: 6.1,
   vibShape: 'triangle',
-  level: 0.1,
+  level: 0.1 * HEADROOM,
 };
 
 // ── Farfisa-style transistor organ (approximation) ─────────────────────────
@@ -209,7 +225,7 @@ const farfVoicing: ModelVoicing = {
   lowestWheel: MANUAL_LOWEST_WHEEL,
   vibRateHz: 6.2,
   vibShape: 'sine',
-  level: 0.1,
+  level: 0.1 * HEADROOM,
 };
 
 // ── Pipe organ (approximation) ─────────────────────────────────────────────
@@ -240,7 +256,9 @@ function pipeVoicing(model: 'PIPE1' | 'PIPE2'): ModelVoicing {
       let m = midi;
       while (equalTempered(m) * PIPE_RATIO[bus] > 8000) m -= 12;
       while (equalTempered(m) * PIPE_RATIO[bus] < 30) m += 12;
-      out.push(id(bus, m), g);
+      // A ±2 octave shift can still push m out of the id's 0..127 pitch field
+      // (PIPE1 at −2 octaves on A0 gives −3); fold it back in by octaves.
+      out.push(id(bus, foldMidi(m, 0, 127)), g);
     },
     attackMs: model === 'PIPE1' ? 35 : 55,
     releaseMs: 90,
@@ -252,7 +270,7 @@ function pipeVoicing(model: 'PIPE1' | 'PIPE2'): ModelVoicing {
     lowestWheel: MANUAL_LOWEST_WHEEL,
     vibRateHz: 5.2, // tremulant-like
     vibShape: 'sine',
-    level: 0.09,
+    level: 0.09 * HEADROOM,
   };
 }
 
