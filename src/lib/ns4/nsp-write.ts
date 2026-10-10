@@ -28,8 +28,6 @@ import {
 import { NSP_ROOT_OFFSET } from './nsp';
 import { checkNpnoAcceptance, cnspChecksum, VOICE_TABLE_ENTRIES } from './nsp-check';
 
-export { cnspChecksum };
-
 // ── Container constants (offsets relative to the `CNSP` tag unless noted) ──────────────────
 
 /** Header bytes before the first stroke record (tables + directory). */
@@ -148,6 +146,16 @@ const tooManyBlocks = (blocks: number) =>
   `the recording is too long for one note (it needs ${blocks} blocks; a note holds at most ${MAX_BLOCKS}) — trim it or loop it sooner`;
 
 /**
+ * A stroke the file can't hold, with the reason in plain words. `stroke` is its index in the
+ * image once the writer knows it, so `buildNpno` can name the zone and layer instead.
+ */
+export class NpnoStrokeError extends Error {
+  constructor(readonly reason: string, readonly stroke?: number) {
+    super(`Stroke${stroke === undefined ? '' : ` ${stroke}`}: ${reason}.`);
+  }
+}
+
+/**
  * Why a loop can't be used on a stroke of `frames` frames, or `undefined` if it can. `length` 0
  * means "no loop" and is fine; anything else must be whole frames inside the stroke.
  */
@@ -177,7 +185,7 @@ function channelProblem(pcm: ArrayLike<number>[]): string | undefined {
 export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedStroke {
   const blockWords = BLOCK_WORDS_PER_CHANNEL * channels;
   const bad = channelProblem(s.pcm) ?? (s.loop ? loopProblem(s.loop, s.pcm[0].length) : undefined);
-  if (bad) throw new Error(`Stroke: ${bad}.`);
+  if (bad) throw new NpnoStrokeError(bad);
   const pcmLen = s.pcm[0].length;
   const loop = s.loop && s.loop.length > 0 ? s.loop : undefined;
   const loopEnd = loop ? loop.start + loop.length : 0;
@@ -187,7 +195,8 @@ export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedSt
   const target = loop ? loopEnd + 1 : pcmLen;
   const maxOwn = framesPerBlock(blockWords, 1, channels);
   // Even 1-bit blocks couldn't hold it: refuse before allocating the work arrays.
-  if (Math.ceil(target / maxOwn) > MAX_BLOCKS) throw new Error(`Stroke: ${tooManyBlocks(Math.ceil(target / maxOwn))}.`);
+  const fewestBlocks = Math.ceil(target / maxOwn);
+  if (fewestBlocks > MAX_BLOCKS) throw new NpnoStrokeError(tooManyBlocks(fewestBlocks));
   const extLen = target + maxOwn + BLOCK_OVERLAP + 1;
 
   // Signal per channel: 4 preroll frames, then the PCM, then loop continuation / silence.
@@ -289,7 +298,7 @@ export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedSt
     t += own;
   }
 
-  if (blocks.length > MAX_BLOCKS) throw new Error(`Stroke: ${tooManyBlocks(blocks.length)}.`);
+  if (blocks.length > MAX_BLOCKS) throw new NpnoStrokeError(tooManyBlocks(blocks.length));
   const keep = s.levels && s.levels.length === blocks.length ? s.levels : undefined;
   const data = new Uint8Array(blocks.length * blockWords * 2);
   blocks.forEach((b, i) => {
@@ -331,7 +340,7 @@ export function writeNpnoImage(img: NpnoImage): NpnoWriteResult {
     if (s.rootNote !== lastRoot && layers[s.rootNote]) throw new Error(`zone ${s.rootNote} is not contiguous`);
     if (s.pcm.length !== channels) throw new Error(`stroke has ${s.pcm.length} channels, piano has ${channels}`);
     const bad = channelProblem(s.pcm) ?? (s.loop ? loopProblem(s.loop, s.pcm[0].length) : undefined);
-    if (bad) throw new Error(`Stroke ${i}: ${bad}.`);
+    if (bad) throw new NpnoStrokeError(bad, i);
     layers[s.rootNote]++;
     lastRoot = s.rootNote;
   }
@@ -342,7 +351,7 @@ export function writeNpnoImage(img: NpnoImage): NpnoWriteResult {
     try {
       e = encodeNpnoStroke(s, channels);
     } catch (err) {
-      throw new Error((err as Error).message.replace(/^Stroke:/, `Stroke ${i}:`));
+      throw err instanceof NpnoStrokeError ? new NpnoStrokeError(err.reason, i) : err;
     }
     if (e.seamForced) notes.push(`stroke ${i}: copied the 4 frames before the loop start over the 4 before the loop end (predictor seam)`);
     return e;
@@ -680,7 +689,7 @@ export function buildNpno(input: NpnoInput): NpnoBuildResult {
   try {
     result = writeNpnoImage({ envelope: 'v6', cbinVersion: 600 + 10 * minor, channels: input.channels, header, strokes });
   } catch (e) {
-    throw new Error((e as Error).message.replace(/^Stroke (\d+):/, (_, n: string) => `${origin[Number(n)]}:`));
+    throw e instanceof NpnoStrokeError && e.stroke !== undefined ? new Error(`${origin[e.stroke]}: ${e.reason}.`) : e;
   }
   // Everything above was validated, so a failed check here is OpenNord's bug, not the input's.
   const failed = checkNpnoAcceptance(result.bytes).checks.filter((c) => !c.ok);

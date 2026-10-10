@@ -24,7 +24,7 @@ export const NSP_SAMPLE_RATE = 44100;
 
 const DIR_OFFSET = 0x61c;
 /** u16[128] layers-per-root-note table, right after version/channels/count. */
-const LAYER_TABLE_OFFSET = 0x622;
+export const LAYER_TABLE_OFFSET = 0x622;
 const RECORDS_OFFSET = 0x732;
 const RECORD_SIZE = 0x76;
 /** The last 64 frames of a block repeat the next block's first 64 (DSP read-ahead slack). */
@@ -143,11 +143,10 @@ export function readNspDirectory(bytes: Uint8Array): NspDirectory | undefined {
     ? (strokes[1].offset - strokes[0].offset) / strokes[0].blocks / 2
     : 511 * channels;
   if (!Number.isInteger(blockWords) || blockWords < 2) return undefined;
-  // A block holds the most frames at width 1. A frame count beyond that is a damaged (or
-  // crafted) record, and decoding would allocate for it up front: reject it here.
-  const most = framesPerBlock(blockWords, 1, channels);
+  // A frame count beyond what the blocks can hold is a damaged (or crafted) record, and
+  // decoding would allocate for it up front: reject it here.
   for (const s of strokes) {
-    if (s.offset + s.blocks * blockWords * 2 > bytes.length || s.frames > s.blocks * most) return undefined;
+    if (s.offset + s.blocks * blockWords * 2 > bytes.length || s.frames > maxFrames(s.blocks, blockWords, channels)) return undefined;
   }
   return { version, channels, blockWords, strokes };
 }
@@ -157,13 +156,18 @@ export function framesPerBlock(blockWords: number, width: number, channels: numb
   return Math.floor(((blockWords - 1) * 16) / (width * channels)) - BLOCK_OVERLAP;
 }
 
+/** The most frames `blocks` blocks can hold: every block at width 1. */
+function maxFrames(blocks: number, blockWords: number, channels: number): number {
+  return blocks * framesPerBlock(blockWords, 1, channels);
+}
+
 /**
  * Decode one stroke to integer PCM, one array per channel. Throws on a malformed stroke
  * (bad block header, or a frame count that disagrees with the directory).
  */
 export function decodeNspStroke(bytes: Uint8Array, dir: NspDirectory, stroke: NspStroke): Int32Array[] {
   const { channels, blockWords } = dir;
-  if (stroke.frames > stroke.blocks * framesPerBlock(blockWords, 1, channels)) {
+  if (stroke.frames > maxFrames(stroke.blocks, blockWords, channels)) {
     throw new Error(`piano stroke ${stroke.index}: ${stroke.frames} frames can't fit in ${stroke.blocks} blocks`);
   }
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
