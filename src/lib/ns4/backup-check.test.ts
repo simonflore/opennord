@@ -10,7 +10,7 @@ import { makeNpno, tone, type SynthStroke } from './nsp-synth.testing';
 import { readNspDirectory } from './nsp-audio';
 import { writeNsmp } from './nsmp-write';
 import {
-  backupItemKind, checkBackup, checkBackupItem, checkPiano, summarizeBackupCheck, type BackupCheckReport,
+  BackupCheckError, backupItemKind, checkBackup, checkBackupItem, checkPiano, summarizeBackupCheck, type BackupCheckReport,
 } from './backup-check';
 
 // Everything below is synthetic or a committed user-program fixture — no Nord content.
@@ -118,6 +118,35 @@ describe('checkBackup', () => {
     expect(r.pianoNotesChecked).toBe(1);
   });
 
+  it("archive-checks meta.xml and stray files too, so damage there isn't missed", async () => {
+    const blob = backupBlob(fullBackup());
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const meta = (await readZipDirectory(blob)).find((e) => e.path === 'meta.xml')!;
+    bytes[meta.offset + 30 + meta.path.length + 5] ^= 0x01;
+    const r = await checkBackup(new Blob([bytes]));
+    expect(r.problems.map((p) => [p.name, p.kind])).toEqual([['meta', 'file']]);
+    expect(r.otherChecked).toBe(2); // meta.xml + notes.txt
+    expect(summarizeBackupCheck(r).ok).toBe(false);
+  });
+
+  it("doesn't call a v6 piano damaged when its checksum proves it intact but a note won't decode", async () => {
+    const piano = makeNpno(pianoStrokes(), 1, 0x2c);
+    const dir = readNspDirectory(piano)!;
+    piano[dir.strokes[1].offset + 1] = 0xe0; // a block OpenNord can't decode
+    const r = await checkBackup(backupBlob({ 'Piano/Odd.npno': patchNs4Checksum(piano) }));
+    expect(r.problems).toEqual([]);
+    expect(r.counts.piano).toEqual({ total: 1, ok: 1 });
+    expect(r.pianoNotesSkipped).toBe(1);
+    expect(summarizeBackupCheck(r).detail).toMatch(/can't play 1 more yet/);
+  });
+
+  it('says a cut-off backup is incomplete, in plain words', async () => {
+    const bytes = new Uint8Array(await backupBlob(fullBackup()).arrayBuffer());
+    const err = await checkBackup(new Blob([bytes.subarray(0, bytes.length - 200)])).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(BackupCheckError);
+    expect((err as Error).message).toMatch(/incomplete or damaged/);
+  });
+
   it('skips note decoding when asked, but still reads the note list', async () => {
     const r = await checkBackup(backupBlob({ 'Piano/A.npno': makeNpno(pianoStrokes(), 1, 0x2c) }), { playPianos: false });
     expect(r.counts.piano).toEqual({ total: 1, ok: 1 });
@@ -156,7 +185,7 @@ describe('checkPiano', () => {
   it('rejects a damaged v6 piano by its checksum before decoding', async () => {
     const p = makeNpno(pianoStrokes(), 1, 0x2c);
     p[p.length - 5] ^= 0x01;
-    expect(await checkPiano(p)).toEqual({ problem: 'Damaged — your Nord may refuse to load this piano.', notes: 0 });
+    expect(await checkPiano(p)).toEqual({ problem: 'Damaged — your Nord may refuse to load this piano.', notes: 0, skipped: 0 });
   });
 });
 
@@ -167,7 +196,7 @@ describe('summarizeBackupCheck', () => {
       program: { total: 356, ok: 356 }, live: { total: 0, ok: 0 }, preset: { total: 3, ok: 3 },
       settings: { total: 1, ok: 1 }, piano: { total: 2, ok: 2 }, sample: { total: 1, ok: 1 },
     },
-    pianoNotesChecked: 120, problems: [], ignored: 0, cancelled: false,
+    pianoNotesChecked: 120, pianoNotesSkipped: 0, problems: [], ignored: 0, otherChecked: 0, cancelled: false,
   });
 
   it('reads like a player would say it', () => {

@@ -43,7 +43,7 @@ describe('BackupCheck', () => {
     bad[500] ^= 1; // the program no longer matches its own check value
     render(<BackupCheck file={backup({ 'Program/Bank A/Broken Lead.ns4p': bad })} />);
     fireEvent.click(screen.getByRole('button', { name: 'Check backup' }));
-    expect(await screen.findByText('1 of 1 files needs attention.')).toBeInTheDocument();
+    expect(await screen.findByText('1 of 2 files needs attention.')).toBeInTheDocument(); // the program + meta.xml
     expect(screen.getByText('Broken Lead')).toBeInTheDocument();
     expect(screen.getByText(/may refuse to load this program/)).toBeInTheDocument();
   });
