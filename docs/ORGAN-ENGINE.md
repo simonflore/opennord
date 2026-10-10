@@ -2,8 +2,11 @@
 
 OpenNord's own organ voice, used to play a Stage 4 program's organ layer from the
 on-screen keys or any MIDI keyboard. It is **our model of the instruments the Stage 4
-emulates**, built only from public, general organ knowledge. It is not Nord's sound,
-and it does not use any Nord firmware, firmware-derived data or Nord audio.
+emulates**. It is built from public, general organ knowledge so far; what the firmware
+research learns about the Stage 4's own organ (structure, behaviour, parameter ranges)
+may be built in too, under `docs/LEGAL.md` ("Firmware, DSP and desktop-binary
+research": knowledge yes, copies no). It is not Nord's sound, and it contains no Nord
+firmware, no tables dumped from it, and no Nord audio.
 
 Code: `src/lib/engine/organ/`. UI hook: `src/components/program/OrganPlay.tsx`
 (the **Play** panel on each organ card of the program view).
@@ -105,9 +108,14 @@ sustain (notes fade over ~0.5 s, ~0.9 s for pipes, instead of stopping).
 ## Not modelled (yet)
 
 - **Rotary speaker:** not in this engine. `voice.output` is the hook where a rotary
-  stage (and the organ FX chain: mod, amp/EQ, comp, delay, reverb) goes. A rotary
-  stage should come from public Leslie figures, independent of any firmware
-  research.
+  stage (and the organ FX chain: mod, amp/EQ, comp, delay, reverb) goes. Build it
+  from the Stage 4 rotary structure documented in `docs/EFFECTS-ENGINE.md` (two rotors,
+  Doppler delay + amplitude modulation, ~800 Hz crossover, horn low-pass by direction,
+  two virtual mics, tube drive, exponential speed ramps, stop position), with speeds and
+  timings from public Leslie figures or measured by ear — not from dumped tables.
+- **Tonewheel generation on the instrument:** not yet located in the firmware (DSP1
+  core 2 is the likely place). Tracing it would let this engine be checked against the
+  Stage 4's own drawbar, percussion, click and vibrato behaviour.
 - Tonewheel leakage/crosstalk, per-wheel level and filter tolerances, the scanner's
   frequency-dependent delay and HF loss, tube preamp character, and the Stage 4's
   own organ settings (click level, drawbar response options).
