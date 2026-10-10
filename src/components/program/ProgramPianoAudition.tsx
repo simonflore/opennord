@@ -1,11 +1,10 @@
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
 import { useFolderOptional } from '@/lib/folder/FolderContext';
 import type { FolderLibrary } from '@/lib/folder/useFolderLibrary';
 import { findProgramPiano, localPianos, type ProgramPianoMatch } from '@/lib/library/piano-match';
 import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 import { readNspZones } from '@/lib/ns4/nsp';
-import { getSharedCtx } from '@/components/sample/audioPlayer';
 import { usePianoVoice } from '@/components/piano/usePianoVoice';
 import { auditionKeys } from '@/components/piano/auditionKeys';
 
@@ -15,6 +14,22 @@ const TOUCH = [
   { label: 'Medium', velocity: 80 },
   { label: 'Hard', velocity: 120 },
 ] as const;
+
+/**
+ * Why a backup piano couldn't be opened, in a player's words: lost folder access
+ * (the browser dropped the permission, or the folder was disconnected), a file that
+ * couldn't be read (moved, re-synced, out of memory), or a damaged backup.
+ */
+function backupOpenError(model: string, e: unknown): string {
+  const name = typeof e === 'object' && e !== null && 'name' in e ? String(e.name) : '';
+  if (name === 'NotAllowedError' || name === 'SecurityError' || (e instanceof Error && /no folder is connected/i.test(e.message))) {
+    return `OpenNord can't reach your folder any more. Reconnect it, then try ${model} again.`;
+  }
+  if (name === 'NotFoundError' || name === 'NotReadableError' || e instanceof RangeError) {
+    return "Couldn't read your backup. Make sure it isn't being moved or synced, then try again.";
+  }
+  return `Couldn't open ${model} from your backup — the backup file looks damaged.`;
+}
 
 /**
  * "Hear the piano this program uses": when the user has the program's piano on this
@@ -39,6 +54,9 @@ function Audition({ folder, match, model }: { folder: FolderLibrary; match: Prog
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [touch, setTouch] = useState<(typeof TOUCH)[number]>(TOUCH[1]);
+  // One extraction at a time: Listen → Hide → Listen while it loads reuses it (a second
+  // copy of a large piano would double the memory on an iPad).
+  const loadingRef = useRef(false);
   // Collapsing hands the voice no bytes, which stops whatever is sounding.
   const { dir, zoneCount, playing, error, toggle } = usePianoVoice(open ? bytes : null);
   const zones = useMemo(() => (bytes ? readNspZones(bytes) : []), [bytes]);
@@ -48,14 +66,15 @@ function Audition({ folder, match, model }: { folder: FolderLibrary; match: Prog
     if (open) { setOpen(false); return; }
     setOpen(true);
     const ref = match.piano.backupRef;
-    if (bytes || !ref) return;
-    getSharedCtx(); // unlock audio inside this tap; opening the backup below is async
+    if (bytes || !ref || loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true); setLoadError('');
     try {
       setBytes(await extractBackupEntry(folder, ref));
-    } catch {
-      setLoadError(`Couldn't open ${model} from your backup.`);
+    } catch (e) {
+      setLoadError(backupOpenError(model, e));
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   }
