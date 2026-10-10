@@ -1,4 +1,4 @@
-import type { NordTransport } from './transport';
+import { TransportTimeoutError, type NordTransport } from './transport';
 
 /**
  * The USB bridge the Electron preload exposes on `window.nordNativeUsb`
@@ -21,8 +21,9 @@ export interface NordNativeUsb {
   open(productId?: number): Promise<void>;
   /** Bulk OUT — `dataB64` is base64-encoded bytes. */
   bulkOut(dataB64: string): Promise<void>;
-  /** Bulk IN — returns base64-encoded bytes. */
-  bulkIn(maxLength: number): Promise<string>;
+  /** Bulk IN — returns base64-encoded bytes, or null when `timeoutMs` (libusb's
+   *  own transfer timeout, which cancels the read) passed without a reply. */
+  bulkIn(maxLength: number, timeoutMs?: number): Promise<string | null>;
   /** Release + close. */
   close(): Promise<void>;
 }
@@ -73,8 +74,10 @@ export class ElectronUsbTransport implements NordTransport {
   async bulkOut(data: Uint8Array): Promise<void> {
     await this.bridge.bulkOut(bytesToB64(data));
   }
-  async bulkIn(maxLength: number): Promise<Uint8Array> {
-    return b64ToBytes(await this.bridge.bulkIn(maxLength));
+  async bulkIn(maxLength: number, timeoutMs?: number): Promise<Uint8Array> {
+    const b64 = await this.bridge.bulkIn(maxLength, timeoutMs);
+    if (b64 === null) throw new TransportTimeoutError(timeoutMs ?? 0);
+    return b64ToBytes(b64);
   }
   async close(): Promise<void> {
     await this.bridge.close();

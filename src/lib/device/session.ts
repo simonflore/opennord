@@ -32,6 +32,9 @@ export class NordSession {
    *  checked against it, since a write frame itself carries only {bank, slot}. */
   private openPartition: number | undefined;
 
+  /** Bound on each reply read, while {@link withReplyTimeout} runs. */
+  private replyTimeoutMs: number | undefined;
+
   constructor(private readonly transport: NordTransport) {}
 
   /**
@@ -80,7 +83,7 @@ export class NordSession {
    *  For queries whose reply-opcode convention isn't confirmed yet (e.g. GetFocus). */
   async requestRaw(msgId: number, words: number[], trailing?: Uint8Array): Promise<NordReply> {
     await this.transport.bulkOut(encodeMessage(msgId, words, trailing, { version: this.version }));
-    return decodeReply(await this.transport.bulkIn(READ_BUFFER));
+    return decodeReply(await this.transport.bulkIn(READ_BUFFER, this.replyTimeoutMs));
   }
 
   /** Send a request and return its decoded reply (verifies opcode = request | 1). */
@@ -90,6 +93,22 @@ export class NordSession {
       throw new NordError(`unexpected reply opcode 0x${reply.msgId.toString(16)} for request 0x${msgId.toString(16)}`);
     }
     return reply;
+  }
+
+  /**
+   * Run `fn` with every reply read bounded to `ms`: a reply that doesn't come
+   * rejects with `TransportTimeoutError` instead of waiting forever. For the
+   * connect-time probe, which asks questions an unfamiliar Nord may never answer;
+   * it runs before anything else uses the session, so the bound covers only it.
+   */
+  async withReplyTimeout<T>(ms: number, fn: () => Promise<T>): Promise<T> {
+    const previous = this.replyTimeoutMs;
+    this.replyTimeoutMs = ms;
+    try {
+      return await fn();
+    } finally {
+      this.replyTimeoutMs = previous;
+    }
   }
 
   /**
@@ -113,7 +132,7 @@ export class NordSession {
    * this before sending anything — so an unconfirmed partition is never written.
    */
   assertWritable(): void {
-    if (this.openPartition === undefined || !this.writable.has(this.openPartition)) {
+    if (this.openPartition === undefined || !this.canWrite(this.openPartition)) {
       throw new WriteBlockedError();
     }
   }

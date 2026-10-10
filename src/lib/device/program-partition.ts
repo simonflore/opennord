@@ -1,5 +1,4 @@
 import {
-  identifyModelByProductId,
   programPartitionIndex,
   programPartitionStaticIndex,
   type ModelInfo,
@@ -28,12 +27,3 @@ export function resolveModelProgramPartition(model: ModelInfo | undefined): numb
   return programPartitionIndex(model) ?? programPartitionStaticIndex(model) ?? PARTITION_PROGRAM;
 }
 
-/**
- * Best-guess program partition index for a device by USB product id. Uses the
- * best-known model (hardware-confirmed PID, else NSM-recovered), so e.g. an
- * Electro 4 guesses its static index 4 rather than the Stage-4 6 — which on an
- * Electro 4 is the Settings partition. A guess, never a write permission.
- */
-export function resolveProgramPartition(productId: number | undefined): number {
-  return resolveModelProgramPartition(identifyModelByProductId(productId));
-}

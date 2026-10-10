@@ -29,7 +29,7 @@ export async function executePlan(
 
   // 0. Refuse up front on an unconfirmed partition — before journaling, so there
   //    is nothing to roll back (the writes themselves are also gated in pushFile).
-  if (io.canWrite && !io.canWrite(partition)) {
+  if (io.canWrite?.(partition) === false) {
     return { ok: false, completedOps: 0, rolledBack: false, warnings: [WRITE_BLOCKED_MESSAGE] };
   }
 

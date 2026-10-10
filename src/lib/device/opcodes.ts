@@ -13,6 +13,7 @@ export const PARTITION_SAMP_LIB_NATIVE = 4;
 export const PARTITION_PIANO = 1;
 
 // Request opcodes (replies are request | 1).
+export const CQryPartList = 0x00; // → 0x01: the device's partitions, in protocol-index order
 export const CQryBankList = 0x02; // → 0x03: per-bank slot capacity for a partition
 export const CReqBegin = 0x04;
 export const CReqEnd = 0x06;
