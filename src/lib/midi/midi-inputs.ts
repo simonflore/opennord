@@ -17,7 +17,7 @@
 import { getCapacitorPlatform, isCapacitorPlatform } from '@/lib/platform';
 import type { MidiInputsHandle } from './midi-inputs-types';
 import { listenToNativeMidiInputs, showNativeBluetoothPairing } from './native-midi-inputs';
-import { listenToWebMidiInputs } from './web-midi-inputs';
+import { listenToWebMidiInputs, webMidiInputSupported } from './web-midi-inputs';
 
 export type { MidiInputErrorReason, MidiInputsHandle } from './midi-inputs-types';
 
@@ -26,7 +26,7 @@ export type MidiInputBackend = 'native' | 'web-midi' | 'none';
 /** Pick the MIDI-input transport for this host. Native wins inside the iPad app. */
 export function midiInputBackend(): MidiInputBackend {
   if (isCapacitorPlatform() && getCapacitorPlatform() === 'ios') return 'native';
-  if (typeof navigator !== 'undefined' && typeof navigator.requestMIDIAccess === 'function') return 'web-midi';
+  if (webMidiInputSupported()) return 'web-midi';
   return 'none';
 }
 

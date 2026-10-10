@@ -9,7 +9,8 @@ vi.mock('./native-midi-inputs', () => ({
   listenToNativeMidiInputs: (...a: unknown[]) => listenNative(...a),
   showNativeBluetoothPairing: (...a: unknown[]) => pairNative(...a),
 }));
-vi.mock('./web-midi-inputs', () => ({
+vi.mock('./web-midi-inputs', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./web-midi-inputs')>()),
   listenToWebMidiInputs: (...a: unknown[]) => listenWeb(...a),
 }));
 

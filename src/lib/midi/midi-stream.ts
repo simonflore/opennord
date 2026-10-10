@@ -47,7 +47,6 @@ export class MidiStreamParser {
   private running = 0; // channel running status, 0 = none
   private status = 0; // status of the message being assembled, 0 = none
   private data: number[] = [];
-  private needed = 0;
   private sysex: number[] | null = null;
   private sysexOverflow = false;
   private readonly maxSysex: number;
@@ -68,7 +67,6 @@ export class MidiStreamParser {
     this.running = 0;
     this.status = 0;
     this.data = [];
-    this.needed = 0;
     this.sysex = null;
     this.sysexOverflow = false;
   }
@@ -103,7 +101,6 @@ export class MidiStreamParser {
     if (b >= 0x80) {
       this.status = 0;
       this.data = [];
-      this.needed = 0;
       if (b === 0xf0) {
         this.running = 0;
         this.sysex = [0xf0];
@@ -117,18 +114,12 @@ export class MidiStreamParser {
       }
       if (b >= 0xf0) {
         this.running = 0; // system common cancels running status
-        const n = dataLengthForStatus(b);
-        if (n === 0) {
-          out.push(Uint8Array.of(b));
-          return;
-        }
-        this.status = b;
-        this.needed = n;
+        if (dataLengthForStatus(b) === 0) out.push(Uint8Array.of(b));
+        else this.status = b;
         return;
       }
       this.running = b;
       this.status = b;
-      this.needed = dataLengthForStatus(b);
       return;
     }
 
@@ -136,15 +127,12 @@ export class MidiStreamParser {
     if (!this.status) {
       if (!this.running) return; // nothing to attach to
       this.status = this.running;
-      this.needed = dataLengthForStatus(this.running);
-      this.data = [];
     }
     this.data.push(b);
-    if (this.data.length === this.needed) {
+    if (this.data.length === dataLengthForStatus(this.status)) {
       out.push(Uint8Array.of(this.status, ...this.data));
       this.status = 0;
       this.data = [];
-      this.needed = 0;
     }
   }
 }
