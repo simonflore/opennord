@@ -135,9 +135,7 @@ export async function resolveDeviceAccess(
   const { model } = identity;
   const guessed = resolveModelProgramPartition(model);
   if (hasTrustedLayout(identity)) {
-    const writable = model!.partitions
-      .filter((p) => !p.native && p.index !== undefined)
-      .map((p) => p.index!);
+    const writable = model!.partitions.flatMap((p) => (!p.native && p.index !== undefined ? [p.index] : []));
     return { programPartition: guessed, writable };
   }
   const check = await confirmProgramPartition(session, model, guessed, diagnostics, now);

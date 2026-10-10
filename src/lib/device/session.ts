@@ -113,7 +113,7 @@ export class NordSession {
    * this before sending anything — so an unconfirmed partition is never written.
    */
   assertWritable(): void {
-    if (this.openPartition === undefined || !this.writable.has(this.openPartition)) {
+    if (this.openPartition === undefined || !this.canWrite(this.openPartition)) {
       throw new WriteBlockedError();
     }
   }
