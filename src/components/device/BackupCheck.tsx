@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  BackupCheckError,
   checkBackup, summarizeBackupCheck, type BackupCheckProgress, type BackupCheckReport,
 } from '../../lib/ns4/backup-check';
-import { getErrorMessage } from '../../lib/errors';
 import { Button } from '../ui';
 
 /**
@@ -28,7 +28,7 @@ export function BackupCheck({ file }: { file: Blob }) {
     try {
       setReport(await checkBackup(file, { signal: ac.signal, onProgress: setProgress }));
     } catch (e) {
-      setError(`Couldn't check this backup: ${getErrorMessage(e)}`);
+      setError(e instanceof BackupCheckError ? e.message : "Couldn't finish checking this backup. Try again.");
     } finally {
       abort.current = null;
       setProgress(null);

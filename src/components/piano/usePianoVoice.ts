@@ -30,7 +30,13 @@ export function usePianoVoice(bytes: Uint8Array | null) {
     try {
       const pcm = decodeNspStroke(bytes, dir, stroke);
       const rate = NSP_SAMPLE_RATE * 2 ** (semitones / 12);
-      stopRef.current = playPcm(pcm, () => { stopRef.current = null; setPlaying((p) => (p === key ? null : p)); }, rate);
+      // The previous note's `ended` fires after this one starts: only the current note may clear the handle.
+      const stop = playPcm(pcm, () => {
+        if (stopRef.current !== stop) return;
+        stopRef.current = null;
+        setPlaying((p) => (p === key ? null : p));
+      }, rate);
+      stopRef.current = stop;
       setPlaying(key);
     } catch (e) {
       setError(`Couldn't play this note: ${getErrorMessage(e)}`);
