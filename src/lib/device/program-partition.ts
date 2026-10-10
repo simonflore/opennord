@@ -1,5 +1,5 @@
 import {
-  modelByProductId,
+  identifyModelByProductId,
   programPartitionIndex,
   programPartitionStaticIndex,
   type ModelInfo,
@@ -19,12 +19,21 @@ import { PARTITION_PROGRAM } from './opcodes';
  *                      ordinal; medium-high confidence, not yet HW-validated).
  *   3. `PARTITION_PROGRAM` — the Stage-4 default, behaviour-preserving last
  *                      resort for models with no evidence yet.
+ *
+ * This is only the starting point. Whether the connection may WRITE there is a
+ * separate decision (`resolveDeviceAccess` in connect-probe.ts): only a trusted
+ * hardware layout or a probe that finds the program files confirms it.
  */
 export function resolveModelProgramPartition(model: ModelInfo | undefined): number {
   return programPartitionIndex(model) ?? programPartitionStaticIndex(model) ?? PARTITION_PROGRAM;
 }
 
-/** Resolve the program partition index for a connected device by USB product id. */
+/**
+ * Best-guess program partition index for a device by USB product id. Uses the
+ * best-known model (hardware-confirmed PID, else NSM-recovered), so e.g. an
+ * Electro 4 guesses its static index 4 rather than the Stage-4 6 — which on an
+ * Electro 4 is the Settings partition. A guess, never a write permission.
+ */
 export function resolveProgramPartition(productId: number | undefined): number {
-  return resolveModelProgramPartition(modelByProductId(productId));
+  return resolveModelProgramPartition(identifyModelByProductId(productId));
 }

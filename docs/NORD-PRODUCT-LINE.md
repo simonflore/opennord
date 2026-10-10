@@ -290,7 +290,14 @@ loops `i = 0..count` and calls `GetPartition(i)->SetInfo(info[i])`;
 (`CProductBase::GetPartitionByName` exists but isn't on this path). So NSM
 itself assumes the device reports partitions in the product constructor's
 `CProductBase::Add()` order, which supports the registry's
-"Add-ordinal == protocol index" assumption.
+"Add-ordinal == protocol index" assumption — **but it doesn't always hold.** On
+the Stage 4, NSM adds the presets as Synth (7) · Organ (8) · Piano (9), while the
+hardware-validated order in `PROTOCOL-RE.md` is Organ (7) · Piano (8) · Synth (9).
+So an Add-ordinal (`staticIndex`) is a guess: OpenNord uses it to start the
+read-only connect probe, and writes to a model's Program partition only once
+the probe has found that model's program files there (or the index is
+hardware-confirmed for a layout that doesn't move between OS versions — today
+only the Stage 4). See `resolveDeviceAccess` in `src/lib/device/connect-probe.ts`.
 
 Recovered order (type = last `SPartition*` constructed before each `Add()`, tag
 from its `CFileType`; `llvm-objdump` + a conditional-branch check — only Wave 2
@@ -315,11 +322,14 @@ conditional `Add()`s):
 - **Stage 4 presets:** NSM adds Synth (7) · Organ (8) · Piano (9); `PROTOCOL-RE.md`
   lists Organ 7 · Piano 8 · Synth 9. Program (6) agrees and is what was
   HW-validated. Code that does address 7–9 (by the `PROTOCOL-RE.md` order): the
-  registry (`clavia/partitions.ts`) → `device/presets.ts` (preset browsing/pull), and
+  registry (`clavia/partitions.ts`) → `device/presets.ts` (preset browsing/pull),
+  `library/PresetsContext.tsx` (enumerates the presets on every connect), and
   `device/ns4b.ts` (backup folders + restore targets). See `docs/STAGE4-COVERAGE.md`.
 - **Stage 2 pedals:** the issue #31 capture has user Piano Pedal at 2 and native
   Pedal at 3; NSM's `CStage2` adds native first. Program (6) agrees. Older
-  Stage 2 OS versions that skip the gated user Pedal would shift Program to 5.
+  Stage 2 OS versions that skip the gated user Pedal would shift Program to 5,
+  so the registry marks Stage 2 `layoutVariesByOs` and connect probes it instead
+  of trusting index 6.
 - **Tag naming:** NSM gives `CC2` (PID 0x09) the `ncb`/`ncpg`/`ncli`/`ncsy`
   tags and `CC2D` (0x0C) `nc2*`; the table above files `ncpg` under
   "Organ 3 / C (classic)" and gives C2 `nc2p`. Left as-is until a file confirms.

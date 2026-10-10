@@ -2,6 +2,7 @@ import type { NordTransport } from './transport';
 import { encodeMessage, decodeReply, NordError, type NordReply } from './protocol';
 import { CReqBegin, CReqEnd, PARTITION_PROGRAM, PROTOCOL_ID, PROTOCOL_VERSION } from './opcodes';
 import { PROTOCOL_NEGOTIATE, MSG_QRY_VERSIONS, parseVersionReply } from './negotiate';
+import { WriteBlockedError } from './write-guard';
 
 /** Largest single reply we expect (program bodies are < 1 KB; windowed reads keep chunks small). */
 const READ_BUFFER = 8192;
@@ -18,9 +19,18 @@ export class NordSession {
 
   /** Protocol partition index of the connected device's user Programs. Defaults to
    *  the Stage-4 index (`PARTITION_PROGRAM` = 6); the connect flow sets it per model
-   *  via `resolveProgramPartition(productId)` so program transfer/organize address the
-   *  right partition on non-Stage-4 devices. See program-partition.ts. */
+   *  via `resolveDeviceAccess` (connect-probe.ts) so program transfer/organize address
+   *  the right partition on non-Stage-4 devices. See program-partition.ts. */
   programPartition = PARTITION_PROGRAM;
+
+  /** Partitions this session may write to. Empty by default, so a session that
+   *  never had its layout confirmed refuses every write; the connect flow fills
+   *  it from `resolveDeviceAccess` (connect-probe.ts). */
+  private writable: ReadonlySet<number> = new Set();
+
+  /** Partition of the currently open `begin`…`end` bracket, if any. Writes are
+   *  checked against it, since a write frame itself carries only {bank, slot}. */
+  private openPartition: number | undefined;
 
   constructor(private readonly transport: NordTransport) {}
 
@@ -82,12 +92,45 @@ export class NordSession {
     return reply;
   }
 
-  begin(partition: number): Promise<NordReply> {
-    return this.request(CReqBegin, [partition]);
+  /**
+   * Allow writes (create/write/delete) to exactly these partitions — those whose
+   * index is confirmed: hardware-confirmed in the registry, or found by the
+   * connect probe to hold the model's program files. Replaces any earlier set.
+   */
+  allowWrites(partitions: Iterable<number>): void {
+    this.writable = new Set(partitions);
   }
 
-  end(): Promise<NordReply> {
-    return this.request(CReqEnd, []);
+  /** True when writes to `partition` are allowed (see {@link allowWrites}). */
+  canWrite(partition: number): boolean {
+    return this.writable.has(partition);
+  }
+
+  /**
+   * Throw {@link WriteBlockedError} unless a session is open on a partition this
+   * session may write to. Every write path (push, delete, organize, restore,
+   * sample/piano removal) goes through `pushFile`/`deleteProgram`, which call
+   * this before sending anything — so an unconfirmed partition is never written.
+   */
+  assertWritable(): void {
+    if (this.openPartition === undefined || !this.writable.has(this.openPartition)) {
+      throw new WriteBlockedError();
+    }
+  }
+
+  async begin(partition: number): Promise<NordReply> {
+    this.openPartition = undefined;
+    const reply = await this.request(CReqBegin, [partition]);
+    if (reply.status === 0) this.openPartition = partition;
+    return reply;
+  }
+
+  async end(): Promise<NordReply> {
+    try {
+      return await this.request(CReqEnd, []);
+    } finally {
+      this.openPartition = undefined;
+    }
   }
 
   /**

@@ -4,6 +4,8 @@ import { buildOccupancy, planMove, planSwap, planArrange, planInsert, type Plan 
 import { executePlan } from './execute';
 import { planOffload } from './offload';
 import type { ProgramEntry } from './transfer';
+import type { DeviceIO } from './device-io';
+import { WRITE_BLOCKED_MESSAGE } from './write-guard';
 
 const PART = 6;
 const entry = (over: Partial<ProgramEntry>): ProgramEntry => ({
@@ -27,6 +29,22 @@ describe('executePlan', () => {
     expect(res.ok).toBe(true);
     expect(await dev.info(PART, { bank: 3, slot: 40 })).not.toBeNull();
     expect(await dev.info(PART, { bank: 2, slot: 12 })).toBeNull();
+  });
+
+  it('refuses up front on an unconfirmed partition: nothing read, written or rolled back', async () => {
+    const { dev, occ, plan, initial } = setup();
+    const calls: string[] = [];
+    const io: DeviceIO = {
+      pull: (p, e) => { calls.push('pull'); return dev.pull(p, e); },
+      push: (p, a, f, n) => { calls.push('push'); return dev.push(p, a, f, n); },
+      delete: (p, a) => { calls.push('delete'); return dev.delete(p, a); },
+      info: (p, a) => { calls.push('info'); return dev.info(p, a); },
+      canWrite: (p) => p !== PART,
+    };
+    const res = await executePlan(io, PART, plan, occ);
+    expect(res).toEqual({ ok: false, completedOps: 0, rolledBack: false, warnings: [WRITE_BLOCKED_MESSAGE] });
+    expect(calls).toEqual([]);
+    expect([...dev.snapshot()]).toEqual([...initial]);
   });
 
   it('rolls back to the original state when the copy push fails', async () => {
