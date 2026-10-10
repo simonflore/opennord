@@ -97,7 +97,7 @@ models use a 2-letter one):
 | `y` | **Synth Preset** (Stage) | Stage uses `…y` (e.g. `ns4y`) |
 | `o` / `op` | **Organ Preset** | `nso`, `neop`, `ns4o` |
 | `n` | (Stage 4 preset slot) | `ns4n` — preset family, exact kind TBD |
-| `t` | **Set List** *(inferred)* | `ns4t`, `ns3t`, `ne5t`… newer models |
+| `t` | **Settings** on Stage 3/4, **Set List** on Electro 5 | `ns4t` is Settings (hardware: the Stage 4 Settings partition holds one `ns4t` file, `docs/PROTOCOL-RE.md`; NSM 9.22 `CStage4` adds Settings [ns4t], `CStage3` Settings [ns3t]); `ne5t` is a Set List (`CElectro5`). Read the suffix per model |
 | `g` | (Stage 4) | `ns4g` — kind TBD |
 | `b` | **Backup** | a ZIP archive (`ns4b`/`ns3b`/`ns2b`); manifest carries `product_id`, `product_version`, `backup_format_version` |
 | `…bundle` / `…pb` | **Bundle / Pack** | program + its dependencies (pianos/samples) by name — the NSM 6 "Bundle" feature |
@@ -314,7 +314,9 @@ conditional `Add()`s):
 **Conflicts to settle on hardware** (a read-only `CQryPartList` probe):
 - **Stage 4 presets:** NSM adds Synth (7) · Organ (8) · Piano (9); `PROTOCOL-RE.md`
   lists Organ 7 · Piano 8 · Synth 9. Program (6) agrees and is what was
-  HW-validated; no code addresses 7–9 today.
+  HW-validated. Code that does address 7–9 (by the `PROTOCOL-RE.md` order): the
+  registry (`clavia/partitions.ts`) → `device/presets.ts` (preset browsing/pull), and
+  `device/ns4b.ts` (backup folders + restore targets). See `docs/STAGE4-COVERAGE.md`.
 - **Stage 2 pedals:** the issue #31 capture has user Piano Pedal at 2 and native
   Pedal at 3; NSM's `CStage2` adds native first. Program (6) agrees. Older
   Stage 2 OS versions that skip the gated user Pedal would shift Program to 5.
