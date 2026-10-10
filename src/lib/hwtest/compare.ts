@@ -13,7 +13,7 @@
  */
 import {
   centsBetween, estimateF0, measure, noteName, pickChannel, segmentNotes, levels, spectralCentroid,
-  type Measurement, type MeasureOptions,
+  type ChannelPick, type Measurement, type MeasureOptions,
 } from './analysis';
 import { renderOffline } from '../engine/organ/core';
 import { DEFAULT_ORGAN_PARAMS, ORGAN_ENGINE_MODELS, type OrganModel, type OrganParams } from '../engine/organ/types';
@@ -66,7 +66,7 @@ export function organParamsFromFlags(f: OrganFlags): OrganParams {
     if (!/^[0-8]{9}$/.test(f.drawbars)) throw new Error('Drawbars are nine digits 0–8, e.g. 888000000.');
     p.drawbars = [...f.drawbars].map(Number);
   }
-  if (f.perc && f.perc !== 'off') {
+  if (f.perc && f.perc.toLowerCase() !== 'off') {
     const words = f.perc.toLowerCase().split(/[,\s]+/);
     p.percussion = {
       on: true,
@@ -75,7 +75,7 @@ export function organParamsFromFlags(f: OrganFlags): OrganParams {
       volSoft: words.includes('soft'),
     };
   }
-  if (f.vib && f.vib !== 'off') {
+  if (f.vib && f.vib.toLowerCase() !== 'off') {
     const t = parseVibChorus(f.vib);
     if (!t) throw new Error(`Vibrato/chorus is V1–V3 or C1–C3 (got "${f.vib}").`);
     p.vibrato = { on: true, type: t };
@@ -178,9 +178,9 @@ const int8 = (b: number) => (b > 127 ? b - 256 : b);
 
 /**
  * Render the stroke a key plays, the way `docs/PIANO-ENGINE.md` describes the instrument:
- * key map → zone, velocity → attenuation (+20) → layer, pitch = 100·(key − root − 4) cents
- * (never above the recording), level word + attenuation + header trims → gain, loop decay
- * (+0x2E) inside the loop, damper (+0x72) after key-up.
+ * key map → zone, velocity → attenuation (+20) → layer, pitch = 100·(key − root − 4) cents plus
+ * the key's stretch tuning (never above the recording), level word + attenuation + header
+ * trims → gain, loop decay (+0x2E) inside the loop, damper (+0x72) after key-up.
  */
 export function pianoReference(npno: Uint8Array, o: PianoOptions): PianoReference {
   const cnsp = findCnsp(npno);
@@ -219,7 +219,10 @@ export function pianoReference(npno: Uint8Array, o: PianoOptions): PianoReferenc
   const pcm = decodeNspStroke(npno, dir, stroke).map((c) => Float32Array.from(c, (v) => v / 32768));
   const native = pickChannel({ sampleRate: NSP_SAMPLE_RATE, channels: pcm });
   const f0 = estimateF0(native.subarray(Math.min(native.length, 4410), Math.min(native.length, 22050)), NSP_SAMPLE_RATE);
-  const c0 = 100 * (o.key - root - NSP_ROOT_OFFSET);
+  // §2.3: plus the header's per-key stretch tuning (+0x18C, signed cents) and minus the
+  // stroke's fine tune (+0x32, cents). Both 0 in the test pianos; the CP80 runs −23…+21 c.
+  const stretchCents = int8(npno[cnsp + 0x18c + o.key]) - npno[rec + 0x32];
+  const c0 = 100 * (o.key - root - NSP_ROOT_OFFSET) + stretchCents;
   const ratioFor = (cents: number) => Math.min(2 ** (cents / 1200), 1);
   const pitch: PitchHypothesis[] = f0 ? [
     { id: 'A', label: '44.1 kHz, no +27 c', hz: f0.hz * ratioFor(c0) },
@@ -275,9 +278,9 @@ export function pianoReference(npno: Uint8Array, o: PianoOptions): PianoReferenc
   return {
     label: 'OpenNord piano', sampleRate: sr, channels: out, stroke: info, pitch,
     notes: [
-      `zone ${zone + 1}, layer ${pick + 1} of ${layers.length} (1 = loudest), recorded at ${f0 ? `${f0.hz.toFixed(2)} Hz` : '?'}; pitch model ${model}`,
+      `zone ${zone + 1}, layer ${pick + 1} of ${layers.length} (1 = loudest), recorded at ${f0 ? `${f0.hz.toFixed(2)} Hz` : '?'}; key tuning ${stretchCents >= 0 ? '+' : ''}${stretchCents} c; pitch model ${model}`,
       `velocity ${velocity} → ${(att / 5).toFixed(1)} dB (OpenNord's approximate Touch curve); level word ${level}; predicted gain ${predictedGainDb.toFixed(1)} dB`,
-      `release: damper index ${damperIndex} (T60 ${(t60 * 1000).toFixed(0)} ms), mode ${releaseMode}; no string resonance, unison or effects`,
+      `release: damper index ${damperIndex} (T60 ${(t60 * 1000).toFixed(0)} ms), mode ${releaseMode}${releaseMode === 2 ? ' (its linear fade rendered as the exponential damper)' : ''}; no string resonance, unison or effects`,
     ],
   };
 }
@@ -393,7 +396,7 @@ export function formatSweep(notes: SweepNote[]): string {
   return all.map((r) => r.map((v, c) => v.padEnd(widths[c])).join('  ').trimEnd()).join('\n');
 }
 
-/** Measure a reference render the same way as the recording (onset found in the render). */
-export function measureReference(r: Reference, opts: MeasureOptions): Measurement {
-  return measure(referenceMono(r), r.sampleRate, { ...opts, onset: undefined });
+/** Measure a reference render the same way as the recording (same channel; onset found in the render). */
+export function measureReference(r: Reference, opts: MeasureOptions, channel: ChannelPick = 'mix'): Measurement {
+  return measure(channel === 'mix' ? referenceMono(r) : pickChannel(r, channel), r.sampleRate, { ...opts, onset: undefined });
 }

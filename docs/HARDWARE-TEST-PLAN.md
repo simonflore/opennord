@@ -17,19 +17,22 @@ which git ignores. See [Recordings stay local](#recordings-stay-local).
 
 ## How the session runs
 
-The groups keep their letters, but they run in the order **A → C → D → B**. Group B is the
-only one that writes to the instrument (it loads home-made pianos). If something goes wrong
-there, everything else is already recorded. Within each group the steps are in order.
+The groups keep their letters, but they run in the order **A → C → D → B → C8**. Only two
+parts write to the instrument, and both come after the full backup and after every read-only
+test: group B (loads home-made pianos into empty places) and C8 (stores synth patches into
+empty program slots). Both are marked **✎ Writes to the Nord**. If something goes wrong there,
+everything else is already recorded. Within each group the steps are in order.
 
 | Block | Time | What |
 |---|---|---|
 | Before the session | ~45 min, at home | Kit, DAW project, iPad build, factory piano file (no Nord needed) |
 | 0. Set-up and backup | 20 min | Cables, settings, full backup; two iPad checks while the backup runs |
-| A. Read-only checks | 10 min | "Check my Nord", preset order, then start the backup check |
-| C. Sound measurements | 45 min | Piano, organ, synth and effects takes |
+| A. Read-only checks | 15 min | "Check my Nord", preset order, then start the backup check |
+| C. Sound measurements | 40 min | Piano, organ and effects takes (C8 waits until after B) |
 | D. iPad | 10 min | MIDI input with the Nord as the keyboard |
-| B. Loading a written piano | 25 min | T0 first, then T1–T3; pitch, loop, touch, level, release |
-| Clean-up | 5 min | Delete the test pianos; check the factory pianos |
+| B. Loading a written piano ✎ | 25 min | T0 first, then T1–T3; pitch, loop, touch, level, release |
+| C8. Synth patches ✎ | 8 min | Stored into empty program slots, so they can be exported |
+| Clean-up | 5 min | Delete the test pianos (and, if you like, the C8 patches); check the factory pianos |
 
 If time runs short, skip the steps marked *(optional)* first, then the rest of group C. Never
 skip the backup.
@@ -103,9 +106,8 @@ Nothing in this group writes to the instrument.
   (`src/lib/clavia/partitions.ts`), preset browsing (`device/presets.ts`) and backup restore
   targets (`device/ns4b.ts`) follow the first order.
 - **Steps:** read the file types for areas 7, 8 and 9 in A1's table.
-- **Expected:** one type per area. An empty area shows no type and can't be identified. If one
-  is empty, store one preset of that kind on the panel (see the Stage 4 manual, "Presets") and
-  run *Check my Nord* again, or leave it for another day.
+- **Expected:** one type per area. An empty area shows no type and can't be identified: note it
+  and leave it for another day (storing a preset to fill it would be a write).
 - **Write down:** area 7 = …, 8 = …, 9 = …
 
 ### A3. "Check backup" on the real backup (start it, then carry on; 3 min of your time)
@@ -123,11 +125,10 @@ Nothing in this group writes to the instrument.
 - **Write down:** the three lines, any problem lines, the total time from click to result, and
   the longest freeze you noticed.
 
-## C. Sound measurements for replication (45 min)
+## C. Sound measurements for replication (40 min, plus C8 after group B)
 
-These takes feed OpenNord's engines. The Nord only plays; you may change panel settings, but
-**don't store** over existing programs (the synth step stores to an empty slot; that is the only
-write in this group).
+These takes feed OpenNord's engines. The Nord only plays: you may change panel settings, but
+**don't store** anything. (C8 stores its patches, so it runs after group B.)
 
 **For every take:** name the file `<test id>-<what>.wav` (e.g. `C4-organ-perc-fast.wav`), start
 the recording a second before the note, and stop after the sound has died away. Effects off
@@ -262,14 +263,17 @@ off (or bypassed), Organ effects off, organ volume at a fixed mark.
 
 ### Synth
 
-#### C8. Reference patches: filter envelope amount, resonance, LFO (8 min)
+#### C8. Reference patches: filter envelope amount, resonance, LFO (8 min, after group B) ✎
+
+**✎ Writes to the Nord:** it stores up to three programs, so it runs after group B. Store only
+into a program location that NSM's Program list shows as **empty**; never over a program.
 
 - **Settles:** the filter-envelope amount in semitones (`docs/SYNTH-ENGINE.md` §7.4 and §7.8, the
   largest gap for sound), the resonance law per filter type and the preview's clipping at high
   resonance (issue #30, #24), and the LFO rate against its display (§7.6).
 - **Steps:** one synth layer, oscillator ANALOG → **Pure Saw**, no unison, no vibrato, amp
   envelope attack 0 and decay ∞ (full level while held), velocity off, effects off. Store each patch in an **empty**
-  program slot (so you can export it later with NSM for the comparison). Record:
+  program location (so you can export it later with NSM for the comparison). Record:
   1. *Env sweep:* LP12, cutoff low (note the display, e.g. around 200 Hz), resonance 0, filter
      envelope attack 0, decay about 1 s, amount 10 (then 5). `midi/hold-A4-3s.mid`.
   2. *Resonance:* LP24, cutoff about 1 kHz, filter envelope amount 0. Resonance 0, 5, 8 and 10:
@@ -364,8 +368,9 @@ organ layer and tap *Play this organ* (or open a sample on the Samples page), th
 
 ## B. Loading a written piano (25 min)
 
-This group writes to the instrument: it loads home-made pianos into **empty** places in the
-Piano area. It goes last on purpose. The safe recipe it follows is
+**✎ Writes to the Nord:** this group loads home-made pianos into **empty** places in the Piano
+area. It runs after every read-only test on purpose; nothing in it touches programs or
+settings. The safe recipe it follows is
 [NPNO-WRITE.md, "Hardware test recipe"](NPNO-WRITE.md#hardware-test-recipe-stage-4).
 
 The test pianos (from P1, in `hardware-test/pianos/`):
@@ -387,10 +392,16 @@ Resonance, Unison, Dyn Comp and Soft Release off, Touch Medium.
 - **Settles:** whether NSM and the instrument accept a file from `buildNpno`
   (`docs/NPNO-WRITE.md`, "What the instrument and NSM check").
 - **Steps:** open NSM (quit OpenNord's connection first) → **Piano** tab → check the free space
-  → drag `OpenNord_Test_0_6.0.npno` onto an **empty** location. Don't replace anything. On the
-  Nord, select Piano type Grand and look for "OpenNord Test 0" (or "OpenNord_Test_0").
-- **Expected:** NSM accepts it without a message; the piano shows up in the Grand list; key A4
-  plays a warm A for 2 s.
+  → drag `OpenNord_Test_0_6.0.npno` onto an **empty** location. Don't replace anything, and
+  if there is no room, stop here: don't delete a piano to make room. On the Nord, select Piano
+  type Grand and look for "OpenNord Test 0" (or "OpenNord_Test_0"). Turn the monitors or
+  headphones down before the first key: nobody has heard a home-made piano yet.
+- **Expected:** NSM accepts it without a message; the piano shows up in the Grand list; key A3
+  plays a warm A an octave down, and key A4 a warm A for 2 s.
+- **If A3–F#4 play but G4, G#4 or A4 is silent, very short or much too loud:** write it down; it
+  is a finding, not a failed load. Factory zones (except the top one) stop 3 keys below the recorded
+  note, and the record's pre-loop factor is indexed by `root − key + 1` (`docs/PIANO-ENGINE.md`
+  §1.4), which goes negative on those keys. In B2–B6, use the keys that play.
 - **If NSM refuses it:** write down the exact message ("unsupported", "corrupt", a version
   message: each points at one check). Don't try the other files; go to clean-up. (The recipe's
   fallback, step 7, writes through OpenNord's device layer instead; leave that for another
@@ -477,7 +488,8 @@ Resonance, Unison, Dyn Comp and Soft Release off, Touch Medium.
 
 ## Clean-up (5 min)
 
-- [ ] In NSM's Piano tab, delete every "OpenNord Test" piano.
+- [ ] In NSM's Piano tab, delete every "OpenNord Test" piano. In the Program tab, delete the C8
+  patches once you have exported them (they went into empty locations).
 - [ ] On the Nord, play two or three factory pianos and an organ program.
 - [ ] Optional: run *Check my Nord* again; area 1 shows what it showed in A1 (no `npno` type if
   it was empty then).

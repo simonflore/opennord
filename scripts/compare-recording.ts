@@ -184,10 +184,11 @@ try {
   const opts: MeasureOptions = { window: win ?? (ref ? [0, ref.channels[0].length / sr] : undefined), modulation: a.mod, heldS: win ? undefined : hold };
   const nord = measure(x, sr, opts);
   if (ref) {
-    refMeasure = measureReference(ref, opts);
-    refSig = referenceMono(ref);
+    refMeasure = measureReference(ref, opts, channel);
+    refSig = channel === 'mix' ? referenceMono(ref) : pickChannel(ref, channel);
   }
 
+  if (nord.peakDb > -0.5) console.log('Warning: the take peaks at full scale and may be clipped. Lower the interface gain and record it again before trusting level, brightness or decay.');
   console.log(`Note: ${noteName(key)} (MIDI ${key}, ${noteToHz(key).toFixed(2)} Hz at A4 = 440)  · held ${hold} s  · starts at ${nord.onsetS.toFixed(3)} s  · noise floor ${nord.noiseDb.toFixed(0)} dBFS`);
   if (ref) for (const n of ref.notes) console.log(`${ref.label}: ${n}`);
   console.log('');

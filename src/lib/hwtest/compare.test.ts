@@ -18,6 +18,7 @@ describe('organ reference', () => {
     expect(p.percussion).toEqual({ on: true, harm3rd: true, decayFast: false, volSoft: true });
     expect(p.vibrato).toEqual({ on: true, type: 'C3' });
     expect(organParamsFromFlags({}).percussion.on).toBe(false);
+    expect(organParamsFromFlags({ perc: 'OFF', vib: 'Off' }).percussion.on).toBe(false);
     expect(() => organParamsFromFlags({ drawbars: '889' })).toThrow();
     expect(() => organParamsFromFlags({ vib: 'X9' })).toThrow();
   });
@@ -70,6 +71,14 @@ describe('piano reference', () => {
     expect(centsBetween(gs4.A, noteToHz(68))).toBeCloseTo(0, 1);
     expect(centsBetween(gs4.B, noteToHz(68))).toBeCloseTo(27, 1);
     expect(centsBetween(gs4.C, noteToHz(68))).toBeCloseTo(27 - 1200 * Math.log2(44100 / CLOCK_43K), 1);
+  });
+
+  it('adds the per-key stretch tuning (header +0x18C) to every hypothesis', () => {
+    const stretched = t1.slice();
+    stretched[0x2c + 0x18c + 68] = 0xf6; // −10 cents on G#4
+    const plain = pianoReference(t1, { key: 68, holdS: 0.5, totalS: 0.6, sampleRate: SR }).pitch;
+    const tuned = pianoReference(stretched, { key: 68, holdS: 0.5, totalS: 0.6, sampleRate: SR }).pitch;
+    tuned.forEach((h, i) => expect(centsBetween(h.hz, plain[i].hz)).toBeCloseTo(-10, 1));
   });
 
   it('renders the transposed stroke at the predicted pitch, level and loop decay', () => {
