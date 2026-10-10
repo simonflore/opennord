@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type {
   EngineCardModel, OrganPanelModel, PianoCardModel, SynthCardModel, EnvCurveView, Stat,
 } from '../../lib/clavia/engine-view';
@@ -7,9 +8,9 @@ import { resolveFactory } from '../../lib/device/factory';
 /**
  * One card per active engine. Pure renderer of the model-agnostic EngineCardModel —
  * the per-model view-models (ns4/view.ts, ns3/view.ts) build the model; this file
- * only renders it.
+ * only renders it. `children` is an optional footer slot (e.g. the organ's Play panel).
  */
-export function EngineCard({ card }: { card: EngineCardModel }) {
+export function EngineCard({ card, children }: { card: EngineCardModel; children?: ReactNode }) {
   return (
     <div className="ps-card">
       <h4>{card.title}</h4>
@@ -17,6 +18,7 @@ export function EngineCard({ card }: { card: EngineCardModel }) {
       {card.kind === 'piano' && <PianoBody m={card.piano} stats={card.stats} />}
       {card.kind === 'synth' && <SynthBody m={card.synth} env={card.env} modEnv={card.modEnv} stats={card.stats} />}
       <Meter label="vol" value={card.volume.value} fill={card.volume.fill} morph={card.volume.morph} />
+      {children}
     </div>
   );
 }
