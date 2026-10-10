@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { resolveProgramPartition, resolveModelProgramPartition } from './program-partition';
+import { resolveModelProgramPartition } from './program-partition';
 import { PARTITION_PROGRAM } from './opcodes';
-import { MODELS } from '../clavia/partitions';
+import { MODELS, identifyModelByProductId } from '../clavia/partitions';
 import type { ModelInfo } from '../clavia/partitions';
 
-describe('resolveProgramPartition', () => {
+describe('resolveModelProgramPartition — by USB product id', () => {
+  const resolveProgramPartition = (pid: number | undefined) =>
+    resolveModelProgramPartition(identifyModelByProductId(pid));
+
   it('uses the model\'s hardware-confirmed program partition index', () => {
     expect(resolveProgramPartition(0x002e)).toBe(6); // Stage 4
     expect(resolveProgramPartition(0x0021)).toBe(6); // Stage 2 (issue #31)
