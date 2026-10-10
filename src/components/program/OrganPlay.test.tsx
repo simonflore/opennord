@@ -45,6 +45,6 @@ describe('OrganPlay', () => {
     render(<MidiProvider><OrganPlay layer={{ ...b3, organModel: 'VOX' }} /></MidiProvider>);
     expect(screen.getByText(/simplified sketch/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Play this organ' }));
-    await waitFor(() => expect(screen.getByText(/play this organ\./)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/To play this organ from a MIDI keyboard/)).toBeInTheDocument());
   });
 });
