@@ -1,5 +1,5 @@
 import { parseClaviaFile, isNs4Program, type NordProgram } from '../formats';
-import { programNameFromFilename } from '../clavia/name';
+import { pianoNameFromFilename, programNameFromFilename } from '../clavia/name';
 import { readNs4Bundle } from '../ns4/bundle';
 import { readNsmp, type NsmpFile } from '../ns4/nsmp';
 import { ns4Engines } from '../ns4/engines';
@@ -132,7 +132,7 @@ export function scanFiles(files: RawFile[]): ScanResult {
         const pk = presetKindForTag(info.tag);
         if (pk) presets.push({ id: `folder:${path}`, name: programNameFromFilename(path), path, tag: info.tag, kind: pk, bytes });
       } else if (kind === 'piano') {
-        pianos.push({ id: `folder:${path}`, name: programNameFromFilename(path), bytes });
+        pianos.push({ id: `folder:${path}`, name: pianoNameFromFilename(path), bytes });
       } else {
         const file = readNsmp(bytes);
         samples.push({

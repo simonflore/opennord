@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { programNameFromFilename } from './name';
+import { pianoNameFromFilename, programNameFromFilename } from './name';
 
 describe('programNameFromFilename', () => {
   it('strips path and extension', () => {
@@ -22,5 +22,16 @@ describe('programNameFromFilename', () => {
     expect(programNameFromFilename('')).toBe('Unnamed');
     expect(programNameFromFilename(undefined)).toBe('Unnamed');
     expect(programNameFromFilename('.ns4p')).toBe('Unnamed');
+  });
+});
+
+describe('pianoNameFromFilename', () => {
+  it('keeps the version a piano name ends in', () => {
+    expect(pianoNameFromFilename('Pianos/White Grand XL 6.3.npno')).toBe('White Grand XL 6.3');
+    expect(pianoNameFromFilename('Electric_Grand_1_CP80__5.3.NPNO')).toBe('Electric_Grand_1_CP80__5.3');
+  });
+
+  it('falls back to Unnamed for an extension-only name', () => {
+    expect(pianoNameFromFilename('.npno')).toBe('Unnamed');
   });
 });
