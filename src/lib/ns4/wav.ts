@@ -145,6 +145,8 @@ export interface WavAudio {
   channelCount: number;
   /** Source bits per sample (8/16/24/32). */
   bitDepth: number;
+  /** IEEE float source (`channels` then hold the value × 0x7FFFFF). */
+  float: boolean;
   channels: Int32Array[];
 }
 
@@ -179,6 +181,7 @@ export function parseWav(bytes: Uint8Array): WavAudio {
   if (dataOff < 0 || channelCount < 1 || bitDepth === 0) throw new Error('parseWav: missing fmt/data chunk');
   const isFloat = fmtTag === 3;
   if (fmtTag !== 1 && !isFloat) throw new Error(`parseWav: unsupported format ${fmtTag} (PCM/float only)`);
+  if (isFloat && bitDepth !== 32) throw new Error(`parseWav: unsupported ${bitDepth}-bit float (32-bit float only)`);
 
   const bytesPer = bitDepth >> 3;
   const stride = bytesPer * channelCount;
@@ -196,5 +199,5 @@ export function parseWav(bytes: Uint8Array): WavAudio {
       channels[c][f] = v;
     }
   }
-  return { sampleRate, channelCount, bitDepth, channels };
+  return { sampleRate, channelCount, bitDepth, float: isFloat, channels };
 }

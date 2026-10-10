@@ -1,0 +1,5 @@
+{
+  "//": "Typechecks the hardware test kit CLIs, which sit outside the app's TS project: npm run hw:typecheck",
+  "extends": "../tsconfig.json",
+  "include": ["make-test-piano.ts", "compare-recording.ts", "../src/vite-env.d.ts"]
+}
