@@ -15,7 +15,7 @@
  * waveform families); they are NOT measurements of Nord's models.
  */
 import {
-  COMPLEX_WHEELS, DRAWBAR_1FT, FOOTAGES, MANUAL_LOWEST_WHEEL, drawbarGain, equalTempered,
+  COMPLEX_WHEELS, DRAWBAR_1FT, MANUAL_LOWEST_WHEEL, drawbarGain, equalTempered,
   tonewheelFrequency, wheelFor,
 } from './tonewheel';
 import type { OrganModel, OrganParams } from './types';
@@ -130,11 +130,14 @@ const voxVoicing: ModelVoicing = {
   route(midi, bus, p, out) {
     const foot = drawbarGain(p.drawbars[bus] ?? 0);
     if (foot <= 0) return;
-    const colours = [drawbarGain(p.drawbars[4] ?? 0), drawbarGain(p.drawbars[5] ?? 0) * 0.6];
+    // Tone colours (timbre 0 = flute, 1 = reed); no per-call arrays — this runs on the audio thread.
+    const flute = drawbarGain(p.drawbars[4] ?? 0);
+    const reed = drawbarGain(p.drawbars[5] ?? 0) * 0.6;
     const parts = VOX_FOOTAGES[bus];
     for (const semis of parts) {
       const m = foldMidi(midi + semis, 24, 120);
-      colours.forEach((c, t) => { if (c > 0) out.push(id(t, m), (foot * c) / Math.sqrt(parts.length)); });
+      if (flute > 0) out.push(id(0, m), (foot * flute) / Math.sqrt(parts.length));
+      if (reed > 0) out.push(id(1, m), (foot * reed) / Math.sqrt(parts.length));
     }
   },
   attackMs: 2,
@@ -249,6 +252,3 @@ const VOICINGS: Record<OrganModel, ModelVoicing> = {
 export function voicingFor(model: OrganModel): ModelVoicing {
   return VOICINGS[model] ?? VOICINGS.B3;
 }
-
-/** Footage labels for the B3 drawbars, re-exported for UI/tests. */
-export const B3_FOOTAGE_LABELS = FOOTAGES.map((f) => f.label);

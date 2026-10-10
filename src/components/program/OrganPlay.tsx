@@ -1,15 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, SectionLabel } from '@/components/ui';
 import { getSharedCtx } from '@/components/sample/audioPlayer';
 import { KeyboardZoneMap } from '@/components/sample/KeyboardZoneMap';
 import { MidiConnect } from '@/components/sample/MidiConnect';
 import { useOptionalMidi } from '@/lib/midi/MidiContext';
+import type { NoteSink } from '@/lib/midi/sustain-gate';
 import { organParamsFromLayer } from '@/lib/engine/organ/params';
 import type { OrganVoice } from '@/lib/engine/organ/organ-voice';
 import type { NS4Layer, Ns4OrganFx } from '@/lib/ns4/types';
 
 const NO_ZONES: never[] = [];
 const noop = () => {};
+
+function withNote(held: ReadonlySet<number>, note: number, down: boolean): ReadonlySet<number> {
+  const next = new Set(held);
+  if (down) next.add(note); else next.delete(note);
+  return next;
+}
 
 /**
  * "Play this organ" — sounds an organ layer of the program right here, from the
@@ -23,33 +30,29 @@ export function OrganPlay({ layer, organFx }: { layer: NS4Layer; organFx?: Ns4Or
   const [voice, setVoice] = useState<OrganVoice | null>(null);
   const [status, setStatus] = useState<'idle' | 'starting' | 'error'>('idle');
   const [held, setHeld] = useState<ReadonlySet<number>>(new Set());
-  const paramsRef = useRef(params);
 
-  useEffect(() => { paramsRef.current = params; voice?.setParams(params); }, [params, voice]);
+  useEffect(() => { voice?.setParams(params); }, [params, voice]);
   useEffect(() => () => voice?.dispose(), [voice]);
 
-  const mark = (note: number, down: boolean) => setHeld((s) => {
-    const n = new Set(s);
-    if (down) n.add(note); else n.delete(note);
-    return n;
-  });
+  // One note path for the on-screen keys and a connected MIDI keyboard.
+  const keys = useMemo<NoteSink | null>(() => voice && {
+    noteOn: (n, v) => { voice.noteOn(n, v); setHeld((s) => withNote(s, n, true)); },
+    noteOff: (n) => { voice.noteOff(n); setHeld((s) => withNote(s, n, false)); },
+  }, [voice]);
 
   // Route a connected MIDI keyboard into this organ while it is switched on.
   useEffect(() => {
-    if (!voice || !midi) return;
-    midi.setSink({
-      noteOn: (n, v) => { voice.noteOn(n, v); mark(n, true); },
-      noteOff: (n) => { voice.noteOff(n); mark(n, false); },
-    });
+    if (!keys || !midi) return;
+    midi.setSink(keys);
     return () => midi.setSink(null);
-  }, [voice, midi]);
+  }, [keys, midi]);
 
   async function start() {
     setStatus('starting');
     try {
       const ctx = getSharedCtx(); // resumes audio inside this tap (required on iPad/iPhone)
       const { createOrganVoice } = await import('@/lib/engine/organ/organ-voice');
-      setVoice(await createOrganVoice(ctx, { params: paramsRef.current }));
+      setVoice(await createOrganVoice(ctx, { params }));
       setStatus('idle');
     } catch {
       setStatus('error');
@@ -82,14 +85,14 @@ export function OrganPlay({ layer, organFx }: { layer: NS4Layer; organFx?: Ns4Or
       {status === 'error' && (
         <p className="mt-2 text-[11px] text-dim">This browser couldn't start the organ sound.</p>
       )}
-      {voice && (
+      {keys && (
         <>
           <KeyboardZoneMap
             zones={NO_ZONES}
             selected={-1}
             onSelect={noop}
-            onNoteOn={(n) => { voice.noteOn(n, 100); mark(n, true); }}
-            onNoteOff={(n) => { voice.noteOff(n); mark(n, false); }}
+            onNoteOn={(n) => keys.noteOn(n, 100)}
+            onNoteOff={keys.noteOff}
             soundingMidis={held}
           />
           {midi && <MidiConnect what="this organ" />}
