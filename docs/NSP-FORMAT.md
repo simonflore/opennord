@@ -820,6 +820,14 @@ Bit-exact means every stroke decodes to exactly its recorded frame count, and it
   `+0x8B` is a separate byte (2 in the v6 file, 0 in v5); reading it as note 0 added a phantom
   zone with root 2 and shifted every range by one note. Offsets are relative to the `CNSP` tag,
   which sits at 0x2C in v6 files and 0x18 in v5.
+- **Checksum only in v6** (2026-10-10): v6 files use the format-1 CBIN header (byte 4 = 1)
+  with the CRC-32 at 0x18 over `bytes[0x2C:]`, as programs and samples do. v5 files use the
+  format-0 header (byte 4 = 0) and the `CNSP` tag itself sits at 0x18, so there is no CBIN
+  checksum to verify. `readNsp` used to check one anyway and flagged every intact v5 piano as
+  damaged (the real v5.30 CP80 and Wurlitzer files). It now checks only when the field exists
+  (`NspFile.hasChecksum`), the same rule `nsmpHasChecksumField` applies to format-0 samples.
+  Whether the v5 `CNSP` header (`04 50 xx xx xx xx` after the tag) carries a checksum of its
+  own is unknown.
 - One stroke's blocks are contiguous, and strokes follow each other with no gaps; the body runs to
   EOF.
 
