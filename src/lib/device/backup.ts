@@ -72,6 +72,15 @@ async function backupUnlocked(
 }
 
 /**
+ * True when a restore may write everywhere a backup can hold user content —
+ * every partition it addresses is confirmed writable on this keyboard. When
+ * false, offering Restore would only end in a refusal (see {@link restore}).
+ */
+export function canRestore(session: NordSession): boolean {
+  return USER_PARTITIONS.every((p) => session.canWrite(p.partition));
+}
+
+/**
  * Restore a .ns4b onto the device. Maps each entry's extension → partition
  * (factory npno/nsmp4 are skipped + counted), reads its CBIN header for the
  * target {bank, slot}, and writes it. Best-effort: per-file failures are

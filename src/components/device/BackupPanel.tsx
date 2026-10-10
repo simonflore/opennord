@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { NordSession } from '../../lib/device/session';
-import { backup, restore, type RestoreResult } from '../../lib/device/backup';
+import { backup, canRestore, restore, type RestoreResult } from '../../lib/device/backup';
 import { resolveFactory } from '../../lib/device/factory';
 import { downloadBytes } from '../../lib/download';
 import { getErrorMessage } from '../../lib/errors';
@@ -95,9 +95,17 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <Button variant="outline" onClick={runBackup} disabled={busy}>Back up</Button>
-        <FileInput accept=".ns4b" disabled={busy} onFile={(f) => void pickRestore(f)} className="on-btn on-btn--outline">
-          Restore…
-        </FileInput>
+        {canRestore(session) ? (
+          <FileInput accept=".ns4b" disabled={busy} onFile={(f) => void pickRestore(f)} className="on-btn on-btn--outline">
+            Restore…
+          </FileInput>
+        ) : session.canWrite(session.programPartition) && (
+          // (When even programs can't be written, the page's "Browsing only" note already says so.)
+          <span className="ps-sub" style={{ margin: 0 }}>
+            Restoring a backup is off on this keyboard: OpenNord couldn’t confirm where everything in
+            it belongs, so it won’t overwrite anything.
+          </span>
+        )}
         {status && <span className="ps-sub" style={{ margin: 0 }}>{status}</span>}
       </div>
       {skipped.length > 0 && (
