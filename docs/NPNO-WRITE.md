@@ -29,15 +29,17 @@ const { bytes, fileName, notes } = buildNpno({
     // …one zone per sampled note
   ],
 });
-checkNpnoAcceptance(bytes, { deep: true }); // every check should be ok
+checkNpnoAcceptance(bytes, { deep: true, model: 'stage-3', fileName }); // every check should be ok
 ```
 
 - `buildNpno(input)` → `{ bytes, fileName, notes, stats }`. It throws a plain-words error on
   input the file can't hold (overlapping or fractional key ranges, a version minor outside 0–9,
-  an unknown `pianoType`, a recording too long for the u16 block count, more than 0x6000
-  recordings) and on zones whose recorded notes don't rise with their keys: the file stores
-  notes by root and the key map by key, so the two orders must agree. It then runs
-  `checkNpnoAcceptance` on the result and refuses to return a file that fails it.
+  an unknown `pianoType`, a recording too long for the u16 block count) or a Nord won't load
+  (more than 5,279 recordings, more than 30 layers in a zone, a name whose file name runs past
+  32 characters; see [Limits](#limits-on-all-three-models)), and on zones whose recorded notes
+  don't rise with their keys: the file stores notes by root and the key map by key, so the two
+  orders must agree. It then runs `checkNpnoAcceptance` on the result (with its file name) and
+  refuses to return a file that fails it.
   Zones are key ranges with a root note
   and dynamic layers, loudest first: each layer's `floorDb` says how far below the hardest hit it
   takes over (the first is 0 dB; the instrument switches halfway between floors, and the Touch
@@ -54,9 +56,11 @@ checkNpnoAcceptance(bytes, { deep: true }); // every check should be ok
   bytes, each stroke's PCM, record bytes and block levels). `writeNpnoImage(readNpnoImage(x))`
   returns `x` unchanged for all three factory files.
 - `encodeNpnoStroke(stroke, channels)`: the block encoder on its own.
-- `checkNpnoAcceptance(bytes, { deep })`: the checks we found in NSM and the Stage 4 firmware
-  (list below), plus a structural walk and, with `deep`, a full decode. The voice-table check
-  can only hold one file to an empty instrument (see below).
+- `checkNpnoAcceptance(bytes, { deep, model, fileName })`: the checks we found in NSM and the
+  Stage 2/3/4 firmware (list below), plus a structural walk and, with `deep`, a full decode.
+  `model` (`'stage-2' | 'stage-3' | 'stage-4'`, default `'stage-4'`) sets the voice-table size;
+  `fileName` adds the 32-character name check. The voice-table check can only hold one file to
+  an empty instrument (see below).
 
 `readNsp`, `readNspIdentity`, `readNspDirectory`, `decodeNspStroke`, `identifyNsmp` and the folder
 classifier all read the output, including a one-zone piano (`readNsp` takes a single zone when
@@ -108,7 +112,7 @@ ARM loader come from `0xC00B84CC` (header) and `0xC00AB028`/`0xC0020088` (record
 | Offset | Field | Written |
 |---|---|---|
 | +0x00 | `CNSP` | set |
-| +0x04 | u16 format: 0x464 (v6) | set. NSM and the firmware accept 0x423–0x430, 0x440, 0x450, 0x464 |
+| +0x04 | u16 format: 0x464 (v6) | set. NSM and the firmware know 0x423–0x430, 0x440, 0x450, 0x464; the instruments load only 0x450 and 0x464 (piano generation 5, below) |
 | +0x06 | u32 byte sum of CNSP+0x16 … end of the CNSP stream | set. NSM rejects a mismatch (`CNSPFileInputStream` ctor) |
 | +0x16 | u16 metadata version = format | set (gated like +0x04) |
 | +0x18 | piano type: 1 grand, 3 electric, 4 clav seen; 2 upright, 5 digital, 6 misc inferred | set (`pianoType`, default 1) |
@@ -128,7 +132,7 @@ ARM loader come from `0xC00B84CC` (header) and `0xC00AB028`/`0xC0020088` (record
 | +0x49C | byte: 2 (Clavinet), 0 (v5) | constant 2 |
 | +0x49D | per-note table, 0x1E everywhere in all files | constant |
 | +0x51D | byte, 2 in the Clavinet (not read by the loader) | constant 2 |
-| +0x5A2 | per-note table (keys < 122; +0x61A for the rest), halved for v5 | 0 |
+| +0x5A2 | per-note table for keys 0–121 (ends at +0x61B, the byte of key 121, which keys 122–127 reuse; Stage 2 `0x301B2416`, Stage 4 `0xC00B84CC`), halved for v5 | 0 |
 | +0x61C | directory: u16 format (the gate re-checks it), u16 channels, u16 stroke count | set |
 | +0x622 | u16[128]: number of strokes of the zone rooted at each note (the stored root, as in the key map) | set |
 | +0x722 … +0x731 | zero | 0 |
@@ -171,24 +175,57 @@ ARM loader come from `0xC00B84CC` (header) and `0xC00AB028`/`0xC0020088` (record
 - `0xC00B92E4` reads 0x16 bytes at file+0xC (the instrument's partition entry puts `CNSP` at
   +0xC). It checks the magic, then the header format, the metadata version (+0x22) and the
   directory version (+0x628, through `0xC00B276C`). Each must be a known format the instrument
-  still supports: the gate requires the instrument's oldest supported generation to be below
+  still supports: the gate requires the instrument's piano generation to be below
   3/4/5/6/7 for 0x423–0x42F/0x430/0x440/0x450/0x464. The result codes are 0 accepted,
-  1 unsupported generation, 3 not a piano or a read error, 4 unknown version. NSM lists v5 and v6
-  for the Stage 4.
+  1 unsupported generation, 3 not a piano or a read error, 4 unknown version.
+- **The generation is 5**, with 120 piano slots: the piano manager is built with {4, 120, 5}
+  (`0xC0249AC4`, passed to `0xC00C0A04`). So only **v5 (0x450) and v6 (0x464)** load;
+  0x423–0x440 are rejected ("Unsupported version").
 - `0xC00B84CC` loads the header tables. `0xC00B47B8` reads the directory (+0x61C, the
   layers-per-root table) and every record. It stops with an error state when the strokes don't
-  fit the voice-table space (`0x6000` entries).
+  fit the voice-table space (`0x6000` entries) or the per-piano limit below (`0xC00B5618`).
 - Neither the gate nor the loader checks the CNSP byte sum or the CBIN CRC. Whether the
   USB write path does is unknown (the transfer frames carry their own CRC-16).
 
+**Stage 3 OS 2.64 and Stage 2 OS 3.00** run the same piano code (Stage 3 on ARM, Stage 2 on its
+ColdFire): the same gate (Stage 3 `0xC011A4EC`, Stage 2 `0x30175C08`), the same thresholds,
+directory, 0x76-byte records and v5 conversion. Both build their piano manager with
+**generation 5 and 120 slots** too (Stage 3 {4, 0x78, 5} at `0xC0000614` → `0xC0119040`;
+Stage 2 `0x30170C2E` → `0x301745DC(obj, 5, 0x78)`), so v5 and v6 load on all three and v4 or
+older shows "Unsupported version". A version the gate doesn't know shows "Unsupported version"
+on the Stage 3 and "Piano is broken" on the Stage 2. Differences:
+
+- The voice table every loaded piano shares has **0x4000 entries on the Stage 2**
+  (`0x301745DC`), 0x6000 on the Stage 3 (`0xC0119040`) and Stage 4.
+- Which `.npno` NSM offers depends on the OS: the **V6 piano partition (500–699) needs
+  Stage 2 OS ≥ 2.29** (`0x1000A9FA4`) **or Stage 3 OS ≥ 1.61** (`0x1001AFCEC`); older systems
+  get the V5 partition (500–599) and refuse v6 files. `buildNpno` writes v6; the v5 envelope
+  of `writeNpnoImage` is for those older systems.
+- Neither gate checks the CNSP byte sum or either CRC (medium confidence).
+
+### Limits on all three models
+
+| Limit | Value | What the instrument does | Source |
+|---|---|---|---|
+| Notes (strokes) per piano | ≤ 0x149F = **5,279** (and ≤ the free voice-table entries) | "Piano is too big" (status 5) | Stage 4 `0xC00B5618`, Stage 3 `0xC01170EC`, Stage 2 `0x30173736`/`0x30173568` |
+| Voice table, shared by every loaded piano | 0x4000 (Stage 2), 0x6000 (Stage 3/4) | "Piano is too big" | Stage 2 `0x301745DC`, Stage 3 `0xC0119040`, Stage 4 `0xC00B47B8` |
+| Name of the piano's partition entry | ≤ **32 characters** (whether the `.npno` extension counts is unknown; OpenNord counts it) | "Piano name error" (status 6) | Stage 2 `0x30174084`; Stage 3 the same |
+| Layers per root note, per stroke type | **30** slots (dynamic layers and key-release sounds each have their own) | Stage 2 has no bound check, so a 31st corrupts memory | Stage 4 `0xC00A3988`; Stage 3 inferred; Stage 2 `0x301B3FEC` (inferred) |
+| Pianos | 120 slots across both piano partitions | — | the piano manager constructors above |
+
+No byte-size limit appears in the firmware: "Piano is too big" counts notes, not bytes. The
+Stage 2 display shows the header's `name#variant` split at `#`, at most 16 characters of the name
+and 17 of the variant (`0x30172966`).
+
 `checkNpnoAcceptance` re-implements these, plus the CBIN CRC (the header's format byte must
 match the `CNSP` position, as `readNsp` requires) and a structural walk: the header, metadata
-and directory versions are each held to the Stage 4 generations (v5/v6), and the key map's
-zones must match the notes' roots in the same order. The loader's voice-table
-limit is shared: the free space is `0x6000` minus the entries the pianos already on the
-instrument use (and a firmware cap we haven't traced), so the check only proves the file fits
-an otherwise empty instrument (`stroke count ≤ 0x6000`). Whether it fits next to your other
-pianos is something only the instrument can tell.
+and directory versions are each held to the loadable generations (v5/v6), and the key map's
+zones must match the notes' roots in the same order. It checks the limits above: at most 5,279
+notes (`piano-size`), at most 30 layers per zone and stroke type (`layers-per-zone`), and, given
+a `fileName`, at most 32 characters (`name-length`). The voice table is shared: the free space
+is the model's table (`model`) minus the entries the pianos already on the instrument use, so
+the `voice-table` check only proves the file fits an otherwise empty instrument. Whether it fits
+next to your other pianos is something only the instrument can tell.
 
 ## Hardware test recipe (Stage 4)
 
@@ -252,5 +289,8 @@ expected pitches and what to write down, is group B of
   defaults for them are still fitted to the factory files.
 - Why the first block sits on the `830 mod 1022` grid. We copy it rather than guess.
 - Key-release strokes (flag 2) are kept by the image writer but not built by `buildNpno` yet.
-- The firmware's view of the generation number for each model (`param_1[3]` in the gate) is not
-  traced. "v5 and v6 on Stage 4" comes from NSM's partition table.
+- ~~The firmware's view of the generation number for each model (`param_1[3]` in the gate).~~
+  Resolved: generation 5 with 120 slots on the Stage 2, 3 and 4 (see "What the instrument and NSM
+  check"), so v5 and v6 load on all three.
+- Which name the 32-character rule measures: with or without the `.npno` extension, and whether
+  it is the name `pushFile` and NSM send. OpenNord counts the extension until hardware says.

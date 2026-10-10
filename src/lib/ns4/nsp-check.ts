@@ -9,8 +9,13 @@
  *    `Zevs::Piano::Version2BCD`/`GetFormat`), `SPartitionPianoV6` ctor @0x1000b34b0
  *    (`.npno` versions 500–599 and 600–699).
  *  - Stage 4 OS 1.66 ARM image: the per-file gate `0xC00B92E4` (magic + header version +
- *    meta version vs the instrument's oldest supported piano generation, reads the directory
- *    version at +0x61C) and the loader `0xC00B47B8` (directory + 0x76-byte records).
+ *    meta version vs the instrument's piano generation, reads the directory version at
+ *    +0x61C) and the loader `0xC00B47B8` (directory + 0x76-byte records).
+ *  - The same piano code on Stage 3 OS 2.64 (ARM; gate `0xC011A4EC`) and Stage 2 OS 3.00
+ *    (ColdFire; gate `0x30175C08`): one gate, one record layout and one set of limits on all
+ *    three. They differ only in the voice table every loaded piano shares (see
+ *    {@link voiceTableEntries}) and in which piano partition NSM offers (v6 needs Stage 2
+ *    OS ≥ 2.29 / Stage 3 OS ≥ 1.61, older systems take v5 only).
  *
  * The CBIN CRC (v6) / CRC-16 trailer (v5) is what the rest of OpenNord already checks for
  * every Clavia file; whether the instrument re-checks it after a USB write is unknown.
@@ -21,6 +26,7 @@ import { verifyNs4Checksum } from '../clavia/checksum';
 import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
 import { decodeNspStroke, findCnsp, readLayerTable, readNspDirectory, type NspStroke } from './nsp-audio';
 import { nspChecksumKind, readNspZones } from './nsp';
+import type { NordModelId } from '../clavia/partitions';
 
 /** CNSP checksum: byte sum of everything after the 22-byte CNSP header, over the CNSP stream
  *  (`CNSP` tag … last block; NSM CNSPFileInputStream ctor @0x100040254 → Zevs::Checksum::Get32). */
@@ -44,8 +50,61 @@ export interface NpnoAcceptance {
   nsmVersion?: number;
 }
 
-/** Voice-table entries the Stage 4 loader has for every loaded piano's notes together (`0xC00B47B8`). */
+/** The models whose piano gate and loader are traced: one shared piano code base. */
+export type NpnoModel = Extract<NordModelId, 'stage-2' | 'stage-3' | 'stage-4'>;
+
+/**
+ * Voice-table entries the Stage 4 loader has for every loaded piano's notes together
+ * (`0xC00B47B8`). The Stage 3 has the same (`0xC0119040`); see {@link voiceTableEntries}.
+ */
 export const VOICE_TABLE_ENTRIES = 0x6000;
+
+/**
+ * The voice table every loaded piano shares, per model: 0x4000 entries on the Stage 2
+ * (`0x301745DC`), 0x6000 on the Stage 3 (`0xC0119040`) and Stage 4 (`0xC00B47B8`).
+ */
+export function voiceTableEntries(model: NpnoModel = 'stage-4'): number {
+  return model === 'stage-2' ? 0x4000 : VOICE_TABLE_ENTRIES;
+}
+
+/**
+ * Most notes (strokes) one piano may have, on all three models: the loader compares the
+ * stroke count (CNSP+0x620) with the smaller of the free voice-table entries and 0x149F and
+ * shows "Piano is too big" above it (Stage 4 `0xC00B5618`, Stage 3 `0xC01170EC`, Stage 2
+ * `0x30173736`/`0x30173568`).
+ */
+export const MAX_PIANO_STROKES = 0x149f; // 5,279
+
+/**
+ * Layer slots per root note and stroke type (dynamic layers, key-release sounds…): 30 in
+ * the Stage 4 voice setup (`0xC00A3988`), the same on the Stage 3 (inferred) and Stage 2
+ * (`0x301B3FEC`, inferred), where nothing bounds the count, so a 31st layer overwrites
+ * whatever follows the slots.
+ */
+export const MAX_LAYERS_PER_ROOT = 30;
+
+/**
+ * Longest piano name, in characters: the instrument measures the name of the piano
+ * partition's entry (the name the file is stored under) and shows "Piano name error" above
+ * 32 (Stage 2 `0x30174084`; the Stage 3 behaves the same). Whether the `.npno` extension
+ * counts is not settled, so OpenNord counts it.
+ */
+export const MAX_PIANO_NAME = 32;
+
+export interface NpnoCheckOptions {
+  /** Also decode every stroke (catches a broken block stream; costs a full decode). */
+  deep?: boolean;
+  /** The instrument the piano is meant for; sets the voice-table size. Default `stage-4`. */
+  model?: NpnoModel;
+  /**
+   * The name the piano will be stored under on the instrument (the file name, with its
+   * extension). Checked against {@link MAX_PIANO_NAME} when given.
+   */
+  fileName?: string;
+}
+
+/** `5279` → `5,279`. */
+const thousands = (n: number) => n.toLocaleString('en-US');
 
 /** Header versions NSM's CNSP reader accepts: 0x423–0x430, 0x440, 0x450, 0x464. */
 function headerVersionKnown(v: number): boolean {
@@ -62,13 +121,20 @@ function pianoFormat(v: number): number | undefined {
 
 /**
  * Run every known acceptance check. `deep` also decodes every stroke (catches a broken
- * block stream; costs a full decode).
+ * block stream; costs a full decode); `model` picks the instrument (default Stage 4) and
+ * `fileName` adds the name-length check.
  */
-export function checkNpnoAcceptance(bytes: Uint8Array, opts: { deep?: boolean } = {}): NpnoAcceptance {
+export function checkNpnoAcceptance(bytes: Uint8Array, opts: NpnoCheckOptions = {}): NpnoAcceptance {
   const checks: NpnoCheck[] = [];
   const add = (id: string, ok: boolean, detail: string) => { checks.push({ id, ok, detail }); return ok; };
   const done = (nsmVersion?: number): NpnoAcceptance => ({ ok: checks.every((c) => c.ok), checks, nsmVersion });
 
+  if (opts.fileName !== undefined) {
+    const n = opts.fileName.length;
+    add('name-length', n <= MAX_PIANO_NAME, n <= MAX_PIANO_NAME
+      ? `the name "${opts.fileName}" fits a Nord (${n} of ${MAX_PIANO_NAME} characters)`
+      : `The name "${opts.fileName}" is too long for a Nord (${n} characters, ${MAX_PIANO_NAME} at most) — it would show "Piano name error"`);
+  }
   if (!add('cbin', hasCbinMagic(bytes) && fileTypeTag(bytes) === 'npno', 'CBIN magic and the `npno` type tag')) return done();
   const cnsp = findCnsp(bytes);
   if (!add('cnsp-tag', cnsp === 0x2c || cnsp === 0x18, `CNSP tag at 0x2C (v6 envelope) or 0x18 (v5); found ${cnsp < 0 ? 'none' : `0x${cnsp.toString(16)}`}`)) return done();
@@ -95,16 +161,22 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: { deep?: boolean } 
   const nsmVersion = format === undefined ? undefined : format * 100 + bytes[cnsp + 0x1a] * 10;
   add('nsm-format', format !== undefined, 'header version maps to a piano format (Zevs::Piano::GetFormat)');
   if (nsmVersion !== undefined) {
-    add('stage4-partition', nsmVersion >= 500 && nsmVersion <= 699, `NSM version ${nsmVersion} within the Stage 4 piano partition (500–699)`);
+    // NSM's V6 piano partition (Stage 4; Stage 3 OS ≥ 1.61, `0x1001AFCEC`; Stage 2 OS ≥ 2.29,
+    // `0x1000A9FA4`). Older Stage 2/3 systems only get the V5 partition (500–599).
+    add('stage4-partition', nsmVersion >= 500 && nsmVersion <= 699, `NSM version ${nsmVersion} within the piano partition (500–699)`);
     const cbinVersion = bytes[0x14] | (bytes[0x15] << 8);
     add('cbin-version', cbinVersion === nsmVersion, `CBIN version ${cbinVersion} matches the CNSP version ${nsmVersion} (true of every factory file)`);
   }
-  // Stage 4's gate (0xC00B92E4) accepts the header version and the metadata version (and the
-  // directory version, below) only when each is at least the instrument's oldest supported
-  // piano generation; NSM lists v5 and v6 for the Stage 4.
-  const stage4 = (v: number) => v === 0x450 || v === 0x464;
-  add('stage4-generation', stage4(version) && stage4(meta),
-    `header (0x${version.toString(16)}) and metadata (0x${meta.toString(16)}) versions are v5 (0x450) or v6 (0x464) — the generations the Stage 4 piano partition lists`);
+  // The gate (Stage 4 0xC00B92E4, Stage 3 0xC011A4EC, Stage 2 0x30175C08) takes the header,
+  // metadata and directory (below) versions only when the instrument's piano generation is
+  // below each version's threshold: 3/4/5/6/7 for 0x423–0x42F/0x430/0x440/0x450/0x464. All three
+  // models build their piano manager with generation 5 and 120 slots (Stage 4 {4, 120, 5} at
+  // 0xC0249AC4 → 0xC00C0A04; Stage 3 at 0xC0000614 → 0xC0119040; Stage 2 0x30170C2E →
+  // 0x301745DC), so only v5 (0x450) and v6 (0x464) load anywhere; 0x423–0x440 are rejected
+  // ("Unsupported version"). The id keeps its historical name.
+  const loadable = (v: number) => v === 0x450 || v === 0x464;
+  add('stage4-generation', loadable(version) && loadable(meta),
+    `header (0x${version.toString(16)}) and metadata (0x${meta.toString(16)}) versions are v5 (0x450) or v6 (0x464) — the only generations a Stage 2, 3 or 4 loads`);
 
   const dir = readNspDirectory(bytes);
   add('directory', !!dir, 'stroke directory (+0x61C) and records (+0x732) readable, blocks inside the file');
@@ -117,11 +189,28 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: { deep?: boolean } 
   const contiguous = strokes.every((s, i) => i === 0 || s.offset === blockEnd(strokes[i - 1]));
   add('contiguous', contiguous && blockEnd(strokes[strokes.length - 1]) === end, 'strokes are back to back and run to the end of the CNSP stream');
   add('block-size', dir.blockWords === 511 * dir.channels, `block size ${dir.blockWords} words (511 per channel)`);
-  // The loader (0xC00B47B8) stops with an error state when the strokes outnumber the free
-  // voice-table entries: 0x6000 minus what the pianos already loaded use (and a firmware cap
-  // not traced yet). A file can only be held to the empty-instrument bound.
-  add('voice-table', strokes.length <= VOICE_TABLE_ENTRIES,
-    `${strokes.length} notes fit the instrument's voice table (${VOICE_TABLE_ENTRIES} entries, shared with every loaded piano)`);
+  // "Piano is too big": the loader refuses more strokes than the smaller of 0x149F and the
+  // free voice-table entries (Stage 4 0xC00B5618, Stage 3 0xC01170EC, Stage 2 0x30173736).
+  const count = strokes.length;
+  add('piano-size', count <= MAX_PIANO_STROKES, count <= MAX_PIANO_STROKES
+    ? `${thousands(count)} recorded notes, within the ${thousands(MAX_PIANO_STROKES)} a Nord loads in one piano`
+    : `This piano has more notes than a Nord can load (${thousands(count)}; ${thousands(MAX_PIANO_STROKES)} at most) — it would show "Piano is too big"`);
+  // The voice table is shared with every loaded piano, so a file can only be held to the
+  // empty-instrument bound; whether it fits next to the others only the instrument knows.
+  const table = voiceTableEntries(opts.model);
+  add('voice-table', count <= table,
+    `${thousands(count)} notes fit the instrument's voice table (${thousands(table)} entries, shared with every loaded piano)`);
+  // 30 layer slots per root and stroke type (Stage 4 0xC00A3988; Stage 2 0x301B3FEC has no
+  // bound check, so more would overwrite memory there).
+  const perSlot = new Map<string, number>();
+  for (const s of strokes) {
+    const key = `${s.zone}:${s.flags}`;
+    perSlot.set(key, (perSlot.get(key) ?? 0) + 1);
+  }
+  const mostLayers = Math.max(0, ...perSlot.values());
+  add('layers-per-zone', mostLayers <= MAX_LAYERS_PER_ROOT, mostLayers <= MAX_LAYERS_PER_ROOT
+    ? `at most ${mostLayers} layers per key zone (a Nord has room for ${MAX_LAYERS_PER_ROOT})`
+    : `A key zone has ${mostLayers} layers; a Nord has room for ${MAX_LAYERS_PER_ROOT} per zone (and as many key-release sounds)`);
   // Strokes are stored by root (lowest first), the key map by key: the two orders must agree,
   // and every key-map root must have strokes, or a key plays another zone's recording.
   const zones = readNspZones(bytes);
