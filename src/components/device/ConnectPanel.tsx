@@ -4,7 +4,7 @@ import { WebUsbTransport } from '../../lib/device/webusb';
 import { CapacitorUsbTransport, nordUsbAvailable, usbAvailability } from '../../lib/device/capacitor-usb';
 import { ElectronUsbTransport } from '../../lib/device/electron-usb';
 import { NordSession } from '../../lib/device/session';
-import { SessionRefusedError } from '../../lib/device/protocol';
+import { NordStatus, SessionRefusedError } from '../../lib/device/protocol';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
 import { identifyDevice, resolveDeviceAccess, type DeviceIdentity } from '../../lib/device/connect-probe';
 import { modelById } from '../../lib/clavia/partitions';
@@ -36,11 +36,15 @@ type Status = 'idle' | 'connecting' | 'connected' | 'error';
 /** Maps low-level errors to friendly guidance. Empty string = user cancelled (no error). */
 export function describeError(e: unknown, isDesktop: boolean): string {
   if (e instanceof SessionRefusedError) {
-    // The USB link works; the Nord refused the memory area we asked for — usually
-    // one this model doesn't have or protects, sometimes another app holding it.
-    return 'Your Nord answered, but wouldn’t let OpenNord open its memory. Quit Nord Sound ' +
-      'Manager, unplug the USB cable and plug it back in, then try again. If it keeps happening, ' +
-      'OpenNord doesn’t know this model’s layout yet — let us know which Nord it is.';
+    // The USB link works. Busy: another session still holds the Nord after our own
+    // end-and-retry, so another app has it. Otherwise the memory area isn't there.
+    if (e.status === NordStatus.sessionBusy) {
+      return 'Your Nord is busy with another transfer. Quit Nord Sound Manager and any other ' +
+        'app connected to it, then try again. If it keeps happening, switch the Nord off and on.';
+    }
+    return 'Your Nord answered, but wouldn’t let OpenNord open its memory. Unplug the USB ' +
+      'cable and plug it back in, then try again. If it keeps happening, OpenNord doesn’t know ' +
+      'this model’s layout yet — let us know which Nord it is.';
   }
   const m = getErrorMessage(e);
   if (/no device selected|cancel/i.test(m)) return '';

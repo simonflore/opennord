@@ -40,8 +40,8 @@ Every message, all fields **big-endian**:
 
 Note the transport CRC is **CRC-16**; the `.ns4p` *file* checksum is a different
 CRC-32 (`docs/CHECKSUM.md`). A reply's opcode is always **`request | 1`**
-(`CReqFileOpen 0x0C` → ack `0x0D`). Reply payload word 0 is a **status**: `0` =
-OK, `1` = empty/not-found, `2` = no session, `3` = not open.
+(`CReqFileOpen 0x0C` → ack `0x0D`). Reply payload word 0 is a **status** (`0` = OK;
+full list under [Sessions and status codes](#sessions-and-status-codes)).
 
 ## Opcodes
 
@@ -86,6 +86,61 @@ addresses **`{bank, slot}`** within it:
 > Earlier notes called this `{partition, index}`; that was a misread — the value
 > happened to equal a bank number (passing `6` to `FileInfo` after `Begin(6)` is
 > bank `6` = G, not "partition 6"). It is always `{bank, slot}`.
+
+## Sessions and status codes
+
+From static analysis of the Stage 4 (OS 1.66), Stage 3 (OS 2.64) and Stage 2
+(OS 3.00) firmware, 2026-10-10. All three run the same transfer code. The meanings
+match the status names in Nord Sound Manager. Not yet confirmed on hardware.
+
+**One session at a time, guarded by a lock.** `CReqBegin` (Stage 4 `0xC008D0C4`,
+Stage 3 `0xC0144A40`, Stage 2 `0x301D7A50`):
+
+1. If the device's session lock is held, it replies **18** and nothing else happens.
+2. Otherwise it takes the lock, then opens the partition and replies with that
+   result: `0`, or `2` for an index at or past the partition count.
+
+`CReqEnd` releases the lock, replying `0`, or `18` when no session is open.
+
+The lock is taken **before** the partition is checked. So a refused begin still
+holds it, and every later begin answers 18 until an end arrives. That is the
+"status 18" a Stage 3 Compact showed in the field. `NordSession.begin` therefore
+sends the end itself after a refused begin. On an 18 it sends one end and asks
+again.
+
+| Status | Meaning |
+|---|---|
+| 0 | OK |
+| 1 | Not found: an empty slot, or the end of a file listing |
+| 2 | Partition error: no such partition, or a file operation with no session open |
+| 3 | File error: the bank/slot isn't the open file |
+| 4 | File exists |
+| 8 / 9 | File read / write error |
+| **18** | Internal error. On `CReqBegin`: a session is already open (lock held). On `CReqEnd`: no session open |
+| 21 | Not supported: a write to a read-only (factory "Native") partition, or a dependency query on a partition without dependencies |
+| 22–33 | Flash file-system errors; 25 = not enough space |
+| 38 | File close error (the file is incomplete) |
+
+**`CQryPartList` reply.** It needs no session. The reply is `u32 status`, `u8 count`,
+then one record per partition:
+
+- `u32 nameLen` (at most 0x80), then the name bytes without a terminator;
+- four `u32` property words;
+- flag bytes: 13 on Stage 3/4, 12 on Stage 2.
+
+The writers are Stage 3 `0xC016BFC0` and Stage 2 `0x301F63BC`. A non-zero status
+carries no count.
+
+**Accepted frame versions.** Frames with any other version are dropped silently.
+
+| | FileTransfer version | Accepted range |
+|---|---|---|
+| Stage 4 | 10 | 3–10 |
+| Stage 3 | 10 | 3–10 |
+| Stage 2 | 8 | 3–8 |
+
+**Read size.** One read reply carries at most about 64 KiB (`0xFFE8` bytes minus
+headers).
 
 ## Multi-model — version negotiation & the Nord Stage 2
 

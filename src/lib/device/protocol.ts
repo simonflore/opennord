@@ -10,9 +10,30 @@ export class NordError extends Error {
 }
 
 /**
+ * Reply status codes. The Stage 2, 3 and 4 firmware share the transfer code that
+ * returns them, and Nord Sound Manager names them the same way
+ * (docs/PROTOCOL-RE.md, "Status codes").
+ */
+export const NordStatus = {
+  ok: 0,
+  notFound: 1,
+  /** No such partition, or a file operation with no session open. */
+  partitionError: 2,
+  /** The bank/slot isn't the open file. */
+  fileError: 3,
+  fileExists: 4,
+  /** `CReqBegin`: a transfer session is already open (the device's lock is held). */
+  sessionBusy: 18,
+  /** A write to a read-only (factory) partition. */
+  notSupported: 21,
+  notEnoughSpace: 25,
+} as const;
+
+/**
  * The Nord answered but refused to open a transfer session on `partition`
  * (`CReqBegin` replied with a non-zero `status`). The USB link itself works;
- * the partition is absent or protected on this model, or the device is busy.
+ * {@link NordStatus.sessionBusy} means another session still holds the device,
+ * anything else that the partition isn't there.
  */
 export class SessionRefusedError extends NordError {
   constructor(readonly partition: number, readonly status: number) {
@@ -61,7 +82,7 @@ export function encodeMessage(
 
 export interface NordReply {
   msgId: number;
-  /** Reply payload word 0 (0 = OK; 1 = empty/not-found; 2 = no-session; 3 = not-open). */
+  /** Reply payload word 0 ({@link NordStatus}; 0 = OK). */
   status: number;
   /** Payload as big-endian u32 words. */
   words: number[];
