@@ -23,6 +23,8 @@ export const NSP_SAMPLE_RATE = 44100;
 const DIR_OFFSET = 0x61c;
 const RECORDS_OFFSET = 0x72c;
 const RECORD_SIZE = 0x76;
+/** CNSP format code of v6 files; older (v5, 0x450) files store floors in 1 dB steps, not 0.2 dB. */
+const CNSP_V6 = 0x464;
 const BLOCK_OVERLAP = 64;
 /** Binomial predictors by order, newest history sample first. */
 const PREDICTORS: readonly (readonly number[])[] = [[], [1], [2, -1], [3, -3, 1], [4, -6, 4, -1]];
@@ -35,9 +37,9 @@ export interface NspStroke {
   zone: number;
   /**
    * The layer's **attenuation floor**, in 0.2 dB steps, 0 = the hardest hit (historical
-   * name). The instrument maps velocity through the Touch curve
-   * to an attenuation and picks a layer by it, so a zone's layers run loudest (0) first.
-   * Use `strokeFor` to pick by velocity.
+   * name); v5 files store it in 1 dB steps, scaled ×5 here. The
+   * instrument maps velocity through the Touch curve to an attenuation and picks a layer by
+   * it, so a zone's layers run loudest (0) first. Use `strokeFor` to pick by velocity.
    */
   velocityFrom: number;
   /** Length in sample frames. */
@@ -67,7 +69,7 @@ export function findCnsp(bytes: Uint8Array): number {
   return -1;
 }
 
-function readStroke(view: DataView, at: number, base: number, index: number, channels: number): Omit<NspStroke, 'zone'> {
+function readStroke(view: DataView, at: number, base: number, index: number, channels: number, floorScale: number): Omit<NspStroke, 'zone'> {
   const history = [0x12, 0x1a].slice(0, channels).map((h) => {
     const oldestFirst = [0, 2, 4, 6].map((k) => view.getInt16(at + h + k));
     return oldestFirst.reverse();
@@ -79,7 +81,7 @@ function readStroke(view: DataView, at: number, base: number, index: number, cha
   return {
     index,
     offset: base + view.getUint32(at + 0x06),
-    velocityFrom: view.getUint16(at + 0x0a),
+    velocityFrom: view.getUint16(at + 0x0a) * floorScale,
     frames: view.getUint32(at + 0x0c),
     blocks: view.getUint16(at + 0x10),
     history,
@@ -99,7 +101,7 @@ export function readNspDirectory(bytes: Uint8Array): NspDirectory | undefined {
     return undefined;
   }
   const raw = Array.from({ length: count }, (_, i) =>
-    readStroke(view, base + RECORDS_OFFSET + i * RECORD_SIZE, base, i, channels));
+    readStroke(view, base + RECORDS_OFFSET + i * RECORD_SIZE, base, i, channels, version < CNSP_V6 ? 5 : 1));
   // A zone's layers are consecutive, loudest (attenuation floor 0) first.
   let zone = -1;
   const strokes = raw.map((s) => ({ ...s, zone: s.velocityFrom === 0 || zone < 0 ? ++zone : zone }));
