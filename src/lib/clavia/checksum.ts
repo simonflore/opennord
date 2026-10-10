@@ -28,9 +28,10 @@ const CRC_TABLE = (() => {
 })();
 
 /** Compute CRC-32/ISO-HDLC (same as Python's zlib.crc32 — and the per-entry CRC a ZIP
- *  archive records, PKWARE APPNOTE 4.4.7) over a byte slice. */
-export function crc32(data: Uint8Array): number {
-  let crc = 0xffffffff;
+ *  archive records, PKWARE APPNOTE 4.4.7) over a byte slice. To run one CRC over a large
+ *  buffer in slices, pass the result for the bytes before `data` as `prev` (zlib's `crc32(data, value)`). */
+export function crc32(data: Uint8Array, prev = 0): number {
+  let crc = (prev ^ 0xffffffff) >>> 0;
   for (let i = 0; i < data.length; i++) {
     crc = CRC_TABLE[(crc ^ data[i]) & 0xff] ^ (crc >>> 8);
   }
@@ -51,13 +52,17 @@ export function computeNs4Checksum(bytes: Uint8Array): number {
  */
 export function verifyNs4Checksum(bytes: Uint8Array): boolean {
   if (bytes.length < HEADER_SIZE) return false;
-  const stored =
+  return storedNs4Checksum(bytes) === computeNs4Checksum(bytes);
+}
+
+/** The checksum a CBIN file stores at bytes[24:28] (LE); it covers `bytes.subarray(44)`. */
+export function storedNs4Checksum(bytes: Uint8Array): number {
+  return (
     bytes[CHECKSUM_OFFSET] |
     (bytes[CHECKSUM_OFFSET + 1] << 8) |
     (bytes[CHECKSUM_OFFSET + 2] << 16) |
-    (bytes[CHECKSUM_OFFSET + 3] << 24);
-  const expected = computeNs4Checksum(bytes);
-  return (stored >>> 0) === expected;
+    (bytes[CHECKSUM_OFFSET + 3] << 24)
+  ) >>> 0;
 }
 
 /**
