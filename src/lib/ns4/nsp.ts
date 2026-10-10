@@ -24,9 +24,16 @@ const META_SIZE = 0x67; // 103 bytes
 const KEYMAP_OFFSET = 0x8c; // 128-byte per-note map, from the CNSP tag (RE'd 2026-06-30, re-aligned 2026-10-10)
 const KEYMAP_LEN = 128;
 
+/**
+ * A piano's recordings sound this many semitones above their key-map root when played at
+ * 44.1 kHz (every zone of three factory pianos measures +397…+408 cents; the instrument's
+ * pitch formula subtracts the same 4 semitones). the maintainers’ notes.
+ */
+export const NSP_ROOT_OFFSET = 4;
+
 /** One sampled note: the MIDI key range it covers, pitched from `rootNote`. */
 export interface NspZone {
-  /** Root note the sample is pitched for (the keymap byte value). */
+  /** The key map's root byte; the recording sounds at `rootNote + NSP_ROOT_OFFSET`. */
   rootNote: number;
   /** Lowest MIDI note that plays this sample. */
   lowNote: number;
