@@ -5,13 +5,16 @@
  *  in ./web-midi.ts (which stays for the Nord CC path). */
 import type { MidiInputsHandle } from './midi-inputs-types';
 
+/** True when this host exposes Web MIDI. */
+export function webMidiInputSupported(): boolean {
+  return typeof navigator !== 'undefined' && typeof navigator.requestMIDIAccess === 'function';
+}
+
 export async function listenToWebMidiInputs(
   onMessage: (data: Uint8Array) => void,
   onDevicesChanged?: (names: string[]) => void,
 ): Promise<MidiInputsHandle> {
-  if (typeof navigator === 'undefined' || typeof navigator.requestMIDIAccess !== 'function') {
-    throw new Error('unsupported');
-  }
+  if (!webMidiInputSupported()) throw new Error('unsupported');
   let access: MIDIAccess;
   try {
     access = await navigator.requestMIDIAccess({ sysex: false });
