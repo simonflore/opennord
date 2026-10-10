@@ -4,6 +4,7 @@
  */
 import { framesPerBlock } from './nsp-audio';
 import { patchNs4Checksum } from '../clavia/checksum';
+import { crc16ccitt } from '../clavia/crc16';
 
 const PRED = [[], [1], [2, -1], [3, -3, 1], [4, -6, 4, -1]];
 
@@ -70,8 +71,9 @@ export function encodeStroke(s: SynthStroke, channels: number, blockWords: numbe
 export function makeNpno(strokes: SynthStroke[], channels: 1 | 2, cnsp: number): Uint8Array {
   const blockWords = 511 * channels;
   const encoded = strokes.map((s) => encodeStroke(s, channels, blockWords));
-  const dataStart = cnsp + 0x72c + strokes.length * 0x76;
-  const size = dataStart + encoded.reduce((a, e) => a + e.blocks.length * blockWords * 2, 0);
+  const dataStart = cnsp + 0x732 + strokes.length * 0x76;
+  // v5 (CNSP at 0x18) ends with a 2-byte CRC-16 trailer; v6 carries a CRC-32 at 0x18.
+  const size = dataStart + encoded.reduce((a, e) => a + e.blocks.length * blockWords * 2, 0) + (cnsp === 0x18 ? 2 : 0);
   const buf = new Uint8Array(size);
   const view = new DataView(buf.buffer);
   const ascii = (s: string, at: number) => { for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i); };
@@ -87,16 +89,20 @@ export function makeNpno(strokes: SynthStroke[], channels: 1 | 2, cnsp: number):
   view.setUint16(cnsp + 0x620, strokes.length);
   let at = dataStart;
   strokes.forEach((s, i) => {
-    const r = cnsp + 0x72c + i * 0x76;
-    view.setUint32(r + 0x06, at - cnsp);
-    view.setUint16(r + 0x0a, s.velocityFrom);
-    view.setUint32(r + 0x0c, encoded[i].frames);
-    view.setUint16(r + 0x10, encoded[i].blocks.length);
-    s.before.forEach((h, c) => h.forEach((v, k) => view.setInt16(r + 0x12 + c * 8 + k * 2, v)));
-    if (s.loop) { view.setUint32(r + 0x22, s.loop.start); view.setUint32(r + 0x26, s.loop.length); }
+    const r = cnsp + 0x732 + i * 0x76;
+    view.setUint32(r + 0x00, at - cnsp);
+    view.setUint8(r + 0x05, s.velocityFrom);
+    view.setUint32(r + 0x06, encoded[i].frames);
+    view.setUint16(r + 0x0a, encoded[i].blocks.length);
+    s.before.forEach((h, c) => h.forEach((v, k) => view.setInt16(r + 0x0c + c * 8 + k * 2, v)));
+    if (s.loop) { view.setUint32(r + 0x1c, s.loop.start); view.setUint32(r + 0x20, s.loop.length); }
     for (const blk of encoded[i].blocks) { buf.set(blk, at); at += blk.length; }
   });
-  return cnsp === 0x2c ? patchNs4Checksum(buf) : buf;
+  if (cnsp === 0x2c) return patchNs4Checksum(buf);
+  const crc = crc16ccitt(buf.subarray(0, size - 2));
+  buf[size - 2] = crc & 0xff;
+  buf[size - 1] = crc >>> 8;
+  return buf;
 }
 
 /** A decaying two-partial tone with a little deterministic noise. */
