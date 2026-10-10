@@ -22,7 +22,9 @@
 
 import { crc16ccitt } from '../clavia/crc16';
 import { computeNs4Checksum } from '../clavia/checksum';
-import { decodeNspStroke, findCnsp, framesPerBlock, readNspDirectory } from './nsp-audio';
+import {
+  BLOCK_OVERLAP, decodeNspStroke, findCnsp, framesPerBlock, PREDICTORS, readLayerTable, readNspDirectory,
+} from './nsp-audio';
 
 // ── Container constants (offsets relative to the `CNSP` tag unless noted) ──────────────────
 
@@ -34,8 +36,6 @@ export const CNSP_V6 = 0x464;
 export const CNSP_V5 = 0x450;
 /** Block size in 16-bit words per channel (the DSP addresses blocks as n × 511 / n × 1022). */
 const BLOCK_WORDS_PER_CHANNEL = 511;
-/** The last 64 frames of a block repeat the next block's first 64 (DSP read-ahead slack). */
-const BLOCK_OVERLAP = 64;
 /** Block level byte = round(20·log10(8192 / block peak)); silent blocks carry 100. */
 const LEVEL_REF = 8192;
 const LEVEL_SILENT = 100;
@@ -45,8 +45,6 @@ export const NPNO_PEAK = 7782;
 const BLOCK_GRID = 830;
 /** Widest residual we emit. Factory files use 1–14; int16 input never needs more than 16. */
 const MAX_WIDTH = 16;
-/** Binomial predictors by order, newest history sample first (same as the decoder). */
-const PREDICTORS: readonly (readonly number[])[] = [[], [1], [2, -1], [3, -3, 1], [4, -6, 4, -1]];
 
 const CBIN_V6_SIZE = 0x2c;
 const CBIN_V5_SIZE = 0x18;
@@ -110,10 +108,7 @@ const ascii = (b: Uint8Array, o: number, s: string) => { for (let i = 0; i < s.l
 
 /** Bits a signed residual needs (two's complement): 0 and −1 need 1. */
 function bitsFor(r: number): number {
-  let v = r < 0 ? -r - 1 : r;
-  let n = 1;
-  while (v > 0) { v = Math.floor(v / 2); n++; }
-  return n;
+  return 33 - Math.clz32(r < 0 ? -r - 1 : r);
 }
 
 /** Block level byte for a block whose own + overlap frames peak at `peak`. */
@@ -202,17 +197,19 @@ export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedSt
   const starts: number[] = [];
   const widths: number[] = [];
   const orders: number[] = [];
-  const runMax = new Uint8Array(maxOwn + BLOCK_OVERLAP);
   let t = 0;
   while (t < target) {
     let best = { order: 0, width: 0 };
     for (let o = 0; o < PREDICTORS.length; o++) {
       const nd = need[o];
-      let m = 0;
-      for (let k = 0; k < runMax.length; k++) { if (nd[t + k] > m) m = nd[t + k]; runMax[k] = m; }
+      // Frames t … t+k−1 all fit the widths tried so far; wider widths hold fewer frames, so
+      // the scan only ever moves forward.
+      let k = 0;
       for (let w = 1; w <= MAX_WIDTH && (!best.width || w < best.width); w++) {
-        const own = framesPerBlock(blockWords, w, channels);
-        if (own > 0 && runMax[own + BLOCK_OVERLAP - 1] <= w) { best = { order: o, width: w }; break; }
+        const span = framesPerBlock(blockWords, w, channels) + BLOCK_OVERLAP;
+        if (span <= BLOCK_OVERLAP) continue;
+        while (k < span && nd[t + k] <= w) k++;
+        if (k >= span) { best = { order: o, width: w }; break; }
       }
     }
     if (!best.width) throw new Error(`no residual width ≤ ${MAX_WIDTH} fits the block at frame ${t}`);
@@ -225,19 +222,19 @@ export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedSt
     words[0] = width | (order << 5);
     levels.push(blockLevel(peak));
     const coef = PREDICTORS[order];
-    const mod = 2 ** width;
+    const mask = (1 << width) - 1;
     let bit = 0;
     for (let n = t; n < t + span; n++) {
       for (let c = 0; c < channels; c++) {
         const a = x[c];
         let p = 0;
         for (let k = 0; k < coef.length; k++) p += coef[k] * a[P + n - 1 - k];
-        let v = ((a[P + n] - p) % mod + mod) % mod; // w-bit two's complement
+        let v = (a[P + n] - p) & mask; // w-bit two's complement
         for (let got = 0; got < width;) {
           const offs = bit & 15;
           const take = Math.min(16 - offs, width - got);
           words[1 + (bit >> 4)] |= (v & ((1 << take) - 1)) << offs;
-          v = Math.floor(v / 2 ** take);
+          v >>>= take;
           got += take;
           bit += take;
         }
@@ -268,6 +265,14 @@ export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedSt
 }
 
 // ── The container writer ────────────────────────────────────────────────────────────────────
+
+/** CNSP checksum: byte sum of everything after the 22-byte CNSP header, over the CNSP stream
+ *  (`CNSP` tag … last block; a 32-bit sum NSM checks on load). */
+export function cnspChecksum(stream: Uint8Array): number {
+  let sum = 0;
+  for (let i = 0x16; i < stream.length; i++) sum = (sum + stream[i]) >>> 0;
+  return sum;
+}
 
 /** First block offset: the smallest ≥ `end` on the factory files' block grid. */
 function firstBlockOffset(end: number, channels: 1 | 2): number {
@@ -341,11 +346,7 @@ export function writeNpnoImage(img: NpnoImage): NpnoWriteResult {
     at += e.data.length;
   });
 
-  // CNSP checksum: byte sum of everything after the 22-byte CNSP header
-  // (a 32-bit sum; NSM refuses a mismatch).
-  let sum = 0;
-  for (let i = 0x16; i < cnsp.length; i++) sum = (sum + cnsp[i]) >>> 0;
-  be32(cnsp, 0x06, sum);
+  be32(cnsp, 0x06, cnspChecksum(cnsp));
 
   // CBIN envelope.
   ascii(out, 0, 'CBIN');
@@ -378,11 +379,7 @@ export function readNpnoImage(bytes: Uint8Array): NpnoImage {
   const dir = readNspDirectory(bytes);
   if (base < 0 || !dir) throw new Error('not a readable CNSP piano');
   const header = bytes.slice(base, base + NPNO_HEADER_SIZE);
-  const roots: number[] = [];
-  for (let n = 0; n < 128; n++) {
-    const c = (bytes[base + 0x622 + n * 2] << 8) | bytes[base + 0x623 + n * 2];
-    for (let k = 0; k < c; k++) roots.push(n);
-  }
+  const roots = readLayerTable(bytes, base).flatMap((c, n) => new Array<number>(c).fill(n));
   if (roots.length !== dir.strokes.length) throw new Error('layers-per-root table does not match the stroke count');
   const strokes = dir.strokes.map((s, i) => ({
     rootNote: roots[i],
@@ -466,6 +463,9 @@ export function defaultDecayCoefficient(root: number): number {
   return 0x800000 - Math.round(146 * 2 ** ((Math.max(0, Math.min(127, root)) - 25) / 24));
 }
 
+/** The 0x1C display string: `name#variant` (or `name#`). */
+const displayName = (input: NpnoInput) => `${input.name}#${input.variant ?? ''}`;
+
 function defaultHeader(input: NpnoInput): Uint8Array {
   const h = new Uint8Array(NPNO_HEADER_SIZE);
   const minor = input.minor ?? 0;
@@ -476,8 +476,7 @@ function defaultHeader(input: NpnoInput): Uint8Array {
   h[0x19] = 1; // unknown (Clavinet 1, CP80 3, Wurlitzer 2); ARM overwrites it at load
   h[0x1a] = minor; // version minor digit (NSM S_GetVersion: format·100 + this·10)
   h[0x1b] = 2; // unknown, 2 in all three factory files
-  const display = input.variant ? `${input.name}#${input.variant}` : `${input.name}#`;
-  ascii(h, 0x1c, display); // name#variant, 32-byte field
+  ascii(h, 0x1c, displayName(input)); // name#variant, 32-byte field
   ascii(h, 0x3c, input.name); // plain name, 32-byte field (v6)
   // +0x5C: third 32-byte string, zero in every factory file.
   h[0x8b] = 2; // unknown byte (2 in the v6 Clavinet, 0 in both v5 files)
@@ -537,7 +536,7 @@ function validateZones(input: NpnoInput): void {
       if (l.pcm.length !== input.channels) throw new Error(`Zone ${i} layer ${k}: expected ${input.channels} channel(s).`);
     });
   });
-  const display = input.variant ? `${input.name}#${input.variant}` : `${input.name}#`;
+  const display = displayName(input);
   if (!/^[\x20-\x7e]+$/.test(display) || display.length > 31 || input.name.includes('#')) {
     throw new Error('The name (plus variant) must be ≤ 30 plain ASCII characters, without "#".');
   }

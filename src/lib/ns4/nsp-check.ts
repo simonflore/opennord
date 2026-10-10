@@ -16,10 +16,11 @@
  * every Clavia file; whether the instrument re-checks it after a USB write is unknown.
  * See the maintainers’ notes.
  */
-import { crc16ccitt } from '../clavia/crc16';
+import { verifyTrailerChecksum } from '../clavia/crc16';
 import { verifyNs4Checksum } from '../clavia/checksum';
 import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
-import { decodeNspStroke, findCnsp, readNspDirectory } from './nsp-audio';
+import { decodeNspStroke, findCnsp, readLayerTable, readNspDirectory, type NspStroke } from './nsp-audio';
+import { cnspChecksum } from './nsp-write';
 
 export interface NpnoCheck {
   id: string;
@@ -64,8 +65,7 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: { deep?: boolean } 
   if (v6) {
     add('cbin-crc32', verifyNs4Checksum(bytes), 'CRC-32 of bytes[0x2C:] at 0x18 (v6 envelope)');
   } else {
-    const stored = bytes[bytes.length - 2] | (bytes[bytes.length - 1] << 8);
-    add('cbin-crc16', crc16ccitt(bytes.subarray(0, bytes.length - 2)) === stored, 'CRC-16/CCITT-FALSE trailer over the file (v5 envelope)');
+    add('cbin-crc16', verifyTrailerChecksum(bytes), 'CRC-16/CCITT-FALSE trailer over the file (v5 envelope)');
   }
   const end = v6 ? bytes.length : bytes.length - 2;
   const u16 = (o: number) => (bytes[o] << 8) | bytes[o + 1];
@@ -75,9 +75,7 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: { deep?: boolean } 
   add('header-version', headerVersionKnown(version), `CNSP header version 0x${version.toString(16)} in the accepted set`);
   const meta = u16(cnsp + 0x16);
   add('meta-version', metaVersionKnown(meta), `metadata version 0x${meta.toString(16)} in the accepted set`);
-  let sum = 0;
-  for (let i = cnsp + 0x16; i < end; i++) sum = (sum + bytes[i]) >>> 0;
-  add('cnsp-checksum', sum === u32(cnsp + 6), 'CNSP byte-sum checksum at +0x06 (NSM rejects a mismatch)');
+  add('cnsp-checksum', cnspChecksum(bytes.subarray(cnsp, end)) === u32(cnsp + 6), 'CNSP byte-sum checksum at +0x06 (a mismatch is refused)');
 
   const format = pianoFormat(version);
   const nsmVersion = format === undefined ? undefined : format * 100 + bytes[cnsp + 0x1a] * 10;
@@ -92,26 +90,20 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: { deep?: boolean } 
   add('stage4-generation', version === 0x450 || version === 0x464, 'v5 (0x450) or v6 (0x464) piano format — the generations the Stage 4 piano partition lists');
 
   const dir = readNspDirectory(bytes);
-  if (!add('directory', !!dir, 'stroke directory (+0x61C) and records (+0x732) readable, blocks inside the file')) return done(nsmVersion);
+  add('directory', !!dir, 'stroke directory (+0x61C) and records (+0x732) readable, blocks inside the file');
+  if (!dir) return done(nsmVersion);
+  const { strokes } = dir;
   add('directory-version', u16(cnsp + 0x61c) === version, 'directory version (+0x61C) equals the header version');
-  let layers = 0;
-  for (let n = 0; n < 128; n++) layers += u16(cnsp + 0x622 + n * 2);
-  add('layer-table', layers === dir!.strokes.length, `layers-per-root table sums to the stroke count (${layers} / ${dir!.strokes.length})`);
-  const blockBytes = dir!.blockWords * 2;
-  let contiguous = true;
-  dir!.strokes.forEach((s, i) => {
-    if (i > 0) {
-      const prev = dir!.strokes[i - 1];
-      if (s.offset !== prev.offset + prev.blocks * blockBytes) contiguous = false;
-    }
-  });
-  const last = dir!.strokes[dir!.strokes.length - 1];
-  add('contiguous', contiguous && last.offset + last.blocks * blockBytes === end, 'strokes are back to back and run to the end of the CNSP stream');
-  add('block-size', dir!.blockWords === 511 * dir!.channels, `block size ${dir!.blockWords} words (511 per channel)`);
+  const layers = readLayerTable(bytes, cnsp).reduce((a, b) => a + b, 0);
+  add('layer-table', layers === strokes.length, `layers-per-root table sums to the stroke count (${layers} / ${strokes.length})`);
+  const blockEnd = (s: NspStroke) => s.offset + s.blocks * dir.blockWords * 2;
+  const contiguous = strokes.every((s, i) => i === 0 || s.offset === blockEnd(strokes[i - 1]));
+  add('contiguous', contiguous && blockEnd(strokes[strokes.length - 1]) === end, 'strokes are back to back and run to the end of the CNSP stream');
+  add('block-size', dir.blockWords === 511 * dir.channels, `block size ${dir.blockWords} words (511 per channel)`);
   if (opts.deep) {
     let bad = '';
-    for (const s of dir!.strokes) {
-      try { decodeNspStroke(bytes, dir!, s); } catch (e) { bad = (e as Error).message; break; }
+    for (const s of strokes) {
+      try { decodeNspStroke(bytes, dir, s); } catch (e) { bad = (e as Error).message; break; }
     }
     add('decode', !bad, bad || 'every stroke decodes to its directory length');
   }

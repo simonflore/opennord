@@ -27,9 +27,10 @@ const DIR_OFFSET = 0x61c;
 const LAYER_TABLE_OFFSET = 0x622;
 const RECORDS_OFFSET = 0x732;
 const RECORD_SIZE = 0x76;
-const BLOCK_OVERLAP = 64;
+/** The last 64 frames of a block repeat the next block's first 64 (DSP read-ahead slack). */
+export const BLOCK_OVERLAP = 64;
 /** Binomial predictors by order, newest history sample first. */
-const PREDICTORS: readonly (readonly number[])[] = [[], [1], [2, -1], [3, -3, 1], [4, -6, 4, -1]];
+export const PREDICTORS: readonly (readonly number[])[] = [[], [1], [2, -1], [3, -3, 1], [4, -6, 4, -1]];
 
 /** One recorded note (a velocity layer of one key zone). */
 export interface NspStroke {
@@ -97,14 +98,16 @@ function readStroke(view: DataView, at: number, base: number, index: number, cha
   };
 }
 
+/** The u16[128] layers-per-root-note table: how many strokes the zone rooted at each MIDI note has. */
+export function readLayerTable(bytes: Uint8Array, base: number): number[] {
+  const at = base + LAYER_TABLE_OFFSET;
+  return Array.from({ length: 128 }, (_, n) => (bytes[at + n * 2] << 8) | bytes[at + n * 2 + 1]);
+}
+
 /** Zone index of each stroke, from the layers-per-root table (falls back to "a layer with
  *  velocity floor 0 opens a zone" when the table doesn't account for every stroke). */
-function zoneOf(view: DataView, base: number, raw: Omit<NspStroke, 'zone'>[]): number[] {
-  const counts: number[] = [];
-  for (let n = 0; n < 128; n++) {
-    const c = view.getUint16(base + LAYER_TABLE_OFFSET + n * 2);
-    if (c) counts.push(c);
-  }
+function zoneOf(table: number[], raw: Omit<NspStroke, 'zone'>[]): number[] {
+  const counts = table.filter((c) => c > 0);
   if (counts.reduce((a, b) => a + b, 0) === raw.length) {
     return counts.flatMap((c, z) => new Array<number>(c).fill(z));
   }
@@ -126,7 +129,7 @@ export function readNspDirectory(bytes: Uint8Array): NspDirectory | undefined {
   const raw = Array.from({ length: count }, (_, i) =>
     readStroke(view, base + RECORDS_OFFSET + i * RECORD_SIZE, base, i, channels));
   // A zone's strokes are consecutive (lowest root first), softest layer first.
-  const zones = zoneOf(view, base, raw);
+  const zones = zoneOf(readLayerTable(bytes, base), raw);
   const strokes = raw.map((s, i) => ({ ...s, zone: zones[i] }));
   // Strokes are stored back to back, so the block size falls out of any two neighbours.
   const blockWords = strokes.length > 1 && strokes[0].blocks
