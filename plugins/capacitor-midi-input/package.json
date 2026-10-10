@@ -1,0 +1,12 @@
+{
+  "name": "capacitor-midi-input",
+  "version": "0.0.1",
+  "description": "Capacitor plugin: MIDI keyboard input on iPad via CoreMIDI (USB, Bluetooth, network).",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "types": "src/index.ts",
+  "capacitor": { "ios": { "src": "ios" } },
+  "peerDependencies": { "@capacitor/core": "^8.0.0" }
+}

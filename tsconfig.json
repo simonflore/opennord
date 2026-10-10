@@ -17,8 +17,9 @@
     "types": ["node", "w3c-web-usb"],
     "paths": {
       "@/*": ["./src/*"],
-      "capacitor-nord-usb": ["./plugins/capacitor-nord-usb/src/index.ts"]
+      "capacitor-nord-usb": ["./plugins/capacitor-nord-usb/src/index.ts"],
+      "capacitor-midi-input": ["./plugins/capacitor-midi-input/src/index.ts"]
     }
   },
-  "include": ["src", "plugins/capacitor-nord-usb/src"]
+  "include": ["src", "plugins/capacitor-nord-usb/src", "plugins/capacitor-midi-input/src"]
 }

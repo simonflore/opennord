@@ -39,6 +39,9 @@ export default defineConfig({
       { find: 'capacitor-nord-usb', replacement: fileURLToPath(
         new URL('./plugins/capacitor-nord-usb/src/index.ts', import.meta.url),
       )},
+      { find: 'capacitor-midi-input', replacement: fileURLToPath(
+        new URL('./plugins/capacitor-midi-input/src/index.ts', import.meta.url),
+      )},
     ],
   },
   test: {
