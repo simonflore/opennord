@@ -21,7 +21,7 @@ Code: `src/lib/engine/organ/`. UI hook: `src/components/program/OrganPlay.tsx`
 | `core.ts` | `OrganCore`, the pure, deterministic synth (`noteOn`, `noteOff`, `setParams`, `allNotesOff`, `render`) plus `renderOffline` |
 | `types.ts`, `params.ts` | Engine params; `organParamsFromLayer(layer, organFx, morph?)` bridges a decoded `NS4Layer` |
 | `organ.worklet.ts` | AudioWorklet processor hosting `OrganCore` on the audio thread |
-| `organ-voice.ts` | `createOrganVoice(ctx)`: the Web Audio integration point (worklet, or a ScriptProcessor fallback) |
+| `organ-voice.ts` | `createOrganVoice(ctx)`: the Web Audio integration point (worklet, or a ScriptProcessor fallback). `dispose()` fades out over ~10 ms; the processor then returns `false` from `process()` so the browser can release it, and the node is disconnected after the fade |
 
 **Why a shared generator bank, and why an AudioWorklet.** Real tonewheel organs
 don't have voices. 91 wheels spin all the time, and each key closes nine contacts
@@ -77,6 +77,10 @@ voice.output; // AudioNode, where a rotary speaker / FX chain plugs in
   (V1/V2/V3 sweep 0.35/0.65/1.0 ms). Chorus mixes the swept signal with the dry
   signal.
 - **Output:** layer volume (dB), then a soft limiter that is transparent below ±0.6.
+  Each model's level carries a fixed −22 dB trim (`HEADROOM` in `voicing.ts`), so a
+  ten-note chord with all nine drawbars out, chorus on, peaks at about 0.5–0.56 before
+  the limiter on the B3 and at 0.4 or less on the other models. Fewer keys or drawbars
+  stay quieter, as on the instrument (one key on 888000000 peaks about −33 dBFS).
 
 Sources: Hammond B-3 service manual data as summarized in Electric Druid,
 "Technical aspects of the Hammond organ" (gear table, 192-tooth top octave,
@@ -97,7 +101,7 @@ These are sketches from general organ knowledge, not measurements of Nord's mode
   2⅔′. The decoder's "5+6+7+8" means tab down (on).
 - **PIPE1 / PIPE2:** each drawbar is a stop at the B3 footages. Mutations sound at
   pure ratios (3:2, 3, 5, 6), and ranks break back an octave to stay between about
-  30 Hz and 8 kHz. Pipe 1 leans on principals, Pipe 2 on flutes. Slow speech
+  30 Hz and 8 kHz (and inside MIDI 0–127 at an extreme octave shift). Pipe 1 leans on principals, Pipe 2 on flutes. Slow speech
   (35/55 ms) with a short chiff.
 - Vibrato on these models uses the same delay vibrato. The Vox uses a ~6.1 Hz
   triangle, the Stage 4's Vox rate (on the instrument it modulates the oscillator

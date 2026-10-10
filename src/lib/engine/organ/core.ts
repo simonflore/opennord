@@ -128,11 +128,14 @@ export interface OrganCoreOptions {
   params?: OrganParams;
   /** Seed for generator phases, contact scatter and click noise (determinism). */
   seed?: number;
+  /** Apply the output soft clip (default true). Off only to measure headroom in tests. */
+  clip?: boolean;
 }
 
 export class OrganCore {
   readonly sampleRate: number;
   private readonly seed: number;
+  private readonly clip: boolean;
   private params: OrganParams;
   private voicing: ModelVoicing;
   private clock = 0;
@@ -153,12 +156,15 @@ export class OrganCore {
   private downCount = 0;
   private clickEnv = 0; private clickDecay: number; private lastNoise = 0;
   private chiffEnv = 0; private chiffDecay: number; private chiffLp = 0;
+  /** Output fade (1 = open) and its per-sample step once {@link fadeOut} is called. */
+  private fade = 1; private fadeStep = 0;
   private main = new Float32Array(SPAN_MAX);
   private perc = new Float32Array(SPAN_MAX);
 
   constructor(opts: OrganCoreOptions) {
     this.sampleRate = opts.sampleRate;
     this.seed = opts.seed ?? 1;
+    this.clip = opts.clip ?? true;
     this.rand = xorshift(this.seed);
     this.params = DEFAULT_ORGAN_PARAMS;
     this.voicing = voicingFor(this.params.model);
@@ -215,6 +221,19 @@ export class OrganCore {
     this.queue.length = 0;
     this.dirty = true;
   }
+
+  /**
+   * Fade the whole output to silence over `ms` milliseconds (before the host
+   * releases it, so the stop does not click). Irreversible: a faded core stays
+   * silent. See {@link faded}.
+   */
+  fadeOut(ms: number): void {
+    if (this.fadeStep > 0) return;
+    this.fadeStep = 1 / Math.max(1, (ms * this.sampleRate) / 1000);
+  }
+
+  /** True once a {@link fadeOut} has reached silence. */
+  faded(): boolean { return this.fade <= 0; }
 
   /** Notes whose key is currently down. */
   heldNotes(): number[] {
@@ -287,7 +306,7 @@ export class OrganCore {
           perc[i] += s * pg;
         }
         ph += inc;
-        if (ph >= 1) ph -= 1;
+        if (ph >= 1) ph -= Math.floor(ph);
       }
       g.gain = gain; g.pgain = pg;
     }
@@ -332,7 +351,12 @@ export class OrganCore {
         s += this.chiffLp * this.chiffEnv;
         this.chiffEnv *= this.chiffDecay;
       }
-      out[pos + i] = softClip(s * vol);
+      let y = s * vol;
+      if (this.fadeStep > 0) {
+        this.fade = Math.max(0, this.fade - this.fadeStep);
+        y *= this.fade;
+      }
+      out[pos + i] = this.clip ? softClip(y) : y;
     }
     this.percCharge = charge;
   }
