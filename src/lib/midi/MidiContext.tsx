@@ -23,6 +23,11 @@ export interface MidiState {
   disconnect(): void;
   /** Point MIDI input at the active sampler (or null to silence it). */
   setSink(sink: NoteSink | null): void;
+  /**
+   * Detach `sink` only if it is still the current one (compare-and-clear), so an
+   * instrument that stops never unhooks another that took over MIDI since.
+   */
+  clearSink(sink: NoteSink): void;
 }
 
 function useMidiStateValue(): MidiState {
@@ -100,13 +105,19 @@ function useMidiStateValue(): MidiState {
     sinkRef.current = sink;
   }, []);
 
+  const clearSink = useCallback((sink: NoteSink) => {
+    if (sinkRef.current !== sink) return;
+    gateRef.current?.allNotesOff();
+    sinkRef.current = null;
+  }, []);
+
   useEffect(() => () => { handleRef.current?.stop(); }, []);
 
   return useMemo(
     () => ({
-      status, deviceNames, supported, bluetoothPairing, connect, pairBluetooth, disconnect, setSink,
+      status, deviceNames, supported, bluetoothPairing, connect, pairBluetooth, disconnect, setSink, clearSink,
     }),
-    [status, deviceNames, supported, bluetoothPairing, connect, pairBluetooth, disconnect, setSink],
+    [status, deviceNames, supported, bluetoothPairing, connect, pairBluetooth, disconnect, setSink, clearSink],
   );
 }
 

@@ -25,7 +25,7 @@ export interface OrganParams {
   drawbars: number[];
   percussion: OrganPercussion;
   vibrato: { on: boolean; type: VibChorusType };
-  /** Layer volume in dB (0 = unity). */
+  /** Layer volume in dB (0 = unity); {@link VOLUME_OFF_DB} or below is silent. */
   volumeDb: number;
   /** Octaves the layer is shifted (−2..+2 on the panel). */
   octaveShift: number;
@@ -34,6 +34,13 @@ export interface OrganParams {
   /** Key click amount, 0..1 (tonewheel models). */
   keyClick: number;
 }
+
+/**
+ * Layer volume floor: "volume off" maps here (a finite value, so morphs and
+ * meters never meet −Infinity), and the engine treats it and anything below as
+ * silent. The quietest real step on the instrument is −84.2 dB.
+ */
+export const VOLUME_OFF_DB = -120;
 
 export const DEFAULT_ORGAN_PARAMS: OrganParams = {
   model: 'B3',
