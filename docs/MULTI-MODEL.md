@@ -181,7 +181,7 @@ Smallest useful unit first; each milestone independently shippable and testable.
    Most UI is model-shaped already; needs graceful handling of fields a given
    model lacks.
 
-Then **Stage 2 / 2EX** are largely M2–M3 deltas off NS3 (same docs, same oracle).
+Then **Stage 2 / 2EX** need their own map. The Stage 2 firmware writes a flat body, without the Stage 3's registry blocks, so it isn't a delta off NS3 (`docs/STAGE2-3-FIRMWARE.md` §3). The Stage 3 firmware's own parameter registry gives M2 its offset map: a block chain of length-prefixed sections, from which every offset in `ns3/decode.ts` can be reproduced (same doc).
 
 ## File-type matrix (target)
 
