@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { NS4Layer } from './types';
 import {
   END_FADE_SECONDS,
-  ENV_DISPLAY_DROP,
   nyquistFade,
   parseHz,
   parseSeconds,
@@ -214,7 +213,6 @@ describe('renderSynthPreview', () => {
     expect(svfDamping(0)).toBe(2);
     expect(svfDamping(64 / 127)).toBeCloseTo(0.5);
     for (let raw = 0; raw <= 127; raw++) expect(svfDamping(raw / 127)).toBe(scaling.resonanceDamping(raw));
-    expect(ENV_DISPLAY_DROP).toBe(scaling.ENV_DISPLAY_DROP);
   });
 
   it('plays the layer pitch: a −12 semi bass sounds an octave down', () => {

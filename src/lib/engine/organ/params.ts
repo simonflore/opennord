@@ -115,7 +115,7 @@ export function organParamsFromLayer(
       on: !!layer.vibChorus,
       type: parseVibChorus(vibChorusTypeFor(organFx, layer.organModel)) ?? 'C3',
     },
-    volumeDb: layer.volume ? positionDb(morphNumber(layer.volume, volumePosition, morph)) : 0,
+    volumeDb: positionDb(morphNumber(layer.volume, volumePosition, morph)),
     octaveShift: layer.octaveShift ?? 0,
     sustain: !!layer.organSustain,
     keyClick: DEFAULT_ORGAN_PARAMS.keyClick,
