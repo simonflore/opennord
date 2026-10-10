@@ -125,7 +125,10 @@ async function restoreUnlocked(
   // One begin/end session per partition; the device returns to idle between them.
   for (const [partition, items] of byPartition) {
     try {
-      await session.begin(partition);
+      // A refused begin replies with a status rather than throwing; treat it like
+      // an unreachable partition (else every write would fail the write gate).
+      const begun = await session.begin(partition);
+      if (begun.status !== 0) throw new NordError(`status ${begun.status}`);
     } catch (e) {
       // Whole partition unreachable — record each file as failed, don't abort the rest.
       const error = `Could not open partition ${partition}: ${getErrorMessage(e)}`;
