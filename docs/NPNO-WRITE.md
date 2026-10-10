@@ -23,8 +23,8 @@ const { bytes, fileName, notes } = buildNpno({
   channels: 2,
   zones: [
     { rootNote: 48, lowNote: 21, highNote: 52, layers: [
-      { pcm: [left, right], velocityFrom: 0 },
-      { pcm: [left2, right2], velocityFrom: 70, loop: { start: 90000, length: 40000 } },
+      { pcm: [left, right], floorDb: 0 },  // hardest hit
+      { pcm: [left2, right2], floorDb: 10, loop: { start: 90000, length: 40000 } },  // softer
     ] },
     // …one zone per sampled note
   ],
@@ -33,7 +33,9 @@ checkNpnoAcceptance(bytes, { deep: true }); // every check should be ok
 ```
 
 - `buildNpno(input)` → `{ bytes, fileName, notes, stats }`. Zones are key ranges with a root note
-  and velocity layers (softest first, the first at velocity 0). PCM is int16 per channel at
+  and dynamic layers, loudest first: each layer's `floorDb` says how far below the hardest hit it
+  takes over (the first is 0 dB; the instrument switches halfway between floors, and the Touch
+  setting maps velocity to dB). PCM is int16 per channel at
   44.1 kHz (the rate the piano DSP plays), starting at the attack. A layer can have a sustain loop.
 - `writeNpnoImage(image)` / `readNpnoImage(bytes)`: a lossless model of the whole file (header
   bytes, each stroke's PCM, record bytes and block levels). `writeNpnoImage(readNpnoImage(x))`
@@ -122,19 +124,19 @@ ARM loader come from `0xC00B84CC` (header) and `0xC00AB028`/`0xC0020088` (record
 |---|---|---|
 | +0x00 | u32 first block offset | set |
 | +0x04 | flags, bits 0–1: 0 normal, 2 key-release sound | 0 (release sounds not built yet; the image keeps them) |
-| +0x05 | velocity floor (v6: 0–127; v5 files store it /5) | set |
+| +0x05 | attenuation floor, 0.2 dB steps, 0 = hardest hit (v5 files store it /5, in 1 dB) | `floorDb × 5` |
 | +0x06 | u32 frames, u16 +0x0A block count | set |
 | +0x0C, +0x14 | 4×i16 predictor history per channel, oldest first | set (silence before the attack) |
 | +0x1C, +0x20 | u32 loop start, loop length (0 = no loop) | set |
 | +0x24, +0x28, +0x2C | first frame of the loop-start block, first frame of the next block, u16 that block's index | set (0 without a loop) |
 | +0x2E | u32 Q23 coefficient (24 bits used), `2^23 − 146` … `2^23 − 2782`, falling with pitch, constant within a zone; probably a release decay | default `2^23 − round(146·2^((root − 25)/24))`, through the Clavinet's two end points |
 | +0x32 | 0 in all files | 0 |
-| +0x33 | velocity copy | = velocity floor |
-| +0x34 | u16 level word. In the v6 Clavinet, `level + 10·k` is constant within a zone, where `k` is the dB the stroke's PCM peak sits below 7782. Our reading: an attenuation in 0.1 dB that undoes the peak normalization. v5 files are converted at load to `10·level − 2·velocity·5` | `125 + 200·log10(normalization gain)`, so the original loudness between strokes is kept (`levelWord` overrides) |
+| +0x33 | floor copy | = attenuation floor |
+| +0x34 | u16 level word. In the v6 Clavinet, `level + 10·k` is constant within a zone, where `k` is the dB the stroke's PCM peak sits below 7782. Our reading: an attenuation in 0.1 dB that undoes the peak normalization. v5 files are converted at load to `10·level − 2·floor·5` | `125 + 200·log10(normalization gain)`, so the original loudness between strokes is kept (`levelWord` overrides) |
 | +0x36 | 14 × u32 Q23 coefficients: 13 × 0x800000 (1.0) then 0 in every v6 record | constant |
 | +0x6E | u32; the loader keeps its low 14 bits with the flags. The factory values look like take numbers (89, 90, 91 for one zone) | a unique id per stroke |
 | +0x72, +0x73 | bytes the loader copies into the voice: Clavinet 0x0D and 36…28 (falling with pitch) | 0x0D, 33 |
-| +0x74 | velocity crossfade start: `vel − trunc((vel − previous layer's vel) / 2)`, 0 for the first layer (exact for every v6 record; the loader computes the same for v5) | set |
+| +0x74 | layer switch point: `floor − trunc((floor − previous layer's floor) / 2)`, 0 for the first (loudest) layer (exact for every v6 record; the loader computes the same for v5) | set |
 | +0x75 | 0 | 0 |
 
 ## What the instrument and NSM check
@@ -191,8 +193,9 @@ what the display showed).
      the file name or the `name#variant` from the header?
    - Does each key in the zone play at the right pitch? A wrong pitch means the rate or root
      note is wrong.
-   - Velocity: does the soft layer play below the threshold and the loud one above it, with a
-     smooth crossfade?
+   - Dynamics: does the soft layer play when you play softly and the loud one when you hit hard?
+     The instrument plays one layer at a time (no crossfade), so expect a change of timbre at the
+     switch while loudness keeps following your touch.
    - Overall level compared with a factory piano. The +0x34 level word is a hypothesis: if the
      piano is far too loud or too quiet, report roughly how many dB, so the formula can be fixed.
    - Release: how fast does a note die after key-up (the +0x2E coefficient)? Hold a loop and
