@@ -36,8 +36,8 @@ export interface NspStroke {
   /**
    * The layer's **attenuation floor**, in 0.2 dB steps, 0 = the hardest hit (historical
    * name). The instrument maps velocity through the Touch curve
-   * to an attenuation and plays the last layer whose floor is at or below it, so a zone's
-   * layers run loudest (0) first. Use `strokeFor` to pick by velocity.
+   * to an attenuation and picks a layer by it, so a zone's layers run loudest (0) first.
+   * Use `strokeFor` to pick by velocity.
    */
   velocityFrom: number;
   /** Length in sample frames. */
@@ -179,19 +179,23 @@ export function decodeNspStroke(bytes: Uint8Array, dir: NspDirectory, stroke: Ns
  */
 export function touchAttenuation(velocity: number): number {
   const v = Math.min(127, Math.max(1, velocity));
-  return Math.max(0, -200 * Math.log10(v / 127)); // max: no -0 at v = 127
+  return Math.min(200, Math.max(0, -200 * Math.log10(v / 127))); // 0…40 dB, as the instrument clamps; max: no -0
 }
 
 /**
- * The stroke a key zone plays at `velocity` (1–127), the way the instrument picks it: the
- * velocity's attenuation selects the last (softest) layer whose floor is at or below it.
- * One stroke plays; there is no crossfade between layers.
+ * The stroke a key zone plays at `velocity` (1–127), the way the instrument picks it: layers
+ * switch halfway between neighbouring floors (`floor − trunc((floor − previous) / 2)`, the
+ * value factory records keep at +0x74), and the velocity's attenuation plays the last layer
+ * whose switch point it reaches. One stroke plays; there is no crossfade between layers.
+ * (The instrument also adds a per-type selection offset, not yet pinned down.)
  */
 export function strokeFor(dir: NspDirectory, zone: number, velocity: number): NspStroke | undefined {
   const att = touchAttenuation(velocity);
-  let pick: NspStroke | undefined;
-  for (const s of dir.strokes) {
-    if (s.zone === zone && s.velocityFrom <= att && (!pick || s.velocityFrom >= pick.velocityFrom)) pick = s;
+  const layers = dir.strokes.filter((s) => s.zone === zone); // loudest first
+  let pick = layers[0];
+  for (let i = 1; i < layers.length; i++) {
+    const floor = layers[i].velocityFrom;
+    if (floor - Math.trunc((floor - layers[i - 1].velocityFrom) / 2) <= att) pick = layers[i];
   }
   return pick;
 }
