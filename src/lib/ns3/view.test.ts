@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Ns3Panel } from './decode';
+import { decodeNs3, type Ns3Panel } from './decode';
 import { ns3EngineCards, ns3FxChips, ns3HeaderView, ns3SampleKey } from './view';
 
 /** A synthetic Panel A: B3 organ + grand piano + a Wave synth, no FX. */
@@ -115,6 +115,20 @@ describe('ns3FxChips', () => {
 
   it('returns an empty list when no FX are on', () => {
     expect(ns3FxChips(panel())).toEqual([]);
+  });
+
+  it('shows the program-wide rotary speed + firmware amp label on a decoded Panel B', () => {
+    const b = new Uint8Array(600);
+    b[0x04] = 1;                // NSM-era layout
+    b[0x31] = 1 << 5;           // panel B only
+    b[0x34] = 0x00; b[0x35] = 0x00; // MultiCommon rotary speed raw 0 → Stop
+    b[0x10b + 263] = 0x80;      // panel B rotary on
+    b[0x129 + 263] = 0x04;      // panel B amp on, type 0 → Clean
+    const chips = ns3FxChips(decodeNs3(b).panels[0]);
+    expect(chips.find((c) => c.label === 'Rotary')?.detail).toBe('Stop');
+    expect(chips.find((c) => c.label === 'Amp/EQ')?.detail).toBe('Clean');
+    b[0x34] = 0x01;             // raw 2 → Fast, read from the shared block for Panel B
+    expect(ns3FxChips(decodeNs3(b).panels[0]).find((c) => c.label === 'Rotary')?.detail).toBe('Fast');
   });
 });
 
