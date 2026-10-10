@@ -788,14 +788,15 @@ Bit-exact means every stroke decodes to exactly its recorded frame count, and it
 
 - `+0x61C`: u16 version, u16 channels (1/2), u16 stroke count.
 - `+0x72C`: stroke records, 0x76 bytes each. Records are grouped by key zone, lowest zone
-  first; within a zone, velocity layers run softest first. A new zone starts where the velocity
-  floor drops back to 0, which gives exactly one group per key-map zone (17/16/16 in the three
+  first; within a zone, layers run **loudest first** (corrected in `PIANO-ENGINE.md` §0: the
+  "velocity floor" is an attenuation floor in 0.2 dB steps, 0 = hardest hit). A new zone starts
+  where the floor drops back to 0, which gives exactly one group per key-map zone (17/16/16 in the three
   files).
 
   | Offset | Type | Field |
   |---|---|---|
   | `+0x06` | u32 | first block offset (relative to the `CNSP` tag) |
-  | `+0x0A` | u16 | velocity floor: the layer plays from this velocity up (0/25/50 Clavinet; 0/2/5/8/… CP80) |
+  | `+0x0A` | u16 | flags byte (bits 0–1: 0 normal, 2 release sound) + attenuation floor byte: the layer plays from this touch attenuation (0.2 dB steps) up, so larger = softer (0/25/50 Clavinet; v5 stores floor/5: 0/2/5/8/… CP80). See `PIANO-ENGINE.md` §2.1 |
   | `+0x0C` | u32 | length in frames |
   | `+0x10` | u16 | block count |
   | `+0x12` | 4×i16 | predictor history for channel 0, oldest first |
