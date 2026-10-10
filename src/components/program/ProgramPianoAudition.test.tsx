@@ -97,18 +97,48 @@ describe('ProgramPianoAudition', () => {
     expect(extractBackupEntry).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Listen to Synth Piano' }));
-    expect(getSharedCtx).toHaveBeenCalled(); // audio unlocked inside the tap
     expect(screen.getByText('Opening your piano…')).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: 'Play C5, medium' }));
+    expect(getSharedCtx).toHaveBeenCalledTimes(1); // audio unlocked inside the key tap
     expect(playPcm).toHaveBeenCalledTimes(1);
   });
 
-  it('says so when the backup can\'t be opened', async () => {
-    vi.mocked(extractBackupEntry).mockRejectedValue(new Error('zip'));
+  it('unlocks audio on every key tap, folder pianos included', () => {
+    linkFolder({ pianos: [{ id: 'folder:Synth Piano 6.1.npno', name: 'Synth Piano 6.1', bytes: PIANO }] });
+    render(<ProgramPianoAudition model="Synth Piano" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Listen to Synth Piano' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Play C3, medium' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop C3, medium' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Play C4, medium' }));
+    expect(getSharedCtx).toHaveBeenCalledTimes(3);
+  });
+
+  it('opens the backup once, even when Listen is tapped again while it loads', async () => {
+    let finish!: (b: Uint8Array) => void;
+    vi.mocked(extractBackupEntry).mockImplementation(() => new Promise((res) => { finish = res; }));
     linkFolder({ backupPianos: [ref('Piano/Synth Piano 6.1.npno')] });
     render(<ProgramPianoAudition model="Synth Piano" />);
     fireEvent.click(screen.getByRole('button', { name: 'Listen to Synth Piano' }));
-    expect(await screen.findByText("Couldn't open Synth Piano from your backup.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Synth Piano' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Listen to Synth Piano' }));
+    expect(extractBackupEntry).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Opening your piano…')).toBeInTheDocument();
+    await act(async () => { finish(PIANO); });
+    expect(screen.getByRole('button', { name: 'Play C5, medium' })).toBeInTheDocument();
+    expect(extractBackupEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['a damaged backup', new Error('Bad local header for Piano/Synth Piano 6.1.npno.'), "Couldn't open Synth Piano from your backup — the backup file looks damaged."],
+    ['lost folder access', new DOMException('denied', 'NotAllowedError'), "OpenNord can't reach your folder any more. Reconnect it, then try Synth Piano again."],
+    ['a disconnected folder', new Error('No folder is connected.'), "OpenNord can't reach your folder any more. Reconnect it, then try Synth Piano again."],
+    ['a file that can\'t be read', new DOMException('gone', 'NotFoundError'), "Couldn't read your backup. Make sure it isn't being moved or synced, then try again."],
+  ])('says why the backup can\'t be opened: %s', async (_what, err, text) => {
+    vi.mocked(extractBackupEntry).mockRejectedValue(err);
+    linkFolder({ backupPianos: [ref('Piano/Synth Piano 6.1.npno')] });
+    render(<ProgramPianoAudition model="Synth Piano" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Listen to Synth Piano' }));
+    expect(await screen.findByText(text)).toBeInTheDocument();
   });
 
   it('notes when Nord made the piano in more than one version', () => {

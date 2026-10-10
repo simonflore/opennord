@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  findProgramPiano, knownVersionCount, localPianoKeys, localPianos, pianoKey, versionLabel, versionNumber,
+  findProgramPiano, isSizedPianoBase, knownVersionCount, localPianoKeys, localPianos, pianoKey, versionLabel, versionNumber,
   type LocalPiano,
 } from './piano-match';
+import { pianoEntriesFromBackupRefs } from './piano-entries';
 import { PIANO_NAMES } from '../ns4/names.generated';
 import type { BackupRef } from '../clavia/backup/backup-index';
 
@@ -58,6 +59,16 @@ describe('localPianoKeys', () => {
     expect(localPianoKeys(folderPiano('White Grand XL 6.3.npno', 'White Grand#', 630)))
       .toEqual([{ model: 'white grand xl', version: 630 }]);
   });
+
+  it('skips the header name of a renamed file when Nord also sells that name in sizes', () => {
+    expect(isSizedPianoBase('Wurlitzer 2')).toBe(true); // "Wurlitzer 2 Lrg", "Wurlitzer 2 XL"
+    expect(isSizedPianoBase('Concert Grand1')).toBe(true); // "Concert Grand1   Lrg"
+    expect(isSizedPianoBase('Clavinet D6')).toBe(false);
+    expect(isSizedPianoBase('Wurlitzer 1')).toBe(false);
+    // The header never holds the size: "wurli.npno" may well be the Wurlitzer 2 XL.
+    expect(localPianoKeys(folderPiano('wurli.npno', 'Wurlitzer 2#', 610)))
+      .toEqual([{ model: 'wurli', version: 610 }]);
+  });
 });
 
 describe('findProgramPiano', () => {
@@ -76,6 +87,15 @@ describe('findProgramPiano', () => {
 
   it('requires the version when the program names one', () => {
     expect(findProgramPiano('Clavinet D6 5.0', [folderPiano('Clavinet D6 6.1.npno', 'Clavinet D6#', 610)])).toBeNull();
+  });
+
+  it('does not match a renamed sized piano to the unsized program name', () => {
+    const renamed = folderPiano('wurli.npno', 'Wurlitzer 2#', 610);
+    expect(findProgramPiano('Wurlitzer 2', [renamed])).toBeNull();
+    expect(findProgramPiano('Wurlitzer 2 XL', [renamed])).toBeNull();
+    // Named files still match by their own name.
+    expect(findProgramPiano('Wurlitzer 2', [folderPiano('Wurlitzer 2 6.1.npno', 'Wurlitzer 2#', 610)])).not.toBeNull();
+    expect(findProgramPiano('Wurlitzer 2 XL', [folderPiano('Wurlitzer_2_XL_6.1.npno', 'Wurlitzer 2#', 610)])).not.toBeNull();
   });
 
   it('never matches a different size or a near name', () => {
@@ -106,6 +126,17 @@ describe('findProgramPiano', () => {
     expect(findProgramPiano('White Grand XL', [backupPiano('Piano/White Grand XL 6.3.npno')])?.versionUncertain).toBe(true);
     const single = Object.values(PIANO_NAMES).find((n) => knownVersionCount(n) === 1 && !pianoKey(n).version)!;
     expect(findProgramPiano(single, [backupPiano(`Piano/${single} 6.1.npno`)])?.versionUncertain).toBe(false);
+  });
+});
+
+describe('backup piano id and name', () => {
+  it('are the same in the Pianos browser and the program audition', () => {
+    const r = backupRef('Piano/Electric/EP1 Deep Timbre Lrg 6.0.npno');
+    const [entry] = pianoEntriesFromBackupRefs([r]);
+    const local = localPianos({ pianos: [], backupPianos: [r] })[0];
+    expect(local.id).toBe(entry.id);
+    expect(local.name).toBe(entry.name);
+    expect(entry).toMatchObject({ id: 'backup:Stage4 backup.ns4b!Piano/Electric/EP1 Deep Timbre Lrg 6.0.npno', name: 'EP1 Deep Timbre Lrg 6.0' });
   });
 });
 

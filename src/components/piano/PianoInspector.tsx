@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PianoEntry } from '@/lib/library/piano-entries';
 import { pullPiano } from '@/lib/device/pianos';
 import { downloadBytes } from '@/lib/download';
@@ -21,14 +21,20 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
   // Bytes to audition: a local file has them; a backup entry loads them on request.
   const [listenBytes, setListenBytes] = useState<Uint8Array | null>(entry.bytes ?? null);
   useEffect(() => { setListenBytes(entry.bytes ?? null); }, [entry.id, entry.bytes]);
+  // The piano on show now: a load that finishes after the user picked another is dropped,
+  // so A's recordings never play under B's name (PianosSplit also remounts per piano).
+  const shownId = useRef(entry.id);
+  useEffect(() => { shownId.current = entry.id; }, [entry.id]);
 
   async function loadSounds() {
     if (busy || !entry.backupRef) return;
+    const id = entry.id;
     setError(''); setBusy(true);
     try {
-      setListenBytes(await extractBackupEntry(folder, entry.backupRef));
+      const bytes = await extractBackupEntry(folder, entry.backupRef);
+      if (shownId.current === id) setListenBytes(bytes);
     } catch (e) {
-      setError(`Couldn't load ${entry.name}: ${msg(e)}`);
+      if (shownId.current === id) setError(`Couldn't load ${entry.name}: ${msg(e)}`);
     } finally {
       setBusy(false);
     }

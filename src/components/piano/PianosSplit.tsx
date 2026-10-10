@@ -35,7 +35,7 @@ export function PianosSplit() {
   );
 
   const detail = entry
-    ? <PianoInspector entry={entry} session={s.session} />
+    ? <PianoInspector key={entry.id} entry={entry} session={s.session} />
     : <EmptyNote className="p-4">Pick a piano to see its details.</EmptyNote>;
 
   return (
