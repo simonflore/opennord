@@ -829,9 +829,13 @@ Bit-exact means every stroke decodes to exactly its recorded frame count, and it
   damaged (the real v5.30 CP80 and Wurlitzer files). It now checks only when the field exists
   (`NspFile.hasChecksum`), the same rule `nsmpHasChecksumField` applies to format-0 samples.
   Whether the v5 `CNSP` header (`04 50 xx xx xx xx` after the tag) carries a checksum of its
-  own is unknown.
+  own is unknown. (Superseded below: v5 has a CRC-16 trailer. Which checksum a file carries
+  is decided by the format byte, `bytes[4]`; `nspChecksumKind` treats a file whose format byte
+  and `CNSP` position disagree as damaged, rather than skipping the check.)
 - One stroke's blocks are contiguous, and strokes follow each other with no gaps; the body runs to
-  EOF.
+  EOF. A stroke's frame count can't exceed what its blocks hold at width 1
+  (`blocks × framesPerBlock(blockWords, 1, channels)`); `readNspDirectory` rejects a record
+  that claims more, before anything is allocated for it.
 
 **Blocks:** fixed size, 511 16-bit words (mono) or 1022 (stereo).
 

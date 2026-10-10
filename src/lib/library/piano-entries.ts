@@ -1,6 +1,6 @@
 import type { ScannedPiano } from '../folder/scan';
 import type { ProgramEntry } from '../device/transfer';
-import { readNsp } from '../ns4/nsp';
+import { readNspIdentity, readNspZones } from '../ns4/nsp';
 import { resolveFactory, type FactoryMatch } from '../device/factory';
 import type { LibrarySource } from './types';
 import type { PianoSort } from './prefs';
@@ -43,15 +43,17 @@ export function pianoEntriesFromScanned(pianos: ScannedPiano[]): PianoEntry[] {
       id: p.id, name: p.name, source: 'local' as const, size: p.bytes.length, bytes: p.bytes,
       factory: resolveFactory(p.name, 'npno'),
     };
-    // Enrich with the .npno header (name/version/key-map). Never throws on a bad file.
+    // Enrich with the .npno header (version/key-map). The listing shows no checksum, so it
+    // skips that pass over every (multi-MB) file. Never throws on a bad file.
     try {
-      const nsp = readNsp(p.bytes);
-      if (nsp.recognized) {
-        base.version = nsp.version;
-        base.sampleCount = nsp.sampleCount;
-        if (nsp.zones?.length) {
-          base.keyLow = Math.min(...nsp.zones.map((z) => z.lowNote));
-          base.keyHigh = Math.max(...nsp.zones.map((z) => z.highNote));
+      const id = readNspIdentity(p.bytes);
+      if (id) {
+        base.version = id.version;
+        const zones = readNspZones(p.bytes);
+        if (zones.length) {
+          base.sampleCount = zones.length;
+          base.keyLow = Math.min(...zones.map((z) => z.lowNote));
+          base.keyHigh = Math.max(...zones.map((z) => z.highNote));
         }
       }
     } catch { /* header unreadable — leave metadata unset */ }

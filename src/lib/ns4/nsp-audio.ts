@@ -143,8 +143,11 @@ export function readNspDirectory(bytes: Uint8Array): NspDirectory | undefined {
     ? (strokes[1].offset - strokes[0].offset) / strokes[0].blocks / 2
     : 511 * channels;
   if (!Number.isInteger(blockWords) || blockWords < 2) return undefined;
+  // A block holds the most frames at width 1. A frame count beyond that is a damaged (or
+  // crafted) record, and decoding would allocate for it up front: reject it here.
+  const most = framesPerBlock(blockWords, 1, channels);
   for (const s of strokes) {
-    if (s.offset + s.blocks * blockWords * 2 > bytes.length) return undefined;
+    if (s.offset + s.blocks * blockWords * 2 > bytes.length || s.frames > s.blocks * most) return undefined;
   }
   return { version, channels, blockWords, strokes };
 }
@@ -160,6 +163,9 @@ export function framesPerBlock(blockWords: number, width: number, channels: numb
  */
 export function decodeNspStroke(bytes: Uint8Array, dir: NspDirectory, stroke: NspStroke): Int32Array[] {
   const { channels, blockWords } = dir;
+  if (stroke.frames > stroke.blocks * framesPerBlock(blockWords, 1, channels)) {
+    throw new Error(`piano stroke ${stroke.index}: ${stroke.frames} frames can't fit in ${stroke.blocks} blocks`);
+  }
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const out = Array.from({ length: channels }, () => new Int32Array(stroke.frames));
   const hist = stroke.history.map((h) => [...h]);

@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { patchNs4Checksum } from '../clavia/checksum';
-import { readNsp, readNspIdentity } from './nsp';
+import { sealTrailerChecksum } from '../clavia/crc16';
+import { nspChecksumKind, readNsp, readNspIdentity, readNspZones } from './nsp';
+import { makeNpno, tone } from './nsp-synth.testing';
+import { buildNpno } from './nsp-write';
 
 /** Minimal synthetic Nord Piano: CBIN + npno + CNSP + a name in the meta block.
  *  Optionally lay down a key map (root per note) @0xB8 (CNSP+0x8C). */
@@ -74,6 +77,59 @@ describe('readNsp', () => {
     const f = readNsp(makeSyntheticNpno('Two', 610, km));
     expect(f.sampleCount).toBe(2);
     expect(f.zones![0]).toEqual({ rootNote: 60, lowNote: 60, highNote: 72 });
+  });
+});
+
+const synth = (cnsp: 0x18 | 0x2c) => makeNpno([{ pcm: [tone(3000, 0.02, 3000, 1)], velocityFrom: 0, before: [[0, 0, 0, 0]] }], 1, cnsp);
+
+describe('readNsp — checksum presence comes from the CBIN header', () => {
+  it('reads the format byte: 1 → CRC-32 (v6), 0 → CRC-16 trailer (v5)', () => {
+    expect(nspChecksumKind(synth(0x2c))).toBe('crc32');
+    expect(nspChecksumKind(synth(0x18))).toBe('crc16');
+  });
+
+  it('calls a v6 piano damaged when its CNSP tag is gone, instead of skipping the CRC', () => {
+    const p = synth(0x2c);
+    p[0x2c] = 0x58; // 'CNSP' → 'XNSP': the tag no longer says where the checksum is
+    const f = readNsp(patchNs4Checksum(p)); // even with a CRC that matches the new bytes
+    expect(nspChecksumKind(p)).toBeUndefined();
+    expect(f).toMatchObject({ recognized: true, hasChecksum: true, checksumValid: false });
+    expect(f.warnings[0]).toMatch(/inconsistent/);
+  });
+
+  it('calls a piano damaged when the format byte and the CNSP position disagree', () => {
+    const v6 = synth(0x2c);
+    v6[4] = 0; // says v5, but CNSP sits at 0x2C
+    expect(readNsp(patchNs4Checksum(v6)).checksumValid).toBe(false);
+    const v5 = synth(0x18);
+    v5[4] = 1; // says v6, but CNSP sits at 0x18
+    expect(readNsp(sealTrailerChecksum(v5)).checksumValid).toBe(false);
+    const odd = synth(0x2c);
+    odd[4] = 7; // no known format
+    expect(readNsp(patchNs4Checksum(odd))).toMatchObject({ hasChecksum: false, checksumValid: false });
+  });
+});
+
+describe('readNsp — one-zone pianos', () => {
+  const oneZone = () => buildNpno({
+    name: 'One Zone', channels: 1,
+    zones: [{ rootNote: 60, lowNote: 21, highNote: 108, layers: [{ pcm: [Int32Array.from(tone(4000, 0.02, 3000, 1))], floorDb: 0 }] }],
+  }).bytes;
+
+  it('reads the single zone the test recipe builds, since the layers-per-root table agrees', () => {
+    const f = readNsp(oneZone());
+    expect(f.sampleCount).toBe(1);
+    expect(f.zones).toEqual([{ rootNote: 56, lowNote: 21, highNote: 108 }]);
+  });
+
+  it("ignores a lone root the layers-per-root table doesn't back up", () => {
+    const p = oneZone();
+    const table = 0x2c + 0x622;
+    p[table + 56 * 2 + 1] = 0; // no strokes at the key map's root…
+    p[table + 57 * 2 + 1] = 1; // …but one at another note
+    expect(readNspZones(p)).toEqual([]);
+    // and a file too short to hold the table can't vouch for a single zone either
+    expect(readNspZones(p.subarray(0, 0x2c + 0x622))).toEqual([]);
   });
 });
 
