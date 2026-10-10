@@ -5,20 +5,38 @@
  * Clavia uses this same CRC in two places:
  *  - the Nord USB transport frame checksum (src/lib/device/protocol.ts), and
  *  - the 2-byte little-endian trailer of the legacy program/preset file
- *    formats (.nwp, .nl4s/.nl4p, .nlas/.nlap — see verifyTrailerChecksum).
+ *    formats (.nwp, .nl4s/.nl4p, .nlas/.nlap — see verifyTrailerChecksum),
+ *    and of v5 Nord Piano libraries (.npno, the maintainers’ notes).
  *
  * Distinct from the Stage 4 `.ns4p` header checksum, which is a CRC-32 stored
  * in the CBIN header (src/lib/clavia/checksum.ts).
  */
-export function crc16ccitt(data: Uint8Array): number {
-  let crc = 0xffff;
+
+/** The CRC of each byte value: the bit-by-bit loop folded into a table (one lookup per byte). */
+const CRC16_TABLE = (() => {
+  const t = new Uint16Array(256);
+  for (let n = 0; n < 256; n++) {
+    let crc = n << 8;
+    for (let b = 0; b < 8; b++) crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
+    t[n] = crc;
+  }
+  return t;
+})();
+
+/**
+ * CRC-16/CCITT-FALSE of `data`. To run one CRC over a large buffer in slices, pass the
+ * result for the bytes before `data` as `crc`.
+ */
+export function crc16ccitt(data: Uint8Array, crc = 0xffff): number {
   for (let i = 0; i < data.length; i++) {
-    crc ^= data[i] << 8;
-    for (let b = 0; b < 8; b++) {
-      crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
-    }
+    crc = ((crc << 8) & 0xff00) ^ CRC16_TABLE[((crc >>> 8) ^ data[i]) & 0xff];
   }
   return crc & 0xffff;
+}
+
+/** The CRC a legacy Clavia file stores in its last two bytes (little-endian). */
+export function storedTrailerChecksum(bytes: Uint8Array): number {
+  return bytes[bytes.length - 2] | (bytes[bytes.length - 1] << 8);
 }
 
 /**
@@ -33,6 +51,17 @@ export function crc16ccitt(data: Uint8Array): number {
  */
 export function verifyTrailerChecksum(bytes: Uint8Array): boolean {
   if (bytes.length < 3) return false;
-  const stored = bytes[bytes.length - 2] | (bytes[bytes.length - 1] << 8);
-  return crc16ccitt(bytes.subarray(0, bytes.length - 2)) === stored;
+  return crc16ccitt(bytes.subarray(0, bytes.length - 2)) === storedTrailerChecksum(bytes);
+}
+
+/**
+ * Seal a legacy file in place: write the CRC-16 of everything but its last two bytes into
+ * those two bytes (LE), so {@link verifyTrailerChecksum} holds. Returns `bytes`.
+ */
+export function sealTrailerChecksum(bytes: Uint8Array): Uint8Array {
+  if (bytes.length < 3) throw new Error('a CRC-16 trailer needs at least one byte before it');
+  const crc = crc16ccitt(bytes.subarray(0, bytes.length - 2));
+  bytes[bytes.length - 2] = crc & 0xff;
+  bytes[bytes.length - 1] = crc >>> 8;
+  return bytes;
 }

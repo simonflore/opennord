@@ -1,11 +1,46 @@
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { describe, it, expect } from 'vitest';
-import { crc16ccitt, verifyTrailerChecksum } from './crc16';
+import { crc16ccitt, sealTrailerChecksum, storedTrailerChecksum, verifyTrailerChecksum } from './crc16';
+
+/** The textbook bit-by-bit CRC-16/CCITT-FALSE, as a reference for the table-driven one. */
+function bitwise(data: Uint8Array): number {
+  let crc = 0xffff;
+  for (const byte of data) {
+    crc ^= byte << 8;
+    for (let b = 0; b < 8; b++) crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
+  }
+  return crc;
+}
+
+const noise = (n: number, seed = 1) => {
+  let s = seed;
+  return Uint8Array.from({ length: n }, () => (s = (s * 1103515245 + 12345) & 0x7fffffff) >> 16);
+};
 
 describe('crc16ccitt', () => {
   it('matches the CRC-16/CCITT-FALSE check value', () => {
     expect(crc16ccitt(new TextEncoder().encode('123456789'))).toBe(0x29b1);
+  });
+
+  it('matches the bit-by-bit definition on every byte value and on noise', () => {
+    expect(crc16ccitt(Uint8Array.from({ length: 256 }, (_, i) => i))).toBe(bitwise(Uint8Array.from({ length: 256 }, (_, i) => i)));
+    for (const n of [0, 1, 2, 7, 1000, 65537]) expect(crc16ccitt(noise(n, n + 1))).toBe(bitwise(noise(n, n + 1)));
+  });
+
+  it('continues a running CRC across slices', () => {
+    const data = noise(100_000);
+    let crc = 0xffff;
+    for (let at = 0; at < data.length; at += 7777) crc = crc16ccitt(data.subarray(at, at + 7777), crc);
+    expect(crc).toBe(crc16ccitt(data));
+  });
+
+  it('seals a trailer in place', () => {
+    const file = noise(5000);
+    expect(sealTrailerChecksum(file)).toBe(file);
+    expect(verifyTrailerChecksum(file)).toBe(true);
+    expect(storedTrailerChecksum(file)).toBe(crc16ccitt(file.subarray(0, 4998)));
+    expect(() => sealTrailerChecksum(new Uint8Array(2))).toThrow();
   });
 
   it('verifies a synthetic LE trailer', () => {

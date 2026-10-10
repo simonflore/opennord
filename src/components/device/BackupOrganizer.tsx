@@ -41,7 +41,7 @@ const NOOP_IO: DeviceIO = {
 export function BackupOrganizer({ onBack, initialModel, initialBundlePath }: { onBack: () => void; initialModel?: BackupModel; initialBundlePath?: string }) {
   const folder = useFolder();
   const [model, setModel] = useState<BackupModel | null>(initialModel ?? null);
-  // The opened archive itself, for "Check backup" (a streamed model's source is the File).
+  // The opened archive itself, for "Check the opened backup" (a streamed model's source is the File).
   const [backupFile, setBackupFile] = useState<Blob | null>(
     initialModel?.source instanceof Blob ? initialModel.source : null,
   );

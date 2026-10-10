@@ -4,7 +4,7 @@
  */
 import { framesPerBlock } from './nsp-audio';
 import { patchNs4Checksum } from '../clavia/checksum';
-import { crc16ccitt } from '../clavia/crc16';
+import { sealTrailerChecksum } from '../clavia/crc16';
 
 const PRED = [[], [1], [2, -1], [3, -3, 1], [4, -6, 4, -1]];
 
@@ -78,7 +78,7 @@ export function makeNpno(strokes: SynthStroke[], channels: 1 | 2, cnsp: number):
   const view = new DataView(buf.buffer);
   const ascii = (s: string, at: number) => { for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i); };
   ascii('CBIN', 0);
-  if (cnsp === 0x2c) buf[4] = 1; // v6: format-1 envelope with a CRC-32 at 0x18 (v5 has none)
+  if (cnsp === 0x2c) buf[4] = 1; // v6: format-1 envelope with a CRC-32 at 0x18 (v5: format 0, CRC-16 trailer)
   ascii('npno', 8);
   view.setUint16(0x14, cnsp === 0x18 ? 530 : 610, true);
   ascii('CNSP', cnsp);
@@ -98,11 +98,7 @@ export function makeNpno(strokes: SynthStroke[], channels: 1 | 2, cnsp: number):
     if (s.loop) { view.setUint32(r + 0x1c, s.loop.start); view.setUint32(r + 0x20, s.loop.length); }
     for (const blk of encoded[i].blocks) { buf.set(blk, at); at += blk.length; }
   });
-  if (cnsp === 0x2c) return patchNs4Checksum(buf);
-  const crc = crc16ccitt(buf.subarray(0, size - 2));
-  buf[size - 2] = crc & 0xff;
-  buf[size - 1] = crc >>> 8;
-  return buf;
+  return cnsp === 0x2c ? patchNs4Checksum(buf) : sealTrailerChecksum(buf);
 }
 
 /** A decaying two-partial tone with a little deterministic noise. */

@@ -4,15 +4,18 @@ import { join } from 'node:path';
 import { zipSync, strToU8 } from 'fflate';
 import { buildCbinHeader } from '../clavia/cbin';
 import { patchNs4Checksum } from '../clavia/checksum';
-import { crc16ccitt } from '../clavia/crc16';
+import { sealTrailerChecksum } from '../clavia/crc16';
 import { readZipDirectory } from '../clavia/backup/zip-directory';
 import { buildMetaXml } from '../device/ns4b';
 import { makeNpno, tone, type SynthStroke } from './nsp-synth.testing';
 import { readNspDirectory } from './nsp-audio';
 import { writeNsmp } from './nsmp-write';
+import * as Comlink from 'comlink';
 import {
-  BackupCheckError, backupItemKind, checkBackup, checkBackupItem, checkPiano, summarizeBackupCheck, type BackupCheckReport,
+  BackupCheckError, backupItemKind, checkBackup, checkBackupItem, checkPiano, createBackupCheckWorkerApi, pacer,
+  summarizeBackupCheck, type BackupCheckReport,
 } from './backup-check';
+import { runBackupCheck, type BackupCheckWorker } from './backup-check-host';
 
 // Everything below is synthetic or a committed user-program fixture — no Nord content.
 const program = () => new Uint8Array(readFileSync(join(__dirname, '__fixtures__/regressionTest.ns4p')));
@@ -114,9 +117,7 @@ describe('checkBackup', () => {
     const piano = makeNpno(pianoStrokes(), 1, 0x18);
     const dir = readNspDirectory(piano)!;
     piano[dir.strokes[1].offset + 1] = 0xe0; // block header: width 0, predictor order 7
-    const crc = crc16ccitt(piano.subarray(0, piano.length - 2)); // re-seal the v5 CRC-16 trailer
-    piano[piano.length - 2] = crc & 0xff;
-    piano[piano.length - 1] = crc >>> 8;
+    sealTrailerChecksum(piano); // re-seal the v5 CRC-16 trailer
     const r = await checkBackup(backupBlob({ 'Piano/Broken.npno': piano }));
     // The trailer proves these are the bytes Nord wrote: an undecodable note is OpenNord's gap.
     expect(r.problems).toEqual([]);
@@ -188,10 +189,148 @@ describe('checkBackupItem', () => {
 });
 
 describe('checkPiano', () => {
+  const damaged = { problem: 'Damaged — your Nord may refuse to load this piano.', notes: 0, skipped: 0 };
+
   it('rejects a damaged v6 piano by its checksum before decoding', async () => {
     const p = makeNpno(pianoStrokes(), 1, 0x2c);
     p[p.length - 5] ^= 0x01;
-    expect(await checkPiano(p)).toEqual({ problem: 'Damaged — your Nord may refuse to load this piano.', notes: 0, skipped: 0 });
+    expect(await checkPiano(p)).toEqual(damaged);
+  });
+
+  it('checks the v5 CRC-16 trailer', async () => {
+    const p = makeNpno(pianoStrokes(), 1, 0x18);
+    expect(await checkPiano(p)).toEqual({ problem: null, notes: 2, skipped: 0 });
+    p[p.length - 5] ^= 0x01;
+    expect(await checkPiano(p)).toEqual(damaged);
+  });
+
+  it("calls a piano damaged when its header and CNSP tag disagree, even if the bytes' CRC holds", async () => {
+    const tagGone = makeNpno(pianoStrokes(), 1, 0x2c);
+    tagGone[0x2c] = 0x58; // no CNSP tag: the old reader skipped the checksum and called it valid
+    expect(await checkPiano(patchNs4Checksum(tagGone))).toEqual(damaged);
+    const formatFlipped = makeNpno(pianoStrokes(), 1, 0x18);
+    formatFlipped[4] = 1; // says v6, laid out as v5
+    expect(await checkPiano(sealTrailerChecksum(formatFlipped))).toEqual(damaged);
+  });
+
+  it('paces itself per note and per CRC slice', async () => {
+    let paced = 0;
+    await checkPiano(makeNpno(pianoStrokes(), 1, 0x2c), { pace: async () => { paced++; } });
+    expect(paced).toBe(1 + 2); // one CRC slice (a small file) + one per note
+  });
+});
+
+describe('pacer', () => {
+  it('yields only once the time budget is spent, then starts a new budget', async () => {
+    let t = 0;
+    let slept = 0;
+    const pace = pacer(50, () => t, async () => { slept++; });
+    t = 49; await pace();
+    expect(slept).toBe(0);
+    t = 50; await pace();
+    expect(slept).toBe(1);
+    t = 99; await pace();
+    expect(slept).toBe(1);
+    t = 100; await pace();
+    expect(slept).toBe(2);
+  });
+
+  it("keeps a check of many small files from waiting on a timer per file", async () => {
+    let slept = 0;
+    const files = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`Program/Bank A/P${i}.ns4p`, program()]));
+    const r = await checkBackup(backupBlob(files), { pace: pacer(60_000, () => performance.now(), async () => { slept++; }) });
+    expect(r.counts.program).toEqual({ total: 40, ok: 40 });
+    expect(slept).toBe(0); // all well inside one budget: no yields at all
+  });
+});
+
+describe('runBackupCheck (Web Worker host)', () => {
+  /**
+   * A worker stand-in: the real worker API behind a MessageChannel, as Comlink sees a Worker.
+   * It shares this thread, so it yields after every step to let messages through (as a real
+   * worker's own thread would).
+   */
+  const channelWorker = (): BackupCheckWorker => {
+    const { port1, port2 } = new MessageChannel();
+    Comlink.expose(createBackupCheckWorkerApi(() => pacer(0)), port1);
+    return { endpoint: port2 as unknown as Comlink.Endpoint, dispose: () => { port1.close(); port2.close(); } };
+  };
+
+  it('returns the same report through the worker as inline, with progress', async () => {
+    const blob = backupBlob(fullBackup());
+    const seen: number[] = [];
+    const viaWorker = await runBackupCheck(blob, { onProgress: (p) => seen.push(p.doneBytes) }, channelWorker);
+    expect(viaWorker).toEqual(await checkBackup(blob));
+    expect(viaWorker.problems).toEqual([]);
+    expect(seen.length).toBeGreaterThan(0);
+  });
+
+  it('runs inline where there are no Workers', async () => {
+    const r = await runBackupCheck(backupBlob({ 'Piano/A.npno': makeNpno(pianoStrokes(), 1, 0x2c) }), {}, () => undefined);
+    expect(r.counts.piano).toEqual({ total: 1, ok: 1 });
+  });
+
+  it('stops the worker check on abort and still returns what it checked', async () => {
+    const ac = new AbortController();
+    const r = await runBackupCheck(backupBlob(fullBackup()), {
+      signal: ac.signal,
+      onProgress: (p) => { if (p.current === 'Gospel') ac.abort(); },
+    }, channelWorker);
+    expect(r.cancelled).toBe(true);
+  });
+
+  it("drops progress that lands after the report, so a finished check doesn't look running", async () => {
+    const { port1, port2 } = new MessageChannel();
+    const report = await checkBackup(backupBlob({}));
+    Comlink.expose({
+      async check(_f: Blob, _p: boolean, onProgress: (p: unknown) => void) {
+        setTimeout(() => onProgress({ doneBytes: 1, totalBytes: 2, current: 'late' }), 20);
+        return report;
+      },
+      cancel() {},
+    }, port1);
+    const seen: string[] = [];
+    await runBackupCheck(backupBlob({}), { onProgress: (p) => seen.push(p.current) },
+      () => ({ endpoint: port2 as unknown as Comlink.Endpoint, dispose: () => {} }));
+    await new Promise((r) => setTimeout(r, 60));
+    expect(seen).toEqual([]);
+    port1.close(); port2.close();
+  });
+
+  /** A worker that never answers `check` (it hangs, or never loaded) and can be made to die. */
+  const silentWorker = (onCheck: (onProgress: (p: unknown) => void) => void = () => {}) => {
+    const { port1, port2 } = new MessageChannel();
+    Comlink.expose({
+      check: (_f: Blob, _p: boolean, onProgress: (p: unknown) => void) => { onCheck(onProgress); return new Promise(() => {}); },
+      cancel() {},
+    }, port1);
+    const die = () => port2.dispatchEvent(new Event('error'));
+    const worker: BackupCheckWorker = { endpoint: port2 as unknown as Comlink.Endpoint, dispose: () => { port1.close(); port2.close(); } };
+    return { worker, die };
+  };
+
+  it('falls back to the inline check when the worker dies before it answers (it never loaded)', async () => {
+    const { worker, die } = silentWorker();
+    const run = runBackupCheck(backupBlob({ 'Piano/A.npno': makeNpno(pianoStrokes(), 1, 0x2c) }), {}, () => worker);
+    setTimeout(die, 10);
+    expect((await run).counts.piano).toEqual({ total: 1, ok: 1 });
+  });
+
+  it('rejects, instead of waiting forever, when the worker dies mid-check', async () => {
+    const { worker, die } = silentWorker((onProgress) => onProgress({ doneBytes: 0, totalBytes: 1, current: 'A' }));
+    const seen: string[] = [];
+    const run = runBackupCheck(backupBlob({}), { onProgress: (p) => { seen.push(p.current); die(); } }, () => worker);
+    const err = await run.catch((e: unknown) => e);
+    expect(seen).toEqual(['A']);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(BackupCheckError); // shown as "Couldn't finish … Try again."
+  });
+
+  it('keeps the plain-words error class across the worker boundary', async () => {
+    const bytes = new Uint8Array(await backupBlob(fullBackup()).arrayBuffer());
+    const err = await runBackupCheck(new Blob([bytes.subarray(0, bytes.length - 200)]), {}, channelWorker).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(BackupCheckError);
+    expect((err as Error).message).toMatch(/incomplete or damaged/);
   });
 });
 
