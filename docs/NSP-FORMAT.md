@@ -790,14 +790,14 @@ Bit-exact means every stroke decodes to exactly its recorded frame count, and it
 
 - `+0x61C`: u16 version, u16 channels (1/2), u16 stroke count.
 - `+0x72C`: stroke records, 0x76 bytes each. Records are grouped by key zone, lowest zone
-  first; within a zone, dynamic layers run **loudest first**. A new zone starts where the
-  attenuation floor (`+0x0A`) drops back to 0, which gives exactly one group per key-map zone
-  (17/16/16 in the three files).
+  first; within a zone, dynamic layers run **loudest first** (`PIANO-ENGINE.md` §0). A new zone
+  starts where the attenuation floor (`+0x0A`) drops back to 0, which gives exactly one group per
+  key-map zone (17/16/16 in the three files).
 
   | Offset | Type | Field |
   |---|---|---|
   | `+0x06` | u32 | first block offset (relative to the `CNSP` tag) |
-  | `+0x0A` | u16 | attenuation floor in 0.2 dB steps, 0 = the hardest hit (v6: 0/25/50 Clavinet; v5 files store it in whole dB, so the CP80's 0/2/5/8/… are ×5 in 0.2 dB steps). The ARM maps velocity through the Touch curve to an attenuation and plays the last layer whose switch point it reaches; a layer's switch point is halfway between its floor and the previous one's. One stroke plays, with no crossfade |
+  | `+0x0A` | u16 | flags byte (bits 0–1: 0 normal, 1 alternative list, 2 release sound) + attenuation floor byte in 0.2 dB steps, 0 = the hardest hit, larger = softer (v6: 0/25/50 Clavinet; v5 files store it in whole dB, so the CP80's 0/2/5/8/… are ×5 in 0.2 dB steps). The ARM maps velocity through the Touch curve to an attenuation and plays the last layer whose switch point it reaches; a layer's switch point is halfway between its floor and the previous one's. One stroke plays, with no crossfade. See `PIANO-ENGINE.md` §2.1 |
   | `+0x0C` | u32 | length in frames |
   | `+0x10` | u16 | block count |
   | `+0x12` | 4×i16 | predictor history for channel 0, oldest first |
