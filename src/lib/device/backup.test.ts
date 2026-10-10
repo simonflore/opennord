@@ -183,6 +183,20 @@ describe('restore', () => {
     expect(t.sent).toHaveLength(0); // never touched the device
   });
 
+  it('reports a partition the Nord refuses to open, without trying to write to it', async () => {
+    const zip = zipSync({
+      'meta.xml': strToU8(buildMetaXml(0)),
+      'Program/Bank H/regressionTest.ns4p': fixtureBytes,
+    }, { level: 0 });
+    const t = new MockTransport([encodeMessage(CReqBegin | 1, [2])]); // begin refused (status 2)
+    const result = await restore(stage4Session(t), zip);
+    expect(result.restored).toBe(0);
+    expect(result.failures).toEqual([
+      { path: 'Program/Bank H/regressionTest.ns4p', error: 'Could not open partition 6: status 2' },
+    ]);
+    expect(t.sent.map((f) => decodeReply(f).msgId)).toEqual([CReqBegin]); // no writes, no end
+  });
+
   it('records a non-CBIN entry as a failure without writing to slot 0:0', async () => {
     const zip = zipSync({
       'meta.xml': strToU8(buildMetaXml(0)),
