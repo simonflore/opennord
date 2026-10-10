@@ -1,0 +1,7 @@
+# SHARC+ DO (type 12a): bit 23 is the loop mode bit, the end address is 23-bit
+# PC-relative.  Hand-assembled from the SHARC+ Core Programming Reference, not firmware.
+0c0010800003   # LCNTR = 0x10, DO (PC,3) UNTIL LCE (F)  -- end at +3, F1-active
+507e80000000   # DM(I0,M1) = R0                         -- loop end
+0c0010000003   # LCNTR = 0x10, DO (PC,3) UNTIL LCE      -- mode bit clear
+507e80000000   # DM(I0,M1) = R0                         -- loop end
+0abe           # RTS

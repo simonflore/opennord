@@ -1,0 +1,6 @@
+# VISA code (visa = 1, the default outside the IVT): 16- and 48-bit
+# instructions, most significant parcel first.
+0001           # NOP (16-bit)
+0f0012345678   # R0 = 0x12345678
+0001           # NOP (16-bit)
+0a3e00000000   # RTS

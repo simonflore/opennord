@@ -1,0 +1,8 @@
+# 48-bit ISA instructions, most significant parcel first, loaded at the
+# interrupt vector table (sw:124000), where the pspec clears visa.
+0f0012345678   # R0 = 0x12345678
+0f0100000010   # R1 = 0x10
+063e0008c00c   # JUMP 0x8c00c (48-bit address; short-word alias sw:124024)
+008000000000   # IDLE
+000000000000   # NOP
+0a3e00000000   # RTS

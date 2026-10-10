@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- VisualDSP++ / CrossCore Embedded Studio C run-time model for the SHARC.
+     Every data type is a whole number of 32-bit words (char is 32 bits).  I7 is the
+     stack pointer and I6 the frame pointer; the stack grows down in dm.  Arguments go in
+     R4, R8, R12, the result in R0.  R3, R5-R7, R9-R11, R13-R15, I0-I3, I5, I8-I11, I14,
+     I15, M0-M3 and M8-M11 are preserved by the callee (the registers compiled functions
+     save and restore through I6).  The run time keeps M5 = M13 = 0, M6 = M14 = 1 and
+     M7 = M15 = -1 at all times (the compiler uses them as constant modifiers), which the
+     tracked set below tells the analysis.  Hardware-loop state is preserved across a call:
+     a callee's loops push and pop the loop-counter stack. -->
+<compiler_spec>
+  <data_organization>
+    <absolute_max_alignment value="0" />
+    <machine_alignment value="1" />
+    <default_alignment value="1" />
+    <default_pointer_alignment value="1" />
+    <pointer_size value="4" />
+    <char_size value="4" />
+    <short_size value="4" />
+    <integer_size value="4" />
+    <long_size value="4" />
+    <long_long_size value="8" />
+    <float_size value="4" />
+    <double_size value="4" />
+    <long_double_size value="8" />
+    <size_alignment_map>
+      <entry size="1" alignment="1" />
+      <entry size="2" alignment="1" />
+      <entry size="4" alignment="1" />
+      <entry size="8" alignment="1" />
+    </size_alignment_map>
+  </data_organization>
+  <global>
+    <range space="sw"/>
+    <range space="dm"/>
+  </global>
+  <stackpointer register="I7" space="dm" growth="negative"/>
+  <returnaddress>
+    <register name="PCSTK"/>
+  </returnaddress>
+  <context_data>
+    <tracked_set space="sw">
+      <set name="M5" val="0"/>
+      <set name="M6" val="1"/>
+      <set name="M7" val="0xffffffff"/>
+      <set name="M13" val="0"/>
+      <set name="M14" val="1"/>
+      <set name="M15" val="0xffffffff"/>
+    </tracked_set>
+  </context_data>
+  <default_proto>
+    <prototype name="__vdsp" extrapop="0" stackshift="0">
+      <input>
+        <pentry minsize="1" maxsize="4"><register name="R4"/></pentry>
+        <pentry minsize="1" maxsize="4"><register name="R8"/></pentry>
+        <pentry minsize="1" maxsize="4"><register name="R12"/></pentry>
+      </input>
+      <output>
+        <pentry minsize="1" maxsize="4"><register name="R0"/></pentry>
+      </output>
+      <unaffected>
+        <register name="R3"/><register name="R5"/><register name="R6"/><register name="R7"/><register name="R9"/><register name="R10"/><register name="R11"/><register name="R13"/><register name="R14"/><register name="R15"/>
+        <register name="I0"/><register name="I1"/><register name="I2"/><register name="I3"/><register name="I5"/><register name="I6"/><register name="I7"/><register name="I8"/><register name="I9"/><register name="I10"/><register name="I11"/><register name="I14"/><register name="I15"/>
+        <register name="M0"/><register name="M1"/><register name="M2"/><register name="M3"/><register name="M5"/><register name="M6"/><register name="M7"/><register name="M8"/><register name="M9"/><register name="M10"/><register name="M11"/><register name="M13"/><register name="M14"/><register name="M15"/>
+        <register name="CURLCNTR"/><register name="LCSTK0"/><register name="LCSTK1"/><register name="LCSTK2"/><register name="LCSTK3"/><register name="LCSTK4"/><register name="LCSTK5"/>
+      </unaffected>
+      <killedbycall>
+        <register name="R0"/><register name="R1"/><register name="R2"/><register name="R4"/><register name="R8"/><register name="R12"/><register name="I4"/><register name="I12"/><register name="I13"/><register name="M4"/><register name="M12"/>
+        <register name="MRF"/><register name="MRB"/><register name="MRF2"/><register name="MRB2"/><register name="PX"/>
+        <register name="AZ"/><register name="AN"/><register name="AC"/><register name="AV"/><register name="MV"/><register name="MS"/><register name="SV"/><register name="SZ"/><register name="BTF"/>
+      </killedbycall>
+    </prototype>
+  </default_proto>
+</compiler_spec>

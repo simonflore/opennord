@@ -1,0 +1,127 @@
+# Analog Devices SHARC+ core (ADSP-SC58x / ADSP-2158x): the 48-bit SHARC instruction set
+# (ISA) and VISA (16/32/48-bit instructions in short-word memory).  Derived from the
+# ADSP-214xx model in sharc214xx.slaspec; the differences (SHARC+ Core Programming
+# Reference rev 1.4) are:
+#
+#  * L1 block 0 has its normal-word / 48-bit base at 0x90000 (byte 0x240000, short word
+#    0x120000); blocks 1-3 at 0xb0000, 0xc0000, 0xe0000.  A 48-bit instruction occupies six
+#    consecutive bytes, so its short-word alias is SW = 3*A - (A & 0xf0000).
+#  * DO (types 12a/13a) has a 23-bit PC-relative end address; bit 23 selects an F1-active
+#    loop, shown as "(F)".
+#
+# Memory images.  SHARC+ memory is little-endian.  VISA code keeps its parcel order (most
+# significant parcel at the lowest address) with each parcel byte-swapped into this
+# big-endian model; a 48-bit ISA word is stored least significant byte first, so its six
+# bytes are reversed.  scripts/sharc-boot-split.py + the OpenNord import script do this.
+#
+define endian=big;
+define alignment=2;
+
+define space sw       type=ram_space      size=4 wordsize=2 default;
+define space dm       type=ram_space      size=4 wordsize=4;
+define space register type=register_space size=4;
+
+define register offset=0x000 size=4 [ R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 ];
+define register offset=0x040 size=4 [ I0 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11 I12 I13 I14 I15 ];
+define register offset=0x080 size=4 [ M0 M1 M2 M3 M4 M5 M6 M7 M8 M9 M10 M11 M12 M13 M14 M15 ];
+define register offset=0x0C0 size=4 [ L0 L1 L2 L3 L4 L5 L6 L7 L8 L9 L10 L11 L12 L13 L14 L15 ];
+define register offset=0x100 size=4 [ B0 B1 B2 B3 B4 B5 B6 B7 B8 B9 B10 B11 B12 B13 B14 B15 ];
+define register offset=0x140 size=4 [ S0 S1 S2 S3 S4 S5 S6 S7 S8 S9 S10 S11 S12 S13 S14 S15 ];
+define register offset=0x180 size=4 [ FADDR DADDR UREG_62 PC PCSTK PCSTKP LADDR CURLCNTR
+                                      LCNTR EMUCLK EMUCLK2 PX PX1 PX2 TPERIOD TCOUNT ];
+define register offset=0x1C0 size=4 [ USTAT1 USTAT2 MODE1 MMASK MODE2 FLAGS ASTATX ASTATY
+                                      STKYX STKYY IRPTL IMASK IMASKP LRPTL USTAT3 USTAT4 ];
+define register offset=0x200 size=8 [ MRF MRB ];
+define register offset=0x210 size=4 [ MRF2 MRB2 ];
+define register offset=0x220 size=1 [ AZ AN AC AV MV MS SV SZ FLAG0 FLAG1 FLAG2 FLAG3 BTF BM ];
+# the loop-counter stack below CURLCNTR (six levels, PGR "Loop Counter Stack")
+define register offset=0x240 size=4 [ LCSTK0 LCSTK1 LCSTK2 LCSTK3 LCSTK4 LCSTK5 ];
+# Loading Bn also loads In; the ureg loads write their register and, through a companion
+# field, In for a B code or this scratch register for every other code (never read).
+define register offset=0x260 size=4 [ BIX ];
+
+define register offset=0x300 size=8 contextreg;
+define context contextreg
+  visa  = (0,0)   noflow   # 1 = VISA decoding, 0 = 48-bit ISA
+  lend  = (1,1)   noflow   # this instruction is the last one of a DO loop
+  dslot = (2,3)   noflow   # (DB) in VISA code: first delay slot is 2/4/6 bytes (0/1/2)
+  lterm = (8,12)  noflow   # the loop's termination code (15 = LCE, 31 = FOREVER)
+  ltop  = (32,55) noflow   # the loop's first instruction
+;
+
+define pcodeop clip;       define pcodeop fclip;     define pcodeop scalb;
+define pcodeop mant;       define pcodeop logb;      define pcodeop recips;
+define pcodeop rsqrts;     define pcodeop copysign;  define pcodeop rot;
+define pcodeop shiftop;    define pcodeop mrop;      define pcodeop bitrev;
+define pcodeop idle;       define pcodeop emuidle;   define pcodeop stackop;
+
+# Status flags that conditions read (PGR Table 4-37): the ALU sets AZ/AN, the multiplier
+# MN (condition MS), the shifter SZ.  Overflow and saturation flags are not modelled.
+macro setfix(r)  { AZ = (r == 0); AN = (r s< 0); }
+macro setflt(r)  { AZ = (r f== 0:4); AN = (r f< 0:4); }
+macro setmul(r)  { MS = (r s< 0); }
+macro setfmul(r) { MS = (r f< 0:4); }
+macro setsz(r)   { SZ = (r == 0); }
+
+# A computed code address.  In ISA code a code pointer is a 48-bit address; like the direct
+# targets (map48 in tools/gen_sinc.py) it is mapped to its short-word alias,
+# SW = 3*A - (A & 0xe0000) for A in 0x80000..0xfffff.  In VISA code pointers are short-word
+# addresses already.  `isa` is the constant exported by ISA, so the decompiler folds the
+# expression away in VISA code.
+macro pmcode(t, isa) {
+	local s48:4 = isa * ((t >> 19) & 1) * (~(t >> 20) & 1);
+	t = t + s48 * (2 * t - (t & 0xf0000));
+}
+
+# DO pushes CURLCNTR onto the loop-counter stack; the end of the loop pops it.
+macro pushLoop() {
+	LCSTK5 = LCSTK4; LCSTK4 = LCSTK3; LCSTK3 = LCSTK2;
+	LCSTK2 = LCSTK1; LCSTK1 = LCSTK0; LCSTK0 = CURLCNTR;
+}
+macro popLoop() {
+	CURLCNTR = LCSTK0; LCSTK0 = LCSTK1; LCSTK1 = LCSTK2;
+	LCSTK2 = LCSTK3; LCSTK3 = LCSTK4; LCSTK4 = LCSTK5;
+}
+
+# Delay slots of a (DB) branch.  Ghidra collects delay-slot instructions until their
+# lengths reach the byte count given here, so for two instructions of variable length the
+# count must be one more than the first slot's length: the first slot alone falls short,
+# and the second always completes it.  dslot is 0 by default (a 16-bit first slot, the
+# common case); the SHARC Delay Slot analyzer sets it where the first slot is longer.
+DS: is visa=0           { delayslot(12); }
+DS: is visa=1 & dslot=0 { delayslot(3); }
+DS: is visa=1 & dslot=1 { delayslot(5); }
+DS: is visa=1 & dslot=2 { delayslot(7); }
+DS: is visa=1 & dslot=3 { delayslot(3); }
+
+LoopTop: ltop is ltop { export *:4 ltop; }
+
+ISA: is visa=0 { export 1:4; }
+ISA: is visa=1 { export 0:4; }
+
+@include "sharcplus.sinc"
+
+# ================================================================ root table
+# Counter loop (UNTIL LCE): CURLCNTR counts down after the last instruction; a count of
+# 0 therefore runs 2^32 times, as on the hardware.
+:^instr is lend=1 & lterm=15 & LoopTop & instr {
+	build instr;
+	CURLCNTR = CURLCNTR - 1;
+	if (CURLCNTR != 0) goto LoopTop;
+	popLoop();
+}
+
+:^instr is lend=1 & lterm=31 & LoopTop & instr {
+	build instr;
+	goto LoopTop;
+}
+
+# Arithmetic loop: DO ... UNTIL <condition>, tested after the last instruction.
+:^instr is lend=1 & LoopTop & LTERM & instr {
+	build instr;
+	build LTERM;
+	if (!LTERM) goto LoopTop;
+	popLoop();
+}
+
+:^instr is instr { build instr; }

@@ -1,0 +1,11 @@
+SMOKE block blk0_sw sw:00130000-sw:00138001.1 init rwx
+SMOKE block iop dm:00000000-dm:0003ffff.3 uninit rw-
+SMOKE block blk0_nw dm:00098000-dm:0009c000.3 init rw-
+SMOKE sw:00130000 MOVE R0 = 0x12345678
+SMOKE sw:00130003 RTS 
+SMOKE sw:00138000 NOP  (no p-code)
+SMOKE sw:00138001 NOP  (no p-code)
+SMOKE analyzer SHARC Call Idiom
+SMOKE analyzer SHARC Delay Slot
+SMOKE analyzer SHARC Function Pointer Arguments
+SMOKE analyzer SHARC Loop End

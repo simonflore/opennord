@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- SHARC+ (ADSP-SC58x/2158x).  Code space sw is addressed in 16-bit short words.  The
+     interrupt vector table is 48-bit ISA code at the start of L1 block 0: 48-bit 0x90000,
+     byte 0x240000, sw:120000-sw:12017f (32 vectors of four instructions).  Vector 1 is
+     reset.  Vector names beyond EMU/RST are generic. -->
+<processor_spec>
+  <programcounter register="PC"/>
+  <context_data>
+    <context_set space="sw">
+      <set name="visa" val="1"/>
+    </context_set>
+    <context_set space="sw" first="0x120000" last="0x12017f">
+      <set name="visa" val="0"/>
+    </context_set>
+  </context_data>
+  <default_symbols>
+    <symbol name="VEC_EMU" address="sw:120000" entry="true"/>
+    <symbol name="VEC_RST" address="sw:12000c" entry="true"/>
+    <symbol name="VEC_02" address="sw:120018" entry="true"/>
+    <symbol name="VEC_03" address="sw:120024" entry="true"/>
+    <symbol name="VEC_04" address="sw:120030" entry="true"/>
+    <symbol name="VEC_05" address="sw:12003c" entry="true"/>
+    <symbol name="VEC_06" address="sw:120048" entry="true"/>
+    <symbol name="VEC_07" address="sw:120054" entry="true"/>
+    <symbol name="VEC_08" address="sw:120060" entry="true"/>
+    <symbol name="VEC_09" address="sw:12006c" entry="true"/>
+    <symbol name="VEC_10" address="sw:120078" entry="true"/>
+    <symbol name="VEC_11" address="sw:120084" entry="true"/>
+    <symbol name="VEC_12" address="sw:120090" entry="true"/>
+    <symbol name="VEC_13" address="sw:12009c" entry="true"/>
+    <symbol name="VEC_14" address="sw:1200a8" entry="true"/>
+    <symbol name="VEC_15" address="sw:1200b4" entry="true"/>
+    <symbol name="VEC_16" address="sw:1200c0" entry="true"/>
+    <symbol name="VEC_17" address="sw:1200cc" entry="true"/>
+    <symbol name="VEC_18" address="sw:1200d8" entry="true"/>
+    <symbol name="VEC_19" address="sw:1200e4" entry="true"/>
+    <symbol name="VEC_20" address="sw:1200f0" entry="true"/>
+    <symbol name="VEC_21" address="sw:1200fc" entry="true"/>
+    <symbol name="VEC_22" address="sw:120108" entry="true"/>
+    <symbol name="VEC_23" address="sw:120114" entry="true"/>
+    <symbol name="VEC_24" address="sw:120120" entry="true"/>
+    <symbol name="VEC_25" address="sw:12012c" entry="true"/>
+    <symbol name="VEC_26" address="sw:120138" entry="true"/>
+    <symbol name="VEC_27" address="sw:120144" entry="true"/>
+    <symbol name="VEC_28" address="sw:120150" entry="true"/>
+    <symbol name="VEC_29" address="sw:12015c" entry="true"/>
+    <symbol name="VEC_30" address="sw:120168" entry="true"/>
+    <symbol name="VEC_31" address="sw:120174" entry="true"/>
+  </default_symbols>
+</processor_spec>

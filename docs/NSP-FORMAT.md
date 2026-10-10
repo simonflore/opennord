@@ -712,12 +712,17 @@ no reference" wall is now a *tooling* wall, not a missing-data one.
   `0x28A4xxxx`/`0x28Bxxxxx` (**core 2**), both plus shared L2 at `0x2000xxxx` — the SC58x/2158x
   memory map. So the Stage 4 runs at least six SHARC+ cores; which one decodes `CNSP` piano
   audio is not yet known.
-- **Blocker for the codec:** no open SHARC/SHARC+ disassembler or Ghidra processor module
-  exists (checked 2026-10-10). Next steps, in order: (1) split each stream into its load
-  segments (target address + payload) and look for the piano decoder by data — coefficient
-  tables and the piano-voice code are likely on the core that receives `npno` strokes from the
-  ARM; (2) find which DSP the ARM-side `npno` loader talks to (follow the host-port writes);
-  (3) only then consider a SLEIGH module for SHARC+ — a sizeable project in its own right.
+- **Tooling (corrected 2026-10-10):** an earlier version of this note said no SHARC
+  disassembler existed — wrong. [ghidra-sharc](https://github.com/rjmendez/ghidra-sharc)
+  (Apache-2.0) covers the ADSP-214xx ISA + VISA. OpenNord vendors it in
+  `tools/ghidra-sharc/` with a **SHARC+ language** (`SHARC:BE:32:SHARCplus`: SHARC+
+  48-bit aliasing, 23-bit DO offsets + loop-mode bit), and `scripts/sharc-boot-split.py` +
+  `scripts/sharcplus-image.py` turn these boot streams into Ghidra images (workflow in the
+  module README). On Stage 4 OS v1.66 it recovers 94–99.5% of block-0 code on DSP0 c1/c2 and
+  DSP1 c1, ~77% on the three voice-engine cores (DSP1 c2, DSP2 c1/c2 — near-identical builds;
+  the rest is largely coefficient tables in program memory). Next: find which core decodes
+  `CNSP` strokes (follow the ARM host-port writes; look for the stroke/block parser by its
+  table and loop shape on the voice-engine cores).
 - Also in the image: `0xC0300000–0xC0430000` (~1.2 MB) is 16-bit sample-like data with
   4-way interleaved slowly-varying streams (wave/table data, not code).
 

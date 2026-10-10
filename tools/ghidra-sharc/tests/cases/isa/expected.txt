@@ -1,0 +1,11 @@
+SMOKE block sw sw:00124000-sw:00124011.1 init rwx
+SMOKE sw:00124000 MOVE R0 = 0x12345678
+SMOKE sw:00124003 MOVE R1 = 0x10
+SMOKE sw:00124006 JUMP (0x00124024)
+SMOKE sw:00124009 IDLE
+SMOKE sw:0012400c NOP  (no p-code)
+SMOKE sw:0012400f RTS 
+SMOKE analyzer SHARC Call Idiom
+SMOKE analyzer SHARC Delay Slot
+SMOKE analyzer SHARC Function Pointer Arguments
+SMOKE analyzer SHARC Loop End

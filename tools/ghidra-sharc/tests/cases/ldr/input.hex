@@ -1,0 +1,10 @@
+# A bare boot stream (no kernel): 32-bit words, least significant byte first.
+# INIT_L48, count 2, 48-bit address 0x90000 (short-word alias sw:130000):
+#   0f0012345678  R0 = 0x12345678
+#   0a3e00000000  RTS
+# packed as two 48-bit words in three 32-bit words.
+05000000 02000000 00000900
+78563412 000f0000 00003e0a
+# INIT_L16, count 2, short-word address 0x138000: two VISA NOPs (0x0001).
+03000000 02000000 00801300
+01000100

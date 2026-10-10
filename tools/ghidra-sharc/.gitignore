@@ -1,0 +1,12 @@
+# Build output
+.gradle/
+build/
+dist/
+lib/
+scratch/
+data/languages/*.sla
+__pycache__/
+
+# Editors / OS
+.DS_Store
+*.swp

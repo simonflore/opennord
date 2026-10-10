@@ -1,0 +1,24 @@
+// Ghidra extension build.
+//
+//   tools/build.sh                                     # the usual way
+//   GHIDRA_INSTALL_DIR=/path/to/ghidra gradle buildExtension
+//
+// buildExtension does not compile SLEIGH, and a zip without the .sla files
+// installs cleanly and then fails at import with "Unsupported language".
+// tools/build.sh compiles the .slaspec files first and checks the zip.
+def ghidraInstallDir = System.env.GHIDRA_INSTALL_DIR ?:
+	(project.hasProperty("GHIDRA_INSTALL_DIR") ? project.getProperty("GHIDRA_INSTALL_DIR") : null)
+if (!ghidraInstallDir) {
+	throw new GradleException("Set GHIDRA_INSTALL_DIR (env or -P) to a Ghidra installation")
+}
+
+apply from: new File(ghidraInstallDir).getCanonicalPath() + "/support/buildExtension.gradle"
+
+// Development material that has no use inside Ghidra.
+tasks.named("buildExtension") {
+	exclude ".github/**"
+	exclude "scratch/**"
+	exclude "tests/**"
+	exclude "tools/**"
+	exclude "data/languages/*.sinc.in"
+}
