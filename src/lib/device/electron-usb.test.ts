@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { ElectronUsbTransport, isElectronUsb, type NordNativeUsb } from './electron-usb';
+import { TransportTimeoutError } from './transport';
 
 function installBridge(over: Partial<NordNativeUsb> = {}) {
   const calls: { bulkOut: string[] } = { bulkOut: [] };
@@ -44,6 +45,15 @@ describe('ElectronUsbTransport', () => {
     expect(calls.bulkOut[0]).toBe(btoa('\x01\x02\xff'));
     const inBytes = await t.bulkIn(64);
     expect(Array.from(inBytes)).toEqual([0x05, 0x06]);
+  });
+
+  it('passes a read timeout to the bridge and maps its timed-out reply to TransportTimeoutError', async () => {
+    const bulkIn = vi.fn(async (_max: number, timeoutMs?: number) => (timeoutMs ? null : btoa('\x05')));
+    installBridge({ bulkIn });
+    const t = new ElectronUsbTransport();
+    await expect(t.bulkIn(64, 3000)).rejects.toBeInstanceOf(TransportTimeoutError);
+    expect(bulkIn).toHaveBeenCalledWith(64, 3000);
+    expect(Array.from(await t.bulkIn(64))).toEqual([0x05]); // no timeout: waits as before
   });
 
   it('closes via the bridge', async () => {

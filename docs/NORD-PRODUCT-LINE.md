@@ -297,7 +297,12 @@ So an Add-ordinal (`staticIndex`) is a guess: OpenNord uses it to start the
 read-only connect probe, and writes to a model's Program partition only once
 the probe has found that model's program files there (or the index is
 hardware-confirmed for a layout that doesn't move between OS versions — today
-only the Stage 4). See `resolveDeviceAccess` in `src/lib/device/connect-probe.ts`.
+only the Stage 4). When the probe finds Program exactly at a hardware-confirmed
+model's hardware index (a Stage 2 on a current OS), its user sample and piano
+libraries become writable too; its preset, Live and Settings partitions never do
+this way. The probe checks the expected index, then one lower, and only then
+scans the partitions the device reports, with every reply time-bounded. See
+`resolveDeviceAccess` in `src/lib/device/connect-probe.ts`.
 
 Recovered order (type = last `SPartition*` constructed before each `Add()`, tag
 from its `CFileType`; `llvm-objdump` + a conditional-branch check — only Wave 2
