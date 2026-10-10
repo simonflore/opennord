@@ -26,14 +26,20 @@ import {
   BLOCK_OVERLAP, decodeNspStroke, findCnsp, framesPerBlock, PREDICTORS, readLayerTable, readNspDirectory,
 } from './nsp-audio';
 import { NSP_ROOT_OFFSET } from './nsp';
-import { checkNpnoAcceptance, cnspChecksum, VOICE_TABLE_ENTRIES } from './nsp-check';
+import {
+  checkNpnoAcceptance, cnspChecksum, MAX_LAYERS_PER_ROOT, MAX_PIANO_NAME, MAX_PIANO_STROKES,
+} from './nsp-check';
 
 // ── Container constants (offsets relative to the `CNSP` tag unless noted) ──────────────────
 
 /** Header bytes before the first stroke record (tables + directory). */
 export const NPNO_HEADER_SIZE = 0x732;
 export const NPNO_RECORD_SIZE = 0x76;
-/** CNSP format codes. 0x464 = the v6 format (Stage 4 / Piano 5 era), 0x450 = v5. */
+/**
+ * CNSP format codes. 0x464 = the v6 format (Stage 4 / Piano 5 era), 0x450 = v5. Both load on
+ * the Stage 2, 3 and 4 (the gate's piano generation is 5 on all three), but NSM only offers
+ * v6 on Stage 2 OS ≥ 2.29 and Stage 3 OS ≥ 1.61 (docs/NPNO-WRITE.md).
+ */
 export const CNSP_V6 = 0x464;
 export const CNSP_V5 = 0x450;
 /** Block size in 16-bit words per channel (the DSP addresses blocks as n × 511 / n × 1022). */
@@ -503,7 +509,11 @@ export interface NpnoZoneInput {
 }
 
 export interface NpnoInput {
-  /** Display name (≤ 31 ASCII chars incl. any variant). */
+  /**
+   * Display name (≤ 31 ASCII chars incl. any variant). The piano is stored under a file name
+   * made from it (`Name_6.<minor>.npno`), which must stay within 32 characters, so the name
+   * itself gets at most 23.
+   */
   name: string;
   /** Optional model/variant shown after the `#` (e.g. "CP80"). */
   variant?: string;
@@ -591,6 +601,12 @@ const floorUnits = (l: NpnoLayerInput) => Math.round(l.floorDb * 5);
 /** Validate the input; throws with a musician-readable message. */
 function validateZones(input: NpnoInput): void {
   if (!input.zones.length) throw new Error('A piano needs at least one key zone.');
+  // "Piano is too big" on every model above 0x149F notes (nsp-check MAX_PIANO_STROKES).
+  const notes = input.zones.reduce((n, z) => n + z.layers.length, 0);
+  if (notes > MAX_PIANO_STROKES) {
+    throw new Error(`This piano has more notes than a Nord can load (${notes.toLocaleString('en-US')} recordings; `
+      + `${MAX_PIANO_STROKES.toLocaleString('en-US')} at most).`);
+  }
   if (input.channels !== 1 && input.channels !== 2) throw new Error('A piano is mono (1 channel) or stereo (2).');
   const minor = input.minor ?? 0;
   if (!(Number.isInteger(minor) && minor >= 0 && minor <= 9)) {
@@ -616,6 +632,10 @@ function validateZones(input: NpnoInput): void {
       owner[n] = i;
     }
     if (!z.layers.length) throw new Error(`Zone ${i} has no layers.`);
+    // 30 layer slots per zone; the Stage 2 doesn't check, so a 31st would corrupt it.
+    if (z.layers.length > MAX_LAYERS_PER_ROOT) {
+      throw new Error(`Zone ${i} has ${z.layers.length} layers; a Nord has room for ${MAX_LAYERS_PER_ROOT} per key zone.`);
+    }
     z.layers.forEach((l, k) => {
       if (k === 0 && floorUnits(l) !== 0) throw new Error(`Zone ${i}: the first (loudest) layer must be at 0 dB.`);
       if (k > 0 && !(floorUnits(l) > floorUnits(z.layers[k - 1]) && floorUnits(l) <= 255)) {
@@ -630,10 +650,6 @@ function validateZones(input: NpnoInput): void {
       if (least > MAX_BLOCKS) throw new Error(`Zone ${i} layer ${k}: ${tooManyBlocks(least)}.`);
     });
   });
-  const notes = input.zones.reduce((n, z) => n + z.layers.length, 0);
-  if (notes > VOICE_TABLE_ENTRIES) {
-    throw new Error(`${notes} recordings are more than a Nord can hold (${VOICE_TABLE_ENTRIES} across all its pianos).`);
-  }
   // The instrument stores notes by root (lowest first) and the key map by key; a zone
   // whose root sits out of order with its keys would play another zone's recording.
   const byKeys = input.zones.map((z, i) => ({ z, i })).sort((a, b) => a.z.lowNote - b.z.lowNote);
@@ -648,7 +664,20 @@ function validateZones(input: NpnoInput): void {
   if (!/^[\x20-\x7e]+$/.test(display) || display.length > 31 || input.name.includes('#')) {
     throw new Error('The name (plus variant) must be ≤ 30 plain ASCII characters, without "#".');
   }
+  // The instrument shows "Piano name error" for a stored name over 32 characters; the piano is
+  // stored under its file name, which OpenNord derives from the name (extension counted).
+  const fileName = suggestedFileName(input);
+  if (fileName.length > MAX_PIANO_NAME) {
+    const room = MAX_PIANO_NAME - (fileName.length - fileBase(input).length);
+    throw new Error(`The name "${input.name}" is too long for a Nord: keep it to ${room} characters `
+      + `(the piano is stored as "${fileName}", and a Nord takes ${MAX_PIANO_NAME} at most).`);
+  }
 }
+
+/** The name part of the suggested file name: letters, digits, spaces (as `_`), `-`, `_`. */
+const fileBase = (input: NpnoInput) => input.name.replace(/[^A-Za-z0-9 _-]/g, '').trim().replace(/ +/g, '_') || 'Piano';
+/** Suggested file name: NSM shows the part before the version tag. */
+const suggestedFileName = (input: NpnoInput) => `${fileBase(input)}_6.${input.minor ?? 0}.npno`;
 
 export interface NpnoBuildResult extends NpnoWriteResult {
   /** Suggested file name (NSM shows the part before the version tag). */
@@ -704,11 +733,11 @@ export function buildNpno(input: NpnoInput): NpnoBuildResult {
     throw e instanceof NpnoStrokeError && e.stroke !== undefined ? new Error(`${origin[e.stroke]}: ${e.reason}.`) : e;
   }
   // Everything above was validated, so a failed check here is OpenNord's bug, not the input's.
-  const failed = checkNpnoAcceptance(result.bytes).checks.filter((c) => !c.ok);
+  const fileName = suggestedFileName(input);
+  const failed = checkNpnoAcceptance(result.bytes, { fileName }).checks.filter((c) => !c.ok);
   if (failed.length) {
     throw new Error(`OpenNord built this piano, but it wouldn't load on a Nord (failed check: ${failed.map((c) => c.id).join(', ')}). `
       + 'This is a bug in OpenNord, not in your recordings — please report it.');
   }
-  const safe = input.name.replace(/[^A-Za-z0-9 _-]/g, '').trim().replace(/ +/g, '_') || 'Piano';
-  return { ...result, fileName: `${safe}_6.${minor}.npno` };
+  return { ...result, fileName };
 }
