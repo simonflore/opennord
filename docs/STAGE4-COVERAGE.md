@@ -94,7 +94,7 @@ with `buildParamMap()` + `coverage.ts`:
      3 presets · …", "Every note of all 12 pianos plays back.", or a per-file list ("Broken
      Lead — Damaged — your Nord may refuse to load this program."). Includes progress and Stop.
    - It runs in a Web Worker (`backup-check-host.ts`), so a check of many pianos (minutes)
-     never freezes the page. Without Workers it runs inline and yields every ~50 ms of work,
+     never freezes the page. Without Workers (or when the worker fails to load) it runs inline and yields every ~50 ms of work,
      CRCs included (in 1 MB slices). The button reads "Check the opened backup": it checks the
      file as opened, not the reorganized copy the organizer downloads.
    - Verified: unit tests on synthetic backups (every content type, archive damage, program
