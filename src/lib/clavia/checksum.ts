@@ -27,8 +27,9 @@ const CRC_TABLE = (() => {
   return t;
 })();
 
-/** Compute CRC-32/ISO-HDLC (same as Python's zlib.crc32) over a byte slice. */
-function crc32(data: Uint8Array): number {
+/** Compute CRC-32/ISO-HDLC (same as Python's zlib.crc32 — and the per-entry CRC a ZIP
+ *  archive records, PKWARE APPNOTE 4.4.7) over a byte slice. */
+export function crc32(data: Uint8Array): number {
   let crc = 0xffffffff;
   for (let i = 0; i < data.length; i++) {
     crc = CRC_TABLE[(crc ^ data[i]) & 0xff] ^ (crc >>> 8);

@@ -7,6 +7,8 @@ export interface ZipEntry {
   compressedSize: number;
   offset: number;          // local-header offset from file start
   method: number;          // 0 = stored, 8 = deflate
+  /** CRC-32 of the uncompressed data as the central directory records it (APPNOTE 4.4.7). */
+  crc32?: number;
 }
 
 const EOCD_SIG = 0x06054b50;
@@ -64,6 +66,7 @@ export async function readZipDirectory(file: Blob): Promise<ZipEntry[]> {
     if (p + 46 > cd.length) throw truncated;
     if (c.getUint32(p, true) !== CD_SIG) break;
     const method = c.getUint16(p + 10, true);
+    const crc32 = c.getUint32(p + 16, true);
     let compressedSize = c.getUint32(p + 20, true);
     let size = c.getUint32(p + 24, true);
     const nameLen = c.getUint16(p + 28, true);
@@ -90,7 +93,7 @@ export async function readZipDirectory(file: Blob): Promise<ZipEntry[]> {
       }
     }
 
-    entries.push({ path, size, compressedSize, offset, method });
+    entries.push({ path, size, compressedSize, offset, method, crc32 });
     p += 46 + nameLen + extraLen + commentLen;
   }
   return entries;
