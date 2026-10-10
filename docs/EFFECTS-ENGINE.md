@@ -8,9 +8,11 @@ DSP 3 = NW1 sample decoder, DSP 4 = piano decoder).
 
 Source: Stage 4 OS v1.66, unpacked locally. Everything firmware-derived (listings, decompiler
 output, tables, coefficients) stays in the gitignored scratch area (`docs/LEGAL.md`). This file
-documents structure, addresses and behaviour only. It contains no tables and no coefficient
-values. Where a number appears, it describes behaviour (a time constant, a buffer length in
-samples) and is rounded.
+documents structure, addresses, formulas and behaviour. It contains no firmware tables: no
+curves, coefficient sets, delay-length sets, waveshaper or cabinet data. Formulas fitted to the
+firmware's behaviour and a few small constants appear; where a number describes behaviour (a
+time constant, a delay in ms) it is rounded. Data that a faithful engine needs but that may not
+be copied is listed in §10.13.
 
 Confidence labels: **high** means the algorithm is unambiguous in the code. **Medium** means
 the algorithm is clear but its mapping to a panel effect is inferred. **Low** means it is a
@@ -505,15 +507,15 @@ The remaining effects:
 - **LFOs.** A 32-bit phase accumulator gains `inc` once per 4-frame block, giving one cycle per
   2³². So `f = inc·fb / 2³² = inc × 2.5264e-6 Hz`. The exception is Ring Mod, which advances per
   sample (`f = inc·fs/2³²`).
-  - Shape: a triangle `t = 2|φ| − 1`, turned into a sine by the odd polynomial
-    `1.57033·t − 0.641942·t³ + 0.0716143·t⁵`.
+  - Shape: a triangle `t = 2|φ| − 1`, turned into a sine by a 5th-order odd polynomial
+    approximation of `sin(πt/2)`.
   - "Hard" variants raise the gain before a clip, which squares the wave.
   - The right channel is the SIMD Y lane, with its own phase offset and coefficients. This is
     how the stereo variants differ from mono.
 
   Evidence: node defaults at DSP0 c1 DM `0xC1508`, and `0x123707`. Conf. high.
 - **Control smoothing.** Every target field is smoothed once per block,
-  `y += (target − y)·(1 − 0.99078)`. τ ≈ 10 ms (high).
+  with a one-pole of τ ≈ 10 ms (high).
 - **Master clock.** With MST CLK on, the Effect 1 rate knob picks one of 15 divisions:
   `idx = floor(v / 8.533)`. Each index sets a phase multiplier from
   {2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256}, applied to a shared master-clock
@@ -530,7 +532,7 @@ The remaining effects:
 | **Wah-Wah** `0x124746` | 2-pole Chamberlin SVF band-pass, run twice per sample (2×). Centre from the LFO (variant 2) or the pedal (variant 0). | LFO mode: same law as Auto-Pan. Also writes `I1−0x10 = q`. | `I1+0 = −0.496 + q/2`, the sweep offset. Variant 2 doubles the base to −0.992. | high (structure), medium (field roles) |
 | | SVF frequency coefficients from node constants: about 0.0175–0.14 and 0.055–0.40. At the 2× rate (86.8 kHz) that is roughly 240 Hz–1.9 kHz and 770 Hz–5.6 kHz of sweep. | | | low |
 | **A-Wah** `0x12480F` | Block-energy envelope (L+R sum of squares) → attack/release one-poles → the same SVF | Rate knob = **sensitivity** = `(v/256)²` | `I1−2 = −0.5 + x/2`, the sweep range/offset | medium |
-| | Envelope coefficients 0.993133 (attack) and 0.99963 (release): ≈13 ms and ≈250 ms at `fb` | | | medium |
+| | Envelope one-poles of ≈13 ms (attack) and ≈250 ms (release) at `fb` | | | medium |
 | **Pump** `0x1236A0` | Ducking ramp from an LFO, blending linear and squared. Phase resets on each sync edge (LFO variant 1, Pedal variant 0). | same law as Auto-Pan | depth `= x` (`I1−0x1B`) | high |
 
 ### 10.6 Effect 2
@@ -539,13 +541,13 @@ The remaining effects:
 |---|---|---|---|---|
 | **Phaser I** `0x12410F` | 4 first-order all-passes plus feedback. The break frequency sweeps on a log scale between `f_lo` and `f_hi`. The DSP gets `42.6633·(log10 f − 1)`, an index into its warp. | `f = 0.02575 + 6.163·x⁴ Hz` | `d = q`: written as depth (`I1−0x1A`) | high |
 | | Range, with `r = rate/127`: `f_hi = 10^(3.17609 + 0.77791·d)` (1.5–9 kHz). `f_lo0 = 10^(1.47712 − 0.79424·d)` for d < 0.5, else `10^(1.08 + 1.334·(2d − 1))`. Then `f_lo = f_lo0 + r·(10^(2.845 + 0.196·d) − f_lo0)`, blended in the log domain. **The rate knob raises the bottom of the sweep.** | | | high (`0xC0213E50`) |
-| **Phaser II** `0x124270` | 3 cascaded 2-pole SVFs with clipped integrators and output feedback (an OTA-style phaser). Node constants: −0.70, −0.73, 0.25, 0.742, 0.156. | `f = 0.0161 + 2.608·x² Hz` | `I1−0x16 = 0.8759·x` | high (law), medium (roles) |
+| **Phaser II** `0x124270` | 3 cascaded 2-pole SVFs with clipped integrators and output feedback (an OTA-style phaser). | `f = 0.0161 + 2.608·x² Hz` | `I1−0x16 = 0.8759·x` | high (law), medium (roles) |
 | **Flanger** `0x123E01` | Modulated delay with a smoothed read position, linear interpolation and feedback. Stereo/Mono by variant. | `f = 0.05 + 5.95·x² Hz` (exact) | First half: excursion `min(0.1125·v, 10)` samples around a base of `100 − excursion` samples (≈2.1–2.3 ms). A field that reads as **feedback** stays 0 up to v ≈ 38, then falls linearly to **−0.85** at 127 (negative feedback). | high (rate law), medium (amount roles and units) |
-| **Chorus** `0x123798` | Multi-voice modulated delay, 512-sample buffer, linear interpolation. Base taps 70, 124, 234 and 342 samples (1.6–7.9 ms). | `inc = 12800 + 4096·v`: **f = 0.0323 + 0.01035·v Hz** (to 1.35 Hz) | Voice 1 rises 0 → 0.707 over v = 0–64. Voice 2 rises 0 → 0.707 over v = 64–127. Dry falls 1 → 0.707. | high |
+| **Chorus** `0x123798` | Multi-voice modulated delay, 512-sample buffer, linear interpolation. Four base taps spread over about 1.6–7.9 ms. | `inc = 12800 + 4096·v`: **f = 0.0323 + 0.01035·v Hz** (to 1.35 Hz) | Voice 1 rises 0 → 0.707 over v = 0–64. Voice 2 rises 0 → 0.707 over v = 64–127. Dry falls 1 → 0.707. | high |
 | **Chorus Analog** `0x1238EB` | BBD model: modulated delay with two 2-pole filters on the wet path and a rate-dependent one-pole (`0.9998 − 0.0028·x`) | `f = 0.25 + 3.75·x² Hz` (exact). The rate also sets base `226 + 12x` and excursion `48 − 24x` samples, so pitch deviation stays roughly constant. | base `238 − 108x`, excursion `24 + 216x` samples (to ≈5.5 ms) | high |
 | **Vibe** `0x1245F8` | LFO-swept 3-stage SVF, then a short delay with two 2-pole sections | `f = 0.0322 + 5.216·x² Hz` | depth `I1−2 = q`, phase constant π/2 | high (law), medium (structure) |
 | **Ensemble** `0x1243EF` | 3 taps per channel, read from a 1,024-entry sine table at two phase offsets, around a short buffer | slow component `f = 0.0323 + 0.00129·v Hz` (to 0.2 Hz). A faster component is likely in the Y lane, not decoded. | tap mix `0.33 + 0.33q`, depths `q`, `q`, `0.8q` | medium |
-| **Spin** `0x123ECB` | Mini-rotary. A ≈200-sample buffer with Doppler taps at 36/50/90/104 samples (0.8–2.4 ms) plus a 600-sample tap with 0.9 feedback, two all-pass sections, and a biquad band split (Treble = horn band, Bass = drum band, by variant). | `inc = 138539 + 8727·v`: **f = 0.35 + 0.02205·v Hz** (0.35–3.15 Hz, exact ends) | depth gains: `I1−0x19` 0 → 0.88 (fast rise, then flattens), `I1−0x18` 1 → 0.58, `I1−0x14` 1 → 0.1 | high (rate), medium (structure) |
+| **Spin** `0x123ECB` | Mini-rotary. Short Doppler taps (about 0.8–2.4 ms) plus a longer (≈14 ms) high-feedback line, two all-pass sections, and a biquad band split (Treble = horn band, Bass = drum band, by variant). | `inc = 138539 + 8727·v`: **f = 0.35 + 0.02205·v Hz** (0.35–3.15 Hz, exact ends) | depth gains: `I1−0x19` 0 → 0.88 (fast rise, then flattens), `I1−0x18` 1 → 0.58, `I1−0x14` 1 → 0.1 | high (rate), medium (structure) |
 
 ### 10.7 Amp / EQ
 
@@ -581,7 +583,7 @@ The remaining effects:
 | Ratio | **Fixed 4:1** (slope field 0.75) | high |
 | Threshold | **T = −36·x dB** (Amount 0 → 0 dB, 127 → −36 dB) | high |
 | Make-up gain | **1 + 5.72·x²** linear (+16.5 dB at 127), smoothed | high |
-| Attack/release | One-poles at `fb` on the over-threshold amount. **Normal: attack 0.86 ms, release 200 ms. Fast: attack 4 ms, release 40 ms.** Coefficients 0.10207/0.00046068 vs 0.02278/0.00230139 (setter `0xC0012270`). | high |
+| Attack/release | One-poles at `fb` on the over-threshold amount. **Normal: attack 0.86 ms, release 200 ms. Fast: attack 4 ms, release 40 ms** (setter `0xC0012270`). | high |
 
 Node defaults are at DSP0 c1 DM `0xB0148`. The gain is applied to both channels through an
 exponential approximation.
@@ -655,31 +657,23 @@ exponential approximation.
     data and are not reproduced here.
 
   High.
-- **Per-size fields.** Fitted from the emulator; field roles are medium.
-
-  | Field | Booth | Room | Stage | Hall | Cathedral |
-  |---|---|---|---|---|---|
-  | Decay gain (`I1−0xB`) | 0.176 | 0.263 | 0.556 | 0.709 | 0.869 |
-  | Second decay/diffusion (`I1−8`) | 0.126 | 0.154 | 0.298 | 0.421 | 0.466 |
-  | Damping one-pole (`I1−7`) | 0.7 | 0.7 | 0.6 | 0.5 | 0.5 |
-  | Output tone (`I1−0x1B`) | 0.21 | 0.21 | 0.28 | 0.35 | 0.35 |
-  | Input diffusion | ±0.035 | ±0.035 | ±0.63 | ±0.63 | ±0.63 |
-
-  Fixed diffusion coefficients are 0.62, 0.62 and −0.48.
-- **Colour.** Shown at Stage size.
-  - Dark: damping 0.9, tone 0.07, decay raised to 0.667.
-  - Bright: damping 0.2, tone 0.56, decay lowered to 0.480.
-
-  Colour retunes decay to keep the length perceptually constant. Medium.
-- **Chorale.** The tank's modulation LFO rises from 0.25 to **0.50 Hz** (`inc` 98,957 →
-  197,914) and its excursion from 34.7 to **138.9** (×4). High.
-- **Predelay.** A pre-tank delay field grows from 262 (Booth) to 1,324, and from 270 (Room) to
-  1,766. Stage, Hall and Cathedral use 278, 920 and 1,788. At `fs` that is about 6 → 30 ms,
-  6 → 41 ms, and 6/21/41 ms. Medium-low: the unit (samples at `fs`) and the node attribution
-  are inferred.
-- **Spring** `0x124AF2`/`0x124CD0`. Reduced rate. Paired taps at about 228/244, 784/820,
-  1,224/1,248 and 1,568 samples, two long lines (~2,658 and ~4,068), a count field of 21 (likely
-  the dispersion all-pass stages), and fixed biquads. Spring2 is the variant set 3–5. Medium.
+- **Per-size fields.** Each size sets the tank's decay gain, a second decay/diffusion gain,
+  a damping one-pole, an output tone and the input diffusion. Decay and diffusion grow from
+  Booth through Room, Stage and Hall to Cathedral; damping and tone darken slightly as the
+  size grows, and the two small sizes use almost no input diffusion. The values themselves are
+  firmware data (§10.13): tune them by ear or read them from the user's `os.cab`. Field roles
+  are medium.
+- **Colour.** Dark raises damping and lowers the tone, and lengthens the decay to compensate;
+  Bright does the opposite. Colour retunes decay to keep the length perceptually constant.
+  Medium.
+- **Chorale.** The tank's modulation LFO rises from 0.25 to **0.50 Hz** and its excursion
+  grows **×4**. High.
+- **Predelay.** A pre-tank delay grows with the Predelay setting, from about 6 ms to roughly
+  30–40 ms depending on size (if the field is in samples at `fs`). Medium-low: the unit and the
+  node attribution are inferred.
+- **Spring** `0x124AF2`/`0x124CD0`. Reduced rate. Several pairs of closely spaced taps, two
+  long lines, a cascade of about 20 dispersion all-pass stages, and fixed biquads. The line
+  lengths are firmware data (§10.13). Spring2 is the variant set 3–5. Medium.
 
 ### 10.11 Rotary (organ; also reached by Amp "To Rotary")
 
