@@ -74,7 +74,7 @@ function headlineFor(engine: PresetEngine, rows: ParamRow[]): string | undefined
 
 /**
  * Decode a Stage 4 organ/piano/synth preset. Returns null when the file isn't a
- * Stage 4 preset (a program, a sample, or an older ns3y/ns2y preset we don't
+ * Stage 4 preset (a program, a sample, or an older ns3y/ns2s preset we don't
  * decode yet) — callers fall back to the metadata-only view.
  */
 export function parseNs4Preset(bytes: Uint8Array): Ns4Preset | null {
