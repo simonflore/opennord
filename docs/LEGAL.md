@@ -39,6 +39,22 @@ Device sample browsing (read a sample off the board, edit, download) is local ac
 
 Reverse engineering a file format or protocol **for interoperability** is broadly defensible (and explicitly protected in several jurisdictions, e.g. the EU Software Directive's interop provisions). OpenNord reverse-engineers **only** to read/write the user's own data and interoperate with their own instrument. Capturing traffic from Nord Sound Manager is for understanding the protocol — **do not** redistribute Clavia's software or its assets.
 
+### Firmware, DSP and desktop-binary research
+
+OpenNord studies the instrument's firmware (`os.cab`, the DSP programs inside it) and Nord Sound Manager to understand **how things work**. That understanding may be used — documented, and built into OpenNord's own engines (piano/sample decoding, organ, rotary, synth, effects, file writers). The line is between **knowledge** and **copies**:
+
+**Allowed — knowledge, written up or re-implemented in our own code:**
+- Formats, structures, field meanings, signal flow and algorithms (e.g. "LP24 is two state-variable filters in series", "the rotary has two rotors with Doppler delay and an ~800 Hz crossover", "percussion is single-trigger").
+- Small factual constants an implementation needs to be compatible or to sound right: sample rates, block sizes, parameter ranges and step sizes, enum values and display names, tuning ratios, addresses and offsets cited as evidence in docs.
+- Code written fresh from that understanding. Re-implement the behaviour; don't transliterate decompiled functions line by line.
+
+**Not allowed in the repo, a release, or anything OpenNord serves:**
+- Firmware images, unpacked sections, DSP boot images, desktop binaries, or Nord audio.
+- Raw disassembly or decompiler output (keep it in a local, gitignored folder; `firmware/`, `nsm_decomp/`).
+- Bulk data copied out of the firmware: wavetables, sample/impulse data, coefficient, curve or lookup tables. When an engine genuinely needs such data, it is **extracted on the user's own device from their own `os.cab` at runtime** — never committed, bundled, uploaded or shared.
+
+When unsure whether something is "a constant" or "a table", treat a handful of values that a manual or a measurement could also give you as knowledge, and anything you'd have to dump from the image as data.
+
 ## Sharing & community features (when they exist)
 
 Any feature that uploads or shares files follows the authorship bright line above, plus standard hygiene for user-generated content:

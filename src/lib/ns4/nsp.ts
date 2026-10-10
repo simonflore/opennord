@@ -88,6 +88,12 @@ function firstAsciiRun(bytes: Uint8Array, from: number, to: number, minLen = 3):
   return run.length >= minLen ? run.trim() : undefined;
 }
 
+/** Just the key map (`[]` when absent) — skips `readNsp`'s whole-file checksum. */
+export function readNspZones(bytes: Uint8Array): NspZone[] {
+  const cnsp = findCnsp(bytes);
+  return cnsp < 0 ? [] : readKeyMap(bytes, cnsp);
+}
+
 /** Read a Nord Piano (`.npno`) file's header metadata. Does not read audio. */
 export function readNsp(bytes: Uint8Array): NspFile {
   const recognized = hasCbinMagic(bytes) && fileTypeTag(bytes) === 'npno';

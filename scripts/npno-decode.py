@@ -91,11 +91,16 @@ def decode_stroke(d: bytes, rec: dict, nch: int, block_words: int):
 
 
 def main() -> int:
-    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    argv = sys.argv[1:]
+    rate = 44100
+    if '--rate' in argv:
+        i = argv.index('--rate')
+        rate = int(argv[i + 1])
+        del argv[i:i + 2]
+    args = argv
     if len(args) != 2:
         print(__doc__)
         return 2
-    rate = int(sys.argv[sys.argv.index('--rate') + 1]) if '--rate' in sys.argv else 44100
     d = Path(args[0]).read_bytes()
     out_dir = Path(args[1])
     out_dir.mkdir(parents=True, exist_ok=True)

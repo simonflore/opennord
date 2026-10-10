@@ -51,16 +51,16 @@ function midi2ChannelVoice(w0: number, w1: number, out: number[]): void {
       return;
     }
     case 0xa: // poly pressure
-      out.push(0xa0 | channel, index, to7(w1 >>> 0, 32));
+      out.push(0xa0 | channel, index, to7(w1, 32));
       return;
     case 0xb: // control change
-      out.push(0xb0 | channel, index, to7(w1 >>> 0, 32));
+      out.push(0xb0 | channel, index, to7(w1, 32));
       return;
     case 0xc: // program change (bank-valid option bit ignored)
       out.push(0xc0 | channel, (w1 >>> 24) & 0x7f);
       return;
     case 0xd: // channel pressure
-      out.push(0xd0 | channel, to7(w1 >>> 0, 32));
+      out.push(0xd0 | channel, to7(w1, 32));
       return;
     case 0xe: { // pitch bend: 32-bit → 14-bit
       const v14 = (w1 >>> 18) & 0x3fff;
