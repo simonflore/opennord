@@ -2,17 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { auditionKeys } from './auditionKeys';
 
 describe('auditionKeys', () => {
-  it('plays every C the piano covers, re-pitched from the zone\'s recording', () => {
+  it('plays every C the piano covers, re-pitched from the zone\'s recording (which sounds 4 semitones above its root)', () => {
     const zones = [
       { rootNote: 40, lowNote: 21, highNote: 50 },
       { rootNote: 62, lowNote: 51, highNote: 70 },
       { rootNote: 76, lowNote: 71, highNote: 80 },
     ];
     expect(auditionKeys(zones, 3)).toEqual([
-      { id: 'note-36', label: 'C2', zone: 0, semitones: -4 },
-      { id: 'note-48', label: 'C3', zone: 0, semitones: 8 },
-      { id: 'note-60', label: 'C4', zone: 1, semitones: -2 },
-      { id: 'note-72', label: 'C5', zone: 2, semitones: -4 },
+      { id: 'note-36', label: 'C2', zone: 0, semitones: -8 },
+      { id: 'note-48', label: 'C3', zone: 0, semitones: 4 },
+      { id: 'note-60', label: 'C4', zone: 1, semitones: -6 },
+      { id: 'note-72', label: 'C5', zone: 2, semitones: -8 },
     ]); // C6 (84) is above this piano's range
   });
 

@@ -32,17 +32,22 @@ export const BLOCK_OVERLAP = 64;
 /** Binomial predictors by order, newest history sample first. */
 export const PREDICTORS: readonly (readonly number[])[] = [[], [1], [2, -1], [3, -3, 1], [4, -6, 4, -1]];
 
-/** One recorded note (a velocity layer of one key zone). */
+/** One recorded note (a dynamic layer of one key zone). */
 export interface NspStroke {
   /** Position in the directory. */
   index: number;
   /** Key zone, counting from the lowest (`NspFile.zones` order). */
   zone: number;
-  /** Lowest velocity (0–127) this layer plays from. */
+  /**
+   * The layer's **attenuation floor**, in 0.2 dB steps, 0 = the hardest hit (historical
+   * name). The instrument maps velocity through the Touch curve
+   * to an attenuation and picks a layer by it, so a zone's layers run loudest (0) first.
+   * Use `strokeFor` to pick by velocity.
+   */
   velocityFrom: number;
-  /** Record flag bits (+0x04 & 3): 0 = a normal stroke, 2 = a key-release sound. */
+  /** Record flag bits (+0x04 & 3): 0 = a normal stroke, 1 = an alternative list, 2 = a key-release sound. */
   flags: number;
-  /** A key-release sound (played on note-off), not a velocity layer. */
+  /** A key-release sound (played on note-off), not a dynamic layer. */
   release: boolean;
   /** Length in sample frames. */
   frames: number;
@@ -74,7 +79,7 @@ export function findCnsp(bytes: Uint8Array): number {
 function readStroke(view: DataView, at: number, base: number, index: number, channels: number): Omit<NspStroke, 'zone'> {
   // Record layout (from the record's own start, CNSP+0x732+i*0x76; field use per the ARM
   // loader): +0x00 u32 first block offset, +0x04 u8 flags,
-  // +0x05 u8 velocity floor, +0x06 u32 frames, +0x0A u16 blocks, +0x0C/+0x14 4×i16 history
+  // +0x05 u8 attenuation floor, +0x06 u32 frames, +0x0A u16 blocks, +0x0C/+0x14 4×i16 history
   // per channel (oldest first), +0x1C u32 loop start, +0x20 u32 loop length.
   const history = [0x0c, 0x14].slice(0, channels).map((h) => {
     const oldestFirst = [0, 2, 4, 6].map((k) => view.getInt16(at + h + k));
@@ -105,7 +110,7 @@ export function readLayerTable(bytes: Uint8Array, base: number): number[] {
 }
 
 /** Zone index of each stroke, from the layers-per-root table (falls back to "a layer with
- *  velocity floor 0 opens a zone" when the table doesn't account for every stroke). */
+ *  attenuation floor 0 opens a zone" when the table doesn't account for every stroke). */
 function zoneOf(table: number[], raw: Omit<NspStroke, 'zone'>[]): number[] {
   const counts = table.filter((c) => c > 0);
   if (counts.reduce((a, b) => a + b, 0) === raw.length) {
@@ -128,7 +133,7 @@ export function readNspDirectory(bytes: Uint8Array): NspDirectory | undefined {
   }
   const raw = Array.from({ length: count }, (_, i) =>
     readStroke(view, base + RECORDS_OFFSET + i * RECORD_SIZE, base, i, channels));
-  // A zone's strokes are consecutive (lowest root first), softest layer first.
+  // A zone's strokes are consecutive (lowest root first), loudest layer first.
   const zones = zoneOf(readLayerTable(bytes, base), raw);
   const strokes = raw.map((s, i) => ({ ...s, zone: zones[i] }));
   // Strokes are stored back to back, so the block size falls out of any two neighbours.
@@ -200,11 +205,31 @@ export function decodeNspStroke(bytes: Uint8Array, dir: NspDirectory, stroke: Ns
   return out;
 }
 
-/** The stroke a key zone plays at `velocity` (1–127): its loudest layer that starts at or below it. */
+/**
+ * Velocity (1–127) → attenuation in the stroke records' 0.2 dB units (0 = the hardest hit).
+ * An approximation of the Stage 4's Touch curve — a 40·log10(v/127) dB law — until the
+ * exact curves per Touch setting are extracted.
+ */
+export function touchAttenuation(velocity: number): number {
+  const v = Math.min(127, Math.max(1, velocity));
+  return Math.min(200, Math.max(0, -200 * Math.log10(v / 127))); // 0…40 dB, as the instrument clamps; max: no -0
+}
+
+/**
+ * The stroke a key zone plays at `velocity` (1–127), the way the instrument picks it: layers
+ * switch halfway between neighbouring floors (`floor − trunc((floor − previous) / 2)`, the
+ * value factory records keep at +0x74), and the velocity's attenuation plays the last layer
+ * whose switch point it reaches. One stroke plays; there is no crossfade between layers.
+ * (The instrument also adds a per-type selection offset, not yet pinned down.)
+ */
 export function strokeFor(dir: NspDirectory, zone: number, velocity: number): NspStroke | undefined {
-  let pick: NspStroke | undefined;
-  for (const s of dir.strokes) {
-    if (s.zone === zone && !s.release && s.velocityFrom <= velocity && (!pick || s.velocityFrom >= pick.velocityFrom)) pick = s;
+  const att = touchAttenuation(velocity);
+  // Normal strokes only: release sounds (and the alternative type-1 list) are picked separately.
+  const layers = dir.strokes.filter((s) => s.zone === zone && s.flags === 0); // loudest first
+  let pick = layers[0];
+  for (let i = 1; i < layers.length; i++) {
+    const floor = layers[i].velocityFrom;
+    if (floor - Math.trunc((floor - layers[i - 1].velocityFrom) / 2) <= att) pick = layers[i];
   }
   return pick;
 }

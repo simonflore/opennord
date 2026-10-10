@@ -15,10 +15,12 @@ import { makeNpno, tone } from '@/lib/ns4/nsp-synth.testing';
 import { decodeNspStroke, readNspDirectory, NSP_SAMPLE_RATE } from '@/lib/ns4/nsp-audio';
 import type { BackupRef } from '@/lib/clavia/backup/backup-index';
 
-// Two key zones (root 48 below C4, root 72 from C4 up), each with a soft and a hard layer.
+// Two key zones (root 48 below C4, root 72 from C4 up), each with a loud layer (attenuation
+// floor 0) then a soft one (floor 100 = 20 dB down; the switch sits halfway, at 10 dB),
+// loudest first as in real files.
 // The synthetic header names it "Synth Piano", v6.10.
 const layer = (velocityFrom: number, seed: number) => ({ pcm: [tone(2000, 0.02, 3000, seed)], velocityFrom, before: [[0, 0, 0, 0]] });
-const PIANO = makeNpno([layer(0, 1), layer(64, 2), layer(0, 3), layer(64, 4)], 1, 0x2c);
+const PIANO = makeNpno([layer(0, 1), layer(100, 2), layer(0, 3), layer(100, 4)], 1, 0x2c);
 
 const ref = (path: string): BackupRef => ({
   bundlePath: 'Stage 4 backup.ns4b', entry: { path, size: PIANO.length, compressedSize: PIANO.length, offset: 0, method: 0 }, kind: 'piano', native: true,
@@ -58,15 +60,16 @@ describe('ProgramPianoAudition', () => {
 
     const dir = readNspDirectory(PIANO)!;
     fireEvent.click(screen.getByRole('button', { name: 'Play C4, medium' }));
-    // C4 plays zone 1 (root C5 = 72) one octave down; medium (80) picks its hard layer.
-    expect(playPcm).toHaveBeenLastCalledWith(decodeNspStroke(PIANO, dir, dir.strokes[3]), expect.any(Function), NSP_SAMPLE_RATE / 2);
+    // C4 plays zone 1 (root 72, sounding 76): 16 semitones down. Medium (80, ≈8 dB down)
+    // stays short of the 10 dB switch, so it plays the loud layer.
+    expect(playPcm).toHaveBeenLastCalledWith(decodeNspStroke(PIANO, dir, dir.strokes[2]), expect.any(Function), NSP_SAMPLE_RATE * 2 ** (-16 / 12));
     expect(screen.getByRole('button', { name: 'Stop C4, medium' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Soft' }));
     expect(screen.getByRole('button', { name: 'Soft' })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'Play C3, soft' }));
-    // C3 is zone 0's root (48): as recorded, from its soft layer.
-    expect(playPcm).toHaveBeenLastCalledWith(decodeNspStroke(PIANO, dir, dir.strokes[0]), expect.any(Function), NSP_SAMPLE_RATE);
+    // C3 is zone 0's root (48, sounding 52): 4 semitones down, from its soft layer (40 ≈ 20 dB).
+    expect(playPcm).toHaveBeenLastCalledWith(decodeNspStroke(PIANO, dir, dir.strokes[1]), expect.any(Function), NSP_SAMPLE_RATE * 2 ** (-4 / 12));
   });
 
   it('opens a piano from a backup only when asked, then plays it', async () => {
