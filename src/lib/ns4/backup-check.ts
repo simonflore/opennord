@@ -3,9 +3,9 @@
  * still reads, file by file, without a keyboard.
  *
  * Three layers, each only where there is evidence for it:
- *  1. **The archive.** Every ZIP entry's data is re-hashed against the CRC-32 the
- *     archive's central directory recorded for it (PKWARE APPNOTE 4.4.7). This
- *     catches any damage to the backup file itself, for every kind of content.
+ *  1. **The archive.** Every ZIP entry's data — `meta.xml` and stray files included — is
+ *     re-hashed against the CRC-32 the archive's central directory recorded for it
+ *     (PKWARE APPNOTE 4.4.7). This catches any damage to the backup file itself.
  *  2. **The file's own check value.** The CBIN CRC-32 is
  *     verified where it is known to hold: programs (`.ns4p`, validated across real
  *     programs + the device corpus), v6 pianos and format-1 samples (the header
@@ -55,7 +55,8 @@ export interface BackupItemProblem {
   path: string;
   /** Display name — the filename without its extension. */
   name: string;
-  kind: BackupItemKind;
+  /** `file`: not Stage 4 content (`meta.xml`, stray files) — only the archive layer applies. */
+  kind: BackupItemKind | 'file';
   /** What's wrong, in the player's words. */
   message: string;
 }
@@ -67,9 +68,16 @@ export interface BackupCheckReport {
   counts: Record<BackupItemKind, { total: number; ok: number }>;
   /** Piano notes (velocity layers) decoded end to end. */
   pianoNotesChecked: number;
+  /**
+   * Notes OpenNord couldn't decode in pianos whose own checksum proves them intact: a gap in
+   * OpenNord's decoder, not damage, so they aren't reported as problems.
+   */
+  pianoNotesSkipped: number;
   problems: BackupItemProblem[];
-  /** Entries that aren't Stage 4 content (stray files) — left alone. */
+  /** Entries that aren't Stage 4 content (stray files): archive-checked only. */
   ignored: number;
+  /** `meta.xml` plus the ignored entries — every one is still checked against the archive CRC. */
+  otherChecked: number;
   /** The check was stopped before it finished; counts cover what was checked. */
   cancelled: boolean;
 }
@@ -111,7 +119,16 @@ const MSG = {
   pianoPlay: (bad: number, all: number) => `${bad} of its ${all} notes can't be played back.`,
   sample: "Isn't a readable Nord sample.",
   silent: 'Holds no sound.',
+  incomplete: "This backup file is incomplete or damaged — it can't be restored as is.",
+  readFailed: "Couldn't finish checking — the backup file couldn't be read. Make sure it isn't being changed or moved, then try again.",
 } as const;
+
+/** A check that couldn't finish. Its message is musician-facing and safe to show as is. */
+export class BackupCheckError extends Error {}
+
+/** The file couldn't be read at all (moved or re-synced on disk, out of memory) — not archive damage. */
+const isReadFailure = (e: unknown) =>
+  e instanceof RangeError || (typeof DOMException !== 'undefined' && e instanceof DOMException);
 
 /** Let the page breathe between heavy steps (pianos run to hundreds of MB). */
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -149,13 +166,16 @@ export function checkBackupItem(kind: Exclude<BackupItemKind, 'piano'>, bytes: U
 export async function checkPiano(
   bytes: Uint8Array,
   opts: { play?: boolean; signal?: AbortSignal; onNote?: (fraction: number) => void } = {},
-): Promise<{ problem: string | null; notes: number }> {
+): Promise<{ problem: string | null; notes: number; skipped: number }> {
   const header = readNsp(bytes);
-  if (!header.recognized) return { problem: MSG.notNord, notes: 0 };
-  if (!header.checksumValid) return { problem: MSG.rejected('piano'), notes: 0 };
+  if (!header.recognized) return { problem: MSG.notNord, notes: 0, skipped: 0 };
+  if (!header.checksumValid) return { problem: MSG.rejected('piano'), notes: 0, skipped: 0 };
+  // A v6 piano whose checksum holds is byte-for-byte what Nord wrote: anything OpenNord then
+  // fails to read is a gap in its decoder, not damage. Only v5 (no checksum) relies on decoding.
+  const proven = header.hasChecksum;
   const dir = readNspDirectory(bytes);
-  if (!dir) return { problem: MSG.pianoNotes, notes: 0 };
-  if (opts.play === false) return { problem: null, notes: 0 };
+  if (!dir) return { problem: proven ? null : MSG.pianoNotes, notes: 0, skipped: 0 };
+  if (opts.play === false) return { problem: null, notes: 0, skipped: 0 };
   let bad = 0;
   let notes = 0;
   for (let i = 0; i < dir.strokes.length; i++) {
@@ -169,7 +189,8 @@ export async function checkPiano(
     opts.onNote?.((i + 1) / dir.strokes.length);
     if (i % 8 === 7) await tick();
   }
-  return { problem: bad ? MSG.pianoPlay(bad, dir.strokes.length) : null, notes };
+  if (proven) return { problem: null, notes, skipped: bad };
+  return { problem: bad ? MSG.pianoPlay(bad, dir.strokes.length) : null, notes, skipped: 0 };
 }
 
 const emptyCounts = (): BackupCheckReport['counts'] =>
@@ -180,21 +201,30 @@ const emptyCounts = (): BackupCheckReport['counts'] =>
  * backups never sit in memory whole) and never writes anything.
  */
 export async function checkBackup(file: Blob, opts: BackupCheckOptions = {}): Promise<BackupCheckReport> {
-  const entries = await readZipDirectory(file);
+  let entries: ZipEntry[];
+  try {
+    entries = await readZipDirectory(file);
+  } catch (e) {
+    // The organizer can open a backup whose end was cut off; its directory can't be read.
+    throw new BackupCheckError(isReadFailure(e) ? MSG.readFailed : MSG.incomplete);
+  }
   const report: BackupCheckReport = {
     isNordBackup: entries.some((e) => e.path === 'meta.xml'),
     counts: emptyCounts(),
     pianoNotesChecked: 0,
+    pianoNotesSkipped: 0,
     problems: [],
     ignored: 0,
+    otherChecked: 0,
     cancelled: false,
   };
-  const work: { entry: ZipEntry; kind: BackupItemKind }[] = [];
+  // Non-content entries (meta.xml, stray files) still get the archive CRC check.
+  const work: { entry: ZipEntry; kind: BackupItemKind | null }[] = [];
   for (const entry of entries) {
-    if (entry.path === 'meta.xml' || entry.path.endsWith('/')) continue;
+    if (entry.path.endsWith('/')) continue;
     const kind = backupItemKind(entry.path);
-    if (kind) work.push({ entry, kind });
-    else report.ignored++;
+    if (!kind && entry.path !== 'meta.xml') report.ignored++;
+    work.push({ entry, kind });
   }
   const totalBytes = work.reduce((n, w) => n + w.entry.size, 0);
   let doneBytes = 0;
@@ -205,11 +235,21 @@ export async function checkBackup(file: Blob, opts: BackupCheckOptions = {}): Pr
     opts.onProgress?.({ doneBytes, totalBytes, current: name });
     let problem: string | null;
     let notes = 0;
-    // An entry that can't even be read out of the archive is reported as archive damage below.
-    const bytes = await extractZipEntry(file, entry).catch(() => null);
+    // An entry whose header or data is broken is archive damage; a failed read of the file
+    // itself is not, and stops the check instead of misreporting every remaining entry.
+    let bytes: Uint8Array | null;
+    try {
+      bytes = await extractZipEntry(file, entry);
+    } catch (e) {
+      if (isReadFailure(e)) throw new BackupCheckError(MSG.readFailed);
+      bytes = null;
+    }
+    let skipped = 0;
     try {
       if (!bytes || (entry.crc32 !== undefined && crc32(bytes) !== entry.crc32)) {
         problem = MSG.archive;
+      } else if (!kind) {
+        problem = null;
       } else if (kind === 'piano') {
         const base = doneBytes;
         const r = await checkPiano(bytes, {
@@ -219,6 +259,7 @@ export async function checkBackup(file: Blob, opts: BackupCheckOptions = {}): Pr
         });
         problem = r.problem;
         notes = r.notes;
+        skipped = r.skipped;
       } else {
         problem = checkBackupItem(kind, bytes);
       }
@@ -226,10 +267,12 @@ export async function checkBackup(file: Blob, opts: BackupCheckOptions = {}): Pr
       problem = MSG.unreadable; // a reader gave up on the content — intact archive, unreadable file
     }
     if (opts.signal?.aborted) { report.cancelled = true; break; }
-    report.counts[kind].total++;
+    if (kind) report.counts[kind].total++;
+    else report.otherChecked++;
     report.pianoNotesChecked += notes;
-    if (problem) report.problems.push({ path: entry.path, name, kind, message: problem });
-    else report.counts[kind].ok++;
+    report.pianoNotesSkipped += skipped;
+    if (problem) report.problems.push({ path: entry.path, name, kind: kind ?? 'file', message: problem });
+    else if (kind) report.counts[kind].ok++;
     doneBytes += entry.size;
     await tick();
   }
@@ -252,11 +295,12 @@ const count = (n: number, kind: BackupItemKind) => `${n} ${NOUN[kind][n === 1 ? 
 export function summarizeBackupCheck(r: BackupCheckReport): { ok: boolean; headline: string; contents: string; detail?: string } {
   const present = BACKUP_ITEM_KINDS.filter((k) => r.counts[k].total > 0);
   const contents = present.map((k) => count(r.counts[k].total, k)).join(' · ') || 'No Stage 4 content found';
-  const checked = present.reduce((n, k) => n + r.counts[k].total, 0);
-  const ok = r.problems.length === 0 && !r.cancelled && checked > 0;
+  const content = present.reduce((n, k) => n + r.counts[k].total, 0);
+  const checked = content + r.otherChecked;
+  const ok = r.problems.length === 0 && !r.cancelled && content > 0;
   const headline = r.cancelled
     ? `Check stopped — ${checked - r.problems.length} of ${checked} files checked out so far.`
-    : checked === 0
+    : content === 0
       ? 'Nothing to check in this backup.'
       : r.problems.length === 0
         ? 'Everything in this backup checks out.'
@@ -265,8 +309,10 @@ export function summarizeBackupCheck(r: BackupCheckReport): { ok: boolean; headl
   const notes = `${r.pianoNotesChecked} recorded note${r.pianoNotesChecked === 1 ? '' : 's'}`;
   const detail = pianos.ok === 0 || r.pianoNotesChecked === 0
     ? undefined
-    : pianos.ok === pianos.total
-      ? `Every note of ${pianos.total === 1 ? 'the piano' : `all ${pianos.total} pianos`} plays back (${notes}).`
-      : `${pianos.ok} of ${pianos.total} pianos play back in full (${notes}).`;
+    : r.pianoNotesSkipped > 0
+      ? `${notes} play back. OpenNord can't play ${r.pianoNotesSkipped} more yet — the pianos themselves are intact.`
+      : pianos.ok === pianos.total
+        ? `Every note of ${pianos.total === 1 ? 'the piano' : `all ${pianos.total} pianos`} plays back (${notes}).`
+        : `${pianos.ok} of ${pianos.total} pianos play back in full (${notes}).`;
   return { ok, headline, contents, detail };
 }
