@@ -720,3 +720,22 @@ no reference" wall is now a *tooling* wall, not a missing-data one.
   (3) only then consider a SLEIGH module for SHARC+ — a sizeable project in its own right.
 - Also in the image: `0xC0300000–0xC0430000` (~1.2 MB) is 16-bit sample-like data with
   4-way interleaved slowly-varying streams (wave/table data, not code).
+
+### ARM side checked: no CNSP body parser (full Ghidra analysis, 2026-10-10)
+
+Full auto-analysis of the unpacked Stage 4 CODE (ARMv7, base `0xC0000000`, aggressive
+instruction finding, entry seeded at the reset vector) recovers 3,544 functions / 612k
+instructions. In it:
+
+- The `CNSP` magic is referenced only by the version gate `0xC00B92E4` (2 refs); the `npno`
+  tag only by that gate and a file-type registration (`0xC0243668`). The gate's callers
+  (`0xC00BA1F8`, `0xC00BA99C`) read the header and validate it — nothing walks a CNSP body.
+- Sample files, by contrast, **are** parsed ARM-side: `0xC01D7108` (12 KB) is the `.nsmp`
+  loader (literals `nsmp`, `NSMP`, `\0NWS`, `\0hdr`, `\0map`, `\0stk`, `\0sty`), built on
+  buffered big-endian readers (`0xC01D1424` u32, `0xC01D16F0`) over the flash-read helper
+  `0xC0094EA0`.
+
+So in this generation the piano container *and* audio are handled by the DSPs; there is no
+ARM-side stroke directory to recover. The CNSP route now runs through the SHARC+ images above
+(or hardware ground truth). Narrowing step that stays ARM-side: find which DSP is told about
+piano-partition locations (follow the host-port writes from the piano/voice code).
