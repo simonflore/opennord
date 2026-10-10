@@ -12,7 +12,7 @@
  *
  * Signal flow (mono):
  *   generators ─▶ manual bus ─▶ vib/chorus ─┐
- *   generators ─▶ percussion bus × envelope ┼─▶ volume ─▶ soft clip ─▶ out
+ *   generators ─▶ percussion bus × envelope ┼─▶ leveller ─▶ volume ─▶ soft clip ─▶ out
  *   key click / pipe chiff noise ───────────┘
  *   (a rotary speaker stage belongs after `out`)
  *
@@ -20,12 +20,41 @@
  */
 import { PERC_2ND, PERC_3RD, wheelFor } from './tonewheel';
 import { Scanner } from './scanner';
-import { DEFAULT_ORGAN_PARAMS, type OrganParams } from './types';
+import { DEFAULT_ORGAN_PARAMS, VOLUME_OFF_DB, type OrganParams } from './types';
 import { voicingFor, type ModelVoicing } from './voicing';
 
 const TABLE_BITS = 11;
 const TABLE_SIZE = 1 << TABLE_BITS;
 const SPAN_MAX = 256;
+/**
+ * Control period (samples): the leveller re-reads the generator gains on this
+ * fixed clock grid, so the output never depends on how the host splits blocks.
+ */
+const CONTROL_PERIOD = 64;
+
+/*
+ * Output leveller: a polyphony-aware gain, fed forward from the generator gains
+ * the core already knows (no signal detector, so no attack lag and no pumping on
+ * a held chord). The drive D is the summed generator gain (each the larger of its
+ * current gain and its target, so a new key lowers the gain before it sounds and
+ * a release lets it back up only as the tail decays). The gain is
+ *   G = LEVEL_MAKEUP / max(1, D / LEVEL_KNEE)^LEVEL_SLOPE,
+ * i.e. full makeup up to two keys on 888000000 or one on 888888000 (D = 6), then
+ * 2:1 in amplitude: four times the drive gets twice the level. Single notes and
+ * two-note lines are not compressed at all. The gain falls within a quarter of
+ * the model's attack time (faster than the new generators rise, so a chord never
+ * overshoots) and rises with a LEVEL_RELEASE_MS time constant (slow, so a held
+ * note eases up rather than jumps when the others are released).
+ * Measured figures are in the maintainers’ notes ("Output"); core.test.ts pins
+ * that a ten-note chord on every drawbar still peaks below the soft clip's 0.6
+ * knee, before the clip, on every model.
+ */
+export const LEVEL_MAKEUP = 10 ** (12 / 20);
+export const LEVEL_KNEE = 6;
+export const LEVEL_SLOPE = 0.5;
+const LEVEL_RELEASE_MS = 150;
+/** Crossfade (ms) for the old model's generators when the model changes under held keys. */
+const MODEL_XFADE_MS = 20;
 
 /*
  * Percussion, modelled the way the Stage 4 runs it (the maintainers’ notes, "The
@@ -65,6 +94,8 @@ interface Gen {
   pgain: number; ptarget: number; pstep: number;
   nt: number; np: number; // scratch for retargeting
   active: boolean;
+  /** Left over from a previous model: ramps out over MODEL_XFADE_MS, never retargeted. */
+  orphan: boolean;
 }
 
 interface Key {
@@ -130,12 +161,15 @@ export interface OrganCoreOptions {
   seed?: number;
   /** Apply the output soft clip (default true). Off only to measure headroom in tests. */
   clip?: boolean;
+  /** Apply the output leveller (default true). Off only to measure the raw level in tests. */
+  level?: boolean;
 }
 
 export class OrganCore {
   readonly sampleRate: number;
   private readonly seed: number;
   private readonly clip: boolean;
+  private readonly leveller: boolean;
   private params: OrganParams;
   private voicing: ModelVoicing;
   private clock = 0;
@@ -158,6 +192,11 @@ export class OrganCore {
   private chiffEnv = 0; private chiffDecay: number; private chiffLp = 0;
   /** Output fade (1 = open) and its per-sample step once {@link fadeOut} is called. */
   private fade = 1; private fadeStep = 0;
+  /** Leveller gain, its target, the per-sample step while it falls, and its rise coefficient. */
+  private lvl = LEVEL_MAKEUP; private lvlTarget = LEVEL_MAKEUP; private lvlStep = 0;
+  private readonly lvlRise: number;
+  /** Set when targets changed: re-read the leveller drive before the next span. */
+  private lvlDirty = true;
   private main = new Float32Array(SPAN_MAX);
   private perc = new Float32Array(SPAN_MAX);
 
@@ -165,6 +204,9 @@ export class OrganCore {
     this.sampleRate = opts.sampleRate;
     this.seed = opts.seed ?? 1;
     this.clip = opts.clip ?? true;
+    this.leveller = opts.level ?? true;
+    if (!this.leveller) { this.lvl = 1; this.lvlTarget = 1; }
+    this.lvlRise = 1 - Math.exp(-1 / ((LEVEL_RELEASE_MS * opts.sampleRate) / 1000));
     this.rand = xorshift(this.seed);
     this.params = DEFAULT_ORGAN_PARAMS;
     this.voicing = voicingFor(this.params.model);
@@ -180,7 +222,7 @@ export class OrganCore {
     const modelChanged = p.model !== this.params.model;
     this.params = { ...p, drawbars: [...p.drawbars], percussion: { ...p.percussion }, vibrato: { ...p.vibrato } };
     this.voicing = voicingFor(p.model);
-    if (modelChanged) this.resetBank();
+    if (modelChanged) this.revoice();
     const decay = p.percussion.decayFast ? PERC_FAST : PERC_SLOW;
     this.percDecay = Math.exp(-1 / (decay.tau * this.sampleRate));
     this.percDrain = decay.drain / this.sampleRate;
@@ -275,8 +317,12 @@ export class OrganCore {
         this.applyEvent(this.queue.shift()!);
         this.dirty = true;
       }
-      if (this.dirty) { this.recompute(); this.dirty = false; }
-      let n = Math.min(end - pos, SPAN_MAX);
+      if (this.dirty) { this.recompute(); this.dirty = false; this.lvlDirty = true; }
+      if (this.leveller && (this.lvlDirty || this.clock % CONTROL_PERIOD === 0)) {
+        this.updateLeveller();
+        this.lvlDirty = false;
+      }
+      let n = Math.min(end - pos, SPAN_MAX, CONTROL_PERIOD - (this.clock % CONTROL_PERIOD));
       if (this.queue.length) n = Math.min(n, Math.max(1, this.queue[0].at - this.clock));
       this.renderSpan(out, pos, n);
       pos += n;
@@ -325,11 +371,13 @@ export class OrganCore {
     const percLevel = percOn
       ? (p.percussion.volSoft ? PERC_LEVEL_SOFT : PERC_LEVEL_NORMAL) * (p.percussion.decayFast ? 1 : PERC_LEVEL_SLOW)
       : 0;
-    const vol = (Number.isFinite(p.volumeDb) ? 10 ** (p.volumeDb / 20) : 0) * v.level;
+    const vol = (p.volumeDb > VOLUME_OFF_DB ? 10 ** (p.volumeDb / 20) : 0) * v.level;
     // Keys only change between spans, so the drain/recharge choice holds for the span.
     const draining = this.downCount > 0;
     const decay = this.percDecay, drain = this.percDrain, recharge = this.percRecharge;
     let charge = this.percCharge;
+    let lvl = this.lvl;
+    const lvlTarget = this.lvlTarget, lvlStep = this.lvlStep, lvlRise = this.lvlRise;
     for (let i = 0; i < n; i++) {
       let s = this.scanner.process(main[i] * manualGain);
       if (draining) {
@@ -351,7 +399,9 @@ export class OrganCore {
         s += this.chiffLp * this.chiffEnv;
         this.chiffEnv *= this.chiffDecay;
       }
-      let y = s * vol;
+      if (lvl > lvlTarget) lvl = Math.max(lvlTarget, lvl - lvlStep);
+      else if (lvl < lvlTarget) lvl += (lvlTarget - lvl) * lvlRise;
+      let y = s * vol * lvl;
       if (this.fadeStep > 0) {
         this.fade = Math.max(0, this.fade - this.fadeStep);
         y *= this.fade;
@@ -359,13 +409,53 @@ export class OrganCore {
       out[pos + i] = this.clip ? softClip(y) : y;
     }
     this.percCharge = charge;
+    this.lvl = lvl;
   }
 
   // ── Internals ─────────────────────────────────────────────────────────────
 
-  private resetBank(): void {
+  /**
+   * Model change: the old model's generators keep their pitch and table and ramp
+   * out over MODEL_XFADE_MS (no click); the new model's bank starts empty. Held
+   * keys close every contact of the new model's buses (their old masks were for
+   * the old buses); keys already released go with the old generators.
+   */
+  private revoice(): void {
+    for (const g of this.active) g.orphan = true;
     this.gens.clear();
-    this.active.length = 0;
+    const all = (1 << this.voicing.buses) - 1;
+    for (const [note, key] of this.keys) {
+      if (key.down) key.mask = all; else this.keys.delete(note);
+    }
+    this.queue.length = 0;
+  }
+
+  /**
+   * Re-read the leveller drive (summed generator gains, see LEVEL_MAKEUP) and set
+   * the gain's target. A falling gain gets there within a quarter of the model's
+   * attack time, so a new chord never overshoots; a rising one eases up
+   * (LEVEL_RELEASE_MS).
+   */
+  private updateLeveller(): void {
+    const p = this.params;
+    const v = this.voicing;
+    const percOn = v.percussion && p.percussion.on;
+    const manualGain = percOn && !p.percussion.volSoft ? PERC_NORMAL_MANUAL_DROP : 1;
+    const percLevel = percOn
+      ? (p.percussion.volSoft ? PERC_LEVEL_SOFT : PERC_LEVEL_NORMAL) * (p.percussion.decayFast ? 1 : PERC_LEVEL_SLOW)
+      : 0;
+    let manual = 0, perc = 0;
+    for (const g of this.active) {
+      manual += g.gain > g.target ? g.gain : g.target;
+      perc += g.pgain > g.ptarget ? g.pgain : g.ptarget;
+    }
+    const drive = manual * manualGain + perc * percLevel * this.percCharge * this.percCharge;
+    const target = LEVEL_MAKEUP / (drive > LEVEL_KNEE ? (drive / LEVEL_KNEE) ** LEVEL_SLOPE : 1);
+    if (target < this.lvl) {
+      const att = Math.max(1, (v.attackMs * this.sampleRate) / 4000);
+      this.lvlStep = (this.lvl - target) / att;
+    }
+    this.lvlTarget = target;
   }
 
   private cancelEvents(note: number): void {
@@ -405,7 +495,7 @@ export class OrganCore {
         phase0: hashPhase(this.seed, id),
         table: wavetable(tone.timbre, tone.harmonics, tone.freq, this.sampleRate),
         gain: 0, target: 0, step: 0, pgain: 0, ptarget: 0, pstep: 0, nt: 0, np: 0,
-        active: false,
+        active: false, orphan: false,
       };
       this.gens.set(id, g);
     }
@@ -435,7 +525,15 @@ export class OrganCore {
     const sr = this.sampleRate / 1000;
     const rel = (p.sustain ? v.sustainReleaseMs : v.releaseMs) * sr;
     const att = v.attackMs * sr;
+    const xfade = MODEL_XFADE_MS * sr;
     for (const g of this.active) {
+      if (g.orphan) {
+        if (g.target !== 0 || g.ptarget !== 0) {
+          g.target = 0; g.step = g.gain / xfade;
+          g.ptarget = 0; g.pstep = g.pgain / xfade;
+        }
+        continue;
+      }
       if (g.nt !== g.target) {
         g.step = Math.abs(g.nt - g.gain) / Math.max(1, g.nt > g.gain ? att : rel);
         g.target = g.nt;

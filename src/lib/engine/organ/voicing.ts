@@ -51,8 +51,8 @@ export interface ModelVoicing {
   /**
    * Output level (linear, at 0 dB volume). Set with {@link HEADROOM} so a
    * ten-note chord on every drawbar peaks below the soft clip's 0.6 knee, before
-   * the clip, on every model; fewer keys or drawbars are quieter, as on the
-   * real instruments.
+   * the clip, on every model (after the core's leveller, which lifts single
+   * notes and compresses big chords).
    */
   level: number;
 }
@@ -100,7 +100,8 @@ const STRINGS = series(32, (h) => (h === 1 ? 0.35 : 1 / Math.sqrt(h)) * 0.6);
  * about 6–7× its level step (summed shared wheels), the other models at about
  * 2.4–4.8×. −22 dB brings the B3 to about 0.5–0.56 and the rest to ≤ 0.4, so
  * the soft clip only catches transients (core.test.ts pins this). A single key
- * on 888000000 then peaks about −33 dBFS.
+ * on 888000000 then peaks about −31 dBFS; the leveller in core.ts (LEVEL_*) lifts
+ * it +12 dB and compresses big chords back under this ceiling.
  */
 const HEADROOM = 10 ** (-22 / 20);
 

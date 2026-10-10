@@ -6,7 +6,7 @@
 export { OrganCore, renderOffline, softClip, type OrganCoreOptions } from './core';
 export { organParamsFromLayer, drawbarPosition, parseDb, parseVibChorus, toOrganModel, type MorphAmounts } from './params';
 export {
-  DEFAULT_ORGAN_PARAMS, ORGAN_ENGINE_MODELS,
+  DEFAULT_ORGAN_PARAMS, ORGAN_ENGINE_MODELS, VOLUME_OFF_DB,
   type OrganModel, type OrganParams, type OrganPercussion, type VibChorusType,
 } from './types';
 export { voicingFor, type ModelVoicing, type Tone } from './voicing';
