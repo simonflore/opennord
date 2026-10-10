@@ -19,10 +19,11 @@ CP80 5.3 and Wurlitzer 1 200A 5.3 (v5, mono). None of their audio is in the repo
 files. **Medium**: the mechanism is clear, but a mapping or one branch is inferred. **Low**: a
 hypothesis.
 
-**Offsets.** Stroke-record offsets follow `NPNO-WRITE.md` (record *i* at `CNSP + 0x732 + i·0x76`).
-`NSP-FORMAT.md` counts the same records from `CNSP + 0x72C`, so its offsets are 6 higher (its
-`+0x0A` "velocity floor" is byte `+0x05` here, with the flags byte `+0x04` above it). Header offsets
-are relative to the `CNSP` tag.
+**Offsets.** Stroke-record offsets count from the record's start (record *i* at
+`CNSP + 0x732 + i·0x76`), as in `NPNO-WRITE.md` and `NSP-FORMAT.md`. Older notes counted from
+`CNSP + 0x72C`, 6 bytes earlier: their `+0x0A` is the flags byte `+0x04` and the attenuation floor
+`+0x05` here. Header offsets are relative to the `CNSP` tag. Offsets written `req+0x…` are fields of
+the ARM's note-request structure, not of the file.
 
 **Units used below.**
 - *att*: attenuation in **0.2 dB** steps (the touch-curve domain, 0…200 = 0…40 dB).
@@ -33,14 +34,19 @@ are relative to the `CNSP` tag.
 
 ## 0. Corrections to earlier notes
 
+`NSP-FORMAT.md`, `NPNO-WRITE.md` and the code now follow these corrections. They are kept as the
+record of what changed.
+
 1. **Stroke order within a zone is loudest first, and the "velocity floor" is an attenuation
    floor.** Layer 0 (floor 0) is the hardest hit. Larger floors are softer strokes. Evidence: the
    selector compares the floors with an attenuation value (§2.1). The spectral centroid of the
    factory strokes falls monotonically with the floor: CP80 zone 0 goes from 450 to 255 Hz,
-   Wurlitzer from 888 to 209 Hz, Clavinet from 1089 to 572 Hz. `NSP-FORMAT.md` ("velocity layers
-   run softest first") and `nsp-audio.ts` `strokeFor` (which treats the floor as a MIDI velocity)
-   have it backwards. Both still pick *a* stroke, just not the one the instrument would play.
-   **High.**
+   Wurlitzer from 888 to 209 Hz, Clavinet from 1089 to 572 Hz. **High.**
+   - *Then:* `NSP-FORMAT.md` said "velocity layers run softest first", and `nsp-audio.ts`
+     `strokeFor` treated the floor as a MIDI velocity.
+   - *Now:* `strokeFor` takes the layers loudest first, switches halfway between floors (§2.1),
+     and scales v5 floors ×5 (they are stored in whole dB). §5 item 2 lists what it still leaves
+     out.
 2. **Key-map roots are 4 semitones below the sounding pitch at 44.1 kHz.** Each zone's strokes
    measure +397…+408 cents above the MIDI note of their stored root (f0 by autocorrelation on all
    three files, 47 zones). The pitch formula compensates with a built-in −4 semitones (§2.3).
@@ -119,7 +125,7 @@ The ARM programs the envelope with three primitives:
 | ARM function | Writes | Behaviour | Used for | Conf. |
 |---|---|---|---|---|
 | `0xC00B5F20(v, c)` | `v[0x10]=c, v[0xE]=1, v[0xC]=0, v[0xB]=0` | exponential: f ×= c per update; c = 1.0 holds | damper / key release / sustain | high |
-| `0xC00B602C(v, p)`, p ≤ 49 | `v[0x10]=1, v[0xE]=A_p, v[0xC]=−B_p, v[0xB]=0` | the rate g runs `g ← A·g − B` from 1 down to 0 and f follows: an **accelerating cut-off**, silent after t₀(p) ≈ 1 ms·2^(p/4) (1 ms at p = 0, 5 s at p = 48) | release mode 3 (§3.2) | medium |
+| `0xC00B602C(v, p)`, p ≤ 49 | `v[0x10]=1, v[0xE]=A_p, v[0xC]=−B_p, v[0xB]=0` | the rate g runs `g ← A·g − B` from 1 down to 0 and f follows: an **accelerating cut-off**, silent after t₀(p) ≈ 1 ms·2^(p/4) (1 ms at p = 0, about 4.1 s at p = 48) | release mode 3 (§3.2) | medium |
 | `0xC00B61AC(v, t)` | `v[0xB] = −f/(t·k)` | **linear** fade to 0 | release mode 2 | medium |
 | `0xC00B5C98(v, target, ms)` | ramp rate = (target − current)/(ms·22.05) and the limits | linear ramp of the extra voice gain | note-on level, string-res fade-in, steal fades | high |
 
@@ -133,7 +139,8 @@ is what makes g fall to zero. **High** (sign), **medium** (intent).
 
 > **T60(i) = 1.5 ms · 10^(i/20)** (i = 0 → 1.5 ms, 20 → 15 ms, 40 → 150 ms, 60 → 1.5 s, 100 → 150 s)
 
-so each index step makes the release 1 dB slower per decade. **High.**
+so each index step multiplies T60 by 10^(1/20) (about 1.12), and 20 steps make it 10 times
+longer. **High.**
 
 ### 1.4 Streaming, loop and loop decay
 
@@ -152,15 +159,20 @@ block level gain.
   **High.**
 - **Loop sustain decay:** `p = v[0x11]` is `v[7]` until `frame > loopEnd − loopLength` (that is,
   past the loop start), then `v[6]`. `v[6]` is record `+0x2E` (Q23), so inside the loop the envelope
-  decays by `c = (+0x2E)/2^23` per update. Factory values `2^23 − 146 … 2^23 − 2782` give **about
-  3 to 63 dB/s**, faster for higher notes. The loop is a recorded, seamless cycle, and this decay
-  makes it sound like a continuing piano tail. If request field `+0x48` is 2, the coefficient is
+  decays by `c = (+0x2E)/2^23` per update. Factory values `2^23 − 98 … 2^23 − 2782` give **about
+  2.2 to 63 dB/s**, faster for higher notes. The loop is a recorded, seamless cycle, and this decay
+  makes it sound like a continuing piano tail. If `req+0x48` is 2, the coefficient is
   halfway to 1.0 (`c + (1 − c)/2`, a slower decay). Source: `0xC00A8370`. **High** (mechanism),
   **low** (what sets the halving).
 - **Pre-loop factor `v[7]`:** one of the record's 14 Q23 values at `+0x36`, indexed by
-  `min(root − key + 1, 13)` (`0xC00A90A0`). All are 1.0 in factory v6 records, so it is a
-  per-transposition decay correction that Nord doesn't currently use. For v5 *release-sound*
-  strokes the loader fills it with a decay rate instead (`0xC0020088`). **High.**
+  `min(root − key + 1, 13)` (`0xC00A90A0`). Factory v6 records hold 13 × 1.0 then 0
+  (`NPNO-WRITE.md`), so it is a per-transposition decay correction that Nord doesn't currently use.
+  The 0 at index 13 would stop the envelope at once; it applies only to keys 12 or more semitones
+  below their root. For v5 *release-sound* strokes the loader fills `v[7]` with a decay rate
+  instead (`0xC0020088`). **High.**
+  - **Lower bound:** keys above `root + 1` give a negative index (the top zone reaches `root + 4`,
+    so −3). A re-implementation must clamp the index at 0. Whether the firmware clamps it, or reads
+    the bytes before `+0x36`, is not traced. **Open.**
 
 ### 1.5 Buses and the output stage
 
@@ -174,8 +186,9 @@ block level gain.
   0.99 previous / 0.01 new, once per sample), an average of the current and previous sample, and
   the master gain `dm:0x94098`. The result goes to the SPORT TX frame: 4 stereo pairs, slots
   0–3 and 10–13 of a 20-word buffer. Smoothed control values are also copied into a side buffer
-  (`dm:0xB2033…`), consistent with the effects DSPs reading control words from the TDM frame
-  (`EFFECTS-ENGINE.md` §4). **Medium** (gains and crossfade), **low** (exact filter topology).
+  (`dm:0xB2033…`); what reads it is not known. (An earlier reading had the effects DSPs take
+  control words from the TDM frame; those TDM words turned out to be delay-line samples,
+  `EFFECTS-ENGINE.md` §10.1.) **Medium** (gains and crossfade), **low** (exact filter topology).
 - **Where it goes next:** the four group outputs are the piano inputs of the effect chains ("Fx
   Piano A1/B1/A2/B2"). Per `EFFECTS-ENGINE.md`, each piano layer has its own chain on DSP 0 (Effect
   1, Effect 2, Amp/EQ, Delay, Compressor, plus Reverb). **Medium.**
@@ -196,7 +209,8 @@ xfade[i] = floor[i] − trunc((floor[i] − floor[i−1]) / 2),  xfade[0] = 0   
 floor  = record +0x05 (v6, att units; v5 stores floor/5)
 ```
 
-(*) The note-on path `0xC00AD77C` sets request field `+0x34 = 20`.
+(*) The note-on path `0xC00AD77C` sets `req+0x34 = 20`. `typeOffset` depends on the piano type and
+is not pinned down.
 
 - **No velocity crossfade.** Exactly one stroke is chosen. Layers switch at the midpoint between
   floors. Loudness stays continuous because level does not depend on the layer (§2.2). The second
@@ -221,6 +235,9 @@ gain = 2^(−lvl/60)  (≈ 10^(−lvl/200))   → envelope start value f
 level' = record +0x34                   (v6)
 level' = 10·L − 2·(5·floor5)            (v5, converted at load)
 ```
+
+In the v5 line, `L` is the level word the v5 record stores at `+0x34` and `floor5` is its stored
+floor (`+0x05`, whole dB), so `5·floor5` is the floor in att units.
 
 - **Level word `+0x34`:** factory files satisfy "level + 10·(dB the PCM peak sits below 7782) =
   constant within a zone" (`NPNO-WRITE.md`), so every stroke of a zone produces the **same output
@@ -255,8 +272,9 @@ ratio = min(2^(cents/1200), 1 − 2^−24)            frames per 44.1 kHz tick
 - Stretch tuning is real. The CP80 header runs from −23 cents (A0) to +21 cents (C8), and the
   measured zone pitches follow it. **High.**
 - **Consequence for a browser engine:** play stroke PCM at `44100·2^(cents/1200)` Hz relative to a
-  44.1 kHz output, with the −4 semitone offset. Zones never reach `root + 4`: in factory files the
-  maximum key is `root + 1` or `root + 4` (top zone).
+  44.1 kHz output, with the −4 semitone offset. Because the ratio can't exceed 1, a key above
+  `root + 4` would not get any higher, so a zone must stop at `root + 4`. In factory files a zone's
+  highest key is `root + 1`, except the top zone, which reaches `root + 4`.
 - **Open:** the constant **+27 cents**. With master tune 0 the instrument would be 27 cents sharp
   unless the stored master tune is centred at −27, or DSP 4's real clock is 27 cents below
   44.1 kHz. The envelope maths assumes exactly 22,050 updates/s (`0xC00B5C98`), so the clock is
@@ -404,8 +422,11 @@ piano's support flag (header `+0x51F`) are set.
 1. **Stroke player:** the existing decoder (`nsp-audio.ts`) plus a 6-tap Kaiser-sinc fractional
    resampler (β ≈ 5.2, 256 phases or computed), ratio ≤ 1 from §2.3, and a frame-exact loop jump.
 2. **Selection:** a 10-bit velocity, or MIDI velocity scaled up, through a touch curve to att
-   (0.2 dB); pick the last stroke with `xfade ≤ att + 20`. **Fix `strokeFor`**: the floor is an
-   attenuation, and layer 0 is the loudest.
+   (0.2 dB); pick the last stroke with `xfade ≤ att + typeOffset + 20` (§2.1). `strokeFor` already
+   treats the floor as an attenuation, takes layer 0 as the loudest, switches halfway between
+   floors and scales v5 floors ×5. It still leaves out the +20 (`req+0x34`), the per-type offset
+   and the same-key restrike offset (§2.5), and it approximates the touch curve with
+   40·log10(v/127) dB until the real curves are rebuilt.
 3. **Level:** `gain_dB ≈ −0.1·(level' + 2·att' + 60 − trims)`; peaks are normalized across a zone.
 4. **Envelope at 22.05 kHz:** constant until the loop, ×`(+0x2E)/2^23` per update inside the loop,
    and on release ×`exp(−0.20885·10^(−i/20))` with i from `+0x72`/`+0x73` (+15…28 at half pedal,
@@ -421,7 +442,12 @@ piano's support flag (header `+0x51F`) are set.
 - The +27-cent constant in the pitch sum (§2.3).
 - Timbre: where Soft/Mid/Bright/Dyno and the Clavinet EQ are applied, and the full DSP 4 output-stage
   filter topology (`0x1C0918…`), including what the `0xB2073…` five-coefficient blocks feed.
-- Model variation (Clavinet pickups) and the per-key bus-offset table (`+0x34C`, offsets 2/3).
+- Model variation (Clavinet pickups) and the per-key bus-offset table (offsets 2/3, §1.5). An
+  earlier note placed it at `+0x34C`, but that falls inside the header's per-note table at
+  `+0x30C` (`+0x30C…+0x38B`, `NPNO-WRITE.md`), at key 64. Whether the bus offsets come from
+  `+0x30C`, or `+0x34C` is an offset in the loader's layer structure rather than the file, is not
+  traced.
+- The per-type selection offset (`typeOffset`, §2.1).
 - Pedal-noise sample source (`0xC00A89DC`) and its two trigger keys.
 - Exact touch-curve parameters per Touch setting, and the 10-bit velocity scale from the keybed.
 - Header bytes `+0x51D…+0x51F` and `+0x5A0` (copied by the loader; roles partly guessed).

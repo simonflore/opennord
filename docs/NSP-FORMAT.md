@@ -789,28 +789,43 @@ Bit-exact means every stroke decodes to exactly its recorded frame count, and it
 **Header** (offsets from the `CNSP` tag, big-endian):
 
 - `+0x61C`: u16 version, u16 channels (1/2), u16 stroke count.
-- `+0x72C`: stroke records, 0x76 bytes each. Records are grouped by key zone, lowest zone
-  first; within a zone, dynamic layers run **loudest first** (`PIANO-ENGINE.md` §0). A new zone
-  starts where the attenuation floor (`+0x0A`) drops back to 0, which gives exactly one group per
-  key-map zone (17/16/16 in the three files).
+- `+0x622`: u16[128], the number of strokes of the zone rooted at each note (the layers-per-root
+  table).
+- `+0x732`: stroke records, 0x76 bytes each (record *i* at `CNSP + 0x732 + i·0x76`). Records are
+  grouped by key zone, lowest zone first; within a zone, dynamic layers run **loudest first**
+  (`PIANO-ENGINE.md` §0). The code takes the grouping from the layers-per-root table at `+0x622`
+  (`zoneOf` in `nsp-audio.ts`). The records agree with it: in the factory files each zone opens
+  with a normal stroke (flags 0) at floor 0, one group per key-map zone (17/16/16 in the three
+  files). Only when the table doesn't account for every stroke does the code fall back to
+  "a floor-0 stroke that is not a release sound opens a zone".
+
+  **Framing:** offsets count from the record's own start, as in the ARM loader, `NPNO-WRITE.md`,
+  `PIANO-ENGINE.md` and `nsp-audio.ts`. This table first counted from `CNSP + 0x72C`, so older
+  copies give every field 6 higher.
 
   | Offset | Type | Field |
   |---|---|---|
-  | `+0x06` | u32 | first block offset (relative to the `CNSP` tag) |
-  | `+0x0A` | u16 | flags byte (bits 0–1: 0 normal, 1 alternative list, 2 release sound) + attenuation floor byte in 0.2 dB steps, 0 = the hardest hit, larger = softer (v6: 0/25/50 Clavinet; v5 files store it in whole dB, so the CP80's 0/2/5/8/… are ×5 in 0.2 dB steps). The ARM maps velocity through the Touch curve to an attenuation and plays the last layer whose switch point it reaches; a layer's switch point is halfway between its floor and the previous one's. One stroke plays, with no crossfade. See `PIANO-ENGINE.md` §2.1 |
-  | `+0x0C` | u32 | length in frames |
-  | `+0x10` | u16 | block count |
-  | `+0x12` | 4×i16 | predictor history for channel 0, oldest first |
-  | `+0x1A` | 4×i16 | predictor history for channel 1 (zero when mono) |
-  | `+0x22` | u32 | loop start (frame) |
-  | `+0x26` | u32 | loop length; 0 = no loop |
-  | `+0x2A` | u32 | first frame of the block containing the loop start |
-  | `+0x2E` | u32 | first frame of the block after it |
-  | `+0x32` | u16 | index of the loop-start block |
-  | `+0x34` | u16 | always 127 (velocity ceiling?) |
-  | `+0x36` | i16 | constant within a zone, falls with pitch (Clavinet −146 … −1593, CP80 −98 … −2782); probably a key-scaled level |
-  | `+0x38` | u16 | copy of the attenuation floor |
-  | `+0x00`–`+0x05`, `+0x3A`, `+0x3C`… | | unnamed (zero in the first record; the v5 tail holds a small per-stroke table, v6 repeats `00 80 00 00`) |
+  | `+0x00` | u32 | first block offset (relative to the `CNSP` tag) |
+  | `+0x04` | u8 | flags, bits 0–1: 0 normal, 1 alternative list, 2 release sound |
+  | `+0x05` | u8 | attenuation floor in 0.2 dB steps, 0 = the hardest hit, larger = softer (v6: 0/25/50 Clavinet; v5 files store it in whole dB, so the CP80's 0/2/5/8/… are ×5 in 0.2 dB steps). The ARM maps velocity through the Touch curve to an attenuation and plays the last layer whose switch point (`+0x74`) it reaches; a layer's switch point is halfway between its floor and the previous one's. One stroke plays, with no crossfade. See `PIANO-ENGINE.md` §2.1 |
+  | `+0x06` | u32 | length in frames |
+  | `+0x0A` | u16 | block count |
+  | `+0x0C` | 4×i16 | predictor history for channel 0, oldest first |
+  | `+0x14` | 4×i16 | predictor history for channel 1 (zero when mono) |
+  | `+0x1C` | u32 | loop start (frame) |
+  | `+0x20` | u32 | loop length; 0 = no loop |
+  | `+0x24` | u32 | first frame of the block containing the loop start |
+  | `+0x28` | u32 | first frame of the block after it |
+  | `+0x2C` | u16 | index of the loop-start block |
+  | `+0x2E` | u32 | Q23 loop-sustain decay, constant within a zone and faster for higher notes: `2^23 − 146 … 2^23 − 1593` (Clavinet), `2^23 − 98 … 2^23 − 2782` (CP80). Earlier read as two u16s, "always 127" and "a key-scaled level": 127 is the top half of `0x007Fxxxx`. See `PIANO-ENGINE.md` §1.4 |
+  | `+0x32` | u8 | per-stroke fine tune in cents (0 in the factory files) |
+  | `+0x33` | u8 | copy of the attenuation floor |
+  | `+0x34` | u16 | level word (`NPNO-WRITE.md`; `PIANO-ENGINE.md` §2.2) |
+  | `+0x36` | 14×u32 | Q23 pre-loop factors. v6: 13 × 1.0 then 0 (the repeating `00 80 00 00`); v5 records hold other values here (`PIANO-ENGINE.md` §1.4) |
+  | `+0x6E` | u32 | an id; the factory values look like take numbers |
+  | `+0x72`, `+0x73` | u8 | damper indices, normal and Soft Release (`PIANO-ENGINE.md` §3.1) |
+  | `+0x74` | u8 | layer switch point: `floor − trunc((floor − previous floor) / 2)`, 0 for the loudest layer |
+  | `+0x75` | u8 | 0 |
 
   **Loop:** the loop is seamless and lossless. From `loopStart + loopLength` to the end of the
   stroke, every frame equals the frame `loopLength` earlier (928–2,538 frames in the samples
@@ -870,8 +885,9 @@ tested against synthetic files in CI; `NPNO_DIR=<folder>` runs it over real pian
 the repo. The piano inspector uses it for local audition (one button per sampled note, at a
 chosen velocity).
 
-**Still open:** `+0x36` and the unnamed record bytes, and the 0x700–0x1900 region (overview
-waveforms).
+**Still open:** the record id at `+0x6E`. (The 0x700–0x1900 region once listed here as overview
+waveforms is the end of the layers-per-root table and the stroke records: the Clavinet's 38
+records run from `+0x732` to `+0x18B6`.)
 
 ## 2026-10-10 — the name field, and why programs match pianos by name
 
@@ -910,14 +926,15 @@ and additions to the notes above:
   every record at **CNSP + 0x732 + i·0x76**. `0xC00AB028` (v6) and `0xC0020088` (v5, converting)
   turn each record into a voice entry.
 - **Records start at +0x732, not +0x72C.** Every field moves by 6: offset +0x00, flags +0x04
-  (bits 0–1; 2 = key-release sound, as in the Wurlitzer), velocity +0x05, frames +0x06,
+  (bits 0–1; 2 = key-release sound, as in the Wurlitzer), attenuation floor +0x05, frames +0x06,
   blocks +0x0A, history +0x0C/+0x14, loop +0x1C/+0x20, loop block +0x24/+0x28/+0x2C. The
-  unnamed fields are a Q23 coefficient at +0x2E, a velocity copy at +0x33, a level word at
+  unnamed fields are a Q23 coefficient at +0x2E, a floor copy at +0x33, a level word at
   +0x34, 14 Q23 coefficients at +0x36, an id at +0x6E, two voice bytes at +0x72/+0x73, and the
-  velocity-crossfade start at +0x74. The old "+0x34 always 127, +0x36 key-scaled level" is the
-  coefficient at +0x2E read as two u16s: `0x007FFF6E` = 2^23 − 146. v5 records store velocities
-  /5 and are converted at load. Full table in `NPNO-WRITE.md`. `nsp-audio.ts` now reads this
-  layout and groups zones by the layers-per-root table.
+  layer switch point at +0x74 (first read as a velocity-crossfade start; there is no crossfade).
+  The old "+0x34 always 127, +0x36 key-scaled level" is the coefficient at +0x2E read as two
+  u16s: `0x007FFF6E` = 2^23 − 146. v5 records store floors /5 and are converted at load. Full
+  table in `NPNO-WRITE.md`; the "CNSP audio decoded" table above now uses this framing.
+  `nsp-audio.ts` now reads this layout and groups zones by the layers-per-root table.
 - **Checksums.** The CNSP header holds a u32 byte sum of CNSP+0x16 … end at +0x06 (NSM verifies
   it, `CNSPFileInputStream` ctor). v5 files *do* have a container checksum: a 2-byte
   CRC-16/CCITT-FALSE trailer over the rest of the file, LE, as in the other legacy formats. It

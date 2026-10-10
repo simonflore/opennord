@@ -136,13 +136,13 @@ ARM loader come from `0xC00B84CC` (header) and `0xC00AB028`/`0xC0020088` (record
 | +0x0C, +0x14 | 4×i16 predictor history per channel, oldest first | set (silence before the attack) |
 | +0x1C, +0x20 | u32 loop start, loop length (0 = no loop) | set |
 | +0x24, +0x28, +0x2C | first frame of the loop-start block, first frame of the next block, u16 that block's index | set (0 without a loop) |
-| +0x2E | u32 Q23 coefficient (24 bits used), `2^23 − 146` … `2^23 − 2782`, falling with pitch, constant within a zone; probably a release decay | default `2^23 − round(146·2^((root − 25)/24))` of the stored root (`rootNote − 4`), through the Clavinet's two end points |
-| +0x32 | 0 in all files | 0 |
+| +0x2E | u32 Q23 coefficient (24 bits used), `2^23 − 98` … `2^23 − 2782` (`2^23 − 146` … `2^23 − 1593` in the Clavinet), falling with pitch, constant within a zone: the loop-sustain decay (`PIANO-ENGINE.md` §1.4) | default `2^23 − round(146·2^((root − 25)/24))` of the stored root (`rootNote − 4`), through the Clavinet's two end points |
+| +0x32 | per-stroke fine tune in cents (`PIANO-ENGINE.md` §2.3); 0 in all files | 0 |
 | +0x33 | floor copy | = attenuation floor |
 | +0x34 | u16 level word. In the v6 Clavinet, `level + 10·k` is constant within a zone, where `k` is the dB the stroke's PCM peak sits below 7782. Our reading: an attenuation in 0.1 dB that undoes the peak normalization. v5 files are converted at load to `10·level − 2·floor·5` | `125 + 200·log10(normalization gain)`, so the original loudness between strokes is kept (`levelWord` overrides) |
 | +0x36 | 14 × u32 Q23 coefficients: 13 × 0x800000 (1.0) then 0 in every v6 record | constant |
 | +0x6E | u32; the loader keeps its low 14 bits with the flags. The factory values look like take numbers (89, 90, 91 for one zone) | a unique id per stroke |
-| +0x72, +0x73 | bytes the loader copies into the voice: Clavinet 0x0D and 36…28 (falling with pitch) | 0x0D, 33 |
+| +0x72, +0x73 | damper indices for normal release and Soft Release (`PIANO-ENGINE.md` §3.1): Clavinet 0x0D and 36…28 (falling with pitch) | 0x0D, 33 |
 | +0x74 | layer switch point: `floor − trunc((floor − previous layer's floor) / 2)`, 0 for the first (loudest) layer (exact for every v6 record; the loader computes the same for v5) | set |
 | +0x75 | 0 | 0 |
 
@@ -205,8 +205,9 @@ what the display showed).
      switch while loudness keeps following your touch.
    - Overall level compared with a factory piano. The +0x34 level word is a hypothesis: if the
      piano is far too loud or too quiet, report roughly how many dB, so the formula can be fixed.
-   - Release: how fast does a note die after key-up (the +0x2E coefficient)? Hold a loop and
-     listen for clicks at the loop point.
+   - Sustain and release: how fast does a held note fade once it is inside its loop (the +0x2E
+     coefficient), and how fast does it die after key-up (the +0x72 damper index)? Hold a loop
+     and listen for clicks at the loop point.
    - Repeated notes, sustain pedal, and playing many notes at once (voice stealing uses the block
      levels).
 6. **Remove it.** In NSM's Piano tab, select the piano and delete it. If the instrument acts up
@@ -220,11 +221,13 @@ what the display showed).
 
 ## Open questions
 
-- The meaning of the per-note tables, the bytes at +0x19/+0x8B/+0x49C, and record +0x72/+0x73.
-  Our defaults copy the one v6 file we have (a stereo Clavinet). A **mono v6** file has not
-  been seen. If the +0x8B/+0x49C bytes encode the channel layout, a mono build may need 0 there.
-- The +0x34 level word (sign and unit) and the +0x2E coefficient are inferred from patterns,
-  not from the DSP code that uses them.
+- The meaning of the per-note tables and the byte at +0x19. `PIANO-ENGINE.md` §3.2 reads
+  +0x8B/+0x49C as the soft and normal release modes (medium confidence). Our defaults copy the one
+  v6 file we have (a stereo Clavinet). A **mono v6** file has not been seen. If the +0x8B/+0x49C
+  bytes also depend on the channel layout, a mono build may need 0 there.
+- The +0x34 level word (sign and unit) and the +0x2E coefficient were inferred from patterns.
+  `PIANO-ENGINE.md` has since traced how the firmware uses them (§2.2, §1.4); the encoder's
+  defaults for them are still fitted to the factory files.
 - Why the first block sits on the `830 mod 1022` grid. We copy it rather than guess.
 - Key-release strokes (flag 2) are kept by the image writer but not built by `buildNpno` yet.
 - The firmware's view of the generation number for each model (`param_1[3]` in the gate) is not
