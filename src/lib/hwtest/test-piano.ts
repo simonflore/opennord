@@ -11,10 +11,8 @@
  * plays a stroke at or below its recorded pitch, so the keys
  * below it test transposition and key A4 tests the recorded pitch itself.
  */
-import { buildNpno, NPNO_PEAK, NPNO_PIANO_TYPE, type NpnoBuildResult, type NpnoInput } from '../ns4/nsp-write';
-
-/** Rate of the piano DSP and of every stroke (`NSP_SAMPLE_RATE`). */
-export const TEST_PIANO_RATE = 44100;
+import { NSP_SAMPLE_RATE } from '../ns4/nsp-audio';
+import { NPNO_PEAK, NPNO_PIANO_TYPE, type NpnoInput } from '../ns4/nsp-write';
 /** The recorded note of the main zone: A4. */
 export const TEST_PIANO_NOTE = 69;
 /** Lowest key of the main zone: A3, an octave below the recording. */
@@ -47,7 +45,7 @@ const ATTACK_S = 0.004;
  * it decays to about −30 dB and fades out over the last 20 ms.
  */
 export function testTone(o: TestToneOptions): TestTone {
-  const sr = TEST_PIANO_RATE;
+  const sr = NSP_SAMPLE_RATE;
   const n = Math.round(o.seconds * sr);
   const loopLen = o.loopSeconds ? Math.round(o.loopSeconds * sr) : 0;
   if (loopLen) {
@@ -96,7 +94,7 @@ export interface TestPianoSpec {
 
 const stereo = (t: TestTone) => ({ pcm: [t.pcm, t.pcm], loop: t.loop });
 
-/** The four test pianos (T3 is optional in the plan). */
+/** The four test pianos (T3 is optional in the plan); build each with `buildNpno(spec.input)`. */
 export function testPianoSpecs(): TestPianoSpec[] {
   const zoneA4 = { rootNote: TEST_PIANO_NOTE, lowNote: TEST_PIANO_LOW, highNote: TEST_PIANO_NOTE };
   const base = { minor: 0, pianoType: NPNO_PIANO_TYPE.grand, channels: 2 as const };
@@ -138,9 +136,4 @@ export function testPianoSpecs(): TestPianoSpec[] {
       ] },
     },
   ];
-}
-
-/** Build one test piano. */
-export function buildTestPiano(spec: TestPianoSpec): NpnoBuildResult {
-  return buildNpno(spec.input);
 }

@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { decodeNspStroke, findCnsp, readLayerTable, readNspDirectory, strokeFor } from '../ns4/nsp-audio';
+import { decodeNspStroke, findCnsp, NSP_SAMPLE_RATE, readLayerTable, readNspDirectory, strokeFor } from '../ns4/nsp-audio';
 import { NSP_ROOT_OFFSET, readNsp } from '../ns4/nsp';
 import { checkNpnoAcceptance } from '../ns4/nsp-check';
-import { NPNO_PEAK } from '../ns4/nsp-write';
+import { buildNpno, NPNO_PEAK } from '../ns4/nsp-write';
 import { centsBetween, estimateF0, noteToHz, spectralCentroid } from './analysis';
-import { buildTestPiano, TEST_PIANO_NOTE, TEST_PIANO_RATE, testPianoSpecs, testTone } from './test-piano';
+import { TEST_PIANO_NOTE, testPianoSpecs, testTone } from './test-piano';
 
 const specs = testPianoSpecs();
 const asFloat = (c: Int32Array) => Float32Array.from(c, (v) => v / 32768);
@@ -26,12 +26,12 @@ describe('testTone', () => {
 describe('test pianos', () => {
   it('are T0–T3 with distinct names', () => {
     expect(specs.map((s) => s.id)).toEqual(['T0', 'T1', 'T2', 'T3']);
-    expect(new Set(specs.map((s) => buildTestPiano(s).fileName)).size).toBe(4);
+    expect(new Set(specs.map((s) => buildNpno(s.input).fileName)).size).toBe(4);
   });
 
   for (const spec of specs) {
     describe(spec.id, () => {
-      const built = buildTestPiano(spec);
+      const built = buildNpno(spec.input);
       const { bytes } = built;
 
       it('passes every acceptance check, with a full decode', () => {
@@ -65,7 +65,7 @@ describe('test pianos', () => {
         const zones = [...spec.input.zones].sort((a, b) => a.rootNote - b.rootNote);
         for (const s of dir.strokes) {
           const pcm = decodeNspStroke(bytes, dir, s);
-          const f0 = estimateF0(asFloat(pcm[0]).subarray(4410, 26460), TEST_PIANO_RATE)!;
+          const f0 = estimateF0(asFloat(pcm[0]).subarray(4410, 26460), NSP_SAMPLE_RATE)!;
           const z = zones[s.zone];
           const storedRoot = z.rootNote - NSP_ROOT_OFFSET;
           expect(Math.abs(centsBetween(f0.hz, noteToHz(storedRoot + NSP_ROOT_OFFSET)))).toBeLessThan(0.1);
@@ -80,16 +80,16 @@ describe('test pianos', () => {
   }
 
   it('T0 is unlooped; T1–T3 loop', () => {
-    const loops = specs.map((s) => readNspDirectory(buildTestPiano(s).bytes)!.strokes.map((x) => !!x.loop));
+    const loops = specs.map((s) => readNspDirectory(buildNpno(s.input).bytes)!.strokes.map((x) => !!x.loop));
     expect(loops).toEqual([[false], [true], [true, true], [true, true]]);
   });
 
   it('T2: the hard layer is far brighter than the soft one, and touch picks between them', () => {
-    const { bytes } = buildTestPiano(specs[2]);
+    const { bytes } = buildNpno(specs[2].input);
     const dir = readNspDirectory(bytes)!;
     const [hard, soft] = dir.strokes.map((s) => asFloat(decodeNspStroke(bytes, dir, s)[0]).subarray(4410, 26460));
-    const ch = spectralCentroid(hard, TEST_PIANO_RATE)!;
-    const cs = spectralCentroid(soft, TEST_PIANO_RATE)!;
+    const ch = spectralCentroid(hard, NSP_SAMPLE_RATE)!;
+    const cs = spectralCentroid(soft, NSP_SAMPLE_RATE)!;
     expect(cs).toBeLessThan(500);
     expect(ch / cs).toBeGreaterThan(2);
     expect(strokeFor(dir, 0, 127)?.index).toBe(0);
@@ -98,7 +98,7 @@ describe('test pianos', () => {
   });
 
   it('T3: two zones, A3 = 220 Hz below A#3, A4 = 440 Hz from A#3 up', () => {
-    const { bytes } = buildTestPiano(specs[3]);
+    const { bytes } = buildNpno(specs[3].input);
     const cnsp = findCnsp(bytes);
     expect(bytes[cnsp + 0x8c + 57]).toBe(53);
     expect(bytes[cnsp + 0x8c + 58]).toBe(TEST_PIANO_NOTE - NSP_ROOT_OFFSET);

@@ -145,6 +145,8 @@ export interface WavAudio {
   channelCount: number;
   /** Source bits per sample (8/16/24/32). */
   bitDepth: number;
+  /** IEEE float source (`channels` then hold the value × 0x7FFFFF). */
+  float: boolean;
   channels: Int32Array[];
 }
 
@@ -196,5 +198,5 @@ export function parseWav(bytes: Uint8Array): WavAudio {
       channels[c][f] = v;
     }
   }
-  return { sampleRate, channelCount, bitDepth, channels };
+  return { sampleRate, channelCount, bitDepth, float: isFloat, channels };
 }

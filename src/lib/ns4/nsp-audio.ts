@@ -222,10 +222,11 @@ export function touchAttenuation(velocity: number): number {
  * switch halfway between neighbouring floors (`floor − trunc((floor − previous) / 2)`, the
  * value factory records keep at +0x74), and the velocity's attenuation plays the last layer
  * whose switch point it reaches. One stroke plays; there is no crossfade between layers.
- * (The instrument also adds a per-type selection offset, not yet pinned down.)
+ * `selectOffset` (0.2 dB steps) is added to the attenuation before the pick; the Stage 4's
+ * note-on path adds 20, the in-app audition uses 0.
  */
-export function strokeFor(dir: NspDirectory, zone: number, velocity: number): NspStroke | undefined {
-  const att = touchAttenuation(velocity);
+export function strokeFor(dir: NspDirectory, zone: number, velocity: number, selectOffset = 0): NspStroke | undefined {
+  const att = touchAttenuation(velocity) + selectOffset;
   // Normal strokes only: release sounds (and the alternative type-1 list) are picked separately.
   const layers = dir.strokes.filter((s) => s.zone === zone && s.flags === 0); // loudest first
   let pick = layers[0];
