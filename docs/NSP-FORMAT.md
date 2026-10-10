@@ -842,6 +842,11 @@ history drifts as a polynomial forever.
 **Rate:** 44.1 kHz. At that rate the CP80's A4 stroke measures 440.4 Hz; at 48 kHz it would be
 +48 cents.
 
+**Root offset:** at 44.1 kHz every stroke sounds **4 semitones above its key-map root**
+(+397…+408 cents, all 47 zones of the three files, f0 by autocorrelation). The instrument's
+pitch formula subtracts the same 4 semitones, so a key `n` plays its zone's stroke re-pitched by
+`n − (root + 4)` semitones. `NSP_ROOT_OFFSET` in `src/lib/ns4/nsp.ts`.
+
 What this corrects above:
 
 - The audio is **not NW1**. It shares NW1's binomial predictors, but its framing is different:
