@@ -22,7 +22,7 @@ export default defineConfig({
   // to the browser as a static asset — needs this to resolve/bundle correctly.
   assetsInclude: ['**/*.ns4p'],
   define: {
-    // RE tooling (capture/inference/review + /contribute,/dev routes) is web-only.
+    // RE tooling (/contribute, /dev routes) is web-only.
     // The native (Capacitor/iOS) build sets OPENNORD_NATIVE=1 so __RE__ is false and
     // RE code is dead-code-eliminated / aliased to a stub (see resolve.alias below).
     __RE__: JSON.stringify(!NATIVE),
