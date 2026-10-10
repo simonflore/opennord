@@ -24,6 +24,17 @@ describe('classifyBackupEntry (stage-4)', () => {
   });
 });
 
+describe('classifyBackupEntry (Stage 2 / Stage 3 fourccs)', () => {
+  it('Stage 2: ns2s is the Synth partition, ns2y is Settings (not a preset)', () => {
+    expect(classifyBackupEntry('Synth/Pad.ns2s', 'stage-2')).toEqual({ kind: 'synth-preset', native: false });
+    expect(classifyBackupEntry('Settings/Settings.ns2y', 'stage-2')).toEqual({ kind: 'settings', native: false });
+  });
+  it('Stage 3: ns3y is Synth, ns3s is Songs', () => {
+    expect(classifyBackupEntry('Synth/Pad.ns3y', 'stage-3')).toEqual({ kind: 'synth-preset', native: false });
+    expect(classifyBackupEntry('Song/Gig.ns3s', 'stage-3')).toEqual({ kind: 'setlist', native: false });
+  });
+});
+
 describe('indexBackup', () => {
   it('identifies the model and splits entries into the four buckets', async () => {
     const blob = new Blob([zipSync({

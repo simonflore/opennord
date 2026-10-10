@@ -10,7 +10,7 @@ import type { LibraryEntry, LibrarySource } from '@/lib/library/types';
  *  Presets (.ns4o/.ns4n/.ns4y) go to the Presets page and samples (.nsmp*) to
  *  Samples, so they can't be silently stored on the wrong page. */
 const PROGRAM_IMPORT_EXTS = ['.ns4p', '.ns3p', '.ns3f', '.ns2p'];
-const PRESET_EXTS = ['.ns4o', '.ns4n', '.ns4y', '.ns3y', '.ns2y'];
+const PRESET_EXTS = ['.ns4o', '.ns4n', '.ns4y', '.ns3y', '.ns2s'];
 const SAMPLE_EXTS = ['.nsmp', '.nsmp3', '.nsmp4'];
 
 /** Merges the three program sources (device, folder, imports) into one list and

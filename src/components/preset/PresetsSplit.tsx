@@ -16,7 +16,7 @@ export function PresetsSplit() {
   function importPreset() {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.ns4o,.ns4n,.ns4y,.ns3y,.ns2y';
+    input.accept = '.ns4o,.ns4n,.ns4y,.ns3y,.ns2s';
     input.style.display = 'none';
     document.body.appendChild(input);
     const cleanup = () => input.remove();

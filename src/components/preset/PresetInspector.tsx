@@ -11,7 +11,7 @@ import { Button } from '@/components/ui';
 const KIND_LABEL: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'Organ preset', 'piano-preset': 'Piano preset', 'synth-preset': 'Synth preset',
 };
-// Download filename extension by kind. Device presets are Stage-4-only (ns4o/n/y); a folder-sourced ns3y/ns2y synth preset downloads as .ns4y — its bytes are unchanged, only the filename ext.
+// Download filename extension by kind. Device presets are Stage-4-only (ns4o/n/y); a folder-sourced ns3y/ns2s synth preset downloads as .ns4y — its bytes are unchanged, only the filename ext.
 const KIND_EXT: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'ns4o', 'piano-preset': 'ns4n', 'synth-preset': 'ns4y',
 };
@@ -21,7 +21,7 @@ const KIND_EXT: Record<PresetEntry['kind'], string> = {
 export function PresetInspector({ entry, session }: { entry: PresetEntry; session: NordSession | null }) {
   const { busy, error, run } = useAsyncAction();
   // Decode when we already hold the bytes (folder/local files); device presets
-  // stay metadata-only until pulled. parseNs4Preset returns null for ns3y/ns2y.
+  // stay metadata-only until pulled. parseNs4Preset returns null for ns3y/ns2s.
   const decoded = useMemo(() => (entry.bytes ? parseNs4Preset(entry.bytes) : null), [entry.bytes]);
 
   async function download() {

@@ -102,8 +102,8 @@ class FakeNord implements NordTransport {
 
 describe('confirmProgramPartition', () => {
   it('adopts the probed index when it differs from the guess, and logs the map', async () => {
-    // Stage 3 really holds ns3f at partition 4, but the registry guessed 6.
-    const t = new FakeNord({ 2: 'nsmp', 4: 'ns3f', 6: 'ns3s' }, { partitionCount: 12 });
+    // A device that holds ns3f at partition 4, though the guess was 6.
+    const t = new FakeNord({ 2: 'nsmp', 4: 'ns3f', 6: null }, { partitionCount: 12 });
     const { events, diagnostics } = recorder();
 
     const confirmed = await confirmProgramPartition(new NordSession(t), stage3, 6, diagnostics, at);
@@ -267,6 +267,32 @@ describe('resolveDeviceAccess', () => {
     const before = t.sent.length;
     await expect(restore(session, zip)).rejects.toBeInstanceOf(WriteBlockedError);
     expect(t.sent).toHaveLength(before); // nothing reached the keyboard
+  });
+
+  it('Stage 3: a probe hit at the firmware index 7 makes only Program writable — never SWave or factory', async () => {
+    // Stage 3 OS 2.64 firmware layout (FUN_c001ace0): 0/2/4 factory, 6 SWave, 7 Program.
+    const t = new FakeNord(
+      { 0: 'npno', 1: null, 2: null, 3: null, 4: 'nsmp', 5: null, 6: null, 7: 'ns3f', 8: 'ns3y', 9: 'ns3s', 10: null, 11: null },
+      { partitionCount: 12 });
+    const { diagnostics } = recorder();
+    const access = await resolveDeviceAccess(new NordSession(t), identifyDevice(0x0026), diagnostics, at);
+    expect(access).toEqual({ programPartition: 7, writable: [7] }); // static layout: no libraries
+    expect(t.begins).toEqual([7]);
+  });
+
+  it('even a hardware-confirmed Stage 3 layout would never make SWave or the factory partitions writable', async () => {
+    // Guard for when the static indices are promoted: the trusted-layout path
+    // writes only non-native partitions, and SWave is registered native.
+    const promoted: ModelInfo = {
+      ...MODELS['stage-3'],
+      partitions: MODELS['stage-3'].partitions.map((p) => ({ ...p, index: p.staticIndex })),
+    };
+    const t = new MockTransport([]);
+    const { diagnostics } = recorder();
+    const access = await resolveDeviceAccess(new NordSession(t), { model: promoted, confirmed: true }, diagnostics, at);
+    expect(access.programPartition).toBe(7);
+    expect(access.writable).toEqual([1, 3, 5, 7, 8, 9, 10, 11]);
+    for (const ro of [0, 2, 4, 6]) expect(access.writable).not.toContain(ro);
   });
 
   it('an assumed Stage 4 (iPad placeholder) must be probed before it is writable', async () => {

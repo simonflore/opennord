@@ -2,15 +2,17 @@
 export type PresetKind = 'organ-preset' | 'piano-preset' | 'synth-preset';
 
 /** Map a CBIN tag to its preset kind, or undefined if the tag isn't a preset.
- *  organ = ns4o; piano = ns4n; synth = ns4y/ns3y/ns2y. nl4s (Lead programs) is
- *  intentionally NOT a preset. Recognition only — no decode. */
+ *  organ = ns4o; piano = ns4n; synth = ns4y/ns3y/ns2s — the Synth partition
+ *  fourccs the firmware registers (clavia/partitions.ts). Not presets: `ns2y`
+ *  (Stage 2 Settings), `ns3s` (Stage 3 Songs) and nl4s (Lead programs).
+ *  Recognition only — no decode. */
 export function presetKindForTag(tag: string): PresetKind | undefined {
   switch (tag.toLowerCase()) {
     case 'ns4o': return 'organ-preset';
     case 'ns4n': return 'piano-preset';
     case 'ns4y':
     case 'ns3y':
-    case 'ns2y': return 'synth-preset';
+    case 'ns2s': return 'synth-preset';
     default: return undefined;
   }
 }
