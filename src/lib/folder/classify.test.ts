@@ -32,7 +32,13 @@ describe('classifyFile', () => {
     expect(classifyFile('Bank A/Grand.ns4n')).toBe('preset');
     expect(classifyFile('Bank A/Pad.ns4y')).toBe('preset');
     expect(classifyFile('legacy.ns3y')).toBe('preset');
+    expect(classifyFile('Stage2 Pad.ns2s')).toBe('preset'); // Stage 2 Synth
     expect(classifyFile('Prog.ns4p')).toBe('program'); // program unchanged
     expect(classifyFile('Lead4Patch.nl4s')).not.toBe('preset');
+  });
+
+  it('does not list Stage 2 Settings (.ns2y) or Stage 3 Songs (.ns3s) as presets', () => {
+    expect(classifyFile('Settings.ns2y')).toBeNull();
+    expect(classifyFile('Gig.ns3s')).toBeNull();
   });
 });

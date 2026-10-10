@@ -72,6 +72,43 @@ describe('partition registry', () => {
     expect(m.partitions[3]).toMatchObject({ kind: 'pedal-native', native: true });
   });
 
+  // Stage 2 OS 3.00 firmware partition registration (FUN_3007046c): Synth = ns2s,
+  // Settings = ns2y. The layout still varies by OS, so connect keeps probing.
+  it('Stage 2 / 2 EX: Synth is ns2s and Settings is ns2y (firmware registration)', () => {
+    for (const id of ['stage-2', 'stage-2-ex'] as const) {
+      const m = modelById(id)!;
+      expect(m.partitions.find((p) => p.kind === 'synth-preset'), id).toMatchObject({ fourcc: 'ns2s', index: 7 });
+      expect(m.partitions.find((p) => p.kind === 'settings'), id).toMatchObject({ fourcc: 'ns2y', index: 9 });
+      expect(m.layoutVariesByOs, id).toBe(true);
+    }
+  });
+
+  // Stage 3 OS 2.64 firmware partition registration (FUN_c001ace0) — the order the
+  // device reports in CQryPartList. NSM's CStage3 constructor adds Song before
+  // Synth and an "E2P FFS" the device never reports; the firmware order wins.
+  it('Stage 3 follows the firmware registration order: 12 partitions, static indices only', () => {
+    const m = modelById('stage-3')!;
+    expect(m.partitions.map((p) => [p.staticIndex, p.kind, p.fourcc ?? null])).toEqual([
+      [0, 'piano-native', null],
+      [1, 'piano', null],
+      [2, 'pedal-native', null],
+      [3, 'pedal', null],
+      [4, 'samplib-native', null],
+      [5, 'samplib', null],
+      [6, 'swave', null],
+      [7, 'program', 'ns3f'],
+      [8, 'synth-preset', 'ns3y'],
+      [9, 'setlist', 'ns3s'],
+      [10, 'live', 'ns3l'],
+      [11, 'settings', 'ns3t'],
+    ]);
+    expect(m.partitions.some((p) => p.kind === 'ffs')).toBe(false); // no E2P FFS on the wire
+    // Static, not hardware-confirmed: nothing carries a protocol `index`.
+    expect(m.partitions.every((p) => p.index === undefined)).toBe(true);
+    // Factory partitions and SWave are read-only.
+    expect(m.partitions.filter((p) => p.native).map((p) => p.staticIndex)).toEqual([0, 2, 4, 6]);
+  });
+
   // CLead4Base::CLead4Base @0x00000001000dd364 — constructor adds partitions in this order:
   //   SPartitionUserE2P  "Performance" (CFileSpec from nl4p CFileType) → program
   //   SPartitionProgram  (CFileSpec from nl4s CFileType)               → synth-preset

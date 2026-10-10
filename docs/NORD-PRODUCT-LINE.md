@@ -304,16 +304,31 @@ this way. The probe checks the expected index, then one lower, and only then
 scans the partitions the device reports, with every reply time-bounded. See
 `resolveDeviceAccess` in `src/lib/device/connect-probe.ts`.
 
-Recovered order (type = last `SPartition*` constructed before each `Add()`, tag
-from its `CFileType`; `llvm-objdump` + a conditional-branch check — only Wave 2
-(#2 "Transient" ROMFlash) and Stage 2 (#3 user Pedal, OS-gated `b.lo`) have
-conditional `Add()`s):
+**The instrument's own registration order is the ground truth, not NSM's.** A
+partition's protocol index is the order in which the instrument firmware
+registers it with its file-transfer code — that is the list `CQryPartList`
+returns. Static analysis of three firmware images recovered it for the Stage
+line: Stage 4 OS 1.66 `FUN_c023a5b8`, Stage 3 OS 2.64 `FUN_c001ace0`, Stage 2
+OS 3.00 `FUN_3007046c`. It matches the hardware-validated Stage 4 list in
+`PROTOCOL-RE.md` and the Stage 2 capture from issue #31 exactly. NSM's
+product-constructor `Add()` order is only a proxy: it disagrees on the Stage 4
+presets and on the Stage 3 Synth/Song pair, and it appends an "E2P FFS" that the
+Stage 3/4 never report. The Stage rows below are the firmware order; the others
+are still NSM-recovered. Firmware-recovered indices are still *static*
+(`staticIndex`) until a hardware probe confirms them; the connect probe checks
+Program on the device either way.
+
+Recovered order (Stage rows: firmware registration order, as above. Other rows:
+NSM constructor order — type = last `SPartition*` constructed before each
+`Add()`, tag from its `CFileType`; `llvm-objdump` + a conditional-branch check —
+only Wave 2 (#2 "Transient" ROMFlash) and Stage 2 (#3 user Pedal, OS-gated
+`b.lo`) have conditional `Add()`s):
 
 | Model | Order (index: partition [tag]) |
 |---|---|
-| Stage 4 | 0 Piano(N) · 1 Piano · 2 Pedal(N) · 3 Pedal · 4 SampLib(N) · 5 SampLib · **6 Program [ns4p]** · 7 Synth Preset [ns4y] · 8 Organ Preset [ns4o] · 9 Piano Preset [ns4n] · 10 Live [ns4l] · 11 Settings [ns4t] · 12 E2P FFS |
-| Stage 3 | 0–5 as Stage 4 · 6 **SWave** (ROMFlash) · **7 Program [ns3f]** · 8 Song [ns3s] · 9 Synth [ns3y] · 10 Live [ns3l] · 11 Settings [ns3t] · 12 E2P FFS |
-| Stage 2 | 0 Piano(N) · 1 Piano · 2 Pedal(N) · 3 Pedal *(OS-gated)* · 4 SampLib(N) · 5 SampLib · **6 Program [ns2p]** · 7 Synth [ns2s] · 8 Live [ns2l] · 9 Settings |
+| Stage 4 | 0 Piano(N) · 1 Piano [npno] · 2 Pedal(N) · 3 Piano Pedal [npdl] · 4 SampLib(N) · 5 SampLib [nsmp] · **6 Program [ns4p]** · 7 Organ Preset [ns4o] · 8 Piano Preset [ns4n] · 9 Synth Preset [ns4y] · 10 Live [ns4l] · 11 Settings [ns4t] — 12 partitions (hardware-validated; firmware `FUN_c023a5b8` agrees). NSM adds Synth · Organ · Piano at 7–9 and a 12 E2P FFS |
+| Stage 3 | 0 Piano(N) · 1 Piano [npno] · 2 Pedal(N) · 3 Piano Pedal [npdl] · 4 SampLib(N) · 5 SampLib [nsmp] · 6 **SWave** (100 entries; NSM-managed, treated read-only) · **7 Program [ns3f]** · 8 Synth [ns3y] · 9 Song [ns3s] · 10 Live [ns3l] · 11 Settings [ns3t] — 12 partitions, no E2P FFS (firmware `FUN_c001ace0`, static). NSM's `CStage3` adds Song (8) before Synth (9) and a 12 E2P FFS |
+| Stage 2 | 0 Piano(N) · 1 Piano · 2 Piano Pedal (user) · 3 Pedal(N) · 4 SampLib(N) · 5 SampLib · **6 Program [ns2p]** · 7 Synth [ns2s] · 8 Live [ns2l] · 9 Settings [ns2y] — 10 partitions (issue #31 capture; firmware OS 3.00 `FUN_3007046c` agrees, and registers the user pedal unconditionally). NSM's `CStage2` adds native Pedal first and gates the user Pedal on OS |
 | Electro 4 / 3 HP | 0 Native · 1 SampLib(N) · 2 Piano · 3 SampLib · **4 Program [ne4p / nepg]** · 5 Live · 6 Settings (3 HP: + 7 [neop]) |
 | Electro 5 | 0 Piano(N) · 1 Piano · 2 SampLib(N) · 3 SampLib · **4 Program [ne5p]** · 5 Set List [ne5t] · 6 Live · 7 Settings |
 | Electro 6 / Piano 2–6 / Grand / Grand 2 | 0–5 piano/pedal/samplib · **6 Program** · 7 Live · 8 Settings (· 9 E2P FFS on NW1) |
@@ -323,18 +338,28 @@ conditional `Add()`s):
 | Wave 2 | 0 Native · 1 SampLib · 2 "Transient" ROMFlash *(conditional)* · 3 Program [nw2p] · 4 Live · 5 Settings · 6 Native |
 | Lead 4 / Mini | 0 Performance [nl4p / nlab] · 1 Program [nl4s / nlas] · 2 Settings |
 
-**Conflicts to settle on hardware** (a read-only `CQryPartList` probe):
-- **Stage 4 presets:** NSM adds Synth (7) · Organ (8) · Piano (9); `PROTOCOL-RE.md`
-  lists Organ 7 · Piano 8 · Synth 9. Program (6) agrees and is what was
-  HW-validated. Code that does address 7–9 (by the `PROTOCOL-RE.md` order): the
-  registry (`clavia/partitions.ts`) → `device/presets.ts` (preset browsing/pull),
-  `library/PresetsContext.tsx` (enumerates the presets on every connect), and
-  `device/ns4b.ts` (backup folders + restore targets). See `docs/STAGE4-COVERAGE.md`.
-- **Stage 2 pedals:** the issue #31 capture has user Piano Pedal at 2 and native
-  Pedal at 3; NSM's `CStage2` adds native first. Program (6) agrees. Older
-  Stage 2 OS versions that skip the gated user Pedal would shift Program to 5,
-  so the registry marks Stage 2 `layoutVariesByOs` and connect probes it instead
-  of trusting index 6.
+**Conflicts, and what settled them:**
+- **Stage 4 presets — settled.** NSM adds Synth (7) · Organ (8) · Piano (9);
+  `PROTOCOL-RE.md` lists Organ 7 · Piano 8 · Synth 9, and the firmware's own
+  registration (`FUN_c023a5b8`) has the same Organ 7 · Piano 8 · Synth 9. The
+  registry (`clavia/partitions.ts`) and the code that addresses 7–9 —
+  `device/presets.ts` (preset browsing/pull), `library/PresetsContext.tsx`
+  (enumerates the presets on every connect) and `device/ns4b.ts` (backup folders
+  + restore targets) — already use that order. See `docs/STAGE4-COVERAGE.md`.
+- **Stage 3 Synth/Song — firmware order adopted.** The firmware registers Synth
+  [ns3y] at 8 and Song [ns3s] at 9 (NSM's constructor has them the other way
+  round), and the device reports 12 partitions, not NSM's 13. Program (7) and
+  SWave (6) agree. Still static: the registry carries every Stage 3 index as
+  `staticIndex`, and a Stage 3 connection writes only the Program partition the
+  probe finds — never SWave (6) or the factory partitions (0, 2, 4).
+- **Stage 2 pedals and fourccs.** The issue #31 capture has user Piano Pedal at
+  2 and native Pedal at 3, and so does the OS 3.00 firmware; NSM's `CStage2` adds
+  native first. Program (6) agrees. The firmware names the Synth partition
+  `ns2s` and Settings `ns2y` (an `.ns2y` file is Stage 2 Settings, not a synth
+  preset). Older Stage 2 OS versions that skip the gated user Pedal (an NSM-side
+  rule; no pre-3.00 image was checked) would shift Program to 5, so the registry
+  marks Stage 2 `layoutVariesByOs` and connect probes it instead of trusting
+  index 6.
 - **Tag naming:** NSM gives `CC2` (PID 0x09) the `ncb`/`ncpg`/`ncli`/`ncsy`
   tags and `CC2D` (0x0C) `nc2*`; the table above files `ncpg` under
   "Organ 3 / C (classic)" and gives C2 `nc2p`. Left as-is until a file confirms.
