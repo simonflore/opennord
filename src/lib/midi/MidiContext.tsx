@@ -121,3 +121,8 @@ export function useMidi(): MidiState {
   if (!v) throw new Error('useMidi must be used within MidiProvider');
   return v;
 }
+
+/** MIDI state when a MidiProvider is mounted, else null (for views also rendered standalone). */
+export function useOptionalMidi(): MidiState | null {
+  return useContext(Ctx);
+}
