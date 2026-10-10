@@ -72,6 +72,15 @@ async function backupUnlocked(
 }
 
 /**
+ * True when a restore may write everywhere a backup can hold user content —
+ * every partition it addresses is confirmed writable on this keyboard. When
+ * false, offering Restore would only end in a refusal (see {@link restore}).
+ */
+export function canRestore(session: NordSession): boolean {
+  return USER_PARTITIONS.every((p) => session.canWrite(p.partition));
+}
+
+/**
  * Restore a .ns4b onto the device. Maps each entry's extension → partition
  * (factory npno/nsmp4 are skipped + counted), reads its CBIN header for the
  * target {bank, slot}, and writes it. Best-effort: per-file failures are
@@ -125,7 +134,10 @@ async function restoreUnlocked(
   // One begin/end session per partition; the device returns to idle between them.
   for (const [partition, items] of byPartition) {
     try {
-      await session.begin(partition);
+      // A refused begin replies with a status rather than throwing; treat it like
+      // an unreachable partition (else every write would fail the write gate).
+      const begun = await session.begin(partition);
+      if (begun.status !== 0) throw new NordError(`status ${begun.status}`);
     } catch (e) {
       // Whole partition unreachable — record each file as failed, don't abort the rest.
       const error = `Could not open partition ${partition}: ${getErrorMessage(e)}`;

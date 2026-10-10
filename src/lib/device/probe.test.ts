@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { encodeMessage } from './protocol';
 import { ext2Type } from './opcodes';
 import { NordSession } from './session';
-import { MockTransport } from './transport';
-import { probeDevice, inferProgramPartition, crossCheckProgramPartition } from './probe';
+import { MockTransport, TransportTimeoutError, type NordTransport } from './transport';
+import { probeDevice, inferProgramPartition, crossCheckProgramPartition, queryPartitionCount } from './probe';
 import type { ProbeReport } from './probe';
 
 const WRITE_OPCODES = [0x0a, 0x10, 0x14]; // Create, Write, Delete
@@ -81,5 +81,34 @@ describe('crossCheckProgramPartition', () => {
   it('reports no agreement when the tag is absent from the probe', () => {
     const r = report([[4, ['ne5o']]]);
     expect(crossCheckProgramPartition(r, 'ne5p', 4)).toEqual({ probed: undefined, expected: 4, agrees: false });
+  });
+});
+
+describe('queryPartitionCount', () => {
+  const ask = (payloadWords: number[], trailing?: Uint8Array) =>
+    queryPartitionCount(new NordSession(new MockTransport([encodeMessage(0x01, payloadWords, trailing)])));
+
+  it('reads the count after a status word', async () => {
+    expect(await ask([0], new Uint8Array([10, 0, 0, 0, 14]))).toBe(10);
+  });
+
+  it('reads the count as the first byte when no status word precedes it', async () => {
+    // [u8 count = 12][u32 nameLen = 14]… — the first record follows the count directly.
+    expect(await ask([], new Uint8Array([12, 0, 0, 0, 14]))).toBe(12);
+  });
+
+  it('gives no count for an error status or an implausible value', async () => {
+    expect(await ask([1])).toBeUndefined();
+    expect(await ask([0], new Uint8Array([200]))).toBeUndefined();
+  });
+
+  it('passes a timeout on, so the caller can stop asking a silent device', async () => {
+    const silent: NordTransport = {
+      open: async () => {}, close: async () => {}, bulkOut: async () => {},
+      bulkIn: async (_max, timeoutMs) => { throw new TransportTimeoutError(timeoutMs ?? 0); },
+    };
+    const session = new NordSession(silent);
+    await expect(session.withReplyTimeout(50, () => queryPartitionCount(session)))
+      .rejects.toBeInstanceOf(TransportTimeoutError);
   });
 });

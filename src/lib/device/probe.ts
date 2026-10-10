@@ -1,5 +1,7 @@
 import type { NordSession } from './session';
 import { enumerateFiles } from './transfer';
+import { CQryPartList } from './opcodes';
+import { TransportTimeoutError } from './transport';
 
 export interface ProbePartition {
   index: number;
@@ -18,8 +20,11 @@ export interface ProbeReport {
   capturedAt: string; // ISO
 }
 
-/** Scan this many partition indices (Stage 4 uses 0..11; extra headroom is harmless). */
-const SCAN = 14;
+/** Scan this many partition indices when the device's own count is unknown
+ *  (Stage 4 uses 0..11; extra headroom is harmless on a device that answers). */
+export const SCAN = 14;
+/** Most partitions a real partition-list reply is believed to carry; more is noise. */
+const MAX_PARTITIONS = 32;
 /** Files read per partition — enough to learn its fourccs without walking hundreds of entries. */
 const PROBE_FILES_PER_PARTITION = 8;
 
@@ -37,14 +42,51 @@ export async function probeDevice(session: NordSession, opts: ProbeOptions): Pro
   const partitions: ProbePartition[] = [];
   for (let index = 0; index < SCAN; index++) {
     try {
-      const files = await session.withSession(index, () => enumerateFiles(session, PROBE_FILES_PER_PARTITION));
-      const fourccs = [...new Set(files.map((f) => f.fourcc))].sort();
-      partitions.push({ index, fileCount: files.length, fourccs });
+      const partition = await probePartition(session, index);
+      if (partition) partitions.push(partition);
     } catch {
-      // begin failed → this model doesn't have a partition at this index; skip.
+      // the device stopped answering — report what was learned so far
+      break;
     }
   }
   return { deviceName: opts.deviceName, productId: opts.productId, partitions, capturedAt: opts.now().toISOString() };
+}
+
+/**
+ * READ-ONLY: sample one partition's file types. Undefined when the device has no
+ * partition at `index` (begin refused, or any other per-partition failure).
+ * A {@link TransportTimeoutError} is rethrown: a device that stopped answering
+ * won't answer the next partition either, so the caller should stop asking.
+ */
+export async function probePartition(session: NordSession, index: number): Promise<ProbePartition | undefined> {
+  try {
+    const files = await session.withSession(index, () => enumerateFiles(session, PROBE_FILES_PER_PARTITION));
+    return { index, fileCount: files.length, fourccs: [...new Set(files.map((f) => f.fourcc))].sort() };
+  } catch (e) {
+    if (e instanceof TransportTimeoutError) throw e;
+    return undefined;
+  }
+}
+
+/**
+ * READ-ONLY: how many partitions the device reports (`CQryPartList`), or
+ * undefined when the reply doesn't read as a plausible count. The reply carries
+ * `u8 count` then one record per partition; whether a
+ * `u32 status` precedes it isn't pinned, so both are read: a leading zero word
+ * is the status (a count of 0 would mean no partitions), otherwise byte 0 is the
+ * count. Rethrows {@link TransportTimeoutError} like {@link probePartition}.
+ */
+export async function queryPartitionCount(session: NordSession): Promise<number | undefined> {
+  let payload: Uint8Array;
+  try {
+    payload = (await session.exclusive(() => session.request(CQryPartList, []))).payload;
+  } catch (e) {
+    if (e instanceof TransportTimeoutError) throw e;
+    return undefined;
+  }
+  const statusFirst = payload.length >= 5 && payload[0] === 0 && payload[1] === 0 && payload[2] === 0 && payload[3] === 0;
+  const count = statusFirst ? payload[4] : payload[0];
+  return count >= 1 && count <= MAX_PARTITIONS ? count : undefined;
 }
 
 /**

@@ -376,7 +376,7 @@ export function identifyModelByProductId(productId: number | undefined): ModelIn
 /**
  * The protocol partition index of a model's user Programs, or undefined when the
  * model's partition layout isn't hardware-confirmed (index left unset). Callers
- * needing a value should fall back deliberately (see `resolveProgramPartition`),
+ * needing a value should fall back deliberately (see `resolveModelProgramPartition`),
  * never silently assume the Stage-4 index.
  */
 export function programPartitionIndex(model: ModelInfo | undefined): number | undefined {
