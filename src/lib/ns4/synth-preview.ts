@@ -12,16 +12,23 @@
  * the maintainers’ notes: a polyBLEP oscillator that fades out near Nyquist,
  * a zero-delay-feedback (trapezoidal) state-variable filter (two in series for
  * LP24, a four-stage one-pole ladder with a soft clipper for LPM), and
- * exponential envelope segments. Every number in this file is our own design
- * choice; no firmware tables or coefficients are used. The result is a
- * recognisable sketch of the sound, not a bit-exact emulation.
+ * the firmware's envelope segment shapes (linear attack, exponential decay and
+ * release that fall 40 dB in the displayed time) and its resonance law
+ * (`k = 2·(1 − r/128)²`). Those shapes and formulas are documented in
+ * the maintainers’ notes ("Parameter scaling"); no firmware tables or
+ * coefficients are copied, and the other constants here are our own choices.
+ * The result is a recognisable sketch of the sound, not a bit-exact emulation.
  */
 import type { NS4Layer } from './types';
 
 export type PreviewWave = 'sine' | 'triangle' | 'saw' | 'square' | 'pulse33' | 'pulse10' | 'noise';
 export type PreviewFilterType = 'LP12' | 'LP24' | 'LPM' | 'LPHP' | 'BP' | 'HP';
 
-/** Envelope times in seconds. `decay: Infinity` holds the peak level until release. */
+/**
+ * Envelope times in seconds, as the panel displays them: attack = time of the
+ * linear rise to full level; decay/release = time to fall 40 dB.
+ * `decay: Infinity` holds the peak level until release.
+ */
 export interface PreviewEnv {
   attack: number;
   decay: number;
@@ -31,7 +38,7 @@ export interface PreviewEnv {
 export interface PreviewFilter {
   type: PreviewFilterType;
   cutoffHz: number;
-  /** 0..1 (the panel's 0.0–10.0 divided by 10). Not used by LPHP. */
+  /** 0..1 (the panel's 0.0–10.0 divided by 10; raw value / 127). Not used by LPHP. */
   resonance: number;
   /** LPHP only: the high-pass corner (the resonance knob sets it in that mode). */
   hpHz?: number;
@@ -212,21 +219,42 @@ class Oscillator {
   }
 }
 
-/** Exponential-segment envelope (attack aims past 1 and is clamped, as analog envelopes do). */
+/**
+ * Level ratio a decay or release segment covers in its displayed time. The
+ * firmware's decay/release coefficient table and the displayed times agree on
+ * a 40 dB drop.
+ */
+export const ENV_DISPLAY_DROP = 100;
+
+/**
+ * Damping `k` (= 1/Q) of the state-variable filters for a resonance of 0..1
+ * (the panel's 0.0–10.0 over 10). The LP12 kernel looks `k` up in a 128-entry
+ * table of exactly `2·(1 − r/128)²`, r = raw 0..127.
+ */
+export function svfDamping(resonance: number): number {
+  const r = Math.min(127, Math.max(0, Math.round(resonance * 127)));
+  const x = 1 - r / 128;
+  return 2 * x * x;
+}
+
+/**
+ * Envelope with the firmware's segment shapes: a linear attack ramp that
+ * reaches 1.0 in `attack` seconds, then exponential decay and release towards
+ * zero that fall {@link ENV_DISPLAY_DROP} (40 dB) in their displayed time.
+ * A decay of `Infinity` holds the peak until release (the panel's "inf").
+ */
 class Envelope {
   private level = 0;
   private stage: 'attack' | 'decay' | 'release' | 'done' = 'attack';
-  private readonly attackCoef: number;
+  private readonly attackStep: number;
   private readonly decayCoef: number;
   private readonly releaseCoef: number;
-  private static readonly OVERSHOOT = 1.3;
-  /** Time constants: attack reaches 1.0 at `attack`; decay/release fall 60 dB in their time. */
   constructor(e: PreviewEnv, fs: number) {
-    const coef = (tau: number) => (tau <= 0 ? 1 : 1 - Math.exp(-1 / (tau * fs)));
-    const os = Envelope.OVERSHOOT;
-    this.attackCoef = coef(e.attack / Math.log(os / (os - 1)));
-    this.decayCoef = Number.isFinite(e.decay) ? coef(e.decay / Math.log(1000)) : 0;
-    this.releaseCoef = coef(e.release / Math.log(1000));
+    // Fraction of the remaining level removed per sample for a 40 dB drop in t.
+    const coef = (t: number) => (t <= 0 ? 1 : 1 - Math.exp(-Math.log(ENV_DISPLAY_DROP) / (t * fs)));
+    this.attackStep = e.attack <= 0 ? 1 : 1 / (e.attack * fs);
+    this.decayCoef = Number.isFinite(e.decay) ? coef(e.decay) : 0;
+    this.releaseCoef = coef(e.release);
   }
 
   gateOff(): void {
@@ -240,7 +268,7 @@ class Envelope {
   next(): number {
     switch (this.stage) {
       case 'attack':
-        this.level += (Envelope.OVERSHOOT - this.level) * this.attackCoef;
+        this.level += this.attackStep;
         if (this.level >= 1) {
           this.level = 1;
           this.stage = 'decay';
@@ -265,6 +293,7 @@ class Envelope {
 
 /** Trapezoidal (zero-delay-feedback) state-variable filter. */
 class Svf {
+  private static readonly BAND_LIMIT = 4;
   private ic1 = 0;
   private ic2 = 0;
   private a1 = 1;
@@ -284,7 +313,9 @@ class Svf {
 
   process(x: number): void {
     const v3 = x - this.ic2;
-    const v1 = this.a1 * this.ic1 + this.a2 * v3;
+    // The firmware clips the band-pass state, which keeps a near-self-oscillating
+    // filter bounded; the limit here is our choice.
+    const v1 = Math.max(-Svf.BAND_LIMIT, Math.min(Svf.BAND_LIMIT, this.a1 * this.ic1 + this.a2 * v3));
     const v2 = this.ic2 + this.a2 * this.ic1 + this.a3 * v3;
     this.ic1 = 2 * v1 - this.ic1;
     this.ic2 = 2 * v2 - this.ic2;
@@ -334,7 +365,7 @@ class Filter {
   /** Update coefficients for the current (modulated) cutoff. */
   update(cutoffHz: number): void {
     const { type, resonance } = this.f;
-    const k = 2 - 1.95 * resonance;
+    const k = svfDamping(resonance);
     if (type === 'LPM') {
       this.ladder.set(this.g(cutoffHz), resonance);
     } else if (type === 'LPHP') {
