@@ -857,3 +857,26 @@ chosen velocity).
 
 **Still open:** `+0x36` and the unnamed record bytes, and the 0x700–0x1900 region (overview
 waveforms).
+
+## 2026-10-10 — the name field, and why programs match pianos by name
+
+**Name field** (CNSP+0x1C, 22 chars, space-padded): `name#variant`, where the variant is the
+recorded instrument — `Electric Grand 1#CP80`, `Wurlitzer 1#200A` (v5.30), `Clavinet D6#` (v6.10,
+empty variant). The size (Sml/Med/Lrg/XL) is **not** in it. v6 files repeat the bare name at
+CNSP+0x3C. The four bytes before the name (after the u16 at +0x16) start with the catalog
+category (Electric Grand → 1, Wurlitzer → 3, Clavinet → 4, as in the factory manifest); the
+other three are unmapped.
+`readNspIdentity` reads name/variant/version without the checksum pass.
+
+**No id in the file.** A Stage 4 program names its piano by a 32-bit model id (`PIANO_NAMES`).
+Checked against the three real files on hand (CP80 5.3, Wurlitzer 200A 5.3, Clavinet D6 6.1, whose
+ids are known from the table): every u32 (both byte orders, shifted by 1–2 bits) in the first
+64 KB, CRC-32 of every header range up to 0x900 and of the file from several starts, and
+CRC-32/FNV-1(a)/djb2/sdbm/Java/Adler/MD5/SHA-1 of the catalog names, filenames and table names.
+No hit. So "does the user have this program's piano?" is answered **by name**:
+`src/lib/library/piano-match.ts` compares the program's panel name ("White Grand XL",
+"Clavinet D6 6.1") with the local file's name (device form "White Grand XL 6.3", download form
+"White_Grand_XL_6.3", with the header's variant token dropped from "Royal_Grand_3D_YaS6_XL_5.4"),
+exactly, and with the header name for a renamed file. Most panel names carry no version and
+`PIANO_NAMES` lists several ids under many of them (v5 and v6 releases), so such a match is the
+right instrument but not provably the exact recording; the program view says so.
