@@ -1,8 +1,9 @@
 // src/components/contribute/ContributePage.tsx
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useDevice } from '../../lib/device/DeviceContext';
 import { ConnectPanel } from '../device/ConnectPanel';
-import { Button } from '../ui';
+import { Button, Card } from '../ui';
+import { ProbePanel } from '../compatibility/ProbePanel';
 import type { NordSession } from '../../lib/device/session';
 import { getFocusedSlot, type ProgramEntry } from '../../lib/device/transfer';
 import { slotCaptureSource, fileCaptureSource } from '../../lib/contribute/source';
@@ -13,35 +14,82 @@ import type { Capture, ContributionEntry, ControlVocabItem } from '../../lib/con
 import { slotLabel } from '../../lib/clavia/slot';
 import { useNordMidi } from './useNordMidi';
 import { MidiProbe } from './MidiProbe';
-import { DecodeCoverage } from './DecodeCoverage';
 import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
+import { measureIssueUrl, programsIssueUrl } from '../../lib/contribute/asks';
 
 const APP_VERSION = '0.1.0';
 
 type Range = { start: number; end: number };
 
 export function ContributePage() {
-  const { session, entries, productId, setConnection } = useDevice();
-  if (!session) {
-    return (
-      <section style={{ maxWidth: 720 }}>
-        <h1>Help decode your Nord</h1>
-        <p className="ps-sub">
-          Change one control at a time on your Nord, and OpenNord learns how your model stores
-          its sounds. Works for any Nord — a couple of minutes helps everyone with the same keyboard.
-        </p>
-        <ConnectPanel
-          title="Connect your Nord"
-          lead="OpenNord reads programs from any Nord over USB — Stage, Electro, Piano, Lead and the rest of the line. Connect yours to start capturing changes so we can learn how your model stores its sounds."
-          onConnected={(s, e, name, pid) => setConnection(s, e, name, pid)}
-        />
-        <FileDropWizard />
-        <DecodeCoverage />
-      </section>
-    );
-  }
-  return <CaptureWizard session={session} entries={entries} productId={productId} />;
+  const { session, entries, productId, deviceName, setConnection } = useDevice();
+  const name = deviceName || undefined;
+  return (
+    <section className="max-w-[720px]">
+      <h1 className="m-0 text-[18px] font-extrabold text-ink">Help confirm OpenNord on your Nord</h1>
+      <p className="ps-sub">
+        OpenNord learns how each Nord works from the instrument&rsquo;s own software. What we can&rsquo;t
+        do on our own is check it on every model. That&rsquo;s where you come in: a few small things,
+        about 10 minutes, no technical skills needed.
+      </p>
+
+      <ol className="m-0 mt-4 grid list-none gap-3 p-0">
+        <Ask n={1} title="Check your Nord" time="2 min">
+          <p className="ps-sub">
+            Connect it (Chrome or Edge on a computer, or the iPad app) and run the check. It only
+            reads; nothing on your keyboard changes. Then share the result in one click.
+          </p>
+          {session ? <ProbePanel /> : (
+            <ConnectPanel inline onConnected={(s, e, n, pid) => setConnection(s, e, n, pid)} />
+          )}
+        </Ask>
+        <Ask n={2} title="Share two or three of your programs" time="5 min">
+          <p className="ps-sub">
+            Programs you made hold only settings, never Nord sounds, so they&rsquo;re yours to share.
+            Note what your Nord shows for them (organ, amp, effects, rotary speed), and we check that
+            OpenNord shows the same.
+          </p>
+          <a className="on-btn on-btn--secondary" href={programsIssueUrl(name)} target="_blank" rel="noreferrer">
+            Share programs
+          </a>
+        </Ask>
+        <Ask n={3} title="Measure a few sounds" time="10 min, optional">
+          <p className="ps-sub">
+            Have an audio interface? Measuring a few notes helps OpenNord&rsquo;s organ, piano and
+            effects sound like your model. Tell us which Nord you have and we&rsquo;ll send a short
+            list. Your recordings stay on your computer; you only share the numbers.
+          </p>
+          <a className="on-btn on-btn--secondary" href={measureIssueUrl(name)} target="_blank" rel="noreferrer">
+            Offer to measure
+          </a>
+        </Ask>
+      </ol>
+
+      <details className="mt-6">
+        <summary className="cursor-pointer text-[13px] font-semibold text-dim">
+          Advanced: show us which settings a control changes
+        </summary>
+        {session
+          ? <CaptureWizard session={session} entries={entries} productId={productId} />
+          : <FileDropWizard />}
+      </details>
+    </section>
+  );
+}
+
+/** One numbered ask on the page. */
+function Ask({ n, title, time, children }: { n: number; title: string; time: string; children: ReactNode }) {
+  return (
+    <li>
+      <Card>
+        <h2 className="m-0 text-[15px] font-bold text-ink">
+          {n}. {title} <span className="text-[12px] font-medium text-dim">· {time}</span>
+        </h2>
+        {children}
+      </Card>
+    </li>
+  );
 }
 
 // ── shared helpers ──────────────────────────────────────────────────────────
@@ -214,8 +262,7 @@ function CaptureWizard({ session, entries, productId }: {
   // Step 1: pick the program to edit (it becomes the baseline).
   if (!baseline) {
     return (
-      <section style={{ maxWidth: 720 }}>
-        <h1>Help decode your Nord</h1>
+      <div style={{ marginTop: 12 }}>
         {error && <p className="ps-sub on-error">{error}</p>}
         {busy && <p className="ps-sub">Reading the Nord…</p>}
         {focused && (
@@ -239,7 +286,7 @@ function CaptureWizard({ session, entries, productId }: {
             </li>
           ))}
         </ul>
-      </section>
+      </div>
     );
   }
 
@@ -247,8 +294,7 @@ function CaptureWizard({ session, entries, productId }: {
 
   // Step 2+: the sweep loop.
   return (
-    <section style={{ maxWidth: 720 }}>
-      <h1>Help decode your Nord</h1>
+    <div style={{ marginTop: 12 }}>
       <p className="ps-sub">
         Starting point: {slotLabel(picked!.bank, picked!.slot)} — {picked!.name || '(empty)'}.
         Change <strong>one</strong> control on the Nord, press <strong>Store</strong> to save it
@@ -287,7 +333,7 @@ function CaptureWizard({ session, entries, productId }: {
       )}
 
       <EntryReview list={list} onDownload={() => downloadBundle(contrib, '0x' + productId.toString(16).padStart(4, '0'))} />
-    </section>
+    </div>
   );
 }
 
@@ -349,11 +395,11 @@ function FileDropWizard() {
   }
 
   return (
-    <div style={{ marginTop: 24 }}>
-      <h2>No USB cable? Use exported files</h2>
+    <div style={{ marginTop: 12 }}>
       <p className="ps-sub">
         Export a program from Nord Sound Manager, change one control on the keyboard and export it
-        again, then drop both files here. Works for any Nord model.
+        again, then drop both files here. Works for any Nord model. (With your Nord connected in step
+        1, you can do this straight over USB instead.)
       </p>
       {error && <p className="ps-sub on-error">{error}</p>}
 
