@@ -93,6 +93,10 @@ with `buildParamMap()` + `coverage.ts`:
    - Musician-facing results: "Everything in this backup checks out.", "356 programs ·
      3 presets · …", "Every note of all 12 pianos plays back.", or a per-file list ("Broken
      Lead — Damaged — your Nord may refuse to load this program."). Includes progress and Stop.
+   - It runs in a Web Worker (`backup-check-host.ts`), so a check of many pianos (minutes)
+     never freezes the page. Without Workers it runs inline and yields every ~50 ms of work,
+     CRCs included (in 1 MB slices). The button reads "Check the opened backup": it checks the
+     file as opened, not the reorganized copy the organizer downloads.
    - Verified: unit tests on synthetic backups (every content type, archive damage, program
      CRC damage, a broken v5 piano note caught by decoding alone, cancel, wording) plus a
      component test. Locally against the three real factory pianos in `$NPNO_DIR`, built into

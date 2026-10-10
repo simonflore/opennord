@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  BackupCheckError,
-  checkBackup, summarizeBackupCheck, type BackupCheckProgress, type BackupCheckReport,
+  BackupCheckError, summarizeBackupCheck, type BackupCheckProgress, type BackupCheckReport,
 } from '../../lib/ns4/backup-check';
+import { runBackupCheck } from '../../lib/ns4/backup-check-host';
 import { Button } from '../ui';
 
 /**
- * "Check this backup": reads every file in an open `.ns4b` — programs, Live, presets,
- * settings, pianos (every recorded note decoded) and samples — and says, in plain
- * words, whether it's all intact. Read-only and local; nothing is written or sent.
+ * "Check the opened backup": reads every file in the `.ns4b` as it was opened — programs,
+ * Live, presets, settings, pianos (every recorded note decoded) and samples — and says, in
+ * plain words, whether it's all intact. It checks the file on disk, not the reorganized
+ * copy the organizer downloads. Runs in a Web Worker, so the page stays responsive.
+ * Read-only and local; nothing is written or sent.
  */
 export function BackupCheck({ file }: { file: Blob }) {
   const [progress, setProgress] = useState<BackupCheckProgress | null>(null);
@@ -26,7 +28,7 @@ export function BackupCheck({ file }: { file: Blob }) {
     abort.current = ac;
     setReport(null); setError(''); setProgress({ doneBytes: 0, totalBytes: 0, current: '' });
     try {
-      setReport(await checkBackup(file, { signal: ac.signal, onProgress: setProgress }));
+      setReport(await runBackupCheck(file, { signal: ac.signal, onProgress: setProgress }));
     } catch (e) {
       setError(e instanceof BackupCheckError ? e.message : "Couldn't finish checking this backup. Try again.");
     } finally {
@@ -50,10 +52,12 @@ export function BackupCheck({ file }: { file: Blob }) {
           </>
         ) : (
           <>
-            <Button variant="outline" onClick={() => void run()}>Check backup</Button>
+            <Button variant="outline" onClick={() => void run()}>Check the opened backup</Button>
             {!summary && (
               <span className="text-sm text-dim">
-                Reads every file and plays through each piano to make sure nothing is damaged.
+                Reads every file in the backup as you opened it (not the reorganized download) and plays
+                through each piano to make sure nothing is damaged. With many pianos this takes a few
+                minutes; you can keep working meanwhile.
               </span>
             )}
           </>

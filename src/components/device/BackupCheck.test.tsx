@@ -26,13 +26,16 @@ const piano = () => makeNpno([{ pcm: [tone(3000, 0.02, 3000, 1)], velocityFrom: 
 describe('BackupCheck', () => {
   it('explains itself before it runs', () => {
     render(<BackupCheck file={backup({})} />);
-    expect(screen.getByRole('button', { name: 'Check backup' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Check the opened backup' })).toBeInTheDocument();
     expect(screen.getByText(/plays through each piano/)).toBeInTheDocument();
+    // what it checks (the opened file, not the reorganized download) and how long it takes
+    expect(screen.getByText(/as you opened it \(not the reorganized download\)/)).toBeInTheDocument();
+    expect(screen.getByText(/takes a few minutes/)).toBeInTheDocument();
   });
 
   it('reports an intact backup in plain words', async () => {
     render(<BackupCheck file={backup({ 'Program/Bank A/Lead.ns4p': program(), 'Piano/Grand.npno': piano() })} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Check backup' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check the opened backup' }));
     expect(await screen.findByText('Everything in this backup checks out.')).toBeInTheDocument();
     expect(screen.getByText('1 program · 1 piano')).toBeInTheDocument();
     expect(screen.getByText('Every note of the piano plays back (1 recorded note).')).toBeInTheDocument();
@@ -42,7 +45,7 @@ describe('BackupCheck', () => {
     const bad = program();
     bad[500] ^= 1; // the program no longer matches its own check value
     render(<BackupCheck file={backup({ 'Program/Bank A/Broken Lead.ns4p': bad })} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Check backup' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check the opened backup' }));
     expect(await screen.findByText('1 of 2 files needs attention.')).toBeInTheDocument(); // the program + meta.xml
     expect(screen.getByText('Broken Lead')).toBeInTheDocument();
     expect(screen.getByText(/may refuse to load this program/)).toBeInTheDocument();
