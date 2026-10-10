@@ -10,10 +10,13 @@ describe('resolveProgramPartition', () => {
     expect(resolveProgramPartition(0x0021)).toBe(6); // Stage 2 (issue #31)
   });
 
-  it('falls back to the Stage-4 index for models whose layout is not yet confirmed', () => {
-    // Stage 3's real index is unknown until the probe's Types column identifies it.
-    // Fall back rather than block — behaviour-preserving until the registry is filled.
-    expect(resolveProgramPartition(0x0026)).toBe(PARTITION_PROGRAM); // Stage 3
+  it('uses the NSM-recovered static index for Stage 3 (7 — index 6 is its SWave partition)', () => {
+    // NSM 9.22 CStage3 ctor Add() order + positional CQryPartList binding
+    // (docs/NORD-PRODUCT-LINE.md). The connect probe still confirms on hardware.
+    expect(resolveProgramPartition(0x0026)).toBe(7);
+  });
+
+  it('falls back to the Stage-4 index for unknown devices', () => {
     expect(resolveProgramPartition(0x9999)).toBe(PARTITION_PROGRAM); // unknown device
     expect(resolveProgramPartition(0)).toBe(PARTITION_PROGRAM); // iPad DEXT placeholder pid
     expect(resolveProgramPartition(undefined)).toBe(PARTITION_PROGRAM);
@@ -49,6 +52,19 @@ describe('resolveModelProgramPartition — index precedence', () => {
     expect(resolveModelProgramPartition(MODELS['piano-4'])).toBe(6);   // pedal-shift → 6
     expect(resolveModelProgramPartition(MODELS['piano-5'])).toBe(6);
     expect(resolveModelProgramPartition(MODELS['grand-2'])).toBe(6);
+    // NSM 9.22 constructors with no conditional Add() (docs/NORD-PRODUCT-LINE.md).
+    expect(resolveModelProgramPartition(MODELS['stage-3'])).toBe(7);  // after SWave ROMFlash
+    expect(resolveModelProgramPartition(MODELS['electro-4'])).toBe(4);
+    expect(resolveModelProgramPartition(MODELS['electro-3-hp'])).toBe(4);
+    expect(resolveModelProgramPartition(MODELS['electro-6'])).toBe(6);
+    expect(resolveModelProgramPartition(MODELS['piano-1'])).toBe(3);
+    expect(resolveModelProgramPartition(MODELS['piano-2'])).toBe(6);
+    expect(resolveModelProgramPartition(MODELS['piano-3'])).toBe(6);
+    expect(resolveModelProgramPartition(MODELS['piano-6'])).toBe(6);
+    expect(resolveModelProgramPartition(MODELS['grand'])).toBe(6);
+    expect(resolveModelProgramPartition(MODELS['c2'])).toBe(2);       // after Pipe ROMFlash
+    expect(resolveModelProgramPartition(MODELS['c2d'])).toBe(2);
+    expect(resolveModelProgramPartition(MODELS['organ-3'])).toBe(2);
   });
 
   it('still resolves hardware-validated models from their real index, unchanged', () => {

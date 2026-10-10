@@ -12,8 +12,8 @@ import type { Diagnostics } from '../capabilities/types';
  * the Stage-4 default. This runs the read-only partition probe, finds which
  * partition actually holds the model's program files (by fourcc), and:
  *   1. returns that index so THIS session transfers to the right partition even
- *      when the registry's guess was wrong (e.g. Stage 3, whose real index is
- *      not statically recoverable), and
+ *      when the registry's guess was wrong (static indices come from NSM's
+ *      constructor Add() order, hardware-validated only for Stage 2/4), and
  *   2. records a diagnostic with the full partition→fourcc map + whether the
  *      probe agreed with the guess — so real user connects fill in the map we
  *      can't get without hardware, and we bake confirmed indices into the

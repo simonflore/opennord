@@ -222,9 +222,9 @@ The parallel multi-model work (#22) already built the seam:
   full 9.22 `.app` bundle (`/clavia.xml` is only a runtime path string); the PID
   *is* NSM's `Zevs::EInstrumentId`. Stage 4 / 3 / 2 are HW-validated; the rest
   are `staticProductId` in `src/lib/clavia/partitions.ts` until a device confirms.
-- **Per-model partition order.** The `CPartitionProgram*` classes confirm layouts
-  differ; the actual indices need disassembly of each class or a hardware
-  `CQryPartList` probe.
+- **Per-model partition order.** Recovered statically from NSM 9.22 — see
+  *Partition order (NSM 9.22 constructors)* above, including the conflicts that
+  still need a hardware `CQryPartList` probe.
 - **OG/NW1-v3 protocol-version deltas.** The protocol family is shared; whether an
   older `FileTransfer` *version* has identical opcode payloads needs one read-only
   enumerate against real ns2/ns3 hardware.
@@ -280,6 +280,47 @@ Recovered from Nord Sound Manager **v9.22** (macOS, arm64 slice) with Ghidra
 | 0x3A | `COrgan3` | organ-3 | 1.00 → 1.12 |
 | 0x3B | `CElectro7` | — (not in registry) | 1.00 → 1.00 |
 | other | `CGeneric` only when generic is allowed, else rejected | — | — |
+
+### Partition order (NSM 9.22 constructors)
+
+**NSM binds the device's partition list positionally.**
+`CFileManager::OnPartitionList(EResult, CPartInfo const*, int, …)` (`0x1000e9620`)
+loops `i = 0..count` and calls `GetPartition(i)->SetInfo(info[i])`;
+`CPartition::SetInfo` (`0x1000fc260`) only copies — no name match
+(`CProductBase::GetPartitionByName` exists but isn't on this path). So NSM
+itself assumes the device reports partitions in the product constructor's
+`CProductBase::Add()` order, which supports the registry's
+"Add-ordinal == protocol index" assumption.
+
+Recovered order (type = last `SPartition*` constructed before each `Add()`, tag
+from its `CFileType`; `llvm-objdump` + a conditional-branch check — only Wave 2
+(#2 "Transient" ROMFlash) and Stage 2 (#3 user Pedal, OS-gated `b.lo`) have
+conditional `Add()`s):
+
+| Model | Order (index: partition [tag]) |
+|---|---|
+| Stage 4 | 0 Piano(N) · 1 Piano · 2 Pedal(N) · 3 Pedal · 4 SampLib(N) · 5 SampLib · **6 Program [ns4p]** · 7 Synth Preset [ns4y] · 8 Organ Preset [ns4o] · 9 Piano Preset [ns4n] · 10 Live [ns4l] · 11 Settings [ns4t] · 12 E2P FFS |
+| Stage 3 | 0–5 as Stage 4 · 6 **SWave** (ROMFlash) · **7 Program [ns3f]** · 8 Song [ns3s] · 9 Synth [ns3y] · 10 Live [ns3l] · 11 Settings [ns3t] · 12 E2P FFS |
+| Stage 2 | 0 Piano(N) · 1 Piano · 2 Pedal(N) · 3 Pedal *(OS-gated)* · 4 SampLib(N) · 5 SampLib · **6 Program [ns2p]** · 7 Synth [ns2s] · 8 Live [ns2l] · 9 Settings |
+| Electro 4 / 3 HP | 0 Native · 1 SampLib(N) · 2 Piano · 3 SampLib · **4 Program [ne4p / nepg]** · 5 Live · 6 Settings (3 HP: + 7 [neop]) |
+| Electro 5 | 0 Piano(N) · 1 Piano · 2 SampLib(N) · 3 SampLib · **4 Program [ne5p]** · 5 Set List [ne5t] · 6 Live · 7 Settings |
+| Electro 6 / Piano 2–6 / Grand / Grand 2 | 0–5 piano/pedal/samplib · **6 Program** · 7 Live · 8 Settings (· 9 E2P FFS on NW1) |
+| Electro 7 | 0–5 as above · **6 Program [ne7p]** · 7 Live · 8 [ne7s] · 9 Settings [ne7t] · 10–11 Native ("Song Mode") · 12 [ne7r] · 13 Raw ("Dev") |
+| Piano (1st gen) | 0 Native · 1 Piano · 2 Pedal(N) · **3 Program [nppg]** · 4 Live · 5 Settings |
+| C2 / C2D / Organ 3 | 0 Native · 1 "Pipe" ROMFlash · **2 Program [ncpg / nc2p / no3p]** · 3 Live · 4 Settings |
+| Wave 2 | 0 Native · 1 SampLib · 2 "Transient" ROMFlash *(conditional)* · 3 Program [nw2p] · 4 Live · 5 Settings · 6 Native |
+| Lead 4 / Mini | 0 Performance [nl4p / nlab] · 1 Program [nl4s / nlas] · 2 Settings |
+
+**Conflicts to settle on hardware** (a read-only `CQryPartList` probe):
+- **Stage 4 presets:** NSM adds Synth (7) · Organ (8) · Piano (9); `PROTOCOL-RE.md`
+  lists Organ 7 · Piano 8 · Synth 9. Program (6) agrees and is what was
+  HW-validated; no code addresses 7–9 today.
+- **Stage 2 pedals:** the issue #31 capture has user Piano Pedal at 2 and native
+  Pedal at 3; NSM's `CStage2` adds native first. Program (6) agrees. Older
+  Stage 2 OS versions that skip the gated user Pedal would shift Program to 5.
+- **Tag naming:** NSM gives `CC2` (PID 0x09) the `ncb`/`ncpg`/`ncli`/`ncsy`
+  tags and `CC2D` (0x0C) `nc2*`; the table above files `ncpg` under
+  "Organ 3 / C (classic)" and gives C2 `nc2p`. Left as-is until a file confirms.
 
 Lead A1 has no case — NSM doesn't manage it over USB. Cross-check: the Stage 2
 unit that validated the NS2 partition map (issue #31) ran OS 3.00, NSM's
