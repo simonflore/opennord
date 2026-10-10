@@ -190,7 +190,7 @@ Then **Stage 2 / 2EX** are largely M2–M3 deltas off NS3 (same docs, same oracl
 | `.ns4p/.ns4l` | ns4 | program | **Done** (becomes the `ns4` codec) |
 | `.ns4o/.ns4n/.ns4y` | ns4 | preset | Existing sibling handling |
 | `.nsmp4` | ns4 | sample | Header-only today (`sample.ts`); audio out of scope |
-| `.npno` | piano | piano lib | **Blocked** — audio framing in firmware (`docs/NSP-FORMAT.md`) |
+| `.npno` | piano | piano lib | Header/metadata in `nsp.ts`; **audio decoded** by the reference `scripts/npno-decode.py` (from the Stage 4 piano DSP; `docs/NSP-FORMAT.md`), not yet ported to TS |
 | `.ns3p/.ns3f/.ns3y` | ns3 | program | **Recognized (Tier 1 / #22)**; body decode = Tier 2 (M2–M4) |
 | `.ns2p/.ns2s` | ns2 | program | Recognized (header undecoded); decode = delta off NS3 |
 | `.ns3b/.ns2b/.ns3fb/…` | ns3/ns2 | bundle | Existing ZIP reader + extensions (M1 gap) |

@@ -6,6 +6,10 @@ audio**, and especially not factory libraries (Clavia IP; `docs/LEGAL.md`). This
 analysis was done against one factory file for *structure*; real format work and
 fixtures must use **user-created** piano samples.
 
+> **Update 2026-10-10:** the CNSP audio is decoded. See the last section and
+> `scripts/npno-decode.py`. Several conclusions further down ("shared NW1", "`CChunk`
+> framing", "no desktop oracle so it can't be cracked") are superseded there.
+
 ## Relationship to `.nsmp` (Stage sample)
 
 Same `CBIN` envelope, **different container** — a sibling format, not the same:
@@ -744,3 +748,83 @@ So in this generation the piano container *and* audio are handled by the DSPs; t
 ARM-side stroke directory to recover. The CNSP route now runs through the SHARC+ images above
 (or hardware ground truth). Narrowing step that stays ARM-side: find which DSP is told about
 piano-partition locations (follow the host-port writes from the piano/voice code).
+
+## 2026-10-10 — CNSP audio decoded: the piano codec is on DSP 4
+
+The two images in the other format (DSP 3 and 4) are **ADSP-214xx** boot streams. The vendored
+module's upstream LDR loader imports them (language `SHARC:BE:32:214xx`). Code sits in four
+executable blocks; the main one is at `sw:0x1C0300`. Profiling the instruction mix singles both out:
+
+- **DSP 3 runs the NW1 sample codec** (`.nsmp`; the sample engine's decoder):
+  - It parses the same 32-bit block header as `CBlockHdr::Read`: count in bits 0–13, order in
+    14–17, width−1 in 19–22, and the bit-23 flag that, with width 1, is the stop sentinel.
+  - The residual unpack is one routine per width, from 2 to 15 bits (`0x1C14BD…0x1C21E5`, through
+    a jump table), plus a generic `BITEXT` loop. Channels are word-interleaved, as in codec 4.
+  - The predictor is a 4-tap float filter over a coefficient table holding exactly the binomial
+    rows for orders 0–4. Left and right decode in parallel (SIMD).
+- **DSP 4 runs the piano codec (`CNSP`).** Its per-sample voice interrupt (`0x1C0690`) decodes
+  per voice:
+  - pull a w-bit signed residual at bit position `frame × bitsPerFrame`;
+  - add a 4-tap integer prediction from the same binomial orders 0–4 (table `dm:0xE3A00`);
+  - push the result into an 8-frame history ring;
+  - then run a 256-phase 6-tap interpolator and apply L/R gains.
+
+  Block setup is at `0x1C0C5A`. Block addresses are `page[n >> 7] + (n & 127) × 511` words (mono) or
+  `page[n >> 6] + (n & 63) × 1022` (stereo layout). The voice's page table is at `dm:0xB237B`.
+
+That gives the CNSP layout below, verified by decoding three factory files **locally**:
+
+| File | Version | Layout | Strokes | Decode |
+|---|---|---|---|---|
+| Clavinet D6 6.1 | `0x464` | stereo | 38 | 100% bit-exact |
+| Electric Grand 1 CP80 5.3 | `0x450` | mono | 100 | 100% bit-exact |
+| Wurlitzer 1 200A 5.3 | `0x450` | mono | 165 | 100% bit-exact |
+
+Bit-exact means every stroke decodes to exactly its recorded frame count, and its peak lands near
+7,780 (about −12.5 dBFS). Outputs stayed in the scratchpad; nothing decoded is committed
+(`docs/LEGAL.md`). The reference decoder is `scripts/npno-decode.py`.
+
+**Header** (offsets from the `CNSP` tag, big-endian):
+
+- `+0x61C`: u16 version, u16 channels (1/2), u16 stroke count.
+- `+0x72C`: stroke records, 0x76 bytes each.
+  - `+0x06` u32: first block offset (relative to the `CNSP` tag).
+  - `+0x0C` u32: length in frames.
+  - `+0x10` u16: block count.
+  - `+0x12`: 4×i16 predictor history for channel 0, oldest first.
+  - `+0x1A`: 4×i16 predictor history for channel 1.
+  - `+0x22`: 4×u32 sample positions (loop/sustain points; not yet named).
+  - Then per-stroke level and key fields. In the Clavinet, the stroke records run in triplets
+    whose `+0x38` u16 steps 0 → ~25 → ~50 (0/25/50, 0/26/52, …), most likely the velocity-layer
+    split.
+- One stroke's blocks are contiguous, and strokes follow each other with no gaps; the body runs to
+  EOF.
+
+**Blocks:** fixed size, 511 16-bit words (mono) or 1022 (stereo).
+
+- Word 0 is the header: bits 0–4 width `w`, bits 5–7 predictor order (0–4), bits 8–15 block level
+  in dB below the stroke peak (the DSP's gain table steps 1 dB; the PCM is not rescaled by it).
+- The rest is residuals, `w` bits each and sign-extended, packed **LSB-first** into the 16-bit words
+  taken in order. Stereo interleaves L,R per frame.
+- A block holds `floor(bits / (w·channels))` frames. The last **64 repeat the next block's first 64**
+  (the DSP checks for block switches once per audio block and reads into that slack). A block's own
+  frame count is therefore `bits/(w·ch) − 64`, the per-width tables at `dm:0x927E6`/`0x92806`.
+  Consecutive same-order blocks match residual-for-residual across that overlap.
+
+**Decode:** `x[n] = r[n] + Σ c_k·x[n−k]` with the binomial predictor of each block's order. History
+carries across blocks and starts from the record's history values, not from zero. That missing
+seed is why every file-only attempt above "ran away": an order-2/3 stroke started from zero
+history drifts as a polynomial forever.
+
+**Rate:** 44.1 kHz. At that rate the CP80's A4 stroke measures 440.4 Hz; at 48 kHz it would be
++48 cents.
+
+What this corrects above:
+
+- The audio is **not NW1**. It shares NW1's binomial predictors, but its framing is different:
+  fixed-size blocks, 16-bit headers with no sample count, LSB-first packing.
+- There is **no `CChunk` layer**. The "separate block-parameter directory" of 2026-07-02 does exist,
+  but it holds only the per-stroke start/length/seed, not the per-block parameters.
+
+**Still open:** naming the remaining record fields (the u32 positions; the key/level words) and
+the 0x700–0x1900 region (overview waveforms).

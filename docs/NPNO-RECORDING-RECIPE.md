@@ -1,5 +1,9 @@
 # `.npno` codec crack — recording recipe
 
+> **Superseded 2026-10-10:** the codec was recovered from the firmware and no recording is
+> needed (`docs/NSP-FORMAT.md`, `scripts/npno-decode.py`). A recording is still a useful
+> end-to-end check of the decoder's output level and rate.
+
 Goal: capture clean ground-truth PCM of a known `.npno` piano so we can pin the CNSP
 audio codec's exact block-header layout by correlation. Rationale + why this is the only
 reliable unlock: `docs/NSP-FORMAT.md`. Harness: `scripts/npno-crack.ts` (validated).

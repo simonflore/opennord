@@ -1,9 +1,13 @@
 # `.npno` piano audio — community-RE ask
 
-**Status:** the `.npno` (CNSP) **container and metadata are decoded**; the **audio
-sample body is not**, and it is blocked in a way this project cannot cheaply
-break alone. This doc states exactly what is known, why it's blocked, and the
-one artifact a contributor could provide to unblock it.
+**Status (2026-10-10): resolved — no longer an open ask.** The piano codec was
+recovered from the Stage 4 firmware's piano DSP (DSP 4, ADSP-214xx), and
+`scripts/npno-decode.py` decodes `.npno` audio bit-exactly (verified on v5 mono and v6
+stereo factory files, locally). Format and DSP evidence: `docs/NSP-FORMAT.md`,
+"CNSP audio decoded". The rest of this page is kept as the historical ask; its
+"coefficient table absent / DSP-only" premise was wrong. The DSP images *are* in the
+firmware once the CODE section is LZO1X-unpacked, and the codec uses plain binomial
+predictors seeded from per-stroke history in the CNSP header.
 
 ## What `.npno` is
 
