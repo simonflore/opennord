@@ -1,11 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button, SectionLabel } from '@/components/ui';
-import { playPcm } from '@/components/sample/audioPlayer';
-import { readNsp } from '@/lib/ns4/nsp';
-import { NSP_SAMPLE_RATE, decodeNspStroke, readNspDirectory, strokeFor } from '@/lib/ns4/nsp-audio';
+import { readNspZones } from '@/lib/ns4/nsp';
 import { noteName } from '@/lib/ns4/sample-view';
-
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+import { usePianoVoice } from './usePianoVoice';
 
 /**
  * Audition a piano on this machine: one button per sampled note, played at the chosen
@@ -13,35 +10,15 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
  * (`docs/LEGAL.md` — local access only).
  */
 export function PianoListen({ bytes }: { bytes: Uint8Array }) {
-  const dir = useMemo(() => readNspDirectory(bytes), [bytes]);
-  const zones = useMemo(() => readNsp(bytes).zones ?? [], [bytes]);
+  const { dir, zoneCount, playing, error, toggle } = usePianoVoice(bytes);
+  const zones = useMemo(() => readNspZones(bytes), [bytes]);
   const [velocity, setVelocity] = useState(80);
-  const [playing, setPlaying] = useState<number | null>(null);
-  const [error, setError] = useState('');
-  const stopRef = useRef<(() => void) | null>(null);
-
-  useEffect(() => () => { stopRef.current?.(); }, [bytes]);
 
   if (!dir) return <p className="ps-sub">This piano's sounds can't be played here.</p>;
-  const zoneCount = dir.strokes.reduce((n, s) => Math.max(n, s.zone + 1), 0);
   const labelFor = (z: number) => {
     const k = zoneCount === zones.length ? zones[z] : undefined;
     return k ? `${noteName(k.lowNote)}–${noteName(k.highNote)}` : `Note ${z + 1}`;
   };
-
-  function toggle(zone: number) {
-    setError('');
-    if (playing === zone) { stopRef.current?.(); return; }
-    const stroke = strokeFor(dir!, zone, velocity);
-    if (!stroke) return;
-    try {
-      const pcm = decodeNspStroke(bytes, dir!, stroke);
-      stopRef.current = playPcm(pcm, () => { stopRef.current = null; setPlaying((p) => (p === zone ? null : p)); }, NSP_SAMPLE_RATE);
-      setPlaying(zone);
-    } catch (e) {
-      setError(`Couldn't play this note: ${msg(e)}`);
-    }
-  }
 
   return (
     <div style={{ marginTop: 14 }}>
@@ -60,9 +37,9 @@ export function PianoListen({ bytes }: { bytes: Uint8Array }) {
         {Array.from({ length: zoneCount }, (_, z) => (
           <Button
             key={z}
-            variant={playing === z ? 'primary' : 'secondary'}
-            aria-label={`${playing === z ? 'Stop' : 'Play'} ${labelFor(z)} at velocity ${velocity}`}
-            onClick={() => toggle(z)}
+            variant={playing === String(z) ? 'primary' : 'secondary'}
+            aria-label={`${playing === String(z) ? 'Stop' : 'Play'} ${labelFor(z)} at velocity ${velocity}`}
+            onClick={() => toggle(String(z), z, velocity)}
           >
             {labelFor(z)}
           </Button>
