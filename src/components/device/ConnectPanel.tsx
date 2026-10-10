@@ -4,6 +4,7 @@ import { WebUsbTransport } from '../../lib/device/webusb';
 import { CapacitorUsbTransport, nordUsbAvailable, usbAvailability } from '../../lib/device/capacitor-usb';
 import { ElectronUsbTransport } from '../../lib/device/electron-usb';
 import { NordSession } from '../../lib/device/session';
+import { SessionRefusedError } from '../../lib/device/protocol';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
 import { identifyDevice, resolveDeviceAccess, type DeviceIdentity } from '../../lib/device/connect-probe';
 import { modelById } from '../../lib/clavia/partitions';
@@ -20,6 +21,7 @@ const connectLead = 'm-0 mb-4 text-[13px] leading-[1.55] text-dim';
 
 /** Compact, log-safe shape of a caught error for diagnostics. */
 function errorShape(e: unknown): Record<string, unknown> {
+  if (e instanceof SessionRefusedError) return { name: e.name, message: e.message, partition: e.partition, status: e.status };
   if (e instanceof Error) return { name: e.name, message: e.message };
   return { message: String(e) };
 }
@@ -32,7 +34,14 @@ const NORD_FILTER: USBDeviceFilter = { vendorId: 0x0ffc };
 type Status = 'idle' | 'connecting' | 'connected' | 'error';
 
 /** Maps low-level errors to friendly guidance. Empty string = user cancelled (no error). */
-function describeError(e: unknown, isDesktop: boolean): string {
+export function describeError(e: unknown, isDesktop: boolean): string {
+  if (e instanceof SessionRefusedError) {
+    // The USB link works; the Nord refused the memory area we asked for — usually
+    // one this model doesn't have or protects, sometimes another app holding it.
+    return 'Your Nord answered, but wouldn’t let OpenNord open its memory. Quit Nord Sound ' +
+      'Manager, unplug the USB cable and plug it back in, then try again. If it keeps happening, ' +
+      'OpenNord doesn’t know this model’s layout yet — let us know which Nord it is.';
+  }
   const m = getErrorMessage(e);
   if (/no device selected|cancel/i.test(m)) return '';
   if (/unable to claim|claim.*interface|network/i.test(m)) {

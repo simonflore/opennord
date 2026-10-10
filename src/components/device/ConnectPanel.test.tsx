@@ -60,3 +60,13 @@ describe('ConnectPanel render states', () => {
     expect(screen.getByRole('button', { name: /open a backup/i })).toBeInTheDocument();
   });
 });
+
+describe('describeError', () => {
+  it('turns a refused session (the field "status 18") into plain words, without protocol jargon', async () => {
+    const { describeError } = await import('./ConnectPanel');
+    const { SessionRefusedError } = await import('../../lib/device/protocol');
+    const msg = describeError(new SessionRefusedError(6, 18), true);
+    expect(msg).toMatch(/wouldn’t let OpenNord open its memory/);
+    expect(msg).not.toMatch(/status|partition|18/i);
+  });
+});

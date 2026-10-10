@@ -9,6 +9,18 @@ export class NordError extends Error {
   }
 }
 
+/**
+ * The Nord answered but refused to open a transfer session on `partition`
+ * (`CReqBegin` replied with a non-zero `status`). The USB link itself works;
+ * the partition is absent or protected on this model, or the device is busy.
+ */
+export class SessionRefusedError extends NordError {
+  constructor(readonly partition: number, readonly status: number) {
+    super(`could not open a transfer session on partition ${partition} (status ${status})`);
+    this.name = 'SessionRefusedError';
+  }
+}
+
 /** Override the frame's protocolId/version — e.g. NS2 FileTransfer is version `0x08`
  *  (not `0x0a`), and the pre-FileTransfer version handshake rides protocolId `0x07`.
  *  Both default to the NS4 FileTransfer values. See docs/PROTOCOL-RE.md (issue #31). */
