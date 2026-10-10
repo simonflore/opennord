@@ -90,9 +90,9 @@ function Audition({ folder, match, model }: { folder: FolderLibrary; match: Prog
                 {TOUCH.map((t) => (
                   <Button
                     key={t.label}
-                    variant={touch.label === t.label ? 'outline' : 'ghost'}
+                    variant={touch === t ? 'outline' : 'ghost'}
                     className="min-h-11"
-                    aria-pressed={touch.label === t.label}
+                    aria-pressed={touch === t}
                     onClick={() => setTouch(t)}
                   >
                     {t.label}
