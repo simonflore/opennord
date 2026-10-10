@@ -8,7 +8,7 @@
  *     catches any damage to the backup file itself, for every kind of content.
  *  2. **The file's own check value.** The CBIN CRC-32 (`docs/CHECKSUM.md`) is
  *     verified where it is known to hold: programs (`.ns4p`, validated across real
- *     programs + the device corpus), v6 pianos and format-1 samples (the header
+ *     programs + the device corpus), pianos (the v6 CRC-32, or the v5 CRC-16 trailer) and format-1 samples (the header
  *     carries the field — `readNsp` / `readNsmp`). Live, preset and settings files
  *     are not CRC-checked here: their CBIN CRC hasn't been confirmed on files NSM
  *     wrote, so a mismatch would not be evidence of damage.
@@ -141,7 +141,7 @@ export function checkBackupItem(kind: Exclude<BackupItemKind, 'piano'>, bytes: U
 }
 
 /**
- * Check a piano: header, checksum (v6), note directory, then — unless `play` is off —
+ * Check a piano: header, checksum (CRC-32 in v6, CRC-16 trailer in v5), note directory, then — unless `play` is off —
  * decode every note to its full length. Yields between notes; reports per-note
  * progress through `onNote(fraction)`. Returns the problem message (or null) and how
  * many notes decoded.

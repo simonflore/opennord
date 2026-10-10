@@ -17,6 +17,7 @@
 
 import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
 import { verifyNs4Checksum } from '../clavia/checksum';
+import { verifyTrailerChecksum } from '../clavia/crc16';
 import { findCnsp } from './nsp-audio';
 
 const META_OFFSET = 0x16; // from the CNSP tag
@@ -43,12 +44,13 @@ export interface NspFile {
   /** Codec generation = floor(versionRaw / 100) (e.g. 6 for Nord Piano V6). */
   codec?: number;
   /**
-   * The file carries the CBIN CRC-32 field (0x18–0x1B). True for v6 pianos (format-1
-   * header, `CNSP` at 0x2C); false for v5 (format-0 header, `CNSP` itself at 0x18 —
-   * there is no checksum slot to validate).
+   * The file carries a container checksum: v6 pianos (format-1 header, `CNSP` at 0x2C) the
+   * CRC-32 at 0x18; v5 pianos (format-0 header, `CNSP` at 0x18) a 2-byte CRC-16/CCITT-FALSE
+   * trailer over the rest of the file, like the other legacy Clavia formats (verified on
+   * the real v5.30 CP80 and Wurlitzer files). False only when no `CNSP` tag was found.
    */
   hasChecksum: boolean;
-  /** CRC-32 matches the body. Vacuously true when the file has no checksum field. */
+  /** The checksum matches. Vacuously true when the file has no checksum. */
   checksumValid: boolean;
   /** Human name from the metadata block, e.g. "Astoria Grand". */
   name?: string;
@@ -135,11 +137,11 @@ export function readNsp(bytes: Uint8Array): NspFile {
     return { recognized: false, hasChecksum: false, checksumValid: false, warnings: ['Not a Nord Piano (.npno) file — missing CBIN/npno signature.'] };
   }
   // Only the format-1 envelope (v6, `CNSP` at 0x2C) has a CRC-32 at 0x18. In a v5 file
-  // the `CNSP` tag itself sits at 0x18 (format-0 header, verified on real v5.30 CP80 and
-  // Wurlitzer files), so "verifying" those bytes flagged every intact v5 piano as damaged.
-  // Same rule as `nsmpHasChecksumField` for format-0 samples.
-  const hasChecksum = findCnsp(bytes) === 0x2c;
-  const checksumValid = hasChecksum ? verifyNs4Checksum(bytes) : true;
+  // the `CNSP` tag itself sits at 0x18 (format-0 header); its checksum is the legacy
+  // CRC-16 trailer instead (the two bytes after the last block, 2026-10-10).
+  const cnsp = findCnsp(bytes);
+  const hasChecksum = cnsp === 0x2c || cnsp === 0x18;
+  const checksumValid = cnsp === 0x2c ? verifyNs4Checksum(bytes) : cnsp === 0x18 ? verifyTrailerChecksum(bytes) : true;
   const warnings: string[] = [];
   if (!checksumValid) warnings.push('Piano checksum mismatch — file may be truncated or modified.');
   const zones = readNspZones(bytes);

@@ -8,8 +8,10 @@
  * machine (audition, inspection) and never uploads or shares it (`docs/LEGAL.md`).
  *
  * Layout (offsets from the `CNSP` tag — 0x2C in v6 files, 0x18 in v5; big-endian):
- *   +0x61C  u16 version, u16 channels (1 | 2), u16 stroke count
- *   +0x72C  stroke records, 0x76 bytes each (fields in `readStroke`)
+ *   +0x61C  u16 version, u16 channels (1 | 2), u16 stroke count, then u16[128]: the number of
+ *           strokes (velocity layers) of the zone rooted at each MIDI note (0 = no zone there)
+ *   +0x732  stroke records, 0x76 bytes each (fields in `readStroke`). The Stage 4 ARM loader
+ *           reads them at file+0xC+0x732 (`0xC00B47B8`); earlier notes counted from +0x72C.
  *   blocks  fixed size, 511 words mono / 1022 stereo; a stroke's blocks are contiguous.
  *           word 0: bits 0-4 residual width, 5-7 predictor order (0-4), 8-15 block level
  *           (dB below the stroke peak; the PCM is not rescaled by it). Then residuals,
@@ -21,7 +23,9 @@
 export const NSP_SAMPLE_RATE = 44100;
 
 const DIR_OFFSET = 0x61c;
-const RECORDS_OFFSET = 0x72c;
+/** u16[128] layers-per-root-note table, right after version/channels/count. */
+const LAYER_TABLE_OFFSET = 0x622;
+const RECORDS_OFFSET = 0x732;
 const RECORD_SIZE = 0x76;
 const BLOCK_OVERLAP = 64;
 /** Binomial predictors by order, newest history sample first. */
@@ -35,6 +39,10 @@ export interface NspStroke {
   zone: number;
   /** Lowest velocity (0–127) this layer plays from. */
   velocityFrom: number;
+  /** Record flag bits (+0x04 & 3): 0 = a normal stroke, 2 = a key-release sound. */
+  flags: number;
+  /** A key-release sound (played on note-off), not a velocity layer. */
+  release: boolean;
   /** Length in sample frames. */
   frames: number;
   /** Byte offset of the first block in the file. */
@@ -63,23 +71,45 @@ export function findCnsp(bytes: Uint8Array): number {
 }
 
 function readStroke(view: DataView, at: number, base: number, index: number, channels: number): Omit<NspStroke, 'zone'> {
-  const history = [0x12, 0x1a].slice(0, channels).map((h) => {
+  // Record layout (from the record's own start, CNSP+0x732+i*0x76; field use per the ARM
+  // loader 0xC00AB028, see docs/NSP-FORMAT.md): +0x00 u32 first block offset, +0x04 u8 flags,
+  // +0x05 u8 velocity floor, +0x06 u32 frames, +0x0A u16 blocks, +0x0C/+0x14 4×i16 history
+  // per channel (oldest first), +0x1C u32 loop start, +0x20 u32 loop length.
+  const history = [0x0c, 0x14].slice(0, channels).map((h) => {
     const oldestFirst = [0, 2, 4, 6].map((k) => view.getInt16(at + h + k));
     return oldestFirst.reverse();
   });
-  const loopStart = view.getUint32(at + 0x22);
-  const loopLength = view.getUint32(at + 0x26);
-  // +0x2A/+0x2E: first frames of the loop-start block and of the block after it;
-  // +0x32: that block's index (the DSP's loop re-entry point). Derivable, so not exposed.
+  const loopStart = view.getUint32(at + 0x1c);
+  const loopLength = view.getUint32(at + 0x20);
+  // +0x24/+0x28: first frames of the loop-start block and of the block after it;
+  // +0x2C: that block's index (the DSP's loop re-entry point). Derivable, so not exposed.
+  const flags = view.getUint8(at + 0x04) & 3;
   return {
     index,
-    offset: base + view.getUint32(at + 0x06),
-    velocityFrom: view.getUint16(at + 0x0a),
-    frames: view.getUint32(at + 0x0c),
-    blocks: view.getUint16(at + 0x10),
+    offset: base + view.getUint32(at),
+    velocityFrom: view.getUint8(at + 0x05),
+    flags,
+    release: flags === 2,
+    frames: view.getUint32(at + 0x06),
+    blocks: view.getUint16(at + 0x0a),
     history,
     loop: loopLength ? { start: loopStart, length: loopLength } : undefined,
   };
+}
+
+/** Zone index of each stroke, from the layers-per-root table (falls back to "a layer with
+ *  velocity floor 0 opens a zone" when the table doesn't account for every stroke). */
+function zoneOf(view: DataView, base: number, raw: Omit<NspStroke, 'zone'>[]): number[] {
+  const counts: number[] = [];
+  for (let n = 0; n < 128; n++) {
+    const c = view.getUint16(base + LAYER_TABLE_OFFSET + n * 2);
+    if (c) counts.push(c);
+  }
+  if (counts.reduce((a, b) => a + b, 0) === raw.length) {
+    return counts.flatMap((c, z) => new Array<number>(c).fill(z));
+  }
+  let zone = -1;
+  return raw.map((s) => (s.velocityFrom === 0 && !s.release) || zone < 0 ? ++zone : zone);
 }
 
 /** Read the stroke directory; `undefined` if the file has no readable CNSP directory. */
@@ -95,9 +125,9 @@ export function readNspDirectory(bytes: Uint8Array): NspDirectory | undefined {
   }
   const raw = Array.from({ length: count }, (_, i) =>
     readStroke(view, base + RECORDS_OFFSET + i * RECORD_SIZE, base, i, channels));
-  // Velocity layers of a zone are consecutive, softest (velocityFrom 0) first.
-  let zone = -1;
-  const strokes = raw.map((s) => ({ ...s, zone: s.velocityFrom === 0 || zone < 0 ? ++zone : zone }));
+  // A zone's strokes are consecutive (lowest root first), softest layer first.
+  const zones = zoneOf(view, base, raw);
+  const strokes = raw.map((s, i) => ({ ...s, zone: zones[i] }));
   // Strokes are stored back to back, so the block size falls out of any two neighbours.
   const blockWords = strokes.length > 1 && strokes[0].blocks
     ? (strokes[1].offset - strokes[0].offset) / strokes[0].blocks / 2
@@ -171,7 +201,7 @@ export function decodeNspStroke(bytes: Uint8Array, dir: NspDirectory, stroke: Ns
 export function strokeFor(dir: NspDirectory, zone: number, velocity: number): NspStroke | undefined {
   let pick: NspStroke | undefined;
   for (const s of dir.strokes) {
-    if (s.zone === zone && s.velocityFrom <= velocity && (!pick || s.velocityFrom >= pick.velocityFrom)) pick = s;
+    if (s.zone === zone && !s.release && s.velocityFrom <= velocity && (!pick || s.velocityFrom >= pick.velocityFrom)) pick = s;
   }
   return pick;
 }
