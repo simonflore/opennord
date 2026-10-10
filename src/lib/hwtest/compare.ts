@@ -12,7 +12,7 @@
  * - **Synth:** the synth preview of a program's synth layer (ANALOG Pure waves only).
  */
 import {
-  centsBetween, estimateF0, measure, noteName, segmentNotes, levels, spectralCentroid,
+  centsBetween, estimateF0, measure, noteName, pickChannel, segmentNotes, levels, spectralCentroid,
   type Measurement, type MeasureOptions,
 } from './analysis';
 import { renderOffline } from '../engine/organ/core';
@@ -20,8 +20,7 @@ import { DEFAULT_ORGAN_PARAMS, ORGAN_ENGINE_MODELS, type OrganModel, type OrganP
 import { parseVibChorus } from '../engine/organ/params';
 import { renderSynthPreview, type SynthPreviewParams } from '../ns4/synth-preview';
 import {
-  decodeNspStroke, findCnsp, NSP_SAMPLE_RATE, readLayerTable, readNspDirectory, touchAttenuation,
-  type NspStroke,
+  decodeNspStroke, findCnsp, NSP_SAMPLE_RATE, readLayerTable, readNspDirectory, strokeFor, touchAttenuation,
 } from '../ns4/nsp-audio';
 import { NSP_ROOT_OFFSET } from '../ns4/nsp';
 
@@ -34,13 +33,8 @@ export interface Reference {
   notes: string[];
 }
 
-const mono = (ch: Float32Array[]): Float32Array => {
-  if (ch.length === 1) return ch[0];
-  const out = new Float32Array(ch[0].length);
-  for (let i = 0; i < out.length; i++) out[i] = (ch[0][i] + ch[1][i]) / 2;
-  return out;
-};
-export const referenceMono = (r: Reference): Float32Array => mono(r.channels);
+/** The L/R average of a render (as `pickChannel(…, 'mix')` does for a recording). */
+export const referenceMono = (r: Reference): Float32Array => (r.channels.length === 1 ? r.channels[0] : pickChannel(r));
 
 // ── Organ ────────────────────────────────────────────────────────────────────────────────
 
@@ -203,19 +197,13 @@ export function pianoReference(npno: Uint8Array, o: PianoOptions): PianoReferenc
   const zone = roots.indexOf(root);
   if (zone < 0) throw new Error(`Key ${noteName(o.key)} points at a zone with no recordings.`);
   const layers = dir.strokes.filter((s) => s.zone === zone && s.flags === 0);
-  const att = touchAttenuation(o.velocity ?? 100);
-  let pick = 0;
-  if (o.layer !== undefined) {
-    if (o.layer < 0 || o.layer >= layers.length) throw new Error(`This zone has ${layers.length} layer(s); pick 0–${layers.length - 1}.`);
-    pick = o.layer;
-  } else {
-    const sel = att + (o.selectOffset ?? 20);
-    for (let i = 1; i < layers.length; i++) {
-      const f = layers[i].velocityFrom;
-      if (f - Math.trunc((f - layers[i - 1].velocityFrom) / 2) <= sel) pick = i;
-    }
+  const velocity = o.velocity ?? 100;
+  const att = touchAttenuation(velocity);
+  if (o.layer !== undefined && (o.layer < 0 || o.layer >= layers.length)) {
+    throw new Error(`This zone has ${layers.length} layer(s); pick 0–${layers.length - 1}.`);
   }
-  const stroke: NspStroke = layers[pick];
+  const stroke = o.layer !== undefined ? layers[o.layer] : strokeFor(dir, zone, velocity, o.selectOffset ?? 20)!;
+  const pick = layers.indexOf(stroke);
   const rec = cnsp + 0x732 + stroke.index * 0x76;
   const floorRaw = npno[rec + 0x05];
   const levelRaw = u16(rec + 0x34);
@@ -229,7 +217,7 @@ export function pianoReference(npno: Uint8Array, o: PianoOptions): PianoReferenc
   const releaseMode = modeByte === 0 ? 1 : modeByte === 2 ? 3 : modeByte === 0xff ? 0 : 2;
 
   const pcm = decodeNspStroke(npno, dir, stroke).map((c) => Float32Array.from(c, (v) => v / 32768));
-  const native = mono(pcm);
+  const native = pickChannel({ sampleRate: NSP_SAMPLE_RATE, channels: pcm });
   const f0 = estimateF0(native.subarray(Math.min(native.length, 4410), Math.min(native.length, 22050)), NSP_SAMPLE_RATE);
   const c0 = 100 * (o.key - root - NSP_ROOT_OFFSET);
   const ratioFor = (cents: number) => Math.min(2 ** (cents / 1200), 1);
@@ -253,6 +241,7 @@ export function pianoReference(npno: Uint8Array, o: PianoOptions): PianoReferenc
   const damp = 10 ** (-3 / (t60 * sr));
   const cutoff = 0.001 * 2 ** (damperIndex / 4); // mode 3: silent after t0 ≈ 1 ms·2^(p/4)
   const out = pcm.map(() => new Float32Array(total));
+  const last = stroke.frames - 1;
   let pos = 0;
   let env = 1;
   let inLoop = false;
@@ -265,10 +254,10 @@ export function pianoReference(npno: Uint8Array, o: PianoOptions): PianoReferenc
       if (releaseMode === 3) { const u = (n - holdAt) / sr / cutoff; rel = u >= 1 ? 0 : (1 - u) * (1 - u); }
       else if (releaseMode !== 0) { env *= damp; }
     }
+    const km1 = Math.max(0, i - 1), k1 = Math.min(last, i + 1), k2 = Math.min(last, i + 2);
     for (let c = 0; c < pcm.length; c++) {
       const x = pcm[c];
-      const at = (k: number) => x[Math.max(0, Math.min(stroke.frames - 1, k))];
-      const xm1 = at(i - 1), x0 = at(i), x1 = at(i + 1), x2 = at(i + 2);
+      const xm1 = x[km1], x0 = x[Math.min(last, i)], x1 = x[k1], x2 = x[k2];
       const v = x0 + 0.5 * t * (x1 - xm1 + t * (2 * xm1 - 5 * x0 + 4 * x1 - x2 + t * (3 * (x0 - x1) + x2 - xm1)));
       out[c][n] = v * gain * env * rel;
     }
@@ -287,7 +276,7 @@ export function pianoReference(npno: Uint8Array, o: PianoOptions): PianoReferenc
     label: 'OpenNord piano', sampleRate: sr, channels: out, stroke: info, pitch,
     notes: [
       `zone ${zone + 1}, layer ${pick + 1} of ${layers.length} (1 = loudest), recorded at ${f0 ? `${f0.hz.toFixed(2)} Hz` : '?'}; pitch model ${model}`,
-      `velocity ${o.velocity ?? 100} → ${(att / 5).toFixed(1)} dB (OpenNord's approximate Touch curve); level word ${level}; predicted gain ${predictedGainDb.toFixed(1)} dB`,
+      `velocity ${velocity} → ${(att / 5).toFixed(1)} dB (OpenNord's approximate Touch curve); level word ${level}; predicted gain ${predictedGainDb.toFixed(1)} dB`,
       `release: damper index ${damperIndex} (T60 ${(t60 * 1000).toFixed(0)} ms), mode ${releaseMode}; no string resonance, unison or effects`,
     ],
   };

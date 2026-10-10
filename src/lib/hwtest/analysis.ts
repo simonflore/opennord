@@ -49,25 +49,10 @@ export interface Recording {
   channels: Float32Array[];
 }
 
-/** The WAV's format tag (1 PCM, 3 float), following WAVE_FORMAT_EXTENSIBLE to its sub-format. */
-function wavFormatTag(bytes: Uint8Array): number {
-  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  for (let o = 12; o + 8 <= bytes.length;) {
-    const id = String.fromCharCode(bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]);
-    const size = dv.getUint32(o + 4, true);
-    if (id === 'fmt ') {
-      const tag = dv.getUint16(o + 8, true);
-      return tag === 0xfffe && size >= 26 ? dv.getUint16(o + 8 + 24, true) : tag;
-    }
-    o += 8 + size + (size & 1);
-  }
-  return 0;
-}
-
 /** Read a WAV file (8/16/24/32-bit PCM or 32-bit float) into Float32 channels in [-1, 1]. */
 export function readRecording(bytes: Uint8Array): Recording {
   const wav = parseWav(bytes);
-  const scale = wavFormatTag(bytes) === 3 ? 1 / 0x7fffff : wav.bitDepth === 8 ? 1 / 128 : 1 / 2 ** (wav.bitDepth - 1);
+  const scale = wav.float ? 1 / 0x7fffff : wav.bitDepth === 8 ? 1 / 128 : 1 / 2 ** (wav.bitDepth - 1);
   return { sampleRate: wav.sampleRate, channels: wav.channels.map((c) => Float32Array.from(c, (v) => v * scale)) };
 }
 

@@ -39,7 +39,7 @@ import {
 } from '@/lib/hwtest/analysis';
 import {
   analyzeSweep, compareRows, formatRows, formatSweep, measureReference, organParamsFromFlags, organReference,
-  pianoReference, referenceMono, synthReference, type Reference,
+  pianoReference, referenceMono, synthReference, type PianoReference, type Reference,
 } from '@/lib/hwtest/compare';
 import { SWEEP_VELOCITIES } from '@/lib/hwtest/midi-file';
 import { organParamsFromLayer } from '@/lib/engine/organ/params';
@@ -131,6 +131,7 @@ try {
   }
 
   let ref: Reference | undefined;
+  let piano: PianoReference | undefined;
   /** The other signal for --timeline: OpenNord's render or the --vs take. */
   let refSig: Float32Array | undefined;
   let refLabel = 'OpenNord';
@@ -162,14 +163,13 @@ try {
     if (!a.npno) fail('--engine piano needs --npno: your own copy of the piano you played.');
     const model = a['pitch-model'];
     if (model && !['A', 'B', 'C'].includes(model)) fail('--pitch-model is A, B or C.');
-    const p = pianoReference(new Uint8Array(readFileSync(a.npno)), {
+    ref = piano = pianoReference(new Uint8Array(readFileSync(a.npno)), {
       key, velocity: num(a.velocity, '--velocity'), layer: num(a.layer, '--layer'),
       holdS: hold, totalS: hold + 1, sampleRate: sr, pitchModel: model as 'A' | 'B' | 'C' | undefined,
     });
-    ref = p;
-    if (p.pitch.length) {
+    if (piano.pitch.length) {
       extra.push('Pitch hypotheses for this key (docs/PIANO-ENGINE.md §2.3, the +27-cent question):');
-      for (const h of p.pitch) extra.push(`  ${h.id}  ${h.label.padEnd(22)} ${h.hz.toFixed(2)} Hz`);
+      for (const h of piano.pitch) extra.push(`  ${h.id}  ${h.label.padEnd(22)} ${h.hz.toFixed(2)} Hz`);
     }
   } else if (engine === 'synth') {
     const fromProgram = programLayer('synth');
@@ -197,10 +197,9 @@ try {
   if (extra.length) {
     console.log('');
     for (const l of extra) console.log(l);
-    if (nord.f0 && ref && 'pitch' in ref) {
+    if (nord.f0 && piano) {
       const measured = nord.f0.hz;
-      const hyps = (ref as ReturnType<typeof pianoReference>).pitch;
-      const off = hyps.map((h) => ({ id: h.id, cents: centsBetween(measured, h.hz) }));
+      const off = piano.pitch.map((h) => ({ id: h.id, cents: centsBetween(measured, h.hz) }));
       const best = off.reduce((x, y) => (Math.abs(y.cents) < Math.abs(x.cents) ? y : x));
       const ties = off.filter((h) => Math.abs(h.cents - best.cents) < 3).map((h) => h.id);
       console.log(`  measured: ${measured.toFixed(2)} Hz → closest: ${ties.join(' = ')} (${best.cents >= 0 ? '+' : ''}${best.cents.toFixed(1)} cents)`);
@@ -244,7 +243,7 @@ try {
     writeFileSync(a.json, JSON.stringify({
       recording: basename(file), note: key, engine: a.vs ? `vs ${basename(a.vs)}` : engine, options: a,
       nord, reference: refMeasure, rows, notes: ref?.notes,
-      piano: ref && 'stroke' in ref ? { stroke: (ref as ReturnType<typeof pianoReference>).stroke, pitch: (ref as ReturnType<typeof pianoReference>).pitch } : undefined,
+      piano: piano && { stroke: piano.stroke, pitch: piano.pitch },
     }, null, 2));
     console.log(`Numbers written to ${a.json}.`);
   }

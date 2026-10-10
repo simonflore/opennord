@@ -4,12 +4,12 @@ import {
   analyzeSweep, CLOCK_43K, compareRows, formatRows, formatSweep, measureReference, organParamsFromFlags, organReference,
   pianoReference, referenceMono, synthReference,
 } from './compare';
-import { buildTestPiano, testPianoSpecs } from './test-piano';
-import { defaultDecayCoefficient } from '../ns4/nsp-write';
+import { buildNpno, defaultDecayCoefficient } from '../ns4/nsp-write';
+import { testPianoSpecs } from './test-piano';
 
 const SR = 48000;
-const t2 = buildTestPiano(testPianoSpecs()[2]).bytes;
-const t1 = buildTestPiano(testPianoSpecs()[1]).bytes;
+const t2 = buildNpno(testPianoSpecs()[2].input).bytes;
+const t1 = buildNpno(testPianoSpecs()[1].input).bytes;
 
 describe('organ reference', () => {
   it('reads drawbar, percussion and vibrato flags', () => {

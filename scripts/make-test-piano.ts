@@ -17,10 +17,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { buildTestPiano, testPianoSpecs, TEST_PIANO_RATE } from '@/lib/hwtest/test-piano';
+import { testPianoSpecs } from '@/lib/hwtest/test-piano';
 import { compressorBurst, heldKeys, velocitySweep, writeMidiFile } from '@/lib/hwtest/midi-file';
 import { checkNpnoAcceptance } from '@/lib/ns4/nsp-check';
-import { decodeNspStroke, readNspDirectory } from '@/lib/ns4/nsp-audio';
+import { decodeNspStroke, NSP_SAMPLE_RATE, readNspDirectory } from '@/lib/ns4/nsp-audio';
+import { buildNpno } from '@/lib/ns4/nsp-write';
 import { encodeWav } from '@/lib/ns4/wav';
 
 const { values } = parseArgs({ options: { out: { type: 'string', default: 'hardware-test' } } });
@@ -32,7 +33,7 @@ const show = (p: string) => relative(process.cwd(), p) || '.';
 let failed = 0;
 console.log(`OpenNord hardware test kit → ${show(out)}\n`);
 for (const spec of testPianoSpecs()) {
-  const { bytes, fileName, notes } = buildTestPiano(spec);
+  const { bytes, fileName, notes } = buildNpno(spec.input);
   const acc = checkNpnoAcceptance(bytes, { deep: true });
   const file = join(dirs.pianos, fileName);
   writeFileSync(file, bytes);
@@ -52,7 +53,7 @@ for (const spec of testPianoSpecs()) {
     const layer = dir.strokes.filter((x) => x.zone === s.zone).indexOf(s);
     const tag = `${spec.id}-${zone.rootNote === 69 ? 'A4' : 'A3'}${spec.id === 'T2' ? `-layer${layer + 1}-${layer === 0 ? 'hard' : 'soft'}` : ''}`;
     const wav = join(dirs.previews, `${tag}.wav`);
-    writeFileSync(wav, encodeWav(pcm, TEST_PIANO_RATE));
+    writeFileSync(wav, encodeWav(pcm, NSP_SAMPLE_RATE));
   }
   console.log('');
 }

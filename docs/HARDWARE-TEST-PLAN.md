@@ -1,10 +1,9 @@
 # Hardware test plan: one session with a Stage 4 and an iPad
 
-One ordered checklist for a single session of about **2 hours** with a Nord Stage 4, a computer
-and an iPad. It turns the open questions in the engine and format notes (and the review list in
-issue #30) into short, repeatable takes. Each test says what it settles, what to do on the
-Nord, in Nord Sound Manager (NSM) or in OpenNord, what should happen, what to write down and
-how long it takes. A fill-in results table is at the end.
+One ordered checklist for a ~2-hour session with a Nord Stage 4, a computer and an iPad. It
+turns the open questions in the engine and format notes (and issue #30) into short, repeatable
+takes: what each settles, what to do, what should happen and what to write down. A results
+table is at the end.
 
 The kit that goes with it (all in `packages/core`):
 
@@ -86,8 +85,8 @@ Nothing in this group writes to the instrument.
   2. In OpenNord (Chrome/Edge), open the browser's developer console, then go to the Device
      page and connect the Nord.
   3. Go to Home → *Check my Nord* (the Compatibility page) → *Check my Nord*.
-  4. Click *Share results to help*. It opens a pre-filled GitHub issue in a new tab: copy the
-     table into your notes; submitting it is up to you.
+  4. *Share results to help* opens a pre-filled GitHub issue: copy the table into your notes
+     (submitting it is up to you).
 - **Expected:** connect lists your programs. On a Stage 4 the console shows **no**
   `device.partition-probe` line, because the Program index (6) is hardware-confirmed and the
   probe is skipped. *Check my Nord* lists about 12 memory areas (0–11, perhaps 12). The probe
@@ -501,12 +500,9 @@ npm run hw:compare -- <take.wav> --note A4 [what to compare with] [options]
 | the synth | `--engine synth --program my.ns4p --part A` | the synth preview (ANALOG Pure waves; no LFO, unison or effects) |
 | another take | `--vs other.wav` | none: both are recordings |
 
-Options: `--hold <s>` (how long the key was held, default 2), `--nth <n>` (only the n-th note of
-a take with several notes; `--vs-nth` for the `--vs` take), `--window <from>:<to>` (seconds
-after the note starts), `--channel mix|left|right|side`, `--mod` (tremolo and vibrato),
-`--track` (rotor rate over time), `--timeline [--step 0.02]` (level and brightness over time),
-`--sweep [--velocities …]` (a velocity sweep take), `--save-render out.wav` (OpenNord's render,
-to listen to), `--json out.json` (the numbers).
+The options (`--hold`, `--nth`, `--window`, `--channel`, `--mod`, `--track`, `--timeline`,
+`--sweep`, `--save-render`, `--json`) are listed at the top of `scripts/compare-recording.ts`
+and used in the tests above.
 
 What it measures:
 
@@ -524,17 +520,12 @@ own file, and which one the take is closest to.
 
 ## Recordings stay local
 
-- The kit writes only to `packages/core/hardware-test/` (or the folder you name). Git ignores
-  it (`packages/core/.gitignore`), so the pianos, previews, MIDI files and your recordings are
-  never committed.
-- `compare-recording` reads your files from disk and prints to the terminal. It makes no
-  network requests and uploads nothing. It writes a file only when you ask (`--json`,
-  `--save-render`).
-- Recordings of factory pianos, organs and effects are recordings of Clavia's sounds: keep
-  them on your machine and paste **numbers** into issues, not audio (`docs/LEGAL.md`). The test
-  pianos and their previews are synthetic sine tones and contain no Nord audio.
-- A factory `.npno` you use for a comparison is decoded in memory, on your machine, as the rest
-  of OpenNord does (`docs/LEGAL.md`, "Local device access").
+- The kit writes only to `packages/core/hardware-test/` (or the folder you name), which git
+  ignores. Neither script makes network requests; `compare-recording` writes a file only when
+  you ask (`--json`, `--save-render`).
+- Recordings of the Nord's own sounds, and a factory `.npno` decoded for a comparison, stay on
+  your machine: paste **numbers** into issues, not audio (`docs/LEGAL.md`). The test pianos are
+  synthetic sine tones and contain no Nord audio.
 
 ## Results template
 
