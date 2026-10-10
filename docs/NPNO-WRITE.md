@@ -181,9 +181,10 @@ ARM loader come from `0xC00B84CC` (header) and `0xC00AB028`/`0xC0020088` (record
 - Neither the gate nor the loader checks the CNSP byte sum or the CBIN CRC. Whether the
   USB write path does is unknown (the transfer frames carry their own CRC-16).
 
-`checkNpnoAcceptance` re-implements these, plus the CBIN CRC and a structural walk: the
-header, metadata and directory versions are each held to the Stage 4 generations (v5/v6), and
-the key map's zones must match the notes' roots in the same order. The loader's voice-table
+`checkNpnoAcceptance` re-implements these, plus the CBIN CRC (the header's format byte must
+match the `CNSP` position, as `readNsp` requires) and a structural walk: the header, metadata
+and directory versions are each held to the Stage 4 generations (v5/v6), and the key map's
+zones must match the notes' roots in the same order. The loader's voice-table
 limit is shared: the free space is `0x6000` minus the entries the pianos already on the
 instrument use (and a firmware cap we haven't traced), so the check only proves the file fits
 an otherwise empty instrument (`stroke count ≤ 0x6000`). Whether it fits next to your other

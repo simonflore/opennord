@@ -275,6 +275,13 @@ describe('checkNpnoAcceptance', () => {
     expect(failedIds(writeNpnoImage(img).bytes)).toEqual(['key-map']);
   });
 
+  it('fails a header whose format byte disagrees with the CNSP position, as readNsp does', () => {
+    const bytes = buildNpno(piano(1)).bytes;
+    bytes[4] = 0; // a v5 format byte on a v6 envelope: outside the CRC-32, so only this catches it
+    expect(failedIds(bytes)).toEqual(['cbin-format']);
+    expect(readNsp(bytes).checksumValid).toBe(false);
+  });
+
   it("fails a piano with more notes than the instrument's voice table holds", () => {
     const built = buildNpno(piano(1)).bytes;
     const count = 0x6001;
