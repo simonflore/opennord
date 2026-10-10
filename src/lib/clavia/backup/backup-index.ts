@@ -1,4 +1,4 @@
-import { MODELS, type NordModelId, type PartitionKind } from '../partitions';
+import { MODELS, identifyModelByProductId, type NordModelId, type PartitionKind } from '../partitions';
 import { readZipDirectory, extractZipEntry, type ZipEntry } from './zip-directory';
 
 export interface BackupClass { kind: PartitionKind; native: boolean }
@@ -10,9 +10,6 @@ export interface BackupContents {
   pianos: BackupRef[];
   samples: BackupRef[];
 }
-
-/** meta.xml product_id → model. Seed Stage 4 (46); extend per model as verified. */
-export const PRODUCT_IDS: Record<number, NordModelId> = { 46: 'stage-4' };
 
 const ext = (path: string): string => {
   const f = path.replace(/^.*\//, '');
@@ -62,7 +59,11 @@ export function classifyBackupEntry(path: string, model: NordModelId | null): Ba
   return null; // settings/unknown — not surfaced
 }
 
-/** Read meta.xml's product_id → model (null when absent/unknown). */
+/**
+ * Read meta.xml's product_id → model (null when absent/unknown). NSM writes the
+ * USB product id here (Stage 4 = 46 = 0x2E), so it resolves through the same
+ * registry as a connected device: hardware-confirmed first, else NSM-recovered.
+ */
 export async function identifyBackup(
   entries: ZipEntry[],
   readEntry: (e: ZipEntry) => Promise<Uint8Array>,
@@ -71,7 +72,7 @@ export async function identifyBackup(
   if (!meta) return null;
   const xml = new TextDecoder().decode(await readEntry(meta));
   const m = /product_id="(\d+)"/.exec(xml);
-  return m ? PRODUCT_IDS[Number(m[1])] ?? null : null;
+  return m ? identifyModelByProductId(Number(m[1]))?.id ?? null : null;
 }
 
 /** Index a backup: list entries, identify the model, split into the four buckets. */

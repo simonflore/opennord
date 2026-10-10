@@ -12,6 +12,14 @@ import {
 import { readCbinHeader } from '../clavia/cbin';
 import { backup, restore } from './backup';
 import { USER_PARTITIONS, buildMetaXml } from './ns4b';
+import { WriteBlockedError } from './write-guard';
+
+/** A session confirmed writable on every Stage 4 user partition (a trusted layout). */
+function stage4Session(t: MockTransport): NordSession {
+  const s = new NordSession(t);
+  s.allowWrites(USER_PARTITIONS.map((p) => p.partition));
+  return s;
+}
 
 const fixtureBytes = new Uint8Array(
   readFileSync(fileURLToPath(new URL('../ns4/__fixtures__/regressionTest.ns4p', import.meta.url))),
@@ -108,7 +116,7 @@ describe('restore', () => {
       ack(CReqBegin),               // finally re-begin(Program)
     ];
     const t = new MockTransport(replies);
-    const result = await restore(new NordSession(t), zip);
+    const result = await restore(stage4Session(t), zip);
     expect(result.restored).toBe(1);
     expect(result.skippedFactory).toBe(1);
     expect(result.skippedFactoryFiles).toEqual(['Samp Lib/Pad/Some Sample.nsmp4']);
@@ -134,14 +142,14 @@ describe('restore', () => {
       ack(CReqFileCreate), ack(CReqFileWrite), ack(CReqFileClose),
       ack(CReqEnd), ack(CReqBegin),
     ];
-    const result = await restore(new NordSession(new MockTransport(replies)), blob);
+    const result = await restore(stage4Session(new MockTransport(replies)), blob);
     expect(result.restored).toBe(1);
     expect(result.failures).toEqual([]);
   });
 
   it('rejects a zip without meta.xml', async () => {
     const zip = zipSync({ 'Program/Bank H/x.ns4p': fixtureBytes }, { level: 0 });
-    await expect(restore(new NordSession(new MockTransport([])), zip)).rejects.toThrow();
+    await expect(restore(stage4Session(new MockTransport([])), zip)).rejects.toThrow();
   });
 
   it('collects per-file failures without aborting', async () => {
@@ -157,9 +165,22 @@ describe('restore', () => {
       ack(CReqEnd),
       ack(CReqBegin),
     ];
-    const result = await restore(new NordSession(new MockTransport(replies)), zip);
+    const result = await restore(stage4Session(new MockTransport(replies)), zip);
     expect(result.restored).toBe(0);
     expect(result.failures).toHaveLength(1);
+  });
+
+  it('refuses the whole restore up front when a target partition is not confirmed', async () => {
+    const zip = zipSync({
+      'meta.xml': strToU8(buildMetaXml(0)),
+      'Program/Bank H/regressionTest.ns4p': fixtureBytes,
+      'Live/Bank 1/Live 1.ns4l': fixtureBytes, // Live (10) is not confirmed below
+    }, { level: 0 });
+    const t = new MockTransport([]);
+    const session = new NordSession(t);
+    session.allowWrites([6]); // e.g. a probe-confirmed Program partition only
+    await expect(restore(session, zip)).rejects.toBeInstanceOf(WriteBlockedError);
+    expect(t.sent).toHaveLength(0); // never touched the device
   });
 
   it('records a non-CBIN entry as a failure without writing to slot 0:0', async () => {
@@ -170,7 +191,7 @@ describe('restore', () => {
     // No FileCreate is sent — the hasCbinMagic guard throws before any device write.
     const replies = [ack(CReqBegin), ...preflight(), ack(CReqEnd), ack(CReqBegin)];
     const t = new MockTransport(replies);
-    const result = await restore(new NordSession(t), zip);
+    const result = await restore(stage4Session(t), zip);
     expect(result.restored).toBe(0);
     expect(result.failures).toHaveLength(1);
     expect(t.sent.some((f) => decodeReply(f).msgId === CReqFileCreate)).toBe(false);

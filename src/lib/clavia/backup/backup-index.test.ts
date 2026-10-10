@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { zipSync, strToU8 } from 'fflate';
-import { classifyBackupEntry, indexBackup } from './backup-index';
+import { classifyBackupEntry, identifyBackup, indexBackup } from './backup-index';
+import type { ZipEntry } from './zip-directory';
 
 const meta = (productId: number) =>
   strToU8(`<?xml version="1.0"?><backup product_id="${productId}"/>`);
@@ -116,5 +117,20 @@ describe('indexBackup (real Stage-4 backup)', () => {
     expect(royalGrand).toBeDefined();
     expect(royalGrand!.kind).toBe('piano');
     expect(royalGrand!.native).toBe(true);
+  });
+});
+
+describe('identifyBackup (product id → model, whole line)', () => {
+  const metaEntry = { path: 'meta.xml' } as ZipEntry;
+  const identify = (productId: number) => identifyBackup([metaEntry], async () => meta(productId));
+
+  it('resolves hardware-confirmed and NSM-recovered product ids alike', async () => {
+    expect(await identify(0x2e)).toBe('stage-4');
+    expect(await identify(0x26)).toBe('stage-3');   // was null with the Stage-4-only map
+    expect(await identify(0x29)).toBe('electro-6'); // NSM-recovered (staticProductId)
+  });
+
+  it('returns null for an unknown product id', async () => {
+    expect(await identify(0x9999)).toBeNull();
   });
 });

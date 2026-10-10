@@ -87,9 +87,10 @@ describe('MidiSourceTracker', () => {
 });
 
 describe('nativeErrorReason', () => {
-  it('maps plugin-absent codes to unsupported, anything else to failed', () => {
+  it('maps the web fallback to unsupported, anything else to failed', () => {
     expect(nativeErrorReason({ code: 'UNAVAILABLE' })).toBe('unsupported');
-    expect(nativeErrorReason({ code: 'UNIMPLEMENTED' })).toBe('unsupported');
+    // plugin missing from the native build: a visible failure, not a silent no-op
+    expect(nativeErrorReason({ code: 'UNIMPLEMENTED' })).toBe('failed');
     expect(nativeErrorReason(new Error('CoreMIDI status -10830'))).toBe('failed');
     expect(nativeErrorReason(null)).toBe('failed');
   });
@@ -152,6 +153,12 @@ describe('listenToNativeMidiInputs', () => {
     await expect(listenToNativeMidiInputs(() => {}, undefined, f.plugin)).rejects.toThrow('unsupported');
     expect(f.listeners.midiInput.size).toBe(0);
     expect(f.listeners.sourcesChanged.size).toBe(0);
+  });
+
+  it('maps a plugin missing from the native build (UNIMPLEMENTED) to "failed"', async () => {
+    const f = fakePlugin();
+    f.raw.addListener.mockRejectedValueOnce(Object.assign(new Error('not implemented'), { code: 'UNIMPLEMENTED' }));
+    await expect(listenToNativeMidiInputs(() => {}, undefined, f.plugin)).rejects.toThrow('failed');
   });
 
   it('maps a CoreMIDI start failure to "failed"', async () => {

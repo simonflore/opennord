@@ -2,8 +2,20 @@ import { describe, it, expect } from 'vitest';
 import { NordSession } from './session';
 import { MockTransport } from './transport';
 import { encodeMessage, decodeReply } from './protocol';
-import { CQryFileInfo, CQryFileIterate, ext2Type, CReqFileCreate, CReqFileWrite, CQryFileGetFocus } from './opcodes';
+import { CQryFileInfo, CQryFileIterate, ext2Type, CReqBegin, CReqFileCreate, CReqFileWrite, CQryFileGetFocus } from './opcodes';
 import { enumeratePrograms, enumerateFiles, getFocusedSlot } from './transfer';
+import { WriteBlockedError } from './write-guard';
+
+/** A session with Program (6) open and confirmed writable; the Begin is consumed
+ *  and cleared from `t.sent`, so assertions see only the write frames. */
+async function openWritable(replies: Uint8Array[], writable: number[] = [6]) {
+  const t = new MockTransport([encodeMessage(CReqBegin | 1, [0]), ...replies]);
+  const s = new NordSession(t);
+  s.allowWrites(writable);
+  await s.begin(6);
+  t.sent.length = 0;
+  return { t, s };
+}
 
 /** Build a FileIterate reply (0x21): code@word0, bank@word1, slot@word2. */
 function iterReply(code: number, bank: number, slot: number): Uint8Array {
@@ -132,12 +144,12 @@ describe('pushProgram', () => {
   it('sends FileCreate + FileWrite + FileClose with the validated payload + body', async () => {
     const header = readHdr(fixtureBytes);
     const body = fixtureBytes.subarray(44);
-    const t = new MockTransport([
+    const { t, s } = await openWritable([
       encodeMessage(CReqFileCreate | 1, [0]),     // create ack
       encodeMessage(CReqFileWrite | 1, [0]),      // write ack
       encodeMessage(CReqFileClose | 1, [0]),      // close ack (commit)
     ]);
-    await pushProgram(new NordSession(t), 2, 63, fixtureBytes, 'OPENNORD TEST');
+    await pushProgram(s, 2, 63, fixtureBytes, 'OPENNORD TEST');
 
     const create = decodeReply(t.sent[0]);
     expect(create.msgId).toBe(CReqFileCreate);
@@ -155,19 +167,59 @@ describe('pushProgram', () => {
   });
 
   it('throws on FileCreate failure without writing a body', async () => {
-    const t = new MockTransport([encodeMessage(CReqFileCreate | 1, [1])]); // status 1
-    await expect(pushProgram(new NordSession(t), 2, 63, fixtureBytes, 'x')).rejects.toThrow();
+    const { t, s } = await openWritable([encodeMessage(CReqFileCreate | 1, [1])]); // status 1
+    await expect(pushProgram(s, 2, 63, fixtureBytes, 'x')).rejects.toThrow();
     expect(t.sent).toHaveLength(1); // only the create attempt was sent
   });
 
   it('still closes the handle when a write fails mid-transfer', async () => {
-    const t = new MockTransport([
+    const { t, s } = await openWritable([
       encodeMessage(CReqFileCreate | 1, [0]), // create OK
       encodeMessage(CReqFileWrite | 1, [1]),  // write fails (status 1)
       encodeMessage(CReqFileClose | 1, [0]),  // best-effort close
     ]);
-    await expect(pushProgram(new NordSession(t), 2, 63, fixtureBytes, 'x')).rejects.toThrow();
+    await expect(pushProgram(s, 2, 63, fixtureBytes, 'x')).rejects.toThrow();
     expect(t.sent).toHaveLength(3); // create + failed write + close all attempted
+  });
+});
+
+describe('write gate', () => {
+  it('refuses a push to an unconfirmed partition before sending anything', async () => {
+    const { t, s } = await openWritable([], []); // Program open, nothing confirmed
+    await expect(pushProgram(s, 2, 63, fixtureBytes, 'x')).rejects.toBeInstanceOf(WriteBlockedError);
+    expect(t.sent).toHaveLength(0);
+  });
+
+  it('refuses a delete to an unconfirmed partition before sending anything', async () => {
+    const { t, s } = await openWritable([], [4]); // only partition 4 confirmed; 6 is open
+    await expect(deleteProgram(s, 2, 63)).rejects.toBeInstanceOf(WriteBlockedError);
+    expect(t.sent).toHaveLength(0);
+  });
+
+  it('refuses a write with no open session, and once the session has ended', async () => {
+    const fresh = new NordSession(new MockTransport([]));
+    fresh.allowWrites([6]);
+    await expect(pushProgram(fresh, 0, 0, fixtureBytes, 'x')).rejects.toBeInstanceOf(WriteBlockedError);
+
+    const { t, s } = await openWritable([encodeMessage(0x07, [0])]); // End ack
+    await s.end();
+    t.sent.length = 0;
+    await expect(deleteProgram(s, 0, 0)).rejects.toBeInstanceOf(WriteBlockedError);
+    expect(t.sent).toHaveLength(0);
+  });
+
+  it('refuses a write when the Begin was rejected (absent partition)', async () => {
+    const t = new MockTransport([encodeMessage(CReqBegin | 1, [1])]); // begin status 1
+    const s = new NordSession(t);
+    s.allowWrites([6]);
+    await s.begin(6);
+    await expect(deleteProgram(s, 0, 0)).rejects.toBeInstanceOf(WriteBlockedError);
+  });
+
+  it('speaks musician, not protocol', () => {
+    const m = new WriteBlockedError().message;
+    expect(m).not.toMatch(/partition|opcode|byte|0x|index/i);
+    expect(m).toMatch(/Nothing was changed/);
   });
 });
 
@@ -176,16 +228,16 @@ import { CReqFileDelete } from './opcodes';
 
 describe('deleteProgram', () => {
   it('sends FileDelete{bank, slot}', async () => {
-    const t = new MockTransport([encodeMessage(CReqFileDelete | 1, [0])]);
-    await deleteProgram(new NordSession(t), 2, 63);
+    const { t, s } = await openWritable([encodeMessage(CReqFileDelete | 1, [0])]);
+    await deleteProgram(s, 2, 63);
     const del = decodeReply(t.sent[0]);
     expect(del.msgId).toBe(CReqFileDelete);
     expect(del.words.slice(0, 2)).toEqual([2, 63]);
   });
 
   it('throws on a non-zero delete status', async () => {
-    const t = new MockTransport([encodeMessage(CReqFileDelete | 1, [1])]);
-    await expect(deleteProgram(new NordSession(t), 2, 63)).rejects.toThrow();
+    const { s } = await openWritable([encodeMessage(CReqFileDelete | 1, [1])]);
+    await expect(deleteProgram(s, 2, 63)).rejects.toThrow();
   });
 });
 
@@ -199,12 +251,12 @@ describe('pushFile', () => {
     const file = new Uint8Array(header.length + 4);
     file.set(header, 0);
     file.set([1, 2, 3, 4], header.length);
-    const t = new MockTransport([
+    const { t, s } = await openWritable([
       encodeMessage(CReqFileCreate | 1, [0]),
       encodeMessage(CReqFileWrite | 1, [0]),
       encodeMessage(CReqFileClose | 1, [0]),
     ]);
-    await pushFile(new NordSession(t), 1, 3, file, 'Champagne');
+    await pushFile(s, 1, 3, file, 'Champagne');
     const create = decodeReply(t.sent[0]);
     expect(create.words[3]).toBe(ext2Type('ns4o')); // fourcc word
   });

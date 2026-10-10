@@ -51,6 +51,8 @@ describe('umpToMidi1Bytes', () => {
     expect(umpToMidi1Bytes([w(0x40, 0x92, 60, 0), w(0xff, 0xff, 0, 0)])).toEqual([0x92, 60, 127]);
     // a tiny non-zero velocity must stay a note-on
     expect(umpToMidi1Bytes([w(0x40, 0x90, 60, 0), w(0x00, 0x01, 0, 0)])).toEqual([0x90, 60, 1]);
+    // velocity 0 is still a note-on in MIDI 2.0 → MIDI 1.0 velocity 1, never a note-off
+    expect(umpToMidi1Bytes([w(0x40, 0x90, 60, 0), w(0x00, 0x00, 0, 0)])).toEqual([0x90, 60, 1]);
     // note off
     expect(umpToMidi1Bytes([w(0x40, 0x80, 60, 0), w(0x80, 0x00, 0, 0)])).toEqual([0x80, 60, 64]);
     // CC 64 (sustain), 32-bit value
