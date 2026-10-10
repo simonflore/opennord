@@ -20,7 +20,7 @@ import { verifyTrailerChecksum } from '../clavia/crc16';
 import { verifyNs4Checksum } from '../clavia/checksum';
 import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
 import { decodeNspStroke, findCnsp, readLayerTable, readNspDirectory, type NspStroke } from './nsp-audio';
-import { readNspZones } from './nsp';
+import { nspChecksumKind, readNspZones } from './nsp';
 
 /** CNSP checksum: byte sum of everything after the 22-byte CNSP header, over the CNSP stream
  *  (`CNSP` tag … last block; a 32-bit sum NSM checks on load). */
@@ -72,6 +72,9 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: { deep?: boolean } 
   if (!add('cbin', hasCbinMagic(bytes) && fileTypeTag(bytes) === 'npno', 'CBIN magic and the `npno` type tag')) return done();
   const cnsp = findCnsp(bytes);
   if (!add('cnsp-tag', cnsp === 0x2c || cnsp === 0x18, `CNSP tag at 0x2C (v6 envelope) or 0x18 (v5); found ${cnsp < 0 ? 'none' : `0x${cnsp.toString(16)}`}`)) return done();
+  // The header's format byte names the envelope (and so the checksum) the CNSP position implies;
+  // `readNsp` and the backup check call a file whose two disagree damaged, and so does this.
+  add('cbin-format', nspChecksumKind(bytes) !== undefined, `CBIN format byte ${bytes[4]} matches the CNSP position (1 → 0x2C, 0 → 0x18)`);
   const v6 = cnsp === 0x2c;
   if (v6) {
     add('cbin-crc32', verifyNs4Checksum(bytes), 'CRC-32 of bytes[0x2C:] at 0x18 (v6 envelope)');

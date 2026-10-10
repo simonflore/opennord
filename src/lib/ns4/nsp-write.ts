@@ -141,6 +141,15 @@ const MIN_LOOP_FRAMES = 4;
 /** The record stores a stroke's block count as a u16 (+0x0A). */
 const MAX_BLOCKS = 0xffff;
 
+/**
+ * Blocks a stroke needs even at 1 bit per sample: its blocks must reach the loop end (+1)
+ * when it loops, its last frame otherwise. More than {@link MAX_BLOCKS} can't be stored.
+ */
+function fewestBlocks(frames: number, loop: { start: number; length: number } | undefined, channels: 1 | 2): number {
+  const target = loop && loop.length > 0 ? loop.start + loop.length + 1 : frames;
+  return Math.ceil(target / framesPerBlock(BLOCK_WORDS_PER_CHANNEL * channels, 1, channels));
+}
+
 /** Why a stroke is too long for the record's u16 block count. */
 const tooManyBlocks = (blocks: number) =>
   `the recording is too long for one note (it needs ${blocks} blocks; a note holds at most ${MAX_BLOCKS}) — trim it or loop it sooner`;
@@ -195,8 +204,8 @@ export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedSt
   const target = loop ? loopEnd + 1 : pcmLen;
   const maxOwn = framesPerBlock(blockWords, 1, channels);
   // Even 1-bit blocks couldn't hold it: refuse before allocating the work arrays.
-  const fewestBlocks = Math.ceil(target / maxOwn);
-  if (fewestBlocks > MAX_BLOCKS) throw new NpnoStrokeError(tooManyBlocks(fewestBlocks));
+  const least = fewestBlocks(pcmLen, loop, channels);
+  if (least > MAX_BLOCKS) throw new NpnoStrokeError(tooManyBlocks(least));
   const extLen = target + maxOwn + BLOCK_OVERLAP + 1;
 
   // Signal per channel: 4 preroll frames, then the PCM, then loop continuation / silence.
@@ -616,6 +625,9 @@ function validateZones(input: NpnoInput): void {
       if (l.loop && l.loop.length === 0) throw new Error(`Zone ${i} layer ${k}: a loop needs at least ${MIN_LOOP_FRAMES} frames; leave the loop out for none.`);
       const bad = channelProblem(l.pcm) ?? (l.loop ? loopProblem(l.loop, l.pcm[0].length) : undefined);
       if (bad) throw new Error(`Zone ${i} layer ${k}: ${bad}.`);
+      // Here, before buildNpno scans and copies every layer (a 2 GB copy for this one).
+      const least = fewestBlocks(l.pcm[0].length, l.loop, input.channels);
+      if (least > MAX_BLOCKS) throw new Error(`Zone ${i} layer ${k}: ${tooManyBlocks(least)}.`);
     });
   });
   const notes = input.zones.reduce((n, z) => n + z.layers.length, 0);
