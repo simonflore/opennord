@@ -36,6 +36,10 @@ piano_library_*
 /_CodeSignature/
 .superpowers/
 
+# Hardware test kit output: the generated test pianos, previews,
+# MIDI files and YOUR RECORDINGS of your own instrument. Local only — never committed.
+hardware-test/
+
 # Sourced per-model RE corpus — local only, never committed (see fixtures/README.md).
 # Real Nord files for reverse-engineering; factory content stays put (docs/LEGAL.md).
 fixtures/*
