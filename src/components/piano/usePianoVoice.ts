@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { playPcm } from '@/components/sample/audioPlayer';
 import { NSP_SAMPLE_RATE, decodeNspStroke, readNspDirectory, strokeFor } from '@/lib/ns4/nsp-audio';
-
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+import { getErrorMessage } from '@/lib/errors';
 
 /**
  * One voice for auditioning a piano on this machine: decodes the one recording a tap
@@ -34,7 +33,7 @@ export function usePianoVoice(bytes: Uint8Array | null) {
       stopRef.current = playPcm(pcm, () => { stopRef.current = null; setPlaying((p) => (p === key ? null : p)); }, rate);
       setPlaying(key);
     } catch (e) {
-      setError(`Couldn't play this note: ${msg(e)}`);
+      setError(`Couldn't play this note: ${getErrorMessage(e)}`);
     }
   }
 

@@ -203,15 +203,10 @@ export async function checkBackup(file: Blob, opts: BackupCheckOptions = {}): Pr
     if (opts.signal?.aborted) { report.cancelled = true; break; }
     const name = nameOf(entry.path);
     opts.onProgress?.({ doneBytes, totalBytes, current: name });
-    report.counts[kind].total++;
     let problem: string | null;
     let notes = 0;
-    let bytes: Uint8Array | null = null;
-    try {
-      bytes = await extractZipEntry(file, entry);
-    } catch {
-      // the entry can't even be read out of the archive — reported as archive damage below
-    }
+    // An entry that can't even be read out of the archive is reported as archive damage below.
+    const bytes = await extractZipEntry(file, entry).catch(() => null);
     try {
       if (!bytes || (entry.crc32 !== undefined && crc32(bytes) !== entry.crc32)) {
         problem = MSG.archive;
@@ -230,7 +225,8 @@ export async function checkBackup(file: Blob, opts: BackupCheckOptions = {}): Pr
     } catch {
       problem = MSG.unreadable; // a reader gave up on the content — intact archive, unreadable file
     }
-    if (opts.signal?.aborted) { report.counts[kind].total--; report.cancelled = true; break; }
+    if (opts.signal?.aborted) { report.cancelled = true; break; }
+    report.counts[kind].total++;
     report.pianoNotesChecked += notes;
     if (problem) report.problems.push({ path: entry.path, name, kind, message: problem });
     else report.counts[kind].ok++;

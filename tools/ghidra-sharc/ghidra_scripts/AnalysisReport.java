@@ -14,8 +14,7 @@ public class AnalysisReport extends GhidraScript {
       Address a=b.getAddress(); n++;
       StringBuilder hx=new StringBuilder();
       for (int i=0;i<6;i++) { try { hx.append(String.format("%02x",currentProgram.getMemory().getByte(a.add(i))&0xff)); } catch(Exception e){} }
-      String head=hx.length()>=4?hx.substring(0,4):hx.toString();
-      byHead.merge(head.substring(0,2),1,Integer::sum);
+      byHead.merge(hx.substring(0,Math.min(2,hx.length())),1,Integer::sum);
       if (n<=40) println("[rep] bad "+a+" "+hx+" "+b.getComment());
     }
     println("[rep] error bookmarks="+n+" by first byte="+byHead);
