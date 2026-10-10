@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { computeNs4Checksum, verifyNs4Checksum, patchNs4Checksum } from './checksum';
+import { computeNs4Checksum, crc32, verifyNs4Checksum, patchNs4Checksum, storedNs4Checksum } from './checksum';
 
 function loadFixture(filename: string): Uint8Array {
   return new Uint8Array(
@@ -67,5 +67,19 @@ describe('patchNs4Checksum', () => {
     const stored =
       patched[24] | (patched[25] << 8) | (patched[26] << 16) | (patched[27] << 24);
     expect(stored >>> 0).toBe(0xa53f3c54);
+  });
+});
+
+describe('crc32 in slices', () => {
+  it('continues a running CRC like zlib.crc32(data, value)', () => {
+    const bytes = loadFixture('regressionTest.ns4p');
+    let crc = 0;
+    for (let at = 0; at < bytes.length; at += 100) crc = crc32(bytes.subarray(at, at + 100), crc);
+    expect(crc).toBe(crc32(bytes));
+    expect(crc32(new TextEncoder().encode('123456789'))).toBe(0xcbf43926);
+  });
+
+  it('reads the stored value', () => {
+    expect(storedNs4Checksum(loadFixture('BreakFreeSolo.ns4p'))).toBe(0xa53f3c54);
   });
 });
