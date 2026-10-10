@@ -180,6 +180,13 @@ ARM loader come from `0xC00B84CC` (header) and `0xC00AB028`/`0xC0020088` (record
 Nobody has run this yet. Please report what happens (an issue with the OS version, the file and
 what the display showed).
 
+The hardware test kit builds the files for steps 2 and 5 and a way to measure the results:
+`npm run hw:test-piano` writes four tiny synthetic test pianos (one zone without and with a loop,
+two touch layers, two zones), each passing `checkNpnoAcceptance(bytes, { deep: true })`, and
+`npm run hw:compare` measures a recording of what the Nord plays. The whole session, with the
+expected pitches and what to write down, is group B of
+[`HARDWARE-TEST-PLAN.md`](HARDWARE-TEST-PLAN.md#b-loading-a-written-piano-25-min).
+
 1. **Back up first.** Make a full backup with Nord Sound Manager (or OpenNord's backup). Note the
    OS version (the recipe was written against OS 1.66). OpenNord's backup skips pianos (they are
    library content), so make sure you can download again any factory piano you might delete to
