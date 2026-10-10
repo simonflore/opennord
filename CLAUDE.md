@@ -134,6 +134,13 @@ the bar). When extending the decoder, validate against the fixture.
 - OpenNord shares **user-created programs only, never Nord's sample/library
   content.** Programs reference factory samples by id (`Ns4SampleRef.id`); they
   never embed audio. Keep it that way in any sharing/library feature.
+- **Firmware / binary research: knowledge yes, copies no** (`docs/LEGAL.md`,
+  "Firmware, DSP and desktop-binary research"). Structures, algorithms, signal
+  flow, parameter ranges and small factual constants learned from the firmware
+  or NSM may be documented and re-implemented in OpenNord's own engines (organ,
+  rotary, synth, effects, piano). Never commit firmware/binaries, raw
+  decompiler output, Nord audio, or bulk tables/wave data dumped from the
+  image — those are extracted on the user's device at runtime if needed.
 - Not affiliated with Clavia DMI AB / Nord Keyboards. "Nord" is used only to
   describe compatibility.
 - License is **AGPL-3.0-or-later**; ported code (ns4decode, MIT) is credited in
