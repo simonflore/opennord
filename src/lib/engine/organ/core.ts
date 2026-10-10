@@ -190,6 +190,8 @@ export class OrganCore {
   private downCount = 0;
   private clickEnv = 0; private clickDecay: number; private lastNoise = 0;
   private chiffEnv = 0; private chiffDecay: number; private chiffLp = 0;
+  /** Mix gains derived from the params in {@link setParams}: manual bus, percussion bus, output volume. */
+  private manualGain = 1; private percLevel = 0; private vol = 0;
   /** Output fade (1 = open) and its per-sample step once {@link fadeOut} is called. */
   private fade = 1; private fadeStep = 0;
   /** Leveller gain, its target, the per-sample step while it falls, and its rise coefficient. */
@@ -228,6 +230,12 @@ export class OrganCore {
     this.percDrain = decay.drain / this.sampleRate;
     this.percRecharge = Math.exp(-1 / (PERC_RECHARGE_TAU * this.sampleRate));
     this.scanner.set(p.vibrato.on, p.vibrato.type, this.voicing.vibRateHz, this.voicing.vibShape);
+    const percOn = this.voicing.percussion && p.percussion.on;
+    this.manualGain = percOn && !p.percussion.volSoft ? PERC_NORMAL_MANUAL_DROP : 1;
+    this.percLevel = percOn
+      ? (p.percussion.volSoft ? PERC_LEVEL_SOFT : PERC_LEVEL_NORMAL) * (p.percussion.decayFast ? 1 : PERC_LEVEL_SLOW)
+      : 0;
+    this.vol = (p.volumeDb > VOLUME_OFF_DB ? 10 ** (p.volumeDb / 20) : 0) * this.voicing.level;
     this.dirty = true;
   }
 
@@ -364,14 +372,7 @@ export class OrganCore {
     }
     this.active.length = w;
 
-    const p = this.params;
-    const v = this.voicing;
-    const percOn = v.percussion && p.percussion.on;
-    const manualGain = percOn && !p.percussion.volSoft ? PERC_NORMAL_MANUAL_DROP : 1;
-    const percLevel = percOn
-      ? (p.percussion.volSoft ? PERC_LEVEL_SOFT : PERC_LEVEL_NORMAL) * (p.percussion.decayFast ? 1 : PERC_LEVEL_SLOW)
-      : 0;
-    const vol = (p.volumeDb > VOLUME_OFF_DB ? 10 ** (p.volumeDb / 20) : 0) * v.level;
+    const { manualGain, percLevel, vol } = this;
     // Keys only change between spans, so the drain/recharge choice holds for the span.
     const draining = this.downCount > 0;
     const decay = this.percDecay, drain = this.percDrain, recharge = this.percRecharge;
@@ -437,22 +438,15 @@ export class OrganCore {
    * (LEVEL_RELEASE_MS).
    */
   private updateLeveller(): void {
-    const p = this.params;
-    const v = this.voicing;
-    const percOn = v.percussion && p.percussion.on;
-    const manualGain = percOn && !p.percussion.volSoft ? PERC_NORMAL_MANUAL_DROP : 1;
-    const percLevel = percOn
-      ? (p.percussion.volSoft ? PERC_LEVEL_SOFT : PERC_LEVEL_NORMAL) * (p.percussion.decayFast ? 1 : PERC_LEVEL_SLOW)
-      : 0;
     let manual = 0, perc = 0;
     for (const g of this.active) {
       manual += g.gain > g.target ? g.gain : g.target;
       perc += g.pgain > g.ptarget ? g.pgain : g.ptarget;
     }
-    const drive = manual * manualGain + perc * percLevel * this.percCharge * this.percCharge;
+    const drive = manual * this.manualGain + perc * this.percLevel * this.percCharge * this.percCharge;
     const target = LEVEL_MAKEUP / (drive > LEVEL_KNEE ? (drive / LEVEL_KNEE) ** LEVEL_SLOPE : 1);
     if (target < this.lvl) {
-      const att = Math.max(1, (v.attackMs * this.sampleRate) / 4000);
+      const att = Math.max(1, (this.voicing.attackMs * this.sampleRate) / 4000);
       this.lvlStep = (this.lvl - target) / att;
     }
     this.lvlTarget = target;

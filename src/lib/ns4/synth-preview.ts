@@ -29,8 +29,6 @@
 import type { NS4Layer } from './types';
 import { ENV_DISPLAY_DROP, keyTrackFactor, oscTuneSemitones, resonanceDamping } from './synth-scaling';
 
-export { ENV_DISPLAY_DROP };
-
 export type PreviewWave = 'sine' | 'triangle' | 'saw' | 'square' | 'pulse33' | 'pulse10' | 'noise';
 export type PreviewFilterType = 'LP12' | 'LP24' | 'LPM' | 'LPHP' | 'BP' | 'HP';
 
