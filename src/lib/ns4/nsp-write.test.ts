@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { decodeNspStroke, findCnsp, readNspDirectory, strokeFor } from './nsp-audio';
 import { NSP_ROOT_OFFSET, readNsp, readNspIdentity } from './nsp';
-import { checkNpnoAcceptance } from './nsp-check';
+import { checkNpnoAcceptance, voiceTableEntries, type NpnoModel } from './nsp-check';
 import { tone } from './nsp-synth.testing';
 import {
   blockLevel, buildNpno, defaultDecayCoefficient, encodeNpnoStroke, NPNO_HEADER_SIZE, NPNO_PEAK,
@@ -146,15 +146,34 @@ describe('buildNpno', () => {
     expect(() => buildNpno({ ...p, channels: 3 as 1 })).toThrow(/mono \(1 channel\) or stereo/);
   });
 
-  it('refuses more recordings than the instrument has room for', () => {
+  it('refuses more recordings than a Nord loads in one piano', () => {
     const p = piano(1);
     const layer = p.zones[0].layers[0];
-    // 97 one-key zones × 254 layers (0, 0.2, 0.4 … dB) = 24,638 recordings > 0x6000.
-    const zones = Array.from({ length: 97 }, (_, z) => ({
+    // 96 one-key zones × 55 layers (0, 0.2, 0.4 … dB) = 5,280 recordings, one over 0x149F.
+    const zones = Array.from({ length: 96 }, (_, z) => ({
       rootNote: 20 + z, lowNote: 20 + z, highNote: 20 + z,
-      layers: Array.from({ length: 254 }, (_, k) => ({ ...layer, floorDb: k / 5 })),
+      layers: Array.from({ length: 55 }, (_, k) => ({ ...layer, floorDb: k / 5 })),
     }));
-    expect(() => buildNpno({ ...p, zones })).toThrow(/24638 recordings are more than a Nord can hold \(24576/);
+    expect(() => buildNpno({ ...p, zones })).toThrow(/This piano has more notes than a Nord can load \(5,280 recordings; 5,279 at most\)/);
+  });
+
+  it('refuses more than 30 layers in a zone, and builds 30', () => {
+    const p = piano(1);
+    const short = Int32Array.from(tone(2000, 0.01, 3000, 9));
+    const zone = (n: number) => ({ ...p.zones[0], layers: Array.from({ length: n }, (_, k) => ({ pcm: [short], floorDb: k })) });
+    expect(() => buildNpno({ ...p, zones: [zone(31), p.zones[1]] })).toThrow(/Zone 0 has 31 layers; a Nord has room for 30 per key zone/);
+    const { bytes } = buildNpno({ ...p, zones: [zone(30), p.zones[1]] });
+    expect(checkNpnoAcceptance(bytes).checks.filter((c) => !c.ok)).toEqual([]);
+  });
+
+  it('refuses a name whose file name is longer than a Nord takes', () => {
+    const p = piano(1);
+    // "A_Very_Long_Piano_Name_Here_6.1.npno" is 36 characters; the name may have 23.
+    expect(() => buildNpno({ ...p, name: 'A Very Long Piano Name Here', variant: undefined }))
+      .toThrow(/The name "A Very Long Piano Name Here" is too long for a Nord: keep it to 23 characters/);
+    const ok = buildNpno({ ...p, name: 'Twenty Three Characters' });
+    expect(ok.fileName).toBe('Twenty_Three_Characters_6.1.npno');
+    expect(ok.fileName).toHaveLength(32);
   });
 
   it('refuses a recording too long for the u16 block count, naming the zone and layer, before allocating', () => {
@@ -280,6 +299,54 @@ describe('checkNpnoAcceptance', () => {
     bytes[4] = 0; // a v5 format byte on a v6 envelope: outside the CRC-32, so only this catches it
     expect(failedIds(bytes)).toEqual(['cbin-format']);
     expect(readNsp(bytes).checksumValid).toBe(false);
+  });
+
+  /** A built piano's header followed by `count` empty records (zero blocks each). */
+  const withStrokes = (count: number) => {
+    const built = buildNpno(piano(1)).bytes;
+    const big = new Uint8Array(0x2c + NPNO_HEADER_SIZE + count * NPNO_RECORD_SIZE);
+    big.set(built.subarray(0, 0x2c + NPNO_HEADER_SIZE));
+    new DataView(big.buffer).setUint16(0x2c + 0x620, count);
+    return big;
+  };
+
+  it('fails a piano with more than 5,279 notes on every model ("Piano is too big")', () => {
+    expect(failedIds(withStrokes(0x149f))).not.toContain('piano-size');
+    const over = checkNpnoAcceptance(withStrokes(0x14a0)).checks.find((c) => c.id === 'piano-size')!;
+    expect(over.ok).toBe(false);
+    expect(over.detail).toMatch(/This piano has more notes than a Nord can load \(5,280; 5,279 at most\)/);
+    expect(failedIds(withStrokes(0x14a0))).not.toContain('voice-table');
+  });
+
+  it('holds the voice table to the model: 0x4000 entries on the Stage 2, 0x6000 on the Stage 3 and 4', () => {
+    const bytes = withStrokes(0x4001);
+    const failed = (model?: NpnoModel) => checkNpnoAcceptance(bytes, { model }).checks.filter((c) => !c.ok).map((c) => c.id);
+    expect(failed('stage-2')).toContain('voice-table');
+    expect(failed('stage-3')).not.toContain('voice-table');
+    expect(failed('stage-4')).not.toContain('voice-table');
+    expect(failed()).not.toContain('voice-table');
+    expect(voiceTableEntries('stage-2')).toBe(0x4000);
+    expect(voiceTableEntries()).toBe(0x6000);
+  });
+
+  it('fails a zone with more than 30 layers of one kind', () => {
+    const img = readNpnoImage(buildNpno(piano(1)).bytes);
+    const short = Int32Array.from(tone(2000, 0.01, 3000, 9));
+    const first = img.strokes[0];
+    const extra = Array.from({ length: 30 }, () => ({ ...first, pcm: [short], levels: undefined, record: first.record.slice() }));
+    img.strokes.splice(1, 0, ...extra); // zone 0: 32 layers
+    expect(failedIds(writeNpnoImage(img).bytes)).toEqual(['layers-per-zone']);
+    // Key-release sounds have their own 30 slots: 16 layers + 16 release sounds fit.
+    img.strokes.slice(0, 16).forEach((s) => { s.record = s.record.slice(); s.record[0x04] = 2; });
+    expect(failedIds(writeNpnoImage(img).bytes)).toEqual([]);
+  });
+
+  it('checks the stored name against the 32 characters a Nord takes', () => {
+    const bytes = buildNpno(piano(1)).bytes;
+    const check = (fileName: string) => checkNpnoAcceptance(bytes, { fileName }).checks.find((c) => c.id === 'name-length');
+    expect(check(`${'x'.repeat(27)}.npno`)?.ok).toBe(true);
+    expect(check(`${'x'.repeat(28)}.npno`)).toMatchObject({ ok: false, detail: expect.stringMatching(/too long for a Nord \(33 characters, 32 at most\)/) });
+    expect(checkNpnoAcceptance(bytes).checks.some((c) => c.id === 'name-length')).toBe(false);
   });
 
   it("fails a piano with more notes than the instrument's voice table holds", () => {
