@@ -1,13 +1,8 @@
 /**
- * Curated per-model decode progress — the checked-in "state" you maintain as you
- * process contribution bundles. No backend: localize a control to its bytes,
- * add an entry here, and the coverage map (contribute landing + compatibility
- * matrix) updates.
- *
- * Workflow: open a contribution JSON, decide which body bytes a labeled change
- * occupies (the bundle already gives candidate `ranges` per entry), then add a
- * `MappedControl`. `bodyBytes` is the model's body size — read it from any export
- * (file length − 44-byte CBIN header) the first time you touch a model.
+ * Curated per-model decode progress, maintained by hand as fields are mapped (from
+ * firmware, NSM or real files). The compatibility matrix renders it: add a
+ * `MappedControl` when a field's bytes are known. `bodyBytes` is the model's body
+ * size (file length − 44-byte CBIN header).
  *
  * Stage 4 is NOT listed here — it's fully decoded from the offset map already.
  */
