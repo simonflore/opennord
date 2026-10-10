@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { decodeNspStroke, findCnsp, readNspDirectory, strokeFor } from './nsp-audio';
-import { readNsp, readNspIdentity } from './nsp';
+import { NSP_ROOT_OFFSET, readNsp, readNspIdentity } from './nsp';
 import { checkNpnoAcceptance } from './nsp-check';
 import { tone } from './nsp-synth.testing';
 import {
@@ -10,6 +10,7 @@ import {
   NPNO_RECORD_SIZE, readNpnoImage, writeNpnoImage, type NpnoInput,
 } from './nsp-write';
 import { identifyNsmp } from '../clavia/sample-identify';
+import { auditionKeys } from '@/components/piano/auditionKeys';
 
 const toneI = (frames: number, f: number, amp: number, seed: number) => Int32Array.from(tone(frames, f, amp, seed));
 
@@ -44,9 +45,10 @@ describe('buildNpno', () => {
       expect(f.hasChecksum).toBe(true);
       expect(f.checksumValid).toBe(true);
       expect(f.version).toBe('6.10');
+      // The key map stores each recorded note 4 semitones lower (NSP_ROOT_OFFSET).
       expect(f.zones).toEqual([
-        { rootNote: 48, lowNote: 21, highNote: 59 },
-        { rootNote: 72, lowNote: 60, highNote: 108 },
+        { rootNote: 44, lowNote: 21, highNote: 59 },
+        { rootNote: 68, lowNote: 60, highNote: 108 },
       ]);
       expect(readNspIdentity(bytes)).toMatchObject({ name: 'Test Upright', variant: 'Home' });
       expect(identifyNsmp(bytes)).toMatchObject({ recognized: true, pianoLibrary: true });
@@ -96,16 +98,18 @@ describe('buildNpno', () => {
     const rec = (i: number) => bytes.subarray(base + NPNO_HEADER_SIZE + i * NPNO_RECORD_SIZE);
     const u16 = (b: Uint8Array, o: number) => (b[o] << 8) | b[o + 1];
     const u32 = (b: Uint8Array, o: number) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
-    // layers-per-root table
-    expect(u16(bytes, base + 0x622 + 48 * 2)).toBe(2);
-    expect(u16(bytes, base + 0x622 + 72 * 2)).toBe(2);
+    // layers-per-root table, at the stored roots (recorded note − 4)
+    expect(u16(bytes, base + 0x622 + 44 * 2)).toBe(2);
+    expect(u16(bytes, base + 0x622 + 68 * 2)).toBe(2);
+    expect(u16(bytes, base + 0x622 + 48 * 2)).toBe(0);
+    expect(u16(bytes, base + 0x622 + 72 * 2)).toBe(0);
     const r3 = rec(3);
     expect(r3[0x05]).toBe(80);
     expect(r3[0x33]).toBe(80);
     expect(r3[0x74]).toBe(80 - 40); // midway from the louder layer's floor (0)
     expect(rec(1)[0x74]).toBe(64 - 32);
     expect(rec(0)[0x74]).toBe(0);
-    expect(u32(r3, 0x2e)).toBe(defaultDecayCoefficient(72));
+    expect(u32(r3, 0x2e)).toBe(defaultDecayCoefficient(68));
     for (let k = 0; k < 13; k++) expect(u32(r3, 0x36 + k * 4)).toBe(0x800000);
     // loop-start block: it contains the loop start, and the next block starts after it
     const lbFirst = u32(r3, 0x24); const lbNext = u32(r3, 0x28);
@@ -120,6 +124,52 @@ describe('buildNpno', () => {
     expect(() => buildNpno({ ...p, zones: [p.zones[0], { ...p.zones[1], lowNote: 50 }] })).toThrow(/Key 50/);
     expect(() => buildNpno({ ...p, zones: [{ ...p.zones[0], layers: [{ ...p.zones[0].layers[1] }] }] })).toThrow(/loudest/);
     expect(() => buildNpno({ ...p, name: 'Bad#Name' })).toThrow(/ASCII/);
+  });
+
+  it('plays a zone recorded at C4 at its recorded pitch', () => {
+    const p = piano(1);
+    const zones = [p.zones[0], { ...p.zones[1], rootNote: 60 }]; // recorded at C3 and C4
+    const { bytes } = buildNpno({ ...p, zones });
+    const f = readNsp(bytes);
+    expect(f.zones!.map((z) => z.rootNote)).toEqual([48 - NSP_ROOT_OFFSET, 60 - NSP_ROOT_OFFSET]);
+    const keys = auditionKeys(f.zones!, readNspDirectory(bytes)!.strokes.at(-1)!.zone + 1);
+    expect(keys.find((k) => k.label === 'C4')).toMatchObject({ zone: 1, semitones: 0 });
+    expect(keys.find((k) => k.label === 'C3')).toMatchObject({ zone: 0, semitones: 0 });
+    expect(keys.find((k) => k.label === 'C5')).toMatchObject({ zone: 1, semitones: 12 });
+  });
+
+  it('rejects recorded notes the key map cannot store', () => {
+    const p = piano(1);
+    const at = (rootNote: number) => buildNpno({ ...p, zones: [{ ...p.zones[0], rootNote }, p.zones[1]] });
+    expect(() => at(NSP_ROOT_OFFSET)).toThrow(/recorded note must be a MIDI note from 5 to 127/);
+    expect(() => at(128)).toThrow(/recorded note/);
+    expect(() => at(47.5)).toThrow(/recorded note/);
+    expect(() => at(NSP_ROOT_OFFSET + 1)).not.toThrow();
+  });
+
+  it('rejects loops that are fractional, too short, negative or past the end', () => {
+    const p = piano(1);
+    const withLoop = (loop: { start: number; length: number }) => {
+      const z = p.zones[1];
+      return buildNpno({ ...p, zones: [p.zones[0], { ...z, layers: [z.layers[0], { ...z.layers[1], loop }] }] });
+    };
+    expect(() => withLoop({ start: 5424.3, length: 9000 })).toThrow(/Zone 1 layer 1: the loop must start and end on whole frames/);
+    expect(() => withLoop({ start: 12000, length: 9000.5 })).toThrow(/whole frames/);
+    expect(() => withLoop({ start: 12000, length: 2 })).toThrow(/at least 4 frames/);
+    expect(() => withLoop({ start: 12000, length: 0 })).toThrow(/at least 4 frames/);
+    expect(() => withLoop({ start: 12000, length: -5 })).toThrow(/at least 4 frames/);
+    expect(() => withLoop({ start: -1, length: 9000 })).toThrow(/before the sound/);
+    expect(() => withLoop({ start: 25000, length: 5001 })).toThrow(/past the end of the recording \(30000 frames\)/);
+    expect(() => withLoop({ start: 25000, length: 5000 })).not.toThrow();
+    expect(() => withLoop({ start: 12000, length: 4 })).not.toThrow();
+  });
+
+  it('rejects a layer whose channels have different lengths', () => {
+    const p = piano(2);
+    const z = p.zones[0];
+    const short = [z.layers[0].pcm[0], Array.from(z.layers[0].pcm[1]).slice(0, 1000)];
+    expect(() => buildNpno({ ...p, zones: [{ ...z, layers: [{ ...z.layers[0], pcm: short }] }, p.zones[1]] }))
+      .toThrow(/Zone 0 layer 0: the channels have different lengths \(24000 \/ 1000 frames\)/);
   });
 });
 
@@ -145,6 +195,15 @@ describe('writeNpnoImage / readNpnoImage', () => {
     expect(acc.nsmVersion).toBe(530);
   });
 
+  it('refuses an image stroke with a fractional loop or uneven channels, naming the stroke', () => {
+    const img = readNpnoImage(buildNpno(piano(2)).bytes);
+    img.strokes[3].loop = { start: 12000.5, length: 9000 };
+    expect(() => writeNpnoImage(img)).toThrow(/Stroke 3: the loop must start and end on whole frames/);
+    img.strokes[3].loop = { start: 12000, length: 9000 };
+    img.strokes[1].pcm = [img.strokes[1].pcm[0], Array.from(img.strokes[1].pcm[1]).slice(1)];
+    expect(() => writeNpnoImage(img)).toThrow(/Stroke 1: the channels have different lengths/);
+  });
+
   it('flags a corrupted byte through the CNSP byte sum and the CRC', () => {
     const { bytes } = buildNpno(piano(1));
     bytes[bytes.length - 100] ^= 1;
@@ -166,6 +225,17 @@ describe('encodeNpnoStroke', () => {
     expect(blockLevel(6182)).toBe(2);
     expect(blockLevel(1)).toBe(78);
     expect(blockLevel(0)).toBe(100);
+  });
+
+  it('refuses loops it cannot seam and channels of different lengths', () => {
+    const stroke = (loop: { start: number; length: number }, pcm = [new Int32Array(20000)]) =>
+      encodeNpnoStroke({ rootNote: 60, pcm, preroll: [[0, 0, 0, 0]], loop, record: new Uint8Array(NPNO_RECORD_SIZE) }, pcm.length as 1 | 2);
+    expect(() => stroke({ start: 5424.3, length: 1000 })).toThrow(/whole frames/);
+    expect(() => stroke({ start: 5000, length: 3 })).toThrow(/at least 4 frames/);
+    expect(() => stroke({ start: 5000, length: -5 })).toThrow(/at least 4 frames/);
+    expect(() => stroke({ start: 19000, length: 1001 })).toThrow(/past the end/);
+    expect(() => stroke({ start: 0, length: 0 })).not.toThrow(); // 0 = no loop
+    expect(() => stroke({ start: 0, length: 0 }, [new Int32Array(20000), new Int32Array(19999)])).toThrow(/different lengths/);
   });
 
   it('refuses samples outside int16', () => {
