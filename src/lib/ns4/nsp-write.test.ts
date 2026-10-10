@@ -126,6 +126,46 @@ describe('buildNpno', () => {
     expect(() => buildNpno({ ...p, name: 'Bad#Name' })).toThrow(/ASCII/);
   });
 
+  it('rejects zones whose recorded notes fall as their keys rise', () => {
+    const p = piano(1);
+    // Keys 21–59 recorded at C5 and 60–108 at C3: the notes (stored by root) and the key map
+    // (stored by key) would disagree, and a key would play the other zone's recording.
+    const swapped = [{ ...p.zones[0], rootNote: 72 }, { ...p.zones[1], rootNote: 48 }];
+    expect(() => buildNpno({ ...p, zones: swapped })).toThrow(/Zones 0 and 1: the higher keys \(60–108\) need the higher recorded note/);
+    // The same zones given in any order are fine as long as roots rise with the keys.
+    expect(() => buildNpno({ ...p, zones: [p.zones[1], p.zones[0]] })).not.toThrow();
+  });
+
+  it('rejects a version, piano type or key range the file cannot hold', () => {
+    const p = piano(1);
+    for (const minor of [10, -1, 1.5]) expect(() => buildNpno({ ...p, minor })).toThrow(/version must be 6\.0 to 6\.9/);
+    for (const pianoType of [0, 7, 2.5]) expect(() => buildNpno({ ...p, pianoType })).toThrow(/Unknown piano type/);
+    expect(() => buildNpno({ ...p, minor: 9, pianoType: 6 })).not.toThrow();
+    expect(() => buildNpno({ ...p, zones: [{ ...p.zones[0], highNote: 59.5 }, p.zones[1]] })).toThrow(/Zone 0: key range 21–59\.5 is invalid/);
+    expect(() => buildNpno({ ...p, zones: [p.zones[0], { ...p.zones[1], lowNote: 59.5 }] })).toThrow(/Zone 1: key range/);
+    expect(() => buildNpno({ ...p, channels: 3 as 1 })).toThrow(/mono \(1 channel\) or stereo/);
+  });
+
+  it('refuses more recordings than the instrument has room for', () => {
+    const p = piano(1);
+    const layer = p.zones[0].layers[0];
+    // 97 one-key zones × 254 layers (0, 0.2, 0.4 … dB) = 24,638 recordings > 0x6000.
+    const zones = Array.from({ length: 97 }, (_, z) => ({
+      rootNote: 20 + z, lowNote: 20 + z, highNote: 20 + z,
+      layers: Array.from({ length: 254 }, (_, k) => ({ ...layer, floorDb: k / 5 })),
+    }));
+    expect(() => buildNpno({ ...p, zones })).toThrow(/24638 recordings are more than a Nord can hold \(24576/);
+  });
+
+  it('refuses a recording too long for the u16 block count, naming the zone and layer, before allocating', () => {
+    const p = piano(1);
+    // 3.3 hours of mono: more blocks than a record can count even at 1 bit per sample. A fake
+    // channel (length only) proves the check runs before any sample is read or buffer made.
+    const huge = { length: 0xffff * 8096 + 1 } as ArrayLike<number>;
+    const zones = [p.zones[0], { ...p.zones[1], layers: [p.zones[1].layers[0], { pcm: [huge], floorDb: 16 }] }];
+    expect(() => buildNpno({ ...p, zones })).toThrow(/Zone 1 layer 1: the recording is too long for one note \(it needs 65536 blocks; a note holds at most 65535\)/);
+  });
+
   it('plays a zone recorded at C4 at its recorded pitch', () => {
     const p = piano(1);
     const zones = [p.zones[0], { ...p.zones[1], rootNote: 60 }]; // recorded at C3 and C4
@@ -209,6 +249,40 @@ describe('writeNpnoImage / readNpnoImage', () => {
     bytes[bytes.length - 100] ^= 1;
     const failed = checkNpnoAcceptance(bytes).checks.filter((c) => !c.ok).map((c) => c.id);
     expect(failed).toEqual(['cbin-crc32', 'cnsp-checksum']);
+  });
+});
+
+describe('checkNpnoAcceptance', () => {
+  const failedIds = (bytes: Uint8Array) => checkNpnoAcceptance(bytes).checks.filter((c) => !c.ok).map((c) => c.id);
+
+  it('holds the metadata version to the Stage 4 generations too, not just the header version', () => {
+    const img = readNpnoImage(buildNpno(piano(1)).bytes);
+    img.header[0x16] = 0x04; img.header[0x17] = 0x40; // v4 metadata: NSM knows it, the Stage 4 doesn't take it
+    expect(failedIds(writeNpnoImage(img).bytes)).toEqual(['stage4-generation']);
+  });
+
+  it("fails a key map whose zones don't match the notes' roots, or run against them", () => {
+    const img = readNpnoImage(buildNpno(piano(1)).bytes);
+    const keyMap = 0x8c;
+    // Swap the roots: keys 21–59 now name the upper zone's root and 60–108 the lower one's.
+    for (let n = 21; n <= 59; n++) img.header[keyMap + n] = 68;
+    for (let n = 60; n <= 108; n++) img.header[keyMap + n] = 44;
+    expect(failedIds(writeNpnoImage(img).bytes)).toEqual(['key-map']);
+    // A key-map root with no recordings behind it.
+    for (let n = 21; n <= 59; n++) img.header[keyMap + n] = 44;
+    for (let n = 60; n <= 108; n++) img.header[keyMap + n] = 68;
+    img.header[keyMap + 110] = 70;
+    expect(failedIds(writeNpnoImage(img).bytes)).toEqual(['key-map']);
+  });
+
+  it("fails a piano with more notes than the instrument's voice table holds", () => {
+    const built = buildNpno(piano(1)).bytes;
+    const count = 0x6001;
+    const big = new Uint8Array(0x2c + NPNO_HEADER_SIZE + count * NPNO_RECORD_SIZE);
+    big.set(built.subarray(0, 0x2c + NPNO_HEADER_SIZE));
+    new DataView(big.buffer).setUint16(0x2c + 0x620, count); // empty records: zero blocks each
+    expect(failedIds(big)).toContain('voice-table');
+    expect(failedIds(built)).not.toContain('voice-table');
   });
 });
 

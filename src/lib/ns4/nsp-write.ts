@@ -20,12 +20,15 @@
  *    optional sustain loop) that fills an image with documented defaults.
  */
 
-import { crc16ccitt } from '../clavia/crc16';
+import { sealTrailerChecksum } from '../clavia/crc16';
 import { computeNs4Checksum } from '../clavia/checksum';
 import {
   BLOCK_OVERLAP, decodeNspStroke, findCnsp, framesPerBlock, PREDICTORS, readLayerTable, readNspDirectory,
 } from './nsp-audio';
 import { NSP_ROOT_OFFSET } from './nsp';
+import { checkNpnoAcceptance, cnspChecksum, VOICE_TABLE_ENTRIES } from './nsp-check';
+
+export { cnspChecksum };
 
 // ── Container constants (offsets relative to the `CNSP` tag unless noted) ──────────────────
 
@@ -137,6 +140,12 @@ interface EncodedStroke {
 
 /** Loops shorter than this can't take the 4-frame predictor seam (it would overwrite the frames it copies). */
 const MIN_LOOP_FRAMES = 4;
+/** The record stores a stroke's block count as a u16 (+0x0A). */
+const MAX_BLOCKS = 0xffff;
+
+/** Why a stroke is too long for the record's u16 block count. */
+const tooManyBlocks = (blocks: number) =>
+  `the recording is too long for one note (it needs ${blocks} blocks; a note holds at most ${MAX_BLOCKS}) — trim it or loop it sooner`;
 
 /**
  * Why a loop can't be used on a stroke of `frames` frames, or `undefined` if it can. `length` 0
@@ -177,6 +186,8 @@ export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedSt
   // last PCM frame otherwise.
   const target = loop ? loopEnd + 1 : pcmLen;
   const maxOwn = framesPerBlock(blockWords, 1, channels);
+  // Even 1-bit blocks couldn't hold it: refuse before allocating the work arrays.
+  if (Math.ceil(target / maxOwn) > MAX_BLOCKS) throw new Error(`Stroke: ${tooManyBlocks(Math.ceil(target / maxOwn))}.`);
   const extLen = target + maxOwn + BLOCK_OVERLAP + 1;
 
   // Signal per channel: 4 preroll frames, then the PCM, then loop continuation / silence.
@@ -278,6 +289,7 @@ export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedSt
     t += own;
   }
 
+  if (blocks.length > MAX_BLOCKS) throw new Error(`Stroke: ${tooManyBlocks(blocks.length)}.`);
   const keep = s.levels && s.levels.length === blocks.length ? s.levels : undefined;
   const data = new Uint8Array(blocks.length * blockWords * 2);
   blocks.forEach((b, i) => {
@@ -294,14 +306,6 @@ export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedSt
 }
 
 // ── The container writer ────────────────────────────────────────────────────────────────────
-
-/** CNSP checksum: byte sum of everything after the 22-byte CNSP header, over the CNSP stream
- *  (`CNSP` tag … last block; a 32-bit sum NSM checks on load). */
-export function cnspChecksum(stream: Uint8Array): number {
-  let sum = 0;
-  for (let i = 0x16; i < stream.length; i++) sum = (sum + stream[i]) >>> 0;
-  return sum;
-}
 
 /** First block offset: the smallest ≥ `end` on the factory files' block grid. */
 function firstBlockOffset(end: number, channels: 1 | 2): number {
@@ -334,7 +338,12 @@ export function writeNpnoImage(img: NpnoImage): NpnoWriteResult {
 
   const notes: string[] = [];
   const encoded = strokes.map((s, i) => {
-    const e = encodeNpnoStroke(s, channels);
+    let e: EncodedStroke;
+    try {
+      e = encodeNpnoStroke(s, channels);
+    } catch (err) {
+      throw new Error((err as Error).message.replace(/^Stroke:/, `Stroke ${i}:`));
+    }
     if (e.seamForced) notes.push(`stroke ${i}: copied the 4 frames before the loop start over the 4 before the loop end (predictor seam)`);
     return e;
   });
@@ -390,9 +399,7 @@ export function writeNpnoImage(img: NpnoImage): NpnoWriteResult {
     const crc = computeNs4Checksum(out); // CRC-32 over bytes[0x2C:], LE at 0x18
     out[0x18] = crc & 0xff; out[0x19] = (crc >>> 8) & 0xff; out[0x1a] = (crc >>> 16) & 0xff; out[0x1b] = (crc >>> 24) & 0xff;
   } else {
-    const crc = crc16ccitt(out.subarray(0, out.length - 2)); // legacy LE CRC-16 trailer
-    out[out.length - 2] = crc & 0xff;
-    out[out.length - 1] = crc >>> 8;
+    sealTrailerChecksum(out); // legacy LE CRC-16 trailer
   }
   return {
     bytes: out, notes,
@@ -563,13 +570,24 @@ const MIN_RECORDED_NOTE = 1 + NSP_ROOT_OFFSET;
 /** A layer's floor in the record's 0.2 dB steps. */
 const floorUnits = (l: NpnoLayerInput) => Math.round(l.floorDb * 5);
 
-/** Validate the zone layout; throws with a musician-readable message. */
+/** Validate the input; throws with a musician-readable message. */
 function validateZones(input: NpnoInput): void {
   if (!input.zones.length) throw new Error('A piano needs at least one key zone.');
+  if (input.channels !== 1 && input.channels !== 2) throw new Error('A piano is mono (1 channel) or stereo (2).');
+  const minor = input.minor ?? 0;
+  if (!(Number.isInteger(minor) && minor >= 0 && minor <= 9)) {
+    throw new Error(`The version must be 6.0 to 6.9 (minor 0–9, got ${minor}); Nord's piano section takes no other.`);
+  }
+  const type = input.pianoType ?? NPNO_PIANO_TYPE.grand;
+  if (!(Object.values(NPNO_PIANO_TYPE) as number[]).includes(type)) {
+    throw new Error(`Unknown piano type ${type}: use one of ${Object.keys(NPNO_PIANO_TYPE).join(', ')} (NPNO_PIANO_TYPE).`);
+  }
   const owner = new Array<number>(128).fill(-1);
   const roots = new Set<number>();
   input.zones.forEach((z, i) => {
-    if (!(z.lowNote >= 0 && z.highNote <= 127 && z.lowNote <= z.highNote)) throw new Error(`Zone ${i}: key range ${z.lowNote}–${z.highNote} is invalid.`);
+    if (!(Number.isInteger(z.lowNote) && Number.isInteger(z.highNote) && z.lowNote >= 0 && z.highNote <= 127 && z.lowNote <= z.highNote)) {
+      throw new Error(`Zone ${i}: key range ${z.lowNote}–${z.highNote} is invalid (whole MIDI notes 0–127, lowest first).`);
+    }
     if (!(Number.isInteger(z.rootNote) && z.rootNote >= MIN_RECORDED_NOTE && z.rootNote <= 127)) {
       throw new Error(`Zone ${i}: the recorded note must be a MIDI note from ${MIN_RECORDED_NOTE} to 127 (got ${z.rootNote}).`);
     }
@@ -591,6 +609,20 @@ function validateZones(input: NpnoInput): void {
       if (bad) throw new Error(`Zone ${i} layer ${k}: ${bad}.`);
     });
   });
+  const notes = input.zones.reduce((n, z) => n + z.layers.length, 0);
+  if (notes > VOICE_TABLE_ENTRIES) {
+    throw new Error(`${notes} recordings are more than a Nord can hold (${VOICE_TABLE_ENTRIES} across all its pianos).`);
+  }
+  // The instrument stores notes by root (lowest first) and the key map by key; a zone
+  // whose root sits out of order with its keys would play another zone's recording.
+  const byKeys = input.zones.map((z, i) => ({ z, i })).sort((a, b) => a.z.lowNote - b.z.lowNote);
+  for (let n = 1; n < byKeys.length; n++) {
+    const [lo, hi] = [byKeys[n - 1], byKeys[n]];
+    if (hi.z.rootNote < lo.z.rootNote) {
+      throw new Error(`Zones ${lo.i} and ${hi.i}: the higher keys (${hi.z.lowNote}–${hi.z.highNote}) need the higher recorded note, `
+        + `but have ${hi.z.rootNote} against ${lo.z.rootNote}.`);
+    }
+  }
   const display = displayName(input);
   if (!/^[\x20-\x7e]+$/.test(display) || display.length > 31 || input.name.includes('#')) {
     throw new Error('The name (plus variant) must be ≤ 30 plain ASCII characters, without "#".');
@@ -612,11 +644,14 @@ export function buildNpno(input: NpnoInput): NpnoBuildResult {
   validateZones(input);
   const header = defaultHeader(input);
   const normalize = input.normalize ?? true;
-  const zones = [...input.zones].sort((a, b) => a.rootNote - b.rootNote);
+  const zones = input.zones.map((z, i) => ({ z, i })).sort((a, b) => a.z.rootNote - b.z.rootNote);
   const strokes: NpnoStrokeImage[] = [];
-  for (const z of zones) {
+  /** "Zone i layer k" (the caller's numbering) of each stroke, for error messages. */
+  const origin: string[] = [];
+  for (const { z, i } of zones) {
     const root = storedRoot(z);
     z.layers.forEach((l, k) => {
+      origin.push(`Zone ${i} layer ${k}`);
       const end = l.loop?.length ? l.loop.start + l.loop.length : l.pcm[0].length;
       let peak = 0;
       for (const ch of l.pcm) for (let n = 0; n < end; n++) peak = Math.max(peak, Math.abs(ch[n]));
@@ -641,7 +676,18 @@ export function buildNpno(input: NpnoInput): NpnoBuildResult {
     });
   }
   const minor = input.minor ?? 0;
-  const result = writeNpnoImage({ envelope: 'v6', cbinVersion: 600 + 10 * minor, channels: input.channels, header, strokes });
+  let result: NpnoWriteResult;
+  try {
+    result = writeNpnoImage({ envelope: 'v6', cbinVersion: 600 + 10 * minor, channels: input.channels, header, strokes });
+  } catch (e) {
+    throw new Error((e as Error).message.replace(/^Stroke (\d+):/, (_, n: string) => `${origin[Number(n)]}:`));
+  }
+  // Everything above was validated, so a failed check here is OpenNord's bug, not the input's.
+  const failed = checkNpnoAcceptance(result.bytes).checks.filter((c) => !c.ok);
+  if (failed.length) {
+    throw new Error(`OpenNord built this piano, but it wouldn't load on a Nord (failed check: ${failed.map((c) => c.id).join(', ')}). `
+      + 'This is a bug in OpenNord, not in your recordings — please report it.');
+  }
   const safe = input.name.replace(/[^A-Za-z0-9 _-]/g, '').trim().replace(/ +/g, '_') || 'Piano';
   return { ...result, fileName: `${safe}_6.${minor}.npno` };
 }
