@@ -6,6 +6,12 @@
  *; others carry the statically-recovered set (index omitted
  * until a hardware CQryPartList confirms order).
  *
+ * Partition ORDER: the protocol index is the order in which the instrument's own
+ * firmware registers each partition with its file-transfer code — that is what
+ * CQryPartList reports. Where a model's firmware has been read statically (Stage
+ * 4/3/2), that order is the ground truth; NSM's product-constructor `Add()` order
+ * is a weaker proxy and does not always match it (Stage 3 Synth/Song).
+ *
  * `NordModelId` is a superset of clavia/model.ts `ClaviaModel` (which stays the
  * decode-capable subset) — this file never imports concrete codecs.
  */
@@ -21,7 +27,9 @@ export type PartitionKind =
   | 'ffs' | 'piano-native' | 'pedal-native' | 'samplib-native'
   | 'piano' | 'pedal' | 'samplib'
   | 'program' | 'live' | 'synth-preset' | 'organ-preset' | 'piano-preset'
-  | 'setlist' | 'settings';
+  | 'setlist' | 'settings'
+  /** Stage 3 synth-wave ROM flash: NSM-managed content, never written by OpenNord. */
+  | 'swave';
 
 export interface PartitionSpec {
   kind: PartitionKind;
@@ -30,10 +38,12 @@ export interface PartitionSpec {
   fourcc?: string;
   index?: number;   // protocol index — set only when hardware-confirmed
   /**
-   * Protocol index recovered statically from NSM's product constructor (the
-   * partition's ordinal in its `Add()` sequence). Medium-high
-   * confidence — the ordinal==protocol-index equivalence is the documented
-   * assumption, hardware-validated only for Stage 4.
+   * Protocol index known ahead of hardware — from the instrument's own
+   * partition-registration order where that has been read (Stage 3), else from
+   * NSM's partition list (the partition's ordinal in its
+   * `Add()` sequence). Medium-high confidence — the ordinal==protocol-index
+   * equivalence is the documented assumption,
+   * hardware-validated only for Stage 4 (and Stage 2 on OS 3.00).
    * `index` (hardware-confirmed) always takes precedence; a device probe
    * promotes `staticIndex` → `index` once it agrees. Strictly better than the
    * Stage-4 default for non-Stage-4 models whose real index differs.
@@ -84,6 +94,8 @@ export interface ModelInfo {
 
 const P = (kind: PartitionKind, label: string, native: boolean, fourcc?: string, index?: number): PartitionSpec =>
   ({ kind, label, native, fourcc, index });
+/** Attach a statically-recovered protocol index (see `PartitionSpec.staticIndex`). */
+const S = (spec: PartitionSpec, staticIndex: number): PartitionSpec => ({ ...spec, staticIndex });
 
 /** Baseline for models whose full partition order isn't mapped yet — concrete
  *  and refinable as hardware confirms.
@@ -119,21 +131,32 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   'stage-3': {
     id: 'stage-3', name: 'Nord Stage 3', generation: 'NW1-v3', programTag: 'ns3f', sampleCodec: 'codec3', productId: 0x0026,
     os: { min: 250, recommended: 254 },
+    // Firmware registration order (= CQryPartList order), recovered statically
+    // from Stage 3 OS 2.64; 12 partitions, no "E2P FFS" on the
+    // wire. NSM 9.22's Stage 3 partition order agrees on
+    // 0-7 (6 SWave, 7 Program) and 10-11, but its constructor adds Song before
+    // Synth and appends an "E2P FFS" (12); the firmware registers Synth (8)
+    // before Song (9) and reports no 12th. The device's order is what NSM binds
+    // positionally when it lists partitions, so the firmware
+    // order wins. Not hardware-confirmed: every index is `staticIndex` (a connect
+    // probe still checks Program before anything is written).
+    // Library partitions hold npno (1) / npdl (3) / nsmp (5) files; like the
+    // Stage 4 entry they carry no fourcc (library files are mapped by extension).
+    // 6 SWave is synth-wave ROM flash managed by NSM: the firmware likely accepts
+    // writes there, but OpenNord treats it as read-only (`native`).
     partitions: [
-      P('piano-native', 'Piano (factory)', true),
-      P('pedal-native', 'Pedal (factory)', true),
-      P('samplib-native', 'Sample Library (factory)', true),
-      // NSM 9.22 Stage 3 partition order: 0-5 piano/pedal/samplib
-      // (native+user), 6 "SWave" ROMFlash, 7 Program ns3f, 8 Song ns3s, 9 Synth
-      // ns3y, 10 Live ns3l, 11 Settings ns3t, 12 E2P FFS — no conditional Adds.
-      // NSM binds the device's CQryPartList positionally to this order
-      // when it lists partitions, so Program is 7, not 6
-      // (6 is the SWave partition).
-      { ...P('program', 'Programs', false, 'ns3f'), staticIndex: 7 },
-      P('setlist', 'Songs', false, 'ns3s'),
-      P('synth-preset', 'Synth Presets', false, 'ns3y'),
-      P('live', 'Live', false, 'ns3l'),
-      P('settings', 'Settings', false, 'ns3t'),
+      S(P('piano-native', 'Piano (factory)', true), 0),
+      S(P('piano', 'Piano', false), 1),
+      S(P('pedal-native', 'Pedal (factory)', true), 2),
+      S(P('pedal', 'Piano Pedal', false), 3),
+      S(P('samplib-native', 'Sample Library (factory)', true), 4),
+      S(P('samplib', 'Sample Library', false), 5),
+      S(P('swave', 'Synth Waves (factory)', true), 6),
+      S(P('program', 'Programs', false, 'ns3f'), 7),
+      S(P('synth-preset', 'Synth Presets', false, 'ns3y'), 8),
+      S(P('setlist', 'Songs', false, 'ns3s'), 9),
+      S(P('live', 'Live', false, 'ns3l'), 10),
+      S(P('settings', 'Settings', false, 'ns3t'), 11),
     ],
   },
   'stage-2': {
@@ -144,6 +167,10 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // separate Organ/Piano/Synth *Preset* partitions. See the maintainers’ notes.
     // These indices hold for that OS; older Stage 2 OS versions lack the gated
     // user Pedal partition, so `layoutVariesByOs` makes connect probe first.
+    // Fourccs per the partition registration (Stage 2 OS 3.00
+    //, same order as the issue #31 capture): Synth is `ns2s`,
+    // Settings is `ns2y`. OS 3.00 registers the user Pedal unconditionally; the
+    // pedal gate is NSM's rule for older OS (no pre-3.00 image checked).
     id: 'stage-2', name: 'Nord Stage 2', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og', productId: 0x0021,
     os: { min: 100, recommended: 300 }, layoutVariesByOs: true,
     partitions: [
@@ -154,9 +181,9 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('samplib-native', 'Sample Library (factory)', true, undefined, 4),
       P('samplib', 'Sample Library', false, undefined, 5),
       P('program', 'Programs', false, 'ns2p', 6),
-      P('synth-preset', 'Synth', false, 'ns2y', 7),
+      P('synth-preset', 'Synth', false, 'ns2s', 7),
       P('live', 'Live', false, 'ns2l', 8),
-      P('settings', 'Settings', false, undefined, 9),
+      P('settings', 'Settings', false, 'ns2y', 9),
     ],
   },
   'stage-2-ex': {
@@ -175,9 +202,9 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('samplib-native', 'Sample Library (factory)', true, undefined, 4),
       P('samplib', 'Sample Library', false, undefined, 5),
       P('program', 'Programs', false, 'ns2p', 6),
-      P('synth-preset', 'Synth', false, 'ns2y', 7),
+      P('synth-preset', 'Synth', false, 'ns2s', 7),
       P('live', 'Live', false, 'ns2l', 8),
-      P('settings', 'Settings', false, undefined, 9),
+      P('settings', 'Settings', false, 'ns2y', 9),
     ],
   },
   'electro-4': {
