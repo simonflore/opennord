@@ -113,11 +113,17 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('piano-native', 'Piano (factory)', true),
       P('pedal-native', 'Pedal (factory)', true),
       P('samplib-native', 'Sample Library (factory)', true),
-      P('program', 'Programs', false, 'ns3f'),
+      // NSM 9.22 Stage 3 partition order: 0-5 piano/pedal/samplib
+      // (native+user), 6 "SWave" ROMFlash, 7 Program ns3f, 8 Song ns3s, 9 Synth
+      // ns3y, 10 Live ns3l, 11 Settings ns3t, 12 E2P FFS — no conditional Adds.
+      // NSM binds the device's CQryPartList positionally to this order
+      // when it lists partitions, so Program is 7, not 6
+      // (6 is the SWave partition).
+      { ...P('program', 'Programs', false, 'ns3f'), staticIndex: 7 },
+      P('setlist', 'Songs', false, 'ns3s'),
       P('synth-preset', 'Synth Presets', false, 'ns3y'),
       P('live', 'Live', false, 'ns3l'),
-      P('setlist', 'Set Lists', false, 'ns3t'),
-      P('settings', 'Settings', false),
+      P('settings', 'Settings', false, 'ns3t'),
     ],
   },
   'stage-2': {
@@ -168,7 +174,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     partitions: [
       P('piano-native', 'Piano (factory)', true),
       P('samplib-native', 'Sample Library (factory)', true),
-      P('program', 'Programs', false, 'ne4p'),
+      { ...P('program', 'Programs', false, 'ne4p'), staticIndex: 4 }, // NSM 9.22 Add() ordinal
       P('live', 'Live', false, 'ne4l'),
       P('settings', 'Settings', false),
     ],
@@ -180,7 +186,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('piano-native', 'Piano (factory)', true),
       P('pedal-native', 'Pedal (factory)', true),
       P('samplib-native', 'Sample Library (factory)', true),
-      P('program', 'Programs', false, 'ne6p'),
+      { ...P('program', 'Programs', false, 'ne6p'), staticIndex: 6 }, // NSM 9.22 Add() ordinal
       P('live', 'Live', false, 'ne6l'),
       P('setlist', 'Set Lists', false, 'ne6t'),
       P('settings', 'Settings', false),
@@ -193,7 +199,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('piano-native', 'Piano (factory)', true),
       P('pedal-native', 'Piano Pedal (factory)', true),
       P('samplib-native', 'Sample Library (factory)', true),
-      P('program', 'Programs', false, 'np3p'),
+      { ...P('program', 'Programs', false, 'np3p'), staticIndex: 6 }, // NSM 9.22 Add() ordinal
       P('live', 'Live', false, 'np3l'),
       P('settings', 'Settings', false),
     ],
@@ -205,7 +211,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('piano-native', 'Piano (factory)', true),
       P('pedal-native', 'Pedal (factory)', true),
       P('samplib-native', 'Sample Library (factory)', true),
-      P('program', 'Programs', false, 'np6p'),
+      { ...P('program', 'Programs', false, 'np6p'), staticIndex: 6 }, // NSM 9.22 Add() ordinal
       P('live', 'Live', false, 'np6l'),
       P('setlist', 'Set Lists', false, 'np6t'),
       P('settings', 'Settings', false),
@@ -260,7 +266,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   // Tag 'nspg' per the maintainers’ notes; no user sample engine (like Stage Classic).
   'stage-ex': { id: 'stage-ex', name: 'Nord Stage EX', generation: 'OG', programTag: 'nspg', sampleCodec: null, staticProductId: 0x0008, os: { min: 400, recommended: 608 }, partitions: baseline('nspg', false) },
   'electro-3': { id: 'electro-3', name: 'Nord Electro 3', generation: 'OG', programTag: 'nepg', sampleCodec: 'og', staticProductId: 0x0007, os: { min: 100, recommended: 314 }, partitions: baseline('nepg', true) },
-  'electro-3-hp': { id: 'electro-3-hp', name: 'Nord Electro 3 HP', generation: 'OG', programTag: 'nepg', sampleCodec: 'og', staticProductId: 0x000b, os: { min: 100, recommended: 314 }, partitions: baseline('nepg', true) },
+  'electro-3-hp': { id: 'electro-3-hp', name: 'Nord Electro 3 HP', generation: 'OG', programTag: 'nepg', sampleCodec: 'og', staticProductId: 0x000b, os: { min: 100, recommended: 314 }, partitions: baseline('nepg', true, 4) },
   'electro-5': {
     // Electro 5 partition order:
     //   SPartitionNative "Piano (Native)"  →  piano-native (factory)
@@ -290,8 +296,8 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('settings', 'Settings', false, 'ne5s'),
     ],
   },
-  'piano-1': { id: 'piano-1', name: 'Nord Piano', generation: 'OG', programTag: 'nppg', sampleCodec: 'og', staticProductId: 0x0020, os: { min: 100, recommended: 148 }, partitions: baseline('nppg', true) },
-  'piano-2': { id: 'piano-2', name: 'Nord Piano 2', generation: 'OG', programTag: 'np2p', sampleCodec: 'og', staticProductId: 0x0022, os: { min: 100, recommended: 120 }, partitions: baseline('np2p', true) },
+  'piano-1': { id: 'piano-1', name: 'Nord Piano', generation: 'OG', programTag: 'nppg', sampleCodec: 'og', staticProductId: 0x0020, os: { min: 100, recommended: 148 }, partitions: baseline('nppg', true, 3) },
+  'piano-2': { id: 'piano-2', name: 'Nord Piano 2', generation: 'OG', programTag: 'np2p', sampleCodec: 'og', staticProductId: 0x0022, os: { min: 100, recommended: 120 }, partitions: baseline('np2p', true, 6) },
   'piano-4': { id: 'piano-4', name: 'Nord Piano 4', generation: 'NW1-v3', programTag: 'np4p', sampleCodec: 'codec3', staticProductId: 0x002a, os: { min: 250, recommended: 250 }, partitions: baseline('np4p', true, 6) },
   'piano-5': { id: 'piano-5', name: 'Nord Piano 5', generation: 'NW1-v4', programTag: 'np5p', sampleCodec: 'codec4', staticProductId: 0x002d, os: { min: 100, recommended: 100 }, partitions: baseline('np5p', true, 6) },
   'lead-4': {
@@ -312,10 +318,10 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   },
   'lead-a1': { id: 'lead-a1', name: 'Nord Lead A1', generation: 'OG', programTag: 'nlap', sampleCodec: null, partitions: baseline('nlap', false) },
   'wave': { id: 'wave', name: 'Nord Wave', generation: 'OG', programTag: 'nwp', sampleCodec: 'og', staticProductId: 0x0005, os: { min: 200, recommended: 214 }, partitions: baseline('nwp', true, 1) },
-  'c2': { id: 'c2', name: 'Nord C2', generation: 'OG', programTag: 'nc2p', sampleCodec: null, staticProductId: 0x0009, os: { min: 100, recommended: 132 }, partitions: baseline('nc2p', false) },
-  'c2d': { id: 'c2d', name: 'Nord C2D', generation: 'OG', programTag: 'nc2p', sampleCodec: null, staticProductId: 0x000c, os: { min: 100, recommended: 112 }, partitions: baseline('nc2p', false) },
-  'grand': { id: 'grand', name: 'Nord Grand', generation: 'NW1-v3', programTag: 'ngp', sampleCodec: 'codec3', staticProductId: 0x002b, os: { min: 150, recommended: 150 }, partitions: baseline('ngp', true) },
-  'organ-3': { id: 'organ-3', name: 'Nord Organ 3', generation: 'OG', programTag: 'no3p', sampleCodec: null, staticProductId: 0x003a, os: { min: 100, recommended: 112 }, partitions: baseline('no3p', false) },
+  'c2': { id: 'c2', name: 'Nord C2', generation: 'OG', programTag: 'nc2p', sampleCodec: null, staticProductId: 0x0009, os: { min: 100, recommended: 132 }, partitions: baseline('nc2p', false, 2) },
+  'c2d': { id: 'c2d', name: 'Nord C2D', generation: 'OG', programTag: 'nc2p', sampleCodec: null, staticProductId: 0x000c, os: { min: 100, recommended: 112 }, partitions: baseline('nc2p', false, 2) },
+  'grand': { id: 'grand', name: 'Nord Grand', generation: 'NW1-v3', programTag: 'ngp', sampleCodec: 'codec3', staticProductId: 0x002b, os: { min: 150, recommended: 150 }, partitions: baseline('ngp', true, 6) },
+  'organ-3': { id: 'organ-3', name: 'Nord Organ 3', generation: 'OG', programTag: 'no3p', sampleCodec: null, staticProductId: 0x003a, os: { min: 100, recommended: 112 }, partitions: baseline('no3p', false, 2) },
 };
 
 export const ALL_MODELS: ModelInfo[] = Object.values(MODELS);
