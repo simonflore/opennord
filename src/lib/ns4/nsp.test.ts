@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { patchNs4Checksum } from '../clavia/checksum';
-import { readNsp } from './nsp';
+import { readNsp, readNspIdentity } from './nsp';
 
 /** Minimal synthetic Nord Piano: CBIN + npno + CNSP + a name in the meta block.
  *  Optionally lay down a key map (root per note) @0xB8 (CNSP+0x8C). */
@@ -28,6 +28,23 @@ describe('readNsp', () => {
     expect(f.codec).toBe(6);
     expect(f.checksumValid).toBe(true);
     expect(f.name).toBe('Astoria Grand');
+  });
+
+  it('splits the header name into name + recorded variant at "#"', () => {
+    const f = readNsp(makeSyntheticNpno('Electric Grand 1#CP80     ', 530));
+    expect(f.name).toBe('Electric Grand 1');
+    expect(f.variant).toBe('CP80');
+    // v6 files leave the variant empty: "Clavinet D6#" + padding
+    const g = readNsp(makeSyntheticNpno('Clavinet D6#          ', 610));
+    expect(g.name).toBe('Clavinet D6');
+    expect(g.variant).toBeUndefined();
+  });
+
+  it('readNspIdentity reads name/variant/version without the checksum, undefined for non-pianos', () => {
+    const bytes = makeSyntheticNpno('Wurlitzer 1#200A', 530);
+    bytes[bytes.length - 1] ^= 0xff; // break the checksum — identity doesn't care
+    expect(readNspIdentity(bytes)).toEqual({ name: 'Wurlitzer 1', variant: '200A', version: '5.30', versionRaw: 530 });
+    expect(readNspIdentity(new Uint8Array(0x60))).toBeUndefined();
   });
 
   it('returns recognized:false for a non-piano (e.g. .nsmp) file', () => {
@@ -95,3 +112,16 @@ for (const [rel, codec] of REAL) {
     });
   });
 }
+
+// Real pianos kept outside the repo (NPNO_DIR, see nsp-audio.test.ts) — header only.
+const npnoDir = process.env.NPNO_DIR;
+const realNpno = npnoDir && existsSync(npnoDir) ? readdirSync(npnoDir).filter((f) => f.endsWith('.npno')) : [];
+describe.skipIf(realNpno.length === 0)('readNspIdentity — real pianos in $NPNO_DIR', () => {
+  for (const file of realNpno) {
+    it(`names ${file} without a "#", with a version`, () => {
+      const id = readNspIdentity(new Uint8Array(readFileSync(join(npnoDir!, file))))!;
+      expect(id.name).toMatch(/^[^#]+$/);
+      expect(id.version).toMatch(/^\d\.\d\d$/);
+    });
+  }
+});

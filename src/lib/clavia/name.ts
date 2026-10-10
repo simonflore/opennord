@@ -31,3 +31,13 @@ export function programNameFromFilename(filename: string | undefined): string {
   name = name.trim();
   return name.length > 0 ? name : 'Unnamed';
 }
+
+/**
+ * Display name for a piano library file: path and the `.npno` extension dropped,
+ * nothing else. Piano names end in their version ("White Grand XL 6.3.npno"), which
+ * the program-name rule's multi-extension strip would cut to "White Grand XL 6".
+ */
+export function pianoNameFromFilename(filename: string): string {
+  const name = filename.replace(/^.*[\\/]/, '').replace(/\.npno$/i, '').trim();
+  return name.length > 0 ? name : 'Unnamed';
+}

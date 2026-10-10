@@ -45,6 +45,8 @@ export interface NspFile {
   checksumValid: boolean;
   /** Human name from the metadata block, e.g. "Astoria Grand". */
   name?: string;
+  /** The recorded instrument, after the name's `#` (e.g. "CP80" in "Electric Grand 1#CP80"). */
+  variant?: string;
   /** Number of distinct sampled notes (multisample zones), from the key map. */
   sampleCount?: number;
   /** Per-sample key ranges (multisample layout), low→high. Empty if unreadable. */
@@ -88,23 +90,49 @@ function firstAsciiRun(bytes: Uint8Array, from: number, to: number, minLen = 3):
   return run.length >= minLen ? run.trim() : undefined;
 }
 
-/** Read a Nord Piano (`.npno`) file's header metadata. Does not read audio. */
-export function readNsp(bytes: Uint8Array): NspFile {
-  const recognized = hasCbinMagic(bytes) && fileTypeTag(bytes) === 'npno';
-  if (!recognized) {
-    return { recognized: false, checksumValid: false, warnings: ['Not a Nord Piano (.npno) file — missing CBIN/npno signature.'] };
-  }
+/** Who a piano file says it is — name, variant, version — read without the checksum pass. */
+export type NspIdentity = Pick<NspFile, 'name' | 'variant' | 'version' | 'versionRaw'>;
+
+/**
+ * Read only the identity fields of a `.npno` header: cheap (a few hundred bytes, no
+ * checksum over the whole file), so it suits matching many large pianos.
+ * `undefined` when the file isn't a Nord Piano.
+ *
+ * The name field (CNSP+0x1C) is `name#variant`, space-padded: "Electric Grand 1#CP80",
+ * "Clavinet D6#" (real v5 + v6 factory files, 2026-10-10). The size (Sml/Med/Lrg/XL)
+ * is not in it.
+ */
+export function readNspIdentity(bytes: Uint8Array): NspIdentity | undefined {
+  if (!hasCbinMagic(bytes) || fileTypeTag(bytes) !== 'npno') return undefined;
   const versionRaw = bytes[0x14] | (bytes[0x15] << 8);
   const major = Math.trunc(versionRaw / 100);
   const version = `${major}.${String(versionRaw - major * 100).padStart(2, '0')}`;
+  const cnsp = findCnsp(bytes);
+  const full = cnsp < 0 ? undefined : firstAsciiRun(bytes, cnsp + META_OFFSET, cnsp + META_OFFSET + META_SIZE);
+  const hash = full?.indexOf('#') ?? -1;
+  const name = (hash < 0 ? full : full!.slice(0, hash).trim()) || undefined;
+  const variant = hash < 0 ? undefined : full!.slice(hash + 1).trim() || undefined;
+  return { name, variant, version, versionRaw };
+}
+
+/** The per-note key map's zones (low→high), or `[]` when the file has none readable. */
+export function readNspZones(bytes: Uint8Array): NspZone[] {
+  const cnsp = findCnsp(bytes);
+  return cnsp < 0 ? [] : readKeyMap(bytes, cnsp);
+}
+
+/** Read a Nord Piano (`.npno`) file's header metadata. Does not read audio. */
+export function readNsp(bytes: Uint8Array): NspFile {
+  const id = readNspIdentity(bytes);
+  if (!id) {
+    return { recognized: false, checksumValid: false, warnings: ['Not a Nord Piano (.npno) file — missing CBIN/npno signature.'] };
+  }
   const checksumValid = verifyNs4Checksum(bytes);
   const warnings: string[] = [];
   if (!checksumValid) warnings.push('Piano checksum mismatch — file may be truncated or modified.');
-  const cnsp = findCnsp(bytes);
-  const name = cnsp < 0 ? undefined : firstAsciiRun(bytes, cnsp + META_OFFSET, cnsp + META_OFFSET + META_SIZE);
-  const zones = cnsp < 0 ? [] : readKeyMap(bytes, cnsp);
+  const zones = readNspZones(bytes);
   return {
-    recognized: true, version, versionRaw, codec: major, checksumValid, name,
+    recognized: true, ...id, codec: Math.trunc(id.versionRaw! / 100), checksumValid,
     sampleCount: zones.length || undefined, zones: zones.length ? zones : undefined, warnings,
   };
 }
