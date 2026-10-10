@@ -55,9 +55,16 @@ export function decaySeconds(raw: number, isDecay = true): number {
   return 0.003 * Math.pow(1 + v / 54.1, 7.958);
 }
 
+/**
+ * Level ratio a decay or release segment covers in its displayed time: the
+ * firmware's decay/release coefficient table and the displayed times agree on a
+ * 40 dB drop (`docs/SYNTH-ENGINE.md` §7.5).
+ */
+export const ENV_DISPLAY_DROP = 100;
+
 /** Exponential time constant (seconds) of a decay/release segment. */
 export function decayTimeConstant(raw: number, isDecay = true): number {
-  return decaySeconds(raw, isDecay) / Math.log(100);
+  return decaySeconds(raw, isDecay) / Math.log(ENV_DISPLAY_DROP);
 }
 
 /** Free-running LFO rate in Hz: about 0.03 Hz … 523 Hz, one octave per ~9 steps. */
@@ -70,19 +77,39 @@ export function lfoRateHz(raw: number): number {
  * The firmware's shared modulation-depth curve, in semitones, for a raw amount
  * 0..127: a smooth curve to 0.5 st at 20, then near-linear runs through these
  * landmarks (the curve the LFO→pitch amount and the FM-mode OSC CTRL use).
+ * The landmarks are points of the displayed curve, chosen so that straight runs
+ * between them stay within the display's rounding at every raw value from 20 up
+ * (±0.05 st below 12.5 st, ±0.25 st above, where it shows half semitones); below
+ * 20 the smooth part is within 3 cents of the displayed cents
+ * (synth-scaling.test.ts checks the whole table).
  */
 const DEPTH_LANDMARKS: ReadonlyArray<readonly [number, number]> = [
   [20, 0.5],
-  [27, 1],
+  [21, 0.53],
+  [23, 0.66],
+  [25, 0.82],
+  [29, 1.2],
   [36, 2],
+  [40, 2.7],
   [42, 3],
-  [47, 4],
-  [59, 7],
+  [48, 4.2],
+  [50, 4.8],
+  [52, 5.2],
+  [54, 5.8],
+  [56, 6.2],
+  [60, 7.3],
+  [64, 8.7],
   [68, 10],
+  [69, 10.6],
   [73, 12],
-  [88, 19],
-  [96, 24],
-  [108, 32],
+  [83, 16.5],
+  [95, 23],
+  [99, 26],
+  [107, 31],
+  [109, 33],
+  [111, 34],
+  [114, 37],
+  [116, 38],
   [120, 42],
   [122, 43],
   [127, 48],
