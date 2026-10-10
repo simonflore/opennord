@@ -794,13 +794,13 @@ Bit-exact means every stroke decodes to exactly its recorded frame count, and it
 - `+0x732`: stroke records, 0x76 bytes each (record *i* at `CNSP + 0x732 + i·0x76`). Records are
   grouped by key zone, lowest zone first; within a zone, dynamic layers run **loudest first**
   (`PIANO-ENGINE.md` §0). The code takes the grouping from the layers-per-root table at `+0x622`
-  (`zoneOf` in `nsp-audio.ts`). The records agree with it: in the factory files a normal stroke
-  (flags 0) with floor 0 opens a zone, which gives exactly one group per key-map zone (17/16/16
-  in the three files). The code falls back to that rule only when the table doesn't account for
-  every stroke, and then lets any stroke that is not a release sound open a zone.
+  (`zoneOf` in `nsp-audio.ts`). The records agree with it: in the factory files each zone opens
+  with a normal stroke (flags 0) at floor 0, one group per key-map zone (17/16/16 in the three
+  files). Only when the table doesn't account for every stroke does the code fall back to
+  "a floor-0 stroke that is not a release sound opens a zone".
 
   **Framing:** offsets count from the record's own start, as in the ARM loader, `NPNO-WRITE.md`,
-  `PIANO-ENGINE.md` and `nsp-audio.ts`. This table first counted from `CNSP + 0x72C`, so earlier
+  `PIANO-ENGINE.md` and `nsp-audio.ts`. This table first counted from `CNSP + 0x72C`, so older
   copies give every field 6 higher.
 
   | Offset | Type | Field |

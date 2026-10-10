@@ -34,8 +34,8 @@ the ARM's note-request structure, not of the file.
 
 ## 0. Corrections to earlier notes
 
-These corrections have since been applied to `NSP-FORMAT.md`, `NPNO-WRITE.md` and the code. They
-are kept as the record of what changed.
+`NSP-FORMAT.md`, `NPNO-WRITE.md` and the code now follow these corrections. They are kept as the
+record of what changed.
 
 1. **Stroke order within a zone is loudest first, and the "velocity floor" is an attenuation
    floor.** Layer 0 (floor 0) is the hardest hit. Larger floors are softer strokes. Evidence: the
@@ -45,9 +45,8 @@ are kept as the record of what changed.
    - *Then:* `NSP-FORMAT.md` said "velocity layers run softest first", and `nsp-audio.ts`
      `strokeFor` treated the floor as a MIDI velocity.
    - *Now:* `strokeFor` takes the layers loudest first, switches halfway between floors (§2.1),
-     and scales v5 floors ×5 (they are stored in whole dB). Still missing from it: the +20 that
-     the note-on path adds to the attenuation (`req+0x34`, §2.1), the per-type selection offset,
-     and the real touch curves (it uses a 40·log10(v/127) dB approximation).
+     and scales v5 floors ×5 (they are stored in whole dB). §5 item 2 lists what it still leaves
+     out.
 2. **Key-map roots are 4 semitones below the sounding pitch at 44.1 kHz.** Each zone's strokes
    measure +397…+408 cents above the MIDI note of their stored root (f0 by autocorrelation on all
    three files, 47 zones). The pitch formula compensates with a built-in −4 semitones (§2.3).

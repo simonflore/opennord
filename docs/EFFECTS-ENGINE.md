@@ -261,10 +261,9 @@ program file (.ns4p bits)  ──►  ARM "Edt_*" parameter model (ids, ranges, 
   flow-controlled FIFO: a GPIO handshake, then a 0x40-word chunked transfer. The setters choose
   between that FIFO (address word, then value word) and a mailbox path, per DSP.
 - **Audio-rate control.** DSP1 c1 writes LFO, phase and noise values into the voice core every
-  block. (*Struck, §10.1:* this bullet also said some controls travel inside the TDM audio
-  frames as 16-bit fields, read by "bus compressors". Those modules are the delay lines, and the
-  16-bit TDM words are delay samples streamed to external memory, §10.9. No control words in the
-  TDM frame are known.)
+  block. (*Struck, §10.1:* this bullet also had "bus compressors" reading 16-bit control words
+  from the TDM frames. Those modules are the delay lines and the words are delay samples streamed
+  to external memory (§10.9); no control words in the TDM frame are known.)
 
 ## 5. Display names (from the firmware's label tables)
 
