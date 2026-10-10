@@ -62,11 +62,19 @@ describe('ConnectPanel render states', () => {
 });
 
 describe('describeError', () => {
-  it('turns a refused session (the field "status 18") into plain words, without protocol jargon', async () => {
+  it('says a Nord still busy with another transfer is busy, in plain words', async () => {
     const { describeError } = await import('./ConnectPanel');
     const { SessionRefusedError } = await import('../../lib/device/protocol');
-    const msg = describeError(new SessionRefusedError(6, 18), true);
-    expect(msg).toMatch(/wouldn’t let OpenNord open its memory/);
+    const msg = describeError(new SessionRefusedError(7, 18), true);
+    expect(msg).toMatch(/busy with another transfer/);
     expect(msg).not.toMatch(/status|partition|18/i);
+  });
+
+  it('turns any other refused session into plain words, without protocol jargon', async () => {
+    const { describeError } = await import('./ConnectPanel');
+    const { SessionRefusedError } = await import('../../lib/device/protocol');
+    const msg = describeError(new SessionRefusedError(13, 2), true);
+    expect(msg).toMatch(/wouldn’t let OpenNord open its memory/);
+    expect(msg).not.toMatch(/status|partition|13/i);
   });
 });

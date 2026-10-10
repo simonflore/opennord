@@ -16,15 +16,44 @@ describe('NordSession', () => {
     expect([...t.sent[0].slice(12, 20)]).toEqual([0, 0, 0, 0x04, 0, 0, 0, 0x06]);
   });
 
-  it('reports a refused Begin as SessionRefusedError, with the partition and status, and sends no End', async () => {
-    // A Nord Stage 3 refusing its protected partition 6 answered status 18 in the field.
-    const t = new MockTransport([encodeMessage(CReqBegin | 1, [18])]);
+  // The opcode of each frame the session sent (big-endian u32 at byte 12).
+  const sentOps = (t: MockTransport) => t.sent.map((f) => new DataView(f.buffer, f.byteOffset).getUint32(12));
+
+  it('reports a refused Begin as SessionRefusedError and still ends, releasing the device', async () => {
+    // The Nord takes its session lock before checking the partition: a Begin past the
+    // last partition (status 2) holds the lock until an End.
+    const t = new MockTransport([encodeMessage(CReqBegin | 1, [2]), encodeMessage(CReqEnd | 1, [0])]);
     const session = new NordSession(t);
-    const err = await session.withSession(6, async () => 'unreached').catch((e: unknown) => e);
+    const err = await session.withSession(13, async () => 'unreached').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SessionRefusedError);
     expect(err).toBeInstanceOf(NordError); // existing catch-all handlers still apply
-    expect(err).toMatchObject({ partition: 6, status: 18 });
-    expect(t.sent).toHaveLength(1); // nothing after the refused Begin
+    expect(err).toMatchObject({ partition: 13, status: 2 });
+    expect(sentOps(t)).toEqual([CReqBegin, CReqEnd]);
+  });
+
+  it('ends a session left open by an earlier run, then begins again', async () => {
+    const t = new MockTransport([
+      encodeMessage(CReqBegin | 1, [18]), // busy: the lock is still held
+      encodeMessage(CReqEnd | 1, [0]),
+      encodeMessage(CReqBegin | 1, [0]),
+      encodeMessage(CReqEnd | 1, [0]),
+    ]);
+    const session = new NordSession(t);
+    expect(await session.withSession(7, async () => 'ran')).toBe('ran');
+    expect(sentOps(t)).toEqual([CReqBegin, CReqEnd, CReqBegin, CReqEnd]);
+  });
+
+  it('gives up after one retry when the Nord stays busy, without ending its session', async () => {
+    // Still busy after our End: someone else (e.g. Nord Sound Manager) holds the session.
+    const t = new MockTransport([
+      encodeMessage(CReqBegin | 1, [18]),
+      encodeMessage(CReqEnd | 1, [18]),
+      encodeMessage(CReqBegin | 1, [18]),
+    ]);
+    const session = new NordSession(t);
+    const err = await session.withSession(7, async () => 'unreached').catch((e: unknown) => e);
+    expect(err).toMatchObject({ partition: 7, status: 18 });
+    expect(sentOps(t)).toEqual([CReqBegin, CReqEnd, CReqBegin]);
   });
 
   it('defaults programPartition to the Stage-4 index and adopts a device-specific one', () => {

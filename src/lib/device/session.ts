@@ -1,5 +1,5 @@
 import type { NordTransport } from './transport';
-import { encodeMessage, decodeReply, NordError, SessionRefusedError, type NordReply } from './protocol';
+import { encodeMessage, decodeReply, NordError, NordStatus, SessionRefusedError, type NordReply } from './protocol';
 import { CReqBegin, CReqEnd, PARTITION_PROGRAM, PROTOCOL_ID, PROTOCOL_VERSION } from './opcodes';
 import { PROTOCOL_NEGOTIATE, MSG_QRY_VERSIONS, parseVersionReply } from './negotiate';
 import { WriteBlockedError } from './write-guard';
@@ -137,10 +137,23 @@ export class NordSession {
     }
   }
 
+  /**
+   * Open a transfer session on `partition`. A refused begin (non-zero status)
+   * leaves no session behind: the Nord takes its session lock before it checks
+   * the partition, so this sends the end itself, else every later begin would
+   * come back {@link NordStatus.sessionBusy}. A busy reply means a session an
+   * earlier run never ended still holds the device; that one is ended and the
+   * begin asked once more.
+   */
   async begin(partition: number): Promise<NordReply> {
     this.openPartition = undefined;
-    const reply = await this.request(CReqBegin, [partition]);
+    let reply = await this.request(CReqBegin, [partition]);
+    if (reply.status === NordStatus.sessionBusy) {
+      await this.endQuietly();
+      reply = await this.request(CReqBegin, [partition]);
+    }
     if (reply.status === 0) this.openPartition = partition;
+    else if (reply.status !== NordStatus.sessionBusy) await this.endQuietly();
     return reply;
   }
 
@@ -164,12 +177,17 @@ export class NordSession {
       try {
         return await fn();
       } finally {
-        try {
-          await this.end();
-        } catch {
-          // ignore end failures — don't mask the operation's own error / result
-        }
+        // don't let an end failure mask the operation's own error / result
+        await this.endQuietly();
       }
     });
+  }
+
+  private async endQuietly(): Promise<void> {
+    try {
+      await this.end();
+    } catch {
+      // nothing to do: the device didn't answer the end
+    }
   }
 }
