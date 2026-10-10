@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  OrganCore, PERC_LEVEL_SOFT, PERC_NORMAL_MANUAL_DROP, PERC_TAU_FAST, PERC_TAU_SLOW, renderOffline, softClip,
+  OrganCore, PERC_FAST, PERC_LEVEL_SLOW, PERC_LEVEL_SOFT, PERC_NORMAL_MANUAL_DROP, PERC_SLOW, renderOffline, softClip,
 } from './core';
 import { DEFAULT_ORGAN_PARAMS, ORGAN_ENGINE_MODELS, type OrganParams } from './types';
 import { drawbarGain, tonewheelFrequency, wheelFor } from './tonewheel';
@@ -37,7 +37,7 @@ describe('drawbar mixing (generator targets)', () => {
     expect(t).toEqual(new Map([[wheelFor(60, 0), 1], [wheelFor(60, 1), 1], [wheelFor(60, 2), 1]]));
   });
 
-  it('scales each wheel by its drawbar (≈3 dB per step)', () => {
+  it('scales each wheel by its drawbar step level', () => {
     const core = new OrganCore({ sampleRate: SR, params: params({ drawbars: [0, 0, 8, 6, 0, 0, 0, 0, 0] }) });
     core.noteOn(60);
     const t = core.settledTargets();
@@ -85,21 +85,33 @@ describe('percussion', () => {
   const percParams = (o: Partial<OrganParams['percussion']> = {}) =>
     params({ drawbars: only8, percussion: { on: true, harm3rd: false, decayFast: true, volSoft: false, ...o } });
 
-  it('triggers only from a fully released keyboard (single trigger)', () => {
+  it('drains while keys are held: legato notes get no new hit (single trigger)', () => {
     const core = new OrganCore({ sampleRate: SR, params: percParams() });
     const buf = new Float32Array(SR / 10);
+    expect(core.percussionEnvelope()).toBe(1); // charged
     core.noteOn(60);
-    expect(core.percussionEnvelope()).toBe(1);
     core.render(buf);
     const decayed = core.percussionEnvelope();
-    expect(decayed).toBeLessThan(1);
-    core.noteOn(64); // legato: no retrigger
-    expect(core.percussionEnvelope()).toBe(decayed);
+    expect(decayed).toBeLessThan(0.5);
+    core.noteOn(64); // legato: no retrigger, keeps draining
+    core.render(buf);
+    expect(core.percussionEnvelope()).toBeLessThan(decayed);
     core.noteOff(60);
-    core.noteOn(67); // 64 still held: no retrigger
-    expect(core.percussionEnvelope()).toBe(decayed);
-    core.noteOff(64); core.noteOff(67);
-    core.noteOn(72); // keyboard was clear: retrigger
+    core.noteOn(67); // 64 still held: still draining
+    core.render(buf);
+    expect(core.percussionEnvelope()).toBe(0);
+  });
+
+  it('recharges in ~26 ms once the keyboard is clear; quick re-strikes hit softer', () => {
+    const core = new OrganCore({ sampleRate: SR, params: percParams() });
+    core.noteOn(60);
+    core.render(new Float32Array(SR / 2)); // fully drained
+    core.noteOff(60);
+    core.render(new Float32Array(Math.round(0.01 * SR))); // 10 ms gap: partial recharge
+    const partial = core.percussionEnvelope();
+    expect(partial).toBeGreaterThan(0.05);
+    expect(partial).toBeLessThan(0.5);
+    core.render(new Float32Array(Math.round(0.2 * SR))); // long gap: full charge
     expect(core.percussionEnvelope()).toBe(1);
   });
 
@@ -112,13 +124,20 @@ describe('percussion', () => {
     expect(vox.percussionEnvelope()).toBe(0);
   });
 
-  it('decays with the fast or slow time constant', () => {
-    for (const [fast, tau] of [[true, PERC_TAU_FAST], [false, PERC_TAU_SLOW]] as const) {
+  it('decays with the instrument\'s fast or slow timing (−20 dB at ~0.13 s / ~0.4 s, silent by ~0.22 s / ~0.68 s)', () => {
+    const at = (fast: boolean, seconds: number) => {
       const core = new OrganCore({ sampleRate: SR, params: percParams({ decayFast: fast }) });
       core.noteOn(60);
-      core.render(new Float32Array(Math.round(tau * SR)));
-      expect(core.percussionEnvelope()).toBeCloseTo(Math.exp(-1), 3);
-    }
+      core.render(new Float32Array(Math.round(seconds * SR)));
+      return core.percussionEnvelope();
+    };
+    expect(at(true, 0.12)).toBeGreaterThan(0.1);
+    expect(at(true, 0.14)).toBeLessThan(0.1);
+    expect(at(true, 0.23)).toBe(0);
+    expect(at(false, 0.38)).toBeGreaterThan(0.1);
+    expect(at(false, 0.42)).toBeLessThan(0.1);
+    expect(at(false, 0.7)).toBe(0);
+    expect(PERC_FAST.tau).toBeLessThan(PERC_SLOW.tau);
   });
 
   it('sounds the 2nd (4′) or 3rd (2⅔′) harmonic wheel', () => {
@@ -149,6 +168,14 @@ describe('percussion', () => {
       return rms(out, 0, 480);
     };
     expect(peak(true) / peak(false)).toBeCloseTo(PERC_LEVEL_SOFT, 1);
+  });
+
+  it('slow decay peaks lower than fast', () => {
+    const peak = (decayFast: boolean) => {
+      const out = renderOffline(params({ drawbars: [0, 0, 0, 0, 0, 0, 0, 0, 0], percussion: { on: true, harm3rd: false, decayFast, volSoft: false } }), [[0, 'on', 60]], 0.02);
+      return rms(out, 0, 96);
+    };
+    expect(peak(false) / peak(true)).toBeCloseTo(PERC_LEVEL_SLOW, 1);
   });
 });
 

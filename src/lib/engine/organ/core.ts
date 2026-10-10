@@ -27,14 +27,30 @@ const TABLE_BITS = 11;
 const TABLE_SIZE = 1 << TABLE_BITS;
 const SPAN_MAX = 256;
 
-/** Percussion decay time constants (s): fast ≈ 0.2 s audible, slow ≈ 1 s. */
-export const PERC_TAU_FAST = 0.15;
-export const PERC_TAU_SLOW = 0.6;
-/** Percussion peak level relative to a drawbar at full: normal / soft. */
+/*
+ * Percussion, modelled the way the Stage 4 runs it (docs/ORGAN-ENGINE.md, "The
+ * Stage 4's own organ"). A charge c drains while any key is held:
+ *   c ← c·exp(−dt/τ) − drain·dt   (floored at 0)
+ * and recharges toward slightly above 1 while the keyboard is clear:
+ *   c ← target + (c − target)·exp(−dt/τ_recharge)   (capped at 1).
+ * The percussion amplitude is c². So a note from a clear keyboard gets the full
+ * hit, legato notes get none, and quick re-strikes get a partial one.
+ * The instrument's per-sample constants (at 44.1 kHz) are expressed in seconds.
+ */
+/** Charge time constant (s) and linear drain (per second) while keys are held. */
+export const PERC_FAST = { tau: 0.252, drain: 2.865 } as const;
+export const PERC_SLOW = { tau: 0.869, drain: 0.967 } as const;
+/** Recharge time constant (s) and target while the keyboard is clear. */
+export const PERC_RECHARGE_TAU = 0.0258;
+export const PERC_RECHARGE_TARGET = 1.0112;
+/** Percussion peak level relative to a drawbar at full (normal volume, fast decay). */
 export const PERC_LEVEL_NORMAL = 1.0;
-export const PERC_LEVEL_SOFT = 0.5;
-/** Drawbar (manual) volume while percussion is on at normal volume: about −3 dB. */
-export const PERC_NORMAL_MANUAL_DROP = 0.708;
+/** Soft volume is about 12.7 dB below normal on the instrument. */
+export const PERC_LEVEL_SOFT = 0.231;
+/** Slow decay peaks about 3.2 dB below fast decay on the instrument. */
+export const PERC_LEVEL_SLOW = 0.69;
+/** Drawbar (manual) volume while percussion is on at normal volume: −3.1 dB. */
+export const PERC_NORMAL_MANUAL_DROP = 0.7;
 
 const CLICK_TAU_S = 0.0012;
 const CHIFF_TAU_S = 0.03;
@@ -128,8 +144,13 @@ export class OrganCore {
   private rand: () => number;
   private route: number[] = [];
   private scanner: Scanner;
-  private percEnv = 0;
+  /** Percussion charge (0..1); the percussion amplitude is its square. */
+  private percCharge = 1;
   private percDecay = 1;
+  private percDrain = 0;
+  private percRecharge = 0;
+  /** Number of keys currently down (drives the percussion charge). */
+  private downCount = 0;
   private clickEnv = 0; private clickDecay: number; private lastNoise = 0;
   private chiffEnv = 0; private chiffDecay: number; private chiffLp = 0;
   private main = new Float32Array(SPAN_MAX);
@@ -154,8 +175,10 @@ export class OrganCore {
     this.params = { ...p, drawbars: [...p.drawbars], percussion: { ...p.percussion }, vibrato: { ...p.vibrato } };
     this.voicing = voicingFor(p.model);
     if (modelChanged) this.resetBank();
-    const tau = p.percussion.decayFast ? PERC_TAU_FAST : PERC_TAU_SLOW;
-    this.percDecay = Math.exp(-1 / (tau * this.sampleRate));
+    const decay = p.percussion.decayFast ? PERC_FAST : PERC_SLOW;
+    this.percDecay = Math.exp(-1 / (decay.tau * this.sampleRate));
+    this.percDrain = decay.drain / this.sampleRate;
+    this.percRecharge = Math.exp(-1 / (PERC_RECHARGE_TAU * this.sampleRate));
     this.scanner.set(p.vibrato.on, p.vibrato.type, this.voicing.vibRateHz, this.voicing.vibShape);
     this.dirty = true;
   }
@@ -166,13 +189,12 @@ export class OrganCore {
   noteOn(note: number, _velocity = 100): void {
     let key = this.keys.get(note);
     if (key?.down) return; // already held
-    const othersDown = this.anyKeyDown();
     if (!key) { key = { mask: 0, down: true }; this.keys.set(note, key); }
     key.down = true;
+    this.downCount++;
     this.cancelEvents(note);
     this.scheduleContacts(note, true);
-    // Single-trigger percussion: fires only from a fully released keyboard.
-    if (!othersDown && this.voicing.percussion && this.params.percussion.on) this.percEnv = 1;
+    // Percussion needs no trigger here: the charge drains while any key is down.
     if (this.voicing.chiff > 0) this.chiffEnv += this.voicing.chiff;
     this.dirty = true;
   }
@@ -181,6 +203,7 @@ export class OrganCore {
     const key = this.keys.get(note);
     if (!key || !key.down) return;
     key.down = false;
+    this.downCount--;
     this.cancelEvents(note);
     this.scheduleContacts(note, false);
     this.dirty = true;
@@ -188,6 +211,7 @@ export class OrganCore {
 
   allNotesOff(): void {
     this.keys.clear();
+    this.downCount = 0;
     this.queue.length = 0;
     this.dirty = true;
   }
@@ -197,8 +221,13 @@ export class OrganCore {
     return [...this.keys.entries()].filter(([, k]) => k.down).map(([n]) => n).sort((a, b) => a - b);
   }
 
-  /** Current percussion envelope (0..1), for tests and meters. */
-  percussionEnvelope(): number { return this.percEnv; }
+  /**
+   * Current percussion amplitude (0..1, the charge squared), for tests and
+   * meters. 0 when percussion is off or the model has none.
+   */
+  percussionEnvelope(): number {
+    return this.voicing.percussion && this.params.percussion.on ? this.percCharge * this.percCharge : 0;
+  }
 
   /** Target gain per generator id, with all scheduled contacts settled now (tests). */
   settledTargets(): Map<number, number> {
@@ -274,12 +303,24 @@ export class OrganCore {
     const v = this.voicing;
     const percOn = v.percussion && p.percussion.on;
     const manualGain = percOn && !p.percussion.volSoft ? PERC_NORMAL_MANUAL_DROP : 1;
-    const percLevel = percOn ? (p.percussion.volSoft ? PERC_LEVEL_SOFT : PERC_LEVEL_NORMAL) : 0;
+    const percLevel = percOn
+      ? (p.percussion.volSoft ? PERC_LEVEL_SOFT : PERC_LEVEL_NORMAL) * (p.percussion.decayFast ? 1 : PERC_LEVEL_SLOW)
+      : 0;
     const vol = (Number.isFinite(p.volumeDb) ? 10 ** (p.volumeDb / 20) : 0) * v.level;
+    // Keys only change between spans, so the drain/recharge choice holds for the span.
+    const draining = this.downCount > 0;
+    const decay = this.percDecay, drain = this.percDrain, recharge = this.percRecharge;
+    let charge = this.percCharge;
     for (let i = 0; i < n; i++) {
       let s = this.scanner.process(main[i] * manualGain);
-      if (percLevel > 0) s += perc[i] * this.percEnv * percLevel;
-      this.percEnv *= this.percDecay;
+      if (draining) {
+        charge = charge * decay - drain;
+        if (charge < 0) charge = 0;
+      } else {
+        charge = PERC_RECHARGE_TARGET + (charge - PERC_RECHARGE_TARGET) * recharge;
+        if (charge > 1) charge = 1;
+      }
+      if (percLevel > 0) s += perc[i] * charge * charge * percLevel;
       if (this.clickEnv > 1e-5) {
         const noise = this.rand() * 2 - 1;
         s += (noise - this.lastNoise) * this.clickEnv; // differentiated noise: bright, short
@@ -293,6 +334,7 @@ export class OrganCore {
       }
       out[pos + i] = softClip(s * vol);
     }
+    this.percCharge = charge;
   }
 
   // ── Internals ─────────────────────────────────────────────────────────────
@@ -300,11 +342,6 @@ export class OrganCore {
   private resetBank(): void {
     this.gens.clear();
     this.active.length = 0;
-  }
-
-  private anyKeyDown(): boolean {
-    for (const k of this.keys.values()) if (k.down) return true;
-    return false;
   }
 
   private cancelEvents(note: number): void {

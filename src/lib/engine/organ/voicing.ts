@@ -53,9 +53,28 @@ export interface ModelVoicing {
 }
 
 // ── Timbres (harmonic amplitude recipes) ───────────────────────────────────
-const SINE = [1] as const;
-/** Wheels 1–12 are cut closer to a square: some 3rd and 5th harmonic. */
-const COMPLEX_WHEEL = [1, 0, 0.3, 0, 0.15] as const;
+/*
+ * Tonewheel waveforms, as harmonic amplitudes relative to the fundamental. They
+ * follow the Stage 4's own wheel shapes (docs/ORGAN-ENGINE.md, "The Stage 4's own
+ * organ"), summarized as a few rounded harmonic levels:
+ *   wheels 1–12   strong odd harmonics: h2 −16.5, h3 −5.6, h4 −24, h5 −12.3,
+ *                 h7 −19, h9 −26 dB (the pedal-range wheels);
+ *   wheels 13–16  h2 −15.7, h3 −31.5, h4 −44 dB;
+ *   wheels 17–24  h2 −19, h3 −37, h4 −45 dB;
+ *   wheels 25–91  close to a sine: h2 −35, h3 −55 dB.
+ */
+const COMPLEX_WHEEL = [1, 0.15, 0.525, 0.061, 0.243, 0.009, 0.11, 0.013, 0.05, 0.014, 0.021] as const;
+const LOW_WHEEL = [1, 0.164, 0.027, 0.006] as const;
+const LOW_MID_WHEEL = [1, 0.112, 0.014, 0.006] as const;
+const UPPER_WHEEL = [1, 0.018, 0.0018] as const;
+
+/** Waveform (timbre name + harmonics) of tonewheel `wheel` (1..91). */
+function wheelTone(wheel: number): { timbre: string; harmonics: readonly number[] } {
+  if (wheel <= COMPLEX_WHEELS) return { timbre: 'wheel-complex', harmonics: COMPLEX_WHEEL };
+  if (wheel <= 16) return { timbre: 'wheel-low', harmonics: LOW_WHEEL };
+  if (wheel <= 24) return { timbre: 'wheel-low-mid', harmonics: LOW_MID_WHEEL };
+  return { timbre: 'wheel-upper', harmonics: UPPER_WHEEL };
+}
 
 function series(n: number, f: (h: number) => number): number[] {
   return Array.from({ length: n }, (_, i) => f(i + 1));
@@ -88,11 +107,7 @@ function tonewheelVoicing(model: 'B3' | 'B3 BASS'): ModelVoicing {
   return {
     model,
     buses: 9,
-    tone: (wheel) => ({
-      freq: tonewheelFrequency(wheel),
-      timbre: wheel <= COMPLEX_WHEELS ? 'complex-wheel' : 'sine',
-      harmonics: wheel <= COMPLEX_WHEELS ? COMPLEX_WHEEL : SINE,
-    }),
+    tone: (wheel) => ({ freq: tonewheelFrequency(wheel), ...wheelTone(wheel) }),
     route(midi, bus, p, out) {
       // Percussion borrows the 1′ key contact: the 1′ drawbar falls silent while it is on.
       if (bus === DRAWBAR_1FT && p.percussion.on && model === 'B3') return;
@@ -148,8 +163,9 @@ const voxVoicing: ModelVoicing = {
   chiff: 0,
   percussion: false,
   lowestWheel: MANUAL_LOWEST_WHEEL,
-  vibRateHz: 5.6,
-  vibShape: 'sine',
+  // The Stage 4's Vox vibrato is a ~6.1 Hz triangle (docs/ORGAN-ENGINE.md).
+  vibRateHz: 6.1,
+  vibShape: 'triangle',
   level: 0.1,
 };
 

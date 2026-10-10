@@ -115,12 +115,23 @@ export function wheelFor(midi: number, drawbar: number, lowestWheel: number = MA
 }
 
 /**
- * Drawbar position (0..8, fractional allowed while a morph moves it) → linear
- * gain. Each step is roughly 3 dB on a tonewheel organ's drawbar taps; 8 is
- * full level and 0 is silent.
+ * Drawbar step levels on the Stage 4, positions 0..8, out of 127. The steps are
+ * not uniform: about 3 dB apart near the top, 6–7 dB apart near the bottom
+ * (8 → 0 dB, 7 → −3.3, 6 → −6.2, 5 → −10.3, 4 → −15.2, 3 → −19.8, 2 → −26.5,
+ * 1 → −32.5 dB). See docs/ORGAN-ENGINE.md, "The Stage 4's own organ".
+ */
+export const DRAWBAR_STEPS: readonly number[] = [0, 3, 6, 13, 22, 39, 62, 87, 127];
+
+/**
+ * Drawbar position (0..8) → linear gain, 1 at 8 and 0 at 0. Whole positions
+ * give the instrument's step levels. The instrument rounds a morphed drawbar
+ * to a whole step; we interpolate between steps instead so a morph glides.
  */
 export function drawbarGain(level: number): number {
   if (!(level > 0)) return 0;
   const l = Math.min(8, level);
-  return 10 ** ((-3 * (8 - l)) / 20);
+  const i = Math.floor(l);
+  const lo = DRAWBAR_STEPS[i];
+  const hi = DRAWBAR_STEPS[Math.min(8, i + 1)];
+  return (lo + (hi - lo) * (l - i)) / DRAWBAR_STEPS[8];
 }
