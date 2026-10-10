@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { decodeNspStroke, findCnsp, readNspDirectory, strokeFor, touchAttenuation } from './nsp-audio';
+import { decodeNspStroke, findCnsp, framesPerBlock, readNspDirectory, strokeFor, touchAttenuation } from './nsp-audio';
 import { makeNpno, tone, type SynthStroke } from './nsp-synth.testing';
 import { readNsp } from './nsp';
 
@@ -100,6 +100,22 @@ describe('readNspDirectory + decodeNspStroke', () => {
     const dir = readNspDirectory(bytes)!;
     bytes[dir.strokes[0].offset + 1] = 0xe0; // width 0, order 7
     expect(() => decodeNspStroke(bytes, dir, dir.strokes[0])).toThrow(/bad block header/);
+  });
+
+  it("rejects a stroke whose frame count its blocks can't hold, before anything is allocated", () => {
+    const bytes = makeNpno([{ pcm: [tone(5000, 0.02, 4000, 7)], velocityFrom: 0, before: [[0, 0, 0, 0]] }], 1, 0x2c);
+    const dir = readNspDirectory(bytes)!;
+    const s = dir.strokes[0];
+    const most = s.blocks * framesPerBlock(dir.blockWords, 1, 1);
+    const frames = 0x2c + 0x732 + 0x06; // the record's u32 frame count
+    const setFrames = (n: number) => new DataView(bytes.buffer).setUint32(frames, n);
+    setFrames(most); // the most the blocks could ever hold: still a readable directory
+    expect(readNspDirectory(bytes)).toBeDefined();
+    setFrames(most + 1);
+    expect(readNspDirectory(bytes)).toBeUndefined();
+    setFrames(0x7fffffff); // a crafted few-KB file asking for gigabytes
+    expect(readNspDirectory(bytes)).toBeUndefined();
+    expect(() => decodeNspStroke(bytes, dir, { ...s, frames: 0x7fffffff })).toThrow(/can't fit/);
   });
 
   it('returns undefined for a file without a CNSP directory', () => {
