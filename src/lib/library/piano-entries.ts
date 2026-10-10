@@ -8,6 +8,7 @@ import { formatSlot } from '../clavia/slot';
 import { PARTITION_PIANO } from '../device/opcodes';
 import { matchesQuery, sortWithFavorites } from './browse';
 import type { BackupRef } from '../clavia/backup/backup-index';
+import { backupPianoId, backupPianoName } from './backup-piano';
 
 /** One row in the Pianos browser — a folder piano-library file or a device-listed one. */
 export interface PianoEntry {
@@ -64,10 +65,9 @@ export function pianoEntriesFromScanned(pianos: ScannedPiano[]): PianoEntry[] {
 /** Build byte-free backup Piano entries — no bytes loaded, factory/user tagged via `native`. */
 export function pianoEntriesFromBackupRefs(refs: BackupRef[]): PianoEntry[] {
   return refs.map((ref) => {
-    const basename = ref.entry.path.replace(/^.*\//, '');
-    const name = basename.replace(/\.[^.]+$/, '') || basename;
+    const name = backupPianoName(ref);
     return {
-      id: `backup:${ref.bundlePath}!${ref.entry.path}`,
+      id: backupPianoId(ref),
       name,
       source: 'backup' as const,
       size: ref.entry.size,

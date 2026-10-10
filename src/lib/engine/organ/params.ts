@@ -8,7 +8,9 @@
  */
 import type { Morphable, NS4Layer, Ns4OrganFx } from '../../ns4/types';
 import { vibChorusTypeFor } from '../../ns4/view';
-import { DEFAULT_ORGAN_PARAMS, ORGAN_ENGINE_MODELS, type OrganModel, type OrganParams, type VibChorusType } from './types';
+import {
+  DEFAULT_ORGAN_PARAMS, ORGAN_ENGINE_MODELS, VOLUME_OFF_DB, type OrganModel, type OrganParams, type VibChorusType,
+} from './types';
 
 /** How far each morph source is pushed, 0..1. Absent sources count as 0. */
 export interface MorphAmounts { wheel?: number; aftertouch?: number; pedal?: number }
@@ -37,9 +39,12 @@ export function drawbarPosition(display: string | undefined): number {
   return Number.isFinite(n) ? Math.max(0, Math.min(8, n)) : 0;
 }
 
-/** "-4.7 dB" → −4.7; a silent setting ("-oo dB", "-∞") → −Infinity; unparseable → 0. */
+/**
+ * "-4.7 dB" → −4.7; a silent setting ("volume off", as the Stage 4 volume table
+ * shows raw 0, or "-oo dB" / "-∞") → −Infinity; unparseable → 0.
+ */
 export function parseDb(display: string | undefined): number {
-  if (/oo|∞|inf/i.test(display ?? '')) return -Infinity;
+  if (/oo|∞|inf|\boff\b/i.test(display ?? '')) return -Infinity;
   const n = Number.parseFloat((display ?? '').replace(/[^0-9+\-.]/g, ' ').trim().split(/\s+/)[0] ?? '');
   return Number.isFinite(n) ? n : 0;
 }
@@ -48,6 +53,21 @@ export function parseDb(display: string | undefined): number {
 export function parseVibChorus(s: string | undefined): VibChorusType | undefined {
   const m = /^\s*([VC])\s*([123])\s*$/i.exec(s ?? '');
   return m ? (`${m[1].toUpperCase()}${m[2]}` as VibChorusType) : undefined;
+}
+
+/**
+ * The layer volume knob's position (0..1) for a level in dB, and back. The Stage 4
+ * volume table is dB = 40·log10(raw / 127) (raw 1 = −84.2 dB, 64 = −11.9 dB, 127 =
+ * 0 dB; values.generated.ts "095-7"), so the position is 10^(dB / 40) and "volume
+ * off" is position 0. Morphing in knob position, as the instrument moves its own
+ * raw value, keeps a swell from silence finite: no −Infinity arithmetic, no NaN.
+ */
+function volumePosition(display: string | undefined): number {
+  const db = parseDb(display);
+  return Number.isFinite(db) ? 10 ** (db / 40) : 0;
+}
+function positionDb(pos: number): number {
+  return pos > 0 ? Math.max(VOLUME_OFF_DB, 40 * Math.log10(pos)) : VOLUME_OFF_DB;
 }
 
 /** Linear morph: base moved toward each assigned target by that source's amount. */
@@ -95,7 +115,7 @@ export function organParamsFromLayer(
       on: !!layer.vibChorus,
       type: parseVibChorus(vibChorusTypeFor(organFx, layer.organModel)) ?? 'C3',
     },
-    volumeDb: morphNumber(layer.volume, parseDb, morph),
+    volumeDb: positionDb(morphNumber(layer.volume, volumePosition, morph)),
     octaveShift: layer.octaveShift ?? 0,
     sustain: !!layer.organSustain,
     keyClick: DEFAULT_ORGAN_PARAMS.keyClick,
