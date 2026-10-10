@@ -22,7 +22,7 @@ const { bytes, fileName, notes } = buildNpno({
   name: 'Home Upright', variant: 'Pleyel', minor: 0, pianoType: NPNO_PIANO_TYPE.upright,
   channels: 2,
   zones: [
-    { rootNote: 48, lowNote: 21, highNote: 52, layers: [
+    { rootNote: 48, lowNote: 21, highNote: 52, layers: [  // recorded at C3
       { pcm: [left, right], floorDb: 0 },  // hardest hit
       { pcm: [left2, right2], floorDb: 10, loop: { start: 90000, length: 40000 } },  // softer
     ] },
@@ -36,7 +36,14 @@ checkNpnoAcceptance(bytes, { deep: true }); // every check should be ok
   and dynamic layers, loudest first: each layer's `floorDb` says how far below the hardest hit it
   takes over (the first is 0 dB; the instrument switches halfway between floors, and the Touch
   setting maps velocity to dB). PCM is int16 per channel at
-  44.1 kHz (the rate the piano DSP plays), starting at the attack. A layer can have a sustain loop.
+  44.1 kHz (the rate the piano DSP plays), starting at the attack, every channel the same length.
+  A layer can have a sustain loop in whole frames: `start ≥ 0`, `length ≥ 4` (the seam copies 4
+  frames), `start + length` ≤ the layer's length.
+- A zone's `rootNote` is **the MIDI note the recording sounds at** (60 for a C4 sample), 5–127.
+  The instrument plays every stroke 4 semitones above the root it stores (`NSP_ROOT_OFFSET`,
+  `NSP-FORMAT.md` "Root offset"), so the file stores `rootNote − 4`: a C4 recording is written as
+  root 56 and plays back at C4 on key C4. A stored root of 0 reads as an unused key, hence the
+  lower limit of 5.
 - `writeNpnoImage(image)` / `readNpnoImage(bytes)`: a lossless model of the whole file (header
   bytes, each stroke's PCM, record bytes and block levels). `writeNpnoImage(readNpnoImage(x))`
   returns `x` unchanged for all three factory files.
@@ -105,7 +112,7 @@ ARM loader come from `0xC00B84CC` (header) and `0xC00AB028`/`0xC0020088` (record
 | +0x5C | 32 bytes, zero in all files | 0 |
 | +0x7C … +0x8A | zero in all files (NSM reads +0x7C as the entry number − 1) | 0 |
 | +0x8B | unknown byte: 2 (v6), 0 (v5) | constant 2 |
-| +0x8C | key map, 128 bytes: root note per key, `FF` unused | set from the zones |
+| +0x8C | key map, 128 bytes: root note per key, `FF` (and `00`) unused. A stroke sounds 4 semitones above its root | set from the zones: `rootNote − 4` |
 | +0x10C, +0x18C, +0x28C, +0x30C, +0x38C | per-note tables (128 bytes each), meaning unknown; zero in at least one file, +0x18C signed per note | 0 |
 | +0x20C | per-note table: 0x0D in the Clavinet for keys ≤ 108, 0x39 above key 108 in all three files | constant (0x0D / 0x39) |
 | +0x40C, +0x40E, +0x40F, +0x410 | single bytes: Clavinet 28, 0D, 6C, 01 (6C/01 in all files; +0x40D is replaced at load) | constant |
@@ -115,7 +122,7 @@ ARM loader come from `0xC00B84CC` (header) and `0xC00AB028`/`0xC0020088` (record
 | +0x51D | byte, 2 in the Clavinet (not read by the loader) | constant 2 |
 | +0x5A2 | per-note table (keys < 122; +0x61A for the rest), halved for v5 | 0 |
 | +0x61C | directory: u16 format (the gate re-checks it), u16 channels, u16 stroke count | set |
-| +0x622 | u16[128]: number of strokes of the zone rooted at each note | set |
+| +0x622 | u16[128]: number of strokes of the zone rooted at each note (the stored root, as in the key map) | set |
 | +0x722 … +0x731 | zero | 0 |
 
 ### Stroke record (0x76 bytes from CNSP + 0x732 + i·0x76)
@@ -129,7 +136,7 @@ ARM loader come from `0xC00B84CC` (header) and `0xC00AB028`/`0xC0020088` (record
 | +0x0C, +0x14 | 4×i16 predictor history per channel, oldest first | set (silence before the attack) |
 | +0x1C, +0x20 | u32 loop start, loop length (0 = no loop) | set |
 | +0x24, +0x28, +0x2C | first frame of the loop-start block, first frame of the next block, u16 that block's index | set (0 without a loop) |
-| +0x2E | u32 Q23 coefficient (24 bits used), `2^23 − 146` … `2^23 − 2782`, falling with pitch, constant within a zone; probably a release decay | default `2^23 − round(146·2^((root − 25)/24))`, through the Clavinet's two end points |
+| +0x2E | u32 Q23 coefficient (24 bits used), `2^23 − 146` … `2^23 − 2782`, falling with pitch, constant within a zone; probably a release decay | default `2^23 − round(146·2^((root − 25)/24))` of the stored root (`rootNote − 4`), through the Clavinet's two end points |
 | +0x32 | 0 in all files | 0 |
 | +0x33 | floor copy | = attenuation floor |
 | +0x34 | u16 level word. In the v6 Clavinet, `level + 10·k` is constant within a zone, where `k` is the dB the stroke's PCM peak sits below 7782. Our reading: an attenuation in 0.1 dB that undoes the peak normalization. v5 files are converted at load to `10·level − 2·floor·5` | `125 + 200·log10(normalization gain)`, so the original loudness between strokes is kept (`levelWord` overrides) |

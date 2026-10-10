@@ -25,6 +25,7 @@ import { computeNs4Checksum } from '../clavia/checksum';
 import {
   BLOCK_OVERLAP, decodeNspStroke, findCnsp, framesPerBlock, PREDICTORS, readLayerTable, readNspDirectory,
 } from './nsp-audio';
+import { NSP_ROOT_OFFSET } from './nsp';
 
 // ── Container constants (offsets relative to the `CNSP` tag unless noted) ──────────────────
 
@@ -53,7 +54,10 @@ const CBIN_V5_SIZE = 0x18;
 
 /** One stroke (a dynamic layer, or a release sound) as the file stores it. */
 export interface NpnoStrokeImage {
-  /** Root MIDI note of the zone this stroke belongs to (feeds the layers-per-root table). */
+  /**
+   * The zone's root as the file stores it (key map and layers-per-root table). The recording
+   * sounds {@link NSP_ROOT_OFFSET} semitones higher; {@link buildNpno} does that conversion.
+   */
   rootNote: number;
   /**
    * PCM per channel. For a looped stroke only frames before `loop.start + loop.length` are
@@ -63,6 +67,7 @@ export interface NpnoStrokeImage {
   pcm: ArrayLike<number>[];
   /** The 4 frames before the stroke (predictor seed), per channel, oldest first. */
   preroll: number[][];
+  /** Whole frames; `length` 0 = no loop, otherwise ≥ 4 (the seam copies 4 frames). */
   loop?: { start: number; length: number };
   /**
    * The 0x76-byte record. The encoder overwrites the geometry it owns (offset, frames,
@@ -130,6 +135,30 @@ interface EncodedStroke {
   seamForced: boolean;
 }
 
+/** Loops shorter than this can't take the 4-frame predictor seam (it would overwrite the frames it copies). */
+const MIN_LOOP_FRAMES = 4;
+
+/**
+ * Why a loop can't be used on a stroke of `frames` frames, or `undefined` if it can. `length` 0
+ * means "no loop" and is fine; anything else must be whole frames inside the stroke.
+ */
+function loopProblem(loop: { start: number; length: number }, frames: number): string | undefined {
+  const { start, length } = loop;
+  if (!Number.isInteger(start) || !Number.isInteger(length)) return `the loop must start and end on whole frames (got start ${start}, length ${length})`;
+  if (length === 0) return undefined;
+  if (start < 0) return `the loop can't start before the sound (start ${start})`;
+  if (length < MIN_LOOP_FRAMES) return `the loop must be at least ${MIN_LOOP_FRAMES} frames long (got ${length})`;
+  if (start + length > frames) return `the loop (frames ${start}–${start + length}) runs past the end of the recording (${frames} frames)`;
+  return undefined;
+}
+
+/** Why a stroke's channels can't be encoded together, or `undefined`. */
+function channelProblem(pcm: ArrayLike<number>[]): string | undefined {
+  if (!pcm.length || pcm[0].length === 0) return 'the recording is empty';
+  if (pcm.some((ch) => ch.length !== pcm[0].length)) return `the channels have different lengths (${pcm.map((ch) => ch.length).join(' / ')} frames)`;
+  return undefined;
+}
+
 /**
  * Encode one stroke into fixed-size blocks: for each block pick the predictor order (0–4) and
  * the narrowest residual width whose block — its own frames plus the 64 overlap frames —
@@ -138,11 +167,11 @@ interface EncodedStroke {
  */
 export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedStroke {
   const blockWords = BLOCK_WORDS_PER_CHANNEL * channels;
+  const bad = channelProblem(s.pcm) ?? (s.loop ? loopProblem(s.loop, s.pcm[0].length) : undefined);
+  if (bad) throw new Error(`Stroke: ${bad}.`);
   const pcmLen = s.pcm[0].length;
   const loop = s.loop && s.loop.length > 0 ? s.loop : undefined;
   const loopEnd = loop ? loop.start + loop.length : 0;
-  if (loop && (loop.start < 0 || loopEnd > pcmLen)) throw new Error(`loop ${loop.start}+${loop.length} outside the stroke (${pcmLen} frames)`);
-  if (pcmLen === 0) throw new Error('empty stroke');
   // The stroke ends at the end of the block holding frame `target - 1`: the loop end itself
   // for looped strokes (factory files always end the block containing the loop end), the
   // last PCM frame otherwise.
@@ -291,12 +320,14 @@ export function writeNpnoImage(img: NpnoImage): NpnoWriteResult {
   if (strokes.length === 0 || strokes.length > 0xffff) throw new Error('a piano needs 1–65535 strokes');
   const layers = new Array<number>(128).fill(0);
   let lastRoot = -1;
-  for (const s of strokes) {
+  for (const [i, s] of strokes.entries()) {
     if (s.record.length !== NPNO_RECORD_SIZE) throw new Error(`stroke record must be ${NPNO_RECORD_SIZE} bytes`);
-    if (s.rootNote < 0 || s.rootNote > 127) throw new Error(`root note ${s.rootNote} out of range`);
+    if (!Number.isInteger(s.rootNote) || s.rootNote < 0 || s.rootNote > 127) throw new Error(`root note ${s.rootNote} out of range`);
     if (s.rootNote < lastRoot) throw new Error('strokes must be grouped by zone, lowest root first');
     if (s.rootNote !== lastRoot && layers[s.rootNote]) throw new Error(`zone ${s.rootNote} is not contiguous`);
     if (s.pcm.length !== channels) throw new Error(`stroke has ${s.pcm.length} channels, piano has ${channels}`);
+    const bad = channelProblem(s.pcm) ?? (s.loop ? loopProblem(s.loop, s.pcm[0].length) : undefined);
+    if (bad) throw new Error(`Stroke ${i}: ${bad}.`);
     layers[s.rootNote]++;
     lastRoot = s.rootNote;
   }
@@ -426,14 +457,18 @@ export interface NpnoLayerInput {
    * which velocity reaches which attenuation (`docs/NSP-FORMAT.md`).
    */
   floorDb: number;
-  /** Optional sustain loop in frames (`start + length` ≤ PCM length). */
+  /** Optional sustain loop in whole frames: `start` ≥ 0, `length` ≥ 4, `start + length` ≤ PCM length. */
   loop?: { start: number; length: number };
   /** Override the stored level word (+0x34) directly; see {@link buildNpno} for the default. */
   levelWord?: number;
 }
 
 export interface NpnoZoneInput {
-  /** MIDI note the samples were recorded at. Must be unique per zone. */
+  /**
+   * MIDI note the recording sounds at (60 for a C4 sample), 5–127, unique per zone. The file
+   * stores it {@link NSP_ROOT_OFFSET} (4) semitones lower, because the instrument plays every
+   * stroke that far above its stored root (`docs/NSP-FORMAT.md`, "Root offset").
+   */
   rootNote: number;
   /** Key range (inclusive) that plays this zone. Ranges must not overlap. */
   lowNote: number;
@@ -463,7 +498,7 @@ export interface NpnoInput {
 /** Level word baseline (0.1 dB attenuation, hypothesis — see docs/NPNO-WRITE.md). */
 const LEVEL_BASE = 125;
 
-/** Default Q23 coefficient at +0x2E: 2^23 − 146·2^((root−25)/24), through the Clavinet's end points. */
+/** Default Q23 coefficient at +0x2E: 2^23 − 146·2^((root−25)/24) of the stored key-map root, through the Clavinet's end points. */
 export function defaultDecayCoefficient(root: number): number {
   return 0x800000 - Math.round(146 * 2 ** ((Math.max(0, Math.min(127, root)) - 25) / 24));
 }
@@ -487,7 +522,7 @@ function defaultHeader(input: NpnoInput): Uint8Array {
   h[0x8b] = 2; // unknown byte (2 in the v6 Clavinet, 0 in both v5 files)
   // +0x8C key map: root note per MIDI key, 0xFF = unmapped.
   h.fill(0xff, 0x8c, 0x10c);
-  for (const z of input.zones) for (let n = z.lowNote; n <= z.highNote; n++) h[0x8c + n] = z.rootNote;
+  for (const z of input.zones) for (let n = z.lowNote; n <= z.highNote; n++) h[0x8c + n] = storedRoot(z);
   // Per-note tables read by the ARM loader (meaning unknown). Zero where a factory file is
   // zero; the constants below are identical in all three factory files unless noted.
   for (let n = 0; n < 128; n++) h[0x20c + n] = n <= 108 ? 0x0d : 0x39; // 0x0d: Clavinet value; 0x39 above key 108 in all
@@ -520,6 +555,11 @@ function defaultRecord(opts: { floor: number; prevFloor: number | undefined; lev
   return r;
 }
 
+/** The key-map root for a zone: its recorded note minus the instrument's 4-semitone offset. */
+const storedRoot = (z: NpnoZoneInput) => z.rootNote - NSP_ROOT_OFFSET;
+/** Lowest recorded note a zone can have: a stored root of 0 reads as an unused key in the key map. */
+const MIN_RECORDED_NOTE = 1 + NSP_ROOT_OFFSET;
+
 /** A layer's floor in the record's 0.2 dB steps. */
 const floorUnits = (l: NpnoLayerInput) => Math.round(l.floorDb * 5);
 
@@ -530,6 +570,9 @@ function validateZones(input: NpnoInput): void {
   const roots = new Set<number>();
   input.zones.forEach((z, i) => {
     if (!(z.lowNote >= 0 && z.highNote <= 127 && z.lowNote <= z.highNote)) throw new Error(`Zone ${i}: key range ${z.lowNote}–${z.highNote} is invalid.`);
+    if (!(Number.isInteger(z.rootNote) && z.rootNote >= MIN_RECORDED_NOTE && z.rootNote <= 127)) {
+      throw new Error(`Zone ${i}: the recorded note must be a MIDI note from ${MIN_RECORDED_NOTE} to 127 (got ${z.rootNote}).`);
+    }
     if (roots.has(z.rootNote)) throw new Error(`Two zones share root note ${z.rootNote}.`);
     roots.add(z.rootNote);
     for (let n = z.lowNote; n <= z.highNote; n++) {
@@ -543,6 +586,9 @@ function validateZones(input: NpnoInput): void {
         throw new Error(`Zone ${i}: each softer layer needs a larger dB value, up to 51 dB.`);
       }
       if (l.pcm.length !== input.channels) throw new Error(`Zone ${i} layer ${k}: expected ${input.channels} channel(s).`);
+      if (l.loop && l.loop.length === 0) throw new Error(`Zone ${i} layer ${k}: a loop needs at least ${MIN_LOOP_FRAMES} frames; leave the loop out for none.`);
+      const bad = channelProblem(l.pcm) ?? (l.loop ? loopProblem(l.loop, l.pcm[0].length) : undefined);
+      if (bad) throw new Error(`Zone ${i} layer ${k}: ${bad}.`);
     });
   });
   const display = displayName(input);
@@ -569,6 +615,7 @@ export function buildNpno(input: NpnoInput): NpnoBuildResult {
   const zones = [...input.zones].sort((a, b) => a.rootNote - b.rootNote);
   const strokes: NpnoStrokeImage[] = [];
   for (const z of zones) {
+    const root = storedRoot(z);
     z.layers.forEach((l, k) => {
       const end = l.loop?.length ? l.loop.start + l.loop.length : l.pcm[0].length;
       let peak = 0;
@@ -581,14 +628,14 @@ export function buildNpno(input: NpnoInput): NpnoBuildResult {
       });
       const level = l.levelWord ?? Math.max(0, Math.min(0x7fff, Math.round(LEVEL_BASE + 200 * Math.log10(gain))));
       strokes.push({
-        rootNote: z.rootNote,
+        rootNote: root,
         pcm,
         preroll: pcm.map(() => [0, 0, 0, 0]),
         loop: l.loop,
         record: defaultRecord({
           floor: floorUnits(l),
           prevFloor: k > 0 ? floorUnits(z.layers[k - 1]) : undefined,
-          level, root: z.rootNote, id: strokes.length + 1,
+          level, root, id: strokes.length + 1,
         }),
       });
     });
