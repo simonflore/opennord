@@ -728,7 +728,9 @@ no reference" wall is now a *tooling* wall, not a missing-data one.
   `CNSP` strokes (follow the ARM host-port writes; look for the stroke/block parser by its
   table and loop shape on the voice-engine cores).
 - Also in the image: `0xC0300000–0xC0430000` (~1.2 MB) is 16-bit sample-like data with
-  4-way interleaved slowly-varying streams (wave/table data, not code).
+  4-way interleaved slowly-varying streams (wave/table data, not code). Since identified as
+  the synth's WAVE wavetables; the voice-engine cores run the synth. See
+  [`SYNTH-ENGINE.md`](SYNTH-ENGINE.md).
 
 ### ARM side checked: no CNSP body parser (full Ghidra analysis, 2026-10-10)
 
