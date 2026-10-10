@@ -11,30 +11,36 @@ import ghidra.program.model.mem.*;
 import ghidra.program.model.symbol.*;
 import java.util.*;
 public class SeedFunctions extends GhidraScript {
+  static final long CODE_LO_SW=0x120000L, CODE_HI_SW=0x140000L;
+  PseudoDisassembler pd;
+  /** Pseudo-disassemble at a, or null when it doesn't decode. */
+  PseudoInstruction tryDisassemble(Address a) {
+    try { return pd.disassemble(a); } catch (Exception e) { return null; }
+  }
   @Override public void run() throws Exception {
     AddressSpace sw=currentProgram.getAddressFactory().getDefaultAddressSpace();
     AddressSpace dm=currentProgram.getAddressFactory().getAddressSpace("dm");
     Memory mem=currentProgram.getMemory();
-    PseudoDisassembler pd=new PseudoDisassembler(currentProgram);
+    pd=new PseudoDisassembler(currentProgram);
     Set<Address> seeds=new TreeSet<>();
     // (1) linear sweep for call targets over non-zero code memory
-    Address CODE_LO=sw.getTruncatedAddress(0x120000L,true), CODE_HI=sw.getTruncatedAddress(0x140000L,true);
+    Address CODE_LO=sw.getTruncatedAddress(CODE_LO_SW,true), CODE_HI=sw.getTruncatedAddress(CODE_HI_SW,true);
     Set<Address> jumps=new TreeSet<>();
     Set<Address> after=new TreeSet<>();
     {
       Address a=CODE_LO, end=CODE_HI;
       while (a.compareTo(end)<0) {
         if ((mem.getShort(a)&0xffff)==0) { a=a.add(2); continue; }
-        PseudoInstruction ins=null; try { ins=pd.disassemble(a);} catch(Exception e){}
+        PseudoInstruction ins=tryDisassemble(a);
         if (ins==null) { a=a.add(2); continue; }
         if (ins.getFlowType().isTerminal()) {
           // function boundary: skip the delay slots of a (DB) return, then the next
           // non-NOP instruction is a candidate function start
           Address n=a.add(ins.getLength());
           int slots=ins.getDelaySlotDepth();
-          for (int k=0;k<slots;k++) { PseudoInstruction d=null; try { d=pd.disassemble(n);} catch(Exception e){} if (d==null) break; n=n.add(d.getLength()); }
+          for (int k=0;k<slots;k++) { PseudoInstruction d=tryDisassemble(n); if (d==null) break; n=n.add(d.getLength()); }
           for (int k=0;k<4 && n.compareTo(CODE_HI)<0;k++) {
-            PseudoInstruction q=null; try { q=pd.disassemble(n);} catch(Exception e){}
+            PseudoInstruction q=tryDisassemble(n);
             if (q==null || (mem.getShort(n)&0xffff)==0) break;
             if (!q.getMnemonicString().equals("NOP")) { after.add(n); break; }
             n=n.add(q.getLength());
@@ -49,16 +55,14 @@ public class SeedFunctions extends GhidraScript {
     }
     int calls=seeds.size();
     // (2) dm words that are code addresses
-    long lo=0x120000L, hi=0x140000L;
     for (MemoryBlock blk: mem.getBlocks()) {
       if (blk.getStart().getAddressSpace()!=dm) continue;
       for (Address a=blk.getStart(); a.compareTo(blk.getEnd())<0; a=a.add(4)) {
         long v=mem.getInt(a)&0xffffffffL;
-        if (v<lo || v>=hi) continue;
+        if (v<CODE_LO_SW || v>=CODE_HI_SW) continue;
         Address t=sw.getTruncatedAddress(v,true);
         if (!mem.contains(t) || (mem.getShort(t)&0xffff)==0) continue;
-        PseudoInstruction ins=null; try { ins=pd.disassemble(t);} catch(Exception e){}
-        if (ins!=null) seeds.add(t);
+        if (tryDisassemble(t)!=null) seeds.add(t);
       }
     }
     println("[seed] call targets="+calls+" plus data pointers="+(seeds.size()-calls));
