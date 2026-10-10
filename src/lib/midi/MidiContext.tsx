@@ -40,10 +40,31 @@ function useMidiStateValue(): MidiState {
     });
   }
   const handleRef = useRef<MidiInputsHandle | null>(null);
+  // The connect in flight, if any: a second tap (or the pairing flow) joins it
+  // instead of opening a duplicate listening session.
+  const connectingRef = useRef<Promise<void> | null>(null);
+  // Bumped by Disconnect / unmount, so a connect that resolves afterwards is dropped.
+  const epochRef = useRef(0);
+  // Inputs present right now — to notice one going away.
+  const namesRef = useRef<string[]>([]);
   const [status, setStatus] = useState<MidiStatus>(supported ? 'idle' : 'unsupported');
   const [deviceNames, setDeviceNames] = useState<string[]>([]);
 
+  /** End the listening session and reset the sustain gate fully — every note
+   *  released AND the pedal forgotten. Explicit, not left to effect re-runs. */
+  const stopListening = useCallback(() => {
+    handleRef.current?.stop();
+    handleRef.current = null;
+    namesRef.current = [];
+    gateRef.current?.reset();
+  }, []);
+
   const onDevices = useCallback((names: string[]) => {
+    // Hot-unplug / source loss: the pedal may have gone with the keyboard, and
+    // its note-offs with it — reset the gate so nothing keeps ringing and the
+    // next keyboard doesn't start with a phantom pedal held down.
+    if (lostInput(namesRef.current, names)) gateRef.current?.reset();
+    namesRef.current = names;
     setDeviceNames(names);
     // Hot-plug: reflect device presence once we're live.
     setStatus((s) => (s === 'connected' || s === 'no-device') ? (names.length ? 'connected' : 'no-device') : s);
@@ -58,22 +79,33 @@ function useMidiStateValue(): MidiState {
     else gate.setSustain(ev.down);
   }, []);
 
-  const connect = useCallback(async () => {
-    if (!supported) { setStatus('unsupported'); return; }
-    setStatus('connecting');
-    // A retry ("plug one in & retry") must not leave the previous session bound.
-    handleRef.current?.stop();
-    handleRef.current = null;
-    try {
-      const handle = await listenToAllMidiInputs(onMessage, onDevices);
-      handleRef.current = handle;
-      setDeviceNames(handle.deviceNames);
-      setStatus(handle.deviceNames.length > 0 ? 'connected' : 'no-device');
-    } catch (e) {
-      const reason = e instanceof Error ? e.message : '';
-      setStatus(reason === 'denied' ? 'denied' : reason === 'failed' ? 'failed' : 'unsupported');
-    }
-  }, [supported, onMessage, onDevices]);
+  const connect = useCallback((): Promise<void> => {
+    if (connectingRef.current) return connectingRef.current; // already connecting: join it
+    const run = (async () => {
+      if (!supported) { setStatus('unsupported'); return; }
+      setStatus('connecting');
+      // A retry ("plug one in & retry") must not leave the previous session bound.
+      stopListening();
+      const epoch = epochRef.current;
+      try {
+        const handle = await listenToAllMidiInputs(onMessage, onDevices);
+        if (epoch !== epochRef.current) { handle.stop(); return; } // disconnected meanwhile
+        handleRef.current = handle;
+        namesRef.current = handle.deviceNames;
+        setDeviceNames(handle.deviceNames);
+        setStatus(handle.deviceNames.length > 0 ? 'connected' : 'no-device');
+      } catch (e) {
+        if (epoch !== epochRef.current) return;
+        const reason = e instanceof Error ? e.message : '';
+        setStatus(reason === 'denied' ? 'denied' : reason === 'failed' ? 'failed' : 'unsupported');
+      }
+    })();
+    const tracked = run.finally(() => {
+      if (connectingRef.current === tracked) connectingRef.current = null;
+    });
+    connectingRef.current = tracked;
+    return tracked;
+  }, [supported, onMessage, onDevices, stopListening]);
 
   const pairBluetooth = useCallback(async () => {
     if (!bluetoothPairing) return;
@@ -88,19 +120,19 @@ function useMidiStateValue(): MidiState {
   }, [bluetoothPairing, connect]);
 
   const disconnect = useCallback(() => {
-    handleRef.current?.stop();
-    handleRef.current = null;
-    gateRef.current?.allNotesOff();
+    epochRef.current++; // a connect still in flight is dropped when it lands
+    connectingRef.current = null;
+    stopListening();
     setStatus(supported ? 'idle' : 'unsupported');
     setDeviceNames([]);
-  }, [supported]);
+  }, [supported, stopListening]);
 
   const setSink = useCallback((sink: NoteSink | null) => {
     gateRef.current?.allNotesOff(); // never strand a held note on the previous sampler
     sinkRef.current = sink;
   }, []);
 
-  useEffect(() => () => { handleRef.current?.stop(); }, []);
+  useEffect(() => () => { epochRef.current++; stopListening(); }, [stopListening]);
 
   return useMemo(
     () => ({
@@ -108,6 +140,19 @@ function useMidiStateValue(): MidiState {
     }),
     [status, deviceNames, supported, bluetoothPairing, connect, pairBluetooth, disconnect, setSink],
   );
+}
+
+/** True when an input present before is missing now (names are a multiset:
+ *  two keyboards of the same model unplugging one still counts). */
+function lostInput(before: readonly string[], after: readonly string[]): boolean {
+  const left = new Map<string, number>();
+  for (const n of after) left.set(n, (left.get(n) ?? 0) + 1);
+  for (const n of before) {
+    const k = left.get(n) ?? 0;
+    if (k === 0) return true;
+    left.set(n, k - 1);
+  }
+  return false;
 }
 
 const Ctx = createContext<MidiState | null>(null);

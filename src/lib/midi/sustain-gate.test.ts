@@ -49,4 +49,27 @@ describe('createSustainGate', () => {
     g.setSustain(false); // nothing left to flush
     expect(calls.filter((c) => c === 'off 60' || c === 'off 64').length).toBe(2);
   });
+
+  it('reset() releases everything and forgets the pedal', () => {
+    const { sink, calls } = recorder();
+    const g = createSustainGate(sink);
+    g.setSustain(true);
+    g.noteOn(60, 100); g.noteOff(60); // pending behind the pedal
+    g.noteOn(64, 90);                 // still held
+    g.reset();
+    expect(calls).toEqual(['on 60 100', 'on 64 90', 'off 64', 'off 60']);
+    // a keyboard reconnected with the pedal up: note-offs go straight through
+    calls.length = 0;
+    g.noteOn(67, 80); g.noteOff(67);
+    expect(calls).toEqual(['on 67 80', 'off 67']);
+  });
+
+  it('allNotesOff() keeps the pedal state (sampler switch, same keyboard)', () => {
+    const { sink, calls } = recorder();
+    const g = createSustainGate(sink);
+    g.setSustain(true);
+    g.allNotesOff();
+    g.noteOn(60, 100); g.noteOff(60);
+    expect(calls).toEqual(['on 60 100']); // still sustained
+  });
 });

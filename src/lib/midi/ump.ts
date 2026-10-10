@@ -44,9 +44,9 @@ function midi2ChannelVoice(w0: number, w1: number, out: number[]): void {
       out.push(0x80 | channel, index, to7(w1 >>> 16, 16));
       return;
     case 0x9: {
-      const v16 = w1 >>> 16;
-      // A non-zero 2.0 velocity must stay a note-on (7-bit 0 would mean off).
-      const v7 = v16 === 0 ? 0 : Math.max(1, to7(v16, 16));
+      // A MIDI 2.0 Note On is always a note-on — velocity 0 included (UMP spec,
+      // MIDI 2.0 → 1.0 translation: velocity 0 becomes 1). 7-bit 0 would mean off.
+      const v7 = Math.max(1, to7(w1 >>> 16, 16));
       out.push(0x90 | channel, index, v7);
       return;
     }
