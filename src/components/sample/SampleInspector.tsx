@@ -77,22 +77,26 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
   // Stop any held voices when the file changes or the component unmounts.
   useEffect(() => () => { loaded?.sampler?.stopAll(); }, [loaded?.sampler]);
 
-  const midi = useMidi();
+  const { setSink, clearSink } = useMidi();
   // Route MIDI notes into the loaded sampler (same path as the on-screen keyboard,
   // so playing the controller lights the now-playing zones + waveform playhead).
+  // Depends on the provider's stable setSink/clearSink, not the whole MIDI context
+  // (a new object on every hot-plug, which would re-run this and cut held notes), and
+  // clears the sink only if it is still ours, so it never unhooks another instrument.
   useEffect(() => {
     const sampler = loaded?.sampler;
-    if (!sampler || !loaded?.decodable) { midi.setSink(null); return; }
-    midi.setSink({
-      noteOn: (n, v) => { sampler.noteOn(n, v); transport.refresh(); },
-      noteOff: (n) => sampler.noteOff(n),
-    });
-    return () => midi.setSink(null);
+    if (!sampler || !loaded?.decodable) return;
+    const sink = {
+      noteOn: (n: number, v: number) => { sampler.noteOn(n, v); transport.refresh(); },
+      noteOff: (n: number) => sampler.noteOff(n),
+    };
+    setSink(sink);
+    return () => clearSink(sink);
     // Depend on transport.refresh (stable per sampler), NOT the whole transport
     // object — it's a fresh literal each render, and re-running this effect mid-note
     // calls setSink → gate.allNotesOff(), releasing the held MIDI note after ~1 frame.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded?.sampler, loaded?.decodable, midi, transport.refresh]);
+  }, [loaded?.sampler, loaded?.decodable, setSink, clearSink, transport.refresh]);
 
   function loadBytes(bytes: Uint8Array, name: string, factory = false) {
     const file = readNsmp(bytes);

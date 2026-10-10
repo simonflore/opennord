@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { playPcm } from '@/components/sample/audioPlayer';
+import { getSharedCtx, playPcm } from '@/components/sample/audioPlayer';
 import { NSP_SAMPLE_RATE, decodeNspStroke, readNspDirectory, strokeFor } from '@/lib/ns4/nsp-audio';
 import { getErrorMessage } from '@/lib/errors';
 
@@ -22,6 +22,9 @@ export function usePianoVoice(bytes: Uint8Array | null) {
    * the recording the way a sampler stretches a zone across its keys (0 = as recorded).
    */
   function toggle(key: string, zone: number, velocity: number, semitones = 0) {
+    // Unlock audio inside every tap: iPad suspends (or WebKit 'interrupts') the shared
+    // context in the background, and a folder piano has no other tap that would.
+    getSharedCtx();
     setError('');
     if (playing === key) { stopRef.current?.(); return; }
     if (!bytes || !dir) return;

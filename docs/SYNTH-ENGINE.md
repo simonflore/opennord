@@ -267,8 +267,13 @@ approximate note for an ANALOG/PURE layer. It uses a polyBLEP oscillator with a 
 all six filter types (SVF, SVF×2, ladder with soft clip, HP→LP), and envelopes. The inputs
 are the decoded display values (`"3.7 kHz"`, `"244 ms"`, `"inf"`, …). It now follows the
 firmware's envelope shapes (linear attack; decay and release that fall 40 dB in the displayed
-time) and its resonance law `k = 2·(1 − r/128)²` (§7). Its other constants are our own
-choices. It does not claim bit-exactness, and its remaining assumptions are marked in the code
+time) and its resonance law `k = 2·(1 − r/128)²` (§7), taken from `synth-scaling.ts` rather
+than restated. It plays the layer's pitch (octave shift, coarse, fine). Its other constants
+are our own choices: the filter input is scaled down as resonance rises (`(k/2)^¼`, at most
+−10.5 dB), LP24 resonates on its second stage only, the band-pass state saturates softly, and
+the output runs through a soft limiter with headroom, so resonance 7–10 sings instead of
+clipping. A note still sounding at the length cap is released and faded over 8 ms. It does
+not claim bit-exactness, and its remaining assumptions are marked in the code
 (filter-envelope amount read as octaves, key tracking around middle C).
 
 **Tier 1 next.** The other analog categories (Shape, Shape Sine, Sub, Multi, Super, Sync) are
@@ -337,7 +342,8 @@ It was recovered from the ARM edit-parameter router, the per-layer dispatcher, t
 soft-float maths, and the voice core's note-on handler and lookup tables in DM. Where the
 firmware uses a lookup table, the table is described by a fitted formula with its error. The
 tables themselves are not copied. `src/lib/ns4/synth-scaling.ts` implements every formula
-marked ✅ or 🟡 below, and its tests check them against the decoder's display tables.
+marked ✅ or 🟡 below, and its tests check them against the decoder's display tables: the
+cutoff, envelope times, LFO rate and depth curve over every raw value.
 
 Confidence: ✅ = read from code or data, and cross-checked against the displayed value.
 🟡 = mechanism confirmed, one link inferred. ❓ = open.
@@ -439,7 +445,7 @@ generically. Values 5–7 are unreachable on v1.66.
 | OSC CTRL | 0–127 | `x = v/127` (the 16.16 value × 1/(127·65536)) | `FUN_c01c61f0` | ✅ |
 | OSC CTRL, "curve" mode (FM depth) | x | `C(127·x)/48`, where C is the depth curve below | `FUN_c01cd540` | ✅ (which algorithms use it: ❓) |
 | OSC CTRL, linear mode | x | `x` | `FUN_c01c61f0` (mode 2) | ✅ (which algorithms: ❓) |
-| Depth curve C(v) | 0–127 | smooth `0.5·(v/20)^2.5` up to 0.5 st at v = 20, then piecewise linear through (27, 1), (36, 2), (42, 3), (47, 4), (59, 7), (68, 10), (73, 12), (88, 19), (96, 24), (108, 32), (120, 42), (122, 43), (127, 48) semitones. Max error 0.5 st | ARM table `0xC02CA2C0` (129 floats) | ✅ |
+| Depth curve C(v) | 0–127 | smooth `0.5·(v/20)^2.5` up to 0.5 st at v = 20, then piecewise linear through 28 points of the displayed curve (`DEPTH_LANDMARKS` in `synth-scaling.ts`, e.g. (36, 2), (73, 12), (116, 38), (127, 48) semitones). Within the display's rounding at every v ≥ 20 (±0.05 st below 12.5 st, ±0.25 st above); within 3 cents below 20. The earlier 14-point fit was up to 0.67 st sharp (v = 116) | ARM table `0xC02CA2C0` (129 floats) | ✅ |
 | WAVE anti-alias fade | inc f (cycles/sample) | `g = clamp((0.4608 − f)/0.2304, 0, 1)`: full level to 0.2304·fs (≈ 20 kHz), silent at 0.4608·fs | WAVE kernel `sw:0x1247B6` | ✅ |
 | Unison | 0–3 | keys 6 and 7 both get the setting (0–3) | `FUN_c0115478` | ✅ (detune amounts: ❓) |
 
@@ -506,7 +512,7 @@ The unused DM table at `0xB09D1` holds `−(1 − c)/18`. With it, a decay would
 
 | Parameter | Raw | Formula | Units | Evidence | Conf. |
 |---|---|---|---|---|---|
-| LFO rate (free) | 0–127 | `f = 0.02846·2^(v/8.966)` (0.028 Hz … 523 Hz); phase increment `T[v]·256` per control tick, with `T[0] = 22` and `T[127] = 404526` | Hz | ARM table `0xC027A76C+0x324`, interpolated by the 16.16 value (case 0x1F) | ✅ |
+| LFO rate (free) | 0–127 | `f = 0.02846·2^(v/8.966)` (0.028 Hz … 523 Hz); phase increment `T[v]·256` per control tick, with `T[0] = 22` and `T[127] = 404526`. Against every displayed rate: within the display's rounding plus 4.5%. The display table steps +15% between v = 34 and 35 (0.38 → 0.44 Hz, against ~8% per step elsewhere); the exponential runs between the two halves, ~4% high below 35 and ~3% low just above | Hz | ARM table `0xC027A76C+0x324`, interpolated by the 16.16 value (case 0x1F) | ✅ |
 | LFO rate (master clock) | 0–127 | clock divisions from a 128-entry table computed at boot (`FUN_c011b190`); "4/1" … "1/64" | — | key 0x22 | 🟡 |
 | LFO shapes | 0–4 | triangle, saw, inverse saw, square, S/H (`sw:0x12538C…`) | — | §5 | ✅ |
 | LFO output smoothing | — | one-pole `y += (x − y)·(1 − 0.99078)` per tick for the OSC CTRL and FILTER destinations; none for PITCH | — | `0xC01BBE40` returns `0x7ED1D5/2^23`; `0xC01C94C4` returns 0 for PITCH | 🟡 |

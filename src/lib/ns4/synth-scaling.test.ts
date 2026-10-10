@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GENERATED_VALUES } from './values.generated';
+import { DEP_TABLES } from './deps.generated';
 import { parseHz, parseSeconds } from './synth-preview';
 import {
   attackSeconds,
@@ -72,11 +73,36 @@ describe('resonance, LFO, depth curve, tuning', () => {
     expectRatio(lfoRateHz(64), 4.1, 0.03);
     expectRatio(lfoRateHz(127), 523, 0.02);
   });
+  it('matches every displayed free LFO rate (576-6) within its rounding plus 4.5%', () => {
+    // The display rounds to 2–3 digits ("0.06 Hz", "4.1 Hz", "523 Hz"). Beyond that the
+    // exponential is up to ~4% off: the display table steps 0.38 → 0.44 Hz between 34
+    // and 35 (+15%, against +8% for its neighbours), and the exponential through the
+    // firmware table's end points runs between the two halves (docs/SYNTH-ENGINE.md §7.6).
+    const t = DEP_TABLES['576-6'];
+    for (let raw = 0; raw <= 127; raw++) {
+      const s = /^(\d+(?:\.(\d+))?) Hz$/.exec(t[`0:${raw}`])!;
+      const shown = Number(s[1]);
+      const half = 0.5 * 10 ** -(s[2]?.length ?? 0);
+      expect(Math.abs(lfoRateHz(raw) - shown), `raw ${raw}: ${t[`0:${raw}`]}`).toBeLessThanOrEqual(half + 0.045 * shown);
+    }
+  });
   it('hits the depth-curve landmarks', () => {
     expect(depthCurveSemitones(0)).toBe(0);
     expect(depthCurveSemitones(20)).toBeCloseTo(0.5);
-    expect(depthCurveSemitones(64)).toBeCloseTo(8.67, 0);
+    expect(depthCurveSemitones(64)).toBeCloseTo(8.7, 9);
+    expect(depthCurveSemitones(116)).toBe(38); // the old fit was 0.67 st sharp here
     expect(depthCurveSemitones(127)).toBe(48);
+  });
+  it('matches every displayed LFO→pitch depth (580-5) within its rounding', () => {
+    // Displayed in whole cents below 1 semi, in tenths to 12 semi, in half semitones
+    // above. The smooth part below raw 20 is allowed 3 cents more.
+    const t = DEP_TABLES['580-5'];
+    for (let raw = 0; raw <= 127; raw++) {
+      const [n, unit] = t[`2:${raw}`].split(' ');
+      const shown = unit === 'cent' ? Number(n) / 100 : Number(n);
+      const tol = unit === 'cent' ? 0.005 + (raw < 20 ? 0.03 : 0) : shown < 12.5 ? 0.05 : 0.25;
+      expect(Math.abs(depthCurveSemitones(raw) - shown), `raw ${raw}: ${t[`2:${raw}`]}`).toBeLessThanOrEqual(tol + 1e-9);
+    }
   });
   it('tunes in semitones and cents, and lists the FM ratios', () => {
     expect(oscTuneSemitones(-12, 50)).toBeCloseTo(-11.5);

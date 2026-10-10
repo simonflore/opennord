@@ -15,11 +15,19 @@
  * the firmware's envelope segment shapes (linear attack, exponential decay and
  * release that fall 40 dB in the displayed time) and its resonance law
  * (`k = 2·(1 − r/128)²`). Those shapes and formulas are documented in
- * `docs/SYNTH-ENGINE.md` ("Parameter scaling"); no firmware tables or
- * coefficients are copied, and the other constants here are our own choices.
- * The result is a recognisable sketch of the sound, not a bit-exact emulation.
+ * `docs/SYNTH-ENGINE.md` ("Parameter scaling") and implemented once, in
+ * `synth-scaling.ts`; no firmware tables or coefficients are copied, and the
+ * other constants here are our own choices. The result is a recognisable sketch
+ * of the sound, not a bit-exact emulation.
+ *
+ * Level: a resonant filter is driven with its input scaled down as the resonance
+ * rises ({@link resonanceInputGain}), LP24 resonates on its second stage only, the
+ * band-pass state saturates softly (which bounds self-oscillation), and the output
+ * goes through a soft limiter with headroom ({@link softLimit}) instead of a hard
+ * clamp. So even resonance 10 sings rather than square-wave clips.
  */
 import type { NS4Layer } from './types';
+import { ENV_DISPLAY_DROP, keyTrackFactor, oscTuneSemitones, resonanceDamping } from './synth-scaling';
 
 export type PreviewWave = 'sine' | 'triangle' | 'saw' | 'square' | 'pulse33' | 'pulse10' | 'noise';
 export type PreviewFilterType = 'LP12' | 'LP24' | 'LPM' | 'LPHP' | 'BP' | 'HP';
@@ -58,6 +66,11 @@ export interface SynthPreviewParams {
   ampEnv: PreviewEnv;
   /** `null` when the layer's filter is switched off. */
   filter: PreviewFilter | null;
+  /**
+   * The layer's oscillator pitch offset in semitones: octave shift × 12 plus pitch
+   * coarse and fine (`oscTuneSemitones`). 0 when absent.
+   */
+  pitchSemitones?: number;
 }
 
 export interface RenderOptions {
@@ -66,9 +79,15 @@ export interface RenderOptions {
   sampleRate?: number;
   /** How long the key is held before release, in seconds. */
   holdSeconds?: number;
-  /** Hard cap on the rendered length (hold + release tail), in seconds. */
+  /**
+   * Hard cap on the rendered length (hold + release tail), in seconds. A note still
+   * sounding there is released early and faded out over {@link END_FADE_SECONDS}.
+   */
   maxSeconds?: number;
 }
+
+/** Fade-out at the `maxSeconds` cap, so a long note never ends on a click. */
+export const END_FADE_SECONDS = 0.008;
 
 const PURE_WAVES: Record<string, PreviewWave> = {
   'Pure Sine': 'sine',
@@ -82,7 +101,8 @@ const PURE_WAVES: Record<string, PreviewWave> = {
 
 const FILTER_TYPES: readonly PreviewFilterType[] = ['LP12', 'LP24', 'LPM', 'LPHP', 'BP', 'HP'];
 
-const TRACK: Record<string, number> = { off: 0, '1/3': 1 / 3, '2/3': 2 / 3, '3/3': 1 };
+/** The decoder's "filter track" labels, in raw order (0..3) for {@link keyTrackFactor}. */
+const TRACK_LABELS = ['off', '1/3', '2/3', '3/3'];
 
 /** "0.5 ms" → 0.0005, "1.82 s" → 1.82, "inf" → Infinity. */
 export function parseSeconds(s: string | undefined): number | undefined {
@@ -102,6 +122,12 @@ export function parseHz(s: string | undefined): number | undefined {
   if (!m) return undefined;
   const v = Number(m[1]);
   return m[2] === 'kHz' ? v * 1000 : v;
+}
+
+/** "+18 cent" / "- 3 semi" / "+ 0 semi" → 18 / −3 / 0. */
+function parseSigned(s: string | undefined): number | undefined {
+  const m = /^([+-])\s*(\d+(?:\.\d+)?)/.exec(s?.trim() ?? '');
+  return m ? (m[1] === '-' ? -1 : 1) * Number(m[2]) : undefined;
 }
 
 function parsePlain(s: string | undefined): number | undefined {
@@ -148,10 +174,12 @@ export function previewParamsFromLayer(l: NS4Layer): SynthPreviewParams | null {
       hpHz: type === 'LPHP' ? (parseHz(resRaw) ?? 20) : undefined,
       envOctaves: parsePlain(f.envAmount?.value) ?? 0,
       env: env(f.env),
-      track: TRACK[f.track ?? 'off'] ?? 0,
+      track: keyTrackFactor(Math.max(0, TRACK_LABELS.indexOf(f.track ?? 'off'))),
     };
   }
-  return { wave, ampEnv, filter };
+  const octave = Number.isFinite(l.octaveShift) ? (l.octaveShift ?? 0) : 0;
+  const pitchSemitones = 12 * octave + oscTuneSemitones(parseSigned(l.pitchCoarse) ?? 0, parseSigned(l.pitchFine) ?? 0);
+  return { wave, ampEnv, filter, pitchSemitones };
 }
 
 // ── Building blocks ──────────────────────────────────────────────────────────
@@ -228,22 +256,39 @@ class Oscillator {
 }
 
 /**
- * Level ratio a decay or release segment covers in its displayed time. The
- * firmware's decay/release coefficient table and the displayed times agree on
- * a 40 dB drop (`docs/SYNTH-ENGINE.md`, "Parameter scaling").
- */
-export const ENV_DISPLAY_DROP = 100;
-
-/**
  * Damping `k` (= 1/Q) of the state-variable filters for a resonance of 0..1
- * (the panel's 0.0–10.0 over 10). The LP12 kernel looks `k` up in a 128-entry
- * table of exactly `2·(1 − r/128)²`, r = raw 0..127 (`docs/SYNTH-ENGINE.md`).
+ * (the panel's 0.0–10.0 over 10): the firmware's law for raw 0..127,
+ * {@link resonanceDamping}.
  */
 export function svfDamping(resonance: number): number {
-  const r = Math.min(127, Math.max(0, Math.round(resonance * 127)));
-  const x = 1 - r / 128;
-  return 2 * x * x;
+  return resonanceDamping(resonance * 127);
 }
+
+/**
+ * Input gain for a resonant state-variable filter of damping `k`: (k/2)^¼, floored
+ * at 0.3, so 1 with no resonance, −3 dB at 5.0, −5 dB at 7.0, −9.6 dB at 9.0 and
+ * −10.5 dB at most. The resonant peak (≈ 1/k) still rises with the knob, and the
+ * band-pass saturation bounds it; the floor keeps a nearly self-oscillating filter
+ * from going quiet. Our choice: the LP12 kernel normalises its damping with a
+ * reciprocal square root (`RSQRTS`, `docs/SYNTH-ENGINE.md` §4), but the exact law
+ * isn't recovered.
+ */
+export function resonanceInputGain(k: number): number {
+  return Math.max(0.3, Math.pow(Math.min(2, Math.max(0, k)) / 2, 0.25));
+}
+
+/** Output soft limiter: transparent below ±0.5, a tanh knee towards ±1 above. */
+export function softLimit(x: number): number {
+  const a = Math.abs(x);
+  if (a <= 0.5) return x;
+  return Math.sign(x) * (0.5 + 0.5 * Math.tanh((a - 0.5) / 0.5));
+}
+
+/** Output gain before the limiter: a full-scale oscillator through an open filter peaks at 0.4. */
+const OUTPUT_GAIN = 0.4;
+
+/** An envelope below this (−80 dB) is over: decay and release end there. */
+const ENV_FLOOR = 1e-4;
 
 /**
  * Envelope with the firmware's segment shapes: a linear attack ramp that
@@ -284,10 +329,15 @@ class Envelope {
         break;
       case 'decay':
         this.level -= this.level * this.decayCoef;
+        // A finite decay ends at the floor instead of sinking into denormals until release.
+        if (this.level < ENV_FLOOR) {
+          this.level = 0;
+          this.stage = 'done';
+        }
         break;
       case 'release':
         this.level -= this.level * this.releaseCoef;
-        if (this.level < 1e-4) {
+        if (this.level < ENV_FLOOR) {
           this.level = 0;
           this.stage = 'done';
         }
@@ -301,7 +351,8 @@ class Envelope {
 
 /** Trapezoidal (zero-delay-feedback) state-variable filter. */
 class Svf {
-  private static readonly BAND_LIMIT = 4;
+  /** Band-pass state saturation level (our choice): bounds a self-oscillating filter near ±1. */
+  private static readonly BAND_LIMIT = 2;
   private ic1 = 0;
   private ic2 = 0;
   private a1 = 1;
@@ -322,8 +373,9 @@ class Svf {
   process(x: number): void {
     const v3 = x - this.ic2;
     // The firmware clips the band-pass state, which keeps a near-self-oscillating
-    // filter bounded; the limit here is our choice.
-    const v1 = Math.max(-Svf.BAND_LIMIT, Math.min(Svf.BAND_LIMIT, this.a1 * this.ic1 + this.a2 * v3));
+    // filter bounded; here it saturates softly, at a level of our choice.
+    const L = Svf.BAND_LIMIT;
+    const v1 = L * Math.tanh((this.a1 * this.ic1 + this.a2 * v3) / L);
     const v2 = this.ic2 + this.a2 * this.ic1 + this.a3 * v3;
     this.ic1 = 2 * v1 - this.ic1;
     this.ic2 = 2 * v2 - this.ic2;
@@ -369,6 +421,8 @@ class Filter {
   private readonly env: Envelope;
   /** Keyboard-tracking offset for the played note, in octaves. */
   private readonly trackOct: number;
+  /** Resonance compensation on the input ({@link resonanceInputGain}); 1 for the ladder and LPHP. */
+  private readonly inGain: number;
   private n = 0;
 
   constructor(
@@ -378,6 +432,7 @@ class Filter {
   ) {
     this.env = new Envelope(f.env, fs);
     this.trackOct = (f.track * (note - 60)) / 12;
+    this.inGain = f.type === 'LPM' || f.type === 'LPHP' ? 1 : resonanceInputGain(svfDamping(f.resonance));
     // The LPHP high-pass corner doesn't move, so it is set once.
     if (f.type === 'LPHP') this.a.set(this.g(f.hpHz ?? 20), Math.SQRT2);
   }
@@ -401,16 +456,19 @@ class Filter {
       this.b.set(g, Math.SQRT2);
     } else {
       const k = svfDamping(resonance);
-      this.a.set(g, k);
+      // LP24 resonates on its second stage only: two resonant stages would square the
+      // peak (Q²). The first stage is a plain Butterworth section.
+      this.a.set(g, type === 'LP24' ? Math.SQRT2 : k);
       this.b.set(g, k);
     }
   }
 
-  process(x: number): number {
+  process(input: number): number {
     const e = this.env.next();
     if (this.n++ % CONTROL_BLOCK === 0) {
       this.update(this.f.cutoffHz * Math.pow(2, this.f.envOctaves * e + this.trackOct));
     }
+    const x = input * this.inGain;
     switch (this.f.type) {
       case 'LP12':
         this.a.process(x);
@@ -436,15 +494,18 @@ class Filter {
 }
 
 /**
- * Render one note of a synth layer preview as mono samples in [-1, 1]. Stops
- * early once the amp envelope's release has decayed to silence.
+ * Render one note of a synth layer preview as mono samples in (−1, 1). Stops
+ * early once the amp envelope has decayed to silence. A note still sounding at
+ * `maxSeconds` is released {@link END_FADE_SECONDS} before it and faded to zero.
  */
 export function renderSynthPreview(p: SynthPreviewParams, opts: RenderOptions): Float32Array {
   const fs = opts.sampleRate ?? 48000;
   const hold = opts.holdSeconds ?? 1;
   const maxLen = Math.round((opts.maxSeconds ?? 4) * fs);
-  const holdLen = Math.min(maxLen, Math.round(hold * fs));
-  const dt = (440 * Math.pow(2, (opts.note - 69) / 12)) / fs;
+  const fadeLen = Math.min(maxLen, Math.max(1, Math.round(END_FADE_SECONDS * fs)));
+  const fadeFrom = maxLen - fadeLen;
+  const gateLen = Math.min(Math.round(hold * fs), fadeFrom);
+  const dt = (440 * Math.pow(2, (opts.note + (p.pitchSemitones ?? 0) - 69) / 12)) / fs;
 
   const osc = new Oscillator(p.wave, dt);
   const amp = new Envelope(p.ampEnv, fs);
@@ -453,15 +514,16 @@ export function renderSynthPreview(p: SynthPreviewParams, opts: RenderOptions): 
   const out = new Float32Array(maxLen);
   let n = 0;
   for (; n < maxLen; n++) {
-    if (n === holdLen) {
+    if (n === gateLen) {
       amp.gateOff();
       filter?.gateOff();
     }
     if (amp.finished) break;
     let x = osc.next();
     if (filter) x = filter.process(x);
-    const y = 0.5 * x * amp.next();
-    out[n] = Math.max(-1, Math.min(1, y));
+    let y = softLimit(OUTPUT_GAIN * x * amp.next());
+    if (n >= fadeFrom) y *= (maxLen - 1 - n) / fadeLen;
+    out[n] = y;
   }
   return out.subarray(0, n);
 }

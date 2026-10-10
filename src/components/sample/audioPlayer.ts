@@ -27,7 +27,7 @@ let activeStop: (() => void) | null = null;
  */
 export function playPcm(channels: Int32Array[], onEnded?: () => void, sampleRate: number = SAMPLE_RATE): () => void {
   activeStop?.(); // single voice — stop whatever else is playing
-  const ctx = getCtx();
+  const ctx = getSharedCtx(); // every audition is a tap: resume a suspended/interrupted context
   const src = ctx.createBufferSource();
   src.buffer = toAudioBuffer(ctx, normalizeChannels(channels), sampleRate);
   src.connect(ctx.destination);
@@ -43,10 +43,15 @@ export function stopActive(): void {
   activeStop?.();
 }
 
-/** The shared AudioContext (one across the inspector). Resumes if suspended by
- *  the autoplay policy — call from a user gesture. */
+/** The shared AudioContext (one across the inspector). Resumes it if it is
+ *  suspended (autoplay policy, or iOS after backgrounding) or 'interrupted'
+ *  (WebKit's non-standard state after a phone call, Siri or another app taking
+ *  the audio session) — call from a user gesture. Cheap enough to call on every
+ *  note. A resume the browser refuses (no gesture yet, interruption still on) is
+ *  ignored; the next call tries again. */
 export function getSharedCtx(): AudioContext {
   const ctx = getCtx();
-  if (ctx.state === 'suspended') void ctx.resume();
+  const state = ctx.state as string; // 'interrupted' is not in the DOM typings
+  if (state === 'suspended' || state === 'interrupted') ctx.resume().catch(() => { /* retried on the next call */ });
   return ctx;
 }

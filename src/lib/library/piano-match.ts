@@ -20,8 +20,10 @@
  * A local piano matches when that model text equals the program's exactly — after, for
  * Nord's download names, dropping the instrument token the file's own header names.
  * When the program's name carries a version ("Clavinet D6 6.1") the versions must agree
- * too. A renamed file ("clav61.npno") falls back to its header name, which only equals a
- * program name for pianos sold in one size. No fuzzy or partial matching.
+ * too. A renamed file ("clav61.npno") falls back to its header name — but only for
+ * pianos sold in one size: the header never holds the size, so when `PIANO_NAMES` also
+ * lists a sized version ("Wurlitzer 2" next to "Wurlitzer 2 XL"), a renamed file's
+ * header can't say which one it is and isn't matched. No fuzzy or partial matching.
  *
  * ## The limit
  * Most panel names don't say the version, and Nord re-released many pianos (v5 → v6)
@@ -33,7 +35,7 @@ import type { ScannedPiano } from '../folder/scan';
 import type { BackupRef } from '../clavia/backup/backup-index';
 import { readNspIdentity, type NspIdentity } from '../ns4/nsp';
 import { PIANO_NAMES } from '../ns4/names.generated';
-import { pianoNameFromFilename } from '../clavia/name';
+import { backupPianoId, backupPianoName } from './backup-piano';
 
 /** A piano the user has on this machine, as far as matching needs it. */
 export interface LocalPiano {
@@ -111,9 +113,28 @@ export function localPianoKeys(p: LocalPiano): PianoKey[] {
     const rest = fromName.model.slice(head.length + variant.length + 2).trim();
     keys.push({ model: rest ? `${head} ${rest}` : head, version });
   }
-  // A renamed file: only its header says what it is.
-  if (!startsWithWord(fromName.model, head)) keys.push({ model: head, version: headerVersion });
+  // A renamed file: only its header says what it is — unless the name also comes in
+  // sizes, which the header doesn't record ("Wurlitzer 2" may be the "Wurlitzer 2 XL").
+  if (!startsWithWord(fromName.model, head) && !isSizedPianoBase(head)) keys.push({ model: head, version: headerVersion });
   return keys;
+}
+
+/** Panel-name size suffixes in `PIANO_NAMES` ("XL", "Lrg", "Med", "Sml", "XM"). */
+const SIZE_SUFFIX = /^(.+) (xl|xm|lrg|med|sml)$/;
+let sizedBases: Set<string> | undefined;
+/**
+ * True when `PIANO_NAMES` lists this (normalized) name with a size after it
+ * ("wurlitzer 2" → "Wurlitzer 2 XL"), so a header-only name is ambiguous.
+ */
+export function isSizedPianoBase(model: string): boolean {
+  if (!sizedBases) {
+    sizedBases = new Set();
+    for (const n of Object.values(PIANO_NAMES)) {
+      const m = SIZE_SUFFIX.exec(normalizePianoName(n));
+      if (m) sizedBases.add(m[1]);
+    }
+  }
+  return sizedBases.has(normalizePianoName(model));
 }
 
 let namesByModel: Map<string, number> | undefined;
@@ -176,8 +197,8 @@ export function localPianos(folder: { pianos: readonly ScannedPiano[]; backupPia
       id: p.id, name: p.name, source: 'local', bytes: p.bytes, header: identityOf(p.bytes),
     })),
     ...folder.backupPianos.map((ref): LocalPiano => ({
-      id: `backup:${ref.bundlePath}!${ref.entry.path}`,
-      name: pianoNameFromFilename(ref.entry.path),
+      id: backupPianoId(ref),
+      name: backupPianoName(ref),
       source: 'backup',
       backupRef: ref,
     })),

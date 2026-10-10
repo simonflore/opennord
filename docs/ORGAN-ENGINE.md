@@ -76,11 +76,29 @@ voice.output; // AudioNode, where a rotary speaker / FX chain plugs in
 - **Vibrato/chorus:** a modulated delay of up to 1 ms, swept by a ~7 Hz triangle
   (V1/V2/V3 sweep 0.35/0.65/1.0 ms). Chorus mixes the swept signal with the dry
   signal.
-- **Output:** layer volume (dB), then a soft limiter that is transparent below ±0.6.
-  Each model's level carries a fixed −22 dB trim (`HEADROOM` in `voicing.ts`), so a
-  ten-note chord with all nine drawbars out, chorus on, peaks at about 0.5–0.56 before
-  the limiter on the B3 and at 0.4 or less on the other models. Fewer keys or drawbars
-  stay quieter, as on the instrument (one key on 888000000 peaks about −33 dBFS).
+- **Output:** a leveller, then layer volume (dB), then a soft limiter that is
+  transparent below ±0.6. Each model's level carries a fixed −22 dB trim (`HEADROOM`
+  in `voicing.ts`). The leveller (`LEVEL_*` in `core.ts`) is a polyphony-aware gain
+  fed forward from the generator gains the core already knows (no signal detector):
+  +12 dB makeup up to a drive of two keys on 888000000, then 2:1 in amplitude. It
+  falls within a quarter of the model's attack time (a new chord never overshoots)
+  and rises with a 150 ms time constant (a held note eases back up when the others
+  are released, < 1 dB per 5 ms). It re-reads the gains on a 64-sample clock grid,
+  so the output does not depend on the host's block size. Measured pre-clip peaks
+  (`renderOffline`, 48 kHz, chorus C3, default key click):
+
+  | | B3 before → after | Vox | Farfisa | Pipe 1 | Pipe 2 |
+  |---|---|---|---|---|---|
+  | 1 key, 888000000 | −30.9 → −18.9 dBFS | silent (no tone colour) | −31.0 → −19.0 | −35.4 → −23.4 | −33.9 → −21.9 |
+  | 1 key, all drawbars | −24.6 → −14.3 | −25.9 → −15.1 | −27.3 → −15.5 | −27.4 → −17.2 | −27.1 → −16.9 |
+  | 3 notes, 888000000 | −23.6 → −13.4 | silent | −25.8 → −14.4 | −26.4 → −16.2 | −26.0 → −15.8 |
+  | 3 notes, all drawbars | −16.9 → −11.4 | −20.4 → −14.5 | −21.2 → −14.2 | −20.5 → −15.0 | −20.4 → −14.9 |
+  | 10 notes, all drawbars | −7.6 → −7.4 (0.43) | −11.1 → −10.3 | −13.1 → −11.3 | −15.2 → −14.9 | −14.7 → −14.4 |
+  | 10 notes, octave stack | −6.9 → −6.7 (0.46) | −10.4 → −9.7 | −13.5 → −11.7 | −14.0 → −13.8 | −13.9 → −13.6 |
+
+  B3 Bass matches the B3. So single notes are 12 dB louder while a ten-note chord on
+  every drawbar still peaks below the 0.6 knee before the limiter on every model
+  (`core.test.ts` pins both). Still worth a listen on an iPad speaker.
 
 Sources: Hammond B-3 service manual data as summarized in Electric Druid,
 "Technical aspects of the Hammond organ" (gear table, 192-tooth top octave,
@@ -115,6 +133,15 @@ morphs applied linearly when amounts are passed; Farfisa tabs switch at half-way
 percussion on / 3rd / fast / soft, vib/chorus on plus the per-model type from the
 global `organ vib/chorus type` map, layer volume (morphable), octave shift, and organ
 sustain (notes fade over ~0.5 s, ~0.9 s for pipes, instead of stopping).
+
+The volume morph moves the knob position, not the dB value: the Stage 4 volume
+table is dB = 40·log10(raw / 127) ("volume off" at raw 0), so the position is
+10^(dB / 40). A pedal swell from "volume off" therefore fades in (half pedal to
+0 dB ≈ −12 dB), and "volume off" itself maps to `VOLUME_OFF_DB` (−120 dB, silent)
+rather than −Infinity.
+
+Changing the model while keys are held re-voices them: held keys close every bus
+of the new model, and the old model's generators fade out over 20 ms.
 
 ## Not modelled (yet)
 

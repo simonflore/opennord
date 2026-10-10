@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  OrganCore, PERC_FAST, PERC_LEVEL_SLOW, PERC_LEVEL_SOFT, PERC_NORMAL_MANUAL_DROP, PERC_SLOW, renderOffline, softClip,
+  LEVEL_MAKEUP, OrganCore, PERC_FAST, PERC_LEVEL_SLOW, PERC_LEVEL_SOFT, PERC_NORMAL_MANUAL_DROP, PERC_SLOW, renderOffline,
+  softClip,
 } from './core';
 import { DEFAULT_ORGAN_PARAMS, ORGAN_ENGINE_MODELS, type OrganParams } from './types';
 import { drawbarGain, tonewheelFrequency, wheelFor } from './tonewheel';
@@ -215,6 +216,13 @@ describe('offline rendering', () => {
     expect(rms(out)).toBe(0);
   });
 
+  it('is silent (never Infinity or NaN) at "volume off", below it, or with a non-finite volume', () => {
+    for (const volumeDb of [-120, -200, -Infinity, Infinity, NaN]) {
+      const out = renderOffline(params({ volumeDb }), [[0, 'on', 60]], 0.05);
+      expect(out.every((s) => s === 0), String(volumeDb)).toBe(true);
+    }
+  });
+
   it('key click adds a transient only at the contacts', () => {
     const clean = renderOffline(params({ drawbars: only8, keyClick: 0 }), [[0, 'on', 60]], 0.1);
     const click = renderOffline(params({ drawbars: only8, keyClick: 1 }), [[0, 'on', 60]], 0.1);
@@ -330,6 +338,88 @@ describe('offline rendering', () => {
     const t = core.settledTargets();
     expect(t.size).toBe(1);
     expect(core.generatorFrequency([...t.keys()][0])).toBeCloseTo(261.626, 2);
+  });
+
+  it('a held key closes every bus of the new model (Vox, 4 buses → B3, 9 buses)', () => {
+    const full = [8, 8, 8, 8, 8, 8, 8, 8, 8];
+    const core = new OrganCore({ sampleRate: SR, params: params({ model: 'VOX', drawbars: full }) });
+    core.noteOn(60);
+    core.render(new Float32Array(1024)); // all four Vox contacts closed
+    core.setParams(params({ model: 'B3', drawbars: full }));
+    const t = core.settledTargets();
+    expect(t.size).toBe(9);
+    for (let bus = 0; bus < 9; bus++) expect(t.get(wheelFor(60, bus))).toBe(1);
+    core.noteOff(60);
+    core.render(new Float32Array(SR / 10));
+    expect(core.heldNotes()).toEqual([]);
+    expect(core.activeGenerators()).toBe(0);
+  });
+
+  it('a model change ramps the old generators out instead of cutting them', () => {
+    const core = new OrganCore({ sampleRate: SR, params: params({ drawbars: only8 }) });
+    core.noteOn(60);
+    const before = new Float32Array(SR / 10);
+    core.render(before);
+    core.setParams(params({ model: 'PIPE1', drawbars: only8 })); // pipes speak slowly (35 ms)
+    const after = new Float32Array(Math.round(0.002 * SR));
+    core.render(after);
+    // The tonewheel is still fading (20 ms): no gap, and no step at the switch.
+    expect(rms(after)).toBeGreaterThan(0.5 * rms(before, before.length - 4800));
+    let slope = 0; // the waveform's own largest sample-to-sample move
+    for (let i = 1; i < before.length; i++) slope = Math.max(slope, Math.abs(before[i] - before[i - 1]));
+    expect(Math.abs(after[0] - before[before.length - 1])).toBeLessThan(1.5 * slope);
+    core.render(new Float32Array(Math.round(0.03 * SR)));
+    expect(core.activeGenerators()).toBe(1); // only the pipe is left
+  });
+});
+
+describe('output leveller', () => {
+  const raw = (o: Partial<OrganParams>, ev: Parameters<typeof renderOffline>[1], seconds: number, level: boolean) => {
+    const core = new OrganCore({ sampleRate: SR, params: params(o), seed: 5, level });
+    const out = new Float32Array(Math.round(seconds * SR));
+    let pos = 0;
+    for (const [t, kind, note] of ev) {
+      const at = Math.round(t * SR);
+      if (at > pos) { core.render(out, pos, at - pos); pos = at; }
+      if (kind === 'on') core.noteOn(note); else core.noteOff(note);
+    }
+    core.render(out, pos, out.length - pos);
+    return out;
+  };
+
+  it('lifts a single key by the full makeup (+12 dB: one B3 key on 888000000 peaks about −23 dBFS, was −35)', () => {
+    const p = { drawbars: [8, 8, 8, 0, 0, 0, 0, 0, 0] };
+    const on = raw(p, [[0, 'on', 60]], 0.3, true);
+    const off = raw(p, [[0, 'on', 60]], 0.3, false);
+    expect(rms(on, SR / 10) / rms(off, SR / 10)).toBeCloseTo(LEVEL_MAKEUP, 3);
+    const peak = on.reduce((m, s) => Math.max(m, Math.abs(s)), 0);
+    expect(20 * Math.log10(peak)).toBeGreaterThan(-24);
+  });
+
+  it('compresses big chords instead (the chord-peak test above pins the ceiling)', () => {
+    const p = { drawbars: [8, 8, 8, 8, 8, 8, 8, 8, 8] };
+    const chord = [36, 48, 55, 60, 64, 67, 72, 76, 79, 84].map((n) => [0, 'on', n] as const);
+    const gain = rms(raw(p, chord, 0.3, true), SR / 10) / rms(raw(p, chord, 0.3, false), SR / 10);
+    expect(gain).toBeLessThan(LEVEL_MAKEUP / 3);
+  });
+
+  it('eases a held note back up when the others are released (no jump)', () => {
+    const p = { drawbars: [8, 8, 8, 8, 8, 8, 8, 8, 8] };
+    const others = [48, 55, 64, 67, 72, 76, 79, 84];
+    const ev = [
+      [0, 'on', 60], ...others.map((n) => [0, 'on', n] as const), ...others.map((n) => [0.2, 'off', n] as const),
+    ] as const;
+    const on = raw(p, ev, 0.8, true);
+    const off = raw(p, ev, 0.8, false);
+    // The gain envelope is the ratio of the levelled to the raw render, per 5 ms window.
+    const win = SR / 200;
+    const g: number[] = [];
+    for (let a = Math.round(0.2 * SR) + win; a + win <= on.length; a += win) g.push(rms(on, a, a + win) / rms(off, a, a + win));
+    for (let i = 1; i < g.length; i++) {
+      expect(g[i]).toBeGreaterThanOrEqual(g[i - 1] * 0.999); // only rises
+      expect(20 * Math.log10(g[i] / g[i - 1])).toBeLessThan(1); // < 1 dB per 5 ms
+    }
+    expect(g[g.length - 1]).toBeGreaterThan(1.5 * g[0]);
   });
 });
 
