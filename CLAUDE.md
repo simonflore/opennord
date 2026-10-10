@@ -60,7 +60,7 @@ Path alias: `@/` → `src/` (see `vite.config.ts`).
 | `src/lib/device/` | WebUSB device layer: transport → session → transfer (read/write), backup, hardware probe/report |
 | `src/lib/folder/`, `src/lib/library/` | local-folder scan/classify/index → the unified **Library** model |
 | `src/lib/ai/` | AI-native search / explanation, provider-pluggable behind an interface |
-| `src/lib/midi/` | **live CC/NRPN only** — *not* device transfer (that's vendor USB in `device/`) |
+| `src/lib/midi/` | **live MIDI only** (keyboard notes/pedal for the rompler, Nord CC/NRPN) — *not* device transfer (that's vendor USB in `device/`). Input seam `midi-inputs.ts`: Web MIDI on desktop, CoreMIDI plugin (`plugins/capacitor-midi-input/`) in the iPad app (`docs/IPAD.md`) |
 | `src/components/`, `src/routes/` | React UI + TanStack routes (`/library`, `/samples`, `/device`, `/compatibility`, `/dev/inspect`, `/dev/decode`). `DecodeInspector` is the in-browser RE tool (`/dev`) |
 | `src/App.tsx`, `src/main.tsx`, `src/router.tsx` | App shell + entry + routes |
 | `docs/` | architecture, roadmap, format notes, USB protocol, multi-model, legal stance |
@@ -153,7 +153,7 @@ the bar). When extending the decoder, validate against the fixture.
   protocol, **not** MIDI SysEx — don't reintroduce the old "SysEx spike" framing.
   Device transfer rides vendor USB: reachable from **desktop** (WebUSB/node-usb)
   and a **native iPad app (M1+, USBDriverKit DEXT)** — not iPhone, not any PWA, not
-  SysEx (`docs/SYSEX-SPIKE.md`). `lib/midi` is for live CC/NRPN only.
+  SysEx (`docs/SYSEX-SPIKE.md`). `lib/midi` is for live playing input (notes, pedal, CC/NRPN) only.
 - Most remaining work is **product** (visualize → AI → community library), not RE.
 - **Think family, not just Stage 4.** Shared code goes in `src/lib/clavia/`
   (container, registry, capability/partition tables for the whole line); model
