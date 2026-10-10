@@ -15,6 +15,7 @@ import { useFolderWrite } from '../../lib/folder/useFolderWrite';
 import { BundleChooser } from './BundleChooser';
 import { useReorg } from './useReorg';
 import { OrganizeGrids } from './OrganizeGrids';
+import { BackupCheck } from './BackupCheck';
 
 /** Above this size, read the backup all at once would exceed the browser's ~2 GiB single-ArrayBuffer
  *  limit (and blow the tab's memory), so we stream instead. Mirrors the folder scan's cap. */
@@ -40,6 +41,10 @@ const NOOP_IO: DeviceIO = {
 export function BackupOrganizer({ onBack, initialModel, initialBundlePath }: { onBack: () => void; initialModel?: BackupModel; initialBundlePath?: string }) {
   const folder = useFolder();
   const [model, setModel] = useState<BackupModel | null>(initialModel ?? null);
+  // The opened archive itself, for "Check backup" (a streamed model's source is the File).
+  const [backupFile, setBackupFile] = useState<Blob | null>(
+    initialModel?.source instanceof Blob ? initialModel.source : null,
+  );
   const [entries, setEntries] = useState<ProgramEntry[]>(initialModel ? listPrograms(initialModel) : []);
   const [planError, setPlanError] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
@@ -70,6 +75,7 @@ export function BackupOrganizer({ onBack, initialModel, initialBundlePath }: { o
       const f = await folder.openBundle(path);
       const m = await loadBackupStreaming(f);
       setModel(m);
+      setBackupFile(f);
       setEntries(listPrograms(m));
     } catch (e) {
       setPlanError(getErrorMessage(e));
@@ -100,6 +106,7 @@ export function BackupOrganizer({ onBack, initialModel, initialBundlePath }: { o
         ? await loadBackupStreaming(file)
         : loadBackup(await readFileBytes(file));
       setModel(m);
+      setBackupFile(file);
       setEntries(listPrograms(m));
     } catch (e) {
       setPlanError(getErrorMessage(e));
@@ -182,7 +189,10 @@ export function BackupOrganizer({ onBack, initialModel, initialBundlePath }: { o
           </FileInput>
         )
       ) : (
-        <OrganizeGrids entries={entries} reorg={reorg} />
+        <>
+          <OrganizeGrids entries={entries} reorg={reorg} />
+          {backupFile && <BackupCheck file={backupFile} />}
+        </>
       )}
       </div>
     </>

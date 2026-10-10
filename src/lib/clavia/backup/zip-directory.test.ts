@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { zipSync, strToU8, type ZipOptions } from 'fflate';
 import { readZipDirectory, extractZipEntry, extractZipEntryHead } from './zip-directory';
+import { crc32 } from '../checksum';
 
 // fflate zipSync builds a real ZIP we can index + extract from. level 0 = stored, else deflate.
 function zipBlob(files: Record<string, [Uint8Array, ZipOptions['level']]>): Blob {
@@ -23,6 +24,13 @@ describe('zip-directory', () => {
     expect(byName['a/stored.bin'].size).toBe(stored.length);
     expect(byName['b/deflated.bin'].method).toBe(8);
     expect(byName['b/deflated.bin'].size).toBe(deflated.length);
+  });
+
+  it('records each entry\'s CRC-32 — the same value crc32() computes over its data', async () => {
+    const entries = await readZipDirectory(blob);
+    for (const e of entries) {
+      expect(e.crc32).toBe(crc32(await extractZipEntry(blob, e)));
+    }
   });
 
   it('extracts a stored entry (no inflate) round-trip', async () => {
