@@ -134,8 +134,12 @@ async function gatherProgramDepsUnlocked(
   onProgress?: (done: number, total: number) => void,
 ): Promise<SampleDep[]> {
   await session.begin(session.programPartition);
-  const programs = await enumerateFiles(session);
-  await session.end();
+  let programs: ProgramEntry[];
+  try {
+    programs = await enumerateFiles(session);
+  } finally {
+    await session.end();
+  }
   const allDeps: SampleDep[] = [];
   for (let i = 0; i < programs.length; i++) {
     const p = programs[i];
@@ -163,8 +167,12 @@ export function findUnusedSamples(
   return session.exclusive(async () => {
     const allDeps = await gatherProgramDepsUnlocked(session, onProgress);
     await session.begin(PARTITION_SAMP_LIB);
-    const installed = await enumerateFiles(session);
-    await session.end();
+    let installed: ProgramEntry[];
+    try {
+      installed = await enumerateFiles(session);
+    } finally {
+      await session.end();
+    }
     return computeSampleUsage(allDeps, installed);
   });
 }
@@ -180,8 +188,12 @@ export function findUnusedPianos(
   return session.exclusive(async () => {
     const allDeps = await gatherProgramDepsUnlocked(session, onProgress);
     await session.begin(PARTITION_PIANO);
-    const installed = await enumerateFiles(session);
-    await session.end();
+    let installed: ProgramEntry[];
+    try {
+      installed = await enumerateFiles(session);
+    } finally {
+      await session.end();
+    }
     return computeSampleUsage(allDeps, installed);
   });
 }

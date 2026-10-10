@@ -92,13 +92,10 @@ describe('queryPartitionCount', () => {
     expect(await ask([0], new Uint8Array([10, 0, 0, 0, 14]))).toBe(10);
   });
 
-  it('reads the count as the first byte when no status word precedes it', async () => {
-    // [u8 count = 12][u32 nameLen = 14]… — the first record follows the count directly.
-    expect(await ask([], new Uint8Array([12, 0, 0, 0, 14]))).toBe(12);
-  });
-
   it('gives no count for an error status or an implausible value', async () => {
     expect(await ask([1])).toBeUndefined();
+    // A non-zero status word is not a count, even when its low byte would read as one.
+    expect(await ask([0x0c000000], new Uint8Array([12]))).toBeUndefined();
     expect(await ask([0], new Uint8Array([200]))).toBeUndefined();
   });
 

@@ -2,6 +2,7 @@ import type { NordSession } from './session';
 import { enumerateFiles } from './transfer';
 import { CQryPartList } from './opcodes';
 import { TransportTimeoutError } from './transport';
+import type { NordReply } from './protocol';
 
 export interface ProbePartition {
   index: number;
@@ -70,22 +71,21 @@ export async function probePartition(session: NordSession, index: number): Promi
 
 /**
  * READ-ONLY: how many partitions the device reports (`CQryPartList`), or
- * undefined when the reply doesn't read as a plausible count. The reply carries
- * `u8 count` then one record per partition; whether a
- * `u32 status` precedes it isn't pinned, so both are read: a leading zero word
- * is the status (a count of 0 would mean no partitions), otherwise byte 0 is the
- * count. Rethrows {@link TransportTimeoutError} like {@link probePartition}.
+ * undefined when the reply doesn't read as a plausible count. The reply is
+ * `u32 status`, `u8 count`, then one record per partition — the layout the
+ * Stage 2, 3 and 4 firmware all write. A non-zero status
+ * carries no count. Rethrows {@link TransportTimeoutError} like {@link probePartition}.
  */
 export async function queryPartitionCount(session: NordSession): Promise<number | undefined> {
-  let payload: Uint8Array;
+  let reply: NordReply;
   try {
-    payload = (await session.exclusive(() => session.request(CQryPartList, []))).payload;
+    reply = await session.exclusive(() => session.request(CQryPartList, []));
   } catch (e) {
     if (e instanceof TransportTimeoutError) throw e;
     return undefined;
   }
-  const statusFirst = payload.length >= 5 && payload[0] === 0 && payload[1] === 0 && payload[2] === 0 && payload[3] === 0;
-  const count = statusFirst ? payload[4] : payload[0];
+  if (reply.status !== 0 || reply.payload.length < 5) return undefined;
+  const count = reply.payload[4];
   return count >= 1 && count <= MAX_PARTITIONS ? count : undefined;
 }
 
