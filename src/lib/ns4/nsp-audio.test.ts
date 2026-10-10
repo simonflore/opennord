@@ -17,7 +17,8 @@ describe('readNspDirectory + decodeNspStroke', () => {
     expect(dir).toBeDefined();
     expect(dir.channels).toBe(1);
     expect(dir.blockWords).toBe(511);
-    expect(dir.strokes.map((s) => [s.zone, s.velocityFrom])).toEqual([[0, 0], [0, 40], [1, 0]]);
+    // v5 stores floors in 1 dB steps; the reader scales them to 0.2 dB (40 → 200).
+    expect(dir.strokes.map((s) => [s.zone, s.velocityFrom])).toEqual([[0, 0], [0, 200], [1, 0]]);
     expect(dir.strokes[0].loop).toEqual({ start: 20000, length: 3508 });
     expect(dir.strokes[1].loop).toBeUndefined();
     expect(dir.strokes[0].history).toEqual([[41, 30, 12, 0]]); // newest first

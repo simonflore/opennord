@@ -29,6 +29,8 @@ const RECORDS_OFFSET = 0x732;
 const RECORD_SIZE = 0x76;
 /** The last 64 frames of a block repeat the next block's first 64 (DSP read-ahead slack). */
 export const BLOCK_OVERLAP = 64;
+/** CNSP format code of v6 files; older (v5, 0x450) files store floors in 1 dB steps, not 0.2 dB. */
+const CNSP_V6 = 0x464;
 /** Binomial predictors by order, newest history sample first. */
 export const PREDICTORS: readonly (readonly number[])[] = [[], [1], [2, -1], [3, -3, 1], [4, -6, 4, -1]];
 
@@ -40,9 +42,9 @@ export interface NspStroke {
   zone: number;
   /**
    * The layer's **attenuation floor**, in 0.2 dB steps, 0 = the hardest hit (historical
-   * name; see `docs/NSP-FORMAT.md`). The instrument maps velocity through the Touch curve
-   * to an attenuation and picks a layer by it, so a zone's layers run loudest (0) first.
-   * Use `strokeFor` to pick by velocity.
+   * name; see `docs/NSP-FORMAT.md`); v5 files store it in 1 dB steps, scaled ×5 here. The
+   * instrument maps velocity through the Touch curve to an attenuation and picks a layer by
+   * it, so a zone's layers run loudest (0) first. Use `strokeFor` to pick by velocity.
    */
   velocityFrom: number;
   /** Record flag bits (+0x04 & 3): 0 = a normal stroke, 1 = an alternative list, 2 = a key-release sound. */
@@ -76,7 +78,7 @@ export function findCnsp(bytes: Uint8Array): number {
   return -1;
 }
 
-function readStroke(view: DataView, at: number, base: number, index: number, channels: number): Omit<NspStroke, 'zone'> {
+function readStroke(view: DataView, at: number, base: number, index: number, channels: number, floorScale: number): Omit<NspStroke, 'zone'> {
   // Record layout (from the record's own start, CNSP+0x732+i*0x76; field use per the ARM
   // loader 0xC00AB028, see docs/NSP-FORMAT.md): +0x00 u32 first block offset, +0x04 u8 flags,
   // +0x05 u8 attenuation floor, +0x06 u32 frames, +0x0A u16 blocks, +0x0C/+0x14 4×i16 history
@@ -93,7 +95,7 @@ function readStroke(view: DataView, at: number, base: number, index: number, cha
   return {
     index,
     offset: base + view.getUint32(at),
-    velocityFrom: view.getUint8(at + 0x05),
+    velocityFrom: view.getUint8(at + 0x05) * floorScale,
     flags,
     release: flags === 2,
     frames: view.getUint32(at + 0x06),
@@ -132,7 +134,7 @@ export function readNspDirectory(bytes: Uint8Array): NspDirectory | undefined {
     return undefined;
   }
   const raw = Array.from({ length: count }, (_, i) =>
-    readStroke(view, base + RECORDS_OFFSET + i * RECORD_SIZE, base, i, channels));
+    readStroke(view, base + RECORDS_OFFSET + i * RECORD_SIZE, base, i, channels, version < CNSP_V6 ? 5 : 1));
   // A zone's strokes are consecutive (lowest root first), loudest layer first.
   const zones = zoneOf(readLayerTable(bytes, base), raw);
   const strokes = raw.map((s, i) => ({ ...s, zone: zones[i] }));
