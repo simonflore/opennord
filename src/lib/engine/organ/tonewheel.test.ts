@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  FOOTAGES, GEAR_TEETH, WHEEL_COUNT, drawbarGain, equalTempered, tonewheelFrequency, wheelFor,
+  DRAWBAR_STEPS, FOOTAGES, GEAR_TEETH, WHEEL_COUNT, drawbarGain, equalTempered, tonewheelFrequency, wheelFor,
 } from './tonewheel';
 
 const cents = (f: number, ref: number) => 1200 * Math.log2(f / ref);
@@ -96,14 +96,24 @@ describe('drawbar footages and foldback', () => {
   });
 });
 
-describe('drawbar levels', () => {
-  it('is silent at 0, unity at 8, and about 3 dB per step', () => {
+describe('drawbar levels (Stage 4 step table)', () => {
+  const db = (l: number) => 20 * Math.log10(drawbarGain(l));
+
+  it('is silent at 0 and unity at 8, clamped outside 0..8', () => {
     expect(drawbarGain(0)).toBe(0);
     expect(drawbarGain(8)).toBe(1);
-    for (let l = 1; l < 8; l++) {
-      expect(20 * Math.log10(drawbarGain(l + 1) / drawbarGain(l))).toBeCloseTo(3, 6);
-    }
     expect(drawbarGain(12)).toBe(1);
     expect(drawbarGain(-1)).toBe(0);
+  });
+
+  it('follows the instrument steps: ~3 dB apart at the top, 6–7 dB at the bottom', () => {
+    const expected = [-32.5, -26.5, -19.8, -15.2, -10.3, -6.2, -3.3, 0];
+    expected.forEach((v, i) => expect(db(i + 1)).toBeCloseTo(v, 1));
+    expect(DRAWBAR_STEPS).toHaveLength(9);
+  });
+
+  it('rises monotonically, interpolating between whole steps', () => {
+    for (let l = 0; l < 8; l += 0.25) expect(drawbarGain(l + 0.25)).toBeGreaterThan(drawbarGain(l));
+    expect(drawbarGain(6.5)).toBeCloseTo((drawbarGain(6) + drawbarGain(7)) / 2, 12);
   });
 });
