@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, SectionLabel } from '@/components/ui';
 import { playPcm } from '@/components/sample/audioPlayer';
-import { readNsp } from '@/lib/ns4/nsp';
+import { readNspZones } from '@/lib/ns4/nsp';
 import { NSP_SAMPLE_RATE, decodeNspStroke, readNspDirectory, strokeFor } from '@/lib/ns4/nsp-audio';
 import { noteName } from '@/lib/ns4/sample-view';
-
-const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+import { getErrorMessage } from '@/lib/errors';
 
 /**
  * Audition a piano on this machine: one button per sampled note, played at the chosen
@@ -14,7 +13,7 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
  */
 export function PianoListen({ bytes }: { bytes: Uint8Array }) {
   const dir = useMemo(() => readNspDirectory(bytes), [bytes]);
-  const zones = useMemo(() => readNsp(bytes).zones ?? [], [bytes]);
+  const zones = useMemo(() => readNspZones(bytes), [bytes]);
   const [velocity, setVelocity] = useState(80);
   const [playing, setPlaying] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -39,7 +38,7 @@ export function PianoListen({ bytes }: { bytes: Uint8Array }) {
       stopRef.current = playPcm(pcm, () => { stopRef.current = null; setPlaying((p) => (p === zone ? null : p)); }, NSP_SAMPLE_RATE);
       setPlaying(zone);
     } catch (e) {
-      setError(`Couldn't play this note: ${msg(e)}`);
+      setError(`Couldn't play this note: ${getErrorMessage(e)}`);
     }
   }
 
