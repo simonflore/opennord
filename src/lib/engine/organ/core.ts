@@ -164,10 +164,9 @@ export class OrganCore {
 
   /** Key down. Velocity is accepted for API symmetry; organs ignore it. */
   noteOn(note: number, _velocity = 100): void {
-    void _velocity;
-    const othersDown = [...this.keys.entries()].some(([n, k]) => n !== note && k.down);
     let key = this.keys.get(note);
     if (key?.down) return; // already held
+    const othersDown = this.anyKeyDown();
     if (!key) { key = { mask: 0, down: true }; this.keys.set(note, key); }
     key.down = true;
     this.cancelEvents(note);
@@ -301,6 +300,11 @@ export class OrganCore {
   private resetBank(): void {
     this.gens.clear();
     this.active.length = 0;
+  }
+
+  private anyKeyDown(): boolean {
+    for (const k of this.keys.values()) if (k.down) return true;
+    return false;
   }
 
   private cancelEvents(note: number): void {

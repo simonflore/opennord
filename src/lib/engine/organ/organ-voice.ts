@@ -30,6 +30,16 @@ export interface OrganVoiceOptions {
   seed?: number;
 }
 
+/** The voice's note/param controls, each sent as one {@link OrganMessage}. */
+function controls(send: (m: OrganMessage) => void): Omit<OrganVoice, 'output' | 'backend' | 'dispose'> {
+  return {
+    noteOn: (note, velocity = 100) => send({ type: 'noteOn', note, velocity }),
+    noteOff: (note) => send({ type: 'noteOff', note }),
+    setParams: (params) => send({ type: 'params', params }),
+    allNotesOff: () => send({ type: 'allNotesOff' }),
+  };
+}
+
 const loaded = new WeakMap<BaseAudioContext, Promise<void>>();
 
 function loadWorklet(ctx: BaseAudioContext): Promise<void> {
@@ -59,10 +69,7 @@ export async function createOrganVoice(ctx: BaseAudioContext, opts: OrganVoiceOp
       return {
         output: node,
         backend: 'worklet',
-        noteOn: (note, velocity = 100) => post({ type: 'noteOn', note, velocity }),
-        noteOff: (note) => post({ type: 'noteOff', note }),
-        setParams: (p) => post({ type: 'params', params: p }),
-        allNotesOff: () => post({ type: 'allNotesOff' }),
+        ...controls(post),
         dispose: () => { post({ type: 'allNotesOff' }); node.disconnect(); node.port.close(); },
       };
     } catch {
@@ -84,14 +91,10 @@ function createScriptOrganVoice(
     e.outputBuffer.getChannelData(1).set(l);
   };
   if (destination) node.connect(destination);
-  const apply = (m: OrganMessage) => applyOrganMessage(core, m);
   return {
     output: node,
     backend: 'script',
-    noteOn: (note, velocity = 100) => apply({ type: 'noteOn', note, velocity }),
-    noteOff: (note) => apply({ type: 'noteOff', note }),
-    setParams: (p) => apply({ type: 'params', params: p }),
-    allNotesOff: () => apply({ type: 'allNotesOff' }),
+    ...controls((m) => applyOrganMessage(core, m)),
     dispose: () => { core.allNotesOff(); node.onaudioprocess = null; node.disconnect(); },
   };
 }
