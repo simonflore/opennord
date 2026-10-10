@@ -217,10 +217,11 @@ The parallel multi-model work (#22) already built the seam:
 
 ## Open unknowns (need a file or hardware)
 
-- **Exact product IDs per model.** NSM gates on vendor only, so the PID→model map
-  lives in its `clavia.xml` resource (in the full `.app` bundle, **not** in our
-  arm64 slice). Stage 4 = `0x002E` is HW-validated; others are unknown but **not
-  required** for a vendor-only filter.
+- ~~**Exact product IDs per model.**~~ **Resolved statically (NSM 9.22)** — see
+  *USB product ids & OS gates* below. There is no `clavia.xml` resource in the
+  full 9.22 `.app` bundle (`/clavia.xml` is only a runtime path string); the PID
+  *is* NSM's `Zevs::EInstrumentId`. Stage 4 / 3 / 2 are HW-validated; the rest
+  are `staticProductId` in `src/lib/clavia/partitions.ts` until a device confirms.
 - **Per-model partition order.** The `CPartitionProgram*` classes confirm layouts
   differ; the actual indices need disassembly of each class or a hardware
   `CQryPartList` probe.
@@ -231,6 +232,61 @@ The parallel multi-model work (#22) already built the seam:
   needs a sample file to confirm.
 
 ---
+
+## USB product ids & OS gates (NSM 9.22)
+
+Recovered from Nord Sound Manager **v9.22** (macOS, arm64 slice) with Ghidra
+12.1.4 (driven through REA) and cross-checked against raw `llvm-objdump`.
+
+- **PID = instrument id.** `Ymer::USB::CDeviceSpec(EInstrumentId, …)` stores the
+  instrument id list and `GetProductID(i)` (`0x10003598c`) returns it verbatim;
+  `-2` is a wildcard in `IsCompatible`.
+- **Dispatch:** `Ymer::Product::CProduct::New(SCaps const&, CProductBase**)`
+  (`0x100043e20`) switches on `SCaps+0` (the PID). Sub-dispatchers:
+  `CStageBase::New` (`0x1000a7f24`), `CElectro3Base::New` (`0x10009f6c0`),
+  `CPiano2::New` (`0x1000a5914`), `CLead4Base::New` (`0x1000ddfd0`).
+- **OS gates:** `CProductBase::GetVersion_Min/_Recommended/_Max` read +0x48 /
+  +0x4C / +0x50 (`0x100044c08`…`0x100044c18`), stored as version × 100
+  (`0xEFFFFFFF` = no max), set in each class's constructor. A device below a
+  class's min falls through to an older class or is rejected (rc 2 →
+  "The OS version of the connected %s is not supported").
+
+| PID | NSM class | Registry id | OS min → recommended |
+|---|---|---|---|
+| 0x03 | `CStage` (→ `CStage_PreNPNOv5` 4.00–4.99, `CStagePreV400` 3.12–3.99) | stage-classic | 3.12 → 5.08 |
+| 0x05 | `CWave` | wave | 2.00 → 2.14 |
+| 0x07 | `CElectro3` (→ `CElectro3_PreNPNOv5` 1.00–2.06) | electro-3 | 1.00 → 3.14 |
+| 0x08 | `CStageEX` (→ `CStageEX_PreNPNOv5` 4.00–5.49) | stage-ex | 4.00 → 6.08 |
+| 0x09 | `CC2` | c2 | 1.00 → 1.32 |
+| 0x0B | `CElectro3HP` | electro-3-hp | 1.00 → 3.14 |
+| 0x0C | `CC2D` | c2d | 1.00 → 1.12 |
+| 0x20 | `CPiano` | piano-1 | 1.00 → 1.48 |
+| 0x21 | `CStage2` (Stage 2 **and** Stage 2 EX) | stage-2 / stage-2-ex | 1.00 → 3.00 |
+| 0x22 | `CPiano2` | piano-2 | 1.00 → 1.20 |
+| 0x23 | `CElectro4` (only for `SCaps+0x10` model 1–3) | electro-4 | 1.00 → 1.20 |
+| 0x24 | `CLead4_FTv7` if FileTransfer ver < 8 (OS 1.00–1.12), else `CLead4_FTv8` (1.13+) | lead-4 | 1.00 → 1.30 |
+| 0x25 | `CMini` | — (not in registry) | 1.00 → 1.34 |
+| 0x26 | `CStage3` (`S_IsModelSupported` → always) | stage-3 | 2.50 → 2.54 |
+| 0x27 | `CElectro5` | electro-5 | 1.00 → 1.40 |
+| 0x28 | `CPiano3` | piano-3 | 1.00 → 1.22 |
+| 0x29 | `CElectro6` | electro-6 | 2.50 → 2.50 |
+| 0x2A | `CPiano4` | piano-4 | 2.50 → 2.50 |
+| 0x2B | `CGrand` | grand | 1.50 → 1.50 |
+| 0x2C | `CWave2` | wave-2 | 0.80 → 1.00 |
+| 0x2D | `CPiano5` | piano-5 | 1.00 → 1.00 |
+| 0x2E | `CStage4` (`S_IsModelSupported(model)` → model < 3) | stage-4 | 0.90 → 1.00 |
+| 0x38 | `CGrand2` | grand-2 | 1.00 → 1.00 |
+| 0x39 | `CPiano6` | piano-6 | 1.00 → 1.00 |
+| 0x3A | `COrgan3` | organ-3 | 1.00 → 1.12 |
+| 0x3B | `CElectro7` | — (not in registry) | 1.00 → 1.00 |
+| other | `CGeneric` only when generic is allowed, else rejected | — | — |
+
+Lead A1 has no case — NSM doesn't manage it over USB. Cross-check: the Stage 2
+unit that validated the NS2 partition map (issue #31) ran OS 3.00, NSM's
+recommended value. **Open:** `docs/PROTOCOL-RE.md` records the validating Stage 4
+as "firmware 3.40", but NSM's Stage 4 floor is 0.90 and Nord's public Stage 4 OS
+is v1.66 — 3.40 is likely a different reported counter; check on next hardware
+session.
 
 ## Appendix — reproducing the recon
 

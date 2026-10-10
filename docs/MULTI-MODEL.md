@@ -317,8 +317,13 @@ per engine for the scan to converge on the correct bytes.
 ### Firmware-as-oracle (parked)
 
 A prior spike explored extracting decode logic from the Stage 4 firmware binary
-(`os.cab`). The firmware is a Zevs CBinFile (3 sections: SRAM / CODE / ARM0) with
-the main OS as uncompressed mixed ARM+Thumb code. The `.npno` (piano) parser is
+(`os.cab`). The firmware is a Zevs CBinFile (3 sections: SRAM / CODE / ARM0).
+**Correction (Stage 4 OS v1.66, 2026-10):** the CODE section is *compressed* — file
+0xFF54, stored 0x358D45 bytes, header unpacked size 0x53EA70, load 0xC0000000;
+entropy 7.57 bits/byte and zlib can't shrink it (ratio 0.90), whereas SRAM is
+plain ARM (1.10 bits/byte). Earlier "uncompressed mixed ARM+Thumb" and the zero
+string xrefs are consistent with analysing the packed bytes; any firmware pass
+must decompress CODE first. The `.npno` (piano) parser is
 findable in principle via proper mixed-mode disassembly, but blind Thumb seeding
 makes this a high-effort path. **Parked** — the Stage 4 is already fully decoded
 via the ns4decode oracle; firmware RE adds nothing for models that already have a

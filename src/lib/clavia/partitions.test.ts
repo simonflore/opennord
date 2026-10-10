@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MODELS, ALL_MODELS, modelById, modelByTag, modelByProductId, programPartitionIndex } from './partitions';
+import { MODELS, ALL_MODELS, modelById, modelByTag, modelByProductId, identifyModelByProductId, programPartitionIndex } from './partitions';
 
 describe('partition registry', () => {
   it('resolves a model from its program tag (anchor for shared tags)', () => {
@@ -183,5 +183,38 @@ describe('partition registry', () => {
     expect(modelByTag('ns2p')?.id).toBe('stage-2'); // anchor unchanged
     expect(ex2.partitions.map((p) => p.kind))
       .toEqual(MODELS['stage-2'].partitions.map((p) => p.kind));
+  });
+
+  // NSM 9.22 `CProduct::New` @0x100043e20 switches on the PID (== Zevs::EInstrumentId).
+  it('identifies models from NSM-recovered product ids without widening the HW-confirmed lookup', () => {
+    expect(identifyModelByProductId(0x0029)?.id).toBe('electro-6');
+    expect(identifyModelByProductId(0x0024)?.id).toBe('lead-4');
+    expect(identifyModelByProductId(0x0003)?.id).toBe('stage-classic');
+    expect(identifyModelByProductId(0x0021)?.id).toBe('stage-2'); // shared with Stage 2 EX → anchor
+    expect(identifyModelByProductId(0x002e)?.id).toBe('stage-4'); // HW-confirmed wins
+    expect(identifyModelByProductId(0x9999)).toBeUndefined();
+    expect(identifyModelByProductId(undefined)).toBeUndefined();
+    // Transfer behaviour must keep using only hardware-confirmed PIDs.
+    expect(modelByProductId(0x0029)).toBeUndefined();
+  });
+
+  it('static product ids agree with confirmed ones and are unique apart from shared classes', () => {
+    for (const m of ALL_MODELS) {
+      if (m.productId !== undefined && m.staticProductId !== undefined) {
+        expect(m.staticProductId, m.id).toBe(m.productId);
+      }
+    }
+    const pids = ALL_MODELS.map((m) => m.productId ?? m.staticProductId).filter((p) => p !== undefined);
+    const shared = pids.filter((p, i) => pids.indexOf(p) !== i);
+    expect(shared).toEqual([0x0021]); // Stage 2 / Stage 2 EX — one CStage2 class
+  });
+
+  it('carries NSM OS-version gates in version×100 with min ≤ recommended', () => {
+    expect(modelById('stage-4')!.os).toEqual({ min: 90, recommended: 100 });
+    // Stage 2 recommended 3.00 — matches the fw 3.00 unit that validated issue #31.
+    expect(modelById('stage-2')!.os?.recommended).toBe(300);
+    for (const m of ALL_MODELS) {
+      if (m.os) expect(m.os.min, m.id).toBeLessThanOrEqual(m.os.recommended);
+    }
   });
 });

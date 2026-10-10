@@ -297,6 +297,16 @@ tag+length walk fails. Codec version = `versionRaw/100` (3 → codec 3, 4 → co
 probe; the editor refuses factory v3 libraries ("NSMP v3 Factory Library files
 are not supported"). OpenNord mirrors this: user-created only.
 
+NSM 9.22 traces the flag to the file header: the `CPeekBundle(path)` ctor
+(`0x100181c14`) runs only `DecodeProlog`, then stores
+`CAttributes::GetCommon().IsFactorySound()`. `SCommonAttributes::IsFactorySound`
+(`0x10018d7dc`) is **bit 0** of a flags word at +0x90; `GetConvertedFromFormat`
+(`0x10018d7e8`) reads **bits 1–2** of the same word. `hdrFactoryFlag`
+(`src/lib/ns4/nsmp.ts`) treats *any* non-zero byte at `hdr`+8 as factory, which
+agrees on the corpus seen so far (`0a 01` / `00 01` vs `00 00`) but would also
+flag a user sample that only carries converted-from bits. **Open:** confirm which
+`hdr`+8 byte holds bit 0 against the local corpus before narrowing the check.
+
 ## Section/container format — VERIFIED (`CSectionIterator::Read_`)
 
 The body (from `0x2C`) is a **flat sequence of sections** (not nested). For codec
