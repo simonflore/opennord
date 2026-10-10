@@ -1,5 +1,5 @@
 import type { NordTransport } from './transport';
-import { encodeMessage, decodeReply, NordError, type NordReply } from './protocol';
+import { encodeMessage, decodeReply, NordError, SessionRefusedError, type NordReply } from './protocol';
 import { CReqBegin, CReqEnd, PARTITION_PROGRAM, PROTOCOL_ID, PROTOCOL_VERSION } from './opcodes';
 import { PROTOCOL_NEGOTIATE, MSG_QRY_VERSIONS, parseVersionReply } from './negotiate';
 import { WriteBlockedError } from './write-guard';
@@ -160,7 +160,7 @@ export class NordSession {
   withSession<T>(partition: number, fn: () => Promise<T>): Promise<T> {
     return this.exclusive(async () => {
       const begun = await this.begin(partition);
-      if (begun.status !== 0) throw new NordError(`could not open a transfer session (status ${begun.status})`);
+      if (begun.status !== 0) throw new SessionRefusedError(partition, begun.status);
       try {
         return await fn();
       } finally {

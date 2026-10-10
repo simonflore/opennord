@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { NordSession } from './session';
 import { MockTransport } from './transport';
-import { encodeMessage, NordError } from './protocol';
+import { encodeMessage, NordError, SessionRefusedError } from './protocol';
 import { CReqBegin, CReqEnd, CQryFileInfo } from './opcodes';
 
 describe('NordSession', () => {
@@ -14,6 +14,17 @@ describe('NordSession', () => {
     // it actually transmitted a Begin(6) frame
     expect(t.sent).toHaveLength(1);
     expect([...t.sent[0].slice(12, 20)]).toEqual([0, 0, 0, 0x04, 0, 0, 0, 0x06]);
+  });
+
+  it('reports a refused Begin as SessionRefusedError, with the partition and status, and sends no End', async () => {
+    // A Nord Stage 3 refusing its protected partition 6 answered status 18 in the field.
+    const t = new MockTransport([encodeMessage(CReqBegin | 1, [18])]);
+    const session = new NordSession(t);
+    const err = await session.withSession(6, async () => 'unreached').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SessionRefusedError);
+    expect(err).toBeInstanceOf(NordError); // existing catch-all handlers still apply
+    expect(err).toMatchObject({ partition: 6, status: 18 });
+    expect(t.sent).toHaveLength(1); // nothing after the refused Begin
   });
 
   it('defaults programPartition to the Stage-4 index and adopts a device-specific one', () => {
