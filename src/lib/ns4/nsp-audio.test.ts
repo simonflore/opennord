@@ -62,11 +62,15 @@ describe('readNspDirectory + decodeNspStroke', () => {
     // Floors are attenuations in 0.2 dB steps, loudest (0) first, as on the instrument.
     const mk = (floor: number) => ({ pcm: [tone(3000, 0.02, 3000, floor + 1)], velocityFrom: floor, before: [[0, 0, 0, 0]] });
     const dir = readNspDirectory(makeNpno([mk(0), mk(40), mk(90), mk(0)], 1, 0x2c))!;
+    // Switch points sit halfway between floors: 0, 20 (4 dB), 65 (13 dB).
     expect(touchAttenuation(127)).toBe(0);
+    expect(touchAttenuation(1)).toBe(200); // clamped at 40 dB
     expect(strokeFor(dir, 0, 127)?.index).toBe(0); // 0 dB
-    expect(strokeFor(dir, 0, 100)?.index).toBe(0); // ≈4 dB → floor 0
-    expect(strokeFor(dir, 0, 70)?.index).toBe(1);  // ≈10 dB → floor 40 (8 dB)
-    expect(strokeFor(dir, 0, 30)?.index).toBe(2);  // ≈25 dB → floor 90 (18 dB)
+    expect(strokeFor(dir, 0, 110)?.index).toBe(0); // ≈2.5 dB, short of the first switch
+    expect(strokeFor(dir, 0, 100)?.index).toBe(1); // ≈4.2 dB, just past it
+    expect(strokeFor(dir, 0, 70)?.index).toBe(1);  // ≈10 dB
+    expect(strokeFor(dir, 0, 50)?.index).toBe(2);  // ≈16 dB, past the second switch
+    expect(strokeFor(dir, 0, 30)?.index).toBe(2);  // ≈25 dB
     expect(strokeFor(dir, 1, 1)?.index).toBe(3);   // a one-layer zone always plays it
     expect(strokeFor(dir, 2, 64)).toBeUndefined();
   });
