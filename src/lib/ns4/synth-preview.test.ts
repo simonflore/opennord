@@ -6,6 +6,7 @@ import {
   parseSeconds,
   previewParamsFromLayer,
   renderSynthPreview,
+  svfDamping,
   type SynthPreviewParams,
 } from './synth-preview';
 
@@ -158,6 +159,35 @@ describe('renderSynthPreview', () => {
         { note: 60, sampleRate: FS, holdSeconds: 0.5 },
       );
     expect(rms(run(5), 4800, 19200)).toBeGreaterThan(2 * rms(run(0), 4800, 19200));
+  });
+
+  it('rises linearly during the attack', () => {
+    const out = renderSynthPreview(params({ wave: 'sine', ampEnv: { attack: 0.2, decay: Infinity, release: 0.05 } }), {
+      note: 69,
+      sampleRate: FS,
+      holdSeconds: 1,
+    });
+    const win = 480;
+    const quarter = rms(out, 0.05 * FS - win, 0.05 * FS + win);
+    const half = rms(out, 0.1 * FS - win, 0.1 * FS + win);
+    expect(half / quarter).toBeCloseTo(2, 1);
+  });
+
+  it('falls 40 dB over the displayed decay time', () => {
+    const out = renderSynthPreview(params({ wave: 'sine', ampEnv: { attack: 0, decay: 0.5, release: 0.05 } }), {
+      note: 69,
+      sampleRate: FS,
+      holdSeconds: 1,
+    });
+    const win = 480;
+    const start = rms(out, 0, 2 * win);
+    const atDecay = rms(out, 0.5 * FS - win, 0.5 * FS + win);
+    expect(20 * Math.log10(start / atDecay)).toBeCloseTo(40, -1);
+  });
+
+  it('maps resonance with the firmware damping law', () => {
+    expect(svfDamping(0)).toBe(2);
+    expect(svfDamping(64 / 127)).toBeCloseTo(0.5);
   });
 
   it('fades oscillators out near Nyquist', () => {

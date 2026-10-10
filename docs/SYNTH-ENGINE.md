@@ -39,10 +39,15 @@ from the structure but was not traced end to end.
   state-variable filter. LP24 is two of them in series. LPM is a four-stage one-pole ladder
   with a soft clipper in the feedback path. LPHP is a high-pass into a low-pass, with the
   resonance knob setting the high-pass corner. The seventh entry is bypass.
-- **Envelopes and LFOs (structure confirmed, details inferred).** Envelopes are per-voice
-  exponential segments (`x ← c·x + d`) computed inline in the main loop at block rate, with
-  stage coefficients supplied by the host. The LFO shapes (triangle, saw, inverse saw,
-  square, S/H) are five tiny phase→value functions run in six generator slots per core.
+- **Envelopes and LFOs (confirmed).** Envelopes are per-voice segments (`x ← c·x + d`)
+  computed inline in the main loop at block rate. The attack is linear, and decay and release
+  are exponential. The DSP looks the coefficients up from the raw knob values. The LFO shapes
+  (triangle, saw, inverse saw, square, S/H) are five tiny phase→value functions run in six
+  generator slots per core, one per synth layer.
+- **Parameter scaling (§7, new).** Raw value → DSP value → Hz/ms/semitones is recovered for
+  pitch, the FM ratios, cutoff, key tracking, resonance, the envelope times, LFO rate and
+  depth, and amp velocity. `src/lib/ns4/synth-scaling.ts` implements them. Envelope and
+  filter amounts in semitones, OSC CTRL per algorithm, unison detune and glide remain open.
 - **Preview feasibility.** Analog oscillators, filters and envelopes can be approximated
   from program parameters alone; `src/lib/ns4/synth-preview.ts` does this for the PURE
   waves. WAVE needs the wavetables. A user's own `os.cab` can supply them locally, because
@@ -58,7 +63,7 @@ from the structure but was not traced end to end.
 | Voice slots | 16 per core: 8 oscillator calls, 8 filter calls, repeated twice | confirmed |
 | Oscillator pointer slots | `dm:0xC10B8`, `0xC10B9`, `0xC10D0`, … (pairs, stride `0x18`) | confirmed; boot default `sw:0x120BF7` |
 | Filter pointer slots | `dm:0xC0B8C + 0x26·k` | confirmed; boot default `sw:0x125B79` (bypass) |
-| Sample rate | 44.1 kHz | inferred: no 48000 constant on the ARM side, one integer 44100; the piano engine runs at 44.1 kHz |
+| Sample rate | ≈ 86.8 kHz (control rate fs/4 ≈ 21.7 kHz) | inferred, strong: three curves and the WAVE fade agree (§7.1). This replaces the earlier 44.1 kHz guess |
 
 The main loop waits for an audio-interrupt flag (`dm:0xB00E2`). For each block it then:
 
@@ -118,13 +123,13 @@ used by no menu entry, and their table entries are exactly the zero-output stub
 | Misc | Bell | 45 | `0x122417` | polynomial sines, exp-table ratio, cubic shaping |
 | FM-H / FM-I | categories A–E | 49–53 | `0x124269` (A, E), `0x12453F` (B–D) | 2-operator phase modulation (§2.1) |
 | WAVE | any wave | 54 | `0x1247B6` | band-limited wavetable reader (§3) |
-| — | (not in the analog menu) | 55 / 56 / 57 | `0x124B6A` / `0x1247B6` / `0x124B6D` | unknown; 57 is the menu root's id |
+| — | (not in the analog menu) | 55 / 56 / 57 | `0x124B6A` / `0x1247B6` / `0x124B6D` | 55 silent; 56 = WAVE kernel; 57 = sample-voice initialiser that installs `0x124C3A` (inferred: the Samples layer, §7.3) |
 | — | unused | 6, 14, 15, 40, 58–73 | `0x125275`, `0x125281`…`0x125335` | zero-output stubs (read for `0x125275`/`0x125281`/`0x12528D`; the rest inferred from identical size) |
 
 The menu builder makes five FM-H and five FM-I categories (`"Harmonic %c"` /
 `"Inharmonic %c"`, A–E). FM-H has 25 ratio steps and FM-I has 61 semitone steps (−12…+48).
-`deps.generated.ts` lists FM categories A–H. Whether F–H exist on a newer OS, or are simply
-not reachable, is open.
+`deps.generated.ts` lists FM categories A–H only because the decoder labels the whole 3-bit
+field. v1.66 builds exactly five (A–E = algorithm ids 49–53). See §7.2.
 
 ### 2.1 Kernel notes
 
@@ -170,7 +175,8 @@ from `0xC0441144` to `0xC02FDDF0`. Total size is 605,109 samples (1.21 MB), whic
 whole region. The ARM registers all 55 waves into 72-byte objects at boot (`0xC01EC9D8`,
 literal `0xC02FD4B0` at `0xC01ECCE8`). It copies the name and pointers and reads header
 fields `h[0]` (sequence id), `h[1]` (category, cleared if ≥ 10), `h[2]`, `h[6]` and
-`h[7] << 8`. How the PCM reaches DSP memory (at boot, or per program) is not yet traced.
+`h[7] << 8`. The PCM reaches DSP memory per layer, uploaded by `FUN_c01c05c8` when the
+layer's wave changes (§7.3).
 
 **Band table (confirmed).** 128 entries of four u32: `{offset, cycleLength, a, b}`.
 `offset`/`cycleLength` select one single cycle in the wave's PCM. Bands get longer as the
@@ -232,9 +238,11 @@ voice's envelopes run inline in the main loop (`sw:0x127600…`) at block rate a
 segments `x ← c·x + d`, with `MAX`/`MIN` clamps and `IF GT`/`IF LT` stage switches. The
 coefficient pairs `(c, d)` are loaded per voice and stage through pointers (`I4 = dm:0xC11CE`,
 `0xC11F2`, `0xC11FE`, `0xC120C`, …). A host word (`dm:0xC1DD0`) carries the gate:
-`FEXT 24:3 (SE)` is the gate state, and `FEXT 8:24 (SE)` is a note serial compared with the
-voice's last one to detect retriggers. So the shape is analog-style exponential segments, and
-the host turns panel times (0.5 ms … 45 s, decay "inf" = sustain) into coefficients.
+`FEXT 24:3 (SE)` is the gate state, and `FEXT 8:24 (SE)` is the rest of the note-on word
+(note, velocity and a toggling bit), which is compared with the voice's last value to detect
+retriggers. Correction from §7.5: the host does *not* compute the coefficients. It sends the
+raw times, and the DSP's note-on handler looks the coefficients up in DM tables. The attack
+is a linear ramp. Decay and release are exponentials that fall 40 dB in the displayed time.
 
 **LFOs (confirmed shapes).** Six generator slots per core (`dm:0xC13A6 + 0x28·k`) are called
 with a phase and a held random value. The shape functions are:
@@ -248,29 +256,32 @@ with a phase and a held random value. The shape functions are:
 | `sw:0x1253BA` | S/H: the held value |
 
 This is exactly the program's LFO shape list (triangle, saw, inv saw, square, S/H). Each
-output then passes a one-pole smoother. Six slots per core rather than 16 suggests per-layer
-(or per-layer-and-vibrato) LFOs, not per-voice LFOs. That is inferred.
+output then passes a one-pole smoother. There is one slot per synth layer (confirmed: the
+note-on handler points a voice at slot `0xC13A6 + 0x28·layer`), so the LFOs are per layer,
+not per voice. Rates and depths are in §7.6.
 
 ## 6. What this opens for OpenNord
 
 **Tier 1: parameters only (no firmware). Built:** `src/lib/ns4/synth-preview.ts` renders an
 approximate note for an ANALOG/PURE layer. It uses a polyBLEP oscillator with a Nyquist fade,
-all six filter types (SVF, SVF×2, ladder with soft clip, HP→LP), and exponential envelopes.
-The inputs are the decoded display values (`"3.7 kHz"`, `"244 ms"`, `"inf"`, …). Every
-constant in it is our own choice. It does not claim bit-exactness, and its assumptions are
-marked in the code (filter-envelope amount read as octaves, key tracking around middle C,
-envelope time definitions).
+all six filter types (SVF, SVF×2, ladder with soft clip, HP→LP), and envelopes. The inputs
+are the decoded display values (`"3.7 kHz"`, `"244 ms"`, `"inf"`, …). It now follows the
+firmware's envelope shapes (linear attack; decay and release that fall 40 dB in the displayed
+time) and its resonance law `k = 2·(1 − r/128)²` (§7). Its other constants are our own
+choices. It does not claim bit-exactness, and its remaining assumptions are marked in the code
+(filter-envelope amount read as octaves, key tracking around middle C).
 
 **Tier 1 next.** The other analog categories (Shape, Shape Sine, Sub, Multi, Super, Sync) are
 closed-form kernels with no tables, except Super Organ / Saw Bright / Square Bright. Two things
 are missing for them:
 
-- the per-category OSC CTRL → kernel-parameter mapping, which the host computes
-  (`0xC01CC85C` area) and which we have not traced;
+- the per-category OSC CTRL → kernel-parameter mapping. The host side is in §7.3; the
+  per-kernel use is still open;
 - for Sync and Bell, the 256-point ratio curve, which can be replaced by `2^x`.
 
-FM-H/FM-I need the 129-point OSC CTRL → depth curve. It can be approximated, or extracted
-locally (it sits in the DSP image inside the same CODE section).
+FM-H/FM-I need the OSC CTRL → depth curve. The host-side curve is now known as a formula
+(§7.3, `depthCurveSemitones`). The DSP's own 129-point curve can be approximated, or read
+locally from the user's image.
 
 **Tier 2: WAVE via the user's own `os.cab` ("BIOS" model).** This is feasible, and stays
 inside `LEGAL.md`'s local-access line if done this way:
@@ -306,30 +317,235 @@ into one of three groups:
 | Other analog categories (Shape, Shape Sine, Sub, Multi, Super Saw/Square, Sync, Misc) | ✅ closed-form kernels | | OSC CTRL → kernel-parameter scaling per category |
 | Super Organ / Saw Bright / Square Bright | | ✅ wavetables (wave index 8 / 24 / 25) | super detune spread |
 | Sync, Bell ratio curve | ≈ `2^x` replaces the 256-point table | optional, for exactness | |
-| FM-H / FM-I | ✅ ratios are in the program (deps tables) | optional: 129-point depth curve (can be approximated) | categories F–H |
+| FM-H / FM-I | ✅ ratios are in the program (deps tables), ratio lists in §7.2 | optional: 129-point depth curve (can be approximated) | — (A–E only on v1.66) |
 | WAVE (46 single-cycle waves) | | ✅ wave directory + PCM | vowel waves' use |
-| Filters (LP12, LP24, LPM, LPHP, BP, HP) | ✅ SVF / ladder structure, cutoff in Hz | optional: cutoff and saturator curves for exactness | resonance and drive scaling |
-| Envelopes (A/D/R, decay "inf" = sustain) | ✅ exponential segments, times in ms | | time definition, velocity scaling |
-| LFO (5 shapes, rate, amount, target) | ✅ | | rate units, smoothing time |
+| Filters (LP12, LP24, LPM, LPHP, BP, HP) | ✅ SVF / ladder structure, cutoff formula, LP12 resonance law (§7.4) | optional: saturator curves for exactness | env amount in semitones, drive pre-gain, LPM/LPHP Q |
+| Envelopes (A/D/R, decay "inf" = sustain) | ✅ linear attack, 40 dB exponential decay/release, time formulas (§7.5) | | velocity → time amounts, osc env amount |
+| LFO (5 shapes, rate, amount, target) | ✅ rate formula, depth curve, smoothing (§7.6) | | filter-depth semitone scale |
 | Samples layers | | sample files (separate path, already decoded) | |
 
 So a playable engine can start from parameters alone for every analog wave and FM, with
 WAVE and the three wavetable-based Super waves switched on once the user supplies an
-`os.cab`. The largest blocker for sounding *right* rather than *close* is the host-side
-parameter scaling (OSC CTRL, resonance, envelope amounts), which lives in ARM code around
-`0xC01CC85C` and is the next thing to trace.
+`os.cab`. Most of the parameter scaling is now recovered (§7). What still keeps it at *close*
+rather than *right* is listed in §7.8: the envelope and filter amounts in semitones, OSC CTRL
+per algorithm, unison detune and glide.
 
-## 7. Open questions
+## 7. Parameter scaling (replication spec)
 
-- OSC CTRL semantics per analog category: which kernel parameter it drives, and the host-side
-  scaling.
+This section answers "what number does the DSP get for a knob, and what does it sound like".
+It was recovered from the ARM edit-parameter router, the per-layer dispatcher, the ARM's
+soft-float maths, and the voice core's note-on handler and lookup tables in DM. Where the
+firmware uses a lookup table, the table is described by a fitted formula with its error. The
+tables themselves are not copied. `src/lib/ns4/synth-scaling.ts` implements every formula
+marked ✅ or 🟡 below, and its tests check them against the decoder's display tables.
+
+Confidence: ✅ = read from code or data, and cross-checked against the displayed value.
+🟡 = mechanism confirmed, one link inferred. ❓ = open.
+
+### 7.1 How a knob reaches the DSP
+
+```
+program value ─► Edt parameter id (registry, e.g. 0x12E = 302 AmpEnvAtk)
+   │  router FUN_c011bdb4: switch on the Edt id
+   ▼
+per-layer dispatcher FUN_c0017088(layer, key, value 16.16)      key = 0x00 … 0x41
+   │  most keys: write one word into a per-layer DSP block, on all 3 voice cores
+   ▼
+voice core DM: layer blocks  A[L] = 0xE0000 + 0x3E·L,  B[L] = 0xE0174 + 0x3E·L,
+                             C[L] = 0xE02E8 + 0x10·L   (L = 0…5 = synth layers A1…C2)
+   │  note-on (sw:0x120300) and the per-block loop read them and look curves up in DM tables
+   ▼
+per-voice state (16 voices per core) ─► oscillator / filter / envelopes / VCA
+```
+
+- **Layers (✅).** The six synth layers (A1, A2, B1, B2, C1, C2) are layer indices 0–5. The
+  host keeps, per layer, a 48-byte table of three `{dsp, address}` pairs, one per voice core
+  (`0xC0547288`, `0xC05473A8`, …). Every parameter write goes to all three cores. A note-on
+  word carries the layer index in bits 28–30 (`FUN_c01d04fc` builds it; the DSP decodes it at
+  `sw:0x120322`), and the DSP then points the voice at that layer's blocks. So voices are
+  allocated per note, and parameters are per layer.
+- **Value formats (✅).** The dispatcher sends one of four formats:
+  - *centred Q31*, `(v − 64)·2^24`, for the envelope times;
+  - *float*, `v/127 − 0.5` (the "decay = inf" flags) or `v/127` (the amounts);
+  - *pitch*, in units of 2^24 per semitone;
+  - *raw integers*, for the switches.
+- **The ARM does maths, in software (✅).** Contrary to the effects notes, the synth path uses
+  the soft-float library (`__aeabi_fmul` `0xC0270C80`, `fadd` `0xC0270A3C`, `fsub`
+  `0xC0270A38`, `i2f` `0xC0270BD4`, `f2iz` `0xC0270F78`, double `dadd`/`dmul`/`ddiv`
+  `0xC025C740`/`0xC025CAF4`/`0xC025CD60`, `pow` `0xC0271B24`). Several curves are therefore
+  ARM tables or ARM arithmetic. The rest are DSP DM tables.
+- **The sample rate (🟡, strong).** Three independent curves agree on a voice-core rate of
+  **fs ≈ 86.8 kHz**, with a control (envelope/LFO) rate of fs/4 ≈ 21.7 kHz:
+  - the attack table against the displayed attack times;
+  - the LFO table against the displayed LFO rates;
+  - the filter's `tan` pre-warp table against the displayed cutoff.
+
+  The WAVE kernel's anti-alias fade starts at 0.2304·fs, which is 20.0 kHz at 86.8 kHz
+  (§7.3). This replaces the "44.1 kHz" guess in §1. The exact clock is not read from a
+  register. The formulas below are in seconds and Hz, so an implementation can run at any
+  rate.
+
+Dispatcher keys and where they come from (router `0xC011BDB4`; ids are firmware-internal Edt
+ids):
+
+| Key | Parameter (Edt id) | Sent as | DSP field |
+|---|---|---|---|
+| 0x01 / 0x02 | osc coarse (298) / fine (297) | pitch word | layer pitch (`FUN_c01c5520`/`c01c5328`) |
+| 0x0B / 0x0C / 0x0E | osc env A / D / R (287–289) | centred Q31 | A+0x20/0x21/0x22 |
+| 0x0D | osc env decay = inf | float ±0.5 | B+0x0E |
+| 0x10 / 0x11 | osc env destination / velocity | int | recompute |
+| 0x12 / 0x13 / 0x15 | amp env A / D / R (302–304) | centred Q31 | A+0x1A/0x1B/0x1C |
+| 0x14 | amp env decay = inf | float ±0.5 | B+0x0A |
+| 0x16 | amp env velocity (305) | via `FUN_c01cdc68` | gain pair at +0x35 |
+| 0x18 / 0x19 / 0x1B | filter env A / D / R (313–315) | centred Q31 | A+0x1D/0x1E/0x1F |
+| 0x1A | filter env decay = inf | float ±0.5 | B+0x0B |
+| 0x1C / 0x1D / 0x2B | filter env velocity (316) / sign / amount | float v/127 | `FUN_c01cd6c8` |
+| 0x1E / 0x20 / 0x21 | LFO shape (283) / destination (282) / amount | int / int / float v/127 | LFO slot |
+| 0x1F / 0x22 | LFO rate free / clocked | table | LFO slot (`FUN_c01d6004`) |
+| 0x06 / 0x07 | unison (300) | int 0–3 | oscillator recompute |
+| 0x09 | FM ratio (from the oscillator menu object) | 16.16 | oscillator recompute |
+| 0x0F | OSC CTRL modulation | float v/127 | `FUN_c01c61f0` |
+| 0x26 / 0x29 / 0x2A | filter type (307) / drive (311) / key track (310) | int | A+0x01 kernel pointer, +0x26 |
+| 0x27 | filter cutoff | ARM table | `FUN_c01c56cc` |
+| 0x30 / 0x31 | voice mode (257: poly/mono/legato) | flags | voice allocator |
+| 0x35 | vibrato amount (260 mode × 262 amount) | 0–127 | `FUN_c011521c` |
+
+The continuous morphable knobs (cutoff, resonance, OSC CTRL, the amounts, LFO rate, glide)
+go through the morph engine before the dispatcher. Their keys (0x27, 0x0F/0x09, 0x2B, 0x21,
+0x1F) are identified as above. Keys 0x03 and 0x28 carry two more morphable floats
+(`v/127 − 0.5`, into B+0x06 and B+0x07). They are probably glide and resonance, but that is a
+guess (❓).
+
+### 7.2 Pitch
+
+| Parameter | Raw | Formula | Units | Evidence | Conf. |
+|---|---|---|---|---|---|
+| Pitch word | — | `semitones · 2^24` (signed) | 8.24 semitones | `FUN_c01c5520` (`coarse·0x100` on a 16.16 value) | ✅ |
+| Osc coarse | −24…+24 | `+coarse` semitones | st | same | ✅ |
+| Osc fine | −50…+50 | `+fine/100` semitones (exactly cents: `2^24/100` = `0x28E00 + 0xAE15/128`) | st | `FUN_c01c5328` | ✅ |
+| Layer pitch sent to DSP | — | coarse + fine + two offset fields (octave shift / transpose, inferred) | pitch word | `obj[0x44]` | 🟡 |
+| FM-H ratio | wave 0–24 | `{0.5, 1, 2, …, 24}` (modulator : carrier) | ratio | menu builder `0xC01ADBBC` (25 doubles ×65536) | ✅ |
+| FM-I ratio | wave 0–60 | `2^((i − 12)/12)`, displayed −12…+48 st | ratio | menu builder (`i·65536`) | ✅ |
+| FM categories | A–E | algorithm ids 49–53 (A, E → kernel `0x124269`; B–D → `0x12453F`) | — | menu loop runs exactly 5 times per family | ✅ |
+
+**FM A–E vs A–H (settled).** v1.66 builds exactly five Harmonic and five Inharmonic categories.
+`deps.generated.ts` labels all eight values of the 3-bit field because ns4decode labels it
+generically. Values 5–7 are unreachable on v1.66.
+
+### 7.3 Oscillator controls
+
+| Parameter | Raw | Formula | Evidence | Conf. |
+|---|---|---|---|---|
+| OSC CTRL | 0–127 | `x = v/127` (the 16.16 value × 1/(127·65536)) | `FUN_c01c61f0` | ✅ |
+| OSC CTRL, "curve" mode (FM depth) | x | `C(127·x)/48`, where C is the depth curve below | `FUN_c01cd540` | ✅ (which algorithms use it: ❓) |
+| OSC CTRL, linear mode | x | `x` | `FUN_c01c61f0` (mode 2) | ✅ (which algorithms: ❓) |
+| Depth curve C(v) | 0–127 | smooth `0.5·(v/20)^2.5` up to 0.5 st at v = 20, then piecewise linear through (27, 1), (36, 2), (42, 3), (47, 4), (59, 7), (68, 10), (73, 12), (88, 19), (96, 24), (108, 32), (120, 42), (122, 43), (127, 48) semitones. Max error 0.5 st | ARM table `0xC02CA2C0` (129 floats) | ✅ |
+| WAVE anti-alias fade | inc f (cycles/sample) | `g = clamp((0.4608 − f)/0.2304, 0, 1)`: full level to 0.2304·fs (≈ 20 kHz), silent at 0.4608·fs | WAVE kernel `sw:0x1247B6` | ✅ |
+| Unison | 0–3 | keys 6 and 7 both get the setting (0–3) | `FUN_c0115478` | ✅ (detune amounts: ❓) |
+
+The depth curve is also the LFO→pitch amount curve (§7.6). Its displayed values match it
+exactly ("50 cent" at 20, "8.7 semi" at 64, "48 semi" at 127).
+
+**Algorithm ids 55–57 (resolved, 🟡).** 55 (`0x124B6A`) is an empty kernel, a silent
+oscillator. 56 is the WAVE kernel again. 57 (`0x124B6D`) is a voice *initialiser*: it seeds
+the LCG and resets state, then installs `sw:0x124C3A` as the per-block routine. That routine
+reads a stream from the TDM I/O buffer. Id 57 is the menu root's id. It is inferred to be the
+**sample-voice path** (the Samples layer, fed from the sample DSP), not an oscillator.
+
+**WAVE PCM (resolved, ✅).** The PCM is not in any DSP boot image. It is uploaded at run time
+by `FUN_c01c05c8(slots, layer, waveIndex)`, one wave slot per synth layer and voice core:
+
+1. The 128-entry band table is copied, and bands that share an offset are deduplicated.
+2. Each band's int16 samples are packed two per 32-bit word (`low = s[n]`, `high = s[n+1]`).
+3. A 12-sample wrap guard is appended after each band, so the 8-tap reader never wraps.
+4. The band offsets are rewritten to word offsets in the packed buffer.
+5. The buffer is written word by word to the layer's slot address on each core.
+
+The upload happens when a layer's WAVE changes, and once per slot at boot
+(`0xC01EC9D8`). The vowel waves (header category 9) are registered with the rest. Which
+feature selects them is still ❓.
+
+### 7.4 Filter
+
+| Parameter | Raw | Formula | Units | Evidence | Conf. |
+|---|---|---|---|---|---|
+| Cutoff | 0–127 | `fc = 277.18·2^(T/12)` with `T = v − 52` for v ≤ 117, `T = 65 + 1.7·(v − 117)` for 118–126, `T = 106` at 127 (wide open). That is `440·2^((v−60)/12)` up to 12 kHz, then 1.7 st per step to 29 kHz | Hz | ARM table `0xC02F9968` (exact integers ×2^24); matches every displayed value within display rounding | ✅ |
+| Cutoff on the DSP | pitch | `g = tan(π·fc/fs)`, clamped at g = 1.99. Table spacing is one semitone (non-LPM, centred at `dm:0xB0ACD`) or a half semitone (`dm:0xB069B` family), linear interpolation | coefficient | DM tables; `atan(g)/π` is exactly exponential (error < 2e-4) | ✅ |
+| Key tracking | 0–3 | `+k·note` semitones, `k ∈ {0, 1/3, 2/3, 1}` (exactly 0.33333 and 0.66666) | st | floats at `0xC02F9E88+0x300`; Q31 `−k` sent to A+0x26; multiplied by the note at note-on (`sw:0x120420`) | ✅ (reference note ❓) |
+| Resonance (LP12/LP24/BP/HP) | 0–127 | SVF damping `k = 2·(1 − v/128)²` (Q = 1/k; k = 2 is no resonance, near self-oscillation at 127) | — | DM table `0xB0F94`, LP12 kernel `sw:0x1253BD` | ✅ table, 🟡 index = raw resonance |
+| LPHP high-pass corner | 0–127 (resonance knob) | same law as the cutoff: `fc_HP = cutoffHz(v)` (display: 14 Hz at 0, 554 Hz at 64, 32 kHz at 127) | Hz | display table `591-5`, type 3 | 🟡 |
+| Filter env amount | 0–127 (sign from key 0x1D) | `a = ±v/127`. With velocity on, `a·vel/127`, otherwise `a` | — | case 0x2B, `FUN_c01cd6c8`, note-on `sw:0x120475` | ✅ |
+| Filter env depth in semitones | a | the cutoff sum adds `(amount + vel term)·env·4` in pitch units. The full-scale semitone value is ❓. The display is linear 0.0–10.0 | — | `sw:0x126298` | ❓ |
+| Drive | 0–3 | post-filter **waveshaper**: identity table `{−1, 0, 1}` when off; otherwise a 1024-point odd soft-clip table (LPM: `dm:0xC06DF`; other types: `dm:0xB02E8`), 10-bit signed index with 22-bit interpolation, after a pre-gain from the layer block | — | `sw:0x120BFF`, stage `sw:0x127CE3` | ✅ structure, ❓ pre-gain per setting |
+
+**The table stage after the filter (resolved, ✅).** This is the stage at `sw:0x127CE3`. Per
+sample it computes `y = Shape(filter_out · ampEnv · layerGain · velGain)`, where `Shape`
+interpolates linearly in a table. Without drive the table is `{−1, 0, 1}`, which makes the
+stage a plain VCA. With drive it is the soft-clip table.
+
+### 7.5 Envelopes
+
+All three envelopes (amp, filter, osc) share the same tables. Each stage record holds four
+words, `{c, d, floor, next}`, and the per-block update is `x ← c·x + d`, clamped
+(`sw:0x127511…`).
+
+| Parameter | Raw | Formula | Units | Evidence | Conf. |
+|---|---|---|---|---|---|
+| Attack | 0–127 | **linear** rise 0→1: `d = 1/(t·fs/4)`, `c = 1`, with `t = 0.5 ms·(1 + v/40.2)^8` (0.5 ms … 45 s, fit error 0.4 %) | s | DM table `0xB07CD` (129 increments, indexed by `(v−64)` around `0xB080D`); within 5 % of every displayed attack time | ✅ |
+| Attack, alternate curve | 0–127 | `T1[v] = 0.1747·T0[v−33]`, clamped at `T0[0]` (the fast end is flat up to v ≈ 25) | — | DM `0xB084E`, chosen when A+0x27 ≠ 0 (key 0x17, a boolean not driven by the synth router; inferred to be for samples) | 🟡 |
+| Decay / release | 0–127 | **exponential towards 0**: `c = exp(−ln(100)/(t·fs/4))`, `d = 0`. The displayed time `t = 3 ms·(1 + v/54.1)^7.958` is the **40 dB** point (3 ms … 45 s, fit error 0.5 %) | s | DM table `0xB08CF` (multipliers around `0xB090F`); displayed time / τ = 4.605 = ln 100 at every v | ✅ |
+| Decay = 127 | — | "inf": the key 0x14/0x1A/0x0D flag (+0.5) holds the level until release | — | router cases 0x120/0x12F/0x13A | ✅ |
+| Release = 127 | — | 45 s (not infinite) | s | display `586-2` | ✅ |
+| Velocity → times | — | per-voice offsets added to the raw time before the table lookup: `vel·(layer field)` | raw steps | note-on `sw:0x12045D…` | 🟡 (amounts ❓) |
+| Osc env amount | −60…+60 | ❓ (Edt range ±60, display ±10 semitone-like) | — | — | ❓ |
+
+The unused DM table at `0xB09D1` holds `−(1 − c)/18`. With it, a decay would reach exactly 0 in
+`ln 19` time constants. No code references it in v1.66.
+
+### 7.6 LFO and vibrato
+
+| Parameter | Raw | Formula | Units | Evidence | Conf. |
+|---|---|---|---|---|---|
+| LFO rate (free) | 0–127 | `f = 0.02846·2^(v/8.966)` (0.028 Hz … 523 Hz); phase increment `T[v]·256` per control tick, with `T[0] = 22` and `T[127] = 404526` | Hz | ARM table `0xC027A76C+0x324`, interpolated by the 16.16 value (case 0x1F) | ✅ |
+| LFO rate (master clock) | 0–127 | clock divisions from a 128-entry table computed at boot (`FUN_c011b190`); "4/1" … "1/64" | — | key 0x22 | 🟡 |
+| LFO shapes | 0–4 | triangle, saw, inverse saw, square, S/H (`sw:0x12538C…`) | — | §5 | ✅ |
+| LFO output smoothing | — | one-pole `y += (x − y)·(1 − 0.99078)` per tick for the OSC CTRL and FILTER destinations; none for PITCH | — | `0xC01BBE40` returns `0x7ED1D5/2^23`; `0xC01C94C4` returns 0 for PITCH | 🟡 |
+| LFO amount → pitch | 0–127 | `±C(v)` semitones (the depth curve, §7.3), max 48 st | st | `FUN_c01c72cc` (`C·2^24`, then ×0.5 in some modes) | ✅ |
+| LFO amount → filter | 0–127 | `(v/127)·2^31` Q31 scaled by 0.5 or 1, added to the cutoff pitch | — | `FUN_c01c6ee0`, `FUN_c01c72cc` | ✅ value, ❓ semitone scale |
+| LFO amount → OSC CTRL | 0–127 | `v/127` (×0.5 unless the algorithm is Shape Triangle or Shape Square) | — | `FUN_c01c6ee0` | ✅ |
+| Vibrato amount | mode 0–5 × amount 0–50 | off → 0; wheel/aftertouch modes → `amount·127/50` (0–127); delay modes ramp | — | `FUN_c011521c` | 🟡 |
+
+### 7.7 Velocity and voice modes
+
+| Parameter | Raw | Formula | Evidence | Conf. |
+|---|---|---|---|---|
+| Amp velocity | 0–3 | gain at velocity 0 = {0, −6, −12, −18} dB; gain at velocity 127 = {0, +2, +4, +6} dB; linear in amplitude in between (`g = lo + (hi − lo)·vel/127`) | `FUN_c01cdc68` (two 4-entry tables of exact dB steps), note-on `sw:0x12048B` | 🟡 |
+| Filter env velocity | 0/1 | off: amount × 1; on: amount × vel/127 | `FUN_c01cd6c8`, `sw:0x120475` | ✅ |
+| Voice mode | 0–2 | poly / mono / legato → keys 0x30/0x31 | router case 0x101 | ✅ |
+| Glide | 0–127 | morph path; possibly key 0x03 | — | ❓ |
+
+### 7.8 What a faithful real-time engine still lacks
+
+- The **semitone scale of the filter-envelope amount** and the **osc-envelope amount**. These
+  are the largest gaps for sound.
+- **OSC CTRL per algorithm**: which algorithms use the curve mode and which the linear mode,
+  and what each kernel does with the value (pulse width, sync ratio, sub level, detune).
+  The deferred recompute behind `FUN_c01c4178` was not followed into every kernel.
+- **Unison detune**, the **glide** time curve, and the **drive** pre-gain per setting.
+- The **key-tracking reference note**.
+- **Velocity → envelope-time** amounts.
+- **LP24/LPM/BP/HP resonance** use their own kernels. Only the LP12 table is read here. LPM's
+  feedback gain and the LPHP Q are not.
+- Voice allocation across the three cores, and the polyphony limit.
+
+## 8. Open questions
+
+- OSC CTRL semantics per analog category (§7.8).
 - What the band-table words 3 and 4 mean (a few small value pairs shared across waves).
-- Algorithm ids 55–57 (`0x124B6A`, `0x124B6D`) and which feature uses the vowel waves.
-- FM categories F–H (A–H in `deps.generated.ts`, A–E in the v1.66 menu builder).
-- How wave PCM gets into DSP-addressable memory: uploaded at boot, or per program.
-- Exact envelope time definitions (time to which level), and the velocity and amount
-  scalings.
-- The post-filter table stage at `sw:0x127CE3…`: drive, VCA curve, or both.
+- Which feature uses the vowel waves.
+- Envelope and filter amounts in semitones (§7.4, §7.5).
+- The exact voice-core clock: about 86.8 kHz from three curves and the WAVE fade. No register
+  read confirms it.
 - Product polyphony. There are 16 voice slots on each of the three cores. How the host
   allocates voices across cores and layers is not traced.
 
@@ -340,3 +556,12 @@ instruction listings exported with the Ghidra SHARC+ module, and small Python he
 helpers were a directory parser, a pointer/xref scanner, a register tracker over the
 menu-builder disassembly, and a DM reader. ARM disassembly used `llvm-objdump --triple=armv7a`
 on the unpacked image. None of the outputs are committed.
+
+The scaling work (§7) added four more local helpers:
+
+- a full ARM decompile with a function extractor;
+- a DM table dumper for the voice-core image;
+- a unicorn harness that calls the soft-float and libm helpers to identify them;
+- small least-squares fits of the DM and ARM curves against the decoder's display tables.
+
+The fits are the only thing carried into the repo, as formulas in `synth-scaling.ts`.
