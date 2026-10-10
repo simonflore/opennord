@@ -70,8 +70,11 @@ export class MidiSourceTracker {
 /** Map a plugin rejection to the seam's musician-facing reason codes. */
 export function nativeErrorReason(error: unknown): MidiInputErrorReason {
   const code = (error as { code?: unknown } | null)?.code;
-  // UNAVAILABLE: the web fallback. UNIMPLEMENTED: plugin not registered natively.
-  if (code === 'UNAVAILABLE' || code === 'UNIMPLEMENTED') return 'unsupported';
+  // UNAVAILABLE: the web fallback — this host really has no native MIDI input.
+  if (code === 'UNAVAILABLE') return 'unsupported';
+  // UNIMPLEMENTED (plugin not registered in this app build) and anything else:
+  // MIDI should work here but didn't start — a visible failure, not a silent
+  // "unsupported" that leaves the Connect button doing nothing.
   return 'failed';
 }
 

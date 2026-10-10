@@ -17,7 +17,7 @@ export function MidiConnect({ what = 'this sample' }: { what?: string } = {}) {
   }
 
   const pairButton = midi.bluetoothPairing && (
-    <Button variant="ghost" onClick={() => void midi.pairBluetooth()}>
+    <Button variant="ghost" disabled={midi.status === 'connecting'} onClick={() => void midi.pairBluetooth()}>
       Pair a Bluetooth keyboard
     </Button>
   );

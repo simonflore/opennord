@@ -55,6 +55,7 @@ public class MidiInputPlugin: CAPPlugin, CAPBridgedPlugin, UIAdaptivePresentatio
   private var nextRefCon = 1
   private var rescanPending = false
   private var pairingCall: CAPPluginCall?
+  private var networkSessionObserver: NSObjectProtocol?
 
   // MARK: - Plugin methods (Capacitor calls these off-main; hop to main)
 
@@ -141,6 +142,15 @@ public class MidiInputPlugin: CAPPlugin, CAPBridgedPlugin, UIAdaptivePresentatio
       }
       guard status == noErr else { client = 0; return status }
     }
+    if networkSessionObserver == nil {
+      // A network session gaining/losing its first connection doesn't always
+      // arrive as a CoreMIDI notification, so the "Network Session" source
+      // would stay hidden (or stay listed) — rescan on the session's own change.
+      networkSessionObserver = NotificationCenter.default.addObserver(
+        forName: NSNotification.Name(rawValue: MIDINetworkNotificationSessionDidChange),
+        object: nil, queue: .main
+      ) { [weak self] _ in self?.scheduleRescan() }
+    }
     if port == 0 {
       let name = "OpenNord Keyboard Input" as CFString
       // Preferred: UMP event lists, MIDI 1.0 protocol (iOS 14+).
@@ -217,8 +227,16 @@ public class MidiInputPlugin: CAPPlugin, CAPBridgedPlugin, UIAdaptivePresentatio
     connections.keys.sorted().compactMap { connections[$0]?.info.json }
   }
 
+  /// Every source a player would call a keyboard. iOS always publishes the
+  /// network driver's "Network Session 1" source, even with nothing on the
+  /// network — listing it would read "Playing from: Network Session 1" with no
+  /// keyboard plugged in, and an unplug would never reach "no keyboard". So
+  /// network-driver sources count only while the network session has a peer.
   private static func presentSources() -> [(MIDIEndpointRef, SourceInfo)] {
     var result: [(MIDIEndpointRef, SourceInfo)] = []
+    let network = MIDINetworkSession.default()
+    let networkHasPeers = !network.connections().isEmpty
+    let networkSessionSource = network.sourceEndpoint() // "Network Session 1"
     for i in 0..<MIDIGetNumberOfSources() {
       let endpoint = MIDIGetSource(i)
       if endpoint == 0 { continue }
@@ -228,10 +246,13 @@ public class MidiInputPlugin: CAPPlugin, CAPBridgedPlugin, UIAdaptivePresentatio
       }
       var uniqueID: MIDIUniqueID = 0
       MIDIObjectGetIntegerProperty(endpoint, kMIDIPropertyUniqueID, &uniqueID)
+      // Match the session's own source too, in case its driver owner reads oddly.
+      let kind = endpoint == networkSessionSource ? "network" : transport(of: endpoint)
+      if kind == "network" && !networkHasPeers { continue }
       let name = stringProperty(endpoint, kMIDIPropertyDisplayName)
         ?? stringProperty(endpoint, kMIDIPropertyName)
         ?? "MIDI keyboard"
-      result.append((endpoint, SourceInfo(id: String(uniqueID), name: name, transport: transport(of: endpoint))))
+      result.append((endpoint, SourceInfo(id: String(uniqueID), name: name, transport: kind)))
     }
     return result
   }
