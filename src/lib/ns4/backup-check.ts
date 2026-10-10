@@ -170,8 +170,8 @@ export async function checkPiano(
   const header = readNsp(bytes);
   if (!header.recognized) return { problem: MSG.notNord, notes: 0, skipped: 0 };
   if (!header.checksumValid) return { problem: MSG.rejected('piano'), notes: 0, skipped: 0 };
-  // A v6 piano whose checksum holds is byte-for-byte what Nord wrote: anything OpenNord then
-  // fails to read is a gap in its decoder, not damage. Only v5 (no checksum) relies on decoding.
+  // A piano whose checksum holds (v6 CRC-32, v5 CRC-16 trailer) is byte-for-byte what Nord
+  // wrote: anything OpenNord then fails to read is a gap in its decoder, not damage.
   const proven = header.hasChecksum;
   const dir = readNspDirectory(bytes);
   if (!dir) return { problem: proven ? null : MSG.pianoNotes, notes: 0, skipped: 0 };
