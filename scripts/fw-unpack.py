@@ -43,8 +43,11 @@ def lzo1x_decompress(src: bytes, ip: int) -> tuple[bytearray, int]:
         if dist <= 0 or dist > len(op):
             raise ValueError(f'LZO1X: bad match distance {dist} at input {ip:#x}')
         start = len(op) - dist
-        for k in range(length):  # byte-wise: matches may overlap their own output
-            op.append(op[start + k])
+        if dist >= length:
+            op.extend(op[start:start + length])
+        else:
+            for k in range(length):  # byte-wise: the match overlaps its own output
+                op.append(op[start + k])
 
     state = 0
     if src[ip] > 17:  # stream opening with a literal run
