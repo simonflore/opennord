@@ -58,7 +58,9 @@ export interface ModelInfo {
    * returns the stored instrument ids) and dispatches on it in
    * its product factory. Medium-high
    * confidence, not hardware-validated — `productId` always takes precedence
-   * and `modelByProductId` deliberately ignores this field.
+   * and `modelByProductId` deliberately ignores this field. Connect still uses it
+   * (via `identifyModelByProductId`) to name the device and pick the program tag
+   * the read-only probe looks for; writes need that probe to succeed.
    */
   staticProductId?: number;
   /**
@@ -70,6 +72,14 @@ export interface ModelInfo {
    * `recommended` the current class's — mirroring `GetVersionMinAndRecommended`.
    */
   os?: { min: number; recommended: number };
+  /**
+   * The partition layout differs between OS versions, so even a hardware-
+   * confirmed `index` must be checked on the device (the connect probe) before
+   * anything is written. Stage 2: NSM 9.22's `CStage2` adds the user Pedal
+   * partition only on newer OS (a conditional `Add()`, the maintainers’ notes),
+   * so on older OS every later partition — Program included — sits one lower.
+   */
+  layoutVariesByOs?: boolean;
 }
 
 const P = (kind: PartitionKind, label: string, native: boolean, fourcc?: string, index?: number): PartitionSpec =>
@@ -132,8 +142,10 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // Program partition index = 6 (same as NS4). NS2 swaps indices 2/3 (user Piano
     // Pedal ↔ native Pedal) relative to the NS4, and — unlike the NS4 — has no
     // separate Organ/Piano/Synth *Preset* partitions. See the maintainers’ notes.
+    // These indices hold for that OS; older Stage 2 OS versions lack the gated
+    // user Pedal partition, so `layoutVariesByOs` makes connect probe first.
     id: 'stage-2', name: 'Nord Stage 2', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og', productId: 0x0021,
-    os: { min: 100, recommended: 300 },
+    os: { min: 100, recommended: 300 }, layoutVariesByOs: true,
     partitions: [
       P('piano-native', 'Piano (factory)', true, undefined, 0),
       P('piano', 'Piano', false, undefined, 1),
@@ -154,7 +166,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // "EX" is a hardware capacity bump, not a format change — so Stage 2 EX program
     // files read/render through the Stage 2 path unchanged.
     id: 'stage-2-ex', name: 'Nord Stage 2 EX', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og',
-    staticProductId: 0x0021, os: { min: 100, recommended: 300 },
+    staticProductId: 0x0021, os: { min: 100, recommended: 300 }, layoutVariesByOs: true,
     partitions: [
       P('piano-native', 'Piano (factory)', true, undefined, 0),
       P('piano', 'Piano', false, undefined, 1),
@@ -349,9 +361,12 @@ export function modelByProductId(productId: number | undefined): ModelInfo | und
 /**
  * Best-known model for a USB product id: a hardware-confirmed match first, else
  * the NSM-recovered `staticProductId`. For identifying a connected device (naming
- * it, checking its OS) — not for choosing transfer behaviour, which stays on the
- * hardware-confirmed `modelByProductId`. Shared PIDs resolve to the anchor model
- * (0x21 → Stage 2; NSM builds Stage 2 EX from the same `CStage2` class).
+ * it, checking its OS, and choosing the program tag + partition guess the
+ * read-only connect probe checks). It never grants a write on its own: a model
+ * found only this way connects read-only unless the probe confirms its Program
+ * partition (`resolveDeviceAccess`, device/connect-probe.ts). Shared PIDs
+ * resolve to the anchor model (0x21 → Stage 2; NSM builds Stage 2 EX from the
+ * same `CStage2` class).
  */
 export function identifyModelByProductId(productId: number | undefined): ModelInfo | undefined {
   if (productId === undefined) return undefined;

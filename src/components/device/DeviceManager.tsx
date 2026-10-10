@@ -225,6 +225,16 @@ export function DeviceManager() {
       {browserBusy && <p className="ps-sub">{samples.pullPct !== null ? `Pulling sample… ${samples.pullPct}%` : 'Working with the Nord…'}</p>}
       {samples.view === 'programs' ? (
         <>
+          {!session.canWrite(session.programPartition) && (
+            <div className="mb-3 rounded-md border border-line bg-surface-2 px-3 py-2.5" role="note">
+              <p className="m-0 mb-1 text-xs font-bold text-ink">Browsing only on this keyboard</p>
+              <p className="m-0 text-xs leading-[1.55] text-dim">
+                OpenNord couldn’t confirm where this Nord keeps its programs, so it won’t change
+                anything on it — sending, deleting, rearranging and restoring stay off. You can still
+                browse, listen and back up as usual.
+              </p>
+            </div>
+          )}
           <div style={{ marginBottom: 12 }}>
             <BackupPanel session={session} deviceName={deviceName} onAfterRestore={() => { void refresh(session); }} />
           </div>

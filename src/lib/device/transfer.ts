@@ -188,7 +188,8 @@ const WRITE_WINDOW = 4096;
  * FileClose sequence; FileClose is what commits the file. Body, category and
  * fourcc come from the file's own CBIN header. The handle is always closed (even
  * on a mid-write failure), preserving the original error. Destructive:
- * overwrites whatever is at {bank, slot}.
+ * overwrites whatever is at {bank, slot}. Refused with `WriteBlockedError`
+ * (nothing sent) unless the open partition is confirmed writable.
  */
 export async function pushFile(
   session: NordSession,
@@ -197,6 +198,7 @@ export async function pushFile(
   fileBytes: Uint8Array,
   name: string,
 ): Promise<void> {
+  session.assertWritable(); // refuse before any frame: the open partition must be confirmed
   const body = fileBytes.subarray(44); // strip the 44-byte CBIN header — the device stores the body only
   const header = readCbinHeader(fileBytes); // for the file's category and type tag
   const nameBytes = new TextEncoder().encode(name);
@@ -238,8 +240,10 @@ export function pushProgram(
   return pushFile(session, bank, slot, fileBytes, name);
 }
 
-/** Delete the program at {bank, slot}. Destructive. */
+/** Delete the program at {bank, slot}. Destructive; refused like `pushFile`
+ *  unless the open partition is confirmed writable. */
 export async function deleteProgram(session: NordSession, bank: number, slot: number): Promise<void> {
+  session.assertWritable(); // refuse before any frame: the open partition must be confirmed
   const reply = await session.request(CReqFileDelete, [bank, slot]);
   if (reply.status !== 0) throw new NordError(`FileDelete failed (status ${reply.status})`);
 }

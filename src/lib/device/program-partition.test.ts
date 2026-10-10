@@ -16,6 +16,12 @@ describe('resolveProgramPartition', () => {
     expect(resolveProgramPartition(0x0026)).toBe(7);
   });
 
+  it('guesses from the NSM-recovered product id when the PID is not hardware-confirmed', () => {
+    // Electro 4 (0x23): static index 4 — the Stage-4 6 would be its Settings partition.
+    expect(resolveProgramPartition(0x0023)).toBe(4);
+    expect(resolveProgramPartition(0x0027)).toBe(4); // Electro 5
+  });
+
   it('falls back to the Stage-4 index for unknown devices', () => {
     expect(resolveProgramPartition(0x9999)).toBe(PARTITION_PROGRAM); // unknown device
     expect(resolveProgramPartition(0)).toBe(PARTITION_PROGRAM); // iPad DEXT placeholder pid

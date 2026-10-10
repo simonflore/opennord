@@ -12,6 +12,8 @@ export interface DeviceIO {
   delete(partition: number, addr: Addr): Promise<void>;
   /** Slot metadata, or null if the slot is empty. */
   info(partition: number, addr: Addr): Promise<ProgramEntry | null>;
+  /** Whether writes to `partition` are allowed. Absent = always (offline backup). */
+  canWrite?(partition: number): boolean;
 }
 
 /** Real DeviceIO. Assumes the caller has an open `withSession(partition)` around the plan. */
@@ -25,5 +27,6 @@ export function sessionDeviceIO(session: NordSession): DeviceIO {
       if (reply.status !== 0) return null;
       return decodeFileInfo(reply.payload, addr.bank, addr.slot);
     },
+    canWrite: (partition) => session.canWrite(partition),
   };
 }

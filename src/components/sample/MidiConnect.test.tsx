@@ -69,4 +69,13 @@ describe('MidiConnect', () => {
     expect(first.stop).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/Playing from: Keys/)).toBeTruthy();
   });
+
+  it('disables both buttons while connecting (no duplicate sessions)', async () => {
+    seam.bluetooth = true;
+    seam.listen.mockImplementationOnce(() => new Promise(() => {})); // never settles
+    renderConnect();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Connect MIDI keyboard' })); });
+    expect((screen.getByRole('button', { name: 'Connecting…' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: /pair a bluetooth keyboard/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
 });
