@@ -27,12 +27,13 @@ everything else is already recorded. Within each group the steps are in order.
 |---|---|---|
 | Before the session | ~45 min, at home | Kit, DAW project, iPad build, factory piano file (no Nord needed) |
 | 0. Set-up and backup | 20 min | Cables, settings, full backup; two iPad checks while the backup runs |
-| A. Read-only checks | 15 min | "Check my Nord", preset order, then start the backup check |
+| A. Read-only checks | 20 min | "Check my Nord", preset order, backup check, the session lock ("status 18") |
 | C. Sound measurements | 40 min | Piano, organ and effects takes (C8 waits until after B) |
 | D. iPad | 10 min | MIDI input with the Nord as the keyboard |
 | B. Loading a written piano ✎ | 25 min | T0 first, then T1–T3; pitch, loop, touch, level, release |
 | C8. Synth patches ✎ | 8 min | Stored into empty program slots, so they can be exported |
 | Clean-up | 5 min | Delete the test pianos (and, if you like, the C8 patches); check the factory pianos |
+| E. Stage 3 *(optional)* | 15 min | Only with a Stage 3 at hand (or for whoever has one): connect, memory areas, one real program |
 
 If time runs short, skip the steps marked *(optional)* first, then the rest of group C. Never
 skip the backup.
@@ -101,8 +102,9 @@ Nothing in this group writes to the instrument.
 ### A2. Stage 4 preset area order: Organ / Piano / Synth (2 min, from A1's table)
 
 - **Settles:** which of areas 7, 8 and 9 hold organ (`ns4o`), piano (`ns4n`) and synth (`ns4y`)
-  presets. `docs/PROTOCOL-RE.md` says 7 Organ, 8 Piano, 9 Synth; NSM's constructor order says
-  7 Synth, 8 Organ, 9 Piano (`docs/NORD-PRODUCT-LINE.md`). The registry
+  presets. `docs/PROTOCOL-RE.md` says 7 Organ, 8 Piano, 9 Synth, and the Stage 4 firmware's own
+  partition order agrees (`docs/STAGE2-3-FIRMWARE.md` §2); NSM's constructor order says
+  7 Synth, 8 Organ, 9 Piano (`docs/NORD-PRODUCT-LINE.md`). This take confirms it on hardware. The registry
   (`src/lib/clavia/partitions.ts`), preset browsing (`device/presets.ts`) and backup restore
   targets (`device/ns4b.ts`) follow the first order.
 - **Steps:** read the file types for areas 7, 8 and 9 in A1's table.
@@ -124,6 +126,27 @@ Nothing in this group writes to the instrument.
   may freeze for seconds at a time on large pianos (known issue #23): leave it alone.
 - **Write down:** the three lines, any problem lines, the total time from click to result, and
   the longest freeze you noticed.
+
+### A4. The session lock behind "status 18" (5 min)
+
+- **Settles:** the session lock read from the firmware (`docs/PROTOCOL-RE.md`, "Sessions and
+  status codes"): a refused session start still holds the lock, so the next start answers 18
+  until an end arrives. That was the cause of a Stage 3 Compact's "status 18" in the field;
+  OpenNord now always sends the end (PR #38). The Stage 4 runs the same code.
+- **Steps:** this uses the read-only command-line tool, not the app. Quit NSM and disconnect
+  OpenNord. Build the tool once: `cc scripts/nordprobe.c -lusb-1.0 -o hardware-test/nordprobe`
+  (needs libusb). Then send, in one go:
+  `hardware-test/nordprobe 04:d 04:6 06 04:6 06` (the tool reads numbers as hex: `d` is 13)
+  This asks to open area 13 (which doesn't exist), then the Programs area (6), ends, opens the
+  Programs area again and ends. Nothing is read or written.
+- **Expected:** each reply's status is the four bytes right after its 16-byte header (RX bytes
+  16–19). In order: **2** (no area 13), **18** (the lock is still held by the refused start),
+  then the end, which releases the lock (its own status may be 2, as it ends area 13), then
+  **0** and **0**.
+- **If the second reply is 0:** the lock is not held after a refused start, so the cause of the
+  field report lies elsewhere. Write it down; OpenNord's fix is harmless either way.
+- **Then, in OpenNord:** connect again and check that your programs list as normal.
+- **Write down:** the five status words.
 
 ## C. Sound measurements for replication (40 min, plus C8 after group B)
 
@@ -486,14 +509,58 @@ Resonance, Unison, Dyn Comp and Soft Release off, Touch Medium.
   440 Hz recording 11 semitones down; A2 plays the 220 Hz one an octave down.
 - **Write down:** right zone on each key yes/no.
 
+### B8. Piano name length *(optional, 4 min)* ✎
+
+- **Settles:** whether the instrument's 32-character name limit ("Piano name error",
+  `docs/NPNO-WRITE.md`, "Limits") counts the `.npno` extension. OpenNord counts it to be safe,
+  which caps a piano name at 23 characters; if the extension doesn't count, the cap can go up.
+- **Steps:** in `hardware-test/pianos/`, make two copies of T0 with longer file names:
+  `cp OpenNord_Test_0_6.0.npno OpenNord_Name_Test_32ab_6.0.npno` (32 characters with the
+  extension) and `cp OpenNord_Test_0_6.0.npno OpenNord_Name_Test_33abc_6.0.npno` (33). Drag each
+  into an **empty** location in NSM's Piano tab, then look for them on the Nord.
+- **Expected:** the 32-character one loads and plays. The 33-character one either loads (the
+  extension doesn't count) or shows "Piano name error" on the Nord.
+- **Write down:** NSM's reaction and what the Nord shows for each. Delete both at clean-up.
+
 ## Clean-up (5 min)
 
-- [ ] In NSM's Piano tab, delete every "OpenNord Test" piano. In the Program tab, delete the C8
+- [ ] In NSM's Piano tab, delete every "OpenNord Test" piano, and B8's two "OpenNord Name
+  Test" copies if you made them. In the Program tab, delete the C8
   patches once you have exported them (they went into empty locations).
 - [ ] On the Nord, play two or three factory pianos and an organ program.
 - [ ] Optional: run *Check my Nord* again; area 1 shows what it showed in A1 (no `npno` type if
   it was empty then).
 - [ ] Put the recordings in `hardware-test/recordings/` (they stay there; see below).
+
+## E. Stage 3 *(optional, only with a Stage 3 at hand)*
+
+For a session with a Stage 3, or to send to someone who has one. Nothing here writes to the
+instrument. The checks come from the firmware comparison (`docs/STAGE2-3-FIRMWARE.md` §6).
+
+### E1. Connect and "Check my Nord" (5 min)
+
+- **Settles:** the Stage 3 memory-area order read from its firmware (`docs/STAGE2-3-FIRMWARE.md`
+  §2; `src/lib/clavia/partitions.ts`), and that the "status 18" report is gone.
+- **Steps:** quit NSM. In OpenNord (Chrome/Edge, developer console open), connect the Stage 3,
+  then run *Check my Nord* and copy the table.
+- **Expected:** connect lists the programs, with no "status 18" or "busy" message. The table shows
+  12 areas: 7 holds `ns3f` (programs), 8 `ns3y` (synth presets), 9 `ns3s` (songs), 10 `ns3l`,
+  11 `ns3t`. Area 6 is the synth-wave area.
+- **Write down:** the OS version, the full table and any `device.partition-probe` line from the
+  console.
+
+### E2. One real program against the Nord's display (10 min)
+
+- **Settles:** the decoder fixes in PR #42, which came from the firmware alone: the amp type
+  order (Clean, Twin, JC, Small, LP24, HP24), the rotary speed (Stop / Slow / Fast) and the
+  effect rates. No real `.ns3f` was available to check them.
+- **Steps:** pick a program that uses the Amp/EQ, the rotary and Effect 1 or 2. Note on the Nord:
+  the amp type and its EQ settings, the rotary speed, and each effect's type and rate. Pull the
+  program with OpenNord (or export it in NSM) and open it in OpenNord.
+- **Expected:** OpenNord shows the same amp type, rotary speed and effect types. Rates and EQ
+  match within a step.
+- **Write down:** each value as the Nord shows it and as OpenNord shows it. Keep the `.ns3f`
+  (it's your own program) so it can become a test file.
 
 ## Comparing a recording
 
@@ -556,6 +623,7 @@ Paste this into an issue and fill it in. Numbers rather than audio.
 | A1 | Connect probe / Check my Nord | partition-probe line: yes/no | … areas | table below |
 | A2 | Preset areas | | 7 = …, 8 = …, 9 = … | |
 | A3 | Check backup | headline … | … min, longest freeze … s | problems: … |
+| A4 | Session lock | | status words: … / … / … / … / … | |
 | C1 | Touch curves | Touch applies to MIDI in: yes/no | sweep tables attached | hand velocities: … |
 | C2 | +27 c / output rate (factory piano) | closest: A / B / C | A3 … Hz, G#4 … Hz, A4 … Hz, C8 … Hz | |
 | C3 | Dyn Comp | | dB span: off …, 1 …, 2 …, 3 … | panel names: … |
@@ -578,5 +646,8 @@ Paste this into an issue and fill it in. Numbers rather than audio.
 | B5 | Level vs factory | | measured … dB, predicted … dB | |
 | B6 | Release | abrupt/natural | T60 … ms | |
 | B7 | Zones (T3) | ✓/✗ | | |
+| B8 | Name length | 32 loads: yes/no · 33: loads / name error | | |
 | — | Clean-up | test pianos deleted, factory pianos play | | |
+| E1 | Stage 3 connect / areas | status 18 seen: yes/no | 7 = …, 8 = …, 9 = …, … areas | OS … |
+| E2 | Stage 3 program vs display | amp type ✓/✗, rotary ✓/✗, FX ✓/✗ | | |
 ```
