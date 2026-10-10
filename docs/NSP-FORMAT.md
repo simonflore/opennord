@@ -888,3 +888,38 @@ No hit. So "does the user have this program's piano?" is answered **by name**:
 exactly, and with the header name for a renamed file. Most panel names carry no version and
 `PIANO_NAMES` lists several ids under many of them (v5 and v6 releases), so such a match is the
 right instrument but not provably the exact recording; the program view says so.
+
+## 2026-10-10 — the ARM side does parse CNSP; records start at +0x732; checksums
+
+Writing pianos (`docs/NPNO-WRITE.md`, `src/lib/ns4/nsp-write.ts`) needed every field. Corrections
+and additions to the notes above:
+
+- **The Stage 4 ARM side does read the CNSP body.** The earlier search keyed on the `CNSP`
+  magic. Searching callers of the flash reader `0xC0094EA0` finds the loaders. `0xC00B84CC`
+  reads the header from CNSP+0x16 and copies the type byte, the three 32-byte names (+0x1C,
+  +0x3C, +0x5C) and ten per-note tables (+0x8C key map, +0x10C, +0x18C, +0x20C, +0x28C,
+  +0x5A2, +0x30C, +0x38C, +0x41C, +0x49D). `0xC00B47B8` reads the directory at +0x61C (version,
+  channels, count, then **u16[128]: the number of strokes of the zone rooted at each note**) and
+  every record at **CNSP + 0x732 + i·0x76**. `0xC00AB028` (v6) and `0xC0020088` (v5, converting)
+  turn each record into a voice entry.
+- **Records start at +0x732, not +0x72C.** Every field moves by 6: offset +0x00, flags +0x04
+  (bits 0–1; 2 = key-release sound, as in the Wurlitzer), velocity +0x05, frames +0x06,
+  blocks +0x0A, history +0x0C/+0x14, loop +0x1C/+0x20, loop block +0x24/+0x28/+0x2C. The
+  unnamed fields are a Q23 coefficient at +0x2E, a velocity copy at +0x33, a level word at
+  +0x34, 14 Q23 coefficients at +0x36, an id at +0x6E, two voice bytes at +0x72/+0x73, and the
+  velocity-crossfade start at +0x74. The old "+0x34 always 127, +0x36 key-scaled level" is the
+  coefficient at +0x2E read as two u16s: `0x007FFF6E` = 2^23 − 146. v5 records store velocities
+  /5 and are converted at load. Full table in `NPNO-WRITE.md`. `nsp-audio.ts` now reads this
+  layout and groups zones by the layers-per-root table.
+- **Checksums.** The CNSP header holds a u32 byte sum of CNSP+0x16 … end at +0x06 (NSM verifies
+  it, `CNSPFileInputStream` ctor). v5 files *do* have a container checksum: a 2-byte
+  CRC-16/CCITT-FALSE trailer over the rest of the file, LE, as in the other legacy formats. It
+  matches on both real v5.30 files, and their byte sum stops before it. `readNsp` now verifies
+  the trailer for v5 (`hasChecksum: true`).
+- **Version.** NSM's version for a piano is `GetFormat(BCD(+0x04))`·100 + CNSP+0x1A·10
+  (`S_GetVersion`): 0x464 → 6, 0x450 → 5, 0x440 → 4. The minor digit is the byte at +0x1A
+  (Clavinet 6.1 → 1, CP80/Wurlitzer 5.3 → 3).
+- **Encoder facts** (re-encoding the three files reproduces them byte for byte): the block level
+  byte is `round(20·log10(8192/peak))` over the block's own and overlap frames (100 for silence).
+  Strokes peak at 7782 = 0.95·8192, or whole dB below it. A looped stroke ends with the block
+  that holds the loop end. The first block sits at `830 (mod 1022)` from the CNSP tag.
