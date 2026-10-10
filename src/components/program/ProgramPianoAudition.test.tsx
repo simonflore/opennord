@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { act, render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/folder/FolderContext', () => ({ useFolderOptional: vi.fn() }));
@@ -70,6 +70,23 @@ describe('ProgramPianoAudition', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Play C3, soft' }));
     // C3 is zone 0's root (48, sounding 52): 4 semitones down, from its soft layer (40 ≈ 20 dB).
     expect(playPcm).toHaveBeenLastCalledWith(decodeNspStroke(PIANO, dir, dir.strokes[1]), expect.any(Function), NSP_SAMPLE_RATE * 2 ** (-4 / 12));
+  });
+
+  it('can still stop a note after switching from another (the first note ends late)', () => {
+    const voices: { stop: ReturnType<typeof vi.fn>; ended: () => void }[] = [];
+    vi.mocked(playPcm).mockImplementation((_pcm, onEnded) => {
+      const stop = vi.fn();
+      voices.push({ stop, ended: onEnded ?? (() => {}) });
+      return stop;
+    });
+    linkFolder({ pianos: [{ id: 'folder:Synth Piano 6.1.npno', name: 'Synth Piano 6.1', bytes: PIANO }] });
+    render(<ProgramPianoAudition model="Synth Piano" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Listen to Synth Piano' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Play C3, medium' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Play C4, medium' }));
+    act(() => voices[0].ended()); // Web Audio reports C3's end only after C4 started
+    fireEvent.click(screen.getByRole('button', { name: 'Stop C4, medium' }));
+    expect(voices[1].stop).toHaveBeenCalled();
   });
 
   it('opens a piano from a backup only when asked, then plays it', async () => {
