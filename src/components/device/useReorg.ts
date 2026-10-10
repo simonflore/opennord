@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { DeviceIO } from '../../lib/device/device-io';
 import { executePlan, type ExecProgress, type ExecResult } from '../../lib/device/execute';
+import { WRITE_BLOCKED_MESSAGE } from '../../lib/device/write-guard';
 import { planReorg, buildOccupancy, isPlanError, type Addr, type Occupancy, type Plan, type PlanError } from '../../lib/device/reorg';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import { getErrorMessage } from '../../lib/errors';
@@ -63,7 +64,10 @@ export function useReorg({ io, partition, entries, refresh, backupOnce, run, aut
       if (res.ok) {
         await refresh();
       } else {
-        setError(`${plan.title} failed; nothing was changed.${res.warnings.length ? ` (${res.warnings.join('; ')})` : ''}`);
+        // A refused write already explains itself (and that nothing changed).
+        setError(res.warnings[0] === WRITE_BLOCKED_MESSAGE
+          ? WRITE_BLOCKED_MESSAGE
+          : `${plan.title} failed; nothing was changed.${res.warnings.length ? ` (${res.warnings.join('; ')})` : ''}`);
       }
     }, (e) => `${plan.title} failed: ${getErrorMessage(e)}`);
     setProgress(null);

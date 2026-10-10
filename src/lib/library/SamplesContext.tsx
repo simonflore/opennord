@@ -15,6 +15,7 @@ import { useBackupOrigins } from './useBackupOrigins';
 import { planOffload } from '@/lib/device/offload';
 import { executePlan } from '@/lib/device/execute';
 import { sessionDeviceIO } from '@/lib/device/device-io';
+import { WriteBlockedError } from '@/lib/device/write-guard';
 import { buildOccupancy, type Addr } from '@/lib/device/reorg';
 import { PARTITION_SAMP_LIB } from '@/lib/device/opcodes';
 import { downloadBytes } from '@/lib/download';
@@ -110,6 +111,8 @@ function useSamplesStateValue() {
     if (!session) return { removed: 0, failed: 0 };
     const targets = removableUnused.filter((e) => selected.has(e.id));
     if (targets.length === 0) return { removed: 0, failed: 0 };
+    // Unconfirmed layout on this keyboard: refuse up front with the calm message.
+    if (!session.canWrite(PARTITION_SAMP_LIB)) throw new WriteBlockedError();
     setRemoving(true);
     setRemovePct(0);
     let copyFailed = 0;

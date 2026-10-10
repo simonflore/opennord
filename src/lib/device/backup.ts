@@ -8,6 +8,7 @@ import { readCbinHeader, hasCbinMagic } from '../clavia/cbin';
 import { USER_PARTITIONS, partitionForPath, disambiguatePath, buildMetaXml, type PartitionSpec } from './ns4b';
 import { addrKey } from './reorg';
 import { getErrorMessage } from '../errors';
+import { WriteBlockedError } from './write-guard';
 
 export interface RestoreResult {
   restored: number;
@@ -75,6 +76,8 @@ async function backupUnlocked(
  * (factory npno/nsmp4 are skipped + counted), reads its CBIN header for the
  * target {bank, slot}, and writes it. Best-effort: per-file failures are
  * collected, not fatal. Re-begins the Program partition at the finish.
+ * Refused as a whole (`WriteBlockedError`, nothing written) when any target
+ * partition isn't confirmed writable on the connected device.
  */
 export function restore(
   session: NordSession,
@@ -114,6 +117,9 @@ async function restoreUnlocked(
     byPartition.set(partition, list);
   }
   const total = [...byPartition.values()].reduce((n, l) => n + l.length, 0);
+  // All or nothing: if any target partition isn't confirmed on this keyboard,
+  // refuse the whole restore up front rather than half-restoring it.
+  if ([...byPartition.keys()].some((p) => !session.canWrite(p))) throw new WriteBlockedError();
 
   let done = 0;
   // One begin/end session per partition; the device returns to idle between them.

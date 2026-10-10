@@ -1,6 +1,7 @@
 import type { DeviceIO } from './device-io';
 import { addrKey, type Addr, type Occupancy, type Plan } from './reorg';
 import { getErrorMessage } from '../errors';
+import { WRITE_BLOCKED_MESSAGE } from './write-guard';
 
 export interface ExecProgress { opIndex: number; opCount: number; phase: 'copy' | 'delete' | 'rollback' }
 export interface ExecResult { ok: boolean; completedOps: number; rolledBack: boolean; warnings: string[] }
@@ -25,6 +26,12 @@ export async function executePlan(
   opts: { onProgress?: (p: ExecProgress) => void; signal?: AbortSignal } = {},
 ): Promise<ExecResult> {
   const { onProgress, signal } = opts;
+
+  // 0. Refuse up front on an unconfirmed partition — before journaling, so there
+  //    is nothing to roll back (the writes themselves are also gated in pushFile).
+  if (io.canWrite && !io.canWrite(partition)) {
+    return { ok: false, completedOps: 0, rolledBack: false, warnings: [WRITE_BLOCKED_MESSAGE] };
+  }
 
   // 1. Journal the affected slots up front (before any mutation).
   const journal: JournalEntry[] = [];

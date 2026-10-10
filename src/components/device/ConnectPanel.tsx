@@ -5,9 +5,8 @@ import { CapacitorUsbTransport, nordUsbAvailable, usbAvailability } from '../../
 import { ElectronUsbTransport } from '../../lib/device/electron-usb';
 import { NordSession } from '../../lib/device/session';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
-import { resolveProgramPartition } from '../../lib/device/program-partition';
-import { confirmProgramPartition } from '../../lib/device/connect-probe';
-import { modelByProductId, programPartitionIndex } from '../../lib/clavia/partitions';
+import { identifyDevice, resolveDeviceAccess, type DeviceIdentity } from '../../lib/device/connect-probe';
+import { modelById } from '../../lib/clavia/partitions';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
 import { shouldNegotiateVersion } from '../../lib/device/negotiate';
 import { describeUsbDevice, findBulkInterface, type UsbDeviceSnapshot } from '../../lib/device/usb-descriptors';
@@ -26,7 +25,8 @@ function errorShape(e: unknown): Record<string, unknown> {
 }
 
 // Vendor-only (Clavia DMI AB) — accept the whole Nord line, as NSM does. The
-// Stage 4 transfer flows are validated; other models connect read-only (probe).
+// Stage 4 transfer flows are validated; other models connect read-only unless the
+// read-only probe confirms where their programs live (resolveDeviceAccess).
 const NORD_FILTER: USBDeviceFilter = { vendorId: 0x0ffc };
 
 type Status = 'idle' | 'connecting' | 'connected' | 'error';
@@ -129,7 +129,9 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     );
   }
 
-  async function runSession(transport: NordTransport, deviceName: string, productId: number) {
+  async function runSession(
+    transport: NordTransport, deviceName: string, productId: number, identity?: DeviceIdentity,
+  ) {
     await transport.open();
     const session = new NordSession(transport);
     // Adopt the device's FileTransfer protocol version (NS2 = 0x08). Best-effort:
@@ -139,20 +141,16 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     if (shouldNegotiateVersion(productId)) {
       await session.negotiateVersion().catch(() => undefined);
     }
-    // Address the model's Program partition. Start from the registry (Stage-4
-    // index for confirmed/unknown; the model's own where recorded)...
-    const model = modelByProductId(productId);
-    let programPartition = resolveProgramPartition(productId);
-    // ...then, for models WITHOUT a hardware-confirmed index, run the read-only
-    // probe to observe the device's real partition map and adopt the partition
-    // that actually holds this model's program files — self-correcting a wrong
-    // guess (e.g. Stage 3, whose index isn't statically recoverable) and logging
-    // the observation so we can confirm the registry over time. Only Stage 2 and
-    // Stage 4 (index hardware-validated) skip the probe.
-    if (programPartitionIndex(model) === undefined) {
-      programPartition = await confirmProgramPartition(session, model, programPartition, diagnostics);
-    }
-    session.programPartition = programPartition;
+    // Address the model's Program partition and decide what may be written.
+    // The model comes from the best-known product id (hardware-confirmed, else
+    // NSM-recovered), so its own program tag and static index are used. Only a
+    // trusted hardware layout (Stage 4) skips the read-only probe; every other
+    // model — Stage 2 included, whose layout shifts on older OS — is probed for
+    // the partition that actually holds its program files. Writes are allowed
+    // only where that is confirmed; otherwise the connection stays read-only.
+    const access = await resolveDeviceAccess(session, identity ?? identifyDevice(productId), diagnostics);
+    session.programPartition = access.programPartition;
+    session.allowWrites(access.writable);
     // Bracket enumerate in a begin/end session so the Nord returns to idle after.
     const entries = await session.withSession(session.programPartition, () => enumeratePrograms(session));
     setStatus('connected');
@@ -189,8 +187,9 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
         transport = new CapacitorUsbTransport();
         // TODO(ipad-dext): placeholder name + productId 0 — the four-method seam
         // can't report device identity yet; surface the real model/PID once the
-        // DriverKit DEXT lands.
-        await runSession(transport, 'Nord Stage 4', 0);
+        // DriverKit DEXT lands. The Stage 4 is only ASSUMED, so
+        // the probe must find its program files before anything is written.
+        await runSession(transport, 'Nord Stage 4', 0, { model: modelById('stage-4'), confirmed: false });
         diagnostics.record({ kind: 'device.connect', ok: true, message: 'Connected (iPad DEXT)', detail: { path: 'ipad-dext' } });
         return;
       }
