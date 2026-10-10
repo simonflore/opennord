@@ -65,6 +65,15 @@ describe('decodeNs2', () => {
     expect(fx.find((f) => f.name === 'Effect 2')?.type).toBe('Chorus 1');
   });
 
+  it('labels amp type 0 "Clean" (Stage 2 OS 3.00 firmware), not "Off"', () => {
+    const types = [0, 1, 2, 3].map((t) => {
+      const b = t1();
+      b[0x133] = 0x10 | t;      // amp/EQ on (b4) + type b1-0
+      return decodeNs2(b).slots[0].fx.find((f) => f.name === 'Amp/EQ')?.type;
+    });
+    expect(types).toEqual(['Clean', 'Small', 'JC', 'Twin']);
+  });
+
   it('decodes piano sampleId (0 = program init) and clavinet variation', () => {
     const b = t1();
     b[0x48] = 0x80;      // piano on

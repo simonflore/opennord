@@ -36,7 +36,9 @@ const FARFISA_VIB_MODE = [
   'Heavy/Fast (C3)',
 ];
 const REVERB_TYPE = ['Room 1', 'Room 2', 'Stage 1', 'Stage 2', 'Hall 1', 'Hall 2'];
-const AMP_TYPE = ['Off', 'Small', 'JC', 'Twin'];
+// Amp/EQ model labels, raw 0-3. Value 0 is "Clean" (not "Off"; enable is a
+// separate bit) — Stage 2 OS 3.00 firmware amp-type strings Clean/Small/JC/Twin.
+const AMP_TYPE = ['Clean', 'Small', 'JC', 'Twin'];
 const EFFECT1_TYPE = ['Panning', 'Tremolo', 'Ring Mod', 'Wah-Wah', 'Auto-Wah 1', 'Auto-Wah 2'];
 const EFFECT2_TYPE = ['Phaser 1', 'Phaser 2', 'Flanger', 'Vibe', 'Chorus 1', 'Chorus 2'];
 const EFFECT_SRC = ['Organ', 'Piano', 'Synth'];
