@@ -36,7 +36,7 @@ wherever they disagree** (§10.1 lists the corrections).
 
 The effect library is **byte-identical** in DSP0 c1, DSP0 c2 and DSP1 c1: same instructions,
 shifted addresses. The comparison hashes each function's text with its addresses removed
-(`scripts/fnhash.py` in scratch). The voice cores share none of it. Addresses below are
+(a scratch `fnhash.py`, not committed). The voice cores share none of it. Addresses below are
 DSP0 c1 addresses.
 
 **Chain count.** The ARM driver addresses **12 effect chains** (it bounds the chain index at
@@ -48,7 +48,9 @@ synth A/B/C, and DSP1 c1 holds the organ chain twice. **Low confidence.**
 
 Memory supports the split. Each DSP0 core reserves a 400 KB L2 buffer (102,400 words), and
 DSP1 c1 reserves 640 KB of L2. Those are the long delay lines. The voice cores reserve 240 KB
-each, which looks like streaming buffers.
+each, which looks like streaming buffers. (*Corrected in §10.1:* on DSP0 the delay line streams
+through TDM slots to external memory; only `0x120AB5` keeps it in L2, 0x3C000 bytes per chain on
+DSP1 (§10.9). What the DSP0 L2 buffers hold has not been re-checked.)
 
 ## 2. The effects framework
 
@@ -69,9 +71,10 @@ Each core's main loop runs a **fixed slot graph**:
   gives stereo variants (LFO phase offsets, separate taps) at no extra cost. One consequence:
   the decompiler shows only the left channel, so stereo behaviour has to be read from the
   coefficient layout.
-- **Block size.** 4 frames per block (about 83 µs). Control values are smoothed **once per
-  block** with a one-pole filter (time constant about 9 ms at 48 kHz). Every rate, depth and
-  time parameter therefore glides rather than steps.
+- **Block size.** 4 frames per block (about 83 µs at 48 kHz; 92 µs at the real 43.4 kHz,
+  §10.12). Control values are smoothed **once per block** with a one-pole filter (time constant
+  about 9 ms at 48 kHz; τ ≈ 10 ms at 43.4 kHz, §10.4). Every rate, depth and time parameter
+  therefore glides rather than steps.
 - **16-bit packed delay memory.** Reverb tanks and diffusers store their delay lines as
   **16-bit floats**, packed and unpacked with `FPACK`/`FUNPACK`. That halves memory use.
 - **Reduced-rate reverbs.** The reverb and spring modules decimate their input with fixed
@@ -118,7 +121,7 @@ audio-rate LFO, with the carrier set by Rate.
 | Module | Algorithm | Likely menu entries | Conf. |
 |---|---|---|---|
 | `0x12410F` | **4-stage first-order all-pass phaser**. Coefficient from a bilinear warp (computed on the DSP with `RECIPS`), swept by an LFO read from an interpolated sweep table, with feedback. Output = ½·(dry + all-pass), giving classic notches. Extra one-pole tone filters. | **Phaser Type I / II**. Vibe is a candidate too: a Uni-Vibe is a 4-stage phaser with an asymmetric lamp LFO. | high (phaser) |
-| `0x123798` | Modulated delay, 512-sample buffer (about 10.7 ms), linear interpolation, **feedback**. The LFO is a raw triangle or a polynomial sine, chosen by a flag. Left and right have separate taps, and the right channel can use the other phase. | **Flanger Stereo / Mono** | high |
+| `0x123798` | Modulated delay, 512-sample buffer (10.7 ms at 48 kHz; 11.8 ms at 43.4 kHz), linear interpolation, **feedback**. The LFO is a raw triangle or a polynomial sine, chosen by a flag. Left and right have separate taps, and the right channel can use the other phase. | **Flanger Stereo / Mono** | high |
 | `0x1243EF` | **Multi-tap chorus**: 512-sample buffer, 6 taps (3 per channel) modulated from a shared 1024-entry sine table | **Ensemble Stereo / Mono** (also the delay feedback "Ensemble / Ensemble Deep") | high |
 | `0x1238EB` | Modulated delay (512) driven by an abs/smoothed LFO, with two 2-pole filters on the wet path | **Chorus / Chorus Analog** | medium |
 | `0x123ECB` | Modulated delay (about 200 samples) with three interpolated taps, a sine LFO (odd polynomial), smoothing, feedback and two all-pass sections | Vibe, or Chorus Analog | medium |
@@ -142,7 +145,7 @@ identified. **Open.**
 
 | Module | Algorithm | Conf. |
 |---|---|---|
-| `0x123A3E` | **Delay line in 16-bit packed floats** with feedback and wet/dry. At 2 samples per word, the 400 KB DSP0 L2 buffer holds about 2.1 s of stereo at 48 kHz. That matches the delay's range. | medium |
+| `0x123A3E` | **Delay line in 16-bit packed floats** with feedback and wet/dry. At 2 samples per word, the 400 KB DSP0 L2 buffer holds about 2.1 s of stereo at 48 kHz. That matches the delay's range. *Corrected in §10.1:* `0x123A3E` is the Flam feedback unit's short delay line (§10.3, medium), and the main delay lines are `0x1206B0`/`0x1208AF`/`0x120AB5` (§10.9); the 2.1 s figure does not describe the delay. | superseded |
 | `0x123E01` | Modulated delay with **smoothed delay time**: changing the time glides the read head, which bends pitch like tape or BBD. LFO or noise wobble, feedback. **Delay Mode = Analog.** | medium |
 | `0x124D68`, `0x124E0B` | 2× oversampled SVF with **clipped (saturating) integrators** and one-pole tone/DC sections. LP, HP and BP outputs are mixed by coefficients. **Delay Filter Type** (Bypass / Low-pass / High-pass / Band-pass) in the feedback path. | medium |
 | Feedback effect | Ensemble, Ensemble Deep, Vibe, Vibe Stereo, Chorus, Chorus Analog, Flam 20/40 ms, Space 50/100 Wet. These are Effect 2 modules placed in the feedback loop, plus a short fixed delay for Flam. Inferred from the menu and the slot design. | low |
@@ -154,7 +157,7 @@ Ping-pong is a routing choice: crossing L and R in the feedback path. No separat
 | Module | Algorithm | Conf. |
 |---|---|---|
 | `0x120630` (DSP1 c1: `0x120454`) | **Log-domain feed-forward compressor**. Stereo-linked peak detector over the block, peak hold and release, then log2 via `LOGB`/`MANT`. The gain computer has a threshold and a slope, and attack/release one-poles in the log domain choose their coefficient by direction. Gain comes back through an exponential approximation and is applied to both channels. Amount sets threshold/ratio together; **Response normal/fast** switches the time constants. | high |
-| `0x1206B0` / `0x1208AF` / `0x120AB5` (DSP0, `0x1208AF` also on DSP1 c1) | **Bus compressor/limiter** variants. Peak follower with an adaptive release, a gain floor and ceiling, and a **soft-clip waveshaper** (table). They also read 16-bit control words from the incoming TDM frame. These sit at the end of the chain (master or global compressor, output protection). | medium |
+| `0x1206B0` / `0x1208AF` / `0x120AB5` (DSP0, `0x1208AF` also on DSP1 c1) | **Bus compressor/limiter** variants. Peak follower with an adaptive release, a gain floor and ceiling, and a **soft-clip waveshaper** (table). They also read 16-bit control words from the incoming TDM frame. These sit at the end of the chain (master or global compressor, output protection). *Corrected in §10.1:* these are the delay lines; the 16-bit TDM words are delay samples streamed to and from external memory (§10.9). | superseded |
 
 ### Reverb (Spring, Spring2, Booth, Room, Stage, Hall, Cathedral, ±Predelay/Chorale; Normal/Dark/Bright)
 
@@ -163,7 +166,7 @@ Ping-pong is a routing choice: crossing L and R in the feedback path. No separat
 | `0x120D8A` (+ `0x120F18` output taps; **DSP0 only**) | **Figure-of-eight tank, Dattorro-style.** 4 serial input all-pass diffusers, a **modulated all-pass** (its own LFO phase with interpolated read), a damping one-pole and decay feedback. The two tank halves run on alternate calls. Output is a **7-tap weighted sum**. Delay memory is 16-bit packed. Booth, Room, Stage, Hall and Cathedral differ in delay lengths, decay, damping and taps. "Chorale" variants turn up the tank modulation, and "Predelay" variants add a delay ahead of the tank. | high (algorithm), medium (per-type mapping) |
 | `0x120FDB` | Wraps the tank: 3 fixed biquads to decimate → tank → 3 biquads to interpolate. The tank runs at a **fraction of the audio rate**; the decimation factor is 4 if read literally. | medium |
 | `0x123ABE`, `0x123C0F` | **Schroeder all-pass diffuser chains**, 4 cascaded stages in 16-bit packed delay memory, stereo and quad versions. Early diffusion ahead of the tank, or the lighter Booth/Room types. | high (algorithm) |
-| `0x124AF2` → `0x1248D5` (clear `0x124CE8`) | **Spring reverb.** Biquad decimation, then a **long cascade of identical 2nd-order all-pass sections** (the dispersive chirp of a spring), feedback delay lines with all-pass sections, and interpolation back up. This is the textbook digital spring model: dispersion through stretched all-pass chains, run at a reduced rate. **Spring / Spring2.** | medium-high |
+| `0x124AF2` → `0x1248D5` (clear `0x124CE8`) | **Spring reverb.** Biquad decimation, then a **long cascade of identical 2nd-order all-pass sections** (the dispersive chirp of a spring), feedback delay lines with all-pass sections, and interpolation back up. This is the textbook digital spring model: dispersion through stretched all-pass chains, run at a reduced rate. **Spring / Spring2.** §10.3 and §10.10 give the spring unit as `0x124AF2`/`0x124CD0` (same clear routine); whether `0x1248D5` is a routine the unit calls or a misread of `0x124CD0` is not checked. | medium-high |
 | Color (Normal/Dark/Bright) | Damping and output EQ coefficients. Inferred. | low |
 
 ### Rotary speaker (organ; also reachable from other layers via Amp "To Rotary")
@@ -172,8 +175,10 @@ Ping-pong is a routing choice: crossing L and R in the feedback path. No separat
 
 - **Rotor state.** Two phase accumulators, horn and drum. When stop mode is on, the rotor
   phase is clamped at a **stop angle** (the "ROTOR STOP ANGLE" UI and the program's "rotary
-  spkr stop position" 0–7). Speed and acceleration ramp the increment toward slow or fast
-  targets. The rates come from system settings: `Edt_Sys_kLeslie{Horn,Rotor}{Speed,Acc}`.
+  spkr stop position"). The decoder (`values.generated.ts`, param `108-5`) names 0 = Free and
+  1–6 = Front Center, Front Left, Front Right, Back Left, Back Right, Back Center; 7 is not
+  decoded. How Free and each position map to an angle is not traced. Speed and acceleration
+  ramp the increment toward slow or fast targets. The rates come from system settings: `Edt_Sys_kLeslie{Horn,Rotor}{Speed,Acc}`.
 - **Angle-indexed lookup.** The top 6 bits of the rotor phase index 64-entry tables, with
   linear interpolation. Per rotor there are several tables: a **delay offset (Doppler)**, split
   into an integer and a fractional part for an interpolated delay read, plus **gain curves for
@@ -200,7 +205,7 @@ program file (.ns4p bits)  ──►  ARM "Edt_*" parameter model (ids, ranges, 
                                    ▼
           node fields in DSP memory (module pointer, coefficients, modes)
                                    ▼
-          module reads them each block; the DSP smooths them (about 9 ms)
+          module reads them each block; the DSP smooths them (τ ≈ 10 ms, §10.4)
 ```
 
 - **Parameter model.** A registration function at ARM `0xC01A44C4` registers about 440 edit
@@ -255,9 +260,11 @@ program file (.ns4p bits)  ──►  ARM "Edt_*" parameter model (ids, ranges, 
   the same core handles writes. On the ARM side, `0xC006CA4C`/`0xC006CCBC` implement a
   flow-controlled FIFO: a GPIO handshake, then a 0x40-word chunked transfer. The setters choose
   between that FIFO (address word, then value word) and a mailbox path, per DSP.
-- **Audio-rate control.** Some controls travel **inside the TDM audio frames** as 16-bit fields:
-  the bus compressors read them from the SPORT input buffer. DSP1 c1 also writes LFO, phase
-  and noise values into the voice core every block.
+- **Audio-rate control.** DSP1 c1 writes LFO, phase and noise values into the voice core every
+  block. (*Struck, §10.1:* this bullet also said some controls travel inside the TDM audio
+  frames as 16-bit fields, read by "bus compressors". Those modules are the delay lines, and the
+  16-bit TDM words are delay samples streamed to external memory, §10.9. No control words in the
+  TDM frame are known.)
 
 ## 5. Display names (from the firmware's label tables)
 
@@ -279,6 +286,10 @@ placeholders in `values.generated.ts`:
 `*.generated.ts` must not be hand-edited. These names belong in a small hand-maintained
 overlay in `interpret.ts`, citing this section.
 
+Amp type 0 is "Clean" in the firmware's label table but "off" in the decoder
+(`values.generated.ts`, `225-6`). §10.3 shows Clean selects a real amp variant (6), not a bypass,
+so the overlay should show "Clean".
+
 ## 6. What this enables for OpenNord
 
 1. **Accurate "explain this patch".** The AI layer can describe what an effect *does*, not just
@@ -288,11 +299,12 @@ overlay in `interpret.ts`, citing this section.
    - "Hall Chorale: a plate-style tank with extra modulation."
    - "Delay Analog: changing the time bends pitch."
    - "Amp Drive 0 is a true bypass."
-   - "Comp Fast: shorter attack/release."
+   - "Comp Fast: a much shorter release (40 ms instead of 200 ms), with a slower attack (4 ms
+     instead of 0.86 ms)" (§10.8; this bullet first said "shorter attack/release").
 
    This needs only the catalogue above and the program values. No firmware data ships.
 2. **Better Stage 2/3 → 4 migration** (`docs/MIGRATION.md`). Migration currently *drops* the
-   rotary speaker ("Stage 4 has no equivalent effect slot"). That is wrong: the Stage 4 has a
+   rotary speaker (`src/lib/migrate/from-ns2.ts`, `from-ns3.ts`), although the Stage 4 has a
    full rotary.
    - Organ programs map to the organ rotary: `104-1` on/off, `105-5` drive, `109-4` slow/fast,
      `109-3`/`108-5` stop.
@@ -314,7 +326,7 @@ modulated per sample.
 
 | Effect | Web Audio recipe | Fidelity from params alone |
 |---|---|---|
-| **Rotary (priority for the organ engine)** | Split at about 800 Hz (two biquads per band). Horn and drum each get a modulated delay for Doppler (a few ms of swing) and a gain LFO for AM, plus a direction-dependent low-pass for the horn. Two virtual mics at ±90° for stereo. Speed slow/fast ramps the rotor rate exponentially, with the horn accelerating faster than the drum. Stop mode parks each rotor at the stop position (0–7 → angle). Drive is a `WaveShaperNode` with a tanh curve and `oversample: '4x'`, ahead of the split. Public Leslie figures to start from: horn about 0.8 → 6.7 Hz, drum about 0.7 → 5.8 Hz; horn spin-up under 1 s, drum several seconds. | **Good.** The structure matches the firmware exactly. Its angle tables are measured responses we won't copy, so tune by ear or against a hardware recording. |
+| **Rotary (priority for the organ engine)** | Split at about 800 Hz (two biquads per band). Horn and drum each get a modulated delay for Doppler (a few ms of swing) and a gain LFO for AM, plus a direction-dependent low-pass for the horn. Two virtual mics at ±90° for stereo. Speed slow/fast ramps the rotor rate exponentially, with the horn accelerating faster than the drum. Stop mode parks each rotor at the stop position (0 = Free, 1–6 = six named positions, §3; the angles are not traced). Drive is a `WaveShaperNode` with a tanh curve and `oversample: '4x'`, ahead of the split. Speeds from §10.11 (defaults): horn 0.80 → 7.0 Hz, drum 0.73 → 6.4 Hz. Spin-up: horn about 1 s, drum several seconds (§10.11; the time base is not confirmed). This row first quoted public Leslie figures (horn 0.8 → 6.7 Hz, drum 0.7 → 5.8 Hz). | **Good.** The structure matches the firmware exactly. Its angle tables are measured responses we won't copy, so tune by ear or against a hardware recording. |
 | Tremolo / Auto-Pan / Pump | Gain LFO (sine for Tremolo/Pan; a ducking ramp, phase-reset on each beat, for Pump). Pan uses opposite-phase L/R gains. Rate in Hz, or master-clock subdivision when MST CLK is on. | Good |
 | Ring Mod | Multiply by an oscillator (`GainNode` gain driven by an `OscillatorNode`). Stereo: offset the carrier phase. | Good |
 | Wah (LFO/Pedal), A-Wah | `BiquadFilterNode` band-pass with high Q. Sweep it from an LFO, the pedal, or an envelope follower in a worklet (attack/release one-poles). | Good |
@@ -406,6 +418,13 @@ two, or the meaning of a field is inferred. **Low**: hypothesis.
 | Reverb decimation "4 if read literally" | Confirmed: the tank runs once per 4-frame block, at `fb`. | `0x120FDB` calls `0x120D8A` once per block | high |
 | 0x124D68/0x124E0B = delay filter | They belong to the **amp**. The delay filter is inside the delay module. | §10.7, §10.9 | high |
 | Rotary rates "from system settings" (values unknown) | Decoded (§10.11) | `0xC0112A90` | high |
+| §4 "Audio-rate control": bus compressors read 16-bit control words from the TDM frame | Struck. Those modules are the delay lines, and the 16-bit TDM words are delay samples streamed to external memory (§10.9). | resolver pool `0xC0544AF8`, §10.9 | high |
+| §1/§3: the DSP0 L2 buffers are the long delay lines; `0x123A3E` holds about 2.1 s | On DSP0 the delay streams to external memory; only `0x120AB5` keeps it in L2 (§10.9). `0x123A3E` is the Flam unit's short line (§10.3). What the DSP0 L2 buffers hold is not re-checked. | §10.3, §10.9 | medium |
+| Untagged 48 kHz times: block ≈ 83 µs (§2), 512-sample buffer ≈ 10.7 ms (§3), smoothing ≈ 9 ms (§2, §4) | ≈ 92 µs, ≈ 11.8 ms and τ ≈ 10 ms at `fs` (§10.4) | §10.12 | high |
+| §7 rotary speeds (public Leslie figures, horn 0.8 → 6.7 Hz, drum 0.7 → 5.8 Hz) | Firmware defaults: horn 0.80/7.0 Hz, drum 0.73/6.4 Hz (§10.11) | `0xC0112A90` | high |
+| Rotary stop position "0–7 → angle" | 0 = Free, 1–6 = six named positions, 7 not decoded (`values.generated.ts`, `108-5`); the angles are not traced | decoder | high (names) |
+| §6 "Comp Fast: shorter attack/release" | Fast shortens the release but lengthens the attack (§10.8) | `0xC0012270` | high |
+| §3 spring module `0x124AF2` → `0x1248D5` | §10 has `0x124AF2`/`0x124CD0`. Whether `0x1248D5` is a callee or a misread is **not resolved**. | §10.3 | open |
 
 ### 10.2 How a menu entry becomes DSP code
 
@@ -526,7 +545,7 @@ The remaining effects:
 
 | Type | Signal flow | Rate → DSP → units | Amount → DSP → units | Conf. |
 |---|---|---|---|---|
-| **Auto-Pan** `0x123707` | Block-rate LFO gain on each channel. L/R in antiphase (Y lane). Soft = sine. Hard = higher pre-clip gain, a near-square wave. | `inc = 256·(64v + 50)`, so **f = 0.0323 + 0.04139·v Hz** (0.03–5.29 Hz) | `depth = 0.25x`, `offset = 1 − 0.5x`. Gain per channel ≈ `offset + depth·k·shape` (k = 4 before the clip) | high (law), medium (Hard clip level) |
+| **Auto-Pan** `0x123707` | Block-rate LFO gain on each channel. L/R in antiphase (Y lane). Soft = sine. Hard = higher pre-clip gain, a near-square wave. | `inc = 256·(64v + 50)`, so **f = 0.0323 + 0.04139·v Hz** (0.03–5.29 Hz) | `depth = 0.25x`, `offset = 1 − 0.5x`. Gain per channel ≈ `offset + depth·k·shape`, with k = 4 before the clip in the variant read. With k = 4 the gain spans `1 − 1.5x … 1 + 0.5x`, so if the clip is at 0 and 1, a sine would clip too once x > 0.5; an unclipped sine needs k ≤ 2. So k = 4 is probably Hard's gain, and Soft's k is not decoded. | high (law), low (k per variant, clip level) |
 | **Tremolo** `0x1235AD` | Same LFO. Gain = `(1 − x/2) + (x/2)·lfo`, applied to a blend of dry and one-pole-filtered signal (tone). Soft/Hard switch a blend field (0.5 / 0). | same law as Auto-Pan | `I1−0x1A = x/2`, `I1−0x19 = 1 − x/2`: depth up to 100 % | high |
 | **Ring Mod** `0x124344` | Per-sample triangle → poly-sine carrier. `out = in·(1 + d·(1 − g·s(φ) − o))` crossfades dry to fully ring-modulated. The Stereo variant offsets the R carrier phase. | **exponential**: `f = 1.1642·2^(v/12.5) Hz`, i.e. 1.16 Hz to 1.33 kHz at 0.08 octave per step | target `g = x`, complement `1 − x`: dry → ring crossfade | high |
 | **Wah-Wah** `0x124746` | 2-pole Chamberlin SVF band-pass, run twice per sample (2×). Centre from the LFO (variant 2) or the pedal (variant 0). | LFO mode: same law as Auto-Pan. Also writes `I1−0x10 = q`. | `I1+0 = −0.496 + q/2`, the sweep offset. Variant 2 doubles the base to −0.992. | high (structure), medium (field roles) |
@@ -540,11 +559,12 @@ The remaining effects:
 | Type | Signal flow | Rate | Amount | Conf. |
 |---|---|---|---|---|
 | **Phaser I** `0x12410F` | 4 first-order all-passes plus feedback. The break frequency sweeps on a log scale between `f_lo` and `f_hi`. The DSP gets `42.6633·(log10 f − 1)`, an index into its warp. | `f = 0.02575 + 6.163·x⁴ Hz` | `d = q`: written as depth (`I1−0x1A`) | high |
-| | Range, with `r = rate/127`: `f_hi = 10^(3.17609 + 0.77791·d)` (1.5–9 kHz). `f_lo0 = 10^(1.47712 − 0.79424·d)` for d < 0.5, else `10^(1.08 + 1.334·(2d − 1))`. Then `f_lo = f_lo0 + r·(10^(2.845 + 0.196·d) − f_lo0)`, blended in the log domain. **The rate knob raises the bottom of the sweep.** | | | high (`0xC0213E50`) |
+| | Range, with `r = rate/127`: `f_hi = 10^(3.17609 + 0.77791·d)` (1.5–9 kHz). `f_lo0 = 10^(1.47712 − 0.79424·d)` for d < 0.5, else `10^(1.08 + 1.334·(2d − 1))`. Then `f_lo = f_lo0 + r·(10^(2.845 + 0.196·d) − f_lo0)`, a linear blend in Hz (the sweep between `f_lo` and `f_hi` is what runs on a log scale). **The rate knob raises the bottom of the sweep.** | | | high (`0xC0213E50`) |
 | **Phaser II** `0x124270` | 3 cascaded 2-pole SVFs with clipped integrators and output feedback (an OTA-style phaser). | `f = 0.0161 + 2.608·x² Hz` | `I1−0x16 = 0.8759·x` | high (law), medium (roles) |
-| **Flanger** `0x123E01` | Modulated delay with a smoothed read position, linear interpolation and feedback. Stereo/Mono by variant. | `f = 0.05 + 5.95·x² Hz` (exact) | First half: excursion `min(0.1125·v, 10)` samples around a base of `100 − excursion` samples (≈2.1–2.3 ms). A field that reads as **feedback** stays 0 up to v ≈ 38, then falls linearly to **−0.85** at 127 (negative feedback). | high (rate law), medium (amount roles and units) |
+| **Flanger** `0x123E01` | Modulated delay with a smoothed read position, linear interpolation and feedback. Stereo/Mono by variant. | `f = 0.05 + 5.95·x² Hz` (exact) | Excursion `min(0.1125·v, 10)` samples (capped from v ≈ 89) around a base of `100 − excursion` samples (≈2.1–2.3 ms). A 10-sample (0.23 ms) maximum swing is small for a flanger, so this field may be scaled elsewhere or be only part of the sweep; unverified. A field that reads as **feedback** stays 0 up to v ≈ 38, then falls linearly to **−0.85** at 127 (negative feedback). | high (rate law), medium (amount roles and units) |
 | **Chorus** `0x123798` | Multi-voice modulated delay, 512-sample buffer, linear interpolation. Four base taps spread over about 1.6–7.9 ms. | `inc = 12800 + 4096·v`: **f = 0.0323 + 0.01035·v Hz** (to 1.35 Hz) | Voice 1 rises 0 → 0.707 over v = 0–64. Voice 2 rises 0 → 0.707 over v = 64–127. Dry falls 1 → 0.707. | high |
-| **Chorus Analog** `0x1238EB` | BBD model: modulated delay with two 2-pole filters on the wet path and a rate-dependent one-pole (`0.9998 − 0.0028·x`) | `f = 0.25 + 3.75·x² Hz` (exact). The rate also sets base `226 + 12x` and excursion `48 − 24x` samples, so pitch deviation stays roughly constant. | base `238 − 108x`, excursion `24 + 216x` samples (to ≈5.5 ms) | high |
+| **Chorus Analog** `0x1238EB` | BBD model: modulated delay with two 2-pole filters on the wet path and a rate-dependent one-pole (`0.9998 − 0.0028·x`) | `f = 0.25 + 3.75·x² Hz` (exact). The rate also sets base `226 + 12x` and excursion `48 − 24x` samples, so pitch deviation stays roughly constant. | base `238 − 108x`, excursion `24 + 216x` samples (to ≈5.5 ms) | high (rate law), low (base and excursion) |
+| | Rate and Amount both write base and excursion, with different formulas, and how the two writes combine is not decoded. Taken as written, Amount 127 gives excursion 240 > base 130, so a ± swing would read before the write position. They must combine in another way (or the fields mean something else). **Open.** | | | |
 | **Vibe** `0x1245F8` | LFO-swept 3-stage SVF, then a short delay with two 2-pole sections | `f = 0.0322 + 5.216·x² Hz` | depth `I1−2 = q`, phase constant π/2 | high (law), medium (structure) |
 | **Ensemble** `0x1243EF` | 3 taps per channel, read from a 1,024-entry sine table at two phase offsets, around a short buffer | slow component `f = 0.0323 + 0.00129·v Hz` (to 0.2 Hz). A faster component is likely in the Y lane, not decoded. | tap mix `0.33 + 0.33q`, depths `q`, `q`, `0.8q` | medium |
 | **Spin** `0x123ECB` | Mini-rotary. Short Doppler taps (about 0.8–2.4 ms) plus a longer (≈14 ms) high-feedback line, two all-pass sections, and a biquad band split (Treble = horn band, Bass = drum band, by variant). | `inc = 138539 + 8727·v`: **f = 0.35 + 0.02205·v Hz** (0.35–3.15 Hz, exact ends) | depth gains: `I1−0x19` 0 → 0.88 (fast rise, then flattens), `I1−0x18` 1 → 0.58, `I1−0x14` 1 → 0.1 | high (rate), medium (structure) |
@@ -569,6 +589,10 @@ The remaining effects:
 - **Gains.** The program stores 7-bit two's complement in **0.25 dB** steps; the edit model
   clamps to ±60, i.e. **±15 dB**. Cut is exact (−15 dB → 0.17783). Full boost lands at
   +14.77 dB (5.474×). High.
+  The decoder labels the raw values past the clamp as well: raw 61–63 as +15.2…+15.8 dB and
+  64–67 as −16.0…−15.2 dB (`values.generated.ts`, e.g. `192-1`). The edit model clamps them to
+  ±15 dB, so a display overlay should too. Whether the panel ever stores those values is not
+  checked.
 - **Mid.** Peaking filter, ±15 dB on the same scale. **Mid Freq**: `f = 200·5^(v/64) Hz` for
   v ≤ 64, and `1000·8^((v − 64)/63) Hz` above. So 200 Hz, 1 kHz at 64, 8 kHz at 127. The table
   is interpolated with the Q16 fraction. The coefficient is computed on the ARM from `π·f/fs`
@@ -588,11 +612,15 @@ The remaining effects:
 Node defaults are at DSP0 c1 DM `0xB0148`. The gain is applied to both channels through an
 exponential approximation.
 
+Fast thus has the shorter release but the **slower** attack. That is unexpected for a "Fast"
+setting, and §6 first said the opposite. The setter is the only evidence for which branch is
+Fast; a hardware check (a fast transient through each Response setting) would confirm it.
+
 ### 10.9 Delay
 
 - **Tempo** (program 7-bit `p`, edit value `p·128`). The knob is a **BPM scale**, and the delay
   time is `60000/BPM` ms (0 → 1,500 ms, 127 → 20 ms; default `p` = 86 ≈ 240 BPM). The scale is
-  piecewise linear in BPM:
+  close to piecewise linear in BPM:
 
   | `p` | BPM | Step |
   |---|---|---|
@@ -611,13 +639,18 @@ exponential approximation.
 
   The firmware stores the inverse map at 1 ms resolution and interpolates it (`0xC010C040` case
   0x1AF). High.
+  Every breakpoint matches the delay-time strings the decoder already carries
+  (`deps.generated.ts`, `204-3`, from ns4decode; e.g. p = 71 → "375 ms (80 x2 bpm)", p = 127 →
+  "20 ms (750 x4 bpm)"), so the scale can be checked against those strings or on the panel
+  display, without the firmware. Between breakpoints the strings are the reference: p = 90–93
+  and 119–126 depart from the straight lines (p = 90 shows 304 BPM, not 293).
 - **Tempo, MST CLK on.** The time is `frac × 4 × 60000 / tempo` ms. The knob `p` selects one
   of 17 divisions in steps of 7–8 (index table at `0xC02B9800`):
   1/2, 3/8, 1/3, 0.29, 1/4, 3/16, 1/6, 0.145, 1/8, 3/32, 1/12, 0.0725, 1/16, 1/24, 1/32, 1/48 and
   1/64 of a whole note. The 0.29 family is probably a swing value. High.
 - **Mix.** Wet `= min(1, (v/64)²)`, dry `= min(1, ((128 − v)/64)²)`. Both are 1.0 at
   `v = 64`. High.
-- **Feedback.** Linear, `fb = x` (to 1.0). It stays stable because the loop holds a
+- **Feedback.** Linear, `g_fb = x` (to 1.0). It stays stable because the loop holds a
   peak-tracking gain normaliser (gain clamped between two limits) and a soft clip
   (`0.3·y` → clip → table waveshaper). High.
 - **Ping-pong.** A 2×2 feedback matrix, straight terms vs cross terms, each smoothed. Ping-pong
@@ -644,6 +677,11 @@ exponential approximation.
     external memory and read it back as 16-bit words.
 
   Which one runs is a resource decision, not a user setting (medium).
+
+  **Conflict, open:** 1.42 s is shorter than the 1,500 ms maximum delay (Tempo at `p` = 0), and at
+  the 2× rate DSP1 may run at (§10.12) the same buffer would hold only 0.71 s. Either the organ
+  chains don't use `0x120AB5` for the longest times, the buffer size or word layout is misread, or
+  the delay is shortened there. Not checked.
 
 ### 10.10 Reverb
 
@@ -738,10 +776,17 @@ frequency is not decoded.
    - Wah sweep limits in Hz;
    - the master-clock phase reference for Effect 1;
    - the rotary acceleration time base and crossover;
-   - which DSP is kind 2.
+   - which DSP is kind 2;
+   - the rotary stop angles, and what "Free" and position 7 do;
+   - how Chorus Analog's Rate and Amount writes to base and excursion combine (§10.6);
+   - the Flanger's full Amount sweep (the 10-sample excursion, §10.6);
+   - Auto-Pan's k per variant and its clip level (§10.5);
+   - the DSP1 delay buffer vs the 1.5 s maximum delay (§10.9);
+   - the spring module's second address, `0x1248D5` (§3) vs `0x124CD0` (§10.3);
+   - Comp Response on hardware: Fast's slower attack (§10.8).
 
-   All are reachable with the same emulator: drive the remaining setters, or emulate an organ
-   section.
+   Most are reachable with the same emulator: drive the remaining setters, or emulate an organ
+   section. The last one needs the instrument.
 
 ### 10.14 Reproducing the second pass
 

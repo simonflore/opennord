@@ -28,6 +28,8 @@ OpenNord is a Web PWA (React + Vite) wrapped to iOS with Capacitor, so one codeb
 - **`lib/device`** — the **USB transfer client**, where the reverse-engineered vendor protocol (`docs/PROTOCOL-RE.md`, `scripts/nord*.c`) lands in the app: a pluggable `NordTransport` (`WebUsbTransport` for Chromium desktop now; node-usb / DriverKit later) under `session` → `transfer` (enumerate / read / write) and `backup` (`.ns4b`). CRC-16, opcodes, and partition/`{bank,slot}` addressing live here.
 - **`lib/midi`** — live **CC/NRPN** only (note input, sustain gate, MIDI control) for playing/auditioning a patch, **not** device transfer. *Program transfer* is the vendor **USB** protocol above, not MIDI/SysEx — `docs/SYSEX-SPIKE.md` records why the SysEx approach was tested and dropped.
 
+**Instrument engines.** How the Stage 4's own engines work, from firmware research (knowledge, not copies: `docs/LEGAL.md`): `docs/PIANO-ENGINE.md`, `docs/ORGAN-ENGINE.md`, `docs/SYNTH-ENGINE.md` and `docs/EFFECTS-ENGINE.md` (effect chains, rotary, reverb). They are the specs for OpenNord's own players and previews (`src/lib/engine/`, `lib/ns4`).
+
 ## Community library (Phase 1, server side — not in this scaffold yet)
 
 The sharing layer (upload, search, rate, fork) needs a backend + storage. Deliberately **not** scaffolded here so the first cut can be a pure client that reads local files. When added, keep the rule from `docs/LEGAL.md`: store **programs**, never sample/library content.

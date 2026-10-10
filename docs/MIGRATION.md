@@ -27,7 +27,10 @@ Stage 4"** on any Stage 2/3 program in the Library. Conversion only ever goes
   doesn't map from older generations; you'll need to rebuild any you want.
 - **Arpeggiator settings** — not migrated.
 - **Second panel / second slot** — only the active panel/slot is converted.
-- **Rotary speaker** — Stage 4 has no equivalent effect slot for it.
+- **Rotary speaker** — not converted yet. Stage 4 has a rotary (the organ's
+  rotary speaker, which piano and synth layers reach through Amp type "To
+  Rotary"; `docs/EFFECTS-ENGINE.md` §6), but the converter doesn't map to it,
+  so a rotary in the original program is noted rather than carried over.
 - **Sounds not on your Stage 4** — a piano or sample sound is only carried
   over if OpenNord can match it in your linked Library folder; otherwise
   you'll see a note to pick a similar sound yourself once the file is loaded.
