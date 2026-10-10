@@ -181,6 +181,7 @@ export function parseWav(bytes: Uint8Array): WavAudio {
   if (dataOff < 0 || channelCount < 1 || bitDepth === 0) throw new Error('parseWav: missing fmt/data chunk');
   const isFloat = fmtTag === 3;
   if (fmtTag !== 1 && !isFloat) throw new Error(`parseWav: unsupported format ${fmtTag} (PCM/float only)`);
+  if (isFloat && bitDepth !== 32) throw new Error(`parseWav: unsupported ${bitDepth}-bit float (32-bit float only)`);
 
   const bytesPer = bitDepth >> 3;
   const stride = bytesPer * channelCount;

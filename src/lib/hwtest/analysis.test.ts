@@ -72,6 +72,15 @@ describe('estimateF0', () => {
     expect(centsBetween(b, a)).toBeCloseTo(27, 1);
   });
 
+  it('reaches C8 and a stretch-tuned A0 at 44.1, 48 and 96 kHz (no octave error at the range edges)', () => {
+    for (const sr of [44100, 48000, 96000]) {
+      for (const hz of [4186.01, 4237, 27.5, 27.14]) {
+        const f = estimateF0(tone(hz, 0.4, [1], undefined, sr), sr);
+        expect(Math.abs(centsBetween(f!.hz, hz))).toBeLessThan(1);
+      }
+    }
+  });
+
   it('holds up with noise 40 dB down, and gives up on pure noise', () => {
     const x = tone(440, 0.4, [1, 0.5]);
     const nz = noise(x.length, 0.01);
@@ -155,6 +164,14 @@ describe('findOnset and measure', () => {
     expect(m.lengthS).toBeCloseTo(1.5, 1);
   });
 
+  it('finds a soft note above a hum floor less than 40 dB below it', () => {
+    const hum = (n: number) => tone(50, n / SR, [1], () => 0.003); // ≈ −53 dBFS
+    const note = tone(440, 1, [1], () => 0.08); // ≈ −25 dBFS
+    const h = hum(Math.round(0.4 * SR) + note.length);
+    const x = concat(h.subarray(0, Math.round(0.4 * SR)), note.map((v, i) => v + h[Math.round(0.4 * SR) + i]));
+    expect(Math.abs(findOnset(x, SR) / SR - 0.4)).toBeLessThan(0.005);
+  });
+
   it('honours a window after the onset', () => {
     const x = concat(tone(440, 1, [0.5]), tone(440, 1, [0.05]));
     const m = measure(x, SR, { window: [1.1, 1.9] });
@@ -169,6 +186,11 @@ describe('modulation', () => {
     expect(m.rateHz).toBeCloseTo(6.5, 1);
     expect(m.depth).toBeGreaterThan(2.6);
     expect(m.depth).toBeLessThan(3.2);
+  });
+
+  it('reads a fast 16 Hz tremolo at its own rate, not half of it', () => {
+    const x = tone(440, 3, [1], (t) => 10 ** ((3 * Math.sin(2 * Math.PI * 16 * t)) / 20));
+    expect(amplitudeModulation(x, SR)!.rateHz).toBeCloseTo(16, 0);
   });
 
   it('reads a slow 0.8 Hz rotor', () => {
@@ -267,5 +289,16 @@ describe('readRecording', () => {
     put(36, 'data'); dv.setUint32(40, n * 4, true);
     for (let i = 0; i < n; i++) dv.setFloat32(44 + i * 4, 0.25 * Math.sin((2 * Math.PI * 440 * i) / SR), true);
     expect(levels(readRecording(bytes).channels[0]).peakDb).toBeCloseTo(-12.04, 1);
+  });
+
+  it('refuses a 64-bit float WAV instead of misreading it', () => {
+    const bytes = new Uint8Array(44 + 80);
+    const dv = new DataView(bytes.buffer);
+    const put = (o: number, s: string) => { for (let i = 0; i < 4; i++) bytes[o + i] = s.charCodeAt(i); };
+    put(0, 'RIFF'); dv.setUint32(4, 36 + 80, true); put(8, 'WAVE'); put(12, 'fmt ');
+    dv.setUint32(16, 16, true); dv.setUint16(20, 3, true); dv.setUint16(22, 1, true);
+    dv.setUint32(24, SR, true); dv.setUint32(28, SR * 8, true); dv.setUint16(32, 8, true); dv.setUint16(34, 64, true);
+    put(36, 'data'); dv.setUint32(40, 80, true);
+    expect(() => readRecording(bytes)).toThrow(/64-bit float/);
   });
 });

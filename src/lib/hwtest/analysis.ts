@@ -39,7 +39,7 @@ export function parseNote(s: string): number {
 }
 
 /** MIDI note → "A4". */
-export const noteName = (midi: number): string => `${NOTE_NAMES[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
+export { noteName } from '../ns4/sample-view';
 
 // ── Reading a recording ──────────────────────────────────────────────────────────────────
 
@@ -126,15 +126,20 @@ function percentile(values: ArrayLike<number>, p: number): number {
 
 /**
  * Index of the first sample where the note starts: the first 1 ms frame whose RMS rises
- * within `thresholdDb` (default 40 dB) of the loudest frame, stepped back to the frame's start.
+ * within `thresholdDb` (default 40 dB) of the loudest frame, and at least 10 dB above the
+ * noise floor (the take's quietest 1 %, so hum under a soft note can't start it at sample 0),
+ * stepped back to the frame's start.
  */
 export function findOnset(x: ArrayLike<number>, sr: number, thresholdDb = 40): number {
   const env = rmsEnvelope(x, sr, { windowS: 0.002, hopS: 0.0005 });
   let max = -Infinity;
   for (const v of env.db) max = Math.max(max, v);
   if (!Number.isFinite(max)) return 0;
+  // Noise floor from 20 ms windows (a whole cycle of mains hum); digital silence reads −200 dB.
+  const noise = percentile(rmsEnvelope(x, sr, { windowS: 0.02, hopS: 0.005 }).db.map((v) => Math.max(v, -200)), 0.01);
+  const level = Math.max(max - thresholdDb, Math.min(noise + 10, max - 3));
   for (let f = 0; f < env.db.length; f++) {
-    if (env.db[f] >= max - thresholdDb) return Math.round(f * env.hopS * sr);
+    if (env.db[f] >= level) return Math.round(f * env.hopS * sr);
   }
   return 0;
 }
@@ -238,8 +243,10 @@ export interface PitchEstimate {
 export function estimateF0(
   x: ArrayLike<number>, sr: number, opts: { minHz?: number; maxHz?: number } = {},
 ): PitchEstimate | undefined {
-  const maxLag = Math.ceil(sr / (opts.minHz ?? 27.5));
-  const minLag = Math.max(2, Math.floor(sr / (opts.maxHz ?? 4200)));
+  // Defaults reach past a stretch-tuned A0 (~27.1 Hz) and C8 (~4.24 kHz): a lobe at the edge
+  // of the search range is dropped, which would turn C8 at 48 kHz into C7.
+  const maxLag = Math.ceil(sr / (opts.minHz ?? 25));
+  const minLag = Math.max(2, Math.floor(sr / (opts.maxHz ?? 5000)));
   const n = Math.min(x.length, 1 << 15);
   const coarseN = Math.min(n, Math.max(4096, 3 * maxLag));
   const top = Math.min(maxLag, Math.floor(coarseN / 2));
@@ -370,9 +377,11 @@ export function periodicity(
   const minLag = Math.max(1, Math.floor(rate / maxHz));
   const maxLag = Math.min(Math.ceil(rate / minHz), Math.floor(n / 2));
   if (maxLag <= minLag + 2) return undefined;
-  const d = Float64Array.from({ length: maxLag + 2 }, (_, lag) => (lag < minLag ? 1 : nsdf(y, n, lag)));
-  let lag = minLag;
+  // From lag 1: starting the zero-lobe skip at minLag could skip the true period's own lobe.
+  const d = Float64Array.from({ length: maxLag + 2 }, (_, lag) => (lag === 0 ? 1 : nsdf(y, n, lag)));
+  let lag = 1;
   while (lag <= maxLag && d[lag] > 0) lag++;
+  lag = Math.max(lag, minLag);
   let best = -1;
   for (; lag <= maxLag; lag++) {
     if (d[lag] > d[lag - 1] && d[lag] >= d[lag + 1] && (best < 0 || d[lag] > d[best] * 1.1)) best = lag;
@@ -434,7 +443,7 @@ export function pitchTrack(x: ArrayLike<number>, sr: number, centreHz: number, h
   const hop = Math.max(1, Math.round(hopS * sr));
   const lo = Math.max(2, Math.floor(sr / (centreHz * 2 ** (1 / 12))));
   const hi = Math.ceil(sr / (centreHz / 2 ** (1 / 12)));
-  const frames = x.length >= win + hi ? Math.floor((x.length - win - hi) / hop) + 1 : 0;
+  const frames = x.length > win + hi ? Math.floor((x.length - win - hi - 1) / hop) + 1 : 0; // each reads win + hi + 1
   const out = new Float64Array(frames);
   const seg = new Float64Array(win + hi + 1);
   for (let f = 0; f < frames; f++) {
