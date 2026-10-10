@@ -287,13 +287,146 @@ describe('decodeNs3', () => {
     expect(rev?.params?.amount).toBe('10.0');
   });
 
-  it('decodes rotary speaker enable + slow speed from 0x10B(b7) + 0x34(b0)', () => {
+  it('decodes rotary speaker enable + slow speed from 0x10B(b7) + 0x34(b0)/0x35(b7)', () => {
     const b = ns3buf();
     b[0x10b] = 0x80;  // rotary enable (b7)
-    // 0x34 b0 = 0 → Slow
+    b[0x35] = 0x80;   // speed raw = (0x34.b0 << 1) | 0x35.b7 = 1 → Slow (firmware default)
     const rot = decodeNs3(b).panels[0].fx.find((f) => f.name === 'Rotary');
     expect(rot).toBeDefined();
     expect(rot?.params?.speed).toBe('Slow');
+  });
+
+  // ── Stage 3 OS 2.64 firmware-registry corrections (docs/STAGE2-3-FIRMWARE.md §3) ──
+  // Each test below fails against the pre-fix (ns3-program-viewer) bit reads.
+
+  it('reads rotary speed as 2 bits: 0 Stop / 1 Slow / 2 Fast / 3 unlabeled', () => {
+    const speed = (b34: number, b35: number) => {
+      const b = ns3buf();
+      b[0x10b] = 0x80;          // rotary on
+      b[0x34] = b34; b[0x35] = b35;
+      return decodeNs3(b).panels[0].fx.find((f) => f.name === 'Rotary')?.params?.speed;
+    };
+    expect(speed(0x00, 0x00)).toBe('Stop');  // pre-fix: 'Slow'
+    expect(speed(0x00, 0x80)).toBe('Slow');
+    expect(speed(0x01, 0x00)).toBe('Fast');
+    expect(speed(0x01, 0x80)).toBe('#3');    // no firmware label → neutral fallback
+    // Neighbouring MultiCommon bits (vib type b3-1, 0x35 morph deltas b6-0) don't leak in.
+    expect(speed(0x0e, 0x7f)).toBe('Stop');
+  });
+
+  it('decodes Effect 1 rate as 7 bits from 0x10C(b5-0)+0x10D(b7)', () => {
+    const b = ns3buf();
+    b[0x10b] = 0x10;            // Effect 1 on, type 0 → Panning
+    // rate 101 = 0b110010_1 → 0x10C b5-0 = 0b110010, 0x10D b7 = 1; plus clock-enable
+    // 0x10C b6 set, which must not leak into the rate.
+    b[0x10c] = 0x40 | 0x32;
+    b[0x10d] = 0x80;
+    const fx1 = decodeNs3(b).panels[0].fx.find((f) => f.name === 'Effect 1');
+    expect(fx1?.type).toBe('Panning');
+    expect(fx1?.params?.rate).toBe(101);  // pre-fix mask 0x1fc0 >>> 6 gave 74
+  });
+
+  it('decodes Effect 2 rate as 7 bits from 0x114(b1-0)+0x115(b7-3)', () => {
+    const fx2 = (b114: number, b115: number) => {
+      const b = ns3buf();
+      b[0x114] = 0x80 | b114;   // enable b7, type 0 (Phaser 1), rate high bits b1-0
+      b[0x115] = b115;          // rate low bits b7-3; amount bits b2-0
+      return decodeNs3(b).panels[0].fx.find((f) => f.name === 'Effect 2');
+    };
+    // rate 64 = 0b10_00000 → 0x114 b1-0 = 0b10, 0x115 b7-3 = 0
+    expect(fx2(0x02, 0x00)?.params?.rate).toBe(64);   // pre-fix: 0
+    // rate 127 = 0b11_11111
+    expect(fx2(0x03, 0xf8)?.params?.rate).toBe(127);  // pre-fix: 192|31 = 223
+    expect(fx2(0x03, 0xf8)?.type).toBe('Phaser 1');
+    expect(fx2(0x03, 0xf8)?.params?.amount).toBe('0.0');
+  });
+
+  it('reads vib/chorus mode + rotary speed from MultiCommon 0x34-0x35 for Panel B too', () => {
+    const b = ns3buf();
+    b[0x31] = 1 << 5;           // panel B only
+    b[0x34] = 0x04 | 0x01;      // vib mode 2 → V2; rotary speed high bit
+    b[0x35] = 0x00;             // → speed raw 2 → Fast
+    b[0xd3 + 263] = 0x10;       // panel B vib on
+    b[0x10b + 263] = 0x80;      // panel B rotary on
+    b[0x34 + 263] = 0x0a;       // decoy at the old per-panel address (would read C3 / Stop)
+    const pb = decodeNs3(b).panels[0];
+    expect(pb.id).toBe('B');
+    expect(pb.organ.vibChorus).toEqual({ on: true, mode: 'V2' });
+    expect(pb.fx.find((f) => f.name === 'Rotary')?.params?.speed).toBe('Fast');
+  });
+
+  it('both panels share the MultiCommon vib/chorus mode', () => {
+    const b = ns3buf();
+    b[0x31] = 2 << 5;           // both panels
+    b[0x34] = 0x0a;             // vib mode 5 → C3
+    const [pa, pb] = decodeNs3(b).panels;
+    expect(pa.organ.vibChorus.mode).toBe('C3');
+    expect(pb.organ.vibChorus.mode).toBe('C3');
+  });
+
+  it('legacy formatType-0 files read the MultiCommon vib mode 0x14 earlier too', () => {
+    const b = new Uint8Array(600); // formatType 0 → versionOffset −20
+    b[0x34 - 20] = 0x08;           // vib mode 4 → V3
+    expect(decodeNs3(b).panels[0].organ.vibChorus.mode).toBe('V3');
+  });
+
+  it('decodes piano timbre as 4 bits from 0x4E(b6-3)', () => {
+    const b = ns3buf();
+    b[0x48] = 0x00;             // Grand
+    b[0x4e] = 0x18;             // raw 3 → Bright (unchanged)
+    expect(decodeNs3(b).panels[0].piano.timbre).toBe('Bright');
+    b[0x4e] = 0x48;             // raw 9 (b6 set) → past the table → neutral fallback
+    expect(decodeNs3(b).panels[0].piano.timbre).toBe('#9'); // pre-fix: b5-3 = 1 → 'Soft'
+    const c = ns3buf();
+    c[0x48] = 0x18;             // type 3 → Clav
+    c[0x4e] = 0x38;             // raw 7 → last Clav label
+    expect(decodeNs3(c).panels[0].piano.timbre).toBe('Soft+Trb+Brill');
+  });
+
+  it('decodes synth oscillator config as 5 bits from 0x8F(b5-1)', () => {
+    const b = ns3buf();
+    b[0x8f] = 0x1c;             // raw 14 → RM (max)
+    expect(decodeNs3(b).panels[0].synth.oscillator.config).toBe('14 RM');
+    b[0x8f] = 0x40 | 0x06;      // wave LSB (b6) set + config 3 → wave bit must not leak
+    expect(decodeNs3(b).panels[0].synth.oscillator.config).toBe('3 Sync');
+    b[0x8f] = 0x20;             // b5 alone → raw 16, past the table
+    expect(decodeNs3(b).panels[0].synth.oscillator.config).toBe('#16'); // pre-fix: 'None'
+  });
+
+  it('decodes the synth oscillator wave as one 9-bit index 0x8E(b6)…0x8F(b6)', () => {
+    const wave = (type: number, idx: number) => {
+      const b = ns3buf();
+      // osc bank: 0x8D(b1-0)+0x8E(b7); wave index occupies u16@0x8E bits 14-6
+      b[0x8d] = (type >>> 1) & 0x03;
+      const w = ((type & 1) << 15) | (idx << 6);
+      b[0x8e] = w >>> 8; b[0x8f] = w & 0xff;
+      return decodeNs3(b).panels[0].synth.oscillator;
+    };
+    expect(wave(1, 45)).toMatchObject({ type: 'Wave', waveform: 'Wave Tubular Bells' });
+    expect(wave(1, 100).waveform).toBe('#100');       // pre-fix 6-bit mask → 36 'Wave Clavinet 2'
+    expect(wave(1, 399).waveform).toBe('#399');       // full 9-bit range, no table overrun
+    expect(wave(0, 2)).toMatchObject({ type: 'Classic', waveform: 'Saw' });
+    expect(wave(0, 10).waveform).toBe('#10');         // pre-fix 3-bit mask → 2 'Saw'
+    expect(wave(2, 8)).toMatchObject({ type: 'Formant', waveform: 'Formant Wave OE' });
+    expect(wave(3, 7)).toMatchObject({ type: 'Super', waveform: 'Super Wave Organ' });
+  });
+
+  it('decodes amp/EQ type (firmware labels) and EQ bands as −60…+60 (stored +60)', () => {
+    const b = ns3buf();
+    b[0x129] = 0x04;            // amp on
+    // type 0x12A b7-5; treble 0x12A b4-0 + 0x12B b7-6; mid 0x12B b5-0 + 0x12C b7; bass 0x12C b6-0
+    // type 0 → Clean, treble raw 120 → +60, mid raw 0 → −60, bass raw 60 → 0
+    b[0x12a] = (0 << 5) | (120 >>> 2);
+    b[0x12b] = (120 & 0x03) << 6;
+    b[0x12c] = 60;
+    const amp = decodeNs3(b).panels[0].fx.find((f) => f.name === 'Amp/EQ');
+    expect(amp?.type).toBe('Clean');     // pre-fix: 'JC'
+    expect(amp?.params).toEqual({ treble: 60, mid: -60, bass: 0 });
+    const types = [0, 1, 2, 3, 4, 5, 6].map((t) => {
+      const c = ns3buf(); c[0x129] = 0x04; c[0x12a] = t << 5;
+      return decodeNs3(c).panels[0].fx.find((f) => f.name === 'Amp/EQ')?.type;
+    });
+    expect(types).toEqual(['Clean', 'Twin', 'JC', 'Small', 'LP24', 'HP24', '#6']);
   });
 
   it('decodes piano octave shift from 0x47(b3-0), center=6 (oracle ns3-piano.js)', () => {
