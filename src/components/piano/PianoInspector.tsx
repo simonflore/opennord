@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { PianoEntry } from '@/lib/library/piano-entries';
 import { pullPiano } from '@/lib/device/pianos';
 import { downloadBytes } from '@/lib/download';
@@ -8,15 +8,31 @@ import { Button } from '@/components/ui';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 import { noteName } from '@/lib/ns4/sample-view';
+import { PianoListen } from './PianoListen';
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** Thin, decode-free detail for a recognized piano: metadata, factory deep-link, download (with progress). */
+/** Detail for a recognized piano: metadata, factory deep-link, local audition, download (with progress). */
 export function PianoInspector({ entry, session }: { entry: PianoEntry; session: NordSession | null }) {
   const folder = useFolder();
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState<number | null>(null);
   const [error, setError] = useState('');
+  // Bytes to audition: a local file has them; a backup entry loads them on request.
+  const [listenBytes, setListenBytes] = useState<Uint8Array | null>(entry.bytes ?? null);
+  useEffect(() => { setListenBytes(entry.bytes ?? null); }, [entry.id, entry.bytes]);
+
+  async function loadSounds() {
+    if (busy || !entry.backupRef) return;
+    setError(''); setBusy(true);
+    try {
+      setListenBytes(await extractBackupEntry(folder, entry.backupRef));
+    } catch (e) {
+      setError(`Couldn't load ${entry.name}: ${msg(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function download() {
     if (busy) return;
@@ -67,9 +83,15 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
           {entry.factory.sizeDescription ? ` (${entry.factory.sizeDescription})` : ''}
         </p>
       )}
-      <Button variant="primary" onClick={() => void download()} disabled={busy}>
-        {busy ? (pct !== null ? `Pulling… ${pct}%` : 'Working…') : 'Download'}
-      </Button>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Button variant="primary" onClick={() => void download()} disabled={busy}>
+          {busy ? (pct !== null ? `Pulling… ${pct}%` : 'Working…') : 'Download'}
+        </Button>
+        {!listenBytes && entry.backupRef && (
+          <Button onClick={() => void loadSounds()} disabled={busy}>Load sounds</Button>
+        )}
+      </div>
+      {listenBytes && <PianoListen bytes={listenBytes} />}
       {error && <p className="ps-sub on-error" style={{ marginTop: 8 }}>{error}</p>}
     </div>
   );
