@@ -4,14 +4,14 @@ import type { ProgramEntry } from '../device/transfer';
 import type { BackupRef } from '../clavia/backup/backup-index';
 import { patchNs4Checksum } from '../clavia/checksum';
 
-/** Minimal synthetic .npno (CBIN+npno+CNSP header, name, version, key map @0xB7). */
+/** Minimal synthetic .npno (CBIN+npno+CNSP header, name, version, key map @0xB8 = CNSP+0x8C). */
 function makeNpno(name: string, versionRaw: number, keymap: number[]): Uint8Array {
   const buf = new Uint8Array(0x140);
   const ascii = (s: string, at: number) => { for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i); };
   ascii('CBIN', 0); buf[4] = 1; ascii('npno', 8);
   buf[0x14] = versionRaw & 0xff; buf[0x15] = (versionRaw >> 8) & 0xff;
   ascii('CNSP', 0x2c); ascii(name, 0x48);
-  for (let i = 0; i < 128; i++) buf[0xb7 + i] = keymap[i] ?? 0xff;
+  for (let i = 0; i < 128; i++) buf[0xb8 + i] = keymap[i] ?? 0xff;
   return patchNs4Checksum(buf);
 }
 

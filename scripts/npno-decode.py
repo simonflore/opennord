@@ -14,6 +14,7 @@ Layout (offsets relative to the `CNSP` tag; all integers big-endian):
              +0x10 u16  block count
              +0x12 4 x i16  predictor history, channel 0 (oldest first)
              +0x1A 4 x i16  predictor history, channel 1 (oldest first; zero when mono)
+             +0x22 u32  loop start, +0x26 u32 loop length (0 = no loop)
   blocks   fixed size (511 16-bit words mono, 1022 stereo), one stroke's blocks contiguous:
              word 0      header: bits 0-4 residual width w, bits 5-7 predictor order (0-4),
                          bits 8-15 block level in dB below the stroke peak (not applied here)

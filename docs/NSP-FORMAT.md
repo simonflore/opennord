@@ -142,7 +142,7 @@ Revisited after completing the NW1 read+write port (decoder, `WriteChunk`,
 against a **user-ish factory** Clavinet (`Clavinet D6 6.1.npno`, 5.9 MB, v610,
 structure-only — gitignored). The codec was never the blocker; the container is.
 
-**Librarian tier is fully recoverable — NEW.** The per-note key map (@`0xB7`, 128
+**Librarian tier is fully recoverable — NEW.** The per-note key map (@`0xB7` — corrected to CNSP+0x8C = `0xB8` on 2026-10-10, 128
 bytes, `0xFF` = unused) decodes cleanly: the byte value **is the sample's root
 note**, and consecutive notes sharing a value give that sample's key range. The
 Clavinet maps **18 samples** over notes 0–109, tiling every ~5 semitones
@@ -787,16 +787,39 @@ Bit-exact means every stroke decodes to exactly its recorded frame count, and it
 **Header** (offsets from the `CNSP` tag, big-endian):
 
 - `+0x61C`: u16 version, u16 channels (1/2), u16 stroke count.
-- `+0x72C`: stroke records, 0x76 bytes each.
-  - `+0x06` u32: first block offset (relative to the `CNSP` tag).
-  - `+0x0C` u32: length in frames.
-  - `+0x10` u16: block count.
-  - `+0x12`: 4×i16 predictor history for channel 0, oldest first.
-  - `+0x1A`: 4×i16 predictor history for channel 1.
-  - `+0x22`: 4×u32 sample positions (loop/sustain points; not yet named).
-  - Then per-stroke level and key fields. In the Clavinet, the stroke records run in triplets
-    whose `+0x38` u16 steps 0 → ~25 → ~50 (0/25/50, 0/26/52, …), most likely the velocity-layer
-    split.
+- `+0x72C`: stroke records, 0x76 bytes each. Records are grouped by key zone, lowest zone
+  first; within a zone, velocity layers run softest first. A new zone starts where the velocity
+  floor drops back to 0, which gives exactly one group per key-map zone (17/16/16 in the three
+  files).
+
+  | Offset | Type | Field |
+  |---|---|---|
+  | `+0x06` | u32 | first block offset (relative to the `CNSP` tag) |
+  | `+0x0A` | u16 | velocity floor: the layer plays from this velocity up (0/25/50 Clavinet; 0/2/5/8/… CP80) |
+  | `+0x0C` | u32 | length in frames |
+  | `+0x10` | u16 | block count |
+  | `+0x12` | 4×i16 | predictor history for channel 0, oldest first |
+  | `+0x1A` | 4×i16 | predictor history for channel 1 (zero when mono) |
+  | `+0x22` | u32 | loop start (frame) |
+  | `+0x26` | u32 | loop length; 0 = no loop |
+  | `+0x2A` | u32 | first frame of the block containing the loop start |
+  | `+0x2E` | u32 | first frame of the block after it |
+  | `+0x32` | u16 | index of the loop-start block |
+  | `+0x34` | u16 | always 127 (velocity ceiling?) |
+  | `+0x36` | i16 | constant within a zone, falls with pitch (Clavinet −146 … −1593, CP80 −98 … −2782); probably a key-scaled level |
+  | `+0x38` | u16 | copy of the velocity floor |
+  | `+0x00`–`+0x05`, `+0x3A`, `+0x3C`… | | unnamed (zero in the first record; the v5 tail holds a small per-stroke table, v6 repeats `00 80 00 00`) |
+
+  **Loop:** the loop is seamless and lossless. From `loopStart + loopLength` to the end of the
+  stroke, every frame equals the frame `loopLength` earlier (928–2,538 frames in the samples
+  checked). The equality also starts 4–28 frames before the loop end, so the predictor history
+  is identical across the jump; the DSP keeps the loop-block fields to re-enter mid-block. For
+  the Wurlitzer the loop is short (3,508 frames, one tone period group); for the Clavinet and
+  CP80 it is long (42–89k frames) through the decaying tail.
+- **Key map** (correcting the 2026-06-30 note above): it starts at `CNSP+0x8C`, not `+0x8B`.
+  `+0x8B` is a separate byte (2 in the v6 file, 0 in v5); reading it as note 0 added a phantom
+  zone with root 2 and shifted every range by one note. Offsets are relative to the `CNSP` tag,
+  which sits at 0x2C in v6 files and 0x18 in v5.
 - One stroke's blocks are contiguous, and strokes follow each other with no gaps; the body runs to
   EOF.
 
@@ -826,5 +849,11 @@ What this corrects above:
 - There is **no `CChunk` layer**. The "separate block-parameter directory" of 2026-07-02 does exist,
   but it holds only the per-stroke start/length/seed, not the per-block parameters.
 
-**Still open:** naming the remaining record fields (the u32 positions; the key/level words) and
-the 0x700–0x1900 region (overview waveforms).
+**In the app:** `src/lib/ns4/nsp-audio.ts` (`readNspDirectory`, `decodeNspStroke`, `strokeFor`)
+is the TypeScript port. It matches the Python reference sample-for-sample and is round-trip
+tested against synthetic files in CI; `NPNO_DIR=<folder>` runs it over real pianos kept outside
+the repo. The piano inspector uses it for local audition (one button per sampled note, at a
+chosen velocity).
+
+**Still open:** `+0x36` and the unnamed record bytes, and the 0x700–0x1900 region (overview
+waveforms).

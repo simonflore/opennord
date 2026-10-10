@@ -5,7 +5,7 @@ import { patchNs4Checksum } from '../clavia/checksum';
 import { readNsp } from './nsp';
 
 /** Minimal synthetic Nord Piano: CBIN + npno + CNSP + a name in the meta block.
- *  Optionally lay down a key map (root per note) @0xB7. */
+ *  Optionally lay down a key map (root per note) @0xB8 (CNSP+0x8C). */
 function makeSyntheticNpno(name = 'Test Piano', versionRaw = 610, keymap?: number[]): Uint8Array {
   const buf = new Uint8Array(0x140);
   const ascii = (s: string, at: number) => { for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i); };
@@ -16,7 +16,7 @@ function makeSyntheticNpno(name = 'Test Piano', versionRaw = 610, keymap?: numbe
   buf[0x15] = (versionRaw >> 8) & 0xff;
   ascii('CNSP', 0x2c);
   ascii(name, 0x48); // name within the 0x42..0xA9 metadata block
-  if (keymap) { for (let i = 0; i < 128; i++) buf[0xb7 + i] = keymap[i] ?? 0xff; }
+  if (keymap) { for (let i = 0; i < 128; i++) buf[0xb8 + i] = keymap[i] ?? 0xff; } // CNSP+0x8C
   return patchNs4Checksum(buf);
 }
 
