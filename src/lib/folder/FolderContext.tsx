@@ -15,3 +15,9 @@ export function useFolder(): FolderLibrary {
   if (!v) throw new Error('useFolder must be used within FolderProvider');
   return v;
 }
+
+/** The linked folder, or null outside a FolderProvider — for widgets that only add to a
+ *  view when a folder is there (e.g. auditioning a program's piano from local files). */
+export function useFolderOptional(): FolderLibrary | null {
+  return useContext(Ctx);
+}

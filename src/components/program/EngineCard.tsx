@@ -3,6 +3,7 @@ import type {
 } from '../../lib/clavia/engine-view';
 import { DrawbarStack, ModelSelector, ToggleGroup, Knob, Lcd, Meter, StatGrid, EnvCurve } from './widgets';
 import { resolveFactory } from '../../lib/device/factory';
+import { ProgramPianoAudition } from './ProgramPianoAudition';
 
 /**
  * One card per active engine. Pure renderer of the model-agnostic EngineCardModel —
@@ -75,6 +76,7 @@ function PianoBody({ m, stats }: { m: PianoCardModel; stats: Stat[] }) {
           ? <a href={match.url} target="_blank" rel="noreferrer" title="Official Nord download" style={{ color: 'inherit' }}>{m.model}</a>
           : m.model}
       </div>
+      <ProgramPianoAudition model={m.model} />
       {knobs.length > 0 && <div className="ps-knobs">{knobs}</div>}
       <StatGrid stats={stats} />
     </>
