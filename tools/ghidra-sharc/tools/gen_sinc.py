@@ -512,6 +512,9 @@ def targets():
     a24hi = f(23, 16)
     rel24hi = f(23, 16, signed=True)
     r6 = f(32, 27, signed=True)
+    if PLUS:
+        rel23hi = f(22, 16, signed=True)
+        domode = f(23, 23)
     t_abs = f"(({a24hi} << 16) | {lo16})"
     t_rel = f"(inst_start + (({rel24hi} << 16) | {lo16}))"
     return "\n".join([
@@ -526,10 +529,10 @@ def targets():
         f"REL6: tgt is visa=0 & {r6} [ tgt = inst_start + {r6} * 3; ] {{ export *:4 tgt; }}",
     ] + ([
         # SHARC+ DO end address (types 12a/13a): 23-bit PC-relative, bit 23 is the mode bit
-        f"REL23: tgt is visa=1 & {f(22, 16, signed=True)} ; {lo16} [ tgt = inst_start + (({f(22, 16, signed=True)} << 16) | {lo16}); ] {{ export *:4 tgt; }}",
-        f"REL23: tgt is visa=0 & {f(22, 16, signed=True)} ; {lo16} [ tgt = inst_start + (({f(22, 16, signed=True)} << 16) | {lo16}) * 3; ] {{ export *:4 tgt; }}",
-        f'DOMODE: "" is {f(23, 23)}=0 {{ }}',
-        f'DOMODE: " (F)" is {f(23, 23)}=1 {{ }}',
+        f"REL23: tgt is visa=1 & {rel23hi} ; {lo16} [ tgt = inst_start + (({rel23hi} << 16) | {lo16}); ] {{ export *:4 tgt; }}",
+        f"REL23: tgt is visa=0 & {rel23hi} ; {lo16} [ tgt = inst_start + (({rel23hi} << 16) | {lo16}) * 3; ] {{ export *:4 tgt; }}",
+        f'DOMODE: "" is {domode}=0 {{ }}',
+        f'DOMODE: " (F)" is {domode}=1 {{ }}',
     ] if PLUS else []))
 
 
