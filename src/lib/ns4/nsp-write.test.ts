@@ -13,19 +13,19 @@ import { identifyNsmp } from '../clavia/sample-identify';
 
 const toneI = (frames: number, f: number, amp: number, seed: number) => Int32Array.from(tone(frames, f, amp, seed));
 
-/** A small two-zone, two-layer piano; the upper zone's loud layer loops. */
+/** A small two-zone, two-layer piano (loudest layer first); the upper zone's soft layer loops. */
 function piano(channels: 1 | 2): NpnoInput {
   const ch = (f: number, a: number, s: number, n = 24000) => Array.from({ length: channels }, (_, c) => toneI(n, f, a * (1 - 0.2 * c), s + c));
   return {
     name: 'Test Upright', variant: 'Home', minor: 1, pianoType: 2, channels,
     zones: [
       { rootNote: 48, lowNote: 21, highNote: 59, layers: [
-        { pcm: ch(0.01, 3000, 1), velocityFrom: 0 },
-        { pcm: ch(0.01, 12000, 2), velocityFrom: 64 },
+        { pcm: ch(0.01, 3000, 1), floorDb: 0 },
+        { pcm: ch(0.01, 12000, 2), floorDb: 12.8 },
       ] },
       { rootNote: 72, lowNote: 60, highNote: 108, layers: [
-        { pcm: ch(0.02, 2000, 3), velocityFrom: 0 },
-        { pcm: ch(0.02, 20000, 4, 30000), velocityFrom: 80, loop: { start: 12000, length: 9000 } },
+        { pcm: ch(0.02, 2000, 3), floorDb: 0 },
+        { pcm: ch(0.02, 20000, 4, 30000), floorDb: 16, loop: { start: 12000, length: 9000 } },
       ] },
     ],
   };
@@ -84,11 +84,13 @@ describe('buildNpno', () => {
         expect(got).toBeLessThanOrEqual(NPNO_PEAK + 1);
       });
       expect(dir.strokes[3].loop).toEqual({ start: 12000, length: 9000 });
-      expect(strokeFor(dir, 1, 100)?.index).toBe(3);
+      // Zone 1 switches layers at 8 dB (halfway to the 16 dB floor).
+      expect(strokeFor(dir, 1, 127)?.index).toBe(2);
+      expect(strokeFor(dir, 1, 40)?.index).toBe(3);
     });
   }
 
-  it('fills the record fields: loop block, velocity copy, crossfade, coefficients', () => {
+  it('fills the record fields: loop block, floor copy, switch point, coefficients', () => {
     const { bytes } = buildNpno(piano(1));
     const base = 0x2c;
     const rec = (i: number) => bytes.subarray(base + NPNO_HEADER_SIZE + i * NPNO_RECORD_SIZE);
@@ -100,7 +102,7 @@ describe('buildNpno', () => {
     const r3 = rec(3);
     expect(r3[0x05]).toBe(80);
     expect(r3[0x33]).toBe(80);
-    expect(r3[0x74]).toBe(80 - 40); // midway from the previous layer (0)
+    expect(r3[0x74]).toBe(80 - 40); // midway from the louder layer's floor (0)
     expect(rec(1)[0x74]).toBe(64 - 32);
     expect(rec(0)[0x74]).toBe(0);
     expect(u32(r3, 0x2e)).toBe(defaultDecayCoefficient(72));
@@ -113,10 +115,10 @@ describe('buildNpno', () => {
     expect((u32(rec(0), 0) - 830) % 1022).toBe(0);
   });
 
-  it('rejects overlapping zones, a non-zero softest layer and a bad name', () => {
+  it('rejects overlapping zones, a loudest layer not at 0 dB and a bad name', () => {
     const p = piano(1);
     expect(() => buildNpno({ ...p, zones: [p.zones[0], { ...p.zones[1], lowNote: 50 }] })).toThrow(/Key 50/);
-    expect(() => buildNpno({ ...p, zones: [{ ...p.zones[0], layers: [{ ...p.zones[0].layers[1] }] }] })).toThrow(/softest/);
+    expect(() => buildNpno({ ...p, zones: [{ ...p.zones[0], layers: [{ ...p.zones[0].layers[1] }] }] })).toThrow(/loudest/);
     expect(() => buildNpno({ ...p, name: 'Bad#Name' })).toThrow(/ASCII/);
   });
 });

@@ -16,7 +16,7 @@
  *  - {@link writeNpnoImage} / {@link readNpnoImage}: a lossless, field-complete model of a
  *    CNSP file (header bytes + per-stroke PCM and record bytes). Re-encoding is
  *    `writeNpnoImage(readNpnoImage(bytes))`.
- *  - {@link buildNpno}: a musician-shaped front end (key zones → velocity layers → PCM +
+ *  - {@link buildNpno}: a musician-shaped front end (key zones → dynamic layers → PCM +
  *    optional sustain loop) that fills an image with documented defaults.
  */
 
@@ -51,7 +51,7 @@ const CBIN_V5_SIZE = 0x18;
 
 // ── The image model ─────────────────────────────────────────────────────────────────────────
 
-/** One stroke (a velocity layer, or a release sound) as the file stores it. */
+/** One stroke (a dynamic layer, or a release sound) as the file stores it. */
 export interface NpnoStrokeImage {
   /** Root MIDI note of the zone this stroke belongs to (feeds the layers-per-root table). */
   rootNote: number;
@@ -66,7 +66,7 @@ export interface NpnoStrokeImage {
   loop?: { start: number; length: number };
   /**
    * The 0x76-byte record. The encoder overwrites the geometry it owns (offset, frames,
-   * blocks, history, loop, loop-block fields); every other byte (flags, velocity, level,
+   * blocks, history, loop, loop-block fields); every other byte (flags, attenuation floor, level,
    * voicing coefficients…) is written as given.
    */
   record: Uint8Array;
@@ -419,8 +419,13 @@ export const NPNO_PIANO_TYPE = {
 export interface NpnoLayerInput {
   /** PCM per channel, int16 range. The stroke should start at the attack (no lead-in silence needed). */
   pcm: ArrayLike<number>[];
-  /** Lowest velocity (0–127) this layer plays from; the first layer of a zone must be 0. */
-  velocityFrom: number;
+  /**
+   * How far below the hardest hit this layer takes over, in dB (0–51, stored in 0.2 dB
+   * steps). The loudest layer is 0; each softer layer needs a larger value. The instrument
+   * switches halfway between neighbouring floors, and the program's Touch setting decides
+   * which velocity reaches which attenuation.
+   */
+  floorDb: number;
   /** Optional sustain loop in frames (`start + length` ≤ PCM length). */
   loop?: { start: number; length: number };
   /** Override the stored level word (+0x34) directly; see {@link buildNpno} for the default. */
@@ -433,7 +438,7 @@ export interface NpnoZoneInput {
   /** Key range (inclusive) that plays this zone. Ranges must not overlap. */
   lowNote: number;
   highNote: number;
-  /** Velocity layers, softest first. */
+  /** Dynamic layers, loudest (hardest-hit) first, as factory pianos store them. */
   layers: NpnoLayerInput[];
 }
 
@@ -495,13 +500,13 @@ function defaultHeader(input: NpnoInput): Uint8Array {
   return h;
 }
 
-function defaultRecord(opts: { velocity: number; prevVelocity: number | undefined; level: number; root: number; id: number }): Uint8Array {
+function defaultRecord(opts: { floor: number; prevFloor: number | undefined; level: number; root: number; id: number }): Uint8Array {
   const r = new Uint8Array(NPNO_RECORD_SIZE);
   r[0x04] = 0; // flags: normal stroke
-  r[0x05] = opts.velocity;
+  r[0x05] = opts.floor; // attenuation floor, 0.2 dB steps
   be32(r, 0x2e, defaultDecayCoefficient(opts.root));
   r[0x32] = 0;
-  r[0x33] = opts.velocity; // copy of the velocity floor (as in every factory v6 record)
+  r[0x33] = opts.floor; // copy of the attenuation floor (as in every factory v6 record)
   be16(r, 0x34, opts.level);
   for (let k = 0; k < 13; k++) be32(r, 0x36 + k * 4, 0x800000); // 13 × 1.0 (Q23), as in every v6 record
   // +0x6A: 14th coefficient, 0. +0x6E: u32 whose low 14 bits the loader keeps (factory values
@@ -509,10 +514,14 @@ function defaultRecord(opts: { velocity: number; prevVelocity: number | undefine
   be32(r, 0x6e, opts.id & 0x3fff);
   r[0x72] = 0x0d; // unknown; equals the +0x20C table value in the Clavinet
   r[0x73] = 33; // unknown; Clavinet 36 → 28 with pitch
-  // Crossfade start: the loader computes vel − (vel − previous layer's vel)/2 for v5 files.
-  r[0x74] = opts.prevVelocity === undefined ? 0 : opts.velocity - Math.trunc((opts.velocity - opts.prevVelocity) / 2);
+  // Layer switch point, halfway from the previous (louder) layer's floor; the loader computes
+  // the same for v5 files.
+  r[0x74] = opts.prevFloor === undefined ? 0 : opts.floor - Math.trunc((opts.floor - opts.prevFloor) / 2);
   return r;
 }
+
+/** A layer's floor in the record's 0.2 dB steps. */
+const floorUnits = (l: NpnoLayerInput) => Math.round(l.floorDb * 5);
 
 /** Validate the zone layout; throws with a musician-readable message. */
 function validateZones(input: NpnoInput): void {
@@ -527,11 +536,11 @@ function validateZones(input: NpnoInput): void {
       if (owner[n] >= 0) throw new Error(`Key ${n} is in zones ${owner[n]} and ${i}.`);
       owner[n] = i;
     }
-    if (!z.layers.length) throw new Error(`Zone ${i} has no velocity layers.`);
+    if (!z.layers.length) throw new Error(`Zone ${i} has no layers.`);
     z.layers.forEach((l, k) => {
-      if (k === 0 && l.velocityFrom !== 0) throw new Error(`Zone ${i}: the softest layer must start at velocity 0.`);
-      if (k > 0 && !(l.velocityFrom > z.layers[k - 1].velocityFrom && l.velocityFrom <= 127)) {
-        throw new Error(`Zone ${i}: layer velocities must rise and stay ≤ 127.`);
+      if (k === 0 && floorUnits(l) !== 0) throw new Error(`Zone ${i}: the first (loudest) layer must be at 0 dB.`);
+      if (k > 0 && !(floorUnits(l) > floorUnits(z.layers[k - 1]) && floorUnits(l) <= 255)) {
+        throw new Error(`Zone ${i}: each softer layer needs a larger dB value, up to 51 dB.`);
       }
       if (l.pcm.length !== input.channels) throw new Error(`Zone ${i} layer ${k}: expected ${input.channels} channel(s).`);
     });
@@ -577,8 +586,8 @@ export function buildNpno(input: NpnoInput): NpnoBuildResult {
         preroll: pcm.map(() => [0, 0, 0, 0]),
         loop: l.loop,
         record: defaultRecord({
-          velocity: l.velocityFrom,
-          prevVelocity: k > 0 ? z.layers[k - 1].velocityFrom : undefined,
+          floor: floorUnits(l),
+          prevFloor: k > 0 ? floorUnits(z.layers[k - 1]) : undefined,
           level, root: z.rootNote, id: strokes.length + 1,
         }),
       });
