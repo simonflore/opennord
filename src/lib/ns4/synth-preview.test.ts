@@ -7,6 +7,7 @@ import {
   previewParamsFromLayer,
   renderSynthPreview,
   svfDamping,
+  type PreviewFilter,
   type SynthPreviewParams,
 } from './synth-preview';
 
@@ -29,6 +30,11 @@ const sustain = { attack: 0.0005, decay: Infinity, release: 0.003 };
 
 function params(over: Partial<SynthPreviewParams>): SynthPreviewParams {
   return { wave: 'saw', ampEnv: sustain, filter: null, ...over };
+}
+
+/** A static filter (no resonance, envelope sweep or tracking) unless overridden. */
+function filter(over: Pick<PreviewFilter, 'type' | 'cutoffHz'> & Partial<PreviewFilter>): PreviewFilter {
+  return { resonance: 0, envOctaves: 0, env: sustain, track: 0, ...over };
 }
 
 describe('display-string parsing', () => {
@@ -131,9 +137,7 @@ describe('renderSynthPreview', () => {
   it('LP24 removes more of a bright saw than LP12 at the same cutoff', () => {
     const filt = (type: 'LP12' | 'LP24') =>
       renderSynthPreview(
-        params({
-          filter: { type, cutoffHz: 300, resonance: 0, envOctaves: 0, env: sustain, track: 0 },
-        }),
+        params({ filter: filter({ type, cutoffHz: 300 }) }),
         { note: 81, sampleRate: FS, holdSeconds: 0.5 },
       );
     const lp12 = rms(filt('LP12'), 4800, 19200);
@@ -143,7 +147,7 @@ describe('renderSynthPreview', () => {
 
   it('keeps the self-oscillating ladder bounded', () => {
     const out = renderSynthPreview(
-      params({ filter: { type: 'LPM', cutoffHz: 1000, resonance: 1, envOctaves: 0, env: sustain, track: 0 } }),
+      params({ filter: filter({ type: 'LPM', cutoffHz: 1000, resonance: 1 }) }),
       { note: 36, sampleRate: FS, holdSeconds: 0.5 },
     );
     for (const v of out) expect(Number.isFinite(v) && Math.abs(v) <= 1).toBe(true);
@@ -153,9 +157,7 @@ describe('renderSynthPreview', () => {
   it('opens the filter with the envelope', () => {
     const run = (envOctaves: number) =>
       renderSynthPreview(
-        params({
-          filter: { type: 'LP24', cutoffHz: 100, resonance: 0, envOctaves, env: sustain, track: 0 },
-        }),
+        params({ filter: filter({ type: 'LP24', cutoffHz: 100, envOctaves }) }),
         { note: 60, sampleRate: FS, holdSeconds: 0.5 },
       );
     expect(rms(run(5), 4800, 19200)).toBeGreaterThan(2 * rms(run(0), 4800, 19200));

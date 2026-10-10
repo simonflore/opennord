@@ -115,11 +115,11 @@ function label(s: string | undefined): string | undefined {
   return s ? (/\((.*)\)/.exec(s)?.[1] ?? s) : undefined;
 }
 
-function env(attack?: string, decay?: string, release?: string): PreviewEnv {
+function env(e: { attack?: string; decay?: string; release?: string } | undefined): PreviewEnv {
   return {
-    attack: parseSeconds(attack) ?? 0.0005,
-    decay: parseSeconds(decay) ?? Infinity,
-    release: parseSeconds(release) ?? 0.003,
+    attack: parseSeconds(e?.attack) ?? 0.0005,
+    decay: parseSeconds(e?.decay) ?? Infinity,
+    release: parseSeconds(e?.release) ?? 0.003,
   };
 }
 
@@ -134,7 +134,7 @@ export function previewParamsFromLayer(l: NS4Layer): SynthPreviewParams | null {
   const wave = waveLabel ? PURE_WAVES[waveLabel] : undefined;
   if (!wave) return null;
 
-  const ampEnv = env(l.ampEnv?.attack, l.ampEnv?.decay, l.ampEnv?.release);
+  const ampEnv = env(l.ampEnv);
 
   let filter: PreviewFilter | null = null;
   const f = l.filter;
@@ -147,7 +147,7 @@ export function previewParamsFromLayer(l: NS4Layer): SynthPreviewParams | null {
       resonance: type === 'LPHP' ? 0 : Math.min(1, Math.max(0, (parsePlain(resRaw) ?? 0) / 10)),
       hpHz: type === 'LPHP' ? (parseHz(resRaw) ?? 20) : undefined,
       envOctaves: parsePlain(f.envAmount?.value) ?? 0,
-      env: env(f.env?.attack, f.env?.decay, f.env?.release),
+      env: env(f.env),
       track: TRACK[f.track ?? 'off'] ?? 0,
     };
   }
@@ -184,10 +184,18 @@ export function nyquistFade(dt: number): number {
 class Oscillator {
   private phase = 0;
   private seed = 0x1234567;
+  private readonly fade: number;
 
-  constructor(private readonly wave: PreviewWave) {}
+  /** `dt` is the phase increment per sample (frequency / sample rate). */
+  constructor(
+    private readonly wave: PreviewWave,
+    private readonly dt: number,
+  ) {
+    this.fade = nyquistFade(dt);
+  }
 
-  next(dt: number): number {
+  next(): number {
+    const { dt } = this;
     const t = this.phase;
     this.phase += dt;
     if (this.phase >= 1) this.phase -= 1;
@@ -215,7 +223,7 @@ class Oscillator {
         break;
       }
     }
-    return y * nyquistFade(dt);
+    return y * this.fade;
   }
 }
 
@@ -350,12 +358,33 @@ class Ladder {
   }
 }
 
+/** Control-rate block for cutoff updates, in samples. */
+const CONTROL_BLOCK = 16;
+
+/** One filter plus its envelope and key tracking, modulating the cutoff at control rate. */
 class Filter {
   private readonly a = new Svf();
   private readonly b = new Svf();
   private readonly ladder = new Ladder();
+  private readonly env: Envelope;
+  /** Keyboard-tracking offset for the played note, in octaves. */
+  private readonly trackOct: number;
+  private n = 0;
 
-  constructor(private readonly f: PreviewFilter, private readonly fs: number) {}
+  constructor(
+    private readonly f: PreviewFilter,
+    private readonly fs: number,
+    note: number,
+  ) {
+    this.env = new Envelope(f.env, fs);
+    this.trackOct = (f.track * (note - 60)) / 12;
+    // The LPHP high-pass corner doesn't move, so it is set once.
+    if (f.type === 'LPHP') this.a.set(this.g(f.hpHz ?? 20), Math.SQRT2);
+  }
+
+  gateOff(): void {
+    this.env.gateOff();
+  }
 
   private g(hz: number): number {
     const fc = Math.min(Math.max(hz, 10), 0.45 * this.fs);
@@ -363,21 +392,25 @@ class Filter {
   }
 
   /** Update coefficients for the current (modulated) cutoff. */
-  update(cutoffHz: number): void {
+  private update(cutoffHz: number): void {
     const { type, resonance } = this.f;
-    const k = svfDamping(resonance);
+    const g = this.g(cutoffHz);
     if (type === 'LPM') {
-      this.ladder.set(this.g(cutoffHz), resonance);
+      this.ladder.set(g, resonance);
     } else if (type === 'LPHP') {
-      this.a.set(this.g(this.f.hpHz ?? 20), Math.SQRT2);
-      this.b.set(this.g(cutoffHz), Math.SQRT2);
+      this.b.set(g, Math.SQRT2);
     } else {
-      this.a.set(this.g(cutoffHz), k);
-      this.b.set(this.g(cutoffHz), k);
+      const k = svfDamping(resonance);
+      this.a.set(g, k);
+      this.b.set(g, k);
     }
   }
 
   process(x: number): number {
+    const e = this.env.next();
+    if (this.n++ % CONTROL_BLOCK === 0) {
+      this.update(this.f.cutoffHz * Math.pow(2, this.f.envOctaves * e + this.trackOct));
+    }
     switch (this.f.type) {
       case 'LP12':
         this.a.process(x);
@@ -402,9 +435,6 @@ class Filter {
   }
 }
 
-/** Control-rate block for cutoff updates, in samples. */
-const CONTROL_BLOCK = 16;
-
 /**
  * Render one note of a synth layer preview as mono samples in [-1, 1]. Stops
  * early once the amp envelope's release has decayed to silence.
@@ -416,28 +446,20 @@ export function renderSynthPreview(p: SynthPreviewParams, opts: RenderOptions): 
   const holdLen = Math.min(maxLen, Math.round(hold * fs));
   const dt = (440 * Math.pow(2, (opts.note - 69) / 12)) / fs;
 
-  const osc = new Oscillator(p.wave);
+  const osc = new Oscillator(p.wave, dt);
   const amp = new Envelope(p.ampEnv, fs);
-  const fenv = p.filter ? new Envelope(p.filter.env, fs) : null;
-  const filter = p.filter ? new Filter(p.filter, fs) : null;
-  const trackOct = p.filter ? (p.filter.track * (opts.note - 60)) / 12 : 0;
+  const filter = p.filter ? new Filter(p.filter, fs, opts.note) : null;
 
   const out = new Float32Array(maxLen);
   let n = 0;
   for (; n < maxLen; n++) {
     if (n === holdLen) {
       amp.gateOff();
-      fenv?.gateOff();
+      filter?.gateOff();
     }
     if (amp.finished) break;
-    let x = osc.next(dt);
-    if (filter && fenv && p.filter) {
-      const e = fenv.next();
-      if (n % CONTROL_BLOCK === 0) {
-        filter.update(p.filter.cutoffHz * Math.pow(2, p.filter.envOctaves * e + trackOct));
-      }
-      x = filter.process(x);
-    }
+    let x = osc.next();
+    if (filter) x = filter.process(x);
     const y = 0.5 * x * amp.next();
     out[n] = Math.max(-1, Math.min(1, y));
   }
