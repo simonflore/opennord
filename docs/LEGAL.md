@@ -39,6 +39,21 @@ Device sample browsing (read a sample off the board, edit, download) is local ac
 
 Reverse engineering a file format or protocol **for interoperability** is broadly defensible (and explicitly protected in several jurisdictions, e.g. the EU Software Directive's interop provisions). OpenNord reverse-engineers **only** to read/write the user's own data and interoperate with their own instrument. Capturing traffic from Nord Sound Manager is for understanding the protocol — **do not** redistribute Clavia's software or its assets.
 
+### Nord software, firmware and audio
+
+OpenNord's engines and readers (piano/sample decoding, organ, rotary, synth, effects, file writers) are its own code. The line is between **knowledge** and **copies**:
+
+**Allowed — knowledge, written up or re-implemented in our own code:**
+- Formats, structures, field meanings, signal flow and algorithms (e.g. "LP24 is two state-variable filters in series", "the rotary has two rotors with Doppler delay and an ~800 Hz crossover", "percussion is single-trigger").
+- Small factual constants an implementation needs to be compatible or to sound right: sample rates, block sizes, parameter ranges and step sizes, enum values and display names, tuning ratios.
+- Code written fresh from that understanding.
+
+**Not allowed in the repo, a release, or anything OpenNord serves:**
+- Nord firmware or desktop software, in whole or in part, or Nord audio.
+- Bulk data copied out of Nord's software: wavetables, sample/impulse data, coefficient, curve or lookup tables. When an engine genuinely needs such data, it is read **on the user's own device at runtime** — never committed, bundled, uploaded or shared.
+
+When unsure whether something is "a constant" or "a table", treat a handful of values that a manual or a measurement could also give you as knowledge, and anything larger as data.
+
 ## Sharing & community features (when they exist)
 
 Any feature that uploads or shares files follows the authorship bright line above, plus standard hygiene for user-generated content:
