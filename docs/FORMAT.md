@@ -67,12 +67,12 @@ source — both treat the header identically).
 | Offset | Field | Encoding | Stage 4 (observed) | Source |
 |---|---|---|---|---|
 | 0x00 | magic `CBIN` | ASCII | `CBIN` | verified |
-| 0x04 | header format type (0=legacy, 1=new) | u8 | `1` (always — NSM-era) | NS3 docs + verified |
-| 0x08 | file-type tag | 4×ASCII | `ns4p` (`ns4l` = bundle-extracted) | verified |
-| 0x0C | bank (low 3 bits → letter A–H) | u8 | 6 / 6 / 7 | NS3 docs + verified |
-| 0x0E | location in bank (low 6 bits) | u8 | 49 / 47 / 56 | NS3 docs + verified |
-| 0x10 | category | u8 | 6 (Lead) / 17 (None) / 17 | NSM table + verified |
-| 0x14 | program version | u16 LE, ÷100 | `313` → **v3.13** | NS3 docs + verified |
+| 0x04 | header format type (0 = legacy, 1 = NSM-era; NSM refuses ≥ 2) | u32 LE | `1` (always — NSM-era) | NS3 docs + NSM 9.22 + verified |
+| 0x08 | file-type tag | 4×ASCII | `ns4p` (`ns4l` = Live) | verified |
+| 0x0C | bank (low 3 bits → letter A–H) | u16 LE | 6 / 6 / 7 | NS3 docs + NSM 9.22 + verified |
+| 0x0E | location in bank (low 6 bits) | u16 LE | 49 / 47 / 56 | NS3 docs + NSM 9.22 + verified |
+| 0x10 | category | u32 LE | 6 (Lead) / 17 (None) / 17 | NSM table + verified |
+| 0x14 | program version | u32 LE, ÷100 | `313` → **v3.13** | NS3 docs + NSM 9.22 + verified |
 | 0x18 | **CRC-32 checksum** | u32 LE | matches `crc32(bytes[0x2C:])` | **cracked — see CHECKSUM.md** |
 | 0x1C–0x2B | reserved | — | all zero on Stage 4 | verified |
 | 0x2C+ | parameter body (406 params) | bit-packed | — | offset-map.generated.ts |

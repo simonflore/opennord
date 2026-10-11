@@ -33,8 +33,8 @@ export type ClaviaModel =
   | 'unknown';
 
 /**
- * A decoder for one model's program body. `tags` are the CBIN file-type tags it
- * claims (e.g. `ns4p`/`ns4l`); the optional `versionRange` (inclusive, on the
+ * A decoder for one model's program body. `tags` are the program tags it reads
+ * (e.g. `ns4p`; a Live file reaches it through formats.ts `programTagFor`); the optional `versionRange` (inclusive, on the
  * raw ×100 CBIN version) gates by firmware era the way NSM's `CFileSpec`
  * partition list does (docs/NSP-FORMAT.md).
  */

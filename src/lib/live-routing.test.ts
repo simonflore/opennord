@@ -16,6 +16,7 @@ import { NE3HP_LAYOUT } from './ne3/layout-hp.generated';
 import { NE5_LAYOUT } from './ne5/layout.generated';
 import { NP1_LAYOUT } from './np1/layout.generated';
 import { NP2_LAYOUT } from './np2/layout.generated';
+import { NP3_LAYOUT } from './np3/layout.generated';
 import { NCP_LAYOUT } from './nc/layout.generated';
 import { NC2_LAYOUT } from './nc2/layout.generated';
 
@@ -73,6 +74,7 @@ describe('legacy-record Live files route to the program reader when the record m
     ['ne5l', 'ne5p', NE5_LAYOUT, 'ne5', 'Nord Electro 5 · Program'],
     ['npli', 'nppg', NP1_LAYOUT, 'np1', 'Nord Piano · Program'],
     ['np2l', 'np2p', NP2_LAYOUT, 'np2', 'Nord Piano 2 · Program'],
+    ['np3l', 'np3p', NP3_LAYOUT, 'np3', 'Nord Piano 3 · Program'],
     ['ncli', 'ncpg', NCP_LAYOUT, 'nc', 'Nord C2 · Program'],
     ['nc2l', 'nc2p', NC2_LAYOUT, 'nc2', 'Nord C2D · Program'],
   ];

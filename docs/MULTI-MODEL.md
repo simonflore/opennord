@@ -119,7 +119,7 @@ its own map + interpreter + model-builder.
 export type ClaviaModel = 'ns4' | 'ns3' | 'ns2' /* | 'electro' | 'piano' */;
 
 export interface ModelCodec<Program> {
-  /** Tags this codec claims, e.g. ['ns4p','ns4l'] or ['ns3f','ns2p']. */
+  /** Program tags this codec reads, e.g. ['ns4p'] (a Live file reaches it via formats.ts programTagFor). */
   readonly tags: readonly string[];
   /** Optional CBIN version gate (lo,hi inclusive), like NSM's CFileSpec. */
   readonly versionRange?: readonly [number, number];
@@ -130,7 +130,9 @@ export interface ModelCodec<Program> {
 export function resolveCodec(bytes: Uint8Array): ModelCodec<unknown> | undefined;
 ```
 
-- `parseClaviaFile(bytes)` reads the shared CBIN header, then routes to the codec
+- `parseClaviaFile(bytes)` reads the shared CBIN header, maps the file to the
+  program tag whose reader reads it (`programTagFor`: a Live file to its model's
+  program tag, `clavia/file-tags.ts`), then routes to the codec
   whose `tags`/`versionRange` match — mirroring how **NSM's `CFileSpec` partition
   gate routes strictly by `{extension, type, versionLo..Hi}`** (`docs/NSP-FORMAT.md`).
 - The **existing NS4 path becomes `ns4` codec** with **zero behavior change** —

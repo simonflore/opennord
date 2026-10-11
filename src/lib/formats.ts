@@ -116,9 +116,6 @@ const CODECS: readonly ModelCodec<NordProgram>[] = [
   ncCodec,
 ];
 
-/** Every program file-type tag OpenNord reads: the codecs' tags plus Stage 3 / Stage 2, which decode outside CODECS. */
-export const PROGRAM_TAGS: ReadonlySet<string> = new Set([...CODECS.flatMap((c) => c.tags), 'ns3f', 'ns2p']);
-
 /** True when `program` is a fully-structured NS4 program (has `kind`). */
 export function isNs4Program(program: NordProgram): program is NS4Program {
   return 'kind' in program;
@@ -166,20 +163,21 @@ const PROGRAM_RECORD_BYTES: Readonly<Record<string, readonly number[]>> = {
  * The program tag whose reader reads this file: its own tag for a program,
  * the model's program tag for a Live file whose record is a program record
  * (a Live slot stores one verbatim — clavia/file-tags.ts), else undefined
- * (Settings, Songs, Set Lists, presets, or a Live of another length: those are
- * identified, not decoded).
+ * (Settings, Songs, Set Lists, presets, a Live of another length, or a header
+ * newer than NSM-era: those are identified, not decoded).
  */
 export function programTagFor(info: NordFileInfo, bytes: Uint8Array): string | undefined {
   const t = fileTagInfo(info.tag);
+  const framing = cbinFraming(bytes);
+  if (!framing.supported) return undefined;
   if (t?.kind === 'program' || t?.kind === 'performance') return info.tag;
   if (t?.kind !== 'live' || !t.program) return undefined;
   const fixed = PROGRAM_RECORD_BYTES[t.program];
-  return !fixed || fixed.includes(cbinFraming(bytes).recordBytes) ? t.program : undefined;
+  return !fixed || fixed.includes(framing.recordBytes) ? t.program : undefined;
 }
 
-/** The codec that claims this file by tag (and version range, if it sets one). */
-function resolveCodec(info: NordFileInfo, bytes: Uint8Array): ModelCodec<NordProgram> | undefined {
-  const tag = programTagFor(info, bytes);
+/** The codec that reads `tag` (and this file's version, if it sets a range). */
+function resolveCodec(info: NordFileInfo, tag: string | undefined): ModelCodec<NordProgram> | undefined {
   if (!tag) return undefined;
   const raw = info.version !== undefined ? Math.round(parseFloat(info.version) * 100) : undefined;
   return CODECS.find((c) =>
@@ -210,8 +208,9 @@ function engineSummaryFor(model: ClaviaModel, program: NordProgram, bytes: Uint8
  */
 export function parseClaviaFile(bytes: Uint8Array): ClaviaFile {
   const info = identifyNordFile(bytes);
-  const codec = resolveCodec(info, bytes);
+  const programTag = programTagFor(info, bytes);
+  const codec = resolveCodec(info, programTag);
   const program = codec ? codec.decode(bytes) : parseNs4Program(bytes);
   const model = codec?.model ?? GENERATION_MODEL[info.generation] ?? 'unknown';
-  return { model, info, program, engines: engineSummaryFor(model, program, bytes, programTagFor(info, bytes)) };
+  return { model, info, program, engines: engineSummaryFor(model, program, bytes, programTag) };
 }
