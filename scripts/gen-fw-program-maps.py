@@ -9,16 +9,18 @@ kept out of the repo with the rest of the firmware workspace; this script turns
 them into small TypeScript layouts the shared block-chain reader
 (src/lib/clavia/block-chain.ts) applies.
 
-Two CSV dialects are accepted:
+Three CSV dialects are accepted:
   pianos: name,block,file_byte,body_byte,bit,body_bitpos,width,min,max,default,notes
   keys:   name,block,param_id,file_byte,body_byte,bit,bit_offset,width,min,max,default,morph,midi_cc,notes
           (bit_offset is a FILE bit; body bit = bit_offset - 352)
+  e7:     name,block,param_id,body_bit_offset,body_byte,bit_in_byte_msb7,width,signed,min,max,default,
+          kind,slot,buffer_mode,midi_cc,notes  (signed = 'twos' for two's-complement fields)
 
 What is kept (only high/medium-confidence fields):
   - every registry parameter with a known position and range;
   - NOT the structural rows (format version, [block length], [reserved]);
-  - NOT the Electro 7 "@kind3" rows: 2 extra bits the firmware counts for
-    encoding kind 3, meaning unknown (low confidence);
+  - NOT the "@kind3" rows of the older keys CSVs (unnamed bits; the e7 dialect
+    names them, e.g. `Edt_Org_kLevel.pedalAssign`, and those are kept);
   - NOT parameters the firmware itself marks obsolete, shadow, requested or
     dirty (editor state, not sound).
 
@@ -89,6 +91,8 @@ SKIP_SUFFIX = re.compile(r'(_obsolete|_shadow|_requested|_Dirty)', re.IGNORECASE
 
 
 def body_bit(row):
+    if 'body_bit_offset' in row:
+        return int(row['body_bit_offset'])
     if 'body_bitpos' in row:
         return int(row['body_bitpos'])
     return int(row['bit_offset']) - 352
@@ -112,7 +116,7 @@ def encoding(row, lo):
     notes = row['notes']
     if 'NameHash' in row['name']:
         return 'raw'
-    if "two's complement" in notes:
+    if row.get('signed') == 'twos' or "two's complement" in notes:
         return 'twos'
     if lo != 0:
         return 'offset'
@@ -123,7 +127,8 @@ def main():
     model_id, csv_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
     cfg = MODELS[model_id]
     with open(csv_path, newline='') as fh:
-        rows = list(csv.DictReader(fh))
+        # Marker rows without a width (the e7 dialect's "[end of body]") carry no field.
+        rows = [r for r in csv.DictReader(fh) if r['width']]
 
     body_bytes = max((body_bit(r) + int(r['width']) + 7) // 8 for r in rows)
     block_rows = [r for r in rows if r['name'] == '[block length]']

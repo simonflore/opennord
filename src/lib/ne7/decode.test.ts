@@ -25,18 +25,39 @@ describe('decodeNe7 (Electro 7, firmware layout, provisional block order)', () =
     expect(decodeNe7(file(v)).values).toMatchObject(v);
   });
 
-  it('places fields at the firmware bits (organ model 305, drawbar set 1 at byte 120, piano hash 1396) and skips the kind-3 extra bits', () => {
+  it('places fields at the firmware bits (organ model 305, drawbar set 1 at byte 120, piano hash 1396)', () => {
     const body = synthFwBody(NE7_LAYOUT);
     writeBits(body, 305, 3, 2);          // Org_kOrganModel
     writeBits(body, 960, 4, 5);          // Drawbars1 value 1 (body byte 120, high nibble)
     writeBits(body, 1396, 32, 0x0badf00d); // Pno_kNameHash
-    writeBits(body, 315, 2, 0b11);       // Org_kLevel kind-3 extra bits: ignored
     const v = decodeNe7(synthFwFile('ne7p', body)).values;
     expect(v['organ.organModel']).toBe(2);
     expect(v['organDrawbars1.drawbarValue1']).toBe(5);
     expect(v['piano.nameHash']).toBe(0x0badf00d);
     expect(v['organ.level']).toBe(127);
     expect(v['organ.kbdZone']).toBe(1);
+  });
+
+  it('reads the two assign bits after a kind-3 knob (pedal, then wheel)', () => {
+    const body = synthFwBody(NE7_LAYOUT);
+    writeBits(body, 315, 2, 0b10);       // after Org_kLevel (bits 308–314): pedal on, wheel off
+    writeBits(body, 2346, 2, 0b01);      // after Syn_kFMAmount: pedal off, wheel on
+    const v = decodeNe7(synthFwFile('ne7p', body)).values;
+    expect(v['organ.level']).toBe(127);
+    expect([v['organ.level.pedalAssign'], v['organ.level.wheelAssign']]).toEqual([1, 0]);
+    expect([v['synthPreset.fmAmount.pedalAssign'], v['synthPreset.fmAmount.wheelAssign']]).toEqual([0, 1]);
+  });
+
+  it('stores negative values as two\'s complement, not value − min', () => {
+    const body = synthFwBody(NE7_LAYOUT);
+    const transpose = NE7_LAYOUT.fields.find((f) => f.key === 'common.transposeValue')!;
+    const semitone = NE7_LAYOUT.fields.find((f) => f.key === 'synthPreset.analogSemitone')!;
+    const at = (f: typeof transpose) => (NE7_LAYOUT.blocks[f.block].offset + 1) * 8 + f.bit;
+    writeBits(body, at(transpose), 4, 0b1010); // −6
+    writeBits(body, at(semitone), 7, 0);       // 0, not −24
+    const v = decodeNe7(synthFwFile('ne7p', body)).values;
+    expect(v['common.transposeValue']).toBe(-6);
+    expect(v['synthPreset.analogSemitone']).toBe(0);
   });
 
   it('a partial save with a folder missing → header-only with a warning', () => {

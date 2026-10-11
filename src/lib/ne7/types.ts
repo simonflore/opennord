@@ -11,9 +11,13 @@
  * initialiser FUN_c00aa7c8) — Common; Organ folder (Organ, Fx, OrganLayer ×2,
  * OrganDrawbars ×3); Piano folder (Piano, Fx); Synth folder (Synth,
  * SynthPreset, Fx). Each buffer's computed size matches the bit total the
- * firmware declares, once encoding kind 3 is counted as +2 bits per parameter
- * (meaning unknown; those bits are skipped). Predicted body 353 bytes (397-byte
- * file). The order is NOT yet confirmed on a real file, and partial saves may
+ * firmware declares. A knob with encoding kind 3 (levels, effect rates and
+ * amounts, filter frequency, FM amount) is followed by two 1-bit morph slots,
+ * read as `<field>.pedalAssign` and `<field>.wheelAssign` (slot order high,
+ * which slot is pedal and which is wheel medium). Negative values are two's
+ * complement in the field width (the registry builder sets the signed mode;
+ * value − min would put 75 factory values out of range). Predicted body 353
+ * bytes (397-byte file). The order is NOT yet confirmed on a real file, and partial saves may
  * omit folders (FUN_c00a78c4) — such a file fails the block-count check and
  * shows the header only.
  */
