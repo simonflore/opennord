@@ -7,12 +7,14 @@
  * = 350, the `.nwp` size. The field layout is the Wave OS 2.14 descriptor map
  * (global · slot A · slot B · common, inline morph deltas), generated into
  * `layout.generated.ts` generated and read through
- * the shared legacy-record reader (clavia/legacy-record.ts). See types.ts for
+ * the shared legacy-record reader (clavia/legacy-record.ts); versions 6 and 7
+ * are converted first, as the firmware does (convert.ts). See types.ts for
  * the block table and how the earlier corpus reader's byte fields map onto it.
  * Never throws.
  */
 import { formatCbinVersion } from '../clavia/cbin';
-import { legacyMorphDeltas, readLegacyFile } from '../clavia/legacy-record';
+import { legacyLayoutVersion, legacyMorphDeltas, readLegacyFile } from '../clavia/legacy-record';
+import { convertNw1 } from './convert';
 import { storedTrailerChecksum } from '../clavia/crc16';
 import { NW1_LAYOUT, type Nw1FieldKey } from './layout.generated';
 import type { Nw1Program, Nw1Section } from './types';
@@ -45,9 +47,11 @@ function section(
 
 /** Decode a Nord Wave program (full file bytes including the CBIN header). */
 export function decodeNw1(bytes: Uint8Array): Nw1Program {
-  const r = readLegacyFile(bytes, NW1_LAYOUT, NW1_RECORD_VERSIONS);
-  if (r.recordVersion === 6 || r.recordVersion === 7) {
-    r.warnings.push(`Record version ${r.recordVersion}: the firmware converts it on load; read with the version-8 layout`);
+  const from = legacyLayoutVersion(bytes, NW1_LAYOUT);
+  const older = from === 6 || from === 7;
+  const r = readLegacyFile(bytes, NW1_LAYOUT, NW1_RECORD_VERSIONS, older ? (data) => { convertNw1(data, from); } : undefined);
+  if (older) {
+    r.warnings.push(`Record version ${from}: the Wave converts it to version 8 on load, and OpenNord converts it the same way`);
   }
   const morphDeltas = legacyMorphDeltas(NW1_LAYOUT, r.values);
   return {

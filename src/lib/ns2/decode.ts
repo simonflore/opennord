@@ -46,10 +46,11 @@
  */
 import { NORD_DB } from '../clavia/volume';
 import {
-  NSM_RECORD_OFFSET, legacyData, legacyDataOffset, legacyMorphDeltas, legacyRecordVersion, legacyTrailerBytes,
-  readLegacyRecord,
+  NSM_RECORD_OFFSET, legacyData, legacyDataOffset, legacyLayoutVersion, legacyMorphDeltas, legacyRecordVersion,
+  legacyTrailerBytes, readLegacyRecord,
 } from '../clavia/legacy-record';
 import { NS2_LAYOUT, type Ns2FieldKey } from './layout.generated';
+import { convertNs2 } from './convert';
 
 export type { Ns2FieldKey };
 
@@ -820,7 +821,7 @@ export interface Ns2File extends Ns2Program {
   rotary: Ns2Rotary;
   /** File offset of the record data: 0x2E (NSM-era header) or 0x1A (legacy header). */
   readonly dataOffset: number;
-  /** The record version the file carries (7 is current; 0 when the header holds none). */
+  /** The record version the file carries (7 is current; 0–6 are converted as the Nord converts them). */
   readonly recordVersion: number;
   /** Every layout field by generated key, morph deltas included. */
   readonly values: Partial<Record<Ns2FieldKey, number>>;
@@ -1085,10 +1086,13 @@ export function decodeNs2(bytes: Uint8Array): Ns2File {
   // followed by the 2-byte trailer (547).
   const dataOffset = legacyDataOffset(bytes, NS2_LAYOUT);
   const trailerBytes = legacyTrailerBytes(bytes);
-  // The u16 record version also sits in the CBIN version field (0x14, LE) on both headers.
-  const recordVersion = legacyRecordVersion(bytes);
+  // The record's own u16 version (in front of the data) is the one the firmware
+  // goes by; the CBIN version field (0x14, LE) carries a copy on both headers.
+  const own = legacyLayoutVersion(bytes, NS2_LAYOUT);
+  const recordVersion = own <= LAYOUT_VERSION ? own : legacyRecordVersion(bytes);
   const data = legacyData(bytes, dataOffset, trailerBytes);
-  if (data.length < NS2_LAYOUT.dataBytes) {
+  const whole = data.length >= NS2_LAYOUT.dataBytes;
+  if (!whole) {
     warnings.push(
       `This file is shorter than a Stage 2 program (${bytes.length} bytes, expected ` +
       `${dataOffset + NS2_LAYOUT.dataBytes + trailerBytes}); settings past the end show as 0.`,
@@ -1096,10 +1100,11 @@ export function decodeNs2(bytes: Uint8Array): Ns2File {
   }
   if (recordVersion > LAYOUT_VERSION) {
     warnings.push('This program was saved in a newer Stage 2 format than OpenNord knows; some settings may show wrong.');
-  } else if (recordVersion > 0 && recordVersion < LAYOUT_VERSION) {
+  } else if (recordVersion < LAYOUT_VERSION && whole) {
     warnings.push(
-      'This program was saved by an older Stage 2 OS. The Nord updates it when it loads it; ' +
-      'OpenNord shows the settings as stored.',
+      'This program was saved by an older Stage 2 OS. The Nord updates it when it loads it, ' +
+      'and OpenNord shows it updated the same way.',
+      ...convertNs2(data, recordVersion),
     );
   }
 

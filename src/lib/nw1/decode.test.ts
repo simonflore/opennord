@@ -90,6 +90,37 @@ describe('decodeNw1 (synthetic, firmware layout)', () => {
     expect(file[0x2c] & 0x0f).toBe(2 * 3 + 1);
   });
 
+  it('converts versions 6 and 7 as the firmware does: global 7 (v6), and Osc / LFO / Mod Env resets per slot', () => {
+    // Slot A: Osc 1 on waveform 4, sync off → Osc 1 Shape and its morphs 0; LFO 1 Dest 2 with Osc 2
+    // not on 4/5 → Dest 3; LFO 2 Dest 1 → LFO 2 Amount and morphs 0.
+    // Slot B: Osc 2 on waveform 5 → Osc 2 Shape and morphs 0; LFO 1 Dest 2 with Osc 1 not on 4/5 → 1;
+    // Mod Env Dest 1 → Mod Env Amount 64, morphs 0.
+    const values: Partial<Record<Nw1FieldKey, number>> = {
+      'global.param7': 70,
+      'slotA.param19': 4, 'slotA.param33': 0, 'slotA.param23': 90, 'slotA.param23MorphDeltaSrc5': -9,
+      'slotA.param5': 2, 'slotA.param24': 1, 'slotA.param10': 1, 'slotA.param13': 50, 'slotA.param13MorphDeltaSrc0': 12,
+      'slotA.param8': 33,
+      'slotB.param19': 0, 'slotB.param24': 5, 'slotB.param32': 77, 'slotB.param32MorphDeltaSrc6': 3,
+      'slotB.param5': 2, 'slotB.param17': 1, 'slotB.param16': 10, 'slotB.param16MorphDeltaSrc0': -5, 'slotB.param13': 40,
+    };
+    const v6 = decodeNw1(nwp(values, 6));
+    expect(v6.values).toMatchObject({
+      'global.param7': 40,
+      'slotA.param23': 0, 'slotA.param23MorphDeltaSrc5': 0, 'slotA.param5': 3, 'slotA.param8': 33,
+      'slotA.param13': 0, 'slotA.param13MorphDeltaSrc0': 0,
+      'slotB.param32': 0, 'slotB.param32MorphDeltaSrc6': 0, 'slotB.param5': 1,
+      'slotB.param16': 64, 'slotB.param16MorphDeltaSrc0': 0, 'slotB.param13': 40,
+    });
+    expect(v6.warnings.join(' ')).toMatch(/version 6.*converts it the same way/);
+    expect(decodeNw1(nwp(values, 7)).values['global.param7']).toBe(70); // version 6 only
+    expect(decodeNw1(nwp(values, 8)).values).toMatchObject({ 'slotA.param23': 90, 'slotB.param5': 2 }); // as stored
+    // Both oscillators on 4/5 with LFO 1 Dest 2: LFO 1 Amount 0, morphs kept; then LFO 1 Dest 3 → LFO 2 Amount 0.
+    const both = decodeNw1(nwp({
+      'slotA.param19': 5, 'slotA.param24': 4, 'slotA.param5': 2, 'slotA.param8': 20, 'slotA.param8MorphDeltaSrc0': 7,
+    }, 7)).values;
+    expect(both).toMatchObject({ 'slotA.param8': 0, 'slotA.param8MorphDeltaSrc0': 7, 'slotA.param5': 2 });
+  });
+
   it('notes the record versions the firmware converts; flags others and out-of-range values', () => {
     expect(decodeNw1(nwp({}, 7)).warnings.join(' ')).toContain('converts');
     expect(decodeNw1(nwp({}, 9)).warnings.join(' ')).toContain('Record version 9');

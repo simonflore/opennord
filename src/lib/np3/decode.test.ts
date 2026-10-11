@@ -40,10 +40,14 @@ describe('decodeNp3 (synthetic)', () => {
     expect(p.values['common.outLevel']).toBe(127);
   });
 
-  it('refuses another record version (header only)', () => {
-    const p = decodeNp3(np3p({}, 3));
+  it('reads a version 3 record as version 4 (the firmware converter only touches bits past the record); refuses 2', () => {
+    const v3 = decodeNp3(np3p({ 'piano.pianoType': 4 }, 3));
+    expect(v3.layoutMatched).toBe(true);
+    expect(v3.values['piano.pianoType']).toBe(4);
+    expect(v3.warnings.join(' ')).toMatch(/version 3.*converts it the same way/);
+    const p = decodeNp3(np3p({}, 2));
     expect(p.layoutMatched).toBe(false);
-    expect(p.warnings.join(' ')).toMatch(/version 3/);
+    expect(p.warnings.join(' ')).toMatch(/version 2/);
   });
 
   it('presents piano, sample synth and the effects that are on', () => {
