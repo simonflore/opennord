@@ -35,13 +35,10 @@ export function decodeNla(bytes: Uint8Array): NlaProgram {
   const data = legacyData(bytes);
   const { values, outOfRange } = readLegacyRecord(data, NLA_LAYOUT, performance ? NLAP_COMMON_BYTES : 0);
 
-  // Each delta row precedes its parameter; group them under the parameter, by source.
+  // The layout lists each parameter's deltas in source order; group them under it.
   const morphDeltas: Partial<Record<NlaFieldKey, number[]>> = {};
   for (const f of NLA_LAYOUT.fields) {
-    const source = / src(\d+)$/.exec(f.name);
-    const v = values[f.key];
-    if (!f.deltaOf || !source || v === undefined) continue;
-    (morphDeltas[f.deltaOf] ??= [])[Number(source[1])] = v;
+    if (f.deltaOf) (morphDeltas[f.deltaOf] ??= []).push(values[f.key] ?? 0);
   }
 
   return {

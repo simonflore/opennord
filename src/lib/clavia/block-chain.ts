@@ -16,8 +16,8 @@
  * Used today by the Grand (`ngp`), Piano 6 (`np6p`), Electro 6 (`ne6p`),
  * Electro 7 (`ne7p`), Organ 3 (`no3p`) and Wave 2 (`nw2p`) readers. The older
  * corpus-RE'd decoders (np4, np5, ng2) still use their own fixed offsets;
- * moving them onto this reader is a follow-up. The legacy formatType-0 records (Lead 4,
- * Lead A1, Electro 4) are not block chains — see legacy-record.ts.
+ * moving them onto this reader is a follow-up. The legacy formatType-0 records
+ * (Lead 4, Lead A1, Electro 4) are not block chains — see legacy-record.ts.
  * Pure; model → clavia.
  *
  * Never throws: an odd or truncated file yields a header-only result with a

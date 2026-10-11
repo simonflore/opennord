@@ -27,20 +27,19 @@
  * "enum A" (body[245]) the high bits of the 14-bit Delay Tempo and "B"
  * (body[248]) the FX morph count. Those readings are dropped.
  */
+import type { LegacyMorphEntry } from '../clavia/legacy-record';
 import type { Nl4FieldKey, Nl4PerfFieldKey } from './layout.generated';
 
 export type { Nl4FieldKey, Nl4PerfFieldKey };
 
-/** One used morph-list entry. */
-export interface Nl4MorphEntry {
-  /** Descriptor index within its set (slot set or FX set). */
-  readonly param: number;
+/**
+ * One used morph-list entry: descriptor index within its set, morph source
+ * 0-8 (the 9 sources hard-coded in FUN_c010a3b4; names unresolved), signed
+ * 8-bit delta.
+ */
+export interface Nl4MorphEntry extends LegacyMorphEntry {
   /** The field that index names, when it is a stored parameter. */
   readonly key?: Nl4FieldKey;
-  /** Morph source index, 0-8 (the 9 sources hard-coded in FUN_c010a3b4; names unresolved). */
-  readonly source: number;
-  /** Signed 8-bit delta. */
-  readonly delta: number;
 }
 
 /** One 315-byte program record: the whole `.nl4s` data, or one `.nl4p` slot. */
