@@ -36,8 +36,8 @@ export interface NlaProgram {
   readonly morphDeltas: Partial<Record<NlaFieldKey, readonly number[]>>;
   /**
    * `.nlap` only: performance-common parameters (c02a58c0). For a performance,
-   * `values` / `morphDeltas` are slot A, read at data byte 7 (medium: the
-   * firmware record leaves 12 bytes unplaced, so slots B-D are not read yet).
+   * `values` / `morphDeltas` are slot A, read at data byte 19 (after the 7
+   * common bytes and 12 bytes not yet named; slots B-D are not read yet).
    */
   readonly performance?: Partial<Record<NlaPerfFieldKey, number>>;
   /** Parameters outside their descriptor range (the firmware resets these to default on load). */

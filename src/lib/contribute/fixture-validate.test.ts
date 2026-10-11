@@ -7,6 +7,7 @@ import { synthFwBody, synthFwFile, synthLegacyLayoutFile, writeBits } from '../c
 import { sealFileChecksum } from '../clavia/checksum';
 import { NP3_LAYOUT } from '../np3/layout.generated';
 import { NE7_LAYOUT } from '../ne7/layout.generated';
+import { NW1_LAYOUT } from '../nw1/layout.generated';
 import { LEGACY_DATA_OFFSET } from '../clavia/legacy-record';
 import {
   checkProgram, validateBytes, validateArchive, summarizeRows, formatSummary, alignmentVerdict,
@@ -169,6 +170,13 @@ describe('summary', () => {
     const [s] = summarizeRows([validateBytes('a.ne7p', old, null)]);
     expect(s).toMatchObject({ programs: 1, readOk: 1, warned: 1, converted: 1, cleanReads: 0 });
     expect(alignmentVerdict(s)).toBe('0 of 1 read cleanly (1 with reader warnings) → alignment needs a look');
+  });
+
+  it('counts an older record OpenNord converts exactly as the firmware does as a clean read', () => {
+    const v7 = synthLegacyLayoutFile('nwp', NW1_LAYOUT, {}, { version: 7 });
+    const [s] = summarizeRows([validateBytes('a.nwp', v7, null)]);
+    expect(s).toMatchObject({ programs: 1, converted: 1, warned: 0, cleanReads: 1 });
+    expect(alignmentVerdict(s)).toBe('1 real file read cleanly → alignment looks right');
   });
 
   it('says a candidate layout needs a look when a file has out-of-range values', () => {
