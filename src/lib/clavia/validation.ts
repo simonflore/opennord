@@ -153,7 +153,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 'inferred', note: "sample generation not located in the firmware; codec4 is a guess (a {8,11,30,40} version map exists)" },
   },
   'piano-1': {
-    'file-read': { status: 'inferred', note: "OG sibling of stage-2 (re); nppg body codec not yet RE'd" },
+    'file-read': { status: 're', note: "nppg read-only reader (lib/np1) generated from the OS 1.50 firmware's own parameter descriptors: a 20-byte record (piano, effects; 29 parameters) with no version and no converter. Where the record starts in a .nppg file is a guess (0x1A, low) — values are provisional until a real file confirms it; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v4 in the OS 1.50 firmware (frames 3..4, no session lock); 6 partitions, Program at 3 (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v4 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v4 (firmware); WRITE — untested-write risk" },

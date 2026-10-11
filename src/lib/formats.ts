@@ -43,6 +43,8 @@ import { no3Codec } from './no3/codec';
 import type { No3Program } from './no3/types';
 import { np3Codec } from './np3/codec';
 import type { Np3Program } from './np3/types';
+import { np1Codec } from './np1/codec';
+import type { Np1Program } from './np1/types';
 import { np2Codec } from './np2/codec';
 import type { Np2Program } from './np2/types';
 import type { EngineSummary } from './clavia/engines';
@@ -60,7 +62,7 @@ export type NordProgram =
   | Nl4Program | NlaProgram
   | Ne4Program | Ne5Program
   | NgProgram | Np6Program | Ne7Program | No3Program
-  | Np3Program | Np2Program;
+  | Np3Program | Np1Program | Np2Program;
 
 /**
  * Every model OpenNord can decode. Add new codecs here as they land —
@@ -86,6 +88,7 @@ const CODECS: readonly ModelCodec<NordProgram>[] = [
   // Later ColdFire legacy records (clavia/legacy-program.ts): read-only.
   np3Codec,
   np2Codec,
+  np1Codec,
 ];
 
 /** True when `program` is a fully-structured NS4 program (has `kind`). */
