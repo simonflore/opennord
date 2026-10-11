@@ -19,6 +19,7 @@ import { identifyNordFile } from '../../lib/clavia/nord-file';
 import { ProgramExtern } from './ProgramExtern';
 import { SampleRefs } from './SampleRefs';
 import { AllParamsDrawer } from './AllParamsDrawer';
+import { useFileReadReport } from '../../lib/diagnostics/useFileReadReport';
 
 /**
  * Top-level Program Studio view — a pure function of NS4Program. Composes the
@@ -31,6 +32,9 @@ export function ProgramView({ program }: { program: NordProgram }) {
   const [scene, setScene] = useState<'I' | 'II'>(
     isNs4Program(program) ? (program.activeScene ?? 'I') : 'I'
   );
+  // Every opened program — Library (imported, folder, backup) and device — comes
+  // through here, so this is the one place the opt-in file-support report fires.
+  useFileReadReport(program.bytes);
 
   // Non-NS4 models (Electro/Piano/Grand/Wave/Lead) render through the shared
   // decoded-program view via their presenter — the Stage-oracle-confirmed fields
