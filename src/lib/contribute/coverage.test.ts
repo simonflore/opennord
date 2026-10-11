@@ -147,13 +147,23 @@ describe('parameter counts of the legacy-record readers', () => {
   });
 });
 
+describe('parameter counts of the later ColdFire readers', () => {
+  it('count each stored parameter once (Electro 5 presets, Stage panels A/B), without the Stage morph deltas', () => {
+    const counts = Object.fromEntries(['electro-5', 'piano-3', 'piano-2', 'piano-1', 'stage-classic', 'c2']
+      .map((id) => [id, decodeForModel(id).paramCount]));
+    expect(counts).toEqual({ 'electro-5': 129, 'piano-3': 76, 'piano-2': 52, 'piano-1': 29, 'stage-classic': 199, c2: 139 });
+    expect(decodeForModel('stage-ex').paramCount).toBe(counts['stage-classic']);
+  });
+});
+
 describe('fullMap', () => {
   it('is set for the firmware-layout and legacy-record readers except Wave 2, and for the Stage 4', () => {
     for (const id of ['stage-4', 'stage-3', 'grand', 'grand-2', 'piano-4', 'piano-5', 'piano-6', 'electro-6', 'electro-7', 'organ-3', 'lead-4', 'lead-a1', 'electro-4', 'stage-2', 'stage-2-ex',
-      'electro-5']) {
+      'electro-5', 'piano-3', 'piano-2', 'piano-1', 'c2']) {
       expect(decodeForModel(id).fullMap, id).toBe(true);
     }
-    for (const id of ['wave-2', 'wave', 'electro-3']) {
+    // Stage Classic / EX: the record is mapped, but files open header-only until its start is confirmed.
+    for (const id of ['wave-2', 'wave', 'electro-3', 'stage-classic', 'stage-ex']) {
       expect(decodeForModel(id).fullMap, id).toBe(false);
     }
   });
