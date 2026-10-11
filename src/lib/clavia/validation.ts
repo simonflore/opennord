@@ -214,7 +214,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 'unsupported', note: "sampleCodec null in partitions.ts; no sample engine on Lead 4" },
   },
   'lead-a1': {
-    'file-read': { status: 're', note: "CBIN container identify validated against 52 real .nlap/.nlas fixtures; no model-specific body decoder; not HW-tested. The OS 1.36 firmware puts the record at file 0x1A" },
+    'file-read': { status: 're', note: "CBIN container identify validated against 52 real .nlap/.nlas fixtures; not HW-tested. Body read from file 0x1A through the OS 1.36 firmware descriptor layout (lib/nla: slot + FX sets, inline morph deltas); parameters named by CC only, alignment medium until checked against the corpus" },
     enumerate: { status: 're', note: "FileTransfer present in the OS 1.36 firmware — the Lead 4's code (registration, frames 3..8, begin); version 8; 3 partitions: 0 Program nlas, 1 Performance nlap, 2 Settings nlat. SysEx is an extra path, not the only one. Untested on HW; USB PID unconfirmed (NSM CMini 0x25 likely)" },
     pull: { status: 're', note: "FileTransfer Download in the A1 firmware (same code as Lead 4, v8); read-only, untested on HW" },
     push: { status: 're', note: "FileTransfer Upload in the A1 firmware (same code as Lead 4, v8); WRITE — untested-write risk" },
