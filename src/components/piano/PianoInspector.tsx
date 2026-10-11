@@ -75,7 +75,7 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
   ].filter(Boolean).join(' · ');
 
   return (
-    <div className="ps" style={{ maxWidth: 460 }}>
+    <div className="ps" style={{ maxWidth: 720 }}>
       <div className="ps-hd">
         <div className="ps-hd-id">
           <IdentityLcd name={entry.name} lines={[`Piano library · ${sourceLabel}`, ...(detail ? [detail] : [])]} />
