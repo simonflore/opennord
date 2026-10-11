@@ -186,7 +186,7 @@ export function SamplesBrowse(
       {/* Reclaim bar — shown when at least one sample is selected */}
       {selected.size > 0 && (
         <div
-          className="sticky top-0 z-[2] mb-3 flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-2.5"
+          className="sticky top-[var(--sticky-top)] z-[2] mb-3 flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-2.5"
           role="region"
           aria-label="Selected samples"
         >

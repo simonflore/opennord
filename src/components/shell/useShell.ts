@@ -34,7 +34,11 @@ export function useRailData() {
       .filter((s) => s.count > 0 || s.live || s.source === activeSource);
   }, [programs, live, activeSource]);
   // A source shows all of that source's programs: the list's other filters go.
-  const onPickSource = useCallback((source: LibrarySource) => { clearFilters(); setSource(source); }, [clearFilters, setSource]);
+  // 'all' only lifts the source filter.
+  const onPickSource = useCallback((source: LibrarySource | 'all') => {
+    if (source !== 'all') clearFilters();
+    setSource(source);
+  }, [clearFilters, setSource]);
 
   return { counts, sources, activeSource, onPickSource };
 }

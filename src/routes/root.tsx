@@ -34,8 +34,11 @@ function AppShell({ path }: { path: string }) {
   // line") opens the palette, or closes it again; it never opens over another dialog.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // By physical key, so it works on any layout (Cyrillic, Greek…).
-      if (e.code !== 'KeyK' || !(isApple ? e.metaKey : e.ctrlKey)) return;
+      // The letter K as typed (Dvorak, Colemak…); on a non-Latin layout (Cyrillic,
+      // Greek…) the key in K's place. e.key can be missing (autofill).
+      const key = e.key?.toLowerCase() ?? '';
+      const isK = key === 'k' || (!/^[a-z]$/.test(key) && e.code === 'KeyK');
+      if (!isK || !(isApple ? e.metaKey : e.ctrlKey)) return;
       e.preventDefault();
       setPalette((open) => !open && !document.querySelector('[role="dialog"]'));
     };
@@ -50,7 +53,7 @@ function AppShell({ path }: { path: string }) {
         <ShellRail path={path} onNavigate={(to) => navigate({ to })} />
         {/* Plain "on-content" class kept as a hook: `[data-native] .on-content` in
             shell.css layers Capacitor safe-area insets on top of the utilities below. */}
-        <main className="on-content min-w-0 flex-1 max-w-[1100px] px-6 py-4 max-[720px]:px-4 max-[720px]:py-3 max-[720px]:pb-20">
+        <main className="on-content min-w-0 flex-1 max-w-[1100px] px-6 py-4 max-[720px]:px-4 max-[720px]:py-3">
           {/* resetKey: navigating clears a caught error, so one bad program
               view doesn't dead-end the content pane for the whole session. */}
           <ErrorBoundary resetKey={path}>

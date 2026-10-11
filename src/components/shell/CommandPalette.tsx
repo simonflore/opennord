@@ -10,7 +10,7 @@ import { useSamplesState } from '../../lib/library/SamplesContext';
 import { usePianosState } from '../../lib/library/PianosContext';
 import { openProgram } from '../library/openProgram';
 import { rankCommands, type Command } from './commands';
-import { ABOUT, DEV_DESTS, useTools } from './nav';
+import { ABOUT, COMMUNITY_SUB, COMMUNITY_TO, DEV_DESTS, useTools } from './nav';
 import { groupLabel, rowActive } from './styles';
 
 const hint = (e: { slot?: string; source: LibrarySource }) => e.slot ?? SOURCE_LABEL[e.source];
@@ -35,8 +35,9 @@ function useCommands(): Command[] {
   return useMemo(() => {
     const pages: Command[] = [
       ...READY_CATEGORIES.map((c) => ({ to: c.path, label: c.label })),
-      // A tool that can't be used here (Device without USB) is left out, as the rail greys it out.
-      ...tools.filter((d) => !d.disabled),
+      ...tools,
+      // Community's own pages, reachable from here too (the phone has no rail).
+      ...(tools.some((d) => d.to === COMMUNITY_TO) ? COMMUNITY_SUB.filter((d) => d.to !== COMMUNITY_TO) : []),
       ...(__RE__ ? DEV_DESTS : []),
       ABOUT,
     ].map((d) => ({ id: `page:${d.to}`, group: 'Pages', label: d.label, run: () => navigate({ to: d.to }) }));
@@ -83,6 +84,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
   const [index, setIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const pointer = useRef<{ x: number; y: number } | null>(null);
   const results = useMemo(() => rankCommands(commands, query), [commands, query]);
   // The highlighted row, kept inside the results (they can shrink while open).
   const active = results.length === 0 ? -1 : Math.min(Math.max(index, 0), results.length - 1);
@@ -130,7 +132,14 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
               data-index={i}
               role="option"
               aria-selected={i === active}
-              onMouseMove={() => setIndex(i)}
+              onMouseMove={(e) => {
+                // Only a real pointer move picks a row: scrolling the list under a
+                // resting pointer (↑/↓) must not steal the keyboard's highlight.
+                const last = pointer.current;
+                pointer.current = { x: e.clientX, y: e.clientY };
+                if (last && last.x === e.clientX && last.y === e.clientY) return;
+                setIndex(i);
+              }}
               onClick={() => run(c)}
               className={cn(
                 'flex cursor-pointer items-center gap-3 px-4 py-1.5 font-mono text-xs',
