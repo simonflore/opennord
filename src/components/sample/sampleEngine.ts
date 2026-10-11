@@ -13,7 +13,7 @@
 import type { PlayableZone } from '../../lib/ns4/playable-zones';
 import type { DecodedStrokeResult, NoteAlternates, SampleUnison } from '../../lib/ns4/nsmp';
 import { normalizeChannels, toAudioBuffer } from '../../lib/ns4/nsmp-audio';
-import { NSMP_SAMPLE_RATE } from '../../lib/ns4/nsmp';
+import { NSMP_SAMPLE_RATE, unisonDetuneRawToCents } from '../../lib/ns4/nsmp';
 import { getSharedCtx } from './audioPlayer';
 
 /** Loop region of a stroke in seconds (for AudioBufferSourceNode loop points).
@@ -104,7 +104,7 @@ const BUILT_IN_UNISON_PAN: readonly [number, number] = [0.9327, 0.3606];
  */
 export function unisonDetuneCents(level: number, key: number, u: SampleUnison | null): number {
   if (level <= 0) return 0;
-  if (u?.custom) return [u.detuneMax, u.detuneMax2, u.detuneMax3][Math.min(level, 3) - 1] * 25 * CENTS_PER_PITCH_UNIT;
+  if (u?.custom) return unisonDetuneRawToCents([u.detuneMax, u.detuneMax2, u.detuneMax3][Math.min(level, 3) - 1]);
   return Math.min(512 * level * 2 ** ((60 - key) / 20), 2560) * CENTS_PER_PITCH_UNIT;
 }
 
@@ -139,7 +139,7 @@ export function unisonVoices(level: number, key: number, u: SampleUnison | null,
   }
   const partner = alts[0] ?? key;
   // Two voices on one recording at Unison 1 take the sample's "same recording" detune.
-  if (partner === key && level === 1 && u?.custom) d = u.sameDetuneMin * 25 * CENTS_PER_PITCH_UNIT;
+  if (partner === key && level === 1 && u?.custom) d = unisonDetuneRawToCents(u.sameDetuneMin);
   return [
     { sourceKey: key, detuneCents: d, gainL: a, gainR: b },
     { sourceKey: partner, detuneCents: -d, gainL: b, gainR: a },
@@ -278,7 +278,12 @@ export function createSampler(
   const variesRepeats = (unison?.randomStrokeMode ?? 0) !== 0;
   const strikes = new Map<number, number>(); // key → note-ons so far (the repeat step)
   const buffers = new Map<number, AudioBuffer>(); // globalID → decoded audio (lazy)
-  const live = new Map<number, { srcs: { src: AudioBufferSourceNode; gain: GainNode }[]; voice: Voice; release: number }>();
+  type Playing = { src: AudioBufferSourceNode; gain: GainNode };
+  /** A held note: its voices, and the level its envelope has reached at a given time
+   *  (computed from the schedule — an automated AudioParam's `.value` isn't reliable). */
+  const live = new Map<number, { srcs: Playing[]; voice: Voice; release: number; levelAt: (time: number) => number }>();
+  /** Voices fading out after key-up or a steal, oldest first; they still hold a slot. */
+  const fading: Playing[] = [];
 
   function bufferFor(ctx: AudioContext, globalID: number): AudioBuffer | null {
     const cached = buffers.get(globalID);
@@ -298,35 +303,52 @@ export function createSampler(
     const now = ctx.currentTime;
     // Linear release from the current level to silence, on every voice of the stack
     // — works for both the flat path (release = RELEASE) and a scheduled ADSR.
-    for (const { src, gain } of v.srcs) {
-      gain.gain.cancelScheduledValues(now);
-      gain.gain.setValueAtTime(gain.gain.value, now);
-      gain.gain.linearRampToValueAtTime(0, now + v.release);
-      try { src.stop(now + v.release); } catch { /* already stopped */ }
+    const level = v.levelAt(now);
+    for (const p of v.srcs) {
+      p.gain.gain.cancelScheduledValues(now);
+      p.gain.gain.setValueAtTime(level, now);
+      p.gain.gain.linearRampToValueAtTime(0, now + v.release);
+      try { p.src.stop(now + v.release); } catch { /* already stopped */ }
+      fading.push(p);
     }
   }
 
-  /** Take a sounding note's voices for a new one: the DSP's fast exponential fade. */
-  function steal(midi: number): void {
+  /** Cut a voice short for a new one: the DSP's fast exponential fade. */
+  function cut(p: Playing, now: number): void {
+    p.gain.gain.cancelScheduledValues(now);
+    p.gain.gain.setTargetAtTime(0, now, STEAL_TIME_CONSTANT);
+    try { p.src.stop(now + STEAL_FADE); } catch { /* already stopped */ }
+  }
+
+  /** A voice ended (played out, decayed away, or finished fading): give its slot back,
+   *  and forget the note once its last voice is gone. */
+  function ended(midi: number, p: Playing): void {
+    const f = fading.indexOf(p);
+    if (f >= 0) fading.splice(f, 1);
     const v = live.get(midi);
     if (!v) return;
-    live.delete(midi);
-    const now = getSharedCtx().currentTime;
-    for (const { src, gain } of v.srcs) {
-      gain.gain.cancelScheduledValues(now);
-      gain.gain.setTargetAtTime(0, now, STEAL_TIME_CONSTANT);
-      try { src.stop(now + STEAL_FADE); } catch { /* already stopped */ }
-    }
+    const i = v.srcs.indexOf(p);
+    if (i < 0) return;
+    v.srcs.splice(i, 1);
+    if (v.srcs.length === 0) live.delete(midi);
   }
 
-  /** Free `needed` voice slots, oldest note first (`live` keeps note-on order). */
+  /** Free `needed` voice slots: voices already fading go first, then the oldest held
+   *  note (`live` keeps note-on order). A cut voice keeps its slot only for the 9 ms of
+   *  its fade, which the count ignores. */
   function makeRoom(needed: number): void {
-    let used = 0;
+    const now = getSharedCtx().currentTime;
+    let used = fading.length;
     for (const v of live.values()) used += v.srcs.length;
+    while (used + needed > MAX_VOICES && fading.length > 0) {
+      cut(fading.shift()!, now);
+      used--;
+    }
     for (const [midi, v] of [...live]) {
       if (used + needed <= MAX_VOICES) return;
       used -= v.srcs.length;
-      steal(midi);
+      live.delete(midi);
+      for (const p of v.srcs) cut(p, now);
     }
   }
 
@@ -382,8 +404,12 @@ export function createSampler(
       const t0 = ctx.currentTime;
       const release = e ? e.release : RELEASE;
       const baseRate = playbackRate(first.zone.rootKey, midi) * detuneMul;
+      // The instrument's unison gains leave no headroom over a single voice, and these
+      // buffers are normalised to full scale: scale the stack back so that even voices
+      // in phase (one recording doubled) stay within it.
+      const headroom = 1 / Math.max(1, ...[0, 1].map((ch) => voices.reduce((sum, { uv }) => sum + (ch ? uv.gainR : uv.gainL), 0)));
 
-      const srcs = voices.flatMap(({ uv, source }) => {
+      const srcs: Playing[] = voices.flatMap(({ uv, source }) => {
         if (!source) return [];
         const src = ctx.createBufferSource();
         src.buffer = source.buf;
@@ -409,16 +435,18 @@ export function createSampler(
         } else {
           src.connect(gain);
         }
-        connectOut(ctx, gain, uv.gainL, uv.gainR);
+        connectOut(ctx, gain, uv.gainL * headroom, uv.gainR * headroom);
         src.start();
         if (decay) src.stop(t0 + decay.at + (DECAY_STOP_DB / DB_PER_NEPER) * decay.timeConstant);
-        return [{ src, gain }];
+        const playing = { src, gain };
+        src.onended = () => ended(midi, playing);
+        return [playing];
       });
 
       const voice: Voice = { midi, globalID: first.zone.globalID, startedAt: t0, rate: baseRate };
-      // Clean up the key when the primary source ends, if it's still ours.
-      srcs[0].src.onended = () => { if (live.get(midi)?.srcs[0]?.src === srcs[0].src) live.delete(midi); };
-      live.set(midi, { srcs, voice, release });
+      const levelAt = (time: number): number =>
+        (e ? envGainAt(e, peak, time - t0, null) : peak * Math.min(1, Math.max(0, (time - t0) / START_FADE)));
+      live.set(midi, { srcs, voice, release, levelAt });
     },
     noteOff,
     stopAll() { for (const midi of [...live.keys()]) noteOff(midi); },

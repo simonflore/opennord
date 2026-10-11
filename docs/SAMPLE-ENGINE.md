@@ -141,8 +141,12 @@ Not traced: velocity-layer switching on this path, key-up handling, the steal or
 
 ## 3. Voices, resampling and gain on the DSP (voice limit and fades implemented)
 
-- **56 voice slots.** **High.** The player caps at 56 and takes the oldest note first; the
-  instrument's own steal order is not traced.
+- **56 voice slots.** **High.** The player caps at 56, counting voices still fading after
+  key-up; it cuts those first, then the oldest held note. The instrument's own steal order is
+  not traced.
+- **Headroom is ours.** The unison gains of §2.2 leave none over a single voice, and the
+  player's buffers are normalised to full scale, so it scales a stack back until its voices
+  cannot sum above full scale. Unison is therefore not louder than a single voice here.
 - **Resampling** is on the sample DSP: 12 taps × 256 phases, Kaiser-windowed sinc; six kernels
   with cutoffs from 1.10 down to 0.895 of the source Nyquist, chosen by key octave. Pitch-up is
   allowed, to 4×. Pitch and gate arrive from the synth voice over the audio bus. **High**
