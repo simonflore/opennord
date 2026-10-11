@@ -46,6 +46,10 @@ function useLibraryStateValue() {
   const categoriesPresent = presentCategories(allEntries);
   const shown = sortEntries(filterEntries(allEntries, source, query, generation, category), prefs.sort, prefs.favorites);
   const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
+  // Whether any filter is narrowing the list; clearFilters undoes exactly these.
+  const filtered = query.trim() !== '' || source !== 'all'
+    || (generationsPresent.length > 1 && generation !== 'all')
+    || (categoriesPresent.length > 1 && category !== 'all');
   const ensureListed = useEnsureListed(shown, clearFilters);
 
   function importFile() {
@@ -80,7 +84,7 @@ function useLibraryStateValue() {
   }
 
   return {
-    all: allEntries, clearFilters, ensureListed,
+    all: allEntries, clearFilters, filtered, ensureListed,
     shown, source, setSource, generation, setGeneration, generationsPresent,
     category, setCategory, categoriesPresent, query, setQuery,
     importFile, importError, clearImportError: () => setImportError(''), imported, prefs, folder, entryById,

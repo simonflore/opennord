@@ -4,13 +4,9 @@ import { SampleInspector, type InspectorInput } from './SampleInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
 import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSamplesState } from '@/lib/library/SamplesContext';
-import { useDevice } from '@/lib/device/DeviceContext';
-import { pullSample } from '@/lib/device/samples';
 import { useSplitLayout } from '@/lib/responsive';
 import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
-import { useFolder } from '@/lib/folder/FolderContext';
-import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 import { useNavigate } from '@tanstack/react-router';
 import { openSample } from '@/components/library/openEntry';
 
@@ -24,63 +20,42 @@ import { openSample } from '@/components/library/openEntry';
 export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = useSamplesState();
-  const { session } = useDevice();
-  const folder = useFolder();
   // The thing currently shown in the detail pane: pulled/folder bytes, or null.
   const [inspect, setInspect] = useState<InspectorInput | null>(null);
   const [loadNew, setLoadNew] = useState(false);
   const [pullPct, setPullPct] = useState<number | null>(null);
   const [pullError, setPullError] = useState('');
+  // An import that wasn't a sample file: shown above the list, apart from the open sample.
+  const [importError, setImportError] = useState('');
   const navigate = useNavigate();
 
   // The route names the open sample; `attempt` bumps to retry it. The effect
-  // reads that sample's bytes (pulling from the Nord or a backup when it lives
-  // there), and its cleanup drops a read that a newer route, a retry or leaving
-  // has overtaken. The read in flight is shared by key (sample, attempt and
-  // Nord session), so StrictMode's second effect run doesn't pull twice; a
-  // failed read is forgotten, so opening the sample again retries it. Session,
-  // folder and the lookup are read through a ref: they change identity often,
-  // and must not restart a pull.
+  // asks the context for its bytes (readSample shares a read already running,
+  // so StrictMode doesn't pull twice), and its cleanup ignores a read that a
+  // newer route, a retry or leaving has overtaken. The lookup and reader are
+  // read through a ref: they change identity often, and must not restart a read.
   const [attempt, setAttempt] = useState(0);
   const known = !!(selectedId && s.entryById(selectedId));
-  const io = useRef({ entryById: s.entryById, session, folder });
-  useEffect(() => { io.current = { entryById: s.entryById, session, folder }; });
-  const reading = useRef<{ key: string; session: unknown; bytes: Promise<Uint8Array> } | null>(null);
+  const io = useRef({ entryById: s.entryById, readSample: s.readSample });
+  useEffect(() => { io.current = { entryById: s.entryById, readSample: s.readSample }; });
 
   useEffect(() => {
     if (!selectedId) {
-      reading.current = null;
       setInspect((i) => (i?.id ? null : i)); // leaving a sample closes it (a preview stays)
       return;
     }
     setLoadNew(false);
     setPullError('');
-    const { entryById, session: sess, folder: dir } = io.current;
-    const e = entryById(selectedId);
-    if (!e) { setInspect(null); return; } // named but not (yet) in the list
-    if (e.source === 'local' && e.bytes) { setInspect({ id: e.id, bytes: e.bytes, name: e.name }); return; }
-
-    let cancelled = false;
-    const key = `${e.id}#${attempt}`;
-    if (reading.current?.key !== key || reading.current.session !== sess) {
-      // Progress goes to whichever run is current for this key, not the run that started it.
-      const progress = (done: number, total: number) => {
-        if (reading.current?.key === key) setPullPct(total ? Math.round((done / total) * 100) : 0);
-      };
-      const read = e.source === 'nord' && e.device && sess ? pullSample(sess, e.device, progress)
-        : e.source === 'backup' && e.backupRef ? extractBackupEntry(dir, e.backupRef) : null;
-      if (!read) { setInspect(null); return; }
-      reading.current = { key, session: sess, bytes: read };
-    }
-    const current = reading.current;
     setInspect(null);
-    setPullPct(0);
-    current.bytes.then(
-      (bytes) => { if (!cancelled) setInspect({ id: e.id, bytes, name: e.name, factory: e.factory }); },
-      (err) => {
-        if (reading.current === current) reading.current = null; // retry on the next open
-        if (!cancelled) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
-      },
+    const e = io.current.entryById(selectedId);
+    if (!e) return; // named but not (yet) in the list
+    let cancelled = false;
+    const bytes = io.current.readSample(e, (pct) => { if (!cancelled) setPullPct(pct); });
+    if (!bytes) return;
+    if (e.source !== 'local') setPullPct(0);
+    bytes.then(
+      (b) => { if (!cancelled) setInspect({ id: e.id, bytes: b, name: e.name, factory: e.factory }); },
+      (err) => { if (!cancelled) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`); },
     ).finally(() => { if (!cancelled) setPullPct(null); });
     return () => { cancelled = true; setPullPct(null); };
   }, [selectedId, known, attempt]);
@@ -102,10 +77,10 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
       cleanup();
       if (!f) return;
       if (!['.nsmp', '.nsmp3', '.nsmp4'].some((e) => f.name.toLowerCase().endsWith(e))) {
-        setPullError(`“${f.name}” isn’t a Nord sample (.nsmp, .nsmp3 or .nsmp4). Programs belong on the Library page.`);
+        setImportError(`“${f.name}” isn’t a Nord sample (.nsmp, .nsmp3 or .nsmp4). Programs belong on the Library page.`);
         return;
       }
-      setPullError('');
+      setImportError('');
       const bytes = await readFileBytes(f);
       await s.importSample(f);                  // persist + add to the list
       toList();
@@ -116,11 +91,9 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     input.click();
   }
 
-  const status = pullPct !== null
-    ? <p className="ps-sub">Pulling sample… {pullPct}%</p>
-    : pullError
-      ? <p className="ps-sub" role="alert">{pullError}</p>
-      : null;
+  // The open sample's progress and errors show in the detail; only an import
+  // problem shows above the list.
+  const status = importError ? <p className="ps-sub" role="alert">{importError}</p> : null;
 
   const list = (
     <div className="lib-master">
@@ -131,7 +104,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         nordCount={s.nordCount} localCount={s.localCount}
         showSourceFacet={s.showSourceFacet} showUnknownGen={s.showUnknownGen}
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
-        onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters}
+        onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters} filtered={s.filtered}
         // Clicking the open sample again retries it, but only when it didn't open.
         onOpen={(e) => (e.id !== selectedId ? openSample(navigate, e.id) : !inspect && pullPct === null && setAttempt((n) => n + 1))}
         onLoadNew={startLoadNew}
@@ -162,7 +135,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const detail = loadNew || inspect ? inspector
     : !selectedId ? <EmptyNote>Pick a sample to inspect it.</EmptyNote>
     : !known ? <EmptyNote>This sample isn’t in your library (yet). Pick it from the list.</EmptyNote>
-    : pullError ? <EmptyNote>{pullError} Click it in the list to try again.</EmptyNote>
+    : pullError ? <div role="alert"><EmptyNote>{pullError} Click it in the list to try again.</EmptyNote></div>
     : <EmptyNote>Reading the sample… {pullPct ?? 0}%</EmptyNote>;
 
   return (

@@ -29,7 +29,7 @@ function fmtMB(bytes: number): string {
 }
 
 export function PianosBrowse({
-  entries, source, setSource, query, setQuery, clearFilters,
+  entries, source, setSource, query, setQuery, clearFilters, filtered,
   showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect, activeId,
   // Piano-usage cleanup (device-connected)
   canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly,
@@ -44,6 +44,8 @@ export function PianosBrowse({
   query: string; setQuery: (q: string) => void;
   /** Every filter off and the search cleared (from the list's context). */
   clearFilters: () => void;
+  /** Whether any filter or search is narrowing the list (from the list's context). */
+  filtered: boolean;
   showSourceFacet: boolean;
   sort: PianoSort; setSort: (s: PianoSort) => void;
   isFavorite: (id: string) => boolean;
@@ -83,7 +85,6 @@ export function PianosBrowse({
 
   const sortOptions = (Object.keys(SORT_LABEL) as PianoSort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }));
 
-  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || unusedOnly;
 
   // Confirm-remove dialog state
   const selectedEntries = entries.filter((e) => selected.has(e.id));

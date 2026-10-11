@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { NordTransport } from '../../lib/device/transport';
 import { WebUsbTransport } from '../../lib/device/webusb';
-import { CapacitorUsbTransport, nordUsbAvailable, usbAvailability } from '../../lib/device/capacitor-usb';
+import { CapacitorUsbTransport, usbAvailability } from '../../lib/device/capacitor-usb';
+import { useIpadDriverReady } from '../../lib/device/useIpadDriverReady';
 import { ElectronUsbTransport } from '../../lib/device/electron-usb';
 import { NordSession } from '../../lib/device/session';
 import { NordStatus, SessionRefusedError } from '../../lib/device/protocol';
@@ -95,19 +96,7 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
 
   const reach = usbAvailability();
   // null = probing; only meaningful on the iPad native path.
-  const [ipadReady, setIpadReady] = useState<boolean | null>(
-    reach === 'ipad-dext-pending' ? null : false,
-  );
-  useEffect(() => {
-    if (reach !== 'ipad-dext-pending') return;
-    let alive = true;
-    nordUsbAvailable().then((ok) => {
-      if (alive) setIpadReady(ok);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [reach]);
+  const ipadReady = useIpadDriverReady(reach === 'ipad-dext-pending');
 
   // Desktop app, Windows only: without the UsbDk runtime, older Nords (e.g. the
   // Stage 2) still can't be reached — the app silently falls back to the same

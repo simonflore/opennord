@@ -41,9 +41,7 @@ const folder = (over: Partial<FolderLibrary> = {}): FolderLibrary => ({
 });
 
 // Props common to every render; entries/source vary per test.
-const handlers = { onSource: () => {}, onQuery: () => {}, clearFilters: () => {}, onOpen: () => {}, onImport: () => {}, onRemove: () => {} };
-
-/** Pull the `<button>…</button>` whose text content is exactly `label`. */
+const handlers = { onSource: () => {}, onQuery: () => {}, clearFilters: () => {}, filtered: false, onOpen: () => {}, onImport: () => {}, onRemove: () => {} };
 
 /** True when a rendered tag carries the actual `disabled` DOM attribute —
  * distinct from the always-present `disabled:…` Tailwind variant classes the

@@ -50,9 +50,11 @@ function usePresetsStateValue() {
 
   /** Every filter off and the search cleared (the list's "clear filters"). */
   const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setKind('all'); }, []);
+  // Whether any filter is narrowing the list; clearFilters undoes exactly these.
+  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || kind !== 'all';
   const ensureListed = useEnsureListed(shown, clearFilters);
   return {
-    all: allEntries, clearFilters, ensureListed,
+    all: allEntries, clearFilters, filtered, ensureListed,
     shown, source, setSource, kind, setKind, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, kinds, folder, session,
     importPreset: imported.add, removePreset: imported.remove,
