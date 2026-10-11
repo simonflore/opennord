@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { useFocusRequest } from '@/components/library/useFocusRequest';
+import { useNavigate } from '@tanstack/react-router';
 import { usePianosState } from '@/lib/library/PianosContext';
 import { PianosBrowse } from './PianosBrowse';
 import { PianoInspector } from './PianoInspector';
@@ -7,13 +6,16 @@ import { CategorySplit } from '@/components/library/CategorySplit';
 import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSplitLayout } from '@/lib/responsive';
 
-/** Pianos master/detail: the browse list + a thin piano inspector. */
-export function PianosSplit() {
+/**
+ * Pianos master/detail: the browse list + a thin piano inspector.
+ * `/library/pianos` and `/library/pianos/$pianoId` both render this; the open
+ * piano comes from the route.
+ */
+export function PianosSplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = usePianosState();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const navigate = useNavigate();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
-  useFocusRequest(s, (e) => setSelectedId(e.id));
 
   const list = (
     <div className="lib-master">
@@ -24,7 +26,7 @@ export function PianosSplit() {
         showSourceFacet={s.showSourceFacet}
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
-        onSelect={(e) => setSelectedId(e.id)}
+        onSelect={(e) => navigate({ to: '/library/pianos/$pianoId', params: { pianoId: e.id } })}
         activeId={selectedId}
         canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct}
         unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
@@ -47,7 +49,7 @@ export function PianosSplit() {
       master={list}
       detail={detail}
       hasDetail={!!entry}
-      onBack={() => setSelectedId(null)}
+      onBack={() => navigate({ to: '/library/pianos' })}
       backLabel="← Pianos"
     />
   );

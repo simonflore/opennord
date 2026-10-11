@@ -25,13 +25,16 @@ function useCommands(): Command[] {
   const presets = usePresetsState();
   const samples = useSamplesState();
   const pianos = usePianosState();
-  // Only the (memoised) lists and their stable setters go into the memo, so a
+  // Only the (memoised) lists and their stable callbacks go into the memo, so a
   // provider update that doesn't touch the lists keeps the same commands.
   const lists = useMemo(() => [
-    { group: 'Presets' as const, to: '/library/presets' as const, all: presets.all, focus: presets.setFocusId },
-    { group: 'Samples' as const, to: '/library/samples' as const, all: samples.all, focus: samples.setFocusId },
-    { group: 'Pianos' as const, to: '/library/pianos' as const, all: pianos.all, focus: pianos.setFocusId },
-  ], [presets.all, presets.setFocusId, samples.all, samples.setFocusId, pianos.all, pianos.setFocusId]);
+    { group: 'Presets' as const, all: presets.all, ensureListed: presets.ensureListed,
+      open: (id: string) => navigate({ to: '/library/presets/$presetId', params: { presetId: id } }) },
+    { group: 'Samples' as const, all: samples.all, ensureListed: samples.ensureListed,
+      open: (id: string) => navigate({ to: '/library/samples/$sampleId', params: { sampleId: id } }) },
+    { group: 'Pianos' as const, all: pianos.all, ensureListed: pianos.ensureListed,
+      open: (id: string) => navigate({ to: '/library/pianos/$pianoId', params: { pianoId: id } }) },
+  ], [navigate, presets.all, presets.ensureListed, samples.all, samples.ensureListed, pianos.all, pianos.ensureListed]);
 
   return useMemo(() => {
     const pages: Command[] = [
@@ -48,10 +51,10 @@ function useCommands(): Command[] {
       run: () => { ensureListed(e.id); openProgram(navigate, e); },
     }));
 
-    // Presets, samples and pianos open in their list's page (useFocusRequest there).
-    const entries = lists.flatMap(({ group, to, all, focus }) => all.map((e): Command => ({
+    // Every entry opens on its own route, with its list showing its row.
+    const entries = lists.flatMap(({ group, all, ensureListed: listed, open }) => all.map((e): Command => ({
       id: `${group}:${e.id}`, group, label: e.name, hint: hint(e), keywords: e.slot,
-      run: () => { focus(e.id); navigate({ to }); },
+      run: () => { listed(e.id); open(e.id); },
     })));
 
     return [...pages, ...programCommands, ...entries];
@@ -63,10 +66,16 @@ function useCommands(): Command[] {
  * name. ↑/↓ move, Enter opens, Escape closes. With nothing typed it lists the
  * pages, so on a phone it doubles as the "more" menu.
  */
-export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CommandPalette({ open, onClose, menu }: {
+  open: boolean;
+  onClose: () => void;
+  /** Opened as the phone's More menu: no focus on the search, so no keyboard over the pages. */
+  menu?: boolean;
+}) {
   return (
     <Dialog
       bare
+      autoFocus={!menu}
       open={open}
       onClose={onClose}
       title="Go to"
@@ -82,7 +91,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 function PaletteBody({ onClose }: { onClose: () => void }) {
   const commands = useCommands();
   const [query, setQuery] = useState('');
-  const [index, setIndex] = useState(0);
+  // The highlighted command, by id, so results that change while open (a scan
+  // adding entries) can't swap it for another; null means the top result.
+  const [activeId, setActiveId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const results = useMemo(() => rankCommands(commands, query), [commands, query]);
@@ -96,8 +107,8 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
     });
     return out;
   }, [results]);
-  // The highlighted row, kept inside the results (they can shrink while open).
-  const active = results.length === 0 ? -1 : Math.min(Math.max(index, 0), results.length - 1);
+  const found = results.findIndex((c) => c.id === activeId);
+  const active = results.length === 0 ? -1 : found >= 0 ? found : 0;
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });
@@ -109,16 +120,16 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
     c.run();
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.nativeEvent.isComposing) return; // Enter commits an IME composition, not a command
-    if (e.key === 'ArrowDown') { e.preventDefault(); setIndex(Math.min(active + 1, results.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex(Math.max(active - 1, 0)); }
+    // Enter commits an IME composition, not a command (WebKit reports it as keyCode 229).
+    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (results.length) setActiveId(results[Math.min(active + 1, results.length - 1)].id); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); if (results.length) setActiveId(results[Math.max(active - 1, 0)].id); }
     else if (e.key === 'Enter') { e.preventDefault(); run(results[active]); }
   };
 
   return (
     <>
       <input
-        autoFocus
         role="combobox"
         aria-expanded="true"
         aria-controls="palette-results"
@@ -128,7 +139,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
-          setIndex(0);
+          setActiveId(null);
           listRef.current?.scrollTo({ top: 0 }); // the new top result is the one Enter opens
         }}
         onKeyDown={onKeyDown}
@@ -153,7 +164,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
                   const last = pointer.current;
                   pointer.current = { x: e.clientX, y: e.clientY };
                   if (last && last.x === e.clientX && last.y === e.clientY) return;
-                  setIndex(i);
+                  setActiveId(c.id);
                 }}
                 onClick={() => run(c)}
                 className={cn(

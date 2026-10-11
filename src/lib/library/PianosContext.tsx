@@ -17,6 +17,7 @@ import { WriteBlockedError } from '@/lib/device/write-guard';
 import { buildOccupancy, type Addr } from '@/lib/device/reorg';
 import { PARTITION_PIANO } from '@/lib/device/opcodes';
 import { downloadBytes } from '@/lib/download';
+import { useEnsureListed } from '@/lib/library/useEnsureListed';
 
 // pure helper, exported for tests
 export function selectedPianoBytes(entries: PianoEntry[], selected: Set<string>): number {
@@ -87,7 +88,7 @@ function usePianosStateValue() {
       ? filterPianos(allEntries, source, query).filter((e) => e.unused)
       : filterPianos(allEntries, source, query),
     prefs.sort, prefs.favorites);
-  const entryById = (id: string) => allEntries.find((e) => e.id === id);
+  const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
 
   const removableUnused = allEntries.filter((e) => e.source === 'nord' && e.unused && e.device);
   const selectAllUnused = () => setSelected(new Set(removableUnused.map((e) => e.id)));
@@ -132,12 +133,11 @@ function usePianosStateValue() {
     }
   }
 
-  /** An entry the ⌘K palette asked to open: its page opens it on arrival (useFocusRequest). */
-  const [focusId, setFocusId] = useState<string | null>(null);
   /** Every filter off and the search cleared (the list's "clear filters"). */
   const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setUnusedOnly(false); }, []);
+  const ensureListed = useEnsureListed(shown, clearFilters);
   return {
-    all: allEntries, clearFilters, focusId, setFocusId,
+    all: allEntries, clearFilters, ensureListed,
     shown, source, setSource, query, setQuery, prefs, entryById, nordCount, localCount, showSourceFacet, folder, session,
     // Piano-usage cleanup (device-connected)
     canScanUsage: !!session, scanUsage, scanPct, unusedCount,

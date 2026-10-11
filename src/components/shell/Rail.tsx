@@ -124,7 +124,12 @@ export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSo
               led={s.live}
               active={onPrograms && activeSource === s.source}
               // Pressing the lit source again shows every source.
-              onClick={() => { onPickSource(onPrograms && activeSource === s.source ? 'all' : s.source); onNavigate('/library/programs'); }}
+              // Off the program list, it also goes there; on it (or a program open
+              // beside it) it only filters, so the open program stays.
+              onClick={() => {
+                onPickSource(onPrograms && activeSource === s.source ? 'all' : s.source);
+                if (!onPrograms) onNavigate('/library/programs');
+              }}
             />
           ))}
         </Group>

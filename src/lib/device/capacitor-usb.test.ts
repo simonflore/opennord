@@ -45,6 +45,11 @@ describe('usbAvailability', () => {
     setCapacitor({ isNativePlatform: () => true, getPlatform: () => 'ios' });
     expect(usbAvailability()).toBe('ipad-dext-pending');
   });
+  it('is iphone in Safari on an iPhone', () => {
+    setNavigatorUsb(false);
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue('iPhone');
+    expect(usbAvailability()).toBe('iphone');
+  });
   it('is iphone in the iOS app on an iPhone', () => {
     setNavigatorUsb(false);
     setCapacitor({ isNativePlatform: () => true, getPlatform: () => 'ios' });

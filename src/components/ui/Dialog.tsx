@@ -15,6 +15,8 @@ export interface DialogProps {
    */
   bare?: boolean;
   className?: string;
+  /** Move focus into the dialog on open (default). Off keeps a phone's keyboard down. */
+  autoFocus?: boolean;
 }
 
 /**
@@ -28,7 +30,7 @@ export interface DialogProps {
  * fixed-position overlay still stacks correctly. Focus trap / scroll lock / aria
  * live on the Content and are unaffected by skipping the portal.
  */
-export function Dialog({ open, onClose, title, children, footer, bare, className }: DialogProps) {
+export function Dialog({ open, onClose, title, children, footer, bare, className, autoFocus = true }: DialogProps) {
   return (
     <RD.Root open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <RD.Overlay
@@ -37,6 +39,7 @@ export function Dialog({ open, onClose, title, children, footer, bare, className
       />
       <RD.Content
         aria-describedby={undefined}
+        onOpenAutoFocus={autoFocus ? undefined : (e) => e.preventDefault()}
         className={cn(
           'fixed z-50 rounded-lg border border-line bg-surface shadow-[var(--shadow-3)] focus:outline-none',
           !bare && 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(92vw,480px)] max-h-[85vh] overflow-auto p-4',

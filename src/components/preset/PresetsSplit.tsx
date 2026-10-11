@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { useFocusRequest } from '@/components/library/useFocusRequest';
+import { useNavigate } from '@tanstack/react-router';
 import { usePresetsState } from '@/lib/library/PresetsContext';
 import { PresetsBrowse } from './PresetsBrowse';
 import { PresetInspector } from './PresetInspector';
@@ -7,13 +6,16 @@ import { CategorySplit } from '@/components/library/CategorySplit';
 import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSplitLayout } from '@/lib/responsive';
 
-/** Presets master/detail: the browse list + a thin recognized-preset inspector. */
-export function PresetsSplit() {
+/**
+ * Presets master/detail: the browse list + a thin recognized-preset inspector.
+ * `/library/presets` and `/library/presets/$presetId` both render this; the
+ * open preset comes from the route.
+ */
+export function PresetsSplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = usePresetsState();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const navigate = useNavigate();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
-  useFocusRequest(s, (e) => setSelectedId(e.id));
 
   function importPreset() {
     const input = document.createElement('input');
@@ -41,7 +43,7 @@ export function PresetsSplit() {
         kinds={s.kinds} showSourceFacet={s.showSourceFacet}
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
-        onSelect={(e) => setSelectedId(e.id)}
+        onSelect={(e) => navigate({ to: '/library/presets/$presetId', params: { presetId: e.id } })}
         activeId={selectedId}
         onImport={importPreset}
         onRemove={(id) => void s.removePreset(id)}
@@ -59,7 +61,7 @@ export function PresetsSplit() {
       master={list}
       detail={detail}
       hasDetail={!!entry}
-      onBack={() => setSelectedId(null)}
+      onBack={() => navigate({ to: '/library/presets' })}
       backLabel="← Presets"
     />
   );

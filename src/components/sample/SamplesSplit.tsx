@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
@@ -12,7 +12,7 @@ import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
-import { useFocusRequest } from '@/components/library/useFocusRequest';
+import { useNavigate } from '@tanstack/react-router';
 
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
@@ -21,7 +21,7 @@ import { useFocusRequest } from '@/components/library/useFocusRequest';
  * persists a file and opens it; "Preview a file" opens the inspector's own
  * drag/drop/pick zone for a throwaway look (not stored).
  */
-export function SamplesSplit() {
+export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = useSamplesState();
   const { session } = useDevice();
@@ -31,10 +31,9 @@ export function SamplesSplit() {
   const [loadNew, setLoadNew] = useState(false);
   const [pullPct, setPullPct] = useState<number | null>(null);
   const [pullError, setPullError] = useState('');
-  // A ⌘K jump opens its sample here (openEntry is a hoisted declaration below).
-  useFocusRequest(s, (e) => void openEntry(e));
+  const navigate = useNavigate();
 
-  async function openEntry(e: SampleEntry) {
+  const openEntry = useCallback(async (e: SampleEntry) => {
     setPullError('');
     if (e.source === 'local' && e.bytes) {
       setLoadNew(false);
@@ -66,9 +65,29 @@ export function SamplesSplit() {
       }
       return;
     }
-  }
-  const startLoadNew = () => { setInspect(null); setLoadNew(true); setPullError(''); };
-  const back = () => { setInspect(null); setLoadNew(false); setPullError(''); };
+  }, [session, folder]);
+
+  // The route names the open sample: open it once its entry is known (a deep link
+  // can arrive before the folder or the Nord has been read). The ref keeps it to
+  // one open per id, so a re-render or StrictMode's second effect run doesn't
+  // pull it twice. Leaving the sample's route closes it.
+  const opened = useRef<string | null>(null);
+  const { entryById } = s;
+  useEffect(() => {
+    if (!selectedId) {
+      if (opened.current) { opened.current = null; setInspect((i) => (i?.id ? null : i)); }
+      return;
+    }
+    if (opened.current === selectedId) return;
+    const e = entryById(selectedId);
+    if (!e) return;
+    opened.current = selectedId;
+    void openEntry(e);
+  }, [selectedId, entryById, openEntry]);
+
+  const toList = () => { if (selectedId) navigate({ to: '/library/samples' }); };
+  const startLoadNew = () => { toList(); setInspect(null); setLoadNew(true); setPullError(''); };
+  const back = () => { toList(); setInspect(null); setLoadNew(false); setPullError(''); };
 
   function importSample() {
     const input = document.createElement('input');
@@ -88,6 +107,7 @@ export function SamplesSplit() {
       setPullError('');
       const bytes = await readFileBytes(f);
       await s.importSample(f);                  // persist + add to the list
+      toList();
       setLoadNew(false);
       setInspect({ bytes, name: f.name });      // open it now
     };
@@ -111,8 +131,8 @@ export function SamplesSplit() {
         showSourceFacet={s.showSourceFacet} showUnknownGen={s.showUnknownGen}
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters}
-        onOpen={(e) => void openEntry(e)} onLoadNew={startLoadNew}
-        activeId={inspect?.id ?? null}
+        onOpen={(e) => navigate({ to: '/library/samples/$sampleId', params: { sampleId: e.id } })} onLoadNew={startLoadNew}
+        activeId={selectedId ?? null}
         onImport={importSample}
         onRemove={(id) => void s.removeSample(id)}
         storedCount={s.storedCount} storedBytes={s.storedBytes}
