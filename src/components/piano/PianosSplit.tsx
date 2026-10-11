@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { openPiano } from '@/components/library/openEntry';
+import { closeRemoved, openPiano } from '@/components/library/openEntry';
 import { usePianosState } from '@/lib/library/PianosContext';
 import { PianosBrowse } from './PianosBrowse';
 import { PianoInspector } from './PianoInspector';
@@ -34,7 +34,12 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
         selected={s.selected} toggleSelected={s.toggleSelected}
         selectAllUnused={s.selectAllUnused} clearSelected={s.clearSelected}
         selectedFreeBytes={s.selectedFreeBytes}
-        removeFromNord={s.removeFromNord}
+        removeFromNord={async (opts) => {
+          const ids = [...s.selected];
+          const result = await s.removeFromNord(opts);
+          if (result.removed) closeRemoved(navigate, '/library/pianos', selectedId, ids);
+          return result;
+        }}
         removing={s.removing} removePct={s.removePct}
       />
     </div>
@@ -52,7 +57,6 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
       detail={detail}
       hasDetail={!!selectedId}
       list="/library/pianos"
-      known={!!entry}
       backLabel="← Pianos"
       selectedId={selectedId}
     />

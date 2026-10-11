@@ -14,7 +14,7 @@ import type { NavTo } from '@/components/shell/nav';
  * selection (from the route).
  */
 export function CategorySplit({
-  wide, master, detail, hasDetail, list, known, onBack, backLabel, selectedId,
+  wide, master, detail, hasDetail, list, onBack, backLabel, selectedId,
 }: {
   /** True when there's room for both panes (from `useSplitLayout`). */
   wide: boolean;
@@ -23,10 +23,8 @@ export function CategorySplit({
   detail: ReactNode;
   /** Whether a detail is selected — narrow shows only the master until it is. */
   hasDetail: boolean;
-  /** The bare list's route: where back goes, and where a removed entry leaves to. */
+  /** The bare list's route: where back goes. */
   list: NavTo;
-  /** Whether the open entry (`selectedId`) is in the list now. */
-  known: boolean;
   /** Back to the list; defaults to navigating to `list`. */
   onBack?: () => void;
   backLabel: string;
@@ -34,16 +32,6 @@ export function CategorySplit({
   selectedId?: string;
 }) {
   const navigate = useNavigate();
-  // Back to the bare list when the open entry goes away (removed, or gone with
-  // its Nord), instead of keeping its route and calling it "not in your
-  // library". Only an entry that was shown counts: a deep link whose entry
-  // hasn't loaded yet stays put. Replaces the history entry, so Back skips it.
-  const shown = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (known) { shown.current = selectedId; return; }
-    if (selectedId && shown.current === selectedId) void navigate({ to: list, replace: true });
-    shown.current = undefined; // only the entry shown just now counts, not one shown before
-  }, [selectedId, known, list, navigate]);
 
   const masterBox = useRef<HTMLDivElement>(null);
   // Once per selection, as soon as its row is on screen: the rows can arrive

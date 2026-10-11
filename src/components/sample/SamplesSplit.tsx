@@ -8,7 +8,7 @@ import { useSplitLayout } from '@/lib/responsive';
 import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
 import { useNavigate } from '@tanstack/react-router';
-import { openSample } from '@/components/library/openEntry';
+import { closeRemoved, openSample } from '@/components/library/openEntry';
 
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
@@ -29,21 +29,27 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const [importError, setImportError] = useState('');
   const navigate = useNavigate();
 
-  // The route names the open sample; `attempt` bumps to retry it. The effect
-  // asks the context for its bytes whenever the sample, its presence in the
-  // list or the attempt changes (readSample shares a read already running, so
-  // StrictMode doesn't pull twice), and its cleanup ignores a read that a newer
-  // route, a retry or leaving has overtaken, and lets go of the read. A sample
-  // named before it's listed (a deep link while the folder scans) is read once
-  // it arrives. The lookup and reader are read through a ref: they change
-  // identity often.
+  // The route names the open sample; `attempt` bumps to retry it. Its bytes are
+  // read once per sample and attempt: when the route or a retry changes that
+  // (the previous read is let go), or when a sample named before it's listed
+  // (a deep link while the folder scans) arrives. A rescan that drops and
+  // re-adds the open entry leaves its read and inspector alone. readSample
+  // shares a read already running, so StrictMode doesn't read twice. The lookup
+  // and reader are read through a ref: they change identity often.
   const [attempt, setAttempt] = useState(0);
   const entry = selectedId ? s.entryById(selectedId) : undefined;
   const known = !!entry;
   const io = useRef({ entryById: s.entryById, readSample: s.readSample });
   useEffect(() => { io.current = { entryById: s.entryById, readSample: s.readSample }; });
 
+  const reading = useRef<{ key: string; stop: AbortController } | null>(null);
+  useEffect(() => () => { reading.current?.stop.abort(); reading.current = null; }, []);
   useEffect(() => {
+    const key = selectedId ? `${selectedId}\n${attempt}` : '';
+    if (reading.current?.key === key) return; // this sample's read has started
+    reading.current?.stop.abort();
+    reading.current = null;
+    setPullPct(null);
     if (!selectedId) {
       setInspect((i) => (i?.id ? null : i)); // leaving a sample closes it (a preview stays)
       return;
@@ -53,15 +59,15 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     setImportError('');
     setInspect(null);
     const e = io.current.entryById(selectedId);
-    if (!e) return; // named but not (yet) in the list
+    if (!e) return; // named but not (yet) in the list: read when it arrives
     const stop = new AbortController();
+    reading.current = { key, stop };
     const live = () => !stop.signal.aborted;
-    if (e.source !== 'local') setPullPct(0);
+    if (e.source === 'nord') setPullPct(0); // only a Nord pull reports progress
     io.current.readSample(e, (pct) => { if (live()) setPullPct(pct); }, stop.signal).then(
       (bytes) => { if (live()) setInspect({ id: e.id, bytes, name: e.name, factory: e.factory }); },
       (err) => { if (live()) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`); },
     ).finally(() => { if (live()) setPullPct(null); });
-    return () => { stop.abort(); setPullPct(null); };
   }, [selectedId, known, attempt]);
 
   // Back to the bare list (which closes the open sample and drops its read).
@@ -114,7 +120,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         onLoadNew={startLoadNew}
         activeId={selectedId ?? null}
         onImport={importSample}
-        onRemove={(id) => void s.removeSample(id)}
+        onRemove={(id) => { void s.removeSample(id); closeRemoved(navigate, '/library/samples', selectedId, [id]); }}
         storedCount={s.storedCount} storedBytes={s.storedBytes}
         prefs={s.prefs}
         canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct}
@@ -122,7 +128,12 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         selected={s.selected} toggleSelected={s.toggleSelected}
         selectAllUnused={s.selectAllUnused} clearSelected={s.clearSelected}
         selectedFreeBytes={s.selectedFreeBytes}
-        removeFromNord={s.removeFromNord}
+        removeFromNord={async (opts) => {
+          const ids = [...s.selected];
+          const result = await s.removeFromNord(opts);
+          if (result.removed) closeRemoved(navigate, '/library/samples', selectedId, ids);
+          return result;
+        }}
         removing={s.removing} removePct={s.removePct}
       />
     </div>
@@ -143,7 +154,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     : !selectedId ? <EmptyNote>Pick a sample to inspect it.</EmptyNote>
     : !known ? <EmptyNote>This sample isn’t in your library (yet). Pick it from the list.</EmptyNote>
     : pullError ? <div role="alert"><EmptyNote>{pullError} Click it in the list to try again.</EmptyNote></div>
-    : <EmptyNote>Reading the sample… {pullPct ?? 0}%</EmptyNote>;
+    : <EmptyNote>Reading the sample…{pullPct !== null && ` ${pullPct}%`}</EmptyNote>;
 
   return (
     <CategorySplit
@@ -152,7 +163,6 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
       detail={detail}
       hasDetail={hasDetail}
       list="/library/samples"
-      known={known}
       onBack={back}
       backLabel="← Samples"
       selectedId={selectedId}

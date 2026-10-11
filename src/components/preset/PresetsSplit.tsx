@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { openPreset } from '@/components/library/openEntry';
+import { closeRemoved, openPreset } from '@/components/library/openEntry';
 import { usePresetsState } from '@/lib/library/PresetsContext';
 import { PresetsBrowse } from './PresetsBrowse';
 import { PresetInspector } from './PresetInspector';
@@ -47,7 +47,7 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
         onSelect={(e) => openPreset(navigate, e.id)}
         activeId={selectedId}
         onImport={importPreset}
-        onRemove={(id) => void s.removePreset(id)}
+        onRemove={(id) => { void s.removePreset(id); closeRemoved(navigate, '/library/presets', selectedId, [id]); }}
       />
     </div>
   );
@@ -64,7 +64,6 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
       detail={detail}
       hasDetail={!!selectedId}
       list="/library/presets"
-      known={!!entry}
       backLabel="← Presets"
       selectedId={selectedId}
     />
