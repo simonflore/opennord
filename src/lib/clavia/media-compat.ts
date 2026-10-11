@@ -208,8 +208,10 @@ export const MEDIA_COMPAT: Record<MediaModelId, MediaCompat> = {
       source: 'gate FUN_c0158fe0 (ladder up to 0x464); manager {2, 120, 5} at c000c794',
       note: 'voice table and stroke limit not read on this model',
     },
-    samples: 'unknown',
-    note: 'samples: a {8, 11, 30, 40} map exists at c04bfd24 but no check using it was located',
+    samples: {
+      generations: [3, 4], os: '1.30', confidence: 'high',
+      source: 'Stage 4 map {8,11,30,40} at c04bfd24 + generation 3–4 check at c007de44',
+    },
   },
   'organ-3': { pianos: 'none', samples: 'none', note: 'OS 1.00: only Program, Live and Settings partitions (FUN_c0002e9c)' },
   c1: { pianos: 'none', samples: 'none', note: 'C1 OS 1.12: no piano or sample engine (and no USB transfer)' },

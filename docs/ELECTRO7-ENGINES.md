@@ -127,9 +127,8 @@ note-on word ─► voice setup sw:0x120300 ─► per-voice generator via the k
 | Note-on word | bits 28–30 part index (one of eight 12-word part blocks at `dm:0xC0340`), bits 16–23 note, bits 8–14 velocity, bit 27 a flag, bits 24–26 a signed gate (negative = release, generator set to the silent stub `sw:0x121F0A`) | `sw:0x120300` | confirmed (fields), likely (bit 27) |
 | Block size | 4 samples per generator call | `DO LCNTR = 4` in the sample kernel | confirmed |
 
-The decoder's preset view (`ne7/present.ts`) holds the synth preset back because the mode
-mapping was unknown. With mode 0 = Sample confirmed and 1/2 = Analog/FM likely, a follow-up
-can show Sample presets now and the other two with a "likely" note.
+The decoder's preset view (`ne7/present.ts`) shows the active mode's sound: Sample as is,
+Analog and FM marked "likely".
 
 ### 4.2 Generators
 
