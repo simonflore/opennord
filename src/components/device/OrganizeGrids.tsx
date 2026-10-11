@@ -1,10 +1,12 @@
 import { useState, type ReactNode } from 'react';
+import '../../styles/nord.css';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import { BANK_LETTERS } from '../../lib/clavia/slot';
 import { SlotGrid } from './SlotGrid';
 import { BankLabel } from './BankLabel';
 import { PlanProgress } from './PlanProgress';
 import { Dialog, Button } from '../ui';
+import { LedSwitch } from '../program/widgets';
 import { GigmeisterSlotNote } from '../sibling/Gigmeister';
 import type { ReorgApi } from './useReorg';
 import { planArrange, planInsert, type ArrangeMode, type Addr } from '../../lib/device/reorg';
@@ -31,10 +33,14 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
           ? 'Drag a program onto another to insert it there — the programs after it shift down. Drop on an empty slot to just move it.'
           : 'Drag a program onto an empty slot to move it, or onto another program to swap them.'}
       </p>
-      <div role="group" aria-label="Reorder mode" style={{ display: 'flex', gap: 'var(--s-2)', alignItems: 'center', marginBottom: 10 }}>
+      <div style={{ display: 'flex', gap: 'var(--s-2)', alignItems: 'center', marginBottom: 10 }}>
         <span className="ps-sub" style={{ margin: 0 }}>Reorder:</span>
-        <Button variant={mode === 'swap' ? 'primary' : 'ghost'} aria-pressed={mode === 'swap'} onClick={() => setMode('swap')}>Swap</Button>
-        <Button variant={mode === 'insert' ? 'primary' : 'ghost'} aria-pressed={mode === 'insert'} onClick={() => setMode('insert')}>Insert</Button>
+        <LedSwitch
+          label="Reorder mode"
+          value={mode}
+          onChange={setMode}
+          options={[{ value: 'swap', label: 'Swap' }, { value: 'insert', label: 'Insert' }]}
+        />
       </div>
       {BANK_LETTERS.split('').map((_, bank) => {
         const count = entries.filter((e) => e.bank === bank).length;
@@ -75,7 +81,7 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
       >
         <p className="ps-sub" style={{ margin: 0 }}>{plan?.summary}</p>
         {plan?.bulk && (
-          <p className="ps-sub" style={{ margin: '8px 0 0', paddingLeft: 10, borderLeft: '2px solid var(--red)', color: 'var(--dim)' }}>
+          <p className="ps-sub" style={{ margin: '8px 0 0', paddingLeft: 10, borderLeft: '2px solid var(--warn)', color: 'var(--dim)' }}>
             This changes slot numbers across the bank. MIDI Program Change and set-list automations that point at slots will shift to match.
           </p>
         )}

@@ -21,7 +21,7 @@ const parsePresetSort = (raw: string): PresetSort =>
 
 export function PresetsBrowse({
   entries, source, setSource, kind, setKind, query, setQuery,
-  kinds, showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect, onImport, onRemove,
+  kinds, showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect, onImport, onRemove, activeId,
 }: {
   entries: PresetEntry[];
   source: LibrarySource | 'all'; setSource: (s: LibrarySource | 'all') => void;
@@ -33,6 +33,8 @@ export function PresetsBrowse({
   isFavorite: (id: string) => boolean;
   toggleFavorite: (id: string) => void;
   onSelect: (e: PresetEntry) => void;
+  /** The entry open in the detail pane, highlighted in the list. */
+  activeId?: string | null;
   onImport: () => void;
   onRemove: (id: string) => void;
 }) {
@@ -84,6 +86,7 @@ export function PresetsBrowse({
                 favorite={isFavorite(e.id)}
                 onToggleFavorite={() => toggleFavorite(e.id)}
                 onOpen={() => onSelect(e)}
+                selected={e.id === activeId}
                 badge={<SlotTag>{e.slot ?? KIND_LABEL[e.kind]}</SlotTag>}
                 footExtras={
                   <>
