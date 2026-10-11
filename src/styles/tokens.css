@@ -13,17 +13,19 @@
 @import "tailwindcss";
 
 /* Bundled typefaces (OFL) — self-hosted so the Electron and iPad apps work
-   offline. Each file declares unicode-range subsets, so browsers only fetch
-   the scripts a page actually uses. */
-@import "@fontsource/ibm-plex-sans-condensed/300.css";
-@import "@fontsource/ibm-plex-sans-condensed/400.css";
-@import "@fontsource/ibm-plex-sans-condensed/500.css";
-@import "@fontsource/ibm-plex-sans-condensed/600.css";
-@import "@fontsource/ibm-plex-sans-condensed/700.css";
-@import "@fontsource/ibm-plex-mono/400.css";
-@import "@fontsource/ibm-plex-mono/500.css";
-@import "@fontsource/ibm-plex-mono/600.css";
-@import "@fontsource/share-tech-mono/400.css";
+   offline. Latin subset only (covers U+0000–00FF, so Swedish/German program
+   names render in the face); anything outside it falls back to the system font.
+   The full per-weight files would also ship Cyrillic/Vietnamese faces — about
+   half a megabyte in the native bundles — for text this UI never shows. */
+@import "@fontsource/ibm-plex-sans-condensed/latin-300.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-400.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-500.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-600.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-700.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+@import "@fontsource/ibm-plex-mono/latin-600.css";
+@import "@fontsource/share-tech-mono/latin-400.css";
 
 /* Tailwind's auto content-detection doesn't cross the workspace-package boundary
    into packages/core when the composed app (apps/web) builds, so scan core's own
@@ -31,49 +33,47 @@
    so it stays valid in the standalone public mirror too. */
 @source "../";
 
-/* Tailwind v4 theme — generated utilities resolve to the SAME values as the
-   custom properties below, so `bg-surface` == `background: var(--surface)`.
-   tokens.css stays the single source of truth; this block just exposes the
-   scalar tokens to Tailwind's utility generator. Values are copied verbatim.
-   Composite tokens (gradients, shadows, glows, motion) stay as CSS custom
-   properties below and are used via arbitrary values, e.g. shadow-[var(--shadow-2)]. */
+/* Tailwind v4 theme. The palette, radii and type families are NOT copied here:
+   `@theme inline` points each utility straight at the :root custom property
+   below, so `bg-surface` compiles to `background-color: var(--surface)` and the
+   :root block stays the only place a value is written. Composite tokens
+   (gradients, shadows, glows, motion) stay as CSS custom properties and are used
+   via the semantic @utility classes or arbitrary values, e.g. shadow-[var(--shadow-2)]. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-sink: var(--sink);
+  --color-line: var(--line);
+  --color-devbox-bg: var(--devbox-bg);
+  --color-accent: var(--accent);
+  --color-accent-bright: var(--accent-bright);
+  /* Legacy names for the accent. New code uses `accent`; existing `red`
+     utilities migrate screen by screen. */
+  --color-red: var(--accent);
+  --color-red-bright: var(--accent-bright);
+  --color-connected: var(--connected);
+  --color-lcd-cyan: var(--lcd-cyan);
+  --color-engine-synth: var(--engine-synth);
+  --color-engine-organ: var(--engine-organ);
+  --color-engine-piano: var(--engine-piano);
+  --color-warn: var(--warn);
+  --color-focus: var(--focus);
+  --color-ink: var(--ink);
+  --color-dim: var(--dim);
+  --color-muted: var(--muted);
+  --color-text-on-accent: var(--text-on-accent);
+  --color-text-tertiary: var(--text-tertiary);
+
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+}
+
 @theme {
-  --color-bg: #18191b;
-  --color-surface: #1b1c1f;
-  --color-surface-2: #202124;
-  --color-sink: #141517;
-  --color-line: #2c2e33;
-  --color-devbox-bg: #1e1f22;
-  --color-accent: #ff6a1a;
-  --color-accent-bright: #ff8c4f;
-  /* Legacy names for the accent — same values as --color-accent*. New code uses
-     `accent`; existing `red` utilities migrate screen by screen. */
-  --color-red: #ff6a1a;
-  --color-red-bright: #ff8c4f;
-  --color-connected: #47e27f;
-  --color-lcd-cyan: #aee9ff;
-  --color-lcd-screen: #0a130e;
-  --color-lcd-ink: #a6f7cf;
-  --color-engine-synth: #4a9be8;
-  --color-engine-organ: #c98a2b;
-  --color-engine-piano: #d9d3c5;
-  --color-warn: #ffb454;
-  --color-focus: #6aa9ff;
-  --color-ink: #ecebe6;
-  --color-dim: #9a9a94;
-  --color-muted: #85857f;
-  --color-text-on-accent: #141414;
-  --color-text-tertiary: #c9c8c2;
-
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-
-  /* UI + labels: condensed sans. Every value, slot and size: mono. The LCD face
-     appears only inside an LCD (identity). */
-  --font-sans: 'IBM Plex Sans Condensed', -apple-system, system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-lcd: 'Share Tech Mono', 'IBM Plex Mono', ui-monospace, monospace;
 
   /* ── Display scale — weight follows size ───────────────────────────────────
      The weight/leading/tracking travel WITH the size token, so a component
@@ -150,14 +150,6 @@
 @utility inset-1      { box-shadow: var(--shadow-inset); }
 @utility glow         { box-shadow: var(--glow-red); }
 @utility glow-hi      { box-shadow: var(--glow-red), var(--shadow-2); }
-/* Instrument-panel material for Tailwind-built components — the same recipes
-   nord.css uses for its LCD / LED buttons, so both stay one look. */
-@utility lcd {
-  background: var(--lcd-screen); color: var(--lcd-ink); font-family: var(--font-lcd);
-  text-shadow: var(--lcd-glow); box-shadow: var(--lcd-bezel); border-radius: var(--r-sm);
-}
-@utility key-cap      { background: var(--key-face); box-shadow: var(--key-edge); }
-@utility led-on       { background: var(--accent); box-shadow: var(--led-on-glow); }
 
 :root,
 :root[data-theme='dark'] {
@@ -268,24 +260,23 @@
   --organ-morph: var(--lcd-cyan);
   --organ-db-track: #0f1012;
   --organ-db-black-edge: #3a3a42;
-  --organ-on-bg: #2b2a27;
 
   /* Instrument-panel surfaces — faithful front-panel greys/LCD, like the organ
      drawbars above. Tokenized so the "no hardcoded color" rule holds in nord.css. */
   --dial-bg: #34363b;          /* the unlit part of a knob's value ring */
   --dial-shell-hi: #5b5d62;    /* radial highlight at top of a dial */
-  --meter-track: #141517;
+  --meter-track: var(--sink);
   --fx-border: #45474d;
   --deps-bg: #221b1d;
   --deps-border: #43222a;
   --deps-ink: #ff7a72;         /* dependency warning text (brighter red) */
-  --lcd-bg: #141517;           /* sample-waveform backdrop (flat data, not an LCD) */
-  --lcd-deep: #070d0a;         /* LCD gradient floor */
-  --lcd-edge: #000000;         /* LCD bezel border */
-  --wave: #ecebe6;             /* waveform trace — data is flat ink */
-  --accent-soft: rgb(255 106 26 / 14%); /* translucent accent — loop region on the waveform */
+  --wave-bg: var(--sink);      /* sample-waveform backdrop — flat data, not an LCD */
+  --wave: var(--ink);          /* waveform trace */
+  /* Loop region on the waveform. A literal, not color-mix(): WaveCanvas hands it
+     to a canvas fillStyle, which older WebKit (iPad) can't parse color-mix() in. */
+  --accent-soft: rgba(255, 106, 26, 0.14);
   --panel-pill: #26272b;       /* dark pill/chip backdrop on the panel */
-  --dial-shell-lo: #18191b;    /* dial inner shadow floor */
+  --dial-shell-lo: var(--bg);  /* dial inner shadow floor */
   /* Keyboard-zone fills — a 6-hue data-viz palette for the zone map. */
   --zone-1: #2f4a59;
   --zone-2: #473a59;

@@ -23,11 +23,11 @@ export function WaveCanvas(
     if (loop && pcm.length > 0 && loop.end > loop.start) {
       const x0 = Math.max(0, Math.min(width, (loop.start / pcm.length) * width));
       const x1 = Math.max(0, Math.min(width, (loop.end / pcm.length) * width));
-      ctx.fillStyle = getComputedStyle(cv).getPropertyValue('--accent-soft').trim() || 'rgba(224,32,46,0.18)';
+      ctx.fillStyle = getComputedStyle(cv).getPropertyValue('--accent-soft').trim() || 'rgba(255,106,26,0.14)';
       ctx.fillRect(x0, 0, Math.max(1, x1 - x0), height);
     }
     // Canvas fillStyle can't take a CSS var() — resolve the token off the element.
-    ctx.fillStyle = getComputedStyle(cv).getPropertyValue('--wave').trim() || '#ff3b3b';
+    ctx.fillStyle = getComputedStyle(cv).getPropertyValue('--wave').trim() || '#ecebe6';
     const mid = height / 2;
     bars.forEach(([lo, hi], x) => {
       const yHi = mid - (hi / peak) * mid;
@@ -40,5 +40,5 @@ export function WaveCanvas(
       ctx.fillRect(px, 0, 2, height);
     }
   }, [pcm, height, loop, playhead]);
-  return <canvas ref={ref} width={600} height={height} style={{ width: '100%', height, background: 'var(--lcd-bg)', borderRadius: 6, display: 'block' }} />;
+  return <canvas ref={ref} width={600} height={height} style={{ width: '100%', height, background: 'var(--wave-bg)', borderRadius: 6, display: 'block' }} />;
 }

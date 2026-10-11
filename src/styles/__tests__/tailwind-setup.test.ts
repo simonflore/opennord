@@ -11,23 +11,17 @@ describe('tailwind setup', () => {
     expect(tokens).toContain('@import "tailwindcss"');
     expect(tokens).toMatch(/@theme\s*\{/);
   });
-  it('maps every @theme colour to the same value as its :root custom property', () => {
-    // values MUST equal the :root tokens so `bg-surface` renders exactly like
-    // `var(--surface)`. Checked generically, so a palette change can't leave the
-    // two copies out of step (a :root alias like `--red: var(--accent)` resolves).
-    const block = (re: RegExp) => tokens.match(re)?.[1] ?? '';
-    const decls = (css: string) =>
-      new Map([...css.matchAll(/^\s*(--[\w-]+):\s*([^;]+);/gm)].map((m) => [m[1], m[2].trim().toLowerCase()]));
-    const theme = decls(block(/@theme\s*\{([\s\S]*?)\n\}/));
-    const root = decls(block(/:root,\s*:root\[data-theme='dark'\]\s*\{([\s\S]*?)\n\}/));
-    const resolve = (v: string | undefined) => {
-      const alias = v?.match(/^var\((--[\w-]+)\)$/);
-      return alias ? root.get(alias[1]) : v;
-    };
-    const rootName = (k: string) => '--' + k.slice('--color-'.length);
-    const pairs = [...theme].filter(([k]) => k.startsWith('--color-') && root.has(rootName(k)));
-    expect(pairs.length).toBeGreaterThan(20);
-    for (const [k, v] of pairs) expect([k, resolve(root.get(rootName(k)))]).toEqual([k, v]);
+  it('writes each palette value once: @theme inline only points at :root tokens', () => {
+    // `bg-surface` must render exactly like `var(--surface)`. Rather than copy
+    // the hex into @theme (and test the copies stay in step), every colour,
+    // radius and font family there references the :root custom property.
+    const inline = tokens.match(/@theme inline\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const decls = [...inline.matchAll(/^\s*(--[\w-]+):\s*([^;]+);/gm)].map((m) => [m[1], m[2].trim()]);
+    expect(decls.length).toBeGreaterThan(20);
+    for (const [name, value] of decls) {
+      expect([name, value]).toEqual([name, expect.stringMatching(/^var\(--[\w-]+\)$/)]);
+      expect(tokens).toContain(`  ${value.slice(4, -1)}:`); // the referenced :root token exists
+    }
   });
   it('keeps the original CSS custom properties (single source of truth intact)', () => {
     expect(tokens).toContain('--surface:');
