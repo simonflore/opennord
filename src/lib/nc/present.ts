@@ -3,9 +3,8 @@
  * decode.ts). For the selected organ model each manual shows the drawbar set
  * or preset it plays — B3 drawbars with footage, Vox drawbar levels, the
  * Farfisa tabs or pipe stops that are on — then the B3 bass drawbars and the
- * selected organ's effect switches. Block names and the organ-model order are
- * inferred (medium) and the file alignment is not yet confirmed, so the note
- * marks the values provisional.
+ * selected organ's effect switches. Block names are inferred (medium) and the
+ * file alignment is not yet confirmed, so the note marks the values provisional.
  */
 import { decodeNc } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
@@ -14,9 +13,12 @@ import { DRAWBAR_NUMBERS, fwHeader, label, legacyHeaderOnly, onOf, parts } from 
 import type { NcpFieldKey } from './layout.generated';
 
 export const NC_NOTE =
-  'C2: OpenNord’s program map (OS 2.00), not yet checked on a real file — treat these values as provisional. The organ-model order is inferred; every parameter is read.';
+  'C2: OpenNord’s program map (OS 2.00), not yet checked on a real file — treat these values as provisional. Every parameter is read.';
 
-/** common.organModel (0–3) — order inferred (medium). */
+/**
+ * common.organModel (0–3): C2 OS 2.00 maps 0–3 to the B3, Vox, Farfisa and Pipe
+ * program categories (medium-high — the C2 has no text table).
+ */
 export const NC_ORGAN_MODELS = ['B3', 'Vox', 'Farfisa', 'Pipe'] as const;
 
 type Get = (key: string) => number;

@@ -4,13 +4,14 @@
  * the organ model with its Preset I and II registrations, the piano type and
  * its model number, and each instrument's effect switches. The labels are the
  * firmware's own category names for the organ models and piano types; the
- * effect switches are not named yet, so the card counts how many are on.
+ * effect switches are named by their control ids, shared with the Electro 5 and
+ * the Pianos (medium-high).
  * The block alignment is not yet confirmed on a real file.
  */
 import { decodeNe3 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
-import { label, onOf, parts, shortRecord } from '../clavia/fw-present';
+import { label, noneOn, parts, shortRecord } from '../clavia/fw-present';
 import type { Ne3OrganPreset } from './types';
 
 /** Organ model 0–2 (maps them to the B3 / Farf / Vx categories). */
@@ -23,7 +24,7 @@ export const NE3_HP_PIANO_TYPES = ['Grand', 'Upright', 'EPiano 1', 'EPiano 2', '
 const EITHER_PIANO_TYPES = ['Grand', 'Upright', 'EPiano', 'Wurl / EPiano 2', 'Clav/Hps', 'Sample'] as const;
 
 export const NE3_NOTE =
-  'Electro 3: OpenNord’s program map (OS 3.14, HP OS 3.16), not yet checked on a real file — treat these values as provisional. Every parameter is read; the organ, piano and effect switches are shown.';
+  'Electro 3: OpenNord’s program map (OS 3.14, HP OS 3.16), not yet checked on a real file — treat these values as provisional. Every parameter is read; the organ, piano and the effects each instrument has on are shown.';
 
 function organPreset(id: string, title: string, model: number, p: Ne3OrganPreset, off: boolean): DecodedSection {
   const name = label(NE3_ORGAN_MODELS, model) ?? 'Organ';
@@ -43,7 +44,9 @@ function organPreset(id: string, title: string, model: number, p: Ne3OrganPreset
   };
 }
 
-const onCount = (switches: readonly number[]) => `${onOf(switches)} switches on`;
+/** Each instrument's five effect switches, in stored order. */
+export const NE3_EFFECT_SWITCHES = ['EQ', 'Effect 1', 'Effect 2', 'Amp/Comp', 'Reverb'] as const;
+const onNames = (switches: readonly number[]) => noneOn(NE3_EFFECT_SWITCHES.filter((_, i) => switches[i]));
 
 export function ne3Decoded(bytes: Uint8Array): DecodedProgram {
   const p = decodeNe3(bytes);
@@ -63,8 +66,8 @@ export function ne3Decoded(bytes: Uint8Array): DecodedProgram {
   const effects: DecodedSection = {
     id: 'FX', label: 'EFFECTS',
     engines: [
-      { label: 'Organ', parts: [onCount(p.effectSwitches.organ)] },
-      { label: 'Piano', parts: [onCount(p.effectSwitches.piano)] },
+      { label: 'Organ', parts: onNames(p.effectSwitches.organ) },
+      { label: 'Piano', parts: onNames(p.effectSwitches.piano) },
     ],
   };
   return {

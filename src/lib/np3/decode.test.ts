@@ -60,7 +60,7 @@ describe('decodeNp3 (synthetic)', () => {
     expect(d.sections[0].engines[0].parts).toEqual(['Grand', 'no. 5', 'level 90']);
     expect(d.sections[1].engines[0].parts).toContain('(off)');
     expect(d.sections[1].engines[0].parts[0]).toBe('sample 10');
-    expect(d.sections[2].engines[0].parts).toEqual(['Effect 1', 'Reverb Bright']);
+    expect(d.sections[2].engines[0].parts).toEqual(['Tremolo 1', 'Reverb Room Bright']);
     expect(d.note).toMatch(/not yet checked on a real file/);
   });
 });

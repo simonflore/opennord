@@ -317,7 +317,7 @@ describe('decodeNs3', () => {
   // ── Stage 3 OS 2.64 firmware-registry corrections ──
   // Each test below fails against the pre-fix (ns3-program-viewer) bit reads.
 
-  it('reads rotary speed as 2 bits: 0 Stop / 1 Slow / 2 Fast / 3 unlabeled', () => {
+  it('reads rotary speed as 2 bits: 0 Stop / 1 Slow / 2 Fast / 3 Fast (the firmware table)', () => {
     const speed = (b34: number, b35: number) => {
       const b = ns3buf();
       b[0x10b] = 0x80;          // rotary on
@@ -327,7 +327,7 @@ describe('decodeNs3', () => {
     expect(speed(0x00, 0x00)).toBe('Stop');  // pre-fix: 'Slow'
     expect(speed(0x00, 0x80)).toBe('Slow');
     expect(speed(0x01, 0x00)).toBe('Fast');
-    expect(speed(0x01, 0x80)).toBe('#3');    // no firmware label → neutral fallback
+    expect(speed(0x01, 0x80)).toBe('Fast');  // the firmware's 4-entry table shows Fast for 3 too
     // Neighbouring MultiCommon bits (vib type b3-1, 0x35 morph deltas b6-0) don't leak in.
     expect(speed(0x0e, 0x7f)).toBe('Stop');
   });

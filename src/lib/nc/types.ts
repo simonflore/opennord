@@ -17,7 +17,8 @@
  * the data runs from 0x1A to the 2-byte trailer — a predicted 26 + 269 + 2 =
  * 297-byte file, not yet checked on a real one.
  * Block names come from descriptor shapes and control ids (medium); the
- * organ-model order 0 B3, 1 Vox, 2 Farfisa, 3 Pipe is inferred.
+ * organ-model order 0 B3, 1 Vox, 2 Farfisa, 3 Pipe is the firmware's mapping
+ * to the B3 / Vox / Farfisa / Pipe program categories (medium-high).
  */
 import type { LegacyProgram } from '../clavia/legacy-program';
 import type { NcpFieldKey } from './layout.generated';

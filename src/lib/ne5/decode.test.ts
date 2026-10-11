@@ -141,7 +141,8 @@ describe('decodeNe5 (synthetic, firmware layout)', () => {
   it('presents the piano, sample synth, organ parts with B3 footage and the effects', () => {
     const d = ne5Decoded(ne5p({
       'common.organModel': 0, 'b3Upper.presetSelect': 1, 'b3PresetII.drawbar2': 5, 'b3PresetII.percussionOn': 1,
-      'piano.pianoType': 0, 'effects.reverbEnable': 1, 'effects.delayEnable': 1,
+      'piano.pianoType': 3, 'effects.reverbEnable': 1, 'effects.reverbType': 3, 'effects.delayEnable': 1,
+      'effects.effects2Enable': 1, 'effects.effects2Type': 1, 'effects.ampCompEnable': 1, 'effects.ampCompType': 4,
     }));
     expect(d.title).toBe('Nord Electro 5 · Program');
     expect(d.sections.map((s) => s.id)).toEqual(['P', 'S', 'OU', 'OL', 'FX']);
@@ -151,11 +152,13 @@ describe('decodeNe5 (synthetic, firmware layout)', () => {
     expect(upper.drawbars![0].footage).toBe('16′');
     expect(upper.chips).toContain('Percussion');
     expect(d.sections.find((s) => s.id === 'OL')!.engines[0].parts).toEqual(['B3', 'Preset I']);
-    expect(d.sections.find((s) => s.id === 'P')!.engines[0].parts[0]).toBe('Grand');
-    expect(d.sections.find((s) => s.id === 'FX')!.engines[0].parts).toEqual(['Delay', 'Reverb']);
-    const vox = ne5Decoded(ne5p({ 'common.organModel': 1 })).sections.find((s) => s.id === 'OU')!;
-    expect(vox.engines[0].parts[0]).toBe('Vox');
-    expect(vox.drawbars![0].footage).toBeUndefined();
+    expect(d.sections.find((s) => s.id === 'P')!.engines[0].parts[0]).toBe('EPiano2');
+    expect(d.sections.find((s) => s.id === 'FX')!.engines[0].parts).toEqual(['Mu-Tron', 'Delay', 'Rotary', 'Reverb Hall Soft']);
+    // Organ models as the Electro 5 displays them: B3, B3+Bass, Pipe, Vx, Farf.
+    const organ = (m: number) => ne5Decoded(ne5p({ 'common.organModel': m })).sections.find((s) => s.id === 'OU')!;
+    expect([0, 1, 2, 3, 4].map((m) => organ(m).engines[0].parts[0])).toEqual(['B3', 'B3+Bass', 'Pipe', 'Vx', 'Farf']);
+    expect(organ(1).drawbars![0].footage).toBe('16′'); // the B3 sound set
+    expect(organ(3).drawbars![0].footage).toBeUndefined();
   });
 
   it('presents a refused version as the file header only', () => {

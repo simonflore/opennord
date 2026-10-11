@@ -103,13 +103,6 @@ export function legacyHeaderOnly(
   return { title, header: fwHeader(p), sections: [], note: extraNote ? `${note} ${extraNote}` : note, warnings: p.warnings };
 }
 
-/**
- * The ColdFire pianos' and Electros' piano type (0–5). Their containers give
- * the range only; this order is inferred (medium) from the offset maps and the
- * Stage 2's table (Grand, Upright, E Piano 1, E Piano 2, Clavinet, Harpsi).
- */
-export const COLDFIRE_PIANO_TYPES = ['Grand', 'Upright', 'E-Piano 1', 'E-Piano 2', 'Clav', 'Harpsichord'] as const;
-
 /** Two 15-bit reference ids (piano or sample) as one fixed-width hex fingerprint. */
 export function refId(ids: readonly [number, number]): string {
   return `0x${((ids[0] * 0x8000 + ids[1]) >>> 0).toString(16).padStart(8, '0')}`;
@@ -122,15 +115,25 @@ export function soundRefRows(
   return [['Split', split ? 'on' : 'off'], ['Piano sound id', refId(pianoIds)], ['Sample sound id', refId(sampleIds)]];
 }
 
-/** Their piano card: the type, its model number, then the level and "(off)" where the record stores them. */
-export function coldfirePianoSection(type: number, model: number, level?: number, on?: number): DecodedSection {
+/**
+ * Their piano card: the type (labelled from the model's own `types` table), its
+ * model number, then the level and "(off)" where the record stores them.
+ */
+export function coldfirePianoSection(
+  types: readonly string[], type: number, model: number, level?: number, on?: number,
+): DecodedSection {
   return {
     id: 'P', label: 'PIANO',
     engines: [{
       label: 'Piano',
-      parts: parts(label(COLDFIRE_PIANO_TYPES, type) ?? 'Piano', `no. ${model + 1}`, levelPart(level), on === 0 && '(off)'),
+      parts: parts(label(types, type) ?? 'Piano', `no. ${model + 1}`, levelPart(level), on === 0 && '(off)'),
     }],
   };
+}
+
+/** An Amp/Comp selector's setting: "Compressor" / "Rotary" as such, else "Amp <type>". */
+export function ampCompPart(type: string | undefined): string {
+  return type === 'Compressor' || type === 'Rotary' ? type : ampPart(type);
 }
 
 /** Their sample synth card, titled as on the panel ("SAMPLE SYNTH" / "SYNTH"). */
