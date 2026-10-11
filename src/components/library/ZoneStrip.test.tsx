@@ -12,7 +12,7 @@ describe('ZoneStrip', () => {
       { kind: 'organ', kbZones: '11oo' },
       { kind: 'piano', kbZones: 'oo11' },
     ])} />);
-    expect(html).toContain('Keyboard split — organ: zones 1,2; piano: zones 3,4');
+    expect(html).toContain('Keyboard split — piano: zones 3,4; organ: zones 1,2');
   });
 
   it('renders nothing when every engine covers the whole keyboard', () => {
