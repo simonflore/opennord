@@ -31,12 +31,12 @@ describe('NordSession', () => {
     expect(sentOps(t)).toEqual([CReqBegin, CReqEnd]);
   });
 
-  it('drops a queued operation whose signal was aborted, without touching the device', async () => {
+  it('drops a queued operation nobody wants when its turn comes, without touching the device', async () => {
     const t = new MockTransport([]);
     const session = new NordSession(t);
-    const stop = new AbortController();
-    const queued = session.withSession(7, async () => 'unreached', stop.signal);
-    stop.abort();
+    let wanted = true;
+    const queued = session.withSession(7, async () => 'unreached', () => wanted);
+    wanted = false;
     await expect(queued).rejects.toMatchObject({ name: 'AbortError' });
     expect(t.sent).toHaveLength(0);
   });
