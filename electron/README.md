@@ -15,7 +15,7 @@ to `WebUsbTransport` and `CapacitorUsbTransport`:
 ```
 renderer  ElectronUsbTransport (src/lib/device/electron-usb.ts)
             └─ window.nordNativeUsb   (electron/preload.ts, contextBridge)
-                 └─ nord-usb:* IPC     (electron/main.ts)
+                 └─ nord-usb:* IPC     (electron/nord-usb.ts)
                       └─ node-usb → detachKernelDriver + claim + bulk
 ```
 
@@ -23,6 +23,47 @@ renderer  ElectronUsbTransport (src/lib/device/electron-usb.ts)
 `ConnectPanel` picks `ElectronUsbTransport`. Everything above the four-method
 seam — decode, protocol, session, diagnostics, the partition probe — is reused
 untouched.
+
+`electron/main.ts` is startup wiring only. The rules it applies are pure
+functions in `electron/shell-policy.ts`, tested without Electron.
+
+## What the shell enforces
+
+The page inside the window is the app and nothing else, with no more reach than
+it uses.
+
+- **Links leave the app.** A link that would open a new window is refused and,
+  if it is `https:`, handed to the system browser. Nothing else — `http:`,
+  `file:`, custom schemes — is opened at all.
+- **The window cannot navigate away.** Only the packed `dist/index.html` (any
+  hash route) or, in development, the Vite server counts as the app.
+- **The renderer is sandboxed** (`sandbox: true`, with `contextIsolation` on and
+  `nodeIntegration` off). The preload uses only `contextBridge` and
+  `ipcRenderer`.
+- **Permissions are refused unless listed** in `ALLOWED_PERMISSIONS`, and only
+  for the app's own origin: MIDI (live keyboard input), clipboard write (copy
+  buttons), file access (the folder picker and save dialog). Camera, microphone,
+  location, notifications and WebUSB are refused — the Nord goes through the
+  native bridge. A refusal is logged to the console, which is the first place to
+  look when a feature silently stops working. `midiSysex` is listed because
+  Chromium reports even a plain MIDI request under that name.
+- **The Nord bridge answers only the app window's top frame.**
+- **An unplugged Nord is noticed.** The dead handle is dropped and the next call
+  fails with "Your Nord was disconnected."; reconnecting needs no restart.
+- **One instance.** A second launch focuses the first.
+- **Window size and position are remembered** in `window-state.json` under the
+  app's data folder (`~/Library/Application Support/OpenNord/` on macOS), and
+  ignored if that display is gone.
+
+Not done, on purpose: a **content security policy** (a wrong one silently breaks
+workers, fonts or the AI calls — it needs its own tested pass) and **Electron
+fuses** (they need the newer packer or a pre-signing hook).
+
+### Icon
+
+`electron/icon/icon.svg` is the source. `npm run icons` renders it to
+`icon.png` with Electron itself; electron-builder makes the `.icns` and `.ico`
+from that at pack time. Re-run it only when the SVG changes, and commit the PNG.
 
 ## Setup
 
@@ -244,5 +285,5 @@ that finally confirms the Stage 2 partition map. That's the acceptance test.
     still needs a real Secured-core machine to confirm.
 - **Endpoints** are discovered from the descriptors (`findBulk`), mirroring the
   web transport — not hardcoded to the Stage 4 layout.
-- Keep `contextIsolation: true` / `nodeIntegration: false`; the renderer only
+- Keep `sandbox: true` / `contextIsolation: true` / `nodeIntegration: false`; the renderer only
   sees the narrow `nordNativeUsb` surface.
