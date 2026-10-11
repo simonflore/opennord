@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { usePianosPrefs } from '@/lib/library/prefs';
@@ -27,9 +27,7 @@ export function selectedPianoBytes(entries: PianoEntry[], selected: Set<string>)
 /** Merges device + folder pianos into one filtered/sorted list and owns the
  *  Pianos-screen view state. Mirrors SamplesContext with piano-specific deltas. */
 function usePianosStateValue() {
-  const { session, pianoEntries, setPianoEntries } = useDevice();
-  const currentSession = useRef(session);
-  useEffect(() => { currentSession.current = session; }, [session]);
+  const { session, pianoEntries, setPianoEntries, isCurrent } = useDevice();
   const folder = useFolder();
   const prefs = usePianosPrefs();
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
@@ -126,7 +124,7 @@ function usePianosStateValue() {
           { onProgress: (p) => setRemovePct(Math.round((p.opIndex / p.opCount) * 100)) }));
       // 2. refresh the device piano list
       // Unless the Nord changed meanwhile: then this list is the old one's.
-      try { const es = await enumeratePianoLibrary(session); if (currentSession.current === session) setPianoEntries(es); } catch { /* leave as-is */ }
+      try { const es = await enumeratePianoLibrary(session); if (isCurrent(session)) setPianoEntries(es); } catch { /* leave as-is */ }
       clearSelected();
       return res.ok
         ? { removed: toRemove.length, failed: copyFailed }

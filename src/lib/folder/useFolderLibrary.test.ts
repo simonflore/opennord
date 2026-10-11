@@ -96,8 +96,10 @@ describe('useFolderLibrary gate', () => {
     const { result } = renderHook(() => useFolderLibrary(() => scanner));
     await act(async () => { await result.current.choose(); });
     expect(result.current.result.programs).toHaveLength(1);
-    await act(async () => { await result.current.refresh().catch(() => {}); });
+    await act(async () => { await result.current.refresh(); });
     expect(result.current.result.programs).toHaveLength(0);
+    expect(result.current.result.errors).toEqual([{ path: '(folder)', reason: "Couldn't refresh the folder: permission revoked" }]);
+    expect(result.current.bundles).toEqual([]);
   });
 
   it('opens the picker (does not auto-expand) when >=2 new bundles are found', async () => {

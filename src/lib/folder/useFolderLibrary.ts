@@ -121,8 +121,8 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     // `keep` (a refresh of the same folder): the last scan stays shown until the
     // new one has re-read what was showing (the loose files and the remembered
     // backups), so the lists, and an entry open beside them, don't empty out
-    // meanwhile. A failed refresh empties them and says why, as a failed scan
-    // would. A new folder starts empty and fills as it scans.
+    // meanwhile (refresh() empties them and says why if it fails). A new folder
+    // starts empty and fills as it scans.
     let staged: ScanResult | null = keep ? emptyResult() : null;
     if (!keep) { setResult(EMPTY); setBundles([]); }
     setNewBundles([]); setPickerOpen(false); // a backup applied mid-refresh would be overwritten
@@ -132,32 +132,21 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
       else if (gen === genRef.current) addBatch(staged, b);
     };
 
-    let found: BundleDescriptor[];
-    let choice: Awaited<ReturnType<typeof loadBundleChoice>>;
-    let undecided: BundleDescriptor[];
-    try {
-      found = await scanner.scanLoose(source, onBatch);
-      if (gen !== genRef.current) return;
-      if (!staged) setBundles(found);
+    const found = await scanner.scanLoose(source, onBatch);
+    if (gen !== genRef.current) return;
+    if (!staged) setBundles(found);
 
-      choice = await loadBundleChoice(name, dirHandle ?? undefined);
-      if (gen !== genRef.current) return;
-      const decided = new Set(choice?.decided ?? []);
-      const skipped = new Set(choice?.skipped ?? []);
-      undecided = found.filter((b) => !decided.has(b.path) && !skipped.has(b.path));
-      if (!staged) setNewBundles(undecided);
+    const choice = await loadBundleChoice(name, dirHandle ?? undefined);
+    if (gen !== genRef.current) return;
+    const decided = new Set(choice?.decided ?? []);
+    const skipped = new Set(choice?.skipped ?? []);
+    const undecided = found.filter((b) => !decided.has(b.path) && !skipped.has(b.path));
+    if (!staged) setNewBundles(undecided);
 
-      // Re-apply remembered "load" choices silently.
-      const toReload = found.filter((b) => decided.has(b.path)).map((b) => b.path);
-      if (toReload.length > 0) await scanner.expandBundles(toReload, onBatch);
-      if (gen !== genRef.current) return;
-    } catch (err) {
-      if (staged && gen === genRef.current) {
-        setResult({ ...emptyResult(), errors: [{ path: name, reason: `Couldn't refresh the folder: ${getErrorMessage(err)}` }] });
-        setBundles([]);
-      }
-      throw err;
-    }
+    // Re-apply remembered "load" choices silently.
+    const toReload = found.filter((b) => decided.has(b.path)).map((b) => b.path);
+    if (toReload.length > 0) await scanner.expandBundles(toReload, onBatch);
+    if (gen !== genRef.current) return;
     if (staged) { setResult(staged); setBundles(found); setNewBundles(undecided); staged = null; }
 
     if (undecided.length >= 2) {
@@ -274,7 +263,14 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     if (!handle || !folderName) return;
     const op = ++opRef.current;
     setBusy(true);
-    try { await runScan(folderName, rescan(handle), handle, true); } finally { if (op === opRef.current) setBusy(false); }
+    try {
+      await runScan(folderName, rescan(handle), handle, true);
+    } catch (err) {
+      // The last scan was kept on screen; a failed refresh must not pass it off as current.
+      if (op !== opRef.current) return;
+      setResult({ ...emptyResult(), errors: [{ path: '(folder)', reason: `Couldn't refresh the folder: ${getErrorMessage(err)}` }] });
+      setBundles([]); setNewBundles([]);
+    } finally { if (op === opRef.current) setBusy(false); }
   }, [handle, folderName, runScan]);
 
   const forget = useCallback(async () => {
@@ -311,8 +307,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     const existing = await listDirNames(handle);
     const finalName = resolveWriteName(name, opts.mode, existing);
     await writeFileToDir(handle, finalName, write);
-    // The file is written: a rescan that fails says so in the list, not as a failed save.
-    await refresh().catch(() => undefined);
+    await refresh(); // a failed rescan says so in the list; the file is written either way
     return { target: 'folder', path: finalName };
   }, [handle, refresh]);
 
