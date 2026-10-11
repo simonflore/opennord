@@ -52,8 +52,9 @@ export function AboutView() {
             <p className={`${secP} mt-2`}>
               To fix connection problems on models we can’t test ourselves, OpenNord
               sends a short report when you connect a keyboard: whether it worked,
-              which Nord it is, how its USB connection looks and any error, plus your
-              browser’s name. Never your programs, sounds or names. Reports are kept
+              which Nord it is, how its USB connection looks, how many files of each
+              kind its memory holds and any error, plus your browser’s name and
+              version. Never your programs, sounds or names. Reports are kept
               on our server; there is no automatic deletion yet.
             </p>
           )}
