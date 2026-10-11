@@ -1,16 +1,20 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolveZone, playbackRate, detuneRatio, unisonVoices, velocityGain, envGainAt, scheduleAttackDecay, createSampler, loopSeconds, loopXfadeLen, crossfadeLoop, loopWindowDecayDb, sampleShouldLoop, type AmpEnvelope } from './sampleEngine';
+import { resolveZone, playbackRate, detuneRatio, unisonVoices, velocityGain, envGainAt, scheduleAttackDecay, createSampler, loopSeconds, loopDecay, loopDecayGainAt, type AmpEnvelope } from './sampleEngine';
 import type { SampleUnison } from '../../lib/ns4/nsmp';
 import type { PlayableZone } from '../../lib/ns4/playable-zones';
 import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
 
 // Minimal Web-Audio fake so createSampler runs headless; records every source
 // node it creates so we can assert whether audition enabled looping.
-type FakeParam = { value: number; setValueAtTime: () => void; linearRampToValueAtTime: () => void; cancelScheduledValues: () => void };
+type FakeParam = { value: number; calls: unknown[][]; setValueAtTime: (...a: number[]) => void; setTargetAtTime: (...a: number[]) => void; linearRampToValueAtTime: () => void; cancelScheduledValues: () => void };
 type FakeSource = { buffer: unknown; loop: boolean; loopStart: number; loopEnd: number; playbackRate: FakeParam; onended: (() => void) | null; connect: (n: unknown) => unknown; start: () => void; stop: () => void };
 const audioMock = vi.hoisted(() => {
   const created: FakeSource[] = [];
-  const param = (): FakeParam => ({ value: 0, setValueAtTime: () => {}, linearRampToValueAtTime: () => {}, cancelScheduledValues: () => {} });
+  const gains: FakeParam[] = [];
+  const param = (): FakeParam => {
+    const calls: unknown[][] = [];
+    return { value: 0, calls, setValueAtTime: (...a) => { calls.push(['set', ...a]); }, setTargetAtTime: (...a) => { calls.push(['target', ...a]); }, linearRampToValueAtTime: () => {}, cancelScheduledValues: () => {} };
+  };
   const ctx = {
     currentTime: 0,
     destination: {},
@@ -23,10 +27,10 @@ const audioMock = vi.hoisted(() => {
       created.push(s);
       return s;
     },
-    createGain: () => ({ gain: param(), connect: (n: unknown) => n }),
+    createGain: () => { const gain = param(); gains.push(gain); return { gain, connect: (n: unknown) => n }; },
     createStereoPanner: () => ({ pan: param(), connect: (n: unknown) => n }),
   };
-  return { created, ctx };
+  return { created, gains, ctx };
 });
 vi.mock('./audioPlayer', () => ({ SAMPLE_RATE: 44100, getSharedCtx: () => audioMock.ctx }));
 
@@ -179,108 +183,88 @@ describe('loopSeconds', () => {
   });
 });
 
-describe('loopXfadeLen', () => {
-  it('caps at ~40ms, a quarter of the loop window, and the pre-loop headroom', () => {
-    expect(loopXfadeLen(44100, 44100 + 44100, 44100)).toBe(Math.floor(0.04 * 44100)); // 40ms cap
-    expect(loopXfadeLen(44100, 44100 + 400)).toBe(100);                        // quarter-window
-    expect(loopXfadeLen(50, 50 + 44100)).toBe(50);                             // headroom
-  });
-});
+/** dB lost per second by a level that falls 1/e per second. */
+const NEPER_DB = 20 / Math.LN10;
 
-describe('crossfadeLoop', () => {
-  it('blends the loop tail toward the pre-loop audio, seamless at the wrap', () => {
-    const ch = new Float32Array(100);
-    const loopStart = 40, loopEnd = 80, xf = 10;
-    ch.fill(1, loopStart - xf, loopStart); // pre-loop [30,40) = 1
-    ch.fill(2, loopEnd - xf, loopEnd);     // tail     [70,80) = 2
-    crossfadeLoop(ch, loopStart, loopEnd, xf);
-    expect(ch[loopEnd - xf]).toBeCloseTo(2, 5); // window start: untouched tail
-    expect(ch[loopEnd - 1]).toBeCloseTo(1, 5);  // window end: equals pre-loop → smooth wrap
-    expect(ch[loopStart - 1]).toBe(1);          // pre-loop region left intact
-  });
-  it('is a no-op without enough headroom or window', () => {
-    const ch = new Float32Array([0, 1, 2, 3, 4, 5]);
-    const copy = Float32Array.from(ch);
-    crossfadeLoop(ch, 1, 5, 10);
-    expect(ch).toEqual(copy);
-  });
-});
+// A stroke that loops its last `loopFrames` frames, losing `decayDbPerSecond` inside the loop.
+const loopingStroke = (globalID: number, decayDbPerSecond: number, loopStart = 22050, frames = 44100): DecodedStrokeResult =>
+  ({ globalID, sampleRate: 44100, channels: [new Float32Array(frames).fill(0.5)], loop: { loopStart, loopEnd: frames, loops: true, altStart: 0, decayDbPerSecond } }) as unknown as DecodedStrokeResult;
 
-// Build a stroke whose loop window has a given start→end amplitude ratio.
-const strokeWithDecay = (globalID: number, startAmp: number, endAmp: number): DecodedStrokeResult => {
-  const ch = new Float32Array(1000);
-  const loopStart = 100, loopEnd = 400;
-  for (let i = loopStart; i < loopEnd; i++) {
-    const t = (i - loopStart) / (loopEnd - loopStart);
-    ch[i] = startAmp * (1 - t) + endAmp * t;
-  }
-  return { globalID, sampleRate: 44100, channels: [ch], loop: { loopStart, loopEnd, loops: true } } as unknown as DecodedStrokeResult;
-};
-
-describe('loopWindowDecayDb / sampleShouldLoop', () => {
-  it('is ~0 dB for a steady loop and positive for a decaying one', () => {
-    expect(loopWindowDecayDb(strokeWithDecay(1, 0.5, 0.5)) ?? NaN).toBeCloseTo(0, 1);
-    expect(loopWindowDecayDb(strokeWithDecay(1, 1.0, 0.25)) ?? NaN).toBeGreaterThan(3);
+describe('loopDecay', () => {
+  it('starts when playback reaches the loop, sooner the higher the note is pitched', () => {
+    expect(loopDecay(loopingStroke(1, NEPER_DB), 1)).toEqual({ at: 0.5, timeConstant: 1 });
+    expect(loopDecay(loopingStroke(1, NEPER_DB), 2)?.at).toBeCloseTo(0.25, 9);
   });
-  it('is null when the stroke does not loop', () => {
-    expect(loopWindowDecayDb({ loop: null, channels: [new Float32Array(10)] } as unknown as DecodedStrokeResult)).toBeNull();
+  it('falls at the stored rate whatever the pitch (the decay runs on the clock, not the sample)', () => {
+    const d = loopDecay(loopingStroke(1, 20), 2)!;
+    expect(20 * Math.log10(loopDecayGainAt(d, d.at + 1))).toBeCloseTo(-20, 6);
+    expect(loopDecayGainAt(d, d.at - 0.1)).toBe(1); // untouched before the loop
   });
-  it('sustains steady samples and rings out decaying ones (per-sample median)', () => {
-    expect(sampleShouldLoop([strokeWithDecay(1, 0.5, 0.5), strokeWithDecay(2, 0.5, 0.48)])).toBe(true);
-    expect(sampleShouldLoop([strokeWithDecay(1, 1.0, 0.3), strokeWithDecay(2, 1.0, 0.25)])).toBe(false);
-    expect(sampleShouldLoop([])).toBe(false);
+  it('is absent for a loop that holds its level, a one-shot and an unreadable region', () => {
+    expect(loopDecay(loopingStroke(1, 0), 1)).toBeNull();
+    expect(loopDecay({ sampleRate: 44100, loop: { loopStart: 10, loopEnd: 10, loops: false, altStart: 0, decayDbPerSecond: 9 } } as DecodedStrokeResult, 1)).toBeNull();
+    expect(loopDecay({ loop: null } as DecodedStrokeResult, 1)).toBeNull();
   });
 });
 
 describe('createSampler audition playback', () => {
   const zone = { globalID: 7, rootKey: 60, keyLow: 21, keyHigh: 108, velLow: 0, velTop: 127 };
-  const play = (stroke: DecodedStrokeResult): FakeSource => {
+  const play = (stroke: DecodedStrokeResult, midi = 60): FakeSource => {
     audioMock.created.length = 0;
-    createSampler([zone], new Map([[7, stroke]])).noteOn(60, 100);
+    audioMock.gains.length = 0;
+    createSampler([zone], new Map([[7, stroke]])).noteOn(midi, 100);
     expect(audioMock.created).toHaveLength(1);
     return audioMock.created[0];
   };
+  const decayCalls = () => audioMock.gains.flatMap((g) => g.calls).filter((c) => c[0] === 'target');
 
-  it('sustains a steady sample by looping the stored region', () => {
-    const src = play(strokeWithDecay(7, 0.5, 0.5)); // ~0 dB decay → loop
+  it('loops every looped stroke over its stored region, and leaves the audio as decoded', () => {
+    const stroke = loopingStroke(7, 0);
+    const src = play(stroke);
     expect(src.loop).toBe(true);
-    expect(src.loopStart).toBeCloseTo(100 / 44100, 6);
-    expect(src.loopEnd).toBeCloseTo(400 / 44100, 6);
+    expect(src.loopStart).toBeCloseTo(0.5, 6);
+    expect(src.loopEnd).toBeCloseTo(1, 6);
+    expect(decayCalls()).toHaveLength(0); // a loop that holds its level has no decay
   });
 
-  it('rings out a decaying sample — no loop even though loops=true (the CP80 case)', () => {
-    const src = play(strokeWithDecay(7, 1.0, 0.25)); // strong decay → play once
+  it('decays a looped stroke from the moment playback enters the loop (the CP80 case)', () => {
+    play(loopingStroke(7, NEPER_DB), 72); // an octave up: the loop is reached in half the time
+    expect(decayCalls()).toEqual([['target', 0, 0.25, 1]]);
+  });
+
+  it('plays a one-shot straight through', () => {
+    const src = play({ globalID: 7, sampleRate: 44100, channels: [new Float32Array(1000).fill(0.5)], loop: { loopStart: 1000, loopEnd: 1000, loops: false, altStart: 0, decayDbPerSecond: 0 } } as unknown as DecodedStrokeResult);
     expect(src.loop).toBe(false);
   });
 
   it('applies the sample global detune to the playback rate', () => {
     audioMock.created.length = 0;
-    createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined, { detuneCents: 1200 })
+    createSampler([zone], new Map([[7, loopingStroke(7, 0)]]), undefined, { detuneCents: 1200 })
       .noteOn(60, 100); // root note (rate 1) + one octave of detune → 2
     expect(audioMock.created[0].playbackRate.value).toBeCloseTo(2, 6);
   });
 
   it('plays a single source when unison is off, one per voice when engaged', () => {
     audioMock.created.length = 0;
-    createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined, {})
+    createSampler([zone], new Map([[7, loopingStroke(7, 0)]]), undefined, {})
       .noteOn(60, 100);
     expect(audioMock.created).toHaveLength(1);
 
     audioMock.created.length = 0;
-    createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined,
+    createSampler([zone], new Map([[7, loopingStroke(7, 0)]]), undefined,
       { unison: unison({ numVoiceSame: 3, panMax3: 80 }) }).noteOn(60, 100);
     expect(audioMock.created).toHaveLength(3); // one source per unison voice
   });
 
   it('round-robin jitters the rate per note; off plays every note identically', () => {
-    const s = createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined, { roundRobin: true });
+    const s = createSampler([zone], new Map([[7, loopingStroke(7, 0)]]), undefined, { roundRobin: true });
     audioMock.created.length = 0;
     s.noteOn(60, 100); s.noteOff(60); s.noteOn(60, 100); s.noteOff(60); s.noteOn(60, 100);
     const rates = audioMock.created.map((x) => x.playbackRate.value);
     expect(new Set(rates).size).toBeGreaterThan(1);       // repeats differ (jittered)
     for (const r of rates) expect(r).toBeCloseTo(1, 1);   // …but only slightly (~±4¢)
 
-    const off = createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined, {});
+    const off = createSampler([zone], new Map([[7, loopingStroke(7, 0)]]), undefined, {});
     audioMock.created.length = 0;
     off.noteOn(60, 100); off.noteOff(60); off.noteOn(60, 100);
     expect(new Set(audioMock.created.map((x) => x.playbackRate.value)).size).toBe(1); // identical

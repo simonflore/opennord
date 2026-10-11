@@ -759,6 +759,9 @@ params before shipping `convertNsmp(x, 2)`. Until then, OG output stays behind a
 
 ### Region pointers — domain is internal, not decoded-PCM (RE update)
 
+> **Resolved 2026-10-11:** the "internal unit" is the compressed stream's word count; each
+> pointer lands on a segment-opening block ([`SAMPLE-ENGINE.md`](SAMPLE-ENGINE.md) §1.1).
+
 `EncodeStrokePhase0` (`@1002dbc38`) builds the four region values from the source
 `CSmpStream`'s `GetSecondStart`/`GetLoopBegin`/`GetEnd`/`GetChannelCnt`, with a
 `channels×5` guard between regions and a `kNomTgt`-derived alignment (the
@@ -788,6 +791,14 @@ open problem to region-recompute-for-new-length. Then calibrate the region/align
 constants against hardware (2–3 iterations) rather than a blind port.
 
 ## Loop / sustain playback model — VERIFIED (NSE binary, 2026-06-28)
+
+> **Corrected 2026-10-11 — read [`SAMPLE-ENGINE.md`](SAMPLE-ENGINE.md) §1 first.** The header's
+> region pointers are positions in the **compressed stream** (stream words), not audio samples,
+> and they are *start, second start, loop begin, end*: the loop runs from `+0x24` to the end,
+> and `+0x1b` is an alternate start point. The instrument's sample DSP hard-jumps the loop with
+> no crossfade and applies the stored loop decay (`+0x28`). The notes below are kept as the
+> record; where they say "loop-in / loop-out", read "second start / loop begin", and the
+> crossfade paragraph no longer describes the player.
 
 How a held key sustains. Reverse-engineered from the decompiled NSE
 (`nse_decomp/` + `nse/nse-arm64`), cross-checked against `.nsmpproj` editor

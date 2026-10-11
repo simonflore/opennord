@@ -146,6 +146,9 @@ function StrokeRow({ stroke, playable, name, sNumber, sounding, playhead }: {
           {s.loops && s.loopStart != null && s.loopEnd != null && (
             <span> · loop {(s.loopStart / s.sampleRate).toFixed(2)}–{(s.loopEnd / s.sampleRate).toFixed(2)}s</span>
           )}
+          {s.loopDecayDbPerSecond != null && (
+            <span title="How fast a held note fades once it is looping"> · fades {s.loopDecayDbPerSecond.toFixed(0)} dB/s</span>
+          )}
         </span>
       </div>
       {s.ok && (
