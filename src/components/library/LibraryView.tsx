@@ -1,14 +1,10 @@
 import './library.css';
 import { Button, BrowseToolbar, type FacetGroup } from '../ui';
 import { CategoryPanel } from './CategoryPanel';
-import { LibraryCard } from './LibraryCard';
+import { ProgramTable } from './ProgramTable';
 import { LibraryEmpty } from './LibraryEmpty';
 import { BundlePicker } from './BundlePicker';
 import { NewBackupsBanner } from './NewBackupsBanner';
-import { EngineTags } from './EngineTags';
-import { ZoneStrip } from './ZoneStrip';
-import { SlotTag, genTone } from './SlotTag';
-import { CardRemoveButton } from './CardRemoveButton';
 import { SOURCE_LABEL, type LibraryEntry, type LibrarySource, type LibrarySort } from '../../lib/library/types';
 import type { LibraryPrefsApi } from '../../lib/library/prefs';
 import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
@@ -211,25 +207,14 @@ export function LibraryView({
         </LibraryEmpty>
       }
     >
-          {entries.map((e) => (
-            <LibraryCard
-              key={e.id}
-              name={e.name}
-              source={e.source}
-              favorite={favorites.has(e.id)}
-              onToggleFavorite={() => onToggleFavorite(e.id)}
-              onOpen={() => onOpen(e)}
-              selected={e.id === activeId}
-              badge={<SlotTag tone={e.slot ? undefined : genTone(e.generation)}>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>}
-              engines={e.engines
-                ? <EngineTags summary={e.engines} />
-                : <span className="text-[11px] text-muted">—</span>}
-              strip={<ZoneStrip program={e.program} />}
-              footExtras={e.source === 'local' && (
-                <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
-              )}
-            />
-          ))}
+      <ProgramTable
+        entries={entries}
+        activeId={activeId}
+        favorites={favorites}
+        onToggleFavorite={onToggleFavorite}
+        onOpen={onOpen}
+        onRemove={onRemove}
+      />
     </CategoryPanel>
   );
 }
