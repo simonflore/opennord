@@ -13,7 +13,7 @@
  * only with a warning rather than a guess. Pure; never throws; model → clavia.
  */
 import { formatCbinVersion } from './cbin';
-import { readLegacyFile, type LegacyLayout } from './legacy-record';
+import { readLegacyFile, type LegacyLayout, legacyRecordVersion } from './legacy-record';
 
 export interface LegacyProgram<K extends string> {
   readonly parsed: true;
@@ -66,7 +66,14 @@ export function decodeLegacyProgram<K extends string>(
   if (!r.complete) return headerOnly([...r.warnings, 'Showing the file header only.']);
 
   const current = layout.recordVersion;
-  const recordVersion = current === null ? null : r.recordVersion;
+  const reads = (v: number) => v === current || !!spec.converted?.includes(v);
+  // The firmware's own copy of the version sits in front of the data; NSM keeps
+  // one at 0x14. Older readers were checked on real files against 0x14 only, so
+  // if the record's copy isn't one the firmware reads but NSM's is, trust NSM's
+  // rather than refusing a file the old reader opened.
+  const recordVersion = current === null ? null
+    : !reads(r.recordVersion) && reads(legacyRecordVersion(bytes)) ? legacyRecordVersion(bytes)
+    : r.recordVersion;
   const warnings: string[] = [];
   if (current !== null && recordVersion !== current) {
     if (recordVersion !== null && spec.converted?.includes(recordVersion)) {

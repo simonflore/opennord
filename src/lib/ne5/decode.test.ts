@@ -26,6 +26,23 @@ function ne5p(values: Partial<Record<Ne5FieldKey, number>> = {}, version = 4): U
   return synthLegacyLayoutFile('ne5p', NE5_LAYOUT, values, { version: version });
 }
 
+describe('NE5 record version', () => {
+  it("falls back to NSM's copy at 0x14 when the record's own copy (0x18) isn't one the firmware reads", () => {
+    const bytes = ne5p({ 'b3PresetI.drawbar1': 7 });
+    bytes[0x18] = 0; bytes[0x19] = 0; // the old decoder never checked these two bytes
+    const p = decodeNe5(bytes);
+    expect(p.layoutMatched).toBe(true);
+    expect(p.recordVersion).toBe(4);
+    expect(p.values['b3PresetI.drawbar1']).toBe(7);
+  });
+
+  it('still refuses a file whose version is unreadable in both places', () => {
+    const bytes = ne5p();
+    bytes[0x18] = 0; bytes[0x19] = 9; bytes[0x14] = 9; bytes[0x15] = 0;
+    expect(decodeNe5(bytes).layoutMatched).toBe(false);
+  });
+});
+
 describe('NE5 firmware layout', () => {
   it('is a 119-byte record at file 0x1A, version 4, 173 parameters', () => {
     expect(NE5_LAYOUT).toMatchObject({ dataBytes: 119, recordVersion: 4 });
