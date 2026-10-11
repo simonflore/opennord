@@ -59,6 +59,55 @@ const ProgramFacts = memo(function ProgramFacts({ program }: { program?: NordPro
   );
 });
 
+type RowActions = {
+  onOpen: (e: LibraryEntry) => void;
+  onToggleFavorite: (id: string) => void;
+  onRemove: (id: string) => void;
+};
+
+/**
+ * One program row. Memoised on its entry, open and favourite state (the
+ * handlers are stable): stepping with J/K or starring a program re-renders the
+ * rows that changed, not the list.
+ */
+const ProgramRow = memo(function ProgramRow({ entry: e, selected, favorite, onOpen, onToggleFavorite, onRemove }: RowActions & {
+  entry: LibraryEntry;
+  selected: boolean;
+  favorite: boolean;
+}) {
+  return (
+    <LibraryRow
+      // content-visibility: a row off screen skips layout and paint (a folder
+      // can hold thousands); 40px (a row's fixed height) stands in until it is
+      // first shown. Its paint containment would clip the star's and remove
+      // button's focus rings at the row edge, so it applies only where a clip
+      // margin can let them through (not Safari yet).
+      className={cn(
+        COLS, 'min-h-10 font-mono text-[11px] text-dim',
+        'supports-[overflow-clip-margin:8px]:[content-visibility:auto] [contain-intrinsic-block-size:auto_40px] [overflow-clip-margin:8px]',
+      )}
+      selected={selected}
+      onOpen={() => onOpen(e)}
+    >
+      <FavoriteStar name={e.name} favorite={favorite} onToggle={() => onToggleFavorite(e.id)} />
+      <span>
+        <SlotTag tone={e.slot ? undefined : genTone(e.generation)}>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>
+      </span>
+      <span className="min-w-0 truncate font-sans text-[14px] font-semibold text-ink">{e.name}</span>
+      <span className={cn(WIDE, 'truncate font-sans text-[12px]')}><Col>Category</Col>{e.category ?? dash}</span>
+      <EngineLeds summary={e.engines} />
+      <span className={WIDE}><ZoneStrip program={e.program} fallback={dash} /></span>
+      <ProgramFacts program={e.program} />
+      <span className="flex items-center gap-2">
+        <span className={WIDE}><SourceBadge source={e.source} /></span>
+        {e.source === 'local' && (
+          <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
+        )}
+      </span>
+    </LibraryRow>
+  );
+});
+
 /**
  * The program list as a console table (B×A): a header naming each column, then
  * one dense row per program, on the shared LibraryRow (Enter/Space open, the
@@ -66,15 +115,12 @@ const ProgramFacts = memo(function ProgramFacts({ program }: { program?: NordPro
  * through it are useStepKeys, on the program page (so they work with the
  * table folded away on a narrow screen too).
  */
-export function ProgramTable({
-  entries, activeId, favorites, onToggleFavorite, onOpen, onRemove,
-}: {
+export const ProgramTable = memo(function ProgramTable({
+  entries, activeId, favorites, ...actions
+}: RowActions & {
   entries: LibraryEntry[];
   activeId?: string | null;
   favorites: ReadonlySet<string>;
-  onToggleFavorite: (id: string) => void;
-  onOpen: (e: LibraryEntry) => void;
-  onRemove: (id: string) => void;
 }) {
   return (
     <div className="@container">
@@ -99,32 +145,11 @@ export function ProgramTable({
         <span className={WIDE}>Source</span>
       </div>
       {entries.map((e) => (
-        <LibraryRow
-          key={e.id}
-          className={cn(COLS, 'min-h-10 font-mono text-[11px] text-dim')}
-          selected={e.id === activeId}
-          onOpen={() => onOpen(e)}
-        >
-          <FavoriteStar name={e.name} favorite={favorites.has(e.id)} onToggle={() => onToggleFavorite(e.id)} />
-          <span>
-            <SlotTag tone={e.slot ? undefined : genTone(e.generation)}>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>
-          </span>
-          <span className="min-w-0 truncate font-sans text-[14px] font-semibold text-ink">{e.name}</span>
-          <span className={cn(WIDE, 'truncate font-sans text-[12px]')}><Col>Category</Col>{e.category ?? dash}</span>
-          <EngineLeds summary={e.engines} />
-          <span className={WIDE}><ZoneStrip program={e.program} fallback={dash} /></span>
-          <ProgramFacts program={e.program} />
-          <span className="flex items-center gap-2">
-            <span className={WIDE}><SourceBadge source={e.source} /></span>
-            {e.source === 'local' && (
-              <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
-            )}
-          </span>
-        </LibraryRow>
+        <ProgramRow key={e.id} entry={e} selected={e.id === activeId} favorite={favorites.has(e.id)} {...actions} />
       ))}
       <p className="m-0 px-3 py-2 font-mono text-[10px] text-muted max-[720px]:hidden">
         <kbd>J</kbd> <kbd>K</kbd> next / previous · <kbd>↵</kbd> open
       </p>
     </div>
   );
-}
+});

@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { Blueprint } from '@/components/ui';
 import { LibraryView } from './LibraryView';
 import { useStepKeys } from './useStepKeys';
@@ -21,6 +22,9 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
   const entry = selectedId ? s.entryById(selectedId) : undefined;
   // J/K step through the programs, here so they keep working with the list folded away (narrow).
   useStepKeys(s.shown, selectedId, open.program);
+  // Stable, so the program table's memoised rows skip renders that don't touch them.
+  const { remove } = s.imported;
+  const onRemove = useCallback((id: string) => void remove(id).then(() => closeRemoved(id)), [remove, closeRemoved]);
 
   const list = (
     <LibraryView
@@ -38,9 +42,9 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
       clearFilters={s.clearFilters}
       filtered={s.filtered}
       activeId={selectedId}
-      onOpen={(e) => open.program(e)}
+      onOpen={open.program}
       onImport={s.importFile}
-      onRemove={(id) => void s.imported.remove(id).then(() => closeRemoved(id))}
+      onRemove={onRemove}
       importError={s.importError}
       onDismissImportError={s.clearImportError}
       prefs={s.prefs}
