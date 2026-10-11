@@ -6,7 +6,7 @@ import { ElectronUsbTransport } from '../../lib/device/electron-usb';
 import { NordSession } from '../../lib/device/session';
 import { NordStatus, SessionRefusedError } from '../../lib/device/protocol';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
-import { identifyDevice, resolveDeviceAccess, type DeviceIdentity } from '../../lib/device/connect-probe';
+import { identifyDevice, resolveDeviceAccess, PROBE_REPLY_TIMEOUT_MS, type DeviceIdentity } from '../../lib/device/connect-probe';
 import { modelById } from '../../lib/clavia/partitions';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
 import { initialFileTransferVersion, shouldNegotiateVersion } from '../../lib/device/negotiate';
@@ -151,13 +151,12 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     // Start from the model's own FileTransfer version (registry, from its
     // firmware: 4/6/7/8/10), else the NS4 default 0x0a — a frame above a
     // device's version is dropped without a reply. Then adopt what the device
-    // advertises (NS2 = 0x08). Best-effort: if it doesn't answer the handshake,
-    // the model's version stands. Skipped for the NS4 itself — it already uses
-    // 0x0a, and the handshake's reply read is unbounded, so querying a device
-    // that won't answer hangs connect.
+    // advertises (NS2 = 0x08). Best-effort and bounded: whether the older
+    // models answer the handshake at all is unknown, so on silence or an error
+    // the model's version stands. Skipped for the NS4, which already uses 0x0a.
     session.useFileTransferVersion(initialFileTransferVersion(deviceIdentity.model));
     if (shouldNegotiateVersion(productId)) {
-      await session.negotiateVersion().catch(() => undefined);
+      await session.withReplyTimeout(PROBE_REPLY_TIMEOUT_MS, () => session.negotiateVersion()).catch(() => undefined);
     }
     // Address the model's Program partition and decide what may be written.
     // The model comes from the best-known product id (hardware-confirmed, else
