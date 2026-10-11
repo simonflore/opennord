@@ -1,18 +1,12 @@
 import type { CategoryId } from '../../lib/library/categories';
-import type { LibrarySource } from '../../lib/library/types';
+import { SOURCE_LABEL, type LibrarySource } from '../../lib/library/types';
+import { countBySource } from '../../lib/library/browse';
 import { useDevice } from '../../lib/device/DeviceContext';
 import { useLibraryState } from '../../lib/library/LibraryContext';
 import { usePresetsState } from '../../lib/library/PresetsContext';
 import { useSamplesState } from '../../lib/library/SamplesContext';
 import { usePianosState } from '../../lib/library/PianosContext';
 import type { SourceItem } from './Rail';
-
-const SOURCES: { source: LibrarySource; label: string }[] = [
-  { source: 'nord', label: 'on the nord' },
-  { source: 'local', label: 'local files' },
-  { source: 'backup', label: 'backups' },
-  { source: 'cloud', label: 'cloud' },
-];
 
 /**
  * What the rail shows beside its entries: each library list's size, and the
@@ -27,8 +21,9 @@ export function useRailData() {
     samples: useSamplesState().all.length,
     pianos: usePianosState().all.length,
   };
-  const sources: SourceItem[] = SOURCES
-    .map((s) => ({ ...s, count: library.all.filter((e) => e.source === s.source).length, live: s.source === 'nord' && !!session }))
+  const bySource = countBySource(library.all);
+  const sources: SourceItem[] = (Object.keys(SOURCE_LABEL) as LibrarySource[])
+    .map((source) => ({ source, label: SOURCE_LABEL[source], count: bySource[source], live: source === 'nord' && !!session }))
     .filter((s) => s.count > 0 || s.live);
   return { counts, sources, activeSource: library.source, onPickSource: library.setSource };
 }

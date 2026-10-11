@@ -3,68 +3,57 @@ import * as RD from '@radix-ui/react-dialog';
 import { useNavigate } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
 import { LIBRARY_CATEGORIES } from '../../lib/library/categories';
-import type { LibrarySource } from '../../lib/library/types';
+import { SOURCE_LABEL, type LibrarySource } from '../../lib/library/types';
 import { useLibraryState } from '../../lib/library/LibraryContext';
 import { usePresetsState } from '../../lib/library/PresetsContext';
 import { useSamplesState } from '../../lib/library/SamplesContext';
 import { usePianosState } from '../../lib/library/PianosContext';
-import { useCapabilities } from '../../lib/capabilities/CapabilitiesContext';
-import { rankCommands, type Command } from './commands';
-import { CLOUD_TO, COMMUNITY_TO, DEV_DESTS, RE_DESTS, TOOLS, type NavTo } from './nav';
+import { rankCommands, type Command, type CommandGroup } from './commands';
+import { ABOUT, DEV_DESTS, useTools, type NavTo } from './nav';
+import { groupLabel, rowActive } from './styles';
 
-const SOURCE_LABEL: Record<LibrarySource, string> = { nord: 'on the Nord', local: 'local', backup: 'backup', cloud: 'cloud' };
+const hint = (e: { slot?: string; source: LibrarySource }) => e.slot ?? SOURCE_LABEL[e.source];
 
 /** Everything the palette can jump to: the pages, then every program, preset, sample and piano. */
 function useCommands(): Command[] {
   const navigate = useNavigate();
-  const caps = useCapabilities();
+  const tools = useTools();
   const library = useLibraryState();
   const presets = usePresetsState();
   const samples = useSamplesState();
   const pianos = usePianosState();
 
   return useMemo(() => {
-    const go = (to: NavTo) => () => navigate({ to });
-    const page = (to: NavTo, label: string): Command => ({ id: `page:${to}`, group: 'Pages', label, run: go(to) });
     const pages: Command[] = [
-      ...LIBRARY_CATEGORIES.filter((c) => c.ready).map((c) => page(c.path as NavTo, c.label)),
-      ...TOOLS.map((d) => page(d.to, d.label)),
-      ...(caps.cloud.available ? [page(CLOUD_TO, 'Cloud')] : []),
-      ...(caps.community.available ? [page(COMMUNITY_TO, 'Community')] : []),
-      ...(__RE__ ? [...RE_DESTS, ...DEV_DESTS].map((d) => page(d.to, d.label)) : []),
-      page('/about', 'About & legal'),
-    ];
+      ...LIBRARY_CATEGORIES.filter((c) => c.ready).map((c) => ({ to: c.path as NavTo, label: c.label })),
+      ...tools,
+      ...(__RE__ ? DEV_DESTS : []),
+      ABOUT,
+    ].map((d) => ({ id: `page:${d.to}`, group: 'Pages', label: d.label, run: () => navigate({ to: d.to }) }));
+
+    const programs = library.all.map((e): Command => ({
+      id: `program:${e.id}`, group: 'Programs', label: e.name, hint: hint(e),
+      run: () => {
+        library.setSource('all');
+        if (e.program) navigate({ to: '/library/programs/$programId', params: { programId: e.id } });
+        else navigate({ to: '/device' });
+      },
+    }));
+
     // Presets, samples and pianos have no page of their own: jumping to one opens
     // its list searched down to that name.
-    const find = (to: NavTo, setQuery: (q: string) => void, setSource: (s: 'all') => void, name: string) => () => {
-      setSource('all');
-      setQuery(name);
-      navigate({ to });
-    };
-    return [
-      ...pages,
-      ...library.all.map((e): Command => ({
-        id: `program:${e.id}`, group: 'Programs', label: e.name, hint: e.slot ?? SOURCE_LABEL[e.source],
-        run: () => {
-          library.setSource('all');
-          if (e.program) navigate({ to: '/library/programs/$programId', params: { programId: e.id } });
-          else navigate({ to: '/device' });
-        },
-      })),
-      ...presets.all.map((e): Command => ({
-        id: `preset:${e.id}`, group: 'Presets', label: e.name, hint: e.slot ?? SOURCE_LABEL[e.source],
-        run: find('/library/presets', presets.setQuery, presets.setSource, e.name),
-      })),
-      ...samples.all.map((e): Command => ({
-        id: `sample:${e.id}`, group: 'Samples', label: e.name, hint: e.slot ?? SOURCE_LABEL[e.source],
-        run: find('/library/samples', samples.setQuery, samples.setSource, e.name),
-      })),
-      ...pianos.all.map((e): Command => ({
-        id: `piano:${e.id}`, group: 'Pianos', label: e.name, hint: e.slot ?? SOURCE_LABEL[e.source],
-        run: find('/library/pianos', pianos.setQuery, pianos.setSource, e.name),
-      })),
+    const lists: [CommandGroup, NavTo, typeof presets | typeof samples | typeof pianos][] = [
+      ['Presets', '/library/presets', presets],
+      ['Samples', '/library/samples', samples],
+      ['Pianos', '/library/pianos', pianos],
     ];
-  }, [navigate, caps, library, presets, samples, pianos]);
+    const entries = lists.flatMap(([group, to, list]) => list.all.map((e): Command => ({
+      id: `${group}:${e.id}`, group, label: e.name, hint: hint(e),
+      run: () => { list.setSource('all'); list.setQuery(e.name); navigate({ to }); },
+    })));
+
+    return [...pages, ...programs, ...entries];
+  }, [navigate, tools, library, presets, samples, pianos]);
 }
 
 /**
@@ -136,7 +125,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
         {results.map((c, i) => (
           <div key={c.id}>
             {(i === 0 || results[i - 1].group !== c.group) && (
-              <div className="px-4 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{c.group}</div>
+              <div className={cn(groupLabel, 'pt-2.5')}>{c.group}</div>
             )}
             <div
               id={`palette-${i}`}
@@ -147,7 +136,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
               onClick={() => run(c)}
               className={cn(
                 'flex cursor-pointer items-center gap-3 px-4 py-1.5 font-mono text-xs',
-                i === index ? 'fill-raised text-ink shadow-[inset_3px_0_0_var(--accent)]' : 'text-dim',
+                i === index ? rowActive : 'text-dim',
               )}
             >
               <span className="min-w-0 flex-1 truncate">{c.label}</span>

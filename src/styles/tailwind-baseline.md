@@ -79,6 +79,6 @@ tool surfaces.
 
 **Tokens are tree-shaken.** Tailwind v4 only emits an `@theme` variable if a
 utility actually uses it — a new token will be absent from the built CSS until
-something consumes it. That is expected, not a bug (`--color-bg` and
-`--color-devbox-bg` are absent for the same reason: they are used as `var(--bg)`
-inside `@utility` blocks, not through a `bg-*` utility).
+something consumes it. That is expected, not a bug (`--color-bg` is absent for
+the same reason: it is used as `var(--bg)` inside `@utility` blocks, not through
+a `bg-*` utility).

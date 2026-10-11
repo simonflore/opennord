@@ -9,7 +9,7 @@ import { EngineTags } from './EngineTags';
 import { ZoneStrip } from './ZoneStrip';
 import { SlotTag, genTone } from './SlotTag';
 import { CardRemoveButton } from './CardRemoveButton';
-import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
+import { SOURCE_LABEL, type LibraryEntry, type LibrarySource, type LibrarySort } from '../../lib/library/types';
 import type { LibraryPrefsApi } from '../../lib/library/prefs';
 import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
 
@@ -43,7 +43,7 @@ interface Props {
 }
 
 const TABS: Array<LibrarySource | 'all'> = ['all', 'nord', 'local', 'backup', 'cloud'];
-const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', nord: 'On Nord', local: 'Local', backup: 'Backup', cloud: 'Cloud' };
+const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', ...SOURCE_LABEL };
 
 const SORT_LABEL: Record<LibrarySort, string> = { default: 'Default', name: 'Name (A–Z)', source: 'Source' };
 
