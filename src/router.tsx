@@ -25,6 +25,10 @@ export function createAppRouter(extra: AnyRoute[] = []) {
     routeTree,
     history: createHashHistory(),
     defaultPreload: false,
+    // Each page keeps its scroll: leaving a list for an entry and coming back
+    // (or going back in history) returns to where the list was, on a phone too.
+    scrollRestoration: true,
+    getScrollRestorationKey: (location) => location.pathname,
     defaultNotFoundComponent: () => {
       if (typeof window !== 'undefined') window.location.hash = '#/library/programs';
       return null;

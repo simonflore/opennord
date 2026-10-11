@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 
 /** One filter on a list: whether it's narrowing the list now, and how to switch it off. */
-export interface ListFilter { active: boolean; reset: () => void }
+export interface ListFilter {
+  active: boolean;
+  /** Only calls a state setter, so the first render's reset stays valid. */
+  reset: () => void;
+}
 
 /**
  * A list's filters, declared once: `filtered` is whether any is narrowing the
@@ -10,8 +14,7 @@ export interface ListFilter { active: boolean; reset: () => void }
  * misreads as an empty library). `clearFilters` is stable across renders.
  */
 export function useListFilters(filters: ListFilter[]): { filtered: boolean; clearFilters: () => void } {
-  const latest = useRef(filters);
-  useEffect(() => { latest.current = filters; });
-  const clearFilters = useCallback(() => { for (const f of latest.current) f.reset(); }, []);
+  const resets = useRef(filters.map((f) => f.reset)).current;
+  const clearFilters = useCallback(() => { for (const reset of resets) reset(); }, [resets]);
   return { filtered: filters.some((f) => f.active), clearFilters };
 }
