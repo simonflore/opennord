@@ -23,10 +23,16 @@ describe('decodeForModel', () => {
     expect(decodeForModel('whatever')).toMatchObject({ status: 'none', controlCount: 0 });
   });
 
-  it('reports NE6 as started with controls mapped', () => {
-    const d = decodeForModel('electro-6');
+  it('reports a curated model with controls mapped as started', () => {
+    const d = decodeForModel('electro-5');
     expect(d.status).toBe('started');
     expect(d.controlCount).toBeGreaterThan(0);
+    expect(d.pct).toBeGreaterThan(0);
+  });
+
+  it('reports NE6 as partly decoded, with its byte map from the firmware layout', () => {
+    const d = decodeForModel('electro-6');
+    expect(d).toMatchObject({ status: 'partial', bodyBytes: 211 });
     expect(d.pct).toBeGreaterThan(0);
   });
 

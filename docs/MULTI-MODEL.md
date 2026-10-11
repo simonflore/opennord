@@ -236,17 +236,18 @@ src/lib/<model>/present.ts       values → DecodedProgram (musician labels from
 | Piano 6 | `np6p` | OS 1.20 registry `FUN_c0112544`; archive `FUN_c010db30` | 185 B, 11 blocks | high (two's complement: medium) — Grand 2 layout + `Com_kFxEnable`, `EffectsSectionMode`, split AmpEnv decay/release |
 | Electro 7 | `ne7p` | OS 1.30 registry `FUN_c009c394`; archive `FUN_c00a8148` / tree `FUN_c00aa7c8` (1.00–1.10) | 353 B, 13 blocks | **provisional** — block order medium; buffer sizes match the firmware's own totals |
 | Organ 3 | `no3p` | OS 1.00 registry `FUN_c00c0120`; archive `FUN_c00b9888` (2.00) | 204 B, 8 blocks | **provisional** — block order assumed from insertion order (medium) |
+| Electro 6 | `ne6p` | OS 2.66 registry `FUN_c0054b5c`; Multi format `FUN_c0057f8c` (2.00–2.04) | 211 B, 14 blocks | high — reproduces every anchor of the earlier corpus reader; two's complement (signed mode 0, `FUN_c009aad8`) |
 
 The Electro 7 and Organ 3 programs carry a note ("firmware-derived, block order
 not yet confirmed on a real file") on every decode, and their coverage byte maps
 are `candidate`, not `confirmed`. The Grand's three-letter tag is padded in the
 header; `fileTypeTag` drops trailing NUL/space so it compares as `ngp`.
 
-**Follow-ups.** The block-chain reader lives in `clavia/block-chain.ts` and is
-used only by these four readers today. Moving the older corpus decoders (np4,
-np5, ng2, ne6, nw2) onto it — the firmware findings correct several of their
-offsets — and adopting a shared block-chain reader if `main` grows one, are
-separate changes. A real `.ngp`, `.np6p`, `.ne7p` or `.no3p` file is the next
+**Follow-ups.** The block-chain reader lives in `clavia/block-chain.ts`; besides
+these four it now runs the Electro 6 reader (`lib/ne6`), which replaced its
+corpus-only decoder. Moving the other older corpus decoders (np4, np5, ng2, nw2)
+onto it — the firmware findings correct several of their offsets — is a
+separate change. A real `.ngp`, `.np6p`, `.ne7p` or `.no3p` file is the next
 check for each (expected sizes 134, 229, 397 and 248 bytes).
 
 ## Out of scope: device transfer for other instruments

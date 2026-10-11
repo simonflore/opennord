@@ -5,8 +5,9 @@
  * size (file length − 44-byte CBIN header).
  *
  * Stage 4 is NOT listed here — it's fully decoded from the offset map already.
- * Nor are the firmware-layout models (Grand, Piano 6, Electro 7, Organ 3): their
- * byte maps are synthesized from the generated layouts in coverage.ts.
+ * Nor are the firmware-layout models (Grand, Piano 6, Electro 6, Electro 7,
+ * Organ 3): their byte maps are synthesized from the generated layouts in
+ * coverage.ts.
  */
 
 export interface MappedControl {
@@ -43,58 +44,11 @@ export interface ModelProgress {
 
 // Keyed by model id (clavia/partitions.ts). Add models + controls as fields are
 // mapped. Example:
-//   'electro-6': {
+//   'electro-5': {
 //     bodyBytes: 1234,
 //     controls: [{ label: 'Organ drawbar 1', ranges: [{ start: 39, end: 39 }] }],
 //   },
 export const MODEL_PROGRESS: Record<string, ModelProgress> = {
-  'electro-6': {
-    bodyBytes: 211,
-    controls: [
-      { label: 'Upper drawbars (9 bars)', ranges: [{ start: 143, end: 147 }] },
-      { label: 'Lower drawbars (9 bars)', ranges: [{ start: 158, end: 162 }] },
-      { label: 'Upper organ vib/perc flags (post-drawbar nibble)', ranges: [{ start: 147, end: 147 }] },
-      { label: 'Lower organ vib/perc flags (post-drawbar nibble)', ranges: [{ start: 162, end: 162 }] },
-      { label: 'LFO / synth enable',      ranges: [{ start: 39,  end: 39  }] },
-      { label: 'LFO rate + depth (16-bit)',ranges: [{ start: 7,   end: 8   }] },
-      { label: 'Piano vibrato apply',      ranges: [{ start: 73,  end: 73  }] },
-      { label: 'Global LFO active flag',   ranges: [{ start: 6,   end: 6   }] },
-      { label: 'Sample model ID (32-bit, candidate)',          ranges: [{ start: 40,  end: 44  }] },
-      { label: 'Sample section header (type/slot/variation)',  ranges: [{ start: 38,  end: 39  }] },
-      { label: 'Organ lead-in (KB zones/octave/model/preset)', ranges: [{ start: 124, end: 125 }] },
-      { label: 'Organ / sample section enable flags',          ranges: [{ start: 5,   end: 6   }] },
-    ],
-    regions: [
-      { start: 0,   end: 4,   label: 'Header prefix',            status: 'constant'  },
-      { start: 5,   end: 6,   label: 'Organ / sample section enable flags', status: 'candidate' },
-      { start: 7,   end: 8,   label: 'Global / LFO params',      status: 'candidate' },
-      { start: 9,   end: 19,  label: '',                          status: 'constant'  },
-      { start: 20,  end: 28,  label: 'Organ control (B)',         status: 'candidate' },
-      { start: 29,  end: 37,  label: '',                          status: 'constant'  },
-      { start: 38,  end: 39,  label: 'Sample section header (type/slot/variation)', status: 'candidate' },
-      { start: 40,  end: 44,  label: 'Sample model ID (32-bit)', status: 'candidate' },
-      { start: 45,  end: 50,  label: 'Synth / mod engine (C)',    status: 'candidate' },
-      { start: 51,  end: 61,  label: '',                          status: 'constant'  },
-      { start: 62,  end: 75,  label: 'Piano section (D)',         status: 'candidate' },
-      { start: 76,  end: 93,  label: '',                          status: 'constant'  },
-      { start: 94,  end: 94,  label: 'Unknown flag',              status: 'unknown'   },
-      { start: 95,  end: 103, label: '',                          status: 'constant'  },
-      { start: 104, end: 104, label: 'Section flag',              status: 'unknown'   },
-      { start: 105, end: 113, label: '',                          status: 'constant'  },
-      { start: 114, end: 114, label: 'Section flag',              status: 'unknown'   },
-      { start: 115, end: 123, label: '',                          status: 'constant'  },
-      { start: 124, end: 125, label: 'Organ lead-in (KB zones/octave/model/preset)', status: 'candidate' },
-      { start: 126, end: 142, label: '',                          status: 'constant'  },
-      { start: 143, end: 147, label: 'Upper drawbars',            status: 'confirmed' },
-      { start: 148, end: 157, label: '',                          status: 'constant'  },
-      { start: 158, end: 162, label: 'Lower drawbars',            status: 'confirmed' },
-      { start: 163, end: 185, label: '',                          status: 'constant'  },
-      { start: 186, end: 186, label: 'Unknown flag',              status: 'unknown'   },
-      { start: 187, end: 200, label: '',                          status: 'constant'  },
-      { start: 201, end: 201, label: 'Unknown flag',              status: 'unknown'   },
-      { start: 202, end: 210, label: '',                          status: 'constant'  },
-    ],
-  },
   'lead-a1': {
     bodyBytes: 79,
     controls: [
