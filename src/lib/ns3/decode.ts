@@ -21,7 +21,8 @@
  * times, filter frequency) and the oscillator wave names.
  *
  * Versions: the firmware reads 3.00–3.04 natively (new parameters take reserved
- * bits, so block sizes don't change) and converts 2.01–2.03 on load. A 2.0x body
+ * bits, so block sizes don't change; a few 3.00–3.01 values are fixed up on
+ * load, as convert.ts does here) and converts 2.01–2.03 on load. A 2.0x body
  * lays its slot blocks out differently, so it is returned header-only with a
  * warning, as is any file whose chain doesn't match the layout. A legacy
  * (formatType 0) file has a header 0x14 bytes shorter, so its body starts at
@@ -38,6 +39,7 @@ import { DRAWBAR_NUMBERS } from '../clavia/fw-present';
 import { NORD_DB } from '../clavia/volume';
 import { NS3_FILTER_FREQ } from './filter-freq';
 import { NS3_LAYOUT, type Ns3FieldKey } from './layout.generated';
+import { convertNs3Values } from './convert';
 
 export type { Ns3FieldKey };
 
@@ -395,6 +397,12 @@ export interface Ns3Program {
  */
 export interface Ns3File extends FwProgram<Ns3FieldKey>, Ns3Program {
   readonly format: 'ns3f';
+  /**
+   * Panels of a format 3.00 file whose free-running delay rate (and its morph
+   * deltas) are kept as stored, on the OS 3.00 0–127 scale (convert.ts); their
+   * `effects<P>.dlyRateClkDiv` values are on that scale, not the 14-bit one.
+   */
+  readonly os300DelayRate?: readonly ('A' | 'B')[];
 }
 
 type Slot = 'A' | 'B';
@@ -518,7 +526,7 @@ function synth(get: Get, s: Slot): Ns3Synth {
 }
 
 /** The effects this panel has switched on, in signal order, with type and parameters. */
-function effects(get: Get, s: Slot): Ns3Fx[] {
+function effects(get: Get, s: Slot, os300DelayRate = false): Ns3Fx[] {
   const e = (k: FieldOf<'effects'>) => get(`effects${s}.${k}`);
   const fx: Ns3Fx[] = [];
   // Rotary speed is program-wide (MultiCommon Param_Effects_kLeslieSpeed, 2 bits).
@@ -534,21 +542,28 @@ function effects(get: Get, s: Slot): Ns3Fx[] {
     fx.push({ name: 'Amp/EQ', type: lut(AMP_TYPE, e('ampType')), params: { treble: e('ampTreble'), mid: e('ampMid'), bass: e('ampBass') } });
   }
   if (e('cmpEnable')) fx.push({ name: 'Comp', params: { amount: lin10(e('cmpAmt')) } });
-  if (e('dlyEnable')) fx.push({ name: 'Delay', params: { feedback: lin10(e('dlyFeedback')), mix: lin10(e('dlyMix')) } });
+  if (e('dlyEnable')) {
+    // A 3.00 file's free-running rate is shown as stored, on that OS's 0–127 scale (convert.ts).
+    const params: Record<string, string> = { feedback: lin10(e('dlyFeedback')), mix: lin10(e('dlyMix')) };
+    fx.push({ name: 'Delay', params: os300DelayRate ? { rate: `${e('dlyRateClkDiv')} (OS 3.00 scale)`, ...params } : params });
+  }
   if (e('rvbEnable')) fx.push({ name: 'Reverb', type: lut(REVERB_TYPE, e('rvbType')), params: { amount: lin10(e('rvbAmt')) } });
   return fx;
 }
 
-function panel(get: Get, id: Slot): Ns3Panel {
-  return { id, piano: piano(get, id), organ: organ(get, id), synth: synth(get, id), fx: effects(get, id) };
+function panel(get: Get, id: Slot, os300DelayRate: readonly Slot[] = []): Ns3Panel {
+  return {
+    id, piano: piano(get, id), organ: organ(get, id), synth: synth(get, id),
+    fx: effects(get, id, os300DelayRate.includes(id)),
+  };
 }
 
 /**
  * Parameters added inside 3.x took reserved (zero) bits; on loading an older 3.x
- * file the firmware sets them to their defaults (version fix-ups, FUN_c007dd14).
- * Two more fix-ups are not applied here because what they compute isn't known:
- * the delay rate of a 3.00 file (rescaled to 14 bits) and the Dual-KB style
- * before 3.02.
+ * file the firmware sets them to their defaults (version fix-ups, FUN_c007dd14:
+ * Pitch Stick Range 1 below 3.03, the Extern volume-pedal switches on below
+ * 3.04 — both their defaults). The other fix-ups (Dual-KB style below 3.02, the
+ * 3.00 delay rate) change stored values; convert.ts applies them.
  */
 const ADDED_IN: readonly { before: number; keys: readonly Ns3FieldKey[] }[] = [
   { before: 303, keys: ['common.pitchStickRange'] },               // id 157
@@ -588,15 +603,34 @@ export function decodeNs3(bytes: Uint8Array): Ns3File {
     ];
   }
 
-  if (layoutMatched && v !== null) values = withVersionDefaults(values, v);
+  let os300DelayRate: readonly Slot[] = [];
+  if (layoutMatched && v !== null) {
+    const c = convertNs3Values(withVersionDefaults(values, v), v);
+    if (c.refused) {
+      layoutMatched = false;
+      values = {};
+      warnings = [c.refused];
+    } else {
+      values = c.values;
+      os300DelayRate = c.os300DelayRate;
+      if (os300DelayRate.some((s) => values[`effects${s}.dlyEnable`] === 1)) {
+        warnings = [...warnings,
+          'This program comes from Stage 3 OS 3.00, which set the free-running delay time on its original ' +
+          '0–127 scale. OpenNord shows that delay time as the file stores it, on the old scale.'];
+      }
+    }
+  }
 
   const panels: Ns3Panel[] = [];
   if (layoutMatched) {
     const get = reader(values);
     // Param_Com_kSlotEnable 1-3: bit 0 = slot A, bit 1 = slot B.
     const slots = get('common.slotEnable');
-    if (slots === 1 || slots === 3) panels.push(panel(get, 'A'));
-    if (slots === 2 || slots === 3) panels.push(panel(get, 'B'));
+    if (slots === 1 || slots === 3) panels.push(panel(get, 'A', os300DelayRate));
+    if (slots === 2 || slots === 3) panels.push(panel(get, 'B', os300DelayRate));
   }
-  return { ...fw, format: 'ns3f', layoutMatched, values, warnings, panels };
+  return {
+    ...fw, format: 'ns3f', layoutMatched, values, warnings, panels,
+    ...(os300DelayRate.length > 0 && { os300DelayRate }),
+  };
 }

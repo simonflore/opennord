@@ -115,7 +115,7 @@ Notes on the table:
 
 - **Programs and Lives:** 3.00–3.04 natively; 2.01–2.03 through a converter.
 - **Synth presets:** 3.00 natively; 2.00–2.01 through a converter.
-- **Within 3.x:** new parameters take bits from the reserved space, so the block lengths don't change.
+- **Within 3.x:** new parameters take bits from the reserved space, so the block lengths don't change. On load the firmware fixes up an older 3.x body (`FUN_c007dd14`), and OpenNord does the same (`src/lib/ns3/convert.ts`): below 3.02 a Dual-KB style of 0 becomes 1; below 3.03 Pitch Stick Range is 1 and below 3.04 the Extern volume-pedal switches are on (both their defaults). A 3.00 body stored the delay rate as 0–127 and its morph deltas as delta + 127 (`FUN_c007d998`): synced to the master clock, rate x becomes N(x) = 16383 for 127, else 128·x, and each delta N(rate + delta) − N(rate) (a target below 0 or above 16383 gives 128·target); a rate above 127 or a target in 128–16383 makes the instrument refuse the program. Free-running, the firmware maps them through a 128-point curve in its image; OpenNord does not copy it and shows such a delay time as stored, on the OS 3.00 scale.
 
 **Other files (high).**
 
@@ -178,7 +178,15 @@ Still to do: check the amp-type label order and the meaning of rotary speed 3.
   - behind the legacy header the version is at 0x18 and the data starts at **0x1A**, followed by a 2-byte trailer: 547 bytes;
   - both headers also carry the version in the CBIN version field at 0x14.
 - **Morphs (high).** Each morphable parameter is preceded by one delta per source in its mask (Wheel, After Touch, Ctrl Pedal), one bit wider than the parameter. The reader sign-extends them (two's complement, `FUN_301EDBE6`) and keeps them within ±max. 73 parameters per slot are morphable; none of the global ones.
-- **Versions (medium-high).** The current record version is 7. The load path converts versions 1–6 up to 7 in place (the size doesn't change); OpenNord reads them with the version 7 layout and doesn't apply the conversions.
+- **Versions (high).** The current record version is 7. The load path converts versions 0–6 up to 7 in place, one step per version (the size doesn't change), and OpenNord applies the same steps (`src/lib/ns2/convert.ts`). Bits count from the record data; slot B = slot A + 1992 bits, and the synth container starts at data bit 1416 (slot A).
+  - 0 → 1 (`FUN_30079744`): the synth container had another layout (256 bits: mod envelope and oscillator mode/waveform as now; oscillator shape with five 8-bit morph deltas, then shape-mod amount and a shape LFO amount; filter frequency with five deltas, filter-mod amount, a filter LFO amount and a velocity amount; KB track, filter type, amp envelope, LFO rate and waveform; a 32-bit hash; resonance; 18 reserved bits). It is rebuilt in the current layout: the first three deltas become Wheel / After Touch / Ctrl Pedal, the other two are dropped; each mod amount keeps its value above 64, else becomes 63 − LFO amount / 2 (63 for an LFO amount of 0); the oscillator detune takes the old *shape value* with each shape delta × 25 / 128 (rounded down); skip-attack is 0; the velocity amount goes to filter mod 1.
+  - 1 → 2 (`FUN_30079188`): with mod 2 amount a and mod 1 amount v, a < 64 gives mod 1 = (63 − a) · 127 / 63 and mod 2 = (127 − v) · 64 / 127 (integer division), else mod 1 = 0; the LFO waveform index moves up by one.
+  - 2 → 3 (`FUN_300789EE`): the organ and synth levels move to a new curve F(x) = trunc(√(((x ± 0.5) / 127)² · g) · 127), the sign following x, with g = 0.7079 (organ) and 0.3548 (synth); each morph delta d becomes F(level + d) − F(level).
+  - 3 → 4 (`FUN_30078066`): glide, voice mode, unison and vibrato mode (7 + 2 + 3 + 3 bits) move from the first 15 bits of the arpeggiator/LFO container (data bit 1360) to the synth container (data bit 1646).
+  - 4 → 5: the version only.
+  - 5 → 6 (`FUN_30078496`): the piano's and the synth sample's references become 32-bit name hashes (stored MSB first as 15 + 15 + 2 bits: piano descriptors 9–11, synth 22–24), computed from the name of the installed library sound — the piano by type and model, the sample (oscillator mode 3) by its list position; 0 when none is found. The hash is MurmurHash2 with m = 0x5bd1e995, r = 24 and the name's length as the seed, reading the name in 4-byte blocks big-endian, with the standard tail and final mix; a result of 0 is stored as 1. OpenNord can't see the instrument's library, so it stores 0 (unknown) and tells the player the piano and sample of such a file can't be identified.
+  - 6 → 7: piano dynamics 0, 1, 2, 3 → 1, 2, 2, 3.
+  - NSM refuses Stage 2 programs below version 6 (its 0x14 check); the instrument converts them, and OpenNord reads them as the instrument does. The writers write version 7 only.
 
 **Checked against the earlier decoder (high).** Computed from the descriptors alone, the layout lands on every field the earlier `ns2/decode.ts` (from ns3-program-viewer) read, with these exceptions:
 
@@ -194,7 +202,7 @@ Still to do: check the amp-type label order and the meaning of rotary speed 3.
 - no value outside its descriptor range;
 - the slots read the same values as the earlier decoder, except slot B's slot detune (the fix above);
 - the morph deltas reach every target the file names assert (e.g. a piano level of 50 with a wheel target of 51 reads +1, drawbars 012345678 with a wheel target of 123454567 read +1 +1 +1 +1 +1 0 −1 −1 −1);
-- on every `.ns2p` the header version field (0x14) equals the in-record version (0x2C, or 0x18 behind the legacy header). The one `.ns2l` doesn't: 6 at 0x14, 4 at 0x18. The reader takes 0x14.
+- on every `.ns2p` the header version field (0x14) equals the in-record version (0x2C, or 0x18 behind the legacy header). The one `.ns2l` doesn't: 6 at 0x14, 4 at 0x18. The program reader goes by the record's own copy, as the firmware does (0x14 only when the record's copy is not a version the Stage 2 reads).
 
 Still to do: label the parameters the earlier decoder didn't read (extern, synth shape and detune, …), and route `.ns2l` (one 547-byte corpus file; which of its two version fields is the record version is open) and `.ns2s` to the reader.
 
