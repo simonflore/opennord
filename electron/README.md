@@ -100,7 +100,8 @@ tell it from the new one.
    mirror has it; if the mirror has not caught up yet, the command says so and
    stops before packing.
 4. Install both builds on clean machines — including an Intel Mac — and connect
-   a Nord.
+   a Nord. Once a previous release exists, also confirm that it updates to this
+   one (see "Rehearsing an update") before publishing.
 5. Publish the draft.
 
 `-- --dry-run` does everything except upload; add `--mac-only` to rehearse the
@@ -120,6 +121,43 @@ the command refuses; bump instead.
   xcrun notarytool store-credentials opennord-notary --apple-id <id> --team-id <team>
   ```
 - `gh auth login` with access to both repositories.
+
+## Updates
+
+The packaged app updates itself from the public repo's Releases
+(`electron/updater.ts`; decisions in `electron/update-policy.ts`). It runs
+entirely in the main process, so a release whose web app fails to load can still
+be repaired by the next one.
+
+- Checks 10 s after launch and every 4 hours; downloads silently.
+- When a download is ready, a native dialog offers **Restart now** or **Later**.
+  Later installs on the next quit.
+- The dialog is held back while a Nord is open, and the app never restarts by
+  itself.
+- Automatic checks fail quietly. **Check for Updates…** (app menu on macOS, Help
+  elsewhere) always answers, including with the error.
+- Only published, non-pre-release versions with a plain `x.y.z` number are seen.
+- On macOS the app must run from Applications to update; it offers to move
+  itself on launch.
+- Log: `updater.log` in the app's log folder (`~/Library/Logs/OpenNord/` on
+  macOS, `%APPDATA%\OpenNord\logs\` on Windows), rewritten each launch.
+
+Windows updates are unsigned for now: their integrity rests on HTTPS to GitHub
+and the checksum in `latest.yml`.
+
+### Rehearsing an update
+
+`OPENNORD_UPDATE_FEED=<http url>` points the updater at a plain folder instead of
+GitHub. To watch one version update to the next on a Mac:
+
+1. Pack the current version and copy `release/mac-universal/OpenNord.app` into
+   an Applications folder.
+2. Pack again as a higher version without touching `package.json`:
+   `node scripts/usb-native-guard.mjs clean && npm run build:electron && npm run electron:build && npx electron-builder --mac --universal --publish never -c.extraMetadata.version=<higher>`
+3. Serve it: `python3 -m http.server 8765 --directory release`
+4. Launch the installed app from a terminal with
+   `OPENNORD_UPDATE_FEED=http://localhost:8765 /path/to/OpenNord.app/Contents/MacOS/OpenNord`,
+   wait for the prompt, choose Restart now, and check the version in About.
 
 ## Never run electron-rebuild
 
