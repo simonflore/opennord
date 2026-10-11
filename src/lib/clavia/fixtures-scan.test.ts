@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { runFixtureScan } from '../contribute/fixture-files';
 import { formatSummary } from '../contribute/fixture-validate';
@@ -10,11 +10,12 @@ import { formatSummary } from '../contribute/fixture-validate';
  * `NORD_FILES=/some/folder` every Nord file and backup under that folder. Prints a
  * per-model summary and writes the full per-file report to fixtures/.report.json
  * (gitignored). Input files are only read. With no files it does nothing.
+ * Runs only from that npm script, so a plain `vitest run` never scans a library.
  */
 const ROOT = fileURLToPath(new URL('../../../fixtures', import.meta.url)); // packages/core/fixtures
 const NORD_FILES = process.env.NORD_FILES?.trim() || undefined;
 
-describe('fixtures corpus scan', () => {
+describe.runIf(process.env.npm_lifecycle_event === 'fixtures:scan')('fixtures corpus scan', () => {
   it('checks any present fixtures or NORD_FILES folder, or notes there are none', async () => {
     const { rows, notes } = await runFixtureScan({ fixturesRoot: ROOT, nordFiles: NORD_FILES });
     for (const n of notes) console.warn(`[fixtures] ${n}`);
@@ -22,7 +23,7 @@ describe('fixtures corpus scan', () => {
       console.log('[fixtures] no files — drop files in fixtures/<model>/ or run with NORD_FILES=/path/to/your/Nord/files');
       return;
     }
-    if (!existsSync(ROOT)) mkdirSync(ROOT, { recursive: true });
+    mkdirSync(ROOT, { recursive: true });
     writeFileSync(`${ROOT}/.report.json`, JSON.stringify(rows, null, 2));
     console.log(formatSummary(rows, 'fixtures/.report.json'));
     expect(Array.isArray(rows)).toBe(true); // the scanner ran; findings are informational

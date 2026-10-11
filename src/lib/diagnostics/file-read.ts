@@ -129,11 +129,6 @@ export function readerResult(bytes: Uint8Array, programTag: string): ReaderResul
   }
 }
 
-/** The verdict of the reader OpenNord uses for this file. Never throws. */
-export function readerVerdict(bytes: Uint8Array, programTag: string): ReaderVerdict {
-  return readerResult(bytes, programTag).verdict;
-}
-
 /**
  * The `file.read` event for a file a program reader reads, or null for any
  * other bytes. Pure apart from the build constants.
@@ -147,7 +142,7 @@ export function buildFileReadEvent(bytes: Uint8Array): DiagnosticEvent | null {
   // A legacy record opens with its version (u16, or u8 on the Wave) — copy just that, never the data after it.
   // A tag shared by several models (the Lead programs) has no model id: assume the narrower legacy window.
   const bodyBytes = info.modelId ? (legacyVersionBytes(info.modelId) ?? BLOCK_CHAIN_BODY_BYTES) : 2;
-  const reader = readerVerdict(bytes, programTag);
+  const reader = readerResult(bytes, programTag).verdict;
   const status = reader.layoutMatched === null ? 'read (no layout check)' : reader.headerOnly ? 'header-only' : 'read';
   const detail: FileReadDetail = {
     tag: info.tag,

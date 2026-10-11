@@ -27,35 +27,47 @@ export interface InputFile {
   size: number;
 }
 
-/** Every file under `dir`, recursively — skipping hidden files and folders and not following links. */
-function walk(dir: string, visit: (abs: string, size: number) => void): void {
-  for (const name of fs.readdirSync(dir).sort()) {
+/**
+ * Every file under `dir`, recursively — skipping hidden files and folders (.DS_Store,
+ * `._` resource forks) and not following links. Returns how many folders could not
+ * be listed (no permission), which are skipped.
+ */
+function walk(dir: string, visit: (abs: string, size: number) => void): number {
+  let names: string[];
+  try { names = fs.readdirSync(dir).sort(); } catch { return 1; }
+  let unreadable = 0;
+  for (const name of names) {
     if (name.startsWith('.')) continue;
     const abs = join(dir, name);
     let st: fs.Stats;
     try { st = fs.lstatSync(abs); } catch { continue; }
-    if (st.isDirectory()) walk(abs, visit);
+    if (st.isDirectory()) unreadable += walk(abs, visit);
     else if (st.isFile()) visit(abs, st.size);
   }
+  return unreadable;
 }
+
+const unreadableNote = (where: string, n: number) => (n ? [`${where}: ${n} folder(s) could not be opened (no permission) — skipped`] : []);
 
 /** `fixtures/<model-id>/**` — the curated local corpus. Folders that aren't a model id are noted and skipped. */
 export function listFixtureInputs(root: string): { inputs: InputFile[]; notes: string[] } {
   const inputs: InputFile[] = [];
   const notes: string[] = [];
   if (!fs.existsSync(root)) return { inputs, notes };
+  let unreadable = 0;
   for (const id of fs.readdirSync(root).sort()) {
     const dir = join(root, id);
-    if (id.startsWith('.') || !fs.statSync(dir).isDirectory()) continue; // README.md, .report.json
+    // README.md, .report.json; a model folder may be a link to a library elsewhere.
+    if (id.startsWith('.') || !fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory()) continue;
     if (!(id in MODELS)) { notes.push(`fixtures/${id} is not a known model id — skipped`); continue; }
-    walk(dir, (abs, size) => inputs.push({ abs, label: `${id}/${relative(dir, abs)}`, model: id as NordModelId, size }));
+    unreadable += walk(dir, (abs, size) => inputs.push({ abs, label: `${id}/${relative(dir, abs)}`, model: id as NordModelId, size }));
   }
-  return { inputs, notes };
+  return { inputs, notes: [...notes, ...unreadableNote('fixtures', unreadable)] };
 }
 
-/** Expand a leading `~` and resolve against the working folder. */
+/** Expand a leading `~` and resolve against the folder the command was typed in (npm runs scripts from the package folder). */
 export function resolveUserPath(path: string): string {
-  return resolve(path.replace(/^~(?=$|\/)/, homedir()));
+  return resolve(process.env.INIT_CWD ?? process.cwd(), path.replace(/^~(?=$|\/)/, homedir()));
 }
 
 /** Every Nord file (by extension) under `dir` (or `dir` itself, when it names one file); the model comes from each file. */
@@ -66,11 +78,14 @@ export function listNordFilesInputs(dir: string): { inputs: InputFile[]; notes: 
   if (st.isFile()) return { inputs: [{ abs: root, label: basename(root), model: null, size: st.size }], notes: [] };
   const inputs: InputFile[] = [];
   let ignored = 0;
-  walk(root, (abs, size) => {
+  const unreadable = walk(root, (abs, size) => {
     if (isNordFileName(abs)) inputs.push({ abs, label: relative(root, abs), model: null, size });
     else ignored++;
   });
-  return { inputs, notes: ignored ? [`NORD_FILES: ${ignored} file(s) that aren't Nord files ignored`] : [] };
+  return {
+    inputs,
+    notes: [...(ignored ? [`NORD_FILES: ${ignored} file(s) that aren't Nord files ignored`] : []), ...unreadableNote('NORD_FILES', unreadable)],
+  };
 }
 
 function readHead(abs: string, n: number): Uint8Array {
@@ -84,15 +99,11 @@ function readHead(abs: string, n: number): Uint8Array {
   }
 }
 
-/** A read-only Blob over the file (streamed from disk where Node supports it). */
-async function fileBlob(abs: string): Promise<Blob> {
-  return typeof fs.openAsBlob === 'function' ? fs.openAsBlob(abs) : new Blob([fs.readFileSync(abs)]);
-}
-
 /** Check one input file (or every program entry in a backup). Never throws. */
 export async function validateInput(input: InputFile): Promise<ValidationRow[]> {
   try {
-    if (isArchiveName(input.abs)) return await validateArchive(input.label, await fileBlob(input.abs), input.model);
+    // A Blob over the file on disk: the archive is read slice by slice, never loaded whole.
+    if (isArchiveName(input.abs)) return await validateArchive(input.label, await fs.openAsBlob(input.abs), input.model);
     if (input.size > MAX_PROGRAM_ENTRY_BYTES) {
       return [validateBytes(input.label, readHead(input.abs, HEAD_BYTES), input.model, input.size, true)];
     }
