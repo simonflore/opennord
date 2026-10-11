@@ -9,16 +9,20 @@ kept out of the repo with the rest of the firmware workspace; this script turns
 them into small TypeScript layouts the shared block-chain reader
 (src/lib/clavia/block-chain.ts) applies.
 
-Two CSV dialects are accepted:
+Three CSV dialects are accepted:
   pianos: name,block,file_byte,body_byte,bit,body_bitpos,width,min,max,default,notes
   keys:   name,block,param_id,file_byte,body_byte,bit,bit_offset,width,min,max,default,morph,midi_cc,notes
           (bit_offset is a FILE bit; body bit = bit_offset - 352)
+  e7:     name,block,param_id,body_bit_offset,body_byte,bit_in_byte_msb7,width,signed,min,max,default,
+          kind,slot,buffer_mode,midi_cc,notes
+A model whose registry builder sets the signed mode to 0 declares `negatives: 'twos'`:
+its negative-min fields are two's complement in their width, not `value - min`.
 
 What is kept (only high/medium-confidence fields):
   - every registry parameter with a known position and range;
   - NOT the structural rows (format version, [block length], [reserved]);
-  - NOT the Electro 7 "@kind3" rows: 2 extra bits the firmware counts for
-    encoding kind 3, meaning unknown (low confidence);
+  - NOT the "@kind3" rows of the older keys CSVs (unnamed bits; the e7 dialect
+    names them, e.g. `Edt_Org_kLevel.pedalAssign`, and those are kept);
   - NOT parameters the firmware itself marks obsolete, shadow, requested or
     dirty (editor state, not sound).
 
@@ -94,6 +98,9 @@ MODELS = {
         'source': 'Electro 7 OS 1.30 registry FUN_c009c394',
         'container': 'Electro 7 OS 1.30 program archive FUN_c00a8148, tree FUN_c00aa7c8 (1.00–1.10, medium)',
         'versionRange': (100, 110),
+        # The builder clears the registry's signed mode (global 0xc05da57c), so the
+        # constructor FUN_c01236c8 stores negative-min fields as two's complement.
+        'negatives': 'twos',
         # Parameter list high; block order from the archive builder (medium).
         'confidence': lambda row: 'medium',
         'blocks': {
@@ -109,6 +116,9 @@ MODELS = {
         'source': 'Organ 3 OS 1.00 registry FUN_c00c0120',
         'container': 'Organ 3 OS 1.00 program archive FUN_c00b9888 (2.00, medium)',
         'versionRange': (200, 200),
+        # The builder sets the registry's signed mode to 0 (global 0xc041e800), so the
+        # constructor FUN_c008c6e4 stores negative-min fields as two's complement.
+        'negatives': 'twos',
         'confidence': lambda row: 'medium',
         'blocks': {
             'Common': 'common', 'Org/BassDrawbar': 'bassDrawbar', 'Org/BassSustain': 'bassSustain',
@@ -123,6 +133,8 @@ SKIP_SUFFIX = re.compile(r'(_obsolete|_shadow|_requested|_Dirty)', re.IGNORECASE
 
 
 def body_bit(row):
+    if 'body_bit_offset' in row:
+        return int(row['body_bit_offset'])
     if 'body_bitpos' in row:
         return int(row['body_bitpos'])
     return int(row['bit_offset']) - 352
@@ -143,11 +155,11 @@ def short_key(name):
     return s[0].lower() + s[1:]
 
 
-def encoding(row, lo):
+def encoding(row, lo, cfg):
     notes = row['notes']
     if 'NameHash' in row['name']:
         return 'raw'
-    if "two's complement" in notes:
+    if "two's complement" in notes or (lo < 0 and cfg.get('negatives') == 'twos'):
         return 'twos'
     if lo != 0:
         return 'offset'
@@ -158,7 +170,8 @@ def main():
     model_id, csv_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
     cfg = MODELS[model_id]
     with open(csv_path, newline='') as fh:
-        rows = list(csv.DictReader(fh))
+        # Marker rows without a width (the e7 dialect's "[end of body]") carry no field.
+        rows = [r for r in csv.DictReader(fh) if r['width']]
 
     body_bytes = max((body_bit(r) + int(r['width']) + 7) // 8 for r in rows)
     block_rows = [r for r in rows if r['name'] == '[block length]']
@@ -186,7 +199,7 @@ def main():
             'bit': body_bit(r) - (blocks[b]['offset'] + 1) * 8,
             'width': int(r['width']), 'min': lo, 'max': hi,
             'def': int(r['default']) if r['default'] not in ('', None) else 0,
-            'enc': encoding(r, lo), 'confidence': cfg['confidence'](r),
+            'enc': encoding(r, lo, cfg), 'confidence': cfg['confidence'](r),
             'src': cfg['source'] + (f' · id {pid}' if pid else ''),
         })
 

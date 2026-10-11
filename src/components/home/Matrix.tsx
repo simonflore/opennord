@@ -3,31 +3,43 @@ import { cn } from '@/lib/cn';
 import { SEC } from './layout';
 import { covLink } from './styles';
 import { SectionHead } from './SectionHead';
+import { ALL_MODELS, type NordModelId } from '../../lib/clavia/partitions';
+import { statusFor, type Capability, type ValidationStatus } from '../../lib/clavia/validation';
 
-// Status codes mirror src/lib/clavia/validation.ts. Only Stage 4 is
-// hardware-validated; everything else is reverse-engineered (works in the app,
-// not yet checked on the instrument) or inferred from a sibling model. The
-// live, per-model source of truth is the in-app /compatibility matrix.
+// A short sample of the line, read live from src/lib/clavia/validation.ts (the
+// same source as the in-app /compatibility matrix). Only Stage 4 is
+// hardware-validated; the rest is built from each model's own software or files
+// (ready to test) or assumed from a sibling model.
 type Cell = 'v' | 're' | 'inf' | 'na';
 
-const MATRIX_COLS = ['Read', 'Transfer', 'Back up', 'Samples'] as const;
+const SAMPLE_MODELS: NordModelId[] = ['stage-4', 'stage-3', 'stage-2', 'electro-6', 'piano-5', 'grand-2', 'wave-2', 'lead-4'];
 
-const MATRIX: { model: string; cells: Cell[] }[] = [
-  { model: 'Nord Stage 4', cells: ['v', 'v', 'v', 'v'] },
-  { model: 'Nord Stage 3', cells: ['re', 're', 're', 're'] },
-  { model: 'Nord Stage 2', cells: ['re', 're', 're', 're'] },
-  { model: 'Nord Electro 6', cells: ['re', 'inf', 'inf', 're'] },
-  { model: 'Nord Piano 5', cells: ['re', 'inf', 'inf', 're'] },
-  { model: 'Nord Grand 2', cells: ['re', 'inf', 'inf', 're'] },
-  { model: 'Nord Wave 2', cells: ['re', 'inf', 're', 're'] },
-  { model: 'Nord Lead 4', cells: ['re', 'inf', 're', 'na'] },
+/** Each column and the capabilities it summarises; a column shows its weakest one. */
+const MATRIX_COLS: { label: string; caps: Capability[] }[] = [
+  { label: 'Read', caps: ['file-read'] },
+  { label: 'Transfer', caps: ['pull', 'push', 'delete'] },
+  { label: 'Back up', caps: ['backup'] },
+  { label: 'Samples', caps: ['samples'] },
 ];
+
+const RANK: Record<ValidationStatus, number> = { validated: 3, re: 2, inferred: 1, unknown: 0, unsupported: -1 };
+const CELL_OF: Record<ValidationStatus, Cell> = { validated: 'v', re: 're', inferred: 'inf', unknown: 'inf', unsupported: 'na' };
+
+function cellFor(id: NordModelId, caps: Capability[]): Cell {
+  const statuses = caps.map((c) => statusFor(id, c).status);
+  return CELL_OF[statuses.reduce((a, b) => (RANK[b] < RANK[a] ? b : a))];
+}
+
+const MATRIX = SAMPLE_MODELS.map((id) => ({
+  model: ALL_MODELS.find((m) => m.id === id)?.name ?? id,
+  cells: MATRIX_COLS.map((c) => cellFor(id, c.caps)),
+}));
 
 const cellBase = 'inline-flex h-[22px] w-[22px] items-center justify-center rounded-full text-xs leading-none';
 const CELL_META: Record<Cell, { glyph: string; label: string; cls: string }> = {
   v: { glyph: '✓', label: 'Validated on hardware', cls: 'text-connected bg-[color-mix(in_srgb,var(--connected)_15%,transparent)]' },
-  re: { glyph: '●', label: 'Reverse-engineered — works in the app, not yet hardware-tested', cls: 'text-red-bright bg-[color-mix(in_srgb,var(--red)_15%,transparent)]' },
-  inf: { glyph: '○', label: 'Inferred — likely, needs a tester', cls: 'text-dim bg-[color-mix(in_srgb,var(--lift)_6%,transparent)]' },
+  re: { glyph: '●', label: "Ready to test — built from this model's own software or files, not yet tried on one", cls: 'text-red-bright bg-[color-mix(in_srgb,var(--red)_15%,transparent)]' },
+  inf: { glyph: '○', label: 'Likely — assumed from a sibling model', cls: 'text-dim bg-[color-mix(in_srgb,var(--lift)_6%,transparent)]' },
   na: { glyph: '–', label: 'Not applicable', cls: 'text-muted bg-transparent' },
 };
 
@@ -37,14 +49,14 @@ export function Matrix() {
       <SectionHead
         overline="Honest by model"
         title="What works on which Nord"
-        sub="Only the Stage 4 is validated on real hardware; the rest is reverse-engineered and gets promoted as owners test it. Nothing here is dressed up."
+        sub="Only the Stage 4 is validated on real hardware. The rest is built from each model's own software and gets promoted as owners test it. Nothing here is dressed up."
       />
       <div className="overflow-x-auto rounded-md border border-line fill-surface elev-1">
         <table className="w-full min-w-[420px] border-collapse">
           <thead>
             <tr>
               <th className="border-b border-line px-3 py-[11px] text-left text-[9px] font-bold uppercase tracking-[1px] text-muted" scope="col">Model</th>
-              {MATRIX_COLS.map((c) => (
+              {MATRIX_COLS.map(({ label: c }) => (
                 <th
                   key={c}
                   className="border-b border-line px-3 py-[11px] text-center text-[9px] font-bold uppercase tracking-[1px] text-muted"
@@ -73,7 +85,7 @@ export function Matrix() {
                     const meta = CELL_META[cell];
                     return (
                       <td
-                        key={MATRIX_COLS[i]}
+                        key={MATRIX_COLS[i].label}
                         className={cn(
                           'px-3 py-[11px] text-center',
                           !last && 'border-b border-[color-mix(in_srgb,var(--line)_55%,transparent)]',
@@ -82,7 +94,7 @@ export function Matrix() {
                         <span
                           className={cn(cellBase, meta.cls)}
                           title={meta.label}
-                          aria-label={`${MATRIX_COLS[i]}: ${meta.label}`}
+                          aria-label={`${MATRIX_COLS[i].label}: ${meta.label}`}
                         >
                           {meta.glyph}
                         </span>
@@ -101,10 +113,10 @@ export function Matrix() {
             <span className={cn(cellBase, 'h-[18px] w-[18px] text-[10px]', CELL_META.v.cls)}>✓</span> Validated on hardware
           </li>
           <li className="inline-flex items-center gap-1.5 text-[11px] font-medium text-dim">
-            <span className={cn(cellBase, 'h-[18px] w-[18px] text-[10px]', CELL_META.re.cls)}>●</span> Reverse-engineered
+            <span className={cn(cellBase, 'h-[18px] w-[18px] text-[10px]', CELL_META.re.cls)}>●</span> Ready to test
           </li>
           <li className="inline-flex items-center gap-1.5 text-[11px] font-medium text-dim">
-            <span className={cn(cellBase, 'h-[18px] w-[18px] text-[10px]', CELL_META.inf.cls)}>○</span> Likely · needs a tester
+            <span className={cn(cellBase, 'h-[18px] w-[18px] text-[10px]', CELL_META.inf.cls)}>○</span> Likely
           </li>
           <li className="inline-flex items-center gap-1.5 text-[11px] font-medium text-dim">
             <span className={cn(cellBase, 'h-[18px] w-[18px] text-[10px]', CELL_META.na.cls)}>–</span> N/A

@@ -35,21 +35,37 @@ describe('validation matrix', () => {
     expect(statusFor('electro-5', 'file-read').status).toBe('re');
     expect(statusFor('electro-5', 'backup').status).toBe('re');
   });
-  it('electro-4 file-read is re (NSM-traced + fixture-validated); backup stays inferred (not specifically traced)', () => {
+  it('electro-4 file-read and backup are re (NSM-traced + fixtures; partition set from the OS 1.22 firmware)', () => {
     expect(statusFor('electro-4', 'file-read').status).toBe('re');
-    expect(statusFor('electro-4', 'backup').status).toBe('inferred');
+    expect(statusFor('electro-4', 'backup').status).toBe('re');
   });
-  it('electro-5 and electro-4 transfer caps stay at inferred (hardware-gated)', () => {
-    for (const cap of ['enumerate', 'pull', 'push', 'delete'] as const) {
-      expect(statusFor('electro-5', cap).status, `electro-5 ${cap}`).toBe('inferred');
-      expect(statusFor('electro-4', cap).status, `electro-4 ${cap}`).toBe('inferred');
+  // Every model whose own OS image was read (docs/FIRMWARE-LINE.md) has its
+  // FileTransfer version and partition order from that firmware: `re`, not a
+  // sibling inference. Still not hardware-tested, so never `validated`.
+  const FIRMWARE_READ = [
+    'electro-3', 'electro-3-hp', 'electro-4', 'electro-5', 'electro-6', 'electro-7', 'piano-1', 'piano-2',
+    'piano-3', 'piano-4', 'piano-5', 'piano-6', 'wave', 'wave-2', 'c2d', 'grand', 'grand-2', 'organ-3',
+  ] as const;
+  it('transfer caps are re wherever the model\'s own firmware was read', () => {
+    for (const id of FIRMWARE_READ) {
+      for (const cap of ['enumerate', 'pull', 'push', 'delete', 'backup'] as const) {
+        expect(statusFor(id, cap).status, `${id} ${cap}`).toBe('re');
+        expect(statusFor(id, cap).note, `${id} ${cap}`).toMatch(/firmware/);
+      }
+    }
+  });
+  it('transfer caps stay inferred where no OS image was read (Stage Classic, Stage EX, C2)', () => {
+    for (const id of ['stage-classic', 'stage-ex', 'c2'] as const) {
+      for (const cap of ['enumerate', 'pull', 'push', 'delete', 'backup'] as const) {
+        expect(statusFor(id, cap).status, `${id} ${cap}`).toBe('inferred');
+      }
     }
   });
   // CLead4Base::ConvertLocation @0x00000001000ddcf8 — slot display NSM-traced.
   // CLead4Base::CLead4Base @0x00000001000dd364 — 3-partition spec NSM-traced.
   // CLead4Base::Archive_OnPostUnZip @0x00000001000dda94 — backup flow NSM-traced (nl4b).
   // All three validated against real .nl4p + .nl4s fixtures (fixtures/lead-4/).
-  // Transfer caps (enumerate/pull/push/delete) stay inferred — hardware-gated.
+  // Transfer caps: FileTransfer v8 in the OS 1.32 firmware (see the test below).
   it('lead-4 file-read and backup are re (NSM-traced + fixture-validated)', () => {
     expect(statusFor('lead-4', 'file-read').status).toBe('re');
     expect(statusFor('lead-4', 'backup').status).toBe('re');
@@ -75,11 +91,6 @@ describe('validation matrix', () => {
     expect(statusFor('wave-2', 'file-read').status).toBe('re');
     expect(statusFor('wave-2', 'backup').status).toBe('re');
   });
-  it('wave-2 transfer caps stay at inferred (hardware-gated)', () => {
-    for (const cap of ['enumerate', 'pull', 'push', 'delete'] as const) {
-      expect(statusFor('wave-2', cap).status, `wave-2 ${cap}`).toBe('inferred');
-    }
-  });
   it('wave-2 samples is re (sampleCodec codec3 decoded)', () => {
     expect(statusFor('wave-2', 'samples').status).toBe('re');
   });
@@ -102,10 +113,11 @@ describe('validation matrix', () => {
     }
   });
 
-  it('Electro 7 is registered but nothing about it is validated or decoded yet', () => {
-    for (const cap of ['file-read', 'enumerate', 'pull', 'push', 'delete', 'backup', 'samples'] as const) {
-      expect(statusFor('electro-7', cap).status, `electro-7 ${cap}`).toBe('inferred');
+  it('Electro 7: read from its firmware but not tried on one; its sample generation is still a guess', () => {
+    for (const cap of ['file-read', 'enumerate', 'pull', 'push', 'delete', 'backup'] as const) {
+      expect(statusFor('electro-7', cap).status, `electro-7 ${cap}`).toBe('re');
     }
+    expect(statusFor('electro-7', 'samples').status).toBe('inferred');
   });
 
   it('Piano 1 samples are unsupported (no sample library in its firmware)', () => {

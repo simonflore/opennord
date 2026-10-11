@@ -7,8 +7,16 @@ import { ByteMapView } from './ByteMapView';
 import { cn } from '@/lib/cn';
 
 const CHIP: Record<ValidationStatus, string> = {
-  validated: 'Works', re: 'In progress', inferred: 'Likely', unsupported: '—', unknown: 'Needs a tester',
+  validated: 'Works', re: 'Ready to test', inferred: 'Likely', unsupported: '—', unknown: 'Needs a tester',
 };
+
+/** What each chip means, for the legend under the intro. */
+const LEGEND: [ValidationStatus, string][] = [
+  ['validated', 'tried on a real instrument'],
+  ['re', 'built from this model’s own software or files; not yet tried on one'],
+  ['inferred', 'assumed from a sibling model'],
+  ['unsupported', 'the instrument can’t do it'],
+];
 
 const DECODE_CELL: Record<DecodeStatus, ValidationStatus> = { full: 'validated', partial: 're', started: 're', none: 'unknown' };
 
@@ -37,9 +45,15 @@ export function MatrixView() {
       <h1 className="m-0 text-[18px] font-extrabold text-ink">Nord compatibility</h1>
       <p className="mt-1 mb-4 text-[13px] text-dim">What OpenNord can do with each Nord — and where we need your help.</p>
       <p className="mt-1 mb-4 text-[13px] text-dim">
-        See your model marked <em>In progress</em> or <em>Needs a tester</em>?{' '}
+        See your model marked <em>Ready to test</em>?{' '}
         <a className="text-red-bright hover:text-red" href="#/contribute">Help confirm it →</a> — a quick read-only check and a few of your own programs, about 10 minutes.
       </p>
+      {/* role="list": Safari drops list semantics from a list-style:none <ul>. */}
+      <ul role="list" aria-label="What each status means" className="m-0 mb-4 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-[12px] text-dim">
+        {LEGEND.map(([s, text]) => (
+          <li key={s}><span className={cn('font-bold', CELL_COLOR[s])}>{CHIP[s]}</span> {text}</li>
+        ))}
+      </ul>
       <ProbePanel />
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[11px] max-[560px]:text-[10px]">
@@ -81,11 +95,15 @@ export function MatrixView() {
                       {m.name}
                     </th>
                     {(() => {
+                      // A model with no reachable files at all (the C1) has nothing to decode.
+                      if (statusFor(m.id, 'file-read').status === 'unsupported') {
+                        return <td className={cn(cell, CELL_COLOR.unsupported)} title="No program files">—</td>;
+                      }
                       const text =
-                        d.status === 'full' ? `${d.paramCount} params`
+                        d.paramCount != null ? `${d.paramCount} params`
                         : d.status === 'partial' ? 'Partial'
                         : d.status === 'started' ? (d.pct != null ? `${d.pct}%` : `${d.controlCount}✓`)
-                        : '—';
+                        : 'Not yet';
                       return <td className={cn(cell, CELL_COLOR[DECODE_CELL[d.status]])} title={DECODE_LABEL[d.status]}>{text}</td>;
                     })()}
                     {MATRIX_COLUMNS.map((c) => {

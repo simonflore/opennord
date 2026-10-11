@@ -227,13 +227,15 @@ src/lib/<model>/present.ts       values → DecodedProgram (musician labels from
   with a warning. Values outside the firmware's range are flagged.
 - **Each field cites its source** in the generated layout, e.g.
   `Piano 6 OS 1.20 registry FUN_c0112544 · id 125`. Only high/medium-confidence
-  fields are generated; the Electro 7's "encoding kind 3" extra bits (2 per
-  parameter, meaning unknown) and the firmware's obsolete/editor-state parameters
-  are left out.
-- **Signed values.** Piano 4 / 5 / 6, Grand and Grand 2 store negative-min fields
-  as two's complement in their width (Piano 6 inferred from the shared code and
-  the Grand 2 corpus — medium); the Electro 7 / Organ 3 maps record `value − min`.
-  The generated layout carries the encoding per field.
+  fields are generated; the firmware's obsolete/editor-state parameters are left
+  out. The Electro 7's "encoding kind 3" knobs are followed by two 1-bit assign
+  flags, generated as `<field>.pedalAssign` / `<field>.wheelAssign`.
+- **Signed values.** Every registry model after the Stage 3 — Piano 4 / 5 / 6,
+  Grand, Grand 2, Electro 6, Wave 2, Electro 7, Organ 3 — stores negative-min
+  fields as two's complement in their width: each registry builder sets the
+  signed mode to 0 (high; Piano 6 medium, inferred from the shared code and the
+  Grand 2 corpus). Only the Stage 3 stores `value − min`. Morph deltas are never
+  two's complement. The generated layout carries the encoding per field.
 
 | Model | Tag | Firmware source | Body | Confidence |
 |---|---|---|---|---|

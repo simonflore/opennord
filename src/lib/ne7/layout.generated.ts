@@ -31,6 +31,8 @@ export type Ne7FieldKey =
   | 'organ.isEnabled'
   | 'organ.organModel'
   | 'organ.level'
+  | 'organ.level.pedalAssign'
+  | 'organ.level.wheelAssign'
   | 'organ.kbdZone'
   | 'organ.sustainEnable'
   | 'organ.swellEnable'
@@ -45,15 +47,25 @@ export type Ne7FieldKey =
   | 'organ.percussionPolyEnable'
   | 'organFx.fx1Enable'
   | 'organFx.fx1Rate'
+  | 'organFx.fx1Rate.pedalAssign'
+  | 'organFx.fx1Rate.wheelAssign'
   | 'organFx.fx1Amt'
+  | 'organFx.fx1Amt.pedalAssign'
+  | 'organFx.fx1Amt.wheelAssign'
   | 'organFx.fx1Type'
   | 'organFx.fx2Enable'
   | 'organFx.fx2Rate'
+  | 'organFx.fx2Rate.pedalAssign'
+  | 'organFx.fx2Rate.wheelAssign'
   | 'organFx.fx2Amt'
+  | 'organFx.fx2Amt.pedalAssign'
+  | 'organFx.fx2Amt.wheelAssign'
   | 'organFx.fx2Type'
   | 'organFx.fx2Mono'
   | 'organFx.ampEnable'
   | 'organFx.ampDrive'
+  | 'organFx.ampDrive.pedalAssign'
+  | 'organFx.ampDrive.wheelAssign'
   | 'organFx.ampType'
   | 'organFx.ampTreble'
   | 'organFx.ampMid'
@@ -61,14 +73,22 @@ export type Ne7FieldKey =
   | 'organFx.ampMidFreq'
   | 'organFx.dlyEnable'
   | 'organFx.dlyRate'
+  | 'organFx.dlyRate.pedalAssign'
+  | 'organFx.dlyRate.wheelAssign'
   | 'organFx.dlyMix'
+  | 'organFx.dlyMix.pedalAssign'
+  | 'organFx.dlyMix.wheelAssign'
   | 'organFx.dlyPingPong'
   | 'organFx.dlyFltType'
   | 'organFx.dlyFeedback'
+  | 'organFx.dlyFeedback.pedalAssign'
+  | 'organFx.dlyFeedback.wheelAssign'
   | 'organFx.dlyMode'
   | 'organFx.cmpEnable'
   | 'organFx.cmpAmt'
   | 'organFx.rvbAmt'
+  | 'organFx.rvbAmt.pedalAssign'
+  | 'organFx.rvbAmt.wheelAssign'
   | 'organLayerA.octaveShift'
   | 'organLayerB.octaveShift'
   | 'organDrawbars1.drawbarValue1'
@@ -115,6 +135,8 @@ export type Ne7FieldKey =
   | 'organDrawbars3.percussionLevel'
   | 'piano.isEnabled'
   | 'piano.level'
+  | 'piano.level.pedalAssign'
+  | 'piano.level.wheelAssign'
   | 'piano.kbdZone'
   | 'piano.octaveShift'
   | 'piano.sustainEnable'
@@ -130,15 +152,25 @@ export type Ne7FieldKey =
   | 'piano.eq'
   | 'pianoFx.fx1Enable'
   | 'pianoFx.fx1Rate'
+  | 'pianoFx.fx1Rate.pedalAssign'
+  | 'pianoFx.fx1Rate.wheelAssign'
   | 'pianoFx.fx1Amt'
+  | 'pianoFx.fx1Amt.pedalAssign'
+  | 'pianoFx.fx1Amt.wheelAssign'
   | 'pianoFx.fx1Type'
   | 'pianoFx.fx2Enable'
   | 'pianoFx.fx2Rate'
+  | 'pianoFx.fx2Rate.pedalAssign'
+  | 'pianoFx.fx2Rate.wheelAssign'
   | 'pianoFx.fx2Amt'
+  | 'pianoFx.fx2Amt.pedalAssign'
+  | 'pianoFx.fx2Amt.wheelAssign'
   | 'pianoFx.fx2Type'
   | 'pianoFx.fx2Mono'
   | 'pianoFx.ampEnable'
   | 'pianoFx.ampDrive'
+  | 'pianoFx.ampDrive.pedalAssign'
+  | 'pianoFx.ampDrive.wheelAssign'
   | 'pianoFx.ampType'
   | 'pianoFx.ampTreble'
   | 'pianoFx.ampMid'
@@ -146,16 +178,26 @@ export type Ne7FieldKey =
   | 'pianoFx.ampMidFreq'
   | 'pianoFx.dlyEnable'
   | 'pianoFx.dlyRate'
+  | 'pianoFx.dlyRate.pedalAssign'
+  | 'pianoFx.dlyRate.wheelAssign'
   | 'pianoFx.dlyMix'
+  | 'pianoFx.dlyMix.pedalAssign'
+  | 'pianoFx.dlyMix.wheelAssign'
   | 'pianoFx.dlyPingPong'
   | 'pianoFx.dlyFltType'
   | 'pianoFx.dlyFeedback'
+  | 'pianoFx.dlyFeedback.pedalAssign'
+  | 'pianoFx.dlyFeedback.wheelAssign'
   | 'pianoFx.dlyMode'
   | 'pianoFx.cmpEnable'
   | 'pianoFx.cmpAmt'
   | 'pianoFx.rvbAmt'
+  | 'pianoFx.rvbAmt.pedalAssign'
+  | 'pianoFx.rvbAmt.wheelAssign'
   | 'synth.isEnabled'
   | 'synth.level'
+  | 'synth.level.pedalAssign'
+  | 'synth.level.wheelAssign'
   | 'synth.kbdZone'
   | 'synth.octaveShift'
   | 'synth.sustainEnable'
@@ -179,6 +221,8 @@ export type Ne7FieldKey =
   | 'synthPreset.analogAuxWaveform'
   | 'synthPreset.filterEnable'
   | 'synthPreset.filterFrequency'
+  | 'synthPreset.filterFrequency.pedalAssign'
+  | 'synthPreset.filterFrequency.wheelAssign'
   | 'synthPreset.filterResonance'
   | 'synthPreset.filterKeyTrack'
   | 'synthPreset.filterDrive'
@@ -216,18 +260,30 @@ export type Ne7FieldKey =
   | 'synthPreset.fmScalingHi'
   | 'synthPreset.fmEnvTrkAtk'
   | 'synthPreset.fmAmount'
+  | 'synthPreset.fmAmount.pedalAssign'
+  | 'synthPreset.fmAmount.wheelAssign'
   | 'synthPreset.fmEnvTrkDecRls'
   | 'synthFx.fx1Enable'
   | 'synthFx.fx1Rate'
+  | 'synthFx.fx1Rate.pedalAssign'
+  | 'synthFx.fx1Rate.wheelAssign'
   | 'synthFx.fx1Amt'
+  | 'synthFx.fx1Amt.pedalAssign'
+  | 'synthFx.fx1Amt.wheelAssign'
   | 'synthFx.fx1Type'
   | 'synthFx.fx2Enable'
   | 'synthFx.fx2Rate'
+  | 'synthFx.fx2Rate.pedalAssign'
+  | 'synthFx.fx2Rate.wheelAssign'
   | 'synthFx.fx2Amt'
+  | 'synthFx.fx2Amt.pedalAssign'
+  | 'synthFx.fx2Amt.wheelAssign'
   | 'synthFx.fx2Type'
   | 'synthFx.fx2Mono'
   | 'synthFx.ampEnable'
   | 'synthFx.ampDrive'
+  | 'synthFx.ampDrive.pedalAssign'
+  | 'synthFx.ampDrive.wheelAssign'
   | 'synthFx.ampType'
   | 'synthFx.ampTreble'
   | 'synthFx.ampMid'
@@ -235,14 +291,22 @@ export type Ne7FieldKey =
   | 'synthFx.ampMidFreq'
   | 'synthFx.dlyEnable'
   | 'synthFx.dlyRate'
+  | 'synthFx.dlyRate.pedalAssign'
+  | 'synthFx.dlyRate.wheelAssign'
   | 'synthFx.dlyMix'
+  | 'synthFx.dlyMix.pedalAssign'
+  | 'synthFx.dlyMix.wheelAssign'
   | 'synthFx.dlyPingPong'
   | 'synthFx.dlyFltType'
   | 'synthFx.dlyFeedback'
+  | 'synthFx.dlyFeedback.pedalAssign'
+  | 'synthFx.dlyFeedback.wheelAssign'
   | 'synthFx.dlyMode'
   | 'synthFx.cmpEnable'
   | 'synthFx.cmpAmt'
-  | 'synthFx.rvbAmt';
+  | 'synthFx.rvbAmt'
+  | 'synthFx.rvbAmt.pedalAssign'
+  | 'synthFx.rvbAmt.wheelAssign';
 
 export const NE7_LAYOUT: FwLayout<Ne7FieldKey> = {
   model: 'Nord Electro 7',
@@ -272,7 +336,7 @@ export const NE7_LAYOUT: FwLayout<Ne7FieldKey> = {
     { key: 'common.auxKbEnable', name: 'Edt_Com_kAuxKbEnable', block: 0, bit: 7, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 158' },
     { key: 'common.auxKbDest', name: 'Edt_Com_kAuxKbDest', block: 0, bit: 8, width: 3, min: 0, max: 4, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 159' },
     { key: 'common.transposeEnable', name: 'Edt_Com_kTransposeEnable', block: 0, bit: 11, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 152' },
-    { key: 'common.transposeValue', name: 'Edt_Com_kTransposeValue', block: 0, bit: 12, width: 4, min: -6, max: 6, def: 1, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 153' },
+    { key: 'common.transposeValue', name: 'Edt_Com_kTransposeValue', block: 0, bit: 12, width: 4, min: -6, max: 6, def: 1, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 153' },
     { key: 'common.dlyGlobal', name: 'Edt_Effects_kDlyGlobal', block: 0, bit: 18, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394' },
     { key: 'common.cmpGlobal', name: 'Edt_Effects_kCmpGlobal', block: 0, bit: 19, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 283' },
     { key: 'common.rvbEnable', name: 'Edt_Effects_kRvbEnable', block: 0, bit: 20, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 284' },
@@ -284,12 +348,14 @@ export const NE7_LAYOUT: FwLayout<Ne7FieldKey> = {
     { key: 'common.rotarySpeed', name: 'Edt_Effects_kRotarySpeed', block: 0, bit: 32, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 293' },
     { key: 'common.rotarySource', name: 'Edt_Effects_kRotarySource', block: 0, bit: 34, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 291' },
     { key: 'common.rotaryDriveAmount', name: 'Edt_Effects_kRotaryDriveAmount', block: 0, bit: 36, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 295' },
-    { key: 'common.rotaryHornAngle', name: 'Edt_Effects_kRotaryHornAngle', block: 0, bit: 44, width: 16, min: -32768, max: 32767, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 297' },
-    { key: 'common.rotaryRotorAngle', name: 'Edt_Effects_kRotaryRotorAngle', block: 0, bit: 60, width: 16, min: -32768, max: 32767, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 298' },
+    { key: 'common.rotaryHornAngle', name: 'Edt_Effects_kRotaryHornAngle', block: 0, bit: 44, width: 16, min: -32768, max: 32767, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 297' },
+    { key: 'common.rotaryRotorAngle', name: 'Edt_Effects_kRotaryRotorAngle', block: 0, bit: 60, width: 16, min: -32768, max: 32767, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 298' },
     { key: 'common.rotaryStopAngleMode', name: 'Edt_Effects_kRotaryStopAngleMode', block: 0, bit: 76, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 299' },
     { key: 'organ.isEnabled', name: 'Edt_Org_kIsEnabled', block: 1, bit: 0, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 117' },
     { key: 'organ.organModel', name: 'Edt_Org_kOrganModel', block: 1, bit: 1, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 124' },
     { key: 'organ.level', name: 'Edt_Org_kLevel', block: 1, bit: 4, width: 7, min: 0, max: 127, def: 127, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 118' },
+    { key: 'organ.level.pedalAssign', name: 'Edt_Org_kLevel.pedalAssign', block: 1, bit: 11, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 118' },
+    { key: 'organ.level.wheelAssign', name: 'Edt_Org_kLevel.wheelAssign', block: 1, bit: 12, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 118' },
     { key: 'organ.kbdZone', name: 'Edt_Org_kKbdZone', block: 1, bit: 13, width: 2, min: 0, max: 2, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 119' },
     { key: 'organ.sustainEnable', name: 'Edt_Org_kSustainEnable', block: 1, bit: 15, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 121' },
     { key: 'organ.swellEnable', name: 'Edt_Org_kSwellEnable', block: 1, bit: 16, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 122' },
@@ -304,32 +370,50 @@ export const NE7_LAYOUT: FwLayout<Ne7FieldKey> = {
     { key: 'organ.percussionPolyEnable', name: 'Edt_Org_kPercussionPolyEnable', block: 1, bit: 34, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 134' },
     { key: 'organFx.fx1Enable', name: 'Edt_Effects_kFx1Enable', block: 2, bit: 0, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 255' },
     { key: 'organFx.fx1Rate', name: 'Edt_Effects_kFx1Rate', block: 2, bit: 1, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 256' },
+    { key: 'organFx.fx1Rate.pedalAssign', name: 'Edt_Effects_kFx1Rate.pedalAssign', block: 2, bit: 8, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 256' },
+    { key: 'organFx.fx1Rate.wheelAssign', name: 'Edt_Effects_kFx1Rate.wheelAssign', block: 2, bit: 9, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 256' },
     { key: 'organFx.fx1Amt', name: 'Edt_Effects_kFx1Amt', block: 2, bit: 10, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 257' },
+    { key: 'organFx.fx1Amt.pedalAssign', name: 'Edt_Effects_kFx1Amt.pedalAssign', block: 2, bit: 17, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 257' },
+    { key: 'organFx.fx1Amt.wheelAssign', name: 'Edt_Effects_kFx1Amt.wheelAssign', block: 2, bit: 18, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 257' },
     { key: 'organFx.fx1Type', name: 'Edt_Effects_kFx1Type', block: 2, bit: 19, width: 3, min: 0, max: 4, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 258' },
     { key: 'organFx.fx2Enable', name: 'Edt_Effects_kFx2Enable', block: 2, bit: 23, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 260' },
     { key: 'organFx.fx2Rate', name: 'Edt_Effects_kFx2Rate', block: 2, bit: 24, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 261' },
+    { key: 'organFx.fx2Rate.pedalAssign', name: 'Edt_Effects_kFx2Rate.pedalAssign', block: 2, bit: 31, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 261' },
+    { key: 'organFx.fx2Rate.wheelAssign', name: 'Edt_Effects_kFx2Rate.wheelAssign', block: 2, bit: 32, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 261' },
     { key: 'organFx.fx2Amt', name: 'Edt_Effects_kFx2Amt', block: 2, bit: 33, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 262' },
+    { key: 'organFx.fx2Amt.pedalAssign', name: 'Edt_Effects_kFx2Amt.pedalAssign', block: 2, bit: 40, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 262' },
+    { key: 'organFx.fx2Amt.wheelAssign', name: 'Edt_Effects_kFx2Amt.wheelAssign', block: 2, bit: 41, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 262' },
     { key: 'organFx.fx2Type', name: 'Edt_Effects_kFx2Type', block: 2, bit: 42, width: 3, min: 0, max: 4, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 263' },
     { key: 'organFx.fx2Mono', name: 'Edt_Effects_kFx2Mono', block: 2, bit: 45, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 264' },
     { key: 'organFx.ampEnable', name: 'Edt_Effects_kAmpEnable', block: 2, bit: 46, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 274' },
     { key: 'organFx.ampDrive', name: 'Edt_Effects_kAmpDrive', block: 2, bit: 47, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 275' },
+    { key: 'organFx.ampDrive.pedalAssign', name: 'Edt_Effects_kAmpDrive.pedalAssign', block: 2, bit: 54, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 275' },
+    { key: 'organFx.ampDrive.wheelAssign', name: 'Edt_Effects_kAmpDrive.wheelAssign', block: 2, bit: 55, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 275' },
     { key: 'organFx.ampType', name: 'Edt_Effects_kAmpType', block: 2, bit: 56, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 280' },
-    { key: 'organFx.ampTreble', name: 'Edt_Effects_kAmpTreble', block: 2, bit: 59, width: 7, min: -60, max: 60, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 276' },
-    { key: 'organFx.ampMid', name: 'Edt_Effects_kAmpMid', block: 2, bit: 66, width: 7, min: -60, max: 60, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 277' },
-    { key: 'organFx.ampBass', name: 'Edt_Effects_kAmpBass', block: 2, bit: 73, width: 7, min: -60, max: 60, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 278' },
+    { key: 'organFx.ampTreble', name: 'Edt_Effects_kAmpTreble', block: 2, bit: 59, width: 7, min: -60, max: 60, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 276' },
+    { key: 'organFx.ampMid', name: 'Edt_Effects_kAmpMid', block: 2, bit: 66, width: 7, min: -60, max: 60, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 277' },
+    { key: 'organFx.ampBass', name: 'Edt_Effects_kAmpBass', block: 2, bit: 73, width: 7, min: -60, max: 60, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 278' },
     { key: 'organFx.ampMidFreq', name: 'Edt_Effects_kAmpMidFreq', block: 2, bit: 80, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 279' },
     { key: 'organFx.dlyEnable', name: 'Edt_Effects_kDlyEnable', block: 2, bit: 87, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 265' },
     { key: 'organFx.dlyRate', name: 'Edt_Effects_kDlyRate', block: 2, bit: 88, width: 14, min: 0, max: 16383, def: 11008, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 266' },
+    { key: 'organFx.dlyRate.pedalAssign', name: 'Edt_Effects_kDlyRate.pedalAssign', block: 2, bit: 102, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 266' },
+    { key: 'organFx.dlyRate.wheelAssign', name: 'Edt_Effects_kDlyRate.wheelAssign', block: 2, bit: 103, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 266' },
     { key: 'organFx.dlyMix', name: 'Edt_Effects_kDlyMix', block: 2, bit: 104, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 267' },
+    { key: 'organFx.dlyMix.pedalAssign', name: 'Edt_Effects_kDlyMix.pedalAssign', block: 2, bit: 111, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 267' },
+    { key: 'organFx.dlyMix.wheelAssign', name: 'Edt_Effects_kDlyMix.wheelAssign', block: 2, bit: 112, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 267' },
     { key: 'organFx.dlyPingPong', name: 'Edt_Effects_kDlyPingPong', block: 2, bit: 113, width: 2, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 268' },
     { key: 'organFx.dlyFltType', name: 'Edt_Effects_kDlyFltType', block: 2, bit: 115, width: 2, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 269' },
     { key: 'organFx.dlyFeedback', name: 'Edt_Effects_kDlyFeedback', block: 2, bit: 117, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 270' },
+    { key: 'organFx.dlyFeedback.pedalAssign', name: 'Edt_Effects_kDlyFeedback.pedalAssign', block: 2, bit: 124, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 270' },
+    { key: 'organFx.dlyFeedback.wheelAssign', name: 'Edt_Effects_kDlyFeedback.wheelAssign', block: 2, bit: 125, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 270' },
     { key: 'organFx.dlyMode', name: 'Edt_Effects_kDlyMode', block: 2, bit: 126, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 271' },
     { key: 'organFx.cmpEnable', name: 'Edt_Effects_kCmpEnable', block: 2, bit: 127, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 281' },
     { key: 'organFx.cmpAmt', name: 'Edt_Effects_kCmpAmt', block: 2, bit: 128, width: 7, min: 0, max: 127, def: 38, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 282' },
     { key: 'organFx.rvbAmt', name: 'Edt_Effects_kRvbAmt', block: 2, bit: 135, width: 7, min: 0, max: 127, def: 38, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 288' },
-    { key: 'organLayerA.octaveShift', name: 'Edt_Org_kOctaveShift', block: 3, bit: 0, width: 4, min: -6, max: 6, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 120' },
-    { key: 'organLayerB.octaveShift', name: 'Edt_Org_kOctaveShift', block: 4, bit: 0, width: 4, min: -6, max: 6, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 120' },
+    { key: 'organFx.rvbAmt.pedalAssign', name: 'Edt_Effects_kRvbAmt.pedalAssign', block: 2, bit: 142, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 288' },
+    { key: 'organFx.rvbAmt.wheelAssign', name: 'Edt_Effects_kRvbAmt.wheelAssign', block: 2, bit: 143, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 288' },
+    { key: 'organLayerA.octaveShift', name: 'Edt_Org_kOctaveShift', block: 3, bit: 0, width: 4, min: -6, max: 6, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 120' },
+    { key: 'organLayerB.octaveShift', name: 'Edt_Org_kOctaveShift', block: 4, bit: 0, width: 4, min: -6, max: 6, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 120' },
     { key: 'organDrawbars1.drawbarValue1', name: 'Edt_Org_kDrawbarValue1', block: 5, bit: 0, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 140' },
     { key: 'organDrawbars1.drawbarValue2', name: 'Edt_Org_kDrawbarValue2', block: 5, bit: 4, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 141' },
     { key: 'organDrawbars1.drawbarValue3', name: 'Edt_Org_kDrawbarValue3', block: 5, bit: 8, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 142' },
@@ -374,8 +458,10 @@ export const NE7_LAYOUT: FwLayout<Ne7FieldKey> = {
     { key: 'organDrawbars3.percussionLevel', name: 'Edt_Org_kPercussionLevel', block: 7, bit: 40, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 133' },
     { key: 'piano.isEnabled', name: 'Edt_Pno_kIsEnabled', block: 8, bit: 0, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 238' },
     { key: 'piano.level', name: 'Edt_Pno_kLevel', block: 8, bit: 1, width: 7, min: 0, max: 127, def: 127, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 239' },
+    { key: 'piano.level.pedalAssign', name: 'Edt_Pno_kLevel.pedalAssign', block: 8, bit: 8, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 239' },
+    { key: 'piano.level.wheelAssign', name: 'Edt_Pno_kLevel.wheelAssign', block: 8, bit: 9, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 239' },
     { key: 'piano.kbdZone', name: 'Edt_Pno_kKbdZone', block: 8, bit: 10, width: 2, min: 0, max: 2, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 240' },
-    { key: 'piano.octaveShift', name: 'Edt_Pno_kOctaveShift', block: 8, bit: 12, width: 4, min: -6, max: 6, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 241' },
+    { key: 'piano.octaveShift', name: 'Edt_Pno_kOctaveShift', block: 8, bit: 12, width: 4, min: -6, max: 6, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 241' },
     { key: 'piano.sustainEnable', name: 'Edt_Pno_kSustainEnable', block: 8, bit: 16, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 242' },
     { key: 'piano.pStickEnable', name: 'Edt_Pno_kPStickEnable', block: 8, bit: 17, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 243' },
     { key: 'piano.bank', name: 'Edt_Pno_kBank', block: 8, bit: 18, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 245' },
@@ -389,34 +475,54 @@ export const NE7_LAYOUT: FwLayout<Ne7FieldKey> = {
     { key: 'piano.eq', name: 'Edt_Pno_kEq', block: 8, bit: 67, width: 4, min: 0, max: 15, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 251' },
     { key: 'pianoFx.fx1Enable', name: 'Edt_Effects_kFx1Enable', block: 9, bit: 0, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 255' },
     { key: 'pianoFx.fx1Rate', name: 'Edt_Effects_kFx1Rate', block: 9, bit: 1, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 256' },
+    { key: 'pianoFx.fx1Rate.pedalAssign', name: 'Edt_Effects_kFx1Rate.pedalAssign', block: 9, bit: 8, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 256' },
+    { key: 'pianoFx.fx1Rate.wheelAssign', name: 'Edt_Effects_kFx1Rate.wheelAssign', block: 9, bit: 9, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 256' },
     { key: 'pianoFx.fx1Amt', name: 'Edt_Effects_kFx1Amt', block: 9, bit: 10, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 257' },
+    { key: 'pianoFx.fx1Amt.pedalAssign', name: 'Edt_Effects_kFx1Amt.pedalAssign', block: 9, bit: 17, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 257' },
+    { key: 'pianoFx.fx1Amt.wheelAssign', name: 'Edt_Effects_kFx1Amt.wheelAssign', block: 9, bit: 18, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 257' },
     { key: 'pianoFx.fx1Type', name: 'Edt_Effects_kFx1Type', block: 9, bit: 19, width: 3, min: 0, max: 4, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 258' },
     { key: 'pianoFx.fx2Enable', name: 'Edt_Effects_kFx2Enable', block: 9, bit: 23, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 260' },
     { key: 'pianoFx.fx2Rate', name: 'Edt_Effects_kFx2Rate', block: 9, bit: 24, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 261' },
+    { key: 'pianoFx.fx2Rate.pedalAssign', name: 'Edt_Effects_kFx2Rate.pedalAssign', block: 9, bit: 31, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 261' },
+    { key: 'pianoFx.fx2Rate.wheelAssign', name: 'Edt_Effects_kFx2Rate.wheelAssign', block: 9, bit: 32, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 261' },
     { key: 'pianoFx.fx2Amt', name: 'Edt_Effects_kFx2Amt', block: 9, bit: 33, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 262' },
+    { key: 'pianoFx.fx2Amt.pedalAssign', name: 'Edt_Effects_kFx2Amt.pedalAssign', block: 9, bit: 40, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 262' },
+    { key: 'pianoFx.fx2Amt.wheelAssign', name: 'Edt_Effects_kFx2Amt.wheelAssign', block: 9, bit: 41, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 262' },
     { key: 'pianoFx.fx2Type', name: 'Edt_Effects_kFx2Type', block: 9, bit: 42, width: 3, min: 0, max: 4, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 263' },
     { key: 'pianoFx.fx2Mono', name: 'Edt_Effects_kFx2Mono', block: 9, bit: 45, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 264' },
     { key: 'pianoFx.ampEnable', name: 'Edt_Effects_kAmpEnable', block: 9, bit: 46, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 274' },
     { key: 'pianoFx.ampDrive', name: 'Edt_Effects_kAmpDrive', block: 9, bit: 47, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 275' },
+    { key: 'pianoFx.ampDrive.pedalAssign', name: 'Edt_Effects_kAmpDrive.pedalAssign', block: 9, bit: 54, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 275' },
+    { key: 'pianoFx.ampDrive.wheelAssign', name: 'Edt_Effects_kAmpDrive.wheelAssign', block: 9, bit: 55, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 275' },
     { key: 'pianoFx.ampType', name: 'Edt_Effects_kAmpType', block: 9, bit: 56, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 280' },
-    { key: 'pianoFx.ampTreble', name: 'Edt_Effects_kAmpTreble', block: 9, bit: 59, width: 7, min: -60, max: 60, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 276' },
-    { key: 'pianoFx.ampMid', name: 'Edt_Effects_kAmpMid', block: 9, bit: 66, width: 7, min: -60, max: 60, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 277' },
-    { key: 'pianoFx.ampBass', name: 'Edt_Effects_kAmpBass', block: 9, bit: 73, width: 7, min: -60, max: 60, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 278' },
+    { key: 'pianoFx.ampTreble', name: 'Edt_Effects_kAmpTreble', block: 9, bit: 59, width: 7, min: -60, max: 60, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 276' },
+    { key: 'pianoFx.ampMid', name: 'Edt_Effects_kAmpMid', block: 9, bit: 66, width: 7, min: -60, max: 60, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 277' },
+    { key: 'pianoFx.ampBass', name: 'Edt_Effects_kAmpBass', block: 9, bit: 73, width: 7, min: -60, max: 60, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 278' },
     { key: 'pianoFx.ampMidFreq', name: 'Edt_Effects_kAmpMidFreq', block: 9, bit: 80, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 279' },
     { key: 'pianoFx.dlyEnable', name: 'Edt_Effects_kDlyEnable', block: 9, bit: 87, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 265' },
     { key: 'pianoFx.dlyRate', name: 'Edt_Effects_kDlyRate', block: 9, bit: 88, width: 14, min: 0, max: 16383, def: 11008, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 266' },
+    { key: 'pianoFx.dlyRate.pedalAssign', name: 'Edt_Effects_kDlyRate.pedalAssign', block: 9, bit: 102, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 266' },
+    { key: 'pianoFx.dlyRate.wheelAssign', name: 'Edt_Effects_kDlyRate.wheelAssign', block: 9, bit: 103, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 266' },
     { key: 'pianoFx.dlyMix', name: 'Edt_Effects_kDlyMix', block: 9, bit: 104, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 267' },
+    { key: 'pianoFx.dlyMix.pedalAssign', name: 'Edt_Effects_kDlyMix.pedalAssign', block: 9, bit: 111, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 267' },
+    { key: 'pianoFx.dlyMix.wheelAssign', name: 'Edt_Effects_kDlyMix.wheelAssign', block: 9, bit: 112, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 267' },
     { key: 'pianoFx.dlyPingPong', name: 'Edt_Effects_kDlyPingPong', block: 9, bit: 113, width: 2, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 268' },
     { key: 'pianoFx.dlyFltType', name: 'Edt_Effects_kDlyFltType', block: 9, bit: 115, width: 2, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 269' },
     { key: 'pianoFx.dlyFeedback', name: 'Edt_Effects_kDlyFeedback', block: 9, bit: 117, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 270' },
+    { key: 'pianoFx.dlyFeedback.pedalAssign', name: 'Edt_Effects_kDlyFeedback.pedalAssign', block: 9, bit: 124, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 270' },
+    { key: 'pianoFx.dlyFeedback.wheelAssign', name: 'Edt_Effects_kDlyFeedback.wheelAssign', block: 9, bit: 125, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 270' },
     { key: 'pianoFx.dlyMode', name: 'Edt_Effects_kDlyMode', block: 9, bit: 126, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 271' },
     { key: 'pianoFx.cmpEnable', name: 'Edt_Effects_kCmpEnable', block: 9, bit: 127, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 281' },
     { key: 'pianoFx.cmpAmt', name: 'Edt_Effects_kCmpAmt', block: 9, bit: 128, width: 7, min: 0, max: 127, def: 38, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 282' },
     { key: 'pianoFx.rvbAmt', name: 'Edt_Effects_kRvbAmt', block: 9, bit: 135, width: 7, min: 0, max: 127, def: 38, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 288' },
+    { key: 'pianoFx.rvbAmt.pedalAssign', name: 'Edt_Effects_kRvbAmt.pedalAssign', block: 9, bit: 142, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 288' },
+    { key: 'pianoFx.rvbAmt.wheelAssign', name: 'Edt_Effects_kRvbAmt.wheelAssign', block: 9, bit: 143, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 288' },
     { key: 'synth.isEnabled', name: 'Edt_Syn_kIsEnabled', block: 10, bit: 0, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 161' },
     { key: 'synth.level', name: 'Edt_Syn_kLevel', block: 10, bit: 1, width: 7, min: 0, max: 127, def: 127, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 162' },
+    { key: 'synth.level.pedalAssign', name: 'Edt_Syn_kLevel.pedalAssign', block: 10, bit: 8, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 162' },
+    { key: 'synth.level.wheelAssign', name: 'Edt_Syn_kLevel.wheelAssign', block: 10, bit: 9, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 162' },
     { key: 'synth.kbdZone', name: 'Edt_Syn_kKbdZone', block: 10, bit: 10, width: 2, min: 0, max: 2, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 163' },
-    { key: 'synth.octaveShift', name: 'Edt_Syn_kOctaveShift', block: 10, bit: 12, width: 4, min: -6, max: 6, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 164' },
+    { key: 'synth.octaveShift', name: 'Edt_Syn_kOctaveShift', block: 10, bit: 12, width: 4, min: -6, max: 6, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 164' },
     { key: 'synth.sustainEnable', name: 'Edt_Syn_kSustainEnable', block: 10, bit: 16, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 165' },
     { key: 'synth.pStickEnable', name: 'Edt_Syn_kPStickEnable', block: 10, bit: 17, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 166' },
     { key: 'synth.pStickRange', name: 'Edt_Syn_kPStickRange', block: 10, bit: 18, width: 4, min: 0, max: 9, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 167' },
@@ -434,15 +540,17 @@ export const NE7_LAYOUT: FwLayout<Ne7FieldKey> = {
     { key: 'synthPreset.smpNameHash', name: 'Edt_Syn_kSmpNameHash_Private', block: 11, bit: 46, width: 32, min: -2147483648, max: 2147483647, def: 0, enc: 'raw', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 224' },
     { key: 'synthPreset.analogMainWaveform', name: 'Edt_Syn_kAnalogMainWaveform', block: 11, bit: 78, width: 6, min: 0, max: 5, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 178' },
     { key: 'synthPreset.analogDetune', name: 'Edt_Syn_kAnalogDetune', block: 11, bit: 84, width: 7, min: 0, max: 30, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 181' },
-    { key: 'synthPreset.analogSemitone', name: 'Edt_Syn_kAnalogSemitone', block: 11, bit: 91, width: 7, min: -24, max: 24, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 182' },
+    { key: 'synthPreset.analogSemitone', name: 'Edt_Syn_kAnalogSemitone', block: 11, bit: 91, width: 7, min: -24, max: 24, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 182' },
     { key: 'synthPreset.analogAuxWaveform', name: 'Edt_Syn_kAnalogAuxWaveform', block: 11, bit: 98, width: 6, min: 0, max: 6, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 179' },
     { key: 'synthPreset.filterEnable', name: 'Edt_Syn_kFilterEnable', block: 11, bit: 111, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 225' },
     { key: 'synthPreset.filterFrequency', name: 'Edt_Syn_kFilterFrequency', block: 11, bit: 112, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 226' },
+    { key: 'synthPreset.filterFrequency.pedalAssign', name: 'Edt_Syn_kFilterFrequency.pedalAssign', block: 11, bit: 119, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 226' },
+    { key: 'synthPreset.filterFrequency.wheelAssign', name: 'Edt_Syn_kFilterFrequency.wheelAssign', block: 11, bit: 120, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 226' },
     { key: 'synthPreset.filterResonance', name: 'Edt_Syn_kFilterResonance', block: 11, bit: 121, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 227' },
     { key: 'synthPreset.filterKeyTrack', name: 'Edt_Syn_kFilterKeyTrack', block: 11, bit: 128, width: 3, min: 0, max: 3, def: 2, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 228' },
     { key: 'synthPreset.filterDrive', name: 'Edt_Syn_kFilterDrive', block: 11, bit: 131, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 229' },
     { key: 'synthPreset.fmAlgorithm', name: 'Edt_Syn_kFMAlgorithm', block: 11, bit: 138, width: 6, min: 0, max: 9, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 184' },
-    { key: 'synthPreset.fmBalance', name: 'Edt_Syn_kFMBalance', block: 11, bit: 144, width: 5, min: -15, max: 15, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 195' },
+    { key: 'synthPreset.fmBalance', name: 'Edt_Syn_kFMBalance', block: 11, bit: 144, width: 5, min: -15, max: 15, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 195' },
     { key: 'synthPreset.fmAmountB', name: 'Edt_Syn_kFMAmountB', block: 11, bit: 156, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 189' },
     { key: 'synthPreset.fmAmountS', name: 'Edt_Syn_kFMAmountS', block: 11, bit: 170, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 193' },
     { key: 'synthPreset.fmFeedbackAmount', name: 'Edt_Syn_kFMFeedbackAmount', block: 11, bit: 177, width: 7, min: 0, max: 28, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 194' },
@@ -462,7 +570,7 @@ export const NE7_LAYOUT: FwLayout<Ne7FieldKey> = {
     { key: 'synthPreset.fmModulatorFreqS', name: 'Edt_Syn_kFMModulatorFreqS', block: 11, bit: 269, width: 7, min: 0, max: 42, def: 3, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 187' },
     { key: 'synthPreset.fmCarrierFreqB', name: 'Edt_Syn_kFMCarrierFreqB', block: 11, bit: 276, width: 7, min: 0, max: 32, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 192' },
     { key: 'synthPreset.fmCarrierFreqS', name: 'Edt_Syn_kFMCarrierFreqS', block: 11, bit: 283, width: 7, min: 0, max: 32, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 191' },
-    { key: 'synthPreset.analogOscMix', name: 'Edt_Syn_kAnalogOscMix', block: 11, bit: 296, width: 7, min: -20, max: 20, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 180' },
+    { key: 'synthPreset.analogOscMix', name: 'Edt_Syn_kAnalogOscMix', block: 11, bit: 296, width: 7, min: -20, max: 20, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 180' },
     { key: 'synthPreset.infoText0', name: 'Edt_Syn_kInfoText_0', block: 11, bit: 303, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 230' },
     { key: 'synthPreset.infoText1', name: 'Edt_Syn_kInfoText_1', block: 11, bit: 310, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 231' },
     { key: 'synthPreset.infoText2', name: 'Edt_Syn_kInfoText_2', block: 11, bit: 317, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 232' },
@@ -475,32 +583,52 @@ export const NE7_LAYOUT: FwLayout<Ne7FieldKey> = {
     { key: 'synthPreset.fmScalingHi', name: 'Edt_Syn_kFMScalingHi', block: 11, bit: 363, width: 4, min: 0, max: 10, def: 7, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 201' },
     { key: 'synthPreset.fmEnvTrkAtk', name: 'Edt_Syn_kFMEnvTrkAtk', block: 11, bit: 367, width: 4, min: 0, max: 10, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 204' },
     { key: 'synthPreset.fmAmount', name: 'Edt_Syn_kFMAmount', block: 11, bit: 371, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 185' },
+    { key: 'synthPreset.fmAmount.pedalAssign', name: 'Edt_Syn_kFMAmount.pedalAssign', block: 11, bit: 378, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 185' },
+    { key: 'synthPreset.fmAmount.wheelAssign', name: 'Edt_Syn_kFMAmount.wheelAssign', block: 11, bit: 379, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 185' },
     { key: 'synthPreset.fmEnvTrkDecRls', name: 'Edt_Syn_kFMEnvTrkDecRls', block: 11, bit: 380, width: 4, min: 0, max: 10, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 205' },
     { key: 'synthFx.fx1Enable', name: 'Edt_Effects_kFx1Enable', block: 12, bit: 0, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 255' },
     { key: 'synthFx.fx1Rate', name: 'Edt_Effects_kFx1Rate', block: 12, bit: 1, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 256' },
+    { key: 'synthFx.fx1Rate.pedalAssign', name: 'Edt_Effects_kFx1Rate.pedalAssign', block: 12, bit: 8, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 256' },
+    { key: 'synthFx.fx1Rate.wheelAssign', name: 'Edt_Effects_kFx1Rate.wheelAssign', block: 12, bit: 9, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 256' },
     { key: 'synthFx.fx1Amt', name: 'Edt_Effects_kFx1Amt', block: 12, bit: 10, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 257' },
+    { key: 'synthFx.fx1Amt.pedalAssign', name: 'Edt_Effects_kFx1Amt.pedalAssign', block: 12, bit: 17, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 257' },
+    { key: 'synthFx.fx1Amt.wheelAssign', name: 'Edt_Effects_kFx1Amt.wheelAssign', block: 12, bit: 18, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 257' },
     { key: 'synthFx.fx1Type', name: 'Edt_Effects_kFx1Type', block: 12, bit: 19, width: 3, min: 0, max: 4, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 258' },
     { key: 'synthFx.fx2Enable', name: 'Edt_Effects_kFx2Enable', block: 12, bit: 23, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 260' },
     { key: 'synthFx.fx2Rate', name: 'Edt_Effects_kFx2Rate', block: 12, bit: 24, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 261' },
+    { key: 'synthFx.fx2Rate.pedalAssign', name: 'Edt_Effects_kFx2Rate.pedalAssign', block: 12, bit: 31, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 261' },
+    { key: 'synthFx.fx2Rate.wheelAssign', name: 'Edt_Effects_kFx2Rate.wheelAssign', block: 12, bit: 32, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 261' },
     { key: 'synthFx.fx2Amt', name: 'Edt_Effects_kFx2Amt', block: 12, bit: 33, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 262' },
+    { key: 'synthFx.fx2Amt.pedalAssign', name: 'Edt_Effects_kFx2Amt.pedalAssign', block: 12, bit: 40, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 262' },
+    { key: 'synthFx.fx2Amt.wheelAssign', name: 'Edt_Effects_kFx2Amt.wheelAssign', block: 12, bit: 41, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 262' },
     { key: 'synthFx.fx2Type', name: 'Edt_Effects_kFx2Type', block: 12, bit: 42, width: 3, min: 0, max: 4, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 263' },
     { key: 'synthFx.fx2Mono', name: 'Edt_Effects_kFx2Mono', block: 12, bit: 45, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 264' },
     { key: 'synthFx.ampEnable', name: 'Edt_Effects_kAmpEnable', block: 12, bit: 46, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 274' },
     { key: 'synthFx.ampDrive', name: 'Edt_Effects_kAmpDrive', block: 12, bit: 47, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 275' },
+    { key: 'synthFx.ampDrive.pedalAssign', name: 'Edt_Effects_kAmpDrive.pedalAssign', block: 12, bit: 54, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 275' },
+    { key: 'synthFx.ampDrive.wheelAssign', name: 'Edt_Effects_kAmpDrive.wheelAssign', block: 12, bit: 55, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 275' },
     { key: 'synthFx.ampType', name: 'Edt_Effects_kAmpType', block: 12, bit: 56, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 280' },
-    { key: 'synthFx.ampTreble', name: 'Edt_Effects_kAmpTreble', block: 12, bit: 59, width: 7, min: -60, max: 60, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 276' },
-    { key: 'synthFx.ampMid', name: 'Edt_Effects_kAmpMid', block: 12, bit: 66, width: 7, min: -60, max: 60, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 277' },
-    { key: 'synthFx.ampBass', name: 'Edt_Effects_kAmpBass', block: 12, bit: 73, width: 7, min: -60, max: 60, def: 0, enc: 'offset', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 278' },
+    { key: 'synthFx.ampTreble', name: 'Edt_Effects_kAmpTreble', block: 12, bit: 59, width: 7, min: -60, max: 60, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 276' },
+    { key: 'synthFx.ampMid', name: 'Edt_Effects_kAmpMid', block: 12, bit: 66, width: 7, min: -60, max: 60, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 277' },
+    { key: 'synthFx.ampBass', name: 'Edt_Effects_kAmpBass', block: 12, bit: 73, width: 7, min: -60, max: 60, def: 0, enc: 'twos', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 278' },
     { key: 'synthFx.ampMidFreq', name: 'Edt_Effects_kAmpMidFreq', block: 12, bit: 80, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 279' },
     { key: 'synthFx.dlyEnable', name: 'Edt_Effects_kDlyEnable', block: 12, bit: 87, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 265' },
     { key: 'synthFx.dlyRate', name: 'Edt_Effects_kDlyRate', block: 12, bit: 88, width: 14, min: 0, max: 16383, def: 11008, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 266' },
+    { key: 'synthFx.dlyRate.pedalAssign', name: 'Edt_Effects_kDlyRate.pedalAssign', block: 12, bit: 102, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 266' },
+    { key: 'synthFx.dlyRate.wheelAssign', name: 'Edt_Effects_kDlyRate.wheelAssign', block: 12, bit: 103, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 266' },
     { key: 'synthFx.dlyMix', name: 'Edt_Effects_kDlyMix', block: 12, bit: 104, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 267' },
+    { key: 'synthFx.dlyMix.pedalAssign', name: 'Edt_Effects_kDlyMix.pedalAssign', block: 12, bit: 111, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 267' },
+    { key: 'synthFx.dlyMix.wheelAssign', name: 'Edt_Effects_kDlyMix.wheelAssign', block: 12, bit: 112, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 267' },
     { key: 'synthFx.dlyPingPong', name: 'Edt_Effects_kDlyPingPong', block: 12, bit: 113, width: 2, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 268' },
     { key: 'synthFx.dlyFltType', name: 'Edt_Effects_kDlyFltType', block: 12, bit: 115, width: 2, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 269' },
     { key: 'synthFx.dlyFeedback', name: 'Edt_Effects_kDlyFeedback', block: 12, bit: 117, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 270' },
+    { key: 'synthFx.dlyFeedback.pedalAssign', name: 'Edt_Effects_kDlyFeedback.pedalAssign', block: 12, bit: 124, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 270' },
+    { key: 'synthFx.dlyFeedback.wheelAssign', name: 'Edt_Effects_kDlyFeedback.wheelAssign', block: 12, bit: 125, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 270' },
     { key: 'synthFx.dlyMode', name: 'Edt_Effects_kDlyMode', block: 12, bit: 126, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 271' },
     { key: 'synthFx.cmpEnable', name: 'Edt_Effects_kCmpEnable', block: 12, bit: 127, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 281' },
     { key: 'synthFx.cmpAmt', name: 'Edt_Effects_kCmpAmt', block: 12, bit: 128, width: 7, min: 0, max: 127, def: 38, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 282' },
     { key: 'synthFx.rvbAmt', name: 'Edt_Effects_kRvbAmt', block: 12, bit: 135, width: 7, min: 0, max: 127, def: 38, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 288' },
+    { key: 'synthFx.rvbAmt.pedalAssign', name: 'Edt_Effects_kRvbAmt.pedalAssign', block: 12, bit: 142, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 288' },
+    { key: 'synthFx.rvbAmt.wheelAssign', name: 'Edt_Effects_kRvbAmt.wheelAssign', block: 12, bit: 143, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 7 OS 1.30 registry FUN_c009c394 · id 288' },
   ],
 };

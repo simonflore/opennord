@@ -14,11 +14,24 @@ describe('MatrixView', () => {
     expect(html).toContain('Nord Stage 3');
     expect(html).toContain('text-connected'); // validated status color
   });
-  it('shows graded statuses across the line (works / in progress / likely)', () => {
+  it('shows graded statuses across the line (works / ready to test / likely)', () => {
     const html = render();
-    expect(html).toContain('Works');        // Stage 4 (validated)
-    expect(html).toContain('In progress');  // Stage 2/3 (reverse-engineered)
-    expect(html).toContain('Likely');       // inferred from shared transport
+    expect(html).toContain('Works');         // Stage 4 (validated)
+    expect(html).toContain('>Ready to test</td>'); // a cell, not just the intro: read from the model's own firmware or files
+    expect(html).toContain('Likely');        // assumed from a sibling (Stage Classic, C2)
+    expect(html).not.toContain('In progress');
+  });
+  it('explains each chip in a labelled legend', () => {
+    const legend = render().match(/<ul[^>]*aria-label="What each status means"[^>]*>(.*?)<\/ul>/)?.[1] ?? '';
+    for (const chip of ['Works', 'Ready to test', 'Likely', '—']) expect(legend).toContain(`${chip}</span>`);
+  });
+  it('says "Not yet" for undecoded models and "—" for the C1, which has no program files', () => {
+    const html = render();
+    expect(html).toMatch(/Nord Electro 3<\/th><td[^>]*>Not yet</);
+    expect(html).toMatch(/Nord C1<\/th><td[^>]*>—</);
+  });
+  it('shows the parameter count of the firmware-layout readers', () => {
+    expect(render()).toMatch(/Nord Grand<\/th><td[^>]*>\d+ params/);
   });
   it('prompts to connect a Nord when none is connected', () => {
     expect(render()).toContain('the check is read-only');
