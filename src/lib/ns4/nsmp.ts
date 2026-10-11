@@ -815,39 +815,110 @@ export function parseCodec3V12ZoneRecords(
   });
 }
 
-export interface StrokeLoop {
-  /** Loop start, per-channel samples from the stroke start. */
-  loopStart: number;
-  /** Loop end, per-channel samples from the stroke start. */
-  loopEnd: number;
-  /** True when the stroke loops (loop-out before the sample end); false = one-shot. */
+/**
+ * A stroke's region pointers as the `stk` header stores them: positions in the stroke's
+ * **compressed stream**, in stream words (24-bit for the OG layout, 32-bit otherwise),
+ * relative to the stroke's start pointer. They are not audio sample positions — the
+ * sample DSP jumps its stream reader to them; use
+ * {@link strokeLoop} for audio frames.
+ */
+export interface StrokeRegions {
+  /** Alternate start point (the editor's `SecondStart`): where a note starts when the
+   *  layer skips the attack. */
+  secondStart: number;
+  /** Where the loop begins (the editor's `LoopBegin`). */
+  loopBegin: number;
+  /** End of the stream, and the loop's end. */
+  end: number;
+  /** True when the stroke loops (`loopBegin` before `end`); false = one-shot. */
   loops: boolean;
+  /** Loop-decay field (signed 24-bit at +0x28): −gain·2²³ per envelope update, so
+   *  `0x800000` is −1.0 = hold. */
+  decayRaw: number;
 }
 
 /**
- * Per-stroke loop region from the `stk` header's four region pointers
- * (start @+0x12, loop-in @+0x1b, loop-out @+0x24, end @+0x2d; u32 BE, per-channel
- * samples, cumulative across strokes). Returns the loop
- * window relative to the stroke start and the one-shot flag (`loop-out == end`).
- * Validated on OG codec-1 (TAKE ON ME stk1/2/3/8 read one-shot, matching the RE).
- * Returns null when the pointers aren't monotonic — a guard for any generation
- * whose header offsets we haven't independently pinned, so we never show garbage.
+ * The four region pointers of a `stk` header (start @+0x12, second start @+0x1b, loop
+ * begin @+0x24, end @+0x2d; u32 BE, cumulative across strokes) and its loop-decay field.
+ * The editor writes them from `GetSecondStart`/`GetLoopBegin`/`GetEnd`
+ * (`EncodeStrokePhase0`) and forces loop begin = end on a one-shot. Returns null when the
+ * pointers aren't monotonic — a guard for any generation whose header offsets we haven't
+ * independently pinned, so we never show garbage.
  */
-export function readStrokeLoop(bytes: Uint8Array, payloadOffset: number): StrokeLoop | null {
+export function readStrokeRegions(bytes: Uint8Array, payloadOffset: number): StrokeRegions | null {
   const u1 = u32be(bytes, payloadOffset + 0x12); // start
-  const u2 = u32be(bytes, payloadOffset + 0x1b); // loop-in
-  const u3 = u32be(bytes, payloadOffset + 0x24); // loop-out
+  const u2 = u32be(bytes, payloadOffset + 0x1b); // second start
+  const u3 = u32be(bytes, payloadOffset + 0x24); // loop begin
   const u4 = u32be(bytes, payloadOffset + 0x2d); // end
   if (!(u1 <= u2 && u2 <= u3 && u3 <= u4)) return null;
   const span = u4 - u1;
   if (span <= 0 || span > (1 << 27)) return null; // implausible → unknown
-  return { loopStart: u2 - u1, loopEnd: u3 - u1, loops: u3 !== u4 };
+  const decayRaw = (bytes[payloadOffset + 0x28] << 16) | (bytes[payloadOffset + 0x29] << 8) | bytes[payloadOffset + 0x2a];
+  return { secondStart: u2 - u1, loopBegin: u3 - u1, end: span, loops: u3 !== u4, decayRaw };
 }
 
-/** Write loop-in (@+0x1b) and loop-out (@+0x24) u32 BE into a `stk` header in
- *  place. Pointers are absolute, cumulative across strokes — the same frame
- *  {@link readStrokeLoop} reads. Start (@+0x12) and end (@+0x2d) are left
- *  untouched, so the sample window is preserved. Caller re-checksums. */
+/** Updates per second of the sample DSP's gain envelope — the rate the loop decay is
+ *  defined against (the editor's `SMetric::kEnvelopeUpdateRate`). */
+export const NSMP_ENVELOPE_RATE = 21700;
+
+/**
+ * Loop decay as a rate: dB lost per second inside the loop, 0 = hold. The stored field
+ * is −c·2²³ with c the gain multiplier per envelope update (where
+ * c = 0.01^(1/(seconds·rate)), i.e. the editor's Decay time is the time to fall 40 dB).
+ */
+export function loopDecayDbPerSecond(decayRaw: number): number {
+  const c = Math.abs(decayRaw >= 0x800000 ? decayRaw - 0x1000000 : decayRaw) / 0x800000;
+  if (!(c > 0) || c >= 1) return 0;
+  return -20 * Math.log10(c) * NSMP_ENVELOPE_RATE;
+}
+
+export interface StrokeLoop {
+  /** Loop begin, per-channel frames from the stroke start. */
+  loopStart: number;
+  /** Loop end, per-channel frames from the stroke start — the end of the stroke's audio. */
+  loopEnd: number;
+  /** True when the stroke loops; false = one-shot. */
+  loops: boolean;
+  /** Alternate start point, per-channel frames (0 when it is the normal start). */
+  altStart: number;
+  /** dB lost per second while playback is inside the loop; 0 = the loop holds its level. */
+  decayDbPerSecond: number;
+}
+
+/**
+ * A stroke's loop in **audio frames**: the header's stream-word regions
+ * ({@link readStrokeRegions}) looked up in the decoded stream's segment-opening blocks
+ * (`DecodedStroke.marks`). Every region pointer lands on one — the loop-begin block is
+ * the one carrying the loop-decay flag. The decoder may enter the stream a few words
+ * from the header's start pointer, so positions are anchored on the stream end (the
+ * `end` pointer is the stop block). Null when the header is unreadable or a pointer
+ * doesn't land on a block (never a guessed position).
+ */
+export function strokeLoop(regions: StrokeRegions | null, decoded: DecodedStroke, channelCount: number): StrokeLoop | null {
+  const last = decoded.marks[decoded.marks.length - 1];
+  if (!regions || !last) return null;
+  const shift = last.word - regions.end;
+  const frameAt = (word: number): number | null => {
+    const m = decoded.marks.find((x) => x.word === word + shift);
+    return m ? Math.floor(m.sample / Math.max(1, channelCount)) : null;
+  };
+  const frames = decoded.channels[0]?.length ?? 0;
+  const altStart = frameAt(regions.secondStart);
+  const loopStart = regions.loops ? frameAt(regions.loopBegin) : frames;
+  if (altStart === null || loopStart === null) return null;
+  return {
+    loopStart, loopEnd: frames, loops: regions.loops && loopStart < frames, altStart,
+    decayDbPerSecond: regions.loops ? loopDecayDbPerSecond(regions.decayRaw) : 0,
+  };
+}
+
+/** Write the second-start (@+0x1b) and loop-begin (@+0x24) pointers, u32 BE, into a
+ *  `stk` header in place. Pointers are absolute stream-word positions, cumulative across
+ *  strokes — the same frame {@link readStrokeRegions} reads, and each must sit on a
+ *  segment-opening block of the stream, so this only moves a region between existing
+ *  blocks; it cannot place a loop at an arbitrary audio position. Start (@+0x12) and
+ *  end (@+0x2d) are left untouched, so the sample window is preserved. Caller
+ *  re-checksums. */
 export function patchStrokeLoopBytes(out: Uint8Array, stkPayloadOffset: number, loopInAbs: number, loopOutAbs: number): void {
   const put = (o: number, v: number) => {
     out[o] = (v >>> 24) & 0xff; out[o + 1] = (v >>> 16) & 0xff; out[o + 2] = (v >>> 8) & 0xff; out[o + 3] = v & 0xff;
@@ -895,7 +966,7 @@ export interface DecodedStrokeResult extends DecodedStroke {
   channelCount: number;
   /** The stroke's global id (`stk` header byte +3) — what a zone's `globalID` references. */
   globalID: number;
-  /** Loop window from the stroke header, or null when not decodable. */
+  /** Loop window in audio frames, or null when not decodable. */
   loop: StrokeLoop | null;
   /** Replay sample rate in Hz — the stroke-header pitch base ({@link strokeSampleRate}).
    *  Feed this to playback/WAV export so the sample sounds at its stored pitch. */
@@ -1046,7 +1117,7 @@ export function decodeNsmp(bytes: Uint8Array): DecodedStrokeResult[] {
     if (decoded) out.push({
       ...decoded.result, index, channelCount: decoded.channelCount,
       globalID: gidIsU32 ? u32be(bytes, section.payloadOffset) : bytes[section.payloadOffset + 3],
-      loop: readStrokeLoop(bytes, section.payloadOffset),
+      loop: strokeLoop(readStrokeRegions(bytes, section.payloadOffset), decoded.result, decoded.channelCount),
       sampleRate: strokeSampleRate(bytes, section.payloadOffset),
     });
     index++;

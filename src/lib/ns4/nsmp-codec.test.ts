@@ -7,7 +7,11 @@ describe('readBlockHeader', () => {
   it('splits the packed fields (sampleCnt[0:13], order[14:17], bitWidth[19:22]+1)', () => {
     // sampleCnt=4, filterOrder=1, bitWidth=8  →  (8-1)<<19 | 1<<14 | 4
     const h = readBlockHeader(0x384004);
-    expect(h).toEqual({ sampleCnt: 4, filterOrder: 1, bitWidth: 8, isStop: false, linMode: false });
+    expect(h).toEqual({ sampleCnt: 4, filterOrder: 1, bitWidth: 8, isStop: false, linMode: false, loopDecay: false });
+  });
+
+  it('reads the loop-decay flag from bit 18', () => {
+    expect(readBlockHeader(0x384004 | (1 << 18)).loopDecay).toBe(true);
   });
 
   it('recognizes the stop sentinel (order 0, bitWidth 1)', () => {

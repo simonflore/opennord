@@ -156,9 +156,12 @@ export interface StrokeSummary {
   rootMidi?: number;
   /** Whether the stroke loops; undefined when the loop region wasn't decodable. */
   loops?: boolean;
-  /** Loop in/out, per-channel samples from stroke start (only when looping). */
+  /** Loop begin/end, per-channel frames from stroke start (only when looping). */
   loopStart?: number;
   loopEnd?: number;
+  /** dB the held note loses per second once it is in the loop (only when looping and
+   *  the loop doesn't hold its level). */
+  loopDecayDbPerSecond?: number;
 }
 
 export function strokeSummary(d: DecodedStrokeResult): StrokeSummary {
@@ -170,5 +173,6 @@ export function strokeSummary(d: DecodedStrokeResult): StrokeSummary {
     loops: d.loop ? d.loop.loops : undefined,
     loopStart: d.loop?.loops ? d.loop.loopStart : undefined,
     loopEnd: d.loop?.loops ? d.loop.loopEnd : undefined,
+    loopDecayDbPerSecond: d.loop?.loops && d.loop.decayDbPerSecond > 0 ? d.loop.decayDbPerSecond : undefined,
   };
 }

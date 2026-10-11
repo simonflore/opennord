@@ -21,6 +21,12 @@ describe('StrokeList loop indicator', () => {
     expect(unknown).not.toContain('one-shot');
     expect(unknown).not.toContain('↻');
   });
+  it('shows how fast a held note fades in the loop, only when it does', () => {
+    const fading = stroke(0, true, true);
+    fading.summary.loopDecayDbPerSecond = 7.4;
+    expect(renderToStaticMarkup(<StrokeList strokes={[fading]} playable name="P" />)).toContain('fades 7 dB/s');
+    expect(renderToStaticMarkup(<StrokeList strokes={[stroke(0, true, true)]} playable name="P" />)).not.toContain('fades');
+  });
 });
 
 describe('StrokeList root note', () => {
