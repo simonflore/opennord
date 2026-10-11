@@ -1,170 +1,98 @@
 /**
- * Nord Electro 4 (`.ne4p`) body decoder.
+ * Nord Electro 4 (`.ne4p`) decoder.
  *
- * Body offset: 0x2c (44). Body length: 92 bytes (136 - 44).
+ * Legacy formatType-0 CBIN: the u16 at 0x14 is the version, the parameter
+ * bitstream runs from **file 0x1A** for 864 bits (108 bytes), and the last two
+ * bytes are the CRC-16 trailer — 26 + 108 + 2 = 136, the `.ne4p` size (the
+ * trailer is exposed as stored: its CRC coverage is unverified, see types.ts).
+ * The field layout is the Electro 4 OS 1.22 descriptor map (serialiser
+ *, container builder), generated into
+ * `layout.generated.ts` generated and read through the
+ * shared legacy-record reader (clavia/legacy-record.ts):
  *
- * ## Confirmed fields (corpus RE + Stage-oracle alignment, 2026-06-22, 16 fixtures)
+ * | File      | Block (descriptors)                     | Old corpus "body" |
+ * |-----------|-----------------------------------------|-------------------|
+ * | 0x1A      | programCommon (6)                       | −18               |
+ * | 0x21-0x26 | B3 / Vox / Farfisa Common (3 each)      | −11 … −6          |
+ * | 0x27      | B3 Preset I (17): drawbars 0x27-0x2B    | −5 … 4            |
+ * | 0x30      | Vox Preset I (12): drawbars 0x30-0x34   | 4-8               |
+ * | 0x37      | Farfisa Preset I (13): tabs 0x37-0x38   | 11-12             |
+ * | 0x3C      | B3 Preset II (17): drawbars 0x3C-0x40   | 16-21             |
+ * | 0x45      | Vox Preset II (12)                      | 25-29             |
+ * | 0x4C      | Farfisa Preset II (13)                  | 32-33             |
+ * | 0x51      | pianoSample (21)                        | 37-50             |
+ * | 0x5F      | effects (22)                            | 51-67             |
+ * | 0x70      | blockX1 (8)                             | 68-78             |
+ * | 0x7B      | blockX2 (8)                             | 79-89             |
+ * | 0x86      | CRC-16 trailer                          | 90-91             |
  *
- * | Body offset | Field                            | Stage oracle                | Source              |
- * |-------------|----------------------------------|-----------------------------|---------------------|
- * | 4-8         | Organ drawbars — default slot 1  | 117-1..136-1 (group o)      | 16-file corpus diff |
- * | 16-20       | Organ drawbars — active/edited   | 117-1..136-1 (group o)      | 16-file corpus diff |
- * | 25-29       | Organ drawbars — default slot 2  | 117-1..136-1 (group o)      | 16-file corpus diff |
- *
- * The NE4 stores multiple organ drawbar slots (Electro's two organ presets plus
- * the live/edited registration). body[4-8] and body[25-29] are byte-identical
- * factory-default blocks (8,8,0,0,0,0,0,8,8) constant across all 16 files;
- * body[16-20] tracks patch identity and is the block the user edits.
- *
- * ## Candidate fields (Stage-oracle position match, bit map unverified)
- *
- * | Body offset | Field                       | Stage oracle                          |
- * |-------------|-----------------------------|---------------------------------------|
- * | 0           | section enable / mode flags | 084-5/6/7 section on/off (group m)     |
- * | 20lo,21     | vib/chorus + percussion     | 141-1..141-5 (group o)                 |
- * | 37-41       | sample reference ID [~40b]  | piano model ID [32b] (group p)         |
- * | 43-44       | sample voice params         | piano touch/timbre/level (group p)     |
- *
- * ## Sparse structure — 33/92 bytes vary
- *
- * | Region          | body offset | status              |
- * |-----------------|-------------|---------------------|
- * | sectionFlags    | 0           | candidate (master section enable) |
- * | drawbars def1   | 4-8         | confirmed           |
- * | drawbars active | 16-20       | confirmed           |
- * | vib/perc        | 20lo-21     | candidate           |
- * | drawbars def2   | 25-29       | confirmed           |
- * | sample.refId    | 37-41       | candidate (sample ID) |
- * | sample.voice    | 43-44       | candidate (voice params) |
- * | _organSection   | 37-45       | raw superset of refId |
- * | _sampleSection  | 51-63       | candidate (zone params) |
- * | _tail0          | 68          | candidate           |
- * | _tail1          | 79          | candidate           |
- * | _tail23         | 90-91       | unknown (program-specific) |
- *
- * ## Drawbar encoding (identical to NE6)
- *
- * 9 drawbar values (0-8) are packed as 9 consecutive 4-bit nibbles, high nibble
- * first within each byte. Spans 5 bytes: bytes 0-3 carry 8 drawbars (2 nibbles
- * each), and the high nibble of byte 4 carries drawbar 9. The low nibble of
- * byte 4 is a separate field (_trailing).
- *
- * Drawbar order: 16', 8', 5⅓', 4', 2⅔', 2', 1⅗', 1⅓', 1' (standard Hammond).
- *
- * All files are version raw=103 → '1.03'.
+ * Drawbars are the firmware's 4-bit descriptors (0-8), MSB-first — the same
+ * nibble packing the corpus RE found. Never throws.
  */
+import { formatCbinVersion } from '../clavia/cbin';
+import { LEGACY_DATA_OFFSET, legacyData, readLegacyRecord } from '../clavia/legacy-record';
+import { storedTrailerChecksum } from '../clavia/crc16';
+import { NE4_LAYOUT, type Ne4FieldKey } from './layout.generated';
+import type { Ne4B3Preset, Ne4FarfisaPreset, Ne4Program, Ne4VoxPreset } from './types';
 
-import { CBIN_BODY_OFFSET as BODY_OFFSET, formatCbinVersion } from '../clavia/cbin';
-import { readDrawbars } from '../clavia/drawbars';
-import type { Ne4Organ, Ne4Program, Ne4Sample } from './types';
+const NE4P_FILE_BYTES = LEGACY_DATA_OFFSET + NE4_LAYOUT.dataBytes + 2; // 136
 
-const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
+type Block = 'b3PresetI' | 'b3PresetII' | 'voxPresetI' | 'voxPresetII' | 'farfPresetI' | 'farfPresetII' | 'pianoSample';
+type Get = (block: Block, index: number) => number;
 
-/**
- * Decode the NE4 organ section.
- *
- * Three drawbar slots (Stage oracle 117-1..136-1, group o):
- *   active         → body[16-20] (confirmed, patch-tracking, user-edited)
- *   presetDefault1 → body[4-8]   (confirmed, factory-default twin)
- *   presetDefault2 → body[25-29] (confirmed, factory-default twin)
- *
- * Vib/perc flags candidate (Stage oracle 141-1..141-5, group o): the 3 sub-byte
- * nibbles immediately after the active drawbar block, exposed raw.
- */
-function readOrgan(body: Uint8Array): Ne4Organ {
-  // All 3 slots satisfy the 0-8 nibble range across the 16-fixture corpus.
-  const active = readDrawbars(body, 16);          // body[16-20] — edited registration
-  const presetDefault1 = readDrawbars(body, 4);   // body[4-8]   — factory default 1
-  const presetDefault2 = readDrawbars(body, 25);  // body[25-29] — factory default 2
+const nine = (get: Get, block: Block): number[] => Array.from({ length: 9 }, (_, i) => get(block, i));
 
-  // Vib/chorus + percussion flags candidate — body[20]lo + body[21].
-  // Stage oracle: 141-1..141-5 (group o). Exposed as raw nibbles (bit map unverified).
-  const flag0 = u8(body, 20) & 0xf;        // body[20]lo
-  const byte21 = u8(body, 21);
-  const flag1 = (byte21 >>> 4) & 0xf;      // body[21]hi
-  const flag2 = byte21 & 0xf;              // body[21]lo
-  const vibPercFlags: [number, number, number] = [flag0, flag1, flag2];
-
+function b3(get: Get, block: 'b3PresetI' | 'b3PresetII'): Ne4B3Preset {
   return {
-    active,
-    presetDefault1,
-    presetDefault2,
-    _vibPercFlags: vibPercFlags,
-    // Backward-compat aliases
-    upper: active,
-    _extraNibs: vibPercFlags,
+    drawbars: nine(get, block),
+    vibratoType: get(block, 9),
+    flag10: get(block, 10),
+    percussion: [get(block, 11), get(block, 12), get(block, 13), get(block, 14)],
+    mode: get(block, 15),
   };
 }
 
-/**
- * Decode the NE4 Piano/Sample section reference + voice params.
- * refId is CONFIRMED as the sample/piano reference by the electro-4 backup
- * meta.xml (2026-07-04): the three programs whose meta.xml all declare
- * InfectedSquares_FedericoSolazzo.nsmp share identical body[37-41]=a941cb3d51,
- * while programs with other deps differ there. (The id is device-generated, not
- * a content hash of the .nsmp — same story as the v3 sample hash; resolve via
- * the name endpoints, not the bytes.) voiceParams split remains candidate.
- */
-function readSample(body: Uint8Array): Ne4Sample {
-  return {
-    refId: body.slice(37, 42),       // body[37-41] — factory sample/piano reference id
-    voiceParams: body.slice(43, 45), // body[43-44] — per-sound level/timbre/zone
-  };
+function vox(get: Get, block: 'voxPresetI' | 'voxPresetII'): Ne4VoxPreset {
+  return { drawbars: nine(get, block), flag9: get(block, 9), mode: get(block, 10) };
 }
 
-/** Decode a Nord Electro 4 program body (full file bytes including CBIN header). */
+function farf(get: Get, block: 'farfPresetI' | 'farfPresetII'): Ne4FarfisaPreset {
+  return { tabs: nine(get, block), vibrato: get(block, 9), flag10: get(block, 10), mode: get(block, 11) };
+}
+
+/** Decode a Nord Electro 4 program (full file bytes including the CBIN header). */
 export function decodeNe4(bytes: Uint8Array): Ne4Program {
   const warnings: string[] = [];
-  if (bytes.length < BODY_OFFSET) {
-    warnings.push(`File too short: ${bytes.length} bytes (expected ≥ ${BODY_OFFSET})`);
+  if (bytes.length < LEGACY_DATA_OFFSET + 2) {
+    warnings.push(`File too short: ${bytes.length} bytes (expected ${NE4P_FILE_BYTES})`);
+  } else if (bytes.length !== NE4P_FILE_BYTES) {
+    warnings.push(`Program file is ${bytes.length} bytes, the firmware record makes ${NE4P_FILE_BYTES}`);
   }
-  const body = bytes.slice(BODY_OFFSET);
-
-  const version = formatCbinVersion(bytes);
-
-  const organ = readOrgan(body);
-  const sample = readSample(body);
-
-  // Section enable / program-mode flags — body[0].
-  // Stage oracle: 084-5/6/7 section on/off (group m). Candidate.
-  const sectionFlags = u8(body, 0);
-
-  // Sparse tail bytes collected individually
-  const _tail0 = u8(body, 68);
-  const _tail1 = u8(body, 79);
-  const _tail23 = body.slice(90, 92);
-
-  // Backward-compatibility aliases: keep existing cluster shapes so that tests
-  // checking cluster lengths continue to pass without modification.
-  const _clusterA = body.slice(16, 22);  // 6 bytes — same as before
-  const _clusterB = body.slice(37, 46);  // 9 bytes — now also exposed as _organSection
-  const _clusterC = body.slice(51, 64);  // 13 bytes — now also exposed as _sampleSection
-
-  // Legacy 4-byte tail array: [body[68], body[79], body[90], body[91]]
-  const _tail = new Uint8Array(4);
-  _tail[0] = _tail0;
-  _tail[1] = _tail1;
-  _tail[2] = body[90] ?? 0;
-  _tail[3] = body[91] ?? 0;
+  const data = legacyData(bytes);
+  const { values, outOfRange } = readLegacyRecord(data, NE4_LAYOUT);
+  const get: Get = (block, index) => values[`${block}.${index}` as Ne4FieldKey] ?? 0;
 
   return {
     parsed: true,
-    version,
-    sectionFlags,
-    organ,
-    sample,
-    _organSection: body.slice(37, 46),
-    _sampleSection: body.slice(51, 64),
-    _tail0,
-    _tail1,
-    _tail23,
-    // Backward-compat aliases
-    _byte0: sectionFlags,
-    _clusterA,
-    _clusterB,
-    _clusterC,
-    _tail,
-    _rawBody: body,
+    version: formatCbinVersion(bytes),
+    organ: {
+      b3PresetI: b3(get, 'b3PresetI'),
+      b3PresetII: b3(get, 'b3PresetII'),
+      voxPresetI: vox(get, 'voxPresetI'),
+      voxPresetII: vox(get, 'voxPresetII'),
+      farfPresetI: farf(get, 'farfPresetI'),
+      farfPresetII: farf(get, 'farfPresetII'),
+    },
+    pianoSample: {
+      type: get('pianoSample', 0),
+      model: get('pianoSample', 1),
+      variation: get('pianoSample', 2),
+      refIds: [get('pianoSample', 3), get('pianoSample', 4)],
+    },
+    values,
+    outOfRange,
+    checksum: bytes.length >= 2 ? storedTrailerChecksum(bytes) : 0,
+    _data: data,
     bytes,
     warnings,
   };

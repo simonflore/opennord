@@ -115,7 +115,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 're', note: "sampleCodec 'og': firmware loads .nsmp with NWS v8/v11 only; not HW-tested on E3 HP" },
   },
   'electro-4': {
-    'file-read': { status: 're', note: "ne4p legacy formatType-0 header (shared category table 0x0e resolved); validated vs real .ne4p fixtures, not HW-tested" },
+    'file-read': { status: 're', note: "ne4p legacy formatType-0 header (shared category table 0x0e resolved); not HW-tested. Body read from file 0x1A through the OS 1.22 firmware descriptor layout (lib/ne4: B3/Vox/Farfisa presets, piano/sample, effects); reproduces the drawbar and sample-reference bytes pinned on real .ne4p fixtures" },
     enumerate: { status: 'inferred', note: "FileTransfer v7 in the OS 1.22 firmware (frames 3..7); 7 partitions, Program at 4 (static); read-only, untested" },
     pull: { status: 'inferred', note: "shared FileTransfer Download at v7 (firmware); read-only, untested" },
     push: { status: 'inferred', note: "shared FileTransfer Upload at v7 (firmware); WRITE — untested-write risk" },
