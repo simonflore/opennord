@@ -243,6 +243,15 @@
      kept in sync by hand; the JS hook is the runtime source of truth. */
   --bp-split: 900px;
 
+  /* app shell: the sticky top bar and the phone tab bar. The native shell adds
+     the safe-area insets on top (shell.css); --sticky-top is where content
+     that sticks while the page scrolls should pin (0 inside a split pane). */
+  --topbar-base: 44px;
+  --topbar-h: var(--topbar-base);
+  --tabs-base: 56px;
+  --tabs-h: calc(var(--tabs-base) + env(safe-area-inset-bottom));
+  --sticky-top: var(--topbar-h);
+
   /* space scale 4·8·12·16·24 */
   --s-1: 4px;
   --s-2: 8px;

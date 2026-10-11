@@ -1,8 +1,9 @@
-/* The app shell's layout hooks. `--topbar-h` (below) applies everywhere: the
-   top bar is that tall and the sticky rail is placed and sized from it. The rest
-   is native-only (Capacitor), scoped under [data-native] — a document-level
-   attribute set once for the native wrapper — so it layers safe-area insets on
-   top of the components' Tailwind utilities without touching the web build.
+/* The app shell's layout hooks. The bar heights (`--topbar-h`, `--tabs-h`) live
+   in tokens.css; the top bar, the sticky rail and the content's room for the
+   phone tab bar are sized from them. The native-only rules (Capacitor) are
+   scoped under [data-native] — a document-level attribute set once for the
+   native wrapper — and layer safe-area insets on top of the components'
+   Tailwind utilities.
    `.on-topbar` / `.on-rail` / `.on-content` / `.on-tabs` are plain hook classes
    on the shell frame (TopBar, Rail, root.tsx, PhoneTabs) so these selectors
    have something to target; index.html already sets viewport-fit=cover. */
@@ -13,29 +14,30 @@
   padding-right: max(var(--s-6), env(safe-area-inset-right));
   padding-bottom: max(var(--s-4), env(safe-area-inset-bottom));
 }
-/* Below 720px the fixed tab bar (56px + inset) sits over the bottom of the
-   page, so the content keeps that much room. */
-@media (max-width: 720px) {
-  [data-native] .on-content {
-    padding-bottom: calc(80px + env(safe-area-inset-bottom));
-  }
-}
 /* Suppress the iOS long-press callout / text selection on app chrome. */
 [data-native] {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
 }
-/* The top bar's height, which the sticky rail below is placed and sized from.
-   The native shell adds the status-bar inset on top. */
-:root { --topbar-h: 44px; }
-[data-native] { --topbar-h: calc(44px + env(safe-area-inset-top)); }
+/* The top bar grows by the status-bar inset in the native shell. */
+[data-native] { --topbar-h: calc(var(--topbar-base) + env(safe-area-inset-top)); }
 [data-native] .on-topbar {
   padding-top: env(safe-area-inset-top);
   /* Landscape iPhone/iPad: keep the wordmark and Connect clear of the notch and corners. */
-  padding-left: max(16px, env(safe-area-inset-left));
-  padding-right: max(16px, env(safe-area-inset-right));
+  padding-left: max(var(--s-4), env(safe-area-inset-left));
+  padding-right: max(var(--s-4), env(safe-area-inset-right));
 }
-[data-native] .on-tabs {
+/* The phone tab bar clears the home indicator (installed web app or native);
+   the inset is 0 everywhere else. */
+.on-tabs {
   padding-bottom: env(safe-area-inset-bottom);
+}
+/* Below 720px the fixed tab bar sits over the bottom of the page, so the
+   content keeps room for it (listed twice to win over the native rule above). */
+@media (max-width: 720px) {
+  .on-content,
+  [data-native] .on-content {
+    padding-bottom: calc(var(--tabs-h) + var(--s-6));
+  }
 }

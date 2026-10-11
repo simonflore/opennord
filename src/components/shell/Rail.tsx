@@ -26,8 +26,8 @@ interface Props {
   sources: SourceItem[];
   /** The source the program list is filtered to, if any. */
   activeSource: LibrarySource | 'all';
-  /** Show only the programs from one source. */
-  onPickSource: (source: LibrarySource) => void;
+  /** Show only the programs from one source, or every source again with 'all'. */
+  onPickSource: (source: LibrarySource | 'all') => void;
 }
 
 /**
@@ -129,7 +129,8 @@ export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSo
               toggle
               led={s.live}
               active={onPrograms && activeSource === s.source}
-              onClick={() => { onPickSource(s.source); onNavigate('/library/programs'); }}
+              // Pressing the lit source again shows every source.
+              onClick={() => { onPickSource(onPrograms && activeSource === s.source ? 'all' : s.source); onNavigate('/library/programs'); }}
             />
           ))}
         </Group>
@@ -141,8 +142,6 @@ export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSo
             <Item
               label={d.label}
               active={isActive(d.to)}
-              disabled={!!d.disabled}
-              title={d.disabled}
               onClick={() => onNavigate(d.to)}
             />
             {/* Community's own pages, while on it. */}
