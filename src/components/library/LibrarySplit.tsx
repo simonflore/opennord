@@ -1,6 +1,6 @@
 import { Blueprint } from '@/components/ui';
 import { LibraryView } from './LibraryView';
-import { useStepKeys } from './ProgramTable';
+import { useStepKeys } from './useStepKeys';
 import { ProgramView } from '@/components/program/ProgramView';
 import { CategorySplit } from './CategorySplit';
 import { EmptyNote, NotListedNote } from './EmptyNote';
