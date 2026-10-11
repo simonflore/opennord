@@ -13,7 +13,7 @@ import { describe, it, expect } from 'vitest';
 import { decodeNla } from './decode';
 import { nlaDecoded } from './present';
 import { NLA_LAYOUT, NLA_PERF_LAYOUT, type NlaFieldKey } from './layout.generated';
-import { synthLegacyFile, writeLegacyRecord } from '../clavia/block-chain.synth';
+import { synthLegacyFile, writeBits, writeLegacyRecord } from '../clavia/block-chain.synth';
 
 const field = (key: NlaFieldKey) => NLA_LAYOUT.fields.find((f) => f.key === key)!;
 
@@ -71,6 +71,18 @@ describe('decodeNla (synthetic, firmware layout)', () => {
     expect(p.performance?.['perf.param2']).toBe(120);
     expect(p.values['slot.param0']).toBe(4);
     expect(nlaDecoded(synthLegacyFile('nlap', 7, data)).title).toContain('Performance');
+  });
+
+  it('reads all four .nlap slots and their per-slot entries', () => {
+    const data = new Uint8Array(399);
+    for (let k = 0; k < 4; k++) writeLegacyRecord(data, NLA_LAYOUT, { 'slot.param0': k + 1 }, 19 + 95 * k);
+    writeBits(data, (7 + 3 * 2) * 8, 9, 399); // slot C's entry
+    const p = decodeNla(synthLegacyFile('nlap', 7, data));
+    expect(p.slots?.map((sl) => sl.values['slot.param0'])).toEqual([1, 2, 3, 4]);
+    expect(p.slots?.map((sl) => sl.sourceProgram)).toEqual([0, 0, 399, 0]);
+    expect(p.values['slot.param0']).toBe(1); // slot A
+    const d = nlaDecoded(synthLegacyFile('nlap', 7, data));
+    expect(d.sections.map((x) => x.label)).toEqual(['SLOT A', 'SLOT B', 'SLOT C', 'SLOT D']);
   });
 
   it('warns on truncated or mis-sized files and presents the morph count', () => {
