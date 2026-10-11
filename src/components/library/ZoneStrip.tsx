@@ -1,6 +1,6 @@
 import { memo, type ReactNode } from 'react';
 import { isNs4Program, type NordProgram } from '../../lib/formats';
-import { engineZones } from '../../lib/ns4/view';
+import { engineZones, gridSplits } from '../../lib/ns4/view';
 
 // Literal class names (not built from the kind) so Tailwind sees them.
 const FILL = { piano: 'bg-engine-piano', organ: 'bg-engine-organ', synth: 'bg-engine-synth' } as const;
@@ -21,7 +21,7 @@ export const ZoneStrip = memo(function ZoneStrip({ program, fallback = null }: {
 }) {
   if (!program || !isNs4Program(program)) return fallback;
   const grid = engineZones(program);
-  if (grid.every((r) => r.cells.every(Boolean))) return fallback; // not split (see isSplit)
+  if (!gridSplits(grid)) return fallback;
   const label = grid
     .map((r) => `${r.kind}: zones ${ZONES.filter((z) => r.cells[z]).map((z) => z + 1).join(',')}`)
     .join('; ');

@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { parseNs4Program } from './parse';
 import { programNameFromFilename } from '../clavia/name';
 import { activeLayers, headerView, drawbarLevels, volumeFill, organPanel, pianoCard, synthCard, fxChips, sampleRefViews, morphSummary } from './view';
+import { engineZones, isSplit, programZones } from './view';
+import { zonedProgram } from '../../test-utils/ns4';
 
 const fixtureBytes = new Uint8Array(
   readFileSync(fileURLToPath(new URL('./__fixtures__/regressionTest.ns4p', import.meta.url))),
@@ -165,5 +167,31 @@ describe('morphSummary', () => {
   it('maps the param group to a human section label', () => {
     // fixture morphs are all global organ-FX params (group "m" → "Global")
     expect(rows.every((r) => ['Organ', 'Piano', 'Synth', 'Global'].includes(r.section))).toBe(true);
+  });
+});
+
+describe('engineZones / isSplit', () => {
+  it('reads the zone flags with the Split switch on', () => {
+    const p = zonedProgram([{ kind: 'organ', kbZones: '1100' }, { kind: 'piano', kbZones: '0011' }]);
+    expect(engineZones(p)).toEqual([
+      { kind: 'piano', cells: [false, false, true, true] },
+      { kind: 'organ', cells: [true, true, false, false] },
+    ]);
+    expect(isSplit(p)).toBe(true);
+  });
+
+  it('with the switch off, every active engine plays the whole keyboard, stale flags or not', () => {
+    const p = zonedProgram([{ kind: 'organ', kbZones: '0000' }, { kind: 'piano', kbZones: '0011' }], false);
+    expect(engineZones(p)).toEqual([
+      { kind: 'piano', cells: [true, true, true, true] },
+      { kind: 'organ', cells: [true, true, true, true] },
+    ]);
+    expect(isSplit(p)).toBe(false);
+  });
+
+  it('a real program: Split on, but each engine still covers the keyboard (organ A + B)', () => {
+    const p = fixture();
+    expect(programZones(p).hasSplit).toBe(true);
+    expect(isSplit(p)).toBe(false);
   });
 });

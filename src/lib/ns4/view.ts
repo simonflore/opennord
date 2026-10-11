@@ -8,7 +8,7 @@
 import type { NS4Program, NS4Layer, Morphable, Ns4OrganFx } from './types';
 import { decodeAllParams } from './coverage';
 import { collapseMorphs, type ParamRow } from './params-view';
-import { buildParamMap } from './maps';
+import { buildParamMap, type Param } from './maps';
 import { readFieldBytes } from './bits';
 import { interpretValue } from './interpret';
 import { LIBRARY_ENGINES, type EngineKind } from '../clavia/engines';
@@ -110,33 +110,41 @@ export function layerZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesView[
 }
 
 /** The program's Split switch, read from its one bit (no full parameter decode). */
-let _splitParam: ReturnType<typeof buildParamMap>[number] | undefined;
+let _splitSwitch: Param | undefined;
 function splitOn(p: NS4Program): boolean {
-  const param = (_splitParam ??= paramMap().find((q) => q.name === 'split on/off'));
-  const f = param?.layers[0];
-  if (!param || !f || f.begBit < 0) return false;
-  return interpretValue(param.id, param.name, readFieldBytes(p.bytes, f.begBit, f.endBit)) === 'on';
+  const param = (_splitSwitch ??= paramMap().find((q) => q.name === 'split on/off')!);
+  const { begBit, endBit } = param.layers[0];
+  return interpretValue(param.id, param.name, readFieldBytes(p.bytes, begBit, endBit)) === 'on';
 }
+
+export type EngineZones = { kind: EngineKind; cells: boolean[] }[];
 
 /**
  * Per engine, in the Library's piano/organ/synth order, which of the four zones
  * it plays; an engine that plays nowhere is left out. A layer's zones only count
- * with the Split switch on; off, every engine plays the whole keyboard. Reads
- * the zone flags and that one bit (no parameter decode), so it stays cheap
- * enough for every row of a long list.
+ * with the Split switch on; off, every active engine plays the whole keyboard.
+ * Reads the zone flags and that one bit (no parameter decode), so it stays
+ * cheap enough for every row of a long list.
  */
-export function engineZones(p: NS4Program): { kind: EngineKind; cells: boolean[] }[] {
+export function engineZones(p: NS4Program): EngineZones {
+  if (!splitOn(p)) {
+    const kinds = new Set(activeLayers(p).map((l) => l.kind));
+    return LIBRARY_ENGINES.filter(({ kind }) => kinds.has(kind)).map(({ kind }) => ({ kind, cells: [true, true, true, true] }));
+  }
   const zones = layerZones(p);
-  const split = splitOn(p);
   return LIBRARY_ENGINES
     .map(({ kind }) => ({ kind, cells: zones.map((z) => z.layers.some((l) => l.kind === kind)) }))
-    .filter((r) => r.cells.some(Boolean))
-    .map((r) => (split ? r : { ...r, cells: r.cells.map(() => true) }));
+    .filter((r) => r.cells.some(Boolean));
 }
 
-/** Whether a program splits the keyboard: some engine plays only part of it. */
+/** Whether a zone grid splits the keyboard: some engine plays only part of it. */
+export function gridSplits(grid: EngineZones): boolean {
+  return grid.some((r) => !r.cells.every(Boolean));
+}
+
+/** Whether a program splits the keyboard (see gridSplits). */
 export function isSplit(p: NS4Program): boolean {
-  return engineZones(p).some((r) => !r.cells.every(Boolean));
+  return gridSplits(engineZones(p));
 }
 
 /**
@@ -148,7 +156,7 @@ export function programZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesVie
   const active = activeLayers(p, scene);
   const zones = layerZones(p, scene);
   const lut = paramLookup(p);
-  const hasSplit = lut.get('split on/off') === 'on';
+  const hasSplit = splitOn(p);
   const boundary = (i: number): string | null =>
     hasSplit && lut.get(`KB zones ${i}-${i + 1} split point on/off`) === 'on'
       ? (lut.get(`KB zones ${i}-${i + 1} split point`) ?? null)
