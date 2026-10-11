@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
-import { CategorySplit, useBackToList } from '@/components/library/CategorySplit';
+import { CategorySplit } from '@/components/library/CategorySplit';
 import { EmptyNote, NotListedNote } from '@/components/library/EmptyNote';
 import { useSamplesState } from '@/lib/library/SamplesContext';
 import { useOpenSample } from '@/lib/library/useOpenSample';
 import { useSplitLayout } from '@/lib/responsive';
 import { readFileBytes } from '../../lib/file';
-import { useNavigate } from '@tanstack/react-router';
-import { useCloseRemoved, useOpenEntry } from '@/components/library/openEntry';
+import { useCloseRemoved, useLeaveEntry, useOpenEntry } from '@/components/library/openEntry';
 
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
@@ -27,7 +26,6 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const [loadNew, setLoadNew] = useState(false);
   // An import that wasn't a sample file: shown above the list, apart from the open sample.
   const [importError, setImportError] = useState('');
-  const navigate = useNavigate();
   const closeRemoved = useCloseRemoved('/library/samples');
   const openEntry = useOpenEntry();
 
@@ -39,12 +37,10 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     setImportError('');
   }, [selectedId]);
 
-  // Off the open sample, to the bare list (which closes it and lets go of its read),
-  // replacing it so Back doesn't reopen it.
-  const toList = () => { if (selectedId) navigate({ to: '/library/samples', replace: true }); };
+  // Off the open sample, to the bare list (which closes it and lets go of its read).
+  const toList = useLeaveEntry('/library/samples');
   const startLoadNew = () => { toList(); setPreview(null); setLoadNew(true); setImportError(''); };
-  const backToList = useBackToList('/library/samples');
-  const back = () => { if (selectedId) backToList(); setPreview(null); setLoadNew(false); };
+  const back = () => { toList(); setPreview(null); setLoadNew(false); };
 
   function importSample() {
     const input = document.createElement('input');

@@ -69,20 +69,21 @@ function useSamplesStateValue() {
   // connection starts without them, so nothing picked on one Nord is removed
   // from the next.
   useEffect(() => {
-    setUsage(null); setUnusedOnly(false); setSelected(new Set());
+    setUsage(null); setScanPct(null); setUnusedOnly(false); setSelected(new Set());
   }, [session]);
 
   async function scanUsage() {
     if (!session) return;
     setScanPct(0);
     try {
-      const u = await findUnusedSamples(session, (done, total) =>
-        setScanPct(total ? Math.round((done / total) * 100) : 0));
+      const u = await findUnusedSamples(session, (done, total) => {
+        if (isCurrent(session)) setScanPct(total ? Math.round((done / total) * 100) : 0);
+      });
       if (isCurrent(session)) setUsage(u); // not tags for another Nord connected meanwhile
     } catch {
       if (isCurrent(session)) setUsage(null); // scan failed (unsupported/disconnected) — leave the list untagged
     } finally {
-      setScanPct(null);
+      if (isCurrent(session)) setScanPct(null); // a scan on another Nord's session doesn't touch this one's
     }
   }
 
