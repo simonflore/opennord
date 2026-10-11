@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CHECK_INTERVAL_MS, FIRST_CHECK_DELAY_MS, feedOverride, manualCheckMessage, manualCheckOutcome,
-  shouldOfferMove, versionToPrompt,
+  shortError, shouldOfferMove, versionToPrompt,
 } from './update-policy';
 
 describe('timing', () => {
@@ -110,5 +110,27 @@ describe('feedOverride', () => {
     expect(feedOverride({ OPENNORD_UPDATE_FEED: 'not a url' })).toBeNull();
     expect(feedOverride({ OPENNORD_UPDATE_FEED: 'file:///etc' })).toBeNull();
     expect(feedOverride({ OPENNORD_UPDATE_FEED: '' })).toBeNull();
+  });
+});
+
+describe('shortError', () => {
+  // GitHub's "no release" error carries the whole releases feed after its first line.
+  const github = `Cannot parse releases feed: Unable to find latest version on GitHub\n<?xml version="1.0"?>\n<feed>${'x'.repeat(30_000)}</feed>`;
+
+  it('keeps only the first line', () => {
+    expect(shortError(github)).toBe('Cannot parse releases feed: Unable to find latest version on GitHub');
+  });
+  it('caps a long single line', () => {
+    const out = shortError('y'.repeat(5_000));
+    expect(out.length).toBeLessThanOrEqual(300);
+    expect(out.endsWith('…')).toBe(true);
+  });
+  it('leaves a short message alone', () => {
+    expect(shortError('net::ERR_INTERNET_DISCONNECTED')).toBe('net::ERR_INTERNET_DISCONNECTED');
+  });
+  it('keeps the manual-check dialog readable when the error is huge', () => {
+    const { detail } = manualCheckMessage({ kind: 'error', message: github });
+    expect(detail.length).toBeLessThan(500);
+    expect(detail).not.toContain('<feed>');
   });
 });
