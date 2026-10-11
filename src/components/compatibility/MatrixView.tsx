@@ -11,6 +11,9 @@ const CHIP: Record<ValidationStatus, string> = {
 };
 
 /** What each chip means, for the legend under the intro. */
+const FULL_MAP_TITLE = "Every parameter the instrument stores in a program, from its own firmware; not yet checked against a real file";
+const FULL_MAP_CHIP = 'ml-1.5 rounded-sm border border-current px-1 py-px text-[9px] font-semibold uppercase tracking-[0.5px]';
+
 const LEGEND: [ValidationStatus, string][] = [
   ['validated', 'tried on a real instrument'],
   ['re', 'built from this model’s own software or files; not yet tried on one'],
@@ -53,6 +56,7 @@ export function MatrixView() {
         {LEGEND.map(([s, text]) => (
           <li key={s}><span className={cn('font-bold', CELL_COLOR[s])}>{CHIP[s]}</span> {text}</li>
         ))}
+        <li><span className={cn(FULL_MAP_CHIP, 'ml-0', CELL_COLOR.re)}>full map</span> reads every parameter a program stores</li>
       </ul>
       <ProbePanel />
       <div className="overflow-x-auto">
@@ -104,7 +108,18 @@ export function MatrixView() {
                         : d.status === 'partial' ? 'Partial'
                         : d.status === 'started' ? (d.pct != null ? `${d.pct}%` : `${d.controlCount}✓`)
                         : 'Not yet';
-                      return <td className={cn(cell, CELL_COLOR[DECODE_CELL[d.status]])} title={DECODE_LABEL[d.status]}>{text}</td>;
+                      // Stage 4 (validated) is already green; elsewhere the full-map mark says the
+                      // reader covers every stored parameter even though no real file confirmed it yet.
+                      const fullMap = d.fullMap && d.status !== 'full';
+                      return (
+                        <td
+                          className={cn(cell, CELL_COLOR[DECODE_CELL[d.status]])}
+                          title={fullMap ? FULL_MAP_TITLE : DECODE_LABEL[d.status]}
+                        >
+                          {text}
+                          {fullMap && <span className={FULL_MAP_CHIP}>full map</span>}
+                        </td>
+                      );
                     })()}
                     {MATRIX_COLUMNS.map((c) => {
                       const s = statusFor(m.id, c).status;

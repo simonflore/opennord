@@ -120,3 +120,14 @@ describe('parameter counts of the legacy-record readers', () => {
     expect(decodeForModel('lead-a1').paramCount).toBe(52);
   });
 });
+
+describe('fullMap', () => {
+  it('is set for the firmware-layout and legacy-record readers except Wave 2, and for the Stage 4', () => {
+    for (const id of ['stage-4', 'grand', 'grand-2', 'piano-4', 'piano-5', 'piano-6', 'electro-6', 'electro-7', 'organ-3', 'lead-4', 'lead-a1', 'electro-4']) {
+      expect(decodeForModel(id).fullMap, id).toBe(true);
+    }
+    for (const id of ['wave-2', 'stage-3', 'stage-2', 'electro-5', 'wave', 'electro-3']) {
+      expect(decodeForModel(id).fullMap, id).toBe(false);
+    }
+  });
+});

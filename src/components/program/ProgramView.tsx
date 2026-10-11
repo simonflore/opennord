@@ -94,7 +94,7 @@ export function ProgramView({ program }: { program: NordProgram }) {
           {(['I', 'II'] as const).map((s) => (
             <button
               key={s}
-              className={`ps-scene-btn${scene === s ? ' on' : ''}`.trim()}
+              className={`ps-key ps-scene-btn${scene === s ? ' on' : ''}`}
               onClick={() => setScene(s)}
               aria-pressed={scene === s}
               title={program.activeScene === s ? 'Saved active scene' : undefined}
