@@ -5,7 +5,8 @@
  * **file 0x1A**, LE CRC-16 trailer in the last two bytes (`.nlas`: 26 + 95 + 2
  * = 123). Behind an NSM-era header the data starts at 0x2E and there is no
  * trailer (46 + 95 = 141): on the two such files in ns3-program-viewer's corpus
- * the reverb switch the file name states is `fx.param13` there. The field layout is the Lead A1 OS 1.36 descriptor map (record sizes
+ * the reverb switch the file name states is `fx.param13` there. The field
+ * layout is the Lead A1 OS 1.36 descriptor map (record sizes
  *), generated into `layout.generated.ts` by
  * the maintainers’ tools and read through the shared legacy-record
  * reader (clavia/legacy-record.ts).

@@ -33,7 +33,6 @@
  * same values as the earlier corpus-derived decoder; only the Vox/Farfisa/Pipe
  * vibrato and synth "After Touch" labels differ.
  */
-import { CBIN_BODY_OFFSET } from '../clavia/cbin';
 import { decodeFwProgram, type FwProgram } from '../clavia/block-chain';
 import { DRAWBAR_NUMBERS } from '../clavia/fw-present';
 import { NORD_DB } from '../clavia/volume';
@@ -41,15 +40,6 @@ import { NS3_FILTER_FREQ } from './filter-freq';
 import { NS3_LAYOUT, type Ns3FieldKey } from './layout.generated';
 
 export type { Ns3FieldKey };
-
-/**
- * A legacy (formatType 0) file: the header is 0x14 bytes shorter than the
- * NSM-era one, and the body is followed by the 2-byte LE CRC-16 trailer of the
- * legacy Clavia files (clavia/crc16.ts; it holds on every legacy `.ns3f` in
- * ns3-program-viewer's corpus).
- */
-const LEGACY_BODY_OFFSET = CBIN_BODY_OFFSET - 0x14;
-const LEGACY_TRAILER_BYTES = 2;
 
 // ── Label tables ────────────────────────────────────────────────────────────
 // "Firmware" = the Stage 3 OS 2.64 label table registered for that parameter
@@ -583,10 +573,7 @@ const FIRST_LAYOUT_VERSION = NS3_LAYOUT.versionRange?.[0] ?? 300;
 
 /** Decode a Stage 3 program into its active panel(s), plus every layout field in `values`. */
 export function decodeNs3(bytes: Uint8Array): Ns3File {
-  const legacy = (bytes[0x04] ?? 0) === 0;
-  const fw = legacy
-    ? decodeFwProgram(bytes, NS3_LAYOUT, LEGACY_BODY_OFFSET, bytes.length - LEGACY_TRAILER_BYTES)
-    : decodeFwProgram(bytes, NS3_LAYOUT);
+  const fw = decodeFwProgram(bytes, NS3_LAYOUT);
   let { layoutMatched, values, warnings } = fw;
   const v = fw.formatVersion;
   if (layoutMatched && v !== null && v < FIRST_LAYOUT_VERSION) {

@@ -12,13 +12,14 @@
  * header (at 0x2C after an NSM-era header), so the data follows a u16 version
  * at **file 0x1A** (Electro 3/4, C2D, the Leads) or a u8 version at **file
  * 0x19** (Wave). A legacy file closes with a 2-byte trailer (the LE CRC-16 of
- * crc16.ts, over everything before it); an NSM-era file has none and carries
- * the CRC-32 of checksum.ts in its header instead (the Stage 2's 565-byte
- * `.ns2p` and the Lead A1's 141-byte `.nlas`: data from 0x2E to the end, checked
- * on real files). So the record is the file size − 26 bytes (legacy) or − 44
- * (NSM-era); NSM saves every file in the NSM-era form. NSM also copies the version to the CBIN version
- * field at 0x14. Some layouts pad
- * the record after the data (`padBytes`: the Wave's 2).
+ * crc16.ts over everything before it on the Stage 2, Lead and Wave files;
+ * unconfirmed on the Electro and C2D); an NSM-era file has none and carries the
+ * CRC-32 of checksum.ts in its header instead (the Stage 2's 565-byte `.ns2p`
+ * and the Lead A1's 141-byte `.nlas`: data from 0x2E to the end, checked on
+ * real files). So the record is the file size − 26 bytes (legacy) or − 44
+ * (NSM-era); NSM saves every file in the NSM-era form and copies the version to
+ * the CBIN version field at 0x14. Some layouts pad the record after the data
+ * (`padBytes`: the Wave's 2).
  *
  * Sources: Lead 4 OS 1.32 serialiser → and record
  * sizes (26 + 315 + 2 = 343 = `.nl4s`); Lead A1 OS 1.36
