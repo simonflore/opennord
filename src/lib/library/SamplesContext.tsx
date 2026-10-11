@@ -23,6 +23,15 @@ import { useListFilters } from '@/lib/library/useListFilters';
 import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 
 // pure helper, exported for tests
+// Numbers each Nord session, so reads key by session without holding on to it.
+const sessionNos = new WeakMap<object, number>();
+let lastSessionNo = 0;
+function sessionNo(session: object): number {
+  let n = sessionNos.get(session);
+  if (n === undefined) sessionNos.set(session, (n = ++lastSessionNo));
+  return n;
+}
+
 export function selectedBytes(entries: SampleEntry[], selected: Set<string>): number {
   return entries.filter((e) => selected.has(e.id)).reduce((n, e) => n + (e.device?.sizeBytes ?? e.size ?? 0), 0);
 }
@@ -148,7 +157,7 @@ function useSamplesStateValue() {
     }
   }
 
-  // Reads of sample bytes that are still running, by entry id. A second request
+  // Reads of sample bytes that are still running, by readKey. A second request
   // for the same sample (StrictMode's second effect run, a quick re-open) joins
   // the read in flight instead of reading it twice; progress goes to the latest
   // requester. A Nord pull whose requesters have all gone (aborted their signal)
@@ -157,17 +166,19 @@ function useSamplesStateValue() {
   // so the next open reads afresh.
   type Read = { bytes: Promise<Uint8Array>; progress: (pct: number) => void; users: number };
   const reads = useRef(new Map<string, Read>());
-  // A new Nord session (a reconnect) starts afresh: a pull on the old one can't be joined.
-  useEffect(() => { reads.current.clear(); }, [session]);
   /**
-   * The bytes of a sample, read from wherever it lives: in memory (imported), a
-   * Nord pull, or a backup. Rejects with the reason when it can't be read from
-   * here (a Nord sample with no Nord connected, a file that's gone). Abort
-   * `signal` once the bytes aren't wanted any more.
+   * Which read a sample's bytes come from: its id, and for a Nord sample the
+   * session too (its id names a slot, which may hold another sample after a
+   * reconnect), so a read on one session is never reused on the next.
    */
+  const readKey = useCallback(
+    (e: SampleEntry) => (e.source === 'nord' && session ? `${e.id}@${sessionNo(session)}` : e.id),
+    [session],
+  );
   const readSample = useCallback((e: SampleEntry, onProgress: (pct: number) => void, signal: AbortSignal): Promise<Uint8Array> => {
     if (e.source === 'local' && e.bytes) return Promise.resolve(e.bytes);
-    let r = reads.current.get(e.id);
+    const key = readKey(e);
+    let r = reads.current.get(key);
     if (!r) {
       const read: Read = { bytes: Promise.resolve(new Uint8Array()), progress: onProgress, users: 0 };
       const raw = e.source === 'nord' && e.device && session
@@ -176,8 +187,8 @@ function useSamplesStateValue() {
       if (!raw) {
         return Promise.reject(new Error(e.source === 'nord' ? 'connect your Nord to read it.' : 'its file isn’t available.'));
       }
-      read.bytes = raw.finally(() => { if (reads.current.get(e.id) === read) reads.current.delete(e.id); });
-      reads.current.set(e.id, read);
+      read.bytes = raw.finally(() => { if (reads.current.get(key) === read) reads.current.delete(key); });
+      reads.current.set(key, read);
       r = read;
     }
     r.progress = onProgress;
@@ -187,7 +198,7 @@ function useSamplesStateValue() {
       signal.addEventListener('abort', () => { joined.users--; }, { once: true });
     }
     return r.bytes;
-  }, [session, folder]);
+  }, [session, folder, readKey]);
 
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.
@@ -199,7 +210,7 @@ function useSamplesStateValue() {
     { active: unusedOnly, reset: () => setUnusedOnly(false) },
   ]);
   return {
-    all: allEntries, clearFilters, filtered, ensureListed, readSample,
+    all: allEntries, clearFilters, filtered, ensureListed, readSample, readKey,
     shown, source, setSource, generation, setGeneration,
     category, setCategory, categoriesPresent, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, showUnknownGen, folder,
