@@ -693,7 +693,7 @@ describe('decodeNs3 — firmware layout (Stage 3 OS 2.64 registry)', () => {
     expect(p.values).toMatchObject({ 'effectsA.dlyRateClkDiv': 64, 'effectsA.dlyRateClkDiv.morphWheel': -20 });
     expect(p.os300DelayRate).toEqual(['A', 'B']);
     expect(p.warnings).toEqual([expect.stringMatching(/OS 3\.00.*original 0–127 scale/)]);
-    expect(p.panels[0].fx.find((f) => f.name === 'Delay')?.params).toMatchObject({ rate: '64 (OS 3.00 scale)' });
+    expect(p.panels[0].fx.find((f) => f.name === 'Delay')?.params).toMatchObject({ rate: '64 of 127 (OS 3.00 scale)' });
     // A 3.04 file shows no rate there.
     expect(decodeNs3(ns3File({ 'effectsA.dlyEnable': 1 }, 304)).panels[0].fx.find((f) => f.name === 'Delay')?.params?.rate).toBeUndefined();
     // A rate above 127, or a target in 128–16383, makes the instrument refuse the program.

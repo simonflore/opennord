@@ -40,6 +40,5 @@ export function np3Decoded(bytes: Uint8Array): DecodedProgram {
       ? reverbPart(label(NP3_REVERB_TYPES, g('effects.reverbType')), g('effects.reverbBright') === 1 && 'Bright')
       : undefined,
   ));
-
   return { title, header, sections: [piano, synth, effects], note: NP3_NOTE, warnings: p.warnings };
 }

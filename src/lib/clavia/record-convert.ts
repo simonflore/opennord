@@ -45,31 +45,30 @@ export interface RecordEditor<K extends string> {
 }
 
 /** The low `width` bits of an integer, negatives in two's complement. */
-export function wrapBits(value: number, width: number): number {
+function wrapBits(value: number, width: number): number {
   const m = 2 ** width;
   return ((value % m) + m) % m;
 }
 
-/** An editor over `data` for a layout's fields (`byteOffset`: where the record starts in `data`). */
+/** An editor over record `data` for a layout's fields. */
 export function recordEditor<K extends string>(
-  data: Uint8Array, layout: { readonly fields: readonly EditableField<K>[] }, byteOffset = 0,
+  data: Uint8Array, layout: { readonly fields: readonly EditableField<K>[] },
 ): RecordEditor<K> {
   const byKey = new Map<string, EditableField<K>>(layout.fields.map((f) => [f.key, f]));
-  const base = byteOffset * 8;
   const field = (key: K) => {
     const f = byKey.get(key);
     if (!f) throw new Error(`record converter: no field ${key}`);
     return f;
   };
-  const bits = (at: number, width: number) => readBits(data, base + at, width);
+  const bits = (at: number, width: number) => readBits(data, at, width);
   return {
     get: (key) => { const f = field(key); return fieldValue(bits(f.bit, f.width), f); },
     set: (key, value) => {
       const f = field(key);
-      writeBits(data, base + f.bit, f.width, wrapBits(f.enc === 'offset' ? value - f.min : value, f.width));
+      writeBits(data, f.bit, f.width, wrapBits(f.enc === 'offset' ? value - f.min : value, f.width));
     },
     bits,
     signedBits: (at, width) => fieldValue(bits(at, width), { enc: 'twos', width, min: 0 }),
-    setBits: (at, width, value) => writeBits(data, base + at, width, wrapBits(value, width)),
+    setBits: (at, width, value) => writeBits(data, at, width, wrapBits(value, width)),
   };
 }

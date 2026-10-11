@@ -545,7 +545,7 @@ function effects(get: Get, s: Slot, os300DelayRate = false): Ns3Fx[] {
   if (e('dlyEnable')) {
     // A 3.00 file's free-running rate is shown as stored, on that OS's 0–127 scale (convert.ts).
     const params: Record<string, string> = { feedback: lin10(e('dlyFeedback')), mix: lin10(e('dlyMix')) };
-    fx.push({ name: 'Delay', params: os300DelayRate ? { rate: `${e('dlyRateClkDiv')} (OS 3.00 scale)`, ...params } : params });
+    fx.push({ name: 'Delay', params: os300DelayRate ? { rate: `${e('dlyRateClkDiv')} of 127 (OS 3.00 scale)`, ...params } : params });
   }
   if (e('rvbEnable')) fx.push({ name: 'Reverb', type: lut(REVERB_TYPE, e('rvbType')), params: { amount: lin10(e('rvbAmt')) } });
   return fx;

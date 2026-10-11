@@ -95,23 +95,3 @@ export function nw2SlotMorphs(p: Nw2Program, slot: Nw2Slot): Map<Nw2FieldKey, Nw
   }
   return out;
 }
-
-/**
- * A continuous morph's effect at the given controller positions (0–127 each):
- * the firmware adds round(Σ delta·position / 128) to the base value and clamps
- * it to the parameter's range. The Impulse buffer is not a delta (see
- * {@link nw2ImpulseTarget}).
- */
-export function nw2MorphedValue(
-  p: Nw2Program, key: Nw2FieldKey, positions: Partial<Record<Exclude<Nw2MorphSource, 'Impulse'>, number>>,
-): number | undefined {
-  const base = p.values[key];
-  const field = NW2_LAYOUT.fields.find((f) => f.key === key);
-  if (base === undefined || !field) return undefined;
-  let sum = 0;
-  for (const { source, suffix } of NW2_MORPH_SOURCES) {
-    if (source === 'Impulse') continue;
-    sum += (p.values[`${key}.${suffix}` as Nw2FieldKey] ?? 0) * (positions[source] ?? 0);
-  }
-  return Math.min(field.max, Math.max(field.min, base + ((sum + 64) >> 7)));
-}

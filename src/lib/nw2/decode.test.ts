@@ -13,7 +13,7 @@ import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join, basename } from 'path';
 import { describe, it, expect } from 'vitest';
 import {
-  decodeNw2, NW2_SLOTS, nw2ImpulseTarget, nw2MorphedValue, nw2MorphSources, nw2SlotEnabled, nw2SlotMorphs, nw2SlotSource,
+  decodeNw2, NW2_SLOTS, nw2ImpulseTarget, nw2MorphSources, nw2SlotEnabled, nw2SlotMorphs, nw2SlotSource,
 } from './decode';
 import { nw2Decoded } from './present';
 import { NW2_LAYOUT, type Nw2FieldKey } from './layout.generated';
@@ -127,11 +127,6 @@ describe('decodeNw2 (synthetic, firmware layout)', () => {
     expect(nw2MorphSources(p, 'slotAFilter.fltFreq')).toEqual(['Impulse', 'Wheel', 'Velocity']);
     expect([...nw2SlotMorphs(p, 'A').keys()]).toEqual(['common.slotPanA', 'slotAFilter.fltFreq']);
     expect([...nw2SlotMorphs(p, 'B').entries()]).toEqual([['slotBFilter.fltFreq', ['Pedal']]]);
-    // base + ((Σ delta·position) + 64) >> 7, clamped to the range.
-    expect(nw2MorphedValue(p, 'slotAFilter.fltFreq', {})).toBe(60);
-    expect(nw2MorphedValue(p, 'slotAFilter.fltFreq', { Wheel: 127 })).toBe(60 - 40);
-    expect(nw2MorphedValue(p, 'slotAFilter.fltFreq', { Wheel: 64 })).toBe(60 - 20);
-    expect(nw2MorphedValue(p, 'slotAFilter.fltFreq', { Velocity: 127 })).toBe(127);
   });
 
   it('a broken chain or a truncated file → header-only with a warning', () => {
