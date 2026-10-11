@@ -12,7 +12,7 @@ describe('MatrixView', () => {
     const html = render();
     expect(html).toContain('Nord Stage 4');
     expect(html).toContain('Nord Stage 3');
-    expect(html).toContain('text-connected'); // validated status color
+    expect(html).toContain('aria-label="Copy from Nord: Works"'); // validated status
   });
   it('shows each capability as an icon whose accessible name says the status', () => {
     const html = render();
