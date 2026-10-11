@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { decodeForModel, getModelProgress, summarizeProgress, NS4_PARAM_COUNT, DECODE_LABEL } from './coverage';
 import { NS4_OFFSET_MAP } from '../ns4/offset-map.generated';
+import { NE7_LAYOUT } from '../ne7/layout.generated';
 
 describe('decodeForModel', () => {
   it('reports Stage 4 fully decoded with its real parameter count', () => {
@@ -91,5 +92,23 @@ describe('summarizeProgress', () => {
     });
     // Headline = confirmed only (10/100 = 10%), NOT inflated by the candidate control.
     expect(s).toEqual({ coveredBytes: 10, candidateBytes: 40, controlCount: 1, pct: 10 });
+  });
+});
+
+describe('parameter counts of the firmware-layout readers', () => {
+  it('count each firmware parameter once, like the Stage 4 count (Electro 7 repeats its Fx block per section)', () => {
+    const fxRate = NE7_LAYOUT.fields.filter((f) => f.name === 'Edt_Effects_kFx1Rate');
+    expect(fxRate.length).toBe(3); // organ, piano and synth Fx blocks
+    const n = decodeForModel('electro-7').paramCount!;
+    expect(n).toBe(new Set(NE7_LAYOUT.fields.filter((f) => f.key.split('.').length === 2).map((f) => f.name)).size);
+    expect(n).toBeLessThan(NE7_LAYOUT.fields.length);
+  });
+});
+
+describe('parameter counts of the legacy-record readers', () => {
+  it('count the Electro 4 preset sets stored twice (Preset I/II) once, and leave out Lead A1 morph deltas', () => {
+    expect(decodeForModel('electro-4').paramCount).toBe(90);
+    expect(decodeForModel('lead-4').paramCount).toBe(86);
+    expect(decodeForModel('lead-a1').paramCount).toBe(52);
   });
 });
