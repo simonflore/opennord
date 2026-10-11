@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { decodeForModel, getModelProgress, summarizeProgress, NS4_PARAM_COUNT, DECODE_LABEL } from './coverage';
 import { NS4_OFFSET_MAP } from '../ns4/offset-map.generated';
 import { NE7_LAYOUT } from '../ne7/layout.generated';
+import { NS3_LAYOUT } from '../ns3/layout.generated';
 
 describe('decodeForModel', () => {
   it('reports Stage 4 fully decoded with its real parameter count', () => {
@@ -14,8 +15,15 @@ describe('decodeForModel', () => {
     expect(NS4_PARAM_COUNT).toBeGreaterThan(100);
   });
 
-  it('reports Stage 3 as partial', () => {
-    expect(decodeForModel('stage-3')).toMatchObject({ status: 'partial', paramCount: null });
+  it('reports Stage 3 with the firmware layout\'s parameter count and a confirmed byte map', () => {
+    const d = decodeForModel('stage-3');
+    // Each registry parameter once: slot B, Organ Preset II and the morph deltas repeat parameters.
+    const params = new Set(NS3_LAYOUT.fields.filter((f) => f.key.split('.').length === 2).map((f) => f.name));
+    expect(d).toMatchObject({ status: 'partial', paramCount: params.size, bodyBytes: 548 });
+    expect(d.paramCount).toBeGreaterThan(150);
+    // Everything but the version word, the 19 length bytes and the reserved bits is a field.
+    expect(d.pct).toBeGreaterThan(80);
+    expect(getModelProgress('stage-3')?.regions?.some((r) => r.status === 'candidate')).toBe(false);
   });
 
   it('reports a model with no curated progress as none', () => {
@@ -51,7 +59,7 @@ describe('decodeForModel', () => {
     expect(DECODE_LABEL.full && DECODE_LABEL.partial && DECODE_LABEL.started && DECODE_LABEL.none).toBeTruthy();
   });
 
-  it('synthesizes a byte-map for Stage 2/3 by tracing the reader (no fixtures needed)', () => {
+  it('synthesizes a byte-map for Stage 2 by tracing the reader and for Stage 3 from its layout', () => {
     for (const id of ['stage-2', 'stage-3']) {
       const p = getModelProgress(id);
       expect(p, id).toBeTruthy();
@@ -129,5 +137,17 @@ describe('parameter counts of the legacy-record readers', () => {
     // global 8 · slot 56 · common 10
     expect(decodeForModel('wave').paramCount).toBe(74);
     expect(decodeForModel('wave')).toMatchObject({ status: 'partial', bodyBytes: 323, coveredBytes: 0 });
+  });
+});
+
+describe('fullMap', () => {
+  it('is set for the firmware-layout and legacy-record readers except Wave 2, and for the Stage 4', () => {
+    for (const id of ['stage-4', 'stage-3', 'grand', 'grand-2', 'piano-4', 'piano-5', 'piano-6', 'electro-6', 'electro-7', 'organ-3', 'lead-4', 'lead-a1', 'electro-4',
+      'electro-3', 'electro-3-hp', 'c2d', 'wave']) {
+      expect(decodeForModel(id).fullMap, id).toBe(true);
+    }
+    for (const id of ['wave-2', 'stage-2', 'electro-5', 'c2']) {
+      expect(decodeForModel(id).fullMap, id).toBe(false);
+    }
   });
 });

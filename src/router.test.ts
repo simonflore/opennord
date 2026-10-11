@@ -5,7 +5,7 @@ import { LibraryIndexRoute, ProgramsRoute, ProgramRoute } from './routes/library
 import { SamplesRoute, SamplesRedirectRoute } from './routes/samples';
 import { DeviceRoute } from './routes/device';
 import { AboutRoute } from './routes/about';
-import { InspectRoute, DecodeRoute } from './routes/dev';
+import { InspectRoute, DecodeRoute, KitRoute } from './routes/dev';
 
 describe('router', () => {
   it('registers the core screen paths', () => {
@@ -19,6 +19,7 @@ describe('router', () => {
     expect(AboutRoute.path).toBe('about');
     expect(InspectRoute.path).toBe('dev/inspect');
     expect(DecodeRoute.path).toBe('dev/decode');
+    expect(KitRoute.path).toBe('dev/kit');
   });
 
   it('is configured with a hash history (Capacitor-safe)', async () => {

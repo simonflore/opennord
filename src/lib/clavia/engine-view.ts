@@ -18,7 +18,7 @@ export interface DrawbarView {
   label: string;
   /** Footage label (B3 only), e.g. "16′"; undefined for generic models. */
   footage?: string;
-  /** Tab color; 'default' = the single Nord-red fill for non-B3 models. */
+  /** Tab color; 'default' = the single `--organ-db-default` cap for non-B3 models. */
   color: DrawbarColor | 'default';
   /** Morph targets when this drawbar is morph-assigned (ns4 only). */
   morph?: MorphMarkView;

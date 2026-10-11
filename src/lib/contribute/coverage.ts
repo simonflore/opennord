@@ -3,16 +3,17 @@
  * still need work instead of re-deriving what's already decoded.
  *
  * Stage 4 has a complete parameter map (the ns4decode-derived offset map, our
- * oracle). Stage 3 has a partial hand-built decoder. Every other model's progress
+ * oracle). Stage 3 and the other firmware-layout readers map their body from the
+ * firmware's own parameter registry. Every other model's progress
  * comes from `coverage-data.ts` — the curated state maintained by hand as fields
  * are mapped. We always know a model's body *size*, so even undecoded models
  * have a concrete target to fill.
  */
 import { buildParamMap } from '../ns4/maps';
 import { MODEL_PROGRESS, type ModelProgress, type BodyRegion } from './coverage-data';
-import { decodeNs3 } from '../ns3/decode';
 import { decodeNs2 } from '../ns2/decode';
 import type { FwLayout } from '../clavia/block-chain';
+import { NS3_LAYOUT } from '../ns3/layout.generated';
 import { NG_LAYOUT } from '../ng/layout.generated';
 import { NG2_LAYOUT } from '../ng2/layout.generated';
 import { NP4_LAYOUT } from '../np4/layout.generated';
@@ -50,6 +51,8 @@ export interface ModelDecode {
   controlCount: number;
   /** Percent of body bytes confirmed-decoded, if bodyBytes is known. */
   pct: number | null;
+  /** The reader covers every parameter the instrument stores in a program (its firmware's own map). */
+  fullMap: boolean;
 }
 
 /** Distinct parameters in the Stage 4 map (each id may span multiple layers). */
@@ -58,10 +61,11 @@ export const NS4_PARAM_COUNT = new Set(NS4_PARAMS.map((p) => p.id)).size;
 // Models with a (full/partial) decoder independent of contributions.
 const DECODER_BY_ID: Record<string, 'full' | 'partial'> = {
   'stage-4': 'full',
-  'stage-3': 'partial',
   'stage-2': 'partial', // ns2/decode.ts: engines/levels/drawbars/FX via the ns2 oracle
   // Firmware-layout readers (clavia/block-chain.ts), read-only. Grand, Piano 6,
-  // Electro 7 and Organ 3 are not yet checked on real files.
+  // Electro 7 and Organ 3 are not yet checked on real files; the Stage 3 layout
+  // reproduces every offset the earlier corpus decoder read from real files.
+  'stage-3': 'partial',
   'grand': 'partial',
   'grand-2': 'partial',
   'piano-4': 'partial',
@@ -132,8 +136,8 @@ function getNs4Progress(): ModelProgress {
   return _ns4Progress;
 }
 
-// ── Stage 2/3 coverage traced from the reader ────────────────────────────────
-// The ns2/ns3 decoders read the program body directly (no internal slice), so a
+// ── Stage 2 coverage traced from the reader ──────────────────────────────────
+// The ns2 decoder reads the program body directly (no internal slice), so a
 // tracking Proxy records exactly which bytes a decode touches = the bytes the
 // reader decodes. Tracing crafted synthetic inputs (varied fills × panel-flag
 // values) fires every conditional branch, yielding the reader's full read
@@ -174,12 +178,14 @@ function tracedReaderProgress(
 }
 
 // ── Firmware-layout models: byte map synthesized from the generated layout ──
-// Grand, Grand 2, Piano 4/5/6, Electro 6 and Wave 2 come from a high-confidence
-// firmware map → 'confirmed' (Piano 4 / 5, Grand 2, Electro 6 and Wave 2 also
-// reproduce the corpus block lengths and anchors of the earlier readers).
+// Stage 3, Grand, Grand 2, Piano 4/5/6, Electro 6 and Wave 2 come from a
+// high-confidence firmware map → 'confirmed' (Stage 3, Piano 4 / 5, Grand 2,
+// Electro 6 and Wave 2 also reproduce the offsets, block lengths and anchors of
+// the earlier readers).
 // Electro 7 and Organ 3 have a medium-confidence block order (not yet seen in a
 // real file) → 'candidate', so they don't inflate the headline percentage.
 const FW_LAYOUTS: Record<string, { layout: FwLayout; status: 'confirmed' | 'candidate' }> = {
+  'stage-3': { layout: NS3_LAYOUT, status: 'confirmed' },
   'grand': { layout: NG_LAYOUT, status: 'confirmed' },
   'grand-2': { layout: NG2_LAYOUT, status: 'confirmed' },
   'piano-4': { layout: NP4_LAYOUT, status: 'confirmed' },
@@ -191,6 +197,11 @@ const FW_LAYOUTS: Record<string, { layout: FwLayout; status: 'confirmed' | 'cand
   'wave-2': { layout: NW2_LAYOUT, status: 'confirmed' },
 };
 const _fwProgress: Record<string, ModelProgress> = {};
+
+/** Firmware-layout readers that still leave part of the stored program out, and what. */
+const NOT_FULL_MAP: Record<string, string> = {
+  'wave-2': 'morph amounts are not read yet',
+};
 
 // ── Legacy-record models: byte map of the record data (after the record version) ─
 // Lead 4 (high) → 'confirmed'. Electro 4 (its layout is medium confidence, although it
@@ -249,19 +260,17 @@ function legacyLayoutProgress(layout: LegacyLayout, status: 'confirmed' | 'candi
   return { bodyBytes: kind.length, controls: [], regions: kindsToRegions(kind, status) };
 }
 
-let _ns3Progress: ModelProgress | undefined;
 let _ns2Progress: ModelProgress | undefined;
 
 /**
  * Returns the decode progress for any model — synthesized from the NS4 offset
- * map (Stage 4), traced from the reader (Stage 2/3), synthesized from the
- * generated firmware layout (Grand, Grand 2, Piano 4/5/6, Electro 6/7, Organ 3,
- * Wave 2) or legacy record layout (Electro 4, Lead 4, Lead A1), or curated from
- * MODEL_PROGRESS (every other model).
+ * map (Stage 4), traced from the reader (Stage 2), synthesized from the
+ * generated firmware layout (Stage 3, Grand, Grand 2, Piano 4/5/6, Electro 6/7,
+ * Organ 3, Wave 2) or legacy record layout (Electro 4, Lead 4, Lead A1), or
+ * curated from MODEL_PROGRESS (every other model).
  */
 export function getModelProgress(modelId: string): ModelProgress | undefined {
   if (modelId === 'stage-4') return getNs4Progress();
-  if (modelId === 'stage-3') return (_ns3Progress ??= tracedReaderProgress(decodeNs3, [0x31, 0x1d]));
   if (modelId === 'stage-2') return (_ns2Progress ??= tracedReaderProgress(decodeNs2, [0x2e, 0x1a]));
   const fw = FW_LAYOUTS[modelId];
   if (fw) return (_fwProgress[modelId] ??= layoutProgress(fw.layout, fw.status));
@@ -335,14 +344,15 @@ function distinctParams(layout: FwLayout | LegacyLayout): number {
 export function decodeForModel(modelId: string): ModelDecode {
   const decoder = DECODER_BY_ID[modelId];
   if (decoder === 'full') {
-    return { status: 'full', paramCount: NS4_PARAM_COUNT, bodyBytes: NS4_BODY_BYTES, coveredBytes: 0, candidateBytes: 0, controlCount: NS4_PARAM_COUNT, pct: 100 };
+    return { status: 'full', paramCount: NS4_PARAM_COUNT, bodyBytes: NS4_BODY_BYTES, coveredBytes: 0, candidateBytes: 0, controlCount: NS4_PARAM_COUNT, pct: 100, fullMap: true };
   }
-  const prog = getModelProgress(modelId); // includes traced Stage 2/3 regions
+  const prog = getModelProgress(modelId); // includes traced Stage 2 regions
   const summary = prog ? summarizeProgress(prog) : { coveredBytes: 0, candidateBytes: 0, controlCount: 0, pct: null };
   if (decoder === 'partial') {
     const layout = (FW_LAYOUTS[modelId] ?? LEGACY_LAYOUTS[modelId])?.layout;
     const paramCount = layout ? distinctParams(layout) : null;
-    return { status: 'partial', paramCount, bodyBytes: prog?.bodyBytes ?? null, ...summary };
+    const fullMap = !!layout && !(modelId in NOT_FULL_MAP);
+    return { status: 'partial', paramCount, bodyBytes: prog?.bodyBytes ?? null, ...summary, fullMap };
   }
   // Undecoded: 'started' once a control is localized in coverage-data, else 'none'.
   return {
@@ -350,6 +360,7 @@ export function decodeForModel(modelId: string): ModelDecode {
     paramCount: null,
     bodyBytes: prog?.bodyBytes ?? null,
     ...summary,
+    fullMap: false,
   };
 }
 

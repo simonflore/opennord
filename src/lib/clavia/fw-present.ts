@@ -1,6 +1,6 @@
 /**
- * Small presentation helpers shared by the firmware-layout readers (Grand,
- * Grand 2, Piano 4/5/6, Electro 6/7, Organ 3, Wave 2 — see block-chain.ts). They
+ * Small presentation helpers shared by the firmware-layout readers (Stage 3,
+ * Grand, Grand 2, Piano 4/5/6, Electro 6/7, Organ 3, Wave 2 — see block-chain.ts). They
  * turn decoded values into the musician-facing fragments the shared
  * DecodedProgramView shows.
  * Pure; model → clavia.
