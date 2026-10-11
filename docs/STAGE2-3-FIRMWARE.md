@@ -137,7 +137,24 @@ Notes on the table:
 - an amp EQ offset (stored +60);
 - the amp type labels.
 
-**Status.** All of these are now fixed in `src/lib/ns3/decode.ts`, each with a synthetic-buffer test. The "about 200 parameters" gap is still open. The Stage 2 amp type 0 is now labelled "Clean" in `src/lib/ns2/decode.ts`. Still to do: check the amp-type label order and the meaning of rotary speed 3 against a real `.ns3f`.
+**Status.** All of these were first fixed in the hand-built decoder, each with a synthetic-buffer test. The Stage 2 amp type 0 is now labelled "Clean" in `src/lib/ns2/decode.ts`.
+
+**The Stage 3 reader now uses this layout (2026-10-11).** `src/lib/ns3/layout.generated.ts` is generated from the registry offset map by `scripts/gen-fw-program-maps.py` (`stage-3`), and `src/lib/ns3/decode.ts` reads it through the shared block-chain reader (`src/lib/clavia/block-chain.ts`), like the Grand, Piano 6, Electro 7 and Organ 3:
+
+- 19 blocks, a 548-byte body (592-byte file), 175 distinct parameters, plus the morph deltas of the 41 morphable ones. That closes the "about 200 parameters" gap. Slot B and Organ Preset II repeat parameters, so they are counted once.
+- Every byte-level test of the earlier decoder passes unchanged against the generated layout, on a body framed the way the firmware writes it.
+- Checked on real files: ns3-program-viewer's public test corpus (kept local, not committed). All 842 NSM-era `.ns3f` are 592 bytes and open with `00 00 01 30 11` (one with `00 00 01 2F 11`, version 303), and their chains walk the layout's 19 block lengths to the end of the file. So do the one `.ns3l` and, from 0x18, the five legacy 574-byte files (3.00–3.02). On all of them the panels read the same values as the earlier decoder, apart from the relabelled vibrato modes, and the morph deltas agree with the corpus's asserted morph targets.
+- The typed panel shape the app uses (`Ns3Panel`) is now built from the layout's values. The labels come from the firmware's tables where it has one: the vibrato/chorus mode is stored as the selector position (V1 C1 V2 C2 V3 C3) and named per organ model (Vox V1/V2/V3 = Less/More/Original, Farfisa V1/V2/C2/C3 = Light/Heavy × Slow/Fast, Pipe C1), synth vibrato 6 is "After Touch", and the Clav timbres use the firmware's abbreviations.
+- Version handling:
+  - 3.00–3.04 read natively;
+  - parameters added in 3.03 and 3.04 get their defaults in older files, as the firmware does;
+  - a 2.0x body has other slot-block sizes, so it opens header-only with a warning;
+  - a file whose chain doesn't match the layout also opens header-only with a warning;
+  - a legacy (formatType 0) header is 0x14 bytes shorter, so its body is read from 0x18. The file ends with the 2-byte CRC-16 trailer of the legacy Clavia files (`clavia/crc16.ts`), which the body stops before.
+- Not applied: the 3.00 delay-rate rescale and the pre-3.02 Dual-KB style fix-up, whose computations aren't known.
+- The `.ns3y` synth preset's Synth block is field for field the program's Synth block (the corpus's 102-byte `.ns3y` files are version 300 plus one 53-byte block). `.ns3y` and `.ns3l` files are not routed to the reader yet.
+
+Still to do: check the amp-type label order and the meaning of rotary speed 3.
 
 **Stage 4.** The Stage 4 image carries the same registry framework. Its program body walks as 24 length-prefixed blocks that end exactly at the end of the file.
 
@@ -150,6 +167,36 @@ Notes on the table:
 - Its synth record matches `src/lib/ns2/decode.ts` field for field.
 
 **Consequence.** A Stage 2 decode needs its own map. It is not a delta off the Stage 3. This corrects the plan in `MULTI-MODEL.md`.
+
+**The Stage 2 map (2026-10-11).** The Stage 2 program uses the descriptor-container scheme of the Electro 4 (`FIRMWARE-LINE.md` §6), in a variant with 24-byte descriptors: +0x10 is a per-parameter morph-source mask (3 sources), +0x12 = 1 marks a stored parameter.
+
+- **Containers (high).** One flat list of 22 container types (`FUN_300325FA`): 7 global ones, then 15 per slot, written for slot A and then for slot B. The names come from the firmware's own labels.
+  - Global: program common (slot select, dual, pitch stick, …), organ model, B3 / Vox / Farfisa common (vibrato type, percussion settings), piano slot detune, and the global effects (reverb, compressor, rotary speaker).
+  - Per slot: levels, zones, octaves, pedals and outputs; the three organ preset selects; B3 / Vox / Farfisa Preset I and II; piano; arpeggiator and LFO; synth; extern; effects (Effect 1/2, delay, Amp/EQ).
+- **Record (high).** A u16 record version, then 519 bytes of data: 21 global bytes, then 2 × 249 (the slot stride the earlier decoder used). Writer `FUN_30032F1A`, reader `FUN_30032CCE`. In a file:
+  - behind the NSM-era header the version is at 0x2C and the data runs from **0x2E** to the end of the file: 565 bytes, no trailer;
+  - behind the legacy header the version is at 0x18 and the data starts at **0x1A**, followed by a 2-byte trailer: 547 bytes;
+  - both headers also carry the version in the CBIN version field at 0x14.
+- **Morphs (high).** Each morphable parameter is preceded by one delta per source in its mask (Wheel, After Touch, Ctrl Pedal), one bit wider than the parameter. The reader sign-extends them (two's complement, `FUN_301EDBE6`) and keeps them within ±max. 73 parameters per slot are morphable; none of the global ones.
+- **Versions (medium-high).** The current record version is 7. The load path converts versions 1–6 up to 7 in place (the size doesn't change); OpenNord reads them with the version 7 layout and doesn't apply the conversions.
+
+**Checked against the earlier decoder (high).** Computed from the descriptors alone, the layout lands on every field the earlier `ns2/decode.ts` (from ns3-program-viewer) read, with these exceptions:
+
+- slot detune (file `o+0x3B`) and the rotary speaker are program-wide, but the decoder read them again for slot B, 249 bytes later (slot A's Amp/EQ drive and effects padding);
+- partial reads: the three outputs (2 of 3 bits), the Vox and Farfisa vibrato type (2 of 3), the arpeggiator rate (7 of 8) and the Clavinet model (2 of a 7-bit field);
+- long release and string resonance are the two bits of one 2-bit "Acoustic" field.
+
+**Status.** `src/lib/ns2/decode.ts` now reads `.ns2p` (Stage 2 and Stage 2 EX) through this layout (`src/lib/ns2/layout.generated.ts`, generated by `scripts/gen-fw-program-maps.py` `stage-2`, read by `src/lib/clavia/legacy-record.ts`). It reads every stored parameter (198 distinct, slot B and Preset II counted once) and its morph deltas, and the fixes above are in.
+
+**Checked on real files.** ns3-program-viewer's public test corpus (489 `.ns2p`, kept local, not committed):
+
+- 488 NSM-era files of 565 bytes at record version 7 and one legacy file of 547 bytes at version 6, framed as above;
+- no value outside its descriptor range;
+- the slots read the same values as the earlier decoder, except slot B's slot detune (the fix above);
+- the morph deltas reach every target the file names assert (e.g. a piano level of 50 with a wheel target of 51 reads +1, drawbars 012345678 with a wheel target of 123454567 read +1 +1 +1 +1 +1 0 −1 −1 −1);
+- on every `.ns2p` the header version field (0x14) equals the in-record version (0x2C, or 0x18 behind the legacy header). The one `.ns2l` doesn't: 6 at 0x14, 4 at 0x18. The reader takes 0x14.
+
+Still to do: label the parameters the earlier decoder didn't read (extern, synth shape and detune, …), and route `.ns2l` (one 547-byte corpus file; which of its two version fields is the record version is open) and `.ns2s` to the reader.
 
 ### Display names (high, from the firmware's label tables)
 
@@ -290,7 +337,7 @@ Its key-contact model differs. Its rotary speeds weren't found.
 
 **Programs:**
 
-7. A real `.ns3f`: are bytes 0x2C–0x30 `00 00 01 30 11` (version 304, first block length 17)?
+7. ~~A real `.ns3f`: are bytes 0x2C–0x30 `00 00 01 30 11` (version 304, first block length 17)?~~ Yes, on every file of ns3-program-viewer's corpus (§3).
 8. Is the amp type value order confirmed by a real file?
 
 **Effects:**

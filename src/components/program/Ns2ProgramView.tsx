@@ -8,7 +8,7 @@ import { BandedProgramView, useResolvedSampleNames, type ProgramBand } from './B
 /**
  * Stage 2 program view — full per-engine cards via the shared BandedProgramView.
  * ns2's structure is two slots (A/B), each a complete sound with its own engines +
- * FX, plus program-global FX (reverb/compressor) shown in a single global row.
+ * FX, plus program-global FX (rotary, reverb, compressor) shown in a single global row.
  */
 export function Ns2ProgramView({ bytes }: { bytes: Uint8Array }) {
   const { slots, globalFx } = useMemo(() => decodeNs2(bytes), [bytes]);

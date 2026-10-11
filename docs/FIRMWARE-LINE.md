@@ -189,7 +189,7 @@ So `.nsmp3`/`.nsmp4` files must be converted down (`convertNsmp(x, 2)` or `(x, 1
 
 | Family | Models | Framing | Notes |
 |---|---|---|---|
-| Stage 2-era descriptor container | Electro 3, Electro 3 HP, Electro 4, C2D, Wave | 24-byte parameter records {id, default, max, bit width, morphable flag, not-stored flag, control id (probably a MIDI CC, low)}; MSB-first; a morphable value is preceded by one signed delta per morph source, one bit wider than the value | write/read/set byte-matched in E3, E3 HP, E4 (high), set function in C2D (medium); Wave write `FUN_300056A4`, read `FUN_30005906` |
+| Stage 2-era descriptor container | Stage 2 (and 2 EX; per-parameter morph-source mask variant, `STAGE2-3-FIRMWARE.md` §3), Electro 3, Electro 3 HP, Electro 4, C2D, Wave | 24-byte parameter records {id, default, max, bit width, morphable flag, not-stored flag, control id (probably a MIDI CC, low)}; MSB-first; a morphable value is preceded by one signed delta per morph source, one bit wider than the value | write/read/set byte-matched in E3, E3 HP, E4 (high), set function in C2D (medium); Wave write `FUN_300056A4`, read `FUN_30005906` |
 | — newer ColdFire containers | Electro 5, Piano 3 | record pointers with default (+4), max (+8), kind (+0x15) | layout not extracted (E5 set function `FUN_300F7B98`) |
 | — not mapped | Nord Piano, Piano 2 | — | — |
 | Stage 3 registry | Electro 6, Wave 2, Piano 4, Grand, Piano 5, Piano 6, Grand 2 | u32 version, then a chain of blocks, each an 8-bit length + MSB-first fields in registration order, padded to a byte | a negative-minimum field is stored as **two's complement**, not `value − min`: the registry's signed mode is 0 (pianos: registry start `FUN_c007eed8(reg,7,0)`; Electro 6: `FUN_c009aad8`, both builders pass 0; Wave 2: `FUN_c00a6e64`, all three builders pass 0; the Stage 3 passes `(7,1)` to `FUN_c00debc8`) — high, except medium on Piano 6. Morph deltas are never two's complement |
@@ -230,6 +230,6 @@ The per-parameter offset maps (Electro 4, Electro 6, Electro 7, Organ 3, Wave, W
 **Programs**
 
 8. Real `.ne7p` and `.no3p` files (predicted 397 and 248 bytes), `.np6p` and `.ngp` files: block lengths, which of the Electro 7's two assign bits is pedal and which wheel, and whether layer-dependent saves omit folders (Electro 7). The Piano 6 / Grand 2 top-level program version (a RAM global in the firmware).
-9. The legacy record start at 0x1A on `.ne4p`, `.nl4s`/`.nlas` (and whether `ne5p`, `ns2p` follow it); the Wave's alignment (a corpus test: the alignment under which no field exceeds its maximum).
+9. The legacy record start at 0x1A on `.ne4p`, `.nl4s`/`.nlas` (and whether `ne5p` follows it; `ns2p` does behind the legacy header, and starts at 0x2E behind the NSM-era one, `STAGE2-3-FIRMWARE.md` §3); the Wave's alignment (a corpus test: the alignment under which no field exceeds its maximum).
 10. Wave 2's five morph deltas (which source each is); the Lead 4's 9 and the A1's 2 morph sources; the A1 Performance's extra 12 bytes.
 11. Electro 5, Piano 3, Electro 3, Nord Piano, Piano 2 and C2D program layouts are still unextracted.

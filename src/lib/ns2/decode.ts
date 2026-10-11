@@ -1,20 +1,57 @@
 /**
- * Nord Stage 2 / 2EX (`.ns2p`) program decoder — Tier 2 of multi-model support (#22).
+ * Nord Stage 2 / 2 EX (`.ns2p`) program reader — firmware-derived layout.
  *
- * NS2 stores two **slots** (A then B); slot B repeats slot A's fields shifted by
- * `SLOT_STRIDE` (the 0xf9 = 249 magic). A header-type byte at 0x04 distinguishes
- * the NSM-era layout (1) from the older **legacy** layout (anything else), which
- * lacks a 20-byte CRC block — so every body offset shifts back by `versionOffset`
- * (-20). All offsets/masks are transcribed **field-for-field from ns3-program-viewer**
- * (the oracle — https://github.com/Chris55/ns3-program-viewer, GPLv3).
- * Oracle modules: `src/server/ns2/program/ns2-{program,organ,piano,synth,
- * synth-filter,fx-multi-effect-1,fx-multi-effect-2,fx-amp-sim-eq,fx-delay,
- * fx-reverb,fx-compressor,fx-rotary-speaker}.js`.
- * Credit: Chris55 (ATTRIBUTION.md, AGPL-compatible).
+ * The program is the Stage 2 OS 3.00 firmware's descriptor-container record
+ * (docs/STAGE2-3-FIRMWARE.md §3): a u16 record version, then 519 bytes of
+ * MSB-first parameter data — 7 global containers (21 bytes: program common,
+ * organ model, B3 / Vox / Farfisa common, piano slot detune, reverb /
+ * compressor / rotary), then the same 15 containers for slot A and for slot B
+ * (249 bytes each: levels and keyboard settings, organ preset selects, B3 /
+ * Vox / Farfisa Preset I and II, piano, arpeggiator + LFO, synth, extern,
+ * effects). Container list FUN_300325FA, record write FUN_30032F1A, read
+ * FUN_30032CCE. `layout.generated.ts` (scripts/gen-fw-program-maps.py
+ * `stage-2`) lists every stored parameter with its descriptor id, and the
+ * shared legacy-record reader (clavia/legacy-record.ts) reads them all into
+ * `values`, the inline morph deltas included.
  *
- * Oracle cross-check: 0 mismatches on 2 Stage-2 fixture files (see decode.test.ts).
+ * Framing (high; every file of ns3-program-viewer's test corpus agrees):
+ * behind the NSM-era header (formatType 1) the record version is the BE u16
+ * at 0x2C, the data runs from 0x2E to the end of the file (565 bytes); behind
+ * the 20-byte shorter legacy header (formatType 0) the version is at 0x18 and
+ * the data at 0x1A, followed by the 2-byte trailer (547 bytes). Both headers
+ * also carry the record version in the CBIN version field (0x14, LE), which
+ * is what's read here. Version 7 is current; the Nord converts 1-6 up to 7 in
+ * place when it loads them (same size), which isn't applied here.
+ *
+ * Morphs: every morphable parameter is preceded by one delta per morph source
+ * (Wheel, After Touch, Ctrl Pedal), one bit wider than the parameter, two's
+ * complement, within ±max. They are read as `<key>.morphWheel` /
+ * `.morphAfterTouch` / `.morphCtrlPedal` and grouped in `morphDeltas`.
+ *
+ * On top of those values this module builds the typed slot shape the rest of
+ * the app uses (`Ns2Slot`): every number comes from the layout; the display
+ * labels and curves are ns3-program-viewer's ns2-mapping.js tables (Chris55,
+ * GPLv3, ATTRIBUTION.md), which agree with the firmware's label strings where
+ * those were read (amp type 0 = "Clean"). The earlier decoder transcribed that
+ * viewer's offsets; the layout reproduces every whole-field read it made, so
+ * real files read the same, except for the fixes below.
+ *
+ * Program-wide parameters (the firmware stores them once, in the global
+ * containers): organ model, B3 / Vox / Farfisa vibrato and percussion
+ * settings, organ pitch stick, piano slot detune, reverb, compressor and the
+ * rotary speaker. Every slot shows the program-wide value; the rotary is a
+ * program effect (`globalFx`, `rotary`), not a slot effect.
+ *
+ * Never throws.
  */
-const SLOT_STRIDE = 249; // slot B = slot A + 0xf9 (oracle: ns2-program.js)
+import { NORD_DB } from '../clavia/volume';
+import { LEGACY_DATA_OFFSET, legacyData, legacyRecordVersion, readLegacyRecord } from '../clavia/legacy-record';
+import { NS2_LAYOUT, type Ns2FieldKey } from './layout.generated';
+
+export type { Ns2FieldKey };
+
+/** Record data start behind the NSM-era header: 0x2C bytes of header, then the u16 record version. */
+export const NS2_NSM_DATA_OFFSET = 0x2e;
 
 // ── Type tables — identical to ns3-program-viewer's ns2-mapping.js ────────────
 
@@ -185,7 +222,9 @@ const ENV_ATTACK: readonly string[] = [
   '45 s',
 ];
 
-// ns2SynthEnvDecayMap — used for mod.decay + mod.release AND amp.attack + amp.decay
+// ns2SynthEnvDecayMap — mod decay/release and amp decay/release (the viewer's
+// separate ns2SynthEnvReleaseMap is the same table). Entry 59 is 1.05 s; the
+// viewer's table has '1050 s' there, which would read as 17 minutes.
 const ENV_DECAY: readonly string[] = [
   '3.0 ms',
   '3.5 ms',
@@ -246,139 +285,7 @@ const ENV_DECAY: readonly string[] = [
   '851 ms',
   '915 ms',
   '983 ms',
-  '1050 s',
-  '1.13 s',
-  '1.21 s',
-  '1.3 s',
-  '1.39 s',
-  '1.49 s',
-  '1.59 s',
-  '1.7 s',
-  '1.82 s',
-  '1.94 s',
-  '2.07 s',
-  '2.21 s',
-  '2.35 s',
-  '2.51 s',
-  '2.67 s',
-  '2.84 s',
-  '3.02 s',
-  '3.21 s',
-  '3.41 s',
-  '3.62 s',
-  '3.85 s',
-  '4.09 s',
-  '4.34 s',
-  '4.61 s',
-  '4.89 s',
-  '5.19 s',
-  '5.51 s',
-  '5.84 s',
-  '6.19 s',
-  '6.57 s',
-  '6.96 s',
-  '7.38 s',
-  '7.82 s',
-  '8.29 s',
-  '8.78 s',
-  '9.3 s',
-  '9.85 s',
-  '10 s',
-  '11 s',
-  '11 s',
-  '12 s',
-  '13 s',
-  '14 s',
-  '14 s',
-  '15 s',
-  '16 s',
-  '17 s',
-  '18 s',
-  '19 s',
-  '20 s',
-  '21 s',
-  '22 s',
-  '24 s',
-  '25 s',
-  '27 s',
-  '28 s',
-  '30 s',
-  '31 s',
-  '33 s',
-  '35 s',
-  '37 s',
-  '39 s',
-  '41 s',
-  '44 s',
-  '46 s',
-  '49 s',
-  '52 s',
-  '55 s',
-  '58 s',
-];
-
-// ns2SynthEnvReleaseMap — used ONLY for amp.release
-const ENV_RELEASE: readonly string[] = [
-  '3.0 ms',
-  '3.5 ms',
-  '4.0 ms',
-  '4.6 ms',
-  '5.3 ms',
-  '6.0 ms',
-  '6.9 ms',
-  '7.9 ms',
-  '9.0 ms',
-  '10 ms',
-  '12 ms',
-  '13 ms',
-  '15 ms',
-  '17 ms',
-  '19 ms',
-  '21 ms',
-  '23 ms',
-  '26 ms',
-  '29 ms',
-  '33 ms',
-  '36 ms',
-  '41 ms',
-  '45 ms',
-  '50 ms',
-  '55 ms',
-  '61 ms',
-  '68 ms',
-  '75 ms',
-  '82 ms',
-  '91 ms',
-  '100 ms',
-  '110 ms',
-  '120 ms',
-  '132 ms',
-  '144 ms',
-  '158 ms',
-  '173 ms',
-  '188 ms',
-  '206 ms',
-  '224 ms',
-  '244 ms',
-  '265 ms',
-  '288 ms',
-  '313 ms',
-  '340 ms',
-  '368 ms',
-  '399 ms',
-  '432 ms',
-  '467 ms',
-  '505 ms',
-  '545 ms',
-  '588 ms',
-  '634 ms',
-  '683 ms',
-  '736 ms',
-  '792 ms',
-  '851 ms',
-  '915 ms',
-  '983 ms',
-  '1050 s',
+  '1.05 s',
   '1.13 s',
   '1.21 s',
   '1.3 s',
@@ -745,22 +652,13 @@ const FILTER_FREQ: readonly string[] = [
   '21 kHz',
 ];
 
-import { NORD_DB } from '../clavia/volume';
-
-const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
-const u16 = (b: Uint8Array, o: number): number => ((b[o] ?? 0) << 8) | (b[o + 1] ?? 0);
 const lutStr = (table: readonly string[], v: number): string => table[v] ?? `#${v}`;
 // Engine volume: a 7-bit MIDI value through the shared Nord dB curve (ns2VolumeEx)
 const db = (midi: number): string => NORD_DB[midi] ?? '?';
-// 64-bit big-endian read as BigInt — sampleId hashes span a 64-bit field.
-const u64 = (b: Uint8Array, o: number): bigint => {
-  let v = 0n;
-  for (let i = 0; i < 8; i++) v = (v << 8n) | BigInt(b[o + i] ?? 0);
-  return v;
-};
+
 // NS2 sampleId hashes are stored one step off the NS3 catalog form: b31 inverted,
 // then decremented (per the oracle's getSampleIdNs2ToNs3). 0 stays 0 (program init).
-const ns2ToNs3Id = (ns2: bigint): number => (ns2 === 0n ? 0 : Number(ns2 ^ 0x80000000n) - 1);
+const ns2ToNs3Id = (raw: number): number => (raw === 0 ? 0 : ((raw ^ 0x80000000) >>> 0) - 1);
 
 // Octave shift: raw 4-bit field, center=7 → shift = raw - 7 (ns2OctaveShift oracle)
 const octShift = (raw: number): number => raw - 7;
@@ -768,42 +666,8 @@ const octShift = (raw: number): number => raw - 7;
 // 7-bit linear value 0→10 (midi2LinearStringValue(0,10,v,1,""))
 const lin10 = (midi: number): string => (Math.round((midi / 127) * 100) / 10).toFixed(1);
 
-/**
- * Organ drawbars (each 0-8) for B3/Vox (4-bit), Farfisa (1-bit 0/1).
- * Oracle: ns2-organ.js `getDrawbars()`.
- * B3 preset1 base: 0x5F, preset2: 0x96; Vox preset1: 0x76, preset2: 0xAD.
- * Farfisa preset1: 0x8D, preset2: 0xC4 (1-bit, separate extraction).
- */
-function readDrawbars(b: Uint8Array, o: number, type: string, preset2: boolean): number[] {
-  if (type === 'Farfisa') {
-    // 1-bit drawbars — oracle: ns2-organ.js Farfisa branch
-    const base = o + (preset2 ? 0xc4 : 0x8d);
-    return [
-      (u16(b, base - 1) & 0x0002) >>> 1,
-      (u16(b, base) & 0x0004) >>> 2,
-      (u16(b, base + 1) & 0x0008) >>> 3,
-      (u16(b, base + 2) & 0x0010) >>> 4,
-      (u16(b, base + 3) & 0x0020) >>> 5,
-      (u16(b, base + 4) & 0x0040) >>> 6,
-      (u16(b, base + 5) & 0x0080) >>> 7,
-      (u16(b, base + 6) & 0x0100) >>> 8,
-      (u16(b, base + 7) & 0x0200) >>> 9,
-    ];
-  }
-  // B3 / Vox 4-bit drawbars — oracle: ns2-organ.js lines 27-45
-  const base = o + (type === 'Vox' ? (preset2 ? 0xad : 0x76) : preset2 ? 0x96 : 0x5f);
-  return [
-    (u16(b, base + 1) & 0x01e0) >>> 5,
-    (u16(b, base + 3) & 0x003c) >>> 2,
-    (u16(b, base + 6) & 0x0780) >>> 7,
-    (u16(b, base + 8) & 0x00f0) >>> 4,
-    (u16(b, base + 10) & 0x001e) >>> 1,
-    (u16(b, base + 13) & 0x03c0) >>> 6,
-    (u16(b, base + 15) & 0x0078) >>> 3,
-    u16(b, base + 17) & 0x000f,
-    (u16(b, base + 20) & 0x01e0) >>> 5,
-  ];
-}
+// Output routing labels (ns2-mapping.js). The firmware field is 3 bits, 0-3.
+const OUTPUT = ['1', '1+2', '2', 'Off'];
 
 // ── Type definitions ────────────────────────────────────────────────────────
 
@@ -839,7 +703,7 @@ export interface Ns2PianoSlot {
   kbGate: boolean;
   output: string;
   sampleId: number;
-  clavVariation: number; // raw 0-3 index used by resolveSample(); clavinetModel is the string label
+  clavVariation: number; // raw index used by resolveSample(); clavinetModel is the string label
   slotDetune: string;
   dynamics: string;
   longRelease: boolean;
@@ -920,410 +784,370 @@ export interface Ns2Slot {
   organ: Ns2OrganSlot;
   piano: Ns2PianoSlot;
   synth: Ns2SynthSlot;
+  /** This slot's effects that are switched on, in signal order (Effect 1, Effect 2, Amp/EQ, Delay). */
   fx: Ns2Fx[];
+}
+
+/** The program-wide rotary speaker (globalFx container). */
+export interface Ns2Rotary {
+  on: boolean;
+  /** Which engine feeds it: Organ / Piano / Synth. */
+  source: string;
+  driveMidi: number;
+  stopMode: boolean;
+  speed: string;
 }
 
 export interface Ns2Program {
   slots: Ns2Slot[];
+  /** Program-wide effects that are switched on: Rotary, Reverb, Comp. */
   globalFx: Ns2Fx[];
   reverb: { on: boolean; type: string; amountMidi: number };
   compressor: { on: boolean; amountMidi: number };
+  /** The program-wide rotary speaker, on or off. */
+  rotary?: Ns2Rotary;
 }
 
-// ── FX readers ──────────────────────────────────────────────────────────────
-
-/** Effect 1 — oracle: ns2-fx-multi-effect-1.js */
-function readEffect1(b: Uint8Array, o: number): Ns2Fx | null {
-  if ((u8(b, o + 0x10f) & 0x20) === 0) return null;
-  const typeIdx = u8(b, o + 0x10f) & 0x07;
-  const src = (u8(b, o + 0x10f) & 0x18) >>> 3;
-  const masterClock = (u8(b, o + 0x110) & 0x80) !== 0;
-  const typeName = lutStr(EFFECT1_TYPE, typeIdx);
-  const rateMcOff = (u16(b, o + 0x115) & 0x0fe0) >>> 5;
-  const rateMcOn = (u8(b, o + 0x112) & 0xf0) >>> 4;
-  const rateMidi = masterClock ? rateMcOn : rateMcOff;
-  const amountMidi = (u16(b, o + 0x119) & 0x1fc0) >>> 6;
-  return {
-    name: 'Effect 1',
-    type: typeName,
-    source: lutStr(EFFECT_SRC, src),
-    params: {
-      amount: lin10(amountMidi),
-      rate: masterClock ? (LFO_RATE_MC[rateMidi] ?? `#${rateMidi}`) : lin10(rateMidi),
-      masterClock,
-    },
-  };
+/**
+ * What {@link decodeNs2} returns: the slot shape plus the firmware-layout read
+ * it was built from.
+ */
+export interface Ns2File extends Ns2Program {
+  readonly format: 'ns2p';
+  rotary: Ns2Rotary;
+  /** File offset of the record data: 0x2E (NSM-era header) or 0x1A (legacy header). */
+  readonly dataOffset: number;
+  /** The record version the file carries (7 is current; 0 when the header holds none). */
+  readonly recordVersion: number;
+  /** Every layout field by generated key, morph deltas included. */
+  readonly values: Partial<Record<Ns2FieldKey, number>>;
+  /** Inline morph deltas grouped under the parameter they modulate: Wheel, After Touch, Ctrl Pedal. */
+  readonly morphDeltas: Partial<Record<Ns2FieldKey, readonly number[]>>;
+  /** Keys whose stored value is outside the descriptor range (the Nord loads its default instead). */
+  readonly outOfRange: Ns2FieldKey[];
+  readonly warnings: string[];
 }
 
-/** Effect 2 — oracle: ns2-fx-multi-effect-2.js */
-function readEffect2(b: Uint8Array, o: number): Ns2Fx | null {
-  if ((u8(b, o + 0x11a) & 0x20) === 0) return null;
-  const typeIdx = u8(b, o + 0x11a) & 0x07;
-  const src = (u8(b, o + 0x11a) & 0x18) >>> 3;
-  const masterClock = (u8(b, o + 0x11b) & 0x80) !== 0;
-  const rateMcOff = (u16(b, o + 0x120) & 0x0fe0) >>> 5;
-  const rateMcOn = (u8(b, o + 0x11d) & 0xf0) >>> 4;
-  const rateMidi = masterClock ? rateMcOn : rateMcOff;
-  const amountMidi = (u16(b, o + 0x124) & 0x1fc0) >>> 6;
-  return {
-    name: 'Effect 2',
-    type: lutStr(EFFECT2_TYPE, typeIdx),
-    source: lutStr(EFFECT_SRC, src),
-    params: {
-      amount: lin10(amountMidi),
-      rate: masterClock ? (LFO_RATE_MC[rateMidi] ?? `#${rateMidi}`) : lin10(rateMidi),
-      masterClock,
-    },
-  };
+// ── Layout access ───────────────────────────────────────────────────────────
+
+type Slot = 'A' | 'B';
+/** A slot field, named as in slot A: `common.organEnable`, `synth.filterMode`, … */
+type SlotField = Ns2FieldKey extends infer K ? (K extends `slotA_${infer F}` ? F : never) : never;
+type Values = Partial<Record<Ns2FieldKey, number>>;
+
+function reader(values: Values) {
+  const get = (key: Ns2FieldKey): number => values[key] ?? 0;
+  const slot = (id: Slot) => (f: SlotField): number => get(`slot${id}_${f}` as Ns2FieldKey);
+  return { get, slot };
+}
+type Get = (key: Ns2FieldKey) => number;
+type SlotGet = (f: SlotField) => number;
+
+/** A 32-bit sample-name hash the firmware stores as three descriptors (15 + 15 + 2 bits). */
+const hash32 = (hi: number, mid: number, lo: number): number => hi * 2 ** 17 + mid * 4 + lo;
+
+const B3_DRAWBARS = ['b3Sub', 'b3Sub3', 'b3Fund', 'b32nd', 'b33rd', 'b34th', 'b35th', 'b36th', 'b38th'] as const;
+const VOX_DRAWBARS = ['vox16Foot', 'vox8Foot', 'vox4Foot', 'vox2Foot', 'voxII', 'voxIII', 'voxIV', 'voxSin', 'voxTri'] as const;
+const FARFISA_TABS = [
+  'farfisaBass16', 'farfisaString16', 'farfisaFlute8', 'farfisaOboe8', 'farfisaTrumpet8',
+  'farfisaString8', 'farfisaFlute4', 'farfisaString4', 'farfisa223',
+] as const;
+
+/** One organ preset's nine drawbars (B3 / Vox 0-8) or tabs (Farfisa 0/1). */
+function drawbars(s: SlotGet, type: string, preset: 'I' | 'II'): number[] {
+  if (type === 'Farfisa') return FARFISA_TABS.map((k) => s(`farfPreset${preset}.${k}`));
+  if (type === 'Vox') return VOX_DRAWBARS.map((k) => s(`voxPreset${preset}.${k}`));
+  return B3_DRAWBARS.map((k) => s(`b3Preset${preset}.${k}`));
 }
 
-/** Amp Sim / EQ — oracle: ns2-fx-amp-sim-eq.js */
-function readAmpSimEq(b: Uint8Array, o: number): Ns2Fx | null {
-  if ((u8(b, o + 0x133) & 0x10) === 0) return null;
-  const src = (u8(b, o + 0x133) & 0x0c) >>> 2;
-  const ampTypeIdx = u8(b, o + 0x133) & 0x03;
-  const trebleMidi = (u16(b, o + 0x134) & 0x01fc) >>> 2;
-  const midMidi = (u16(b, o + 0x135) & 0x03f8) >>> 3;
-  const bassMidi = (u16(b, o + 0x136) & 0x07f0) >>> 4;
-  const midFreqMidi = (u16(b, o + 0x137) & 0x0fe0) >>> 5;
-  const driveMidi = (u8(b, o + 0x134) & 0xfe) >>> 1;
-  return {
-    name: 'Amp/EQ',
-    type: lutStr(AMP_TYPE, ampTypeIdx),
-    source: lutStr(EFFECT_SRC, src),
-    params: {
-      drive: lin10(driveMidi),
-      treble: String(trebleMidi),
-      mid: String(midMidi),
-      bass: String(bassMidi),
-      midFreq: String(midFreqMidi),
-    },
-  };
-}
+// ── Engines ─────────────────────────────────────────────────────────────────
 
-/** Delay — oracle: ns2-fx-delay.js */
-function readDelay(b: Uint8Array, o: number): Ns2Fx | null {
-  if ((u8(b, o + 0x125) & 0x20) === 0) return null;
-  const src = (u8(b, o + 0x125) & 0x18) >>> 3;
-  const masterClock = (u8(b, o + 0x125) & 0x02) !== 0;
-  const pingPong = (u8(b, o + 0x125) & 0x04) !== 0;
-  const tempoMcOff = (u16(b, o + 0x12d) & 0x7ff8) >>> 3;
-  const tempoMcOn = (u16(b, o + 0x127) & 0x03c0) >>> 6;
-  const feedbackMidi = (u16(b, o + 0x132) & 0x0fe0) >>> 5;
-  const amountMidi = (u16(b, o + 0x131) & 0x07f0) >>> 4;
-  return {
-    name: 'Delay',
-    source: lutStr(EFFECT_SRC, src),
-    params: {
-      masterClock,
-      pingPong,
-      tempo: masterClock ? `mc:${tempoMcOn}` : String(tempoMcOff),
-      feedback: lin10(feedbackMidi),
-      amount: lin10(amountMidi),
-    },
-  };
-}
+function organ(get: Get, s: SlotGet): Ns2OrganSlot {
+  // The organ model and the model settings live in the global containers.
+  const type = lutStr(ORGAN_TYPE, get('organCommon.organModel'));
+  const isB3 = type === 'B3';
+  const preset2 = (type === 'Vox' ? s('voxSelect.voxPreset') : type === 'Farfisa' ? s('farfSelect.farfisaPreset') : s('b3Select.b3Preset')) === 1;
+  const presetI = drawbars(s, type, 'I');
+  const presetII = drawbars(s, type, 'II');
+  const active = preset2 ? 'II' : 'I';
 
-/** Rotary Speaker — oracle: ns2-fx-rotary-speaker.js */
-function readRotary(b: Uint8Array, o: number): Ns2Fx | null {
-  if ((u8(b, o + 0x3f) & 0x10) === 0) return null;
-  const src = (u8(b, o + 0x3f) & 0x0c) >>> 2;
-  const drive = (u16(b, o + 0x3f) & 0x03f8) >>> 3;
-  const stopMode = (u8(b, o + 0x40) & 0x04) !== 0;
-  const speed = (u8(b, o + 0x40) & 0x02) >>> 1;
-  return {
-    name: 'Rotary',
-    source: lutStr(EFFECT_SRC, src),
-    params: {
-      drive: lin10(drive),
-      stopMode,
-      speed: lutStr(ROTARY_SPEED, speed),
-    },
-  };
-}
-
-function readFx(b: Uint8Array, o: number): Ns2Fx[] {
-  return [
-    readEffect1(b, o),
-    readEffect2(b, o),
-    readAmpSimEq(b, o),
-    readDelay(b, o),
-    readRotary(b, o),
-  ].filter((fx): fx is Ns2Fx => fx !== null);
-}
-
-// ── Synth sub-decoders ──────────────────────────────────────────────────────
-
-function readFilter(b: Uint8Array, o: number): Ns2SynthFilter {
-  const f3 = u8(b, o + 0xf3);
-  const efW = u16(b, o + 0xef);
-  const f0W = u16(b, o + 0xf0);
-  const f1W = u16(b, o + 0xf1);
-  const f2W = u16(b, o + 0xf2);
-  const freqMidi = (efW & 0x01fc) >>> 2;
-  return {
-    type: lutStr(FILTER_TYPE, (f3 & 0x0e) >>> 1),
-    freqMidi,
-    freq: FILTER_FREQ[freqMidi] ?? '?',
-    resonanceMidi: (f0W & 0x03f8) >>> 3,
-    mod1Midi: (f2W & 0x0fe0) >>> 5,
-    mod2Midi: (f1W & 0x07f0) >>> 4,
-    kbTrack: (f3 & 0x10) !== 0,
-  };
-}
-
-function readModEnv(b: Uint8Array, o: number): Ns2SynthEnv {
-  const dfW = u16(b, o + 0xdf);
-  const e0W = u16(b, o + 0xe0);
-  const e1W = u16(b, o + 0xe1);
-  const atkM = (dfW & 0xfe00) >>> 9;
-  const decM = (dfW & 0x01fc) >>> 2;
-  const relM = (e0W & 0x03f8) >>> 3;
-  return {
-    attackMidi: atkM,
-    attack: ENV_ATTACK[atkM] ?? '?',
-    decayMidi: decM,
-    decay: ENV_DECAY[decM] ?? '?',
-    releaseMidi: relM,
-    release: ENV_DECAY[relM] ?? '?', // mod release uses decay map (oracle line 46-47)
-    velocity: (e1W & 0x0400) !== 0,
-  };
-}
-
-function readAmpEnv(b: Uint8Array, o: number): Ns2SynthEnv {
-  const f3W = u16(b, o + 0xf3);
-  const f4W = u16(b, o + 0xf4);
-  const f5W = u16(b, o + 0xf5);
-  const f6W = u16(b, o + 0xf6);
-  const atkM = (f3W & 0x01fc) >>> 2;
-  const decM = (f4W & 0x03f8) >>> 3;
-  const relM = (f5W & 0x07f0) >>> 4;
-  return {
-    attackMidi: atkM,
-    attack: ENV_ATTACK[atkM] ?? '?',
-    decayMidi: decM,
-    decay: ENV_DECAY[decM] ?? '?',
-    releaseMidi: relM,
-    release: ENV_RELEASE[relM] ?? '?', // amp release uses release map (oracle line 54)
-    velocity: (f6W & 0x0800) !== 0,
-  };
-}
-
-// ── Main slot decoder ───────────────────────────────────────────────────────
-
-function readSlot(b: Uint8Array, id: 'A' | 'B', vo: number, active: boolean): Ns2Slot {
-  const o = (id === 'B' ? SLOT_STRIDE : 0) + vo;
-  // "common" organ fields are NOT slot-shifted — they live at the program level
-  // (oracle ns2-organ.js: commonOffset = versionOffset, not id*249+versionOffset).
-  const co = vo; // common offset — no SLOT_STRIDE
-
-  // ── ORGAN — oracle: ns2-organ.js ──────────────────────────────────────────
-  // organType, pitchStick, vibMode, perc mode: from commonOffset (co)
-  const organType = lutStr(ORGAN_TYPE, (u8(b, co + 0x34) & 0xc0) >>> 6);
-  const organTypeIsB3 = organType === 'B3';
-
-  const p2Off = organType === 'Vox' ? 0x5d : organType === 'Farfisa' ? 0x5e : 0x5c;
-  const preset2 = (u8(b, o + p2Off) & 0x80) !== 0;
-
-  const org30 = u8(b, co + 0x30); // common
-  const org35 = u8(b, co + 0x35); // common
-  const org37 = u8(b, co + 0x37); // common
-  const org39 = u8(b, co + 0x39); // common
-  const org43 = u8(b, o + 0x43);
-  const org46 = u8(b, o + 0x46);
-  const org47 = u8(b, o + 0x47);
-  const org59 = u8(b, o + 0x59);
-  const org74 = u8(b, o + 0x74);
-  const orgAb = u8(b, o + 0xab);
-
-  let vibOn: boolean, vibMode: string, percOn: boolean;
-  if (organTypeIsB3) {
-    const vpByte = preset2 ? orgAb : org74;
-    vibOn = (vpByte & 0x10) !== 0;
-    percOn = (vpByte & 0x08) !== 0;
-    vibMode = lutStr(VIB_CHORUS, (org35 & 0xe0) >>> 5);
-  } else if (organType === 'Vox') {
-    vibOn = (org37 & 0x10) !== 0;
-    percOn = false;
-    vibMode = lutStr(VOX_VIB_MODE, (org37 & 0x60) >>> 5);
+  let vibChorus: Ns2OrganSlot['vibChorus'];
+  if (isB3) {
+    vibChorus = { on: s(`b3Preset${active}.b3Vibrato`) === 1, mode: lutStr(VIB_CHORUS, get('b3Common.b3VibratoType')) };
+  } else if (type === 'Vox') {
+    vibChorus = { on: get('voxCommon.voxVibrato') === 1, mode: lutStr(VOX_VIB_MODE, get('voxCommon.voxVibratoType')) };
   } else {
-    vibOn = (org39 & 0x10) !== 0;
-    percOn = false;
-    vibMode = lutStr(FARFISA_VIB_MODE, (org39 & 0x60) >>> 5);
+    vibChorus = { on: get('farfCommon.farfisaVibrato') === 1, mode: lutStr(FARFISA_VIB_MODE, get('farfCommon.farfisaVibratoType')) };
   }
-
-  const percThird = organTypeIsB3 && (org35 & 0x10) !== 0;
-  const percFast = organTypeIsB3 && (org35 & 0x08) !== 0;
-  const percSoft = organTypeIsB3 && (org35 & 0x04) === 0;
-
-  const drawbars1 = readDrawbars(b, o, organType, false);
-  const drawbars2 = readDrawbars(b, o, organType, true);
-  const organVolMidi = org46 & 0x7f;
-  const organOut = (['1', '1+2', '2', 'Off'] as const)[(org59 & 0x0c) >>> 2] ?? 'Off';
-
-  const organ: Ns2OrganSlot = {
-    on: (org43 & 0x80) !== 0,
-    type: organType,
-    volume: db(organVolMidi),
-    volumeMidi: organVolMidi,
-    octaveShift: octShift((org47 & 0x1e) >>> 1),
-    kbZone: lutStr(KB_ZONE, (org47 & 0xe0) >>> 5),
-    pitchStick: (org30 & 0x40) !== 0,
-    sustainPedal: (org47 & 0x01) !== 0,
-    latchPedal: (org59 & 0x02) !== 0,
-    kbGate: (org59 & 0x01) !== 0,
-    output: organOut,
+  const volumeMidi = s('common.organLevel');
+  return {
+    on: s('common.organEnable') === 1,
+    type,
+    volume: db(volumeMidi),
+    volumeMidi,
+    octaveShift: octShift(s('common.organOctaveShift')),
+    kbZone: lutStr(KB_ZONE, s('common.organZone')),
+    pitchStick: get('programCommon.param8') === 1, // program-wide
+    sustainPedal: s('common.param4') === 1,
+    latchPedal: s('common.param28') === 1,
+    kbGate: s('common.param29') === 1,
+    output: lutStr(OUTPUT, s('common.param27')),
     preset2,
-    drawbars: preset2 ? drawbars2 : drawbars1,
-    drawbars2: preset2 ? drawbars1 : drawbars2,
-    vibChorus: { on: vibOn, mode: vibMode },
-    percussion: { on: percOn, third: percThird, fast: percFast, soft: percSoft },
+    drawbars: preset2 ? presetII : presetI,
+    drawbars2: preset2 ? presetI : presetII,
+    vibChorus,
+    percussion: {
+      on: isB3 && s(`b3Preset${active}.b3Percussion`) === 1,
+      third: isB3 && get('b3Common.b3PercussionHarmonic') === 1,
+      fast: isB3 && get('b3Common.b3PercussionDecay') === 1,
+      soft: isB3 && get('b3Common.b3PercussionVolume') === 0,
+    },
   };
+}
 
-  // ── PIANO — oracle: ns2-piano.js ──────────────────────────────────────────
-  const pia3b = u8(b, o + 0x3b);
-  const pia48 = u8(b, o + 0x48);
-  const pia4b = u8(b, o + 0x4b);
-  const pia4c = u8(b, o + 0x4c);
-  const pia4d = u8(b, o + 0x4d);
-  const pia58 = u8(b, o + 0x58);
-  const pia5a = u8(b, o + 0x5a);
-  const piaCd = u8(b, o + 0xcd);
-  const piaCeW = u16(b, o + 0xce);
-  const piaCf = u8(b, o + 0xcf);
-  const piaD0 = u8(b, o + 0xd0);
-  const piaCdWide = u64(b, o + 0xcd);
-
-  const pianoTypeIdx = (piaCd & 0xe0) >>> 5;
-  const ns2PianoSampleId = (piaCdWide & 0x0000003fffffffc0n) >> 6n;
-  const pianoVolMidi = pia4b & 0x7f;
-  const pianoOut = (['1', '1+2', '2', 'Off'] as const)[pia58 & 0x03] ?? 'Off';
-  const clavVariation = (piaCeW & 0x0180) >>> 7;
-
-  const piano: Ns2PianoSlot = {
-    on: (pia48 & 0x80) !== 0,
-    type: lutStr(PIANO_TYPE, pianoTypeIdx),
-    volume: db(pianoVolMidi),
-    volumeMidi: pianoVolMidi,
-    octaveShift: octShift((pia4c & 0x1e) >>> 1),
-    kbZone: lutStr(KB_ZONE, (pia4c & 0xe0) >>> 5),
-    pitchStick: (pia4c & 0x01) !== 0,
-    sustainPedal: (pia4d & 0x80) !== 0,
-    latchPedal: (pia5a & 0x80) !== 0,
-    kbGate: (pia5a & 0x40) !== 0,
-    output: pianoOut,
-    sampleId: ns2ToNs3Id(ns2PianoSampleId),
+function piano(get: Get, s: SlotGet): Ns2PianoSlot {
+  const volumeMidi = s('common.pianoLevel');
+  // Descriptor 3 of the piano container (7 bits, 0-49): the Clavinet model the
+  // earlier decoder read as its low 2 bits; whole field now.
+  const clavVariation = s('piano.param3');
+  // "Piano / Acoustic" (2 bits): long release is its high bit, string resonance its low bit.
+  const acoustic = s('piano.pianoAcoustic');
+  return {
+    on: s('common.pianoEnable') === 1,
+    type: lutStr(PIANO_TYPE, s('piano.param0')),
+    volume: db(volumeMidi),
+    volumeMidi,
+    octaveShift: octShift(s('common.pianoOctaveShift')),
+    kbZone: lutStr(KB_ZONE, s('common.pianoZone')),
+    pitchStick: s('common.param9') === 1,
+    sustainPedal: s('common.param10') === 1,
+    latchPedal: s('common.param30') === 1,
+    kbGate: s('common.param31') === 1,
+    output: lutStr(OUTPUT, s('common.param25')),
+    sampleId: ns2ToNs3Id(hash32(s('piano.param9'), s('piano.param10'), s('piano.param11'))),
     clavVariation,
-    slotDetune: lutStr(PIANO_DETUNE, (pia3b & 0xe0) >>> 5),
-    dynamics: lutStr(PIANO_DYNAMICS, (piaCf & 0x0c) >>> 2),
-    longRelease: (piaCf & 0x40) !== 0,
-    stringResonance: (piaCf & 0x20) !== 0,
-    pedalNoise: (piaCf & 0x10) !== 0,
+    slotDetune: lutStr(PIANO_DETUNE, get('pianoCommon.pianoSlotDetune')), // program-wide
+    dynamics: lutStr(PIANO_DYNAMICS, s('piano.pianoDynamics')),
+    longRelease: (acoustic & 2) !== 0,
+    stringResonance: (acoustic & 1) !== 0,
+    pedalNoise: s('piano.pianoPedalNoise') === 1,
     clavinetModel: lutStr(CLAV_MODEL, clavVariation),
-    clavinetEqHi: lutStr(CLAV_EQ_HI, piaCf & 0x03),
-    clavinetEq: lutStr(CLAV_EQ, (piaD0 & 0xc0) >>> 6),
+    clavinetEqHi: lutStr(CLAV_EQ_HI, s('piano.clavinetEQMode')),
+    clavinetEq: lutStr(CLAV_EQ, s('piano.clavinetEQMode8')),
   };
+}
 
-  // ── SYNTH — oracle: ns2-synth.js ──────────────────────────────────────────
-  const syn4d = u8(b, o + 0x4d);
-  const syn50W = u16(b, o + 0x50);
-  const syn51 = u8(b, o + 0x51);
-  const syn52 = u8(b, o + 0x52);
-  const syn59 = u8(b, o + 0x59);
-  const syn5a = u8(b, o + 0x5a);
-  const synD9 = u8(b, o + 0xd9);
-  const synDaW = u16(b, o + 0xda);
-  const synDbW = u16(b, o + 0xdb);
-  const synDc = u8(b, o + 0xdc);
-  const synE1W = u16(b, o + 0xe1);
-  const synF6W = u16(b, o + 0xf6);
-  const synF7 = u8(b, o + 0xf7);
-  const synFbW = u16(b, o + 0xfb);
-  const synFcW = u16(b, o + 0xfc);
-  const synF4Wide = u64(b, o + 0xf4);
-
-  const synthNs2SampleId = (synF4Wide & 0x03fffffffcn) >> 2n;
-  const lfoMasterClock = (synDc & 0x40) !== 0;
-  const lfoRateMidi = lfoMasterClock ? (synDc & 0x3c) >>> 2 : (synF6W & 0x07f0) >>> 4;
-  const arpMasterClock = (synDaW & 0x8000) !== 0;
-  const arpRateMidi = arpMasterClock ? (synDaW & 0x7800) >>> 11 : (synDaW & 0x03f8) >>> 3;
-  const synthVolMidi = (syn50W & 0x3f80) >>> 7;
-  const synthOut = (['1', '1+2', '2', 'Off'] as const)[(syn59 & 0x60) >>> 5] ?? 'Off';
-
-  const synth: Ns2SynthSlot = {
-    on: (syn4d & 0x40) !== 0,
-    osc: lutStr(SYNTH_OSC, (synE1W & 0x0380) >>> 7),
-    volume: db(synthVolMidi),
-    volumeMidi: synthVolMidi,
-    octaveShift: octShift(syn51 & 0x0f),
-    kbZone: lutStr(KB_ZONE, (syn51 & 0x70) >>> 4),
-    pitchStick: (syn52 & 0x80) !== 0,
-    sustainPedal: (syn52 & 0x40) !== 0,
-    latchPedal: (syn5a & 0x20) !== 0,
-    kbGate: (syn5a & 0x10) !== 0,
-    kbHold: (synDc & 0x02) !== 0,
-    output: synthOut,
-    sampleId: ns2ToNs3Id(synthNs2SampleId),
-    voice: lutStr(SYNTH_VOICE, (synFcW & 0x0600) >>> 9),
-    glide: (synFbW & 0x03f8) >>> 3,
-    unison: lutStr(SYNTH_UNISON, (synFcW & 0x01c0) >>> 6),
-    vibrato: lutStr(SYNTH_VIBRATO, (synFcW & 0x0038) >>> 3),
-    arpEnabled: (synD9 & 0x01) !== 0,
+function synth(s: SlotGet): Ns2SynthSlot {
+  const volumeMidi = s('common.synthLevel');
+  const lfoMasterClock = s('arpLfo.lFOMstClk') === 1;
+  const lfoRateMidi = lfoMasterClock ? s('arpLfo.lFOMstClkDiv') : s('synth.lFORate');
+  const arpMasterClock = s('arpLfo.arpeggiatorMstClk') === 1;
+  const arpRateMidi = arpMasterClock ? s('arpLfo.arpeggiatorMstClkDiv') : s('arpLfo.arpeggiatorRate');
+  const freqMidi = s('synth.filterFrequency');
+  const modAtk = s('synth.modEnvelopeAttack');
+  const modDec = s('synth.modEnvelopeDecay');
+  const modRel = s('synth.modEnvelopeRelease');
+  const ampAtk = s('synth.ampEnvelopeAttack');
+  const ampDec = s('synth.ampEnvelopeDecay');
+  const ampRel = s('synth.ampEnvelopeRelease');
+  return {
+    on: s('common.synthEnable') === 1,
+    osc: lutStr(SYNTH_OSC, s('synth.param4')),
+    volume: db(volumeMidi),
+    volumeMidi,
+    octaveShift: octShift(s('common.synthOctaveShift')),
+    kbZone: lutStr(KB_ZONE, s('common.synthZone')),
+    pitchStick: s('common.param15') === 1,
+    sustainPedal: s('common.param16') === 1,
+    latchPedal: s('common.param32') === 1,
+    kbGate: s('common.param33') === 1,
+    kbHold: s('arpLfo.holdState') === 1,
+    output: lutStr(OUTPUT, s('common.param26')),
+    sampleId: ns2ToNs3Id(hash32(s('synth.param22'), s('synth.param23'), s('synth.param24'))),
+    voice: lutStr(SYNTH_VOICE, s('synth.voiceMode')),
+    glide: s('synth.glideRate'),
+    unison: lutStr(SYNTH_UNISON, s('synth.unisonMode')),
+    vibrato: lutStr(SYNTH_VIBRATO, s('synth.vibratoMode')),
+    arpEnabled: s('arpLfo.arpeggiatorRun') === 1,
     arpRateMidi,
     arpRate: arpMasterClock ? (ARP_MC[arpRateMidi] ?? `#${arpRateMidi}`) : lin10(arpRateMidi),
     arpMasterClock,
-    arpRange: lutStr(ARP_RANGE, (synDbW & 0x0180) >>> 7),
-    arpPattern: lutStr(ARP_PATTERN, (synDbW & 0x0600) >>> 9),
-    filter: readFilter(b, o),
-    modEnv: readModEnv(b, o),
-    ampEnv: readAmpEnv(b, o),
-    lfoWave: lutStr(LFO_WAVE, (synF7 & 0x0c) >>> 2),
+    arpRange: lutStr(ARP_RANGE, s('arpLfo.arpeggiatorRange')),
+    arpPattern: lutStr(ARP_PATTERN, s('arpLfo.arpeggiatorPattern')),
+    filter: {
+      type: lutStr(FILTER_TYPE, s('synth.filterMode')),
+      freqMidi,
+      freq: FILTER_FREQ[freqMidi] ?? '?',
+      resonanceMidi: s('synth.filterResonance'),
+      mod1Midi: s('synth.fltFreqMod1Amount'),
+      mod2Midi: s('synth.fltFreqMod2Amount'),
+      kbTrack: s('synth.fltKBTTrack') === 1,
+    },
+    modEnv: {
+      attackMidi: modAtk,
+      attack: ENV_ATTACK[modAtk] ?? '?',
+      decayMidi: modDec,
+      decay: ENV_DECAY[modDec] ?? '?',
+      releaseMidi: modRel,
+      release: ENV_DECAY[modRel] ?? '?',
+      velocity: s('synth.modEnvelopeVelocity') === 1,
+    },
+    ampEnv: {
+      attackMidi: ampAtk,
+      attack: ENV_ATTACK[ampAtk] ?? '?',
+      decayMidi: ampDec,
+      decay: ENV_DECAY[ampDec] ?? '?',
+      releaseMidi: ampRel,
+      release: ENV_DECAY[ampRel] ?? '?',
+      velocity: s('synth.ampEnvelopeVelocity') === 1,
+    },
+    lfoWave: lutStr(LFO_WAVE, s('synth.lFOWave')),
     lfoRateMidi,
     lfoRate: lfoMasterClock
       ? (LFO_RATE_MC[lfoRateMidi] ?? `#${lfoRateMidi}`)
       : (LFO_RATE[lfoRateMidi] ?? `#${lfoRateMidi}`),
     lfoMasterClock,
   };
-
-  return { id, active, organ, piano, synth, fx: readFx(b, o) };
 }
 
-/**
- * Decode a Stage 2 `.ns2p` into its active slot(s).
- * Oracle: ns2-program.js.
- */
-export function decodeNs2(bytes: Uint8Array): Ns2Program {
-  const versionOffset = u8(bytes, 0x04) === 1 ? 0 : -20;
+// ── Effects ─────────────────────────────────────────────────────────────────
 
-  const flag = (u8(bytes, 0x2e + versionOffset) & 0xc0) >>> 6;
-  const dual = (u8(bytes, 0x2e + versionOffset) & 0x20) !== 0;
-  const aActive = dual || flag !== 1;
-  const bActive = dual || flag !== 0;
+/** The slot's effects container: Effect 1, Effect 2, Amp/EQ and Delay, when switched on. */
+function slotFx(s: SlotGet): Ns2Fx[] {
+  const fx: Ns2Fx[] = [];
+  for (const n of [1, 2] as const) {
+    if (s(`effects.effect${n}Enable`) !== 1) continue;
+    const masterClock = s(`effects.effect${n}MstClk`) === 1;
+    const rate = masterClock ? s(`effects.effect${n}MstClkDiv`) : s(`effects.effect${n}Rate`);
+    fx.push({
+      name: `Effect ${n}`,
+      type: lutStr(n === 1 ? EFFECT1_TYPE : EFFECT2_TYPE, s(`effects.effect${n}Type`)),
+      source: lutStr(EFFECT_SRC, s(`effects.effect${n}Source`)),
+      params: {
+        amount: lin10(s(`effects.effect${n}Amount`)),
+        rate: masterClock ? (LFO_RATE_MC[rate] ?? `#${rate}`) : lin10(rate),
+        masterClock,
+      },
+    });
+  }
+  if (s('effects.ampSimEqEnable') === 1) {
+    fx.push({
+      name: 'Amp/EQ',
+      type: lutStr(AMP_TYPE, s('effects.ampSimEqType')),
+      source: lutStr(EFFECT_SRC, s('effects.ampSimEqSource')),
+      params: {
+        drive: lin10(s('effects.ampSimEqDrive')),
+        treble: String(s('effects.ampSimEqTreble')),
+        mid: String(s('effects.ampSimEqMid')),
+        bass: String(s('effects.ampSimEqBass')),
+        midFreq: String(s('effects.ampSimEqMidFreq')),
+      },
+    });
+  }
+  if (s('effects.delayEnable') === 1) {
+    const masterClock = s('effects.delayMstClk') === 1;
+    fx.push({
+      name: 'Delay',
+      source: lutStr(EFFECT_SRC, s('effects.delaySource')),
+      params: {
+        masterClock,
+        pingPong: s('effects.delayMode') === 1,
+        tempo: masterClock ? `mc:${s('effects.delayMstClkDiv')}` : String(s('effects.delayRate')),
+        feedback: lin10(s('effects.delayFeedback')),
+        amount: lin10(s('effects.delayAmount')),
+      },
+    });
+  }
+  return fx;
+}
 
-  const a = readSlot(bytes, 'A', versionOffset, aActive);
-  const b = readSlot(bytes, 'B', versionOffset, bActive);
-  // Organ type is hardware-global — mirror slot A type to slot B (oracle note)
-  b.organ.type = a.organ.type;
+function rotary(get: Get): Ns2Rotary {
+  return {
+    on: get('globalFx.rotarySpeakerEnable') === 1,
+    source: lutStr(EFFECT_SRC, get('globalFx.rotarySpeakerSource')),
+    driveMidi: get('globalFx.rotarySpeakerDrive'),
+    stopMode: get('globalFx.rotarySpeakerStopMode') === 1,
+    speed: lutStr(ROTARY_SPEED, get('globalFx.param9')),
+  };
+}
 
-  // Program-global FX — oracle: ns2-fx-reverb.js, ns2-fx-compressor.js
-  const rvW = u16(bytes, 0x3d + versionOffset);
-  const cpW = u16(bytes, 0x3e + versionOffset);
+// ── Program ─────────────────────────────────────────────────────────────────
 
-  const reverbOn = (rvW & 0x8000) !== 0;
-  const reverbType = lutStr(REVERB_TYPE, (rvW & 0x7000) >>> 12);
-  const reverbAmtMidi = (rvW & 0x0fe0) >>> 5;
+const LAYOUT_VERSION = NS2_LAYOUT.recordVersion ?? 7;
 
-  const compOn = (cpW & 0x1000) !== 0;
-  const compAmtMidi = (cpW & 0x0fe0) >>> 5;
+/** Decode a Stage 2 / 2 EX `.ns2p` into its active slot(s), plus every layout field in `values`. */
+export function decodeNs2(bytes: Uint8Array): Ns2File {
+  const warnings: string[] = [];
+  // Header type byte 0x04: 1 = NSM-era header (data at 0x2E), else legacy (data at 0x1A).
+  const nsm = (bytes[0x04] ?? 0) === 1;
+  const dataOffset = nsm ? NS2_NSM_DATA_OFFSET : LEGACY_DATA_OFFSET;
+  // An NSM-era file ends with the record (565 bytes); a legacy one adds the 2-byte trailer (547).
+  const trailerBytes = nsm ? 0 : 2;
+  // The u16 record version also sits in the CBIN version field (0x14, LE) on both headers.
+  const recordVersion = legacyRecordVersion(bytes);
+  const data = legacyData(bytes, dataOffset, trailerBytes);
+  if (data.length < NS2_LAYOUT.dataBytes) {
+    warnings.push(
+      `This file is shorter than a Stage 2 program (${bytes.length} bytes, expected ` +
+      `${dataOffset + NS2_LAYOUT.dataBytes + trailerBytes}); settings past the end show as 0.`,
+    );
+  }
+  if (recordVersion > LAYOUT_VERSION) {
+    warnings.push('This program was saved in a newer Stage 2 format than OpenNord knows; some settings may show wrong.');
+  } else if (recordVersion > 0 && recordVersion < LAYOUT_VERSION) {
+    warnings.push(
+      'This program was saved by an older Stage 2 OS. The Nord updates it when it loads it; ' +
+      'OpenNord shows the settings as stored.',
+    );
+  }
 
+  const { values, outOfRange } = readLegacyRecord(data, NS2_LAYOUT);
+  const morphDeltas: Partial<Record<Ns2FieldKey, number[]>> = {};
+  for (const f of NS2_LAYOUT.fields) {
+    if (f.deltaOf) (morphDeltas[f.deltaOf] ??= []).push(values[f.key] ?? 0);
+  }
+
+  const { get, slot } = reader(values);
+  // Program common descriptors 0-2: slot select (2 bits, read as one value) and
+  // the dual flag. 0 = A, 1 = B, 2/3 or dual = both (ns2-program.js).
+  const flag = get('programCommon.param0') * 2 + get('programCommon.param1');
+  const dual = get('programCommon.param2') === 1;
+  const active: Record<Slot, boolean> = { A: dual || flag !== 1, B: dual || flag !== 0 };
+  const slots = (['A', 'B'] as const).map((id): Ns2Slot => {
+    const s = slot(id);
+    return { id, active: active[id], organ: organ(get, s), piano: piano(get, s), synth: synth(s), fx: slotFx(s) };
+  });
+
+  const reverb = {
+    on: get('globalFx.reverbEnable') === 1,
+    type: lutStr(REVERB_TYPE, get('globalFx.reverbType')),
+    amountMidi: get('globalFx.reverbDryWet'),
+  };
+  const compressor = { on: get('globalFx.compressorEnable') === 1, amountMidi: get('globalFx.compressorAmount') };
+  const rot = rotary(get);
   const globalFx: Ns2Fx[] = [];
-  if (reverbOn) globalFx.push({ name: 'Reverb', type: reverbType, params: { amount: lin10(reverbAmtMidi) } });
-  if (compOn) globalFx.push({ name: 'Comp', params: { amount: lin10(compAmtMidi) } });
+  if (rot.on) {
+    globalFx.push({
+      name: 'Rotary',
+      source: rot.source,
+      params: { drive: lin10(rot.driveMidi), stopMode: rot.stopMode, speed: rot.speed },
+    });
+  }
+  if (reverb.on) globalFx.push({ name: 'Reverb', type: reverb.type, params: { amount: lin10(reverb.amountMidi) } });
+  if (compressor.on) globalFx.push({ name: 'Comp', params: { amount: lin10(compressor.amountMidi) } });
 
   return {
-    slots: [a, b].filter((s) => s.active),
+    format: 'ns2p',
+    slots: slots.filter((s) => s.active),
     globalFx,
-    reverb: { on: reverbOn, type: reverbType, amountMidi: reverbAmtMidi },
-    compressor: { on: compOn, amountMidi: compAmtMidi },
+    reverb,
+    compressor,
+    rotary: rot,
+    dataOffset,
+    recordVersion,
+    values,
+    morphDeltas,
+    outOfRange,
+    warnings,
   };
 }

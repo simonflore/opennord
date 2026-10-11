@@ -1,11 +1,12 @@
 /**
- * Stage 3 presenter: maps the low-level {@link decodeNs3} output (+ header) into
- * the shared {@link DecodedProgram} shape that DecodedProgramView renders. Keeps
- * the validated decoder untouched; this is the model→view mapping only.
+ * Stage 3 presenter: maps the {@link decodeNs3} output (+ header) into the shared
+ * {@link DecodedProgram} shape that DecodedProgramView renders. The model→view
+ * mapping only; the values come from the firmware layout (decode.ts).
  */
 import { identifyNordFile } from '../clavia/nord-file';
 import type { DecodedProgram, DecodedSection, DecodedEngine } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
+import { transposeText } from '../clavia/fw-present';
 import { decodeNs3, type Ns3Panel } from './decode';
 
 function organDrawbars(panel: Ns3Panel) {
@@ -49,12 +50,15 @@ function toSection(panel: Ns3Panel): DecodedSection {
 
 export function ns3Decoded(bytes: Uint8Array): DecodedProgram {
   const info = identifyNordFile(bytes);
-  const { panels } = decodeNs3(bytes);
+  const p = decodeNs3(bytes);
+  const { panels } = p;
 
   const header: [string, string][] = [];
   if (info.slot) header.push(['Slot', info.slot]);
   if (info.categoryName) header.push(['Category', info.categoryName]);
   if (info.version) header.push(['Version', `v${info.version}`]);
+  const transpose = transposeText(p.values['common.transposeEnable'], p.values['common.transposeValue']);
+  if (transpose) header.push(['Transpose', transpose]);
 
   // Lazy: pull the ~1.3MB sample catalog only when a Stage 3 program is opened.
   const enrich = async (): Promise<Record<string, string>> => {
@@ -77,7 +81,10 @@ export function ns3Decoded(bytes: Uint8Array): DecodedProgram {
     title: 'Stage 3 · Program',
     header,
     sections: panels.map(toSection),
-    note: 'Stage 3 decode (Tier 2): engines, factory sample/model names, levels, organ drawbars, FX and B3 character. Offsets + library from the community ns3-program-viewer (see docs).',
+    note: p.layoutMatched
+      ? 'Stage 3: engines, levels, organ drawbars, effects and B3 character, read with the program layout from the Stage 3 firmware. Factory sound names from the community ns3-program-viewer catalog.'
+      : "Stage 3: this file's structure didn't match the program layout from the Stage 3 firmware, so only the file header is shown.",
+    warnings: p.warnings,
     enrich,
   };
 }

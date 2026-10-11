@@ -10,6 +10,7 @@ vi.mock('../../lib/folder/FolderContext', () => ({ useFolder: vi.fn() }));
 
 import { ConvertToStage4 } from './ConvertToStage4';
 import { useFolder } from '../../lib/folder/FolderContext';
+import { NS3_FILE_BYTES, frameNs3Body } from '../../lib/ns3/file.synth';
 
 /** Minimal FolderLibrary mock — no folder linked, matching SampleConvert.test.tsx's shape. */
 function mockFolder(over: Record<string, unknown> = {}) {
@@ -52,7 +53,8 @@ function cbin(tag: string, size = 700): Uint8Array {
  *  - Morphs are always dropped by the emitter (common.ts MORPH_NOTE) → "not-migratable"
  */
 function ns3Bytes(): Uint8Array {
-  const b = cbin('ns3f');
+  // Framed as the firmware writes the body (format version + block lengths), fields zero.
+  const b = frameNs3Body(cbin('ns3f', NS3_FILE_BYTES));
   b[0x31] = 0; // panel A only
   b[0x43] = 0x80; // piano enable (b7)
   b[0x47] = 0x00; // piano octave shift raw 0 → -6 (out of Stage 4's ±2 range → approximated)

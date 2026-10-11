@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DecodedProgramView } from './DecodedProgramView';
 import { ns3Decoded } from '../../lib/ns3/present';
+import { NS3_FILE_BYTES, frameNs3Body } from '../../lib/ns3/file.synth';
 import { ns2Decoded } from '../../lib/ns2/present';
 import { ng2Decoded } from '../../lib/ng2/present';
 import { np5Decoded } from '../../lib/np5/present';
@@ -13,7 +14,7 @@ import { nlaDecoded } from '../../lib/nla/present';
 
 /** Minimal CBIN `ns3f` (NSM-era) with a panel-A piano-on/Grand body. */
 function ns3f(): Uint8Array {
-  const b = new Uint8Array(600);
+  const b = new Uint8Array(NS3_FILE_BYTES);
   b.set([0x43, 0x42, 0x49, 0x4e]);                 // CBIN
   b[0x04] = 1;                                      // format-type 1 (NSM-era)
   for (let i = 0; i < 4; i++) b[0x08 + i] = 'ns3f'.charCodeAt(i);
@@ -22,7 +23,7 @@ function ns3f(): Uint8Array {
   b[0x31] = 0;                                      // panel A only
   b[0x43] = 0x80;                                   // piano on
   b[0x48] = 0x00;                                   // Grand
-  return b;
+  return frameNs3Body(b);                           // format version + block lengths
 }
 
 /** Minimal CBIN `ns2p` (legacy header) with a slot-A piano-on/Clavinet body. */

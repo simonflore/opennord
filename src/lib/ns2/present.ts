@@ -1,8 +1,7 @@
 /**
  * Stage 2 presenter: maps {@link decodeNs2} (+ header) into the shared
- * {@link DecodedProgram} shape. v1 is engines + model/type; levels, drawbars, FX
- * and sample names land here as the decoder grows — reusing the same shape, so
- * DecodedProgramView renders them with no view changes.
+ * {@link DecodedProgram} shape that DecodedProgramView renders. The model→view
+ * mapping only; the values come from the firmware layout (decode.ts).
  */
 import { identifyNordFile } from '../clavia/nord-file';
 import type { DecodedProgram, DecodedSection, DecodedEngine } from '../clavia/decoded';
@@ -49,7 +48,7 @@ function toSection(slot: Ns2Slot, globalChips: string[]): DecodedSection {
 
 export function ns2Decoded(bytes: Uint8Array): DecodedProgram {
   const info = identifyNordFile(bytes);
-  const { slots, globalFx } = decodeNs2(bytes);
+  const { slots, globalFx, warnings } = decodeNs2(bytes);
   const globalChips = globalFx.map(fxChip);
 
   const header: [string, string][] = [];
@@ -78,7 +77,8 @@ export function ns2Decoded(bytes: Uint8Array): DecodedProgram {
     title: 'Stage 2 · Program',
     header,
     sections: slots.map((s) => toSection(s, globalChips)),
-    note: 'Stage 2 decode (Tier 2): active slots, engines + model/type, levels, organ drawbars, FX and factory sample names. Offsets + library from the community ns3-program-viewer (see docs).',
+    note: 'Stage 2: active slots, engines, levels, organ drawbars and effects, read with the program layout from the Stage 2 firmware. Factory sound names from the community ns3-program-viewer catalog.',
+    warnings,
     enrich,
   };
 }

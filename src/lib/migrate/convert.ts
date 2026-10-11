@@ -74,7 +74,10 @@ export async function migrateToNs4(
   if (id.recognized && id.generation === 'Stage 2') {
     lifted = fromNs2(decodeNs2(sourceBytes), { sampleName: opts.sampleName });
   } else if (id.recognized && id.generation === 'Stage 3') {
-    lifted = fromNs3(decodeNs3(sourceBytes), { sampleName: opts.sampleName });
+    const ns3 = decodeNs3(sourceBytes);
+    // A file the reader couldn't read would convert to the empty donor template.
+    if (!ns3.layoutMatched) throw new Error("This Stage 3 program couldn't be read, so it can't be converted");
+    lifted = fromNs3(ns3, { sampleName: opts.sampleName });
   } else {
     throw new Error('Only Stage 2 and Stage 3 programs can be converted');
   }
