@@ -34,7 +34,7 @@ export function PresetsSplit() {
       <PresetsBrowse
         entries={s.shown}
         source={s.source} setSource={s.setSource}
-        kind={s.kind} setKind={s.setKind}
+        kind={s.kind} setKind={s.setKind} clearFilters={s.clearFilters}
         query={s.query} setQuery={s.setQuery}
         kinds={s.kinds} showSourceFacet={s.showSourceFacet}
         sort={s.prefs.sort} setSort={s.prefs.setSort}

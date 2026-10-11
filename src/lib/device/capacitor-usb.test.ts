@@ -44,6 +44,13 @@ describe('usbAvailability', () => {
     setCapacitor({ isNativePlatform: () => true, getPlatform: () => 'ios' });
     expect(usbAvailability()).toBe('ipad-dext-pending');
   });
+  it('is unsupported in the iOS app on an iPhone', () => {
+    setNavigatorUsb(false);
+    setCapacitor({ isNativePlatform: () => true, getPlatform: () => 'ios' });
+    const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)');
+    expect(usbAvailability()).toBe('unsupported');
+    ua.mockRestore();
+  });
   it('is unsupported on a plain browser without WebUSB', () => {
     setNavigatorUsb(false);
     expect(usbAvailability()).toBe('unsupported');
