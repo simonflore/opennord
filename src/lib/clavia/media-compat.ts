@@ -19,11 +19,8 @@
  */
 import type { NordModelId } from './partitions';
 
-/**
- * The models this table covers: the registry's ids plus `electro-7`, which the firmware pass
- * read but `NordModelId` doesn't list yet. (Once it does, the union is unchanged.)
- */
-export type MediaModelId = NordModelId | 'electro-7';
+/** The models this table covers: every registry id. */
+export type MediaModelId = NordModelId;
 
 export type Confidence = 'high' | 'medium' | 'low';
 
@@ -201,6 +198,7 @@ export const MEDIA_COMPAT: Record<MediaModelId, MediaCompat> = {
     note: 'samples: a {8, 11, 30, 40} map exists but no check using it was located',
   },
   'organ-3': { pianos: 'none', samples: 'none', note: 'OS 1.00: only Program, Live and Settings partitions' },
+  c1: { pianos: 'none', samples: 'none', note: 'C1 OS 1.12: no piano or sample engine (and no USB transfer)' },
   'wave-2': {
     pianos: 'none',
     samples: 'unknown',
