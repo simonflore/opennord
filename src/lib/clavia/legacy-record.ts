@@ -201,10 +201,14 @@ export interface LegacyFileRead<K extends string> extends LegacyRecordRead<K> {
 /**
  * Read a whole legacy program file against `layout`: record version, data and
  * every field, with a warning for a short or odd-sized file, a record version
- * outside `versions`, and values outside their descriptor range. Never throws.
+ * outside `versions`, and values outside their descriptor range. `convert`, when
+ * given, rewrites the record data (in place, on a copy of the file's bytes)
+ * before the fields are read — an older record brought up to the layout's
+ * version (record-convert.ts); it runs only on a whole record. Never throws.
  */
 export function readLegacyFile<K extends string>(
   bytes: Uint8Array, layout: LegacyLayout<K>, versions: readonly number[] = layout.recordVersion === null ? [] : [layout.recordVersion],
+  convert?: (data: Uint8Array) => void,
 ): LegacyFileRead<K> {
   const warnings: string[] = [];
   const expected = legacyFileBytes(bytes, layout);
@@ -219,6 +223,7 @@ export function readLegacyFile<K extends string>(
   if (versions.length > 0 && !versions.includes(recordVersion)) {
     warnings.push(`Record version ${recordVersion}; the firmware reads ${versions.join(', ')}`);
   }
+  if (complete) convert?.(data);
   const { values, outOfRange } = readLegacyRecord(data, layout);
   if (complete && outOfRange.length > 0) warnings.push(outOfRangeWarning(outOfRange));
   return { recordVersion, data, complete, values, outOfRange, warnings };

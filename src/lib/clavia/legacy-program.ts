@@ -7,13 +7,15 @@
  * first) at file 0x18 after a legacy header (0x2C after an NSM-era one), the
  * data after the version, then the 2-byte trailer of a legacy file. On top of
  * it this adds what these readers share: the record version checked against
- * the one the firmware writes (older ones it converts are read with a warning,
- * any other opens header-only), a file too short for the record header-only,
+ * the one the firmware writes (older ones it converts are converted the same
+ * way when the model has a converter — record-convert.ts — else read with the
+ * current layout and a warning; any other opens header-only), a file too short for the record header-only,
  * and — where the record's position in the file is not established — header
  * only with a warning rather than a guess. Pure; never throws; model → clavia.
  */
 import { formatCbinVersion } from './cbin';
-import { readLegacyFile, type LegacyLayout, legacyRecordVersion } from './legacy-record';
+import { legacyLayoutVersion, legacyRecordVersion, readLegacyFile, type LegacyLayout } from './legacy-record';
+import type { RecordConverter } from './record-convert';
 
 export interface LegacyProgram<K extends string> {
   readonly parsed: true;
@@ -43,8 +45,14 @@ export interface LegacyRecordSpec {
   readonly model: string;
   /** False while the record's position in the file is not established: the file then opens header-only. */
   readonly located?: boolean;
-  /** Older record versions the firmware converts on load: read with the current layout, with a warning. */
+  /** Older record versions the firmware converts on load. */
   readonly converted?: readonly number[];
+  /**
+   * The firmware's conversion of a `converted` version, applied to the record
+   * data before it is read. Without one a converted version is read with the
+   * current layout as stored, with a warning that a few values may be off.
+   */
+  readonly convert?: RecordConverter;
   /** The warning shown when the record is not located. */
   readonly unknownStart?: string;
 }
@@ -62,21 +70,31 @@ export function decodeLegacyProgram<K extends string>(
   if (spec.located === false) {
     return headerOnly([spec.unknownStart ?? `Where the ${spec.model} program record starts in this file is not known yet; showing the file header only.`]);
   }
-  const r = readLegacyFile(bytes, layout, []);
-  if (!r.complete) return headerOnly([...r.warnings, 'Showing the file header only.']);
-
   const current = layout.recordVersion;
   const reads = (v: number) => v === current || !!spec.converted?.includes(v);
   // The firmware's own copy of the version sits in front of the data; NSM keeps
   // one at 0x14. Older readers were checked on real files against 0x14 only, so
   // if the record's copy isn't one the firmware reads but NSM's is, trust NSM's
   // rather than refusing a file the old reader opened.
+  const own = legacyLayoutVersion(bytes, layout);
   const recordVersion = current === null ? null
-    : !reads(r.recordVersion) && reads(legacyRecordVersion(bytes)) ? legacyRecordVersion(bytes)
-    : r.recordVersion;
+    : !reads(own) && reads(legacyRecordVersion(bytes)) ? legacyRecordVersion(bytes)
+    : own;
+  const converting = recordVersion !== null && recordVersion !== current && !!spec.converted?.includes(recordVersion);
+  const notes: string[] = [];
+  const converter = converting ? spec.convert : undefined;
+  const convert = converter && ((data: Uint8Array) => { notes.push(...converter(data, recordVersion ?? 0)); });
+
+  const r = readLegacyFile(bytes, layout, [], convert);
+  if (!r.complete) return headerOnly([...r.warnings, 'Showing the file header only.']);
+
   const warnings: string[] = [];
   if (current !== null && recordVersion !== current) {
-    if (recordVersion !== null && spec.converted?.includes(recordVersion)) {
+    if (converting && spec.convert) {
+      warnings.push(
+        `Program format version ${recordVersion}: the ${spec.model} converts it to version ${current} on load, ` +
+        'and OpenNord converts it the same way.', ...notes);
+    } else if (converting) {
       warnings.push(
         `Program format version ${recordVersion}: the ${spec.model} converts it to version ${current} on load. ` +
         `It is read with the version-${current} layout, so a few values may be off.`);

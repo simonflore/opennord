@@ -110,10 +110,18 @@ describe('decodeNe5 (synthetic, firmware layout)', () => {
     expect(Array.from(file.slice(0x2c + 7, 0x2c + 13))).toEqual([0x80, 0x07, 0x90, 0x15, 0x19, 0x24]);
   });
 
-  it('reads a version 3 record with a warning, refuses version 2 (header only)', () => {
+  it('converts a version 3 record (the EQ source moves to its 2-bit field), refuses version 2 (header only)', () => {
     const v3 = decodeNe5(ne5p({}, 3));
     expect(v3.layoutMatched).toBe(true);
-    expect(v3.warnings.join(' ')).toMatch(/version 3.*converts/);
+    expect(v3.warnings.join(' ')).toMatch(/version 3.*converts it the same way/);
+    // Version 3 kept the EQ source in one bit (now effects.param15): 1 = Part U.
+    const u = decodeNe5(ne5p({ 'effects.param15': 1, 'effects.equalizerSource': 2 }, 3));
+    expect(u.values).toMatchObject({ 'effects.equalizerSource': 1, 'effects.param15': 0 });
+    expect(u.outOfRange).toEqual([]);
+    const l = decodeNe5(ne5p({ 'effects.param15': 0, 'effects.equalizerSource': 2 }, 3));
+    expect(l.values['effects.equalizerSource']).toBe(0);
+    // Version 4 reads as stored.
+    expect(decodeNe5(ne5p({ 'effects.equalizerSource': 2 })).values['effects.equalizerSource']).toBe(2);
     const v2 = decodeNe5(ne5p({}, 2));
     expect(v2.layoutMatched).toBe(false);
     expect(v2.values).toEqual({});

@@ -14,11 +14,11 @@ import { join } from 'path';
 import { describe, it, expect } from 'vitest';
 import { decodeNs2, NS2_NSM_DATA_OFFSET } from './decode';
 import { NS2_LAYOUT, type Ns2FieldKey } from './layout.generated';
-import { synthFwFile, synthLegacyFile, writeLegacyRecord } from '../clavia/block-chain.synth';
+import { synthFwFile, synthLegacyLayoutFile, writeLegacyRecord } from '../clavia/block-chain.synth';
 import { LEGACY_DATA_OFFSET } from '../clavia/legacy-record';
 
-// Header-type-1 buffers (versionOffset 0) keep the offsets direct for tests.
-const t1 = () => { const b = new Uint8Array(600); b[0x04] = 1; return b; };
+// Header-type-1 buffers (versionOffset 0) keep the offsets direct for tests; record version 7 at 0x2C.
+const t1 = () => { const b = new Uint8Array(600); b[0x04] = 1; b[0x2d] = 7; return b; };
 
 describe('decodeNs2', () => {
   it('selects active slots from the 0x2E flag (0=A, 1=B, 2/3=both)', () => {
@@ -156,8 +156,8 @@ function nsmFile(values: Values = {}, version = 7): Uint8Array {
   body.set(record(values), 2);
   return synthFwFile('ns2p', body, version);
 }
-/** A legacy (formatType 0) file: data at 0x1A, record version at 0x14. */
-const legacyFile = (values: Values = {}, version = 7) => synthLegacyFile('ns2p', version, record(values));
+/** A legacy (formatType 0) file: record version at 0x14 and (u16 BE) at 0x18, data at 0x1A. */
+const legacyFile = (values: Values = {}, version = 7) => synthLegacyLayoutFile('ns2p', NS2_LAYOUT, values, { version });
 
 describe('NS2 firmware layout', () => {
   it('is 519 bytes of data: 21 global, then two 249-byte slots, version 7', () => {

@@ -36,10 +36,15 @@ describe('decodeNp2 (synthetic)', () => {
     expect(p.values['piano.pianoLevel']).toBe(127);
   });
 
-  it('reads a version 1 record with a warning (the firmware converts it)', () => {
+  it('converts version 0 and 1 records: Keyboard Touch 0, 1, 2, 3 → 0, 1, 1, 2', () => {
+    const touch = (version: number, t: number) => decodeNp2(np2p({ 'common.param4': t }, version)).values['common.param4'];
+    expect([0, 1, 2, 3].map((t) => touch(1, t))).toEqual([0, 1, 1, 2]);
+    expect([0, 1, 2, 3].map((t) => touch(0, t))).toEqual([0, 1, 1, 2]);
+    expect([0, 1, 2, 3].map((t) => touch(2, t))).toEqual([0, 1, 2, 3]);
     const p = decodeNp2(np2p({}, 1));
     expect(p.layoutMatched).toBe(true);
-    expect(p.warnings.join(' ')).toMatch(/version 1.*converts/);
+    expect(p.warnings.join(' ')).toMatch(/version 1.*converts it the same way/);
+    expect(decodeNp2(np2p({}, 3)).layoutMatched).toBe(false);
   });
 
   it('presents piano, synth and effects', () => {
