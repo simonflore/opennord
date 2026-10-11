@@ -24,7 +24,8 @@
  */
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'node:path';
-import { usb, findByIds, getDeviceList, useUsbDkBackend } from 'usb';
+import { usb, findByIds, getDeviceList, useUsbDkBackend, type InEndpoint, type Interface, type OutEndpoint } from 'usb';
+import { startUpdater, type UpdaterHandle } from './updater';
 
 const NORD_VENDOR = 0x0ffc;
 
@@ -50,22 +51,23 @@ function initWindowsBackend(): void {
 
 interface OpenState {
   device: usb.Device;
-  iface: usb.Interface;
-  inEndpoint: usb.InEndpoint;
-  outEndpoint: usb.OutEndpoint;
+  iface: Interface;
+  inEndpoint: InEndpoint;
+  outEndpoint: OutEndpoint;
 }
 let state: OpenState | null = null;
+let updater: UpdaterHandle | null = null;
 
 function nordDevices(): usb.Device[] {
   return getDeviceList().filter((d) => d.deviceDescriptor.idVendor === NORD_VENDOR);
 }
 
 /** Find the vendor bulk interface + its bulk IN/OUT endpoints (mirrors the web transport). */
-function findBulk(device: usb.Device): { iface: usb.Interface; inEp: usb.InEndpoint; outEp: usb.OutEndpoint } {
+function findBulk(device: usb.Device): { iface: Interface; inEp: InEndpoint; outEp: OutEndpoint } {
   device.open();
   for (const iface of device.interfaces ?? []) {
-    const inEp = iface.endpoints.find((e) => e.direction === 'in' && e.transferType === usb.LIBUSB_TRANSFER_TYPE_BULK) as usb.InEndpoint | undefined;
-    const outEp = iface.endpoints.find((e) => e.direction === 'out' && e.transferType === usb.LIBUSB_TRANSFER_TYPE_BULK) as usb.OutEndpoint | undefined;
+    const inEp = iface.endpoints.find((e) => e.direction === 'in' && e.transferType === usb.LIBUSB_TRANSFER_TYPE_BULK) as InEndpoint | undefined;
+    const outEp = iface.endpoints.find((e) => e.direction === 'out' && e.transferType === usb.LIBUSB_TRANSFER_TYPE_BULK) as OutEndpoint | undefined;
     if (inEp && outEp) return { iface, inEp, outEp };
   }
   throw new Error('No bulk interface found on the Nord.');
@@ -133,6 +135,8 @@ function registerUsbIpc(): void {
           /* already closed */
         }
         resolve();
+        // A restart prompt held back during the session can show now.
+        updater?.deviceClosed();
       });
     }),
   );
@@ -160,6 +164,7 @@ async function createWindow(): Promise<void> {
 app.whenReady().then(() => {
   initWindowsBackend(); // Windows: switch libusb to UsbDk if available (before any device access).
   registerUsbIpc();
+  updater = startUpdater({ isDeviceOpen: () => state !== null });
   void createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
