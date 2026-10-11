@@ -345,6 +345,14 @@ describe('decodeNs2 — fixes against the earlier decoder', () => {
     expect(p.outOfRange).not.toContain('slotA_piano.param3');
   });
 
+  it('labels envelope decay/release 59 as 1.05 s (the viewer\'s table says "1050 s")', () => {
+    const { modEnv, ampEnv } = decodeNs2(nsmFile({
+      'slotA_synth.modEnvelopeDecay': 59, 'slotA_synth.modEnvelopeRelease': 58,
+      'slotA_synth.ampEnvelopeDecay': 60, 'slotA_synth.ampEnvelopeRelease': 59,
+    })).slots[0].synth;
+    expect([modEnv.decay, modEnv.release, ampEnv.decay, ampEnv.release]).toEqual(['1.05 s', '983 ms', '1.13 s', '1.05 s']);
+  });
+
   it('reads long release and string resonance from the one 2-bit Acoustic field', () => {
     const acoustic = (v: number) => {
       const { longRelease, stringResonance } = decodeNs2(nsmFile({ 'slotA_piano.pianoAcoustic': v })).slots[0].piano;

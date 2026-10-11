@@ -160,9 +160,10 @@ const NOT_FULL_MAP: Record<string, string> = {
 // ── Legacy-record models: byte map of the record data (file 0x1A on) ─────────
 // Lead 4 (high) → 'confirmed'. Stage 2 / 2 EX (their record data starts at 0x2E
 // behind the NSM-era header, 0x1A behind the legacy one) → 'confirmed': framing,
-// values and morph deltas checked on ns3-program-viewer's corpus of real files. Electro 4 (its layout is medium confidence, although it
-// reproduces the corpus drawbar/sample anchors) and Lead A1 (alignment unchecked
-// against real files) → 'candidate'.
+// values and morph deltas checked on ns3-program-viewer's corpus of real files.
+// Electro 4 (its layout is medium confidence, although it reproduces the corpus
+// drawbar/sample anchors) and Lead A1 (alignment unchecked against real files)
+// → 'candidate'.
 // Lead 4 maps its program record (a performance is 7 common bytes + 4 of them).
 const LEGACY_LAYOUTS: Record<string, { layout: LegacyLayout; status: 'confirmed' | 'candidate' }> = {
   'stage-2': { layout: NS2_LAYOUT, status: 'confirmed' },
