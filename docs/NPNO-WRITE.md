@@ -242,9 +242,9 @@ knowledge only, `docs/LEGAL.md`). The code copy, with the function behind each r
 
 What this means for OpenNord's files:
 
-- `buildNpno` writes **v6**, which every model in the first group takes. For the v5-only models
-  (Electro 3 HP, Electro 4, Piano 1, Piano 2, and the Electro 3) it refuses when given the
-  `model`; a v5 file needs the v5 envelope (`writeNpnoImage` with `envelope: 'v5'`, a v5
+- `buildNpno` writes **v6**, which every model in the first group takes. For the models without
+  v6 (the v5-only Electro 3 HP, Electro 4, Piano 1 and Piano 2, and the v4/v5 Electro 3) it
+  refuses when given the `model`; a v5 file needs the v5 envelope (`writeNpnoImage` with `envelope: 'v5'`, a v5
   header and v5 records), which OpenNord can re-wrap but not yet build from recordings.
 - Older Electro 3 systems: NSM's `CElectro3_PreNPNOv5` covers OS 1.00–2.06, which suggests those
   builds predate v5 pianos. Only OS 3.14 was read.
