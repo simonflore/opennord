@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import type { NordSession } from './session';
 import type { ProgramEntry } from './transfer';
 import type { PartitionCapacity } from './capacity';
@@ -23,6 +23,9 @@ interface DeviceState {
   capacity: PartitionCapacity | null;
   setCapacity: (c: PartitionCapacity | null) => void;
   setConnection: (s: NordSession, e: ProgramEntry[], name: string, productId: number) => void;
+  /** Whether `s` is still the connected session: a read that finishes after a
+   *  reconnect or disconnect checks this before storing what it read. */
+  isCurrent: (s: NordSession) => boolean;
   setEntries: (e: ProgramEntry[]) => void;
   disconnect: () => void;
 }
@@ -38,6 +41,9 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
   const [deviceName, setDeviceName] = useState('');
   const [productId, setProductId] = useState(0);
   const [capacity, setCapacity] = useState<PartitionCapacity | null>(null);
+  // The connected session right now (set with it, not after a render), for isCurrent.
+  const current = useRef<NordSession | null>(null);
+  const isCurrent = useCallback((s: NordSession) => current.current === s, []);
 
   const value: DeviceState = {
     session, entries, deviceName, productId,
@@ -48,7 +54,9 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     // A new connection starts without the last Nord's per-device state (sample,
     // preset and piano lists, capacity): each is read again for this session,
     // and the last Nord's lists name slots this one may fill differently.
+    isCurrent,
     setConnection: (s, e, name, pid) => {
+      current.current = s;
       setSession(s); setEntries(e); setDeviceName(name); setProductId(pid);
       setSampleEntries([]); setPresetEntries([]); setPianoEntries([]); setCapacity(null);
     },
@@ -57,6 +65,7 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
       // Release the USB interface, or the next connect fails "busy" as if NSM
       // held the device. Best-effort: the state reset must not hinge on it.
       void session?.close().catch(() => undefined);
+      current.current = null;
       setSession(null); setEntries([]); setSampleEntries([]); setPresetEntries([]); setPianoEntries([]); setDeviceName(''); setProductId(0); setCapacity(null);
     },
   };

@@ -9,6 +9,7 @@ import { DeviceRoute } from '@/routes/device';
 import { AboutRoute } from '@/routes/about';
 import { CompatibilityRoute } from '@/routes/compatibility';
 import { RE_ROUTES } from '@/router-re';
+import { trimSlash } from './lib/library/categories';
 
 /** Build the app router, optionally with extra (proprietary) routes injected by the
  *  commercial build. The open build calls it with no args. */
@@ -28,7 +29,7 @@ export function createAppRouter(extra: AnyRoute[] = []) {
     // Each page keeps its scroll: leaving a list for an entry and coming back
     // (or going back in history) returns to where the list was, on a phone too.
     scrollRestoration: true,
-    getScrollRestorationKey: (location) => location.pathname,
+    getScrollRestorationKey: (location) => trimSlash(location.pathname),
     defaultNotFoundComponent: () => {
       if (typeof window !== 'undefined') window.location.hash = '#/library/programs';
       return null;

@@ -43,9 +43,7 @@ const extForGeneration = (g: string) => SAMPLE_EXT[g] ?? 'nsmp4';
 /** Merges device + folder samples into one filtered/sorted list and owns the
  *  Samples-screen view state. Mirrors useLibraryStateValue for programs. */
 function useSamplesStateValue() {
-  const { session, sampleEntries, setSampleEntries } = useDevice();
-  const currentSession = useRef(session);
-  useEffect(() => { currentSession.current = session; }, [session]);
+  const { session, sampleEntries, setSampleEntries, isCurrent } = useDevice();
   const folder = useFolder();
   const imported = useImportedSamples();
   const prefs = useSamplesPrefs();
@@ -151,7 +149,7 @@ function useSamplesStateValue() {
           { onProgress: (p) => setRemovePct(Math.round((p.opIndex / p.opCount) * 100)) }));
       // 2. refresh the device sample list
       // Unless the Nord changed meanwhile: then this list is the old one's.
-      try { const es = await enumerateSampleLibrary(session); if (currentSession.current === session) setSampleEntries(es); } catch { /* leave as-is */ }
+      try { const es = await enumerateSampleLibrary(session); if (isCurrent(session)) setSampleEntries(es); } catch { /* leave as-is */ }
       clearSelected();
       return res.ok
         ? { removed: toRemove.length, failed: copyFailed }
