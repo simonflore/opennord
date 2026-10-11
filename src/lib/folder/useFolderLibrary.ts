@@ -62,16 +62,22 @@ export interface FolderLibrary {
 
 /** `r` with one scan batch added. */
 function withBatch(r: ScanResult, b: ScanBatch): ScanResult {
-  return {
-    programs: [...r.programs, ...b.programs],
-    presets: [...r.presets, ...(b.presets ?? [])],
-    pianos: [...r.pianos, ...b.pianos],
-    samples: [...r.samples, ...b.samples],
-    errors: [...r.errors, ...b.errors],
-    backupPianos: [...r.backupPianos, ...(b.backupPianos ?? [])],
-    backupSamples: [...r.backupSamples, ...(b.backupSamples ?? [])],
-  };
+  const next = { ...r, programs: [...r.programs], presets: [...r.presets], pianos: [...r.pianos], samples: [...r.samples],
+    errors: [...r.errors], backupPianos: [...r.backupPianos], backupSamples: [...r.backupSamples] };
+  addBatch(next, b);
+  return next;
 }
+/** Add a scan batch to `r` in place (a result nothing renders yet). */
+function addBatch(r: ScanResult, b: ScanBatch) {
+  r.programs.push(...b.programs);
+  r.presets.push(...(b.presets ?? []));
+  r.pianos.push(...b.pianos);
+  r.samples.push(...b.samples);
+  r.errors.push(...b.errors);
+  r.backupPianos.push(...(b.backupPianos ?? []));
+  r.backupSamples.push(...(b.backupSamples ?? []));
+}
+const emptyResult = (): ScanResult => ({ programs: [], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
 
 export function useFolderLibrary(makeScanner: () => Scanner = createScanner): FolderLibrary {
   const [folderName, setFolderName] = useState<string | null>(null);
@@ -114,30 +120,43 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     const scanner = makeScanner();
     scannerRef.current = scanner;
     // `keep` (a refresh of the same folder): the last scan stays shown until the
-    // new one's loose pass is in, so the lists, and an entry open beside them,
-    // don't empty out meanwhile. A new folder starts empty and fills as it scans.
-    let staged: ScanResult | null = keep ? EMPTY : null;
-    if (!keep) setResult(EMPTY);
-    setBundles([]); setNewBundles([]); setPickerOpen(false);
+    // new one has re-read what was showing (the loose files and the remembered
+    // backups), so the lists, and an entry open beside them, don't empty out
+    // meanwhile; if the refresh fails, the list empties as a new scan's would.
+    // A new folder starts empty and fills as it scans.
+    let staged: ScanResult | null = keep ? emptyResult() : null;
+    if (!keep) { setResult(EMPTY); setBundles([]); setNewBundles([]); }
+    setPickerOpen(false);
     const shown = append(gen);
-    const onBatch = (b: ScanBatch) => { if (staged) staged = withBatch(staged, b); else shown(b); };
+    const onBatch = (b: ScanBatch) => {
+      if (gen !== genRef.current) return;
+      if (staged) addBatch(staged, b); else shown(b);
+    };
 
-    const found = await scanner.scanLoose(source, onBatch);
-    if (gen !== genRef.current) return;
+    let found: BundleDescriptor[];
+    let choice: Awaited<ReturnType<typeof loadBundleChoice>>;
+    let undecided: BundleDescriptor[];
+    try {
+      found = await scanner.scanLoose(source, onBatch);
+      if (gen !== genRef.current) return;
+      setBundles(found);
+
+      choice = await loadBundleChoice(name, dirHandle ?? undefined);
+      if (gen !== genRef.current) return;
+      const decided = new Set(choice?.decided ?? []);
+      const skipped = new Set(choice?.skipped ?? []);
+      undecided = found.filter((b) => !decided.has(b.path) && !skipped.has(b.path));
+      setNewBundles(undecided);
+
+      // Re-apply remembered "load" choices silently.
+      const toReload = found.filter((b) => decided.has(b.path)).map((b) => b.path);
+      if (toReload.length > 0) await scanner.expandBundles(toReload, onBatch);
+      if (gen !== genRef.current) return;
+    } catch (err) {
+      if (staged && gen === genRef.current) setResult(EMPTY);
+      throw err;
+    }
     if (staged) { setResult(staged); staged = null; }
-    setBundles(found);
-
-    const choice = await loadBundleChoice(name, dirHandle ?? undefined);
-    if (gen !== genRef.current) return;
-    const decided = new Set(choice?.decided ?? []);
-    const skipped = new Set(choice?.skipped ?? []);
-    const undecided = found.filter((b) => !decided.has(b.path) && !skipped.has(b.path));
-    setNewBundles(undecided);
-
-    // Re-apply remembered "load" choices silently.
-    const toReload = found.filter((b) => decided.has(b.path)).map((b) => b.path);
-    if (toReload.length > 0) await scanner.expandBundles(toReload, onBatch);
-    if (gen !== genRef.current) return;
 
     if (undecided.length >= 2) {
       setPickerOpen(true);
