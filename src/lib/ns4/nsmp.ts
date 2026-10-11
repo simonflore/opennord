@@ -482,58 +482,98 @@ export function perNoteCustomCount(bytes: Uint8Array): number {
 
 /**
  * The codec-4 `map`'s **SampleUnison / voicing** block — the 31-byte structure
- * between the per-note level/detune table and the zone count, read by
- * the `map` reader. Codec 3 has no such block. Gains are the
- * `DSP2Level` dB scale; `detune*`/`pan*` are stored raw (u16/u8) and their value
- * scale isn't pinned (the whole corpus is unison-off). `mode`/`blockMode` are the
- * unison-mode / unison-block-mode enums (0 = off).
+ * between the per-note table and the zone count. Codec 3 has no such block.
+ *
+ * It does not switch unison on: that is the program's Unison setting (0–3). It holds
+ * what each setting does for this sample. Layout as the instrument reads it (Stage 4
+ * ARM loader; the maintainers’ notes), which real files confirm (their
+ * values come out as round numbers only this way): `mode, topKey`, four u16 BE, three
+ * pan bytes, four voice counts, four u24 gains, two flags.
  */
 export interface SampleUnison {
-  mode: number; topKey: number;
-  detuneMax: number; sameDetuneMin: number; panMax: number;
-  detuneMax2: number; panMax2: number; detuneMax3: number; panMax3: number;
+  /** 0 = the instrument's built-in detune and pan; 1 = the values below. */
+  mode: number;
+  /** Highest key that uses neighbouring recordings; above it one recording is doubled. */
+  topKey: number;
+  /** Detune of Unison 1 / 2 / 3, raw: ± raw·25/65536 semitone (40 ≈ ±1.5 cents). */
+  detuneMax: number; detuneMax2: number; detuneMax3: number;
+  /** Detune (same scale) used at Unison 1 when both voices play the same recording. */
+  sameDetuneMin: number;
+  /** Stereo width of Unison 1 / 2 / 3: 0 = both voices centred, 100 = hard left/right. */
+  panMax: number; panMax2: number; panMax3: number;
   numVoice1: number; numVoice2: number; numVoice3: number; numVoiceSame: number;
   /** Per-tier voice gains in dB (`DSP2Level`). */
   gainDb1: number; gainDb2: number; gainDb3: number; gainDbSame: number;
+  /** Non-zero: repeated notes step through neighbouring recordings. */
   randomStrokeMode: number; blockRandomSustPed: number;
-  /** True when unison is engaged (`mode !== 0`). */
-  active: boolean;
+  /** True when the sample carries its own unison values (`mode !== 0`). */
+  custom: boolean;
 }
 
-/** Default (unison-off) block as real `.nsmp4` stores it: 2 voices per tier, unity gain. */
+/** Default block as our writer stores it: built-in voicing, 2 voices per tier, unity gain. */
 export const DEFAULT_SAMPLE_UNISON: Readonly<SampleUnison> = {
-  mode: 0, topKey: 0, detuneMax: 0, sameDetuneMin: 0, panMax: 0,
-  detuneMax2: 0, panMax2: 0, detuneMax3: 0, panMax3: 0,
+  mode: 0, topKey: 0, detuneMax: 0, detuneMax2: 0, detuneMax3: 0, sameDetuneMin: 0,
+  panMax: 0, panMax2: 0, panMax3: 0,
   numVoice1: 2, numVoice2: 2, numVoice3: 2, numVoiceSame: 2,
   gainDb1: 0, gainDb2: 0, gainDb3: 0, gainDbSame: 0,
-  randomStrokeMode: 0, blockRandomSustPed: 0, active: false,
+  randomStrokeMode: 0, blockRandomSustPed: 0, custom: false,
 };
+
+/** Offset of the codec-4 `map`'s per-note table (128 rows of 10 bytes), or null. */
+function codec4PerNoteOffset(bytes: Uint8Array): { rows: number; end: number } | null {
+  if ((readNsmp(bytes).codec ?? 0) < 4) return null;
+  const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'));
+  return map ? { rows: map.payloadOffset + 6, end: map.endOffset } : null;
+}
 
 /**
  * Read the codec-4 `map` SampleUnison block. Returns null for codec 3 / no map /
- * a block that runs past the section. Field order + sizes are the exact
- * read sequence (mode, topKey, then interleaved detune(u16)/
- * pan(u8) spreads, four voice counts, four u24 gains, two random flags).
+ * a block that runs past the section.
  */
 export function readSampleUnison(bytes: Uint8Array): SampleUnison | null {
-  const codec = readNsmp(bytes).codec ?? 0;
-  if (codec < 4) return null;
-  const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'));
-  if (!map) return null;
-  const o = map.payloadOffset + 6 + 128 * 10; // after global + per-note (10B rows)
-  if (o + 31 > map.endOffset) return null;
+  const at = codec4PerNoteOffset(bytes);
+  if (!at) return null;
+  const o = at.rows + 128 * 10; // after the per-note rows
+  if (o + 31 > at.end) return null;
   const mode = bytes[o];
   return {
     mode, topKey: bytes[o + 1],
-    detuneMax: u16be(bytes, o + 2), sameDetuneMin: u16be(bytes, o + 4), panMax: bytes[o + 6],
-    detuneMax2: u16be(bytes, o + 7), panMax2: bytes[o + 9],
-    detuneMax3: u16be(bytes, o + 10), panMax3: bytes[o + 12],
+    detuneMax: u16be(bytes, o + 2), detuneMax2: u16be(bytes, o + 4), detuneMax3: u16be(bytes, o + 6),
+    sameDetuneMin: u16be(bytes, o + 8),
+    panMax: bytes[o + 10], panMax2: bytes[o + 11], panMax3: bytes[o + 12],
     numVoice1: bytes[o + 13], numVoice2: bytes[o + 14], numVoice3: bytes[o + 15], numVoiceSame: bytes[o + 16],
     gainDb1: dsp2Level(u24be(bytes, o + 17)), gainDb2: dsp2Level(u24be(bytes, o + 20)),
     gainDb3: dsp2Level(u24be(bytes, o + 23)), gainDbSame: dsp2Level(u24be(bytes, o + 26)),
     randomStrokeMode: bytes[o + 29], blockRandomSustPed: bytes[o + 30],
-    active: mode !== 0,
+    custom: mode !== 0,
   };
+}
+
+/** The neighbouring keys whose recordings a key may borrow. */
+export interface NoteAlternates {
+  /** For unison: up to two other keys whose recordings sound alongside this key's own. */
+  unison: number[];
+  /** For repeated notes: the subset of {@link unison} a repeat may play instead. */
+  random: number[];
+}
+
+/**
+ * Per-key alternate recordings from the codec-4 per-note rows: each row ends in four
+ * key bytes `b0..b3`. `b0`/`b1` name the alternates (a byte equal to the key itself
+ * means none); `b2`/`b3` repeat the ones that repeated notes may also use — both, the
+ * first only, or neither (Stage 4 loader; the maintainers’ notes).
+ * Null for codec 3, and when the file marks the table unused (`0xFF` on key 0).
+ */
+export function readNoteAlternates(bytes: Uint8Array): NoteAlternates[] | null {
+  const at = codec4PerNoteOffset(bytes);
+  if (!at || at.rows + 128 * 10 > at.end || bytes[at.rows + 6] === 0xff) return null;
+  return Array.from({ length: 128 }, (_, key) => {
+    const [b0, b1, b2, b3] = bytes.subarray(at.rows + key * 10 + 6, at.rows + key * 10 + 10);
+    const unison = [b0, b1].filter((k) => k !== key && k < 128);
+    const first = b2 === b0, second = b3 === b1;
+    const random = first && second ? unison : (first || second) && unison.length === 2 ? [first ? b0 : b1] : [];
+    return { unison, random };
+  });
 }
 
 /** Tru-Vibrato state from the codec-4 `.sty` (style) section. */

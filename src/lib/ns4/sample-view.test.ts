@@ -109,11 +109,22 @@ describe('gainDetuneView — interpreted gain (dB) + detune (cents)', () => {
 });
 
 describe('sampleUnisonView', () => {
-  it('summarises a default codec-4 unison block as off', () => {
+  it('says a default codec-4 block leaves unison to the instrument', () => {
     const bytes = writeNsmp({ name: 'U', channels: [new Int16Array(64)], codec: 4 });
     const v = sampleUnisonView(bytes)!;
-    expect(v.active).toBe(false);
-    expect(v.summary.toLowerCase()).toContain('off');
+    expect(v.custom).toBe(false);
+    expect(v.summary).toContain('instrument');
+  });
+
+  it('spells out a sample\'s own detune and width per Unison setting', () => {
+    const bytes = writeNsmp({ name: 'U', channels: [new Int16Array(64)], codec: 4 });
+    const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'))!;
+    bytes.set([0x01, 0x6c, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x28, 0x00, 0x00, 0x46, 0x46, 0x46], map.payloadOffset + 6 + 1280);
+    bytes[map.payloadOffset + 6 + 1280 + 29] = 3;
+    expect(sampleUnisonView(bytes)).toEqual({
+      custom: true,
+      summary: 'detune ±0.0 / 0.6 / 1.5 cents and width 70 / 70 / 70 for Unison 1 / 2 / 3 · repeated notes vary',
+    });
   });
 
   it('returns null for codec-3 (no unison block)', () => {

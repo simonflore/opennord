@@ -28,9 +28,7 @@ export interface SampleHeaderView {
   isFactory: boolean;
   /** Tru-Vibrato engaged (codec-4.2 samples only; undefined when not applicable). */
   truVibrato?: boolean;
-  /** Unison voicing summary (codec-4 only), e.g. "on · 2 voices · round-robin". */
-  unison?: string;
-  /** Round-robin engaged (RandomStrokeMode set) — surfaced independently of unison. */
+  /** Repeated notes step through neighbouring recordings (RandomStrokeMode set). */
   roundRobin?: boolean;
   /** Global + per-note level/detune, read-only. Computed by {@link gainDetuneView}
    *  (kept off {@link sampleHeaderView} so its callers/tests stay unchanged). */
@@ -89,28 +87,28 @@ export function truVibratoView(bytes: Uint8Array): boolean | undefined {
   return readTruVibrato(bytes)?.on;
 }
 
-/** At-a-glance voicing badges for the header: unison summary + round-robin flag.
- *  Codec-4 only ({} otherwise). Round-robin is reported independently of unison
- *  because the rompler applies it whenever RandomStrokeMode is set. */
-export function voicingView(bytes: Uint8Array): { unison?: string; roundRobin?: boolean } {
+/** At-a-glance voicing badge for the header: whether repeated notes vary. Codec-4 only
+ *  ({} otherwise). Unison has no badge: it is the program's setting, not the sample's. */
+export function voicingView(bytes: Uint8Array): { roundRobin?: boolean } {
   const u = readSampleUnison(bytes);
-  if (!u) return {};
-  return {
-    unison: u.active ? sampleUnisonView(bytes)?.summary : undefined,
-    roundRobin: u.randomStrokeMode !== 0,
-  };
+  return u ? { roundRobin: u.randomStrokeMode !== 0 } : {};
 }
 
-export function sampleUnisonView(bytes: Uint8Array): { active: boolean; summary: string } | null {
+/** Detune of a raw unison value, in cents (raw·25/65536 of a semitone). */
+const unisonCents = (raw: number): string => `${((raw * 25 * 100) / 65536).toFixed(1)}`;
+
+/**
+ * What the sample brings to the program's Unison setting, in a few words. `custom` is
+ * false when it leaves detune and width to the instrument. Null without a voicing block.
+ */
+export function sampleUnisonView(bytes: Uint8Array): { custom: boolean; summary: string } | null {
   const u = readSampleUnison(bytes);
   if (!u) return null;
-  if (!u.active) return { active: false, summary: 'off' };
-  const parts = [`${u.numVoiceSame} voices`];
-  if (u.detuneMax) parts.push(`detune ${u.detuneMax}`);
-  if (u.panMax) parts.push(`pan ${u.panMax}`);
-  if (Math.abs(u.gainDbSame) >= 0.05) parts.push(`gain ${u.gainDbSame >= 0 ? '+' : '−'}${Math.abs(u.gainDbSame).toFixed(1)} dB`);
-  if (u.randomStrokeMode) parts.push('round-robin');
-  return { active: true, summary: `on · ${parts.join(' · ')}` };
+  const repeats = u.randomStrokeMode ? ' · repeated notes vary' : '';
+  if (!u.custom) return { custom: false, summary: `the instrument's own detune and width${repeats}` };
+  const detune = [u.detuneMax, u.detuneMax2, u.detuneMax3].map(unisonCents).join(' / ');
+  const width = [u.panMax, u.panMax2, u.panMax3].join(' / ');
+  return { custom: true, summary: `detune ±${detune} cents and width ${width} for Unison 1 / 2 / 3${repeats}` };
 }
 
 export interface ZoneRow {
