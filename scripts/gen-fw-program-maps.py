@@ -77,6 +77,9 @@ MODELS = {
         'source': 'Organ 3 OS 1.00 registry FUN_c00c0120',
         'container': 'Organ 3 OS 1.00 program archive FUN_c00b9888 (2.00, medium)',
         'versionRange': (200, 200),
+        # The builder sets the registry's signed mode to 0 (global 0xc041e800), so the
+        # constructor FUN_c008c6e4 stores negative-min fields as two's complement.
+        'negatives': 'twos',
         'confidence': lambda row: 'medium',
         'blocks': {
             'Common': 'common', 'Org/BassDrawbar': 'bassDrawbar', 'Org/BassSustain': 'bassSustain',
@@ -112,11 +115,11 @@ def short_key(name):
     return s[0].lower() + s[1:]
 
 
-def encoding(row, lo):
+def encoding(row, lo, cfg):
     notes = row['notes']
     if 'NameHash' in row['name']:
         return 'raw'
-    if row.get('signed') == 'twos' or "two's complement" in notes:
+    if row.get('signed') == 'twos' or "two's complement" in notes or (lo < 0 and cfg.get('negatives') == 'twos'):
         return 'twos'
     if lo != 0:
         return 'offset'
@@ -156,7 +159,7 @@ def main():
             'bit': body_bit(r) - (blocks[b]['offset'] + 1) * 8,
             'width': int(r['width']), 'min': lo, 'max': hi,
             'def': int(r['default']) if r['default'] not in ('', None) else 0,
-            'enc': encoding(r, lo), 'confidence': cfg['confidence'](r),
+            'enc': encoding(r, lo, cfg), 'confidence': cfg['confidence'](r),
             'src': cfg['source'] + (f' · id {pid}' if pid else ''),
         })
 
