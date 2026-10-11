@@ -20,6 +20,8 @@ import { buildParamMap, type Param } from './maps';
 import { decodeAllParams } from './coverage';
 import { collapseMorphs, type ParamRow } from './params-view';
 import { identifyNordFile } from '../clavia/nord-file';
+import { decodeNs4Engines } from './parse';
+import type { NS4Layer } from './types';
 
 const LETTERS = ['A', 'B', 'C'] as const;
 
@@ -41,6 +43,8 @@ export interface PresetLayer {
   headline?: string;
   /** This layer's parameters, morph variants collapsed into ✎ badges. */
   rows: ParamRow[];
+  /** The same voice in the Program model, so the Program cards can render it. */
+  model?: NS4Layer;
 }
 
 export interface Ns4Preset {
@@ -100,19 +104,33 @@ export function parseNs4Preset(bytes: Uint8Array): Ns4Preset | null {
     return collapseMorphs(decodeAllParams(bytes, single));
   };
 
+  // The same block once more, all layers at once, into the Program layer model
+  // (its builder looks params up by their "[A]/[B]" names). A layer that falls
+  // outside the file is marked absent (begBit -1) rather than dropped, so the
+  // remaining ones keep their letters.
+  const relocated: Param[] = groupParams.map((p) => ({
+    ...p,
+    layers: p.layers.map((a) => {
+      const begBit = a.begBit - db, endBit = a.endBit - db;
+      return begBit >= 0 && endBit < maxBit ? { ...a, begBit, endBit } : { ...a, begBit: -1 };
+    }),
+  }));
+  const models = decodeNs4Engines(decodeAllParams(bytes, relocated)).layers;
+  const modelFor = (letter: string) => models.find((m) => m.id === letter);
+
   const layers: PresetLayer[] = [];
   for (let L = 0; L < layerCount; L++) {
     const rows = decodeLayer(L);
     const on = rows.find((r) => r.name === 'layer on/off')?.display;
     // Include an enabled layer; always keep A if the file carries no on/off flag.
     if (on === 'on' || (L === 0 && on === undefined)) {
-      layers.push({ letter: LETTERS[L], headline: headlineFor(spec.engine, rows), rows });
+      layers.push({ letter: LETTERS[L], headline: headlineFor(spec.engine, rows), rows, model: modelFor(LETTERS[L]) });
     }
   }
   // Defensive: if nothing reported enabled, still show layer A.
   if (layers.length === 0) {
     const rows = decodeLayer(0);
-    layers.push({ letter: 'A', headline: headlineFor(spec.engine, rows), rows });
+    layers.push({ letter: 'A', headline: headlineFor(spec.engine, rows), rows, model: modelFor('A') });
   }
 
   const headline = layers.length === 1 ? layers[0].headline : `${layers.length} layers`;
