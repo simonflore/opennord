@@ -42,6 +42,7 @@ const DEVICE_DISABLED_HINT = 'Connecting to the Nord needs Chrome or Edge on a c
 const DEV_DESTS: Array<{ to: NavTo; label: string }> = [
   { to: '/dev/inspect', label: 'Decode Inspector' },
   { to: '/dev/decode', label: 'Program Decode' },
+  { to: '/dev/kit', label: 'Instrument kit' },
 ];
 
 /**

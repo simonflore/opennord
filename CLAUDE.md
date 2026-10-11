@@ -180,7 +180,8 @@ route everything through a token) and built with **Tailwind v4** utilities +
 `cva`/`cn()` + Radix, composed from the primitives in `src/components/ui/`.
 Tokens flow into Tailwind via `@theme`; composite treatments are semantic
 `@utility` classes (`fill-*`, `elev-*`, `glow`). Cheatsheet:
-`src/styles/tailwind-baseline.md`. `nord.css` (instrument panel) stays hand-CSS.
+`src/styles/tailwind-baseline.md`. `nord.css` (instrument panel) stays hand-CSS;
+its widgets render in every state on `/dev/kit` (`components/dev/InstrumentKit.tsx`).
 Core's specs live in `docs/specs/`, plans in `docs/plans/` (core-relative, like
 every other path here). Current: `docs/specs/2026-07-16-blueprint-motifs-design.md`
 + `docs/plans/2026-07-16-blueprint-motifs.md`. The Tailwind migration that
@@ -197,15 +198,24 @@ desktop/iPad-only bonus path (vendor-USB), never a hard dependency.
 
 ### Brand Personality
 **Confident & precise** — reads like a pro instrument: trustworthy, exact,
-premium. Slightly Nord-inspired (the italic red "Nord" mark, the single Nord red
-`--red #e0202e` accent on near-black), modern, not skeuomorphic. Speak the
+premium. The italic "Nord" mark stays; the single accent is a signal orange
+(`--accent`, legacy name `--red`) on graphite. Physical only where it is a
+control on the Nord (see Aesthetic Direction) — never decorative texture. Speak the
 **musician's language**: never surface protocol/engineer jargon (bytes, opcodes,
 raw bank/slot numbers) in product UI — translate to what a player understands.
 
 ### Aesthetic Direction
-Dark, instrument-front-panel feel: near-black surfaces, one red accent, generous
-hierarchy and whitespace, focus over density. Dark-only for now, but built on
-tokens so a light theme is a second `[data-theme]` block, not a rewrite.
+**B×A (2026-10): a dense, flat console with a physical instrument inside it.**
+Data stays flat — lists, tables, meters, waveforms, parameter readouts, set in
+IBM Plex Sans Condensed (labels) and IBM Plex Mono (every value, slot and size).
+Anything that is a control on the Nord is drawn physical — LED buttons, knobs
+with a value ring, drawbars with their caps, and the LCD — and **every physical
+control prints its number**, so the look never hides a value. Colour rules:
+one accent (`--accent`) means active, selected or changed; the LCD green is only
+for identity (the name of what you're looking at); `--engine-*` colours only
+mark keyboard zones and engine identity; green only means "Nord connected".
+Every widget state renders on the dev-only `/dev/kit` page. Dark-only for now,
+but built on tokens so a light theme is a second `[data-theme]` block.
 
 The system also carries a **blueprint register**: monospace eyebrow labels that
 state a claim, and a dashed content-column frame with crosshairs — reading as a
@@ -218,16 +228,18 @@ is a light, four-colour editorial page, and **only its structure was taken**.
 Decorative colour stays out — `--warn`/`--connected`/`--lcd-cyan`/`--focus` are
 semantic status colours, so a green card would quietly claim "connected".
 Spec: `docs/specs/2026-07-16-blueprint-motifs-design.md`.
-**Anti-references:** Nord Sound Manager (dense, dated, wall-of-rows desktop UI we
-are explicitly beating) and generic SaaS/admin-dashboard chrome. Accessibility is
+**Anti-references:** Nord Sound Manager (dated wall of undifferentiated rows —
+density is fine when every row carries meaning, like a zone strip or engine
+tags; NSM's rows don't) and generic SaaS/admin-dashboard chrome. Accessibility is
 part of "precise": real labels (`aria-label`/`aria-current`), keyboard-operable
 controls, and token colors that meet contrast on dark surfaces.
 
 ### Design Principles
 1. **One token source.** Every color/space/radius/type step comes from
-   `tokens.css` — the CSS custom properties AND the Tailwind `@theme` block that
-   mirrors them (so `bg-surface` == `var(--surface)`). A hardcoded hex in a
-   component is a review failure (rare, intentional one-offs like LCD blues are
+   `tokens.css` — values live once, in the `:root` custom properties, and the
+   Tailwind `@theme inline` block points at them (`--color-surface:
+   var(--surface)`, so `bg-surface` == `var(--surface)`). A hardcoded hex in a
+   component is a review failure (rare, intentional one-offs like the LCD green are
    the documented exception). New composite treatments (gradients / layered
    shadows / glow) go as semantic `@utility` in `tokens.css` (`fill-*`, `elev-*`,
    `glow`, …), never as inline arbitrary values.
@@ -241,5 +253,6 @@ controls, and token colors that meet contrast on dark surfaces.
    a new CSS file. See `src/styles/tailwind-baseline.md` for the token→utility
    cheatsheet. (The instrument-panel visuals in `nord.css` — dials/LCD/drawbars —
    stay hand-written CSS; they're not utility-shaped.)
-5. **Calm and legible on a dark stage.** Whitespace and hierarchy over density;
-   readable at phone width; the instrument's job is the music, not the UI.
+5. **Legible on a dark stage.** Dense where it helps a player scan (a library,
+   a bank), never cramped; readable at phone width; the instrument's job is the
+   music, not the UI.

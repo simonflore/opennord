@@ -11,14 +11,21 @@ describe('tailwind setup', () => {
     expect(tokens).toContain('@import "tailwindcss"');
     expect(tokens).toMatch(/@theme\s*\{/);
   });
-  it('maps the core surface + accent colors into @theme verbatim', () => {
-    // values MUST equal tokens.css so utilities render identically
-    expect(tokens).toContain('--color-surface: #1d2027');
-    expect(tokens).toContain('--color-red: #e0202e');
-    expect(tokens).toContain('--color-ink: #e9ebf0');
+  it('writes each palette value once: @theme inline only points at :root tokens', () => {
+    // `bg-surface` must render exactly like `var(--surface)`. Rather than copy
+    // the hex into @theme (and test the copies stay in step), every colour,
+    // radius and font family there references the :root custom property.
+    const inline = tokens.match(/@theme inline\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const decls = [...inline.matchAll(/^\s*(--[\w-]+):\s*([^;]+);/gm)].map((m) => [m[1], m[2].trim()]);
+    expect(decls.length).toBeGreaterThan(20);
+    for (const [name, value] of decls) {
+      expect([name, value]).toEqual([name, expect.stringMatching(/^var\(--[\w-]+\)$/)]);
+      expect(tokens).toContain(`  ${value.slice(4, -1)}:`); // the referenced :root token exists
+    }
   });
   it('keeps the original CSS custom properties (single source of truth intact)', () => {
-    expect(tokens).toContain('--surface: #1d2027');
+    expect(tokens).toContain('--surface:');
+    expect(tokens).toContain('--accent:');
     expect(tokens).toContain('--grad-surface:');
     expect(tokens).toContain('--shadow-2:');
   });
