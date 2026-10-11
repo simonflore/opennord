@@ -34,7 +34,12 @@ export const COMMUNITY_SUB: Dest[] = [
 
 // Device transfer rides vendor USB — desktop Chrome/Edge, the desktop app or the
 // iPad app. Where none is available, Device stays listed but disabled with why.
-const DEVICE_DISABLED = 'Connecting to the Nord needs Chrome or Edge on a computer, the desktop app or the iPad app.';
+/** Why the Nord can't be reached from here, or undefined when it can. The rail, palette and Connect button share it. */
+export function deviceUnavailable(): string | undefined {
+  return usbAvailability() === 'unsupported'
+    ? 'Connecting to the Nord needs Chrome or Edge on a computer, the desktop app or the iPad app.'
+    : undefined;
+}
 
 /**
  * The tools beside the library, as this build and its capabilities allow: the
@@ -46,7 +51,7 @@ export function useTools(): Dest[] {
   const caps = useCapabilities();
   const cloud = caps.cloud.available, community = caps.community.available;
   return useMemo(() => [
-    { to: '/device', label: 'Device', disabled: usbAvailability() === 'unsupported' ? DEVICE_DISABLED : undefined },
+    { to: '/device', label: 'Device', disabled: deviceUnavailable() },
     { to: '/compatibility', label: 'Compatibility' },
     ...(cloud ? [{ to: '/cloud' as NavTo, label: 'Cloud' }] : []),
     ...(community ? [{ to: COMMUNITY_TO, label: 'Community' }] : []),

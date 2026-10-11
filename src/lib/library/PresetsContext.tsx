@@ -49,10 +49,8 @@ function usePresetsStateValue() {
 
   /** Every filter off and the search cleared (the list's "clear filters"). */
   const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setKind('all'); }, []);
-  /** Show one entry by name: every filter off, the search set to it (the ⌘K palette's jump). */
-  const reveal = useCallback((name: string) => { clearFilters(); setQuery(name); }, [clearFilters]);
   return {
-    all: allEntries, clearFilters, reveal,
+    all: allEntries, clearFilters,
     shown, source, setSource, kind, setKind, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, kinds, folder, session,
     importPreset: imported.add, removePreset: imported.remove,

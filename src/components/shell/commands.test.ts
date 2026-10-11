@@ -24,9 +24,15 @@ describe('rankCommands', () => {
   });
 
   it('scores a word by its best place in the label, not its first', () => {
-    const ranked = rankCommands([cmd('Programs', 'Big Grain Pad'), cmd('Programs', 'Program Grand')], 'gra');
-    // Both have a word starting with "gra"; the shorter label wins the tie.
-    expect(ranked.map((c) => c.label)).toEqual(['Big Grain Pad', 'Program Grand']);
+    // "Program Grand" has "gra" inside "Program" first, but also at the start of "Grand";
+    // it must tie with "Big Grain Pad" (word start) and beat "Telegraph" (inside a word only).
+    const ranked = rankCommands([cmd('Programs', 'Telegraph'), cmd('Programs', 'Big Grain Pad'), cmd('Programs', 'Program Grand')], 'gra');
+    expect(ranked.map((c) => c.label)).toEqual(['Big Grain Pad', 'Program Grand', 'Telegraph']);
+  });
+
+  it('breaks a tie by the shorter label, then alphabetically', () => {
+    const ranked = rankCommands([cmd('Programs', 'Grand Strings'), cmd('Programs', 'Grand'), cmd('Programs', 'Grand Piano')], 'grand');
+    expect(ranked.map((c) => c.label)).toEqual(['Grand', 'Grand Piano', 'Grand Strings']);
   });
 
   it('keeps only the best matches before grouping them', () => {

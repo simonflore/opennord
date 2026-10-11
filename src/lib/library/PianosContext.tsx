@@ -134,10 +134,8 @@ function usePianosStateValue() {
 
   /** Every filter off and the search cleared (the list's "clear filters"). */
   const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setUnusedOnly(false); }, []);
-  /** Show one entry by name: every filter off, the search set to it (the ⌘K palette's jump). */
-  const reveal = useCallback((name: string) => { clearFilters(); setQuery(name); }, [clearFilters]);
   return {
-    all: allEntries, clearFilters, reveal,
+    all: allEntries, clearFilters,
     shown, source, setSource, query, setQuery, prefs, entryById, nordCount, localCount, showSourceFacet, folder, session,
     // Piano-usage cleanup (device-connected)
     canScanUsage: !!session, scanUsage, scanPct, unusedCount,

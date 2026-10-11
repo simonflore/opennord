@@ -19,7 +19,8 @@ export function TopBar({ onSearch, onManageDevice }: { onSearch: () => void; onM
         'max-[720px]:gap-3 max-[720px]:px-3',
       )}
     >
-      <Link to="/" className="no-underline" aria-label="OpenNord home">
+      {/* The app's home is the library; the marketing page at / sits outside the app. */}
+      <Link to="/library/programs" className="no-underline" aria-label="OpenNord library">
         <Wordmark className="text-sm" />
       </Link>
       <button

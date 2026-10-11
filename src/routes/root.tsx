@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createRootRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { ErrorBoundary } from '@/components/shell/ErrorBoundary';
 import { Rail } from '@/components/shell/Rail';
+import type { NavTo } from '@/components/shell/nav';
 import { TopBar } from '@/components/shell/TopBar';
 import { PhoneTabs } from '@/components/shell/PhoneTabs';
 import { CommandPalette } from '@/components/shell/CommandPalette';
@@ -27,15 +28,14 @@ function RootLayout() {
 
 function AppShell({ path }: { path: string }) {
   const navigate = useNavigate();
-  const rail = useRailData();
   const [palette, setPalette] = useState(false);
 
   // ⌘K (Ctrl+K off the Mac, where Ctrl+K in a text field is "delete to end of
   // line") opens the palette, or closes it again; it never opens over another dialog.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // e.key can be missing (autofill, some IMEs).
-      if (e.key?.toLowerCase() !== 'k' || !(isApple ? e.metaKey : e.ctrlKey)) return;
+      // By physical key, so it works on any layout (Cyrillic, Greek…).
+      if (e.code !== 'KeyK' || !(isApple ? e.metaKey : e.ctrlKey)) return;
       e.preventDefault();
       setPalette((open) => !open && !document.querySelector('[role="dialog"]'));
     };
@@ -47,7 +47,7 @@ function AppShell({ path }: { path: string }) {
     <div className="flex min-h-screen flex-col stage-backdrop">
       <TopBar onSearch={() => setPalette(true)} onManageDevice={() => navigate({ to: '/device' })} />
       <div className="flex flex-1">
-        <Rail path={path} onNavigate={(to) => navigate({ to })} {...rail} />
+        <ShellRail path={path} onNavigate={(to) => navigate({ to })} />
         {/* Plain "on-content" class kept as a hook: `[data-native] .on-content` in
             shell.css layers Capacitor safe-area insets on top of the utilities below. */}
         <main className="on-content min-w-0 flex-1 max-w-[1100px] px-6 py-4 max-[720px]:px-4 max-[720px]:py-3 max-[720px]:pb-20">
@@ -62,4 +62,13 @@ function AppShell({ path }: { path: string }) {
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
     </div>
   );
+}
+
+/**
+ * The rail with its library data. Reading the lists here, not in AppShell,
+ * keeps a list change (a search keystroke, a scan tick) from re-rendering the
+ * whole shell.
+ */
+function ShellRail({ path, onNavigate }: { path: string; onNavigate: (to: NavTo) => void }) {
+  return <Rail path={path} onNavigate={onNavigate} {...useRailData()} />;
 }
