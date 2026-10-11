@@ -30,6 +30,16 @@ describe('MatrixView', () => {
     expect(html).toMatch(/Nord Electro 3<\/th><td[^>]*>Not yet</);
     expect(html).toMatch(/Nord C1<\/th><td[^>]*>—</);
   });
+  it('marks the readers that cover every stored parameter as "full map"', () => {
+    const html = render();
+    const row = (name: string) => html.slice(html.indexOf(`${name}</th>`), html.indexOf('</tr>', html.indexOf(`${name}</th>`)));
+    expect(row('Nord Electro 6')).toContain('full map');
+    expect(row('Nord Lead 4')).toContain('full map');
+    expect(row('Nord Wave 2')).not.toContain('full map'); // morph amounts not read yet
+    expect(row('Nord Stage 3')).not.toContain('full map'); // hand-built reader
+    expect(row('Nord Stage 4')).not.toContain('full map'); // already validated
+    expect(html).toContain('reads every parameter a program stores');
+  });
   it('shows the parameter count of the firmware-layout readers', () => {
     expect(render()).toMatch(/Nord Grand<\/th><td[^>]*>\d+ params/);
   });

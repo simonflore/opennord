@@ -46,6 +46,8 @@ export interface ModelDecode {
   controlCount: number;
   /** Percent of body bytes confirmed-decoded, if bodyBytes is known. */
   pct: number | null;
+  /** The reader covers every parameter the instrument stores in a program (its firmware's own map). */
+  fullMap: boolean;
 }
 
 /** Distinct parameters in the Stage 4 map (each id may span multiple layers). */
@@ -184,6 +186,11 @@ const FW_LAYOUTS: Record<string, { layout: FwLayout; status: 'confirmed' | 'cand
 };
 const _fwProgress: Record<string, ModelProgress> = {};
 
+/** Firmware-layout readers that still leave part of the stored program out, and what. */
+const NOT_FULL_MAP: Record<string, string> = {
+  'wave-2': 'morph amounts are not read yet',
+};
+
 // ── Legacy-record models: byte map of the record data (file 0x1A on) ─────────
 // Lead 4 (high) → 'confirmed'. Electro 4 (its layout is medium confidence, although it
 // reproduces the corpus drawbar/sample anchors) and Lead A1 (alignment unchecked
@@ -319,14 +326,15 @@ function distinctParams(layout: FwLayout | LegacyLayout): number {
 export function decodeForModel(modelId: string): ModelDecode {
   const decoder = DECODER_BY_ID[modelId];
   if (decoder === 'full') {
-    return { status: 'full', paramCount: NS4_PARAM_COUNT, bodyBytes: NS4_BODY_BYTES, coveredBytes: 0, candidateBytes: 0, controlCount: NS4_PARAM_COUNT, pct: 100 };
+    return { status: 'full', paramCount: NS4_PARAM_COUNT, bodyBytes: NS4_BODY_BYTES, coveredBytes: 0, candidateBytes: 0, controlCount: NS4_PARAM_COUNT, pct: 100, fullMap: true };
   }
   const prog = getModelProgress(modelId); // includes traced Stage 2/3 regions
   const summary = prog ? summarizeProgress(prog) : { coveredBytes: 0, candidateBytes: 0, controlCount: 0, pct: null };
   if (decoder === 'partial') {
     const layout = (FW_LAYOUTS[modelId] ?? LEGACY_LAYOUTS[modelId])?.layout;
     const paramCount = layout ? distinctParams(layout) : null;
-    return { status: 'partial', paramCount, bodyBytes: prog?.bodyBytes ?? null, ...summary };
+    const fullMap = !!layout && !(modelId in NOT_FULL_MAP);
+    return { status: 'partial', paramCount, bodyBytes: prog?.bodyBytes ?? null, ...summary, fullMap };
   }
   // Undecoded: 'started' once a control is localized in coverage-data, else 'none'.
   return {
@@ -334,6 +342,7 @@ export function decodeForModel(modelId: string): ModelDecode {
     paramCount: null,
     bodyBytes: prog?.bodyBytes ?? null,
     ...summary,
+    fullMap: false,
   };
 }
 
