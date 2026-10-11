@@ -80,8 +80,12 @@ const ProgramRow = memo(function ProgramRow({ entry: e, selected, favorite, onOp
       // content-visibility: a row off screen skips layout and paint (a folder
       // can hold thousands); 40px (a row's fixed height) stands in until it is
       // first shown. Its paint containment would clip the star's and remove
-      // button's focus rings at the row edge, hence the clip margin.
-      className={cn(COLS, 'min-h-10 font-mono text-[11px] text-dim [content-visibility:auto] [contain-intrinsic-size:auto_40px] [overflow-clip-margin:8px]')}
+      // button's focus rings at the row edge, so it applies only where a clip
+      // margin can let them through (not Safari yet).
+      className={cn(
+        COLS, 'min-h-10 font-mono text-[11px] text-dim',
+        'supports-[overflow-clip-margin:8px]:[content-visibility:auto] [contain-intrinsic-block-size:auto_40px] [overflow-clip-margin:8px]',
+      )}
       selected={selected}
       onOpen={() => onOpen(e)}
     >
