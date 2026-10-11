@@ -8,8 +8,9 @@
  */
 import { formatCbinVersion } from '../clavia/cbin';
 import { decodeLegacyProgram } from '../clavia/legacy-program';
-import { readLegacyRecord } from '../clavia/legacy-record';
-import { NS1_LAYOUT, type Ns1FieldKey } from './layout.generated';
+import { outOfRangeWarning } from '../clavia/block-chain';
+import { legacyMorphDeltas, readLegacyRecord } from '../clavia/legacy-record';
+import { NS1_LAYOUT } from './layout.generated';
 import type { Ns1Program, Ns1Record } from './types';
 
 /** Where the record starts in a `.nspg` file: not established, so null. */
@@ -34,12 +35,8 @@ export function decodeNs1Record(record: Uint8Array): Ns1Record {
     warnings.push(`Record version ${recordVersion} is newer than OpenNord reads (${NS1_RECORD_VERSION}); values may be off.`);
   }
   const { values, outOfRange } = readLegacyRecord(record, NS1_LAYOUT);
-  if (outOfRange.length > 0) {
-    warnings.push(`${outOfRange.length} value(s) outside the firmware's range (${outOfRange.slice(0, 4).join(', ')}${outOfRange.length > 4 ? ', …' : ''}).`);
-  }
-  const morphDeltas: Partial<Record<Ns1FieldKey, number[]>> = {};
-  for (const f of NS1_LAYOUT.fields) if (f.deltaOf) (morphDeltas[f.deltaOf] ??= []).push(values[f.key] ?? 0);
-  return { recordVersion, values, outOfRange, morphDeltas, warnings };
+  if (outOfRange.length > 0) warnings.push(outOfRangeWarning(outOfRange));
+  return { recordVersion, values, outOfRange, morphDeltas: legacyMorphDeltas(NS1_LAYOUT, values), warnings };
 }
 
 /**

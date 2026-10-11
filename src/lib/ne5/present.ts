@@ -8,7 +8,9 @@
 import { decodeNe5 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
-import { COLDFIRE_PIANO_TYPES, effectsSection, fwHeader, label, legacyHeaderOnly, parts, refId } from '../clavia/fw-present';
+import {
+  coldfirePianoSection, effectsSection, fwHeader, label, legacyHeaderOnly, parts, sampleSynthSection, soundRefRows,
+} from '../clavia/fw-present';
 import { NE5_ORGAN_MODELS, NE5_ORGAN_SET } from './labels';
 import type { Ne5Program } from './types';
 
@@ -37,23 +39,11 @@ export function ne5Decoded(bytes: Uint8Array): DecodedProgram {
   if (!p.layoutMatched) return legacyHeaderOnly(title, p, 'Electro 5');
   const g = (k: keyof typeof p.values) => p.values[k] ?? 0;
 
-  const header = fwHeader(p);
-  header.push(['Split', g('common.keyboardSplitKeybSplit') ? 'on' : 'off']);
-  header.push(['Piano sound id', refId(p.piano.ids)]);
-  header.push(['Sample sound id', refId(p.sampleSynth.ids)]);
-
-  const piano: DecodedSection = {
-    id: 'P', label: 'PIANO',
-    engines: [{ label: 'Piano', parts: parts(label(COLDFIRE_PIANO_TYPES, p.piano.type) ?? 'Piano', `no. ${p.piano.model + 1}`) }],
-  };
-  const synth: DecodedSection = {
-    id: 'S', label: 'SAMPLE SYNTH',
-    engines: [{
-      label: 'Synth',
-      parts: [`sample ${p.sampleSynth.sample + 1}`, `attack ${g('sampleSynth.sampleSynthAttack')}`,
-        `decay/release ${g('sampleSynth.sampleSynthDcyRel')}`],
-    }],
-  };
+  const header = [...fwHeader(p), ...soundRefRows(g('common.keyboardSplitKeybSplit'), p.piano.ids, p.sampleSynth.ids)];
+  const piano = coldfirePianoSection(p.piano.type, p.piano.model);
+  const synth = sampleSynthSection('SAMPLE SYNTH', {
+    sample: p.sampleSynth.sample, attack: g('sampleSynth.sampleSynthAttack'), dcyRel: g('sampleSynth.sampleSynthDcyRel'),
+  });
   const effects = effectsSection(parts(
     g('effects.effects1Enable') ? 'Effect 1' : undefined,
     g('effects.effects2Enable') ? 'Effect 2' : undefined,

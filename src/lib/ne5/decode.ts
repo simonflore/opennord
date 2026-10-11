@@ -8,6 +8,7 @@
  */
 import { decodeLegacyProgram } from '../clavia/legacy-program';
 import { storedTrailerChecksum } from '../clavia/crc16';
+import { DRAWBAR_NUMBERS } from '../clavia/fw-present';
 import { NE5_LAYOUT, type Ne5FieldKey } from './layout.generated';
 import type { Ne5DrawbarPreset, Ne5OrganSet, Ne5OrganType, Ne5Program } from './types';
 
@@ -16,11 +17,9 @@ const CONVERTED = [3] as const;
 
 type Get = (key: Ne5FieldKey) => number;
 
-const NINE = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
-
 function preset(get: Get, type: Ne5OrganType, which: 'I' | 'II'): Ne5DrawbarPreset {
   const p = `${type}Preset${which}` as const;
-  const drawbars = NINE.map((i) => get(`${p}.drawbar${i}` as Ne5FieldKey));
+  const drawbars = DRAWBAR_NUMBERS.map((i) => get(`${p}.drawbar${i}` as Ne5FieldKey));
   const vibrato = get(`${p}.${type === 'b3' ? 'vibChorusOn' : 'vibratoOn'}` as Ne5FieldKey) === 1;
   if (type === 'b3') {
     return {

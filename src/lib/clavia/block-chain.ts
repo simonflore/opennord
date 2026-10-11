@@ -110,6 +110,11 @@ export function walkBlockChain(body: Uint8Array): BlockChainWalk {
   return { ok: true, formatVersion, blocks };
 }
 
+/** The warning for values outside their descriptor range (the firmware resets them to default on load). */
+export function outOfRangeWarning(keys: readonly string[]): string {
+  return `${keys.length} value(s) outside the instrument’s range (${keys.slice(0, 4).join(', ')}${keys.length > 4 ? ', …' : ''}).`;
+}
+
 /** Turn a field's raw bits into its value per the field's encoding. */
 export function fieldValue(raw: number, field: Pick<FwField, 'enc' | 'width' | 'min'>): number {
   switch (field.enc) {
@@ -168,9 +173,7 @@ export function decodeFwBody<K extends string>(body: Uint8Array, layout: FwLayou
     values[f.key] = value;
   }
   if (clipped > 0) warnings.push(`${clipped} field(s) fall outside a shortened block and were skipped.`);
-  if (outOfRange.length > 0) {
-    warnings.push(`${outOfRange.length} value(s) outside the firmware's range (${outOfRange.slice(0, 4).join(', ')}${outOfRange.length > 4 ? ', …' : ''}).`);
-  }
+  if (outOfRange.length > 0) warnings.push(outOfRangeWarning(outOfRange));
   return { layoutMatched: true, formatVersion: v, values, warnings };
 }
 
