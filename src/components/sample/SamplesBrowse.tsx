@@ -39,7 +39,7 @@ const SORT_LABEL: Record<SampleSort, string> = {
 export function SamplesBrowse(
   { entries, source, generation, query, nordCount, localCount, showSourceFacet, showUnknownGen,
     category = 'all', onCategory, categoriesPresent = [],
-    onSource, onGeneration, onQuery, onOpen, onLoadNew, onImport, onRemove,
+    onSource, onGeneration, onQuery, onOpen, onLoadNew, onImport, onRemove, activeId,
     storedCount, storedBytes, prefs,
     canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly,
     selected, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
@@ -56,6 +56,8 @@ export function SamplesBrowse(
     onGeneration: (g: SampleGeneration | 'all') => void;
     onQuery: (q: string) => void;
     onOpen: (e: SampleEntry) => void;
+    /** The entry open in the detail pane, highlighted in the list. */
+    activeId?: string | null;
     onLoadNew: () => void;
     onImport: () => void;
     onRemove: (id: string) => void;
@@ -240,13 +242,14 @@ export function SamplesBrowse(
               favorite={favorites.has(e.id)}
               onToggleFavorite={() => onToggleFavorite(e.id)}
               onOpen={() => onOpen(e)}
+              selected={e.id === activeId}
               unused={e.unused}
               select={unusedOnly && e.source === 'nord' && e.unused
                 ? { checked: selected.has(e.id), onToggle: () => toggleSelected(e.id) }
                 : undefined}
               badge={<SlotTag tone={e.slot ? undefined : GEN_TONE[e.generation]}>{e.slot ?? GEN_LABEL[e.generation]}</SlotTag>}
               engines={
-                <div className="mt-2.5 flex flex-wrap gap-[5px]">
+                <div className="flex flex-wrap gap-[5px]">
                   <EngineTag>
                     {e.generation === 'npno'
                       ? 'piano library'

@@ -61,10 +61,10 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
 
   const sourceLabel =
     entry.source === 'nord'
-      ? ` · On Nord${entry.slot ? ` · ${entry.slot}` : ''}`
+      ? `On Nord${entry.slot ? ` · ${entry.slot}` : ''}`
       : entry.source === 'backup'
-        ? ` · From backup${entry.size != null ? ` · ${formatBytes(entry.size)}` : ''}`
-        : ` · Local file${entry.size != null ? ` · ${formatBytes(entry.size)}` : ''}`;
+        ? `From backup${entry.size != null ? ` · ${formatBytes(entry.size)}` : ''}`
+        : `Local file${entry.size != null ? ` · ${formatBytes(entry.size)}` : ''}`;
 
   // Librarian detail parsed from the .npno header (folder pianos): version + multisample layout.
   const detail = [
@@ -75,11 +75,12 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
 
   return (
     <div className="ps" style={{ maxWidth: 460 }}>
-      <div className="ps-nm">{entry.name}</div>
-      <p className="ps-sub" style={{ marginTop: 6 }}>
-        Piano library{sourceLabel}
-      </p>
-      {detail && <p className="ps-sub" style={{ marginTop: 2 }}>{detail}</p>}
+      {/* Identity on the LCD: the piano's name, where it lives, and its layout. */}
+      <div className="ps-lcd ps-lcd-id" style={{ marginBottom: 12 }}>
+        <h2 className="big">{entry.name}</h2>
+        <div>Piano library · {sourceLabel}</div>
+        {detail && <div>{detail}</div>}
+      </div>
       {entry.factory && (
         <p className="ps-sub">
           This is a Nord factory piano.{' '}

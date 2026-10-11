@@ -7,43 +7,49 @@ const fmtDb = (db: number): string => `${db >= 0 ? '+' : '−'}${Math.abs(db).to
 /** Signed detune in cents, e.g. +100 ¢. */
 const fmtCents = (c: number): string => `${c >= 0 ? '+' : '−'}${Math.abs(c)} ¢`;
 
+/**
+ * The sample's identity on the LCD (name; format, sample count, size), then its
+ * playing modes as lit LED keys and the rest as small flat facts. The file's
+ * version and checksum are librarian detail, so they sit last, in mono.
+ */
 export function SampleHeader({ view }: { view: SampleHeaderView }) {
+  const count = `${view.strokeCount} ${view.strokeCount === 1 ? 'sample' : 'samples'}`;
+  const gd = view.gainDetune;
   return (
     <div className="ps-hd">
-      <div>
-        <div className="ps-nm">{view.name}</div>
+      <div className="ps-hd-id">
+        <div className="ps-lcd ps-lcd-id">
+          <h2 className="big">{view.name}</h2>
+          <div>{view.codecLabel} · {count} · {formatBytes(view.sizeBytes)}</div>
+        </div>
         <div className="ps-meta">
-          <Pill>{view.codecLabel}</Pill>
-          <Pill>v{view.version}</Pill>
-          <Pill>{view.strokeCount} {view.strokeCount === 1 ? 'sample' : 'samples'}</Pill>
-          <Pill>{formatBytes(view.sizeBytes)}</Pill>
-          {view.checksumKnown && (
-            <Pill>{view.checksumOk ? 'checksum ✓' : 'checksum ✗'}</Pill>
+          {view.unison && (
+            <span className="ps-key on" title={`Unison ${view.unison} — auditioned as a stacked, panned voice`}>Unison</span>
+          )}
+          {view.roundRobin && (
+            <span className="ps-key on" title="Round-robin (RandomStrokeMode) — repeated notes vary in audition">Round-robin</span>
+          )}
+          {view.truVibrato && (
+            <span className="ps-key on" title="This sample has Tru-Vibrato engaged">Tru-Vibrato</span>
           )}
           {view.isFactory && (
             <Pill variant="warning">factory?</Pill>
           )}
-          {view.unison && (
-            <Pill title={`Unison ${view.unison} — auditioned as a stacked, panned voice`}>Unison</Pill>
-          )}
-          {view.roundRobin && (
-            <Pill title="Round-robin (RandomStrokeMode) — repeated notes vary in audition">Round-robin</Pill>
-          )}
-          {view.truVibrato && (
-            <Pill title="This sample has Tru-Vibrato engaged">Tru-Vibrato</Pill>
-          )}
-          {view.gainDetune && !view.gainDetune.isDefault && (
-            <Pill title={`global gain ${fmtDb(view.gainDetune.gainDb)}, detune ${fmtCents(view.gainDetune.detuneCents)}`}>
+          {gd && !gd.isDefault && (
+            <Pill title={`global gain ${fmtDb(gd.gainDb)}, detune ${fmtCents(gd.detuneCents)}`}>
               {[
-                view.gainDetune.gainDb !== 0 ? `gain ${fmtDb(view.gainDetune.gainDb)}` : null,
-                view.gainDetune.detuneCents !== 0 ? `detune ${fmtCents(view.gainDetune.detuneCents)}` : null,
-                view.gainDetune.customNotes > 0 ? `${view.gainDetune.customNotes} custom notes` : null,
+                gd.gainDb !== 0 ? `gain ${fmtDb(gd.gainDb)}` : null,
+                gd.detuneCents !== 0 ? `detune ${fmtCents(gd.detuneCents)}` : null,
+                gd.customNotes > 0 ? `${gd.customNotes} custom notes` : null,
               ].filter(Boolean).join(' · ') || 'custom gain'}
             </Pill>
           )}
+          <span className="ps-fact">
+            v{view.version}
+            {view.checksumKnown && <> · {view.checksumOk ? 'checksum ✓' : 'checksum ✗'}</>}
+          </span>
         </div>
       </div>
-      <div className="ps-logo">nord</div>
     </div>
   );
 }
