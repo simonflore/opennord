@@ -102,6 +102,51 @@ export function Lcd({ primary, secondary }: { primary: string; secondary: string
   );
 }
 
+/**
+ * The LCD as a screen's identity header: the name of what you're looking at
+ * (program, sample, piano, the connected Nord) as the heading, with one or more
+ * short lines under it. One component so every header reads the same.
+ */
+export function IdentityLcd({ name, lines }: { name: string; lines: ReactNode[] }) {
+  return (
+    <div className="ps-lcd ps-lcd-id">
+      <h2 className="big">{name}</h2>
+      {lines.map((line, i) => <div key={i}>{line}</div>)}
+    </div>
+  );
+}
+
+export interface SwitchOption<T extends string> { value: T; label: ReactNode; note?: ReactNode }
+
+/**
+ * A switch made of LED keys (Layer Scene I/II, Swap/Insert): one lit at a time,
+ * each a real `aria-pressed` button. `note` adds a small aside inside a key
+ * (e.g. "saved" on the stored scene).
+ */
+export function LedSwitch<T extends string>({ label, options, value, onChange, className }: {
+  label: string;
+  options: SwitchOption<T>[];
+  value: T;
+  onChange: (value: T) => void;
+  className?: string;
+}) {
+  return (
+    <div className={className ? `ps-switch ${className}` : 'ps-switch'} role="group" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          className={o.value === value ? 'ps-key on' : 'ps-key'}
+          aria-pressed={o.value === value}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+          {o.note && <span className="ps-key-note">{o.note}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** Compact FX chip: small label over a detail line. */
 export function Chip({ label, detail }: { label: string; detail: string }) {
   return (

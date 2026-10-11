@@ -43,7 +43,8 @@ interface Loaded {
   factory: boolean;
 }
 
-export interface InspectorInput { bytes: Uint8Array; name: string; factory?: boolean; }
+/** What the inspector shows; `id` is the list entry it came from (none for a previewed file). */
+export interface InspectorInput { id?: string; bytes: Uint8Array; name: string; factory?: boolean; }
 
 /**
  * Audition the sample mapped to zone `index`. A zone references its stroke by

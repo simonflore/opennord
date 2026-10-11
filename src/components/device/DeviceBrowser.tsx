@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { programEntryView, type ProgramEntry } from '../../lib/device/transfer';
 import type { PartitionCapacity } from '../../lib/device/capacity';
 import { StorageMeter } from './StorageMeter';
+import { IdentityLcd } from '../program/widgets';
 import { OrganizeGrids } from './OrganizeGrids';
 import { BankLabel } from './BankLabel';
 import { Button, FileInput } from '../ui';
@@ -43,10 +44,7 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
       <div className="ps-hd">
         {/* The connected Nord's identity on the LCD, with its program storage under it. */}
         <div className="ps-hd-id">
-          <div className="ps-lcd ps-lcd-id">
-            <h2 className="big">{deviceName}</h2>
-            <div>{entries.length} programs</div>
-          </div>
+          <IdentityLcd name={deviceName} lines={[`${entries.length} programs`]} />
           {capacity && <StorageMeter label="STORAGE" capacity={capacity} mode="slots" />}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -64,21 +62,15 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
         [...byBank.keys()].sort((a, b) => a - b).map((bank) => (
           <div key={bank} style={{ marginBottom: 14 }}>
             <BankLabel bank={bank} />
-            <div style={{ display: 'grid', borderTop: '1px solid var(--line)' }}>
+            <div className="ps-rows">
               {byBank.get(bank)!
                 .slice()
                 .sort((a, b) => a.slot - b.slot)
                 .map((e) => {
                   const v = programEntryView(e);
                   return (
-                    <div key={`${e.bank}-${e.slot}`} className="ps-accent-row">
-                      <button
-                        onClick={() => onSelect(e)}
-                        style={{
-                          flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
-                          textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 'none', color: 'inherit',
-                        }}
-                      >
+                    <div key={`${e.bank}-${e.slot}`} className="ps-row">
+                      <button className="ps-row-open" onClick={() => onSelect(e)}>
                         <span className="ps-row-slot">{v.slot}</span>
                         <span style={{ flex: 1, fontWeight: 600 }}>{v.name}</span>
                         <span className="ps-fact">{v.category} · {v.version}</span>

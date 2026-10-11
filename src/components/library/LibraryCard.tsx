@@ -4,13 +4,12 @@ import { cn } from '@/lib/cn';
 
 /**
  * Shared entry row for every Library category (Programs, Presets, User
- * Samples, Piano Samples). Each of those hand-rolled the same entry-card
- * skeleton — a `Card` wrapper made keyboard-activatable, a favorite star, the
- * name, an optional "unused" tag, an optional reclaim checkbox, and a foot
- * with the source badge — which let the a11y details drift (some cards missed
- * `onKeyDown`, the star's aria-label wording varied). This owns that skeleton
- * so it's identical by construction; a category supplies only what actually
- * differs: the top-right `badge`, the `engines` row, and any `footExtras`.
+ * Samples, Piano Samples): a keyboard-activatable row with a favourite star,
+ * the name, an optional "unused" tag and reclaim checkbox, and a second line
+ * with the source badge. Owning it here keeps the a11y details identical by
+ * construction (each category once hand-rolled its own and they drifted); a
+ * category supplies only what differs: the `badge`, `engines`, `strip` and
+ * `footExtras`.
  */
 export function LibraryCard({
   name, source, favorite, onToggleFavorite, onOpen,

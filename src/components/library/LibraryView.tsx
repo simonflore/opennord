@@ -29,7 +29,7 @@ interface Props {
   onQuery: (q: string) => void;
   onOpen: (e: LibraryEntry) => void;
   /** The entry open in the detail pane, highlighted in the list. */
-  activeId?: string;
+  activeId?: string | null;
   onImport: () => void;
   /** Remove an imported program (local source only). */
   onRemove: (id: string) => void;

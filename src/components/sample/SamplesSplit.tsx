@@ -28,17 +28,14 @@ export function SamplesSplit() {
   // The thing currently shown in the detail pane: pulled/folder bytes, or null.
   const [inspect, setInspect] = useState<InspectorInput | null>(null);
   const [loadNew, setLoadNew] = useState(false);
-  // Which list entry is open, for the list's selected row (null for a previewed file).
-  const [openId, setOpenId] = useState<string | null>(null);
   const [pullPct, setPullPct] = useState<number | null>(null);
   const [pullError, setPullError] = useState('');
 
   async function openEntry(e: SampleEntry) {
     setPullError('');
-    setOpenId(e.id);
     if (e.source === 'local' && e.bytes) {
       setLoadNew(false);
-      setInspect({ bytes: e.bytes, name: e.name });
+      setInspect({ id: e.id, bytes: e.bytes, name: e.name });
       return;
     }
     if (e.source === 'nord' && e.device && session) {
@@ -46,7 +43,7 @@ export function SamplesSplit() {
       try {
         const bytes = await pullSample(session, e.device,
           (done, total) => setPullPct(total ? Math.round((done / total) * 100) : 0));
-        setInspect({ bytes, name: e.name });
+        setInspect({ id: e.id, bytes, name: e.name });
       } catch (err) {
         setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
       } finally {
@@ -58,7 +55,7 @@ export function SamplesSplit() {
       setLoadNew(false); setInspect(null); setPullPct(0);
       try {
         const bytes = await extractBackupEntry(folder, e.backupRef);
-        setInspect({ bytes, name: e.name, factory: e.factory });
+        setInspect({ id: e.id, bytes, name: e.name, factory: e.factory });
       } catch (err) {
         setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
       } finally {
@@ -67,7 +64,7 @@ export function SamplesSplit() {
       return;
     }
   }
-  const startLoadNew = () => { setInspect(null); setOpenId(null); setLoadNew(true); setPullError(''); };
+  const startLoadNew = () => { setInspect(null); setLoadNew(true); setPullError(''); };
   const back = () => { setInspect(null); setLoadNew(false); setPullError(''); };
 
   function importSample() {
@@ -112,7 +109,7 @@ export function SamplesSplit() {
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery}
         onOpen={(e) => void openEntry(e)} onLoadNew={startLoadNew}
-        activeId={openId}
+        activeId={inspect?.id ?? null}
         onImport={importSample}
         onRemove={(id) => void s.removeSample(id)}
         storedCount={s.storedCount} storedBytes={s.storedBytes}
