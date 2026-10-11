@@ -27,12 +27,11 @@ export const NS4_PRODUCT_ID = 0x002e;
  *
  * Skip it for the Stage 4: its FileTransfer version *is* the `0x0a` default
  * (negotiation's own fallback), so the handshake can only confirm what we already
- * use — while the `0x07` query's reply read is unbounded ({@link ./session
- * negotiateVersion} → transport `bulkIn`, no timeout). A device that silently
- * ignores `0x07` would pend the connect forever, and a dropped read can't be
- * rescued by a `.catch` nor abandoned without desyncing the shared IN endpoint.
- * Not issuing the query for the validated NS4 path removes that risk entirely;
- * other models (e.g. NS2, which answers `0x07` and needs `0x08`) still negotiate.
+ * use. Connect bounds the reply read (`withReplyTimeout`), but a transport that
+ * can't cancel a read (the iPad bridge) ignores that bound, so a device that
+ * silently ignores `0x07` would pend the connect forever. Not issuing the query
+ * for the validated NS4 path removes that risk entirely; other models (e.g. NS2,
+ * which answers `0x07` and needs `0x08`) still negotiate.
  */
 export function shouldNegotiateVersion(productId: number): boolean {
   return productId !== NS4_PRODUCT_ID;

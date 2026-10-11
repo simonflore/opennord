@@ -76,14 +76,16 @@ export class NordSession {
    * version for all later frames (the pre-FileTransfer handshake, protocolId `0x07`).
    * If the device doesn't advertise FileTransfer (`0x0c`), the current version
    * stands (the model's own via {@link useFileTransferVersion}, else `0x0a`).
-   * Returns the adopted version. See the maintainers’ notes (issue #31).
+   * The reply read is bounded only inside {@link withReplyTimeout}: a model that
+   * ignores the query would otherwise never return. Returns the adopted version.
+   * See the maintainers’ notes (issue #31).
    */
   negotiateVersion(): Promise<number> {
     return this.exclusive(async () => {
       await this.transport.bulkOut(
         encodeMessage(MSG_QRY_VERSIONS, [], undefined, { protocolId: PROTOCOL_NEGOTIATE, version: 0 }),
       );
-      const reply = decodeReply(await this.transport.bulkIn(READ_BUFFER));
+      const reply = decodeReply(await this.transport.bulkIn(READ_BUFFER, this.replyTimeoutMs));
       const advertised = parseVersionReply(reply.payload).get(PROTOCOL_ID);
       if (advertised !== undefined) this.version = advertised;
       return this.version;
