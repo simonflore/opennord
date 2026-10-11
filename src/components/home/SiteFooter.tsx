@@ -39,7 +39,7 @@ export function SiteFooter() {
         Nord Keyboards.</strong> “Nord”, “Nord Stage” and related names are
         trademarks of their owner, used here only to describe compatibility.
         Free software under the GNU AGPL-3.0-or-later, provided as-is without
-        warranty. Early alpha — features may change or break.
+        warranty. Beta — features may change or break.
       </p>
     </footer>
   );

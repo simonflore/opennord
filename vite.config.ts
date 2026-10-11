@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath, URL } from 'node:url';
 import { fixturesDevPlugin } from './src/dev/fixtures-plugin';
+import { buildInfo } from './build-info';
 
 const NATIVE = process.env.OPENNORD_NATIVE === '1';
 // The Electron shell loads the packed build over file://, where Vite's default
@@ -26,6 +27,8 @@ export default defineConfig({
     // The native (Capacitor/iOS) build sets OPENNORD_NATIVE=1 so __RE__ is false and
     // RE code is dead-code-eliminated / aliased to a stub (see resolve.alias below).
     __RE__: JSON.stringify(!NATIVE),
+    // Beta build number + commit, shown in the rail and on About (src/lib/version.ts).
+    __BUILD__: JSON.stringify(buildInfo()),
   },
   resolve: {
     alias: [

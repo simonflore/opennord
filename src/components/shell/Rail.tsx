@@ -4,6 +4,7 @@ import { LIBRARY_CATEGORIES } from '../../lib/library/categories';
 import { useCapabilities } from '../../lib/capabilities/CapabilitiesContext';
 import { DeviceStatus } from './DeviceStatus';
 import type { NavTo } from './nav';
+import { BUILD, COMMIT, VERSION_FULL } from '../../lib/version';
 export type { NavTo } from './nav';
 
 interface Props {
@@ -229,10 +230,15 @@ export function Rail({ active, onNavigate, onManageDevice }: Props) {
           'mt-2 flex flex-col gap-[3px] border-t border-line p-2',
           'max-[720px]:mt-0 max-[720px]:ml-auto max-[720px]:border-t-0 max-[720px]:p-0',
         )}
-        title="OpenNord is alpha software, provided as-is with no warranty. Features may break, and device transfer writes to real hardware — back up your keyboard first. Use at your own risk."
+        title={`${VERSION_FULL}. OpenNord is beta software, provided as-is with no warranty. Features may break, and device transfer writes to real hardware — back up your keyboard first. Use at your own risk.`}
       >
-        <span className="self-start rounded-sm border border-warn px-[5px] py-px text-[8px] font-bold tracking-[1px] text-warn">
-          ALPHA
+        <span className="flex items-center gap-1.5">
+          <span className="rounded-sm border border-warn px-[5px] py-px text-[8px] font-bold tracking-[1px] text-warn">
+            BETA
+          </span>
+          <span className="font-mono text-[10px] text-dim" aria-label={`build ${BUILD ?? COMMIT ?? 'dev'}`}>
+            {BUILD ?? COMMIT ?? 'dev'}
+          </span>
         </span>
         <span className="text-[9px] leading-[1.4] text-muted max-[720px]:hidden">use at your own risk</span>
       </div>
