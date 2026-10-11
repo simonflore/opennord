@@ -13,7 +13,8 @@
  */
 import { decodeNp6 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
-import { effectsSection, fwHeader, headerOnlyNote, hexId, label, levelPart, octavePart, parts, transposeText } from '../clavia/fw-present';
+import { effectsSection, fwHeader, headerOnly, hexId, label, levelPart, noneOn, octavePart, parts, transposeText } from '../clavia/fw-present';
+import type { Np6FieldKey } from './layout.generated';
 
 /** Pno_kBank 0–5. */
 export const NP6_PIANO_TYPE = ['Grand', 'Upright', 'Electric', 'Clavinet', 'Digital', 'Misc'] as const;
@@ -30,9 +31,9 @@ export const NP6_REVERB_COLOR = ['Normal', 'Dark', 'Bright'] as const;
 /** Effects_kDlyFltType 0–3. */
 export const NP6_DELAY_FILTER = ['Bypass', 'LP', 'HP', 'BP'] as const;
 
-type Get = (key: string) => number | undefined;
+type Get = (key: Np6FieldKey) => number | undefined;
 
-function layerFx(g: Get, blk: string): string[] {
+function layerFx(g: Get, blk: `${'piano' | 'synth'}Fx${'A' | 'B'}`): string[] {
   const filter = label(NP6_DELAY_FILTER, g(`${blk}.dlyFltType`));
   return parts(
     g(`${blk}.fx1Enable`) ? label(NP6_FX1, g(`${blk}.fx1Type`)) ?? 'Effect 1' : undefined,
@@ -45,7 +46,7 @@ function layerFx(g: Get, blk: string): string[] {
 }
 
 function pianoLayer(g: Get, id: 'A' | 'B', on: boolean, resolve?: (hash: number) => string | undefined): DecodedSection {
-  const blk = `piano${id}`;
+  const blk = `piano${id}` as const;
   const type = label(NP6_PIANO_TYPE, g(`${blk}.bank`));
   const hash = g(`${blk}.nameHash`);
   const name = hash !== undefined ? resolve?.(hash) : undefined;
@@ -57,14 +58,14 @@ function pianoLayer(g: Get, id: 'A' | 'B', on: boolean, resolve?: (hash: number)
         parts: parts(name ?? type ?? 'Piano', name && type, levelPart(g(`${blk}.layerLevel`)),
           octavePart(g(`${blk}.octaveShift`)), !on && '(off)'),
       },
-      { label: 'Effects', parts: on ? withNone(layerFx(g, `pianoFx${id}`)) : ['—'] },
+      { label: 'Effects', parts: on ? noneOn(layerFx(g, `pianoFx${id}`)) : ['—'] },
     ],
     chips: parts(g(`${blk}.pedalNoise`) ? 'Pedal Noise' : undefined),
   };
 }
 
 function synthLayer(g: Get, id: 'A' | 'B', on: boolean): DecodedSection {
-  const blk = `synth${id}`;
+  const blk = `synth${id}` as const;
   return {
     id: `S${id}`, label: `SYNTH ${id}`,
     engines: [
@@ -72,12 +73,10 @@ function synthLayer(g: Get, id: 'A' | 'B', on: boolean): DecodedSection {
         label: 'Synth',
         parts: parts('Sample', levelPart(g(`${blk}.layerLevel`)), octavePart(g(`${blk}.octaveShift`)), !on && '(off)'),
       },
-      { label: 'Effects', parts: on ? withNone(layerFx(g, `synthFx${id}`)) : ['—'] },
+      { label: 'Effects', parts: on ? noneOn(layerFx(g, `synthFx${id}`)) : ['—'] },
     ],
   };
 }
-
-const withNone = (xs: string[]) => (xs.length > 0 ? xs : ['None on']);
 
 export function np6Decoded(
   bytes: Uint8Array,
@@ -85,15 +84,10 @@ export function np6Decoded(
 ): DecodedProgram {
   const p = decodeNp6(bytes);
   const title = 'Nord Piano 6 · Program';
-  if (!p.layoutMatched) {
-    return { title, header: fwHeader(p), sections: [], note: headerOnlyNote('Piano 6'), warnings: p.warnings };
-  }
-  const v = p.values as Record<string, number | undefined>;
-  const g: Get = (k) => v[k];
+  if (!p.layoutMatched) return headerOnly(title, p, 'Piano 6');
+  const g: Get = (k) => p.values[k];
 
-  const header = fwHeader(p);
-  const transpose = transposeText(g('common.transposeEnable'), g('common.transposeValue'));
-  if (transpose) header.push(['Transpose', transpose]);
+  const header = fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue')));
   for (const id of ['A', 'B'] as const) {
     const h = g(`piano${id}.nameHash`);
     if (h !== undefined) header.push([`Piano ${id} sound id`, hexId(h)]);

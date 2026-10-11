@@ -10,7 +10,8 @@
 import { decodeNo3 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
-import { effectsSection, fwHeader, headerOnlyNote, label, parts, transposeText } from '../clavia/fw-present';
+import { DRAWBAR_NUMBERS, effectsSection, fwHeader, headerOnly, label, parts, transposeText } from '../clavia/fw-present';
+import type { No3FieldKey } from './layout.generated';
 
 /** kOrganModel 0–4. */
 export const NO3_ORGAN_MODEL = ['B3', 'Vx', 'Farf', 'Soft B3', 'Pipe'] as const;
@@ -31,10 +32,10 @@ const B3_MODELS = new Set([0, 3]);
 export const NO3_PROVISIONAL_NOTE =
   'Organ 3: OpenNord’s program map (OS 1.00), block order not yet confirmed on a real file — treat these values as provisional.';
 
-type Get = (key: string) => number | undefined;
+type Get = (key: No3FieldKey) => number | undefined;
 
 function manual(g: Get, id: 'A' | 'B', b3: boolean): DecodedSection {
-  const bars = Array.from({ length: 9 }, (_, i) => g(`manual${id}Drawbar.drawbarValue${i + 1}`) ?? 0);
+  const bars = DRAWBAR_NUMBERS.map((i) => g(`manual${id}Drawbar.drawbarValue${i}`) ?? 0);
   return {
     id: `M${id}`, label: `MANUAL ${id}`,
     engines: [{ label: 'Drawbars', parts: [bars.join(' ')] }],
@@ -46,15 +47,10 @@ function manual(g: Get, id: 'A' | 'B', b3: boolean): DecodedSection {
 export function no3Decoded(bytes: Uint8Array): DecodedProgram {
   const p = decodeNo3(bytes);
   const title = 'Nord Organ 3 · Program';
-  if (!p.layoutMatched) {
-    return { title, header: fwHeader(p), sections: [], note: `${headerOnlyNote('Organ 3')} ${NO3_PROVISIONAL_NOTE}`, warnings: p.warnings };
-  }
-  const v = p.values as Record<string, number | undefined>;
-  const g: Get = (k) => v[k];
+  if (!p.layoutMatched) return headerOnly(title, p, 'Organ 3', NO3_PROVISIONAL_NOTE);
+  const g: Get = (k) => p.values[k];
 
-  const header = fwHeader(p);
-  const transpose = transposeText(g('common.transposeEnable'), g('common.programTranspose'));
-  if (transpose) header.push(['Transpose', transpose]);
+  const header = fwHeader(p, transposeText(g('common.transposeEnable'), g('common.programTranspose')));
 
   const model = g('common.organModel');
   const b3 = model !== undefined && B3_MODELS.has(model);
