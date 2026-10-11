@@ -15,7 +15,8 @@ Nothing ran on hardware.
 **Confidence.** **High**: read directly from code, or checked on every stroke of the corpus.
 **Medium**: the mechanism is clear, one mapping is inferred. **Low**: a hypothesis.
 
-**Status.** §1 is implemented. §2 and §3 are the spec for the next steps and are not built.
+**Status.** §1 and §2 are implemented in the player, with the approximations each section
+names. Of §3, the voice limit and the fades are built; the resampler is not.
 
 ---
 
@@ -81,45 +82,76 @@ playback; the player starts it when playback reaches the loop.
 
 ---
 
-## 2. Unison and repeated notes on a Samples layer (not built)
+## 2. Unison and repeated notes on a Samples layer (implemented)
 
-Source: ARM `0xC01E5404` (unison tables), `0xC01E00AC` (voice set-up), `0xC01D7108` (loader).
+Source: ARM `0xC01D7108` (loader), `0xC01E5404` (unison tables), `0xC01E00AC` (voice set-up).
+Unison is the *program's* setting (0–3, dispatcher key `0x37`); the sample only stores what each
+setting does to it.
 
-- **The 31-byte unison block is read in this order:** `mode, topKey, detune1, detune2, detune3,
-  sameDetuneMin` (u16 each after the two bytes), `pan1, pan2, pan3, numVoice1/2/3/Same,
-  gain1/2/3/Same` (u24), `randomStrokeMode, blockRandomSustPed`. `NSMP-CODEC.md` and
-  `readSampleUnison` interleave pan and detune instead. Every file in the corpus has unison off,
-  so the difference has not shown. **High** (read order); check against the editor before
-  changing the reader.
-- **Voices.** Unison off = 1 voice; 1 and 2 = 2 voices; 3 = 3 voices where the key has two
-  alternate source keys, else 2. **High.**
-- **Extra voices play neighbouring recordings.** Voice 0 plays the key's own stroke; voices 1
-  and 2 play the strokes of the key's two alternate keys (per-note row), repitched to the played
-  key. Above `topKey` the same stroke is doubled. **High.**
-- **Detune.** `mode` 1 uses the file's values: ±raw·25/65536 semitones. `mode` 0 uses a built-in
-  law: ±0.78 cents per unison step at middle C, scaled by 2^((60 − key)/20), capped at about
-  ±3.9 cents. **High** (arithmetic), **medium** (units).
-- **Pan.** p = 0.5 + (byte/2)/100, L = √p, R = √(1 − p), mirrored for the second voice. **High.**
-- **Repeated notes.** With `randomStrokeMode` set, each key steps through a fixed 38-step
-  sequence over {own, alternate A, alternate B} with no immediate repeats. With
-  `blockRandomSustPed` the sequence does not advance while the sustain pedal is down. **High**
-  (sequence), **medium** (pedal flag).
+### 2.1 The voicing block
+
+31 bytes after the per-note rows of a codec-4 `map`, read by the instrument as: `mode`,
+`topKey`, **four u16 BE** (detune of Unison 1, 2, 3, then the same-recording detune), **three
+pan bytes** (width of Unison 1, 2, 3), four voice counts, four u24 gains, `randomStrokeMode`,
+`blockRandomSustPed`. **High** (read order). The three codec-4 files in the corpus only give
+round numbers this way (detune 0 / 15 / 40 or 0 / 15 / 30, widths 70 / 70 / 70); the earlier
+layout, with pan and detune interleaved, gave 10240 and 17990.
+
+- `mode` 0: the instrument's built-in detune and width. `mode` 1: the file's. It is not an
+  on/off switch. **High.**
+- The voice counts are stored but not read on the paths traced. **Medium.**
+
+### 2.2 Voices
+
+- Unison off = 1 voice; 1 and 2 = 2 voices; 3 = 3 voices where the key has two alternate keys,
+  else 2. **High.**
+- **Extra voices play neighbouring recordings.** Voice 0 plays the key's own stroke; the others
+  play the strokes of the key's alternate keys, repitched to the played key. Above `topKey`
+  the key's own stroke is doubled. **High.**
+- **Alternate keys** are in the per-note rows: each 10-byte row is level (u24), three bytes,
+  then four key bytes `b0..b3`. `b0`/`b1` are the unison alternates (a byte equal to the key
+  means none). `b2`/`b3` mark which of them a repeated note may also use: both match → both;
+  one matches → that one; neither → none. `0xFF` in key 0's `b0` marks the table unused.
+  **High.**
+- **Detune.** File values: ± raw·25 pitch units, one unit being 1/65536 semitone, so 40 is
+  ±1.53 cents. Built in: 512 units per unison step at middle C, × 2^((60 − key)/20), capped
+  at 2560 (±3.9 cents). With two voices one goes up and one down; with three the centre voice
+  is not detuned. The same-recording value replaces Unison 1's when both voices share a
+  stroke. **High** (arithmetic).
+- **Pan.** p = 0.5 + (width/2)/100, L = √p, R = √(1 − p), mirrored for the second voice.
+  Built in: (0.933, 0.361). The centre voice of a three-voice stack gets the tier gain
+  (raw/2²⁰) on both sides. **High.**
 - **Level.** Velocity is not applied in the sample path; it sets the synth voice's level
   downstream. Per-key gain is stroke gain × per-note gain. **High.**
+
+### 2.3 Repeated notes
+
+With `randomStrokeMode` non-zero, each key keeps a strike counter and steps through its own
+stroke and its repeat alternates, for keys up to `topKey`. With one alternate it alternates
+strictly. With two the instrument follows a fixed order of 38 steps (the first used once, then
+a period of 37) in which no source plays twice in a row. With `blockRandomSustPed` the counter
+does not advance while the sustain pedal is down. Values 1, 2 and 3 of the mode byte are not
+told apart in the code traced. **High** (mechanism), **medium** (pedal flag).
+
+OpenNord uses its own six-step order with the same never-twice-running property, rotates only
+a single (unison-off) voice, and ignores the pedal block.
 
 Not traced: velocity-layer switching on this path, key-up handling, the steal order, the
 `map_info` global gain.
 
-## 3. Voices, resampling and gain on the DSP (not built)
+## 3. Voices, resampling and gain on the DSP (voice limit and fades implemented)
 
-- **56 voice slots.** **High.**
+- **56 voice slots.** **High.** The player caps at 56 and takes the oldest note first; the
+  instrument's own steal order is not traced.
 - **Resampling** is on the sample DSP: 12 taps × 256 phases, Kaiser-windowed sinc; six kernels
   with cutoffs from 1.10 down to 0.895 of the source Nyquist, chosen by key octave. Pitch-up is
   allowed, to 4×. Pitch and gate arrive from the synth voice over the audio bus. **High**
-  (structure), **medium** (kernel selection).
+  (structure), **medium** (kernel selection). Not built: the player uses the browser's
+  resampler.
 - **Gain:** a 1 ms start fade (1 − x²), a fade of about 10 ms when the synth voice gates the
   sample off, smoothed left/right gain, and the loop decay of §1.3. A stolen voice is faded with
-  a per-update coefficient of 0.965. The amp envelope proper is in the synth voice. **High.**
+  a per-update coefficient of 0.965 (60 dB in 9 ms). The amp envelope proper is in the synth
+  voice. **High.**
 
 ## 4. Open questions
 
