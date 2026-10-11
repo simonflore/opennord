@@ -1,10 +1,9 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useNavigate, useRouter } from '@tanstack/react-router';
 import { isUnder, trimSlash } from '../../lib/library/categories';
 import type { LibraryEntry } from '../../lib/library/types';
 import type { NavTo } from '../shell/nav';
 
-type Navigate = ReturnType<typeof useNavigate>;
 
 // Here rather than beside the router's Register: the pro build compiles these
 // components against its own router.
@@ -46,9 +45,18 @@ export function useOpenEntry() {
 }
 
 /**
- * After removing entries: back to the bare `list` if the open one was among
- * them, replacing its route so Back doesn't return to an entry that's gone.
+ * After an entry is removed: back to the bare `list` if that entry is the one
+ * open now (read from the route when called, so a removal that finishes after
+ * the user moved on closes nothing else), replacing its route so Back doesn't
+ * return to an entry that's gone.
  */
-export function closeRemoved(navigate: Navigate, list: NavTo, openId: string | undefined, removed: Iterable<string>) {
-  if (openId && [...removed].includes(openId)) void navigate({ to: list, replace: true });
+export function useCloseRemoved(list: NavTo) {
+  const navigate = useNavigate();
+  const router = useRouter();
+  return useCallback((id: string) => {
+    const path = trimSlash(router.state.location.pathname);
+    if (isUnder(path, list) && decodeURIComponent(path.slice(list.length + 1)) === id) {
+      void navigate({ to: list, replace: true });
+    }
+  }, [navigate, router, list]);
 }

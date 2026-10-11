@@ -1,12 +1,11 @@
-import { useNavigate } from '@tanstack/react-router';
 import { Blueprint } from '@/components/ui';
 import { LibraryView } from './LibraryView';
 import { ProgramView } from '@/components/program/ProgramView';
 import { CategorySplit } from './CategorySplit';
-import { EmptyNote } from './EmptyNote';
+import { EmptyNote, NotListedNote } from './EmptyNote';
 import { useLibraryState } from '@/lib/library/LibraryContext';
 import { useSplitLayout } from '@/lib/responsive';
-import { closeRemoved, useOpenEntry } from './openEntry';
+import { useCloseRemoved, useOpenEntry } from './openEntry';
 
 /**
  * The Library as master/detail. `/library/programs/{-$programId}` renders
@@ -16,7 +15,7 @@ import { closeRemoved, useOpenEntry } from './openEntry';
 export function LibrarySplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = useLibraryState();
-  const navigate = useNavigate();
+  const closeRemoved = useCloseRemoved('/library/programs');
   const open = useOpenEntry();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
 
@@ -38,7 +37,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
       activeId={selectedId}
       onOpen={(e) => open.program(e)}
       onImport={s.importFile}
-      onRemove={(id) => { void s.imported.remove(id); closeRemoved(navigate, '/library/programs', selectedId, [id]); }}
+      onRemove={(id) => void s.imported.remove(id).then(() => closeRemoved(id))}
       importError={s.importError}
       onDismissImportError={s.clearImportError}
       prefs={s.prefs}
@@ -68,7 +67,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
           master={list}
           detail={program
             ?? (entry ? <EmptyNote>This slot hasn’t been read from your Nord yet. Read it on the Device page.</EmptyNote>
-              : selectedId ? <EmptyNote>This program isn’t in your library right now. Pick one from the list.</EmptyNote>
+              : selectedId ? <NotListedNote noun="program" />
               : <EmptyNote>Pick a program to see its details.</EmptyNote>)}
           hasDetail={!!selectedId}
           list="/library/programs"

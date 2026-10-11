@@ -3,7 +3,7 @@ import { usePianosState } from '@/lib/library/PianosContext';
 import { PianosBrowse } from './PianosBrowse';
 import { PianoInspector } from './PianoInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
-import { EmptyNote } from '@/components/library/EmptyNote';
+import { EmptyNote, NotListedNote } from '@/components/library/EmptyNote';
 import { useSplitLayout } from '@/lib/responsive';
 
 /**
@@ -41,7 +41,7 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
 
   const detail = entry
     ? <PianoInspector key={entry.id} entry={entry} session={s.session} />
-    : selectedId ? <EmptyNote className="p-4">This piano isn’t in your library right now. Pick one from the list.</EmptyNote>
+    : selectedId ? <NotListedNote noun="piano" className="p-4" />
     : <EmptyNote className="p-4">Pick a piano to see its details.</EmptyNote>;
 
   return (

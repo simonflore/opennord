@@ -1,10 +1,9 @@
-import { useNavigate } from '@tanstack/react-router';
-import { closeRemoved, useOpenEntry } from '@/components/library/openEntry';
+import { useCloseRemoved, useOpenEntry } from '@/components/library/openEntry';
 import { usePresetsState } from '@/lib/library/PresetsContext';
 import { PresetsBrowse } from './PresetsBrowse';
 import { PresetInspector } from './PresetInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
-import { EmptyNote } from '@/components/library/EmptyNote';
+import { EmptyNote, NotListedNote } from '@/components/library/EmptyNote';
 import { useSplitLayout } from '@/lib/responsive';
 
 /**
@@ -15,7 +14,7 @@ import { useSplitLayout } from '@/lib/responsive';
 export function PresetsSplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = usePresetsState();
-  const navigate = useNavigate();
+  const closeRemoved = useCloseRemoved('/library/presets');
   const open = useOpenEntry();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
 
@@ -48,14 +47,14 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
         onSelect={(e) => open.preset(e.id)}
         activeId={selectedId}
         onImport={importPreset}
-        onRemove={(id) => { void s.removePreset(id); closeRemoved(navigate, '/library/presets', selectedId, [id]); }}
+        onRemove={(id) => void s.removePreset(id).then(() => closeRemoved(id))}
       />
     </div>
   );
 
   const detail = entry
     ? <PresetInspector key={entry.id} entry={entry} session={s.session} />
-    : selectedId ? <EmptyNote className="p-4">This preset isn’t in your library right now. Pick one from the list.</EmptyNote>
+    : selectedId ? <NotListedNote noun="preset" className="p-4" />
     : <EmptyNote className="p-4">Pick a preset to see its details.</EmptyNote>;
 
   return (

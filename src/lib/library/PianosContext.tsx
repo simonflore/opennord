@@ -45,15 +45,22 @@ function usePianosStateValue() {
     setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const clearSelected = () => setSelected(new Set());
 
+  // The usage tags and the picked samples name this Nord's slots: a new
+  // connection starts without them, so nothing picked on one Nord is removed
+  // from the next.
+  useEffect(() => {
+    setUsage(null); setUnusedOnly(false); setSelected(new Set());
+  }, [session]);
+
   async function scanUsage() {
     if (!session) return;
     setScanPct(0);
     try {
       const u = await findUnusedPianos(session, (done, total) =>
         setScanPct(total ? Math.round((done / total) * 100) : 0));
-      setUsage(u);
+      if (isCurrent(session)) setUsage(u); // not tags for another Nord connected meanwhile
     } catch {
-      setUsage(null); // scan failed (unsupported/disconnected) — leave the list untagged
+      if (isCurrent(session)) setUsage(null); // scan failed (unsupported/disconnected) — leave the list untagged
     } finally {
       setScanPct(null);
     }
