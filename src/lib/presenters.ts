@@ -46,7 +46,7 @@ const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.tag === 'np5p', present: np5Decoded },
   // np4 gets the family-wide piano-name table injected here — the np4 module
   // itself treats ns4 as a transcribe-only oracle and never imports it.
-  { match: (i) => i.tag === 'np4p', present: (bytes) => np4Decoded(bytes, (id) => PIANO_NAMES[id]) },
+  { match: (i) => i.tag === 'np4p', present: (bytes) => np4Decoded(bytes, pianoName) },
   { match: (i) => i.tag === 'ne5p', present: ne5Decoded },
   { match: (i) => i.tag === 'ne6p', present: ne6Decoded },
   { match: (i) => i.tag === 'nw2p', present: nw2Decoded },

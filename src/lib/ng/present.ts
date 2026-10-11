@@ -11,7 +11,7 @@
  */
 import { decodeNg } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
-import { effectsSection, fwHeader, headerOnlyNote, hexId, label, levelPart, octavePart, parts, transposeText } from '../clavia/fw-present';
+import { effectsSection, fwHeader, headerOnly, hexId, label, levelPart, octavePart, parts, transposeText } from '../clavia/fw-present';
 
 /** Pno_kBank 0–5 (Grand OS 1.68 label table). */
 export const NG_PIANO_TYPE = ['Grand', 'Upright', 'Electric', 'Clav', 'Digital', 'Misc'] as const;
@@ -34,13 +34,9 @@ export function ngDecoded(
 ): DecodedProgram {
   const p = decodeNg(bytes);
   const title = 'Nord Grand · Program';
-  if (!p.layoutMatched) {
-    return { title, header: fwHeader(p), sections: [], note: headerOnlyNote('Grand'), warnings: p.warnings };
-  }
+  if (!p.layoutMatched) return headerOnly(title, p, 'Grand');
   const v = p.values;
-  const header = fwHeader(p);
-  const transpose = transposeText(v['common.transposeEnable'], v['common.transposeValue']);
-  if (transpose) header.push(['Transpose', transpose]);
+  const header = fwHeader(p, transposeText(v['common.transposeEnable'], v['common.transposeValue']));
   if (v['piano.nameHash'] !== undefined) header.push(['Piano sound id', hexId(v['piano.nameHash'])]);
   if (v['synth.smpNameHash'] !== undefined) header.push(['Sample sound id', hexId(v['synth.smpNameHash'])]);
 

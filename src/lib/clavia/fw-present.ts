@@ -5,7 +5,10 @@
  * Pure; model → clavia.
  */
 import type { FwProgram } from './block-chain';
-import type { DecodedSection } from './decoded';
+import type { DecodedProgram, DecodedSection } from './decoded';
+
+/** Drawbar numbers 1–9, for reading a set of `drawbarValue1…9` fields. */
+export const DRAWBAR_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
 /** The label for an enum value, or undefined when the value has no known label. */
 export function label(table: readonly string[], v: number | undefined): string | undefined {
@@ -39,17 +42,25 @@ export function transposeText(enabled: number | undefined, value: number | undef
   return `${value > 0 ? '+' : '−'}${Math.abs(value)} semitone${Math.abs(value) === 1 ? '' : 's'}`;
 }
 
-/** Header rows every firmware-layout reader shows. */
-export function fwHeader(p: FwProgram<string>): [string, string][] {
-  return [['Version', `v${p.version}`]];
+/** Header rows every firmware-layout reader shows: the version, then the transpose when it is on. */
+export function fwHeader(p: FwProgram<string>, transpose?: string): [string, string][] {
+  const rows: [string, string][] = [['Version', `v${p.version}`]];
+  if (transpose) rows.push(['Transpose', transpose]);
+  return rows;
 }
 
-/** The note shown when the block chain did not match, so only the header is known. */
-export function headerOnlyNote(model: string): string {
-  return `${model}: this file's structure didn't match the layout read from the firmware, so only the file header is shown.`;
+/** The presentation when the block chain did not match the firmware layout: the file header only. */
+export function headerOnly(title: string, p: FwProgram<string>, model: string, extraNote?: string): DecodedProgram {
+  const note = `${model}: this file's structure didn't match the layout read from the firmware, so only the file header is shown.`;
+  return { title, header: fwHeader(p), sections: [], note: extraNote ? `${note} ${extraNote}` : note, warnings: p.warnings };
+}
+
+/** The effects that are on, or "None on". */
+export function noneOn(on: string[]): string[] {
+  return on.length > 0 ? on : ['None on'];
 }
 
 /** An effects card: one "Effects" row listing what is switched on. */
 export function effectsSection(on: string[], id = 'FX', title = 'EFFECTS'): DecodedSection {
-  return { id, label: title, engines: [{ label: 'Effects', parts: on.length > 0 ? on : ['None on'] }] };
+  return { id, label: title, engines: [{ label: 'Effects', parts: noneOn(on) }] };
 }

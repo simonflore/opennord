@@ -14,7 +14,8 @@
 import { decodeNe7 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
-import { effectsSection, fwHeader, headerOnlyNote, hexId, label, levelPart, octavePart, parts, transposeText } from '../clavia/fw-present';
+import { DRAWBAR_NUMBERS, effectsSection, fwHeader, headerOnly, hexId, label, levelPart, noneOn, octavePart, parts, transposeText } from '../clavia/fw-present';
+import type { Ne7FieldKey } from './layout.generated';
 
 /** Org_kOrganModel 0–5. */
 export const NE7_ORGAN_MODEL = ['B3', 'Vox', 'Farf', 'Pipe', 'Soft B3', 'B3+Bass'] as const;
@@ -27,22 +28,21 @@ const B3_MODELS = new Set([0, 4, 5]);
 export const NE7_PROVISIONAL_NOTE =
   'Electro 7: firmware-derived (OS 1.30 registry), block order not yet confirmed on a real file — treat these values as provisional.';
 
-type Get = (key: string) => number | undefined;
+type Get = (key: Ne7FieldKey) => number | undefined;
 
-function sectionFx(g: Get, blk: string): string[] {
-  const on = parts(
+function sectionFx(g: Get, blk: 'organFx' | 'pianoFx' | 'synthFx'): string[] {
+  return noneOn(parts(
     g(`${blk}.fx1Enable`) ? 'Effect 1' : undefined,
     g(`${blk}.fx2Enable`) ? 'Effect 2' : undefined,
     g(`${blk}.dlyEnable`) ? 'Delay' : undefined,
     g(`${blk}.ampEnable`) ? 'Amp' : undefined,
     g(`${blk}.cmpEnable`) ? 'Comp' : undefined,
-  );
-  return on.length > 0 ? on : ['None on'];
+  ));
 }
 
 function drawbarSet(g: Get, n: 1 | 2 | 3, b3: boolean): DecodedSection {
-  const blk = `organDrawbars${n}`;
-  const bars = Array.from({ length: 9 }, (_, i) => g(`${blk}.drawbarValue${i + 1}`) ?? 0);
+  const blk = `organDrawbars${n}` as const;
+  const bars = DRAWBAR_NUMBERS.map((i) => g(`${blk}.drawbarValue${i}`) ?? 0);
   return {
     id: `D${n}`, label: `ORGAN · DRAWBARS ${n}`,
     engines: [{ label: 'Drawbars', parts: [bars.join(' ')] }],
@@ -60,15 +60,10 @@ export function ne7Decoded(
 ): DecodedProgram {
   const p = decodeNe7(bytes);
   const title = 'Nord Electro 7 · Program';
-  if (!p.layoutMatched) {
-    return { title, header: fwHeader(p), sections: [], note: `${headerOnlyNote('Electro 7')} ${NE7_PROVISIONAL_NOTE}`, warnings: p.warnings };
-  }
-  const v = p.values as Record<string, number | undefined>;
-  const g: Get = (k) => v[k];
+  if (!p.layoutMatched) return headerOnly(title, p, 'Electro 7', NE7_PROVISIONAL_NOTE);
+  const g: Get = (k) => p.values[k];
 
-  const header = fwHeader(p);
-  const transpose = transposeText(g('common.transposeEnable'), g('common.transposeValue'));
-  if (transpose) header.push(['Transpose', transpose]);
+  const header = fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue')));
   const pianoHash = g('piano.nameHash');
   if (pianoHash !== undefined) header.push(['Piano sound id', hexId(pianoHash)]);
 
