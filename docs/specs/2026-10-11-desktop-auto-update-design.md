@@ -43,7 +43,9 @@ property the design protects first.
   until the next launch (by which time the update is normally installed).
 - **Never during a Nord session.** While the USB device is open, the dialog is
   not shown. It is shown when the device is closed. The app never restarts
-  without the user choosing *Restart now*.
+  without the user choosing *Restart now*. Known gap, for spec 3: unplugging
+  the Nord without disconnecting in the app leaves it counted as open for the
+  rest of that run, so the prompt stays held and the update installs on quit.
 - **Quiet failures.** A failed automatic check or download (offline, GitHub
   error, rate limit) is written to the log and retried at the next interval. No
   dialog.
@@ -57,9 +59,16 @@ Squirrel.Mac cannot replace an app running from the mounted dmg or from a
 quarantine-translocated path, and fails without telling the user. So on launch,
 in a packaged macOS build that is not in the Applications folder, a native
 dialog offers **Move to Applications** (`app.moveToApplicationsFolder()`), which
-relaunches from there, or **Not now**. Declining is remembered for that run
-only; the offer returns next launch, because every launch outside Applications
-is a launch that cannot update.
+relaunches from there, or **Not now**. The offer returns next launch, and
+**Check for Updates…** makes it again. Until the app is moved it does not check
+or download at all: an update fetched there could never install, and a "ready"
+prompt for it would be a lie.
+
+**The prompt waits for the system.** On macOS `electron-updater` reports a
+download as finished before Squirrel.Mac has fetched and staged it. A "Restart
+now" in that window would make the app quit whenever Squirrel finishes — or,
+after a Squirrel error, hours later with no prompt. So on macOS the update only
+counts as ready on Squirrel's own event, after which a restart is immediate.
 
 ## Structure
 
@@ -67,8 +76,9 @@ is a launch that cannot update.
 | --- | --- |
 | `electron/update-policy.ts` | Pure decisions, no Electron imports: whether the ready prompt may be shown now, what the manual check should report, check timing constants |
 | `electron/update-policy.test.ts` | Unit tests for the above |
-| `electron/updater.ts` | Wiring: configures `autoUpdater`, schedules checks, shows dialogs, adds the menu item, offers the move to Applications. Exposes `startUpdater({ isDeviceOpen, onDeviceClosed })` |
-| `electron/main.ts` | Calls `startUpdater` once the app is ready; tells it when the USB device closes |
+| `electron/menu.ts` | The application menu as plain data, with the Check for Updates item |
+| `electron/updater.ts` | Wiring: configures `autoUpdater`, schedules checks, shows dialogs, offers the move to Applications. `startUpdater({ isDeviceOpen })` returns `{ checkNow, deviceClosed }` |
+| `electron/main.ts` | Opens the window first, then starts the updater inside a guard; owns the menu; tells the updater when the USB device closes |
 
 `main.ts` already holds the open USB handle (`state`), so "is a Nord open" needs
 nothing from the renderer.

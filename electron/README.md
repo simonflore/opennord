@@ -125,7 +125,8 @@ the command refuses; bump instead.
 ## Updates
 
 The packaged app updates itself from the public repo's Releases
-(`electron/updater.ts`; decisions in `electron/update-policy.ts`). It runs
+(`electron/updater.ts`; decisions in `electron/update-policy.ts`; the menu item
+in `electron/menu.ts`, set from `main.ts`). It runs
 entirely in the main process, so a release whose web app fails to load can still
 be repaired by the next one.
 
@@ -137,8 +138,11 @@ be repaired by the next one.
 - Automatic checks fail quietly. **Check for Updates…** (app menu on macOS, Help
   elsewhere) always answers, including with the error.
 - Only published, non-pre-release versions with a plain `x.y.z` number are seen.
-- On macOS the app must run from Applications to update; it offers to move
-  itself on launch.
+- On macOS the app must run from Applications to update. Anywhere else it does
+  not check at all; it offers to move itself, at launch and from **Check for
+  Updates…**.
+- On macOS the prompt waits until the system has staged the update, so
+  **Restart now** always restarts at once.
 - Log: `updater.log` in the app's log folder (`~/Library/Logs/OpenNord/` on
   macOS, `%APPDATA%\OpenNord\logs\` on Windows), started fresh each launch; the
   previous launch's log is kept beside it as `updater.previous.log`.

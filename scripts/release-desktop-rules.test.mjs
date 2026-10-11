@@ -1,12 +1,12 @@
-import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  isMainModule, parseFlags, pickWindowsRun, preflightProblems, releaseAction, releaseAssets,
-  releaseCreateArgs, releaseTag,
-} from './release-desktop.mjs';
+  parseFlags, pickWindowsRun, preflightProblems, releaseAction, releaseAssets, releaseCreateArgs, releaseTag,
+} from './release-desktop-rules.mjs';
+
+// The real config: asset names are derived from it, so this is also the check
+// that what the release command uploads is what electron-builder writes.
+const { build } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 const ready = {
   version: '0.1.0', dirty: false, headCommit: 'aaa111', tagCommit: 'aaa111',
@@ -92,18 +92,21 @@ describe('releaseAction', () => {
 });
 
 describe('releaseAssets', () => {
-  it('lists both platforms with feeds and blockmaps', () => {
-    expect(releaseAssets({ macOnly: false })).toEqual([
-      'OpenNord-mac.dmg', 'OpenNord-mac.dmg.blockmap',
-      'OpenNord-mac.zip', 'OpenNord-mac.zip.blockmap', 'latest-mac.yml',
-      'OpenNord-win-x64.exe', 'OpenNord-win-x64.exe.blockmap', 'latest.yml',
-    ]);
+  it('splits the release into what this Mac packs and what Windows CI built', () => {
+    expect(releaseAssets(build, { macOnly: false })).toEqual({
+      mac: ['OpenNord-mac.dmg', 'OpenNord-mac.dmg.blockmap', 'OpenNord-mac.zip', 'OpenNord-mac.zip.blockmap', 'latest-mac.yml'],
+      win: ['OpenNord-win-x64.exe', 'OpenNord-win-x64.exe.blockmap', 'latest.yml'],
+    });
   });
-  it('drops the Windows files in mac-only mode', () => {
-    expect(releaseAssets({ macOnly: true })).toEqual([
-      'OpenNord-mac.dmg', 'OpenNord-mac.dmg.blockmap',
-      'OpenNord-mac.zip', 'OpenNord-mac.zip.blockmap', 'latest-mac.yml',
-    ]);
+  it('has no Windows files in mac-only mode', () => {
+    expect(releaseAssets(build, { macOnly: true }).win).toEqual([]);
+  });
+  it('follows a rename in the build config instead of restating the names', () => {
+    const renamed = { mac: { target: ['dmg'], artifactName: 'Nord-${ext}' }, nsis: { artifactName: 'Nord-setup.${ext}' } };
+    expect(releaseAssets(renamed, { macOnly: false })).toEqual({
+      mac: ['Nord-dmg', 'Nord-dmg.blockmap', 'latest-mac.yml'],
+      win: ['Nord-setup.exe', 'Nord-setup.exe.blockmap', 'latest.yml'],
+    });
   });
 });
 
@@ -129,29 +132,5 @@ describe('releaseCreateArgs', () => {
     expect(args).toContain('--draft');
     expect(args[args.indexOf('--target') + 1]).toBe('abc123');
     expect(args[args.indexOf('--repo') + 1]).toBe('o/r');
-  });
-});
-
-describe('isMainModule', () => {
-  // import.meta.url is always the real path, so the fixture's must be too (macOS tmp is a symlink).
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'release desktop ')));
-  const real = join(dir, 'script.mjs');
-  writeFileSync(real, '');
-  const url = pathToFileURL(real).href;
-
-  it('recognises the script when its path contains a space', () => {
-    expect(isMainModule(url, real)).toBe(true);
-  });
-  it('recognises the script when it is reached through a symlink', () => {
-    mkdirSync(join(dir, 'via'));
-    const link = join(dir, 'via', 'link.mjs');
-    symlinkSync(real, link);
-    expect(isMainModule(url, link)).toBe(true);
-  });
-  it('is false when another file is the entry point (a test runner)', () => {
-    expect(isMainModule(url, join(dir, 'other.mjs'))).toBe(false);
-  });
-  it('is false when there is no entry script', () => {
-    expect(isMainModule(url, undefined)).toBe(false);
   });
 });
