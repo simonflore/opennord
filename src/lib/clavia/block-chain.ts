@@ -22,7 +22,7 @@
  * Never throws: an odd or truncated file yields a header-only result with a
  * warning, so the Library can still list it.
  */
-import { CBIN_BODY_OFFSET, formatCbinVersion } from './cbin';
+import { cbinFraming, formatCbinVersion } from './cbin';
 import { readBits } from './bitstream';
 
 /**
@@ -207,15 +207,14 @@ export interface FwProgram<K extends string> {
 }
 
 /**
- * Where a file's body sits: from the NSM-era header's 0x2C to EOF, or behind a
- * legacy (format type 0) header — 0x14 bytes shorter — from 0x18 up to the
- * 2-byte CRC-16 trailer (clavia/crc16.ts; it holds on every legacy `.ns3f` in
- * ns3-program-viewer's corpus).
+ * Where a file's body sits — the CBIN record (cbin.ts `cbinFraming`): from the
+ * NSM-era header's 0x2C to EOF, or behind a legacy (format type 0) header from
+ * 0x18 up to the 2-byte CRC-16 trailer (clavia/crc16.ts; it holds on every
+ * legacy `.ns3f` in ns3-program-viewer's corpus).
  */
 export function fwBodyRange(bytes: Uint8Array): { start: number; end: number } {
-  return bytes[0x04] === 0
-    ? { start: CBIN_BODY_OFFSET - 0x14, end: bytes.length - 2 }
-    : { start: CBIN_BODY_OFFSET, end: bytes.length };
+  const f = cbinFraming(bytes);
+  return { start: f.recordOffset, end: f.recordOffset + f.recordBytes };
 }
 
 /** Decode a whole file (CBIN header + body, framed by {@link fwBodyRange}) against a layout. Never throws. */

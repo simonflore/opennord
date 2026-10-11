@@ -37,7 +37,7 @@
  * like any other. Sparse morph lists (`morphLists`, Lead 4) are not fields and
  * stay as they are. Pure; model → clavia.
  */
-import { hasCbinMagic } from './cbin';
+import { cbinFraming, hasCbinMagic } from './cbin';
 import { readBits, writeBits } from './bitstream';
 import { fieldRaw, fieldValue, fwBodyRange, walkBlockChain, type FwField, type FwLayout } from './block-chain';
 import { sealFileChecksum, verifyFileChecksum } from './checksum';
@@ -76,7 +76,7 @@ export function encodeField(field: EncodedField, value: number): number {
 }
 
 function requireCbin(bytes: Uint8Array): void {
-  if (!hasCbinMagic(bytes) || (bytes[0x04] !== 0 && bytes[0x04] !== 1)) {
+  if (!hasCbinMagic(bytes) || !cbinFraming(bytes).supported) {
     throw new ProgramWriteError('Not a Nord program file');
   }
 }
