@@ -43,6 +43,8 @@ import { no3Codec } from './no3/codec';
 import type { No3Program } from './no3/types';
 import { np3Codec } from './np3/codec';
 import type { Np3Program } from './np3/types';
+import { ns1Codec } from './ns1/codec';
+import type { Ns1Program } from './ns1/types';
 import { np1Codec } from './np1/codec';
 import type { Np1Program } from './np1/types';
 import { np2Codec } from './np2/codec';
@@ -62,7 +64,7 @@ export type NordProgram =
   | Nl4Program | NlaProgram
   | Ne4Program | Ne5Program
   | NgProgram | Np6Program | Ne7Program | No3Program
-  | Np3Program | Np1Program | Np2Program;
+  | Np3Program | Ns1Program | Np1Program | Np2Program;
 
 /**
  * Every model OpenNord can decode. Add new codecs here as they land —
@@ -89,6 +91,7 @@ const CODECS: readonly ModelCodec<NordProgram>[] = [
   np3Codec,
   np2Codec,
   np1Codec,
+  ns1Codec,
 ];
 
 /** True when `program` is a fully-structured NS4 program (has `kind`). */

@@ -40,7 +40,7 @@ export interface CapabilityStatus { status: ValidationStatus; note?: string; }
 
 export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, CapabilityStatus>>>> = {
   'stage-classic': {
-    'file-read': { status: 'inferred', note: "OG gen, tag 'nspg' (shared with the first-gen Stage EX); no decoder, same-era inference" },
+    'file-read': { status: 're', note: "nspg program record known from the OS 5.08 firmware's own descriptors (lib/ns1: u8 version 10 + common, panel A, panel B = 400 bytes; 101 morphable parameters with 3 signed deltas each). Record start in a .nspg file unconfirmed — files open header-only with a warning until a real file pins it; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v3 in the OS 5.08 firmware (frames of exactly version 3, no session lock); 4 partitions: 0 Native, 1 Piano, 2 Program nspg, 3 Synth nss — no Live, no Settings (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v3 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v3 (firmware); WRITE \u2014 untested-write risk" },
@@ -50,7 +50,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
   },
   'stage-ex': {
     // First-gen Nord Stage EX (sibling of Stage Classic), tag 'nspg' \u2014 NOT Stage 2 EX.
-    'file-read': { status: 'inferred', note: "OG gen, tag 'nspg' (shared with the Stage Classic); no decoder, same-era inference" },
+    'file-read': { status: 're', note: "nspg program record known from the OS 6.08 firmware's own descriptors — identical to the Stage Classic's (lib/ns1, 400 bytes). Record start in a .nspg file unconfirmed — files open header-only with a warning until a real file pins it; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v4 in the OS 6.08 firmware (frames 3..4, no session lock); 4 partitions: 0 Native (FFS), 1 Piano, 2 Program nspg, 3 Synth nss — no Live, no Settings (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v4 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v4 (firmware); WRITE \u2014 untested-write risk" },

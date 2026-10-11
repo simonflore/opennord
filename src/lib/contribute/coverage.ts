@@ -30,6 +30,7 @@ import { NE4_LAYOUT } from '../ne4/layout.generated';
 import { NS2_LAYOUT } from '../ns2/layout.generated';
 import { NE5_LAYOUT } from '../ne5/layout.generated';
 import { NP3_LAYOUT } from '../np3/layout.generated';
+import { NS1_LAYOUT } from '../ns1/layout.generated';
 import { NP1_LAYOUT } from '../np1/layout.generated';
 import { NP2_LAYOUT } from '../np2/layout.generated';
 
@@ -84,6 +85,8 @@ const DECODER_BY_ID: Record<string, 'full' | 'partial'> = {
   'lead-a1': 'partial',
   'electro-5': 'partial',
   'piano-3': 'partial',
+  'stage-classic': 'partial',
+  'stage-ex': 'partial',
   'piano-1': 'partial',
   'piano-2': 'partial',
 };
@@ -163,6 +166,9 @@ const _fwProgress: Record<string, ModelProgress> = {};
 /** Firmware-layout readers that still leave part of the stored program out, and what. */
 const NOT_FULL_MAP: Record<string, string> = {
   'wave-2': 'morph amounts are not read yet',
+  // The record layout is complete, but where it starts in a .nspg file is not confirmed.
+  'stage-classic': 'files open header-only until the record start in a .nspg file is confirmed',
+  'stage-ex': 'files open header-only until the record start in a .nspg file is confirmed',
 };
 
 // ── Legacy-record models: byte map of the record data (file 0x1A on) ─────────
@@ -183,6 +189,9 @@ const LEGACY_LAYOUTS: Record<string, { layout: LegacyLayout; status: 'confirmed'
   'electro-5': { layout: NE5_LAYOUT, status: 'confirmed' },
   // Piano 3: firmware layout, file alignment not yet checked on a real file → 'candidate'.
   'piano-3': { layout: NP3_LAYOUT, status: 'candidate' },
+  // Stage Classic / EX: one record layout (OS 5.08 = OS 6.08); its start in a .nspg file is unknown → 'candidate'.
+  'stage-classic': { layout: NS1_LAYOUT, status: 'candidate' },
+  'stage-ex': { layout: NS1_LAYOUT, status: 'candidate' },
   'piano-1': { layout: NP1_LAYOUT, status: 'candidate' },
   'piano-2': { layout: NP2_LAYOUT, status: 'candidate' },
 };
@@ -300,7 +309,7 @@ function distinctParams(layout: FwLayout | LegacyLayout): number {
   // and Stage 2's Preset I/II, the Electro 4's blockX1/X2, the Stage 2's slot A/B
   // containers) shares its descriptor ids.
   const ident = (f: (typeof params)[number]) =>
-    'id' in f ? `${f.key.split('.')[0].replace(/^slot[AB]_/, 'slot_').replace(/(II?|\d)$/, '')}#${f.id}` : f.name;
+    'id' in f ? `${f.key.split('.')[0].replace(/^slot[AB]_/, 'slot_').replace(/^panel[AB]$/, 'panel').replace(/(II?|\d)$/, '')}#${f.id}` : f.name;
   return new Set(params.map(ident)).size;
 }
 
