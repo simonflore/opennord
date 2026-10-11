@@ -150,7 +150,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     push: { status: 're', note: "shared FileTransfer Upload at v10 (firmware); WRITE — untested-write risk" },
     delete: { status: 're', note: "shared FileTransfer Delete at v10 (firmware); WRITE — untested-write risk" },
     backup: { status: 're', note: "ne7b ZIP of the user partitions, from the 10-partition list the OS 1.30 firmware registers, pulled over FileTransfer v10; untested on HW" },
-    samples: { status: 'inferred', note: "sample generation not located in the firmware; codec4 is a guess (a {8,11,30,40} version map exists)" },
+    samples: { status: 're', note: "firmware accepts .nsmp3 and .nsmp4 (the Stage 4 generation 3–4 check); sampleCodec records codec4; not HW-tested" },
   },
   'piano-1': {
     'file-read': { status: 're', note: "nppg read-only reader (lib/np1) generated from the OS 1.50 firmware's own parameter descriptors: a 20-byte record (piano, effects; 29 parameters) with no version and no converter. Where the record starts in a .nppg file is a guess (0x1A, low) — values are provisional until a real file confirms it; not HW-tested" },

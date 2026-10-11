@@ -801,3 +801,10 @@ This is a scratch-only toolchain, not committed:
 - a math-only decompile filter for the ARM setters.
 
 Outputs stay local.
+
+### 10.15 The Electro 7 runs this library
+
+The Electro 7 (OS 1.30) carries a subset of these modules as the same code, pooled the same
+way (§10.2 entries, filled by its static initialiser `0xC0118010`). So §10.3–§10.11 describe
+its effect algorithms too; its knob formulas were not re-derived and its menu order is open.
+Which modules it has and lacks: [`ELECTRO7-ENGINES.md`](ELECTRO7-ENGINES.md) §5.
