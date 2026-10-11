@@ -13,6 +13,10 @@
  * Behind an NSM-era header the data starts at 0x2E and there is no trailer, as
  * on the Lead A1 (legacy-record.ts).
  *
+ * Records from OS versions 6 and 7 (and version-8 performances) are converted
+ * first, as the firmware converts them on load (convert.ts); older ones the
+ * firmware refuses, so they are read as they are, with a warning.
+ *
  * Never throws: a short or odd-sized file is read as far as it goes, with a warning.
  */
 import { fileTypeTag, formatCbinVersion } from '../clavia/cbin';
@@ -22,6 +26,13 @@ import {
 import { storedTrailerChecksum } from '../clavia/crc16';
 import { NL4_LAYOUT, NL4_PERF_LAYOUT, type Nl4FieldKey } from './layout.generated';
 import type { Nl4MorphEntry, Nl4Program, Nl4Record } from './types';
+import { convertNl4Performance, convertNl4Program } from './convert';
+
+/** The record versions the OS 1.32 firmware reads natively. */
+const PROGRAM_VERSION = 8;
+const PERFORMANCE_VERSION = 9;
+/** The oldest version it converts (its converter tables start at 6). */
+const OLDEST_CONVERTED = 6;
 
 const PROGRAM_BYTES = NL4_LAYOUT.dataBytes; // 315
 const PERF_COMMON_BYTES = NL4_PERF_LAYOUT.dataBytes; // 7
@@ -65,22 +76,37 @@ export function decodeNl4(bytes: Uint8Array): Nl4Program {
     _data: legacyData(bytes, dataOffset, legacyTrailerBytes(bytes)),
     bytes,
   };
+  /** The record data to read: converted to the current version as the firmware does, or as stored. */
+  const converted = (current: number, convert: (data: Uint8Array, from: number) => void): Uint8Array => {
+    const from = common.recordVersion;
+    if (from >= current) return common._data;
+    const what = current === PROGRAM_VERSION ? 'program' : 'performance';
+    if (from < OLDEST_CONVERTED) {
+      warnings.push(`Record version ${from}: the Lead 4 doesn't load ${what}s this old, so OpenNord reads it as it is`);
+      return common._data;
+    }
+    const data = common._data.slice();
+    convert(data, from);
+    warnings.push(`Record version ${from}: the Lead 4 converts it to version ${current} on load, and OpenNord converts it the same way`);
+    return data;
+  };
 
   if (tag === 'nl4s' || (tag !== 'nl4p' && bytes.length <= nl4sBytes)) {
     if (bytes.length > framing && bytes.length !== nl4sBytes) {
       warnings.push(`Program file is ${bytes.length} bytes, the program record makes ${nl4sBytes}`);
     }
-    return { ...common, fileType: 'nl4s', program: readRecord(common._data, 0), warnings };
+    return { ...common, fileType: 'nl4s', program: readRecord(converted(PROGRAM_VERSION, convertNl4Program), 0), warnings };
   }
 
   if (bytes.length !== nl4pBytes) {
     warnings.push(`Performance file is ${bytes.length} bytes, the program record makes ${nl4pBytes}`);
   }
-  const slot = (k: number) => readRecord(common._data, PERF_COMMON_BYTES + PROGRAM_BYTES * k);
+  const data = converted(PERFORMANCE_VERSION, convertNl4Performance);
+  const slot = (k: number) => readRecord(data, PERF_COMMON_BYTES + PROGRAM_BYTES * k);
   return {
     ...common,
     fileType: 'nl4p',
-    performance: readLegacyRecord(common._data, NL4_PERF_LAYOUT).values,
+    performance: readLegacyRecord(data, NL4_PERF_LAYOUT).values,
     slots: [slot(0), slot(1), slot(2), slot(3)],
     warnings,
   };
