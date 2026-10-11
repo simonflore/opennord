@@ -20,7 +20,7 @@ describe('KeyboardZoneMap', () => {
     expect(html).toContain('>S3<');
     expect(html).toContain('>C4<'); // middle-C octave label
     // selected band (index 1) gets the bright accent stroke
-    expect(html).toContain('var(--red-bright)');
+    expect(html).toContain('var(--accent-bright)');
   });
 
   it('advertises "click to audition" per zone when onPlayZone is provided', () => {

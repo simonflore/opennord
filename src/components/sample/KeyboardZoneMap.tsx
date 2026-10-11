@@ -89,12 +89,12 @@ export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, on
       onPointerUp={onNoteOn ? (e) => { try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* not captured */ } release(); } : undefined}
       onPointerLeave={onNoteOn ? (e) => { try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* not captured */ } release(); } : undefined}
     >
-      <rect x="0" y={KB_TOP} width={W} height={KB_H} rx="4" fill="var(--ink)" />
+      <rect x="0" y={KB_TOP} width={W} height={KB_H} rx="4" fill="var(--key-white)" />
       {blacks.map((m) => (
-        <rect key={m} x={xOf(m) + 1} y={KB_TOP} width={SEMI - 2} height={KB_H * 0.62} fill="var(--bg)" />
+        <rect key={m} x={xOf(m) + 1} y={KB_TOP} width={SEMI - 2} height={KB_H * 0.62} fill="var(--key-black)" />
       ))}
       {octaves.map((m) => (
-        <text key={m} x={xOf(m) + 3} y={KB_TOP + KB_H - 5} fontSize="13" fill="var(--muted)" fontFamily="var(--mono)">{noteName(m)}</text>
+        <text key={m} x={xOf(m) + 3} y={KB_TOP + KB_H - 5} fontSize="13" fill="var(--key-black)" fontFamily="var(--mono)">{noteName(m)}</text>
       ))}
 
       {tiled.map((z, pos) => {
@@ -110,7 +110,7 @@ export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, on
             <title>{onPlayZone ? `S${pos + 1} — click to audition` : `S${pos + 1}`}</title>
             <rect x={x + 1} y={ZONE_TOP} width={Math.max(0, w - 2)} height={ZONE_H} rx="4"
               fill={zoneFill(pos)}
-              stroke={isSel || isPlaying ? 'var(--red-bright)' : 'var(--line)'}
+              stroke={isSel || isPlaying ? 'var(--accent-bright)' : 'var(--line)'}
               strokeWidth={isPlaying ? 3 : isSel ? 2.5 : 1} />
             {w > 26 ? (
               <text x={x + w / 2} y={ZONE_TOP + ZONE_H / 2 + 5} textAnchor="middle" fontSize="14" fontWeight="700" fill="var(--ink)">
@@ -128,11 +128,11 @@ export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, on
         );
       })}
 
-      {/* Root key markers — a faint red tick at each zone's root note. */}
+      {/* Root key markers — a faint accent tick at each zone's root note. */}
       {playableZones?.map((z, pos) => (
         <rect key={`r${z.globalID}-${pos}`}
           x={xOf(z.rootKey) + 1} y={KB_TOP} width={Math.max(1, SEMI - 2)} height={KB_H}
-          fill="var(--red)" opacity={0.55} pointerEvents="none" />
+          fill="var(--accent)" opacity={0.55} pointerEvents="none" />
       ))}
 
       {/* Selected-zone range tint over the key area. */}
