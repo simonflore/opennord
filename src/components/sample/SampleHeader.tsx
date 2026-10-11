@@ -21,11 +21,8 @@ export function SampleHeader({ view }: { view: SampleHeaderView }) {
       <div className="ps-hd-id">
         <IdentityLcd name={view.name} lines={[`${view.codecLabel} · ${count} · ${formatBytes(view.sizeBytes)}`]} />
         <div className="ps-meta">
-          {view.unison && (
-            <span className="ps-key on" title={`Unison ${view.unison} — auditioned as a stacked, panned voice`}>Unison</span>
-          )}
           {view.roundRobin && (
-            <span className="ps-key on" title="Round-robin (RandomStrokeMode) — repeated notes vary in audition">Round-robin</span>
+            <span className="ps-key on" title="Repeated notes step through neighbouring recordings">Repeats vary</span>
           )}
           {view.truVibrato && (
             <span className="ps-key on" title="This sample has Tru-Vibrato engaged">Tru-Vibrato</span>

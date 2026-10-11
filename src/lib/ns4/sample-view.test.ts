@@ -57,28 +57,29 @@ describe('sampleHeaderView', () => {
 describe('strokeSummary', () => {
   it('summarizes a decoded stroke', () => {
     const d: DecodedStrokeResult = {
-      index: 2, channelCount: 2, endOffset: 0, globalID: 3, segments: [], sampleRate: 35002, loop: { loopStart: 1, loopEnd: 3, loops: true },
+      index: 2, channelCount: 2, endOffset: 0, globalID: 3, segments: [], marks: [], sampleRate: 35002, loop: { loopStart: 1, loopEnd: 3, loops: true, altStart: 0, decayDbPerSecond: 7 },
       channels: [new Int32Array([0, 100, -200, 50]), new Int32Array([0, 0, 0, 0])],
     };
-    expect(strokeSummary(d)).toEqual({ index: 2, sampleCount: 4, channels: 2, peak: 200, ok: true, sampleRate: 35002, loops: true, loopStart: 1, loopEnd: 3 });
+    expect(strokeSummary(d)).toEqual({ index: 2, sampleCount: 4, channels: 2, peak: 200, ok: true, sampleRate: 35002, loops: true, loopStart: 1, loopEnd: 3, loopDecayDbPerSecond: 7 });
   });
 
   it('marks an empty stroke not-ok; loops is undefined when no loop region decoded', () => {
-    const d: DecodedStrokeResult = { index: 0, channelCount: 1, endOffset: 0, globalID: 1, segments: [], sampleRate: 35002, loop: null, channels: [new Int32Array(0)] };
+    const d: DecodedStrokeResult = { index: 0, channelCount: 1, endOffset: 0, globalID: 1, segments: [], marks: [], sampleRate: 35002, loop: null, channels: [new Int32Array(0)] };
     expect(strokeSummary(d).ok).toBe(false);
     expect(strokeSummary(d).loops).toBeUndefined();
   });
 
   it('exposes loopStart/loopEnd only when the stroke loops', () => {
     const looped: DecodedStrokeResult = {
-      index: 0, channelCount: 1, endOffset: 0, globalID: 1, segments: [], sampleRate: 35002,
-      loop: { loopStart: 100, loopEnd: 500, loops: true }, channels: [new Int32Array([1, 2, 3])],
+      index: 0, channelCount: 1, endOffset: 0, globalID: 1, segments: [], marks: [], sampleRate: 35002,
+      loop: { loopStart: 100, loopEnd: 500, loops: true, altStart: 0, decayDbPerSecond: 0 }, channels: [new Int32Array([1, 2, 3])],
     };
     expect(strokeSummary(looped).loopStart).toBe(100);
     expect(strokeSummary(looped).loopEnd).toBe(500);
+    expect(strokeSummary(looped).loopDecayDbPerSecond).toBeUndefined(); // a loop that holds has no fade
     const oneShot: DecodedStrokeResult = {
-      index: 0, channelCount: 1, endOffset: 0, globalID: 1, segments: [], sampleRate: 35002,
-      loop: { loopStart: 100, loopEnd: 500, loops: false }, channels: [new Int32Array([1, 2, 3])],
+      index: 0, channelCount: 1, endOffset: 0, globalID: 1, segments: [], marks: [], sampleRate: 35002,
+      loop: { loopStart: 100, loopEnd: 500, loops: false, altStart: 0, decayDbPerSecond: 0 }, channels: [new Int32Array([1, 2, 3])],
     };
     expect(strokeSummary(oneShot).loopStart).toBeUndefined();
   });
@@ -108,11 +109,22 @@ describe('gainDetuneView — interpreted gain (dB) + detune (cents)', () => {
 });
 
 describe('sampleUnisonView', () => {
-  it('summarises a default codec-4 unison block as off', () => {
+  it('says a default codec-4 block leaves unison to the instrument', () => {
     const bytes = writeNsmp({ name: 'U', channels: [new Int16Array(64)], codec: 4 });
     const v = sampleUnisonView(bytes)!;
-    expect(v.active).toBe(false);
-    expect(v.summary.toLowerCase()).toContain('off');
+    expect(v.custom).toBe(false);
+    expect(v.summary).toContain('instrument');
+  });
+
+  it('spells out a sample\'s own detune and width per Unison setting', () => {
+    const bytes = writeNsmp({ name: 'U', channels: [new Int16Array(64)], codec: 4 });
+    const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'))!;
+    bytes.set([0x01, 0x6c, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x28, 0x00, 0x00, 0x46, 0x46, 0x46], map.payloadOffset + 6 + 1280);
+    bytes[map.payloadOffset + 6 + 1280 + 29] = 3;
+    expect(sampleUnisonView(bytes)).toEqual({
+      custom: true,
+      summary: 'detune ±0.0 / 0.6 / 1.5 cents and width 70 / 70 / 70 for Unison 1 / 2 / 3 · repeated notes vary',
+    });
   });
 
   it('returns null for codec-3 (no unison block)', () => {

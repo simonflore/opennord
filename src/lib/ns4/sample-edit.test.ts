@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { writeNsmpMulti } from './nsmp-write';
 import { writeOgNsmp, crc16Ccitt } from './nsmp-og';
-import { readNsmp, decodeNsmp, readNsmpZones, parseNsmpSections, readStrokeLoop, patchStrokeLoopBytes } from './nsmp';
+import { readNsmp, decodeNsmp, readNsmpZones, parseNsmpSections, readStrokeRegions, patchStrokeLoopBytes } from './nsmp';
 import { editModel, buildEditedNsmp, patchEditedNsmp } from './sample-edit';
 import { gainDetuneView } from './sample-view';
 import { hasGt } from './gt-fixtures';
@@ -67,7 +67,7 @@ describe('buildEditedNsmp', () => {
 });
 
 describe('patchStrokeLoopBytes', () => {
-  it('writes loop-in @+0x1b and loop-out @+0x24 as u32 BE, leaving the rest', () => {
+  it('writes second start @+0x1b and loop begin @+0x24 as u32 BE, leaving the rest', () => {
     const buf = new Uint8Array(0x40);
     patchStrokeLoopBytes(buf, 0, 0x01020304, 0x0a0b0c0d);
     expect([...buf.subarray(0x1b, 0x1f)]).toEqual([0x01, 0x02, 0x03, 0x04]);
@@ -81,21 +81,21 @@ describe('patchStrokeLoopBytes', () => {
 const u32be = (b: Uint8Array, o: number) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
 // Local-only looped .nsmp RE corpus (gitignored, docs/LEGAL.md); set OPENNORD_NSMP_LOOP_CORPUS to run.
 const takeOnMe = process.env.OPENNORD_NSMP_LOOP_CORPUS ?? '';
-describe.skipIf(!existsSync(takeOnMe))('loop points round-trip in place', () => {
-  it('moves loop-in/out and reads them back, preserving size', () => {
+describe.skipIf(!existsSync(takeOnMe))('region pointers round-trip in place', () => {
+  it('moves second start / loop begin and reads them back, preserving size', () => {
     const src = new Uint8Array(readFileSync(takeOnMe));
     const stk = parseNsmpSections(src).find((s) => s.tag.endsWith('stk'));
     if (!stk) return;
-    const before = readStrokeLoop(src, stk.payloadOffset);
+    const before = readStrokeRegions(src, stk.payloadOffset);
     if (!before) return;
     const startAbs = u32be(src, stk.payloadOffset + 0x12);
     const out = patchEditedNsmp(src, {
       name: 'x', zones: [],
-      loops: [{ stkPayloadOffset: stk.payloadOffset, loopInAbs: startAbs + before.loopStart + 50, loopOutAbs: startAbs + before.loopEnd - 50 }],
+      loops: [{ stkPayloadOffset: stk.payloadOffset, loopInAbs: startAbs + before.secondStart + 50, loopOutAbs: startAbs + before.loopBegin - 50 }],
     });
-    const after = readStrokeLoop(out, stk.payloadOffset);
-    expect(after!.loopStart).toBe(before.loopStart + 50);
-    expect(after!.loopEnd).toBe(before.loopEnd - 50);
+    const after = readStrokeRegions(out, stk.payloadOffset);
+    expect(after!.secondStart).toBe(before.secondStart + 50);
+    expect(after!.loopBegin).toBe(before.loopBegin - 50);
     expect(out.length).toBe(src.length);
   });
 });
