@@ -1,17 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseNs4Preset } from './preset';
-import { buildCbinHeader } from '../clavia/cbin';
-
-/** A minimal Stage 4 preset: a real CBIN header of `tag` over a zeroed body of
- *  `size` bytes (the true fixed sizes: ns4o 183, ns4n 195, ns4y 541). Body stays
- *  zero — enough to exercise the shift/decode wiring without shipping factory
- *  content (the real factory presets are gitignored). Value correctness is
- *  validated separately against those fixtures; see preset.ts. */
-function preset(tag: string, size: number): Uint8Array {
-  const buf = new Uint8Array(size);
-  buf.set(buildCbinHeader({ formatType: 1, tag, bank: 0, location: 0, category: 0, versionRaw: 205 }), 0);
-  return buf;
-}
+import { blankPreset as preset } from './gt-fixtures';
 
 describe('parseNs4Preset', () => {
   it('decodes an organ preset (.ns4o) with drawbars', () => {

@@ -239,6 +239,11 @@ button.ps-key { cursor: pointer; }
   color: var(--connected); text-decoration: none; }
 .ps-dep:hover { text-decoration: underline; }
 
+/* A preset is one engine: its card sits beside its FX instead of filling the row. */
+.ps-preset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; align-items: start; }
+.ps-preset-grid > .ps-fx { margin-top: 0; }
+.ps-preset-grid > .ps-card:only-child { max-width: 460px; }
+
 /* Stage 3 panel band: a labelled group wrapping one panel's cards + FX. */
 .ps-panel { margin-top: 18px; }
 .ps-panel-lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
