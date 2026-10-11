@@ -5,10 +5,10 @@
  */
 
 import type { ReactNode } from 'react';
-import type { ArpView, DrawbarView, FxSlotModel, LfoView } from '../../lib/clavia/engine-view';
+import type { ArpView, DrawbarView, FilterCurveView, FxSlotModel, LfoView } from '../../lib/clavia/engine-view';
 import {
   eqResponse, filterResponse, freqX, wavePoints, FILTER_ZERO_Y,
-  type CurvePoint, type EqShape, type FilterShape, type WaveShape,
+  type CurvePoint, type EqShape, type WaveShape,
 } from '../../lib/clavia/curves';
 
 interface Morph { wheel?: string; at?: string; pedal?: string }
@@ -17,6 +17,9 @@ function morphTooltip(m: Morph): string {
   return [m.wheel && `wheel → ${m.wheel}`, m.at && `A.T. → ${m.at}`, m.pedal && `pedal → ${m.pedal}`]
     .filter(Boolean).join('   ·   ');
 }
+
+/** A 0–100 position, rounded and clamped. */
+const pct = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
 /** A small ✎ flag on a value that's morph-assigned; the tooltip names the targets. */
 export function MorphMark({ morph }: { morph: Morph }) {
@@ -38,15 +41,18 @@ export function Knob({ value, caption, fill, morph, morphFill }: {
   /** Positions (0–100) the morph sources sweep the knob to; drawn as a second arc from the value. */
   morphFill?: number[];
 }) {
-  const hasFill = typeof fill === 'number';
-  const pct = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
-  const v = hasFill ? pct(fill) : 0;
-  const swept = hasFill && morphFill?.length ? [v, ...morphFill.map(pct)] : null;
-  const style = !hasFill ? undefined : {
-    ['--v' as string]: v,
-    ...(swept && { ['--m0' as string]: Math.min(...swept), ['--m1' as string]: Math.max(...swept) }),
-  };
-  const cls = !hasFill ? 'ps-dial ps-dial-flat' : swept ? 'ps-dial ps-dial-morph' : 'ps-dial';
+  let cls = 'ps-dial ps-dial-flat';
+  const style: Record<string, number> = {};
+  if (typeof fill === 'number') {
+    cls = 'ps-dial';
+    style['--v'] = pct(fill);
+    if (morphFill?.length) {
+      const swept = [style['--v'], ...morphFill.map(pct)];
+      cls = 'ps-dial ps-dial-morph';
+      style['--m0'] = Math.min(...swept);
+      style['--m1'] = Math.max(...swept);
+    }
+  }
   return (
     <div className="ps-knob">
       <div className={cls} style={style}><i /></div>
@@ -198,7 +204,7 @@ export function ReadoutWarnings({ warnings }: { warnings?: readonly string[] }) 
 
 /** Horizontal level meter with a label and value readout. `fill` is 0–100. */
 export function Meter({ label, value, fill, morph }: { label: string; value: string; fill: number; morph?: Morph }) {
-  const w = Math.max(0, Math.min(100, Math.round(fill)));
+  const w = pct(fill);
   return (
     <div className="ps-meter">
       <div className="ps-meter-label"><span>{label}</span><span>{value}{morph && <MorphMark morph={morph} />}</span></div>
@@ -255,7 +261,7 @@ function curvePath(pts: CurvePoint[], w: number, h: number, pad = 2): string {
  * and the resonance peak. Dashed ticks mark the cutoffs a morph sweeps to. A
  * schematic of the setting — the knobs beside it print the values.
  */
-export function FilterCurve({ filter }: { filter: FilterShape & { morphHz?: number[] } }) {
+export function FilterCurve({ filter }: { filter: FilterCurveView }) {
   const w = 120, h = 44, pad = 2;
   const x = (hz: number) => pad + freqX(hz) * (w - 2 * pad);
   const zero = pad + FILTER_ZERO_Y * (h - 2 * pad);
@@ -275,10 +281,10 @@ export function FilterCurve({ filter }: { filter: FilterShape & { morphHz?: numb
 }
 
 /** A small wave-shape glyph (an oscillator's or LFO's waveform). */
-export function WaveGlyph({ shape, width, cycles = 2, label }: { shape: WaveShape; width?: number; cycles?: number; label?: string }) {
+export function WaveGlyph({ shape, width, label }: { shape: WaveShape; width?: number; label?: string }) {
   return (
     <svg viewBox="0 0 60 24" className="ps-wave" role="img" aria-label={label ?? `${shape} wave`}>
-      <path d={curvePath(wavePoints(shape, cycles, width), 60, 24, 3)} className="ps-curve-line" />
+      <path d={curvePath(wavePoints(shape, 2, width), 60, 24, 3)} className="ps-curve-line" />
     </svg>
   );
 }
@@ -300,7 +306,7 @@ export function LfoRow({ lfo }: { lfo: LfoView }) {
 export function ArpRow({ arp }: { arp: ArpView }) {
   const settings = [arp.mode, arp.direction, arp.rate, arp.range && `range ${arp.range}`].filter(Boolean).join(' · ');
   return (
-    <div className="ps-mod ps-arp">
+    <div className="ps-mod">
       <div className="ps-mod-txt">
         <span className="ps-env-cap">Arpeggiator</span>
         <b>{settings || 'on'}</b>
@@ -334,14 +340,14 @@ export function EqCurve({ eq }: { eq: EqShape }) {
  * A layer's effect chain in signal order: every slot is drawn, lit when on and
  * dimmed when off, so the chain reads at a glance. Amp/EQ draws its EQ curve.
  */
-export function FxChain({ slots, title = 'FX' }: { slots: FxSlotModel[]; title?: string }) {
+export function FxChain({ slots }: { slots: FxSlotModel[] }) {
   if (slots.length === 0) return null;
   return (
     <div className="ps-card ps-fx">
-      <h4>{title}</h4>
+      <h4>FX</h4>
       <ol className="ps-chain">
         {slots.map((fx) => (
-          <li key={fx.key} className={fx.on ? 'ps-slot on' : 'ps-slot'} aria-label={`${fx.label} ${fx.on ? 'on' : 'off'}`}>
+          <li key={fx.key} className={fx.on ? 'ps-chip' : 'ps-chip off'} aria-label={`${fx.label} ${fx.on ? 'on' : 'off'}`}>
             <div className="t">{fx.label}</div>
             {fx.on ? fx.detail : 'off'}
             {fx.on && fx.eq && <EqCurve eq={fx.eq} />}

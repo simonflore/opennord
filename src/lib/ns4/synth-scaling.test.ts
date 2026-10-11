@@ -12,6 +12,7 @@ import {
   fmInharmonicRatio,
   keyTrackFactor,
   lfoRateHz,
+  cutoffRaw,
   oscTuneSemitones,
   resonanceDamping,
 } from './synth-scaling';
@@ -111,5 +112,17 @@ describe('resonance, LFO, depth curve, tuning', () => {
     expect(FM_HARMONIC_RATIOS[24]).toBe(24);
     expect(fmInharmonicRatio(12)).toBe(1);
     expect(fmInharmonicRatio(24)).toBe(2);
+  });
+});
+
+describe('cutoffRaw', () => {
+  it('inverts cutoffHz across the whole knob, including the steeper top', () => {
+    for (const raw of [0, 30, 60, 99, 117, 120, 123, 126]) {
+      expect(cutoffRaw(cutoffHz(raw)), `raw ${raw}`).toBeCloseTo(raw, 5);
+    }
+  });
+  it('clamps outside the range', () => {
+    expect(cutoffRaw(1)).toBe(0);
+    expect(cutoffRaw(1e6)).toBe(127);
   });
 });

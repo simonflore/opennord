@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cutoffKnobFill, eqResponse, filterResponse, freqX, parseHz, wavePoints, waveShapeOf, FILTER_ZERO_Y } from './curves';
+import { eqResponse, filterResponse, freqX, parseHz, wavePoints, waveShapeOf, FILTER_ZERO_Y } from './curves';
 
 describe('parseHz', () => {
   it('reads the frequencies a Nord prints, and nothing else', () => {
@@ -7,14 +7,6 @@ describe('parseHz', () => {
     expect(parseHz('4.2 kHz')).toBe(4200);
     expect(parseHz('0.0')).toBeUndefined();
     expect(parseHz(undefined)).toBeUndefined();
-  });
-});
-
-describe('cutoffKnobFill', () => {
-  it('follows the semitone scale: 14 Hz fully left, 440 Hz at step 60 of 127', () => {
-    expect(cutoffKnobFill(14)).toBe(0);
-    expect(cutoffKnobFill(440)).toBe(47);
-    expect(cutoffKnobFill(32000)).toBe(100);
   });
 });
 

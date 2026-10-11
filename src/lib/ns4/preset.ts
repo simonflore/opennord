@@ -56,9 +56,11 @@ export interface Ns4Preset {
 /** The parenthesized human label from an interpreted value like
  *  "0320440865 (Amber Upright XL)" → "Amber Upright XL"; else the raw display. */
 function label(display: string | undefined): string | undefined {
-  if (!display) return undefined;
-  return display.match(/\(([^)]+)\)/)?.[1] ?? display;
+  return named(display) ?? display;
 }
+
+/** Only the parenthesized label, or undefined when the value carries none. */
+const named = (display: string | undefined) => display?.match(/\(([^)]+)\)/)?.[1];
 
 function headlineFor(engine: PresetEngine, rows: ParamRow[]): string | undefined {
   const find = (name: string) => rows.find((r) => r.name === name)?.display;
@@ -70,8 +72,13 @@ function headlineFor(engine: PresetEngine, rows: ParamRow[]): string | undefined
   if (engine === 'piano') {
     return [find('piano type'), label(find('piano model ID/name'))].filter(Boolean).join(' · ') || undefined;
   }
-  // synth: oscillator + filter give the clearest at-a-glance identity.
-  return [label(find('analog wave/partial (knob 3)')), find('filter type')].filter(Boolean).join(' · ') || undefined;
+  // synth: sound source + filter give the clearest at-a-glance identity. The
+  // source is the sample, the analog wave, or — when the wave has no name (FM,
+  // wavetable) — the oscillator type; never the bare wave number.
+  const source = find('samples/analog') === 'analog'
+    ? named(find('analog wave/partial (knob 3)')) ?? named(find('analog type (knob 1)'))
+    : named(find('sample ID/name'));
+  return [source, find('filter type')].filter(Boolean).join(' · ') || undefined;
 }
 
 /**

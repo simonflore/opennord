@@ -16,7 +16,8 @@ import type {
   EnvCurveView, Stat, FxChipModel, FxSlotModel, HeaderView, VolumeView, EngineCardModel, LfoView, ArpView, ArpStepView,
 } from '../clavia/engine-view';
 import { volumeFill, envCurve } from '../clavia/engine-view';
-import { cutoffKnobFill, parseHz, waveShapeOf, type WaveShape } from '../clavia/curves';
+import { parseHz, waveShapeOf, type WaveShape } from '../clavia/curves';
+import { cutoffRaw } from './synth-scaling';
 
 export type {
   MorphMarkView, DrawbarView, OrganPanelModel, PianoCardModel, SynthCardModel,
@@ -219,8 +220,12 @@ const morphTargets = (m?: Morphable<string>) => [m?.wheel, m?.aftertouch, m?.ped
 function lfoView(l: NS4Layer): LfoView | undefined {
   const { shape, target, rate, amount } = l.lfo ?? {};
   const wave = LFO_SHAPES.find((s) => s === shape);
-  if (!wave || !target || target === 'nothing' || !rate || !amount || amount.value === '0.0') return undefined;
-  return { shape: wave, rate: rate.value, target, amount: amount.value, morph: morphMarks(amount) ?? morphMarks(rate) };
+  // The amount prints in the target's unit ("0.0", "0 cent"): zero is zero in any of them.
+  if (!wave || !target || target === 'nothing' || !rate || !amount || parseFloat(amount.value) === 0) return undefined;
+  // Either control may be morphed; the mark names both (the amount's wins a shared source).
+  const a = morphMarks(amount), r = morphMarks(rate);
+  const morph = a && r ? { wheel: a.wheel ?? r.wheel, at: a.at ?? r.at, pedal: a.pedal ?? r.pedal } : a ?? r;
+  return { shape: wave, rate: rate.value, target, amount: amount.value, morph };
 }
 
 /** The arpeggiator, when it is running; the step pattern only when the pattern is on. */
@@ -235,8 +240,13 @@ function arpView(l: NS4Layer): ArpView | undefined {
         pan: pan[i] === 'L' || pan[i] === 'R' ? pan[i] as 'L' | 'R' : 'C',
       }))
     : undefined;
-  return { mode: a.mode, direction: a.direction, rate: a.rate?.value, range: a.range?.value, steps };
+  // "N.A." is the decoder's placeholder for a rate that doesn't apply in this mode.
+  const rate = a.rate?.value === 'N.A.' ? undefined : a.rate?.value;
+  return { mode: a.mode, direction: a.direction, rate, range: a.range?.value, steps };
 }
+
+/** Where a printed cutoff frequency sits on its knob, 0–100. */
+const cutoffFill = (hz: number) => Math.round((cutoffRaw(hz) / 127) * 100);
 
 export function synthCard(l: NS4Layer): SynthCardModel {
   const osc = l.source === 'analog' ? (l.oscType ?? 'analog') : (l.sample?.name ?? 'sample');
@@ -244,12 +254,11 @@ export function synthCard(l: NS4Layer): SynthCardModel {
   const f = l.filter;
   const cutoffHz = parseHz(f?.freq?.value);
   // In LP+HP the second knob is the high-pass corner (a frequency), not resonance (0–10).
-  const hpHz = parseHz(f?.resonance?.value);
-  const second = (v: string): number | undefined => {
-    const hz = parseHz(v);
-    if (hz !== undefined) return cutoffKnobFill(hz);
-    const n = parseFloat(v);
-    return Number.isNaN(n) ? undefined : Math.round(n * 10);
+  const lpHp = f?.type === 'LPHP';
+  const secondFill = (v: string | undefined): number | undefined => {
+    const n = lpHp ? parseHz(v) : parseFloat(v ?? '');
+    if (n === undefined || Number.isNaN(n)) return undefined;
+    return lpHp ? cutoffFill(n) : Math.round(n * 10);
   };
   const morphHz = morphTargets(f?.freq).map(parseHz).filter(defined);
   return {
@@ -262,13 +271,16 @@ export function synthCard(l: NS4Layer): SynthCardModel {
     res: f?.resonance?.value ?? '—',
     cutoffMorph: morphMarks(f?.freq),
     resMorph: morphMarks(f?.resonance),
-    cutoffFill: cutoffHz !== undefined ? cutoffKnobFill(cutoffHz) : undefined,
-    resFill: f?.resonance ? second(f.resonance.value) : undefined,
-    cutoffMorphFill: morphHz.map(cutoffKnobFill),
-    resMorphFill: morphTargets(f?.resonance).map(second).filter(defined),
-    resCaption: hpHz !== undefined ? 'HP freq' : undefined,
+    cutoffFill: cutoffHz !== undefined ? cutoffFill(cutoffHz) : undefined,
+    resFill: secondFill(f?.resonance?.value),
+    cutoffMorphFill: morphHz.map(cutoffFill),
+    resMorphFill: morphTargets(f?.resonance).map(secondFill).filter(defined),
+    resCaption: lpHp ? 'HP freq' : undefined,
     filter: f?.on && f.type && cutoffHz !== undefined
-      ? { type: f.type, cutoffHz, hpHz, res: hpHz === undefined ? (parseFloat(f.resonance?.value ?? '') || 0) / 10 : undefined, morphHz }
+      ? {
+          type: f.type, cutoffHz, morphHz,
+          ...(lpHp ? { hpHz: parseHz(f.resonance?.value) } : { res: (secondFill(f.resonance?.value) ?? 0) / 100 }),
+        }
       : undefined,
     wave: l.source === 'analog' && l.oscType?.includes('ANALOG') ? waveShapeOf(l.oscWave) : undefined,
     lfo: lfoView(l),
@@ -347,7 +359,8 @@ export function pianoStats(l: NS4Layer): Stat[] {
 // Each chip's detail comes from the effect's real params, not just its name.
 const j = (...parts: (string | undefined | false)[]) => parts.filter(Boolean).join(' · ');
 const modD = (m: NS4Layer['fxMod1']) => j(m?.mode, m?.rate?.value, m?.amount?.value && `amt ${m.amount.value}`) || 'on';
-const ampD = (a: NS4Layer['ampSimEq']) => j(a?.mode, a?.drive?.value && `drv ${a.drive.value}`) || 'on';
+// Amp model "off" leaves the slot as an EQ: say that instead of printing "off" on a lit effect.
+const ampD = (a: NS4Layer['ampSimEq']) => (a?.mode === 'off' ? 'EQ only' : j(a?.mode, a?.drive?.value && `drv ${a.drive.value}`) || 'on');
 const compD = (c: NS4Layer['comp']) => j(c?.amount && `${c.amount}`, c?.response) || 'on';
 const delayD = (d: NS4Layer['delay']) => j(d?.tempo?.value, d?.mix?.value && `mix ${d.mix.value}`, d?.feedback?.value && `fb ${d.feedback.value}`) || 'on';
 const revD = (r: NS4Layer['reverb']) => j(r?.type, r?.amount?.value && `amt ${r.amount.value}`) || 'on';

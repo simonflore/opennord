@@ -22,15 +22,6 @@ const F_LO = 20, F_HI = 20000;
 export const freqX = (hz: number) => clamp01(Math.log(hz / F_LO) / Math.log(F_HI / F_LO));
 const xFreq = (x: number) => F_LO * (F_HI / F_LO) ** x;
 
-/**
- * Where a filter-frequency knob sits, 0–100. The Stage's cutoff runs in
- * semitones from ~14 Hz (fully left) and reads 440 Hz at step 60 of 127, so the
- * position follows from the printed frequency.
- */
-export function cutoffKnobFill(hz: number): number {
-  return Math.round(clamp01((12 * Math.log2(hz / 440) + 60) / 127) * 100);
-}
-
 export interface FilterShape {
   /** "LP12" | "LP24" | "LPM" | "HP" | "BP" | "LPHP" (anything else draws as LP24). */
   type: string;
@@ -69,7 +60,8 @@ export const FILTER_ZERO_Y = dbY(0);
 export interface CurvePoint { x: number; y: number }
 
 /** The filter's response as points in a unit box (x: 20 Hz → 20 kHz, y: 0 = top). */
-export function filterResponse(f: FilterShape, steps = 48): CurvePoint[] {
+export function filterResponse(f: FilterShape): CurvePoint[] {
+  const steps = 48;
   return Array.from({ length: steps + 1 }, (_, i) => {
     const x = i / steps;
     return { x, y: dbY(20 * Math.log10(Math.max(filterGain(f, xFreq(x)), 1e-6))) };
@@ -78,12 +70,14 @@ export function filterResponse(f: FilterShape, steps = 48): CurvePoint[] {
 
 export interface EqShape { bassDb: number; midDb: number; trebDb: number; midHz: number }
 
-/** Corner frequencies of the bass and treble shelves (Nord's 3-band EQ). */
+/** Where the schematic puts the bass and treble shelves. Chosen so the three
+ *  bands read apart on the curve — not the instrument's measured corners. */
 const EQ_BASS_HZ = 100, EQ_TREBLE_HZ = 4000;
 const EQ_RANGE_DB = 15;
 
 /** A 3-band EQ (bass shelf, swept mid bell, treble shelf) in a unit box; 0 dB is y = 0.5. */
-export function eqResponse(e: EqShape, steps = 40): CurvePoint[] {
+export function eqResponse(e: EqShape): CurvePoint[] {
+  const steps = 40;
   return Array.from({ length: steps + 1 }, (_, i) => {
     const x = i / steps;
     const hz = xFreq(x);

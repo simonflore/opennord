@@ -28,6 +28,9 @@
  */
 import type { NS4Layer } from './types';
 import { ENV_DISPLAY_DROP, keyTrackFactor, oscTuneSemitones, resonanceDamping } from './synth-scaling';
+import { parseHz } from '../clavia/curves';
+
+export { parseHz };
 
 export type PreviewWave = 'sine' | 'triangle' | 'saw' | 'square' | 'pulse33' | 'pulse10' | 'noise';
 export type PreviewFilterType = 'LP12' | 'LP24' | 'LPM' | 'LPHP' | 'BP' | 'HP';
@@ -113,15 +116,6 @@ export function parseSeconds(s: string | undefined): number | undefined {
   if (!m) return undefined;
   const v = Number(m[1]);
   return m[2] === 'ms' ? v / 1000 : v;
-}
-
-/** "466 Hz" → 466, "3.7 kHz" → 3700. */
-export function parseHz(s: string | undefined): number | undefined {
-  if (!s) return undefined;
-  const m = /^(\d+(?:\.\d+)?)\s*(Hz|kHz)$/.exec(s.trim());
-  if (!m) return undefined;
-  const v = Number(m[1]);
-  return m[2] === 'kHz' ? v * 1000 : v;
 }
 
 /** "+18 cent" / "- 3 semi" / "+ 0 semi" → 18 / −3 / 0. */

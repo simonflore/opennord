@@ -72,13 +72,16 @@ export interface SynthCardModel {
   resMorphFill?: number[];
   /** Caption of the second filter knob when it isn't resonance (LP+HP: the HP corner). */
   resCaption?: string;
-  /** The filter drawn as a response curve; `morphHz` are cutoffs a morph sweeps to. */
-  filter?: FilterShape & { morphHz?: number[] };
+  /** The filter drawn as a response curve (absent when the filter is off). */
+  filter?: FilterCurveView;
   /** The oscillator's basic wave shape, when it is one of the classic ones. */
   wave?: { shape: WaveShape; width?: number };
   lfo?: LfoView;
   arp?: ArpView;
 }
+
+/** A filter to draw: its shape, plus the cutoffs a morph sweeps to. */
+export type FilterCurveView = FilterShape & { morphHz?: number[] };
 
 /** An LFO that is doing something: its shape, speed and what it moves. */
 export interface LfoView { shape: WaveShape; rate: string; target: string; amount?: string; morph?: MorphMarkView }
