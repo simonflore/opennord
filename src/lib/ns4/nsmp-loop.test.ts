@@ -60,7 +60,15 @@ describe('strokeLoop', () => {
     expect(strokeLoop({ ...regions, loopBegin: 500, loops: false, decayRaw: 0x8001ea }, d, 1))
       .toEqual({ loopStart: 2000, loopEnd: 2000, loops: false, altStart: 300, decayDbPerSecond: 0 });
   });
-  it('is null rather than a guess when a pointer lands on no block, or the header is unreadable', () => {
+  it('keeps the loop when only the alternate start lands on no block', () => {
+    const d = decoded([mark(0, 0), mark(400, 1500, true), mark(500, 2000)], 2000);
+    expect(strokeLoop(regions, d, 1)).toMatchObject({ loopStart: 1500, loops: true, altStart: 0 });
+  });
+  it('reads the pointers as written when the last block is not the stream end', () => {
+    const d = decoded([mark(0, 0), mark(100, 300), mark(400, 1500, true)], 2000);
+    expect(strokeLoop(regions, d, 1)).toMatchObject({ loopStart: 1500, altStart: 300 });
+  });
+  it('is null rather than a guess when the loop begin lands on no block, or the header is unreadable', () => {
     const d = decoded([mark(0, 0), mark(100, 300), mark(500, 2000)], 2000);
     expect(strokeLoop(regions, d, 1)).toBeNull();
     expect(strokeLoop(null, d, 1)).toBeNull();

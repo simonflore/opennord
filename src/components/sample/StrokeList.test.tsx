@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { StrokeList, type InspectorStroke } from './StrokeList';
+import { StrokeList, loopLabel, type InspectorStroke } from './StrokeList';
 
 function stroke(index: number, ok = true, loops?: boolean): InspectorStroke {
   return {
@@ -77,5 +77,13 @@ describe('StrokeList export controls', () => {
     const html = renderToStaticMarkup(<StrokeList strokes={[stroke(0), stroke(1)]} playable={false} name="Pad" />);
     expect(html).not.toContain('Export all'); // bulk export hidden when nothing can be decoded
     expect(html).toContain('disabled'); // per-stroke WAV buttons disabled
+  });
+});
+
+describe('loopLabel', () => {
+  it('gives a long loop as a span and a few-millisecond loop as a length', () => {
+    expect(loopLabel(35002, 105006, 35002)).toBe('loop 1.00–3.00s');
+    expect(loopLabel(198639, 198907, 35002)).toBe('7.7 ms loop at 5.68s');
+    expect(loopLabel(35002, 35002 + 1750, 35002)).toBe('50 ms loop at 1.00s');
   });
 });

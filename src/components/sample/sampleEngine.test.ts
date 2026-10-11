@@ -345,4 +345,58 @@ describe('createSampler audition playback', () => {
     expect(s.sounding().has(20)).toBe(false); // the oldest gave way
     expect(s.sounding().has(100)).toBe(true);
   });
+
+  it('keeps a note releasable while any voice of its stack still sounds', () => {
+    const s = createSampler(zones3, strokes3, undefined, { unison: unison(), unisonLevel: 2, alternates });
+    audioMock.created.length = 0;
+    s.noteOn(60, 100);
+    const [first, second] = audioMock.created;
+    const stops = vi.spyOn(second, 'stop');
+    first.onended?.(); // the key's own voice has decayed away; the neighbour's plays on
+    expect(s.sounding().has(60)).toBe(true);
+    s.noteOff(60);
+    expect(stops).toHaveBeenCalled(); // key-up still reaches it
+    second.onended?.();
+    expect(s.sounding().has(60)).toBe(false);
+  });
+
+  it('forgets a note once its last voice has ended', () => {
+    const s = createSampler(zones3, strokes3, undefined, { unison: unison(), unisonLevel: 2, alternates });
+    audioMock.created.length = 0;
+    s.noteOn(60, 100);
+    for (const src of audioMock.created) src.onended?.();
+    expect(s.sounding().size).toBe(0);
+  });
+
+  it('keeps a unison stack within full scale, even with one recording doubled', () => {
+    audioMock.gains.length = 0;
+    createSampler(zones3, strokes3, undefined, { unison: unison({ mode: 0, custom: false }), unisonLevel: 1 }).noteOn(60, 100);
+    // Each voice ends in a left and a right gain; per channel they must not sum above 1.
+    const sides = audioMock.gains.filter((g) => g.calls.length === 0 && g.value > 0).map((g) => g.value);
+    expect(sides).toHaveLength(4);
+    expect(sides[0] + sides[2]).toBeCloseTo(1, 6); // left of voice 1 + left of voice 2
+    expect(sides[1] + sides[3]).toBeCloseTo(1, 6);
+  });
+
+  it('releases from the level the envelope has reached, not from the param\'s reported value', () => {
+    const s = createSampler([zone], new Map([[7, loopingStroke(7, 0)]]));
+    audioMock.gains.length = 0;
+    audioMock.ctx.currentTime = 0;
+    s.noteOn(60, 64);
+    audioMock.ctx.currentTime = 1; // long past the 1 ms start fade
+    s.noteOff(60);
+    const sets = audioMock.gains[0].calls.filter((c) => c[0] === 'set');
+    expect(sets[sets.length - 1]).toEqual(['set', 64 / 127, 1]);
+    audioMock.ctx.currentTime = 0;
+  });
+
+  it('counts voices still fading after key-up against the 56 slots', () => {
+    const wide = { ...zone, keyLow: 0, keyHigh: 127 };
+    const s = createSampler([wide], new Map([[7, loopingStroke(7, 0)]]));
+    audioMock.created.length = 0;
+    for (let k = 0; k < MAX_VOICES; k++) { s.noteOn(20 + k, 100); s.noteOff(20 + k); } // 56 voices releasing
+    const oldest = vi.spyOn(audioMock.created[0], 'stop');
+    s.noteOn(100, 100);
+    expect(oldest).toHaveBeenCalled(); // the oldest fading voice is cut to make room
+  });
 });

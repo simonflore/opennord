@@ -3,7 +3,7 @@
  * display data. No DOM, no audio. Reused by the Sample Inspector components.
  */
 import type { NsmpFile, DecodedStrokeResult } from './nsmp';
-import { readNsmpZones, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, readTruVibrato } from './nsmp';
+import { readNsmpZones, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, readTruVibrato, unisonDetuneRawToCents } from './nsmp';
 import { dsp2Level, dsp2Detune } from './nw1-dsp';
 import { peakAmplitude } from './nsmp-audio';
 
@@ -94,8 +94,7 @@ export function voicingView(bytes: Uint8Array): { roundRobin?: boolean } {
   return u ? { roundRobin: u.randomStrokeMode !== 0 } : {};
 }
 
-/** Detune of a raw unison value, in cents (raw·25/65536 of a semitone). */
-const unisonCents = (raw: number): string => `${((raw * 25 * 100) / 65536).toFixed(1)}`;
+const unisonCents = (raw: number): string => unisonDetuneRawToCents(raw).toFixed(1);
 
 /**
  * What the sample brings to the program's Unison setting, in a few words. `custom` is

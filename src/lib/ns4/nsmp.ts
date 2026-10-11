@@ -557,6 +557,12 @@ export interface NoteAlternates {
   random: number[];
 }
 
+/** A raw unison detune value in cents: raw·25 pitch units, a unit being 1/65536 of a
+ *  semitone. */
+export function unisonDetuneRawToCents(raw: number): number {
+  return (raw * 25 * 100) / 65536;
+}
+
 /**
  * Per-key alternate recordings from the codec-4 per-note rows: each row ends in four
  * key bytes `b0..b3`. `b0`/`b1` name the alternates (a byte equal to the key itself
@@ -937,15 +943,19 @@ export interface StrokeLoop {
 export function strokeLoop(regions: StrokeRegions | null, decoded: DecodedStroke, channelCount: number): StrokeLoop | null {
   const last = decoded.marks[decoded.marks.length - 1];
   if (!regions || !last) return null;
-  const shift = last.word - regions.end;
-  const frameAt = (word: number): number | null => {
+  const frames = decoded.channels[0]?.length ?? 0;
+  const frameAt = (word: number, shift: number): number | null => {
     const m = decoded.marks.find((x) => x.word === word + shift);
     return m ? Math.floor(m.sample / Math.max(1, channelCount)) : null;
   };
-  const frames = decoded.channels[0]?.length ?? 0;
-  const altStart = frameAt(regions.secondStart);
-  const loopStart = regions.loops ? frameAt(regions.loopBegin) : frames;
-  if (altStart === null || loopStart === null) return null;
+  // One offset for the whole stroke: anchored on the stream end, or failing that the
+  // pointers as written (a stream whose last segment-opening block isn't its end).
+  const shift = [last.word - regions.end, 0].find((x) => !regions.loops || frameAt(regions.loopBegin, x) !== null);
+  if (shift === undefined) return null;
+  const loopStart = regions.loops ? frameAt(regions.loopBegin, shift)! : frames;
+  // Nothing plays from the alternate start yet, so one that lands on no block is
+  // reported as the normal start rather than costing the stroke its loop.
+  const altStart = frameAt(regions.secondStart, shift) ?? 0;
   return {
     loopStart, loopEnd: frames, loops: regions.loops && loopStart < frames, altStart,
     decayDbPerSecond: regions.loops ? loopDecayDbPerSecond(regions.decayRaw) : 0,
