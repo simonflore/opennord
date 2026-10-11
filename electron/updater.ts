@@ -9,12 +9,12 @@
  */
 import { app, dialog, Menu, type MenuItemConstructorOptions } from 'electron';
 import { autoUpdater } from 'electron-updater';
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildMenuTemplate } from './menu';
 import {
   CHECK_INTERVAL_MS, FIRST_CHECK_DELAY_MS, feedOverride, manualCheckMessage, manualCheckOutcome,
-  shouldOfferMove, versionToPrompt,
+  shortError, shouldOfferMove, versionToPrompt,
 } from './update-policy';
 
 export interface UpdaterHandle {
@@ -29,17 +29,24 @@ export function startUpdater(deps: { isDeviceOpen: () => boolean }): UpdaterHand
   let lastError: string | null = null;
   let prompting = false;
 
-  // One plain-text log per launch, next to the OS's other app logs.
+  // A plain-text log per launch, next to the OS's other app logs. The previous
+  // launch's log is kept: after an update restarts the app, it is the only
+  // record of the update that just happened.
   const logFile = join(app.getPath('logs'), 'updater.log');
   const log = (line: string): void => {
     try {
-      appendFileSync(logFile, `${new Date().toISOString()} ${line}\n`);
+      appendFileSync(logFile, `${new Date().toISOString()} ${shortError(line)}\n`);
     } catch {
       /* logging must never break the app */
     }
   };
   try {
     mkdirSync(app.getPath('logs'), { recursive: true });
+    try {
+      renameSync(logFile, join(app.getPath('logs'), 'updater.previous.log'));
+    } catch {
+      /* first launch: nothing to keep */
+    }
     writeFileSync(logFile, '');
   } catch {
     /* same */

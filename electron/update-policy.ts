@@ -49,6 +49,16 @@ export function manualCheckOutcome(i: {
   return { kind: 'up-to-date', current: i.current };
 }
 
+/**
+ * An updater error cut down to something a person or a log can hold. GitHub's
+ * "no release found" error, for one, appends the entire releases feed after its
+ * first line — tens of kilobytes that would otherwise land in a dialog.
+ */
+export function shortError(message: string): string {
+  const firstLine = message.split('\n', 1)[0].trim();
+  return firstLine.length > 300 ? `${firstLine.slice(0, 299)}…` : firstLine;
+}
+
 /** Dialog copy for a manual check. `ready` is shown through the restart prompt instead. */
 export function manualCheckMessage(o: ManualOutcome): { message: string; detail: string } {
   switch (o.kind) {
@@ -61,7 +71,7 @@ export function manualCheckMessage(o: ManualOutcome): { message: string; detail:
     case 'ready-on-quit':
       return { message: `OpenNord ${o.version} is ready to install.`, detail: 'Your Nord is connected, so nothing will restart now. The update installs when you quit OpenNord.' };
     case 'error':
-      return { message: 'OpenNord couldn’t check for updates.', detail: `Check your internet connection and try again.\n\n${o.message}` };
+      return { message: 'OpenNord couldn’t check for updates.', detail: `Check your internet connection and try again.\n\n${shortError(o.message)}` };
   }
 }
 

@@ -78,13 +78,16 @@ esbuild step. If bundling breaks its loading of `app-update.yml`, mark it
 `--external` and move it to `dependencies` so electron-builder packages it;
 decide on evidence from the first pack.
 
-**Menu.** The app uses Electron's default menu today. The updater inserts one
-item — into the application menu on macOS, into Help elsewhere — and leaves the
-rest of the default menu as it is. A designed menu belongs to spec 3.
+**Menu.** The app used Electron's default menu. It is rebuilt from the same
+standard roles with one added item — in the application menu on macOS, in Help
+elsewhere — which keeps it identical across platforms and drops the default
+Help links to electronjs.org. A designed menu belongs to spec 3.
 
 **Logging.** Updater events go to a plain text file in the app's logs directory
-(`app.getPath('logs')`), capped by overwriting at each launch. No new logging
-dependency.
+(`app.getPath('logs')`), started fresh at each launch with the previous launch's
+file kept beside it — after an update restarts the app, that is the only record
+of the update. Each entry is cut to its first line: GitHub's errors can carry an
+entire releases feed. No new logging dependency.
 
 ## Test hook: feed override
 

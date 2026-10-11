@@ -140,7 +140,8 @@ be repaired by the next one.
 - On macOS the app must run from Applications to update; it offers to move
   itself on launch.
 - Log: `updater.log` in the app's log folder (`~/Library/Logs/OpenNord/` on
-  macOS, `%APPDATA%\OpenNord\logs\` on Windows), rewritten each launch.
+  macOS, `%APPDATA%\OpenNord\logs\` on Windows), started fresh each launch; the
+  previous launch's log is kept beside it as `updater.previous.log`.
 
 Windows updates are unsigned for now: their integrity rests on HTTPS to GitHub
 and the checksum in `latest.yml`.
