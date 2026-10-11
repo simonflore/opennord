@@ -1,7 +1,8 @@
 import './library.css';
 import { Button, BrowseToolbar, type FacetGroup } from '../ui';
 import { CategoryPanel } from './CategoryPanel';
-import { ProgramTable } from './ProgramTable';
+import { ProgramTable, TraitKeys } from './ProgramTable';
+import type { EngineKind } from '../../lib/clavia/engines';
 import { LibraryEmpty } from './LibraryEmpty';
 import { BundlePicker } from './BundlePicker';
 import { NewBackupsBanner } from './NewBackupsBanner';
@@ -40,6 +41,11 @@ interface Props {
   prefs: LibraryPrefsApi;
   /** The connected folder source (name, scan results, connect/refresh/forget). */
   folder: FolderLibrary;
+  /** The LED filter keys: engines a program must play, and split programs only. */
+  engines: ReadonlySet<EngineKind>;
+  onToggleEngine: (k: EngineKind) => void;
+  splitOnly: boolean;
+  onSplitOnly: (on: boolean) => void;
 }
 
 const TABS: Array<LibrarySource | 'all'> = ['all', 'nord', 'local', 'backup', 'cloud'];
@@ -52,6 +58,7 @@ export function LibraryView({
   generation = 'all', onGeneration, generationsPresent = [],
   category = 'all', onCategory, categoriesPresent = [],
   importError, onDismissImportError, prefs, folder,
+  engines, onToggleEngine, splitOnly, onSplitOnly,
 }: Props) {
   // Unpack the grouped props so the JSX below reads the same as before.
   const { sort, setSort: onSort, favorites, toggleFavorite: onToggleFavorite } = prefs;
@@ -173,6 +180,7 @@ export function LibraryView({
       actions={actions}
       headExtra={headExtra}
       toolbar={
+        <>
         <BrowseToolbar
           query={query}
           onQuery={onQuery}
@@ -183,6 +191,8 @@ export function LibraryView({
           onSort={(k) => onSort(k as LibrarySort)}
           sortAriaLabel="Sort patches"
         />
+        <TraitKeys engines={engines} onToggleEngine={onToggleEngine} splitOnly={splitOnly} onSplitOnly={onSplitOnly} />
+        </>
       }
       isEmpty={entries.length === 0}
       emptyState={

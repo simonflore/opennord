@@ -45,6 +45,10 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
       onDismissImportError={s.clearImportError}
       prefs={s.prefs}
       folder={s.folder}
+      engines={s.engines}
+      onToggleEngine={s.toggleEngine}
+      splitOnly={s.splitOnly}
+      onSplitOnly={s.setSplitOnly}
     />
   );
 
