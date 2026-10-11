@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { NordSession } from './session';
-import { MockTransport } from './transport';
+import { MockTransport, TransportTimeoutError } from './transport';
 import { encodeMessage, NordError, SessionRefusedError } from './protocol';
 import { CReqBegin, CReqEnd, CQryFileInfo } from './opcodes';
 
@@ -174,5 +174,26 @@ describe('NordSession', () => {
     expect(await session.negotiateVersion()).toBe(0x0a);
     await session.begin(6);
     expect([...t.sent[1].slice(8, 12)]).toEqual([0, 0, 0, 0x0a]);
+  });
+
+  it('bounds the negotiation read inside withReplyTimeout; on silence the model\'s version stands', async () => {
+    // A Nord that ignores the 0x07 query: the read only ends when it is bounded.
+    const t = new MockTransport([encodeMessage(CReqBegin | 1, [0])]);
+    const timeouts: (number | undefined)[] = [];
+    let silent = true;
+    t.bulkIn = (max: number, timeoutMs?: number) => {
+      timeouts.push(timeoutMs);
+      if (!silent) return MockTransport.prototype.bulkIn.call(t, max);
+      silent = false;
+      return timeoutMs === undefined ? new Promise(() => {}) : Promise.reject(new TransportTimeoutError(timeoutMs));
+    };
+    const session = new NordSession(t);
+    session.useFileTransferVersion(4);
+
+    const err = await session.withReplyTimeout(50, () => session.negotiateVersion()).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TransportTimeoutError);
+    await session.begin(4);
+    expect(timeouts).toEqual([50, undefined]); // the bound covers the handshake only
+    expect([...t.sent[1].slice(8, 12)]).toEqual([0, 0, 0, 0x04]);
   });
 });
