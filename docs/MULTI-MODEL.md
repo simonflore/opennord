@@ -225,12 +225,12 @@ src/lib/<model>/present.ts       values → DecodedProgram (musician labels from
   fields are generated; the firmware's obsolete/editor-state parameters are left
   out. The Electro 7's "encoding kind 3" knobs are followed by two 1-bit assign
   flags, generated as `<field>.pedalAssign` / `<field>.wheelAssign`.
-- **Signed values.** Every registry model after the Stage 3 stores negative-min
-  fields as two's complement in their width: Piano 4 / Grand / Piano 6 (Piano 6
-  inferred from the shared code and the Grand 2 corpus — medium), Electro 7,
-  Organ 3, Electro 6 and Wave 2 (each registry builder sets the signed mode to
-  0 — high). Only the Stage 3 stores `value − min`. Morph deltas are never two's
-  complement. The generated layout carries the encoding per field.
+- **Signed values.** Every registry model after the Stage 3 — Piano 4 / 5 / 6,
+  Grand, Grand 2, Electro 6, Wave 2, Electro 7, Organ 3 — stores negative-min
+  fields as two's complement in their width: each registry builder sets the
+  signed mode to 0 (high; Piano 6 medium, inferred from the shared code and the
+  Grand 2 corpus). Only the Stage 3 stores `value − min`. Morph deltas are never
+  two's complement. The generated layout carries the encoding per field.
 
 | Model | Tag | Firmware source | Body | Confidence |
 |---|---|---|---|---|

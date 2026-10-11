@@ -14,7 +14,9 @@ Three CSV dialects are accepted:
   keys:   name,block,param_id,file_byte,body_byte,bit,bit_offset,width,min,max,default,morph,midi_cc,notes
           (bit_offset is a FILE bit; body bit = bit_offset - 352)
   e7:     name,block,param_id,body_bit_offset,body_byte,bit_in_byte_msb7,width,signed,min,max,default,
-          kind,slot,buffer_mode,midi_cc,notes  (signed = 'twos' for two's-complement fields)
+          kind,slot,buffer_mode,midi_cc,notes
+A model whose registry builder sets the signed mode to 0 declares `negatives: 'twos'`:
+its negative-min fields are two's complement in their width, not `value - min`.
 
 What is kept (only high/medium-confidence fields):
   - every registry parameter with a known position and range;
@@ -62,6 +64,9 @@ MODELS = {
         'source': 'Electro 7 OS 1.30 registry FUN_c009c394',
         'container': 'Electro 7 OS 1.30 program archive FUN_c00a8148, tree FUN_c00aa7c8 (1.00–1.10, medium)',
         'versionRange': (100, 110),
+        # The builder clears the registry's signed mode (global 0xc05da57c), so the
+        # constructor FUN_c01236c8 stores negative-min fields as two's complement.
+        'negatives': 'twos',
         # Parameter list high; block order from the archive builder (medium).
         'confidence': lambda row: 'medium',
         'blocks': {
@@ -119,7 +124,7 @@ def encoding(row, lo, cfg):
     notes = row['notes']
     if 'NameHash' in row['name']:
         return 'raw'
-    if row.get('signed') == 'twos' or "two's complement" in notes or (lo < 0 and cfg.get('negatives') == 'twos'):
+    if "two's complement" in notes or (lo < 0 and cfg.get('negatives') == 'twos'):
         return 'twos'
     if lo != 0:
         return 'offset'

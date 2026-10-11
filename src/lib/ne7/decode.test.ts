@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { decodeNe7 } from './decode';
 import { ne7Decoded, NE7_PROVISIONAL_NOTE } from './present';
 import { NE7_LAYOUT, type Ne7FieldKey } from './layout.generated';
-import { synthFwBody, synthFwFile, writeBits } from '../clavia/block-chain.synth';
+import { fieldBit, synthFwBody, synthFwFile, writeBits } from '../clavia/block-chain.synth';
 
 const file = (values: Partial<Record<Ne7FieldKey, number>> = {}) => synthFwFile('ne7p', synthFwBody(NE7_LAYOUT, values));
 
@@ -49,12 +49,10 @@ describe('decodeNe7 (Electro 7, firmware layout, provisional block order)', () =
   });
 
   it('stores negative values as two\'s complement, not value − min', () => {
+    expect(NE7_LAYOUT.fields.filter((f) => f.min < 0 && f.enc !== 'twos' && f.enc !== 'raw')).toEqual([]); // raw = name hashes
     const body = synthFwBody(NE7_LAYOUT);
-    const transpose = NE7_LAYOUT.fields.find((f) => f.key === 'common.transposeValue')!;
-    const semitone = NE7_LAYOUT.fields.find((f) => f.key === 'synthPreset.analogSemitone')!;
-    const at = (f: typeof transpose) => (NE7_LAYOUT.blocks[f.block].offset + 1) * 8 + f.bit;
-    writeBits(body, at(transpose), 4, 0b1010); // −6
-    writeBits(body, at(semitone), 7, 0);       // 0, not −24
+    writeBits(body, fieldBit(NE7_LAYOUT, 'common.transposeValue'), 4, 0b1010);    // −6
+    writeBits(body, fieldBit(NE7_LAYOUT, 'synthPreset.analogSemitone'), 7, 0);    // 0, not −24
     const v = decodeNe7(synthFwFile('ne7p', body)).values;
     expect(v['common.transposeValue']).toBe(-6);
     expect(v['synthPreset.analogSemitone']).toBe(0);
