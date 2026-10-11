@@ -132,8 +132,10 @@ function usePianosStateValue() {
     }
   }
 
+  /** Show one entry by name: every filter off, the search set to it (the ⌘K palette's jump). */
+  const reveal = (name: string) => { setSource('all'); setUnusedOnly(false); setQuery(name); };
   return {
-    all: allEntries,
+    all: allEntries, reveal,
     shown, source, setSource, query, setQuery, prefs, entryById, nordCount, localCount, showSourceFacet, folder, session,
     // Piano-usage cleanup (device-connected)
     canScanUsage: !!session, scanUsage, scanPct, unusedCount,

@@ -28,3 +28,6 @@ export function getCapacitorPlatform(): 'web' | 'ios' | 'android' {
 export function isWebPlatform(): boolean {
   return !isCapacitorPlatform();
 }
+
+/** Apple keyboards: ⌘ is the shortcut modifier, and Ctrl+letter edits text. */
+export const isApple = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);

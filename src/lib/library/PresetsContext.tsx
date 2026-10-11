@@ -47,8 +47,10 @@ function usePresetsStateValue() {
   const shown = sortPresets(filterPresets(allEntries, source, kind, query), prefs.sort, prefs.favorites);
   const entryById = (id: string) => allEntries.find((e) => e.id === id);
 
+  /** Show one entry by name: every filter off, the search set to it (the ⌘K palette's jump). */
+  const reveal = (name: string) => { setSource('all'); setKind('all'); setQuery(name); };
   return {
-    all: allEntries,
+    all: allEntries, reveal,
     shown, source, setSource, kind, setKind, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, kinds, folder, session,
     importPreset: imported.add, removePreset: imported.remove,

@@ -14,15 +14,25 @@
   padding-right: max(var(--s-6), env(safe-area-inset-right));
   padding-bottom: max(var(--s-4), env(safe-area-inset-bottom));
 }
+/* Below 720px the fixed tab bar (56px + inset) sits over the bottom of the
+   page, so the content keeps that much room. */
+@media (max-width: 720px) {
+  [data-native] .on-content {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+}
 /* Suppress the iOS long-press callout / text selection on app chrome. */
 [data-native] {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
 }
+/* The top bar's height, which the sticky rail below is placed and sized from.
+   The native shell adds the status-bar inset on top. */
+:root { --topbar-h: 44px; }
+[data-native] { --topbar-h: calc(44px + env(safe-area-inset-top)); }
 [data-native] .on-topbar {
   padding-top: env(safe-area-inset-top);
-  height: calc(44px + env(safe-area-inset-top));
 }
 [data-native] .on-tabs {
   padding-bottom: env(safe-area-inset-bottom);
