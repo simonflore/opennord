@@ -5,6 +5,24 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { decodedProgramFor } from './presenters';
 import { DecodedProgramView } from '../components/program/DecodedProgramView';
+import type { FwLayout } from './clavia/block-chain';
+import { synthFwBody, synthFwFile } from './clavia/block-chain.synth';
+import { ngCodec } from './ng/codec';
+import { np6Codec } from './np6/codec';
+import { ne6Codec } from './ne6/codec';
+import { ne7Codec } from './ne7/codec';
+import { no3Codec } from './no3/codec';
+import { nw2Codec } from './nw2/codec';
+import { NG_LAYOUT } from './ng/layout.generated';
+import { NP6_LAYOUT } from './np6/layout.generated';
+import { NE6_LAYOUT } from './ne6/layout.generated';
+import { NE7_LAYOUT } from './ne7/layout.generated';
+import { NO3_LAYOUT } from './no3/layout.generated';
+import { NW2_LAYOUT } from './nw2/layout.generated';
+
+const FW_LAYOUTS: Record<string, FwLayout> = {
+  ng: NG_LAYOUT, np6: NP6_LAYOUT, ne6: NE6_LAYOUT, ne7: NE7_LAYOUT, no3: NO3_LAYOUT, nw2: NW2_LAYOUT,
+};
 
 /** Load the first fixture for a model dir, or null if the (gitignored) corpus is absent. */
 function firstFixture(modelDir: string, ext: string): Uint8Array | null {
@@ -44,6 +62,15 @@ describe('decodedProgramFor — lite piano/organ models', () => {
     expect(d.title).toContain('Piano 5');
     expect(d.sections.length).toBe(2);
   });
+
+  // Every tag a firmware-layout codec claims (Program and Live) must reach a presenter.
+  it.each([ngCodec, np6Codec, ne6Codec, ne7Codec, no3Codec, nw2Codec].flatMap((c) => c.tags.map((tag) => [tag, c] as const)))(
+    '%s (synthetic) → its presenter', (tag, codec) => {
+      const layout = FW_LAYOUTS[codec.model];
+      const d = decodedProgramFor(synthFwFile(tag, synthFwBody(layout), layout.versionRange?.[0] ?? 100));
+      expect(d?.title).toContain(layout.model);
+      expect(d?.sections.length).toBeGreaterThan(0);
+    });
 
   // Render path: the shared DecodedProgramView must render the lite output without throwing.
   it.skipIf(!grand2)('Grand 2 renders through DecodedProgramView', () => {
