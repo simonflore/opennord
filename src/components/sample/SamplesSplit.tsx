@@ -8,7 +8,7 @@ import { useOpenSample } from '@/lib/library/useOpenSample';
 import { useSplitLayout } from '@/lib/responsive';
 import { readFileBytes } from '../../lib/file';
 import { useNavigate } from '@tanstack/react-router';
-import { closeRemoved, openSample } from '@/components/library/openEntry';
+import { closeRemoved, useOpenEntry } from '@/components/library/openEntry';
 
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
@@ -28,6 +28,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   // An import that wasn't a sample file: shown above the list, apart from the open sample.
   const [importError, setImportError] = useState('');
   const navigate = useNavigate();
+  const openEntry = useOpenEntry();
 
   // Opening a sample from the route closes a preview.
   useEffect(() => {
@@ -84,7 +85,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters} filtered={s.filtered}
         // Clicking the open sample again retries it, but only when its read failed.
-        onOpen={(e) => (e.id !== selectedId ? openSample(navigate, e.id, true) : open.state === 'failed' && open.retry())}
+        onOpen={(e) => (e.id !== selectedId ? openEntry.sample(e.id) : open.state === 'failed' && open.retry())}
         onLoadNew={startLoadNew}
         activeId={selectedId ?? null}
         onImport={importSample}

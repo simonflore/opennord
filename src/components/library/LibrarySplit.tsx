@@ -6,7 +6,7 @@ import { CategorySplit } from './CategorySplit';
 import { EmptyNote } from './EmptyNote';
 import { useLibraryState } from '@/lib/library/LibraryContext';
 import { useSplitLayout } from '@/lib/responsive';
-import { closeRemoved, openProgram } from './openEntry';
+import { closeRemoved, useOpenEntry } from './openEntry';
 
 /**
  * The Library as master/detail. `/library/programs/{-$programId}` renders
@@ -17,6 +17,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = useLibraryState();
   const navigate = useNavigate();
+  const open = useOpenEntry();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
 
   const list = (
@@ -35,7 +36,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
       clearFilters={s.clearFilters}
       filtered={s.filtered}
       activeId={selectedId}
-      onOpen={(e) => openProgram(navigate, e, true)}
+      onOpen={(e) => open.program(e)}
       onImport={s.importFile}
       onRemove={(id) => { void s.imported.remove(id); closeRemoved(navigate, '/library/programs', selectedId, [id]); }}
       importError={s.importError}

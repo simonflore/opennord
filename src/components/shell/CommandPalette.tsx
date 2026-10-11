@@ -8,7 +8,7 @@ import { useLibraryState } from '../../lib/library/LibraryContext';
 import { usePresetsState } from '../../lib/library/PresetsContext';
 import { useSamplesState } from '../../lib/library/SamplesContext';
 import { usePianosState } from '../../lib/library/PianosContext';
-import { openPiano, openPreset, openProgram, openSample } from '../library/openEntry';
+import { useOpenEntry } from '../library/openEntry';
 import { rankCommands, type Command } from './commands';
 import { ABOUT, COMMUNITY_SUB, COMMUNITY_TO, DEV_DESTS, useTools } from './nav';
 import { groupLabel, rowActive } from './styles';
@@ -21,6 +21,7 @@ const hint = (e: { slot?: string; source: LibrarySource }) => e.slot ?? SOURCE_L
 function useCommands(): Command[] {
   const navigate = useNavigate();
   const tools = useTools();
+  const open = useOpenEntry();
   const { all: programs, ensureListed } = useLibraryState();
   const presets = usePresetsState();
   const samples = useSamplesState();
@@ -28,10 +29,10 @@ function useCommands(): Command[] {
   // Only the (memoised) lists and their stable callbacks go into the memo, so a
   // provider update that doesn't touch the lists keeps the same commands.
   const lists = useMemo(() => [
-    { group: 'Presets' as const, all: presets.all, ensureListed: presets.ensureListed, open: (id: string) => openPreset(navigate, id) },
-    { group: 'Samples' as const, all: samples.all, ensureListed: samples.ensureListed, open: (id: string) => openSample(navigate, id) },
-    { group: 'Pianos' as const, all: pianos.all, ensureListed: pianos.ensureListed, open: (id: string) => openPiano(navigate, id) },
-  ], [navigate, presets.all, presets.ensureListed, samples.all, samples.ensureListed, pianos.all, pianos.ensureListed]);
+    { group: 'Presets' as const, all: presets.all, ensureListed: presets.ensureListed, open: open.preset },
+    { group: 'Samples' as const, all: samples.all, ensureListed: samples.ensureListed, open: open.sample },
+    { group: 'Pianos' as const, all: pianos.all, ensureListed: pianos.ensureListed, open: open.piano },
+  ], [open, presets.all, presets.ensureListed, samples.all, samples.ensureListed, pianos.all, pianos.ensureListed]);
 
   return useMemo(() => {
     const pages: Command[] = [
@@ -47,7 +48,7 @@ function useCommands(): Command[] {
       id: `program:${e.id}`, group: 'Programs', label: e.name, hint: hint(e), keywords: e.slot,
       // Only a program that opens beside the list needs its row shown (an unread
       // Nord slot goes to the Device page instead, leaving the list's filters alone).
-      run: () => { if (e.program) ensureListed(e.id); openProgram(navigate, e); },
+      run: () => { if (e.program) ensureListed(e.id); open.program(e); },
     }));
 
     // Every entry opens on its own route, with its list showing its row.
@@ -57,7 +58,7 @@ function useCommands(): Command[] {
     })));
 
     return [...pages, ...programCommands, ...entries];
-  }, [navigate, tools, programs, ensureListed, lists]);
+  }, [navigate, open, tools, programs, ensureListed, lists]);
 }
 
 /**

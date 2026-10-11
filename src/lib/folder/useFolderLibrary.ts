@@ -60,6 +60,19 @@ export interface FolderLibrary {
   ) => Promise<WriteResult>;
 }
 
+/** `r` with one scan batch added. */
+function withBatch(r: ScanResult, b: ScanBatch): ScanResult {
+  return {
+    programs: [...r.programs, ...b.programs],
+    presets: [...r.presets, ...(b.presets ?? [])],
+    pianos: [...r.pianos, ...b.pianos],
+    samples: [...r.samples, ...b.samples],
+    errors: [...r.errors, ...b.errors],
+    backupPianos: [...r.backupPianos, ...(b.backupPianos ?? [])],
+    backupSamples: [...r.backupSamples, ...(b.backupSamples ?? [])],
+  };
+}
+
 export function useFolderLibrary(makeScanner: () => Scanner = createScanner): FolderLibrary {
   const [folderName, setFolderName] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult>(EMPTY);
@@ -83,15 +96,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
 
   const append = useCallback((gen: number) => (b: ScanBatch) => {
     if (gen !== genRef.current) return;
-    setResult((r) => ({
-      programs: [...r.programs, ...b.programs],
-      presets: [...r.presets, ...(b.presets ?? [])],
-      pianos: [...r.pianos, ...b.pianos],
-      samples: [...r.samples, ...b.samples],
-      errors: [...r.errors, ...b.errors],
-      backupPianos: [...r.backupPianos, ...(b.backupPianos ?? [])],
-      backupSamples: [...r.backupSamples, ...(b.backupSamples ?? [])],
-    }));
+    setResult((r) => withBatch(r, b));
   }, []);
 
   /** Run Pass A on a source, then apply remembered choices / open the gate.
@@ -102,17 +107,24 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
    *  concurrent applyBundleSelection()'s in-flight expansion of the OLD
    *  folder's bundles. */
   const runScan = useCallback(async (
-    name: string, source: FolderSource, dirHandle?: FileSystemDirectoryHandle | null,
+    name: string, source: FolderSource, dirHandle?: FileSystemDirectoryHandle | null, keep = false,
   ) => {
     const gen = ++genRef.current;
     scannerRef.current?.dispose?.();
     const scanner = makeScanner();
     scannerRef.current = scanner;
-    setResult(EMPTY); setBundles([]); setNewBundles([]); setPickerOpen(false);
-    const onBatch = append(gen);
+    // `keep` (a refresh of the same folder): the last scan stays shown until the
+    // new one's loose pass is in, so the lists, and an entry open beside them,
+    // don't empty out meanwhile. A new folder starts empty and fills as it scans.
+    let staged: ScanResult | null = keep ? EMPTY : null;
+    if (!keep) setResult(EMPTY);
+    setBundles([]); setNewBundles([]); setPickerOpen(false);
+    const shown = append(gen);
+    const onBatch = (b: ScanBatch) => { if (staged) staged = withBatch(staged, b); else shown(b); };
 
     const found = await scanner.scanLoose(source, onBatch);
     if (gen !== genRef.current) return;
+    if (staged) { setResult(staged); staged = null; }
     setBundles(found);
 
     const choice = await loadBundleChoice(name, dirHandle ?? undefined);
@@ -241,7 +253,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     if (!handle || !folderName) return;
     const op = ++opRef.current;
     setBusy(true);
-    try { await runScan(folderName, rescan(handle), handle); } finally { if (op === opRef.current) setBusy(false); }
+    try { await runScan(folderName, rescan(handle), handle, true); } finally { if (op === opRef.current) setBusy(false); }
   }, [handle, folderName, runScan]);
 
   const forget = useCallback(async () => {

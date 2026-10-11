@@ -14,14 +14,14 @@ export type OpenSample =
    *  now (a rescan in progress, or removed), so the inspector stays and says so. */
   | { state: 'open'; sample: { id: string; bytes: Uint8Array; name: string }; factory: boolean; listed: boolean };
 
-type Read = { id: string; key: string; name: string; pct: number | null; bytes?: Uint8Array; error?: string };
+type Read = { id: string; key: string; name: string; factory: boolean; pct: number | null; bytes?: Uint8Array; error?: string };
 
 /**
  * The open sample's bytes, read once per sample, source and retry: when the
  * route names another sample, a retry, a new Nord session for a Nord sample, or
  * a sample named before it's listed (a deep link while the folder scans)
- * arriving. A rescan that drops and re-adds the open entry keeps its bytes,
- * and the sample stays open meanwhile. A read in flight is let go when the
+ * arriving. If the entry leaves the list once read (removed, or gone with its
+ * Nord), the sample stays open and says so. A read in flight is let go when the
  * route moves on or the entry leaves the list (SamplesContext then drops a Nord
  * pull still waiting for the session).
  */
@@ -53,13 +53,14 @@ export function useOpenSample(id: string | undefined): OpenSample {
     const reading = { id, key, stop: new AbortController(), settled: false };
     current.current = reading;
     const live = () => !reading.stop.signal.aborted;
-    setRead({ id, key, name: e.name, pct: e.source === 'nord' ? 0 : null });
-    io.current.readSample(e, (pct) => { if (live()) setRead({ id, key, name: e.name, pct }); }, reading.stop.signal).then(
-      (bytes) => { if (live()) { reading.settled = true; setRead({ id, key, name: e.name, pct: null, bytes }); } },
+    const base = { id, key, name: e.name, factory: !!e.factory };
+    setRead({ ...base, pct: e.source === 'nord' ? 0 : null });
+    io.current.readSample(e, (pct) => { if (live()) setRead({ ...base, pct }); }, reading.stop.signal).then(
+      (bytes) => { if (live()) { reading.settled = true; setRead({ ...base, pct: null, bytes }); } },
       (err) => {
         if (!live()) return;
         reading.settled = true;
-        setRead({ id, key, name: e.name, pct: null, error: `Could not read ${e.name}: ${getErrorMessage(err)}` });
+        setRead({ ...base, pct: null, error: `Could not read ${e.name}: ${getErrorMessage(err)}` });
       },
     );
   }, [id, key, letGo]);
@@ -74,7 +75,9 @@ export function useOpenSample(id: string | undefined): OpenSample {
   );
 
   if (!id) return { state: 'none' };
-  if (sample) return { state: 'open', sample, factory: !!entry?.factory, listed: !!entry };
+  // The factory tag as the entry has it now (a backup's origin can resolve after
+  // its bytes do), or as it was when read while the entry is unlisted.
+  if (sample) return { state: 'open', sample, factory: entry ? !!entry.factory : !!mine?.factory, listed: !!entry };
   if (!entry) return { state: 'missing' };
   if (mine?.error) return { state: 'failed', error: mine.error, retry };
   return { state: 'reading', pct: mine?.pct ?? null };

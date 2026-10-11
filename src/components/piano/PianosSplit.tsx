@@ -1,5 +1,4 @@
-import { useNavigate } from '@tanstack/react-router';
-import { openPiano } from '@/components/library/openEntry';
+import { useOpenEntry } from '@/components/library/openEntry';
 import { usePianosState } from '@/lib/library/PianosContext';
 import { PianosBrowse } from './PianosBrowse';
 import { PianoInspector } from './PianoInspector';
@@ -15,7 +14,7 @@ import { useSplitLayout } from '@/lib/responsive';
 export function PianosSplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = usePianosState();
-  const navigate = useNavigate();
+  const open = useOpenEntry();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
 
   const list = (
@@ -27,7 +26,7 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
         showSourceFacet={s.showSourceFacet}
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
-        onSelect={(e) => openPiano(navigate, e.id, true)}
+        onSelect={(e) => open.piano(e.id)}
         activeId={selectedId}
         canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct}
         unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
