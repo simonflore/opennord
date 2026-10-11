@@ -8,7 +8,7 @@ import { createElement } from 'react';
 import { parseClaviaFile } from './formats';
 import { decodedProgramFor } from './presenters';
 import { identifyNordFile } from './clavia/nord-file';
-import { synthLegacyFile, writeLegacyRecord } from './clavia/block-chain.synth';
+import { synthLegacyLayoutFile } from './clavia/block-chain.synth';
 import type { LegacyLayout } from './clavia/legacy-record';
 import { DecodedProgramView } from '../components/program/DecodedProgramView';
 import { decodeForModel, getModelProgress } from './contribute/coverage';
@@ -32,9 +32,7 @@ const CASES: Case[] = [
 ];
 
 function file(tag: string, layout: LegacyLayout, version: number): Uint8Array {
-  const data = new Uint8Array(layout.dataBytes);
-  writeLegacyRecord(data, layout);
-  return synthLegacyFile(tag, version, data);
+  return synthLegacyLayoutFile(tag, layout, {}, { version });
 }
 
 describe('ColdFire legacy-record readers — identify, codec, presenter and coverage', () => {

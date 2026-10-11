@@ -6,12 +6,10 @@ import { describe, it, expect } from 'vitest';
 import { decodeNp3 } from './decode';
 import { np3Decoded } from './present';
 import { NP3_LAYOUT, type Np3FieldKey } from './layout.generated';
-import { synthLegacyFile, writeLegacyRecord } from '../clavia/block-chain.synth';
+import { synthLegacyLayoutFile } from '../clavia/block-chain.synth';
 
 function np3p(values: Partial<Record<Np3FieldKey, number>> = {}, version = 4): Uint8Array {
-  const data = new Uint8Array(NP3_LAYOUT.dataBytes);
-  writeLegacyRecord(data, NP3_LAYOUT, values);
-  return synthLegacyFile('np3p', version, data);
+  return synthLegacyLayoutFile('np3p', NP3_LAYOUT, values, { version: version });
 }
 
 describe('NP3 firmware layout', () => {

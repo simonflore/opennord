@@ -5,11 +5,10 @@
  * file position (0x1A) is a guess (low), which the presenter's note states on
  * every decode. See types.ts. Never throws.
  */
-import { LEGACY_DATA_OFFSET } from '../clavia/legacy-record';
 import { decodeLegacyProgram } from '../clavia/legacy-program';
 import { NP1_LAYOUT } from './layout.generated';
 import type { Np1Program } from './types';
 
 export function decodeNp1(bytes: Uint8Array): Np1Program {
-  return { ...decodeLegacyProgram(bytes, NP1_LAYOUT, { model: 'Nord Piano', dataOffset: LEGACY_DATA_OFFSET }), format: 'nppg' };
+  return { ...decodeLegacyProgram(bytes, NP1_LAYOUT, { model: 'Nord Piano' }), format: 'nppg' };
 }

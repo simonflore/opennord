@@ -7,7 +7,7 @@
  * one MSB-first bitstream of four containers — common, piano, synth, effects
  * (336 bits) — 52 stored parameters, no morph sources. A version 1 record is
  * converted on load (the converter remaps common parameter 4). In the file the
- * record version is the CBIN version field (0x14) and the data is taken to
+ * record version is the u16 at 0x18 (NSM copies it to 0x14) and the data is taken to
  * start at 0x1A, followed by the 2-byte trailer: 26 + 42 + 2 = 70 bytes.
  *
  * Names: the descriptors carry no labels, so most parameters are named by

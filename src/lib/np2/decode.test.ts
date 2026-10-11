@@ -6,12 +6,10 @@ import { describe, it, expect } from 'vitest';
 import { decodeNp2 } from './decode';
 import { np2Decoded } from './present';
 import { NP2_LAYOUT, type Np2FieldKey } from './layout.generated';
-import { synthLegacyFile, writeLegacyRecord } from '../clavia/block-chain.synth';
+import { synthLegacyLayoutFile } from '../clavia/block-chain.synth';
 
 function np2p(values: Partial<Record<Np2FieldKey, number>> = {}, version = 2): Uint8Array {
-  const data = new Uint8Array(NP2_LAYOUT.dataBytes);
-  writeLegacyRecord(data, NP2_LAYOUT, values);
-  return synthLegacyFile('np2p', version, data);
+  return synthLegacyLayoutFile('np2p', NP2_LAYOUT, values, { version: version });
 }
 
 describe('NP2 firmware layout', () => {

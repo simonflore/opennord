@@ -7,12 +7,10 @@ import { describe, it, expect } from 'vitest';
 import { decodeNp1 } from './decode';
 import { np1Decoded } from './present';
 import { NP1_LAYOUT, type Np1FieldKey } from './layout.generated';
-import { synthLegacyFile, writeLegacyRecord } from '../clavia/block-chain.synth';
+import { synthLegacyLayoutFile } from '../clavia/block-chain.synth';
 
 function nppg(values: Partial<Record<Np1FieldKey, number>> = {}, cbinVersion = 0): Uint8Array {
-  const data = new Uint8Array(NP1_LAYOUT.dataBytes);
-  writeLegacyRecord(data, NP1_LAYOUT, values);
-  return synthLegacyFile('nppg', cbinVersion, data);
+  return synthLegacyLayoutFile('nppg', NP1_LAYOUT, values, { version: cbinVersion });
 }
 
 describe('Nord Piano firmware layout', () => {

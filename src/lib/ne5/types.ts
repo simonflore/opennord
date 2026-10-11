@@ -8,7 +8,8 @@
  * Church) Global, Upper, Lower, Preset I, Preset II, and the effects. No morph
  * sources. In the file the data starts at **0x1A** and the 2-byte trailer
  * follows: 26 + 119 + 2 = 147, the `.ne5p` size (high). The CBIN version at
- * 0x14 is the record version: 4 on every corpus file. Version 3 files are
+ * 0x14 is NSM's copy of the record version (4 on every corpus file); the
+ * reader takes the record's own u16 at 0x18. Version 3 files are
  * converted on load (the converter moves one EQ bit); 1 and 2 are refused.
  *
  * The earlier corpus decoder read the same bytes from 0x2C ("body") and had the
