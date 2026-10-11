@@ -54,7 +54,7 @@ decode-layer map, commands, and the legal guardrails.
 | `src/lib/folder/` | local-folder library: scan/classify/index `.ns*` files into the Library |
 | `src/lib/library/` | the unified Library model + import store |
 | `src/lib/ai/` | search ranker — zero-config keyword ranking today, LLM-pluggable behind one interface |
-| `src/lib/midi/` | **live MIDI** — CC/NRPN control + note input that plays the loaded sample (the in-app rompler); *not* the transfer path (that's vendor USB in `device/`) |
+| `src/lib/midi/` | **live MIDI** — note/pedal input that plays the loaded sample (the in-app rompler); *not* the transfer path (that's vendor USB in `device/`) |
 | `scripts/` | USB-protocol tools (`nord*.c`, libusb) + file-format tooling |
 | `docs/` | architecture, roadmap, format notes, the USB protocol, multi-model, legal stance |
 

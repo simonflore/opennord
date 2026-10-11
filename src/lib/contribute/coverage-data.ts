@@ -10,7 +10,7 @@
 export interface MappedControl {
   /** What the control is, e.g. "Filter cutoff" or "CC 70". */
   label: string;
-  /** Body-relative byte ranges it occupies (same shape as a contribution entry). */
+  /** Body-relative byte ranges it occupies. */
   ranges: Array<{ start: number; end: number }>;
 }
 
@@ -39,8 +39,8 @@ export interface ModelProgress {
   regions?: BodyRegion[];
 }
 
-// Keyed by model id (clavia/partitions.ts). Add models + controls as you process
-// contributions. Example (delete when you add a real one):
+// Keyed by model id (clavia/partitions.ts). Add models + controls as fields are
+// mapped. Example:
 //   'electro-6': {
 //     bodyBytes: 1234,
 //     controls: [{ label: 'Organ drawbar 1', ranges: [{ start: 39, end: 39 }] }],
