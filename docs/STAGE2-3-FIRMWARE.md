@@ -193,9 +193,10 @@ Still to do: check the amp-type label order and the meaning of rotary speed 3.
 - 488 NSM-era files of 565 bytes at record version 7 and one legacy file of 547 bytes at version 6, framed as above;
 - no value outside its descriptor range;
 - the slots read the same values as the earlier decoder, except slot B's slot detune (the fix above);
-- the morph deltas reach every target the file names assert (e.g. a piano level of 50 with a wheel target of 51 reads +1, drawbars 012345678 with a wheel target of 123454567 read +1 +1 +1 +1 +1 0 −1 −1 −1).
+- the morph deltas reach every target the file names assert (e.g. a piano level of 50 with a wheel target of 51 reads +1, drawbars 012345678 with a wheel target of 123454567 read +1 +1 +1 +1 +1 0 −1 −1 −1);
+- on every `.ns2p` the header version field (0x14) equals the in-record version (0x2C, or 0x18 behind the legacy header). The one `.ns2l` doesn't: 6 at 0x14, 4 at 0x18. The reader takes 0x14.
 
-Still to do: label the parameters the earlier decoder didn't read (extern, synth shape and detune, …), and route `.ns2l` (one 547-byte corpus file) and `.ns2s` to the reader.
+Still to do: label the parameters the earlier decoder didn't read (extern, synth shape and detune, …), and route `.ns2l` (one 547-byte corpus file; which of its two version fields is the record version is open) and `.ns2s` to the reader.
 
 ### Display names (high, from the firmware's label tables)
 
