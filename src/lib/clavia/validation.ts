@@ -60,7 +60,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
   },
   'stage-2-ex': {
     // Nord Stage 2 EX = Stage 2 + extended memory; shares the ns2p body + OG transport.
-    'file-read': { status: 're', note: "shares ns2p body codec with Stage 2 (RE'd, NSMP-CODEC); EX = extended memory, same format; not HW-tested on EX" },
+    'file-read': { status: 're', note: "same ns2p program format as the Stage 2 (EX = extended memory), read by the same firmware-layout reader (lib/ns2); not HW-tested on EX" },
     enumerate: { status: 're', note: "same OG vendor-USB FileTransfer as Stage 2; read-only, not HW-tested" },
     pull: { status: 're', note: "FileTransfer Download RE'd (shared with Stage 2); read-only, no EX HW test" },
     push: { status: 're', note: "FileTransfer Upload RE'd (shared with Stage 2); WRITE \u2014 untested-write risk" },
@@ -69,7 +69,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 're', note: "same OS as Stage 2: loads .nsmp with an NWS v8/v11 body only; OpenNord converts other formats. Untested on HW" },
   },
   'stage-2': {
-    'file-read': { status: 're', note: "OG anchor; ns2p body codec RE'd (NSMP-CODEC), not HW-tested" },
+    'file-read': { status: 're', note: "ns2p read-only reader (lib/ns2) generated from the Stage 2 OS 3.00 firmware's parameter descriptors (container list): a u16 record version + 519 bytes (21 global, then slots A and B of 249), every stored parameter plus its Wheel/After Touch/Ctrl Pedal morph deltas; data at 0x2E behind the NSM-era header, 0x1A behind the legacy one. Framing, values and morph deltas checked against ns3-program-viewer's public corpus of real files (489 .ns2p, NSM-era and legacy); not HW-tested" },
     enumerate: { status: 're', note: "protocol confirmed on a Stage 2 (OS 3.00) by a community capture (issue #31; FileTransfer v8, partition list); OpenNord itself not yet run on one. On Windows the browser often can't claim it (UsbDk needed)" },
     pull: { status: 're', note: "programs pulled byte-identical in the community capture (issue #31); OpenNord's client not yet run on a Stage 2" },
     push: { status: 're', note: "FileTransfer Upload RE'd; WRITE op, untested-write risk on HW" },

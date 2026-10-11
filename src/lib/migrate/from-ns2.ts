@@ -1,6 +1,6 @@
 /**
- * Lift a decoded Stage 2 program (ns2/decode.ts, oracle: ns2-program.js and
- * friends) into CommonProgram. Pure model→model; every mapping cites its
+ * Lift a decoded Stage 2 program (ns2/decode.ts, read through the Stage 2
+ * firmware layout) into CommonProgram. Pure model→model; every mapping cites its
  * source field.
  */
 import type { Ns2Program, Ns2Slot, Ns2Fx } from '../ns2/decode';
@@ -9,13 +9,13 @@ import { freqStringToHz, timeStringToMs } from './units';
 
 export type { LiftResult } from './common';
 
-// Ns2Fx.name values, per ns2/decode.ts `readFx` (readEffect1/readEffect2/
-// readAmpSimEq/readDelay/readRotary, decode.ts:943-1050): 'Effect 1',
-// 'Effect 2', 'Amp/EQ', 'Delay', 'Rotary'. Unlike ns3, reverb/comp are never
-// pushed into a slot's `fx` array — they live on `program.reverb` /
-// `program.compressor` and are lifted separately below.
+// Ns2Fx.name values of a slot's `fx`, per ns2/decode.ts `slotFx`: 'Effect 1',
+// 'Effect 2', 'Amp/EQ', 'Delay' ('Rotary' is still handled for older shapes;
+// the decoder now reports the program-wide rotary on `program.rotary`). Unlike
+// ns3, reverb/comp are never pushed into a slot's `fx` array — they live on
+// `program.reverb` / `program.compressor` and are lifted separately below.
 // ns2 per-effect source select (Ns2Fx.source, EFFECT_SRC = ['Organ','Piano',
-// 'Synth'], decode.ts:42) tells us which engine the effect was routed through.
+// 'Synth'], ns2/decode.ts) tells us which engine the effect was routed through.
 // Carry it as CommonFxUnit.host so the ns4 emitter can host the FX on that
 // engine rather than the default synth→piano→organ priority.
 function fxHost(source: string | undefined): CommonFxUnit['host'] {
@@ -69,8 +69,8 @@ export function fromNs2(
   const y = slot.synth;
 
   const fx: CommonFxUnit[] = [];
-  // Global reverb/compressor — decode.ts:1306-1319 (ns2-fx-reverb.js,
-  // ns2-fx-compressor.js); program.reverb.amountMidi / .compressor.amountMidi
+  // Global reverb/compressor — decodeNs2's globalFx container (Reverb Dry/Wet,
+  // Compressor Amount); program.reverb.amountMidi / .compressor.amountMidi
   // are already 0-127 MIDI values.
   if (program.reverb.on) {
     fx.push({ slot: 'reverb', on: true, type: program.reverb.type, amountMidi: program.reverb.amountMidi });
@@ -79,12 +79,15 @@ export function fromNs2(
     fx.push({ slot: 'comp', on: true, amountMidi: program.compressor.amountMidi });
   }
   fx.push(...liftSlotFx(slot.fx, dropped));
+  // The rotary speaker is program-wide on the Stage 2 (globalFx container,
+  // Ns2Program.rotary); no CommonFxSlot maps to it yet.
+  if (program.rotary?.on && !dropped.includes('rotary speaker')) dropped.push('rotary speaker');
 
   // Synth mode: ns2's osc field is one of TRI/SAW/SQR/SAMPLE/FM/WAVE
-  // (ns2/decode.ts SYNTH_OSC table, decode.ts:24, read at decode.ts:1253).
+  // (ns2/decode.ts SYNTH_OSC table, read in `synth()`).
   // Only 'sample' (case-insensitive — decoder emits the LUT string verbatim)
   // means the slot plays back a factory sample; sampleId is the ns2->ns3
-  // hash translation (decode.ts:761) which is 0 exactly when the raw 64-bit
+  // hash translation (ns2ToNs3Id) which is 0 exactly when the raw 32-bit
   // hash field is 0 (program init / never written for analog oscillators).
   const isSample = y.osc.toLowerCase() === 'sample' && y.sampleId !== 0;
 
@@ -94,19 +97,19 @@ export function fromNs2(
       on: o.on,
       type: o.type,
       drawbars: o.drawbars.slice(0, 9),
-      // Second manual only meaningful when preset2 is active (decode.ts:820-822,
-      // Ns2OrganSlot.preset2 / .drawbars2).
+      // Second manual only meaningful when preset2 is active
+      // (Ns2OrganSlot.preset2 / .drawbars2).
       drawbars2: o.preset2 ? o.drawbars2.slice(0, 9) : undefined,
       vibChorus: o.vibChorus,
       percussion: o.percussion,
-      volumeMidi: o.volumeMidi, // decode.ts:812 — already MIDI, no dB-string parse
+      volumeMidi: o.volumeMidi, // Organ / Level — already MIDI, no dB-string parse
       octaveShift: o.octaveShift,
     },
     piano: {
       on: p.on,
       typeName: p.type,
       soundName: opts.sampleName?.(p.sampleId),
-      volumeMidi: p.volumeMidi, // decode.ts:831 — already MIDI
+      volumeMidi: p.volumeMidi, // Piano / Level — already MIDI
       octaveShift: p.octaveShift,
       dynamics: p.dynamics,
     },
@@ -139,7 +142,7 @@ export function fromNs2(
       // nearest-match (source: Ns2SynthSlot.lfoRate, e.g. '2.0 Hz').
       lfo: { wave: y.lfoWave, rateMidi: y.lfoRateMidi, rateHz: freqStringToHz(y.lfoRate) ?? undefined },
       unison: y.unison,
-      volumeMidi: y.volumeMidi, // decode.ts:875 — already MIDI
+      volumeMidi: y.volumeMidi, // Synth / Level — already MIDI
       octaveShift: y.octaveShift,
     },
     fx,
