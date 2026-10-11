@@ -114,8 +114,22 @@ export const MEDIA_COMPAT: Record<MediaModelId, MediaCompat> = {
     samples: { generations: [1, 2], os: '3.00', confidence: 'medium', source: 'Stage 2 OS 3.00 (same OS as the Stage 2)' },
     note: 'not read separately: the Stage 2 EX runs the Stage 2 OS',
   },
-  'stage-classic': { pianos: 'unknown', samples: 'unknown', note: 'OS 5.08 not analysed' },
-  'stage-ex': { pianos: 'unknown', samples: 'unknown', note: 'OS 6.08 not analysed' },
+  'stage-classic': {
+    pianos: {
+      versions: [v4, v5], os: '5.08', confidence: 'high', source: 'piano gate in the OS 5.08 image',
+      note: 'also loads the older CNSP 0x423–0x42F and 0x430 pianos; 0x464 (v6) is refused',
+    },
+    samples: 'none',
+    note: 'no sample library partition',
+  },
+  'stage-ex': {
+    pianos: {
+      versions: [v4, v5], os: '6.08', confidence: 'high', source: 'piano gate in the OS 6.08 image',
+      note: 'also loads the older CNSP 0x423–0x42F and 0x430 pianos; 0x464 (v6) is refused',
+    },
+    samples: 'none',
+    note: 'no sample library partition',
+  },
 
   // ── ColdFire Electro / Piano / C2D / Wave ───────────────────────────────────────────────────
   'electro-3': {
@@ -169,7 +183,7 @@ export const MEDIA_COMPAT: Record<MediaModelId, MediaCompat> = {
     pianos: 'none', samples: 'none',
     note: 'OS 1.12: the Pipe loader takes only an embedded CNSP 0x440 pipe, never a `.npno`; no sample code',
   },
-  'c2': { pianos: 'unknown', samples: 'unknown', note: 'not analysed (the C2D was)' },
+  'c2': { pianos: 'unknown', samples: 'unknown', note: 'OS 2.00 read for its partitions and program record; its Pipe loader was not analysed (the C2D\'s takes only an embedded CNSP 0x440)' },
   'wave': {
     pianos: 'none',
     samples: { generations: [1, 2], os: '2.14', confidence: 'high', source: '(NWS v8/v11; also `nwi` entries)' },

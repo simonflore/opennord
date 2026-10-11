@@ -8,9 +8,9 @@
  *
  * Partition ORDER: the protocol index is the order in which the instrument's own
  * firmware registers each partition with its file-transfer code — that is what
- * CQryPartList reports. Where a model's firmware has been read statically (the
- * whole line except Stage Classic/EX and C2 and
- * the maintainers’ notes), that order is the ground truth; NSM's
+ * CQryPartList reports. Every model's firmware has been read statically
+ *, so that order is the
+ * ground truth; NSM's
  * product-constructor `Add()` order is a weaker proxy and often disagrees with it.
  *
  * `NordModelId` is a superset of clavia/model.ts `ClaviaModel` (which stays the
@@ -110,7 +110,7 @@ export interface ModelInfo {
    * 3..this value without replying, so a v4/v6/v7/v8 device never answers the
    * Stage 4 default (10). Connect still negotiates (protocol 0x07) and adopts
    * whatever the device advertises; this is the version used until then, and
-   * when the device doesn't answer. Omitted when the version isn't known.
+   * when the device doesn't answer. Omitted only for the C1 (no USB transfer).
    */
   fileTransferVersion?: number;
   /**
@@ -127,18 +127,6 @@ const P = (kind: PartitionKind, label: string, native: boolean, fourcc?: string,
  *  is its position in the list (see `PartitionSpec.staticIndex`). */
 const firmwareOrder = (...specs: PartitionSpec[]): PartitionSpec[] =>
   specs.map((spec, i) => ({ ...spec, staticIndex: i }));
-
-/** Baseline for models not yet mapped (Stage Classic/EX, C2) —
- *  a curated guess, refinable as hardware/firmware confirms
- *. `programStaticIndex` carries the
- *  NSM-constructor-recovered Program ordinal when known; the list order itself
- *  is not a registration order. */
-const baseline = (tag: string, sampleCapable: boolean, programStaticIndex?: number): PartitionSpec[] => [
-  ...(sampleCapable ? [P('samplib-native', 'Sample Library (factory)', true)] : []),
-  { ...P('program', 'Programs', false, tag), staticIndex: programStaticIndex },
-  P('live', 'Live', false),
-  P('settings', 'Settings', false),
-];
 
 /** The 9 partitions the ColdFire Piano 2 / Piano 3 register: user Piano Pedal
  *  before the factory one, as on the Stage 2. No E2P FFS. */
@@ -295,11 +283,37 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('settings', 'Settings', false, 'ns2y', 9),
     ],
   },
-  // ── Not yet mapped: NSM baseline.
-  'stage-classic': { id: 'stage-classic', name: 'Nord Stage Classic', generation: 'OG', programTag: 'nsp', sampleCodec: null, staticProductId: 0x0003, os: { min: 312, recommended: 508 }, partitions: baseline('nsp', false) },
+  // ── First-generation Stage (ColdFire). Firmware registration order from the
+  //    instrument's OS. Both register 4 partitions — no Live,
+  //    no Settings — and write the same `nspg` program record (the Stage EX's
+  //    descriptors equal the Classic's), so `modelByTag('nspg')` answers the
+  //    Stage Classic (the anchor, as the Stage 2 is for `ns2p`). Pianos: CNSP
+  //    0x423–0x42F, 0x430, 0x440 and 0x450 (no v6); no sample library.
+  'stage-classic': {
+    // Stage Classic OS 5.08: FileTransfer version 3 — frames of exactly
+    // version 3 — and no session lock (begin never answers 18).
+    id: 'stage-classic', name: 'Nord Stage Classic', generation: 'OG', programTag: 'nspg', sampleCodec: null,
+    staticProductId: 0x0003, os: { min: 312, recommended: 508 }, fileTransferVersion: 3,
+    partitions: firmwareOrder(
+      P('piano-native', 'Piano (factory)', true), // firmware name "Native"
+      P('piano', 'Piano', false),
+      P('program', 'Programs', false, 'nspg'),
+      P('synth-preset', 'Synth', false, 'nss'),
+    ),
+  },
   // First-generation Nord Stage EX (extended sibling of Stage Classic), NOT Stage 2 EX.
-  // Tag 'nspg' per the maintainers’ notes; no user sample engine (like Stage Classic).
-  'stage-ex': { id: 'stage-ex', name: 'Nord Stage EX', generation: 'OG', programTag: 'nspg', sampleCodec: null, staticProductId: 0x0008, os: { min: 400, recommended: 608 }, partitions: baseline('nspg', false) },
+  'stage-ex': {
+    // Stage EX OS 6.08: FileTransfer version 4 (frames 3..4), no session lock.
+    // Partition 0 is named "Native (FFS)" in this firmware.
+    id: 'stage-ex', name: 'Nord Stage EX', generation: 'OG', programTag: 'nspg', sampleCodec: null,
+    staticProductId: 0x0008, os: { min: 400, recommended: 608 }, fileTransferVersion: 4,
+    partitions: firmwareOrder(
+      P('piano-native', 'Piano (factory)', true), // firmware name "Native (FFS)"
+      P('piano', 'Piano', false),
+      P('program', 'Programs', false, 'nspg'),
+      P('synth-preset', 'Synth', false, 'nss'),
+    ),
+  },
 
   // ── ColdFire generation (Stage 2 era). Firmware registration order from the
   //    instrument's OS (the maintainers’ notes, 2026-10-11). Every index is `staticIndex`.
@@ -415,9 +429,21 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     id: 'c1', name: 'Nord C1', generation: 'OG', programTag: null, sampleCodec: null,
     deviceTransfer: false, partitions: [],
   },
-  // C2: not yet mapped; NSM baseline (PID 0x09). The C2D firmware below
-  // registers no Live partition, so this list is likely wrong too.
-  'c2': { id: 'c2', name: 'Nord C2', generation: 'OG', programTag: 'nc2p', sampleCodec: null, staticProductId: 0x0009, os: { min: 100, recommended: 132 }, partitions: baseline('nc2p', false, 2) },
+  'c2': {
+    // C2 OS 2.00: FileTransfer version 4 (frames 3..4), no session lock. Its
+    // own program tag is `ncpg` (NSM's CC2 tag set ncb/ncpg/ncli/ncsy), not the
+    // C2D's `nc2p`. Unlike the C2D it registers a Live partition. Pipe (index
+    // 1) is read-only for OpenNord, as on the C2D.
+    id: 'c2', name: 'Nord C2', generation: 'OG', programTag: 'ncpg', sampleCodec: null,
+    staticProductId: 0x0009, os: { min: 100, recommended: 200 }, fileTransferVersion: 4,
+    partitions: firmwareOrder(
+      P('pipe-native', 'Pipe Organ (factory)', true), // firmware name "Pipe (Native)"
+      P('pipe', 'Pipe Organ', true),
+      P('program', 'Programs', false, 'ncpg'), // 1 × 126
+      P('live', 'Live', false), // 1 × 2
+      P('settings', 'Settings', false), // firmware name "System"
+    ),
+  },
   'c2d': {
     // C2D OS 1.12: registration; base ctor(…,4), frames
     // 3..4, no session lock (begin). Only 4 partitions — no Live
