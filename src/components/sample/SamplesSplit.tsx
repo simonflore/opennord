@@ -39,22 +39,34 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const io = useRef({ entryById: s.entryById, readSample: s.readSample });
   useEffect(() => { io.current = { entryById: s.entryById, readSample: s.readSample }; });
 
+  // What's showing was read for this sample and attempt; a list that briefly
+  // loses and regains the entry (a folder rescan) must not re-read or reset it.
+  const loaded = useRef<string | null>(null);
   useEffect(() => {
     if (!selectedId) {
+      loaded.current = null;
       setInspect((i) => (i?.id ? null : i)); // leaving a sample closes it (a preview stays)
+      return;
+    }
+    const key = `${selectedId}#${attempt}`;
+    if (loaded.current === key) return;
+    const e = io.current.entryById(selectedId);
+    if (!e) {
+      // Named but not (yet) in the list: a sample still on screen for it stays.
+      if (!loaded.current?.startsWith(`${selectedId}#`)) setInspect(null);
       return;
     }
     setLoadNew(false);
     setPullError('');
+    setImportError('');
     setInspect(null);
-    const e = io.current.entryById(selectedId);
-    if (!e) return; // named but not (yet) in the list
+    loaded.current = null;
     let cancelled = false;
     const bytes = io.current.readSample(e, (pct) => { if (!cancelled) setPullPct(pct); });
-    if (!bytes) return;
+    if (!bytes) { setPullError(`Connect your Nord to read ${e.name}.`); return; }
     if (e.source !== 'local') setPullPct(0);
     bytes.then(
-      (b) => { if (!cancelled) setInspect({ id: e.id, bytes: b, name: e.name, factory: e.factory }); },
+      (b) => { if (!cancelled) { loaded.current = key; setInspect({ id: e.id, bytes: b, name: e.name }); } },
       (err) => { if (!cancelled) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`); },
     ).finally(() => { if (!cancelled) setPullPct(null); });
     return () => { cancelled = true; setPullPct(null); };
@@ -62,7 +74,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
 
   // Back to the bare list (which closes the open sample and drops its read).
   const toList = () => { if (selectedId) navigate({ to: '/library/samples' }); };
-  const startLoadNew = () => { toList(); setInspect(null); setLoadNew(true); setPullError(''); };
+  const startLoadNew = () => { toList(); setInspect(null); setLoadNew(true); setPullError(''); setImportError(''); };
   const back = () => { toList(); setInspect(null); setLoadNew(false); setPullError(''); };
 
   function importSample() {
@@ -125,9 +137,12 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   );
 
   const initial = loadNew ? undefined : (inspect ?? undefined);
+  // The factory tag comes from the entry as it is now (a backup's origin can
+  // resolve after its bytes do), not frozen when the sample opened.
+  const factory = initial?.id ? s.entryById(initial.id)?.factory : undefined;
   // Remount the inspector per sample (key on name+size) so its load effect re-runs.
   const inspector = (
-    <SampleInspector key={initial ? `${initial.name}-${initial.bytes.length}` : 'new'} initial={initial} />
+    <SampleInspector key={initial ? `${initial.name}-${initial.bytes.length}` : 'new'} initial={initial} factory={factory} />
   );
   // A sample named by the route is the detail even before its bytes arrive, so a
   // phone shows its progress, error or "not found" instead of the bare list.

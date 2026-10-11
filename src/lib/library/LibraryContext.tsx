@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useEnsureListed } from '@/lib/library/useEnsureListed';
+import { useListFilters } from '@/lib/library/useListFilters';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedLibrary } from '@/lib/library/useImportedLibrary';
@@ -35,8 +36,6 @@ function useLibraryStateValue() {
     ...entriesFromScannedPrograms(folder.result.programs),
     ...imported.entries,
   ], [deviceEntries, folder.result.programs, imported.entries]);
-  /** Every filter off and the search cleared (the list's "clear filters"). */
-  const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setGeneration('all'); setCategory('all'); }, []);
   // Generations present across the *unfiltered* list — drives whether the format
   // facet is worth showing (only when there's more than one). Stage 4 → 2 order.
   const generationsPresent = (['Stage 4', 'Stage 3', 'Stage 2'] as const)
@@ -46,10 +45,14 @@ function useLibraryStateValue() {
   const categoriesPresent = presentCategories(allEntries);
   const shown = sortEntries(filterEntries(allEntries, source, query, generation, category), prefs.sort, prefs.favorites);
   const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
-  // Whether any filter is narrowing the list; clearFilters undoes exactly these.
-  const filtered = query.trim() !== '' || source !== 'all'
-    || (generationsPresent.length > 1 && generation !== 'all')
-    || (categoriesPresent.length > 1 && category !== 'all');
+  // The list's filters, once: `filtered` and the "clear filters" button both read
+  // this, and a filter counts while set even if its facet is hidden right now.
+  const { filtered, clearFilters } = useListFilters([
+    { active: query.trim() !== '', reset: () => setQuery('') },
+    { active: source !== 'all', reset: () => setSource('all') },
+    { active: generation !== 'all', reset: () => setGeneration('all') },
+    { active: category !== 'all', reset: () => setCategory('all') },
+  ]);
   const ensureListed = useEnsureListed(shown, clearFilters);
 
   function importFile() {

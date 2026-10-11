@@ -58,7 +58,11 @@ function playZone(loaded: Loaded, index: number): void {
   if (stroke) playPcm(stroke.channels, undefined, stroke.sampleRate);
 }
 
-export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) {
+export function SampleInspector({ initial, factory }: {
+  initial?: InspectorInput;
+  /** Whether it's Nord factory content, when known now; overrides the flag read at load. */
+  factory?: boolean;
+} = {}) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const loadCount = useRef(0);
@@ -200,7 +204,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                 codec={loaded.file.codec === 4 ? 4 : loaded.file.legacy ? 'og' : 3}
                 legacy={loaded.file.legacy}
                 rootSplitOnly={rootSplitOnly}
-                factory={loaded.factory}
+                factory={factory ?? loaded.factory}
                 unison={sampleUnisonView(loaded.bytes)?.summary ?? null}
                 onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
                 onNoteOn={(midi) => { loaded.sampler?.noteOn(midi, 100); transport.refresh(); }}

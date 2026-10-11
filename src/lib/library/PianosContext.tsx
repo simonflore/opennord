@@ -18,6 +18,7 @@ import { buildOccupancy, type Addr } from '@/lib/device/reorg';
 import { PARTITION_PIANO } from '@/lib/device/opcodes';
 import { downloadBytes } from '@/lib/download';
 import { useEnsureListed } from '@/lib/library/useEnsureListed';
+import { useListFilters } from '@/lib/library/useListFilters';
 
 // pure helper, exported for tests
 export function selectedPianoBytes(entries: PianoEntry[], selected: Set<string>): number {
@@ -133,10 +134,13 @@ function usePianosStateValue() {
     }
   }
 
-  /** Every filter off and the search cleared (the list's "clear filters"). */
-  const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setUnusedOnly(false); }, []);
-  // Whether any filter is narrowing the list; clearFilters undoes exactly these.
-  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || unusedOnly;
+  // The list's filters, once: `filtered` and the "clear filters" button both read
+  // this, and a filter counts while set even if its facet is hidden right now.
+  const { filtered, clearFilters } = useListFilters([
+    { active: query.trim() !== '', reset: () => setQuery('') },
+    { active: source !== 'all', reset: () => setSource('all') },
+    { active: unusedOnly, reset: () => setUnusedOnly(false) },
+  ]);
   const ensureListed = useEnsureListed(shown, clearFilters);
   return {
     all: allEntries, clearFilters, filtered, ensureListed,
