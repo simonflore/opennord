@@ -147,6 +147,7 @@ function useSamplesStateValue() {
   }
 
   return {
+    all: allEntries,
     shown, source, setSource, generation, setGeneration,
     category, setCategory, categoriesPresent, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, showUnknownGen, folder,

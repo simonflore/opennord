@@ -48,6 +48,7 @@ function usePresetsStateValue() {
   const entryById = (id: string) => allEntries.find((e) => e.id === id);
 
   return {
+    all: allEntries,
     shown, source, setSource, kind, setKind, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, kinds, folder, session,
     importPreset: imported.add, removePreset: imported.remove,

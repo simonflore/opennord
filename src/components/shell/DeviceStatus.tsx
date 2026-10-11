@@ -3,32 +3,26 @@ import { Button } from '../ui';
 import { useDevice } from '../../lib/device/DeviceContext';
 
 /**
- * The rail's connection status box — a top-lit panel (`fill-devbox elev-1`,
- * its own step between --bg and --surface) so it reads as physical hardware
- * chrome rather than flat UI. Hidden on the mobile rail: device transfer
- * rides vendor-USB, unreachable from a phone browser (desktop / native iPad
- * only — see Rail's DEVICE_DISABLED_HINT).
+ * The Nord's connection, as the top bar shows it: an LED that's green only while
+ * a Nord is connected, its name, and Connect or Manage. At phone width only the
+ * LED and a short name stay — device transfer rides vendor-USB, which a phone
+ * browser can't reach (see nav.ts DEVICE_DISABLED_HINT).
  */
 export function DeviceStatus({ onManage }: { onManage: () => void }) {
   const { session, deviceName, entries } = useDevice();
-  const boxClass = 'rounded-md border border-line p-2.5 fill-devbox elev-1 max-[720px]:hidden';
-
-  if (!session) {
-    return (
-      <div className={cn(boxClass, 'flex flex-col gap-2')}>
-        <div className="text-[9px] font-bold tracking-[1px] text-muted">○ No Nord connected</div>
-        <Button variant="secondary" onClick={onManage}>Connect</Button>
-      </div>
-    );
-  }
+  const name = deviceName || 'Nord Stage 4';
   return (
-    <div className={boxClass}>
-      <div className="text-[9px] font-bold tracking-[1px] text-connected">● Connected</div>
-      <div className="mt-[3px] text-[11px] font-semibold text-ink">{deviceName || 'Nord Stage 4'}</div>
-      <div className="mt-px text-[9px] text-muted">{entries.length} programs</div>
-      <div className="mt-2">
-        <Button variant="secondary" onClick={onManage}>Manage</Button>
-      </div>
+    <div className="flex items-center gap-2.5">
+      <span className="inline-flex items-center gap-2 font-mono text-xs text-dim" title={session ? `${name} · ${entries.length} programs` : undefined}>
+        <span
+          className={cn('h-[7px] w-[7px] rounded-full', session ? 'bg-connected shadow-[0_0_7px_var(--connected)]' : 'border border-muted')}
+          aria-hidden="true"
+        />
+        {session ? <span>{name}<span className="max-[720px]:hidden"> · USB</span></span> : <span className="max-[720px]:hidden">No Nord connected</span>}
+      </span>
+      <span className="max-[720px]:hidden">
+        <Button variant="secondary" onClick={onManage}>{session ? 'Manage' : 'Connect'}</Button>
+      </span>
     </div>
   );
 }

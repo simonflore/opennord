@@ -1,68 +1,97 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { Rail } from './Rail';
+import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router';
+import { Rail, type SourceItem } from './Rail';
+import { TopBar } from './TopBar';
+import { PhoneTabs } from './PhoneTabs';
 import { DeviceProvider } from '../../lib/device/DeviceContext';
 import { CapabilitiesProvider } from '../../lib/capabilities/CapabilitiesContext';
 import type { Capabilities } from '../../lib/capabilities/types';
 
-function render(active: string, caps?: Partial<Capabilities>) {
+function render(active: string, opts: { caps?: Partial<Capabilities>; sources?: SourceItem[]; activeSource?: 'all' | 'nord' } = {}) {
   return renderToStaticMarkup(
-    <CapabilitiesProvider value={caps}>
-      <DeviceProvider>
-        <Rail active={active} onNavigate={() => {}} onManageDevice={() => {}} />
-      </DeviceProvider>
+    <CapabilitiesProvider value={opts.caps}>
+      <Rail
+        active={active}
+        onNavigate={() => {}}
+        counts={{ programs: 384, presets: 12, samples: 41, pianos: 18 }}
+        sources={opts.sources}
+        activeSource={opts.activeSource}
+      />
     </CapabilitiesProvider>,
   );
 }
 
-describe('Rail', () => {
-  it('renders the brand and primary destinations', () => {
-    const html = render('library/programs');
-    expect(html).toContain('Open');
-    expect(html).toContain('Library');
-    expect(html).toContain('Contribute');
-  });
+/** The `<button …>` tag that holds `label`. */
+function buttonFor(html: string, label: string): string {
+  const idx = html.indexOf(`>${label}<`);
+  return html.slice(html.lastIndexOf('<button', idx), idx);
+}
 
-  it('renders the four category sub-items under Library, none disabled', () => {
+describe('Rail', () => {
+  it('lists the library with counts, then the tools', () => {
     const html = render('library/programs');
-    for (const label of ['Programs', 'Presets', 'User Samples', 'Piano Samples']) expect(html).toContain(label);
-    // All four categories are now ready — no disabled category sub-items.
-    // (Checks the literal `disabled=""` HTML attribute, not the substring
-    // "disabled" — the button's className carries `disabled:*` Tailwind
-    // variants unconditionally, so a plain substring match would false-positive.)
-    for (const label of ['Programs', 'Presets', 'User Samples', 'Piano Samples']) {
-      const idx = html.indexOf(`>${label}<`);
-      const btnStart = html.lastIndexOf('<button', idx);
-      expect(html.slice(btnStart, idx)).not.toContain('disabled=""');
+    for (const label of ['programs', 'presets', 'user samples', 'piano samples', 'device', 'compatibility', 'contribute']) {
+      expect(html).toContain(`>${label}<`);
+    }
+    expect(html).toContain('>384<');
+    // Every category is ready: no disabled entries (the literal attribute, not
+    // the `disabled:*` variant in the class list).
+    for (const label of ['programs', 'presets', 'user samples', 'piano samples']) {
+      expect(buttonFor(html, label)).not.toContain('disabled=""');
     }
   });
 
-  it('keeps Library lit while on a category path', () => {
-    const html = render('library/samples');
-    // The Library entry and its active "Samples" sub-item both carry
-    // aria-current="page" for their respective matched paths.
-    const libraryIdx = html.indexOf('>Library<');
-    const libraryBtnStart = html.lastIndexOf('<button', libraryIdx);
-    expect(html.slice(libraryBtnStart, libraryIdx)).toContain('aria-current="page"');
+  it('marks the open list, including below it', () => {
+    expect(buttonFor(render('library/samples'), 'user samples')).toContain('aria-current="page"');
+    expect(buttonFor(render('library/programs/local:abc'), 'programs')).toContain('aria-current="page"');
   });
 
-  it('shows the disconnected device state by default', () => {
-    const html = render('library');
-    expect(html).toContain('No Nord connected');
+  it('shows sources only when there are some, and moves the highlight to a picked one', () => {
+    expect(render('library/programs')).not.toContain('Sources');
+    const html = render('library/programs', { sources: [{ source: 'nord', label: 'on the nord', count: 512, live: true }], activeSource: 'nord' });
+    expect(html).toContain('Sources');
+    expect(buttonFor(html, 'on the nord')).toContain('aria-current="page"');
+    expect(buttonFor(html, 'programs')).not.toContain('aria-current');
   });
 
   it('exposes the developer tools entry', () => {
-    const html = render('library');
-    expect(html).toContain('Developer');
+    expect(render('library')).toContain('developer');
   });
 
   it('hides Community when the community capability is unavailable (open build)', () => {
-    expect(render('library')).not.toContain('Community');
+    expect(render('library')).not.toContain('community');
   });
 
   it('shows Community with its sub-items when the capability is available and active', () => {
-    const html = render('community', { community: { available: true } });
-    expect(html).toContain('Community');
-    for (const label of ['Browse', 'Share a patch', 'My shares']) expect(html).toContain(label);
+    const html = render('community', { caps: { community: { available: true } } });
+    for (const label of ['community', 'browse', 'share a patch', 'my shares']) expect(html).toContain(`>${label}<`);
+  });
+});
+
+describe('TopBar', () => {
+  async function renderTopBar(): Promise<string> {
+    const router = createRouter({
+      routeTree: createRootRoute({ component: () => <TopBar onSearch={() => {}} onManageDevice={() => {}} /> }),
+      history: createMemoryHistory({ initialEntries: ['/library'] }),
+    });
+    await router.load();
+    return renderToStaticMarkup(<DeviceProvider><RouterProvider router={router} /></DeviceProvider>);
+  }
+
+  it('carries the wordmark, the jump-to field and the disconnected state', async () => {
+    const html = await renderTopBar();
+    expect(html).toContain('open<span class="text-accent">nord</span>');
+    expect(html).toContain('Go to a program, sample or page');
+    expect(html).toContain('No Nord connected');
+    expect(html).toContain('>Connect<');
+  });
+});
+
+describe('PhoneTabs', () => {
+  it('lights the open list and falls back to More elsewhere', () => {
+    const tabs = (active: string) => renderToStaticMarkup(<PhoneTabs active={active} onNavigate={() => {}} onMore={() => {}} />);
+    expect(buttonFor(tabs('library/presets'), 'Presets')).toContain('aria-current="page"');
+    expect(tabs('device')).not.toContain('aria-current');
   });
 });
