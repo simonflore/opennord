@@ -131,7 +131,7 @@ export function LibraryView({
       {needsReconnect && folderName && (
         <div className="mb-3 flex items-center gap-3 rounded-md border border-line px-[14px] py-2.5 text-ink">
           {reconnectError
-            ? <span className="text-red">{reconnectError}</span>
+            ? <span className="text-danger">{reconnectError}</span>
             : <span>Reconnect <strong>{folderName}</strong> to load your patches.</span>}
           <Button variant="ghost" onClick={onReconnect} disabled={busy}>Reconnect</Button>
           {/* Never disabled: Forget only clears local state, so it stays the
@@ -151,7 +151,7 @@ export function LibraryView({
       )}
       {importError && (
         <div className="mb-3 flex items-center gap-3 rounded-md border border-line px-[14px] py-2.5 text-ink" role="alert">
-          <span className="text-red">{importError}</span>
+          <span className="text-danger">{importError}</span>
           <Button variant="ghost" onClick={onDismissImportError}>Dismiss</Button>
         </div>
       )}
