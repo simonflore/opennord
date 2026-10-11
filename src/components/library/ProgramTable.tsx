@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useLayoutEffect, useRef, type RefObject } from 'react';
 import { cn } from '@/lib/cn';
 import { SourceBadge } from '../ui';
 import { Led } from '../shell/Led';
@@ -59,6 +59,50 @@ const ProgramFacts = memo(function ProgramFacts({ program }: { program?: NordPro
   );
 });
 
+type RowActions = {
+  onOpen: (e: LibraryEntry) => void;
+  onToggleFavorite: (id: string) => void;
+  onRemove: (id: string) => void;
+};
+
+/**
+ * One program row. Memoised on its entry, open and favourite state: stepping
+ * with J/K or starring a program re-renders the rows that changed, not the list.
+ * `actions` is a stable ref to the table's latest handlers.
+ */
+const ProgramRow = memo(function ProgramRow({ entry: e, selected, favorite, actions }: {
+  entry: LibraryEntry;
+  selected: boolean;
+  favorite: boolean;
+  actions: RefObject<RowActions>;
+}) {
+  return (
+    <LibraryRow
+      // content-visibility: a row off screen skips layout and paint (a folder
+      // can hold thousands); 40px stands in for its height until first shown.
+      className={cn(COLS, 'min-h-10 font-mono text-[11px] text-dim [content-visibility:auto] [contain-intrinsic-size:auto_40px]')}
+      selected={selected}
+      onOpen={() => actions.current.onOpen(e)}
+    >
+      <FavoriteStar name={e.name} favorite={favorite} onToggle={() => actions.current.onToggleFavorite(e.id)} />
+      <span>
+        <SlotTag tone={e.slot ? undefined : genTone(e.generation)}>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>
+      </span>
+      <span className="min-w-0 truncate font-sans text-[14px] font-semibold text-ink">{e.name}</span>
+      <span className={cn(WIDE, 'truncate font-sans text-[12px]')}><Col>Category</Col>{e.category ?? dash}</span>
+      <EngineLeds summary={e.engines} />
+      <span className={WIDE}><ZoneStrip program={e.program} fallback={dash} /></span>
+      <ProgramFacts program={e.program} />
+      <span className="flex items-center gap-2">
+        <span className={WIDE}><SourceBadge source={e.source} /></span>
+        {e.source === 'local' && (
+          <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); actions.current.onRemove(e.id); }} />
+        )}
+      </span>
+    </LibraryRow>
+  );
+});
+
 /**
  * The program list as a console table (B×A): a header naming each column, then
  * one dense row per program, on the shared LibraryRow (Enter/Space open, the
@@ -76,6 +120,10 @@ export function ProgramTable({
   onOpen: (e: LibraryEntry) => void;
   onRemove: (id: string) => void;
 }) {
+  // The latest handlers, read when a row is used, so the rows' props stay
+  // stable while the parent passes new closures each render.
+  const actions = useRef<RowActions>({ onOpen, onToggleFavorite, onRemove });
+  useLayoutEffect(() => { actions.current = { onOpen, onToggleFavorite, onRemove }; });
   return (
     <div className="@container">
       <div
@@ -99,28 +147,7 @@ export function ProgramTable({
         <span className={WIDE}>Source</span>
       </div>
       {entries.map((e) => (
-        <LibraryRow
-          key={e.id}
-          className={cn(COLS, 'min-h-10 font-mono text-[11px] text-dim')}
-          selected={e.id === activeId}
-          onOpen={() => onOpen(e)}
-        >
-          <FavoriteStar name={e.name} favorite={favorites.has(e.id)} onToggle={() => onToggleFavorite(e.id)} />
-          <span>
-            <SlotTag tone={e.slot ? undefined : genTone(e.generation)}>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>
-          </span>
-          <span className="min-w-0 truncate font-sans text-[14px] font-semibold text-ink">{e.name}</span>
-          <span className={cn(WIDE, 'truncate font-sans text-[12px]')}><Col>Category</Col>{e.category ?? dash}</span>
-          <EngineLeds summary={e.engines} />
-          <span className={WIDE}><ZoneStrip program={e.program} fallback={dash} /></span>
-          <ProgramFacts program={e.program} />
-          <span className="flex items-center gap-2">
-            <span className={WIDE}><SourceBadge source={e.source} /></span>
-            {e.source === 'local' && (
-              <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
-            )}
-          </span>
-        </LibraryRow>
+        <ProgramRow key={e.id} entry={e} selected={e.id === activeId} favorite={favorites.has(e.id)} actions={actions} />
       ))}
       <p className="m-0 px-3 py-2 font-mono text-[10px] text-muted max-[720px]:hidden">
         <kbd>J</kbd> <kbd>K</kbd> next / previous · <kbd>↵</kbd> open
