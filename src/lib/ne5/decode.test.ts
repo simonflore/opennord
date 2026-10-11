@@ -1,174 +1,192 @@
+/**
+ * NE5 reader tests.
+ *
+ * 1. Synthetic records built from the program map (Electro 5 OS 2.04
+ *    containers, via layout.generated.ts) — always run.
+ * 2. Cross-checks against the real .ne5p fixtures (gitignored; skipped when
+ *    absent). The earlier corpus decoder's anchors are kept, restated in
+ *    firmware terms (types.ts): its "preset 1 upper / lower" are B3 Preset I /
+ *    II, its "preset 2 upper / lower" Vox Preset I / II, its "pedal" Farfisa
+ *    Preset I, and its 6-byte "sample model id" the Sample Synth sample select
+ *    and its two 15-bit sample ids.
+ */
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { describe, it, expect } from 'vitest';
 import { decodeNe5 } from './decode';
+import { ne5Decoded } from './present';
+import { NE5_LAYOUT, type Ne5FieldKey } from './layout.generated';
+import { synthLegacyFile, writeLegacyRecord } from '../clavia/block-chain.synth';
+
+const field = (key: Ne5FieldKey) => NE5_LAYOUT.fields.find((f) => f.key === key)!;
+/** The old decoder's "body" offset (from file 0x2C) of a field's first byte. */
+const body = (key: Ne5FieldKey) => 0x1a + (field(key).bit >> 3) - 0x2c;
+
+function ne5p(values: Partial<Record<Ne5FieldKey, number>> = {}, version = 4): Uint8Array {
+  const data = new Uint8Array(NE5_LAYOUT.dataBytes);
+  writeLegacyRecord(data, NE5_LAYOUT, values);
+  return synthLegacyFile('ne5p', version, data);
+}
+
+describe('NE5 firmware layout', () => {
+  it('is a 119-byte record at file 0x1A, version 4, 173 parameters', () => {
+    expect(NE5_LAYOUT).toMatchObject({ dataBytes: 119, recordVersion: 4 });
+    expect(NE5_LAYOUT.fields).toHaveLength(173);
+    expect(0x1a + NE5_LAYOUT.dataBytes + 2).toBe(147);
+    // 167 carry a firmware label; the other six are named by position (`common.param8`, …).
+    expect(NE5_LAYOUT.fields.filter((f) => f.name !== f.key)).toHaveLength(167);
+  });
+
+  it('puts the organ presets where the old decoder found drawbars, under their firmware names', () => {
+    expect(body('b3PresetI.drawbar1')).toBe(21);
+    expect(body('b3PresetII.drawbar1')).toBe(28);
+    expect(body('voxPresetI.drawbar1')).toBe(39);
+    expect(body('voxPresetII.drawbar1')).toBe(45);
+    expect(body('farfPresetI.drawbar1')).toBe(55);
+    expect(body('churchPresetI.drawbar1')).toBe(71);
+    // The old "sampleSectionActive" (body 17 bit 7) is the top bit of the B3 vibrato/chorus type.
+    expect(field('b3Global.b3VibChorus')).toMatchObject({ bit: (0x2c + 17 - 0x1a) * 8, width: 3 });
+    // The old "flagByte19" is the B3 Upper preset select; "sectionEnableNibble" (body 6) the attack.
+    expect(body('b3Upper.presetSelect')).toBe(19);
+    expect(body('sampleSynth.sampleSynthAttack')).toBe(6);
+    // The old "sampleModelFlag" (body 13 bit 7) is Filter Vel; "sampleDescriptor" (83–94) the effects.
+    expect(field('sampleSynth.sampleSynthFilterVel')).toMatchObject({ bit: (0x2c + 13 - 0x1a) * 8, width: 1 });
+    expect(body('effects.effects1Enable')).toBe(83);
+  });
+
+  it('stores every value raw with minimum 0, without overlaps', () => {
+    const used = new Set<number>();
+    for (const f of NE5_LAYOUT.fields) {
+      expect([f.enc, f.min], f.key).toEqual(['u', 0]);
+      for (let b = f.bit; b < f.bit + f.width; b++) { expect(used.has(b), f.key).toBe(false); used.add(b); }
+    }
+  });
+});
+
+describe('decodeNe5 (synthetic, firmware layout)', () => {
+  it('reads a default record: B3 888000000 in both presets, effects off', () => {
+    const p = decodeNe5(ne5p());
+    expect(p.warnings).toEqual([]);
+    expect(p.layoutMatched).toBe(true);
+    expect(p.version).toBe('0.04');
+    expect(p.recordVersion).toBe(4);
+    expect(p.organ.b3.presetI.drawbars).toEqual([8, 8, 8, 0, 0, 0, 0, 0, 0]);
+    expect(p.organ.b3.presetI.bass).toEqual([8, 8]);
+    expect(p.organ.vox.presetII.drawbars).toEqual([8, 8, 8, 8, 0, 0, 0, 0, 0]);
+    expect(p.organModel).toBe(0);
+  });
+
+  it('reads the organ sets, piano and sample references', () => {
+    const p = decodeNe5(ne5p({
+      'b3PresetI.drawbar1': 6, 'b3PresetI.drawbar9': 3, 'b3PresetI.vibChorusOn': 1, 'b3PresetI.percussionOn': 1,
+      'b3Upper.presetSelect': 1, 'churchPresetII.percOn': 1, 'common.organModel': 3,
+      'piano.pianoType': 2, 'piano.pianoModel': 11, 'piano.pianoIdA': 0x1234, 'piano.pianoIdB': 0x7fff,
+      'sampleSynth.sampleSelect': 1, 'sampleSynth.sampleIdA': 29186, 'sampleSynth.sampleIdB': 20882,
+    }));
+    expect(p.organ.b3.presetI).toMatchObject({ drawbars: [6, 8, 8, 0, 0, 0, 0, 0, 3], vibrato: true, percussion: true });
+    expect(p.organ.b3.upperPreset).toBe(1);
+    expect(p.organ.church.presetII.percussion).toBe(true);
+    expect(p.organModel).toBe(3);
+    expect(p.piano).toEqual({ type: 2, model: 11, ids: [0x1234, 0x7fff] });
+    expect(p.sampleSynth).toEqual({ sample: 1, ids: [29186, 20882] });
+    // The old decoder's 6-byte "sample model id" at body 7–12 holds exactly these.
+    const file = ne5p({ 'sampleSynth.sampleSelect': 1, 'sampleSynth.sampleIdA': 29186, 'sampleSynth.sampleIdB': 20882,
+      'sampleSynth.sampleSynthDcyRel': 0x20, 'sampleSynth.param6': 1 });
+    expect(Array.from(file.slice(0x2c + 7, 0x2c + 13))).toEqual([0x80, 0x07, 0x90, 0x15, 0x19, 0x24]);
+  });
+
+  it('reads a version 3 record with a warning, refuses version 2 (header only)', () => {
+    const v3 = decodeNe5(ne5p({}, 3));
+    expect(v3.layoutMatched).toBe(true);
+    expect(v3.warnings.join(' ')).toMatch(/version 3.*converts/);
+    const v2 = decodeNe5(ne5p({}, 2));
+    expect(v2.layoutMatched).toBe(false);
+    expect(v2.values).toEqual({});
+    expect(v2.warnings.join(' ')).toMatch(/version 2/);
+  });
+
+  it('flags a short file (header only) and a wrong size', () => {
+    const file = ne5p();
+    const short = decodeNe5(file.slice(0, 100));
+    expect(short.layoutMatched).toBe(false);
+    expect(short.warnings[0]).toMatch(/too short/);
+    const long = new Uint8Array(file.length + 4);
+    long.set(file);
+    expect(decodeNe5(long).warnings[0]).toMatch(/151 bytes.*147/);
+  });
+
+  it('presents the piano, sample synth, organ parts with B3 footage and the effects', () => {
+    const d = ne5Decoded(ne5p({
+      'common.organModel': 0, 'b3Upper.presetSelect': 1, 'b3PresetII.drawbar2': 5, 'b3PresetII.percussionOn': 1,
+      'piano.pianoType': 0, 'effects.reverbEnable': 1, 'effects.delayEnable': 1,
+    }));
+    expect(d.title).toBe('Nord Electro 5 · Program');
+    expect(d.sections.map((s) => s.id)).toEqual(['P', 'S', 'OU', 'OL', 'FX']);
+    const upper = d.sections.find((s) => s.id === 'OU')!;
+    expect(upper.engines[0].parts).toEqual(['B3', 'Preset II']);
+    expect(upper.drawbars!.map((b) => b.level)).toEqual([8, 5, 8, 0, 0, 0, 0, 0, 0]);
+    expect(upper.drawbars![0].footage).toBe('16′');
+    expect(upper.chips).toContain('Percussion');
+    expect(d.sections.find((s) => s.id === 'OL')!.engines[0].parts).toEqual(['B3', 'Preset I']);
+    expect(d.sections.find((s) => s.id === 'P')!.engines[0].parts[0]).toBe('Grand');
+    expect(d.sections.find((s) => s.id === 'FX')!.engines[0].parts).toEqual(['Delay', 'Reverb']);
+    const vox = ne5Decoded(ne5p({ 'common.organModel': 1 })).sections.find((s) => s.id === 'OU')!;
+    expect(vox.engines[0].parts[0]).toBe('Vox');
+    expect(vox.drawbars![0].footage).toBeUndefined();
+  });
+
+  it('presents a refused version as the file header only', () => {
+    const d = ne5Decoded(ne5p({}, 1));
+    expect(d.sections).toEqual([]);
+    expect(d.warnings!.length).toBeGreaterThan(0);
+  });
+});
 
 const FIXTURE_DIR = join(__dirname, '../../../fixtures/electro-5');
 const load = (name: string) => new Uint8Array(readFileSync(join(FIXTURE_DIR, name)));
-const fixtures = () => readdirSync(FIXTURE_DIR).filter(f => f.endsWith('.ne5p'));
+const fixtures = () => readdirSync(FIXTURE_DIR).filter((f) => f.endsWith('.ne5p'));
 
-// Real fixtures referenced by the cross-model mapping evidence.
 const VCS3 = 'VCS3 Organ Sample.ne5p';
 const WALK = 'Walk of Life Nord Samples.ne5p';
 const NAKED = 'Naked Piano Sample.ne5p';
 const LEAD1 = 'Nord Stage Electro Lead Samples (1).ne5p';
 
-describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNe5', () => {
-  it('decodes every fixture without warnings', () => {
+describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNe5 (corpus)', () => {
+  it('reads every fixture as a version 4 record without warnings', () => {
     for (const name of fixtures()) {
-      const prog = decodeNe5(load(name));
-      expect(prog.parsed, name).toBe(true);
-      expect(prog.warnings, name).toHaveLength(0);
+      const p = decodeNe5(load(name));
+      expect(p.layoutMatched, name).toBe(true);
+      expect(p.version, name).toBe('0.04');
+      expect(p.warnings, name).toHaveLength(0);
     }
   });
 
-  it('reads version 0.04 from all fixtures', () => {
-    for (const name of fixtures()) {
-      expect(decodeNe5(load(name)).version, name).toBe('0.04');
-    }
-  });
-
-  it('exposes correctly-sized named clusters', () => {
-    const prog = decodeNe5(load(fixtures()[0]));
-    // _organSection (body[17-33], 17 bytes)
-    expect(prog._organSection).toHaveLength(17);
-    // sampleModelId / _sampleRefHash: body[7-12], 6 bytes
-    expect(prog.sampleModelId).toHaveLength(6);
-    expect(prog._sampleRefHash).toHaveLength(6);
-    // sampleDescriptor: body[83-94], 12 bytes
-    expect(prog.sampleDescriptor).toHaveLength(12);
-    // _extraNibbleGroup: body[71-74], 4 bytes
-    expect(prog._extraNibbleGroup).toHaveLength(4);
-    // _checksum: body[101-102], 2 bytes
-    expect(prog._checksum).toHaveLength(2);
-  });
-
-  it('organ drawbar region contains valid nibble values (0-8) throughout', () => {
+  it('every drawbar is 0–8', () => {
     for (const name of fixtures()) {
       const { organ } = decodeNe5(load(name));
-      for (const set of [
-        organ.preset1Upper,
-        organ.preset1Lower,
-        organ.preset2Upper,
-        organ.preset2Lower,
-        organ.pedal,
-      ]) {
-        for (const bar of set.bars) {
-          expect(bar, `${name} drawbar value ${bar}`).toBeGreaterThanOrEqual(0);
-          expect(bar, `${name} drawbar value ${bar}`).toBeLessThanOrEqual(8);
+      for (const set of Object.values(organ)) {
+        for (const pr of [set.presetI, set.presetII]) {
+          for (const bar of pr.drawbars) expect(bar, name).toBeLessThanOrEqual(8);
         }
-        expect(set.bars, name).toHaveLength(9);
       }
     }
   });
 
-  // --- CONFIRMED: organ preset 1 (primary slot, body[21-32]) ---
-
-  it('VCS3 Organ carries its custom preset-1 upper voicing', () => {
-    // Stage oracle: organ drawbar 1..9 (group o). VCS3 is the organ-only preset
-    // that uses preset 1 — its real voicing is [6,1,8,8,4,8,4,6,6].
-    const prog = decodeNe5(load(VCS3));
-    expect(prog.organ.preset1Upper.bars).toEqual([6, 1, 8, 8, 4, 8, 4, 6, 6]);
+  it('VCS3 Organ: B3 Preset I carries its custom voicing, Vox Preset I is all zero', () => {
+    const p = decodeNe5(load(VCS3));
+    expect(p.organ.b3.presetI.drawbars).toEqual([6, 1, 8, 8, 4, 8, 4, 6, 6]);
+    expect(p.organ.vox.presetI.drawbars).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0]);
   });
 
-  it('VCS3 Organ preset-2 upper is all-zero (it uses preset 1)', () => {
-    const prog = decodeNe5(load(VCS3));
-    expect(prog.organ.preset2Upper.bars).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  it('Walk of Life carries custom Vox Preset I and II drawbars', () => {
+    const p = decodeNe5(load(WALK));
+    expect(p.organ.vox.presetI.drawbars).toEqual([8, 8, 8, 8, 0, 3, 0, 0, 2]);
+    expect(p.organ.vox.presetII.drawbars).toEqual([8, 8, 8, 7, 5, 8, 3, 1, 3]);
   });
 
-  // --- CONFIRMED: organ preset 2 (second preset, body[39-49]) ---
-
-  it('preset-2 upper defaults to [8,8,8,8,0,0,0,0,0] for the majority of fixtures', () => {
-    // Re-census 2026-07-04 (213 files): the default voicing is the corpus
-    // majority (was "11/13" on the 13-file corpus — an overfit count). VCS3 and
-    // Walk of Life deviate (they use preset 1 / a custom preset-2 respectively).
-    const DEFAULT = [8, 8, 8, 8, 0, 0, 0, 0, 0].join(',');
-    const all = fixtures();
-    const defaultCount = all.filter(
-      (n) => decodeNe5(load(n)).organ.preset2Upper.bars.join(',') === DEFAULT,
-    ).length;
-    expect(defaultCount).toBeGreaterThan(all.length / 2);
-    expect(decodeNe5(load(VCS3)).organ.preset2Upper.bars.join(',')).not.toBe(DEFAULT);
-    expect(decodeNe5(load(WALK)).organ.preset2Upper.bars.join(',')).not.toBe(DEFAULT);
-  });
-
-  it('Walk of Life carries custom preset-2 upper + lower (it uses organ preset 2)', () => {
-    const prog = decodeNe5(load(WALK));
-    expect(prog.organ.preset2Upper.bars).toEqual([8, 8, 8, 8, 0, 3, 0, 0, 2]);
-    expect(prog.organ.preset2Lower.bars).toEqual([8, 8, 8, 7, 5, 8, 3, 1, 3]);
-  });
-
-  // --- CONFIRMED: piano/sample section active (body[17] bit7) ---
-
-  it('reads sampleSectionActive as a boolean for every fixture', () => {
-    for (const name of fixtures()) {
-      expect(typeof decodeNe5(load(name)).sampleSectionActive, name).toBe('boolean');
-    }
-  });
-
-  it('the organ-only presets read sampleSectionActive=false', () => {
-    // VCS3 and Walk of Life are organ-only (no sample layer). Re-census
-    // 2026-07-04: the 213-file corpus has more organ-only presets than these two,
-    // so the earlier "exactly 2" claim was overfit — but these two still hold.
-    expect(decodeNe5(load(VCS3)).sampleSectionActive).toBe(false);
-    expect(decodeNe5(load(WALK)).sampleSectionActive).toBe(false);
-  });
-
-  // --- CONFIRMED: factory sample / model id (body[7-12]) ---
-
-  it('Naked Piano and NSE Lead (1) share an identical model id (same factory sample)', () => {
-    // Stage oracle: piano model ID (group p, id 245-5). Both reference the same
-    // factory sample → identical id 80 07 90 15 19 24.
-    const naked = Array.from(decodeNe5(load(NAKED)).sampleModelId);
-    const lead1 = Array.from(decodeNe5(load(LEAD1)).sampleModelId);
-    expect(naked).toEqual([0x80, 0x07, 0x90, 0x15, 0x19, 0x24]);
-    expect(lead1).toEqual(naked);
-  });
-
-  it('model id is high-entropy across the corpus (>=10 unique first bytes)', () => {
-    const firstBytes = new Set(fixtures().map(n => decodeNe5(load(n)).sampleModelId[0]));
-    expect(firstBytes.size).toBeGreaterThanOrEqual(9);
-  });
-
-  // --- Candidate: programTypeFlags ---
-
-  it('programTypeFlags is a valid uint8 with >=5 unique corpus values', () => {
-    const values = new Set<number>();
-    for (const name of fixtures()) {
-      const { programTypeFlags } = decodeNe5(load(name));
-      expect(programTypeFlags).toBeGreaterThanOrEqual(0);
-      expect(programTypeFlags).toBeLessThanOrEqual(255);
-      values.add(programTypeFlags);
-    }
-    expect(values.size).toBeGreaterThanOrEqual(5);
-  });
-
-  // --- Candidate: pedal drawbars ---
-
-  it('organ.pedal bars are all in 0-8 range', () => {
-    for (const name of fixtures()) {
-      for (const bar of decodeNe5(load(name)).organ.pedal.bars) {
-        expect(bar).toBeGreaterThanOrEqual(0);
-        expect(bar).toBeLessThanOrEqual(8);
-      }
-    }
-  });
-
-  // --- Structure checks ---
-
-  it('_rawBody is exactly 103 bytes for all fixtures', () => {
-    for (const name of fixtures()) {
-      expect(decodeNe5(load(name))._rawBody).toHaveLength(103);
-    }
-  });
-
-  it('all scalar candidate fields decode without throwing', () => {
-    for (const name of fixtures()) {
-      const prog = decodeNe5(load(name));
-      expect(typeof prog.sectionEnableNibble).toBe('number');
-      expect(typeof prog.sampleModelFlag).toBe('boolean');
-      expect(typeof prog.sectionFlags17).toBe('number');
-      expect(typeof prog.flagByte19).toBe('number');
-    }
+  it('Naked Piano and NSE Lead (1) reference the same sample (select 1, ids 29186 / 20882)', () => {
+    const naked = decodeNe5(load(NAKED)).sampleSynth;
+    expect(naked).toEqual({ sample: 1, ids: [29186, 20882] });
+    expect(decodeNe5(load(LEAD1)).sampleSynth).toEqual(naked);
   });
 });

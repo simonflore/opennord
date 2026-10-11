@@ -1,0 +1,365 @@
+// AUTO-GENERATED (electro-5) — DO NOT EDIT MANUALLY.
+//
+// Provenance: Electro 5 OS 2.04 parameter containers; Electro 5 OS 2.04 program record: 24 containers of 26-byte records, u16 version 4 + 119 bytes (v3 converted, v1/v2 refused).
+// Knowledge only —
+// parameter names, bit positions, ranges and defaults; no firmware bytes or
+// tables (docs/LEGAL.md). `bit` is relative to the record data (file 0x1A).
+import type { LegacyLayout } from '../clavia/legacy-record';
+
+export type Ne5FieldKey =
+  | 'common.partLInstrument'
+  | 'common.partUInstrument'
+  | 'common.partLOctaveShift'
+  | 'common.partUOctaveShift'
+  | 'common.partLSustPedal'
+  | 'common.partUSustPedal'
+  | 'common.partLCtrlPedal'
+  | 'common.partUCtrlPedal'
+  | 'common.param8'
+  | 'common.keyboardSplitKeybSplit'
+  | 'common.keyboardSplitSplitPoint'
+  | 'common.transpose'
+  | 'common.transposeValue'
+  | 'common.partMix'
+  | 'common.outLevel'
+  | 'common.organModel'
+  | 'common.partLOn'
+  | 'common.partUOn'
+  | 'common.drawbarLiveDrwbLive'
+  | 'piano.pianoType'
+  | 'piano.pianoModel'
+  | 'piano.pianoModel2'
+  | 'piano.pianoAcoustics'
+  | 'piano.pianoKbdTouch'
+  | 'piano.monoModeMono'
+  | 'piano.pianoIdA'
+  | 'piano.pianoIdB'
+  | 'piano.param9'
+  | 'sampleSynth.sampleSynthAttack'
+  | 'sampleSynth.sampleSynthDcyRel'
+  | 'sampleSynth.sampleSelect'
+  | 'sampleSynth.sampleIdA'
+  | 'sampleSynth.sampleIdB'
+  | 'sampleSynth.param6'
+  | 'sampleSynth.sampleSynthDynamics'
+  | 'sampleSynth.sampleSynthFilterVel'
+  | 'b3Global.b3VibChorus'
+  | 'b3Global.b3Harmonic'
+  | 'b3Global.b3DecayLevel'
+  | 'b3Global.param4'
+  | 'b3Upper.presetSelect'
+  | 'b3Lower.presetSelect'
+  | 'b3PresetI.drawbar1'
+  | 'b3PresetI.drawbar2'
+  | 'b3PresetI.drawbar3'
+  | 'b3PresetI.drawbar4'
+  | 'b3PresetI.drawbar5'
+  | 'b3PresetI.drawbar6'
+  | 'b3PresetI.drawbar7'
+  | 'b3PresetI.drawbar8'
+  | 'b3PresetI.drawbar9'
+  | 'b3PresetI.vibChorusOn'
+  | 'b3PresetI.percussionOn'
+  | 'b3PresetI.bassDrawbar16'
+  | 'b3PresetI.bassDrawbar8'
+  | 'b3PresetII.drawbar1'
+  | 'b3PresetII.drawbar2'
+  | 'b3PresetII.drawbar3'
+  | 'b3PresetII.drawbar4'
+  | 'b3PresetII.drawbar5'
+  | 'b3PresetII.drawbar6'
+  | 'b3PresetII.drawbar7'
+  | 'b3PresetII.drawbar8'
+  | 'b3PresetII.drawbar9'
+  | 'b3PresetII.vibChorusOn'
+  | 'b3PresetII.percussionOn'
+  | 'b3PresetII.bassDrawbar16'
+  | 'b3PresetII.bassDrawbar8'
+  | 'voxGlobal.voxVibrato'
+  | 'voxUpper.presetSelect'
+  | 'voxLower.presetSelect'
+  | 'voxPresetI.drawbar1'
+  | 'voxPresetI.drawbar2'
+  | 'voxPresetI.drawbar3'
+  | 'voxPresetI.drawbar4'
+  | 'voxPresetI.drawbar5'
+  | 'voxPresetI.drawbar6'
+  | 'voxPresetI.drawbar7'
+  | 'voxPresetI.drawbar8'
+  | 'voxPresetI.drawbar9'
+  | 'voxPresetI.vibratoOn'
+  | 'voxPresetII.drawbar1'
+  | 'voxPresetII.drawbar2'
+  | 'voxPresetII.drawbar3'
+  | 'voxPresetII.drawbar4'
+  | 'voxPresetII.drawbar5'
+  | 'voxPresetII.drawbar6'
+  | 'voxPresetII.drawbar7'
+  | 'voxPresetII.drawbar8'
+  | 'voxPresetII.drawbar9'
+  | 'voxPresetII.vibratoOn'
+  | 'farfGlobal.farfVibrato'
+  | 'farfUpper.presetSelect'
+  | 'farfLower.presetSelect'
+  | 'farfPresetI.drawbar1'
+  | 'farfPresetI.drawbar2'
+  | 'farfPresetI.drawbar3'
+  | 'farfPresetI.drawbar4'
+  | 'farfPresetI.drawbar5'
+  | 'farfPresetI.drawbar6'
+  | 'farfPresetI.drawbar7'
+  | 'farfPresetI.drawbar8'
+  | 'farfPresetI.drawbar9'
+  | 'farfPresetI.vibratoOn'
+  | 'farfPresetII.drawbar1'
+  | 'farfPresetII.drawbar2'
+  | 'farfPresetII.drawbar3'
+  | 'farfPresetII.drawbar4'
+  | 'farfPresetII.drawbar5'
+  | 'farfPresetII.drawbar6'
+  | 'farfPresetII.drawbar7'
+  | 'farfPresetII.drawbar8'
+  | 'farfPresetII.drawbar9'
+  | 'farfPresetII.vibratoOn'
+  | 'churchUpper.presetSelect'
+  | 'churchLower.presetSelect'
+  | 'churchPresetI.drawbar1'
+  | 'churchPresetI.drawbar2'
+  | 'churchPresetI.drawbar3'
+  | 'churchPresetI.drawbar4'
+  | 'churchPresetI.drawbar5'
+  | 'churchPresetI.drawbar6'
+  | 'churchPresetI.drawbar7'
+  | 'churchPresetI.drawbar8'
+  | 'churchPresetI.drawbar9'
+  | 'churchPresetI.vibratoOn'
+  | 'churchPresetI.percOn'
+  | 'churchPresetII.drawbar1'
+  | 'churchPresetII.drawbar2'
+  | 'churchPresetII.drawbar3'
+  | 'churchPresetII.drawbar4'
+  | 'churchPresetII.drawbar5'
+  | 'churchPresetII.drawbar6'
+  | 'churchPresetII.drawbar7'
+  | 'churchPresetII.drawbar8'
+  | 'churchPresetII.drawbar9'
+  | 'churchPresetII.vibratoOn'
+  | 'churchPresetII.percOn'
+  | 'effects.effects1Enable'
+  | 'effects.effects1Source'
+  | 'effects.effects1Type'
+  | 'effects.effects1Rate'
+  | 'effects.effects2Enable'
+  | 'effects.effects2Source'
+  | 'effects.effects2Type'
+  | 'effects.effects2Rate'
+  | 'effects.delayEnable'
+  | 'effects.delaySource'
+  | 'effects.delayFeedback'
+  | 'effects.delayTempo'
+  | 'effects.delayDryWet'
+  | 'effects.delayPingPong'
+  | 'effects.equalizerEnable'
+  | 'effects.param15'
+  | 'effects.equalizerMidFreq'
+  | 'effects.equalizerTreble'
+  | 'effects.equalizerMid'
+  | 'effects.equalizerBass'
+  | 'effects.ampCompEnable'
+  | 'effects.ampCompSource'
+  | 'effects.ampCompType'
+  | 'effects.ampCompDrive'
+  | 'effects.reverbEnable'
+  | 'effects.reverbType'
+  | 'effects.reverbDryWet'
+  | 'effects.rotarySpeed'
+  | 'effects.rotarySpeed2'
+  | 'effects.param29'
+  | 'effects.param30'
+  | 'effects.param31'
+  | 'effects.effects1PedCtrl'
+  | 'effects.effects2Deep'
+  | 'effects.equalizerSource';
+
+export const NE5_LAYOUT: LegacyLayout<Ne5FieldKey> = {
+  model: 'Nord Electro 5',
+  source: 'Electro 5 OS 2.04 parameter containers',
+  container: 'Electro 5 OS 2.04 program record: 24 containers of 26-byte records, u16 version 4 + 119 bytes (v3 converted, v1/v2 refused)',
+  recordVersion: 4,
+  dataBytes: 119,
+  fields: [
+    { key: 'common.partLInstrument', name: 'Part L instrument', id: 0, bit: 0, width: 3, min: 0, max: 2, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 0', cc: 39 },
+    { key: 'common.partUInstrument', name: 'Part U instrument', id: 1, bit: 3, width: 3, min: 0, max: 2, def: 2, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 1', cc: 40 },
+    { key: 'common.partLOctaveShift', name: 'Part L Octave Shift', id: 2, bit: 6, width: 4, min: 0, max: 13, def: 7, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 2', cc: 54 },
+    { key: 'common.partUOctaveShift', name: 'Part U Octave Shift', id: 3, bit: 10, width: 4, min: 0, max: 13, def: 7, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 3', cc: 55 },
+    { key: 'common.partLSustPedal', name: 'Part L Sust Pedal', id: 4, bit: 14, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 4', cc: 56 },
+    { key: 'common.partUSustPedal', name: 'Part U Sust Pedal', id: 5, bit: 15, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 5', cc: 57 },
+    { key: 'common.partLCtrlPedal', name: 'Part L Ctrl Pedal', id: 6, bit: 16, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 6', cc: 58 },
+    { key: 'common.partUCtrlPedal', name: 'Part U Ctrl Pedal', id: 7, bit: 17, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 7', cc: 59 },
+    { key: 'common.param8', name: 'common.param8', id: 8, bit: 18, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 8' },
+    { key: 'common.keyboardSplitKeybSplit', name: 'Keyboard Split Keyb Split', id: 9, bit: 19, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 9', cc: 50 },
+    { key: 'common.keyboardSplitSplitPoint', name: 'Keyboard Split Split point', id: 10, bit: 20, width: 3, min: 0, max: 6, def: 3, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 10', cc: 51 },
+    { key: 'common.transpose', name: 'Transpose', id: 11, bit: 23, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 11', cc: 52 },
+    { key: 'common.transposeValue', name: 'Transpose value', id: 12, bit: 24, width: 4, min: 0, max: 12, def: 7, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 12', cc: 53 },
+    { key: 'common.partMix', name: 'Part Mix', id: 13, bit: 28, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 13', cc: 13 },
+    { key: 'common.outLevel', name: 'Out Level', id: 14, bit: 35, width: 7, min: 0, max: 127, def: 127, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 14', cc: 7 },
+    { key: 'common.organModel', name: 'Organ Model', id: 15, bit: 42, width: 3, min: 0, max: 4, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 15', cc: 9 },
+    { key: 'common.partLOn', name: 'Part L on', id: 16, bit: 45, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 16', cc: 41 },
+    { key: 'common.partUOn', name: 'Part U on', id: 17, bit: 46, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 17', cc: 42 },
+    { key: 'common.drawbarLiveDrwbLive', name: 'Drawbar Live Drwb Live', id: 18, bit: 47, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · common 18', cc: 25 },
+    { key: 'piano.pianoType', name: 'Piano type', id: 1, bit: 96, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · piano 1', cc: 12 },
+    { key: 'piano.pianoModel', name: 'Piano model', id: 2, bit: 99, width: 7, min: 0, max: 49, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · piano 2', cc: 44 },
+    { key: 'piano.pianoModel2', name: 'Piano model 2', id: 3, bit: 106, width: 7, min: 0, max: 49, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · piano 3', cc: 45 },
+    { key: 'piano.pianoAcoustics', name: 'Piano Acoustics', id: 4, bit: 113, width: 2, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · piano 4', cc: 98 },
+    { key: 'piano.pianoKbdTouch', name: 'Piano Kbd Touch', id: 5, bit: 115, width: 2, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · piano 5', cc: 46 },
+    { key: 'piano.monoModeMono', name: 'Mono Mode Mono', id: 6, bit: 117, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · piano 6', cc: 83 },
+    { key: 'piano.pianoIdA', name: 'Piano id A', id: 7, bit: 118, width: 15, min: 0, max: 32767, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · piano 7' },
+    { key: 'piano.pianoIdB', name: 'Piano id B', id: 8, bit: 133, width: 15, min: 0, max: 32767, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · piano 8' },
+    { key: 'piano.param9', name: 'piano.param9', id: 9, bit: 148, width: 2, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · piano 9' },
+    { key: 'sampleSynth.sampleSynthAttack', name: 'Sample Synth Attack', id: 1, bit: 192, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · sampleSynth 1', cc: 33 },
+    { key: 'sampleSynth.sampleSynthDcyRel', name: 'Sample Synth Dcy/Rel', id: 2, bit: 199, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · sampleSynth 2', cc: 34 },
+    { key: 'sampleSynth.sampleSelect', name: 'Sample select', id: 3, bit: 206, width: 8, min: 0, max: 158, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · sampleSynth 3', cc: 35 },
+    { key: 'sampleSynth.sampleIdA', name: 'Sample id A', id: 4, bit: 214, width: 15, min: 0, max: 32767, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · sampleSynth 4' },
+    { key: 'sampleSynth.sampleIdB', name: 'Sample id B', id: 5, bit: 229, width: 15, min: 0, max: 32767, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · sampleSynth 5' },
+    { key: 'sampleSynth.param6', name: 'sampleSynth.param6', id: 6, bit: 244, width: 2, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · sampleSynth 6' },
+    { key: 'sampleSynth.sampleSynthDynamics', name: 'Sample Synth Dynamics', id: 7, bit: 246, width: 2, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · sampleSynth 7', cc: 36 },
+    { key: 'sampleSynth.sampleSynthFilterVel', name: 'Sample Synth Filter Vel', id: 8, bit: 248, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · sampleSynth 8', cc: 37 },
+    { key: 'b3Global.b3VibChorus', name: 'B3 Vib/Chorus', id: 1, bit: 280, width: 3, min: 0, max: 5, def: 5, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3Global 1', cc: 84 },
+    { key: 'b3Global.b3Harmonic', name: 'B3 Harmonic', id: 2, bit: 283, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3Global 2', cc: 95 },
+    { key: 'b3Global.b3DecayLevel', name: 'B3 Decay/Level', id: 3, bit: 284, width: 2, min: 0, max: 3, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3Global 3', cc: 88 },
+    { key: 'b3Global.param4', name: 'b3Global.param4', id: 4, bit: 286, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3Global 4' },
+    { key: 'b3Upper.presetSelect', name: 'Preset select', id: 0, bit: 296, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · b3Upper 0', cc: 3 },
+    { key: 'b3Lower.presetSelect', name: 'Preset select', id: 0, bit: 304, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · b3Lower 0', cc: 3 },
+    { key: 'b3PresetI.drawbar1', name: 'Drawbar 1', id: 0, bit: 312, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetI 0', cc: 16 },
+    { key: 'b3PresetI.drawbar2', name: 'Drawbar 2', id: 1, bit: 316, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetI 1', cc: 17 },
+    { key: 'b3PresetI.drawbar3', name: 'Drawbar 3', id: 2, bit: 320, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetI 2', cc: 18 },
+    { key: 'b3PresetI.drawbar4', name: 'Drawbar 4', id: 3, bit: 324, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetI 3', cc: 19 },
+    { key: 'b3PresetI.drawbar5', name: 'Drawbar 5', id: 4, bit: 328, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetI 4', cc: 20 },
+    { key: 'b3PresetI.drawbar6', name: 'Drawbar 6', id: 5, bit: 332, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetI 5', cc: 21 },
+    { key: 'b3PresetI.drawbar7', name: 'Drawbar 7', id: 6, bit: 336, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetI 6', cc: 22 },
+    { key: 'b3PresetI.drawbar8', name: 'Drawbar 8', id: 7, bit: 340, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetI 7', cc: 23 },
+    { key: 'b3PresetI.drawbar9', name: 'Drawbar 9', id: 8, bit: 344, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetI 8', cc: 24 },
+    { key: 'b3PresetI.vibChorusOn', name: 'Vib/Chorus on', id: 9, bit: 348, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetI 9', cc: 85 },
+    { key: 'b3PresetI.percussionOn', name: 'Percussion on', id: 10, bit: 349, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetI 10', cc: 87 },
+    { key: 'b3PresetI.bassDrawbar16', name: 'Bass drawbar 16', id: 11, bit: 350, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetI 11', cc: 16 },
+    { key: 'b3PresetI.bassDrawbar8', name: 'Bass drawbar 8', id: 12, bit: 354, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetI 12', cc: 17 },
+    { key: 'b3PresetII.drawbar1', name: 'Drawbar 1', id: 0, bit: 368, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetII 0', cc: 16 },
+    { key: 'b3PresetII.drawbar2', name: 'Drawbar 2', id: 1, bit: 372, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetII 1', cc: 17 },
+    { key: 'b3PresetII.drawbar3', name: 'Drawbar 3', id: 2, bit: 376, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetII 2', cc: 18 },
+    { key: 'b3PresetII.drawbar4', name: 'Drawbar 4', id: 3, bit: 380, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetII 3', cc: 19 },
+    { key: 'b3PresetII.drawbar5', name: 'Drawbar 5', id: 4, bit: 384, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetII 4', cc: 20 },
+    { key: 'b3PresetII.drawbar6', name: 'Drawbar 6', id: 5, bit: 388, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetII 5', cc: 21 },
+    { key: 'b3PresetII.drawbar7', name: 'Drawbar 7', id: 6, bit: 392, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetII 6', cc: 22 },
+    { key: 'b3PresetII.drawbar8', name: 'Drawbar 8', id: 7, bit: 396, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetII 7', cc: 23 },
+    { key: 'b3PresetII.drawbar9', name: 'Drawbar 9', id: 8, bit: 400, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetII 8', cc: 24 },
+    { key: 'b3PresetII.vibChorusOn', name: 'Vib/Chorus on', id: 9, bit: 404, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetII 9', cc: 85 },
+    { key: 'b3PresetII.percussionOn', name: 'Percussion on', id: 10, bit: 405, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetII 10', cc: 87 },
+    { key: 'b3PresetII.bassDrawbar16', name: 'Bass drawbar 16', id: 11, bit: 406, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetII 11', cc: 16 },
+    { key: 'b3PresetII.bassDrawbar8', name: 'Bass drawbar 8', id: 12, bit: 410, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · b3PresetII 12', cc: 17 },
+    { key: 'voxGlobal.voxVibrato', name: 'Vox Vibrato', id: 1, bit: 424, width: 3, min: 0, max: 2, def: 2, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxGlobal 1', cc: 84 },
+    { key: 'voxUpper.presetSelect', name: 'Preset select', id: 0, bit: 440, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · voxUpper 0', cc: 3 },
+    { key: 'voxLower.presetSelect', name: 'Preset select', id: 0, bit: 448, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · voxLower 0', cc: 3 },
+    { key: 'voxPresetI.drawbar1', name: 'Drawbar 1', id: 0, bit: 456, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetI 0', cc: 16 },
+    { key: 'voxPresetI.drawbar2', name: 'Drawbar 2', id: 1, bit: 460, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetI 1', cc: 17 },
+    { key: 'voxPresetI.drawbar3', name: 'Drawbar 3', id: 2, bit: 464, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetI 2', cc: 18 },
+    { key: 'voxPresetI.drawbar4', name: 'Drawbar 4', id: 3, bit: 468, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetI 3', cc: 19 },
+    { key: 'voxPresetI.drawbar5', name: 'Drawbar 5', id: 4, bit: 472, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetI 4', cc: 20 },
+    { key: 'voxPresetI.drawbar6', name: 'Drawbar 6', id: 5, bit: 476, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetI 5', cc: 21 },
+    { key: 'voxPresetI.drawbar7', name: 'Drawbar 7', id: 6, bit: 480, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetI 6', cc: 22 },
+    { key: 'voxPresetI.drawbar8', name: 'Drawbar 8', id: 7, bit: 484, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetI 7', cc: 23 },
+    { key: 'voxPresetI.drawbar9', name: 'Drawbar 9', id: 8, bit: 488, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetI 8', cc: 24 },
+    { key: 'voxPresetI.vibratoOn', name: 'Vibrato on', id: 9, bit: 492, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetI 9', cc: 85 },
+    { key: 'voxPresetII.drawbar1', name: 'Drawbar 1', id: 0, bit: 504, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetII 0', cc: 16 },
+    { key: 'voxPresetII.drawbar2', name: 'Drawbar 2', id: 1, bit: 508, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetII 1', cc: 17 },
+    { key: 'voxPresetII.drawbar3', name: 'Drawbar 3', id: 2, bit: 512, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetII 2', cc: 18 },
+    { key: 'voxPresetII.drawbar4', name: 'Drawbar 4', id: 3, bit: 516, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetII 3', cc: 19 },
+    { key: 'voxPresetII.drawbar5', name: 'Drawbar 5', id: 4, bit: 520, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetII 4', cc: 20 },
+    { key: 'voxPresetII.drawbar6', name: 'Drawbar 6', id: 5, bit: 524, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetII 5', cc: 21 },
+    { key: 'voxPresetII.drawbar7', name: 'Drawbar 7', id: 6, bit: 528, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetII 6', cc: 22 },
+    { key: 'voxPresetII.drawbar8', name: 'Drawbar 8', id: 7, bit: 532, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetII 7', cc: 23 },
+    { key: 'voxPresetII.drawbar9', name: 'Drawbar 9', id: 8, bit: 536, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetII 8', cc: 24 },
+    { key: 'voxPresetII.vibratoOn', name: 'Vibrato on', id: 9, bit: 540, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · voxPresetII 9', cc: 85 },
+    { key: 'farfGlobal.farfVibrato', name: 'Farf Vibrato', id: 1, bit: 552, width: 3, min: 0, max: 3, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfGlobal 1', cc: 84 },
+    { key: 'farfUpper.presetSelect', name: 'Preset select', id: 0, bit: 568, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · farfUpper 0', cc: 3 },
+    { key: 'farfLower.presetSelect', name: 'Preset select', id: 0, bit: 576, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · farfLower 0', cc: 3 },
+    { key: 'farfPresetI.drawbar1', name: 'Drawbar 1', id: 0, bit: 584, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetI 0', cc: 16 },
+    { key: 'farfPresetI.drawbar2', name: 'Drawbar 2', id: 1, bit: 588, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetI 1', cc: 17 },
+    { key: 'farfPresetI.drawbar3', name: 'Drawbar 3', id: 2, bit: 592, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetI 2', cc: 18 },
+    { key: 'farfPresetI.drawbar4', name: 'Drawbar 4', id: 3, bit: 596, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetI 3', cc: 19 },
+    { key: 'farfPresetI.drawbar5', name: 'Drawbar 5', id: 4, bit: 600, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetI 4', cc: 20 },
+    { key: 'farfPresetI.drawbar6', name: 'Drawbar 6', id: 5, bit: 604, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetI 5', cc: 21 },
+    { key: 'farfPresetI.drawbar7', name: 'Drawbar 7', id: 6, bit: 608, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetI 6', cc: 22 },
+    { key: 'farfPresetI.drawbar8', name: 'Drawbar 8', id: 7, bit: 612, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetI 7', cc: 23 },
+    { key: 'farfPresetI.drawbar9', name: 'Drawbar 9', id: 8, bit: 616, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetI 8', cc: 24 },
+    { key: 'farfPresetI.vibratoOn', name: 'Vibrato on', id: 9, bit: 620, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetI 9', cc: 85 },
+    { key: 'farfPresetII.drawbar1', name: 'Drawbar 1', id: 0, bit: 632, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetII 0', cc: 16 },
+    { key: 'farfPresetII.drawbar2', name: 'Drawbar 2', id: 1, bit: 636, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetII 1', cc: 17 },
+    { key: 'farfPresetII.drawbar3', name: 'Drawbar 3', id: 2, bit: 640, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetII 2', cc: 18 },
+    { key: 'farfPresetII.drawbar4', name: 'Drawbar 4', id: 3, bit: 644, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetII 3', cc: 19 },
+    { key: 'farfPresetII.drawbar5', name: 'Drawbar 5', id: 4, bit: 648, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetII 4', cc: 20 },
+    { key: 'farfPresetII.drawbar6', name: 'Drawbar 6', id: 5, bit: 652, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetII 5', cc: 21 },
+    { key: 'farfPresetII.drawbar7', name: 'Drawbar 7', id: 6, bit: 656, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetII 6', cc: 22 },
+    { key: 'farfPresetII.drawbar8', name: 'Drawbar 8', id: 7, bit: 660, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetII 7', cc: 23 },
+    { key: 'farfPresetII.drawbar9', name: 'Drawbar 9', id: 8, bit: 664, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetII 8', cc: 24 },
+    { key: 'farfPresetII.vibratoOn', name: 'Vibrato on', id: 9, bit: 668, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · farfPresetII 9', cc: 85 },
+    { key: 'churchUpper.presetSelect', name: 'Preset select', id: 0, bit: 696, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · churchUpper 0', cc: 3 },
+    { key: 'churchLower.presetSelect', name: 'Preset select', id: 0, bit: 704, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'Electro 5 OS 2.04 parameter containers · churchLower 0', cc: 3 },
+    { key: 'churchPresetI.drawbar1', name: 'Drawbar 1', id: 0, bit: 712, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetI 0', cc: 16 },
+    { key: 'churchPresetI.drawbar2', name: 'Drawbar 2', id: 1, bit: 716, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetI 1', cc: 17 },
+    { key: 'churchPresetI.drawbar3', name: 'Drawbar 3', id: 2, bit: 720, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetI 2', cc: 18 },
+    { key: 'churchPresetI.drawbar4', name: 'Drawbar 4', id: 3, bit: 724, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetI 3', cc: 19 },
+    { key: 'churchPresetI.drawbar5', name: 'Drawbar 5', id: 4, bit: 728, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetI 4', cc: 20 },
+    { key: 'churchPresetI.drawbar6', name: 'Drawbar 6', id: 5, bit: 732, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetI 5', cc: 21 },
+    { key: 'churchPresetI.drawbar7', name: 'Drawbar 7', id: 6, bit: 736, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetI 6', cc: 22 },
+    { key: 'churchPresetI.drawbar8', name: 'Drawbar 8', id: 7, bit: 740, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetI 7', cc: 23 },
+    { key: 'churchPresetI.drawbar9', name: 'Drawbar 9', id: 8, bit: 744, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetI 8', cc: 24 },
+    { key: 'churchPresetI.vibratoOn', name: 'Vibrato on', id: 9, bit: 748, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetI 9', cc: 85 },
+    { key: 'churchPresetI.percOn', name: 'Perc on', id: 10, bit: 749, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetI 10', cc: 87 },
+    { key: 'churchPresetII.drawbar1', name: 'Drawbar 1', id: 0, bit: 760, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetII 0', cc: 16 },
+    { key: 'churchPresetII.drawbar2', name: 'Drawbar 2', id: 1, bit: 764, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetII 1', cc: 17 },
+    { key: 'churchPresetII.drawbar3', name: 'Drawbar 3', id: 2, bit: 768, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetII 2', cc: 18 },
+    { key: 'churchPresetII.drawbar4', name: 'Drawbar 4', id: 3, bit: 772, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetII 3', cc: 19 },
+    { key: 'churchPresetII.drawbar5', name: 'Drawbar 5', id: 4, bit: 776, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetII 4', cc: 20 },
+    { key: 'churchPresetII.drawbar6', name: 'Drawbar 6', id: 5, bit: 780, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetII 5', cc: 21 },
+    { key: 'churchPresetII.drawbar7', name: 'Drawbar 7', id: 6, bit: 784, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetII 6', cc: 22 },
+    { key: 'churchPresetII.drawbar8', name: 'Drawbar 8', id: 7, bit: 788, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetII 7', cc: 23 },
+    { key: 'churchPresetII.drawbar9', name: 'Drawbar 9', id: 8, bit: 792, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetII 8', cc: 24 },
+    { key: 'churchPresetII.vibratoOn', name: 'Vibrato on', id: 9, bit: 796, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetII 9', cc: 85 },
+    { key: 'churchPresetII.percOn', name: 'Perc on', id: 10, bit: 797, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · churchPresetII 10', cc: 87 },
+    { key: 'effects.effects1Enable', name: 'Effects 1 Enable', id: 0, bit: 808, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 0', cc: 69 },
+    { key: 'effects.effects1Source', name: 'Effects 1 Source', id: 1, bit: 809, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 1', cc: 71 },
+    { key: 'effects.effects1Type', name: 'Effects 1 Type', id: 2, bit: 810, width: 4, min: 0, max: 7, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 2', cc: 60 },
+    { key: 'effects.effects1Rate', name: 'Effects 1 Rate', id: 3, bit: 814, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 3', cc: 63 },
+    { key: 'effects.effects2Enable', name: 'Effects 2 Enable', id: 4, bit: 821, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 4', cc: 80 },
+    { key: 'effects.effects2Source', name: 'Effects 2 Source', id: 5, bit: 822, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 5', cc: 72 },
+    { key: 'effects.effects2Type', name: 'Effects 2 Type', id: 6, bit: 823, width: 4, min: 0, max: 5, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 6', cc: 61 },
+    { key: 'effects.effects2Rate', name: 'Effects 2 Rate', id: 7, bit: 827, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 7', cc: 62 },
+    { key: 'effects.delayEnable', name: 'Delay Enable', id: 8, bit: 834, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 8', cc: 94 },
+    { key: 'effects.delaySource', name: 'Delay Source', id: 9, bit: 835, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 9', cc: 105 },
+    { key: 'effects.delayFeedback', name: 'Delay Feedback', id: 10, bit: 836, width: 2, min: 0, max: 3, def: 1, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 10', cc: 104 },
+    { key: 'effects.delayTempo', name: 'Delay Tempo', id: 11, bit: 838, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 11', cc: 92 },
+    { key: 'effects.delayDryWet', name: 'Delay Dry/Wet', id: 12, bit: 845, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 12', cc: 103 },
+    { key: 'effects.delayPingPong', name: 'Delay Ping Pong', id: 13, bit: 852, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 13', cc: 93 },
+    { key: 'effects.equalizerEnable', name: 'Equalizer Enable', id: 14, bit: 853, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 14', cc: 115 },
+    { key: 'effects.param15', name: 'effects.param15', id: 15, bit: 854, width: 1, min: 0, max: 0, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 15' },
+    { key: 'effects.equalizerMidFreq', name: 'Equalizer Mid Freq', id: 16, bit: 855, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 16', cc: 117 },
+    { key: 'effects.equalizerTreble', name: 'Equalizer Treble', id: 17, bit: 862, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 17', cc: 113 },
+    { key: 'effects.equalizerMid', name: 'Equalizer Mid', id: 18, bit: 869, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 18', cc: 116 },
+    { key: 'effects.equalizerBass', name: 'Equalizer Bass', id: 19, bit: 876, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 19', cc: 118 },
+    { key: 'effects.ampCompEnable', name: 'Amp/Comp Enable', id: 20, bit: 883, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 20', cc: 86 },
+    { key: 'effects.ampCompSource', name: 'Amp/Comp Source', id: 21, bit: 884, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 21', cc: 112 },
+    { key: 'effects.ampCompType', name: 'Amp/Comp Type', id: 22, bit: 885, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 22', cc: 81 },
+    { key: 'effects.ampCompDrive', name: 'Amp/Comp Drive', id: 23, bit: 888, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 23', cc: 111 },
+    { key: 'effects.reverbEnable', name: 'Reverb Enable', id: 24, bit: 895, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 24', cc: 97 },
+    { key: 'effects.reverbType', name: 'Reverb Type', id: 25, bit: 896, width: 3, min: 0, max: 4, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 25', cc: 96 },
+    { key: 'effects.reverbDryWet', name: 'Reverb Dry/Wet', id: 26, bit: 899, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 26', cc: 102 },
+    { key: 'effects.rotarySpeed', name: 'Rotary Speed', id: 27, bit: 906, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 27', cc: 79 },
+    { key: 'effects.rotarySpeed2', name: 'Rotary Speed 2', id: 28, bit: 907, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 28', cc: 82 },
+    { key: 'effects.param29', name: 'effects.param29', id: 29, bit: 908, width: 1, min: 0, max: 0, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 29' },
+    { key: 'effects.param30', name: 'param 30', id: 30, bit: 909, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 30' },
+    { key: 'effects.param31', name: 'param 31', id: 31, bit: 916, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 31' },
+    { key: 'effects.effects1PedCtrl', name: 'Effects 1 PedCtrl', id: 32, bit: 923, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 32', cc: 73 },
+    { key: 'effects.effects2Deep', name: 'Effects 2 Deep', id: 33, bit: 924, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 33', cc: 74 },
+    { key: 'effects.equalizerSource', name: 'Equalizer Source', id: 34, bit: 925, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'high', src: 'Electro 5 OS 2.04 parameter containers · effects 34', cc: 119 },
+  ],
+};

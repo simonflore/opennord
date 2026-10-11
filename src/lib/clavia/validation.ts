@@ -126,7 +126,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 're', note: "sampleCodec 'og': firmware loads .nsmp with NWS v8/v11 only; not HW-tested on E4" },
   },
   'electro-5': {
-    'file-read': { status: 're', note: "ne5p legacy formatType-0 header (bank categories, 8-partition spec); sequential 1-based slot display (programs use the base sequential scheme); validated vs real .ne5p fixtures, not HW-tested" },
+    'file-read': { status: 're', note: "ne5p legacy formatType-0 header (bank categories, 8-partition spec); sequential 1-based slot display (programs use the base sequential scheme). Body read from file 0x1A through the OS 2.04 firmware's own parameter containers (lib/ne5: u16 version 4 + 119 bytes, 173 parameters — piano, Sample Synth, B3/Vox/Farfisa/Church presets, effects; version 3 read with a warning, 1–2 refused); reproduces the drawbar and sample-reference bytes pinned on real .ne5p fixtures; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v10 in the OS 2.04 (ColdFire) firmware; 8 partitions, Program at 4 (firmware agrees with NSM); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v10 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v10 (firmware); WRITE — untested-write risk" },
