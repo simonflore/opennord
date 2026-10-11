@@ -44,7 +44,7 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
         kinds={s.kinds} showSourceFacet={s.showSourceFacet}
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
-        onSelect={(e) => openPreset(navigate, e.id)}
+        onSelect={(e) => openPreset(navigate, e.id, true)}
         activeId={selectedId}
         onImport={importPreset}
         onRemove={(id) => { void s.removePreset(id); closeRemoved(navigate, '/library/presets', selectedId, [id]); }}

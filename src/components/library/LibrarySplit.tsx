@@ -35,7 +35,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
       clearFilters={s.clearFilters}
       filtered={s.filtered}
       activeId={selectedId}
-      onOpen={(e) => openProgram(navigate, e)}
+      onOpen={(e) => openProgram(navigate, e, true)}
       onImport={s.importFile}
       onRemove={(id) => { void s.imported.remove(id); closeRemoved(navigate, '/library/programs', selectedId, [id]); }}
       importError={s.importError}

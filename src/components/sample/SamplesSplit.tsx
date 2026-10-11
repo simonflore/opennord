@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
-import { CategorySplit } from '@/components/library/CategorySplit';
+import { CategorySplit, useBackToList } from '@/components/library/CategorySplit';
 import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSamplesState } from '@/lib/library/SamplesContext';
 import { useOpenSample } from '@/lib/library/useOpenSample';
@@ -40,8 +40,8 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   // Off the open sample, to the bare list (which closes it and lets go of its read).
   const toList = () => { if (selectedId) navigate({ to: '/library/samples' }); };
   const startLoadNew = () => { toList(); setPreview(null); setLoadNew(true); setImportError(''); };
-  // The back button replaces the sample's history entry, so the system Back doesn't reopen it.
-  const back = () => { if (selectedId) navigate({ to: '/library/samples', replace: true }); setPreview(null); setLoadNew(false); };
+  const backToList = useBackToList('/library/samples');
+  const back = () => { if (selectedId) backToList(); setPreview(null); setLoadNew(false); };
 
   function importSample() {
     const input = document.createElement('input');
@@ -84,7 +84,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters} filtered={s.filtered}
         // Clicking the open sample again retries it, but only when its read failed.
-        onOpen={(e) => (e.id !== selectedId ? openSample(navigate, e.id) : open.state === 'failed' && open.retry())}
+        onOpen={(e) => (e.id !== selectedId ? openSample(navigate, e.id, true) : open.state === 'failed' && open.retry())}
         onLoadNew={startLoadNew}
         activeId={selectedId ?? null}
         onImport={importSample}
@@ -114,7 +114,12 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const detail = selectedId ? (
     open.state === 'missing' ? <EmptyNote>This sample isn’t in your library right now. Pick one from the list.</EmptyNote>
     : open.state === 'failed' ? <div role="alert"><EmptyNote>{open.error} Click it in the list to try again.</EmptyNote></div>
-    : open.state === 'open' ? inspector(open.sample, open.factory)
+    : open.state === 'open' ? (
+      <>
+        {!open.listed && <EmptyNote>This sample isn’t in your library right now.</EmptyNote>}
+        {inspector(open.sample, open.factory)}
+      </>
+    )
     : <EmptyNote>Reading the sample…{open.state === 'reading' && open.pct !== null && ` ${open.pct}%`}</EmptyNote>
   ) : loadNew ? inspector()
     : preview ? inspector(preview)
