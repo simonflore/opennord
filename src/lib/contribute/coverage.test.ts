@@ -56,9 +56,9 @@ describe('decodeForModel', () => {
   it('maps the legacy-record models over their record data (file 0x1A on)', () => {
     expect(decodeForModel('lead-4')).toMatchObject({ status: 'partial', bodyBytes: 315 });
     expect(decodeForModel('electro-4')).toMatchObject({ status: 'partial', bodyBytes: 108 });
-    // Lead A1: alignment unchecked on real files, so candidate bytes only.
-    expect(decodeForModel('lead-a1')).toMatchObject({ status: 'partial', bodyBytes: 95, coveredBytes: 0 });
-    expect(decodeForModel('lead-a1').candidateBytes).toBeGreaterThan(0);
+    // Lead A1: confirmed on real files, so its bytes count as covered.
+    expect(decodeForModel('lead-a1')).toMatchObject({ status: 'partial', bodyBytes: 95, candidateBytes: 0 });
+    expect(decodeForModel('lead-a1').coveredBytes).toBeGreaterThan(0);
     const labels = getModelProgress('lead-4')!.regions!.map((r) => r.label);
     expect(labels).toEqual(expect.arrayContaining(['slot', 'slot morph list', 'fx', 'fx morph list', 'Reserved']));
   });
@@ -161,7 +161,7 @@ describe('parameter counts of the legacy-record readers', () => {
   it('count each Wave parameter once across both slots, without the morph deltas', () => {
     // global 8 · slot 56 · common 10
     expect(decodeForModel('wave').paramCount).toBe(74);
-    expect(decodeForModel('wave')).toMatchObject({ status: 'partial', bodyBytes: 323, coveredBytes: 0 });
+    expect(decodeForModel('wave')).toMatchObject({ status: 'partial', bodyBytes: 323, candidateBytes: 0 });
   });
 });
 

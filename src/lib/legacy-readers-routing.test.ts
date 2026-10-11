@@ -69,15 +69,17 @@ describe('legacy-record readers — identify, codec and presenter routing', () =
     });
 
     for (const id of c.coverage) {
-      it(`${id} coverage is 'partial' with a candidate-only byte map of the record data`, () => {
+      // Wave is confirmed on 1,018 real files (fixtures:scan); the others are still candidates.
+      const status = id === 'wave' ? 'confirmed' : 'candidate';
+      it(`${id} coverage is 'partial' with a ${status}-only byte map of the record data`, () => {
         expect(decodeForModel(id).status).toBe('partial');
         const p = getModelProgress(id)!;
         const layout = id === 'electro-3' ? NE3_LAYOUT : c.layout;
         expect(p.bodyBytes).toBe(layout.dataBytes + (layout.padBytes ?? 0));
         expect(p.regions!.at(-1)!.end).toBe(p.bodyBytes! - 1);
         const statuses = new Set(p.regions!.map((r) => r.status));
-        expect(statuses.has('confirmed')).toBe(false);
-        expect(statuses.has('candidate')).toBe(true);
+        expect(statuses.has(status === 'confirmed' ? 'candidate' : 'confirmed')).toBe(false);
+        expect(statuses.has(status)).toBe(true);
       });
     }
   }
