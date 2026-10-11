@@ -192,9 +192,9 @@ Then **Stage 2 / 2EX** need their own map. The Stage 2 firmware writes a flat bo
 | `.nsmp4` | ns4 | sample | Header-only today (`sample.ts`); audio out of scope |
 | `.npno` | piano | piano lib | Header/metadata in `nsp.ts`; **audio decoded** (`nsp-audio.ts`, reference `scripts/npno-decode.py`; codec from the Stage 4 piano DSP, `docs/NSP-FORMAT.md`) — local audition in the piano inspector |
 | `.ns3f` | ns3 | program | **Read-only, firmware layout** (`lib/ns3`) — Stage 3 OS 2.64 registry, 175 parameters + morph deltas; the panel view is built on it |
-| `.ns3l/.ns3y` | ns3 | live / synth preset | Recognized; `.ns3l` has the `.ns3f` body and `.ns3y` is one Synth block of it, neither routed to the reader yet |
+| `.ns3l/.ns3y` | ns3 | live / synth preset | `.ns3l` holds the `.ns3f` record and **reads with the Stage 3 reader**; `.ns3y` (one Synth block of it) is recognized, not routed |
 | `.ns2p` | ns2 | program | **Read-only, firmware layout** (`lib/ns2`) — Stage 2 OS 3.00 descriptor containers, 198 parameters + morph deltas; Stage 2 EX shares it; the slot view is built on it |
-| `.ns2l/.ns2s` | ns2 | live / synth preset | Recognized; neither routed to the reader. The one corpus `.ns2l` (547 bytes, legacy header) reads as a program record; `.ns2s` is a 60/78-byte synth preset |
+| `.ns2l/.ns2s` | ns2 | live / synth preset | `.ns2l` holds the `.ns2p` record (the corpus `.ns2l` is 547 bytes legacy, like `.ns2p`) and **reads with the Stage 2 reader** when its record is that long; `.ns2s` (a 60/78-byte synth preset) is recognized, not routed |
 | `.ngp/.ngl` | ng (Grand) | program | **Read-only, firmware layout** (`lib/ng`) — Piano 4 layout + `Com_kSplPos`; not yet checked on a real file |
 | `.np6p/.np6l` | np6 | program | **Read-only, firmware layout** (`lib/np6`) — Grand 2 layout + 3 deltas; not yet checked on a real file |
 | `.np4p/.np4l` | np4 | program | **Read-only, firmware layout** (`lib/np4`) — block lengths match the corpus |
@@ -210,7 +210,9 @@ Then **Stage 2 / 2EX** need their own map. The Stage 2 firmware writes a flat bo
 | `.np2p` | np2 | program | **Read-only, firmware legacy record** (`lib/np2`) — Piano 2 OS 1.22; names by CC match |
 | `.nppg` | np1 | program | **Read-only, firmware legacy record, provisional** (`lib/np1`) — Nord Piano OS 1.50; file position assumed |
 | `.ncpg` | nc | program | **Read-only, firmware legacy record, provisional** (`lib/nc`) — C2 OS 2.00; alignment unconfirmed |
-| `.nspg` | ns1 | program | **Header only** (`lib/ns1`) — Stage Classic / EX record layout known (OS 5.08 / 6.08), its start in the file not |
+| `.nspg` | ns1 | program | **Read-only, firmware legacy record, provisional** (`lib/ns1`) — Stage Classic / EX OS 5.08 / 6.08, placed by the CBIN framing rule; alignment unconfirmed (no real file read) |
+| `.neli/.npli/.np2l/.ncli/.nc2l` | ne3/np1/np2/nc/nc2 | live | Read with the model's program reader when the record has the program record's length (`formats.ts` `programTagFor`), else identified only |
+| Settings / Song / Set List (`…t`, `…sy`, `ns3s`, `ne5t`, `ne7s`, …) | every model | settings, song, set list | Identified with their kind (`clavia/file-tags.ts`); bodies not mapped, never decoded |
 | `.ns3b/.ns2b/.ns3fb/…` | ns3/ns2 | bundle | Existing ZIP reader + extensions (M1 gap) |
 
 ## Firmware-layout readers (Stage 3, Grand, Grand 2, Piano 4/5/6, Electro 6/7, Organ 3, Wave 2)
@@ -369,7 +371,7 @@ short for the record or one whose record start is not established.
 | Piano 2 | `np2p` | u16 v2 + 42 B (v1 converted); 52 parameters | names by CC match (medium); 70-byte file predicted |
 | Nord Piano | `nppg` | 20 B, no version; 29 parameters | file position 0x1A a guess (low): every decode is marked provisional, coverage candidate |
 | C2 | `ncpg` | u16 v100 + 269 B; 385 fields in 66 containers | alignment medium (297-byte file predicted), block names medium |
-| Stage Classic / EX | `nspg` | u8 v10 + common + panel A + panel B = 400 B; 101 morphable parameters × 3 deltas | the record start in the file is unknown: files open header-only with a warning; `decodeNs1Record` reads a located record |
+| Stage Classic / EX | `nspg` | u8 v10 + 399 B (common, panel A, panel B) = 400 B; 101 morphable parameters × 3 deltas | no real file read: the record is placed by the CBIN framing rule (444 / 426-byte files), a candidate; a longer file still reads, with a size note |
 
 The Electro 5 replaced the earlier corpus decoder, whose offsets were right
 but whose names were not (`lib/ne5/types.ts` maps each old name to its

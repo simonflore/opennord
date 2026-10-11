@@ -31,15 +31,16 @@
  */
 import { readBits } from './bitstream';
 import { fieldValue, outOfRangeWarning, type FwEncoding } from './block-chain';
+import { CBIN_BODY_OFFSET, CBIN_LEGACY_RECORD_OFFSET, cbinFraming } from './cbin';
 
 /** File offset where legacy formatType-0 record data begins (after a u16 record version). */
 export const LEGACY_DATA_OFFSET = 0x1a;
 
 /** File offset of the record (its version first) after a legacy formatType-0 header. */
-export const LEGACY_RECORD_OFFSET = 0x18;
+export const LEGACY_RECORD_OFFSET = CBIN_LEGACY_RECORD_OFFSET;
 
 /** File offset of the record after an NSM-era (formatType 1) 44-byte header. */
-export const NSM_RECORD_OFFSET = 0x2c;
+export const NSM_RECORD_OFFSET = CBIN_BODY_OFFSET;
 
 /** One descriptor parameter. `bit` is relative to the start of its record. */
 export interface LegacyField<K extends string = string> {
@@ -133,7 +134,7 @@ export function legacyRecordVersion(bytes: Uint8Array): number {
 
 /** Where the record (its version first) starts: 0x18 after a legacy header, 0x2C after an NSM-era header. */
 export function legacyRecordOffset(bytes: Uint8Array): number {
-  return bytes[0x04] === 1 ? NSM_RECORD_OFFSET : LEGACY_RECORD_OFFSET;
+  return cbinFraming(bytes).recordOffset;
 }
 
 /** Where `layout`'s record data starts in this file: the record offset plus the version width. */
@@ -143,7 +144,7 @@ export function legacyDataOffset(bytes: Uint8Array, layout: Pick<LegacyLayout, '
 
 /** Bytes after the record: the 2-byte CRC trailer of a legacy file (an NSM-era header carries its own checksum). */
 export function legacyTrailerBytes(bytes: Uint8Array): number {
-  return bytes[0x04] === 1 ? 0 : 2;
+  return cbinFraming(bytes).trailerBytes;
 }
 
 /** The file size the firmware record makes for this file's header. */

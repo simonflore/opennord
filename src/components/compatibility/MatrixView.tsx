@@ -18,9 +18,6 @@ const STATUS: Record<ValidationStatus, { label: string; glyph: string; hint: str
 /** Program Parameters marks. */
 const FULL_MAP = { glyph: '◆', label: 'Full map', hint: 'reads every setting a program stores' };
 const FULL_MAP_TITLE = 'Full map: every setting the instrument stores in a program, from its own firmware; not yet checked against a real file';
-const HEADER_ONLY = { label: 'Header only', hint: 'format known, files not opened yet' };
-/** A dashed ring (drawn, not a font glyph): the format is mapped but files don't open yet. */
-const HEADER_ONLY_RING = 'inline-block h-[14px] w-[14px] rounded-full border-[1.5px] border-dashed border-current align-middle';
 
 const LEGEND: ValidationStatus[] = ['validated', 're', 'inferred', 'unsupported'];
 
@@ -89,10 +86,6 @@ export function MatrixView() {
           <span aria-hidden="true" className="w-[18px] text-center text-[11px] text-warn">{FULL_MAP.glyph}</span>
           <span><span className="font-semibold text-ink">{FULL_MAP.label}</span> · {FULL_MAP.hint}</span>
         </li>
-        <li className="flex items-center gap-2">
-          <span aria-hidden="true" className="flex w-[18px] justify-center text-warn"><span className={HEADER_ONLY_RING} /></span>
-          <span><span className="font-semibold text-ink">{HEADER_ONLY.label}</span> · {HEADER_ONLY.hint}</span>
-        </li>
       </ul>
       <ProbePanel />
       <div className="overflow-x-auto">
@@ -138,13 +131,6 @@ export function MatrixView() {
                       // A model with no reachable files at all (the C1) has nothing to decode.
                       if (statusFor(m.id, 'file-read').status === 'unsupported') {
                         return <td className={cell}><StatusIcon status="unsupported" label="Program parameters" /></td>;
-                      }
-                      if (d.headerOnly) {
-                        return (
-                          <td className={cn(cell, 'text-warn')} title={`${HEADER_ONLY.label}: ${d.headerOnly}`}>
-                            <span role="img" aria-label={`${HEADER_ONLY.label}: ${d.headerOnly}`} className={HEADER_ONLY_RING} />
-                          </td>
-                        );
                       }
                       if (d.status === 'none') {
                         return <td className={cell}><StatusIcon status="unknown" label="Program parameters" /></td>;

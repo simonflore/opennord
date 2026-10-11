@@ -17,7 +17,8 @@
 import { hasCbinMagic, readCbinHeader } from './cbin';
 import { programCategoryName } from './categories';
 import { formatSlot, wave2Slot, electro5Slot, lead4Slot, BANK_LETTERS } from './slot';
-import { modelByTag, type NordModelId } from './partitions';
+import { modelById, modelByTag, type NordModelId } from './partitions';
+import { fileTagInfo, fileTagLabel, type NordFileKind } from './file-tags';
 
 export type NordGeneration = 'Stage 2' | 'Stage 3' | 'Stage 4' | 'unknown';
 
@@ -27,14 +28,16 @@ export interface NordFileInfo {
   /** 4-char type tag, e.g. `ns2p`, `ns3f`, `ns4p`. */
   tag: string;
   generation: NordGeneration;
-  /** Registry model resolved from the program tag (whole line), if known. */
+  /** Registry model resolved from the tag (whole line, any file type), if known. */
   modelId?: NordModelId;
   /** Musician-facing model name, e.g. "Nord Electro 6" — from the registry by tag. */
   modelName?: string;
   /** Envelope generation from the registry: OG / NW1-v3 / NW1-v4. */
   modelGeneration?: 'OG' | 'NW1-v3' | 'NW1-v4';
-  /** Coarse kind from the tag's last char: `p`=program, `f`=performance/file, samples separate. */
-  kind: 'program' | 'performance' | 'sample' | 'unknown';
+  /** What kind of file the tag names (clavia/file-tags.ts); `sample` also for `nsmp*` tags. */
+  kind: NordFileKind;
+  /** The kind in a musician's words, e.g. "Program", "Live", "Settings". */
+  kindLabel: string;
   /** 0 = legacy (Stage 2) header layout, 1 = NSM-era (Stage 3/4). */
   formatType: number;
   /** True when the NSM-era header fields below are decoded (Stage 3/4); false for the legacy layout. */
@@ -57,27 +60,27 @@ function generationOf(tag: string): NordGeneration {
   return 'unknown';
 }
 
-function kindOf(tag: string): NordFileInfo['kind'] {
-  if (tag.startsWith('nsmp')) return 'sample';
-  const last = tag.slice(-1);
-  if (last === 'p') return 'program';
-  if (last === 'f') return 'performance';
-  return 'unknown';
+function kindOf(tag: string): { kind: NordFileKind; kindLabel: string } {
+  if (tag.startsWith('nsmp')) return { kind: 'sample', kindLabel: 'Sample' };
+  const t = fileTagInfo(tag);
+  return { kind: t?.kind ?? 'unknown', kindLabel: fileTagLabel(t) };
 }
 
 /** Identify a Nord CBIN file and decode the header fields we can trust. */
 export function identifyNordFile(bytes: Uint8Array): NordFileInfo {
   if (!hasCbinMagic(bytes)) {
-    return { recognized: false, tag: '', generation: 'unknown', kind: 'unknown', formatType: 0, headerDecoded: false, fullyDecoded: false, sizeBytes: bytes.length };
+    return { recognized: false, tag: '', generation: 'unknown', kind: 'unknown', kindLabel: fileTagLabel(undefined), formatType: 0, headerDecoded: false, fullyDecoded: false, sizeBytes: bytes.length };
   }
   const h = readCbinHeader(bytes);
   const generation = generationOf(h.tag);
-  const kind = kindOf(h.tag);
+  const { kind, kindLabel } = kindOf(h.tag);
   const fullyDecoded = h.tag === 'ns4p' || h.tag === 'ns4l' || h.tag === 'ne6p' || h.tag === 'ne6l';
-  const model = modelByTag(h.tag); // whole-line model from the registry (programs)
+  // Whole-line model: the program tag's anchor, else the first model the tag table names.
+  const tagModel = fileTagInfo(h.tag)?.models[0];
+  const model = modelByTag(h.tag) ?? (tagModel ? modelById(tagModel) : undefined);
 
   const info: NordFileInfo = {
-    recognized: true, tag: h.tag, generation, kind,
+    recognized: true, tag: h.tag, generation, kind, kindLabel,
     modelId: model?.id, modelName: model?.name, modelGeneration: model?.generation,
     formatType: h.formatType, headerDecoded: false, fullyDecoded, sizeBytes: bytes.length,
   };

@@ -16,7 +16,7 @@ describe('NordFileCard', () => {
   it('shows a Stage 3 file with its decoded slot / version', () => {
     const html = renderToStaticMarkup(<NordFileCard bytes={cbin('ns3f', 1, { bank: 5, loc: 19, cat: 21, ver: 304 })} />);
     expect(html).toContain('Stage 3');
-    expect(html).toContain('Performance');
+    expect(html).toContain('Nord Stage 3 · Program');
     expect(html).toContain('F:34');
     expect(html).toContain('v3.04');
   });

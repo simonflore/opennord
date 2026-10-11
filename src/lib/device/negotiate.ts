@@ -14,6 +14,29 @@
 import { PROTOCOL_VERSION } from './opcodes';
 import type { ModelInfo } from '../clavia/partitions';
 
+/**
+ * FileTransfer versions Nord Sound Manager 9.22 speaks: 3 (Stage Classic) to 10
+ * (the Stage 3 / 4 generation). An advertised version outside this range is not
+ * one any instrument uses, so it is never adopted.
+ */
+export const FILE_TRANSFER_VERSION_MIN = 3;
+export const FILE_TRANSFER_VERSION_MAX = 10;
+
+/** True when `version` is a FileTransfer version NSM accepts (3–10). */
+export function isKnownFileTransferVersion(version: number): boolean {
+  return Number.isInteger(version) && version >= FILE_TRANSFER_VERSION_MIN && version <= FILE_TRANSFER_VERSION_MAX;
+}
+
+/**
+ * Whether a device of this FileTransfer version answers dependency queries
+ * (`CQryFileGetDependency`): only above version 5 — NSM 9.22's
+ * `CFileTransfer::Hack_IsDepsSupported` @0x100079dcc also wants the partition's
+ * flag, which needs the newer partition list.
+ */
+export function supportsDependencies(version: number): boolean {
+  return version > 5;
+}
+
 /** protocolId of the version-negotiation family (distinct from FileTransfer `0x0c`). */
 export const PROTOCOL_NEGOTIATE = 0x07;
 /** msgId of the "list your supported versions" query; the device replies `0x03`. */

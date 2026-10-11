@@ -31,15 +31,16 @@ describe('identifyNordFile', () => {
       recognized: true, kind: 'program', modelId: 'electro-7', modelName: 'Nord Electro 7', modelGeneration: 'NW1-v4',
     });
     expect(identifyNordFile(cbin('no3p', 1))).toMatchObject({ kind: 'program', modelId: 'organ-3' });
-    // Settings and synth-preset files are not programs and name no model.
-    expect(identifyNordFile(cbin('ne7t', 1))).toMatchObject({ kind: 'unknown', modelId: undefined });
-    expect(identifyNordFile(cbin('ne7r', 1))).toMatchObject({ kind: 'unknown', modelId: undefined });
+    // Settings, Song and synth-preset files are not programs, but the tag table names their model and kind.
+    expect(identifyNordFile(cbin('ne7t', 1))).toMatchObject({ kind: 'settings', kindLabel: 'Settings', modelId: 'electro-7' });
+    expect(identifyNordFile(cbin('ne7r', 1))).toMatchObject({ kind: 'synth-preset', kindLabel: 'Synth preset', modelId: 'electro-7' });
+    expect(identifyNordFile(cbin('ne7s', 1))).toMatchObject({ kind: 'song', kindLabel: 'Song', modelId: 'electro-7' });
   });
 
   it('decodes a Stage 3 (ns3f, NSM-era) header — slot/category/version', () => {
     const info = identifyNordFile(cbin('ns3f', 1, { bank: 5, loc: 19, cat: 21, ver: 304 }));
     expect(info).toMatchObject({
-      recognized: true, tag: 'ns3f', generation: 'Stage 3', kind: 'performance',
+      recognized: true, tag: 'ns3f', generation: 'Stage 3', kind: 'program', kindLabel: 'Program',
       formatType: 1, headerDecoded: true, version: '3.04', fullyDecoded: false,
     });
     expect(info.slot).toBe('F:34'); // formatSlot(5, 19)
@@ -139,7 +140,7 @@ describe('identifyNordFile', () => {
     const b = cbin('nl4p', 0, { bank: 1, loc: 41, cat: 7 });
     const info = identifyNordFile(b);
     expect(info).toMatchObject({
-      recognized: true, tag: 'nl4p', kind: 'program',
+      recognized: true, tag: 'nl4p', kind: 'performance', kindLabel: 'Performance',
       formatType: 0, headerDecoded: true, fullyDecoded: false,
       modelId: 'lead-4', modelName: 'Nord Lead 4',
     });
@@ -155,5 +156,25 @@ describe('identifyNordFile', () => {
 
   it('names a .nspg file the Nord Stage Classic (the Stage EX writes the same record)', () => {
     expect(identifyNordFile(cbin('nspg', 0))).toMatchObject({ modelId: 'stage-classic', modelName: 'Nord Stage Classic' });
+  });
+
+  it('names the kind and model of every file type NSM registers, with a musician-facing label', () => {
+    const cases: [string, number, string, string, string][] = [
+      ['ns3l', 1, 'live', 'Live', 'stage-3'],
+      ['ns2l', 0, 'live', 'Live', 'stage-2'],
+      ['ns3t', 1, 'settings', 'Settings', 'stage-3'],
+      ['ns3s', 1, 'song', 'Song', 'stage-3'],
+      ['ne5t', 0, 'setlist', 'Set List', 'electro-5'],
+      ['neop', 0, 'organ-preset', 'Organ preset', 'electro-3'],
+      ['nss', 0, 'synth-preset', 'Synth preset', 'stage-classic'],
+      ['nl4s', 0, 'program', 'Program', 'lead-4'],
+      ['nlat', 0, 'settings', 'Settings', 'lead-a1'],
+      ['nws', 0, 'synth-waves', 'Synth waves', 'wave'],
+      ['ns4g', 1, 'unknown', 'Nord file', 'stage-4'],
+    ];
+    for (const [tag, fmt, kind, kindLabel, modelId] of cases) {
+      expect(identifyNordFile(cbin(tag, fmt)), tag).toMatchObject({ kind, kindLabel, modelId });
+    }
+    expect(identifyNordFile(cbin('zzzz', 1))).toMatchObject({ kind: 'unknown', kindLabel: 'Nord file', modelId: undefined });
   });
 });

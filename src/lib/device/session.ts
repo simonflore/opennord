@@ -1,7 +1,7 @@
 import type { NordTransport } from './transport';
 import { encodeMessage, decodeReply, NordError, NordStatus, SessionRefusedError, type NordReply } from './protocol';
 import { CReqBegin, CReqEnd, PARTITION_PROGRAM, PROTOCOL_ID, PROTOCOL_VERSION } from './opcodes';
-import { PROTOCOL_NEGOTIATE, MSG_QRY_VERSIONS, parseVersionReply } from './negotiate';
+import { PROTOCOL_NEGOTIATE, MSG_QRY_VERSIONS, isKnownFileTransferVersion, parseVersionReply } from './negotiate';
 import { WriteBlockedError } from './write-guard';
 
 /** Largest single reply we expect (program bodies are < 1 KB; windowed reads keep chunks small). */
@@ -71,11 +71,17 @@ export class NordSession {
     this.version = version;
   }
 
+  /** The FileTransfer version this session's frames carry (the device's, once negotiated). */
+  get fileTransferVersion(): number {
+    return this.version;
+  }
+
   /**
    * Ask the device which protocol versions it supports and adopt its FileTransfer
    * version for all later frames (the pre-FileTransfer handshake, protocolId `0x07`).
-   * If the device doesn't advertise FileTransfer (`0x0c`), the current version
-   * stands (the model's own via {@link useFileTransferVersion}, else `0x0a`).
+   * If the device doesn't advertise FileTransfer (`0x0c`), or advertises a
+   * version outside the 3–10 NSM speaks, the current version stands (the
+   * model's own via {@link useFileTransferVersion}, else `0x0a`).
    * The reply read is bounded only inside {@link withReplyTimeout}: a model that
    * ignores the query would otherwise never return. Returns the adopted version.
    * See docs/PROTOCOL-RE.md (issue #31).
@@ -87,7 +93,7 @@ export class NordSession {
       );
       const reply = decodeReply(await this.transport.bulkIn(READ_BUFFER, this.replyTimeoutMs));
       const advertised = parseVersionReply(reply.payload).get(PROTOCOL_ID);
-      if (advertised !== undefined) this.version = advertised;
+      if (advertised !== undefined && isKnownFileTransferVersion(advertised)) this.version = advertised;
       return this.version;
     });
   }

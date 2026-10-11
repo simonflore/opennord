@@ -2,6 +2,7 @@ import { unzipSync } from 'fflate';
 import { identifyNordFile, type NordGeneration } from './nord-file';
 import { identifyNsmp } from './sample-identify';
 import { MODELS, type NordModelId } from './partitions';
+import { fileTagInfo } from './file-tags';
 import { getErrorMessage } from '../errors';
 
 export type FixtureKind = 'program' | 'preset' | 'backup' | 'sample' | 'unknown';
@@ -53,7 +54,10 @@ export function crossCheckFixture(finding: FixtureFinding, modelId: NordModelId)
   const model = MODELS[modelId];
   const issues: string[] = [];
   if (!model) return { ok: false, issues: [`unknown model id "${modelId}"`] };
-  if (finding.kind === 'program' && finding.tag && model.programTag && finding.tag !== model.programTag) {
+  // A program tag the model writes: its registry program tag, or another program/performance tag
+  // the file-tag table gives it (the Leads' single-sound `nl4s` / `nlas`).
+  const ownTag = finding.tag === model.programTag || !!fileTagInfo(finding.tag)?.models.includes(modelId);
+  if (finding.kind === 'program' && finding.tag && model.programTag && !ownTag) {
     issues.push(`tag ${finding.tag} != registry programTag ${model.programTag} for ${modelId}`);
   }
   if (finding.kind === 'sample') {

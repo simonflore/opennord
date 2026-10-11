@@ -173,21 +173,15 @@ describe('parameter counts of the later ColdFire readers', () => {
     expect(decodeForModel('stage-ex').paramCount).toBe(counts['stage-classic']);
   });
 
-  it('mark the Stage Classic / EX header-only (their record start in a file is unknown), and no other reader', () => {
-    for (const id of ['stage-classic', 'stage-ex']) expect(decodeForModel(id).headerOnly, id).toMatch(/header only/);
-    for (const id of ['electro-5', 'piano-3', 'piano-2', 'piano-1', 'c2']) expect(decodeForModel(id).headerOnly, id).toBeUndefined();
-  });
 });
 
 describe('fullMap', () => {
   it('is set for the firmware-layout and legacy-record readers except Wave 2, and for the Stage 4', () => {
     for (const id of ['stage-4', 'stage-3', 'grand', 'grand-2', 'piano-4', 'piano-5', 'piano-6', 'electro-6', 'electro-7', 'organ-3', 'lead-4', 'lead-a1', 'electro-4',
-      'stage-2', 'stage-2-ex', 'electro-3', 'electro-3-hp', 'c2d', 'wave', 'electro-5', 'piano-3', 'piano-2', 'piano-1', 'c2']) {
+      'stage-2', 'stage-2-ex', 'electro-3', 'electro-3-hp', 'c2d', 'wave', 'electro-5', 'piano-3', 'piano-2', 'piano-1', 'c2',
+      'stage-classic', 'stage-ex']) {
       expect(decodeForModel(id).fullMap, id).toBe(true);
     }
-    // Stage Classic / EX: the record is mapped, but files open header-only until its start is confirmed.
-    for (const id of ['wave-2', 'stage-classic', 'stage-ex']) {
-      expect(decodeForModel(id).fullMap, id).toBe(false);
-    }
+    expect(decodeForModel('wave-2').fullMap).toBe(false);
   });
 });
