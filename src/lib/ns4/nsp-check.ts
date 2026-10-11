@@ -155,10 +155,6 @@ function headerVersionKnown(v: number): boolean {
 function metaVersionKnown(v: number): boolean {
   return (v >= 0x407 && v <= 0x430) || v === 0x440 || v === 0x450 || v === 0x464;
 }
-/** Piano format from the BCD version: only 0x440/0x450/0x464 map to a format. */
-function pianoFormat(v: number): number | undefined {
-  return ({ 0x440: 4, 0x450: 5, 0x464: 6 } as Record<number, number>)[v];
-}
 
 /**
  * Run every known acceptance check. `deep` also decodes every stroke (catches a broken
@@ -182,9 +178,8 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: NpnoCheckOptions = 
     return done();
   }
   if (!traced) {
-    add('model-pianos', true, "Which pianos this Nord loads hasn't been traced yet; checked against the Stage 4's rules");
+    add('model-pianos', true, "OpenNord doesn't know yet which pianos this Nord loads; checked as for a Stage 4");
   }
-  const loadable = (v: number) => rules.versions.some((x) => x === v);
   if (!add('cbin', hasCbinMagic(bytes) && fileTypeTag(bytes) === 'npno', 'CBIN magic and the `npno` type tag')) return done();
   const cnsp = findCnsp(bytes);
   if (!add('cnsp-tag', cnsp === 0x2c || cnsp === 0x18, `CNSP tag at 0x2C (v6 envelope) or 0x18 (v5); found ${cnsp < 0 ? 'none' : `0x${cnsp.toString(16)}`}`)) return done();
@@ -207,7 +202,8 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: NpnoCheckOptions = 
   add('meta-version', metaVersionKnown(meta), `metadata version 0x${meta.toString(16)} in the accepted set`);
   add('cnsp-checksum', cnspChecksum(bytes.subarray(cnsp, end)) === u32(cnsp + 6), 'CNSP byte-sum checksum at +0x06 (a mismatch is refused)');
 
-  const format = pianoFormat(version);
+  // Piano format from the BCD version: only 0x440/0x450/0x464 map to a format (4/5/6).
+  const format = pianoVersionNumber(version);
   const nsmVersion = format === undefined ? undefined : format * 100 + bytes[cnsp + 0x1a] * 10;
   add('nsm-format', format !== undefined, 'header version maps to a piano format');
   if (nsmVersion !== undefined) {
@@ -229,7 +225,7 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: NpnoCheckOptions = 
   //), so only v5 (0x450) and v6 (0x464) load there; 0x423–0x440 are rejected
   // ("Unsupported version"). Other models differ (media-compat): the Electro 3 HP, Electro 4,
   // Piano 1 and Piano 2 load v5 only, the Electro 3 v4 and v5. The id keeps its historical name.
-  const bad = [version, meta].find((v) => !loadable(v));
+  const bad = [version, meta].find((v) => !rules.versions.some((x) => x === v));
   add('stage4-generation', bad === undefined, bad === undefined
     ? `header (0x${version.toString(16)}) and metadata (0x${meta.toString(16)}) versions are ones this Nord loads (${versionsPhrase(rules.versions)})`
     : versionRefusal(bad, rules.versions));

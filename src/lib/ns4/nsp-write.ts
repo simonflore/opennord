@@ -29,7 +29,7 @@ import { NSP_ROOT_OFFSET } from './nsp';
 import {
   checkNpnoAcceptance, cnspChecksum, MAX_LAYERS_PER_ROOT, MAX_PIANO_NAME, MAX_PIANO_STROKES, type NpnoModel,
 } from './nsp-check';
-import { mediaCompat, pianoVersionNumber, pianoWriteVersion } from '../clavia/media-compat';
+import { CNSP_VERSION, mediaCompat, pianoVersionNumber, pianoWriteVersion } from '../clavia/media-compat';
 
 // ── Container constants (offsets relative to the `CNSP` tag unless noted) ──────────────────
 
@@ -42,8 +42,8 @@ export const NPNO_RECORD_SIZE = 0x76;
  * v6 on Stage 2 OS ≥ 2.29 and Stage 3 OS ≥ 1.61. Some older models load
  * v5 only (Electro 3 HP, Electro 4, Piano 1, Piano 2: `clavia/media-compat.ts`).
  */
-export const CNSP_V6 = 0x464;
-export const CNSP_V5 = 0x450;
+export const CNSP_V6 = CNSP_VERSION.v6;
+export const CNSP_V5 = CNSP_VERSION.v5;
 /** Block size in 16-bit words per channel (the DSP addresses blocks as n × 511 / n × 1022). */
 const BLOCK_WORDS_PER_CHANNEL = 511;
 /** Block level byte = round(20·log10(8192 / block peak)); silent blocks carry 100. */
