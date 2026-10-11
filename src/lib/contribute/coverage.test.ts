@@ -118,4 +118,10 @@ describe('parameter counts of the legacy-record readers', () => {
     expect(decodeForModel('electro-3-hp').paramCount).toBe(87);
     expect(decodeForModel('electro-3')).toMatchObject({ bodyBytes: 108, coveredBytes: 0 });
   });
+
+  it('count each C2D parameter once across presets, manuals and repeated containers', () => {
+    expect(decodeForModel('c2d').paramCount).toBe(91);
+    expect(decodeForModel('c2d')).toMatchObject({ status: 'partial', bodyBytes: 345, coveredBytes: 0 });
+    expect(decodeForModel('c2').status).toBe('none'); // no C2 firmware read
+  });
 });

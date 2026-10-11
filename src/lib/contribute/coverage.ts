@@ -28,6 +28,7 @@ import { NLA_LAYOUT } from '../nla/layout.generated';
 import { NE4_LAYOUT } from '../ne4/layout.generated';
 import { NE3_LAYOUT } from '../ne3/layout.generated';
 import { NE3HP_LAYOUT } from '../ne3/layout-hp.generated';
+import { NC2_LAYOUT } from '../nc2/layout.generated';
 
 /** The single canonical Stage 4 param map (ns4decode port + corpus-RE'd extras). */
 const NS4_PARAMS = buildParamMap();
@@ -73,6 +74,7 @@ const DECODER_BY_ID: Record<string, 'full' | 'partial'> = {
   'electro-3': 'partial',
   'electro-3-hp': 'partial',
   'electro-4': 'partial',
+  'c2d': 'partial',
   'lead-4': 'partial',
   'lead-a1': 'partial',
 };
@@ -190,13 +192,14 @@ const _fwProgress: Record<string, ModelProgress> = {};
 
 // ── Legacy-record models: byte map of the record data (after the record version) ─
 // Lead 4 (high) → 'confirmed'. Electro 4 (its layout is medium confidence, although it
-// reproduces the corpus drawbar/sample anchors), Lead A1 and Electro 3 / 3 HP
+// reproduces the corpus drawbar/sample anchors), Lead A1, Electro 3 / 3 HP and C2D
 // (alignment unchecked against real files) → 'candidate'.
 // Lead 4 maps its program record (a performance is 7 common bytes + 4 of them).
 const LEGACY_LAYOUTS: Record<string, { layout: LegacyLayout; status: 'confirmed' | 'candidate' }> = {
   'electro-3': { layout: NE3_LAYOUT, status: 'candidate' },
   'electro-3-hp': { layout: NE3HP_LAYOUT, status: 'candidate' },
   'electro-4': { layout: NE4_LAYOUT, status: 'candidate' },
+  'c2d': { layout: NC2_LAYOUT, status: 'candidate' },
   'lead-4': { layout: NL4_LAYOUT, status: 'confirmed' },
   'lead-a1': { layout: NLA_LAYOUT, status: 'candidate' },
 };
