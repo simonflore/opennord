@@ -172,6 +172,11 @@ describe('parameter counts of the later ColdFire readers', () => {
     expect(counts).toEqual({ 'electro-5': 129, 'piano-3': 76, 'piano-2': 52, 'piano-1': 29, 'stage-classic': 199, c2: 86 });
     expect(decodeForModel('stage-ex').paramCount).toBe(counts['stage-classic']);
   });
+
+  it('mark the Stage Classic / EX header-only (their record start in a file is unknown), and no other reader', () => {
+    for (const id of ['stage-classic', 'stage-ex']) expect(decodeForModel(id).headerOnly, id).toMatch(/header only/);
+    for (const id of ['electro-5', 'piano-3', 'piano-2', 'piano-1', 'c2']) expect(decodeForModel(id).headerOnly, id).toBeUndefined();
+  });
 });
 
 describe('fullMap', () => {

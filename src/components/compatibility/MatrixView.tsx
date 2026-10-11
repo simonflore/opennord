@@ -104,7 +104,8 @@ export function MatrixView() {
                         return <td className={cn(cell, CELL_COLOR.unsupported)} title="No program files">—</td>;
                       }
                       const text =
-                        d.paramCount != null ? `${d.paramCount} params`
+                        d.headerOnly ? 'Header only'
+                        : d.paramCount != null ? `${d.paramCount} params`
                         : d.status === 'partial' ? 'Partial'
                         : d.status === 'started' ? (d.pct != null ? `${d.pct}%` : `${d.controlCount}✓`)
                         : 'Not yet';
@@ -114,7 +115,7 @@ export function MatrixView() {
                       return (
                         <td
                           className={cn(cell, CELL_COLOR[DECODE_CELL[d.status]])}
-                          title={fullMap ? FULL_MAP_TITLE : DECODE_LABEL[d.status]}
+                          title={d.headerOnly ?? (fullMap ? FULL_MAP_TITLE : DECODE_LABEL[d.status])}
                         >
                           {text}
                           {fullMap && <span className={FULL_MAP_CHIP}>full map</span>}
