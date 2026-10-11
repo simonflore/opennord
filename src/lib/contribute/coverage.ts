@@ -14,6 +14,9 @@ import { decodeNs3 } from '../ns3/decode';
 import { decodeNs2 } from '../ns2/decode';
 import type { FwLayout } from '../clavia/block-chain';
 import { NG_LAYOUT } from '../ng/layout.generated';
+import { NG2_LAYOUT } from '../ng2/layout.generated';
+import { NP4_LAYOUT } from '../np4/layout.generated';
+import { NP5_LAYOUT } from '../np5/layout.generated';
 import { NP6_LAYOUT } from '../np6/layout.generated';
 import { NE7_LAYOUT } from '../ne7/layout.generated';
 import { NO3_LAYOUT } from '../no3/layout.generated';
@@ -47,8 +50,12 @@ const DECODER_BY_ID: Record<string, 'full' | 'partial'> = {
   'stage-4': 'full',
   'stage-3': 'partial',
   'stage-2': 'partial', // ns2/decode.ts: engines/levels/drawbars/FX via the ns2 oracle
-  // Firmware-layout readers (clavia/block-chain.ts), read-only, not yet checked on real files.
+  // Firmware-layout readers (clavia/block-chain.ts), read-only. Grand, Piano 6,
+  // Electro 7 and Organ 3 are not yet checked on real files.
   'grand': 'partial',
+  'grand-2': 'partial',
+  'piano-4': 'partial',
+  'piano-5': 'partial',
   'piano-6': 'partial',
   'electro-7': 'partial',
   'organ-3': 'partial',
@@ -147,11 +154,15 @@ function tracedReaderProgress(
 }
 
 // ── Firmware-layout models: byte map synthesized from the generated layout ──
-// Grand and Piano 6 come from a high-confidence firmware map → 'confirmed'.
+// Grand, Grand 2 and Piano 4/5/6 come from a high-confidence firmware map →
+// 'confirmed' (Piano 4 / 5 and Grand 2 also reproduce the corpus block lengths).
 // Electro 7 and Organ 3 have a medium-confidence block order (not yet seen in a
 // real file) → 'candidate', so they don't inflate the headline percentage.
 const FW_LAYOUTS: Record<string, { layout: FwLayout; status: 'confirmed' | 'candidate' }> = {
   'grand': { layout: NG_LAYOUT, status: 'confirmed' },
+  'grand-2': { layout: NG2_LAYOUT, status: 'confirmed' },
+  'piano-4': { layout: NP4_LAYOUT, status: 'confirmed' },
+  'piano-5': { layout: NP5_LAYOUT, status: 'confirmed' },
   'piano-6': { layout: NP6_LAYOUT, status: 'confirmed' },
   'electro-7': { layout: NE7_LAYOUT, status: 'candidate' },
   'organ-3': { layout: NO3_LAYOUT, status: 'candidate' },
@@ -190,8 +201,8 @@ let _ns2Progress: ModelProgress | undefined;
 /**
  * Returns the decode progress for any model — synthesized from the NS4 offset
  * map (Stage 4), traced from the reader (Stage 2/3), synthesized from the
- * generated firmware layout (Grand, Piano 6, Electro 7, Organ 3), or curated
- * from MODEL_PROGRESS (every other model).
+ * generated firmware layout (Grand, Grand 2, Piano 4/5/6, Electro 7, Organ 3),
+ * or curated from MODEL_PROGRESS (every other model).
  */
 export function getModelProgress(modelId: string): ModelProgress | undefined {
   if (modelId === 'stage-4') return getNs4Progress();

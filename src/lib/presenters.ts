@@ -41,11 +41,11 @@ interface PresenterEntry {
 const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.generation === 'Stage 3' && i.kind === 'performance', present: ns3Decoded },
   { match: (i) => i.generation === 'Stage 2' && i.kind === 'program', present: ns2Decoded },
-  // Lite piano/organ models: surface the Stage-oracle-confirmed core fields.
-  { match: (i) => i.tag === 'ng2p', present: ng2Decoded },
-  { match: (i) => i.tag === 'np5p', present: np5Decoded },
-  // np4 gets the family-wide piano-name table injected here — the np4 module
-  // itself treats ns4 as a transcribe-only oracle and never imports it.
+  // Piano 4 / Piano 5 / Grand 2: firmware-layout readers (clavia/block-chain.ts).
+  // The family-wide piano-name table is injected here (their 32-bit NameHash is
+  // the PIANO_NAMES key) — the model modules never import ns4.
+  { match: (i) => i.tag === 'ng2p', present: (bytes) => ng2Decoded(bytes, pianoName) },
+  { match: (i) => i.tag === 'np5p', present: (bytes) => np5Decoded(bytes, pianoName) },
   { match: (i) => i.tag === 'np4p', present: (bytes) => np4Decoded(bytes, pianoName) },
   { match: (i) => i.tag === 'ne5p', present: ne5Decoded },
   { match: (i) => i.tag === 'ne6p', present: ne6Decoded },

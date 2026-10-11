@@ -2,17 +2,120 @@ import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { describe, it, expect } from 'vitest';
 import { decodeNg2 } from './decode';
+import { ng2Decoded } from './present';
+import { NG2_LAYOUT, type Ng2FieldKey } from './layout.generated';
+import { synthFwBody, synthFwFile, writeBits } from '../clavia/block-chain.synth';
+import { CBIN_BODY_OFFSET } from '../clavia/cbin';
+
+const file = (values: Partial<Record<Ng2FieldKey, number>> = {}) =>
+  synthFwFile('ng2p', synthFwBody(NG2_LAYOUT, values, 102), 102);
+
+describe('decodeNg2 (Grand 2, firmware layout OS 1.22)', () => {
+  it('reads a 229-byte file (185-byte body, 11 blocks)', () => {
+    expect(NG2_LAYOUT.blocks.map((b) => b.length)).toEqual([10, 5, 13, 13, 21, 21, 5, 20, 20, 21, 21]);
+    const bytes = file();
+    expect(bytes.length).toBe(229);
+    const p = decodeNg2(bytes);
+    expect(p).toMatchObject({ parsed: true, format: 'ng2p', layoutMatched: true, formatVersion: 102, version: '1.02' });
+    expect(p.warnings).toEqual([]);
+  });
+
+  it('the corpus "TLV tags" are the block-length bytes (0x0d piano, 0x15 piano FX, 0x14 synth, 0x05 common)', () => {
+    const body = file().slice(CBIN_BODY_OFFSET);
+    expect(NG2_LAYOUT.blocks.map((b) => body[b.offset])).toEqual([10, 5, 13, 13, 21, 21, 5, 20, 20, 21, 21]);
+    expect(body[99]).toBe(0x14); // SynA length — the old "effects section tag"
+  });
+
+  it('places the piano A fields at their firmware bits (level 176, bank 191, entry 194, variation 199, hash 201)', () => {
+    const body = synthFwBody(NG2_LAYOUT, {}, 102);
+    writeBits(body, 176, 7, 107);
+    writeBits(body, 185, 4, 0b1110); // OctaveShift −2, two's complement
+    writeBits(body, 191, 3, 3);
+    writeBits(body, 194, 5, 19);
+    writeBits(body, 199, 2, 3);
+    writeBits(body, 201, 32, 1885350104);
+    writeBits(body, 313, 32, 1145892321); // piano B hash
+    writeBits(body, 242, 4, 15);          // piano A Eq
+    writeBits(body, 64, 1, 1);            // Com_kEffectsRvbChorale — the old "layerBActiveFlag" (body[8] b7)
+    const p = decodeNg2(synthFwFile('ng2p', body, 102));
+    expect(p.values).toMatchObject({
+      'pianoA.layerLevel': 107, 'pianoA.octaveShift': -2, 'pianoA.bank': 3, 'pianoA.entry': 19,
+      'pianoA.variation': 3, 'pianoA.nameHash': 1885350104, 'pianoB.nameHash': 1145892321, 'pianoA.eq': 15,
+      'common.effectsRvbChorale': 1,
+    });
+    expect(p._rawBody[8] & 0x80).toBe(0x80);
+  });
+
+  it('round-trips the piano / synth layers, their effects and the global reverb', () => {
+    const values = {
+      'pianoCommon.layerEnable': 3, 'synthCommon.layerEnable': 2, 'pianoB.unison': 3, 'pianoB.dynComp': 2,
+      'pianoFxA.eqTreble': -60, 'pianoFxB.dlyRate': 16383, 'synthA.smpId': 16383, 'synthA.ampEnvDcyRls': -60,
+      'synthB.smpTimbre': 2, 'synthFxA.ampType': 3, 'common.effectsRvbType': 5, 'common.transposeValue': -6,
+    } as const;
+    expect(decodeNg2(file(values)).values).toMatchObject(values);
+  });
+
+  it('odd or short files → header-only with a warning, never a throw', () => {
+    const full = file();
+    for (const bytes of [full.slice(0, 44), full.slice(0, 228), new Uint8Array(10)]) {
+      const p = decodeNg2(bytes);
+      expect(p.layoutMatched).toBe(false);
+      expect(p.warnings.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('ng2Decoded', () => {
+  it('shows the enabled layers with Grand 2 labels, per-layer effects and the global reverb', () => {
+    const d = ng2Decoded(file({
+      'pianoCommon.layerEnable': 0b11, 'synthCommon.layerEnable': 0b01,
+      'pianoA.bank': 0, 'pianoA.layerLevel': 90, 'pianoB.bank': 2, 'pianoB.variation': 1, 'pianoB.octaveShift': -1,
+      'pianoFxA.fx2Enable': 1, 'pianoFxA.fx2Type': 5, 'pianoFxA.cmpEnable': 1,
+      'pianoFxA.dlyEnable': 1, 'pianoFxA.dlyFltType': 1,
+      'common.effectsRvbEnable': 1, 'common.effectsRvbType': 4, 'common.effectsRvbColor': 2,
+    }));
+    expect(d.title).toBe('Nord Grand 2 · Program');
+    expect(d.sections.map((s) => s.label)).toEqual(['PIANO A', 'PIANO B', 'SYNTH A', 'SYNTH B', 'REVERB']);
+    const [pa, pb, sa, sb, rv] = d.sections;
+    expect(pa.engines[0].parts).toEqual(['Grand', 'level 90']);
+    expect(pa.engines[1].parts).toEqual(['Vibe', 'Delay LP', 'Comp']);
+    expect(pa.chips).toEqual(['Pedal Noise']); // firmware default: pedal noise on
+    expect(pb.engines[0].parts).toEqual(['Electric', 'variation 2', 'level 127', 'Oct −1']);
+    expect(pb.engines[1].parts).toEqual(['None on']);
+    expect(sa.engines[0].parts).not.toContain('(off)');
+    expect(sb.engines[0].parts).toContain('(off)');
+    expect(sb.engines[1].parts).toEqual(['—']);
+    expect(rv.engines[0].parts).toEqual(['Reverb Hall Bright']);
+    expect(d.note).toMatch(/map of Grand 2 OS 1\.22 programs/);
+  });
+
+  it('resolves piano names through the injected table', () => {
+    const d = ng2Decoded(file({ 'pianoB.nameHash': 1770716052, 'pianoB.bank': 0 }), (h) => (h === 1770716052 ? 'Soft Grand Lrg' : undefined));
+    expect(d.sections[1].engines[0].parts.slice(0, 2)).toEqual(['Soft Grand Lrg', 'Grand']);
+    expect(d.header).toContainEqual(['Piano B sound id', '0x698afb94']);
+  });
+
+  it('header-only presentation for a file whose structure does not match', () => {
+    const d = ng2Decoded(file().slice(0, 120));
+    expect(d.sections).toEqual([]);
+    expect(d.warnings?.length).toBeGreaterThan(0);
+  });
+});
+
+// ── Real-corpus cross-checks (gitignored fixtures; skipped when absent) ─────────
 
 const FIXTURE_DIR = join(__dirname, '../../../fixtures/grand-2');
 const load = (name: string) => new Uint8Array(readFileSync(join(FIXTURE_DIR, name)));
-const fixtures = () => readdirSync(FIXTURE_DIR).filter(f => f.endsWith('.ng2p'));
+const fixtures = () => readdirSync(FIXTURE_DIR).filter((f) => f.endsWith('.ng2p'));
+const prog = (n: string) => decodeNg2(load(`BUNDLE__DW_${n}.ng2p`));
+const values = (n: string) => prog(n).values;
 
-describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNg2', () => {
-  it('decodes every fixture without warnings', () => {
+describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNg2 — fixtures', () => {
+  it('decodes every fixture without warnings (the block chain tiles the 185-byte body)', () => {
     for (const name of fixtures()) {
-      const prog = decodeNg2(load(name));
-      expect(prog.parsed, name).toBe(true);
-      expect(prog.warnings, name).toHaveLength(0);
+      const p = decodeNg2(load(name));
+      expect(p.layoutMatched, name).toBe(true);
+      expect(p.warnings, name).toHaveLength(0);
     }
   });
 
@@ -22,288 +125,49 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNg2', () => {
     }
   });
 
-  it('exposes correctly-sized raw clusters', () => {
-    const prog = decodeNg2(load(fixtures()[0]));
-    expect(prog._globalHeaderCluster).toHaveLength(4);
-    expect(prog.layerA._raw).toHaveLength(9);
-    expect(prog.layerB._raw).toHaveLength(9);
-    expect(prog._layerAExtendedCluster).toHaveLength(16);
-    expect(prog._layerBExtendedCluster).toHaveLength(16);
-    expect(prog._layerAEffectsCluster).toHaveLength(14);
-    expect(prog._layerBEffectsCluster).toHaveLength(14);
-    expect(prog._layerAFinalCluster).toHaveLength(16);
-    expect(prog._layerBFinalCluster).toHaveLength(16);
+  // The corpus decoder read a 32-bit id at piano-block bit 28; the firmware hash is
+  // bits 25-56, so hash & 0x1fffffff === old >>> 3 (29 bits shared). The top three
+  // bits are the old slot's low bit + old variation where those were pinned
+  // (Clavish-A: slot 24, var 3 → 0b011), and in every case they are the only
+  // choice that resolves in the piano-name table:
+  //   Lazy-A                  0x40a12a7b → 1209279823 "White Grand XL"
+  //   Clavish-A / Untitled-A  0x830146c3 → 1885350104 "DigiGrand 2 Sml"
+  //   Kentucky-A / Thursday-B 0x4c57dca3 → 1770716052 "Soft Grand Lrg"
+  //   Griti-B / Concerto-B    0x22676f0b → 1145892321 "EP1 Deep Timbre Lrg"
+  it('reads the piano name hash at piano-block bit 25', () => {
+    const expected: [string, 'A' | 'B', number][] = [
+      ['Lazy_River', 'A', 1209279823], ['Clavish', 'A', 1885350104], ['Untitled', 'A', 1885350104],
+      ['Kentucky', 'A', 1770716052], ['Thursday', 'B', 1770716052],
+      ['Griti_Tines', 'B', 1145892321], ['Concerto', 'B', 1145892321],
+    ];
+    for (const [n, layer, hash] of expected) expect(values(n)[`piano${layer}.nameHash`], `${n} ${layer}`).toBe(hash);
   });
 
-  it('layer pairs share identical cluster sizes', () => {
-    const prog = decodeNg2(load(fixtures()[0]));
-    expect(prog.layerA._raw.length).toBe(prog.layerB._raw.length);
-    expect(prog._layerAExtendedCluster.length).toBe(prog._layerBExtendedCluster.length);
-    expect(prog._layerAEffectsCluster.length).toBe(prog._layerBEffectsCluster.length);
-    expect(prog._layerAFinalCluster.length).toBe(prog._layerBFinalCluster.length);
-    expect(prog.layerA.pianoModelIdBytes).toHaveLength(4);
+  it('body[101]/[122] is not the piano reference (same piano, different byte)', () => {
+    const clavish = prog('Clavish');
+    const untitled = prog('Untitled');
+    expect(clavish.values['pianoA.nameHash']).toBe(untitled.values['pianoA.nameHash']);
+    expect(clavish._rawBody[101]).not.toBe(untitled._rawBody[101]); // 14 vs 12 — inside SynA
   });
 
-  // ── Candidate global fields ─────────────────────────────────────────────
+  // Values below are re-derived from the corpus-era expectations, bit for bit:
+  // each firmware field is fully covered by previously pinned old fields.
+  it('decodes piano-layer fields from the bits the old map had pinned', () => {
+    // Acid-B: old on=1 + volume 86 → LayerLevel 0b1101011; old slot 17 → Variation 0.
+    expect(values('Acid_Piano')).toMatchObject({ 'pianoB.layerLevel': 107, 'pianoB.variation': 0 });
+    // Duet-B: old on=0 + volume 100 → LayerLevel 50; old slot 9 → Variation 0.
+    expect(values('Duet')).toMatchObject({ 'pianoB.layerLevel': 50, 'pianoB.variation': 0 });
+    // Clavish-A: old slot 24 → Variation 0. Clavish-B: old pstick+susPedal → Bank 0b?11 = 3 (Clavinet).
+    expect(values('Clavish')).toMatchObject({ 'pianoA.variation': 0, 'pianoB.bank': 3, 'pianoB.variation': 3 });
+    // Stacked-B: old touch 1 / unison 2 / dynComp 2 / timbre 4 → DynComp 3, Eq 5.
+    expect(values('Stacked')).toMatchObject({ 'pianoB.dynComp': 3, 'pianoB.eq': 5 });
+    // Wavey-A: old pedalNoise 1 / touch 1 / unison 2 → Unison 2, DynComp 3.
+    expect(values('Wavey')).toMatchObject({ 'pianoA.unison': 2, 'pianoA.dynComp': 3 });
+  });
 
-  it('globalParam1 and globalParam2 are 3-bit values (0–7) across all fixtures', () => {
+  it('every field stays inside its firmware range across the corpus', () => {
     for (const name of fixtures()) {
-      const prog = decodeNg2(load(name));
-      expect(prog.globalParam1, `${name} globalParam1`).toBeGreaterThanOrEqual(0);
-      expect(prog.globalParam1, `${name} globalParam1`).toBeLessThanOrEqual(7);
-      expect(prog.globalParam2, `${name} globalParam2`).toBeGreaterThanOrEqual(0);
-      expect(prog.globalParam2, `${name} globalParam2`).toBeLessThanOrEqual(7);
+      expect(decodeNg2(load(name)).warnings.filter((w) => /outside the instrument/.test(w)), name).toEqual([]);
     }
-  });
-
-  it('layerBActiveFlag is set in exactly 4 corpus programs', () => {
-    const active = fixtures().filter(name => decodeNg2(load(name)).layerBActiveFlag);
-    expect(active).toHaveLength(4);
-  });
-
-  // ── CONFIRMED piano-layer fields (Stage group-p oracle, 2026-06-22) ───────
-
-  it('CONFIRMED pianoOn distribution is {off:23, on:17} across both layers', () => {
-    let on = 0;
-    let off = 0;
-    for (const name of fixtures()) {
-      const prog = decodeNg2(load(name));
-      for (const layer of [prog.layerA, prog.layerB]) {
-        if (layer.pianoOn) on++;
-        else off++;
-      }
-    }
-    // Stage 230-3: on-layers carry real volume, off-layers default.
-    expect(on).toBe(17);
-    expect(off).toBe(23);
-  });
-
-  it('CONFIRMED volume: on-layers carry nonzero volume, off-layers read 0', () => {
-    for (const name of fixtures()) {
-      const prog = decodeNg2(load(name));
-      for (const layer of [prog.layerA, prog.layerB]) {
-        expect(layer.volume, `${name} volume range`).toBeGreaterThanOrEqual(0);
-        expect(layer.volume, `${name} volume range`).toBeLessThanOrEqual(127); // 230-7 7-bit
-        if (layer.pianoOn) {
-          expect(layer.volume, `${name} on-layer volume`).toBeGreaterThan(0);
-        }
-      }
-    }
-  });
-
-  it('CONFIRMED kbZones are a 4-bit enum {0,8,15}', () => {
-    const seen = new Set<number>();
-    for (const name of fixtures()) {
-      const prog = decodeNg2(load(name));
-      for (const layer of [prog.layerA, prog.layerB]) {
-        expect(layer.kbZones, `${name} kbZones`).toBeLessThanOrEqual(15); // 243-1 4-bit
-        seen.add(layer.kbZones);
-      }
-    }
-    expect([...seen].sort((a, b) => a - b)).toEqual([0, 8, 15]);
-  });
-
-  it('CONFIRMED octaveShift is 4-bit, centred ~4', () => {
-    for (const name of fixtures()) {
-      const prog = decodeNg2(load(name));
-      for (const layer of [prog.layerA, prog.layerB]) {
-        expect(layer.octaveShift, `${name} octaveShift`).toBeLessThanOrEqual(15); // 243-5
-      }
-    }
-    // Dominant value across the corpus is 4 (the center).
-    let four = 0;
-    for (const name of fixtures()) {
-      const prog = decodeNg2(load(name));
-      for (const layer of [prog.layerA, prog.layerB]) {
-        if (layer.octaveShift === 4) four++;
-      }
-    }
-    expect(four).toBe(28);
-  });
-
-  it('CONFIRMED pianoType: Grand-dominant, with Electric/Upright differentials', () => {
-    // Stage 244-3 semantic differential (from the cross-model mapping evidence).
-    const acid = decodeNg2(load('BUNDLE__DW_Acid_Piano.ng2p'));
-    expect(acid.layerA.pianoType).toBe('Grand');
-
-    // Stacked-B & Wavey-B = Electric.
-    expect(decodeNg2(load('BUNDLE__DW_Stacked.ng2p')).layerB.pianoType).toBe('Electric');
-    expect(decodeNg2(load('BUNDLE__DW_Wavey.ng2p')).layerB.pianoType).toBe('Electric');
-
-    // Thursday-A, Kentucky-B, Tspoon-B = Upright.
-    expect(decodeNg2(load('BUNDLE__DW_Thursday.ng2p')).layerA.pianoType).toBe('Upright');
-    expect(decodeNg2(load('BUNDLE__DW_Kentucky.ng2p')).layerB.pianoType).toBe('Upright');
-    expect(decodeNg2(load('BUNDLE__DW_Tspoon.ng2p')).layerB.pianoType).toBe('Upright');
-  });
-
-  it('CONFIRMED pianoType distribution is Grand:34 / Upright:4 / Electric:2', () => {
-    const counts: Record<string, number> = {};
-    for (const name of fixtures()) {
-      const prog = decodeNg2(load(name));
-      for (const layer of [prog.layerA, prog.layerB]) {
-        counts[layer.pianoType] = (counts[layer.pianoType] ?? 0) + 1;
-      }
-    }
-    expect(counts.Grand).toBe(34);
-    expect(counts.Upright).toBe(4);
-    expect(counts.Electric).toBe(2);
-  });
-
-  it('CONFIRMED pianoModelId: default Grand is 0x40a12a7b on off-layers', () => {
-    // Stage 245-5: off-layers carry the default Grand model bytes.
-    const lazy = decodeNg2(load('BUNDLE__DW_Lazy_River.ng2p'));
-    expect(lazy.layerA.pianoModelId >>> 0).toBe(0x40a12a7b);
-    expect(lazy.layerA.pianoOn).toBe(false);
-    expect(Array.from(lazy.layerA.pianoModelIdBytes)).toEqual([0x40, 0xa1, 0x2a, 0x7b]);
-  });
-
-  it('CONFIRMED pianoModelId: same instrument shares the exact 32-bit ID', () => {
-    // Clavish-A & Untitled-A both 0x830146c3 (slot 24, var 3).
-    const clavish = decodeNg2(load('BUNDLE__DW_Clavish.ng2p'));
-    const untitled = decodeNg2(load('BUNDLE__DW_Untitled.ng2p'));
-    expect(clavish.layerA.pianoModelId >>> 0).toBe(0x830146c3);
-    expect(untitled.layerA.pianoModelId >>> 0).toBe(0x830146c3);
-    expect(clavish.layerA.pianoModelSlot).toBe(24);
-    expect(clavish.layerA.pianoVariation).toBe(3);
-
-    // Kentucky-A & Thursday-B both 0x4c57dca3 (cross-layer shared model).
-    const kentucky = decodeNg2(load('BUNDLE__DW_Kentucky.ng2p'));
-    const thursday = decodeNg2(load('BUNDLE__DW_Thursday.ng2p'));
-    expect(kentucky.layerA.pianoModelId >>> 0).toBe(0x4c57dca3);
-    expect(thursday.layerB.pianoModelId >>> 0).toBe(0x4c57dca3);
-
-    // Griti-B & Concerto-B both 0x22676f0b.
-    const griti = decodeNg2(load('BUNDLE__DW_Griti_Tines.ng2p'));
-    const concerto = decodeNg2(load('BUNDLE__DW_Concerto.ng2p'));
-    expect(griti.layerB.pianoModelId >>> 0).toBe(0x22676f0b);
-    expect(concerto.layerB.pianoModelId >>> 0).toBe(0x22676f0b);
-  });
-
-  // ── CONFIRMED FX-cluster framing (RE 2026-06-23) ─────────────────────────
-
-  it('CONFIRMED effects cluster is framed by a 0x14 section tag at body[99]', () => {
-    // The TLV section tag (= payload size, 14 bytes) precedes the per-layer FX
-    // effects cluster in every fixture. This is structural framing, not an FX
-    // value; the FX field semantics inside the cluster remain candidate (raw).
-    for (const name of fixtures()) {
-      const prog = decodeNg2(load(name));
-      expect(prog._rawBody[99], `${name} effects section tag`).toBe(0x14);
-    }
-  });
-
-  it('CONFIRMED body[101]/[122] is NOT the piano model index', () => {
-    // Same-instrument pairs share the CONFIRMED 32-bit pianoModelId but DIFFER
-    // in body[101]/[122], so that byte is not the model index — left raw.
-    const clavish = decodeNg2(load('BUNDLE__DW_Clavish.ng2p'));
-    const untitled = decodeNg2(load('BUNDLE__DW_Untitled.ng2p'));
-    expect(clavish.layerA.pianoModelId >>> 0).toBe(untitled.layerA.pianoModelId >>> 0);
-    expect(clavish._rawBody[101]).not.toBe(untitled._rawBody[101]); // 14 vs 12
-  });
-
-  it('decodes specific fixture values — Duet layer split', () => {
-    const prog = decodeNg2(load('BUNDLE__DW_Duet.ng2p'));
-    expect(prog.layerBActiveFlag).toBe(true);
-    // Layer A is the default Grand (off); Layer B carries the played sound.
-    expect(prog.layerA.pianoOn).toBe(false);
-    expect(prog.layerB.pianoOn).toBe(false);
-    expect(prog.layerB.volume).toBe(100);
-    expect(prog.layerB.pianoModelSlot).toBe(9);
-  });
-
-  // ── CONFIRMED core-cluster fields (Stage group-p oracle, in-range across corpus) ──
-
-  it('CONFIRMED all 15 core fields stay in their bit-width range across the corpus', () => {
-    for (const name of fixtures()) {
-      const prog = decodeNg2(load(name));
-      for (const layer of [prog.layerA, prog.layerB]) {
-        expect(layer.pianoModelSlot, `${name} slot`).toBeLessThanOrEqual(31); // 244-6 5-bit
-        expect(layer.pianoVariation, `${name} variation`).toBeLessThanOrEqual(3); // 245-3 2-bit
-        expect(layer.touch, `${name} touch`).toBeLessThanOrEqual(3); // 249-8 2-bit
-        expect(layer.unisonLevel, `${name} unison`).toBeLessThanOrEqual(3); // 250-2 2-bit
-        expect(layer.dynComp, `${name} dynComp`).toBeLessThanOrEqual(3); // 250-4 2-bit
-        expect(layer.timbre, `${name} timbre`).toBeLessThanOrEqual(7); // 250-7 3-bit
-      }
-    }
-  });
-
-  it('CONFIRMED stringRes flips 0/1 (set in 32/40 layers)', () => {
-    // Stage 249-6 string res on/off.
-    let set = 0;
-    for (const name of fixtures()) {
-      const prog = decodeNg2(load(name));
-      for (const layer of [prog.layerA, prog.layerB]) if (layer.stringRes) set++;
-    }
-    expect(set).toBe(32);
-  });
-
-  it('CONFIRMED pstick flips 0/1 (set in 10/40 layers)', () => {
-    // Stage 244-1 pstick on/off.
-    let set = 0;
-    for (const name of fixtures()) {
-      const prog = decodeNg2(load(name));
-      for (const layer of [prog.layerA, prog.layerB]) if (layer.pstick) set++;
-    }
-    expect(set).toBe(10);
-  });
-
-  it('CONFIRMED susPedal/pedalNoise/softRelease flip 0/1 across the corpus', () => {
-    // Stage 244-2 susped, 249-7 pedal noise, 249-5 soft rel.
-    let susped = 0;
-    let pedalNoise = 0;
-    let softRel = 0;
-    for (const name of fixtures()) {
-      const prog = decodeNg2(load(name));
-      for (const layer of [prog.layerA, prog.layerB]) {
-        if (layer.susPedal) susped++;
-        if (layer.pedalNoise) pedalNoise++;
-        if (layer.softRelease) softRel++;
-      }
-    }
-    expect(susped).toBe(5); // 249-2-ish: a handful of patches enable sustain
-    expect(pedalNoise).toBe(8);
-    expect(softRel).toBe(1);
-  });
-
-  it('CONFIRMED per-layer core values — Acid Piano Layer B (slot 17, var 3)', () => {
-    // Stage group-p anchors: a played Grand Layer B with a distinct model.
-    const prog = decodeNg2(load('BUNDLE__DW_Acid_Piano.ng2p'));
-    const b = prog.layerB;
-    expect(b.pianoOn).toBe(true);
-    expect(b.volume).toBe(86); // 230-7
-    expect(b.octaveShift).toBe(5); // 243-5
-    expect(b.pianoModelSlot).toBe(17); // 244-6
-    expect(b.pianoVariation).toBe(3); // 245-3
-    expect(b.stringRes).toBe(true); // 249-6
-    expect(b.pedalNoise).toBe(true); // 249-7
-    expect(b.dynComp).toBe(1); // 250-4
-    expect(b.timbre).toBe(4); // 250-7
-  });
-
-  it('CONFIRMED Electric-piano Layer B carries a coherent co-varying param set', () => {
-    // Stacked-B is an Electric piano (244-3 type=2). Its 249/250 cluster lights
-    // up together — the signature of real per-layer fields, not noise.
-    const stacked = decodeNg2(load('BUNDLE__DW_Stacked.ng2p')).layerB;
-    expect(stacked.pianoType).toBe('Electric'); // 244-3
-    expect(stacked.softRelease).toBe(true); // 249-5
-    expect(stacked.touch).toBe(1); // 249-8
-    expect(stacked.unisonLevel).toBe(2); // 250-2
-    expect(stacked.dynComp).toBe(2); // 250-4
-    expect(stacked.timbre).toBe(4); // 250-7
-
-    // Wavey-A: a Grand with pedalNoise on, touch 1, unison 2, timbre 4.
-    const waveyA = decodeNg2(load('BUNDLE__DW_Wavey.ng2p')).layerA;
-    expect(waveyA.pedalNoise).toBe(true); // 249-7
-    expect(waveyA.touch).toBe(1); // 249-8
-    expect(waveyA.unisonLevel).toBe(2); // 250-2
-    expect(waveyA.timbre).toBe(4); // 250-7
-  });
-
-  it('CONFIRMED pstick/susPedal on an off-layer — Clavish Layer B', () => {
-    // Clavish-B is off but has pstick + susPedal set (244-1/244-2).
-    const b = decodeNg2(load('BUNDLE__DW_Clavish.ng2p')).layerB;
-    expect(b.pianoOn).toBe(false);
-    expect(b.pstick).toBe(true); // 244-1
-    expect(b.susPedal).toBe(true); // 244-2
-    expect(b.pianoModelSlot).toBe(6); // 244-6
   });
 });
