@@ -28,8 +28,11 @@ type Read = { id: string; key: string; name: string; factory: boolean; pct: numb
 export function useOpenSample(id: string | undefined): OpenSample {
   const { entryById, readSample, readKey } = useSamplesState();
   const entry = id ? entryById(id) : undefined;
+  // A local sample (a folder file, an import) has its bytes in hand: it opens
+  // straight away, and new bytes (a refresh, a save) open as they arrive.
+  const inHand = entry?.source === 'local' ? entry.bytes : undefined;
   const [attempt, setAttempt] = useState(0);
-  const key = entry ? `${readKey(entry)}\n${attempt}` : null;
+  const key = entry && !inHand ? `${readKey(entry)}\n${attempt}` : null;
   const [read, setRead] = useState<Read | null>(null);
 
   // The lookup and reader change identity often; the effect reads them here.
@@ -42,7 +45,7 @@ export function useOpenSample(id: string | undefined): OpenSample {
   useEffect(() => {
     if (current.current && current.current.id !== id) { letGo(); setRead(null); }
     if (!id) return;
-    if (!key) { // not in the list right now: keep what was read, stop what wasn't
+    if (!key) { // not in the list right now (or in hand): keep what was read, stop what wasn't
       if (current.current && !current.current.settled) letGo();
       return;
     }
@@ -74,7 +77,11 @@ export function useOpenSample(id: string | undefined): OpenSample {
     [mine?.id, mine?.bytes, mine?.name],
   );
 
+  const name = entry?.name;
+  const handed = useMemo(() => (id && inHand && name ? { id, bytes: inHand, name } : null), [id, inHand, name]);
+
   if (!id) return { state: 'none' };
+  if (handed) return { state: 'open', sample: handed, factory: !!entry?.factory, listed: true };
   // The factory tag as the entry has it now (a backup's origin can resolve after
   // its bytes do), or as it was when read while the entry is unlisted.
   if (sample) return { state: 'open', sample, factory: entry ? !!entry.factory : !!mine?.factory, listed: !!entry };

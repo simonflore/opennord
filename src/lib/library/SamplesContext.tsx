@@ -154,11 +154,11 @@ function useSamplesStateValue() {
       const addrs: Addr[] = toRemove.map((e) => ({ bank: e.device!.bank, slot: e.device!.slot }));
       const res = await session.withSession(PARTITION_SAMP_LIB, () =>
         executePlan(sessionDeviceIO(session), PARTITION_SAMP_LIB, planOffload(addrs), occ,
-          { onProgress: (p) => setRemovePct(Math.round((p.opIndex / p.opCount) * 100)) }));
+          { onProgress: (p) => { if (isCurrent(session)) setRemovePct(Math.round((p.opIndex / p.opCount) * 100)); } }));
       // 2. refresh the device sample list
       // Unless the Nord changed meanwhile: then this list is the old one's.
       try { const es = await enumerateSampleLibrary(session); if (isCurrent(session)) setSampleEntries(es); } catch { /* leave as-is */ }
-      clearSelected();
+      if (isCurrent(session)) clearSelected(); // not another Nord's picks
       return res.ok
         ? { removed: toRemove.length, failed: copyFailed }
         : { removed: 0, failed: copyFailed + toRemove.length };
@@ -177,15 +177,15 @@ function useSamplesStateValue() {
   type Read = { bytes: Promise<Uint8Array>; progress: (pct: number) => void; users: number };
   const reads = useRef(new Map<string, Read>());
   /**
-   * Which read a sample's bytes come from: its id and size, and for a Nord
-   * sample also the session and what the slot holds (its id names a slot, which may hold
+   * Which read a sample's bytes come from (a local sample's are in hand): its
+   * id and size, and for a Nord sample also the session and what the slot holds (its id names a slot, which may hold
    * another sample after a reconnect or once the list is read again), so a read
    * is never reused for different bytes.
    */
   const readKey = useCallback(
     (e: SampleEntry) => (e.source === 'nord' && session
       ? `${nordReadPrefix(session)}${e.id}:${e.name}:${e.device?.sizeBytes ?? ''}`
-      : `${e.id}:${e.size ?? ''}`), // a file changed in place (a refresh) reads again
+      : `${e.id}:${e.size ?? ''}`), // a backup entry rewritten (a refresh) reads again
     [session],
   );
   // A new session (or none) forgets the last one's reads, so none is joined; a

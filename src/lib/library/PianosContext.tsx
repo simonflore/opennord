@@ -129,11 +129,11 @@ function usePianosStateValue() {
       const addrs: Addr[] = toRemove.map((e) => ({ bank: e.device!.bank, slot: e.device!.slot }));
       const res = await session.withSession(PARTITION_PIANO, () =>
         executePlan(sessionDeviceIO(session), PARTITION_PIANO, planOffload(addrs, 'pianos'), occ,
-          { onProgress: (p) => setRemovePct(Math.round((p.opIndex / p.opCount) * 100)) }));
+          { onProgress: (p) => { if (isCurrent(session)) setRemovePct(Math.round((p.opIndex / p.opCount) * 100)); } }));
       // 2. refresh the device piano list
       // Unless the Nord changed meanwhile: then this list is the old one's.
       try { const es = await enumeratePianoLibrary(session); if (isCurrent(session)) setPianoEntries(es); } catch { /* leave as-is */ }
-      clearSelected();
+      if (isCurrent(session)) clearSelected(); // not another Nord's picks
       return res.ok
         ? { removed: toRemove.length, failed: copyFailed }
         : { removed: 0, failed: copyFailed + toRemove.length };
