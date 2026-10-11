@@ -35,7 +35,8 @@ export function useOpenEntry() {
     };
     return {
       program: (e: LibraryEntry) => (e.program
-        ? navigate({ to: '/library/programs/{-$programId}', params: { programId: e.id }, ...how('/library/programs') })
+        // `search: true` keeps the list's ?source= filter as the program opens.
+        ? navigate({ to: '/library/programs/{-$programId}', params: { programId: e.id }, search: true, ...how('/library/programs') })
         : navigate({ to: '/device' })),
       preset: (id: string) => navigate({ to: '/library/presets/{-$presetId}', params: { presetId: id }, ...how('/library/presets') }),
       sample: (id: string) => navigate({ to: '/library/samples/{-$sampleId}', params: { sampleId: id }, ...how('/library/samples') }),
@@ -59,7 +60,7 @@ export function useLeaveEntry(list: NavTo): () => void {
     const path = trimSlash(pathname);
     if (path === list || !isUnder(path, list)) return;
     if (state.fromList) router.history.back();
-    else void navigate({ to: list, replace: true });
+    else void navigate({ to: list, replace: true, search: true }); // keeps the list's filter (?source=)
   }, [navigate, router, list]);
 }
 
