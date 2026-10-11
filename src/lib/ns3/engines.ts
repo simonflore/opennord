@@ -6,7 +6,8 @@ const KIND_ORDER: EngineKind[] = ['organ', 'piano', 'synth'];
 /**
  * Stage 3: the Panel leads — each of A/B is a whole sound with its own
  * organ+piano+synth. `decodeNs3` already returns only the active panels, so an
- * empty array here means the decoder found none (see ns3/decode.ts:642).
+ * empty array here means the reader found none (or the file didn't match the
+ * firmware layout — see ns3/decode.ts).
  */
 export function ns3Engines(panels: Ns3Panel[]): EngineSummary {
   return {

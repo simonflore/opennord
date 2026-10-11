@@ -13,10 +13,10 @@
  * the maintainers’ tools (`<model>/layout.generated.ts`), so each
  * field carries its own firmware citation.
  *
- * Used today by the Grand (`ngp`), Piano 6 (`np6p`), Electro 7 (`ne7p`) and
- * Organ 3 (`no3p`) readers. The older corpus-RE'd decoders (np4, np5, ng2, ne6,
- * nw2) still use their own fixed offsets; moving them onto this reader is a
- * follow-up. Pure; model → clavia.
+ * Used today by the Stage 3 (`ns3f`), Grand (`ngp`), Piano 6 (`np6p`), Electro 7
+ * (`ne7p`) and Organ 3 (`no3p`) readers. The older corpus-RE'd decoders (np4,
+ * np5, ng2, ne6, nw2) still use their own fixed offsets; moving them onto this
+ * reader is a follow-up. Pure; model → clavia.
  *
  * Never throws: an odd or truncated file yields a header-only result with a
  * warning, so the Library can still list it.
@@ -193,13 +193,19 @@ export interface FwProgram<K extends string> {
   name?: string;
 }
 
-/** Decode a whole file (CBIN header + body) against a layout. Never throws. */
-export function decodeFwProgram<K extends string>(bytes: Uint8Array, layout: FwLayout<K>): FwProgram<K> {
+/**
+ * Decode a whole file (CBIN header + body) against a layout. Never throws.
+ * `bodyOffset` is where the body starts: the NSM-era header's 0x2C, or 0x18 for a
+ * Stage 3 file with the shorter legacy (formatType 0) header.
+ */
+export function decodeFwProgram<K extends string>(
+  bytes: Uint8Array, layout: FwLayout<K>, bodyOffset: number = CBIN_BODY_OFFSET,
+): FwProgram<K> {
   const warnings: string[] = [];
-  if (bytes.length < CBIN_BODY_OFFSET) {
-    warnings.push(`File too short: ${bytes.length} bytes (a Nord file header alone is ${CBIN_BODY_OFFSET}).`);
+  if (bytes.length < bodyOffset) {
+    warnings.push(`File too short: ${bytes.length} bytes (a Nord file header alone is ${bodyOffset}).`);
   }
-  const body = bytes.slice(CBIN_BODY_OFFSET);
+  const body = bytes.slice(bodyOffset);
   let decoded: FwBodyDecode<K>;
   try {
     decoded = decodeFwBody(body, layout);
