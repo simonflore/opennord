@@ -1,85 +1,78 @@
 /**
  * Nord Wave (`.nwp`) program model.
  *
- * ## Architecture (corpus RE, 2026-06-22, 1018 fixtures × 350 bytes)
+ * Legacy (formatType 0) CBIN record at file 0x18: a **u8** record version (8;
+ * the firmware converts 6 and 7 on load, FUN_3000090E), then 321 bytes of
+ * MSB-first descriptor data from **file 0x19**, 2 pad bytes, and the LE
+ * CRC-16/CCITT-FALSE trailer over the whole file (clavia/crc16.ts; 1018/1018
+ * corpus files): 24 + 1 + 321 + 2 + 2 = 350 bytes. Layout from the Wave OS
+ * 2.14 parameter containers (record write FUN_300056A4, read FUN_30005906),
+ * generated into `layout.generated.ts`:
  *
- * The 306-byte body is **two parallel synth slots** at a fixed stride of +140,
- * NOT the old A/B/C clusters. Evidence:
- *   - per-byte unique-count signatures match 57/76 between [0..75] and [140..215]
- *   - on average 63.7/76 bytes are byte-identical slot1==slot2 per file
- *   - 199/1018 files have the two slots exactly identical; 445/1018 match ≥70/76
- *   - enum positions line up: body[0]↔body[140] (osc select),
- *     body[45]↔body[185] (enum 0-7), body[39]↔body[179] (even-only stepped)
+ * | Data bits | File          | Block                                          |
+ * |-----------|---------------|------------------------------------------------|
+ * | 0–155     | 0x19–0x2C     | global (12 descriptors, 8 stored values)       |
+ * | 156–1275  | 0x2C–0xB8     | slot A (63 descriptors, 56 values) = 140 bytes |
+ * | 1276–2395 | 0xB8–0x144    | slot B (the same 63) = 140 bytes               |
+ * | 2396–2567 | 0x144–0x159   | common (14 descriptors, 10 values)             |
  *
- * | Region        | body range | size | status    |
- * |---------------|-----------|------|-----------|
- * | Slot 1 voice  | 0-115     | 116b | candidate |
- * | (zero pad)    | 116-139   | 24b  | constant  |
- * | Slot 2 voice  | 140-255   | 116b | confirmed (mirror of slot 1) |
- * | (zero pad)    | 256-279   | 24b  | constant  |
- * | Global / tail | 280-289   | 10b  | candidate |
- * | (zero pad)    | 290-302   | 13b  | constant  |
- * | byte[303]     | 303       | 1b   | unknown (near-const 0) |
- * | checksum      | 304-305   | 2b   | confirmed (LE CRC-16/CCITT-FALSE over file[0:-2], 1018/1018) |
+ * A morphable parameter is preceded by one signed 8-bit delta per morph source
+ * (sources 0, 5 and 6 of the mask 0x61, in that order), one bit wider than the
+ * value; 26 per slot and one in common. Deltas are read as two's complement
+ * (medium). Parameters are known by descriptor index and control id (probably
+ * the MIDI CC) only.
  *
- * CBIN header: slot @0x0e, category @0x10, versionRaw @0x14 (raw 6/7/8).
- *
- * Source: 1018-file corpus statistical analysis (2026-06-22).
+ * The earlier corpus reader read from file 0x2C ("body") and found the slot
+ * stride of +140 that this layout explains; its byte-aligned "selectors" were
+ * fragments of real parameters (e.g. `oscSelect` = 2 · slot A parameter 0 +
+ * the top bit of parameter 1). The alignment (record at 0x18, not slot A at
+ * 0x2C) is medium until the corpus test in decode.test.ts runs: under it no
+ * stored value exceeds its descriptor range.
  */
+import type { Nw1FieldKey } from './layout.generated';
 
-/**
- * One Nord Wave synth slot (116 bytes, bit-packed VA/wavetable voice).
- *
- * Individual ADSR/cutoff/LFO fields straddle byte boundaries and cannot be
- * pinned from corpus stats alone; only the small enum/stepped selectors below
- * are byte-aligned. The remaining packed voice bytes are exposed as `_raw`.
- */
-export interface Nw1Slot {
-  /** body[+0]: oscillator/waveform category select. uint8 enum 0-8 (mode 4). */
-  readonly oscSelect: number;
-  /** body[+39]: stepped selector, even values only {0,2,4,6,8,10} (6 positions ×2). */
-  readonly steppedParam: number;
-  /** body[+45]: enum 0-7 (mode 7), likely osc-config / filter-type. */
-  readonly enumParam: number;
-  /** body[+49]: enum 0-6 (7 values), per-slot mirrored. Corpus-confirmed, unnamed. */
-  readonly enum2: number;
-  /** body[+84]: enum 0-3 (4 values), per-slot mirrored. Corpus-confirmed, unnamed. */
-  readonly enum3: number;
-  /** Full 116-byte bit-packed voice block (osc/filter/env/LFO). */
-  readonly _raw: Uint8Array;
+export type { Nw1FieldKey };
+
+/** One block of the record: its stored values by descriptor index, and the morph deltas of its morphable ones. */
+export interface Nw1Section {
+  /** Stored values by descriptor index (reserved descriptors are absent: undefined). */
+  readonly params: readonly (number | undefined)[];
+  /** Morph deltas by descriptor index: one per source, in source order 0, 5, 6. */
+  readonly morphs: Readonly<Record<number, readonly number[]>>;
 }
 
-/**
- * Shared (non-per-slot) global block: body[280-289] (10 bytes, bit-packed).
- * Master level / split / FX (reverb/delay/chorus) / arp.
- */
-export interface Nw1Global {
-  /** body[280] low nibble: mode / octave-shift enum (0-15). */
-  readonly mode: number;
-  /** body[286] bit0: near-binary global toggle (0/1 in 1017/1018 files). Candidate. */
-  readonly toggle: number;
-  /** body[289]: packed 2-bit flag pair {0,64,128,192} (e.g. arp on/off + FX on/off). */
-  readonly flags: number;
-  /** Full 10-byte tail block. */
-  readonly _raw: Uint8Array;
-}
+/** A synth slot (A or B): 56 stored parameters, 26 of them morphable. */
+export type Nw1Slot = Nw1Section;
+/** The global block: 8 stored parameters. */
+export type Nw1Global = Nw1Section;
 
 export interface Nw1Program {
   readonly parsed: true;
+  /** CBIN version string — NSM's copy of the record version at 0x14 (8 → "0.08"). */
   readonly version: string;
-  /** Slot 1 voice: body[0-115]. */
-  readonly slot1: Nw1Slot;
-  /** Slot 2 voice: body[140-255] (confirmed parallel mirror of slot 1). */
-  readonly slot2: Nw1Slot;
-  /** Global / FX / master tail: body[280-289]. */
+  /** u8 record version at file 0x18 (8; 6 and 7 are converted by the firmware). */
+  readonly recordVersion: number;
   readonly global: Nw1Global;
-  /**
-   * body[304-305]: LE CRC-16/CCITT-FALSE over the whole file except the final
-   * 2 bytes (clavia/crc16.ts). Confirmed 1018/1018 corpus files 2026-07-04.
-   */
+  /** Slot A. */
+  readonly slot1: Nw1Slot;
+  /** Slot B. */
+  readonly slot2: Nw1Slot;
+  readonly common: Nw1Section;
+  /** Every stored value, morph deltas included, by generated key. */
+  readonly values: Partial<Record<Nw1FieldKey, number>>;
+  /** Morph deltas grouped under the parameter they modulate: key → one delta per source. */
+  readonly morphDeltas: Partial<Record<Nw1FieldKey, readonly number[]>>;
+  /** Parameters outside their descriptor range (the firmware resets these to default on load). */
+  readonly outOfRange: readonly Nw1FieldKey[];
+  /** True when the file holds the whole record. */
+  readonly complete: boolean;
+  /** The last two bytes (LE): CRC-16/CCITT-FALSE over the rest of the file. */
   readonly checksum: number;
-  readonly _rawBody: Uint8Array;
+  /** Record data: file 0x19 up to the trailer (321 bytes + 2 pad bytes). */
+  readonly _data: Uint8Array;
   readonly warnings: readonly string[];
+  /** Original file bytes. */
   bytes: Uint8Array;
+  /** Program name — not stored in the file, injected from the filename on import. */
   name?: string;
 }

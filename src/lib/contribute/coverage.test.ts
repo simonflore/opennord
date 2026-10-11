@@ -138,14 +138,34 @@ describe('parameter counts of the legacy-record readers', () => {
     expect(decodeForModel('lead-4').paramCount).toBe(86);
     expect(decodeForModel('lead-a1').paramCount).toBe(52);
   });
+
+  it('count the Electro 3 presets and per-instrument effect switches once; the HP adds five', () => {
+    // common 1 · organ common 6 · preset 37 · piano 18 · shared effects 15 · switches 5
+    expect(decodeForModel('electro-3').paramCount).toBe(82);
+    expect(decodeForModel('electro-3-hp').paramCount).toBe(87);
+    expect(decodeForModel('electro-3')).toMatchObject({ bodyBytes: 108, coveredBytes: 0 });
+  });
+
+  it('count each C2D parameter once across presets, manuals and repeated containers', () => {
+    expect(decodeForModel('c2d').paramCount).toBe(91);
+    expect(decodeForModel('c2d')).toMatchObject({ status: 'partial', bodyBytes: 345, coveredBytes: 0 });
+    expect(decodeForModel('c2').status).toBe('none'); // no C2 firmware read
+  });
+
+  it('count each Wave parameter once across both slots, without the morph deltas', () => {
+    // global 8 · slot 56 · common 10
+    expect(decodeForModel('wave').paramCount).toBe(74);
+    expect(decodeForModel('wave')).toMatchObject({ status: 'partial', bodyBytes: 323, coveredBytes: 0 });
+  });
 });
 
 describe('fullMap', () => {
   it('is set for the firmware-layout and legacy-record readers except Wave 2, and for the Stage 4', () => {
-    for (const id of ['stage-4', 'stage-3', 'grand', 'grand-2', 'piano-4', 'piano-5', 'piano-6', 'electro-6', 'electro-7', 'organ-3', 'lead-4', 'lead-a1', 'electro-4', 'stage-2', 'stage-2-ex']) {
+    for (const id of ['stage-4', 'stage-3', 'grand', 'grand-2', 'piano-4', 'piano-5', 'piano-6', 'electro-6', 'electro-7', 'organ-3', 'lead-4', 'lead-a1', 'electro-4',
+      'stage-2', 'stage-2-ex', 'electro-3', 'electro-3-hp', 'c2d', 'wave']) {
       expect(decodeForModel(id).fullMap, id).toBe(true);
     }
-    for (const id of ['wave-2', 'electro-5', 'wave', 'electro-3']) {
+    for (const id of ['wave-2', 'electro-5', 'c2']) {
       expect(decodeForModel(id).fullMap, id).toBe(false);
     }
   });

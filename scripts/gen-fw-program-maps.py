@@ -48,6 +48,10 @@ Usage (from packages/core):
     python3 scripts/gen-fw-program-maps.py lead-4   <lead-4-offsets.csv>       src/lib/nl4/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py lead-a1  <lead-a1-offsets.csv>      src/lib/nla/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py electro-4 <electro-4-offsets.csv>   src/lib/ne4/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py electro-3 <electro-3-offsets.csv>   src/lib/ne3/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py electro-3-hp <electro-3-hp-offsets.csv> src/lib/ne3/layout-hp.generated.ts
+    python3 scripts/gen-fw-program-maps.py c2d      <c2d-offsets.csv>          src/lib/nc2/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py wave     <wave-offsets.csv>         src/lib/nw1/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py stage-3  <ns3-offsets.csv>          src/lib/ns3/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py stage-2  <stage-2-offsets.csv>      src/lib/ns2/layout.generated.ts
 
@@ -59,26 +63,29 @@ rows contradict. Until that is reconciled the Wave 2 layout carries base values
 only. The Stage 3 keeps its morph deltas: its offset map gives the
 delta + (max - min) storage with high confidence.
 
-Legacy records (Lead 4, Lead A1, Electro 4; `kind: 'legacy'`) are not block
-chains: the formatType-0 file holds a u16 record version at 0x14 and the record
-data from file 0x1A, one MSB-first bitstream of descriptor parameters stored raw
-(minimum 0). Their output is a LegacyLayout (src/lib/clavia/legacy-record.ts):
+Legacy records (Lead 4, Lead A1, Electro 3 / 3 HP / 4, C2D, Wave; `kind: 'legacy'`)
+are not block chains: the formatType-0 file holds the record at file 0x18 — a
+record version (u16, or the Wave's u8: `versionBytes`) then the data, one
+MSB-first bitstream of descriptor parameters stored raw (minimum 0), then any
+padding (`padBytes`). Their output is a LegacyLayout (src/lib/clavia/legacy-record.ts):
   lead:      name,block,param_id,bit_offset,byte,bit_msb,bit_width,min,max,default,midi_cc,morph,...,notes
              (bit_offset relative to the record data; morph = "delta" for a Lead A1 inline delta)
   electro-4: name,block,param_index,stream_bit_offset,...,bit_width,min,max,default,ctl_id,notes
-             (not-stored rows have no stream_bit_offset)
+             (not-stored rows have no stream_bit_offset; the Electro 3 / 3 HP, C2D,
+             Wave and Stage 2 CSVs use the same columns)
 Reserved rows are dropped; the Lead 4 sparse morph lists become `morphLists`.
-
-The Stage 2 (`stage-2`) is a descriptor-container record in the electro-4 dialect,
-with two differences. Its data starts at file 0x2E behind the NSM-era header (0x1A
-behind the legacy one), which the reader handles; the layout's bits are relative
-to the record data either way. And its morphable parameters carry inline deltas
-that the CSV describes in the notes ("morphable: 3 signed deltas of N bits ... at
-stream bits a..b precede the value"), not as rows. With `morphNotes` set, each
-becomes `<parameter key>.morph<Source>` (deltaOf the parameter): one per source in
-the descriptor's mask, one bit wider than the parameter, two's complement (the
-record reader FUN_30032CCE reads deltas with the sign-extending FUN_301EDBE6 and
-keeps them within +/-max).
+In the electro-4 dialect a morphable parameter's inline deltas come from its
+note, "morphable: N signed deltas of W bits (sources ...) at stream bits X..Y
+precede the value": one delta per morph source, one bit wider than the
+parameter, two's complement within +/-(max - min), each `deltaOf` the
+parameter (the Stage 2 record reader FUN_30032CCE reads them with the
+sign-extending FUN_301EDBE6). Named sources (the Stage 2's "0/1/2 =
+Wheel/After Touch/Ctrl Pedal") become `<key>.morph<Source>`, numbered ones
+(the Wave's "0/5/6 in that order") `<key>MorphDeltaSrc<n>`, as on the Lead A1.
+A "second copy" row (the C2D's firmware list repeats some containers) becomes a
+field with `copyOf` naming the first copy, which the firmware reader
+overwrites. `sets` names the parameter sets a record stores more than once
+(presets, manuals, slots), so the coverage count takes each parameter once.
 """
 import csv
 import re
@@ -252,6 +259,54 @@ MODELS = {
             {'const': 'NE4_LAYOUT', 'type': 'Ne4FieldKey', 'version': None, 'blocks': None},
         ],
     },
+    'electro-3': {
+        'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord Electro 3',
+        'source': 'Electro 3 OS 3.14 parameter containers',
+        'container': 'Electro 3 OS 3.14 record version 101 (100 upgraded by FUN_30017F9A), categories FUN_30009764',
+        # Descriptors high; the block alignment in the file is medium.
+        'confidence': lambda row: 'medium',
+        'sets': {'organPresetI': 'organPreset', 'organPresetII': 'organPreset',
+                 'effectsOrgan': 'effectsSwitches', 'effectsPiano': 'effectsSwitches'},
+        'records': [
+            # One 108-byte record of 8 descriptor containers; no morphs.
+            {'const': 'NE3_LAYOUT', 'type': 'Ne3FieldKey', 'version': 101, 'blocks': None},
+        ],
+    },
+    'electro-3-hp': {
+        'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord Electro 3 HP',
+        'source': 'Electro 3 HP OS 3.16 parameter containers',
+        'container': 'Electro 3 HP OS 3.16 record version 101: the Electro 3 record plus 5 parameters in its reserved space',
+        'confidence': lambda row: 'medium',
+        'sets': {'organPresetI': 'organPreset', 'organPresetII': 'organPreset',
+                 'effectsOrgan': 'effectsSwitches', 'effectsPiano': 'effectsSwitches'},
+        'records': [
+            {'const': 'NE3HP_LAYOUT', 'type': 'Ne3HpFieldKey', 'version': 101, 'blocks': None},
+        ],
+    },
+    'c2d': {
+        'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord C2D',
+        'source': 'C2D OS 1.12 parameter containers',
+        'container': 'C2D OS 1.12 container list FUN_300200AE (115 instances, record version 100)',
+        # Container order from the firmware list (high); block names medium-low; alignment medium.
+        'confidence': lambda row: 'medium',
+        # Presets, manuals, stops and per-organ switch sets share their descriptors.
+        'sets': lambda block: re.sub(r'\d+(_\d+)?(dup)?$', '', block),
+        'records': [
+            {'const': 'NC2_LAYOUT', 'type': 'Nc2FieldKey', 'version': 100, 'blocks': None},
+        ],
+    },
+    'wave': {
+        'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord Wave',
+        'source': 'Wave OS 2.14 parameter containers',
+        'container': 'Wave OS 2.14 record write FUN_300056A4 / read FUN_30005906, versions 6-8 FUN_3000090E',
+        'confidence': lambda row: 'medium',
+        # A u8 record version at file 0x18, so the data starts at 0x19; 2 pad bytes close the 324-byte record.
+        'versionBytes': 1, 'padBytes': 2,
+        'sets': {'slotA': 'slot', 'slotB': 'slot'},
+        'records': [
+            {'const': 'NW1_LAYOUT', 'type': 'Nw1FieldKey', 'version': 8, 'blocks': None},
+        ],
+    },
     'stage-2': {
         'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord Stage 2',
         'source': 'Stage 2 OS 3.00 parameter containers',
@@ -259,8 +314,8 @@ MODELS = {
                      'record write FUN_30032F1A / read FUN_30032CCE',
         'dataStart': 'file 0x2E behind the NSM-era header, 0x1A behind the legacy one',
         'dataBytes': 519,  # 21 global + 2 x 249 (the slot stride)
-        # Inline morph deltas from the CSV notes (see the module docstring).
-        'morphNotes': True,
+        # Slot A and slot B store the same 15 containers.
+        'sets': lambda block: re.sub(r'^slot[AB]_', 'slot_', block),
         # The layout reproduces every whole-field read of the earlier
         # ns3-program-viewer-derived decoder, which was checked against real files.
         'confidence': lambda row: 'high',
@@ -475,7 +530,7 @@ def ts_str(s):
 
 MORPH_LIST = re.compile(r'entries\[(\d+)\] \{param index (\d+)b, source (\d+)b, delta (\d+)b signed\}')
 MORPH_NOTE = re.compile(
-    r'morphable: (\d+) signed deltas of (\d+) bits \(sources ([0-9/]+) = ([^;]*); descriptor mask (\d+)\) '
+    r'morphable: (\d+) signed deltas of (\d+) bits \(sources ([0-9/]+)(?: = ([^;]*); descriptor mask (\d+)| in that order)\) '
     r'at stream bits (\d+)\.\.(\d+) precede the value')
 MORPH_SOURCE_KEYS = {'Wheel': 'morphWheel', 'After Touch': 'morphAfterTouch', 'Ctrl Pedal': 'morphCtrlPedal'}
 
@@ -485,16 +540,22 @@ def note_deltas(base, notes):
     m = MORPH_NOTE.search(notes)
     if not m:
         return []
-    count, width, _, names, mask, start, end = m.groups()
+    count, width, ids, names, mask, start, end = m.groups()
     count, width, start, end = int(count), int(width), int(start), int(end)
-    sources = [n.strip() for n in names.split('/')]
-    assert len(sources) == count == bin(int(mask)).count('1'), notes
+    ids = ids.split('/')
+    assert len(ids) == count, notes
     assert width == base['width'] + 1 and start + count * width == end + 1 == base['bit'], (base['key'], notes)
+    if names is not None:
+        sources = [n.strip() for n in names.split('/')]
+        assert len(sources) == count == bin(int(mask)).count('1'), notes
+        named = [(f".{MORPH_SOURCE_KEYS[n]}", f"morph {n}", f"{n} morph") for n in sources]
+    else:
+        named = [(f"MorphDeltaSrc{n}", f"morph delta src{n}", f"morph src{n}") for n in ids]
     span = base['max'] - base['min']
-    return [dict(base, key=f"{base['key']}.{MORPH_SOURCE_KEYS[src]}", name=f"{base['name']} morph {src}",
+    return [dict(base, key=base['key'] + suffix, name=f"{base['name']} {label}",
                  bit=start + i * width, width=width, min=-span, max=span, enc='twos', cc=None,
-                 src=f"{base['src']} · {src} morph", deltaOf=base['key'], delta=True, **{'def': 0})
-            for i, src in enumerate(sources)]
+                 src=f"{base['src']} · {srcnote}", deltaOf=base['key'], delta=True, copy=False, **{'def': 0})
+            for i, (suffix, label, srcnote) in enumerate(named)]
 
 
 def main_legacy():
@@ -510,13 +571,14 @@ def main_legacy():
         return int(v) if v not in ('', None) else None
 
     end_rows = [r for r in rows if r['name'] == '[end of program data]']
+    data_start = cfg.get('dataStart') or f"file 0x{0x18 + cfg.get('versionBytes', 2):X}"
     out = [
         f"// AUTO-GENERATED by scripts/gen-fw-program-maps.py ({model_id}) — DO NOT EDIT MANUALLY.",
         "//",
         f"// Provenance: {cfg['source']}; {cfg['container']}.",
         "// Static analysis of the firmware's own parameter descriptors. Knowledge only —",
         "// parameter names, bit positions, ranges and defaults; no firmware bytes or",
-        f"// tables (docs/LEGAL.md). `bit` is relative to the record data ({cfg.get('dataStart', 'file 0x1A')}).",
+        f"// tables (docs/LEGAL.md). `bit` is relative to the record data ({data_start}).",
         "import type { LegacyLayout } from '../clavia/legacy-record';",
     ]
     summary = []
@@ -556,21 +618,27 @@ def main_legacy():
             field = {
                 'key': f"{blocks[r['block']]}.{legacy_key(name)}" if blocks else name,
                 'name': name, 'id': int(pid), 'block': r['block'], 'delta': lead and r['morph'] == 'delta',
+                'copy': not lead and 'second copy' in r['notes'],
                 'bit': bit_of(r), 'width': int(r['bit_width']), 'min': lo, 'max': hi,
                 'def': int(r['default']) if r['default'] not in ('', None) else 0,
                 'enc': enc, 'confidence': cfg['confidence'](r),
                 'src': f"{cfg['source']} · {r['block']} {pid}",
                 'cc': int(cc) if cc not in ('', None) else None,
             }
-            if cfg.get('morphNotes'):
+            if not lead:
                 fields.extend(note_deltas(field, r['notes']))
             fields.append(field)
+        by_key = {f['key']: f for f in fields}
         for f in fields:
             assert 0 <= f['bit'] and f['bit'] + f['width'] <= data_bytes * 8, f
             if f['delta'] and 'deltaOf' not in f:
                 base = [g for g in fields if g['block'] == f['block'] and g['id'] == f['id'] and not g['delta']]
                 assert len(base) == 1, f
                 f['deltaOf'] = base[0]['key']
+            if f.get('copy'):
+                first = f['key'].replace('dup.', '.', 1)
+                assert first != f['key'] and first in by_key, f
+                f['copyOf'] = first
         keys = [f['key'] for f in fields]
         dup = {k for k in keys if keys.count(k) > 1}
         if dup:
@@ -586,11 +654,16 @@ def main_legacy():
         out.append(f"  source: {ts_str(cfg['source'])},")
         out.append(f"  container: {ts_str(cfg['container'])},")
         out.append(f"  recordVersion: {rec['version'] if rec['version'] is not None else 'null'},")
+        if 'versionBytes' in cfg:
+            out.append(f"  versionBytes: {cfg['versionBytes']},")
         out.append(f"  dataBytes: {data_bytes},")
+        if cfg.get('padBytes'):
+            out.append(f"  padBytes: {cfg['padBytes']},")
         out.append("  fields: [")
         for f in fields:
             extra = (f", cc: {f['cc']}" if f['cc'] is not None else '') + \
-                (f", deltaOf: {ts_str(f['deltaOf'])}" if 'deltaOf' in f else '')
+                (f", deltaOf: {ts_str(f['deltaOf'])}" if 'deltaOf' in f else '') + \
+                (f", copyOf: {ts_str(f['copyOf'])}" if 'copyOf' in f else '')
             out.append(
                 f"    {{ key: {ts_str(f['key'])}, name: {ts_str(f['name'])}, id: {f['id']}, bit: {f['bit']}, "
                 f"width: {f['width']}, min: {f['min']}, max: {f['max']}, def: {f['def']}, "
@@ -604,6 +677,18 @@ def main_legacy():
                     f"maxEntries: {m['maxEntries']}, entryBit: {m['entryBit']}, paramBits: {m['paramBits']}, "
                     f"sourceBits: {m['sourceBits']}, deltaBits: {m['deltaBits']} }},")
             out.append("  ],")
+        sets = cfg.get('sets')
+        if sets:
+            pairs = {}
+            for f in fields:
+                prefix = f['key'].split('.')[0]
+                shared = sets(prefix) if callable(sets) else sets.get(prefix, prefix)
+                if shared != prefix:
+                    pairs.setdefault(prefix, shared)
+            out.append("  sets: {")
+            for prefix, shared in pairs.items():
+                out.append(f"    {prefix}: {ts_str(shared)},")
+            out.append("  },")
         out.append("};")
         summary.append(f"{rec['const']} {len(fields)} fields/{data_bytes} bytes")
     with open(out_path, 'w') as fh:

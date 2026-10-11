@@ -27,7 +27,7 @@ describe('MatrixView', () => {
   });
   it('says "Not yet" for undecoded models and "—" for the C1, which has no program files', () => {
     const html = render();
-    expect(html).toMatch(/Nord Electro 3<\/th><td[^>]*>Not yet</);
+    expect(html).toMatch(/Nord C2<\/th><td[^>]*>Not yet</);
     expect(html).toMatch(/Nord C1<\/th><td[^>]*>—</);
   });
   it('marks the readers that cover every stored parameter as "full map"', () => {
@@ -44,6 +44,7 @@ describe('MatrixView', () => {
   });
   it('shows the parameter count of the firmware-layout readers', () => {
     expect(render()).toMatch(/Nord Grand<\/th><td[^>]*>\d+ params/);
+    expect(render()).toMatch(/Nord Electro 3<\/th><td[^>]*>82 params/);
   });
   it('prompts to connect a Nord when none is connected', () => {
     expect(render()).toContain('the check is read-only');

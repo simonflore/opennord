@@ -29,6 +29,10 @@ import { nl4Codec } from './nl4/codec';
 import type { Nl4Program } from './nl4/types';
 import { nlaCodec } from './nla/codec';
 import type { NlaProgram } from './nla/types';
+import { ne3Codec } from './ne3/codec';
+import { nc2Codec } from './nc2/codec';
+import type { Nc2Program } from './nc2/types';
+import type { Ne3Program } from './ne3/types';
 import { ne4Codec } from './ne4/codec';
 import type { Ne4Program } from './ne4/types';
 import { ne5Codec } from './ne5/codec';
@@ -54,7 +58,7 @@ export type NordProgram =
   | Np4Program | Np5Program | Ng2Program
   | Nw1Program | Nw2Program
   | Nl4Program | NlaProgram
-  | Ne4Program | Ne5Program
+  | Ne3Program | Ne4Program | Ne5Program | Nc2Program
   | NgProgram | Np6Program | Ne7Program | No3Program;
 
 /**
@@ -71,6 +75,8 @@ const CODECS: readonly ModelCodec<NordProgram>[] = [
   nw1Codec,
   nl4Codec,
   nlaCodec,
+  ne3Codec,
+  nc2Codec,
   ne4Codec,
   ne5Codec,
   // Firmware-layout readers (clavia/block-chain.ts): read-only.

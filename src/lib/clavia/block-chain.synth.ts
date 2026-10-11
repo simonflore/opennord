@@ -8,7 +8,7 @@
 import { buildCbinHeader } from './cbin';
 import { sealTrailerChecksum } from './crc16';
 import type { FwField, FwLayout } from './block-chain';
-import { LEGACY_DATA_OFFSET, type LegacyLayout } from './legacy-record';
+import { LEGACY_DATA_OFFSET, LEGACY_RECORD_OFFSET, NSM_RECORD_OFFSET, type LegacyLayout } from './legacy-record';
 
 /** Write `width` bits of `value` MSB-first at absolute bit `startBit` of `body`. */
 export function writeBits(body: Uint8Array, startBit: number, width: number, value: number): void {
@@ -63,7 +63,11 @@ export function synthFwFile(tag: string, body: Uint8Array, versionRaw = 100): Ui
 export function writeLegacyRecord<K extends string>(
   data: Uint8Array, layout: LegacyLayout<K>, values: Partial<Record<K, number>> = {}, byteOffset = 0,
 ): void {
-  for (const f of layout.fields) writeBits(data, byteOffset * 8 + f.bit, f.width, fieldRaw(values[f.key] ?? f.def, f));
+  for (const f of layout.fields) {
+    // A repeated container (`copyOf`) is the same container written twice: it repeats the first copy's value.
+    const v = values[f.key] ?? (f.copyOf !== undefined ? values[f.copyOf] : undefined) ?? f.def;
+    writeBits(data, byteOffset * 8 + f.bit, f.width, fieldRaw(v, f));
+  }
 }
 
 /** A legacy formatType-0 file: CBIN magic, `tag`, the u16 record version at 0x14, `data` from 0x1A, a sealed CRC-16 trailer. */
@@ -73,4 +77,28 @@ export function synthLegacyFile(tag: string, recordVersion: number, data: Uint8A
   out.set(header.subarray(0, LEGACY_DATA_OFFSET));
   out.set(data, LEGACY_DATA_OFFSET);
   return sealTrailerChecksum(out);
+}
+
+/**
+ * A whole program file for a legacy `layout`, laid out as the firmware stores it:
+ * the CBIN header (legacy formatType 0 by default, NSM-era with `nsmHeader`), the
+ * record version (big-endian, `layout.versionBytes` wide) at the record offset,
+ * every field at its descriptor default overridden by `values`, the padding, and
+ * for a legacy header a sealed CRC-16 trailer.
+ */
+export function synthLegacyLayoutFile<K extends string>(
+  tag: string, layout: LegacyLayout<K>, values: Partial<Record<K, number>> = {},
+  opts: { version?: number; nsmHeader?: boolean } = {},
+): Uint8Array {
+  const version = opts.version ?? layout.recordVersion ?? 0;
+  const header = buildCbinHeader({ formatType: opts.nsmHeader ? 1 : 0, tag, bank: 0, location: 0, category: 0, versionRaw: version });
+  const start = opts.nsmHeader ? NSM_RECORD_OFFSET : LEGACY_RECORD_OFFSET;
+  const vb = layout.versionBytes ?? 2;
+  const out = new Uint8Array(start + vb + layout.dataBytes + (layout.padBytes ?? 0) + (opts.nsmHeader ? 0 : 2));
+  out.set(header.subarray(0, start));
+  writeBits(out, start * 8, vb * 8, version);
+  const data = new Uint8Array(layout.dataBytes);
+  writeLegacyRecord(data, layout, values);
+  out.set(data, start + vb);
+  return opts.nsmHeader ? out : sealTrailerChecksum(out);
 }
