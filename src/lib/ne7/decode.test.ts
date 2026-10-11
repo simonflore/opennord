@@ -93,9 +93,21 @@ describe('ne7Decoded', () => {
     expect(byId.D1.chips).toEqual(['Percussion']);
     expect(byId.P.engines[0].parts[0]).toBe('Clavinet');
     expect(byId.S.engines[0].parts).toContain('(off)');
-    // Synth mode labels are unknown, so the preset's analog/FM sound is not shown for a mode that may be off.
-    expect(byId.S.engines.map((e) => e.label)).toEqual(['Synth', 'Effects']);
+    // Default mode 1: Analog (likely), showing only that mode's sound, not the FM algorithm.
+    expect(byId.S.engines.map((e) => e.label)).toEqual(['Synth', 'Preset', 'Effects']);
+    expect(byId.S.engines[1].parts).toEqual(['Analog (likely)', 'SuperSaw']);
     expect(byId.G.engines[0].parts).toEqual(['Rotary']);
+  });
+
+  it('shows the synth preset for its mode: Sample (confirmed), FM (likely)', () => {
+    const synth = (values: Partial<Record<Ne7FieldKey, number>>) =>
+      ne7Decoded(file(values)).sections.find((s) => s.id === 'S')?.engines[1].parts;
+    expect(synth({ 'synthPreset.mode': 0, 'synthPreset.analogMainWaveform': 2 })).toEqual(['Sample']);
+    expect(ne7Decoded(file({ 'synthPreset.mode': 0, 'synthPreset.smpNameHash': 0x1234 })).header)
+      .toContainEqual(['Synth sample id', '0x00001234']);
+    expect(synth({ 'synthPreset.mode': 2, 'synthPreset.fmAlgorithm': 9 })).toEqual(['FM (likely)', 'Algorithm 10']);
+    expect(synth({ 'synthPreset.mode': 1, 'synthPreset.analogMainWaveform': 1, 'synthPreset.analogAuxWaveform': 6 }))
+      .toEqual(['Analog (likely)', 'Saw', 'Osc B Noise']);
   });
 
   it('header-only presentation still carries the provisional note', () => {
