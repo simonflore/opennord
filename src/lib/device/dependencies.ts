@@ -12,7 +12,8 @@
  */
 import type { NordSession } from './session';
 import { enumerateFiles, type ProgramEntry } from './transfer';
-import { CQryFileGetDependency, PARTITION_SAMP_LIB, PARTITION_PIANO } from './opcodes';
+import { CQryFileGetDependency, PARTITION_SAMP_LIB, PARTITION_PIANO, PROTOCOL_VERSION } from './opcodes';
+import { supportsDependencies } from './negotiate';
 import { NordError } from './protocol';
 import { readAsciiFixed } from '../clavia/ascii';
 import { readU32BE } from './payload-io';
@@ -42,13 +43,15 @@ export interface FileDependencies {
 
 /**
  * Decode a `CRpyFileGetDependency` (0x29) reply payload (status word at offset 0):
- * `{u32 status, u32 bank, u32 slot, u32 count, count × entry}`. Each entry (protocol
- * version ≥ 9 — the NS4 case, `CDepBase::Deps_Read`) is
- * `{u8 present, u32 id0, u32 id1, u32 id2, u32 nameLen, char name[nameLen], u32 ×3}`
- * = 29 + nameLen bytes. Bounds-guarded: stops early on a short/garbled tail rather
- * than throwing, so a partial reply still yields the entries it could read.
+ * `{u32 status, u32 bank, u32 slot, u32 count, count × entry}`. Each entry is
+ * `{u8 present, u32 id0, u32 id1, u32 id2, u32 nameLen, char name[nameLen]}`,
+ * followed at FileTransfer version ≥ 9 (the Stage 3 / 4 case) by 3 more u32 —
+ * 29 + nameLen bytes there, 17 + nameLen on a version 6–8 device (NSM 9.22
+ * `CDepBase::Deps_Read` @0x10008d89c). Bounds-guarded: stops early on a
+ * short/garbled tail rather than throwing, so a partial reply still yields the
+ * entries it could read.
  */
-export function decodeDependencyReply(payload: Uint8Array): FileDependencies {
+export function decodeDependencyReply(payload: Uint8Array, fileTransferVersion = PROTOCOL_VERSION): FileDependencies {
   const bank = u32(payload, 4);
   const slot = u32(payload, 8);
   const count = u32(payload, 12);
@@ -64,7 +67,7 @@ export function decodeDependencyReply(payload: Uint8Array): FileDependencies {
     if (nameStart + nameLen > payload.length) break;
     const name = readAsciiFixed(payload, nameStart, nameLen);
     deps.push({ present, id: id2, name });
-    off = nameStart + nameLen + 12; // + 3×u32 trailing (version ≥ 9)
+    off = nameStart + nameLen + (fileTransferVersion >= 9 ? 12 : 0); // + 3×u32 trailing at version ≥ 9
   }
   return { bank, slot, deps };
 }
@@ -75,8 +78,12 @@ export function decodeDependencyReply(payload: Uint8Array): FileDependencies {
 export async function getDependencies(session: NordSession, bank: number, slot: number): Promise<FileDependencies> {
   const reply = await session.request(CQryFileGetDependency, [bank, slot]);
   if (reply.status !== 0) throw new NordError(`dependency query failed for ${bank}:${slot} (status ${reply.status})`);
-  return decodeDependencyReply(reply.payload);
+  return decodeDependencyReply(reply.payload, session.fileTransferVersion);
 }
+
+/** Shown when the connected Nord is too old to report which sounds its programs use. */
+export const NO_DEPENDENCIES_MESSAGE =
+  'This Nord can’t report which sounds its programs use, so OpenNord can’t tell which ones are unused.';
 
 /** Normalize a sample name for matching program-dependency names to installed-sample names. */
 export function normalizeSampleName(name: string): string {
@@ -134,6 +141,9 @@ async function gatherProgramDepsUnlocked(
   session: NordSession,
   onProgress?: (done: number, total: number) => void,
 ): Promise<SampleDep[]> {
+  // FileTransfer 5 and older (Stage Classic / EX, Electro 3, Nord Piano, C2, C2D,
+  // Wave) has no dependency query: refuse before sending one it would not answer.
+  if (!supportsDependencies(session.fileTransferVersion)) throw new NordError(NO_DEPENDENCIES_MESSAGE);
   await session.begin(session.programPartition);
   let programs: ProgramEntry[];
   try {

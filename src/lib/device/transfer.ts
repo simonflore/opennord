@@ -5,7 +5,7 @@ import {
 } from './opcodes';
 import { NordError } from './protocol';
 import { readAsciiFixed } from '../clavia/ascii';
-import { buildCbinHeader, readCbinHeader } from '../clavia/cbin';
+import { buildCbinHeader, cbinFraming, cbinRecord, hasCbinMagic, readCbinHeader } from '../clavia/cbin';
 import { patchNs4Checksum } from '../clavia/checksum';
 import { formatSlot } from '../clavia/slot';
 import { programCategoryName } from '../clavia/categories';
@@ -158,17 +158,41 @@ export function programEntryView(e: ProgramEntry): ProgramRowView {
   };
 }
 
+/**
+ * Why Nord Sound Manager would refuse to send this file to an instrument, in a
+ * musician's words — or undefined when it can be sent. Bytes that aren't a
+ * CBIN file are never sent. NSM 9.22 refuses a CBIN
+ * header newer than the NSM-era one (formatType ≥ 2), and Stage 2 Programs and
+ * Synth presets whose version field (0x14) is below 6 (files from before the
+ * Stage 2 OS it supports).
+ */
+export function pushRefusal(fileBytes: Uint8Array): string | undefined {
+  if (!hasCbinMagic(fileBytes)) return 'This is not a Nord file, so it was not sent.';
+  if (!cbinFraming(fileBytes).supported) {
+    return 'This file was saved in a newer format than OpenNord knows, so it was not sent.';
+  }
+  const h = readCbinHeader(fileBytes);
+  if ((h.tag === 'ns2p' || h.tag === 'ns2s') && h.versionRaw < 6) {
+    return 'This Stage 2 sound was saved by a much older Stage 2 OS. Open it in Nord Sound Manager and save it again before sending it.';
+  }
+  return undefined;
+}
+
 /** FileWrite window — programs are < 1 KB so one write suffices, but loop for safety. */
 const WRITE_WINDOW = 4096;
 
 /**
- * Write a complete CBIN file (header + body) to a slot — any type (program,
+ * Write a complete CBIN file (header + record) to a slot — any type (program,
  * preset, Live, Settings). Uses the validated FileCreate → FileWrite(…) →
- * FileClose sequence; FileClose is what commits the file. Body, category and
- * fourcc come from the file's own CBIN header. The handle is always closed (even
- * on a mid-write failure), preserving the original error. Destructive:
- * overwrites whatever is at {bank, slot}. Refused with `WriteBlockedError`
- * (nothing sent) unless the open partition is confirmed writable.
+ * FileClose sequence; FileClose is what commits the file. The device stores the
+ * instrument's record alone: what follows the 44-byte NSM-era header, or the
+ * 24-byte legacy one up to its 2-byte trailer (clavia/cbin.ts framing), sent
+ * verbatim as NSM does. Category and fourcc come from the file's own header.
+ * The handle is always closed (even on a mid-write failure), preserving the
+ * original error. Destructive: overwrites whatever is at {bank, slot}. Refused
+ * with `WriteBlockedError` (nothing sent) unless the open partition is
+ * confirmed writable, and with a NordError when NSM would refuse the file
+ * ({@link pushRefusal}).
  */
 export async function pushFile(
   session: NordSession,
@@ -178,7 +202,9 @@ export async function pushFile(
   name: string,
 ): Promise<void> {
   session.assertWritable(); // refuse before any frame: the open partition must be confirmed
-  const body = fileBytes.subarray(44); // strip the 44-byte CBIN header — the device stores the body only
+  const refusal = pushRefusal(fileBytes);
+  if (refusal) throw new NordError(refusal);
+  const body = cbinRecord(fileBytes); // the device stores the record only, without the CBIN header
   const header = readCbinHeader(fileBytes); // for the file's category and type tag
   const nameBytes = new TextEncoder().encode(name);
 

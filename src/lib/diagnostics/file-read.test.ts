@@ -7,6 +7,8 @@ import { buildCbinHeader } from '../clavia/cbin';
 import { NG_LAYOUT } from '../ng/layout.generated';
 import { NW1_LAYOUT } from '../nw1/layout.generated';
 import { NLA_LAYOUT } from '../nla/layout.generated';
+import { NS2_LAYOUT } from '../ns2/layout.generated';
+import { NE5_LAYOUT } from '../ne5/layout.generated';
 import { httpDiagnostics } from '../capabilities/defaults';
 import type { DiagnosticEvent, Diagnostics } from '../capabilities/types';
 import { BUILD, COMMIT } from '../version';
@@ -14,8 +16,8 @@ import { BUILD, COMMIT } from '../version';
 /** A Nord Grand program built the way its firmware lays it out (block-chain reader). */
 const grandFile = (versionRaw = 100) => synthFwFile('ngp', synthFwBody(NG_LAYOUT), versionRaw);
 
-/** A Stage Classic / EX file: its record's place is not known yet, so it opens header-only. */
-const stageClassicFile = () => synthLegacyFile('nspg', 10, new Uint8Array(398));
+/** A `.nspg` too short for the Stage Classic record: the reader opens it header-only. */
+const stageClassicFile = () => synthLegacyFile('nspg', 10, new Uint8Array(100));
 
 function sink(): Diagnostics & { events: DiagnosticEvent[] } {
   const events: DiagnosticEvent[] = [];
@@ -68,7 +70,7 @@ describe('buildFileReadEvent', () => {
     expect(d.framing.bodyOffset).toBe(0x18);
     expect(d.reader).toMatchObject({ layoutMatched: false, headerOnly: true });
     expect(d.reader.warningCount).toBeGreaterThan(0);
-    expect(d.reader.warnings.join(' ')).toMatch(/only the file header/i);
+    expect(d.reader.warnings.join(' ')).toMatch(/file header only/i);
   });
 
   it('captures only framing bytes — never the checksum, parameter bits or anything a player could have typed', () => {
@@ -90,10 +92,15 @@ describe('buildFileReadEvent', () => {
   });
 
   it('takes only the record version from a legacy record', () => {
-    const bytes = synthLegacyFile('nspg', 10, new Uint8Array(398).fill(0xee));
+    const bytes = synthLegacyFile('ne5p', 4, new Uint8Array(119).fill(0xee));
     const d = buildFileReadEvent(bytes)!.detail as unknown as FileReadDetail;
-    expect(d.framing.atBody).toHaveLength(4);
+    expect(d.framing.atBody).toHaveLength(4); // the u16 record version
     expect(JSON.stringify(d.framing)).not.toContain('ee');
+    // The Stage Classic / EX record opens with a u8 version.
+    const nspg = synthLegacyFile('nspg', 10, new Uint8Array(398).fill(0xee));
+    const n = buildFileReadEvent(nspg)!.detail as unknown as FileReadDetail;
+    expect(n.framing.atBody).toHaveLength(2);
+    expect(JSON.stringify(n.framing)).not.toContain('ee');
   });
 
   it('takes only the record version behind an NSM-era header, at its own width', () => {
@@ -118,6 +125,38 @@ describe('buildFileReadEvent', () => {
     piano.set(buildCbinHeader({ formatType: 1, tag: 'npno', bank: 0, location: 0, category: 0, versionRaw: 600 }));
     expect(buildFileReadEvent(piano)).toBeNull();
     expect(buildFileReadEvent(new Uint8Array([1, 2, 3, 4]))).toBeNull();
+  });
+
+  it('reports a Live file a program reader reads, with the record version only', () => {
+    // A Stage 2 Live holds the program record: reported like a .ns2p, at the u16 version width.
+    const live = synthLegacyLayoutFile('ns2l', NS2_LAYOUT, {}, { version: 7 });
+    live.fill(0xee, 0x18 + 2, live.length - 2);
+    const e = buildFileReadEvent(live)!;
+    expect(e.message).toBe(`ns2l ${live.length} B: read`);
+    const d = e.detail as unknown as FileReadDetail;
+    expect(d).toMatchObject({ tag: 'ns2l', modelId: 'stage-2', framing: { bodyOffset: 0x18, atBody: '0007' } });
+    expect(d.reader).toMatchObject({ layoutMatched: true, recordVersion: 7 });
+    expect(JSON.stringify(d.framing)).not.toContain('ee');
+    // An Electro 5 Live behind an NSM-era header: the record version at 0x2C, nothing after it.
+    const ne5l = synthLegacyLayoutFile('ne5l', NE5_LAYOUT, {}, { version: NE5_LAYOUT.recordVersion ?? 0, nsmHeader: true });
+    ne5l.fill(0xee, 0x2c + 2);
+    const n = buildFileReadEvent(ne5l)!.detail as unknown as FileReadDetail;
+    expect(n.framing).toMatchObject({ bodyOffset: 0x2c });
+    expect(n.framing.atBody).toHaveLength(4);
+    expect(JSON.stringify(n.framing)).not.toContain('ee');
+    // A Live whose record is not a program record is identified, not read: never reported.
+    expect(buildFileReadEvent(live.slice(0, live.length - 1))).toBeNull();
+  });
+
+  it('never reports Settings, Songs, Set Lists or presets, nor a header newer than NSM-era', () => {
+    for (const tag of ['ns3t', 'ns3s', 'ns2y', 'ne5t', 'ne7s', 'ns4o', 'ns4n', 'ns4y', 'ns3y', 'ns2s', 'neop']) {
+      const file = new Uint8Array(592);
+      file.set(buildCbinHeader({ formatType: 1, tag, bank: 0, location: 0, category: 0, versionRaw: 304 }));
+      expect(buildFileReadEvent(file), tag).toBeNull();
+    }
+    const newer = grandFile();
+    newer[0x04] = 2;
+    expect(buildFileReadEvent(newer)).toBeNull();
   });
 
   it('fits the backend’s 16 KB body cap once posted', () => {

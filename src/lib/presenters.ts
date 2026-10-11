@@ -8,7 +8,8 @@
  * Lives outside clavia/ to keep the model → clavia dependency direction (this
  * imports the model presenters; clavia/ never imports models).
  */
-import { identifyNordFile, type NordFileInfo } from './clavia/nord-file';
+import { identifyNordFile } from './clavia/nord-file';
+import { programTagFor } from './formats';
 import type { DecodedProgram } from './clavia/decoded';
 import { ns3Decoded } from './ns3/present';
 import { ns2Decoded } from './ns2/present';
@@ -37,7 +38,8 @@ import { nw1Decoded } from './nw1/present';
 const pianoName = (hash: number): string | undefined => PIANO_NAMES[hash];
 
 interface PresenterEntry {
-  match: (info: NordFileInfo) => boolean;
+  /** The program tag(s) this presenter reads; a Live file reaches it through its program tag (formats.ts `programTagFor`). */
+  tags: readonly string[];
   present: (bytes: Uint8Array) => DecodedProgram;
 }
 
@@ -47,40 +49,39 @@ interface PresenterEntry {
 // lean on-ramp for the next not-yet-rich model — add a model here + a present.ts
 // to get it rendering immediately, then graduate it to a rich view later.
 const PRESENTERS: readonly PresenterEntry[] = [
-  { match: (i) => i.generation === 'Stage 3' && i.kind === 'performance', present: ns3Decoded },
-  { match: (i) => i.generation === 'Stage 2' && i.kind === 'program', present: ns2Decoded },
-  { match: (i) => i.tag === 'ne5p' || i.tag === 'ne5l', present: ne5Decoded },
-  { match: (i) => i.tag === 'ne6p' || i.tag === 'ne6l', present: ne6Decoded },
-  { match: (i) => i.tag === 'nw2p' || i.tag === 'nw2l', present: nw2Decoded },
-  { match: (i) => i.tag === 'nlas' || i.tag === 'nlap', present: nlaDecoded },
-  // Firmware-layout readers (clavia/block-chain.ts), programs and Lives. The
-  // family-wide piano-name table is injected here (the 32-bit NameHash is the
-  // PIANO_NAMES key) — the model modules never import ns4. Electro 7 / Organ 3
-  // are provisional until a real file confirms the block order (their notes say so).
-  { match: (i) => i.tag === 'np4p' || i.tag === 'np4l', present: (bytes) => np4Decoded(bytes, pianoName) },
-  { match: (i) => i.tag === 'np5p' || i.tag === 'np5l', present: (bytes) => np5Decoded(bytes, pianoName) },
-  { match: (i) => i.tag === 'ng2p' || i.tag === 'ng2l', present: (bytes) => ng2Decoded(bytes, pianoName) },
-  { match: (i) => i.tag === 'ngp' || i.tag === 'ngl', present: (bytes) => ngDecoded(bytes, pianoName) },
-  { match: (i) => i.tag === 'np6p' || i.tag === 'np6l', present: (bytes) => np6Decoded(bytes, pianoName) },
-  { match: (i) => i.tag === 'ne7p' || i.tag === 'ne7l', present: (bytes) => ne7Decoded(bytes, pianoName) },
-  { match: (i) => i.tag === 'no3p' || i.tag === 'no3l', present: no3Decoded },
+  { tags: ['ns3f'], present: ns3Decoded },
+  { tags: ['ns2p'], present: ns2Decoded },
+  { tags: ['ne5p'], present: ne5Decoded },
+  { tags: ['ne6p'], present: ne6Decoded },
+  { tags: ['nw2p'], present: nw2Decoded },
+  { tags: ['nlas', 'nlap'], present: nlaDecoded },
+  // Firmware-layout readers (clavia/block-chain.ts). The family-wide piano-name
+  // table is injected here (the 32-bit NameHash is the PIANO_NAMES key) — the
+  // model modules never import ns4. Electro 7 / Organ 3 are provisional until a
+  // real file confirms the block order (their notes say so).
+  { tags: ['np4p'], present: (bytes) => np4Decoded(bytes, pianoName) },
+  { tags: ['np5p'], present: (bytes) => np5Decoded(bytes, pianoName) },
+  { tags: ['ng2p'], present: (bytes) => ng2Decoded(bytes, pianoName) },
+  { tags: ['ngp'], present: (bytes) => ngDecoded(bytes, pianoName) },
+  { tags: ['np6p'], present: (bytes) => np6Decoded(bytes, pianoName) },
+  { tags: ['ne7p'], present: (bytes) => ne7Decoded(bytes, pianoName) },
+  { tags: ['no3p'], present: no3Decoded },
   // Later ColdFire legacy records (clavia/legacy-program.ts).
-  { match: (i) => i.tag === 'np3p' || i.tag === 'np3l', present: np3Decoded },
-  { match: (i) => i.tag === 'np2p', present: np2Decoded },
-  { match: (i) => i.tag === 'nppg', present: np1Decoded },
-  { match: (i) => i.tag === 'nspg', present: (bytes) => ns1Decoded(bytes) },
-  { match: (i) => i.tag === 'ncpg', present: ncDecoded },
+  { tags: ['np3p'], present: np3Decoded },
+  { tags: ['np2p'], present: np2Decoded },
+  { tags: ['nppg'], present: np1Decoded },
+  { tags: ['nspg'], present: ns1Decoded },
+  { tags: ['ncpg'], present: ncDecoded },
   // Legacy-record readers (clavia/legacy-record.ts), firmware-derived and provisional
-  // until a real file confirms the alignment. The Electro 3 Live partition's tag is
-  // not known, and the C2D and Wave register no Live partition, so only programs route here.
-  { match: (i) => i.tag === 'nepg', present: ne3Decoded },
-  { match: (i) => i.tag === 'nc2p', present: nc2Decoded },
-  { match: (i) => i.tag === 'nwp', present: nw1Decoded },
+  // until a real file confirms the alignment.
+  { tags: ['nepg'], present: ne3Decoded },
+  { tags: ['nc2p'], present: nc2Decoded },
+  { tags: ['nwp'], present: nw1Decoded },
 ];
 
 /** The shared decoded-program presentation for a file, or null if no model claims it. */
 export function decodedProgramFor(bytes: Uint8Array): DecodedProgram | null {
-  const info = identifyNordFile(bytes);
-  const entry = PRESENTERS.find((p) => p.match(info));
+  const tag = programTagFor(identifyNordFile(bytes), bytes);
+  const entry = tag ? PRESENTERS.find((p) => p.tags.includes(tag)) : undefined;
   return entry ? entry.present(bytes) : null;
 }

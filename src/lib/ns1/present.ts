@@ -1,12 +1,12 @@
 /**
- * Nord Stage Classic / Stage EX → DecodedProgram. While the record's start in
- * a `.nspg` file is unconfirmed (types.ts) a file presents its header only,
- * with that reason. Given a located record (`recordStart`), each panel shows
- * its organ — model, preset, B3 drawbars with footage, Vox drawbar levels or
- * the Farfisa tabs that are on — and the organ, piano, synth and extern levels.
- * The organ-model order (B3, Vox, Farfisa) is inferred from the Stage 2 (medium).
+ * Nord Stage Classic / Stage EX → DecodedProgram. Each panel shows its organ —
+ * model, preset, B3 drawbars with footage, Vox drawbar levels or the Farfisa
+ * tabs that are on — and the organ, piano, synth and extern levels. The record
+ * is placed by the shared CBIN framing rule (types.ts), not yet confirmed on a
+ * real file; the organ-model order (B3, Vox, Farfisa) is inferred from the
+ * Stage 2 (medium).
  */
-import { decodeNs1, NS1_RECORD_START } from './decode';
+import { decodeNs1 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
 import { fwHeader, label, legacyHeaderOnly, levelPart, parts } from '../clavia/fw-present';
@@ -14,8 +14,8 @@ import type { Ns1FieldKey } from './layout.generated';
 
 const TITLE = 'Nord Stage Classic / EX · Program';
 
-const UNLOCATED_NOTE =
-  'Stage Classic / EX: the program layout is known from the instrument firmware (OS 5.08 / 6.08), but not yet where it starts inside a .nspg file, so only the file header is shown until a real file confirms it.';
+const NS1_NOTE =
+  'Stage Classic / EX: layout from the instrument firmware (OS 5.08 / 6.08), not yet checked on a real file. The organ-model order is inferred.';
 
 /** Organ Model (common, 0–2): order inferred from the Stage 2 (medium). */
 export const NS1_ORGAN_MODELS = ['B3', 'Vox', 'Farfisa'] as const;
@@ -55,18 +55,16 @@ function panel(g: Get, model: number, p: 'A' | 'B'): DecodedSection[] {
   return [organ, level('P', 'PIANO', 'pianoLevel'), level('S', 'SYNTH', 'synthLevel'), level('X', 'EXTERN', 'externLevel')];
 }
 
-export function ns1Decoded(bytes: Uint8Array, recordStart: number | null = NS1_RECORD_START): DecodedProgram {
-  const p = decodeNs1(bytes, recordStart);
-  if (!p.layoutMatched && recordStart !== null) return legacyHeaderOnly(TITLE, p, 'Stage Classic / EX');
-  // Not a read failure: the layout is known, its place in the file is not.
-  if (!p.layoutMatched) return { title: TITLE, header: fwHeader(p), sections: [], note: UNLOCATED_NOTE, warnings: p.warnings };
+export function ns1Decoded(bytes: Uint8Array): DecodedProgram {
+  const p = decodeNs1(bytes);
+  if (!p.layoutMatched) return legacyHeaderOnly(TITLE, p, 'Stage Classic / EX');
   const g: Get = (key) => p.values[key] ?? 0;
   const model = g('common.organModel');
   return {
     title: TITLE,
     header: [...fwHeader(p), ['Record version', String(p.recordVersion)]],
     sections: [...panel(g, model, 'A'), ...panel(g, model, 'B')],
-    note: 'Stage Classic / EX: layout from the instrument firmware (OS 5.08 / 6.08), read at a record start given by hand — not yet confirmed on a real file. The organ-model order is inferred.',
+    note: NS1_NOTE,
     warnings: p.warnings,
   };
 }

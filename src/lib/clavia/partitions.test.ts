@@ -429,3 +429,45 @@ describe('partition registry', () => {
     }
   });
 });
+
+describe('USB product ids (NSM 9.22 `CProduct::New` dispatch)', () => {
+  // The full table NSM dispatches on: every model's PID, hardware-confirmed or static.
+  const NSM_PIDS: Record<string, number> = {
+    'stage-classic': 0x03, wave: 0x05, 'electro-3': 0x07, 'stage-ex': 0x08, c2: 0x09, 'electro-3-hp': 0x0b,
+    c2d: 0x0c, 'piano-1': 0x20, 'stage-2': 0x21, 'piano-2': 0x22, 'electro-4': 0x23, 'lead-4': 0x24,
+    'lead-a1': 0x25, 'stage-3': 0x26, 'electro-5': 0x27, 'piano-3': 0x28, 'electro-6': 0x29, 'piano-4': 0x2a,
+    grand: 0x2b, 'wave-2': 0x2c, 'piano-5': 0x2d, 'stage-4': 0x2e, 'grand-2': 0x38, 'piano-6': 0x39,
+    'organ-3': 0x3a, 'electro-7': 0x3b,
+  };
+
+  it('agrees with NSM for every model (Stage 2 EX shares the Stage 2 class; the C1 has no USB transfer)', () => {
+    for (const m of ALL_MODELS) {
+      const pid = m.productId ?? m.staticProductId;
+      if (m.id === 'c1') expect(pid).toBeUndefined();
+      else if (m.id === 'stage-2-ex') expect(pid).toBe(0x21);
+      else expect(pid, m.id).toBe(NSM_PIDS[m.id]);
+    }
+  });
+
+  it('identifies the Lead A1 by NSM\'s CMini PID 0x25, without granting a hardware-confirmed match', () => {
+    expect(identifyModelByProductId(0x25)?.id).toBe('lead-a1');
+    expect(modelByProductId(0x25)).toBeUndefined();
+  });
+});
+
+describe('partition tags NSM names', () => {
+  it('tags the ColdFire Live and Settings partitions and the Stage 4 Settings', () => {
+    const tags = (id: NordModelId) => Object.fromEntries(
+      MODELS[id].partitions.filter((p) => p.fourcc).map((p) => [p.kind, p.fourcc]));
+    expect(tags('electro-3')).toMatchObject({ live: 'neli', settings: 'nesy', 'organ-preset': 'neop' });
+    expect(tags('electro-3-hp')).toMatchObject({ live: 'neli', settings: 'nesy' });
+    expect(tags('electro-4')).toMatchObject({ live: 'ne4l', settings: 'ne4s' });
+    expect(tags('piano-1')).toMatchObject({ live: 'npli', settings: 'npsy' });
+    expect(tags('piano-2')).toMatchObject({ live: 'np2l', settings: 'np2s' });
+    expect(tags('piano-3')).toMatchObject({ live: 'np3l', settings: 'np3s' });
+    expect(tags('c2')).toMatchObject({ live: 'ncli', settings: 'ncsy' });
+    expect(tags('c2d')).toMatchObject({ settings: 'nc2s' });
+    expect(tags('wave')).toMatchObject({ swave: 'nws', ramfs: 'nwr', settings: 'nwsy' });
+    expect(tags('stage-4')).toMatchObject({ settings: 'ns4t' });
+  });
+});

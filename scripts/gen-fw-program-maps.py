@@ -106,8 +106,9 @@ add `labels` (a field's `name` is the "label: ..." text of its notes, where ther
 is one) and, on the Stage models, `morphRows`: a `<param>.morphN` row is one of the
 three morph deltas stored before its parameter, one bit wider and two's complement
 (`negatives: 'twos'`), and gets `deltaOf` like a Lead A1 inline delta. The Stage
-record opens with a u8 version (its Header row) at record bit 0, so its `bit`s
-count from the record start, wherever that sits in the file (`recordNote`).
+record opens with a u8 version (its Header row) at stream bit 0, as on the Wave
+(`versionBytes: 1`); `streamVersionBits` drops it, so the layout's `bit`s count
+from the record data like every other legacy layout's.
 
 In the electro-4 dialect a morphable parameter's inline deltas come from its
 note, "morphable: N signed deltas of W bits (sources ...) at stream bits X..Y
@@ -432,27 +433,30 @@ MODELS = {
         # The Stage EX (OS 6.08) registers the same descriptors; both write `.nspg`.
         'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord Stage Classic / Stage EX', 'labels': True,
         'source': 'Stage Classic OS 5.08 parameter descriptors',
-        'container': 'Stage Classic OS 5.08 program record: u8 version 10 (0–9 converted), common, '
-                     'panel A, panel B = 400 bytes; Stage EX OS 6.08 identical',
+        'container': 'Stage Classic OS 5.08 program record: u8 version 10 (0–9 converted) + 399 bytes '
+                     '(common, panel A, panel B) = 400 bytes; Stage EX OS 6.08 identical',
         # Morph deltas: one bit wider than their parameter, two's complement (medium).
         'negatives': 'twos', 'morphRows': True,
+        # A u8 record version, as on the Wave: the CSV's stream bits count it, the layout's do not.
+        'versionBytes': 1, 'streamVersionBits': 8,
         # Panels A and B store the same descriptors: count each parameter once.
         'sets': {'panelA': 'panel', 'panelB': 'panel'},
-        'recordNote': '`bit` is relative to the record start (its u8 version is bit 0); '
-                      'where the record starts in a .nspg file is not confirmed.',
+        'recordNote': '`bit` is relative to the record data, after the u8 version (file 0x19 behind a '
+                      'legacy header, 0x2D behind an NSM-era one; the alignment is not confirmed on a real file).',
         'confidence': lambda row: 'medium' if re.search(r'\.morph\d$', row['name']) else 'high',
         'records': [{'const': 'NS1_LAYOUT', 'type': 'Ns1FieldKey', 'version': 10, 'blocks': None}],
     },
     'stage-ex': {
         'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord Stage EX', 'labels': True,
         'source': 'Stage EX OS 6.08 parameter descriptors',
-        'container': 'Stage EX OS 6.08 program record: u8 version 10 (0–9 converted), common, '
-                     'panel A, panel B = 400 bytes',
+        'container': 'Stage EX OS 6.08 program record: u8 version 10 (0–9 converted) + 399 bytes '
+                     '(common, panel A, panel B) = 400 bytes',
         'negatives': 'twos', 'morphRows': True,
+        'versionBytes': 1, 'streamVersionBits': 8,
         # Panels A and B store the same descriptors: count each parameter once.
         'sets': {'panelA': 'panel', 'panelB': 'panel'},
-        'recordNote': '`bit` is relative to the record start (its u8 version is bit 0); '
-                      'where the record starts in a .nspg file is not confirmed.',
+        'recordNote': '`bit` is relative to the record data, after the u8 version (file 0x19 behind a '
+                      'legacy header, 0x2D behind an NSM-era one; the alignment is not confirmed on a real file).',
         'confidence': lambda row: 'medium' if re.search(r'\.morph\d$', row['name']) else 'high',
         'records': [{'const': 'NS1_EX_LAYOUT', 'type': 'Ns1ExFieldKey', 'version': 10, 'blocks': None}],
     },
@@ -739,7 +743,9 @@ def main_legacy():
 
     def bit_of(r):
         v = r['bit_offset'] if lead else r['stream_bit_offset']
-        return int(v) if v not in ('', None) else None
+        # `streamVersionBits`: the CSV's stream bits count the record version too (the Stage
+        # Classic / EX u8); the layout's bits start after it, at the record data.
+        return int(v) - cfg.get('streamVersionBits', 0) if v not in ('', None) else None
 
     end_rows = [r for r in rows if r['name'] == '[end of program data]']
     data_start = cfg.get('dataStart') or f"file 0x{0x18 + cfg.get('versionBytes', 2):X}"

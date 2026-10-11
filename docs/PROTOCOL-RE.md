@@ -170,6 +170,30 @@ records each value as `ModelInfo.fileTransferVersion`.
 
 NSM's `CLead4_FTv7` class suggests Lead 4 OS 1.12 and older spoke version 7.
 
+**What changes with the version (NSM 9.22, static).** NSM speaks FileTransfer 3
+to 10 and adopts nothing outside that range (OpenNord likewise:
+`isKnownFileTransferVersion`). The reply layouts grow at the end, so OpenNord's
+readers, which take only the leading fields, work at every version:
+
+| Message | Added at version | Where | NSM reader |
+|---|---|---|---|
+| Partition list (`0x01`) | ≥ 5: 2 flag bytes per partition; 10: one more | after each partition's name, 4 u32 and 10 flag bytes | `CRpyPartList::Read` @0x100089ef4 |
+| File info (`0x1F`) | ≥ 4: a u32; 10: another u32 | after the name and its trailing u32 | `CRpyFileInfo::Read` @0x10008d0cc |
+| Dependencies (`0x29`) | ≥ 9: 3 u32 after each entry's name (at most 8 entries read) | per entry | `CDepBase::Deps_Read` @0x10008d89c |
+
+- **Dependency queries** need version **> 5** and the partition's dependency flag
+  (`Hack_IsDepsSupported` @0x100079dcc). OpenNord refuses its sample-usage scan
+  below that, and reads 6–8 replies without the trailing words.
+- **Erase** (`CReqEraseBlock`) below version 5 is allowed only on a Nord Wave's
+  "Program" partition (`Hack_IsEraseSupported` @0x100079cc8); from 5 on, the
+  partition's erase flag decides. OpenNord sends no erase.
+- **Content versions NSM accepts:**
+  Lead 4 on FileTransfer 7 — 0 only; Lead 4 on 8, Lead A1, Piano 3 — 0–1;
+  Stage 3 — 3–5; every other model — 0.
+- **File checks before sending** (`pushRefusal`, transfer.ts): NSM refuses a CBIN
+  header with formatType ≥ 2 and Stage 2 Program / Synth files whose version
+  field (0x14) is below 6.
+
 **Read size.** One read reply carries at most about 64 KiB (`0xFFE8` bytes minus
 headers).
 

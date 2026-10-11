@@ -61,6 +61,19 @@ import { ns3Engines } from './ns3/engines';
 import { ns2Engines } from './ns2/engines';
 import { decodeNs3 } from './ns3/decode';
 import { decodeNs2 } from './ns2/decode';
+import { cbinFraming } from './clavia/cbin';
+import { fileTagInfo } from './clavia/file-tags';
+import type { LegacyLayout } from './clavia/legacy-record';
+import { NS2_LAYOUT } from './ns2/layout.generated';
+import { NE3_LAYOUT } from './ne3/layout.generated';
+import { NE3HP_LAYOUT } from './ne3/layout-hp.generated';
+import { NE4_LAYOUT } from './ne4/layout.generated';
+import { NE5_LAYOUT } from './ne5/layout.generated';
+import { NP1_LAYOUT } from './np1/layout.generated';
+import { NP2_LAYOUT } from './np2/layout.generated';
+import { NP3_LAYOUT } from './np3/layout.generated';
+import { NCP_LAYOUT } from './nc/layout.generated';
+import { NC2_LAYOUT } from './nc2/layout.generated';
 
 /** Every decoded program type OpenNord supports. Discriminate on `model` or `parsed`. */
 export type NordProgram =
@@ -103,9 +116,6 @@ const CODECS: readonly ModelCodec<NordProgram>[] = [
   ncCodec,
 ];
 
-/** Every program file-type tag OpenNord reads: the codecs' tags plus Stage 3 / Stage 2, which decode outside CODECS. */
-export const PROGRAM_TAGS: ReadonlySet<string> = new Set([...CODECS.flatMap((c) => c.tags), 'ns3f', 'ns2p']);
-
 /** True when `program` is a fully-structured NS4 program (has `kind`). */
 export function isNs4Program(program: NordProgram): program is NS4Program {
   return 'kind' in program;
@@ -126,11 +136,52 @@ const GENERATION_MODEL: Record<string, ClaviaModel> = {
   'Stage 4': 'ns4', 'Stage 3': 'ns3', 'Stage 2': 'ns2',
 };
 
-/** The codec that claims this file by tag (and version range, if it sets one). */
-function resolveCodec(info: NordFileInfo): ModelCodec<NordProgram> | undefined {
+/** A legacy record's whole length: its version, data and padding. */
+const legacyRecordBytes = (l: LegacyLayout) => (l.versionBytes ?? 2) + l.dataBytes + (l.padBytes ?? 0);
+
+/**
+ * Program records of a fixed length (the legacy-record readers), by program
+ * tag. A Live file of these models reads as a program only when its record
+ * (cbin.ts framing: size − 44, or size − 26 legacy) has exactly this length.
+ * The block-chain readers (Stage 3/4, the ARM pianos, Electro 6/7, Organ 3,
+ * Wave 2) delimit their own blocks and check them, so their Lives need no
+ * length gate.
+ */
+const PROGRAM_RECORD_BYTES: Readonly<Record<string, readonly number[]>> = {
+  ns2p: [legacyRecordBytes(NS2_LAYOUT)],
+  nepg: [...new Set([legacyRecordBytes(NE3_LAYOUT), legacyRecordBytes(NE3HP_LAYOUT)])],
+  ne4p: [legacyRecordBytes(NE4_LAYOUT)],
+  ne5p: [legacyRecordBytes(NE5_LAYOUT)],
+  nppg: [legacyRecordBytes(NP1_LAYOUT)],
+  np2p: [legacyRecordBytes(NP2_LAYOUT)],
+  np3p: [legacyRecordBytes(NP3_LAYOUT)],
+  ncpg: [legacyRecordBytes(NCP_LAYOUT)],
+  nc2p: [legacyRecordBytes(NC2_LAYOUT)],
+};
+
+/**
+ * The program tag whose reader reads this file: its own tag for a program,
+ * the model's program tag for a Live file whose record is a program record
+ * (a Live slot stores one verbatim — clavia/file-tags.ts), else undefined
+ * (Settings, Songs, Set Lists, presets, a Live of another length, or a header
+ * newer than NSM-era: those are identified, not decoded).
+ */
+export function programTagFor(info: NordFileInfo, bytes: Uint8Array): string | undefined {
+  const t = fileTagInfo(info.tag);
+  const framing = cbinFraming(bytes);
+  if (!framing.supported) return undefined;
+  if (t?.kind === 'program' || t?.kind === 'performance') return info.tag;
+  if (t?.kind !== 'live' || !t.program) return undefined;
+  const fixed = PROGRAM_RECORD_BYTES[t.program];
+  return !fixed || fixed.includes(framing.recordBytes) ? t.program : undefined;
+}
+
+/** The codec that reads `tag` (and this file's version, if it sets a range). */
+function resolveCodec(info: NordFileInfo, tag: string | undefined): ModelCodec<NordProgram> | undefined {
+  if (!tag) return undefined;
   const raw = info.version !== undefined ? Math.round(parseFloat(info.version) * 100) : undefined;
   return CODECS.find((c) =>
-    c.tags.includes(info.tag) &&
+    c.tags.includes(tag) &&
     (!c.versionRange || (raw !== undefined && raw >= c.versionRange[0] && raw <= c.versionRange[1])));
 }
 
@@ -141,10 +192,11 @@ function resolveCodec(info: NordFileInfo): ModelCodec<NordProgram> | undefined {
  * `model` is already correct for them via GENERATION_MODEL. The decode is cheap —
  * real .ns3f/.ns2p files are under 1 KB.
  */
-function engineSummaryFor(model: ClaviaModel, program: NordProgram, bytes: Uint8Array): EngineSummary | undefined {
+function engineSummaryFor(model: ClaviaModel, program: NordProgram, bytes: Uint8Array, programTag: string | undefined): EngineSummary | undefined {
   if (model === 'ns4') return isNs4Program(program) && program.parsed ? ns4Engines(program) : undefined;
-  if (model === 'ns3') return ns3Engines(decodeNs3(bytes).panels);
-  if (model === 'ns2') return ns2Engines(decodeNs2(bytes).slots.filter((s) => s.active));
+  // Stage 2/3 Settings, Songs and Synth presets share the generation but not the program body.
+  if (model === 'ns3') return programTag === 'ns3f' ? ns3Engines(decodeNs3(bytes).panels) : undefined;
+  if (model === 'ns2') return programTag === 'ns2p' ? ns2Engines(decodeNs2(bytes).slots.filter((s) => s.active)) : undefined;
   return undefined;
 }
 
@@ -156,8 +208,9 @@ function engineSummaryFor(model: ClaviaModel, program: NordProgram, bytes: Uint8
  */
 export function parseClaviaFile(bytes: Uint8Array): ClaviaFile {
   const info = identifyNordFile(bytes);
-  const codec = resolveCodec(info);
+  const programTag = programTagFor(info, bytes);
+  const codec = resolveCodec(info, programTag);
   const program = codec ? codec.decode(bytes) : parseNs4Program(bytes);
   const model = codec?.model ?? GENERATION_MODEL[info.generation] ?? 'unknown';
-  return { model, info, program, engines: engineSummaryFor(model, program, bytes) };
+  return { model, info, program, engines: engineSummaryFor(model, program, bytes, programTag) };
 }

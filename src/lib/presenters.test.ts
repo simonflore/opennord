@@ -7,6 +7,7 @@ import { decodedProgramFor } from './presenters';
 import { DecodedProgramView } from '../components/program/DecodedProgramView';
 import type { FwLayout } from './clavia/block-chain';
 import { synthFwBody, synthFwFile } from './clavia/block-chain.synth';
+import { FILE_TAGS } from './clavia/file-tags';
 import { np4Codec } from './np4/codec';
 import { np5Codec } from './np5/codec';
 import { ng2Codec } from './ng2/codec';
@@ -69,8 +70,9 @@ describe('decodedProgramFor — lite piano/organ models', () => {
     expect(d.sections.map((s) => s.label)).toEqual(['PIANO A', 'PIANO B', 'SYNTH A', 'SYNTH B', 'EFFECTS']);
   });
 
-  // Every tag a firmware-layout codec claims (Program and Live) must reach a presenter.
-  it.each([ngCodec, ng2Codec, np4Codec, np5Codec, np6Codec, ne6Codec, ne7Codec, no3Codec, nw2Codec].flatMap((c) => c.tags.map((tag) => [tag, c] as const)))(
+  // Every firmware-layout program tag, and each Live tag that stores its record, must reach a presenter.
+  const withLives = (tags: readonly string[]) => [...tags, ...FILE_TAGS.filter((t) => t.program && tags.includes(t.program)).map((t) => t.tag)];
+  it.each([ngCodec, ng2Codec, np4Codec, np5Codec, np6Codec, ne6Codec, ne7Codec, no3Codec, nw2Codec].flatMap((c) => withLives(c.tags).map((tag) => [tag, c] as const)))(
     '%s (synthetic) → its presenter', (tag, codec) => {
       const layout = FW_LAYOUTS[codec.model];
       const d = decodedProgramFor(synthFwFile(tag, synthFwBody(layout), layout.versionRange?.[0] ?? 100));

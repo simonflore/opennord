@@ -67,12 +67,12 @@ source — both treat the header identically).
 | Offset | Field | Encoding | Stage 4 (observed) | Source |
 |---|---|---|---|---|
 | 0x00 | magic `CBIN` | ASCII | `CBIN` | verified |
-| 0x04 | header format type (0=legacy, 1=new) | u8 | `1` (always — NSM-era) | NS3 docs + verified |
-| 0x08 | file-type tag | 4×ASCII | `ns4p` (`ns4l` = bundle-extracted) | verified |
-| 0x0C | bank (low 3 bits → letter A–H) | u8 | 6 / 6 / 7 | NS3 docs + verified |
-| 0x0E | location in bank (low 6 bits) | u8 | 49 / 47 / 56 | NS3 docs + verified |
-| 0x10 | category | u8 | 6 (Lead) / 17 (None) / 17 | NSM table + verified |
-| 0x14 | program version | u16 LE, ÷100 | `313` → **v3.13** | NS3 docs + verified |
+| 0x04 | header format type (0 = legacy, 1 = NSM-era; NSM refuses ≥ 2) | u32 LE | `1` (always — NSM-era) | NS3 docs + NSM 9.22 + verified |
+| 0x08 | file-type tag | 4×ASCII | `ns4p` (`ns4l` = Live) | verified |
+| 0x0C | bank (low 3 bits → letter A–H) | u16 LE | 6 / 6 / 7 | NS3 docs + NSM 9.22 + verified |
+| 0x0E | location in bank (low 6 bits) | u16 LE | 49 / 47 / 56 | NS3 docs + NSM 9.22 + verified |
+| 0x10 | category | u32 LE | 6 (Lead) / 17 (None) / 17 | NSM table + verified |
+| 0x14 | program version | u32 LE, ÷100 | `313` → **v3.13** | NS3 docs + NSM 9.22 + verified |
 | 0x18 | **CRC-32 checksum** | u32 LE | matches `crc32(bytes[0x2C:])` | **cracked — see CHECKSUM.md** |
 | 0x1C–0x2B | reserved | — | all zero on Stage 4 | verified |
 | 0x2C+ | parameter body (406 params) | bit-packed | — | offset-map.generated.ts |
@@ -106,6 +106,38 @@ legacy (format type 0) file, the CRC-16 trailer instead.
 > notation `bits.ts` reads), derived from ns4decode. The table above is just the
 > fixed header that sits in front of that bit-packed body.
 
+### Framing — one rule for every model
+
+Nord Sound Manager 9.22 frames every Nord file the same way and never parses a
+body (its `CFileSpec` / file-transfer code only reads the header and hands the
+rest to the instrument). The rule, as `clavia/cbin.ts` (`cbinFraming`,
+`cbinRecord`) implements it — checked on a corpus of 1,086 real files across
+the line:
+
+| Offset | Field | Encoding |
+|---|---|---|
+| 0x00 | `CBIN` | ASCII |
+| 0x04 | formatType: 0 legacy, 1 NSM-era; NSM refuses 2 and above | u32 LE |
+| 0x08 | tag — 4 chars, a 3-letter tag (`ngp`, `nss`, `nwp`) NUL-padded | ASCII |
+| 0x0C | bank | u16 LE |
+| 0x0E | slot | u16 LE |
+| 0x10 | category | u32 LE |
+| 0x14 | version, as the instrument reports it | u32 LE |
+| 0x18 | NSM-era only: the CRC-32 (CHECKSUM.md) | u32 LE |
+| 0x1C–0x2B | NSM-era only: zero | — |
+
+The **record** — the instrument's own bytes — starts at **0x2C** behind an
+NSM-era header and runs to the end (`size − 44` bytes); behind a legacy header it
+starts at **0x18** and is followed by a 2-byte CRC-16 trailer (`size − 26`
+bytes). NSM writes NSM-era headers only and passes the record through verbatim:
+the device stores and transfers the record alone (`pushFile` sends exactly this,
+for either header). A Live file holds the same record as a program (real files:
+`.ns2l` and `.ns2p` both 547 bytes legacy, `.ns3l` and `.ns3f` both 592 NSM-era),
+so OpenNord reads a Live with its model's program reader when the record length
+matches (`formats.ts` `programTagFor`); Settings, Song and Set List bodies are
+not mapped and are only identified. Every file type's tag is listed in
+`docs/NORD-PRODUCT-LINE.md` "File-type taxonomy" and `clavia/file-tags.ts`.
+
 ## Bundles & backups are ZIP archives
 
 A Nord **backup/bundle is a plain ZIP file** — not a custom container. The
@@ -118,8 +150,8 @@ different extensions are just renamed zips by content type:
 | synth/sample bundles | presets / sample sets | `.ns3synthpb`, `.ns3sbundle` |
 
 Inside, each entry is an ordinary program file; the **folder path encodes the
-bank/location**, and bundle-extracted programs carry the `…l` type tag (`ns4l`)
-but decode identically to a standalone program. OpenNord reads a bundle by
+bank/location**. (A `…l` tag such as `ns4l` is a **Live** slot's file, per NSM's
+file specs — not a bundle marker; it holds the same record as a program.) OpenNord reads a bundle by
 unzipping and decoding each `.ns4p`/`.ns4l` entry, and writes one by zipping
 individual programs (`bundle.ts`, using `fflate`). This is also how sharing a
 *collection* works: zip the user's programs — never sample audio (`docs/LEGAL.md`).

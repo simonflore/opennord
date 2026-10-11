@@ -61,7 +61,7 @@ else inferred.
 
 | Instrument | NSM handler *(NSM)* | Program tag *(NSM)* | Backup | Sample codec | Gen |
 |---|---|---|---|---|---|
-| Nord Stage (Classic/EX) | `CStageBase` | `nspg` *(both; firmware)* | `nsb`, `ns2exb` | — (no sample library) | OG (ColdFire) |
+| Nord Stage (Classic/EX) | `CStageBase` | `nspg` *(both; firmware)* | `nsb` | — (no sample library) | OG (ColdFire) |
 | **Nord Stage 2** | `CStageBase`, `CPartitionProgramNS2` | `ns2p` | `ns2b` | `nsmp` (codec-1) | OG |
 | **Nord Stage 2 EX** | `CStageBase` | `ns2p` *(shared w/ Stage 2)* | `ns2exb` | `nsmp` (codec-1) | OG |
 | **Nord Stage 3** | `CStageBase` | **`ns3f`** | `ns3b` | `nsmp3` (codec-3) | NW1 v3 |
@@ -70,14 +70,14 @@ else inferred.
 | Nord Electro 4 | `CElectro4`, `CPartitionProgramE4` | `ne4p` | `ne4b` | `nsmp` NWS v8/v11 | OG (ColdFire) |
 | Nord Electro 5 | `CElectro5` | `ne5p` | `ne5b` | `nsmp` NWS v8/v11 — refuses `nsmp3` | OG (ColdFire) |
 | Nord Electro 6 | `CElectro6` | `ne6p` | `ne6b` | `nsmp3` *(medium)* | NW1 v3 |
-| Nord Electro 7 | `CElectro7` | `ne7p` | — | `nsmp3` + `nsmp4` (firmware, `ELECTRO7-ENGINES.md` §6) | NW1 v4 |
+| Nord Electro 7 | `CElectro7` | `ne7p` | `ne7b` | `nsmp3` + `nsmp4` (firmware, `ELECTRO7-ENGINES.md` §6) | NW1 v4 |
 | Nord Piano (1) | `CPiano` | `nppg` | `npb` | — (no sample library) | OG (ColdFire) |
-| Nord Piano 2 / 3 | `CPiano2`/`CPiano3`, `CPartitionProgramNP2`/`NP3` | `np2p`/`np3p` | — | `nsmp` NWS v8/v11 | OG (ColdFire) |
-| Nord Piano 4 / 5 / 6 | `CPiano4`/`CPiano5`/`CPiano6`, `CPartitionPnoV5`/`V6` | `np4p`/`np5p`/`np6p` | — | P4 `nsmp3`; P5/P6 `nsmp3` + `nsmp4` | NW1 v3/v4 |
+| Nord Piano 2 / 3 | `CPiano2`/`CPiano3`, `CPartitionProgramNP2`/`NP3` | `np2p`/`np3p` | `np2b`/`np3b` | `nsmp` NWS v8/v11 | OG (ColdFire) |
+| Nord Piano 4 / 5 / 6 | `CPiano4`/`CPiano5`/`CPiano6`, `CPartitionPnoV5`/`V6` | `np4p`/`np5p`/`np6p` | `np4b`/`np5b`/`np6b` | P4 `nsmp3`; P5/P6 `nsmp3` + `nsmp4` | NW1 v3/v4 |
 | Nord Lead 4 | `CLead4`, `CLead4Base` | `nl4p` | `nl4b` | — | Lead descriptor |
-| Nord Lead A1 | `CMini` *(inferred)* | `nlap` | `nlab` | — | Lead descriptor |
-| Nord Wave | `CProductBase` | `nws`/`nwp` | `nwb` | `nsmp` NWS v8/v11 | OG (ColdFire) |
-| Nord Wave 2 | `CGeneric` *(inferred)* | `nw2p` | `nw2b` | `nsmp3` (NSM; firmware check not located) | NW1 v3 |
+| Nord Lead A1 | `CMini` | `nlap` | `nlab` | — | Lead descriptor |
+| Nord Wave | `CWave` | `nwp` | `nwb` | `nsmp` NWS v8/v11 | OG (ColdFire) |
+| Nord Wave 2 | `CWave2` | `nw2p` | `nw2b` | `nsmp3` (NSM; firmware check not located) | NW1 v3 |
 | Nord C1 | — (no USB transfer in its OS) | — | — | — | (ColdFire) |
 | Nord C2 / C2D | `CC2`, `CC2D` | C2 `ncpg`, C2D `nc2p` *(firmware)* | C2 `ncb`, C2D `nc2b` | — | OG (ColdFire) |
 | Nord Organ 3 | `COrgan3` | `no3p` | `no3b` | — | Organ 3: NW1 v4 |
@@ -93,24 +93,42 @@ else inferred.
 
 ## File-type taxonomy
 
-Within a model, each file type is one fourcc `n<model><type>`. The **type suffix**
-is consistent across the line (newer models use a 1-letter suffix; pre-2011
-models use a 2-letter one):
+Within a model, each file type is one tag `n<model><type>` (CBIN files carry it
+at 0x08, docs/FORMAT.md "Framing"; bundles and backups are ZIPs named by it). The
+suffix is only a hint — `s` is a Synth preset on the Stage 2, Settings on the
+Electro 4/5 and Piano 2/3, a single-sound Program on the Leads and a Song on the
+Electro 7 — so OpenNord reads the kind per tag from one table,
+`src/lib/clavia/file-tags.ts`, built from the file specs NSM 9.22 registers per
+product (`CFileType` / `CFileExtension` / `CBundleInfo` in each constructor)
+and cross-checked against each firmware's partitions:
 
-| Suffix | Category *(label seen in NSM)* | Notes |
-|---|---|---|
-| `p` / `pg` | **Program** | the main patch; what `lib/ns4/parse.ts` decodes |
-| `l` / `li` | **Live** | Live-buffer programs |
-| `s` / `sy` | **Synth Preset** / Sound — read per model | `ns2s` Stage 2 Synth; `nl4s`/`nlas` the Lead's single-sound **Program** partition; `nw2s` and `ne5s` are **Settings**; `ne7s` is the Electro 7's standalone synth-preset archive (a file tag, not a partition) |
-| `y` | **Synth Preset** (Stage 3/4) | `ns4y`, `ns3y`; but `ns2y` is Stage 2 **Settings** |
-| `r` | **Synth Preset** partition (Electro 7) | `ne7r` — 32 banks × 100 (firmware, `docs/FIRMWARE-LINE.md`) |
-| `o` / `op` | **Organ Preset** | `nso`, `neop`, `ns4o` |
-| `n` | (Stage 4 preset slot) | `ns4n` — preset family, exact kind TBD |
-| `t` | **Settings** almost everywhere; **Set List** only on Electro 5 | Settings: `ns4t`, `ns3t` (Stage), `ne6t`, `ne7t` (Electro 6/7), `np4t`/`np5t`/`np6t`, `ng2t` (pianos), `no3t`, `nl4t`/`nlat` — firmware registration, `docs/FIRMWARE-LINE.md` §3 (and hardware for `ns4t`, `docs/PROTOCOL-RE.md`). `ne5t` is a Set List (`CElectro5`, firmware agrees). Read the suffix per model |
-| `g` | (Stage 4) | `ns4g` — kind TBD |
-| `b` | **Backup** | a ZIP archive (`ns4b`/`ns3b`/`ns2b`); manifest carries `product_id`, `product_version`, `backup_format_version` |
-| `…bundle` / `…pb` | **Bundle / Pack** | program + its dependencies (pianos/samples) by name — the NSM 6 "Bundle" feature |
-| `nsmp` / `nsmp3` / `nsmp4` | **Sample (Samp Lib)** | codec-1 / codec-3 / codec-4 |
+| Model | Program | Live | Presets | Song / Set List | Settings | Other | Backup / bundles |
+|---|---|---|---|---|---|---|---|
+| Stage Classic / EX | `nspg` | — | Synth `nss` | — | — | | `nsb` |
+| Stage 2 / 2 EX | `ns2p` | `ns2l` | Synth `ns2s` | — | `ns2y` | | `ns2b`, `ns2exb` (EX); `ns2pb`, `ns2synthpb` |
+| Stage 3 | `ns3f` | `ns3l` | Synth `ns3y` | Song `ns3s` | `ns3t` | | `ns3b` |
+| Stage 4 | `ns4p` | `ns4l` | Synth `ns4y`, Organ `ns4o`, Piano `ns4n` | — | `ns4t` | `ns4g` (kind not named) | `ns4b` |
+| Electro 3 / 3 HP | `nepg` | `neli` | Organ `neop` | — | `nesy` | | `neb` |
+| Electro 4 | `ne4p` | `ne4l` | — | — | `ne4s` | | `ne4b` (SW/HP), `ne4db` (D); `ne4pb` |
+| Electro 5 | `ne5p` | `ne5l` | — | Set List `ne5t` | `ne5s` | | `ne5b`; `ne5pbundle`, `ne5tbundle` |
+| Electro 6 | `ne6p` | `ne6l` | — | — | `ne6t` | | `ne6b`; `ne6pbundle` |
+| Electro 7 | `ne7p` | `ne7l` | Synth `ne7r` | Song `ne7s` | `ne7t` | | `ne7b`; `ne7pbundle`, `ne7sbundle`, `ne7rbundle` |
+| Nord Piano | `nppg` | `npli` | — | — | `npsy` | | `npb` |
+| Piano 2 / 3 | `np2p` / `np3p` | `np2l` / `np3l` | — | — | `np2s` / `np3s` | | `np2b` / `np3b`; `np2pb` / `np3pbundle` |
+| Piano 4 / 5 / 6 | `np4p` … `np6p` | `np4l` … `np6l` | — | — | `np4t` … `np6t` | | `np4b` … `np6b`; `np4pbundle` … |
+| Grand / Grand 2 | `ngp` / `ng2p` | `ngl` / `ng2l` | — | — | `ngs` / `ng2t` | | `ngb` / `ng2b`; `ngpbundle` / `ng2pbundle` |
+| Organ 3 | `no3p` | `no3l` | — | — | `no3t` | | `no3b`; `no3pbundle` |
+| C2 | `ncpg` | `ncli` | — | — | `ncsy` | | `ncb` |
+| C2D | `nc2p` | `nc2l` (NSM only; the firmware registers no Live) | — | — | `nc2s` | | `nc2b` |
+| Wave | `nwp` | — | — | — | `nwsy` | Synth waves `nws`, RAM data `nwr`, samples `nwi` | `nwb` |
+| Wave 2 | `nw2p` | `nw2l` | — | — | `nw2s` | | `nw2b`; `nw2pbundle` |
+| Lead 4 | Program `nl4s`, Performance `nl4p` | — | — | — | `nl4t` | | `nl4b`; `nl4sbundle`, `nl4pbundle` |
+| Lead A1 | Program `nlas`, Performance `nlap` | — | — | — | `nlat` | | `nlab`; `nlasbundle`, `nlapbundle` |
+
+Samples are `nsmp` / `nsmp3` / `nsmp4` (codec 1 / 3 / 4) on every model with a
+sample library. A **Live** file stores the program record verbatim, so it reads
+with the program reader (docs/FORMAT.md "Framing"); Settings, Song and Set List
+bodies are not mapped, and those files are identified only.
 
 **Partition / category names** seen verbatim *(NSM)*: `Program`, `Live`, `Song`,
 `Performance`, `Set List`, `Organ Preset`, `Synth Preset`, `Pedal` (+ `Native`),
@@ -273,7 +291,7 @@ Recovered from Nord Sound Manager **v9.22** (macOS, arm64 slice) with Ghidra
 | 0x22 | `CPiano2` | piano-2 | 1.00 → 1.20 |
 | 0x23 | `CElectro4` (only for `SCaps+0x10` model 1–3) | electro-4 | 1.00 → 1.20 |
 | 0x24 | `CLead4_FTv7` if FileTransfer ver < 8 (OS 1.00–1.12), else `CLead4_FTv8` (1.13+) | lead-4 | 1.00 → 1.30 |
-| 0x25 | `CMini` | probably lead-a1 (unconfirmed, not set) | 1.00 → 1.34 |
+| 0x25 | `CMini` — "Nord Lead A1" (`CMini` @0x1000df1a8 names the product and registers `nlab`/`nlap`/`nlas`/`nlat`) | lead-a1 | 1.00 → 1.34 |
 | 0x26 | `CStage3` (`S_IsModelSupported` → always) | stage-3 | 2.50 → 2.54 |
 | 0x27 | `CElectro5` | electro-5 | 1.00 → 1.40 |
 | 0x28 | `CPiano3` | piano-3 | 1.00 → 1.22 |
@@ -390,10 +408,11 @@ are cited per row, the rest of the evidence is in `docs/FIRMWARE-LINE.md`):
   the last models on NSM's baseline (no Live/Settings on the Stages, a Live
   partition on the C2).
 
-Lead A1: NSM has no case named for it, but the A1 firmware (OS 1.36) runs the
-Lead 4's FileTransfer code (version 8, 3 partitions), so it *is* manageable over
-vendor USB; NSM's `CMini` (PID 0x25) is probably the A1 — unconfirmed until a
-device reports that PID. The C1 is the one model with no USB transfer (no device
+Lead A1: NSM's `CMini` class (PID 0x25) is the A1 — its constructor names the
+product "Nord Lead A1" and registers the `nlab` / `nlap` / `nlas` / `nlat` tags —
+and the A1 firmware (OS 1.36) runs the Lead 4's FileTransfer code (version 8, 3
+partitions), so it is manageable over vendor USB (`staticProductId` 0x25; not
+hardware-confirmed). The C1 is the one model with no USB transfer (no device
 descriptor, no FileTransfer code in OS 1.12). Cross-check: the Stage 2
 unit that validated the NS2 partition map (issue #31) ran OS 3.00, NSM's
 recommended value. **Open:** `docs/PROTOCOL-RE.md` records the validating Stage 4
