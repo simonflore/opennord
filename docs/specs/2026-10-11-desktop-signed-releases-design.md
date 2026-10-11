@@ -93,12 +93,9 @@ and record why — do not add it pre-emptively.
 
 ## The node-usb guard
 
-`scripts/usb-native-guard.mjs verify` learns two things:
-
-- `--target darwin-universal` asserts the packed app carries a prebuild covering
-  both `arm64` and `x64` (and, as today, no `usb/build`).
-- It can inspect an NSIS build: electron-builder leaves `release/win-unpacked/`
-  beside the installer, which is what gets verified.
+No code change. `scripts/usb-native-guard.mjs verify --target darwin-x64+arm64`
+already asserts a prebuild covering both mac arches, and `packedApps` already
+finds `release/win-unpacked`. Only the calling scripts change.
 
 `clean` keeps emptying `release/`, so packing one target still discards the
 other's output. That is fine: the two platforms are never packed in one run.
@@ -135,7 +132,7 @@ permissions and no new secrets.
    staples) → guard verify.
 3. **Verify macOS.** `codesign --verify --deep --strict` on the app,
    `spctl --assess --type execute` on the app, `xcrun stapler validate` on the
-   dmg.
+   app (electron-builder staples the app, then wraps it in an unsigned dmg).
 4. **Fetch Windows.** Find the `desktop-win.yml` run for `HEAD`'s commit; if it
    is absent, still running, or failed, stop and say which. Download its
    artifact.

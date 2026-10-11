@@ -1,6 +1,6 @@
 {
   "name": "opennord",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": false,
   "license": "AGPL-3.0-or-later",
   "description": "Open, AI-native companion for the Nord Stage 4 — browse, share and visualize programs, and (experimental) talk to your Nord directly.",
@@ -24,8 +24,8 @@
     "build:electron": "cross-env OPENNORD_ELECTRON=1 tsc -b && cross-env OPENNORD_ELECTRON=1 vite build",
     "electron:build": "esbuild electron/main.ts electron/preload.ts --bundle --platform=node --format=cjs --external:electron --external:usb --outdir=electron/dist --out-extension:.js=.cjs --banner:js=\"process.env.PREBUILDS_ONLY='1';\"",
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron electron/dist/main.cjs\"",
-    "electron:pack": "node scripts/usb-native-guard.mjs clean && npm run build:electron && npm run electron:build && electron-builder --mac && node scripts/usb-native-guard.mjs verify",
-    "electron:pack:win": "node scripts/usb-native-guard.mjs clean && npm run build:electron && npm run electron:build && electron-builder --win --x64 && node scripts/usb-native-guard.mjs verify --target win32-x64"
+    "electron:pack": "node scripts/usb-native-guard.mjs clean && npm run build:electron && npm run electron:build && electron-builder --mac --universal --publish never && node scripts/usb-native-guard.mjs verify --target darwin-x64+arm64",
+    "electron:pack:win": "node scripts/usb-native-guard.mjs clean && npm run build:electron && npm run electron:build && electron-builder --win --x64 --publish never && node scripts/usb-native-guard.mjs verify --target win32-x64"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.84",
@@ -79,7 +79,7 @@
     "wait-on": "^9.0.1"
   },
   "build": {
-    "appId": "app.gigmeister.opennord",
+    "appId": "org.opennord.app",
     "productName": "OpenNord",
     "files": [
       "dist/**/*",
@@ -90,13 +90,28 @@
       "output": "release"
     },
     "npmRebuild": false,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "simonflore",
+        "repo": "opennord"
+      }
+    ],
     "mac": {
-      "target": "dir",
-      "identity": null,
-      "category": "public.app-category.music"
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.music",
+      "artifactName": "OpenNord-mac.${ext}"
     },
     "win": {
-      "target": "zip"
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "OpenNord-win-x64.${ext}"
     }
   }
 }
