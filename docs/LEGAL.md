@@ -79,17 +79,18 @@ each stamped with the time and the browser's user-agent string:
 - **File support** (`file.read`) — **opt-in, off by default**, stored per device
   ("Help improve file support" on the About and Contribute pages). One report per
   distinct program file per visit, when it is opened: the file-type tag, model id,
-  size, the header's format byte (0x04) and version field (0x14), and two framing
+  size, the header's format type (0x04) and version field (0x14), and two framing
   windows as hex: header bytes 0x14–0x17 (stopping before the NSM-era checksum at
   0x18), and the version word where the reader expects the record/body (0x18 after a
-  legacy header, 0x2C after an NSM-era one: a legacy record's 2-byte version, or a
+  legacy header, 0x2C after an NSM-era one: a legacy record's 1- or 2-byte version, or a
   block chain's 4-byte format version plus the first block's length byte); the
   reader's verdict (layout matched / header only, record version, its generic warning
   messages, the count of out-of-range values) and the app build. **Never** program
   contents or parameter values, program names, file names, the file's checksum or
   any hash of it. Program files carry no name in the binary (`clavia/cbin.ts`,
-  `docs/FORMAT.md`); only program file types a reader claims are reported, so samples
-  (which embed a name), pianos and presets never are. Implementation:
+  `docs/FORMAT.md`); only files a program reader reads are reported (a program, or a
+  Live file holding a program's record), so samples (which embed a name), pianos,
+  presets, Settings and Songs never are. Implementation:
   `src/lib/diagnostics/file-read.ts`.
 
 No account id or IP address is stored with an event. **Retention is not implemented
