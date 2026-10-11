@@ -51,7 +51,7 @@ export function CategoryPanel({
       {banners}
       <div className="lib-panel__body">
         {isEmpty ? emptyState : (
-          // A flush list of rows (LibraryCard), not a card grid: a library is
+          // A flush list of rows (LibraryCard, or the program table), not a card grid: a library is
           // scanned, so density wins here.
           <div className="flex flex-col border-t border-line">
             {children}

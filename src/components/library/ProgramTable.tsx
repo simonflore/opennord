@@ -1,14 +1,15 @@
-import { useEffect } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { cn } from '@/lib/cn';
 import { SourceBadge, anyDialogOpen } from '../ui';
 import { Led } from '../shell/Led';
+import { LibraryRow, FavoriteStar } from './LibraryCard';
 import { ZoneStrip } from './ZoneStrip';
 import { SlotTag, genTone } from './SlotTag';
 import { CardRemoveButton } from './CardRemoveButton';
-import type { EngineKind, EngineSummary } from '../../lib/clavia/engines';
-import type { LibraryEntry } from '../../lib/library/types';
+import { activeEngineKinds, type EngineKind, type EngineSummary } from '../../lib/clavia/engines';
 import { isNs4Program, type NordProgram } from '../../lib/formats';
 import { activeLayers, fxChips } from '../../lib/ns4/view';
+import type { LibraryEntry } from '../../lib/library/types';
 
 // One row's columns: favourite, slot, name, category, the P/O/S engine LEDs,
 // zones, piano, effects, source. In a narrow container (the list beside an open
@@ -16,8 +17,8 @@ import { activeLayers, fxChips } from '../../lib/ns4/view';
 // remove button for an imported program.
 const COLS = cn(
   'grid items-center gap-x-3 pr-3',
-  'grid-cols-[28px_52px_minmax(0,1fr)_88px_52px_64px_84px_24px_auto]',
-  '@max-[600px]:grid-cols-[28px_52px_minmax(0,1fr)_52px_auto]',
+  'grid-cols-[36px_52px_minmax(0,1fr)_88px_52px_64px_84px_24px_auto]',
+  '@max-[600px]:grid-cols-[36px_52px_minmax(0,1fr)_52px_auto]',
 );
 // The columns a narrow container drops.
 const WIDE = '@max-[600px]:hidden';
@@ -28,15 +29,12 @@ const ENGINES: { kind: EngineKind; letter: string; name: string }[] = [
   { kind: 'synth', letter: 'S', name: 'Synth' },
 ];
 
-/** The engines a program plays, whatever its generation's axis. */
-function activeEngines(s: EngineSummary): Set<EngineKind> {
-  return new Set(s.axis === 'engine' ? s.engines.map((e) => e.kind) : s.groups.flatMap((g) => g.engines));
-}
+const dash = <span className="text-muted">—</span>;
 
 /** The P/O/S LEDs: lit for each engine the program plays. */
 function EngineLeds({ summary }: { summary?: EngineSummary }) {
-  if (!summary) return <span className="font-mono text-[11px] text-muted">—</span>;
-  const on = activeEngines(summary);
+  if (!summary) return dash;
+  const on = activeEngineKinds(summary);
   const label = ENGINES.map((e) => `${e.name} ${on.has(e.kind) ? 'on' : 'off'}`).join(', ');
   return (
     <span className="flex items-center gap-[9px]" role="img" aria-label={label}>
@@ -46,29 +44,26 @@ function EngineLeds({ summary }: { summary?: EngineSummary }) {
 }
 
 /**
- * The piano type a program plays and how many effects are on, for a Stage 4
- * program (other formats show a dash). Cached per program object: a row's
- * program is stable while the list re-renders on every search keystroke.
+ * The piano type a program plays and how many effects are on (a Stage 4
+ * program; other formats show a dash). Memoised like ZoneStrip: a row's program
+ * object is stable while the list re-renders on every search keystroke.
  */
-const factsCache = new WeakMap<object, { piano?: string; fx: number }>();
-function programFacts(program: NordProgram | undefined): { piano?: string; fx: number } | undefined {
-  if (!program || !isNs4Program(program)) return undefined;
-  let facts = factsCache.get(program);
-  if (!facts) {
-    const piano = activeLayers(program).find((l) => l.kind === 'piano');
-    facts = { piano: piano?.pianoType, fx: fxChips(program).length };
-    factsCache.set(program, facts);
-  }
-  return facts;
-}
-
-const dash = <span className="text-muted">—</span>;
+const ProgramFacts = memo(function ProgramFacts({ program }: { program?: NordProgram }) {
+  const ns4 = program && isNs4Program(program) ? program : undefined;
+  const piano = ns4 && activeLayers(ns4).find((l) => l.kind === 'piano')?.pianoType;
+  return (
+    <>
+      <span className={cn(WIDE, 'truncate')}>{piano ?? dash}</span>
+      <span className={WIDE}>{ns4 ? fxChips(ns4).length : dash}</span>
+    </>
+  );
+});
 
 /**
  * The program list as a console table (B×A): a header naming each column, then
- * one dense row per program. Rows keep the old card's behaviour (Enter/Space
- * open, the favourite star, remove for an imported program). J/K open the next
- * or previous program, skipping Nord slots that haven't been read yet.
+ * one dense row per program, on the shared LibraryRow (Enter/Space open, the
+ * favourite star, remove for an imported program). J/K open the next or
+ * previous program, skipping Nord slots that haven't been read yet.
  */
 export function ProgramTable({
   entries, activeId, favorites, onToggleFavorite, onOpen, onRemove,
@@ -103,60 +98,31 @@ export function ProgramTable({
         <span className={WIDE}>FX</span>
         <span className={cn(WIDE, 'text-right')}>Source</span>
       </div>
-      {entries.map((e) => {
-        const selected = e.id === activeId;
-        const favorite = favorites.has(e.id);
-        const facts = programFacts(e.program);
-        return (
-          <div
-            key={e.id}
-            className={cn(
-              COLS,
-              'group relative min-h-10 cursor-pointer select-none border-b border-line',
-              'transition-colors duration-[120ms] hover:bg-surface-2 focus-visible:bg-surface-2',
-              selected && "bg-surface-2 before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent before:content-['']",
+      {entries.map((e) => (
+        <LibraryRow
+          key={e.id}
+          className={cn(COLS, 'min-h-10 font-mono text-[11px] text-dim')}
+          selected={e.id === activeId}
+          onOpen={() => onOpen(e)}
+          label={e.name}
+        >
+          <FavoriteStar name={e.name} favorite={favorites.has(e.id)} onToggle={() => onToggleFavorite(e.id)} />
+          <span>
+            <SlotTag tone={e.slot ? undefined : genTone(e.generation)}>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>
+          </span>
+          <span className="min-w-0 truncate font-sans text-[14px] font-semibold text-ink">{e.name}</span>
+          <span className={cn(WIDE, 'truncate font-sans text-[12px]')}>{e.category ?? dash}</span>
+          <EngineLeds summary={e.engines} />
+          <span className={WIDE}><ZoneStrip program={e.program} /></span>
+          <ProgramFacts program={e.program} />
+          <span className="flex items-center justify-end gap-2">
+            <span className={WIDE}><SourceBadge source={e.source} /></span>
+            {e.source === 'local' && (
+              <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
             )}
-            role="button"
-            tabIndex={0}
-            aria-label={e.name}
-            aria-current={selected ? 'true' : undefined}
-            data-open-row={selected || undefined}
-            onClick={() => onOpen(e)}
-            onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onOpen(e); } }}
-          >
-            <button
-              className={cn(
-                'inline-flex h-10 w-7 items-center justify-center text-[15px] leading-none opacity-0',
-                'transition-[opacity,color] duration-[120ms] group-hover:opacity-100 focus-visible:opacity-100',
-                '[@media(hover:none)]:opacity-100 hover:text-accent-bright',
-                favorite ? 'text-accent opacity-100' : 'text-muted',
-              )}
-              aria-label={favorite ? `Unfavorite ${e.name}` : `Favorite ${e.name}`}
-              aria-pressed={favorite}
-              title={favorite ? 'Remove from favorites' : 'Add to favorites'}
-              onClick={(ev) => { ev.stopPropagation(); onToggleFavorite(e.id); }}
-              onKeyDown={(ev) => ev.stopPropagation()}
-            >{favorite ? '★' : '☆'}</button>
-            <span className="font-mono">
-              <SlotTag tone={e.slot ? undefined : genTone(e.generation)}>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>
-            </span>
-            <span className="min-w-0 truncate text-[14px] font-semibold text-ink">{e.name}</span>
-            <span className={cn(WIDE, 'truncate text-[12px] text-dim')}>{e.category ?? dash}</span>
-            <EngineLeds summary={e.engines} />
-            <span className={WIDE}><ZoneStrip program={e.program} /></span>
-            <span className={cn(WIDE, 'truncate font-mono text-[11px] text-dim')}>{facts?.piano ?? dash}</span>
-            <span className={cn(WIDE, 'font-mono text-[11px] text-dim')}>
-              {facts ? facts.fx : dash}
-            </span>
-            <span className="flex items-center justify-end gap-2 font-mono text-[11px] text-dim">
-              <span className={WIDE}><SourceBadge source={e.source} /></span>
-              {e.source === 'local' && (
-                <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
-              )}
-            </span>
-          </div>
-        );
-      })}
+          </span>
+        </LibraryRow>
+      ))}
       <p className="m-0 px-3 py-2 font-mono text-[10px] text-muted max-[720px]:hidden">
         <kbd>J</kbd> <kbd>K</kbd> next / previous · <kbd>↵</kbd> open
       </p>
@@ -168,15 +134,19 @@ export function ProgramTable({
  * J and K open the next and previous program in the list (from the open one, or
  * the first with none open). Left alone while typing, over a dialog, or with a
  * modifier held; Nord slots not read yet (no program) are stepped over, since
- * opening one leaves for the Device page.
+ * opening one leaves for the Device page. One listener for the table's
+ * lifetime, reading the latest list through a ref.
  */
 function useStepKeys(entries: LibraryEntry[], activeId: string | null | undefined, onOpen: (e: LibraryEntry) => void) {
+  const latest = useRef({ entries, activeId, onOpen });
+  useEffect(() => { latest.current = { entries, activeId, onOpen }; });
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
       const key = ev.key.toLowerCase();
       if ((key !== 'j' && key !== 'k') || ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
-      const t = ev.target as HTMLElement | null;
-      if (t?.closest('input, textarea, select, [contenteditable="true"]') || anyDialogOpen()) return;
+      const t = ev.target;
+      if ((t instanceof Element && t.closest('input, textarea, select, [contenteditable="true"]')) || anyDialogOpen()) return;
+      const { entries, activeId, onOpen } = latest.current;
       const readable = entries.filter((e) => e.program);
       if (!readable.length) return;
       const at = readable.findIndex((e) => e.id === activeId);
@@ -187,5 +157,5 @@ function useStepKeys(entries: LibraryEntry[], activeId: string | null | undefine
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [entries, activeId, onOpen]);
+  }, []);
 }

@@ -25,3 +25,8 @@ export function engineSearchText(s: EngineSummary): string {
     ? s.groups.map((g) => `${s.term} ${g.id}: ${g.engines.join(' + ')}`).join(' · ')
     : s.engines.map((e) => `${e.kind} ${e.layers.join(' ')}`).join(' + ');
 }
+
+/** The engines a program plays, on either axis — for a glance (the Library's P/O/S LEDs). */
+export function activeEngineKinds(s: EngineSummary): Set<EngineKind> {
+  return new Set(s.axis === 'engine' ? s.engines.map((e) => e.kind) : s.groups.flatMap((g) => g.engines));
+}

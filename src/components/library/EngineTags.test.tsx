@@ -7,16 +7,8 @@ import { EngineTags } from './EngineTags';
 afterEach(cleanup);
 
 describe('EngineTags — engine axis (Stage 4)', () => {
-  it('shows ×N on the card only when a layer stacks', () => {
+  it('names each engine’s layers', () => {
     render(<EngineTags summary={{ axis: 'engine', engines: [
-      { kind: 'organ', layers: ['A'] }, { kind: 'piano', layers: ['A', 'B'] },
-    ] }} />);
-    expect(screen.getByText('organ')).toBeInTheDocument();
-    expect(screen.getByText('piano ×2')).toBeInTheDocument();
-  });
-
-  it('names the layers in detail mode', () => {
-    render(<EngineTags detail summary={{ axis: 'engine', engines: [
       { kind: 'piano', layers: ['A', 'B'] },
     ] }} />);
     expect(screen.getByText('piano: A, B')).toBeInTheDocument();
@@ -24,16 +16,8 @@ describe('EngineTags — engine axis (Stage 4)', () => {
 });
 
 describe('EngineTags — container axis (Stage 2/3)', () => {
-  it('uses the bare letter on the card', () => {
-    render(<EngineTags summary={{ axis: 'container', term: 'Panel', groups: [
-      { id: 'A', engines: ['organ'] },
-    ] }} />);
-    expect(screen.getByText('A:')).toBeInTheDocument();
-    expect(screen.getByText('organ')).toBeInTheDocument();
-  });
-
-  it('uses the instrument’s word in detail mode', () => {
-    render(<EngineTags detail summary={{ axis: 'container', term: 'Slot', groups: [
+  it('uses the instrument’s word for the container', () => {
+    render(<EngineTags summary={{ axis: 'container', term: 'Slot', groups: [
       { id: 'B', engines: ['synth'] },
     ] }} />);
     expect(screen.getByText('Slot B')).toBeInTheDocument();

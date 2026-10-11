@@ -16,7 +16,7 @@ export function ProgramHeader({ header: h, aside }: { header: HeaderView; aside?
     <div className="ps-hd">
       <div className="ps-hd-id">
         <IdentityLcd name={`${slot}${h.name}`} lines={[`${h.category} · ${h.version}`]} />
-        <EngineTags summary={h.engines} detail />
+        <EngineTags summary={h.engines} />
       </div>
       {aside}
     </div>
