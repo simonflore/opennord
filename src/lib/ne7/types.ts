@@ -17,9 +17,9 @@
  * which slot is pedal and which is wheel medium). Negative values are two's
  * complement in the field width (the registry builder sets the signed mode;
  * value − min would put 75 factory values out of range). Predicted body 353
- * bytes (397-byte file). The order is NOT yet confirmed on a real file, and partial saves may
- * omit folders — such a file fails the block-count check and
- * shows the header only.
+ * bytes (397-byte file). The order is NOT yet confirmed on a real file, and
+ * partial saves may omit folders — such a file fails the
+ * block-count check and shows the header only.
  */
 import type { FwProgram } from '../clavia/block-chain';
 import type { Ne7FieldKey } from './layout.generated';
