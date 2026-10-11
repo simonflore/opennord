@@ -7,9 +7,10 @@
  * organ model and piano category. The firmware has no text
  * labels for Fx1, Fx2, Amp or Reverb types (probably drawn as graphics), so
  * effects show as on/off only. The embedded synth preset stores the analog
- * waveforms and the FM algorithm side by side, and which `Syn_kMode` value is
- * Analog, FM or Sample is not known yet — so the preset's sound is held back
- * rather than shown for a mode that may not be active.
+ * waveforms and the FM algorithm side by side; only the active mode's sound is
+ * shown. `Syn_kMode` 0 = Sample is confirmed (it reloads the sample); 1 = Analog
+ * and 2 = FM are likely, and say so. Oscillator
+ * labels: the OS 1.30 lists.
  */
 import { decodeNe7 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
@@ -24,6 +25,11 @@ import type { Ne7FieldKey } from './layout.generated';
 export const NE7_ORGAN_MODEL = ['B3', 'Vox', 'Farf', 'Pipe', 'Soft B3', 'B3+Bass'] as const;
 /** Pno_kBank 0–5 (piano category). */
 export const NE7_PIANO_CATEGORY = ['Grand', 'Upright', 'Electric', 'Clavinet', 'Digital', 'Misc'] as const;
+
+/** Syn_kAnalogMainWaveform 0–5 (Osc A). */
+export const NE7_OSC_A = ['Triangle', 'Saw', 'Square', 'Pulse 33', 'Pulse 10', 'SuperSaw'] as const;
+/** Syn_kAnalogAuxWaveform 0–6 (Osc B; 0 = off). */
+export const NE7_OSC_B = ['Off', 'Triangle', 'Saw', 'Square', 'Pulse 33', 'Pulse 10', 'Noise'] as const;
 
 /** Organ models that use Hammond drawbar footage (B3, Soft B3, B3+Bass). */
 const B3_MODELS = new Set([0, 4, 5]);
@@ -41,6 +47,23 @@ function sectionFx(g: Get, blk: 'organFx' | 'pianoFx' | 'synthFx'): string[] {
     g(`${blk}.ampEnable`) ? 'Amp' : undefined,
     g(`${blk}.cmpEnable`) ? 'Comp' : undefined,
   ));
+}
+
+/** The synth preset's sound for its mode; Analog and FM are marked "likely". */
+function synthSound(g: Get): string[] {
+  switch (g('synthPreset.mode')) {
+    case 0: return ['Sample'];
+    case 1: {
+      const oscB = label(NE7_OSC_B, g('synthPreset.analogAuxWaveform'));
+      return parts('Analog (likely)', label(NE7_OSC_A, g('synthPreset.analogMainWaveform')),
+        oscB !== undefined && oscB !== 'Off' && `Osc B ${oscB}`);
+    }
+    case 2: {
+      const alg = g('synthPreset.fmAlgorithm');
+      return parts('FM (likely)', alg !== undefined && `Algorithm ${alg + 1}`);
+    }
+    default: return [];
+  }
 }
 
 function drawbarSet(g: Get, n: 1 | 2 | 3, b3: boolean): DecodedSection {
@@ -66,6 +89,7 @@ export function ne7Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolv
   const header = [
     ...fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue'))),
     ...soundIdRow('Piano sound id', g('piano.nameHash')),
+    ...(g('synthPreset.mode') === 0 ? soundIdRow('Synth sample id', g('synthPreset.smpNameHash')) : []),
   ];
 
   const model = g('organ.organModel');
@@ -103,6 +127,7 @@ export function ne7Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolv
         label: 'Synth',
         parts: parts(levelPart(g('synth.level')), octavePart(g('synth.octaveShift')), !g('synth.isEnabled') && '(off)'),
       },
+      { label: 'Preset', parts: synthSound(g) },
       { label: 'Effects', parts: sectionFx(g, 'synthFx') },
     ],
   };
