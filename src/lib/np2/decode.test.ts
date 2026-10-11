@@ -1,0 +1,55 @@
+/**
+ * NP2 reader tests: synthetic records built from the program map (Piano 2
+ * OS 1.22 descriptors, via layout.generated.ts). No real `.np2p` is in the corpus.
+ */
+import { describe, it, expect } from 'vitest';
+import { decodeNp2 } from './decode';
+import { np2Decoded } from './present';
+import { NP2_LAYOUT, type Np2FieldKey } from './layout.generated';
+import { synthLegacyFile, writeLegacyRecord } from '../clavia/block-chain.synth';
+
+function np2p(values: Partial<Record<Np2FieldKey, number>> = {}, version = 2): Uint8Array {
+  const data = new Uint8Array(NP2_LAYOUT.dataBytes);
+  writeLegacyRecord(data, NP2_LAYOUT, values);
+  return synthLegacyFile('np2p', version, data);
+}
+
+describe('NP2 firmware layout', () => {
+  it('is a 42-byte record (common, piano, synth, effects = 336 bits), version 2, 52 parameters', () => {
+    expect(NP2_LAYOUT).toMatchObject({ dataBytes: 42, recordVersion: 2 });
+    expect(NP2_LAYOUT.fields).toHaveLength(52);
+    expect(0x1a + NP2_LAYOUT.dataBytes + 2).toBe(70);
+    const last = NP2_LAYOUT.fields.at(-1)!;
+    expect(last.key).toBe('effects.reverbDryWet');
+    const used = new Set<number>();
+    for (const f of NP2_LAYOUT.fields) {
+      expect([f.enc, f.min], f.key).toEqual(['u', 0]);
+      for (let b = f.bit; b < f.bit + f.width; b++) { expect(used.has(b), f.key).toBe(false); used.add(b); }
+    }
+  });
+});
+
+describe('decodeNp2 (synthetic)', () => {
+  it('reads a default record without warnings', () => {
+    const p = decodeNp2(np2p({ 'piano.pianoModel': 12 }));
+    expect(p.warnings).toEqual([]);
+    expect(p).toMatchObject({ layoutMatched: true, recordVersion: 2, format: 'np2p' });
+    expect(p.values['piano.pianoModel']).toBe(12);
+    expect(p.values['piano.pianoLevel']).toBe(127);
+  });
+
+  it('reads a version 1 record with a warning (the firmware converts it)', () => {
+    const p = decodeNp2(np2p({}, 1));
+    expect(p.layoutMatched).toBe(true);
+    expect(p.warnings.join(' ')).toMatch(/version 1.*converts/);
+  });
+
+  it('presents piano, synth and effects', () => {
+    const d = np2Decoded(np2p({ 'piano.pianoType': 2, 'effects.delayOn': 1, 'synth.synthOn': 1, 'synth.synthLevel': 80 }));
+    expect(d.title).toBe('Nord Piano 2 · Program');
+    expect(d.sections[0].engines[0].parts[0]).toBe('E-Piano 1');
+    expect(d.sections[1].engines[0].parts).toContain('level 80');
+    expect(d.sections[1].engines[0].parts).not.toContain('(off)');
+    expect(d.sections[2].engines[0].parts).toEqual(['Delay']);
+  });
+});

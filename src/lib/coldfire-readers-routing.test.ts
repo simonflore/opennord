@@ -14,6 +14,7 @@ import { DecodedProgramView } from '../components/program/DecodedProgramView';
 import { decodeForModel, getModelProgress } from './contribute/coverage';
 import { NE5_LAYOUT } from './ne5/layout.generated';
 import { NP3_LAYOUT } from './np3/layout.generated';
+import { NP2_LAYOUT } from './np2/layout.generated';
 
 interface Case {
   tag: string; live?: string; layout: LegacyLayout; model: string; registry: string; title: string;
@@ -23,6 +24,7 @@ interface Case {
 const CASES: Case[] = [
   { tag: 'ne5p', live: 'ne5l', layout: NE5_LAYOUT, model: 'ne5', registry: 'electro-5', title: 'Nord Electro 5 · Program', version: 4, status: 'confirmed' },
   { tag: 'np3p', live: 'np3l', layout: NP3_LAYOUT, model: 'np3', registry: 'piano-3', title: 'Nord Piano 3 · Program', version: 4, status: 'candidate' },
+  { tag: 'np2p', layout: NP2_LAYOUT, model: 'np2', registry: 'piano-2', title: 'Nord Piano 2 · Program', version: 2, status: 'candidate' },
 ];
 
 function file(tag: string, layout: LegacyLayout, version: number): Uint8Array {
