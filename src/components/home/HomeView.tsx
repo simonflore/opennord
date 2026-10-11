@@ -2,7 +2,6 @@ import { Blueprint } from '@/components/ui';
 import { SiteHeader } from './SiteHeader';
 import { Hero } from './Hero';
 import { Features } from './Features';
-import { More } from './More';
 import { DesktopApp } from './DesktopApp';
 import { Proof } from './Proof';
 import { Coverage } from './Coverage';
@@ -25,7 +24,10 @@ import { SiteFooter } from './SiteFooter';
  */
 export function HomeView() {
   return (
-    <div className="relative min-h-screen stage-backdrop text-ink">
+    // overflow-x-clip: the blueprint crosshairs sit half outside the column, which
+    // at phone width is half outside the screen. clip, not hidden, so nothing
+    // becomes a scroll container.
+    <div className="relative min-h-screen overflow-x-clip stage-backdrop text-ink">
       {/* The blueprint frame's rails land at max-w-content — the same
           --container-content that CONTENT gives every section — so the frame
           traces the real column and the two cannot drift. z-0, not a negative
@@ -39,7 +41,6 @@ export function HomeView() {
         <main>
           <Hero />
           <Features />
-          <More />
           <DesktopApp />
           <Proof />
           <Coverage />
