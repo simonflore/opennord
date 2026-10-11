@@ -41,18 +41,17 @@ interface PresenterEntry {
 const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.generation === 'Stage 3' && i.kind === 'performance', present: ns3Decoded },
   { match: (i) => i.generation === 'Stage 2' && i.kind === 'program', present: ns2Decoded },
-  // Piano 4 / Piano 5 / Grand 2: firmware-layout readers (clavia/block-chain.ts).
-  // The family-wide piano-name table is injected here (their 32-bit NameHash is
-  // the PIANO_NAMES key) — the model modules never import ns4.
-  { match: (i) => i.tag === 'ng2p', present: (bytes) => ng2Decoded(bytes, pianoName) },
-  { match: (i) => i.tag === 'np5p', present: (bytes) => np5Decoded(bytes, pianoName) },
-  { match: (i) => i.tag === 'np4p', present: (bytes) => np4Decoded(bytes, pianoName) },
   { match: (i) => i.tag === 'ne5p', present: ne5Decoded },
   { match: (i) => i.tag === 'ne6p', present: ne6Decoded },
   { match: (i) => i.tag === 'nw2p', present: nw2Decoded },
   { match: (i) => i.tag === 'nlas' || i.tag === 'nlap', present: nlaDecoded },
-  // Firmware-layout readers (clavia/block-chain.ts). Electro 7 / Organ 3 are
-  // provisional until a real file confirms the block order (their notes say so).
+  // Firmware-layout readers (clavia/block-chain.ts), programs and Lives. The
+  // family-wide piano-name table is injected here (the 32-bit NameHash is the
+  // PIANO_NAMES key) — the model modules never import ns4. Electro 7 / Organ 3
+  // are provisional until a real file confirms the block order (their notes say so).
+  { match: (i) => i.tag === 'np4p' || i.tag === 'np4l', present: (bytes) => np4Decoded(bytes, pianoName) },
+  { match: (i) => i.tag === 'np5p' || i.tag === 'np5l', present: (bytes) => np5Decoded(bytes, pianoName) },
+  { match: (i) => i.tag === 'ng2p' || i.tag === 'ng2l', present: (bytes) => ng2Decoded(bytes, pianoName) },
   { match: (i) => i.tag === 'ngp' || i.tag === 'ngl', present: (bytes) => ngDecoded(bytes, pianoName) },
   { match: (i) => i.tag === 'np6p' || i.tag === 'np6l', present: (bytes) => np6Decoded(bytes, pianoName) },
   { match: (i) => i.tag === 'ne7p' || i.tag === 'ne7l', present: (bytes) => ne7Decoded(bytes, pianoName) },

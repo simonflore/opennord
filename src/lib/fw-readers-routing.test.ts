@@ -44,8 +44,10 @@ describe('firmware-layout readers — identify, codec and presenter routing', ()
       expect('format' in file.program && file.program.format).toBe(c.tag);
     });
 
-    it(`${c.live} (Live) routes to the same codec`, () => {
-      expect(parseClaviaFile(synthFwFile(c.live, synthFwBody(c.layout, {}, c.version), c.version)).model).toBe(c.model);
+    it(`${c.live} (Live) routes to the same codec and presenter`, () => {
+      const live = synthFwFile(c.live, synthFwBody(c.layout, {}, c.version), c.version);
+      expect(parseClaviaFile(live).model).toBe(c.model);
+      expect(decodedProgramFor(live)?.title).toBe(c.title);
     });
 
     it(`${c.tag} → presenter renders through DecodedProgramView`, () => {
