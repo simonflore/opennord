@@ -25,6 +25,7 @@ import { np6Decoded } from './np6/present';
 import { ne7Decoded } from './ne7/present';
 import { no3Decoded } from './no3/present';
 import { np3Decoded } from './np3/present';
+import { ns1Decoded } from './ns1/present';
 import { np1Decoded } from './np1/present';
 import { np2Decoded } from './np2/present';
 
@@ -63,6 +64,7 @@ const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.tag === 'np3p' || i.tag === 'np3l', present: np3Decoded },
   { match: (i) => i.tag === 'np2p', present: np2Decoded },
   { match: (i) => i.tag === 'nppg', present: np1Decoded },
+  { match: (i) => i.tag === 'nspg', present: (bytes) => ns1Decoded(bytes) },
 ];
 
 /** The shared decoded-program presentation for a file, or null if no model claims it. */
