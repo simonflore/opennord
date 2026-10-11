@@ -29,6 +29,8 @@ type Slot = 'A' | 'B';
 const OS300_DELTA_ZERO = 127 - 16383;
 const DELAY_MAX = 16383;
 const MORPHS = ['morphWheel', 'morphAfterTouch', 'morphCtrlPedal'] as const;
+const OS300_REFUSED = 'This program comes from Stage 3 OS 3.00 and has a delay time the Stage 3 can’t update, ' +
+  'so the instrument won’t load it. Showing the file header only.';
 
 export interface Ns3Conversion {
   readonly values: Values;
@@ -62,12 +64,10 @@ export function convertNs3Values(values: Values, formatVersion: number): Ns3Conv
       const rate = out[rateKey] ?? 0;
       const deltaKeys = MORPHS.map((m) => `${rateKey}.${m}` as Ns3FieldKey);
       const deltas = deltaKeys.map((k) => (out[k] ?? OS300_DELTA_ZERO) - OS300_DELTA_ZERO);
-      const refused = 'This program comes from Stage 3 OS 3.00 and has a delay time the Stage 3 can’t update, ' +
-        'so the instrument won’t load it. Showing the file header only.';
       // The firmware refuses a rate above 127 and a target in 128–16383, clock on or off.
       const outside = (t: number) => t < 0 || t > DELAY_MAX;
       if (rate > 127 || deltas.some((d) => !outside(rate + d) && rate + d > 127)) {
-        return { values, os300DelayRate: [], refused };
+        return { values, os300DelayRate: [], refused: OS300_REFUSED };
       }
       if (out[`effects${s}.dlyClkEnable`] !== 1) {
         // Free-running: OpenNord doesn't reproduce the instrument's curve, so keep the 3.00 scale.

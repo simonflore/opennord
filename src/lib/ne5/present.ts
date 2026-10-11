@@ -56,7 +56,6 @@ export function ne5Decoded(bytes: Uint8Array): DecodedProgram {
     g('effects.reverbEnable') ? reverbPart(label(NE5_REVERB_TYPES, g('effects.reverbType'))) : undefined,
   ));
 
-
   return {
     title, header,
     sections: [piano, synth, organPart(p, 'upper'), organPart(p, 'lower'), effects],

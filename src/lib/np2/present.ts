@@ -45,6 +45,5 @@ export function np2Decoded(bytes: Uint8Array): DecodedProgram {
     ['Keyboard touch', label(NP2_KEYBOARD_TOUCH, g('common.param4')) ?? `#${g('common.param4')}`],
     ['Sustain pedal', label(NP2_SUSTAIN_PEDAL_MODES, g('common.param5')) ?? `#${g('common.param5')}`],
   );
-
   return { title, header, sections: [piano, synth, effects], note: NP2_NOTE, warnings: p.warnings };
 }
