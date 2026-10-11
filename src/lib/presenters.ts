@@ -48,8 +48,8 @@ const PRESENTERS: readonly PresenterEntry[] = [
   // itself treats ns4 as a transcribe-only oracle and never imports it.
   { match: (i) => i.tag === 'np4p', present: (bytes) => np4Decoded(bytes, pianoName) },
   { match: (i) => i.tag === 'ne5p', present: ne5Decoded },
-  { match: (i) => i.tag === 'ne6p', present: ne6Decoded },
-  { match: (i) => i.tag === 'nw2p', present: nw2Decoded },
+  { match: (i) => i.tag === 'ne6p' || i.tag === 'ne6l', present: ne6Decoded },
+  { match: (i) => i.tag === 'nw2p' || i.tag === 'nw2l', present: nw2Decoded },
   { match: (i) => i.tag === 'nlas' || i.tag === 'nlap', present: nlaDecoded },
   // Firmware-layout readers (clavia/block-chain.ts). Electro 7 / Organ 3 are
   // provisional until a real file confirms the block order (their notes say so).
