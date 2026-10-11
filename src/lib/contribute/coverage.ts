@@ -175,11 +175,12 @@ const FW_LAYOUTS: Record<string, { layout: FwLayout; status: 'confirmed' | 'cand
 const _fwProgress: Record<string, ModelProgress> = {};
 
 // ── Legacy-record models: byte map of the record data (file 0x1A on) ─────────
-// Lead 4 (high) and Electro 4 (reproduces the corpus drawbar/sample anchors) →
-// 'confirmed'; the Lead A1 alignment is unchecked against real files → 'candidate'.
+// Lead 4 (high) → 'confirmed'. Electro 4 (its layout is medium confidence, although it
+// reproduces the corpus drawbar/sample anchors) and Lead A1 (alignment unchecked
+// against real files) → 'candidate'.
 // Lead 4 maps its program record (a performance is 7 common bytes + 4 of them).
 const LEGACY_LAYOUTS: Record<string, { layout: LegacyLayout; status: 'confirmed' | 'candidate' }> = {
-  'electro-4': { layout: NE4_LAYOUT, status: 'confirmed' },
+  'electro-4': { layout: NE4_LAYOUT, status: 'candidate' },
   'lead-4': { layout: NL4_LAYOUT, status: 'confirmed' },
   'lead-a1': { layout: NLA_LAYOUT, status: 'candidate' },
 };
