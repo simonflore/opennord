@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Dialog } from '../ui';
 import { cn } from '@/lib/cn';
@@ -71,10 +71,14 @@ export function CommandPalette({ open, onClose, menu }: {
   /** Opened as the phone's More menu: no focus on the search, so no keyboard over the pages. */
   menu?: boolean;
 }) {
+  // ↑/↓/Enter are handled on the whole dialog, so they work before the search is
+  // focused too (the More menu opens with the dialog itself focused).
+  const keys = useRef<((e: KeyboardEvent<HTMLElement>) => void) | null>(null);
   return (
     <Dialog
       bare
       autoFocus={!menu}
+      onKeyDown={(e) => keys.current?.(e)}
       open={open}
       onClose={onClose}
       title="Go to"
@@ -82,12 +86,15 @@ export function CommandPalette({ open, onClose, menu }: {
     >
       {/* The dialog mounts its content only while open, so the command list is
           built when the palette opens and each opening starts fresh. */}
-      <PaletteBody onClose={onClose} />
+      <PaletteBody onClose={onClose} keys={keys} />
     </Dialog>
   );
 }
 
-function PaletteBody({ onClose }: { onClose: () => void }) {
+function PaletteBody({ onClose, keys }: {
+  onClose: () => void;
+  keys: RefObject<((e: KeyboardEvent<HTMLElement>) => void) | null>;
+}) {
   const commands = useCommands();
   const [query, setQuery] = useState('');
   // The highlighted command, by id, so results that change while open (a scan
@@ -118,13 +125,14 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
     onClose();
     c.run();
   };
-  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+  keys.current = (e) => {
     // Enter commits an IME composition, not a command (WebKit reports it as keyCode 229).
     if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); if (results.length) setActiveId(results[Math.min(active + 1, results.length - 1)].id); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); if (results.length) setActiveId(results[Math.max(active - 1, 0)].id); }
     else if (e.key === 'Enter') { e.preventDefault(); run(results[active]); }
   };
+  useEffect(() => () => { keys.current = null; }, [keys]);
 
   return (
     <>
@@ -141,7 +149,6 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
           setActiveId(null);
           listRef.current?.scrollTo({ top: 0 }); // the new top result is the one Enter opens
         }}
-        onKeyDown={onKeyDown}
         className="h-12 flex-none border-0 border-b border-line bg-transparent px-4 font-mono text-sm text-ink outline-none focus-visible:outline-none placeholder:text-muted"
       />
       <div ref={listRef} id="palette-results" role="listbox" aria-label="Results" className="overflow-y-auto py-1">

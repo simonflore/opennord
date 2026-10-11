@@ -12,15 +12,13 @@ import { Button, SplitView } from '@/components/ui';
  * selection (from the route).
  */
 export function CategorySplit({
-  wide, master, detail, narrowDetail, hasDetail, onBack, backLabel, selectedId,
+  wide, master, detail, hasDetail, onBack, backLabel, selectedId,
 }: {
   /** True when there's room for both panes (from `useSplitLayout`). */
   wide: boolean;
   master: ReactNode;
-  /** Detail pane (wide), and the fallback narrow detail when `narrowDetail` is omitted. */
+  /** Detail pane: beside the list (wide), or below the back button (narrow). */
   detail: ReactNode;
-  /** Detail shown below the back button on narrow screens; defaults to `detail`. */
-  narrowDetail?: ReactNode;
   /** Whether a detail is selected — narrow shows only the master until it is. */
   hasDetail: boolean;
   onBack: () => void;
@@ -51,7 +49,7 @@ export function CategorySplit({
     return (
       <div>
         <Button variant="ghost" onClick={onBack}>{backLabel}</Button>
-        {narrowDetail ?? detail}
+        {detail}
       </div>
     );
   }

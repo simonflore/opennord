@@ -4,6 +4,7 @@ import { usePresetsState } from '@/lib/library/PresetsContext';
 import { PresetsBrowse } from './PresetsBrowse';
 import { PresetInspector } from './PresetInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
+import { useLeaveRemoved } from '@/components/library/useLeaveRemoved';
 import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSplitLayout } from '@/lib/responsive';
 
@@ -17,6 +18,7 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
   const s = usePresetsState();
   const navigate = useNavigate();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
+  useLeaveRemoved(selectedId, !!entry, '/library/presets');
 
   function importPreset() {
     const input = document.createElement('input');

@@ -11,7 +11,6 @@ import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
 import { enumeratePresets } from '@/lib/device/presets';
 import { modelById } from '@/lib/clavia/partitions';
-import { useEnsureListed } from '@/lib/library/useEnsureListed';
 import { useListFilters } from '@/lib/library/useListFilters';
 
 /** Merges device + folder presets into one filtered/sorted list and owns the
@@ -51,12 +50,11 @@ function usePresetsStateValue() {
 
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.
-  const { filtered, clearFilters } = useListFilters([
+  const { filtered, clearFilters, ensureListed } = useListFilters(shown, [
     { active: query.trim() !== '', reset: () => setQuery('') },
     { active: source !== 'all', reset: () => setSource('all') },
     { active: kind !== 'all', reset: () => setKind('all') },
   ]);
-  const ensureListed = useEnsureListed(shown, clearFilters);
   return {
     all: allEntries, clearFilters, filtered, ensureListed,
     shown, source, setSource, kind, setKind, query, setQuery,

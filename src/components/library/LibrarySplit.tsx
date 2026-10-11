@@ -65,8 +65,10 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
         <CategorySplit
           wide={wide}
           master={list}
-          detail={program ?? <EmptyNote>Pick a program to see its details.</EmptyNote>}
-          narrowDetail={program ?? <EmptyNote>This program isn’t open. Pick it from the Library.</EmptyNote>}
+          detail={program
+            ?? (selectedId
+              ? <EmptyNote>This program isn’t in your library (yet). Pick it from the list.</EmptyNote>
+              : <EmptyNote>Pick a program to see its details.</EmptyNote>)}
           hasDetail={!!selectedId}
           onBack={() => navigate({ to: '/library/programs' })}
           backLabel="← Library"

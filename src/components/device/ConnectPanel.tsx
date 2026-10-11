@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { NordTransport } from '../../lib/device/transport';
 import { WebUsbTransport } from '../../lib/device/webusb';
-import { CapacitorUsbTransport, usbAvailability } from '../../lib/device/capacitor-usb';
-import { useIpadDriverReady } from '../../lib/device/useIpadDriverReady';
+import { CapacitorUsbTransport } from '../../lib/device/capacitor-usb';
+import { useUsbReach } from '../../lib/device/useUsbReach';
 import { ElectronUsbTransport } from '../../lib/device/electron-usb';
 import { NordSession } from '../../lib/device/session';
 import { NordStatus, SessionRefusedError } from '../../lib/device/protocol';
@@ -94,9 +94,7 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
   const [message, setMessage] = useState('');
   const { diagnostics } = useCapabilities();
 
-  const reach = usbAvailability();
-  // null = probing; only meaningful on the iPad native path.
-  const ipadReady = useIpadDriverReady(reach === 'ipad-dext-pending');
+  const { reach, reachable } = useUsbReach();
 
   // Desktop app, Windows only: without the UsbDk runtime, older Nords (e.g. the
   // Stage 2) still can't be reached — the app silently falls back to the same
@@ -115,7 +113,7 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
   }, [reach]);
 
   // Info cards: a browser without WebUSB, the iPhone app, or an iPad whose DEXT isn't ready.
-  if (reach === 'unsupported' || reach === 'iphone' || (reach === 'ipad-dext-pending' && ipadReady !== true)) {
+  if (!reachable) {
     const ipad = reach === 'ipad-dext-pending';
     const infoTitle = ipad ? 'USB transfer is coming to iPad'
       : reach === 'iphone' ? "USB transfer isn't available on iPhone"
