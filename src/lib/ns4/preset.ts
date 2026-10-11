@@ -20,6 +20,8 @@ import { buildParamMap, type Param } from './maps';
 import { decodeAllParams } from './coverage';
 import { collapseMorphs, type ParamRow } from './params-view';
 import { identifyNordFile } from '../clavia/nord-file';
+import { decodeNs4Engines } from './parse';
+import type { NS4Layer } from './types';
 
 const LETTERS = ['A', 'B', 'C'] as const;
 
@@ -41,12 +43,12 @@ export interface PresetLayer {
   headline?: string;
   /** This layer's parameters, morph variants collapsed into ✎ badges. */
   rows: ParamRow[];
+  /** The same voice in the Program model, so the Program cards can render it. */
+  model?: NS4Layer;
 }
 
 export interface Ns4Preset {
   engine: PresetEngine;
-  /** Overall summary — the single voice's headline, or "N layers" when stacked. */
-  headline?: string;
   /** The enabled voices (1–3). */
   layers: PresetLayer[];
 }
@@ -83,22 +85,27 @@ export function parseNs4Preset(bytes: Uint8Array): Ns4Preset | null {
 
   const db = spec.shift * 8;
   const maxBit = bytes.length * 8;
-  const groupParams = buildParamMap().filter((p) => p.group === spec.group);
-  const layerCount = groupParams.reduce((n, p) => Math.max(n, p.layers.length), 1);
+  // Relocate the engine block, every layer at once. A layer that falls outside
+  // the file is marked absent (begBit -1) rather than dropped, so the remaining
+  // ones keep their letters.
+  const relocated: Param[] = buildParamMap().filter((p) => p.group === spec.group).map((p) => ({
+    ...p,
+    layers: p.layers.map((a) => {
+      const begBit = a.begBit - db, endBit = a.endBit - db;
+      return begBit >= 0 && endBit < maxBit ? { ...a, begBit, endBit } : { ...a, begBit: -1 };
+    }),
+  }));
+  const layerCount = relocated.reduce((n, p) => Math.max(n, p.layers.length), 1);
+  const decoded = decodeAllParams(bytes, relocated);
 
-  // Decode one layer at a time with a single-layer map: that keeps the field
-  // names clean (the decoder appends "[A]/[B]" only when >1 layer is present,
-  // which would break morph collapsing and name lookups).
-  const decodeLayer = (L: number): ParamRow[] => {
-    const single: Param[] = groupParams
-      .filter((p) => p.layers[L])
-      .map((p) => {
-        const a = p.layers[L];
-        return { ...p, layers: [{ ...a, begBit: a.begBit - db, endBit: a.endBit - db }] };
-      })
-      .filter((p) => p.layers[0].begBit >= 0 && p.layers[0].endBit < maxBit);
-    return collapseMorphs(decodeAllParams(bytes, single));
-  };
+  // One decode feeds both views of a voice: the Program layer model (its builder
+  // looks params up by their "[A]/[B]" names) and the flat rows, where that
+  // suffix is dropped so names read clean and morph variants collapse.
+  const models = decodeNs4Engines(decoded).layers;
+  const modelFor = (letter: string) => models.find((m) => m.id === letter);
+  const decodeLayer = (L: number): ParamRow[] => collapseMorphs(
+    decoded.filter((d) => d.layer === L).map((d) => ({ ...d, name: d.name.replace(/ \[[ABC]\]$/, ''), layer: 0 })),
+  );
 
   const layers: PresetLayer[] = [];
   for (let L = 0; L < layerCount; L++) {
@@ -106,15 +113,14 @@ export function parseNs4Preset(bytes: Uint8Array): Ns4Preset | null {
     const on = rows.find((r) => r.name === 'layer on/off')?.display;
     // Include an enabled layer; always keep A if the file carries no on/off flag.
     if (on === 'on' || (L === 0 && on === undefined)) {
-      layers.push({ letter: LETTERS[L], headline: headlineFor(spec.engine, rows), rows });
+      layers.push({ letter: LETTERS[L], headline: headlineFor(spec.engine, rows), rows, model: modelFor(LETTERS[L]) });
     }
   }
   // Defensive: if nothing reported enabled, still show layer A.
   if (layers.length === 0) {
     const rows = decodeLayer(0);
-    layers.push({ letter: 'A', headline: headlineFor(spec.engine, rows), rows });
+    layers.push({ letter: 'A', headline: headlineFor(spec.engine, rows), rows, model: modelFor('A') });
   }
 
-  const headline = layers.length === 1 ? layers[0].headline : `${layers.length} layers`;
-  return { engine: spec.engine, headline, layers };
+  return { engine: spec.engine, layers };
 }
