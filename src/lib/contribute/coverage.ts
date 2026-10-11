@@ -30,6 +30,7 @@ import { NE4_LAYOUT } from '../ne4/layout.generated';
 import { NS2_LAYOUT } from '../ns2/layout.generated';
 import { NE5_LAYOUT } from '../ne5/layout.generated';
 import { NP3_LAYOUT } from '../np3/layout.generated';
+import { NCP_LAYOUT } from '../nc/layout.generated';
 import { NS1_LAYOUT } from '../ns1/layout.generated';
 import { NP1_LAYOUT } from '../np1/layout.generated';
 import { NP2_LAYOUT } from '../np2/layout.generated';
@@ -85,6 +86,7 @@ const DECODER_BY_ID: Record<string, 'full' | 'partial'> = {
   'lead-a1': 'partial',
   'electro-5': 'partial',
   'piano-3': 'partial',
+  'c2': 'partial',
   'stage-classic': 'partial',
   'stage-ex': 'partial',
   'piano-1': 'partial',
@@ -189,6 +191,7 @@ const LEGACY_LAYOUTS: Record<string, { layout: LegacyLayout; status: 'confirmed'
   'electro-5': { layout: NE5_LAYOUT, status: 'confirmed' },
   // Piano 3: firmware layout, file alignment not yet checked on a real file → 'candidate'.
   'piano-3': { layout: NP3_LAYOUT, status: 'candidate' },
+  'c2': { layout: NCP_LAYOUT, status: 'candidate' },
   // Stage Classic / EX: one record layout (OS 5.08 = OS 6.08); its start in a .nspg file is unknown → 'candidate'.
   'stage-classic': { layout: NS1_LAYOUT, status: 'candidate' },
   'stage-ex': { layout: NS1_LAYOUT, status: 'candidate' },

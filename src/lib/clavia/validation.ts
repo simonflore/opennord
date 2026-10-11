@@ -253,7 +253,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 'unsupported', note: "no sample engine" },
   },
   'c2': {
-    'file-read': { status: 'inferred', note: "OG gen, tag ncpg (its own, not the C2D's nc2p); no body decoder yet" },
+    'file-read': { status: 're', note: "ncpg read-only reader (lib/nc) generated from the C2 OS 2.00 firmware's own parameter containers: u16 version 100 (the only one read) + 269 bytes, 66 containers (B3 drawbar sets and percussion, Vox, Farfisa, pipe presets and couplers, bass modes, effects). Record alignment in the file (data at 0x1A, 297-byte file) unconfirmed; block names medium; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v4 in the OS 2.00 firmware (frames 3..4, no session lock); 5 partitions: 0 Pipe (Native), 1 Pipe, 2 Program ncpg, 3 Live, 4 System — Pipe partitions read-only (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v4 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v4 (firmware); WRITE — untested-write risk" },
