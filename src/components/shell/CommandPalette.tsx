@@ -116,7 +116,11 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
         aria-label="Go to a program, sample or page"
         placeholder="Go to a program, sample or page…"
         value={query}
-        onChange={(e) => { setQuery(e.target.value); setIndex(0); }}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setIndex(0);
+          listRef.current?.scrollTo({ top: 0 }); // the new top result is the one Enter opens
+        }}
         onKeyDown={onKeyDown}
         className="h-12 flex-none border-0 border-b border-line bg-transparent px-4 font-mono text-sm text-ink outline-none focus-visible:outline-none placeholder:text-muted"
       />

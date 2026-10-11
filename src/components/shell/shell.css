@@ -20,8 +20,6 @@
   -webkit-user-select: none;
   user-select: none;
 }
-/* The top bar grows by the status-bar inset in the native shell. */
-[data-native] { --topbar-h: calc(var(--topbar-base) + env(safe-area-inset-top)); }
 [data-native] .on-topbar {
   padding-top: env(safe-area-inset-top);
   /* Landscape iPhone/iPad: keep the wordmark and Connect clear of the notch and corners. */
@@ -35,7 +33,8 @@
 }
 /* Below 720px the fixed tab bar sits over the bottom of the page, so the
    content keeps room for it (listed twice to win over the native rule above). */
-@media (max-width: 720px) {
+/* `width < 720px` matches Tailwind's max-[720px]: that shows the tab bar. */
+@media (width < 720px) {
   .on-content,
   [data-native] .on-content {
     padding-bottom: calc(var(--tabs-h) + var(--s-6));

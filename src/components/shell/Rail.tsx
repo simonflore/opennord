@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
-import { READY_CATEGORIES, type CategoryId } from '../../lib/library/categories';
+import { READY_CATEGORIES, isUnder, type CategoryId } from '../../lib/library/categories';
 import type { LibrarySource } from '../../lib/library/types';
 import { BetaBadge } from './BetaBadge';
 import { Led } from './Led';
@@ -58,7 +58,7 @@ function Item({ label, active, onClick, count, led, disabled, title, sub, toggle
         'disabled:cursor-not-allowed disabled:opacity-50',
         active
           ? rowActive
-          : 'text-dim hover:text-ink hover:[background:color-mix(in_srgb,var(--lift)_3%,transparent)]',
+          : 'text-dim hover:text-ink hover:tint-hover',
       )}
       aria-current={!toggle && active ? 'page' : undefined}
       aria-pressed={toggle ? active : undefined}
@@ -90,9 +90,8 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
  */
 export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSource }: Props) {
   const tools = useTools();
-  // An entry is active when the path equals it or sits beneath it (e.g.
-  // /library/programs/$id keeps programs lit).
-  const isActive = (to: string) => path === to || path.startsWith(to + '/');
+  // An entry is active on its page and the pages beneath it (/library/programs/$id keeps programs lit).
+  const isActive = (to: string) => isUnder(path, to);
   const onPrograms = isActive('/library/programs');
 
   return (

@@ -150,6 +150,8 @@
 @utility led-glow-connected { box-shadow: var(--led-connected-glow); }
 /* The selected row's accent bar on its left edge (rail entries, palette results). */
 @utility accent-bar   { box-shadow: inset 3px 0 0 var(--accent); }
+/* A row's hover tint: the faintest lift over whatever it sits on. */
+@utility tint-hover   { background: color-mix(in srgb, var(--lift) 3%, transparent); }
 
 :root,
 :root[data-theme='dark'] {
@@ -324,6 +326,10 @@
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-lcd: 'Share Tech Mono', 'IBM Plex Mono', ui-monospace, monospace;
 }
+
+/* The native shell's top bar grows by the status-bar inset. Same specificity as
+   the theme block above and after it, so it wins on <html data-native>. */
+:root[data-native] { --topbar-h: calc(var(--topbar-base) + env(safe-area-inset-top)); }
 
 /* Global default so any unstyled text uses the UI font, not the browser serif. */
 html { background: var(--bg); color: var(--ink); font-family: var(--font); }
