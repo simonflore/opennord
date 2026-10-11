@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { statusFor, CAPABILITIES } from './validation';
+import { statusFor, CAPABILITIES, VALIDATION } from './validation';
+import { ALL_MODELS } from './partitions';
 
 describe('validation matrix', () => {
   it('Stage 4 is validated for transfer + file-read', () => {
@@ -63,10 +64,10 @@ describe('validation matrix', () => {
   });
   // CBIN container identify validated against 52 real .nlap/.nlas fixtures.
   // CMini inherits base-class defaults only (constructor-only in NSM); no model-specific body decoder needed.
-  // Transfer caps stay inferred: A1 native transfer is MIDI SysEx (A1 user manual); FileTransfer path unverified.
+  // Transfer caps: see the firmware-based lead-a1 test below (FileTransfer present, v8).
   // CWave2::ConvertLocation @0x0000000100034508 — slot display NSM-traced (programs → unhandled → formatSlot).
   // CWave2::BankToCategories @0x100034d64 — sample partition only; programs: 19-entry Category_Add loop.
-  // CWave2::CWave2 @0x100033a7c — 6-partition spec (samplib-native + samplib + program nw2p + live nw2l +
+  // CWave2::CWave2 @0x100033a7c — NSM's 6-partition spec (samplib-native + samplib + program nw2p + live nw2l +
   //   settings nw2s + ffs) NSM-traced.
   // CWave::Backup_RenameFolder @0x1000ad288, CWave2::Archive_OnPostUnZip @0x0000000100034ca0 — backup traced.
   // All validated against 26 real .nw2p fixtures (2026-06-20); not HW-tested.
@@ -86,9 +87,42 @@ describe('validation matrix', () => {
   it('lead-a1 file-read is re (52 fixtures, CBIN container validated)', () => {
     expect(statusFor('lead-a1', 'file-read').status).toBe('re');
   });
-  it('lead-a1 transfer caps stay at inferred (MIDI SysEx native; FileTransfer unverified)', () => {
+  // Lead A1 OS 1.36 runs the Lead 4's FileTransfer code (FUN_c0013728, c0181730,
+  // FUN_c0166c74): SysEx is an extra path, not the only one.
+  it('lead-a1 transfer caps are re (FileTransfer present in the firmware), not validated', () => {
     for (const cap of ['enumerate', 'pull', 'push', 'delete', 'backup'] as const) {
-      expect(statusFor('lead-a1', cap).status, `lead-a1 ${cap}`).toBe('inferred');
+      expect(statusFor('lead-a1', cap).status, `lead-a1 ${cap}`).toBe('re');
+      expect(statusFor('lead-a1', cap).note, `lead-a1 ${cap}`).not.toMatch(/SysEx \(A1 user manual\)/);
+    }
+  });
+
+  it('C1 has no USB transfer: every transfer capability is unsupported', () => {
+    for (const cap of CAPABILITIES) {
+      expect(statusFor('c1', cap).status, `c1 ${cap}`).toBe('unsupported');
+    }
+  });
+
+  it('Electro 7 is registered but nothing about it is validated or decoded yet', () => {
+    for (const cap of ['file-read', 'enumerate', 'pull', 'push', 'delete', 'backup', 'samples'] as const) {
+      expect(statusFor('electro-7', cap).status, `electro-7 ${cap}`).toBe('inferred');
+    }
+  });
+
+  it('Piano 1 samples are unsupported (no sample library in its firmware)', () => {
+    expect(statusFor('piano-1', 'samples').status).toBe('unsupported');
+  });
+
+  it('has a row for every registered model, and none is hardware-validated besides Stage 4', () => {
+    for (const m of ALL_MODELS) {
+      expect(VALIDATION[m.id], m.id).toBeDefined();
+      if (m.id === 'stage-4') continue;
+      for (const cap of CAPABILITIES) expect(statusFor(m.id, cap).status, `${m.id} ${cap}`).not.toBe('validated');
+    }
+  });
+
+  it('marks samples unsupported exactly where the registry has no sample codec', () => {
+    for (const m of ALL_MODELS) {
+      expect(statusFor(m.id, 'samples').status === 'unsupported', m.id).toBe(m.sampleCodec === null);
     }
   });
 });

@@ -295,6 +295,30 @@ describe('resolveDeviceAccess', () => {
     for (const ro of [0, 2, 4, 6]) expect(access.writable).not.toContain(ro);
   });
 
+  it('Electro 6: probes the firmware index 4 first and writes only Program', async () => {
+    // Electro 6 OS 2.66 firmware layout (FUN_c00180c0): Program 4, Settings [ne6t] 6.
+    const t = new FakeNord({ 0: 'npno', 1: null, 2: 'nsmp', 3: null, 4: 'ne6p', 5: null, 6: 'ne6t' }, { partitionCount: 7 });
+    const { diagnostics } = recorder();
+    const access = await resolveDeviceAccess(new NordSession(t), identifyDevice(0x0029), diagnostics, at);
+    expect(access).toEqual({ programPartition: 4, writable: [4] });
+    expect(t.begins).toEqual([4]);
+  });
+
+  it('Electro 7 (NSM PID 0x3B): Program at 6, Synth Presets never writable', async () => {
+    const t = new FakeNord({ 6: 'ne7p', 9: 'ne7r' }, { partitionCount: 10 });
+    const { diagnostics } = recorder();
+    const access = await resolveDeviceAccess(new NordSession(t), identifyDevice(0x003b), diagnostics, at);
+    expect(access).toEqual({ programPartition: 6, writable: [6] });
+  });
+
+  it('Lead 4: looks for its Performance tag at the firmware index 1, not the sound partition 0', async () => {
+    const t = new FakeNord({ 0: 'nl4s', 1: 'nl4p', 2: 'nl4t' }, { partitionCount: 3 });
+    const { diagnostics } = recorder();
+    const access = await resolveDeviceAccess(new NordSession(t), identifyDevice(0x0024), diagnostics, at);
+    expect(access).toEqual({ programPartition: 1, writable: [1] });
+    expect(t.begins).toEqual([1]);
+  });
+
   it('an assumed Stage 4 (iPad placeholder) must be probed before it is writable', async () => {
     const t = new FakeNord({ 6: 'ns4p' });
     const { diagnostics } = recorder();

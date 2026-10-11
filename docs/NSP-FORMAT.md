@@ -465,6 +465,15 @@ same trap that fools every intrinsic oracle here.
 
 ## 2026-07-01 — old firmware (Electro 3 / Nord Stage, PreNPNO): codec is ARM-side but RE-walled
 
+> **Corrected 2026-10-11 (high).** The Electro 3 CODE is not Thumb and not ARM: the
+> 470 KB section in `os.cab` is **LZO1X-packed ColdFire** code (0x702D8 bytes packed,
+> 0xF7B60 unpacked). Unpacked and loaded at 0x30000400 as ColdFire, OS 3.14 analyses
+> cleanly (4,163 functions) and its strings are reached by absolute addresses (e.g.
+> "Native (Piano)" at 0x300F0190, referenced from 0x3005324A). "No xrefs, no
+> mask constants, analysis doesn't propagate" was the signature of compressed bytes.
+> The Electro 3's piano gate (`FUN_300422F8`) accepts CNSP v4 and v5 headers; see
+> `docs/FIRMWARE-LINE.md`. The entries below are kept as the record of the attempt.
+
 Extracted the PreNPNO-era firmware (Electro 3 OS `os.cab` → CODE 470 KB @VA 0x30000400;
 Nord Stage OS 5.08 payload in the updater `.rsrc`). Key result: the **Electro 3 CODE
 references `CNSP`, `nsmp`, `Piano`, `Blocks`, `Samples`** — i.e. the piano/sample codec
@@ -484,6 +493,9 @@ Thumb seeding is the next tool), not a quick win. Saved: `firmware/old/electro3-
 Fastest reliable crack remains hardware ground truth + the NW1-variant header search.
 
 ## 2026-07-01 — Electro 3 firmware RE attempt: hits the parked Thumb wall
+
+> **Corrected 2026-10-11:** there was no Thumb wall — the bytes were LZO1X-packed
+> ColdFire code (see the note on the previous entry and `docs/FIRMWARE-LINE.md`).
 
 Gave the PreNPNO firmware a real, tooled RE pass (Ghidra headless, raw binary @0x30000400):
 - ARM-mode disasm = 0 insns; **Thumb** confirmed. Forced TMode=1 + seeded 418 push{lr}
@@ -589,7 +601,8 @@ match it at any alignment/order/packing. ⇒ A DSP-side container transform (int
 / separated parameter+residual streams / different codec) sits between the stored bytes and the
 logical audio, and is not recoverable from files. The file-side avenue is exhausted with
 maximal rigor. Remaining levers are all off-file: ground-truth recording (→ known-plaintext vs.
-the transform), firmware Thumb RE (walled), or DSP chip readout.
+the transform), firmware Thumb RE (walled — later found to be packed ColdFire, not
+Thumb; see the correction above), or DSP chip readout.
 
 ## 2026-07-02 — not encrypted: the transform is packing/framing, not a cipher
 
@@ -688,6 +701,8 @@ Re-check the 2026-07-01 Electro 3 notes with this in mind: "strings present, zer
 every base, mask constants absent, analysis doesn't propagate" is exactly what LZO1X-packed
 code looks like. That image hasn't been re-unpacked here (its OS is no longer linked from
 Nord's site), so the Thumb-wall verdict there is unconfirmed rather than disproved.
+*Update 2026-10-11:* the Electro 3 OS 3.14 updater was unpacked and confirms it — LZO1X
+over ColdFire code (`docs/FIRMWARE-LINE.md`, §1).
 
 ### The DSP programs are in the image (Stage 4 OS v1.66)
 

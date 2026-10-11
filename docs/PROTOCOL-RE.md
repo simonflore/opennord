@@ -31,8 +31,9 @@ Every message, all fields **big-endian**:
 ```
 [u32 length]      total bytes incl. this field + the trailing CRC16
 [u32 protocolId]  0x0000000C = FileTransfer  (MIDIX / InstrCtrl have other ids)
-[u32 version]     FileTransfer version — 0x0000000A on NS4, 0x00000008 on NS2
-                  (negotiated per device — see Multi-model below)
+[u32 version]     FileTransfer version — 0x0000000A on NS4, 0x00000008 on NS2;
+                  4, 6, 7, 8 or 10 across the line (per-model table under
+                  "Accepted frame versions"; negotiated per device — see Multi-model below)
 [u32 msgId]       opcode (table below)
 [ payload ]       msgId-specific, big-endian u32 words (+ trailing bytes for some)
 [u16 CRC16]       CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF) over all preceding bytes
@@ -108,6 +109,15 @@ holds it, and every later begin answers 18 until an end arrives. That is the
 sends the end itself after a refused begin. On an 18 it sends one end and asks
 again.
 
+**The oldest models have no lock** (static, high; `docs/FIRMWARE-LINE.md` §2). On
+the FileTransfer-v4 group — Electro 3 (OS 3.14, begin `0x30089E30`), Electro 3 HP
+(3.16, `0x3008CC68`), Nord Piano (1.50, `0x30076FEA`), C2D (1.12, `0x300893B2`) and
+Wave (2.14, `0x3008358C`) — begin just records the partition and calls its begin
+function: there is no lock and no 18 path, so a status 18 on begin isn't expected
+there. Every other model read so far (Piano 2, Electro 4 to 7, Piano 3 to 6, Grand,
+Grand 2, Organ 3, Wave 2, Lead 4, Lead A1) has the lock-then-18 begin. The extra
+end `NordSession` sends after a refused begin is harmless on either kind.
+
 | Status | Meaning |
 |---|---|
 | 0 | OK |
@@ -132,12 +142,32 @@ The writers are Stage 3 `0xC016BFC0` and Stage 2 `0x301F63BC`. A non-zero status
 carries no count.
 
 **Accepted frame versions.** Frames with any other version are dropped silently.
+Every model accepts frames from version 3 up to its own FileTransfer version, so a
+version-10 frame reaches nothing on a v4–v8 model. Static, from each model's OS
+image (the transfer service's constructor argument and the frame-version check in
+its dispatcher); details and addresses in `docs/FIRMWARE-LINE.md` §2. The registry
+records each value as `ModelInfo.fileTransferVersion`.
 
-| | FileTransfer version | Accepted range |
-|---|---|---|
-| Stage 4 | 10 | 3–10 |
-| Stage 3 | 10 | 3–10 |
-| Stage 2 | 8 | 3–8 |
+| Model (OS read) | FileTransfer version | Accepted range | Begin lock (18) |
+|---|---|---|---|
+| Stage 4 (1.66) | 10 | 3–10 | yes |
+| Stage 3 (2.64) | 10 | 3–10 | yes |
+| Stage 2 (3.00) | 8 | 3–8 | yes |
+| Electro 3 (3.14), Electro 3 HP (3.16) | 4 | 3–4 | **no** |
+| Electro 4 (1.22) | 7 | 3–7 | yes |
+| Electro 5 (2.04) | 10 | 3–10 | yes |
+| Electro 6 (2.66), Electro 7 (1.30) | 10 | 3–10 | yes |
+| Nord Piano (1.50) | 4 | 3–4 | **no** |
+| Piano 2 (1.22) | 6 | 3–6 | yes |
+| Piano 3 (2.04) | 10 | 3–10 | yes |
+| Piano 4 (2.66), Piano 5 (1.34), Piano 6 (1.20), Grand (1.68), Grand 2 (1.22) | 10 | 3–10 | yes |
+| Organ 3 (1.00), Wave 2 (1.24) | 10 | 3–10 | yes |
+| Wave (2.14), C2D (1.12) | 4 | 3–4 | **no** |
+| Lead 4 (1.32), Lead A1 (1.36) | 8 | 3–8 | yes |
+| C1 (1.12) | — no USB transfer at all | — | — |
+
+Not read: Stage Classic, Stage EX, C2. NSM's `CLead4_FTv7` class suggests Lead 4
+OS 1.12 and older spoke version 7.
 
 **Read size.** One read reply carries at most about 64 KiB (`0xFFE8` bytes minus
 headers).
@@ -156,6 +186,10 @@ The device replies `msgId 0x03` with a byte-packed list of supported
 Reading the FileTransfer entry (`protocolId 0x0c`) auto-selects the right version
 per model rather than hard-coding it. OpenNord does this in
 [`negotiate.ts`](../src/lib/device/negotiate.ts) / `NordSession.negotiateVersion()`.
+Before negotiating, connect frames with the identified model's own version from the
+registry (`initialFileTransferVersion`, the table above); the device's reply wins
+when it names FileTransfer, and the model's version stays when it doesn't. Whether
+the v4/v6/v7 models answer the `0x07` query at all hasn't been checked.
 
 **Nord Stage 2 (fw 3.00) — verified differences vs the NS4 above:**
 

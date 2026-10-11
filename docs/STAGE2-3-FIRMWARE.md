@@ -29,7 +29,7 @@
 
 **Stage 2 CPU, high.** The Stage 2 image opens with ColdFire instructions (`link a6`, `movea.l`), and Ghidra's `68000:BE:32:Coldfire` language analyses it cleanly.
 
-**Correction to `NSP-FORMAT.md`, medium.** The 2026-07-01 Electro 3 image loads at the same base. The "Thumb wall" recorded there is probably ColdFire code read as ARM, so it is worth re-importing.
+**Correction to `NSP-FORMAT.md`, high.** The 2026-07-01 Electro 3 image loads at the same base. The "Thumb wall" recorded there was LZO1X-packed ColdFire code: unpacked, Electro 3 OS 3.14 analyses cleanly as ColdFire (`FIRMWARE-LINE.md`, §1). The rest of the line is summarised there.
 
 ## 2. USB: sessions, status codes, partitions
 

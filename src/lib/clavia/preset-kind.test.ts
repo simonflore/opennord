@@ -19,6 +19,13 @@ describe('presetKindForTag', () => {
     expect(presetKindForTag('ns2y')).toBeUndefined();
     expect(presetKindForTag('ns3s')).toBeUndefined();
   });
+  it('keeps non-Stage synth-preset partitions out of the Stage preset browser', () => {
+    // Registry kind synth-preset, but no decoder/inspector for them: Electro 7
+    // Synth Presets (ne7r) and Lead A1 programs (nlas). Settings tags never are.
+    for (const tag of ['ne7r', 'nlas', 'ne7s', 'ne7t', 'ne6t', 'np6t', 'ng2t']) {
+      expect(presetKindForTag(tag), tag).toBeUndefined();
+    }
+  });
   it('agrees with the partition registry for every Stage-line partition fourcc', () => {
     for (const id of ['stage-2', 'stage-2-ex', 'stage-3', 'stage-4'] as const) {
       for (const p of MODELS[id].partitions) {

@@ -9,7 +9,7 @@ import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer'
 import { identifyDevice, resolveDeviceAccess, type DeviceIdentity } from '../../lib/device/connect-probe';
 import { modelById } from '../../lib/clavia/partitions';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
-import { shouldNegotiateVersion } from '../../lib/device/negotiate';
+import { initialFileTransferVersion, shouldNegotiateVersion } from '../../lib/device/negotiate';
 import { describeUsbDevice, findBulkInterface, type UsbDeviceSnapshot } from '../../lib/device/usb-descriptors';
 import { useCapabilities } from '../../lib/capabilities/CapabilitiesContext';
 import { Button, SectionLabel } from '../ui';
@@ -147,10 +147,15 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
   ) {
     await transport.open();
     const session = new NordSession(transport);
-    // Adopt the device's FileTransfer protocol version (NS2 = 0x08). Best-effort:
-    // if the device doesn't answer the handshake, the NS4 default (0x0a) stands.
-    // Skipped for the NS4 itself — it already uses 0x0a, and the handshake's reply
-    // read is unbounded, so querying a device that won't answer hangs connect.
+    const deviceIdentity = identity ?? identifyDevice(productId);
+    // Start from the model's own FileTransfer version (registry, from its
+    // firmware: 4/6/7/8/10), else the NS4 default 0x0a — a frame above a
+    // device's version is dropped without a reply. Then adopt what the device
+    // advertises (NS2 = 0x08). Best-effort: if it doesn't answer the handshake,
+    // the model's version stands. Skipped for the NS4 itself — it already uses
+    // 0x0a, and the handshake's reply read is unbounded, so querying a device
+    // that won't answer hangs connect.
+    session.useFileTransferVersion(initialFileTransferVersion(deviceIdentity.model));
     if (shouldNegotiateVersion(productId)) {
       await session.negotiateVersion().catch(() => undefined);
     }
@@ -161,7 +166,7 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     // model — Stage 2 included, whose layout shifts on older OS — is probed for
     // the partition that actually holds its program files. Writes are allowed
     // only where that is confirmed; otherwise the connection stays read-only.
-    const access = await resolveDeviceAccess(session, identity ?? identifyDevice(productId), diagnostics);
+    const access = await resolveDeviceAccess(session, deviceIdentity, diagnostics);
     session.programPartition = access.programPartition;
     session.allowWrites(access.writable);
     // Bracket enumerate in a begin/end session so the Nord returns to idle after.

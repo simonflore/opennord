@@ -62,9 +62,20 @@ export class NordSession {
   }
 
   /**
+   * Frame later FileTransfer requests with `version` — the connected model's own
+   * version from the registry (`initialFileTransferVersion`, negotiate.ts), set
+   * before negotiating. {@link negotiateVersion} still replaces it with whatever
+   * the device advertises.
+   */
+  useFileTransferVersion(version: number): void {
+    this.version = version;
+  }
+
+  /**
    * Ask the device which protocol versions it supports and adopt its FileTransfer
    * version for all later frames (the pre-FileTransfer handshake, protocolId `0x07`).
-   * If the device doesn't advertise FileTransfer (`0x0c`), the default `0x0a` stands.
+   * If the device doesn't advertise FileTransfer (`0x0c`), the current version
+   * stands (the model's own via {@link useFileTransferVersion}, else `0x0a`).
    * Returns the adopted version. See docs/PROTOCOL-RE.md (issue #31).
    */
   negotiateVersion(): Promise<number> {

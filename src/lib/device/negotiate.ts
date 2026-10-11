@@ -5,7 +5,14 @@
  * FileTransfer `0x0a`, the NS2 speaks `0x08`, and a frame sent with the wrong
  * version is silently ignored. Reading the device's advertised versions lets us
  * auto-select instead of hard-coding. See docs/PROTOCOL-RE.md (community issue #31).
+ *
+ * Across the line the firmware speaks versions 4, 6, 7, 8 and 10 and drops any
+ * frame above its own version (docs/FIRMWARE-LINE.md). The registry records
+ * each model's version (`ModelInfo.fileTransferVersion`); connect starts from it
+ * ({@link initialFileTransferVersion}) and the handshake, when answered, wins.
  */
+import { PROTOCOL_VERSION } from './opcodes';
+import type { ModelInfo } from '../clavia/partitions';
 
 /** protocolId of the version-negotiation family (distinct from FileTransfer `0x0c`). */
 export const PROTOCOL_NEGOTIATE = 0x07;
@@ -29,6 +36,18 @@ export const NS4_PRODUCT_ID = 0x002e;
  */
 export function shouldNegotiateVersion(productId: number): boolean {
   return productId !== NS4_PRODUCT_ID;
+}
+
+/**
+ * The FileTransfer version a session frames requests with before negotiation —
+ * and keeps when the device doesn't advertise FileTransfer: the identified
+ * model's firmware version, else the Stage 4 default (`0x0a`). The firmware
+ * drops frames outside 3..its version without a reply, so a v4–v8 model (Electro
+ * 3/4, Piano 1/2, C2D, Wave, Stage 2, Lead 4/A1) left on `0x0a` would never
+ * answer anything.
+ */
+export function initialFileTransferVersion(model: ModelInfo | undefined): number {
+  return model?.fileTransferVersion ?? PROTOCOL_VERSION;
 }
 
 /**

@@ -35,6 +35,28 @@ describe('classifyBackupEntry (Stage 2 / Stage 3 fourccs)', () => {
   });
 });
 
+describe('classifyBackupEntry (firmware partition fourccs across the line)', () => {
+  it('reads the …t file of Electro 6 / Piano 6 / Grand 2 as Settings, not a set list', () => {
+    expect(classifyBackupEntry('Settings/S.ne6t', 'electro-6')).toEqual({ kind: 'settings', native: false });
+    expect(classifyBackupEntry('Settings/S.np6t', null)).toEqual({ kind: 'settings', native: false });
+    expect(classifyBackupEntry('Settings/S.ng2t', null)).toEqual({ kind: 'settings', native: false });
+    expect(classifyBackupEntry('Set List/S.ne5t', null)).toEqual({ kind: 'setlist', native: false }); // Electro 5 keeps one
+  });
+  it('classifies the Electro 7 partitions', () => {
+    expect(classifyBackupEntry('Program/X.ne7p', 'electro-7')).toEqual({ kind: 'program', native: false });
+    expect(classifyBackupEntry('Live/X.ne7l', null)).toEqual({ kind: 'live', native: false });
+    expect(classifyBackupEntry('Settings/X.ne7t', null)).toEqual({ kind: 'settings', native: false });
+    expect(classifyBackupEntry('Synth Preset/X.ne7r', null)).toEqual({ kind: 'synth-preset', native: false });
+    expect(classifyBackupEntry('X.ne7s', null)).toBeNull(); // archive tag, no partition
+  });
+  it('classifies Lead sounds, Organ 3 programs and Lead A1 settings', () => {
+    expect(classifyBackupEntry('Program/X.nlas', 'lead-a1')).toEqual({ kind: 'synth-preset', native: false });
+    expect(classifyBackupEntry('Performance/X.nlap', 'lead-a1')).toEqual({ kind: 'program', native: false });
+    expect(classifyBackupEntry('Settings/X.nlat', null)).toEqual({ kind: 'settings', native: false });
+    expect(classifyBackupEntry('Program/X.no3p', null)).toEqual({ kind: 'program', native: false });
+  });
+});
+
 describe('indexBackup', () => {
   it('identifies the model and splits entries into the four buckets', async () => {
     const blob = new Blob([zipSync({
@@ -139,6 +161,7 @@ describe('identifyBackup (product id → model, whole line)', () => {
     expect(await identify(0x2e)).toBe('stage-4');
     expect(await identify(0x26)).toBe('stage-3');   // was null with the Stage-4-only map
     expect(await identify(0x29)).toBe('electro-6'); // NSM-recovered (staticProductId)
+    expect(await identify(0x3b)).toBe('electro-7'); // NSM 9.22 CElectro7
   });
 
   it('returns null for an unknown product id', async () => {

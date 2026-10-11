@@ -1,16 +1,17 @@
 /**
  * Full-line Nord partition registry — data only, behind the `clavia` model seam.
  * Each model's memory is a list of partitions (the FileTransfer protocol addresses
- * them by index); this records the kind/label/fourcc per partition, recovered from
- * the NSM binary (docs/NORD-PRODUCT-LINE.md). Stage 4 indices are hardware-validated
- * (docs/PROTOCOL-RE.md); others carry the statically-recovered set (index omitted
- * until a hardware CQryPartList confirms order).
+ * them by index); this records the kind/label/fourcc per partition. Stage 4
+ * indices are hardware-validated (docs/PROTOCOL-RE.md); every other model carries
+ * its statically-recovered order as `staticIndex` until a hardware CQryPartList
+ * confirms it.
  *
  * Partition ORDER: the protocol index is the order in which the instrument's own
  * firmware registers each partition with its file-transfer code — that is what
- * CQryPartList reports. Where a model's firmware has been read statically (Stage
- * 4/3/2), that order is the ground truth; NSM's product-constructor `Add()` order
- * is a weaker proxy and does not always match it (Stage 3 Synth/Song).
+ * CQryPartList reports. Where a model's firmware has been read statically (the
+ * whole line except Stage Classic/EX and C2, see docs/FIRMWARE-LINE.md and
+ * docs/STAGE2-3-FIRMWARE.md), that order is the ground truth; NSM's
+ * product-constructor `Add()` order is a weaker proxy and often disagrees with it.
  *
  * `NordModelId` is a superset of clavia/model.ts `ClaviaModel` (which stays the
  * decode-capable subset) — this file never imports concrete codecs.
@@ -18,9 +19,9 @@
 
 export type NordModelId =
   | 'stage-classic' | 'stage-ex' | 'stage-2' | 'stage-2-ex' | 'stage-3' | 'stage-4'
-  | 'electro-3' | 'electro-3-hp' | 'electro-4' | 'electro-5' | 'electro-6'
+  | 'electro-3' | 'electro-3-hp' | 'electro-4' | 'electro-5' | 'electro-6' | 'electro-7'
   | 'piano-1' | 'piano-2' | 'piano-3' | 'piano-4' | 'piano-5' | 'piano-6'
-  | 'lead-4' | 'lead-a1' | 'wave' | 'wave-2' | 'c2' | 'c2d'
+  | 'lead-4' | 'lead-a1' | 'wave' | 'wave-2' | 'c1' | 'c2' | 'c2d'
   | 'grand' | 'grand-2' | 'organ-3';
 
 export type PartitionKind =
@@ -28,8 +29,12 @@ export type PartitionKind =
   | 'piano' | 'pedal' | 'samplib'
   | 'program' | 'live' | 'synth-preset' | 'organ-preset' | 'piano-preset'
   | 'setlist' | 'settings'
-  /** Stage 3 synth-wave ROM flash: NSM-managed content, never written by OpenNord. */
-  | 'swave';
+  /** Synth-wave ROM flash (Stage 3, Wave): NSM-managed content, never written by OpenNord. */
+  | 'swave'
+  /** C2D pipe-organ sound partitions (factory + NSM's "Pipe" ROMFlash). Read-only for OpenNord. */
+  | 'pipe-native' | 'pipe'
+  /** Wave RAM file system partition: unknown content, treated read-only. */
+  | 'ramfs';
 
 export interface PartitionSpec {
   kind: PartitionKind;
@@ -39,8 +44,9 @@ export interface PartitionSpec {
   index?: number;   // protocol index — set only when hardware-confirmed
   /**
    * Protocol index recovered statically — from the instrument firmware's
-   * partition-registration order where that has been read (Stage 3), else from
-   * NSM's product constructor (the partition's ordinal in the `CModel::CModel`
+   * partition-registration order where that has been read (every model whose
+   * OS image was analysed, docs/FIRMWARE-LINE.md), else from NSM's product
+   * constructor (the partition's ordinal in the `CModel::CModel`
    * `Add()` sequence). Medium-high confidence — the ordinal==protocol-index
    * equivalence is the documented assumption (docs/NORD-PRODUCT-LINE.md),
    * hardware-validated only for Stage 4 (and Stage 2 on OS 3.00).
@@ -50,6 +56,12 @@ export interface PartitionSpec {
    */
   staticIndex?: number;
 }
+
+/**
+ * Sample-library codec a model loads. One value per model: where the firmware
+ * accepts more than one (Piano 5/6, Grand 2 take `.nsmp3` and `.nsmp4`), the
+ * newest accepted codec is recorded and the entry's comment names the others.
+ */
 
 export type SampleCodec = 'og' | 'codec3' | 'codec4' | null;
 
@@ -90,6 +102,23 @@ export interface ModelInfo {
    * so on older OS every later partition — Program included — sits one lower.
    */
   layoutVariesByOs?: boolean;
+  /**
+   * FileTransfer protocol version the instrument's firmware speaks — the u32
+   * `version` every frame header carries. Recovered statically from each OS
+   * image (the transfer service's constructor argument; docs/FIRMWARE-LINE.md,
+   * PROTOCOL-RE.md). The firmware drops frames whose version is outside
+   * 3..this value without replying, so a v4/v6/v7/v8 device never answers the
+   * Stage 4 default (10). Connect still negotiates (protocol 0x07) and adopts
+   * whatever the device advertises; this is the version used until then, and
+   * when the device doesn't answer. Omitted when no OS image was read.
+   */
+  fileTransferVersion?: number;
+  /**
+   * `false` when the instrument has no USB file transfer at all (C1: no USB
+   * device descriptor and no FileTransfer code in its OS). Omitted = present.
+   * Device code must not offer such a model as a transfer target.
+   */
+  deviceTransfer?: false;
 }
 
 const P = (kind: PartitionKind, label: string, native: boolean, fourcc?: string, index?: number): PartitionSpec =>
@@ -97,11 +126,16 @@ const P = (kind: PartitionKind, label: string, native: boolean, fourcc?: string,
 /** Attach a statically-recovered protocol index (see `PartitionSpec.staticIndex`). */
 const S = (spec: PartitionSpec, staticIndex: number): PartitionSpec => ({ ...spec, staticIndex });
 
-/** Baseline for models whose full partition order wasn't disassembled — concrete
- *  and refinable as hardware/Ghidra confirms (docs/NORD-PRODUCT-LINE.md).
- *  `programStaticIndex` carries the NSM-constructor-recovered protocol ordinal
- *  for the Program partition when known (see `PartitionSpec.staticIndex`); the
- *  baseline list order itself is still curated, not the real Add() order. */
+/** Partitions in the firmware's registration order: each spec's `staticIndex`
+ *  is its position in the list (see `PartitionSpec.staticIndex`). */
+const firmwareOrder = (...specs: PartitionSpec[]): PartitionSpec[] =>
+  specs.map((spec, i) => ({ ...spec, staticIndex: i }));
+
+/** Baseline for models whose OS image hasn't been read (Stage Classic/EX, C2) —
+ *  a curated guess, refinable as hardware/firmware confirms
+ *  (docs/NORD-PRODUCT-LINE.md). `programStaticIndex` carries the
+ *  NSM-constructor-recovered Program ordinal when known; the list order itself
+ *  is not a registration order. */
 const baseline = (tag: string, sampleCapable: boolean, programStaticIndex?: number): PartitionSpec[] => [
   ...(sampleCapable ? [P('samplib-native', 'Sample Library (factory)', true)] : []),
   { ...P('program', 'Programs', false, tag), staticIndex: programStaticIndex },
@@ -109,10 +143,65 @@ const baseline = (tag: string, sampleCapable: boolean, programStaticIndex?: numb
   P('settings', 'Settings', false),
 ];
 
+/** The 9 partitions the ColdFire Piano 2 / Piano 3 register: user Piano Pedal
+ *  before the factory one, as on the Stage 2. No E2P FFS. */
+const coldfirePianoLine = (program: string, live?: string): PartitionSpec[] => firmwareOrder(
+  P('piano-native', 'Piano (factory)', true),
+  P('piano', 'Piano', false),
+  P('pedal', 'Piano Pedal', false),
+  P('pedal-native', 'Pedal (factory)', true),
+  P('samplib-native', 'Sample Library (factory)', true),
+  P('samplib', 'Sample Library', false),
+  P('program', 'Programs', false, program),
+  P('live', 'Live', false, live),
+  P('settings', 'Settings', false),
+);
+
+/** The 9 partitions every ARM piano (Piano 4/5/6, Grand, Grand 2) registers —
+ *  identical on all five (storage order 1,0,3,2,5,4,6,7,8; high). No Set List
+ *  and no E2P FFS on the wire; the `…t` file is Settings. */
+const armPianoLine = (program: string, live: string, settings: string): PartitionSpec[] => firmwareOrder(
+  P('piano-native', 'Piano (factory)', true),
+  P('piano', 'Piano', false),
+  P('pedal-native', 'Pedal (factory)', true),
+  P('pedal', 'Piano Pedal', false),
+  P('samplib-native', 'Sample Library (factory)', true),
+  P('samplib', 'Sample Library', false),
+  P('program', 'Programs', false, program),
+  P('live', 'Live', false, live),
+  P('settings', 'Settings', false, settings),
+);
+
+/** The 8 partitions the ColdFire Electro 3 / 3 HP register. */
+const electro3Line = (): PartitionSpec[] => firmwareOrder(
+  P('piano-native', 'Piano (factory)', true),
+  P('samplib-native', 'Sample Library (factory)', true),
+  P('piano', 'Piano', false),
+  P('samplib', 'Sample Library', false),
+  P('program', 'Programs', false, 'nepg'),
+  P('live', 'Live', false),
+  P('settings', 'Settings', false), // firmware name "System"
+  // NSM gives only `CElectro3HP` this partition (tag `neop`); the firmware
+  // registers it on the plain E3 too, so the tag is assumed shared (medium).
+  P('organ-preset', 'Organ Presets', false, 'neop'),
+);
+
+/** Lead 4 / Lead A1: 3 partitions, no factory partitions. The firmware's
+ *  "Program" partition holds single sounds (`nl4s`/`nlas`) and its
+ *  "Performance" partition the 4-slot performances (`nl4p`/`nlap`). OpenNord's
+ *  `programTag` stays the performance tag (the decoders and the connect probe
+ *  key on it), so the performance partition carries the `program` kind and the
+ *  sound partition the `synth-preset` kind. */
+const leadLine = (sound: string, performance: string, settings: string): PartitionSpec[] => firmwareOrder(
+  P('synth-preset', 'Programs', false, sound),
+  P('program', 'Performances', false, performance),
+  P('settings', 'Settings', false, settings),
+);
+
 export const MODELS: Record<NordModelId, ModelInfo> = {
   'stage-4': {
     id: 'stage-4', name: 'Nord Stage 4', generation: 'NW1-v4', programTag: 'ns4p', sampleCodec: 'codec4', productId: 0x002e,
-    os: { min: 90, recommended: 100 },
+    os: { min: 90, recommended: 100 }, fileTransferVersion: 10, // OS 1.66; PROTOCOL-RE.md "Accepted frame versions"
     partitions: [ // PROTOCOL-RE.md — hardware-validated indices
       P('piano-native', 'Piano (factory)', true, undefined, 0),
       P('piano', 'Piano', false, undefined, 1),
@@ -130,7 +219,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   },
   'stage-3': {
     id: 'stage-3', name: 'Nord Stage 3', generation: 'NW1-v3', programTag: 'ns3f', sampleCodec: 'codec3', productId: 0x0026,
-    os: { min: 250, recommended: 254 },
+    os: { min: 250, recommended: 254 }, fileTransferVersion: 10, // OS 2.64; STAGE2-3-FIRMWARE.md
     // Firmware registration order (= CQryPartList order), recovered statically
     // from Stage 3 OS 2.64 `FUN_c001ace0`; 12 partitions, no "E2P FFS" on the
     // wire. NSM 9.22 CStage3::CStage3 @0x1001afb94 (Add() order) agrees on
@@ -173,6 +262,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // pedal gate is NSM's rule for older OS (no pre-3.00 image checked).
     id: 'stage-2', name: 'Nord Stage 2', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og', productId: 0x0021,
     os: { min: 100, recommended: 300 }, layoutVariesByOs: true,
+    fileTransferVersion: 8, // OS 3.00: issue #31 negotiation capture; PROTOCOL-RE.md "Accepted frame versions"
     partitions: [
       P('piano-native', 'Piano (factory)', true, undefined, 0),
       P('piano', 'Piano', false, undefined, 1),
@@ -194,6 +284,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // files read/render through the Stage 2 path unchanged.
     id: 'stage-2-ex', name: 'Nord Stage 2 EX', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og',
     staticProductId: 0x0021, os: { min: 100, recommended: 300 }, layoutVariesByOs: true,
+    fileTransferVersion: 8, // same CStage2 class and OS as Stage 2
     partitions: [
       P('piano-native', 'Piano (factory)', true, undefined, 0),
       P('piano', 'Piano', false, undefined, 1),
@@ -207,160 +298,283 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('settings', 'Settings', false, 'ns2y', 9),
     ],
   },
-  'electro-4': {
-    id: 'electro-4', name: 'Nord Electro 4', generation: 'OG', programTag: 'ne4p', sampleCodec: 'og',
-    staticProductId: 0x0023, os: { min: 100, recommended: 120 },
-    partitions: [
-      P('piano-native', 'Piano (factory)', true),
-      P('samplib-native', 'Sample Library (factory)', true),
-      { ...P('program', 'Programs', false, 'ne4p'), staticIndex: 4 }, // NSM 9.22 Add() ordinal
-      P('live', 'Live', false, 'ne4l'),
-      P('settings', 'Settings', false),
-    ],
-  },
-  'electro-6': {
-    id: 'electro-6', name: 'Nord Electro 6', generation: 'NW1-v3', programTag: 'ne6p', sampleCodec: 'codec3',
-    staticProductId: 0x0029, os: { min: 250, recommended: 250 },
-    partitions: [
-      P('piano-native', 'Piano (factory)', true),
-      P('pedal-native', 'Pedal (factory)', true),
-      P('samplib-native', 'Sample Library (factory)', true),
-      { ...P('program', 'Programs', false, 'ne6p'), staticIndex: 6 }, // NSM 9.22 Add() ordinal
-      P('live', 'Live', false, 'ne6l'),
-      P('setlist', 'Set Lists', false, 'ne6t'),
-      P('settings', 'Settings', false),
-    ],
-  },
-  'piano-3': {
-    id: 'piano-3', name: 'Nord Piano 3', generation: 'NW1-v3', programTag: 'np3p', sampleCodec: 'codec3',
-    staticProductId: 0x0028, os: { min: 100, recommended: 122 },
-    partitions: [
-      P('piano-native', 'Piano (factory)', true),
-      P('pedal-native', 'Piano Pedal (factory)', true),
-      P('samplib-native', 'Sample Library (factory)', true),
-      { ...P('program', 'Programs', false, 'np3p'), staticIndex: 6 }, // NSM 9.22 Add() ordinal
-      P('live', 'Live', false, 'np3l'),
-      P('settings', 'Settings', false),
-    ],
-  },
-  'piano-6': {
-    id: 'piano-6', name: 'Nord Piano 6', generation: 'NW1-v4', programTag: 'np6p', sampleCodec: 'codec4',
-    staticProductId: 0x0039, os: { min: 100, recommended: 100 },
-    partitions: [
-      P('piano-native', 'Piano (factory)', true),
-      P('pedal-native', 'Pedal (factory)', true),
-      P('samplib-native', 'Sample Library (factory)', true),
-      { ...P('program', 'Programs', false, 'np6p'), staticIndex: 6 }, // NSM 9.22 Add() ordinal
-      P('live', 'Live', false, 'np6l'),
-      P('setlist', 'Set Lists', false, 'np6t'),
-      P('settings', 'Settings', false),
-    ],
-  },
-  'grand-2': {
-    id: 'grand-2', name: 'Nord Grand 2', generation: 'NW1-v4', programTag: 'ng2p', sampleCodec: 'codec4',
-    staticProductId: 0x0038, os: { min: 100, recommended: 100 },
-    partitions: [
-      P('piano-native', 'Piano (factory)', true),
-      P('pedal-native', 'Pedal (factory)', true),
-      P('samplib-native', 'Sample Library (factory)', true),
-      // NSM Product__SCapsconst@0x1000ccfc4: with the Pedal partition at Add-3,
-      // "ng2p" is the 7th Add → ordinal 6 (matches Stage 2's HW-validated
-      // Program=6 pedal-shift pattern). This curated list omits some natives, so
-      // staticIndex is set explicitly rather than derived from array position.
-      { ...P('program', 'Programs', false, 'ng2p'), staticIndex: 6 },
-      P('live', 'Live', false, 'ng2l'),
-      P('setlist', 'Set Lists', false, 'ng2t'),
-      P('settings', 'Settings', false),
-    ],
-  },
-  'wave-2': {
-    // CWave2::CWave2 @0x100033a7c — constructor Add() order:
-    //   SPartitionNative "Samp Lib (Native)"         → samplib-native (factory)
-    //   SPartitionSampLibV3                          → samplib (user)
-    //   (conditional SPartitionROMFlash "Transient"  → OG-mode only, NW1-v3 devices skip)
-    //   SPartitionUserE2P "Program" (tag "nw2p")     → program
-    //   SPartitionLive    (tag "nw2l")               → live
-    //   SPartitionSettings "Settings" (tag "nw2s")   → settings  (NOT synth-preset)
-    //   SPartitionNative "E2P FFS"                   → ffs (native, housekeeping partition)
-    //
-    // Backup extension: "nw2b" (from wxString::wxString(...,"nw2b") in ctor).
-    // Validated vs 26 real .nw2p fixtures; not HW-tested.
-    id: 'wave-2', name: 'Nord Wave 2', generation: 'NW1-v3', programTag: 'nw2p', sampleCodec: 'codec3',
-    staticProductId: 0x002c, os: { min: 80, recommended: 100 },
-    partitions: [
-      P('samplib-native', 'Sample Library (factory)', true),
-      P('samplib',        'Sample Library',           false),
-      // "nw2p" is the 3rd Add → ordinal 2. The conditional Transient ROMFlash
-      // that would shift it to 3 is OG-mode only; Wave 2 is an NW1-v3 device
-      // and skips it, so 2 is well-determined (not the variant-ambiguous case).
-      { ...P('program',   'Programs',                 false, 'nw2p'), staticIndex: 2 },
-      P('live',           'Live',                     false, 'nw2l'),
-      P('settings',       'Settings',                 false, 'nw2s'),
-      P('ffs',            'E2P FFS',                  true),
-    ],
-  },
-  // Remaining models — baseline layout from their fourcc family (NORD-PRODUCT-LINE.md).
+  // ── No OS image read: NSM baseline.
   'stage-classic': { id: 'stage-classic', name: 'Nord Stage Classic', generation: 'OG', programTag: 'nsp', sampleCodec: null, staticProductId: 0x0003, os: { min: 312, recommended: 508 }, partitions: baseline('nsp', false) },
   // First-generation Nord Stage EX (extended sibling of Stage Classic), NOT Stage 2 EX.
   // Tag 'nspg' per docs/NORD-PRODUCT-LINE.md; no user sample engine (like Stage Classic).
   'stage-ex': { id: 'stage-ex', name: 'Nord Stage EX', generation: 'OG', programTag: 'nspg', sampleCodec: null, staticProductId: 0x0008, os: { min: 400, recommended: 608 }, partitions: baseline('nspg', false) },
-  'electro-3': { id: 'electro-3', name: 'Nord Electro 3', generation: 'OG', programTag: 'nepg', sampleCodec: 'og', staticProductId: 0x0007, os: { min: 100, recommended: 314 }, partitions: baseline('nepg', true) },
-  'electro-3-hp': { id: 'electro-3-hp', name: 'Nord Electro 3 HP', generation: 'OG', programTag: 'nepg', sampleCodec: 'og', staticProductId: 0x000b, os: { min: 100, recommended: 314 }, partitions: baseline('nepg', true, 4) },
+
+  // ── ColdFire generation (Stage 2 era). Firmware registration order from the
+  //    OS images (docs/FIRMWARE-LINE.md, 2026-10-11). Every index is `staticIndex`.
+  'electro-3': {
+    // Electro 3 OS 3.14: registration 0x3004FF12; FileTransfer ctor 0x30088418 →
+    // base 0x300925A2(…,4), frames 3..4, no session lock (begin 0x30089E30).
+    // Samples: `.nsmp` NWS v8/v11 only (0x3004B84A). NSM's `CElectro3_PreNPNOv5`
+    // covers OS 1.00–2.06; no pre-3.x image was read.
+    id: 'electro-3', name: 'Nord Electro 3', generation: 'OG', programTag: 'nepg', sampleCodec: 'og',
+    staticProductId: 0x0007, os: { min: 100, recommended: 314 }, fileTransferVersion: 4,
+    partitions: electro3Line(),
+  },
+  'electro-3-hp': {
+    // Electro 3 HP OS 3.16: registration 0x3005043E; base ctor 0x300953DA(…,4),
+    // frames 3..4, no session lock (begin 0x3008CC68). Samples NWS v8/v11 (0x3004BD74).
+    id: 'electro-3-hp', name: 'Nord Electro 3 HP', generation: 'OG', programTag: 'nepg', sampleCodec: 'og',
+    staticProductId: 0x000b, os: { min: 100, recommended: 314 }, fileTransferVersion: 4,
+    partitions: electro3Line(),
+  },
+  'electro-4': {
+    // Electro 4 OS 1.22: registration 0x30057F46; FileTransfer ctor 0x300A86E6(…,7),
+    // frames 3..7, Stage 2 session code (lock → 18). Samples NWS v8/v11 (0x30053768).
+    // NSM's Add() order skipped the user Piano (2) and Samp Lib (3); Program 4 agrees.
+    id: 'electro-4', name: 'Nord Electro 4', generation: 'OG', programTag: 'ne4p', sampleCodec: 'og',
+    staticProductId: 0x0023, os: { min: 100, recommended: 120 }, fileTransferVersion: 7,
+    partitions: firmwareOrder(
+      P('piano-native', 'Piano (factory)', true),
+      P('samplib-native', 'Sample Library (factory)', true),
+      P('piano', 'Piano', false),
+      P('samplib', 'Sample Library', false),
+      P('program', 'Programs', false, 'ne4p'),
+      P('live', 'Live', false, 'ne4l'),
+      P('settings', 'Settings', false),
+    ),
+  },
   'electro-5': {
-    // CElectro5::CElectro5 @0x0000000100194838 — partition Add() order in constructor:
-    //   SPartitionNative "Piano (Native)"  →  piano-native (factory)
-    //   SPartitionPianoV5/V6              →  piano (user; V5 if firmware < 0x91, else V6)
-    //   SPartitionNative "Samp Lib (Native)" → samplib-native (factory)
-    //   SPartitionSampLibV2               →  samplib (user)
-    //   SPartitionProgram  "ne5p"         →  program
-    //   SPartitionUserE2P  "ne5t"         →  setlist (label="Set List", type="song")
-    //   SPartitionLive     "ne5l"         →  live
-    //   SPartitionSettings "ne5s"         →  settings
-    //
-    // Note: `generation: 'NW1-v3'` refers to the SAMPLE codec generation (codec3 / .nsmp).
-    // The Electro 5 program file uses a legacy `formatType 0` CBIN header — confirmed from
-    // fixtures — not the NW1-v4 formatType used by Stage 4/Piano 6/Grand 2.
-    id: 'electro-5', name: 'Nord Electro 5', generation: 'NW1-v3', programTag: 'ne5p', sampleCodec: 'codec3',
-    staticProductId: 0x0027, os: { min: 100, recommended: 140 },
-    partitions: [
+    // Electro 5 OS 2.04: registration 0x3004EF18 — same order as NSM's
+    // CElectro5::CElectro5 @0x0000000100194838. FileTransfer ctor
+    // 0x3017040A(…,1,10), frames 3..10, Stage 2 session code.
+    // ColdFire, Stage 2 generation (legacy formatType-0 program header), so
+    // `generation` is OG. Samples: `.nsmp` NWS v8/v11 only — the loader
+    // (0x301344A6 / 0x301342A8) accepts generations 1–2 and refuses `.nsmp3`
+    // although its version table (0x30227E6D) knows v30. Pianos: CNSP v5 and v6.
+    id: 'electro-5', name: 'Nord Electro 5', generation: 'OG', programTag: 'ne5p', sampleCodec: 'og',
+    staticProductId: 0x0027, os: { min: 100, recommended: 140 }, fileTransferVersion: 10,
+    partitions: firmwareOrder(
       P('piano-native', 'Piano (factory)', true),
       P('piano', 'Piano', false),
       P('samplib-native', 'Sample Library (factory)', true),
       P('samplib', 'Sample Library', false),
-      // Program is the 5th Add() → ordinal 4 (NOT the Stage-4 default 6, which
-      // is Electro 5's Live partition). Static-recovered; wants probe confirm.
-      { ...P('program', 'Programs', false, 'ne5p'), staticIndex: 4 },
+      P('program', 'Programs', false, 'ne5p'),
       P('setlist', 'Set Lists', false, 'ne5t'),
       P('live', 'Live', false, 'ne5l'),
       P('settings', 'Settings', false, 'ne5s'),
-    ],
+    ),
   },
-  'piano-1': { id: 'piano-1', name: 'Nord Piano', generation: 'OG', programTag: 'nppg', sampleCodec: 'og', staticProductId: 0x0020, os: { min: 100, recommended: 148 }, partitions: baseline('nppg', true, 3) },
-  'piano-2': { id: 'piano-2', name: 'Nord Piano 2', generation: 'OG', programTag: 'np2p', sampleCodec: 'og', staticProductId: 0x0022, os: { min: 100, recommended: 120 }, partitions: baseline('np2p', true, 6) },
-  'piano-4': { id: 'piano-4', name: 'Nord Piano 4', generation: 'NW1-v3', programTag: 'np4p', sampleCodec: 'codec3', staticProductId: 0x002a, os: { min: 250, recommended: 250 }, partitions: baseline('np4p', true, 6) },
-  'piano-5': { id: 'piano-5', name: 'Nord Piano 5', generation: 'NW1-v4', programTag: 'np5p', sampleCodec: 'codec4', staticProductId: 0x002d, os: { min: 100, recommended: 100 }, partitions: baseline('np5p', true, 6) },
-  'lead-4': {
-    // CLead4Base::CLead4Base @0x00000001000dd364 — constructor Add() order:
-    //   SPartitionUserE2P  "Performance" (CFileSpec from CFileType(this+0x118)="nl4p") → program
-    //   SPartitionProgram  (CFileSpec from CFileType "nl4s")                           → synth-preset
-    //   SPartitionSettings "Settings"   (CFileSpec from CFileType "nl4t")              → settings
-    // No piano, no samples, no live, no setlist — purely synth: program + preset + settings.
-    id: 'lead-4', name: 'Nord Lead 4', generation: 'OG', programTag: 'nl4p', sampleCodec: null,
-    staticProductId: 0x0024, os: { min: 100, recommended: 130 },
-    partitions: [
-      // "nl4p" (Performance) is the 1st Add → ordinal 0. Lead 4 has only 3
-      // partitions, so the old Stage-4 default of 6 addressed a nonexistent one.
-      { ...P('program', 'Performances', false, 'nl4p'), staticIndex: 0 },
-      P('synth-preset', 'Programs',     false, 'nl4s'),
-      P('settings',     'Settings',     false, 'nl4t'),
-    ],
+  'piano-1': {
+    // Nord Piano OS 1.50: registration 0x30035ED6; base ctor 0x3009022A(…,4),
+    // frames 3..4, no session lock (begin 0x30076FEA). NSM has Piano at 1 and
+    // Pedal (Native) at 2; the firmware registers them the other way round.
+    // No sample library and no sample code at all → sampleCodec null.
+    // Pianos: CNSP v5 only (loader 0x3004C442).
+    id: 'piano-1', name: 'Nord Piano', generation: 'OG', programTag: 'nppg', sampleCodec: null,
+    staticProductId: 0x0020, os: { min: 100, recommended: 148 }, fileTransferVersion: 4,
+    partitions: firmwareOrder(
+      P('piano-native', 'Piano (factory)', true),
+      P('pedal-native', 'Pedal (factory)', true),
+      P('piano', 'Piano', false),
+      P('program', 'Programs', false, 'nppg'),
+      P('live', 'Live', false),
+      P('settings', 'Settings', false), // firmware name "System"
+    ),
   },
-  'lead-a1': { id: 'lead-a1', name: 'Nord Lead A1', generation: 'OG', programTag: 'nlap', sampleCodec: null, partitions: baseline('nlap', false) },
-  'wave': { id: 'wave', name: 'Nord Wave', generation: 'OG', programTag: 'nwp', sampleCodec: 'og', staticProductId: 0x0005, os: { min: 200, recommended: 214 }, partitions: baseline('nwp', true, 1) },
+  'piano-2': {
+    // Piano 2 OS 1.22: registration 0x30021880; base ctor 0x3011F59A(…,6),
+    // frames 3..6, Stage 2 session code. Samples NWS v8/v11 (0x300D078C).
+    // Pianos: CNSP v5 only (0x300C376A).
+    id: 'piano-2', name: 'Nord Piano 2', generation: 'OG', programTag: 'np2p', sampleCodec: 'og',
+    staticProductId: 0x0022, os: { min: 100, recommended: 120 }, fileTransferVersion: 6,
+    partitions: coldfirePianoLine('np2p'),
+  },
+  'piano-3': {
+    // Piano 3 OS 2.04: registration 0x30024E5E; FileTransfer ctor
+    // 0x300A12E4(…,1,10), frames 3..10, Stage 2 session code. ColdFire, Stage 2
+    // generation → `generation` OG (the old NW1-v3 label was a guess). Samples:
+    // `.nsmp` NWS v8/v11 only (0x300715FA; version table 0x301241B4 maps only
+    // 8 and 11). Pianos: CNSP v5 and v6. NSM's list lacked the user Piano,
+    // Piano Pedal and Samp Lib partitions; Program 6 agrees.
+    id: 'piano-3', name: 'Nord Piano 3', generation: 'OG', programTag: 'np3p', sampleCodec: 'og',
+    staticProductId: 0x0028, os: { min: 100, recommended: 122 }, fileTransferVersion: 10,
+    partitions: coldfirePianoLine('np3p', 'np3l'),
+  },
+  'wave': {
+    // Nord Wave OS 2.14: registration 0x3004F2B2 (the constructors pass their
+    // index explicitly); base ctor 0x3008A11A(…,4), frames 3..4, no session lock
+    // (begin 0x3008358C). No factory sample library and no Live partition.
+    // SWave and RAMFS hold unknown content: OpenNord treats both as read-only.
+    // Samples NWS v8/v11 (0x3002B990, also `nwi` entries).
+    id: 'wave', name: 'Nord Wave', generation: 'OG', programTag: 'nwp', sampleCodec: 'og',
+    staticProductId: 0x0005, os: { min: 200, recommended: 214 }, fileTransferVersion: 4,
+    partitions: firmwareOrder(
+      P('samplib', 'Sample Library', false),
+      P('program', 'Programs', false, 'nwp'),
+      P('swave', 'Synth Waves', true),
+      P('ramfs', 'RAM file system', true),
+      P('settings', 'Settings', false), // firmware name "System"
+    ),
+  },
+  'c1': {
+    // Nord C1 OS 1.12: no USB device descriptor, no FileTransfer code (byte
+    // signature search finds none) and no transfer strings — the instrument
+    // has no USB file transfer. NSM has no class for it either.
+    id: 'c1', name: 'Nord C1', generation: 'OG', programTag: null, sampleCodec: null,
+    deviceTransfer: false, partitions: [],
+  },
+  // C2: no OS image read; NSM baseline (CC2, PID 0x09). The C2D firmware below
+  // registers no Live partition, so this list is likely wrong too.
   'c2': { id: 'c2', name: 'Nord C2', generation: 'OG', programTag: 'nc2p', sampleCodec: null, staticProductId: 0x0009, os: { min: 100, recommended: 132 }, partitions: baseline('nc2p', false, 2) },
-  'c2d': { id: 'c2d', name: 'Nord C2D', generation: 'OG', programTag: 'nc2p', sampleCodec: null, staticProductId: 0x000c, os: { min: 100, recommended: 112 }, partitions: baseline('nc2p', false, 2) },
-  'grand': { id: 'grand', name: 'Nord Grand', generation: 'NW1-v3', programTag: 'ngp', sampleCodec: 'codec3', staticProductId: 0x002b, os: { min: 150, recommended: 150 }, partitions: baseline('ngp', true, 6) },
-  'organ-3': { id: 'organ-3', name: 'Nord Organ 3', generation: 'OG', programTag: 'no3p', sampleCodec: null, staticProductId: 0x003a, os: { min: 100, recommended: 112 }, partitions: baseline('no3p', false, 2) },
+  'c2d': {
+    // C2D OS 1.12: registration 0x3004ED82; base ctor 0x30094060(…,4), frames
+    // 3..4, no session lock (begin 0x300893B2). Only 4 partitions — no Live
+    // (NSM's CC2D lists 5). Pipe (index 1) is NSM's "Pipe" ROMFlash: OpenNord
+    // treats it as read-only. The Pipe loader (0x3003B5A0) takes an embedded
+    // CNSP at 0x440 only.
+    id: 'c2d', name: 'Nord C2D', generation: 'OG', programTag: 'nc2p', sampleCodec: null,
+    staticProductId: 0x000c, os: { min: 100, recommended: 112 }, fileTransferVersion: 4,
+    partitions: firmwareOrder(
+      P('pipe-native', 'Pipe Organ (factory)', true),
+      P('pipe', 'Pipe Organ', true),
+      P('program', 'Programs', false, 'nc2p'),
+      P('settings', 'Settings', false), // firmware name "System"
+    ),
+  },
+
+  // ── ARM, Stage 3 / Stage 4 generation. Firmware registration order from the
+  //    OS images (docs/FIRMWARE-LINE.md, 2026-10-10/11). FileTransfer
+  //    10 (frames 3..10) unless noted. Every index is `staticIndex`.
+  'electro-6': {
+    // Electro 6 OS 2.66: registration FUN_c00180c0 (array FUN_c0002a5c);
+    // FileTransfer FUN_c0101140(…,1,10), frames 3..10 (c01254e4); Stage 3
+    // begin handler (18 at c00ffaf8). No Pedal partitions (their constructors
+    // are never called), no Set List: `ne6t` is Settings. Program is 4, not
+    // NSM's 6. Samples: Stage 3 version map (c01bc870) → `.nsmp3` (medium).
+    id: 'electro-6', name: 'Nord Electro 6', generation: 'NW1-v3', programTag: 'ne6p', sampleCodec: 'codec3',
+    staticProductId: 0x0029, os: { min: 250, recommended: 250 }, fileTransferVersion: 10,
+    partitions: firmwareOrder(
+      P('piano-native', 'Piano (factory)', true),
+      P('piano', 'Piano', false),
+      P('samplib-native', 'Sample Library (factory)', true),
+      P('samplib', 'Sample Library', false),
+      P('program', 'Programs', false, 'ne6p'),
+      P('live', 'Live', false, 'ne6l'),
+      P('settings', 'Settings', false, 'ne6t'),
+    ),
+  },
+  'electro-7': {
+    // Electro 7 OS 1.30: registration FUN_c0011420 (array FUN_c000ac18);
+    // transfer object version 10, frames 3..10 (FUN_c01ce588). 10 partitions,
+    // nothing past 9: NSM's extra Native/Raw partitions and `ne7s` (the
+    // standalone synth-preset archive tag, FUN_c00a8088) are not on the wire.
+    // Stage 4 registry generation (medium). PID 0x3B from NSM 9.22 `CElectro7`
+    // (the firmware fills its descriptor PID at runtime). Pianos: CNSP v5/v6.
+    // Sample generation not located: a {8,11,30,40} version map exists
+    // (c04bfd24), so `codec4` is a guess (low).
+    id: 'electro-7', name: 'Nord Electro 7', generation: 'NW1-v4', programTag: 'ne7p', sampleCodec: 'codec4',
+    staticProductId: 0x003b, os: { min: 100, recommended: 100 }, fileTransferVersion: 10,
+    partitions: firmwareOrder(
+      P('piano-native', 'Piano (factory)', true),
+      P('piano', 'Piano', false),
+      P('pedal-native', 'Pedal (factory)', true),
+      P('pedal', 'Piano Pedal', false),
+      P('samplib-native', 'Sample Library (factory)', true),
+      P('samplib', 'Sample Library', false),
+      P('program', 'Programs', false, 'ne7p'),
+      P('live', 'Live', false, 'ne7l'),
+      P('settings', 'Settings', false, 'ne7t'),
+      P('synth-preset', 'Synth Presets', false, 'ne7r'),
+    ),
+  },
+  'organ-3': {
+    // Organ 3 OS 1.00: registration FUN_c0002e9c; transfer object version 10,
+    // frames 3..10 (c001ecd4). Only 3 partitions, Program at 0 — no Native or
+    // "Pipe" ROMFlash partitions (NSM's COrgan3 had Program at 2). Stage 4
+    // registry generation (FUN_c00c0120), so NW1-v4 (medium).
+    id: 'organ-3', name: 'Nord Organ 3', generation: 'NW1-v4', programTag: 'no3p', sampleCodec: null,
+    staticProductId: 0x003a, os: { min: 100, recommended: 112 }, fileTransferVersion: 10,
+    partitions: firmwareOrder(
+      P('program', 'Programs', false, 'no3p'),
+      P('live', 'Live', false, 'no3l'),
+      P('settings', 'Settings', false, 'no3t'),
+    ),
+  },
+  'wave-2': {
+    // Wave 2 OS 1.24: registered inside FUN_c0161afc; transfer object version
+    // 10, frames 3..10 (c003e0dc). 5 partitions: no "E2P FFS" and no
+    // "Transient" partition (NSM's CWave2::CWave2 @0x100033a7c adds both).
+    // Program 2 agrees with NSM; the Program partition also lists `nlxp`.
+    // Backup extension `nw2b`. Samples: generation check not located (NSM
+    // treats Wave 2 as `nsmp3`; low).
+    id: 'wave-2', name: 'Nord Wave 2', generation: 'NW1-v3', programTag: 'nw2p', sampleCodec: 'codec3',
+    staticProductId: 0x002c, os: { min: 80, recommended: 100 }, fileTransferVersion: 10,
+    partitions: firmwareOrder(
+      P('samplib-native', 'Sample Library (factory)', true),
+      P('samplib', 'Sample Library', false),
+      P('program', 'Programs', false, 'nw2p'),
+      P('live', 'Live', false, 'nw2l'),
+      P('settings', 'Settings', false, 'nw2s'),
+    ),
+  },
+  // Pianos: 9 partitions each (armPianoLine). Piano manager generation 5, 120
+  // slots; CNSP v5 and v6 load on all five.
+  'piano-4': {
+    // Piano 4 OS 2.66: registration FUN_c001755c; FUN_c00d790c(…,0,10), frames
+    // 3..10 (c00fbdb0); Stage 3 begin FUN_c00d6270. Samples: `.nsmp3` only
+    // (generation-3 check, c00c3428 / c0036220).
+    id: 'piano-4', name: 'Nord Piano 4', generation: 'NW1-v3', programTag: 'np4p', sampleCodec: 'codec3',
+    staticProductId: 0x002a, os: { min: 250, recommended: 250 }, fileTransferVersion: 10,
+    partitions: armPianoLine('np4p', 'np4l', 'np4t'),
+  },
+  'piano-5': {
+    // Piano 5 OS 1.34: registration FUN_c0122f8c; FileTransfer 10/0, frames
+    // 3..10 (c0036b48). Samples: `.nsmp3` and `.nsmp4` (generation 3–4 check
+    // at c0109f50) — the newest, codec4, is recorded.
+    id: 'piano-5', name: 'Nord Piano 5', generation: 'NW1-v4', programTag: 'np5p', sampleCodec: 'codec4',
+    staticProductId: 0x002d, os: { min: 100, recommended: 100 }, fileTransferVersion: 10,
+    partitions: armPianoLine('np5p', 'np5l', 'np5t'),
+  },
+  'piano-6': {
+    // Piano 6 OS 1.20: registration FUN_c016bb68; FileTransfer 10/0, frames
+    // 3..10 (c0041f80); Stage 4 begin FUN_c0075850. `np6t` is Settings, not a
+    // Set List. Samples: `.nsmp3` and `.nsmp4` (c01234ac) — codec4 recorded.
+    id: 'piano-6', name: 'Nord Piano 6', generation: 'NW1-v4', programTag: 'np6p', sampleCodec: 'codec4',
+    staticProductId: 0x0039, os: { min: 100, recommended: 100 }, fileTransferVersion: 10,
+    partitions: armPianoLine('np6p', 'np6l', 'np6t'),
+  },
+  'lead-4': {
+    // Lead 4 OS 1.32: registration FUN_c000bf58 (a plain counter, FUN_c0141120).
+    // FileTransfer service ctor (1, 8) FUN_c01410b8; frames 3..8 (c015a530) —
+    // a version-10 frame is dropped. Stage-style begin, lock → 18 (FUN_c013fa74).
+    // NSM's CLead4Base::CLead4Base @0x00000001000dd364 adds Performance first;
+    // the firmware registers Program (`nl4s`) first. NSM's `CLead4_FTv7`
+    // suggests OS ≤ 1.12 spoke version 7 (no old image read).
+    id: 'lead-4', name: 'Nord Lead 4', generation: 'OG', programTag: 'nl4p', sampleCodec: null,
+    staticProductId: 0x0024, os: { min: 100, recommended: 130 }, fileTransferVersion: 8,
+    partitions: leadLine('nl4s', 'nl4p', 'nl4t'),
+  },
+  'lead-a1': {
+    // Lead A1 OS 1.36: same code as the Lead 4 — registration FUN_c0013728,
+    // service ctor (1, 8) FUN_c01682b8, frames 3..8 (c0181730), begin
+    // FUN_c0166c74. FileTransfer is present: SysEx is an additional path, not
+    // the only one. NSM's `CMini` (PID 0x25) is probably the A1 (unconfirmed,
+    // so no staticProductId).
+    id: 'lead-a1', name: 'Nord Lead A1', generation: 'OG', programTag: 'nlap', sampleCodec: null,
+    fileTransferVersion: 8,
+    partitions: leadLine('nlas', 'nlap', 'nlat'),
+  },
+  'grand': {
+    // Grand OS 1.68: registration FUN_c0019f28; FileTransfer 10/0
+    // (FUN_c00e0b40), frames 3..10 (c0105040). Samples: `.nsmp3` only
+    // (generation-3 check, c00cc66c / c003962c).
+    id: 'grand', name: 'Nord Grand', generation: 'NW1-v3', programTag: 'ngp', sampleCodec: 'codec3',
+    staticProductId: 0x002b, os: { min: 150, recommended: 150 }, fileTransferVersion: 10,
+    partitions: armPianoLine('ngp', 'ngl', 'ngs'),
+  },
+  'grand-2': {
+    // Grand 2 OS 1.22: registration FUN_c016bc30; FileTransfer 10/0, frames
+    // 3..10 (c0041e00). `ng2t` is Settings, not a Set List. Samples: `.nsmp3`
+    // and `.nsmp4` (c0123620) — codec4 recorded.
+    id: 'grand-2', name: 'Nord Grand 2', generation: 'NW1-v4', programTag: 'ng2p', sampleCodec: 'codec4',
+    staticProductId: 0x0038, os: { min: 100, recommended: 100 }, fileTransferVersion: 10,
+    partitions: armPianoLine('ng2p', 'ng2l', 'ng2t'),
+  },
 };
 
 export const ALL_MODELS: ModelInfo[] = Object.values(MODELS);
@@ -371,7 +585,7 @@ export function modelById(id: NordModelId): ModelInfo | undefined {
 
 /**
  * First registry model whose `programTag` equals `tag`. Tags can be shared across
- * models (e.g. `ns2p` = Stage 2 & Stage EX, `nc2p` = C2 & C2D), so this returns the
+ * models (e.g. `ns2p` = Stage 2 & Stage 2 EX, `nc2p` = C2 & C2D), so this returns the
  * canonical/anchor model for the tag. The single source of truth for tag → model.
  */
 export function modelByTag(tag: string | undefined): ModelInfo | undefined {
@@ -411,10 +625,16 @@ export function programPartitionIndex(model: ModelInfo | undefined): number | un
 }
 
 /**
- * The NSM-constructor-recovered program partition index (medium-high confidence,
- * not yet hardware-validated), or undefined when no static evidence exists.
- * Below `programPartitionIndex` in trust — see `PartitionSpec.staticIndex`.
+ * The statically-recovered program partition index (firmware registration
+ * order, else NSM's constructor; not yet hardware-validated), or undefined when
+ * no static evidence exists. Below `programPartitionIndex` in trust — see
+ * `PartitionSpec.staticIndex`.
  */
 export function programPartitionStaticIndex(model: ModelInfo | undefined): number | undefined {
   return model?.partitions.find((p) => p.kind === 'program')?.staticIndex;
+}
+
+/** False for a model with no USB file transfer at all (`deviceTransfer: false`, the C1). */
+export function hasDeviceTransfer(model: ModelInfo): boolean {
+  return model.deviceTransfer !== false;
 }

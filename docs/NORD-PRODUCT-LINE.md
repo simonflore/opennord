@@ -53,28 +53,36 @@ class and/or a fourcc tag family. Generation maps to the program-body codec era
 era) → **NW1 v4** (Stage 4). Sample-library codec: `nsmp` (codec-1/OG), `nsmp3`
 (codec-3), `nsmp4` (codec-4) — see `docs/NSMP-CODEC.md`.
 
-| Instrument | NSM handler *(NSM)* | Program tag *(NSM)* | Backup | Sample codec | Gen *(inferred)* |
+The **Sample codec** column is what each model's own firmware loads (static,
+`docs/FIRMWARE-LINE.md` §5) where its OS image was read; "NWS v8/v11" means `.nsmp`
+with a codec-1/2 body only, so `.nsmp3`/`.nsmp4` must be converted down. **Gen** is
+from the firmware's platform and program-format family where read (§1, §6 there),
+else inferred.
+
+| Instrument | NSM handler *(NSM)* | Program tag *(NSM)* | Backup | Sample codec | Gen |
 |---|---|---|---|---|---|
-| Nord Stage (Classic/EX) | `CStageBase` | `nsp` / `nspg` | `nsb`, `ns2exb` | — | OG/NWS |
+| Nord Stage (Classic/EX) | `CStageBase` | `nsp` / `nspg` | `nsb`, `ns2exb` | — | OG/NWS *(inferred)* |
 | **Nord Stage 2** | `CStageBase`, `CPartitionProgramNS2` | `ns2p` | `ns2b` | `nsmp` (codec-1) | OG |
 | **Nord Stage 2 EX** | `CStageBase` | `ns2p` *(shared w/ Stage 2)* | `ns2exb` | `nsmp` (codec-1) | OG |
 | **Nord Stage 3** | `CStageBase` | **`ns3f`** | `ns3b` | `nsmp3` (codec-3) | NW1 v3 |
 | **Nord Stage 4** | `CStageBase` | `ns4p` | `ns4b` | `nsmp4` (codec-4) | NW1 v4 |
-| Nord Electro 3 / 3 HP | `CElectro3`, `CElectro3HP`, `CElectro3Base`, `CPartitionProgramE3(HP)` | `nepg` | `neb` | `nsmp` | OG |
-| Nord Electro 4 | `CElectro4`, `CPartitionProgramE4` | `ne4p` | `ne4b` | `nsmp` | OG |
-| Nord Electro 5 | `CElectro5` | `ne5p` | `ne5b` | `nsmp3` | NW1 v3 |
-| Nord Electro 6 | `CElectro6` | `ne6p` | `ne6b` | `nsmp3` | NW1 v3 |
-| Nord Piano (1) | `CPiano` | `nppg` | `npb` | `nsmp` | OG |
-| Nord Piano 2 / 3 | `CPiano2`/`CPiano3`, `CPartitionProgramNP2`/`NP3` | `np2…`/`np3…` | — | `nsmp`/`nsmp3` | OG→NW1 v3 |
-| Nord Piano 4 / 5 / 6 | `CPiano4`/`CPiano5`/`CPiano6`, `CPartitionPnoV5`/`V6` | — | — | `nsmp3`/`nsmp4` | NW1 v3/v4 |
-| Nord Lead 4 | `CLead4`, `CLead4Base` | `nl4p` | `nl4b` | — | — |
-| Nord Lead A1 | `CMini` *(inferred)* | `nlap` | `nlab` | — | — |
-| Nord Wave | `CProductBase` | `nws`/`nwp` | `nwb` | `nsmp` | OG |
-| Nord Wave 2 | `CGeneric` *(inferred)* | `nw2p` | `nw2b` | `nsmp3` | NW1 v3 |
-| Nord C2 / C2D | `CC2`, `CC2D` | `nc2p` | `nc2b` | — | — |
-| Nord Organ 3 / C (classic) | `COrgan3` | `no3p` / `ncpg` | `no3b` / `ncb` | — | — |
-| Nord Grand | `CGrand` | `ngp` | `ngb` | `nsmp3`/`nsmp4` | NW1 v3/v4 |
-| Nord Grand 2 | `CGrand2` | `ng2p` | `ng2b` | `nsmp4` | NW1 v4 |
+| Nord Electro 3 / 3 HP | `CElectro3`, `CElectro3HP`, `CElectro3Base`, `CPartitionProgramE3(HP)` | `nepg` | `neb` | `nsmp` NWS v8/v11 | OG (ColdFire) |
+| Nord Electro 4 | `CElectro4`, `CPartitionProgramE4` | `ne4p` | `ne4b` | `nsmp` NWS v8/v11 | OG (ColdFire) |
+| Nord Electro 5 | `CElectro5` | `ne5p` | `ne5b` | `nsmp` NWS v8/v11 — refuses `nsmp3` | OG (ColdFire) |
+| Nord Electro 6 | `CElectro6` | `ne6p` | `ne6b` | `nsmp3` *(medium)* | NW1 v3 |
+| Nord Electro 7 | `CElectro7` | `ne7p` | — | not located (`nsmp4`? low) | NW1 v4 |
+| Nord Piano (1) | `CPiano` | `nppg` | `npb` | — (no sample library) | OG (ColdFire) |
+| Nord Piano 2 / 3 | `CPiano2`/`CPiano3`, `CPartitionProgramNP2`/`NP3` | `np2p`/`np3p` | — | `nsmp` NWS v8/v11 | OG (ColdFire) |
+| Nord Piano 4 / 5 / 6 | `CPiano4`/`CPiano5`/`CPiano6`, `CPartitionPnoV5`/`V6` | `np4p`/`np5p`/`np6p` | — | P4 `nsmp3`; P5/P6 `nsmp3` + `nsmp4` | NW1 v3/v4 |
+| Nord Lead 4 | `CLead4`, `CLead4Base` | `nl4p` | `nl4b` | — | Lead descriptor |
+| Nord Lead A1 | `CMini` *(inferred)* | `nlap` | `nlab` | — | Lead descriptor |
+| Nord Wave | `CProductBase` | `nws`/`nwp` | `nwb` | `nsmp` NWS v8/v11 | OG (ColdFire) |
+| Nord Wave 2 | `CGeneric` *(inferred)* | `nw2p` | `nw2b` | `nsmp3` (NSM; firmware check not located) | NW1 v3 |
+| Nord C1 | — (no USB transfer in its OS) | — | — | — | (ColdFire) |
+| Nord C2 / C2D | `CC2`, `CC2D` | `nc2p` | `nc2b` | — | OG (C2D ColdFire) |
+| Nord Organ 3 / C (classic) | `COrgan3` | `no3p` / `ncpg` | `no3b` / `ncb` | — | Organ 3: NW1 v4 |
+| Nord Grand | `CGrand` | `ngp` | `ngb` | `nsmp3` only | NW1 v3 |
+| Nord Grand 2 | `CGrand2` | `ng2p` | `ng2b` | `nsmp3` + `nsmp4` | NW1 v4 |
 
 > ⚠️ **`ns3f`, not `ns3p`.** The Stage 3 *program* file tag is `ns3f` (Stage 3
 > calls them differently); there is **no `ns3p`** in the binary. Anything in
@@ -93,11 +101,12 @@ models use a 2-letter one):
 |---|---|---|
 | `p` / `pg` | **Program** | the main patch; what `lib/ns4/parse.ts` decodes |
 | `l` / `li` | **Live** | Live-buffer programs |
-| `s` / `sy` | **Synth Preset** / Sound | per-engine synth sounds |
-| `y` | **Synth Preset** (Stage) | Stage uses `…y` (e.g. `ns4y`) |
+| `s` / `sy` | **Synth Preset** / Sound — read per model | `ns2s` Stage 2 Synth; `nl4s`/`nlas` the Lead's single-sound **Program** partition; `nw2s` and `ne5s` are **Settings**; `ne7s` is the Electro 7's standalone synth-preset archive (a file tag, not a partition) |
+| `y` | **Synth Preset** (Stage 3/4) | `ns4y`, `ns3y`; but `ns2y` is Stage 2 **Settings** |
+| `r` | **Synth Preset** partition (Electro 7) | `ne7r` — 32 banks × 100 (firmware, `docs/FIRMWARE-LINE.md`) |
 | `o` / `op` | **Organ Preset** | `nso`, `neop`, `ns4o` |
 | `n` | (Stage 4 preset slot) | `ns4n` — preset family, exact kind TBD |
-| `t` | **Settings** on Stage 3/4, **Set List** on Electro 5 | `ns4t` is Settings (hardware: the Stage 4 Settings partition holds one `ns4t` file, `docs/PROTOCOL-RE.md`; NSM 9.22 `CStage4` adds Settings [ns4t], `CStage3` Settings [ns3t]); `ne5t` is a Set List (`CElectro5`). Read the suffix per model |
+| `t` | **Settings** almost everywhere; **Set List** only on Electro 5 | Settings: `ns4t`, `ns3t` (Stage), `ne6t`, `ne7t` (Electro 6/7), `np4t`/`np5t`/`np6t`, `ng2t` (pianos), `no3t`, `nl4t`/`nlat` — firmware registration, `docs/FIRMWARE-LINE.md` §3 (and hardware for `ns4t`, `docs/PROTOCOL-RE.md`). `ne5t` is a Set List (`CElectro5`, firmware agrees). Read the suffix per model |
 | `g` | (Stage 4) | `ns4g` — kind TBD |
 | `b` | **Backup** | a ZIP archive (`ns4b`/`ns3b`/`ns2b`); manifest carries `product_id`, `product_version`, `backup_format_version` |
 | `…bundle` / `…pb` | **Bundle / Pack** | program + its dependencies (pianos/samples) by name — the NSM 6 "Bundle" feature |
@@ -160,38 +169,31 @@ the constructors' string references (recipe in the appendix). *(NSM)*
 partitions hold read-only factory content; the rest are user-writable. The
 `…b` backup is a whole-device ZIP, not a live partition.
 
-| Partition | Role | Present on |
+| Partition | Role | Present on (firmware, where read) |
 |---|---|---|
-| `Native (FFS)` / `E2P FFS` | flash filesystem | most |
-| `Piano (Native)` | factory pianos | piano-capable (Stage, Piano, Electro, Grand) |
-| `Pedal (Native)` / `Piano Pedal (Native)` | factory pedal-noise/pads | Piano, Electro 6, Grand, Stage |
-| `Samp Lib (Native)` | factory sample library | sample-capable |
-| **`Program` (+ `Program Bundle`)** | user programs (bundle = program + deps by name) | all |
-| `Live` | live buffer | all |
-| `Synth Preset` / `Organ Preset` | per-engine presets | Stage/Wave (synth), Electro/C2 (organ) |
-| `Set List` *(inferred, `…t` tag)* | set lists | Stage 3/4, Electro 6, Piano 6, Grand 2 |
-| `Settings` | global settings | all |
+| `Native (FFS)` / `E2P FFS` | flash filesystem | NSM lists it on several models; **no firmware read so far registers it** on the wire |
+| `Piano (Native)` | factory pianos | Stage, Electro 3–7, Piano 1–6, Grand, Grand 2 |
+| `Pedal (Native)` / `Piano Pedal (Native)` | factory pedal-noise/pads | Stage 2–4, Electro 7, Piano 1–6, Grand, Grand 2 (**not** Electro 6) |
+| `Samp Lib (Native)` | factory sample library | sample-capable, except the Wave (user Samp Lib only) |
+| **`Program` (+ `Program Bundle`)** | user programs (bundle = program + deps by name) | all with USB transfer |
+| `Live` | live buffer | all but the Wave, C2D and the Leads |
+| `Synth Preset` / `Organ Preset` | per-engine presets | Stage 2–4, Electro 7 (synth); Stage 4, Electro 3 / 3 HP (organ) |
+| `Set List` / `Song` | set lists | Electro 5 (`ne5t`), Stage 3 (Songs, `ns3s`) only |
+| `Settings` | global settings | all with USB transfer |
 
-**Extracted layouts** *(NSM, static; order ≈ `Add()` order — exact indices are
-HW-validated only for Stage 4)*:
+**NSM-recovered layouts** *(static, `Add()` order)* were the first map of the
+non-Stage models. Every model whose OS image has since been read is superseded by
+its firmware registration order (the table in *Partition order* below, and
+`docs/FIRMWARE-LINE.md` §3); the NSM lists were wrong on most of them (an E2P FFS
+no device registers, `…t` read as a Set List, missing user partitions, Electro 6's
+Program at 6 instead of 4). Only Stage Classic/EX and C2 still rely on NSM.
 
-| Model | Program tag | Ordered partition set (Native → user) |
-|---|---|---|
-| **Stage 4** *(HW-validated, PROTOCOL-RE)* | `ns4p` | Piano N, Piano, Pedal N, Pedal, SampLib N, SampLib, **Program(6)**, Organ, Piano Preset, Synth Preset (`ns4y`), Live (`ns4l`), Settings — **12 partitions** |
-| **Stage (base; NS2/NS3 via SCaps)** | `ns2p`/`ns3f` | Backup, Native FFS, Program, Synth (`…s`), Live, Settings — variant fourcc by SCaps |
-| **Electro 4** *(OG)* | `ne4p` | Piano N, SampLib N, Program (+`ne4pb`), Live (`ne4l`), Settings (`ne4s`); Backup `ne4b`/`ne4db` |
-| **Electro 6** *(v3)* | `ne6p` | Piano N, Pedal N, SampLib N, Program (+bundle), Live (`ne6l`), Set List (`ne6t`), Settings; FFS |
-| **Piano 3** *(v3)* | `np3p` | Piano N, Piano Pedal N, SampLib N, Program (+bundle), Live (`np3l`), Settings (`np3s`) |
-| **Piano 6** *(v4)* | `np6p` | Piano N, Pedal N, SampLib N, Program (+bundle), Live (`np6l`), Set List (`np6t`), Settings; FFS |
-| **Grand 2** *(v4)* | `ng2p` | Piano N, Pedal N, SampLib N, Program (+bundle), Live (`ng2l`), Set List (`ng2t`), Settings; FFS |
-| **Wave 2** *(v3)* | `nw2p` | SampLib N, Program (+bundle), Live (`nw2l`), Synth (`nw2s`), Settings; FFS |
-
-Takeaway: **the partition model is uniform across the line** — same partition
-*kinds* in the same relative order, model-to-model differences are which optional
-partitions exist (Pedal, Organ vs Synth, Set List) and the fourcc generation. A
-single `{ partitions: PartitionSpec[] }` per model in OpenNord's `clavia` registry
-captures all of it. Exact numeric indices for non-Stage-4 models still want a
-one-line hardware `CQryPartList` to confirm `Add()` order, but the **set** is known.
+Takeaway: **the partition model is uniform across the line** — the same partition
+*kinds*, model-to-model differences being which optional partitions exist (Pedal,
+Organ vs Synth, Set List) and the fourcc generation. A single
+`{ partitions: PartitionSpec[] }` per model in OpenNord's `clavia` registry
+captures all of it. Exact numeric indices for non-Stage-4 models are still static
+(`staticIndex`) until a hardware `CQryPartList` confirms them.
 
 ## Where OpenNord plugs models in
 
@@ -222,14 +224,18 @@ The parallel multi-model work (#22) already built the seam:
   full 9.22 `.app` bundle (`/clavia.xml` is only a runtime path string); the PID
   *is* NSM's `Zevs::EInstrumentId`. Stage 4 / 3 / 2 are HW-validated; the rest
   are `staticProductId` in `src/lib/clavia/partitions.ts` until a device confirms.
-- **Per-model partition order.** Recovered statically from NSM 9.22 — see
-  *Partition order (NSM 9.22 constructors)* above, including the conflicts that
-  still need a hardware `CQryPartList` probe.
-- **OG/NW1-v3 protocol-version deltas.** The protocol family is shared; whether an
-  older `FileTransfer` *version* has identical opcode payloads needs one read-only
-  enumerate against real ns2/ns3 hardware.
-- **Codec-per-model beyond ns2/3/4** in the table above is *inferred* from era and
-  needs a sample file to confirm.
+- **Per-model partition order.** Recovered statically from each model's firmware
+  (Stage Classic/EX and C2: NSM only) — see *Partition order* below and
+  `docs/FIRMWARE-LINE.md` §3. Still static until a hardware `CQryPartList` probe.
+- **Protocol-version deltas.** The FileTransfer version per model is now known
+  statically (4, 6, 7, 8 or 10 — `docs/PROTOCOL-RE.md`, "Accepted frame
+  versions"), and the v4 group has no session lock. Whether an older version has
+  identical opcode payloads, and whether the v4–v7 models answer the `0x07`
+  version query, still need one read-only enumerate against real hardware.
+- **Codec-per-model beyond ns2/3/4** in the table above now comes from each
+  model's firmware loader where it was found (`docs/FIRMWARE-LINE.md` §5); the
+  Electro 6, Electro 7 and Wave 2 rows are still medium/low and want a sample
+  file loaded on the instrument to confirm.
 
 ---
 
@@ -265,7 +271,7 @@ Recovered from Nord Sound Manager **v9.22** (macOS, arm64 slice) with Ghidra
 | 0x22 | `CPiano2` | piano-2 | 1.00 → 1.20 |
 | 0x23 | `CElectro4` (only for `SCaps+0x10` model 1–3) | electro-4 | 1.00 → 1.20 |
 | 0x24 | `CLead4_FTv7` if FileTransfer ver < 8 (OS 1.00–1.12), else `CLead4_FTv8` (1.13+) | lead-4 | 1.00 → 1.30 |
-| 0x25 | `CMini` | — (not in registry) | 1.00 → 1.34 |
+| 0x25 | `CMini` | probably lead-a1 (unconfirmed, not set) | 1.00 → 1.34 |
 | 0x26 | `CStage3` (`S_IsModelSupported` → always) | stage-3 | 2.50 → 2.54 |
 | 0x27 | `CElectro5` | electro-5 | 1.00 → 1.40 |
 | 0x28 | `CPiano3` | piano-3 | 1.00 → 1.22 |
@@ -278,10 +284,10 @@ Recovered from Nord Sound Manager **v9.22** (macOS, arm64 slice) with Ghidra
 | 0x38 | `CGrand2` | grand-2 | 1.00 → 1.00 |
 | 0x39 | `CPiano6` | piano-6 | 1.00 → 1.00 |
 | 0x3A | `COrgan3` | organ-3 | 1.00 → 1.12 |
-| 0x3B | `CElectro7` | — (not in registry) | 1.00 → 1.00 |
+| 0x3B | `CElectro7` | electro-7 | 1.00 → 1.00 |
 | other | `CGeneric` only when generic is allowed, else rejected | — | — |
 
-### Partition order (NSM 9.22 constructors)
+### Partition order (firmware registration vs NSM 9.22 constructors)
 
 **NSM binds the device's partition list positionally.**
 `CFileManager::OnPartitionList(EResult, CPartInfo const*, int, …)` (`0x1000e9620`)
@@ -307,36 +313,41 @@ scans the partitions the device reports, with every reply time-bounded. See
 **The instrument's own registration order is the ground truth, not NSM's.** A
 partition's protocol index is the order in which the instrument firmware
 registers it with its file-transfer code — that is the list `CQryPartList`
-returns. Static analysis of three firmware images recovered it for the Stage
-line: Stage 4 OS 1.66 `FUN_c023a5b8`, Stage 3 OS 2.64 `FUN_c001ace0`, Stage 2
-OS 3.00 `FUN_3007046c`. It matches the hardware-validated Stage 4 list in
-`PROTOCOL-RE.md` and the Stage 2 capture from issue #31 exactly. NSM's
-product-constructor `Add()` order is only a proxy: it disagrees on the Stage 4
-presets and on the Stage 3 Synth/Song pair, and it appends an "E2P FFS" that the
-Stage 3/4 never report. The Stage rows below are the firmware order; the others
-are still NSM-recovered. Firmware-recovered indices are still *static*
+returns. Static analysis of the instruments' OS images recovered it for the Stage
+line (Stage 4 OS 1.66 `FUN_c023a5b8`, Stage 3 OS 2.64 `FUN_c001ace0`, Stage 2
+OS 3.00 `FUN_3007046c`; `docs/STAGE2-3-FIRMWARE.md`) and for every other model
+except Stage Classic/EX and C2 (`docs/FIRMWARE-LINE.md` §3). It matches the
+hardware-validated Stage 4 list in `PROTOCOL-RE.md` and the Stage 2 capture from
+issue #31 exactly. NSM's product-constructor `Add()` order is only a proxy: it
+disagrees on the Stage 4 presets, the Stage 3 Synth/Song pair, and on most other
+models, and it appends an "E2P FFS" that no firmware registers. The rows below
+are the firmware order. Firmware-recovered indices are still *static*
 (`staticIndex`) until a hardware probe confirms them; the connect probe checks
 Program on the device either way.
 
-Recovered order (Stage rows: firmware registration order, as above. Other rows:
-NSM constructor order — type = last `SPartition*` constructed before each
-`Add()`, tag from its `CFileType`; `llvm-objdump` + a conditional-branch check —
-only Wave 2 (#2 "Transient" ROMFlash) and Stage 2 (#3 user Pedal, OS-gated
-`b.lo`) have conditional `Add()`s):
+Recovered order (firmware registration order; the registration function and OS
+are cited per row, the rest of the evidence is in `docs/FIRMWARE-LINE.md`):
 
 | Model | Order (index: partition [tag]) |
 |---|---|
 | Stage 4 | 0 Piano(N) · 1 Piano [npno] · 2 Pedal(N) · 3 Piano Pedal [npdl] · 4 SampLib(N) · 5 SampLib [nsmp] · **6 Program [ns4p]** · 7 Organ Preset [ns4o] · 8 Piano Preset [ns4n] · 9 Synth Preset [ns4y] · 10 Live [ns4l] · 11 Settings [ns4t] — 12 partitions (hardware-validated; firmware `FUN_c023a5b8` agrees). NSM adds Synth · Organ · Piano at 7–9 and a 12 E2P FFS |
 | Stage 3 | 0 Piano(N) · 1 Piano [npno] · 2 Pedal(N) · 3 Piano Pedal [npdl] · 4 SampLib(N) · 5 SampLib [nsmp] · 6 **SWave** (100 entries; NSM-managed, treated read-only) · **7 Program [ns3f]** · 8 Synth [ns3y] · 9 Song [ns3s] · 10 Live [ns3l] · 11 Settings [ns3t] — 12 partitions, no E2P FFS (firmware `FUN_c001ace0`, static). NSM's `CStage3` adds Song (8) before Synth (9) and a 12 E2P FFS |
 | Stage 2 | 0 Piano(N) · 1 Piano · 2 Piano Pedal (user) · 3 Pedal(N) · 4 SampLib(N) · 5 SampLib · **6 Program [ns2p]** · 7 Synth [ns2s] · 8 Live [ns2l] · 9 Settings [ns2y] — 10 partitions (issue #31 capture; firmware OS 3.00 `FUN_3007046c` agrees, and registers the user pedal unconditionally). NSM's `CStage2` adds native Pedal first and gates the user Pedal on OS |
-| Electro 4 / 3 HP | 0 Native · 1 SampLib(N) · 2 Piano · 3 SampLib · **4 Program [ne4p / nepg]** · 5 Live · 6 Settings (3 HP: + 7 [neop]) |
-| Electro 5 | 0 Piano(N) · 1 Piano · 2 SampLib(N) · 3 SampLib · **4 Program [ne5p]** · 5 Set List [ne5t] · 6 Live · 7 Settings |
-| Electro 6 / Piano 2–6 / Grand / Grand 2 | 0–5 piano/pedal/samplib · **6 Program** · 7 Live · 8 Settings (· 9 E2P FFS on NW1) |
-| Electro 7 | 0–5 as above · **6 Program [ne7p]** · 7 Live · 8 [ne7s] · 9 Settings [ne7t] · 10–11 Native ("Song Mode") · 12 [ne7r] · 13 Raw ("Dev") |
-| Piano (1st gen) | 0 Native · 1 Piano · 2 Pedal(N) · **3 Program [nppg]** · 4 Live · 5 Settings |
-| C2 / C2D / Organ 3 | 0 Native · 1 "Pipe" ROMFlash · **2 Program [ncpg / nc2p / no3p]** · 3 Live · 4 Settings |
-| Wave 2 | 0 Native · 1 SampLib · 2 "Transient" ROMFlash *(conditional)* · 3 Program [nw2p] · 4 Live · 5 Settings · 6 Native |
-| Lead 4 / Mini | 0 Performance [nl4p / nlab] · 1 Program [nl4s / nlas] · 2 Settings |
+| Electro 3 / 3 HP | 0 Piano(N) · 1 SampLib(N) · 2 Piano · 3 SampLib · **4 Program [nepg]** · 5 Live · 6 System · 7 Organ Presets [neop] — 8 partitions on both (OS 3.14 `0x3004FF12`, OS 3.16 `0x3005043E`); NSM gives Organ Presets only to the HP |
+| Electro 4 | 0 Piano(N) · 1 SampLib(N) · 2 Piano · 3 SampLib · **4 Program [ne4p]** · 5 Live [ne4l] · 6 Settings — 7 (OS 1.22 `0x30057F46`) |
+| Electro 5 | 0 Piano(N) · 1 Piano · 2 SampLib(N) · 3 SampLib · **4 Program [ne5p]** · 5 Set List [ne5t] · 6 Live [ne5l] · 7 Settings [ne5s] — 8 (OS 2.04 `0x3004EF18`; NSM agrees) |
+| Electro 6 | 0 Piano(N) · 1 Piano [npno] · 2 SampLib(N) · 3 SampLib [nsmp] · **4 Program [ne6p]** · 5 Live [ne6l] · 6 Settings [ne6t] — 7 (OS 2.66 `FUN_c00180c0`). No pedals, no Set List; NSM had Program at 6 |
+| Electro 7 | 0 Piano(N) · 1 Piano [npno] · 2 Pedal(N) · 3 Piano Pedal [npdl] · 4 SampLib(N) · 5 SampLib [nsmp] · **6 Program [ne7p]** · 7 Live [ne7l] · 8 Settings [ne7t] · 9 Synth Preset [ne7r] — 10 (OS 1.30 `FUN_c0011420`). NSM's 8 [ne7s], 10–11 Native, 13 Raw are not on the wire; `ne7s` is the synth-preset archive file tag |
+| Piano (1st gen) | 0 Piano(N) · 1 Pedal(N) · 2 Piano · **3 Program [nppg]** · 4 Live · 5 System — 6 (OS 1.50 `0x30035ED6`); NSM had Piano 1 / Pedal(N) 2; no sample library |
+| Piano 2 / Piano 3 | 0 Piano(N) · 1 Piano · 2 Piano Pedal (user) · 3 Pedal(N) · 4 SampLib(N) · 5 SampLib · **6 Program [np2p / np3p]** · 7 Live · 8 Settings — 9 (OS 1.22 `0x30021880`, OS 2.04 `0x30024E5E`) |
+| Piano 4 / 5 / 6, Grand, Grand 2 | 0 Piano(N) · 1 Piano [npno] · 2 Pedal(N) · 3 Piano Pedal [npdl] · 4 SampLib(N) · 5 SampLib [nsmp] · **6 Program** · 7 Live · 8 Settings [np4t / np5t / np6t / ngs / ng2t] — 9 on all five (P4 OS 2.66 `FUN_c001755c`, P5 1.34 `FUN_c0122f8c`, P6 1.20 `FUN_c016bb68`, Grand 1.68 `FUN_c0019f28`, G2 1.22 `FUN_c016bc30`); no Set List, no E2P FFS |
+| Organ 3 | **0 Program [no3p]** · 1 Live [no3l] · 2 Settings [no3t] — 3 (OS 1.00 `FUN_c0002e9c`); no Native or "Pipe" partitions |
+| C2D | 0 Pipe(N) · 1 Pipe (NSM: ROMFlash) · **2 Program [nc2p]** · 3 System — 4 (OS 1.12 `0x3004ED82`); no Live |
+| C2 | *(no OS image read — NSM)* 0 Native · 1 "Pipe" ROMFlash · **2 Program [nc2p]** · 3 Live · 4 Settings |
+| Wave | 0 SampLib (user) · **1 Program [nwp]** · 2 SWave · 3 RAMFS · 4 System — 5 (OS 2.14 `0x3004F2B2`); no native sample library, no Live |
+| Wave 2 | 0 SampLib(N) · 1 SampLib [nsmp] · **2 Program [nw2p]** · 3 Live [nw2l] · 4 Settings [nw2s] — 5 (OS 1.24, in `FUN_c0161afc`); no "Transient", no E2P FFS |
+| Lead 4 / Lead A1 | 0 Program [nl4s / nlas] (single sounds) · **1 Performance [nl4p / nlap]** · 2 Settings [nl4t / nlat] — 3 (Lead 4 OS 1.32 `FUN_c000bf58`, A1 OS 1.36 `FUN_c0013728`). NSM's `CLead4Base` adds Performance first; `nlab` is the A1 backup tag, not a partition |
+| C1 | none — no USB transfer in OS 1.12 |
 
 **Conflicts, and what settled them:**
 - **Stage 4 presets — settled.** NSM adds Synth (7) · Organ (8) · Piano (9);
@@ -360,11 +371,23 @@ only Wave 2 (#2 "Transient" ROMFlash) and Stage 2 (#3 user Pedal, OS-gated
   rule; no pre-3.00 image was checked) would shift Program to 5, so the registry
   marks Stage 2 `layoutVariesByOs` and connect probes it instead of trusting
   index 6.
+- **The rest of the line — firmware order adopted.** NSM's constructors were
+  wrong on Electro 4 (missing user Piano/Samp Lib), Electro 6 (Pedal and Set List
+  that don't exist; Program 4 not 6), Electro 7 (partitions past 9), Nord Piano
+  (Piano/Pedal swapped), Piano 2/3 (missing user partitions), Piano 6 / Grand 2
+  (`…t` is Settings, no FFS), Organ 3 (Program 0 not 2), C2D (no Live), Wave
+  (no Live, no native Samp Lib), Wave 2 (no Transient/FFS) and the Leads (Program
+  before Performance). The registry carries the firmware order as `staticIndex`
+  for all of them; see `docs/FIRMWARE-LINE.md` §3 for the full list.
 - **Tag naming:** NSM gives `CC2` (PID 0x09) the `ncb`/`ncpg`/`ncli`/`ncsy`
   tags and `CC2D` (0x0C) `nc2*`; the table above files `ncpg` under
   "Organ 3 / C (classic)" and gives C2 `nc2p`. Left as-is until a file confirms.
 
-Lead A1 has no case — NSM doesn't manage it over USB. Cross-check: the Stage 2
+Lead A1: NSM has no case named for it, but the A1 firmware (OS 1.36) runs the
+Lead 4's FileTransfer code (version 8, 3 partitions), so it *is* manageable over
+vendor USB; NSM's `CMini` (PID 0x25) is probably the A1 — unconfirmed until a
+device reports that PID. The C1 is the one model with no USB transfer (no device
+descriptor, no FileTransfer code in OS 1.12). Cross-check: the Stage 2
 unit that validated the NS2 partition map (issue #31) ran OS 3.00, NSM's
 recommended value. **Open:** `docs/PROTOCOL-RE.md` records the validating Stage 4
 as "firmware 3.40", but NSM's Stage 4 floor is 0.90 and Nord's public Stage 4 OS

@@ -41,4 +41,10 @@ describe('classifyFile', () => {
     expect(classifyFile('Settings.ns2y')).toBeNull();
     expect(classifyFile('Gig.ns3s')).toBeNull();
   });
+
+  it('leaves Electro 7, Organ 3 and Lead A1 files out of the scan (no decoder yet)', () => {
+    for (const f of ['X.ne7p', 'X.ne7l', 'X.ne7r', 'X.ne7t', 'X.no3p', 'X.nlas', 'X.np6t', 'X.ng2t']) {
+      expect(classifyFile(f), f).toBeNull();
+    }
+  });
 });
