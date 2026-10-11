@@ -290,6 +290,22 @@ export function summarizeProgress(
   };
 }
 
+/**
+ * Parameters a firmware layout reads, counted like the Stage 4's {@link NS4_PARAM_COUNT}:
+ * each firmware parameter once, however many layers, slots or sections repeat it
+ * (Wave 2 stores its parameters once per slot, Grand 2 per layer). Sub-fields (the
+ * Electro 7's `<knob>.pedalAssign` / `.wheelAssign` flags) belong to their knob, and
+ * a Lead A1 inline morph delta to the parameter it modulates.
+ */
+function distinctParams(layout: FwLayout | LegacyLayout): number {
+  const params = layout.fields.filter((f) => f.key.split('.').length === 2 && !('deltaOf' in f && f.deltaOf));
+  // Legacy records name fields by descriptor; a set stored twice (the Electro 4's
+  // Preset I/II, blockX1/X2) shares its descriptor ids.
+  const ident = (f: (typeof params)[number]) =>
+    'id' in f ? `${f.key.split('.')[0].replace(/(II?|\d)$/, '')}#${f.id}` : f.name;
+  return new Set(params.map(ident)).size;
+}
+
 export function decodeForModel(modelId: string): ModelDecode {
   const decoder = DECODER_BY_ID[modelId];
   if (decoder === 'full') {
@@ -298,7 +314,9 @@ export function decodeForModel(modelId: string): ModelDecode {
   const prog = getModelProgress(modelId); // includes traced Stage 2/3 regions
   const summary = prog ? summarizeProgress(prog) : { coveredBytes: 0, candidateBytes: 0, controlCount: 0, pct: null };
   if (decoder === 'partial') {
-    return { status: 'partial', paramCount: null, bodyBytes: prog?.bodyBytes ?? null, ...summary };
+    const layout = (FW_LAYOUTS[modelId] ?? LEGACY_LAYOUTS[modelId])?.layout;
+    const paramCount = layout ? distinctParams(layout) : null;
+    return { status: 'partial', paramCount, bodyBytes: prog?.bodyBytes ?? null, ...summary };
   }
   // Undecoded: 'started' once a control is localized in coverage-data, else 'none'.
   return {
@@ -312,6 +330,6 @@ export function decodeForModel(modelId: string): ModelDecode {
 export const DECODE_LABEL: Record<DecodeStatus, string> = {
   full: 'Fully decoded',
   partial: 'Partly decoded',
-  started: 'In progress',
-  none: 'Not decoded yet — your captures build this',
+  started: 'Some parameters mapped',
+  none: 'Not decoded yet',
 };

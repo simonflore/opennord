@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { decodeNo3 } from './decode';
 import { no3Decoded, NO3_PROVISIONAL_NOTE } from './present';
 import { NO3_LAYOUT, type No3FieldKey } from './layout.generated';
-import { synthFwBody, synthFwFile, writeBits } from '../clavia/block-chain.synth';
+import { fieldBit, synthFwBody, synthFwFile, writeBits } from '../clavia/block-chain.synth';
 
 const file = (values: Partial<Record<No3FieldKey, number>> = {}) => synthFwFile('no3p', synthFwBody(NO3_LAYOUT, values), 200);
 
@@ -33,6 +33,16 @@ describe('decodeNo3 (Organ 3, firmware layout, provisional block order)', () => 
     expect(v['common.organModel']).toBe(3);
     expect(v['common.bassModel']).toBe(6);
     expect(v['manualADrawbar.drawbarValue1']).toBe(2);
+  });
+
+  it('stores negative values as two\'s complement, not value − min', () => {
+    expect(NO3_LAYOUT.fields.filter((f) => f.min < 0 && f.enc !== 'twos')).toEqual([]);
+    const body = synthFwBody(NO3_LAYOUT, {}, 200);
+    writeBits(body, fieldBit(NO3_LAYOUT, 'common.programTranspose'), 4, 0b1111); // −1
+    writeBits(body, fieldBit(NO3_LAYOUT, 'common.eqBass'), 7, 0);                // 0, not −60
+    const v = decodeNo3(synthFwFile('no3p', body)).values;
+    expect(v['common.programTranspose']).toBe(-1);
+    expect(v['common.eqBass']).toBe(0);
   });
 
   it('warns on a format version other than 2.00 but still reads', () => {

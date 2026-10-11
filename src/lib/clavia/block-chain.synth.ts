@@ -20,6 +20,13 @@ export function writeBits(body: Uint8Array, startBit: number, width: number, val
   }
 }
 
+/** Absolute body bit of a layout field: its block's first payload bit plus its own bit. */
+export function fieldBit<K extends string>(layout: FwLayout<K>, key: K): number {
+  const f = layout.fields.find((x) => x.key === key);
+  if (!f) throw new Error(`no field ${key} in the ${layout.model} layout`);
+  return (layout.blocks[f.block].offset + 1) * 8 + f.bit;
+}
+
 /** The raw bits a field stores for `value` (inverse of `fieldValue`). */
 export function fieldRaw(value: number, f: Pick<FwField, 'enc' | 'width' | 'min'>): number {
   switch (f.enc) {
