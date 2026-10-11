@@ -148,3 +148,36 @@ describe('sortEntries', () => {
     expect(sample).toEqual(copy);
   });
 });
+
+describe('filterEntries — LED filter keys', () => {
+  const ns4 = (zones: Record<'piano' | 'organ', string>) =>
+    ({ kind: 'program', layers: [
+      { id: 'A', kind: 'piano', enabled: true, kbZones: zones.piano },
+      { id: 'B', kind: 'organ', enabled: true, kbZones: zones.organ },
+    ] }) as unknown as NS4Program;
+  const pianoOrgan: EngineSummary = { axis: 'engine', engines: [{ kind: 'piano', layers: ['A'] }, { kind: 'organ', layers: ['B'] }] };
+  const synthOnly: EngineSummary = { axis: 'container', term: 'Panel', groups: [{ id: 'A', engines: ['synth'] }] };
+  const entries: LibraryEntry[] = [
+    { id: 'split', name: 'Split', source: 'local', engines: pianoOrgan, program: ns4({ piano: '0011', organ: '1100' }) },
+    { id: 'layered', name: 'Layered', source: 'local', engines: pianoOrgan, program: ns4({ piano: '1111', organ: '1111' }) },
+    { id: 'synth', name: 'Synth', source: 'local', engines: synthOnly },
+    { id: 'unread', name: 'Unread', source: 'nord' },
+  ];
+  const ids = (engines: string[], split = false) =>
+    filterEntries(entries, 'all', '', 'all', 'all', { engines: new Set(engines as never[]), split }).map((e) => e.id);
+
+  it('keeps programs that play every lit engine, on either axis', () => {
+    expect(ids(['piano'])).toEqual(['split', 'layered']);
+    expect(ids(['piano', 'organ'])).toEqual(['split', 'layered']);
+    expect(ids(['synth'])).toEqual(['synth']);
+    expect(ids(['piano', 'synth'])).toEqual([]);
+  });
+
+  it('Split keeps only programs that split the keyboard', () => {
+    expect(ids([], true)).toEqual(['split']);
+  });
+
+  it('with no key lit, nothing is filtered (an unread slot included)', () => {
+    expect(ids([])).toEqual(['split', 'layered', 'synth', 'unread']);
+  });
+});

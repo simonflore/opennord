@@ -107,6 +107,23 @@ export function layerZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesView[
 }
 
 /**
+ * Per engine, in the Library's piano/organ/synth order, which of the four zones
+ * it plays; an engine that plays nowhere is left out. Built on `layerZones`, so
+ * it stays cheap enough for every row of a long list.
+ */
+export function engineZones(p: NS4Program): { kind: 'piano' | 'organ' | 'synth'; cells: boolean[] }[] {
+  const zones = layerZones(p);
+  return (['piano', 'organ', 'synth'] as const)
+    .map((kind) => ({ kind, cells: zones.map((z) => z.layers.some((l) => l.kind === kind)) }))
+    .filter((r) => r.cells.some(Boolean));
+}
+
+/** Whether a program splits the keyboard: some engine plays only part of it. */
+export function isSplit(p: NS4Program): boolean {
+  return engineZones(p).some((r) => !r.cells.every(Boolean));
+}
+
+/**
  * Keyboard split / zone layout: which active layers sound in each of the four
  * zones, the split-point note at each active boundary, and program transpose.
  * Drives the ProgramZones strip.
