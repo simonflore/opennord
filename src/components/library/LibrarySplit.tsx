@@ -47,7 +47,9 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
   // The program view (when loaded) is the same node in both layouts; only the
   // "nothing to show" copy differs — narrow points back to the list (which is
   // hidden behind the back button), wide points at the list beside it.
-  const program = entry?.program ? <ProgramView program={entry.program} /> : null;
+  // Keyed per program: the list and programs share one route now, so without a
+  // key the next program would inherit this one's view state (its scene).
+  const program = entry?.program ? <ProgramView key={entry.id} program={entry.program} /> : null;
 
   // The blueprint frame is mounted HERE rather than on the shell's <main>
   // (routes/root.tsx) on purpose: <main> is shared by every app screen, and
