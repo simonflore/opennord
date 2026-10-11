@@ -16,9 +16,9 @@
  * ⚠ The piano writer is hardware-untested (`docs/NPNO-WRITE.md`), so the result is too.
  * ⚠ SCOPE (`docs/LEGAL.md`): local conversion of a file the user has; nothing is uploaded.
  */
-import { decodeNsmp, readNsmpZones, type DecodedStrokeResult } from './nsmp';
-import { gainDetuneView } from './sample-view';
-import { resampleForExport } from './nse-resample';
+import { decodeNsmp, perNoteCustomCount, readGlobalLevelDetune, readNsmpZones, type DecodedStrokeResult } from './nsmp';
+import { dsp2Detune } from './nw1-dsp';
+import { DEFAULT_HALF_WIDTH, resampleForExport } from './nse-resample';
 import { peakAmplitude } from './nsmp-audio';
 import { NSP_SAMPLE_RATE, touchAttenuation } from './nsp-audio';
 import { buildNpno, MAX_NPNO_NAME, MIN_RECORDED_NOTE, NPNO_PIANO_TYPE, type NpnoBuildResult, type NpnoZoneInput } from './nsp-write';
@@ -33,9 +33,8 @@ const MIN_LOOP_FRAMES = 4410;
 const AUDIBLE_TAIL = 0.01; // −40 dB
 /** Fade put on the end of such a note, in seconds (less on a very short one). */
 const TAIL_FADE_SECONDS = 0.5;
-/** Reach of the resampling filter either side of a frame, in input frames (`resampleForExport`
- *  takes 32 taps a side), with one to spare. */
-const FILTER_REACH = 33;
+/** Reach of the resampling filter either side of a frame, in input frames, with one to spare. */
+const FILTER_REACH = DEFAULT_HALF_WIDTH + 1;
 /** Said of every piano OpenNord builds, until one has been loaded on an instrument. */
 const UNTESTED = 'A piano made by OpenNord has not been tried on a Nord yet. Back up your Nord before you load it.';
 /** Softest floor a layer can store, in dB. */
@@ -75,23 +74,29 @@ export function layerFloors(velTops: readonly number[]): number[] {
 }
 
 /**
- * Lay a sample's zones out as piano zones. Zones are tiled by their top key (as the sample
- * keyboard shows them); zones sharing a top key are touch layers, one per top velocity (a
- * piano plays one recording for a key and touch, so a second zone at the same velocity, an
- * alternate take, is left out). Each piano zone is pitched to its own top key.
+ * Lay a sample's zones out as piano zones. Zones with the same top velocity form a touch
+ * layer, tiled across the keys by their top key (as the sample keyboard shows them); a second
+ * zone on the same keys and velocity, an alternate take, is left out, since a piano plays one
+ * recording for a key and touch. The layers need not split at the same keys: a piano zone runs
+ * between neighbouring split points of any layer and takes, from each layer, the recording
+ * that covers it. Each piano zone is pitched to its own top key.
  */
 export function planPianoZones(zones: readonly SampleZone[]): PianoZonePlan[] {
-  const byTop = new Map<number, SampleZone[]>();
-  for (const z of zones) byTop.set(z.keyHigh, [...(byTop.get(z.keyHigh) ?? []), z]);
+  const bands = new Map<number, SampleZone[]>(); // top velocity → its zones, lowest keys first
+  for (const z of [...zones].sort((a, b) => a.keyHigh - b.keyHigh)) {
+    const band = bands.get(z.velTop) ?? [];
+    if (band.at(-1)?.keyHigh !== z.keyHigh) band.push(z);
+    bands.set(z.velTop, band);
+  }
+  const loudestFirst = [...bands.keys()].sort((a, b) => b - a).map((v) => bands.get(v)!);
   const plan: PianoZonePlan[] = [];
   let low = 0;
-  for (const top of [...byTop.keys()].sort((a, b) => a - b)) {
-    const group = byTop.get(top)!
-      .sort((a, b) => b.velTop - a.velTop)
-      .filter((z, k, all) => k === 0 || z.velTop !== all[k - 1].velTop);
-    const sourceRoot = group[0].rootKey; // the loudest layer's: where the keys are split
-    const floors = layerFloors(group.map((z) => z.velTop));
-    const layers = group.map((z, k) => ({ globalID: z.globalID, floorDb: floors[k], sourceRoot: z.rootKey }));
+  for (const top of [...new Set(zones.map((z) => z.keyHigh))].sort((a, b) => a - b)) {
+    // From each layer, the zone whose keys reach this far (none above a layer's top zone).
+    const covering = loudestFirst.map((band) => band.find((z) => z.keyHigh >= top)).filter((z) => z !== undefined);
+    const sourceRoot = covering[0].rootKey; // the loudest layer's: where the keys are split
+    const floors = layerFloors(covering.map((z) => z.velTop));
+    const layers = covering.map((z, k) => ({ globalID: z.globalID, floorDb: floors[k], sourceRoot: z.rootKey }));
     const high = Math.min(127, top);
     // From the top down: a group of keys for each stretch that lies well above the recording.
     const parts: PianoZonePlan[] = [];
@@ -139,9 +144,9 @@ export function resampleForPiano(
   // (Frames right at the sample's loop start are still coloured by the audio before it.)
   const start = Math.ceil((loop.loopStart + FILTER_REACH) * exact);
   const unrolled = channels.map((ch) => {
+    // Up to the loop's shifted end, plus the filter's reach beyond it (and one reach to spare).
     const out = new Float64Array(loop.loopStart + repeats * length + 3 * FILTER_REACH);
-    for (let n = 0; n < loop.loopEnd; n++) out[n] = ch[n];
-    for (let n = loop.loopEnd; n < out.length; n++) out[n] = ch[loop.loopStart + ((n - loop.loopStart) % length)];
+    for (let n = 0; n < out.length; n++) out[n] = ch[n < loop.loopStart ? n : loop.loopStart + ((n - loop.loopStart) % length)];
     return out;
   });
   const out = resampleForExport(unrolled, NSP_SAMPLE_RATE / exact, NSP_SAMPLE_RATE);
@@ -183,17 +188,35 @@ export interface NsmpToNpnoResult extends NpnoBuildResult {
   warnings: string[];
 }
 
-/** Convert a Nord Sample to a Nord Piano. Throws a plain-words error when it can't. */
+/** A sample as the conversion needs it: what {@link nsmpToNpno} reads from a file. */
+export interface SampleSource {
+  zones: readonly SampleZone[];
+  /** The recordings the zones play, by `globalID`. */
+  strokes: readonly Pick<DecodedStrokeResult, 'globalID' | 'channels' | 'channelCount' | 'sampleRate' | 'loop'>[];
+  /** The sample's global detune, in cents: the sample section plays every recording this sharp. */
+  detuneCents?: number;
+  /** Keys whose level or tuning the sample adjusts individually (not carried over). */
+  adjustedKeys?: number;
+}
+
+/** Convert a Nord Sample file to a Nord Piano. Throws a plain-words error when it can't. */
 export function nsmpToNpno(bytes: Uint8Array, opts: NsmpToNpnoOptions): NsmpToNpnoResult {
   let strokes: DecodedStrokeResult[] = [];
-  try { strokes = decodeNsmp(bytes); } catch { /* not a sample we can read: reported below */ }
-  const byId = new Map(strokes.filter((s) => s.channels[0]?.length).map((s) => [s.globalID, s]));
-  const allZones = readNsmpZones(bytes);
-  const zones = allZones.filter((z) => byId.has(z.globalID));
+  try { strokes = decodeNsmp(bytes); } catch { /* not a sample we can read: reported by sampleToPiano */ }
+  return sampleToPiano({
+    zones: readNsmpZones(bytes),
+    strokes,
+    detuneCents: dsp2Detune(readGlobalLevelDetune(bytes)?.detune ?? 0),
+    adjustedKeys: perNoteCustomCount(bytes),
+  }, opts);
+}
+
+/** Build a piano from a decoded sample. Throws a plain-words error when it can't. */
+export function sampleToPiano(source: SampleSource, opts: NsmpToNpnoOptions): NsmpToNpnoResult {
+  const byId = new Map(source.strokes.filter((s) => s.channels[0]?.length).map((s) => [s.globalID, s]));
+  const zones = source.zones.filter((z) => byId.has(z.globalID));
   if (!zones.length) throw new Error("OpenNord couldn't read a playable sample from this file.");
-  // The sample section plays every recording this much sharp (its stored global detune).
-  const tuning = gainDetuneView(bytes);
-  const detune = (tuning?.detuneCents ?? 0) / 100;
+  const detune = (source.detuneCents ?? 0) / 100; // semitones
 
   const plan = planPianoZones(zones);
   const used = new Set(plan.flatMap((z) => z.layers.map((l) => l.globalID)));
@@ -221,28 +244,42 @@ export function nsmpToNpno(bytes: Uint8Array, opts: NsmpToNpnoOptions): NsmpToNp
   // bits: one gain for the whole piano brings a hotter source within it, relative levels kept.
   if (peak > 32767) {
     const gain = 32767 / peak;
-    for (const z of input) for (const l of z.layers) l.pcm = l.pcm.map((ch) => Int32Array.from(ch, (v) => Math.round(v * gain)));
+    const scaled = new Set<ArrayLike<number>>(); // a mono recording sits in both channels of a stereo piano
+    for (const z of input) for (const l of z.layers) for (const ch of l.pcm as Int32Array[]) {
+      if (scaled.has(ch)) continue;
+      scaled.add(ch);
+      for (let n = 0; n < ch.length; n++) ch[n] = Math.round(ch[n] * gain);
+    }
   }
   const warnings: string[] = [];
   const count = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
-  const unread = allZones.length - zones.length;
+  const unread = source.zones.length - zones.length;
   if (unread) {
     warnings.push(`${count(unread, "key zone's recording", "key zones' recordings")} couldn't be read and `
       + `${unread === 1 ? 'was' : 'were'} left out; the keys play the next zone up.`);
   }
-  const alternates = new Set(zones.map((z) => z.globalID).filter((id) => !used.has(id))).size;
+  // Alternate takes: recordings of a key and touch another zone already has.
+  const taken = new Set<string>();
+  const spare = new Set<number>();
+  for (const z of zones) {
+    const place = `${z.velTop}:${z.keyHigh}`;
+    if (taken.has(place) && !used.has(z.globalID)) spare.add(z.globalID);
+    taken.add(place);
+  }
+  const alternates = spare.size;
   if (alternates) {
     warnings.push(`${count(alternates, 'alternate recording was', 'alternate recordings were')} left out: `
       + 'a piano plays one recording for each key and touch.');
   }
-  if (tuning?.customNotes) {
-    warnings.push(`This sample adjusts the level or tuning of ${count(tuning.customNotes, 'key', 'keys')} individually. `
+  const adjusted = source.adjustedKeys ?? 0;
+  if (adjusted) {
+    warnings.push(`This sample adjusts the level or tuning of ${count(adjusted, 'key', 'keys')} individually. `
       + "OpenNord can't carry that over yet, so those keys may sound a little different.");
   }
   if (faded.size) {
     const which = faded.size === used.size ? 'This sample has' : `${faded.size} of this sample's recordings have`;
     warnings.push(`${which} no sustain loop, so a held note fades out when its recording ends `
-      + `(after ${Math.round(fadedSeconds)} seconds at most).`);
+      + `(they last up to ${Math.round(fadedSeconds)} seconds, longer on keys below the recorded note).`);
   }
   warnings.push(UNTESTED);
   const result = buildNpno({ name: opts.name, pianoType: opts.pianoType ?? NPNO_PIANO_TYPE.electric, channels, zones: input });

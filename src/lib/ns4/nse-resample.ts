@@ -44,6 +44,9 @@ function sinc(x: number): number {
   return Math.sin(px) / px;
 }
 
+/** Taps each side of a frame in the default kernel, in input samples. */
+export const DEFAULT_HALF_WIDTH = 32;
+
 export interface SincResampleOptions {
   /** Half-width of the kernel in input samples (taps each side). Default 32. */
   halfWidth?: number;
@@ -162,7 +165,7 @@ export function resampleForExport(
   dstRate: number,
   opts: SincResampleOptions = {},
 ): Float64Array[] {
-  const halfWidth = opts.halfWidth ?? 32;
+  const halfWidth = opts.halfWidth ?? DEFAULT_HALF_WIDTH;
   const beta = opts.beta ?? 12;
   const cutoffScale = opts.cutoffScale ?? 0.90;
   const phases = opts.phases ?? 1024;

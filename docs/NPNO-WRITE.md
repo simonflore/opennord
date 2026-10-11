@@ -53,8 +53,9 @@ checkNpnoAcceptance(bytes, { deep: true, model: 'stage-3', fileName }); // every
 - `nsmpToNpno(bytes, { name })` (`src/lib/ns4/nsmp-to-npno.ts`) builds a piano from a Nord Sample
   (`.nsmp`, `.nsmp3`, `.nsmp4`). The piano DSP never plays a recording above its own pitch, so
   each sample zone is resampled to sound at its top key, and keys more than 3 semitones above
-  a recording get their own copy, four keys each. Zones sharing their keys become dynamic
-  layers, with floors that put the layer switch at the velocity that divided them. A short
+  a recording get their own copy, four keys each. Zones with the same top velocity form a
+  dynamic layer, with floors that put the layer switch at the velocity that divided them; the
+  layers need not split at the same keys. The sample's global detune is applied. A short
   loop is repeated until rounding it to whole frames detunes it by under a third of a cent. A
   recording with no loop that is still sounding at its end gets a half-second fade. Like
   `buildNpno`, hardware-untested.

@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { layerFloors, nsmpToNpno, pianoNameFrom, planPianoZones, resampleForPiano } from './nsmp-to-npno';
+import { layerFloors, nsmpToNpno, pianoNameFrom, planPianoZones, resampleForPiano, sampleToPiano } from './nsmp-to-npno';
 import { writeNsmpMulti } from './nsmp-write';
 import { NSMP_SAMPLE_RATE, readNsmp } from './nsmp';
 import { gainDetuneView } from './sample-view';
+import { peakAmplitude } from './nsmp-audio';
 import { NSP_SAMPLE_RATE, decodeNspStroke, readNspDirectory } from './nsp-audio';
 import { NSP_ROOT_OFFSET, readNsp, readNspZones } from './nsp';
 import { checkNpnoAcceptance } from './nsp-check';
@@ -41,8 +42,17 @@ describe('planPianoZones', () => {
   });
 
   it('pitches each layer from its own recorded note', () => {
-    const plan = planPianoZones([{ ...zone(60, 60, 1, 63) }, { ...zone(60, 58, 2, 127) }]);
+    const plan = planPianoZones([zone(60, 60, 1, 63), zone(60, 58, 2, 127)]);
     expect(plan[0].layers.map((l) => [l.globalID, l.sourceRoot])).toEqual([[2, 58], [1, 60]]);
+  });
+
+  it('lets the layers split at different keys', () => {
+    // Loud layer splits at 60 and 64, soft layer at 62 and 64.
+    const plan = planPianoZones([zone(60, 60, 1), zone(64, 64, 2), zone(62, 62, 3, 63), zone(64, 64, 4, 63)]);
+    expect(plan.map((z) => [z.lowNote, z.highNote, z.layers.map((l) => l.globalID)])).toEqual([
+      [0, 60, [1, 3]], [61, 62, [2, 3]], [63, 64, [2, 4]],
+    ]);
+    expect(plan.every((z) => z.layers[1].floorDb > 0)).toBe(true);
   });
 
   it('takes one recording for a key and touch: an alternate take is left out', () => {
@@ -74,7 +84,7 @@ describe('resampleForPiano', () => {
     expect(Math.abs(cents(estimateF0(pcm[0].subarray(2000, 20000), NSP_SAMPLE_RATE)!.hz, hz(62)))).toBeLessThan(1);
   });
 
-  it('keeps a short loop in tune and its seam smooth', () => {
+  it('keeps a short loop in tune', () => {
     // A loop of 10 whole cycles (531 frames of a 53.1-frame period) is 669.02 frames at the
     // piano rate: rounding it as it stands would detune it.
     const loopStart = 20000;
@@ -88,11 +98,6 @@ describe('resampleForPiano', () => {
     const cyclesPerFrame = (NSMP_SAMPLE_RATE / 53.1) / NSP_SAMPLE_RATE;
     const cycles = loop!.length * cyclesPerFrame;
     expect(Math.abs(cents(cycles, Math.round(cycles)))).toBeLessThan(0.3);
-    // Playing through the seam makes no step bigger than the signal's own.
-    const x = pcm[0];
-    let step = 0;
-    for (let n = loop!.start + 1; n < x.length; n++) step = Math.max(step, Math.abs(x[n] - x[n - 1]));
-    expect(Math.abs(x[loop!.start] - x[x.length - 1])).toBeLessThanOrEqual(step * 1.2);
   });
 
   it('makes the loop from looping audio alone, whatever came before it', () => {
@@ -107,8 +112,7 @@ describe('resampleForPiano', () => {
     for (let n = loop!.start + 1; n < x.length; n++) step = Math.max(step, Math.abs(x[n] - x[n - 1]));
     expect(Math.abs(x[loop!.start] - x[x.length - 1])).toBeLessThanOrEqual(step * 1.05);
     // …at full level from its first frame, not ramping in from the silence.
-    const amp = x.subarray(loop!.start).reduce((p, v) => Math.max(p, Math.abs(v)), 0);
-    expect(x.subarray(loop!.start, loop!.start + 20).reduce((p, v) => Math.max(p, Math.abs(v)), 0)).toBeGreaterThan(amp * 0.9);
+    expect(peakAmplitude([x.subarray(loop!.start, loop!.start + 20)])).toBeGreaterThan(peakAmplitude([x.subarray(loop!.start)]) * 0.9);
   });
 });
 
@@ -159,12 +163,10 @@ describe('nsmpToNpno', () => {
 
   it('fades a note that has no loop and is still sounding when its recording ends', () => {
     const { bytes, warnings } = nsmpToNpno(sample, { name: 'Two Notes' }); // steady sines: loud to the last frame
-    expect(warnings).toHaveLength(2);
-    expect(warnings[1]).toMatch(/not been tried on a nord/i);
-    expect(warnings[0]).toMatch(/no sustain loop/i);
+    expect(warnings).toEqual([expect.stringMatching(/no sustain loop/i), expect.stringMatching(/not been tried on a nord/i)]);
     const dir = readNspDirectory(bytes)!;
     const pcm = decodeNspStroke(bytes, dir, dir.strokes[0])[0];
-    const peak = (from: number, to: number) => pcm.subarray(from, to).reduce((p, v) => Math.max(p, Math.abs(v)), 0);
+    const peak = (from: number, to: number) => peakAmplitude([pcm.subarray(from, to)]);
     expect(peak(pcm.length - 200, pcm.length)).toBeLessThan(peak(0, 5000) * 0.05);
     expect(peak(pcm.length >> 1, (pcm.length >> 1) + 2000)).toBeGreaterThan(peak(0, 5000) * 0.9); // untouched before the fade
   });
@@ -173,14 +175,14 @@ describe('nsmpToNpno', () => {
     const tuned = sample.slice();
     const map = readNsmp(tuned).sections.find((x) => x.tag.endsWith('map'))!;
     tuned.set([0x00, 0x00, 0x40], map.payloadOffset + 3); // a global detune (s24): 64/256 of a semitone
-    const cents = gainDetuneView(tuned)!.detuneCents;
-    expect(cents).toBe(25);
+    const detune = gainDetuneView(tuned)!.detuneCents;
+    expect(detune).toBe(25);
     const pitchOf = (bytes: Uint8Array) => {
       const piano = nsmpToNpno(bytes, { name: 'Two Notes' }).bytes;
       const dir = readNspDirectory(piano)!;
       return estimateF0(decodeNspStroke(piano, dir, dir.strokes[0])[0].subarray(1000, 12000), NSP_SAMPLE_RATE)!.hz;
     };
-    expect(1200 * Math.log2(pitchOf(tuned) / pitchOf(sample))).toBeCloseTo(cents, 0);
+    expect(cents(pitchOf(tuned), pitchOf(sample))).toBeCloseTo(detune, 0);
   });
 
   it('says what it had to leave out', () => {
@@ -189,6 +191,44 @@ describe('nsmpToNpno', () => {
       zones: [1, 2].map(() => ({ channels: [sine(8000, hz(60), NSMP_SAMPLE_RATE)], rootKey: 60, keyHigh: 60, velTop: 127 })),
     });
     expect(nsmpToNpno(layered, { name: 'Takes' }).warnings.join(' ')).toMatch(/1 alternate recording was left out/);
+  });
+
+  it('takes a looped sample all the way into a piano a Nord should accept', () => {
+    // A recording with a short loop of 10 whole cycles at its end, fading 6 dB a second.
+    const loopStart = 20000;
+    const loopEnd = loopStart + 531;
+    const { bytes, fileName, warnings, notes } = sampleToPiano({
+      zones: [zone(60, 60, 1)],
+      strokes: [{
+        globalID: 1, channelCount: 1, sampleRate: NSMP_SAMPLE_RATE,
+        channels: [sine(loopEnd, NSMP_SAMPLE_RATE / 53.1, NSMP_SAMPLE_RATE)],
+        loop: { loopStart, loopEnd, loops: true, altStart: 0, decayDbPerSecond: 6 },
+      }],
+    }, { name: 'Looped' });
+    expect(warnings.join(' ')).not.toMatch(/no sustain loop/i);
+    expect(checkNpnoAcceptance(bytes, { deep: true, fileName }).checks.filter((c) => !c.ok)).toEqual([]);
+    const dir = readNspDirectory(bytes)!;
+    const stroke = dir.strokes[0];
+    // The writer copies 4 frames across a seam that doesn't meet; this one already does.
+    expect(notes.join(' ')).not.toMatch(/seam/i);
+    expect(-20 * Math.log10(stroke.loopDecay!) * 22050).toBeCloseTo(6, 1); // the fade rate, as the piano stores it
+    // The loop survives the piano codec bit for bit: its end still meets its start.
+    const x = decodeNspStroke(bytes, dir, stroke)[0];
+    const end = stroke.loop!.start + stroke.loop!.length;
+    let step = 0;
+    for (let n = stroke.loop!.start + 1; n < end; n++) step = Math.max(step, Math.abs(x[n] - x[n - 1]));
+    expect(Math.abs(x[stroke.loop!.start] - x[end - 1])).toBeLessThanOrEqual(step * 1.05);
+  });
+
+  it('does not call a zone below the playable keys an alternate take', () => {
+    const low = writeNsmpMulti({
+      name: 'Low', codec: 3,
+      zones: [
+        { channels: [sine(8000, hz(24), NSMP_SAMPLE_RATE)], rootKey: 2, keyHigh: 3, velTop: 127 },
+        { channels: [sine(8000, hz(60), NSMP_SAMPLE_RATE)], rootKey: 60, keyHigh: 60, velTop: 127 },
+      ],
+    });
+    expect(nsmpToNpno(low, { name: 'Low' }).warnings.join(' ')).not.toMatch(/alternate/i);
   });
 
   it('leaves a note alone when it has died away by the end of its recording', () => {

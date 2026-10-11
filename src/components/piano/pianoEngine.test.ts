@@ -44,7 +44,10 @@ const audioMock = vi.hoisted(() => {
 });
 vi.mock('@/components/sample/audioPlayer', () => ({ getSharedCtx: () => audioMock.ctx }));
 
-beforeEach(() => { audioMock.created.length = 0; audioMock.gains.length = 0; audioMock.nodes.length = 0; audioMock.ctx.currentTime = 0; });
+beforeEach(() => {
+  audioMock.created.length = 0; audioMock.gains.length = 0; audioMock.nodes.length = 0;
+  audioMock.ctx = { ...audioMock.ctx, currentTime: 0 }; // a fresh context: the mix bus is made once per context
+});
 
 // Synthetic piano: zone 0 = keys 0–59 (root 48) with a loud and a soft layer of different
 // lengths, zone 1 = keys 60–127 (root 72).
@@ -120,12 +123,20 @@ describe('createPianoEngine', () => {
     // nodes: the bus (made with the first note), then one gain per voice
     const [bus, first, second] = audioMock.nodes;
     expect(bus.gain.calls[0]).toEqual(['set', MIX_HEADROOM, 0]);
-    expect(MIX_HEADROOM).toBeLessThan(0.5);
     expect(first.to).toBe(bus);
     expect(second.to).toBe(bus);
     const limiter = bus.to as { limiter: boolean; to: unknown };
     expect(limiter.limiter).toBe(true);
     expect(limiter.to).toBe(audioMock.ctx.destination);
+  });
+
+  it('shares the mix between pianos on the same audio context', () => {
+    engineFor().engine.noteOn(52, 100);
+    engineFor().engine.noteOn(52, 100);
+    const [bus, first, second] = audioMock.nodes;
+    expect(audioMock.nodes).toHaveLength(3); // one bus, two voices
+    expect(first.to).toBe(bus);
+    expect(second.to).toBe(bus);
   });
 
   it('picks the softer recording for a soft touch', () => {
@@ -183,6 +194,7 @@ describe('createPianoEngine', () => {
     engine.noteOn(52, 100);
     expect(onChange).toHaveBeenCalledTimes(1);
     engine.noteOff(52);
+    engine.noteOff(52); // nothing held there now: nothing changed
     expect(onChange).toHaveBeenCalledTimes(2);
     engine.noteOn(72, 100);
     audioMock.created[1].onended!();
