@@ -6,8 +6,8 @@
  *
  * Stage 4 is NOT listed here — it's fully decoded from the offset map already.
  * Nor are the firmware-layout models (Grand, Piano 6, Electro 6, Electro 7,
- * Organ 3, Wave 2): their byte maps are synthesized from the generated layouts
- * in coverage.ts.
+ * Organ 3, Wave 2) or the legacy-record models (Electro 4, Lead 4, Lead A1):
+ * their byte maps are synthesized from the generated layouts in coverage.ts.
  */
 
 export interface MappedControl {
@@ -49,112 +49,6 @@ export interface ModelProgress {
 //     controls: [{ label: 'Organ drawbar 1', ranges: [{ start: 39, end: 39 }] }],
 //   },
 export const MODEL_PROGRESS: Record<string, ModelProgress> = {
-  'lead-a1': {
-    bodyBytes: 79,
-    controls: [
-      { label: 'Body header (high nibble of body[0])',                ranges: [{ start: 0,  end: 0  }] },
-      { label: 'Layer on/off + volume (bitstream bits 4-11)',         ranges: [{ start: 0,  end: 1  }] },
-      { label: '7-bit packed parameter stream',                       ranges: [{ start: 0,  end: 76 }] },
-      { label: 'Oscillator + filter block (candidate)',               ranges: [{ start: 0,  end: 15 }] },
-      { label: 'Amp + mod/filter envelope block (candidate)',         ranges: [{ start: 16, end: 31 }] },
-      { label: 'LFO / arpeggiator block (candidate)',                 ranges: [{ start: 33, end: 47 }] },
-      { label: 'Effects + voice/global block (candidate)',            ranges: [{ start: 51, end: 76 }] },
-      { label: 'Body checksum (16-bit)',                              ranges: [{ start: 77, end: 78 }] },
-    ],
-    regions: [
-      { start: 0,  end: 0,  label: 'Header nibble + layer on/off + volume (start)', status: 'confirmed' },
-      { start: 1,  end: 1,  label: 'Volume (cont.) — bits 5-11 of the stream',     status: 'confirmed' },
-      { start: 2,  end: 15, label: 'Osc+filter candidate cluster',                 status: 'candidate' },
-      { start: 16, end: 31, label: 'Envelope candidate cluster (ADSR)',          status: 'candidate' },
-      { start: 32, end: 32, label: '',                                           status: 'constant'  },
-      { start: 33, end: 47, label: 'LFO/arp candidate cluster',                  status: 'candidate' },
-      { start: 48, end: 50, label: '',                                           status: 'constant'  },
-      { start: 51, end: 52, label: 'FX/voice candidate',                         status: 'candidate' },
-      { start: 53, end: 53, label: '',                                           status: 'constant'  },
-      { start: 54, end: 60, label: 'FX/voice candidate cluster',                 status: 'candidate' },
-      { start: 61, end: 61, label: '',                                           status: 'constant'  },
-      { start: 62, end: 70, label: 'FX/voice candidate cluster',                 status: 'candidate' },
-      { start: 71, end: 71, label: '',                                           status: 'constant'  },
-      { start: 72, end: 73, label: 'Global/voice candidate',                     status: 'candidate' },
-      { start: 74, end: 75, label: '',                                           status: 'constant'  },
-      { start: 76, end: 76, label: 'Tail param/flag bits',                       status: 'candidate' },
-      { start: 77, end: 78, label: '16-bit body checksum',                       status: 'confirmed' },
-    ],
-  },
-  'lead-4': {
-    bodyBytes: 299,
-    controls: [
-      { label: 'CBIN checksum (2-byte LE trailer)',                          ranges: [{ start: 297, end: 298 }] },
-      { label: 'Voice head selector (values 0-10 observed)',                 ranges: [{ start: 30,  end: 30  }] },
-      { label: 'Voice/FX params (2 osc, filter, 2 env, 2 LFO, FX, arp)',     ranges: [{ start: 31,  end: 246 }] },
-      { label: 'Enable flag (0/1 boolean)',                                  ranges: [{ start: 239, end: 239 }] },
-      { label: 'Enum A (all 8 values observed)',                             ranges: [{ start: 245, end: 245 }] },
-      { label: 'Stepped value B (0-20 observed)',                            ranges: [{ start: 248, end: 248 }] },
-      { label: 'Morph/assign block (bit-packed)',                            ranges: [{ start: 248, end: 288 }] },
-    ],
-    regions: [
-      // Re-censused 2026-07-04 over 1275 nl4s (factory banks 1-3 + artist
-      // banks): the earlier "zero gap 103-237 / cluster C 238-264" split was a
-      // small-corpus artifact — the whole 30-246 run varies.
-      { start: 0,   end: 18,  label: 'Cluster A - header/category/global',     status: 'candidate' },
-      { start: 19,  end: 19,  label: 'Cluster A field (version/enable flag)',  status: 'candidate' },
-      { start: 20,  end: 21,  label: 'Cluster A packed fields',               status: 'candidate' },
-      { start: 22,  end: 23,  label: 'Anchor/magic 0x80 0x5e (separator)',     status: 'candidate' },
-      { start: 24,  end: 24,  label: 'Cluster A trailing packed byte',         status: 'candidate' },
-      { start: 25,  end: 29,  label: '',                                       status: 'constant'  },
-      { start: 30,  end: 30,  label: 'Voice head selector (0-10 observed)',    status: 'candidate' },
-      { start: 31,  end: 238, label: 'Voice/FX params (bit-packed)',           status: 'candidate' },
-      { start: 239, end: 239, label: 'Enable flag (0/1 boolean)',              status: 'candidate' },
-      { start: 240, end: 244, label: 'Voice/FX packed fields',                 status: 'candidate' },
-      { start: 245, end: 245, label: 'Enum A (all 8 values observed)',         status: 'candidate' },
-      { start: 246, end: 246, label: 'Voice/FX packed field',                  status: 'candidate' },
-      { start: 247, end: 247, label: '',                                       status: 'constant'  },
-      { start: 248, end: 248, label: 'Stepped value B (0-20 observed)',        status: 'candidate' },
-      { start: 249, end: 288, label: 'Morph/assign packed block',              status: 'candidate' },
-      { start: 289, end: 296, label: '',                                       status: 'constant'  },
-      { start: 297, end: 298, label: 'CBIN checksum (2-byte LE trailer)',      status: 'confirmed' },
-    ],
-  },
-  'electro-4': {
-    bodyBytes: 92,
-    controls: [
-      { label: 'Organ drawbars (preset 1, default slot)',      ranges: [{ start: 4,  end: 8  }] },
-      { label: 'Organ drawbars (preset 2 / edited, active)',   ranges: [{ start: 16, end: 20 }] },
-      { label: 'Organ drawbars (second default slot)',         ranges: [{ start: 25, end: 29 }] },
-      { label: 'Organ section extra params (post-drawbar)',     ranges: [{ start: 20, end: 21 }] },
-      { label: 'Section enable / program flags',               ranges: [{ start: 0,  end: 0  }] },
-      { label: 'Sample reference ID (candidate)',              ranges: [{ start: 37, end: 41 }] },
-      { label: 'Sample voice / zone params (candidate)',       ranges: [{ start: 43, end: 44 }] },
-      { label: 'Secondary program params',                     ranges: [{ start: 51, end: 63 }] },
-      { label: 'Level / mode byte (tail0)',                    ranges: [{ start: 68, end: 68 }] },
-      { label: 'Level / mode byte (tail1)',                    ranges: [{ start: 79, end: 79 }] },
-      { label: 'Program-specific tail bytes',                  ranges: [{ start: 90, end: 91 }] },
-    ],
-    regions: [
-      { start: 0,  end: 0,  label: 'Section enable / program flags',                       status: 'candidate' },
-      { start: 1,  end: 3,  label: 'Constant section header A',                            status: 'constant'  },
-      { start: 4,  end: 8,  label: 'Organ drawbars (preset 1, 9 nibbles)',                status: 'confirmed' },
-      { start: 9,  end: 15, label: 'Constant section header A tail',                       status: 'constant'  },
-      { start: 16, end: 20, label: 'Organ drawbars (preset 2 / edited, 9 nibbles)',       status: 'confirmed' },
-      { start: 20, end: 21, label: 'Organ vib/chorus + percussion flags',                 status: 'candidate' },
-      { start: 22, end: 24, label: 'Constant section header B',                            status: 'constant'  },
-      { start: 25, end: 29, label: 'Organ drawbars (second default slot, 9 nibbles)',     status: 'confirmed' },
-      { start: 30, end: 36, label: 'Constant section header B tail',                       status: 'constant'  },
-      { start: 37, end: 41, label: 'Sample reference ID (high-entropy)',                  status: 'candidate' },
-      { start: 42, end: 42, label: 'Sample section param',                                status: 'unknown'   },
-      { start: 43, end: 44, label: 'Sample voice / zone params',                          status: 'candidate' },
-      { start: 45, end: 45, label: 'Sample section param',                                status: 'unknown'   },
-      { start: 46, end: 50, label: 'Constant zero padding',                                status: 'constant'  },
-      { start: 51, end: 63, label: 'Secondary program parameters',                         status: 'candidate' },
-      { start: 64, end: 67, label: 'Constant zero padding',                                status: 'constant'  },
-      { start: 68, end: 68, label: 'Level / mode byte tail0 (bit-3 flag in lo nibble)',    status: 'candidate' },
-      { start: 69, end: 78, label: 'Constant zero padding',                                status: 'constant'  },
-      { start: 79, end: 79, label: 'Level / mode byte tail1 (hi nibble 0-13)',             status: 'candidate' },
-      { start: 80, end: 89, label: 'Constant zero padding',                                status: 'constant'  },
-      { start: 90, end: 91, label: 'Program-specific bytes (unique per program)',           status: 'unknown'   },
-    ],
-  },
-
   'electro-5': {
     bodyBytes: 103,
     controls: [

@@ -36,6 +36,16 @@ describe('decodeForModel', () => {
     expect(d.pct).toBeGreaterThan(0);
   });
 
+  it('maps the legacy-record models over their record data (file 0x1A on)', () => {
+    expect(decodeForModel('lead-4')).toMatchObject({ status: 'partial', bodyBytes: 315 });
+    expect(decodeForModel('electro-4')).toMatchObject({ status: 'partial', bodyBytes: 108 });
+    // Lead A1: alignment unchecked on real files, so candidate bytes only.
+    expect(decodeForModel('lead-a1')).toMatchObject({ status: 'partial', bodyBytes: 95, coveredBytes: 0 });
+    expect(decodeForModel('lead-a1').candidateBytes).toBeGreaterThan(0);
+    const labels = getModelProgress('lead-4')!.regions!.map((r) => r.label);
+    expect(labels).toEqual(expect.arrayContaining(['slot', 'slot morph list', 'fx', 'fx morph list', 'Reserved']));
+  });
+
   it('has a label for every status', () => {
     expect(DECODE_LABEL.full && DECODE_LABEL.partial && DECODE_LABEL.started && DECODE_LABEL.none).toBeTruthy();
   });
