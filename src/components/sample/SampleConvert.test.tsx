@@ -20,7 +20,7 @@ vi.mock('../../lib/ns4/nsmp-convert', () => ({
 
 vi.mock('../../lib/ns4/nsmp-to-npno', async (orig) => ({
   ...(await orig<typeof import('../../lib/ns4/nsmp-to-npno')>()),
-  nsmpToNpno: vi.fn().mockReturnValue({ bytes: new Uint8Array(16), fileName: 'TakeOnMe_6.0.npno', warnings: [] }),
+  nsmpToNpno: vi.fn().mockReturnValue({ bytes: new Uint8Array(16), fileName: 'TakeOnMe_6.0.npno', warnings: ['Not been tried on a Nord yet.'] }),
 }));
 
 import { SampleConvert } from './SampleConvert';
@@ -135,6 +135,18 @@ describe('SampleConvert -- to a piano', () => {
     expect(nsmpToNpno).toHaveBeenCalledWith(bytes, { name: 'Take On Me', pianoType: NPNO_PIANO_TYPE.digital });
     expect(downloadBytes).toHaveBeenCalledWith(expect.any(Uint8Array), 'TakeOnMe_6.0.npno');
     expect(screen.getByText(/saved takeonme_6\.0\.npno/i)).toBeInTheDocument();
+  });
+
+  it('shows what the conversion warns about when the piano goes into the linked folder too', async () => {
+    const writeBack = vi.fn().mockResolvedValue({ target: 'folder', path: 'TakeOnMe_6.0.npno' });
+    (useFolder as ReturnType<typeof vi.fn>).mockReturnValue(mockFolder({ folderName: 'TBM', writeBack }));
+    (useWriteBackPref as ReturnType<typeof vi.fn>).mockReturnValue({ mode: 'new', setMode: vi.fn() });
+
+    render(<SampleConvert bytes={bytes} file={file} name="TakeOnMe" />);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /convert to piano/i })); });
+
+    expect(await screen.findByText(/saved to tbm/i)).toBeInTheDocument();
+    expect(screen.getByText(/not been tried on a nord/i)).toBeInTheDocument();
   });
 
   it('says why when the sample cannot become a piano', async () => {

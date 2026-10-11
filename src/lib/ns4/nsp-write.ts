@@ -588,7 +588,7 @@ function defaultHeader(input: NpnoInput): Uint8Array {
  * 22,050 times a second inside the loop (`docs/PIANO-ENGINE.md` §1.4). 0 dB/s is 1.0 (hold).
  */
 export function decayCoefficient(dbPerSecond: number): number {
-  return Math.max(1, Math.min(0x800000, Math.round(0x800000 * 10 ** (-Math.max(0, dbPerSecond) / (20 * NSP_ENVELOPE_RATE)))));
+  return Math.max(1, Math.round(0x800000 * 10 ** (-Math.max(0, dbPerSecond) / (20 * NSP_ENVELOPE_RATE))));
 }
 
 function defaultRecord(opts: { floor: number; prevFloor: number | undefined; level: number; root: number; id: number; decayDbPerSecond?: number }): Uint8Array {
@@ -614,7 +614,7 @@ function defaultRecord(opts: { floor: number; prevFloor: number | undefined; lev
 /** The key-map root for a zone: its recorded note minus the instrument's 4-semitone offset. */
 const storedRoot = (z: NpnoZoneInput) => z.rootNote - NSP_ROOT_OFFSET;
 /** Lowest recorded note a zone can have: a stored root of 0 reads as an unused key in the key map. */
-const MIN_RECORDED_NOTE = 1 + NSP_ROOT_OFFSET;
+export const MIN_RECORDED_NOTE = 1 + NSP_ROOT_OFFSET;
 
 /** A layer's floor in the record's 0.2 dB steps. */
 const floorUnits = (l: NpnoLayerInput) => Math.round(l.floorDb * 5);
@@ -705,6 +705,9 @@ function validateZones(input: NpnoInput): void {
       + `(the piano is stored as "${fileName}", and a Nord takes ${MAX_PIANO_NAME} at most).`);
   }
 }
+
+/** Longest name whose suggested file name (`Name_6.<minor>.npno`) a Nord still takes. */
+export const MAX_NPNO_NAME = MAX_PIANO_NAME - '_6.0.npno'.length;
 
 /** The name part of the suggested file name: letters, digits, spaces (as `_`), `-`, `_`. */
 const fileBase = (input: NpnoInput) => input.name.replace(/[^A-Za-z0-9 _-]/g, '').trim().replace(/ +/g, '_') || 'Piano';

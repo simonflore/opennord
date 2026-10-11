@@ -6,7 +6,7 @@ export { FilterChip } from './FilterChip';
 export { SourceBadge } from './SourceBadge';
 export type { LibrarySource } from '@/lib/library/types';
 export { SearchField } from './SearchField';
-export { BrowseToolbar, type FacetGroup, type FacetOption, type SortOption } from './BrowseToolbar';
+export { BrowseToolbar, selectClass, type FacetGroup, type FacetOption, type SortOption } from './BrowseToolbar';
 export { SectionLabel, sectionLabelVariants } from './SectionLabel';
 export { Blueprint, blueprintVariants } from './Blueprint';
 export { Pill } from './Pill';

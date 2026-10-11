@@ -3,6 +3,14 @@ import { cn } from '@/lib/cn';
 import { SearchField } from './SearchField';
 import { FilterChip } from './FilterChip';
 
+/** The look of a native `<select>` across the app. */
+export const selectClass = cn(
+  'cursor-pointer rounded-sm border border-line px-[10px] py-1.5 text-xs text-ink fill-raised elev-1',
+  'transition-colors duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)]',
+  'hover:border-muted',
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]',
+);
+
 export interface FacetOption { key: string; label: string }
 export interface FacetGroup {
   /** Accessible name for this chip group, e.g. "Filter by source". */
@@ -82,12 +90,7 @@ export function BrowseToolbar(
       <SearchField value={query} onChange={onQuery} placeholder={placeholder} />
       {facets.map((g) => <FacetChips key={g.ariaLabel} group={g} />)}
       <select
-        className={cn(
-          'ml-auto cursor-pointer rounded-sm border border-line px-[10px] py-1.5 text-xs text-ink fill-raised elev-1',
-          'transition-colors duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)]',
-          'hover:border-muted',
-          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]',
-        )}
+        className={cn('ml-auto', selectClass)}
         value={sort}
         aria-label={sortAriaLabel}
         onChange={(e) => onSort(e.target.value)}
