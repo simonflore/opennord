@@ -48,6 +48,35 @@ export function transposeText(enabled: number | undefined, value: number | undef
   return `${value > 0 ? '+' : '−'}${Math.abs(value)} semitone${Math.abs(value) === 1 ? '' : 's'}`;
 }
 
+/** The family-wide piano-name lookup (32-bit `NameHash` → name), injected by presenters.ts. */
+export type PianoNameResolver = (hash: number) => string | undefined;
+
+/**
+ * A piano's identity: its name from the hash (else the type label, else "Piano"),
+ * the type after a resolved name, then a non-zero variation.
+ */
+export function pianoParts(
+  hash: number | undefined, type: string | undefined, variation: number | undefined, resolve?: PianoNameResolver,
+): string[] {
+  const name = hash === undefined ? undefined : resolve?.(hash);
+  return parts(name ?? type ?? 'Piano', name && type, variationPart(variation));
+}
+
+/** A header row with a 32-bit sound id in hex, or no row when the id wasn't read. */
+export function soundIdRow(title: string, hash: number | undefined): [string, string][] {
+  return hash === undefined ? [] : [[title, hexId(hash)]];
+}
+
+/** "Amp Twin", or "Amp" when the type has no label. */
+export function ampPart(type: string | undefined): string {
+  return parts('Amp', type).join(' ');
+}
+
+/** "Reverb Hall Bright": the type and a modifier when known, else just "Reverb". */
+export function reverbPart(type: string | undefined, modifier?: string | false): string {
+  return parts('Reverb', type, modifier).join(' ');
+}
+
 /** Header rows every firmware-layout reader shows: the version, then the transpose when it is on. */
 export function fwHeader(p: FwProgram<string>, transpose?: string): [string, string][] {
   const rows: [string, string][] = [['Version', `v${p.version}`]];
