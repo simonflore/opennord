@@ -18,6 +18,7 @@ import type { DiagnosticEvent, Diagnostics } from '../capabilities/types';
 import { identifyNordFile, type NordFileInfo } from '../clavia/nord-file';
 import { LEGACY_RECORD_OFFSET, NSM_RECORD_OFFSET } from '../clavia/legacy-record';
 import { PROGRAM_TAGS, parseClaviaFile } from '../formats';
+import { legacyVersionBytes } from '../contribute/coverage';
 import { decodeNs3 } from '../ns3/decode';
 import { decodeNs2 } from '../ns2/decode';
 import { BUILD, COMMIT } from '../version';
@@ -26,8 +27,7 @@ import { readFileSupportOptIn } from './file-support-pref';
 /** Header window: the u16 version field at 0x14 and the two bytes after it — stops before the NSM-era CRC-32 at 0x18. */
 const VERSION_WINDOW = 0x14;
 const HEADER_WINDOW_BYTES = 4;
-/** Body window: a legacy record's u16 version; a block chain's u32 format version + first block length. */
-const LEGACY_BODY_BYTES = 2;
+/** Body window on a block chain: the u32 format version + first block length (a legacy record gives only its version). */
 const BLOCK_CHAIN_BODY_BYTES = 5;
 /** Warnings kept per report, and the length each is cut to. */
 const MAX_WARNINGS = 10;
@@ -56,7 +56,7 @@ export interface FileReadDetail {
     at0x14: string;
     /** Where the reader expects the record/body: 0x18 (legacy) or 0x2C (NSM-era). */
     bodyOffset: number;
-    /** Hex of the version word at `bodyOffset` (2 bytes on a legacy record, 5 with the first block length on a block chain). */
+    /** Hex of the version at `bodyOffset`: a legacy record's 1–2 version bytes, or a block chain's u32 version + first block length. */
     atBody: string;
   };
   reader: ReaderVerdict;
@@ -123,8 +123,9 @@ export function buildFileReadEvent(bytes: Uint8Array): DiagnosticEvent | null {
   if (!info.recognized || !PROGRAM_TAGS.has(info.tag)) return null;
 
   const bodyOffset = info.formatType === 0 ? LEGACY_RECORD_OFFSET : NSM_RECORD_OFFSET;
-  // A legacy record (every formatType-0 file, and the Stage 2 behind an NSM-era header) opens with a u16 version.
-  const legacyRecord = info.formatType === 0 || info.tag === 'ns2p';
+  // A legacy record opens with its version (u16, or u8 on the Wave) — copy just that, never the data after it.
+  // A tag shared by several models (the Lead programs) has no model id: assume the narrower legacy window.
+  const bodyBytes = info.modelId ? (legacyVersionBytes(info.modelId) ?? BLOCK_CHAIN_BODY_BYTES) : 2;
   const reader = readerVerdict(bytes, info);
   const status = reader.layoutMatched === null ? 'read (no layout check)' : reader.headerOnly ? 'header-only' : 'read';
   const detail: FileReadDetail = {
@@ -136,7 +137,7 @@ export function buildFileReadEvent(bytes: Uint8Array): DiagnosticEvent | null {
     framing: {
       at0x14: hex(bytes, VERSION_WINDOW, HEADER_WINDOW_BYTES),
       bodyOffset,
-      atBody: hex(bytes, bodyOffset, legacyRecord ? LEGACY_BODY_BYTES : BLOCK_CHAIN_BODY_BYTES),
+      atBody: hex(bytes, bodyOffset, bodyBytes),
     },
     reader,
     app: { build: BUILD, commit: COMMIT },

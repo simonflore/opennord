@@ -215,6 +215,12 @@ const LEGACY_LAYOUTS: Record<string, { layout: LegacyLayout; status: 'confirmed'
   'piano-2': { layout: NP2_LAYOUT, status: 'candidate' },
 };
 
+/** The record-version width of a legacy-record model (1 or 2 bytes), or null when its program isn't a legacy record. */
+export function legacyVersionBytes(modelId: string): 1 | 2 | null {
+  const legacy = LEGACY_LAYOUTS[modelId];
+  return legacy ? (legacy.layout.versionBytes ?? 2) : null;
+}
+
 /** Run-length encode per-byte kinds; `field:<label>` bytes take `status`, everything else is constant. */
 function kindsToRegions(kind: string[], status: 'confirmed' | 'candidate'): BodyRegion[] {
   const regions: BodyRegion[] = [];
