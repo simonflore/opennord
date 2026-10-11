@@ -1,16 +1,28 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { buildCbinHeader } from '../clavia/cbin';
+import { readBits } from '../clavia/bitstream';
+import { synthFwBody, synthFwFile, writeBits } from '../clavia/block-chain.synth';
 import { decodeNs3 } from './decode';
+import { frameNs3Body, ns3SynthFile as ns3File, ns3ZeroFile as ns3buf } from './file.synth';
+import { NS3_LAYOUT, type Ns3FieldKey } from './layout.generated';
+
+// `ns3buf()` is a Stage 3 file framed the way the firmware writes it (u32 format
+// version, then the 19 length-prefixed blocks) with every field bit zero. The
+// byte-level tests below poke the absolute file offsets the earlier corpus
+// decoder (ns3-program-viewer offsets) read; they pass unchanged against the
+// firmware layout, which shows the layout reproduces those offsets.
 
 /**
- * A synthetic NSM-era (CBIN formatType 1 @ 0x04) .ns3f buffer. The field tests
- * below target the NSM-era panel layout (versionOffset 0); legacy formatType-0
- * files shift the whole block by -0x14 (see decode.ts + the fmt0 tests). Setting
- * formatType 1 makes these buffers exercise the offset they were written for.
+ * A legacy (formatType 0) `.ns3f`: the header is 0x14 bytes shorter, so the body
+ * starts at 0x18, and a 2-byte CRC-16 trailer follows it (574 bytes, like the
+ * legacy files of ns3-program-viewer's corpus).
  */
-function ns3buf(size = 600): Uint8Array {
-  const b = new Uint8Array(size);
-  b[0x04] = 1;
-  return b;
+function legacyBuf(): Uint8Array {
+  const out = new Uint8Array(0x18 + NS3_LAYOUT.bodyBytes + 2);
+  out.set(buildCbinHeader({ formatType: 0, tag: 'ns3f', bank: 0, location: 0, category: 0, versionRaw: 304 }).slice(0, 0x18));
+  frameNs3Body(out.subarray(0, out.length - 2), 0x18);
+  return out;
 }
 
 describe('decodeNs3', () => {
@@ -24,12 +36,12 @@ describe('decodeNs3', () => {
   it('legacy formatType-0 files shift the whole panel block back by 0x14', () => {
     // Pre-NSM .ns3f exports (CBIN formatType 0 @ 0x04) pack the body 20 bytes
     // earlier, so the panel-enable flag lives at 0x1d, not 0x31 (see decode.ts;
-    // Fred's Gothic/Natural Strings files). A raw zero buffer IS formatType 0.
-    const b = new Uint8Array(600);   // formatType 0
+    // Fred's Gothic/Natural Strings files).
+    const b = legacyBuf();           // formatType 0
     b[0x31 - 20] = 1 << 5;           // flag @0x1d → panel B
     expect(decodeNs3(b).panels.map((p) => p.id)).toEqual(['B']);
     // the NSM-era offset must NOT be consulted for a formatType-0 file
-    const c = new Uint8Array(600);   // formatType 0
+    const c = legacyBuf();           // formatType 0
     c[0x31] = 2 << 5;                // 'both' at the NSM offset — ignored
     expect(decodeNs3(c).panels.map((p) => p.id)).toEqual(['A']); // 0x1d=0 → flag 0 → A
   });
@@ -365,7 +377,7 @@ describe('decodeNs3', () => {
   });
 
   it('legacy formatType-0 files read the MultiCommon vib mode 0x14 earlier too', () => {
-    const b = new Uint8Array(600); // formatType 0 → versionOffset −20
+    const b = legacyBuf();         // formatType 0 → body at 0x18
     b[0x34 - 20] = 0x08;           // vib mode 4 → V3
     expect(decodeNs3(b).panels[0].organ.vibChorus.mode).toBe('V3');
   });
@@ -446,15 +458,12 @@ describe('decodeNs3', () => {
   // Tests skip gracefully if fixture files are absent (gitignored corpus).
   // If you update/add fixtures, re-run /tmp/ns3-crosscheck.mjs to refresh these values.
   describe('fixture oracle cross-check (skip if files absent)', () => {
-    const FIXTURES_DIR = new URL('../../../../fixtures/stage-3/', import.meta.url).pathname;
+    // packages/core/fixtures/stage-3/ (fixtures/README.md).
+    const FIXTURES_DIR = new URL('../../../fixtures/stage-3/', import.meta.url).pathname;
 
     function readFixture(name: string): Uint8Array | null {
       try {
-        // vitest/Node: synchronous require for fixture reads
-        // biome-ignore lint: require is intentional here for sync reads in vitest
-        const fs = require('fs') as typeof import('fs');
-        const b = fs.readFileSync(`${FIXTURES_DIR}${name}`);
-        return new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
+        return new Uint8Array(readFileSync(`${FIXTURES_DIR}${name}`));
       } catch { return null; }
     }
 
@@ -511,5 +520,160 @@ describe('decodeNs3', () => {
       expect(prog.panels.map((p) => p.id)).toEqual(['A']);
       expect(prog.panels[0].synth).toMatchObject({ on: true, osc: 'Sample' });
     });
+  });
+});
+
+describe('decodeNs3 — firmware layout (Stage 3 OS 2.64 registry)', () => {
+  it('reads the 592-byte file: version 3.04, 19 blocks, MultiCommon length 17 at 0x30', () => {
+    const bytes = ns3File();
+    expect(bytes.length).toBe(592);
+    expect([...bytes.slice(0x2c, 0x31)]).toEqual([0x00, 0x00, 0x01, 0x30, 0x11]);
+    expect(NS3_LAYOUT.blocks).toHaveLength(19);
+    // Slot B repeats slot A's nine blocks 263 bytes later.
+    for (let i = 1; i <= 9; i++) {
+      expect(NS3_LAYOUT.blocks[i + 9].offset - NS3_LAYOUT.blocks[i].offset).toBe(263);
+      expect(NS3_LAYOUT.blocks[i + 9].length).toBe(NS3_LAYOUT.blocks[i].length);
+    }
+    const p = decodeNs3(bytes);
+    expect(p).toMatchObject({ format: 'ns3f', layoutMatched: true, formatVersion: 304, version: '3.04' });
+    expect(p.warnings).toEqual([]);
+    expect(p.panels.map((x) => x.id)).toEqual(['A']); // firmware default: slot A on
+  });
+
+  it('round-trips every field, slot B included (morph deltas, negatives stored as value − min)', () => {
+    // A value per field that differs from its default and stays in range.
+    const values = Object.fromEntries(NS3_LAYOUT.fields.map((f) => {
+      if (f.enc === 'raw') return [f.key, 0x89abcdef];
+      return [f.key, f.def === f.max ? f.min : f.def + 1];
+    })) as Record<Ns3FieldKey, number>;
+    const p = decodeNs3(ns3File(values));
+    expect(p.layoutMatched).toBe(true);
+    expect(p.values).toEqual(values);
+    expect(p.warnings).toEqual([]);
+  });
+
+  it('stores negative-minimum fields as value − min (registry signed mode 1), never two\'s complement', () => {
+    expect(NS3_LAYOUT.fields.filter((f) => f.min < 0 && f.enc !== 'offset' && f.enc !== 'raw')).toEqual([]);
+    const v = decodeNs3(ns3File({ 'common.transposeValue': -6, 'effectsB.ampBass': -60, 'pianoA.level.morphWheel': -127 })).values;
+    expect(v['common.transposeValue']).toBe(-6);
+    expect(v['effectsB.ampBass']).toBe(-60);
+    expect(v['pianoA.level.morphWheel']).toBe(-127);
+    // "No morph" (delta 0) is stored as max − min: raw 127 for the 8-bit level delta.
+    const body = synthFwBody(NS3_LAYOUT, {}, 304);
+    const f = NS3_LAYOUT.fields.find((x) => x.key === 'pianoA.level.morphWheel');
+    expect(f).toMatchObject({ width: 8, min: -127, max: 127, enc: 'offset' });
+    const bit = (NS3_LAYOUT.blocks[f?.block ?? 0].offset + 1) * 8 + (f?.bit ?? 0);
+    expect(readBits(body, bit, 8)).toBe(127);
+  });
+
+  it('reads both panels from the program-wide slot enable (1 = A, 2 = B, 3 = both)', () => {
+    const ids = (slotEnable: number) => decodeNs3(ns3File({ 'common.slotEnable': slotEnable })).panels.map((p) => p.id);
+    expect(ids(1)).toEqual(['A']);
+    expect(ids(2)).toEqual(['B']);
+    expect(ids(3)).toEqual(['A', 'B']);
+  });
+
+  it('builds panel B from the B blocks', () => {
+    const p = decodeNs3(ns3File({
+      'common.slotEnable': 3,
+      'organB.enable': 1, 'organB.model': 2, 'organB.presetFocus': 1, 'organPresetIIB.db3': 5,
+      'pianoB.enable': 1, 'pianoB.bank': 2, 'pianoB.eq': 4, 'pianoB.nameHash': 0x12345678, 'pianoB.variation': 2,
+      'synthCommonB.enable': 1, 'synthB.oscBank': 4, 'synthB.smpNameHash': 0xfedcba98,
+      'effectsB.dlyEnable': 1, 'effectsB.dlyMix': 127,
+    }));
+    const b = p.panels[1];
+    expect(b.id).toBe('B');
+    expect(b.organ).toMatchObject({ on: true, type: 'Farfisa' });
+    expect(b.organ.drawbars[2]).toBe(5);
+    expect(b.piano).toMatchObject({ on: true, type: 'Electric', timbre: 'Dyno1', sampleId: 0x12345678, sampleVariation: 2 });
+    expect(b.synth).toMatchObject({ on: true, osc: 'Sample', sampleId: 0xfedcba98 });
+    expect(b.fx).toEqual([{ name: 'Delay', params: { feedback: '5.0', mix: '10.0' } }]);
+    expect(p.panels[0].piano.on).toBe(false);
+  });
+
+  it('labels the vibrato/chorus mode per organ model (firmware label table)', () => {
+    const mode = (model: number, type: number) =>
+      decodeNs3(ns3File({ 'organA.model': model, 'common.orgVibratoType': type })).panels[0].organ.vibChorus.mode;
+    expect(mode(0, 5)).toBe('C3');
+    // The stored value is the selector position V1 C1 V2 C2 V3 C3 for every model.
+    expect([0, 2, 4].map((v) => mode(1, v))).toEqual(['Less', 'More', 'Original']);
+    expect([0, 2, 3, 5].map((v) => mode(2, v))).toEqual(['Light/Slow', 'Light/Fast', 'Heavy/Slow', 'Heavy/Fast']);
+    expect(mode(1, 1)).toBe('More');       // a position Vox doesn't use reads as the next one
+    expect(mode(2, 4)).toBe('Heavy/Fast');
+    expect(mode(3, 1)).toBe('C1');         // the pipe organs have only C1
+    expect(mode(4, 0)).toBe('C1');
+  });
+
+  it('uses the firmware labels for synth vibrato and Clav timbre', () => {
+    expect(decodeNs3(ns3File({ 'synthA.vibratoMode': 5 })).panels[0].synth.vibrato).toBe('After Touch');
+    const clav = (eq: number) => decodeNs3(ns3File({ 'pianoA.bank': 3, 'pianoA.eq': eq })).panels[0].piano.timbre;
+    expect(clav(3)).toBe('Soft+Treb');
+    expect(clav(6)).toBe('Treb+Brill');
+    // Acoustic pianos have four timbres; a value kept from another piano type reads as None.
+    expect(decodeNs3(ns3File({ 'pianoA.bank': 0, 'pianoA.eq': 4 })).panels[0].piano.timbre).toBe('None');
+  });
+
+  it('reads the drawbars, vibrato switch and percussion of Preset II when it has focus', () => {
+    const o = decodeNs3(ns3File({
+      'organA.presetFocus': 1, 'organPresetIA.db1': 1, 'organPresetIIA.db1': 7,
+      'organPresetIIA.vibratoEnable': 1, 'organPresetIIA.b3PercEnable': 1, 'organPresetIIA.b3PercHarmonic': 0,
+      'organPresetIIA.b3PercSpeed': 0, 'organPresetIIA.b3PercLevel': 0,
+    })).panels[0].organ;
+    expect(o.drawbars[0]).toBe(7);
+    expect(o.vibChorus.on).toBe(true);
+    expect(o.percussion).toEqual({ on: true, third: false, fast: false, soft: false });
+  });
+
+  it('reads the oscillator 2 pitch as 0-60 with 12 = no offset', () => {
+    const pitch = (v: number) => decodeNs3(ns3File({ 'synthA.dualOscDetune': v })).panels[0].synth.oscillator.pitch;
+    expect(pitch(0)).toBe('Sub');
+    expect(pitch(12)).toBe('0 semi');
+    expect(pitch(60)).toBe('+48 semi');
+  });
+
+  it('a 2.0x body (converted by the Nord on load) → header only, with a warning', () => {
+    const p = decodeNs3(ns3File({ 'common.slotEnable': 3 }, 203));
+    expect(p.layoutMatched).toBe(false);
+    expect(p.formatVersion).toBe(203);
+    expect(p.panels).toEqual([]);
+    expect(p.values).toEqual({});
+    expect(p.warnings.join(' ')).toMatch(/format 2\.03/);
+  });
+
+  it('gives parameters added inside 3.x their default in older 3.x files, like the firmware', () => {
+    const zeros = { 'common.pitchStickRange': 0, 'externA.volPedalEnable': 0, 'externB.volPedalEnable': 0 } as const;
+    expect(decodeNs3(ns3File(zeros, 304)).values).toMatchObject(zeros);
+    expect(decodeNs3(ns3File(zeros, 303)).values)
+      .toMatchObject({ 'common.pitchStickRange': 0, 'externA.volPedalEnable': 1, 'externB.volPedalEnable': 1 });
+    expect(decodeNs3(ns3File(zeros, 302)).values)
+      .toMatchObject({ 'common.pitchStickRange': 1, 'externA.volPedalEnable': 1, 'externB.volPedalEnable': 1 });
+  });
+
+  it('versions inside 3.00–3.04 read without a warning', () => {
+    for (const v of [300, 301, 302, 303, 304]) expect(decodeNs3(ns3File({}, v)).warnings).toEqual([]);
+  });
+
+  it('odd, short or unframed files → header-only with a warning, never a throw', () => {
+    const full = ns3File();
+    const bad = full.slice();
+    bad[0x30] = 200;                       // MultiCommon claims more bytes than the file has
+    const unframed = new Uint8Array(600);  // a bare buffer has no block chain
+    unframed[0x04] = 1;
+    for (const bytes of [bad, full.slice(0, 0x2e), full.slice(0, 400), unframed, new Uint8Array(0)]) {
+      const p = decodeNs3(bytes);
+      expect(p.layoutMatched).toBe(false);
+      expect(p.panels).toEqual([]);
+      expect(p.warnings.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('flags values outside the firmware range but still decodes', () => {
+    const body = synthFwBody(NS3_LAYOUT, {}, 304);
+    const f = NS3_LAYOUT.fields.find((x) => x.key === 'pianoA.bank');
+    writeBits(body, (NS3_LAYOUT.blocks[f?.block ?? 0].offset + 1) * 8 + (f?.bit ?? 0), 3, 7);
+    const p = decodeNs3(synthFwFile('ns3f', body, 304));
+    expect(p.layoutMatched).toBe(true);
+    expect(p.panels[0].piano.type).toBe('#7');
+    expect(p.warnings.join(' ')).toMatch(/outside the firmware's range \(pianoA\.bank\)/);
   });
 });

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { decodeNs3, type Ns3Panel } from './decode';
 import { ns3EngineCards, ns3FxChips, ns3HeaderView, ns3SampleKey } from './view';
+import { ns3ZeroFile } from './file.synth';
 
 /** A synthetic Panel A: B3 organ + grand piano + a Wave synth, no FX. */
 function panel(over: Partial<Ns3Panel> = {}): Ns3Panel {
@@ -118,8 +119,7 @@ describe('ns3FxChips', () => {
   });
 
   it('shows the program-wide rotary speed + firmware amp label on a decoded Panel B', () => {
-    const b = new Uint8Array(600);
-    b[0x04] = 1;                // NSM-era layout
+    const b = ns3ZeroFile();    // NSM-era file, every field zero
     b[0x31] = 1 << 5;           // panel B only
     b[0x34] = 0x00; b[0x35] = 0x00; // MultiCommon rotary speed raw 0 → Stop
     b[0x10b + 263] = 0x80;      // panel B rotary on

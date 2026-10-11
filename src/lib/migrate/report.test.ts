@@ -17,6 +17,7 @@
 import { describe, expect, it } from 'vitest';
 import { migrateToNs4 } from './convert';
 import { buildMigrationTemplateFromDisk } from './template-node';
+import { NS3_FILE_BYTES, frameNs3Body } from '../ns3/file.synth';
 
 const templateBytes = buildMigrationTemplateFromDisk();
 
@@ -32,7 +33,8 @@ function cbin(tag: string, size = 700): Uint8Array {
 
 /** Stage 3: panel A, piano on + Grand, organ B3 with a drawbar. */
 function ns3Bytes(): Uint8Array {
-  const b = cbin('ns3f');
+  // Framed as the firmware writes the body (format version + block lengths), fields zero.
+  const b = frameNs3Body(cbin('ns3f', NS3_FILE_BYTES));
   b[0x31] = 0; // panel A only
   b[0x43] = 0x80; // piano enable (b7)
   b[0x48] = 0x00; // piano type 0 → Grand
