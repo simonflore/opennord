@@ -114,11 +114,16 @@ describe('decodeNw1 (synthetic, firmware layout)', () => {
     expect(v6.warnings.join(' ')).toMatch(/version 6.*converts it the same way/);
     expect(decodeNw1(nwp(values, 7)).values['global.param7']).toBe(70); // version 6 only
     expect(decodeNw1(nwp(values, 8)).values).toMatchObject({ 'slotA.param23': 90, 'slotB.param5': 2 }); // as stored
-    // Both oscillators on 4/5 with LFO 1 Dest 2: LFO 1 Amount 0, morphs kept; then LFO 1 Dest 3 → LFO 2 Amount 0.
+    // Both oscillators on 4/5 with LFO 1 Dest 2: LFO 1 Amount and its morphs 0, Dest kept.
     const both = decodeNw1(nwp({
       'slotA.param19': 5, 'slotA.param24': 4, 'slotA.param5': 2, 'slotA.param8': 20, 'slotA.param8MorphDeltaSrc0': 7,
     }, 7)).values;
-    expect(both).toMatchObject({ 'slotA.param8': 0, 'slotA.param8MorphDeltaSrc0': 7, 'slotA.param5': 2 });
+    expect(both).toMatchObject({ 'slotA.param8': 0, 'slotA.param8MorphDeltaSrc0': 0, 'slotA.param5': 2 });
+    // Osc 2 on 4/5 with LFO 1 Dest 3: LFO 2 Amount and its morphs 0.
+    const dest3 = decodeNw1(nwp({
+      'slotB.param24': 4, 'slotB.param5': 3, 'slotB.param13': 50, 'slotB.param13MorphDeltaSrc6': -8,
+    }, 7)).values;
+    expect(dest3).toMatchObject({ 'slotB.param13': 0, 'slotB.param13MorphDeltaSrc6': 0, 'slotB.param5': 3 });
   });
 
   it('notes the record versions the firmware converts; flags others and out-of-range values', () => {
