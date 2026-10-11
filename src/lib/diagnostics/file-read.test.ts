@@ -13,7 +13,8 @@ import { BUILD, COMMIT } from '../version';
 const grandFile = (versionRaw = 100) => synthFwFile('ngp', synthFwBody(NG_LAYOUT), versionRaw);
 
 /** A Stage Classic / EX file: its record's place is not known yet, so it opens header-only. */
-const stageClassicFile = () => synthLegacyFile('nspg', 10, new Uint8Array(398));
+/** A `.nspg` too short for the Stage Classic record: the reader opens it header-only. */
+const stageClassicFile = () => synthLegacyFile('nspg', 10, new Uint8Array(100));
 
 function sink(): Diagnostics & { events: DiagnosticEvent[] } {
   const events: DiagnosticEvent[] = [];
@@ -66,7 +67,7 @@ describe('buildFileReadEvent', () => {
     expect(d.framing.bodyOffset).toBe(0x18);
     expect(d.reader).toMatchObject({ layoutMatched: false, headerOnly: true });
     expect(d.reader.warningCount).toBeGreaterThan(0);
-    expect(d.reader.warnings.join(' ')).toMatch(/only the file header/i);
+    expect(d.reader.warnings.join(' ')).toMatch(/file header only/i);
   });
 
   it('captures only the two 6-byte framing windows — never the bytes a player could have typed', () => {

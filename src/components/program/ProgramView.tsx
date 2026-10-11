@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import '../../styles/nord.css';
-import { isNs4Program, type NordProgram } from '../../lib/formats';
+import { isNs4Program, programTagFor, type NordProgram } from '../../lib/formats';
 import { activeLayers, scenesDiffer, engineCardModel, headerView, fxChips } from '../../lib/ns4/view';
 import { ProgramHeader } from './ProgramHeader';
 import { ProgramZones } from './ProgramZones';
@@ -58,7 +58,8 @@ export function ProgramView({ program }: { program: NordProgram }) {
     const info = identifyNordFile(program.bytes);
     // Stage 3 & Stage 2 graduate to the rich per-engine view; other leaner models
     // (future: Electro/Lead/Wave) stay on the shared decoded-program view via their presenter.
-    if (info.generation === 'Stage 3' && info.kind === 'performance') {
+    const programTag = programTagFor(info, program.bytes); // a Live file reads as its program
+    if (programTag === 'ns3f') {
       return (
         <>
           <ConvertToStage4 bytes={program.bytes} name={program.name} />
@@ -66,7 +67,7 @@ export function ProgramView({ program }: { program: NordProgram }) {
         </>
       );
     }
-    if (info.generation === 'Stage 2' && info.kind === 'program') {
+    if (programTag === 'ns2p') {
       return (
         <>
           <ConvertToStage4 bytes={program.bytes} name={program.name} />

@@ -166,6 +166,16 @@ describe('NordSession', () => {
     expect([...t.sent[1].slice(8, 12)]).toEqual([0, 0, 0, 0x07]);
   });
 
+  it('never adopts an advertised FileTransfer version outside the 3–10 NSM speaks', async () => {
+    for (const bad of [0, 2, 11, 0xff]) {
+      const negReply = encodeMessage(0x03, [], new Uint8Array([0x01, 0x0c, bad]));
+      const session = new NordSession(new MockTransport([negReply]));
+      session.useFileTransferVersion(4);
+      expect(await session.negotiateVersion(), `v${bad}`).toBe(4);
+      expect(session.fileTransferVersion).toBe(4);
+    }
+  });
+
   it('keeps the default version 0x0a when the device does not advertise FileTransfer', async () => {
     const negReply = encodeMessage(0x03, [], new Uint8Array([0x01, 0x0a, 0x02])); // only proto 0x0a, no 0x0c
     const t = new MockTransport([negReply, encodeMessage(CReqBegin | 1, [0])]);

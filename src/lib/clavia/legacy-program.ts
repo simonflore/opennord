@@ -8,9 +8,8 @@
  * data after the version, then the 2-byte trailer of a legacy file. On top of
  * it this adds what these readers share: the record version checked against
  * the one the firmware writes (older ones it converts are read with a warning,
- * any other opens header-only), a file too short for the record header-only,
- * and — where the record's position in the file is not established — header
- * only with a warning rather than a guess. Pure; never throws; model → clavia.
+ * any other opens header-only) and a file too short for the record
+ * header-only. Pure; never throws; model → clavia.
  */
 import { formatCbinVersion } from './cbin';
 import { readLegacyFile, type LegacyLayout, legacyRecordVersion } from './legacy-record';
@@ -37,16 +36,12 @@ export interface LegacyProgram<K extends string> {
   name?: string;
 }
 
-/** What a model's firmware reads, and whether its record's place in the file is known. */
+/** What a model's firmware reads. */
 export interface LegacyRecordSpec {
   /** Model name for messages, e.g. "Electro 5". */
   readonly model: string;
-  /** False while the record's position in the file is not established: the file then opens header-only. */
-  readonly located?: boolean;
   /** Older record versions the firmware converts on load: read with the current layout, with a warning. */
   readonly converted?: readonly number[];
-  /** The warning shown when the record is not located. */
-  readonly unknownStart?: string;
 }
 
 /** Read a legacy program file against `layout` (see the module comment). Never throws. */
@@ -59,9 +54,6 @@ export function decodeLegacyProgram<K extends string>(
     _data: new Uint8Array(0), warnings, bytes,
   });
 
-  if (spec.located === false) {
-    return headerOnly([spec.unknownStart ?? `Where the ${spec.model} program record starts in this file is not known yet; showing the file header only.`]);
-  }
   const r = readLegacyFile(bytes, layout, []);
   if (!r.complete) return headerOnly([...r.warnings, 'Showing the file header only.']);
 

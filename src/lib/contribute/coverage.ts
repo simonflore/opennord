@@ -60,8 +60,6 @@ export interface ModelDecode {
   pct: number | null;
   /** The reader covers every parameter the instrument stores in a program (its firmware's own map). */
   fullMap: boolean;
-  /** Set when the layout is mapped but files still open header-only: why, in a musician's words. */
-  headerOnly?: string;
 }
 
 /** Distinct parameters in the Stage 4 map (each id may span multiple layers). */
@@ -180,11 +178,6 @@ const NOT_FULL_MAP: Record<string, string> = {
   'wave-2': 'morph amounts are not read yet',
 };
 
-/** Readers whose record layout is mapped but whose files still open header-only, and why. */
-const NSPG_START_UNKNOWN =
-  'The program layout is mapped, but where it starts in a .nspg file is not confirmed yet, so files show their header only';
-const HEADER_ONLY: Record<string, string> = { 'stage-classic': NSPG_START_UNKNOWN, 'stage-ex': NSPG_START_UNKNOWN };
-
 // ── Legacy-record models: byte map of the record data (after the record version) ─
 // Lead 4 (high) → 'confirmed'. Stage 2 / 2 EX → 'confirmed': framing, values and
 // morph deltas checked on ns3-program-viewer's corpus of real files. Electro 4 (its
@@ -208,7 +201,8 @@ const LEGACY_LAYOUTS: Record<string, { layout: LegacyLayout; status: 'confirmed'
   // Piano 3: firmware layout, file alignment not yet checked on a real file → 'candidate'.
   'piano-3': { layout: NP3_LAYOUT, status: 'candidate' },
   'c2': { layout: NCP_LAYOUT, status: 'candidate' },
-  // Stage Classic / EX: one record layout (OS 5.08 = OS 6.08); its start in a .nspg file is unknown → 'candidate'.
+  // Stage Classic / EX: one record layout (OS 5.08 = OS 6.08), placed by the CBIN framing
+  // rule but not yet seen in a real .nspg → 'candidate'.
   'stage-classic': { layout: NS1_LAYOUT, status: 'candidate' },
   'stage-ex': { layout: NS1_LAYOUT, status: 'candidate' },
   'piano-1': { layout: NP1_LAYOUT, status: 'candidate' },
@@ -346,9 +340,8 @@ export function decodeForModel(modelId: string): ModelDecode {
   if (decoder === 'partial') {
     const layout = (FW_LAYOUTS[modelId] ?? LEGACY_LAYOUTS[modelId])?.layout;
     const paramCount = layout ? distinctParams(layout) : null;
-    const headerOnly = HEADER_ONLY[modelId];
-    const fullMap = !!layout && !(modelId in NOT_FULL_MAP) && !headerOnly;
-    return { status: 'partial', paramCount, bodyBytes: prog?.bodyBytes ?? null, ...summary, fullMap, ...(headerOnly && { headerOnly }) };
+    const fullMap = !!layout && !(modelId in NOT_FULL_MAP);
+    return { status: 'partial', paramCount, bodyBytes: prog?.bodyBytes ?? null, ...summary, fullMap };
   }
   // Undecoded: 'started' once a control is localized in coverage-data, else 'none'.
   return {

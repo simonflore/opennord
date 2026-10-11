@@ -40,7 +40,7 @@ export interface CapabilityStatus { status: ValidationStatus; note?: string; }
 
 export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, CapabilityStatus>>>> = {
   'stage-classic': {
-    'file-read': { status: 're', note: "nspg program record known from the OS 5.08 firmware's own descriptors (lib/ns1: u8 version 10 + common, panel A, panel B = 400 bytes; 101 morphable parameters with 3 signed deltas each). Record start in a .nspg file unconfirmed — files open header-only with a warning until a real file pins it; not HW-tested" },
+    'file-read': { status: 're', note: "nspg program record read through the OS 5.08 firmware's own descriptors (lib/ns1: u8 version 10 + 399 bytes of common, panel A, panel B = 400 bytes; 101 morphable parameters with 3 signed deltas each), placed by the CBIN framing rule NSM applies to every model (record at 0x2C behind an NSM-era header, 0x18 behind a legacy one: 444 / 426-byte files). Alignment a candidate until a real file confirms it; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v3 in the OS 5.08 firmware (frames of exactly version 3, no session lock); 4 partitions: 0 Native, 1 Piano, 2 Program nspg, 3 Synth nss — no Live, no Settings (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v3 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v3 (firmware); WRITE \u2014 untested-write risk" },
@@ -50,7 +50,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
   },
   'stage-ex': {
     // First-gen Nord Stage EX (sibling of Stage Classic), tag 'nspg' \u2014 NOT Stage 2 EX.
-    'file-read': { status: 're', note: "nspg program record known from the OS 6.08 firmware's own descriptors — identical to the Stage Classic's (lib/ns1, 400 bytes). Record start in a .nspg file unconfirmed — files open header-only with a warning until a real file pins it; not HW-tested" },
+    'file-read': { status: 're', note: "nspg program record read through the OS 6.08 firmware's own descriptors — identical to the Stage Classic's (lib/ns1, 400 bytes), placed by the CBIN framing rule. Alignment a candidate until a real file confirms it; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v4 in the OS 6.08 firmware (frames 3..4, no session lock); 4 partitions: 0 Native (FFS), 1 Piano, 2 Program nspg, 3 Synth nss — no Live, no Settings (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v4 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v4 (firmware); WRITE \u2014 untested-write risk" },
@@ -217,7 +217,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
   },
   'lead-a1': {
     'file-read': { status: 're', note: "CBIN container identify validated against 52 real .nlap/.nlas fixtures; not HW-tested. Body read from file 0x1A through the OS 1.36 firmware descriptor layout (lib/nla: slot + FX sets, inline morph deltas); parameters named by CC only, alignment medium until checked against the corpus" },
-    enumerate: { status: 're', note: "FileTransfer present in the OS 1.36 firmware — the Lead 4's code (registration, frames 3..8, begin); version 8; 3 partitions: 0 Program nlas, 1 Performance nlap, 2 Settings nlat. SysEx is an extra path, not the only one. Untested on HW; USB PID unconfirmed (NSM CMini 0x25 likely)" },
+    enumerate: { status: 're', note: "FileTransfer present in the OS 1.36 firmware — the Lead 4's code (registration, frames 3..8, begin); version 8; 3 partitions: 0 Program nlas, 1 Performance nlap, 2 Settings nlat. SysEx is an extra path, not the only one. Untested on HW; USB PID 0x25 from NSM 9.22 (its CMini class is the Nord Lead A1, tags nlab/nlap/nlas/nlat)" },
     pull: { status: 're', note: "FileTransfer Download in the A1 firmware (same code as Lead 4, v8); read-only, untested on HW" },
     push: { status: 're', note: "FileTransfer Upload in the A1 firmware (same code as Lead 4, v8); WRITE — untested-write risk" },
     delete: { status: 're', note: "FileTransfer Delete in the A1 firmware (same code as Lead 4, v8); WRITE — untested-write risk" },

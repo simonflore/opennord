@@ -129,8 +129,9 @@ const firmwareOrder = (...specs: PartitionSpec[]): PartitionSpec[] =>
   specs.map((spec, i) => ({ ...spec, staticIndex: i }));
 
 /** The 9 partitions the ColdFire Piano 2 / Piano 3 register: user Piano Pedal
- *  before the factory one, as on the Stage 2. No E2P FFS. */
-const coldfirePianoLine = (program: string, live?: string): PartitionSpec[] => firmwareOrder(
+ *  before the factory one, as on the Stage 2. No E2P FFS. Live and Settings
+ *  tags from NSM 9.22 (`CPiano2` / `CPiano3`). */
+const coldfirePianoLine = (program: string, live: string, settings: string): PartitionSpec[] => firmwareOrder(
   P('piano-native', 'Piano (factory)', true),
   P('piano', 'Piano', false),
   P('pedal', 'Piano Pedal', false),
@@ -139,7 +140,7 @@ const coldfirePianoLine = (program: string, live?: string): PartitionSpec[] => f
   P('samplib', 'Sample Library', false),
   P('program', 'Programs', false, program),
   P('live', 'Live', false, live),
-  P('settings', 'Settings', false),
+  P('settings', 'Settings', false, settings),
 );
 
 /** The 9 partitions every ARM piano (Piano 4/5/6, Grand, Grand 2) registers —
@@ -157,15 +158,16 @@ const armPianoLine = (program: string, live: string, settings: string): Partitio
   P('settings', 'Settings', false, settings),
 );
 
-/** The 8 partitions the ColdFire Electro 3 / 3 HP register. */
+/** The 8 partitions the ColdFire Electro 3 / 3 HP register. Live `neli` and
+ *  Settings `nesy` from NSM 9.22's `CElectro3Base` / `CElectro3HP`. */
 const electro3Line = (): PartitionSpec[] => firmwareOrder(
   P('piano-native', 'Piano (factory)', true),
   P('samplib-native', 'Sample Library (factory)', true),
   P('piano', 'Piano', false),
   P('samplib', 'Sample Library', false),
   P('program', 'Programs', false, 'nepg'),
-  P('live', 'Live', false),
-  P('settings', 'Settings', false), // firmware name "System"
+  P('live', 'Live', false, 'neli'),
+  P('settings', 'Settings', false, 'nesy'), // firmware name "System"
   // NSM gives only `CElectro3HP` this partition (tag `neop`); the firmware
   // registers it on the plain E3 too, so the tag is assumed shared (medium).
   P('organ-preset', 'Organ Presets', false, 'neop'),
@@ -199,7 +201,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('piano-preset', 'Piano Presets', false, 'ns4n', 8),
       P('synth-preset', 'Synth Presets', false, 'ns4y', 9),
       P('live', 'Live', false, 'ns4l', 10),
-      P('settings', 'Settings', false, undefined, 11),
+      P('settings', 'Settings', false, 'ns4t', 11), // tag from NSM 9.22
     ],
   },
   'stage-3': {
@@ -346,7 +348,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('samplib', 'Sample Library', false),
       P('program', 'Programs', false, 'ne4p'),
       P('live', 'Live', false, 'ne4l'),
-      P('settings', 'Settings', false),
+      P('settings', 'Settings', false, 'ne4s'), // tag from NSM 9.22 `CElectro4`
     ),
   },
   'electro-5': {
@@ -383,8 +385,8 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('pedal-native', 'Pedal (factory)', true),
       P('piano', 'Piano', false),
       P('program', 'Programs', false, 'nppg'),
-      P('live', 'Live', false),
-      P('settings', 'Settings', false), // firmware name "System"
+      P('live', 'Live', false, 'npli'), // tags from NSM 9.22 `CPiano`
+      P('settings', 'Settings', false, 'npsy'), // firmware name "System"
     ),
   },
   'piano-2': {
@@ -393,7 +395,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // Pianos: CNSP v5 only.
     id: 'piano-2', name: 'Nord Piano 2', generation: 'OG', programTag: 'np2p', sampleCodec: 'og',
     staticProductId: 0x0022, os: { min: 100, recommended: 120 }, fileTransferVersion: 6,
-    partitions: coldfirePianoLine('np2p'),
+    partitions: coldfirePianoLine('np2p', 'np2l', 'np2s'),
   },
   'piano-3': {
     // Piano 3 OS 2.04: registration; FileTransfer ctor
@@ -404,7 +406,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // Piano Pedal and Samp Lib partitions; Program 6 agrees.
     id: 'piano-3', name: 'Nord Piano 3', generation: 'OG', programTag: 'np3p', sampleCodec: 'og',
     staticProductId: 0x0028, os: { min: 100, recommended: 122 }, fileTransferVersion: 10,
-    partitions: coldfirePianoLine('np3p', 'np3l'),
+    partitions: coldfirePianoLine('np3p', 'np3l', 'np3s'),
   },
   'wave': {
     // Nord Wave OS 2.14: registration (the constructors pass their
@@ -415,11 +417,11 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     id: 'wave', name: 'Nord Wave', generation: 'OG', programTag: 'nwp', sampleCodec: 'og',
     staticProductId: 0x0005, os: { min: 200, recommended: 214 }, fileTransferVersion: 4,
     partitions: firmwareOrder(
-      P('samplib', 'Sample Library', false),
+      P('samplib', 'Sample Library', false), // NSM: `nwi` files
       P('program', 'Programs', false, 'nwp'),
-      P('swave', 'Synth Waves', true),
-      P('ramfs', 'RAM file system', true),
-      P('settings', 'Settings', false), // firmware name "System"
+      P('swave', 'Synth Waves', true, 'nws'), // tags from NSM 9.22 `CWave`
+      P('ramfs', 'RAM file system', true, 'nwr'),
+      P('settings', 'Settings', false, 'nwsy'), // firmware name "System"
     ),
   },
   'c1': {
@@ -440,8 +442,8 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('pipe-native', 'Pipe Organ (factory)', true), // firmware name "Pipe (Native)"
       P('pipe', 'Pipe Organ', true),
       P('program', 'Programs', false, 'ncpg'), // 1 × 126
-      P('live', 'Live', false), // 1 × 2
-      P('settings', 'Settings', false), // firmware name "System"
+      P('live', 'Live', false, 'ncli'), // 1 × 2; tags from NSM 9.22 `CC2`
+      P('settings', 'Settings', false, 'ncsy'), // firmware name "System"
     ),
   },
   'c2d': {
@@ -456,7 +458,7 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
       P('pipe-native', 'Pipe Organ (factory)', true),
       P('pipe', 'Pipe Organ', true),
       P('program', 'Programs', false, 'nc2p'),
-      P('settings', 'Settings', false), // firmware name "System"
+      P('settings', 'Settings', false, 'nc2s'), // firmware name "System"; tag from NSM 9.22 `CC2D`
     ),
   },
 
@@ -484,8 +486,9 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
   'electro-7': {
     // Electro 7 OS 1.30: registration (array);
     // transfer object version 10, frames 3..10. 10 partitions,
-    // nothing past 9: NSM's extra Native/Raw partitions and `ne7s` (the
-    // standalone synth-preset archive tag,) are not on the wire.
+    // nothing past 9: NSM's extra Native/Raw partitions and its Song partition
+    // `ne7s` (NSM 9.22 `CElectro7`: 'Song', with a `ne7sbundle`; the firmware's
+    // archive code knows the tag) are not on the wire.
     // Stage 4 registry generation (medium). PID 0x3B from NSM 9.22 `CElectro7`
     // (the firmware fills its descriptor PID at runtime). Pianos: CNSP v5/v6.
     // Sample generation not located: a {8,11,30,40} version map exists
@@ -576,10 +579,10 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // Lead A1 OS 1.36: same code as the Lead 4 — registration,
     // service ctor (1, 8), frames 3..8, begin
     //. FileTransfer is present: SysEx is an additional path, not
-    // the only one. NSM's `CMini` (PID 0x25) is probably the A1 (unconfirmed,
-    // so no staticProductId).
+    // the only one. PID 0x25: NSM 9.22's `CMini` class is the "Nord Lead A1"
+    // (product name and its nlab / nlap / nlas / nlat tags, CMini).
     id: 'lead-a1', name: 'Nord Lead A1', generation: 'OG', programTag: 'nlap', sampleCodec: null,
-    fileTransferVersion: 8,
+    staticProductId: 0x0025, fileTransferVersion: 8,
     partitions: leadLine('nlas', 'nlap', 'nlat'),
   },
   'grand': {

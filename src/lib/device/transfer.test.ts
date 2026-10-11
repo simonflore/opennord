@@ -241,7 +241,7 @@ describe('deleteProgram', () => {
   });
 });
 
-import { pullFile, pushFile } from './transfer';
+import { pullFile, pushFile, pushRefusal } from './transfer';
 import { buildCbinHeader } from '../clavia/cbin';
 
 describe('pushFile', () => {
@@ -259,6 +259,47 @@ describe('pushFile', () => {
     await pushFile(s, 1, 3, file, 'Champagne');
     const create = decodeReply(t.sent[0]);
     expect(create.words[3]).toBe(ext2Type('ns4o')); // fourcc word
+  });
+
+  /** A legacy (formatType 0) file: the 24-byte header, `record`, then a 2-byte trailer. */
+  function legacyFile(tag: string, version: number, record: number[]): Uint8Array {
+    const header = buildCbinHeader({ formatType: 0, tag, bank: 0, location: 0, category: 3, versionRaw: version });
+    const file = new Uint8Array(0x18 + record.length + 2);
+    file.set(header.subarray(0, 0x18));
+    file.set(record, 0x18);
+    file.set([0xab, 0xcd], file.length - 2);
+    return file;
+  }
+
+  it('sends a legacy file\'s record alone — from 0x18, without the 2-byte trailer — as NSM does', async () => {
+    const record = [0, 7, 10, 20, 30, 40, 50];
+    const { t, s } = await openWritable([
+      encodeMessage(CReqFileCreate | 1, [0]),
+      encodeMessage(CReqFileWrite | 1, [0]),
+      encodeMessage(CReqFileClose | 1, [0]),
+    ]);
+    await pushFile(s, 0, 5, legacyFile('ns2p', 7, record), 'Legacy');
+    const create = decodeReply(t.sent[0]);
+    expect(create.words[2]).toBe(record.length); // size word: the record, no header, no trailer
+    expect(create.words[5]).toBe(3); // category
+    const write = decodeReply(t.sent[1]);
+    expect([...write.payload.subarray(16)]).toEqual(record); // after {bank, slot, offset, length}
+  });
+
+  it('refuses before any frame what NSM refuses: a header newer than NSM-era, an old Stage 2 sound', async () => {
+    const newer = buildCbinHeader({ formatType: 2, tag: 'ns4p', bank: 0, location: 0, category: 0, versionRaw: 100 });
+    const cases: [Uint8Array, RegExp][] = [
+      [new Uint8Array([...newer, 1, 2, 3]), /newer format/],
+      [legacyFile('ns2p', 5, [0, 5, 1, 2]), /older Stage 2 OS/],
+      [legacyFile('ns2s', 2, [0, 2, 1, 2]), /older Stage 2 OS/],
+    ];
+    for (const [file, message] of cases) {
+      const { t, s } = await openWritable([]);
+      await expect(pushFile(s, 0, 0, file, 'x')).rejects.toThrow(message);
+      expect(t.sent).toHaveLength(0);
+    }
+    expect(pushRefusal(legacyFile('ns2p', 6, [0, 6]))).toBeUndefined();
+    expect(pushRefusal(legacyFile('ns2l', 2, [0, 2]))).toBeUndefined(); // NSM checks Programs and Synth presets only
   });
 });
 
