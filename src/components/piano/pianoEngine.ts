@@ -11,6 +11,9 @@
  *  - key-up: one fixed exponential fade, not the per-piano damper rates (§3);
  *  - sustain: a held note stays in the recording's loop and falls at the stored rate (§1.4);
  *  - no release sounds, unison, pedal noise or string resonance.
+ *
+ * The notes are mixed with headroom and a limiter, so the audition is quieter than a single
+ * full-scale note and doesn't clip on chords.
  */
 import { getSharedCtx } from '@/components/sample/audioPlayer';
 import { normalizeChannels, toAudioBuffer } from '@/lib/ns4/nsmp-audio';
@@ -30,6 +33,9 @@ const FADE_SPAN = 7;
 
 /** Time constants until a note decaying in its loop is stopped (about −78 dB). */
 const LOOP_SPAN = 9;
+
+/** Level of the mix: each note can reach full scale, so a chord needs room (about −9 dB). */
+export const MIX_HEADROOM = 0.35;
 
 /** Decoded audio kept ready, in samples (frames × channels): about 96 MB of Float32. */
 const CACHE_SAMPLES = 24_000_000;
@@ -81,6 +87,23 @@ export function createPianoEngine(
   const buffers = new Map<number, AudioBuffer>(); // stroke index → audio, least recently used first
   let cached = 0;
 
+  // Every voice goes through one bus: headroom for chords, then a limiter for the big ones.
+  let bus: GainNode | null = null;
+  function mix(ctx: AudioContext): GainNode {
+    if (bus) return bus;
+    bus = ctx.createGain();
+    bus.gain.setValueAtTime(MIX_HEADROOM, ctx.currentTime);
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.1;
+    bus.connect(limiter);
+    limiter.connect(ctx.destination);
+    return bus;
+  }
+
   const sounding = () => new Set(held.keys());
   const changed = () => onChange?.(sounding());
 
@@ -131,6 +154,7 @@ export function createPianoEngine(
         if (faded) { fading.delete(faded); stop(faded); }
         else release(held.keys().next().value!, STEAL_TIME_CONSTANT);
       }
+      const output = mix(ctx);
       const src = ctx.createBufferSource();
       src.buffer = buffer;
       const rate = 2 ** (key.semitones / 12);
@@ -165,7 +189,7 @@ export function createPianoEngine(
           src.stop(entersLoop + decay * LOOP_SPAN);
         }
       }
-      out.connect(ctx.destination);
+      out.connect(output);
       changed();
     },
     noteOff(midi) { release(midi, RELEASE_TIME_CONSTANT); changed(); },

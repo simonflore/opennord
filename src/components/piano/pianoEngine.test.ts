@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { attenuationGain, createPianoEngine, loopDecayTimeConstant, pianoKey, MAX_VOICES, type PianoEngineEvents } from './pianoEngine';
+import { attenuationGain, createPianoEngine, loopDecayTimeConstant, pianoKey, MAX_VOICES, MIX_HEADROOM, type PianoEngineEvents } from './pianoEngine';
 import { readNspDirectory } from '@/lib/ns4/nsp-audio';
 import { readNspZones, type NspZone } from '@/lib/ns4/nsp';
 import { makeNpno, tone } from '@/lib/ns4/nsp-synth.testing';
@@ -10,6 +10,7 @@ type FakeSource = { buffer: { length: number } | null; loop: boolean; loopStart:
 const audioMock = vi.hoisted(() => {
   const created: FakeSource[] = [];
   const gains: FakeParam[] = [];
+  const nodes: { gain: FakeParam; to: unknown }[] = [];
   const ctx = {
     currentTime: 0,
     destination: {},
@@ -29,14 +30,21 @@ const audioMock = vi.hoisted(() => {
       const calls: unknown[][] = [];
       const gain: FakeParam = { calls, setValueAtTime: (...a) => { calls.push(['set', ...a]); }, setTargetAtTime: (...a) => { calls.push(['target', ...a]); } };
       gains.push(gain);
-      return { gain, connect: (n: unknown) => n };
+      const node = { gain, to: null as unknown, connect: (n: unknown) => { node.to = n; return n; } };
+      nodes.push(node);
+      return node;
+    },
+    createDynamicsCompressor: () => {
+      const p = () => ({ value: 0 });
+      const node = { limiter: true, threshold: p(), knee: p(), ratio: p(), attack: p(), release: p(), to: null as unknown, connect: (n: unknown) => { node.to = n; return n; } };
+      return node;
     },
   };
-  return { created, gains, ctx };
+  return { created, gains, nodes, ctx };
 });
 vi.mock('@/components/sample/audioPlayer', () => ({ getSharedCtx: () => audioMock.ctx }));
 
-beforeEach(() => { audioMock.created.length = 0; audioMock.gains.length = 0; audioMock.ctx.currentTime = 0; });
+beforeEach(() => { audioMock.created.length = 0; audioMock.gains.length = 0; audioMock.nodes.length = 0; audioMock.ctx.currentTime = 0; });
 
 // Synthetic piano: zone 0 = keys 0–59 (root 48) with a loud and a soft layer of different
 // lengths, zone 1 = keys 60–127 (root 72).
@@ -101,8 +109,23 @@ describe('createPianoEngine', () => {
     expect(audioMock.created).toHaveLength(1);
     expect(audioMock.created[0].buffer!.length).toBe(dir.strokes[0].frames);
     expect(audioMock.created[0].playbackRate.value).toBeCloseTo(0.5, 6); // an octave below the recording
-    expect(audioMock.gains[0].calls[0]).toEqual(['set', 1, 0]);
+    expect(audioMock.gains[1].calls[0]).toEqual(['set', 1, 0]); // gains[0] is the mix bus
     expect(engine.sounding()).toEqual(new Set([40]));
+  });
+
+  it('mixes every note through one bus with headroom and a limiter, so chords do not clip', () => {
+    const { engine } = engineFor();
+    engine.noteOn(52, 127);
+    engine.noteOn(72, 127);
+    // nodes: the bus (made with the first note), then one gain per voice
+    const [bus, first, second] = audioMock.nodes;
+    expect(bus.gain.calls[0]).toEqual(['set', MIX_HEADROOM, 0]);
+    expect(MIX_HEADROOM).toBeLessThan(0.5);
+    expect(first.to).toBe(bus);
+    expect(second.to).toBe(bus);
+    const limiter = bus.to as { limiter: boolean; to: unknown };
+    expect(limiter.limiter).toBe(true);
+    expect(limiter.to).toBe(audioMock.ctx.destination);
   });
 
   it('picks the softer recording for a soft touch', () => {
@@ -119,7 +142,7 @@ describe('createPianoEngine', () => {
     audioMock.ctx.currentTime = 1;
     engine.noteOff(52);
     expect([...engine.sounding()]).toEqual([72]);
-    expect(audioMock.gains[0].calls.at(-1)![0]).toBe('target');
+    expect(audioMock.gains[1].calls.at(-1)![0]).toBe('target'); // the first voice (gains[0] is the mix bus)
     expect(audioMock.created[0].stopped).toBeGreaterThan(1); // stops after the fade, not at once
     expect(audioMock.created[1].stopped).toBeNull();
   });
