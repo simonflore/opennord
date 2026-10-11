@@ -24,9 +24,16 @@ export function formatCbinVersion(bytes: Uint8Array): string {
   return (((bytes[0x14] ?? 0) | ((bytes[0x15] ?? 0) << 8)) / 100).toFixed(2);
 }
 
-/** The 4-char file-type tag at master map 009-1..012-8 (bytes 9-12, 1-based). */
+/**
+ * The 4-char file-type tag at master map 009-1..012-8 (bytes 9-12, 1-based).
+ * Three-letter tags (the Grand's `ngp`/`ngl`/`ngs`, per its firmware's fourcc
+ * strings) are padded; trailing NUL/space padding is dropped so they compare as
+ * `ngp`.
+ */
 export function fileTypeTag(bytes: Uint8Array): string {
-  return String.fromCharCode(...bytes.slice(8, 12));
+  let end = Math.min(12, bytes.length);
+  while (end > 8 && (bytes[end - 1] === 0 || bytes[end - 1] === 0x20)) end--;
+  return String.fromCharCode(...bytes.slice(8, end));
 }
 
 /**
