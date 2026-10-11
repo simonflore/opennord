@@ -1,5 +1,5 @@
-// UNVALIDATED — needs com.apple.developer.driverkit entitlement + M1+ iPad + Nord
-// Stage 4 to sign/run/validate (docs/IPAD.md).
+// Compiles against the DriverKit SDK; NOT yet run on hardware — needs an M1+ iPad
+// and a Nord to validate (docs/IPAD.md).
 #ifndef NordUsbDriver_h
 #define NordUsbDriver_h
 
@@ -8,20 +8,23 @@
 #include <DriverKit/IOUserClient.iig>
 #include <USBDriverKit/IOUSBHostInterface.iig>
 
+/// Owns the Nord's vendor interface and its two bulk pipes. The app reaches it
+/// through NordUsbUserClient, which calls the LOCALONLY methods below in-process.
 class NordUsbDriver: public IOService {
 public:
   virtual bool init() override;
+  virtual void free() override;
   virtual kern_return_t Start(IOService* provider) override;
   virtual kern_return_t Stop(IOService* provider) override;
-  virtual void free() override;
-
   virtual kern_return_t NewUserClient(uint32_t type, IOUserClient** userClient) override;
 
-  // External methods invoked from the app's IOKit user client.
-  virtual kern_return_t DoOpen();
-  virtual kern_return_t DoClose();
-  virtual kern_return_t DoBulkOut(const void* data, size_t length);
-  virtual kern_return_t DoBulkIn(void* data, size_t* length);
+  /// USB product id of the connected Nord, 0 when it couldn't be read.
+  uint16_t ProductId() LOCALONLY;
+  /// Write one request frame to bulk OUT.
+  kern_return_t BulkOut(const uint8_t* data, uint32_t length) LOCALONLY;
+  /// Read one reply frame from bulk IN. `timeoutMs` 0 waits forever. A timeout
+  /// with nothing received returns kIOReturnTimeout and `*transferred == 0`.
+  kern_return_t BulkIn(uint8_t* data, uint32_t capacity, uint32_t timeoutMs, uint32_t* transferred) LOCALONLY;
 };
 
 #endif /* NordUsbDriver_h */

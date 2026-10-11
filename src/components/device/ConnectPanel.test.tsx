@@ -30,12 +30,12 @@ describe('ConnectPanel render states', () => {
     expect(screen.getByText(/bring your nord in/i)).toBeInTheDocument();
   });
 
-  it('iPad without a ready DEXT: shows the coming-to-iPad card', async () => {
+  it('iPad without a ready DEXT: asks to plug the Nord in', async () => {
     reach = 'ipad-dext-pending';
     ipadReady = false;
     render(<ConnectPanel onConnected={vi.fn()} />);
     await waitFor(() =>
-      expect(screen.getByText(/coming to ipad/i)).toBeInTheDocument(),
+      expect(screen.getByText(/plug your nord into this ipad/i)).toBeInTheDocument(),
     );
   });
 

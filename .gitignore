@@ -63,3 +63,6 @@ fixtures/*
 # Electron build output
 release/
 electron/dist/
+
+# Xcode per-user state inside the in-repo Swift packages
+.swiftpm/
