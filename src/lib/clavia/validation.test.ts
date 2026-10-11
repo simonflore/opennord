@@ -113,11 +113,10 @@ describe('validation matrix', () => {
     }
   });
 
-  it('Electro 7: read from its firmware but not tried on one; its sample generation is still a guess', () => {
-    for (const cap of ['file-read', 'enumerate', 'pull', 'push', 'delete', 'backup'] as const) {
+  it('Electro 7: read from its firmware but not tried on one', () => {
+    for (const cap of ['file-read', 'enumerate', 'pull', 'push', 'delete', 'backup', 'samples'] as const) {
       expect(statusFor('electro-7', cap).status, `electro-7 ${cap}`).toBe('re');
     }
-    expect(statusFor('electro-7', 'samples').status).toBe('inferred');
   });
 
   it('Piano 1 samples are unsupported (no sample library in its firmware)', () => {
