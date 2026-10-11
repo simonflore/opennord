@@ -15,15 +15,14 @@ export type UsbAvailability = 'electron' | 'webusb' | 'ipad-dext-pending' | 'iph
  *                         Electron's renderer also exposes navigator.usb.
  *   - 'webusb'            Chromium desktop browser — use WebUsbTransport.
  *   - 'ipad-dext-pending' native iPad — the DriverKit path; gate on nordUsbAvailable().
- *   - 'iphone'            the iOS app on an iPhone — no USB route (DriverKit is iPad-only).
+ *   - 'iphone'            an iPhone, app or browser — no USB route (DriverKit is iPad-only).
  *   - 'unsupported'       any other browser (Safari, Firefox, mobile browsers).
  */
 export function usbAvailability(): UsbAvailability {
   if (isElectronUsb()) return 'electron';
   if (typeof navigator !== 'undefined' && 'usb' in navigator) return 'webusb';
-  if (isCapacitorPlatform() && getCapacitorPlatform() === 'ios') {
-    return isIphone() ? 'iphone' : 'ipad-dext-pending';
-  }
+  if (isIphone()) return 'iphone'; // the app or any browser: an iPhone has no USB route
+  if (isCapacitorPlatform() && getCapacitorPlatform() === 'ios') return 'ipad-dext-pending';
   return 'unsupported';
 }
 

@@ -1,12 +1,20 @@
 import { Button } from '../ui';
 import { useDevice } from '../../lib/device/DeviceContext';
+import { usbAvailability } from '../../lib/device/capacitor-usb';
 import { Led } from './Led';
+
+// Whether this host can reach a Nord over USB at all (Android Chrome can; an
+// iPhone or Safari can't). Decides whether a phone shows Connect.
+const usbReachable = (() => {
+  const reach = usbAvailability();
+  return reach !== 'unsupported' && reach !== 'iphone';
+})();
 
 /**
  * The Nord's connection, as the top bar shows it: an LED that's green only while
- * a Nord is connected, its name, and Connect or Manage. At phone width only the
- * LED and a short name stay — device transfer rides vendor-USB, which a phone
- * browser can't reach (see usbAvailability in lib/device/capacitor-usb).
+ * a Nord is connected, its name, and Connect or Manage. At phone width the label
+ * folds to the LED (and its screen-reader text), and the button stays only where
+ * the phone can reach the Nord over USB (Android Chrome; see usbAvailability).
  */
 export function DeviceStatus({ onManage }: { onManage: () => void }) {
   const { session, deviceName, entries } = useDevice();
@@ -18,7 +26,7 @@ export function DeviceStatus({ onManage }: { onManage: () => void }) {
         <Led on={!!session} tone="connected" />
         {session ? <span>{name}<span className="max-[720px]:hidden"> · USB</span></span> : <span className="max-[720px]:sr-only">No Nord connected</span>}
       </span>
-      <span className="max-[720px]:hidden">
+      <span className={usbReachable ? undefined : 'max-[720px]:hidden'}>
         <Button variant="secondary" onClick={onManage}>{session ? 'Manage' : 'Connect'}</Button>
       </span>
     </div>

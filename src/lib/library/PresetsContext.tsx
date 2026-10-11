@@ -11,6 +11,7 @@ import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
 import { enumeratePresets } from '@/lib/device/presets';
 import { modelById } from '@/lib/clavia/partitions';
+import { useEnsureListed } from '@/lib/library/useEnsureListed';
 
 /** Merges device + folder presets into one filtered/sorted list and owns the
  *  Presets-screen view state. Mirrors useSamplesStateValue, recognition-only. */
@@ -45,14 +46,13 @@ function usePresetsStateValue() {
   const kinds = presentKinds(allEntries);
 
   const shown = sortPresets(filterPresets(allEntries, source, kind, query), prefs.sort, prefs.favorites);
-  const entryById = (id: string) => allEntries.find((e) => e.id === id);
+  const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
 
-  /** An entry the ⌘K palette asked to open: its page opens it on arrival (useFocusRequest). */
-  const [focusId, setFocusId] = useState<string | null>(null);
   /** Every filter off and the search cleared (the list's "clear filters"). */
   const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setKind('all'); }, []);
+  const ensureListed = useEnsureListed(shown, clearFilters);
   return {
-    all: allEntries, clearFilters, focusId, setFocusId,
+    all: allEntries, clearFilters, ensureListed,
     shown, source, setSource, kind, setKind, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, kinds, folder, session,
     importPreset: imported.add, removePreset: imported.remove,

@@ -28,7 +28,8 @@ function RootLayout() {
 
 function AppShell({ path }: { path: string }) {
   const navigate = useNavigate();
-  const [palette, setPalette] = useState(false);
+  // The palette is closed, open for searching (⌘K, the top bar) or open as the phone's More menu.
+  const [palette, setPalette] = useState<false | 'search' | 'menu'>(false);
 
   // ⌘K (Ctrl+K off the Mac, where Ctrl+K in a text field is "delete to end of
   // line") opens the palette, or closes it again; it never opens over another dialog.
@@ -42,7 +43,7 @@ function AppShell({ path }: { path: string }) {
       if (key !== 'k' && (/^[a-z]$/.test(key) || e.code !== 'KeyK')) return;
       e.preventDefault();
       if (e.repeat) return; // holding the keys doesn't flicker it
-      setPalette((open) => !open && !document.querySelector('[role="dialog"], [role="alertdialog"]'));
+      setPalette((open) => (open || document.querySelector('[role="dialog"], [role="alertdialog"]') ? false : 'search'));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -50,7 +51,7 @@ function AppShell({ path }: { path: string }) {
 
   return (
     <div className="flex min-h-screen flex-col stage-backdrop">
-      <TopBar onSearch={() => setPalette(true)} onManageDevice={() => navigate({ to: '/device' })} />
+      <TopBar onSearch={() => setPalette('search')} onManageDevice={() => navigate({ to: '/device' })} />
       <div className="flex flex-1">
         <ShellRail path={path} onNavigate={(to) => navigate({ to })} />
         {/* Plain "on-content" class kept as a hook: `[data-native] .on-content` in
@@ -63,8 +64,8 @@ function AppShell({ path }: { path: string }) {
           </ErrorBoundary>
         </main>
       </div>
-      <PhoneTabs path={path} onNavigate={(to) => navigate({ to })} onMore={() => setPalette(true)} />
-      <CommandPalette open={palette} onClose={() => setPalette(false)} />
+      <PhoneTabs path={path} onNavigate={(to) => navigate({ to })} onMore={() => setPalette('menu')} />
+      <CommandPalette open={!!palette} menu={palette === 'menu'} onClose={() => setPalette(false)} />
     </div>
   );
 }

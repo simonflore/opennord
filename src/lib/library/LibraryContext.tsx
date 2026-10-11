@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { useEnsureListed } from '@/lib/library/useEnsureListed';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedLibrary } from '@/lib/library/useImportedLibrary';
@@ -44,14 +45,8 @@ function useLibraryStateValue() {
   // category facet is worth showing (only when there's more than one).
   const categoriesPresent = presentCategories(allEntries);
   const shown = sortEntries(filterEntries(allEntries, source, query, generation, category), prefs.sort, prefs.favorites);
-  const entryById = (id: string) => allEntries.find((e) => e.id === id);
-  // Clear the filters when they hide a program the ⌘K palette is opening, so the
-  // list beside it shows the row. Read through a ref so the callback stays stable.
-  const shownRef = useRef(shown);
-  useEffect(() => { shownRef.current = shown; });
-  const ensureListed = useCallback((id: string) => {
-    if (!shownRef.current.some((e) => e.id === id)) clearFilters();
-  }, [clearFilters]);
+  const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
+  const ensureListed = useEnsureListed(shown, clearFilters);
 
   function importFile() {
     const input = document.createElement('input');

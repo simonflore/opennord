@@ -19,6 +19,7 @@ import { WriteBlockedError } from '@/lib/device/write-guard';
 import { buildOccupancy, type Addr } from '@/lib/device/reorg';
 import { PARTITION_SAMP_LIB } from '@/lib/device/opcodes';
 import { downloadBytes } from '@/lib/download';
+import { useEnsureListed } from '@/lib/library/useEnsureListed';
 
 // pure helper, exported for tests
 export function selectedBytes(entries: SampleEntry[], selected: Set<string>): number {
@@ -101,7 +102,7 @@ function useSamplesStateValue() {
 
   const shown = sortSamples(
     filterSamples(allEntries, source, generation, query, unusedOnly, category), prefs.sort, prefs.favorites);
-  const entryById = (id: string) => allEntries.find((e) => e.id === id);
+  const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
 
   const removableUnused = allEntries.filter((e) => e.source === 'nord' && e.unused && e.device);
   const selectAllUnused = () => setSelected(new Set(removableUnused.map((e) => e.id)));
@@ -146,12 +147,11 @@ function useSamplesStateValue() {
     }
   }
 
-  /** An entry the ⌘K palette asked to open: its page opens it on arrival (useFocusRequest). */
-  const [focusId, setFocusId] = useState<string | null>(null);
   /** Every filter off and the search cleared (the list's "clear filters"). */
   const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setGeneration('all'); setCategory('all'); setUnusedOnly(false); }, []);
+  const ensureListed = useEnsureListed(shown, clearFilters);
   return {
-    all: allEntries, clearFilters, focusId, setFocusId,
+    all: allEntries, clearFilters, ensureListed,
     shown, source, setSource, generation, setGeneration,
     category, setCategory, categoriesPresent, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, showUnknownGen, folder,
