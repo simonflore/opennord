@@ -46,6 +46,7 @@ export const consoleDiagnostics: Diagnostics = {
  */
 export function httpDiagnostics(url: string): Diagnostics {
   return {
+    remote: true,
     record(event: DiagnosticEvent) {
       try {
         void fetch(url, {
