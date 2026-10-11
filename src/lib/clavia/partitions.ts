@@ -168,8 +168,8 @@ const electro3Line = (): PartitionSpec[] => firmwareOrder(
   P('program', 'Programs', false, 'nepg'),
   P('live', 'Live', false, 'neli'),
   P('settings', 'Settings', false, 'nesy'), // firmware name "System"
-  // NSM gives only `CElectro3HP` this partition (tag `neop`); the firmware
-  // registers it on the plain E3 too, so the tag is assumed shared (medium).
+  // Organ Presets `neop`: NSM 9.22 registers it in `CElectro3Base` (both the
+  // E3 and the E3 HP), and the firmware registers it on both.
   P('organ-preset', 'Organ Presets', false, 'neop'),
 );
 
