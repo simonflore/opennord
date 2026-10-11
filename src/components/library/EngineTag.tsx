@@ -2,10 +2,12 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import type { EngineKind } from '@/lib/clavia/engines';
 
+// Engine identity colours (tokens.css --engine-*), the same ones that mark
+// keyboard zones — so a tag on a card and a zone in the inspector read alike.
 const COLOR: Record<EngineKind, string> = {
-  organ: 'text-red shadow-[inset_0_0_0_1px_var(--red)]',
-  piano: 'text-ink shadow-[inset_0_0_0_1px_var(--muted)]',
-  synth: 'text-lcd-cyan shadow-[inset_0_0_0_1px_var(--lcd-cyan)]',
+  organ: 'text-engine-organ shadow-[inset_0_0_0_1px_var(--engine-organ)]',
+  piano: 'text-engine-piano shadow-[inset_0_0_0_1px_var(--engine-piano)]',
+  synth: 'text-engine-synth shadow-[inset_0_0_0_1px_var(--engine-synth)]',
 };
 
 /**

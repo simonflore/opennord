@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fromNs3 } from './from-ns3';
 import { decodeNs3, type Ns3Program } from '../ns3/decode';
+import { ns3ZeroFile } from '../ns3/file.synth';
 
 const prog: Ns3Program = {
   name: 'Boston Organ',
@@ -141,8 +142,7 @@ describe('fromNs3 — LP+HP filter mode', () => {
 
 describe('fromNs3 on a decoded buffer (firmware-registry field fixes)', () => {
   it('carries the corrected effect rates + amp type, and still drops the rotary', () => {
-    const b = new Uint8Array(600);
-    b[0x04] = 1;                 // NSM-era layout
+    const b = ns3ZeroFile();     // NSM-era file, every field zero
     b[0x10b] = 0x80 | 0x10;      // rotary on + Effect 1 on (type Panning)
     b[0x10c] = 0x32; b[0x10d] = 0x80; // Effect 1 rate 101
     b[0x114] = 0x80 | 0x03; b[0x115] = 0xf8; // Effect 2 on, rate 127

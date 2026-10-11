@@ -181,7 +181,7 @@ Smallest useful unit first; each milestone independently shippable and testable.
    Most UI is model-shaped already; needs graceful handling of fields a given
    model lacks.
 
-Then **Stage 2 / 2EX** need their own map. The Stage 2 firmware writes a flat body, without the Stage 3's registry blocks, so it isn't a delta off NS3 (`docs/STAGE2-3-FIRMWARE.md` §3). The Stage 3 firmware's own parameter registry gives M2 its offset map: a block chain of length-prefixed sections, from which every offset in `ns3/decode.ts` can be reproduced (same doc).
+Then **Stage 2 / 2EX** need their own map. The Stage 2 firmware writes a flat body, without the Stage 3's registry blocks, so it isn't a delta off NS3 (`docs/STAGE2-3-FIRMWARE.md` §3). The Stage 3 firmware's own parameter registry gave M2 its offset map: a block chain of length-prefixed sections that reproduces every offset the earlier hand-built decoder read (same doc). The Stage 3 now reads through that map, see "Firmware-layout readers" below.
 
 ## File-type matrix (target)
 
@@ -191,7 +191,8 @@ Then **Stage 2 / 2EX** need their own map. The Stage 2 firmware writes a flat bo
 | `.ns4o/.ns4n/.ns4y` | ns4 | preset | Existing sibling handling |
 | `.nsmp4` | ns4 | sample | Header-only today (`sample.ts`); audio out of scope |
 | `.npno` | piano | piano lib | Header/metadata in `nsp.ts`; **audio decoded** (`nsp-audio.ts`, reference `scripts/npno-decode.py`; codec from the Stage 4 piano DSP, `docs/NSP-FORMAT.md`) — local audition in the piano inspector |
-| `.ns3p/.ns3f/.ns3y` | ns3 | program | **Recognized (Tier 1 / #22)**; body decode = Tier 2 (M2–M4) |
+| `.ns3f` | ns3 | program | **Read-only, firmware layout** (`lib/ns3`) — Stage 3 OS 2.64 registry, 175 parameters + morph deltas; the panel view is built on it |
+| `.ns3l/.ns3y` | ns3 | live / synth preset | Recognized; `.ns3l` has the `.ns3f` body and `.ns3y` is one Synth block of it, neither routed to the reader yet |
 | `.ns2p/.ns2s` | ns2 | program | Recognized (header undecoded); decode = delta off NS3 |
 | `.ngp/.ngl` | ng (Grand) | program | **Read-only, firmware layout** (`lib/ng`) — Piano 4 layout + `Com_kSplPos`; not yet checked on a real file |
 | `.np6p/.np6l` | np6 | program | **Read-only, firmware layout** (`lib/np6`) — Grand 2 layout + 3 deltas; not yet checked on a real file |
@@ -202,7 +203,7 @@ Then **Stage 2 / 2EX** need their own map. The Stage 2 firmware writes a flat bo
 | `.no3p/.no3l` | no3 | program | **Read-only, firmware layout, provisional** (`lib/no3`) — block order not yet confirmed on a real file |
 | `.ns3b/.ns2b/.ns3fb/…` | ns3/ns2 | bundle | Existing ZIP reader + extensions (M1 gap) |
 
-## Firmware-layout readers (Grand, Grand 2, Piano 4/5/6, Electro 7, Organ 3)
+## Firmware-layout readers (Stage 3, Grand, Grand 2, Piano 4/5/6, Electro 6/7, Organ 3, Wave 2)
 
 These models have no third-party oracle, but their own firmware's parameter
 registry gives the program layout directly (static analysis, knowledge only —
@@ -254,13 +255,38 @@ not yet confirmed on a real file") on every decode, and their coverage byte maps
 are `candidate`, not `confirmed`. The Grand's three-letter tag is padded in the
 header; `fileTypeTag` drops trailing NUL/space so it compares as `ngp`.
 
+**Stage 3.** The Stage 3 (`ns3f`) reads the same way: `stage-3` in the generator
+(the ns3 CSV dialect: a `section` column, file bit offsets, and one `[Slot B]` row
+for slot A's blocks repeated 263 bytes later), `ns3/layout.generated.ts`, and
+`decodeFwProgram` in `ns3/decode.ts`.
+
+| Model | Tag | Firmware source | Body | Confidence |
+|---|---|---|---|---|
+| Stage 3 | `ns3f` | OS 2.64 registry `FUN_c0075058`; Multi format `FUN_c007a51c`, serialiser `FUN_c00e0108` (3.00–3.04) | 548 B, 19 blocks | high — reproduces every offset the earlier decoder read from real files |
+
+It differs from the readers above in four ways:
+
+- **Morph deltas.** It is the one block-chain layout that carries them, as `<field>.morphWheel`,
+  `.morphAfterTouch` and `.morphCtrlPedal`. Each delta is one bit wider than its
+  parameter and stored as `delta + (max − min)`; the parameter count leaves them out.
+- **Typed shape.** `decodeNs3` builds the typed `Ns3Panel` shape that the rich view,
+  the presenter and the migration use from the values.
+- **Legacy header.** A legacy (formatType 0) header is 0x14 bytes shorter, so the
+  body is read from 0x18.
+- **Versions.** A 2.0x body has other slot-block sizes (the firmware converts it on
+  load), so it opens header-only. Parameters added in 3.03 and 3.04 get their
+  defaults in older files, as the firmware does.
+
 **Follow-ups.** The block-chain reader lives in `clavia/block-chain.ts`; it now
-runs every registry-family reader (Grand, Grand 2, Piano 4/5/6, Electro 6/7,
-Organ 3, Wave 2), and `clavia/legacy-record.ts` the Lead 4 / Lead A1 / Electro 4
-records. A real `.ngp`, `.np6p`, `.ne7p` or `.no3p` file is the next check for
-each (expected sizes 134, 229, 397 and 248 bytes); for the others, the
+runs every registry-family reader (Stage 3, Grand, Grand 2, Piano 4/5/6,
+Electro 6/7, Organ 3, Wave 2), and `clavia/legacy-record.ts` the Lead 4 / Lead A1
+/ Electro 4 records. A real `.ngp`, `.np6p`, `.ne7p` or `.no3p` file is the next
+check for each (expected sizes 134, 229, 397 and 248 bytes); for the others, the
 gitignored corpus tests (`describe.skipIf` on `fixtures/<model>`) pin the
-firmware reading against the values the old decoders had confirmed.
+firmware reading against the values the old decoders had confirmed. A real
+`.ns3f` should open with `00 00 01 30 11` at 0x2C (version 3.04, then the
+17-byte MultiCommon block). Routing `.ns3l` and `.ns3y` to the Stage 3 reader is
+still open.
 
 **Legacy records (Electro 4, Lead 4, Lead A1).** These formatType-0 files are
 not block chains: the u16 record version sits at file 0x14 and the record data

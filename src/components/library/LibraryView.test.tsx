@@ -78,9 +78,9 @@ describe('LibraryView', () => {
     expect(html).toContain('Import file');
     // engine glimpse chips from the EngineSummary (piano+synth, organ) —
     // each color-codes by kind so a multi-engine patch reads apart at a glance
-    expect(spanFor(html, 'piano')).toContain('text-ink');
-    expect(spanFor(html, 'synth')).toContain('text-lcd-cyan');
-    expect(spanFor(html, 'organ')).toContain('text-red');
+    expect(spanFor(html, 'piano')).toContain('text-engine-piano');
+    expect(spanFor(html, 'synth')).toContain('text-engine-synth');
+    expect(spanFor(html, 'organ')).toContain('text-engine-organ');
   });
 
   it('renders the category facet only when more than one category is present', () => {

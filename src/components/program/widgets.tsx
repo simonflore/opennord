@@ -1,6 +1,7 @@
 /**
  * Generic presentational widgets for Program Studio. Pure, stateless, styled by
- * src/styles/nord.css. They render plain values from the view-model — no decoding.
+ * src/styles/nord.css (the instrument panel: LED buttons, knobs, drawbars, LCD).
+ * They render plain values from the view-model — no decoding.
  */
 
 import type { ReactNode } from 'react';
@@ -21,10 +22,11 @@ export function MorphMark({ morph }: { morph: Morph }) {
 }
 
 /**
- * A knob dial with a value readout and caption. Pass `fill` (0–100) to draw the
- * red arc at that position; omit it for a neutral dial. v1 knobs are mostly
- * textual (the value lives in the readout), so most callers omit `fill` rather
- * than show an arc that doesn't reflect the real parameter value. Pass `morph`
+ * A knob dial with a value readout and caption. Pass `fill` (0–100) to light the
+ * value ring and point the knob at that position; omit it for a neutral dial.
+ * v1 knobs are mostly textual (the value lives in the readout), so most callers
+ * omit `fill` rather than show an arc that doesn't reflect the real parameter
+ * value. Pass `morph`
  * to flag a value that moves with wheel / aftertouch / pedal.
  */
 export function Knob({ value, caption, fill, morph }: { value: string; caption: string; fill?: number; morph?: Morph }) {
@@ -39,16 +41,20 @@ export function Knob({ value, caption, fill, morph }: { value: string; caption: 
   );
 }
 
-/** Faithful vertical drawbars: readout, draw-tab (height = level), footage, morph. */
+/**
+ * Faithful vertical drawbars: readout, a chrome rod pulled out to `level` (0–8)
+ * ending in its coloured cap, footage, morph. The cap renders even at 0 (pushed
+ * fully in), as on the instrument; nord.css sizes the rod from `--lvl`.
+ */
 export function DrawbarStack({ drawbars }: { drawbars: DrawbarView[] }) {
   return (
     <div className="ps-dbstack">
       {drawbars.map((d, i) => (
         <div className="ps-db" key={i}>
           <div className="ps-db-num">{d.label}</div>
-          <div className="ps-db-track">
-            {d.level > 0 && <div className={`ps-db-tab ${d.color}`} style={{ height: `${(d.level / 8) * 100}%` }} />}
-            {d.morph && <div className="ps-db-morph" style={{ bottom: `${(d.level / 8) * 100}%` }} title={morphTooltip(d.morph)} />}
+          <div className="ps-db-track" style={{ ['--lvl' as string]: Math.max(0, Math.min(8, d.level)) }}>
+            <div className={`ps-db-tab ${d.color}`} />
+            {d.morph && <div className="ps-db-morph" title={morphTooltip(d.morph)} />}
           </div>
           {d.footage && <div className="ps-db-foot">{d.footage}</div>}
         </div>
@@ -62,7 +68,7 @@ export function ModelSelector({ models, active }: { models: readonly string[]; a
   return (
     <div className="ps-models">
       {models.map((m) => (
-        <span key={m} className={m.toUpperCase() === active.toUpperCase() ? 'ps-model on' : 'ps-model'}>{m}</span>
+        <span key={m} className={m.toUpperCase() === active.toUpperCase() ? 'ps-key ps-model on' : 'ps-key ps-model'}>{m}</span>
       ))}
     </div>
   );
@@ -71,8 +77,8 @@ export function ModelSelector({ models, active }: { models: readonly string[]; a
 export interface ToggleItem { label: string; on: boolean; }
 
 /**
- * A labeled panel section with a row of read-only on/off pills. `on` items get the
- * red accent; off items are dimmed (parity, not hidden). `groupDim` dims the whole
+ * A labeled panel section with a row of read-only LED buttons. `on` items light
+ * their LED; off items stay dark (parity, not hidden). `groupDim` dims the whole
  * group (used for percussion on non-B3 models).
  */
 export function ToggleGroup({ label, items, groupDim }: { label: ReactNode; items: ToggleItem[]; groupDim?: boolean }) {
@@ -80,13 +86,13 @@ export function ToggleGroup({ label, items, groupDim }: { label: ReactNode; item
     <div className={groupDim ? 'ps-tgroup dim' : 'ps-tgroup'}>
       <p className="ps-tgroup-lbl">{label}</p>
       <div className="ps-tgrow">
-        {items.map((it, i) => <span key={i} className={it.on ? 'ps-tg-btn on' : 'ps-tg-btn off'}>{it.label}</span>)}
+        {items.map((it, i) => <span key={i} className={it.on ? 'ps-key ps-tg-btn on' : 'ps-key ps-tg-btn off'}>{it.label}</span>)}
       </div>
     </div>
   );
 }
 
-/** Blue synth LCD: a big primary line + a smaller secondary line. */
+/** The LCD (identity only): a big primary line + a smaller secondary line. */
 export function Lcd({ primary, secondary }: { primary: string; secondary: string }) {
   return (
     <div className="ps-lcd">
@@ -102,6 +108,19 @@ export function Chip({ label, detail }: { label: string; detail: string }) {
     <div className="ps-chip">
       <div className="t">{label}</div>
       {detail}
+    </div>
+  );
+}
+
+/** A reader's warnings about the file (a layout mismatch, out-of-range values, …); nothing when there are none. */
+export function ReadoutWarnings({ warnings }: { warnings?: readonly string[] }) {
+  if (!warnings || warnings.length === 0) return null;
+  return (
+    <div className="ps-card" style={{ marginTop: 12 }}>
+      <h4>Readout warnings</h4>
+      <ul className="ps-sub" style={{ margin: '8px 0 0', paddingLeft: 18, color: 'var(--warn)' }}>
+        {warnings.map((w) => <li key={w}>{w}</li>)}
+      </ul>
     </div>
   );
 }
@@ -148,7 +167,7 @@ export function EnvCurve({ a, d, s, r, caption }: { a: number; d: number; s: num
   return (
     <div className="ps-env">
       <svg viewBox="0 0 120 44" className="ps-env-svg" role="img" aria-label={caption ?? 'envelope'}>
-        <path d={path} fill="none" stroke="var(--red)" strokeWidth="2" strokeLinejoin="round" />
+        <path d={path} fill="none" stroke="var(--ink)" strokeWidth="1.5" strokeLinejoin="round" />
       </svg>
       {caption && <span className="ps-env-cap">{caption}</span>}
     </div>

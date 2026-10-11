@@ -4,6 +4,7 @@ import type { EngineCardModel, FxChipModel, HeaderView } from '../../lib/clavia/
 import { ProgramHeader } from './ProgramHeader';
 import { EngineCard } from './EngineCard';
 import { FxRow } from './FxRow';
+import { ReadoutWarnings } from './widgets';
 
 const SAMPLE_LIBRARY = 'https://www.nordkeyboards.com/sounds/sample-library/';
 
@@ -16,15 +17,18 @@ export interface SampleRef { key: string; label: string; }
  * program-global FX row → referenced-samples strip. Each model builds the data via
  * its own view.ts and renders this.
  */
-export function BandedProgramView({ header, bands, globalFxChips, sampleRefs }: {
+export function BandedProgramView({ header, bands, globalFxChips, sampleRefs, warnings }: {
   header: HeaderView;
   bands: ProgramBand[];
   globalFxChips?: FxChipModel[];
   sampleRefs: SampleRef[];
+  /** Reader anomalies (a file the layout doesn't match, out-of-range values, …). */
+  warnings?: readonly string[];
 }) {
   return (
     <div className="ps">
       <ProgramHeader header={header} />
+      <ReadoutWarnings warnings={warnings} />
       {bands.map((band) => (
         <section className="ps-panel" key={band.id}>
           <div className="ps-panel-lbl">{band.label}</div>
