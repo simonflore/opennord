@@ -46,7 +46,7 @@ describe('MatrixView', () => {
     expect(render()).toMatch(/Nord Grand<\/th><td[^>]*>\d+ params/);
     expect(render()).toMatch(/Nord Electro 3<\/th><td[^>]*>82 params/);
     expect(render()).toMatch(/Nord Electro 5<\/th><td[^>]*>129 params/);
-    expect(render()).toMatch(/Nord C2<\/th><td[^>]*>139 params/);
+    expect(render()).toMatch(/Nord C2<\/th><td[^>]*>86 params/);
   });
   it('prompts to connect a Nord when none is connected', () => {
     expect(render()).toContain('the check is read-only');

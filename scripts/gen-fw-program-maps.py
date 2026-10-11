@@ -420,6 +420,10 @@ MODELS = {
                      '66 containers',
         # Container order and positions from the firmware; block names and the file alignment medium.
         'confidence': lambda row: 'medium',
+        # As on the C2D, the upper and lower manuals, the numbered presets / drawbar sets /
+        # couplers and the four per-organ effect sets share their descriptor tables.
+        'sets': lambda block: re.sub(r'(Upper|Lower)$', 'Manual', re.sub(r'(Upper|Lower)(?=.)', '', re.sub(
+            r'\d+$', '', re.sub(r'^effects(B3|Vox|Farf|Pipe)$', 'effectsOrgan', block)))),
         'records': [{'const': 'NCP_LAYOUT', 'type': 'NcpFieldKey', 'version': 100, 'blocks': None}],
     },
     'stage-3': {
