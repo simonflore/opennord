@@ -28,7 +28,8 @@ export function useOpenEntry() {
   const router = useRouter();
   return useMemo(() => {
     const how = (list: string) => {
-      const { pathname, state } = router.state.location;
+      const { pathname: raw, state } = router.state.location;
+      const pathname = raw.replace(/\/+$/, ''); // `/library/presets/` is the list too
       if (pathname === list) return { replace: false, state: { fromList: true } };
       if (isUnder(pathname, list)) return { replace: true, state: { fromList: !!state.fromList } };
       return { replace: false, state: { fromList: false } };
