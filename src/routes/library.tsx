@@ -7,22 +7,21 @@ import { LibrarySplit } from '@/components/library/LibrarySplit';
 export const LibraryIndexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library',
-  beforeLoad: () => { throw redirect({ to: '/library/programs' }); },
+  beforeLoad: () => { throw redirect({ to: '/library/programs/{-$programId}' }); },
 });
 
+/**
+ * The program list, with one program open beside it when the path names one.
+ * One route (an optional id), so moving between the list and a program keeps
+ * the same page mounted — its scroll and state survive.
+ */
 export const ProgramsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/library/programs',
-  component: () => <LibrarySplit />,
+  path: '/library/programs/{-$programId}',
+  component: ProgramsScreen,
 });
 
-export const ProgramRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/library/programs/$programId',
-  component: ProgramScreen,
-});
-
-function ProgramScreen() {
-  const { programId } = useParams({ from: '/library/programs/$programId' });
+function ProgramsScreen() {
+  const { programId } = useParams({ from: ProgramsRoute.id });
   return <LibrarySplit selectedId={programId} />;
 }

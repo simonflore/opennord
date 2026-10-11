@@ -49,6 +49,7 @@ export function LibraryCard({
       role="button"
       tabIndex={0}
       aria-current={selected ? 'true' : undefined}
+      data-open-row={selected || undefined}
       onClick={onOpen}
       onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onOpen(); } }}
     >

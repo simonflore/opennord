@@ -8,6 +8,7 @@
  */
 
 import { Wordmark } from '../shell/Wordmark';
+import { Led } from '../shell/Led';
 import '../../styles/nord.css';
 import type { ReactNode } from 'react';
 import { b3DrawbarViews, drawbarViews } from '../../lib/clavia/drawbars';
@@ -101,6 +102,14 @@ export function InstrumentKit() {
             { label: 'On', on: true }, { label: '2nd', on: false }, { label: '3rd', on: true }, { label: 'Fast', on: false },
           ]} />
           <ToggleGroup label="Not available on this model" groupDim items={[{ label: 'On', on: false }, { label: 'Soft', on: false }]} />
+        </Section>
+
+        <Section title="Status LEDs · shell">
+          <div className="flex items-center gap-4 font-mono text-[11px] text-dim">
+            <span className="inline-flex items-center gap-2"><Led on={false} /> off</span>
+            <span className="inline-flex items-center gap-2"><Led on /> open / selected</span>
+            <span className="inline-flex items-center gap-2"><Led on tone="connected" /> Nord connected</span>
+          </div>
         </Section>
 
         <Section title="Knobs · ring = where in the range, number = the value">

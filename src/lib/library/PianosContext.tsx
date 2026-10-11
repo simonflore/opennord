@@ -17,6 +17,7 @@ import { WriteBlockedError } from '@/lib/device/write-guard';
 import { buildOccupancy, type Addr } from '@/lib/device/reorg';
 import { PARTITION_PIANO } from '@/lib/device/opcodes';
 import { downloadBytes } from '@/lib/download';
+import { useListFilters } from '@/lib/library/useListFilters';
 
 // pure helper, exported for tests
 export function selectedPianoBytes(entries: PianoEntry[], selected: Set<string>): number {
@@ -26,7 +27,7 @@ export function selectedPianoBytes(entries: PianoEntry[], selected: Set<string>)
 /** Merges device + folder pianos into one filtered/sorted list and owns the
  *  Pianos-screen view state. Mirrors SamplesContext with piano-specific deltas. */
 function usePianosStateValue() {
-  const { session, pianoEntries, setPianoEntries } = useDevice();
+  const { session, pianoEntries, setPianoEntries, isCurrent } = useDevice();
   const folder = useFolder();
   const prefs = usePianosPrefs();
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
@@ -44,17 +45,25 @@ function usePianosStateValue() {
     setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const clearSelected = () => setSelected(new Set());
 
+  // The usage tags and the picked pianos name this Nord's slots: a new
+  // connection starts without them, so nothing picked on one Nord is removed
+  // from the next.
+  useEffect(() => {
+    setUsage(null); setScanPct(null); setUnusedOnly(false); setSelected(new Set());
+  }, [session]);
+
   async function scanUsage() {
     if (!session) return;
     setScanPct(0);
     try {
-      const u = await findUnusedPianos(session, (done, total) =>
-        setScanPct(total ? Math.round((done / total) * 100) : 0));
-      setUsage(u);
+      const u = await findUnusedPianos(session, (done, total) => {
+        if (isCurrent(session)) setScanPct(total ? Math.round((done / total) * 100) : 0);
+      });
+      if (isCurrent(session)) setUsage(u); // not tags for another Nord connected meanwhile
     } catch {
-      setUsage(null); // scan failed (unsupported/disconnected) — leave the list untagged
+      if (isCurrent(session)) setUsage(null); // scan failed (unsupported/disconnected) — leave the list untagged
     } finally {
-      setScanPct(null);
+      if (isCurrent(session)) setScanPct(null); // a scan on another Nord's session doesn't touch this one's
     }
   }
 
@@ -87,7 +96,7 @@ function usePianosStateValue() {
       ? filterPianos(allEntries, source, query).filter((e) => e.unused)
       : filterPianos(allEntries, source, query),
     prefs.sort, prefs.favorites);
-  const entryById = (id: string) => allEntries.find((e) => e.id === id);
+  const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
 
   const removableUnused = allEntries.filter((e) => e.source === 'nord' && e.unused && e.device);
   const selectAllUnused = () => setSelected(new Set(removableUnused.map((e) => e.id)));
@@ -120,10 +129,11 @@ function usePianosStateValue() {
       const addrs: Addr[] = toRemove.map((e) => ({ bank: e.device!.bank, slot: e.device!.slot }));
       const res = await session.withSession(PARTITION_PIANO, () =>
         executePlan(sessionDeviceIO(session), PARTITION_PIANO, planOffload(addrs, 'pianos'), occ,
-          { onProgress: (p) => setRemovePct(Math.round((p.opIndex / p.opCount) * 100)) }));
+          { onProgress: (p) => { if (isCurrent(session)) setRemovePct(Math.round((p.opIndex / p.opCount) * 100)); } }));
       // 2. refresh the device piano list
-      try { setPianoEntries(await enumeratePianoLibrary(session)); } catch { /* leave as-is */ }
-      clearSelected();
+      // Unless the Nord changed meanwhile: then this list is the old one's.
+      try { const es = await enumeratePianoLibrary(session); if (isCurrent(session)) setPianoEntries(es); } catch { /* leave as-is */ }
+      if (isCurrent(session)) clearSelected(); // not another Nord's picks
       return res.ok
         ? { removed: toRemove.length, failed: copyFailed }
         : { removed: 0, failed: copyFailed + toRemove.length };
@@ -132,12 +142,15 @@ function usePianosStateValue() {
     }
   }
 
-  /** Every filter off and the search cleared (the list's "clear filters"). */
-  const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setUnusedOnly(false); }, []);
-  /** Show one entry by name: every filter off, the search set to it (the ⌘K palette's jump). */
-  const reveal = useCallback((name: string) => { clearFilters(); setQuery(name); }, [clearFilters]);
+  // The list's filters, once: `filtered` and the "clear filters" button both read
+  // this, and a filter counts while set even if its facet is hidden right now.
+  const { filtered, clearFilters, ensureListed } = useListFilters(shown, [
+    { active: query.trim() !== '', reset: () => setQuery('') },
+    { active: source !== 'all', reset: () => setSource('all') },
+    { active: unusedOnly, reset: () => setUnusedOnly(false) },
+  ]);
   return {
-    all: allEntries, clearFilters, reveal,
+    all: allEntries, clearFilters, filtered, ensureListed,
     shown, source, setSource, query, setQuery, prefs, entryById, nordCount, localCount, showSourceFacet, folder, session,
     // Piano-usage cleanup (device-connected)
     canScanUsage: !!session, scanUsage, scanPct, unusedCount,

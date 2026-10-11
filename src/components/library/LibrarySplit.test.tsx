@@ -8,7 +8,11 @@ let wide = true;
 const entry = { id: 'p1', program: { name: 'Grand' } };
 
 vi.mock('@/lib/responsive', () => ({ useSplitLayout: () => wide }));
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }));
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigate,
+  useRouter: () => ({ state: { location: { pathname: '/library/programs', state: {} } }, history: { back: vi.fn() } }),
+  useLocation: () => false,
+}));
 vi.mock('@/lib/library/LibraryContext', () => ({
   useLibraryState: () => ({
     shown: [], source: 'all', query: '',

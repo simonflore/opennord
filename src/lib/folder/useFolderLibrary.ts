@@ -11,7 +11,8 @@ import type { FolderSource } from './source';
 import type { ScanResult } from './scan';
 import { getErrorMessage } from '../errors';
 
-const EMPTY: ScanResult = { programs: [], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] };
+const emptyResult = (): ScanResult => ({ programs: [], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
+const EMPTY = emptyResult();
 
 /** A user dismissing the folder picker is not an error worth surfacing. */
 function isCancel(err: unknown): boolean {
@@ -60,6 +61,23 @@ export interface FolderLibrary {
   ) => Promise<WriteResult>;
 }
 
+/** `r` with one scan batch added. */
+function withBatch(r: ScanResult, b: ScanBatch): ScanResult {
+  const next = { ...r, programs: [...r.programs], presets: [...r.presets], pianos: [...r.pianos], samples: [...r.samples],
+    errors: [...r.errors], backupPianos: [...r.backupPianos], backupSamples: [...r.backupSamples] };
+  addBatch(next, b);
+  return next;
+}
+/** Add a scan batch to `r` in place (a result nothing renders yet). */
+function addBatch(r: ScanResult, b: ScanBatch) {
+  r.programs.push(...b.programs);
+  r.presets.push(...(b.presets ?? []));
+  r.pianos.push(...b.pianos);
+  r.samples.push(...b.samples);
+  r.errors.push(...b.errors);
+  r.backupPianos.push(...(b.backupPianos ?? []));
+  r.backupSamples.push(...(b.backupSamples ?? []));
+}
 export function useFolderLibrary(makeScanner: () => Scanner = createScanner): FolderLibrary {
   const [folderName, setFolderName] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult>(EMPTY);
@@ -83,15 +101,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
 
   const append = useCallback((gen: number) => (b: ScanBatch) => {
     if (gen !== genRef.current) return;
-    setResult((r) => ({
-      programs: [...r.programs, ...b.programs],
-      presets: [...r.presets, ...(b.presets ?? [])],
-      pianos: [...r.pianos, ...b.pianos],
-      samples: [...r.samples, ...b.samples],
-      errors: [...r.errors, ...b.errors],
-      backupPianos: [...r.backupPianos, ...(b.backupPianos ?? [])],
-      backupSamples: [...r.backupSamples, ...(b.backupSamples ?? [])],
-    }));
+    setResult((r) => withBatch(r, b));
   }, []);
 
   /** Run Pass A on a source, then apply remembered choices / open the gate.
@@ -102,30 +112,51 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
    *  concurrent applyBundleSelection()'s in-flight expansion of the OLD
    *  folder's bundles. */
   const runScan = useCallback(async (
-    name: string, source: FolderSource, dirHandle?: FileSystemDirectoryHandle | null,
+    name: string, source: FolderSource, dirHandle?: FileSystemDirectoryHandle | null, keep = false,
   ) => {
     const gen = ++genRef.current;
     scannerRef.current?.dispose?.();
     const scanner = makeScanner();
     scannerRef.current = scanner;
-    setResult(EMPTY); setBundles([]); setNewBundles([]); setPickerOpen(false);
-    const onBatch = append(gen);
+    // `keep` (a refresh of the same folder): the last scan stays shown until the
+    // new one has re-read what was showing (the loose files and the remembered
+    // backups), so the lists, and an entry open beside them, don't empty out
+    // meanwhile. A new folder starts empty and fills as it scans.
+    let staged: ScanResult | null = keep ? emptyResult() : null;
+    if (!keep) { setResult(EMPTY); setBundles([]); }
+    setNewBundles([]); setPickerOpen(false); // a backup applied mid-refresh would be overwritten
+    const shown = append(gen);
+    const onBatch = (b: ScanBatch) => {
+      if (!staged) shown(b);
+      else if (gen === genRef.current) addBatch(staged, b);
+    };
 
-    const found = await scanner.scanLoose(source, onBatch);
-    if (gen !== genRef.current) return;
-    setBundles(found);
+    // Up to the commit below, a refresh that fails leaves an emptied list with
+    // the reason (the last scan was kept on screen and mustn't pass for current).
+    let found: BundleDescriptor[], choice: Awaited<ReturnType<typeof loadBundleChoice>>, undecided: BundleDescriptor[];
+    try {
+      found = await scanner.scanLoose(source, onBatch);
+      if (gen !== genRef.current) return;
+      if (!staged) setBundles(found);
 
-    const choice = await loadBundleChoice(name, dirHandle ?? undefined);
-    if (gen !== genRef.current) return;
-    const decided = new Set(choice?.decided ?? []);
-    const skipped = new Set(choice?.skipped ?? []);
-    const undecided = found.filter((b) => !decided.has(b.path) && !skipped.has(b.path));
-    setNewBundles(undecided);
+      choice = await loadBundleChoice(name, dirHandle ?? undefined);
+      if (gen !== genRef.current) return;
+      const decided = new Set(choice?.decided ?? []);
+      const skipped = new Set(choice?.skipped ?? []);
+      undecided = found.filter((b) => !decided.has(b.path) && !skipped.has(b.path));
+      if (!staged) setNewBundles(undecided);
 
-    // Re-apply remembered "load" choices silently.
-    const toReload = found.filter((b) => decided.has(b.path)).map((b) => b.path);
-    if (toReload.length > 0) await scanner.expandBundles(toReload, onBatch);
-    if (gen !== genRef.current) return;
+      // Re-apply remembered "load" choices silently.
+      const toReload = found.filter((b) => decided.has(b.path)).map((b) => b.path);
+      if (toReload.length > 0) await scanner.expandBundles(toReload, onBatch);
+      if (gen !== genRef.current) return;
+    } catch (err) {
+      if (!staged || gen !== genRef.current) throw err;
+      setResult({ ...emptyResult(), errors: [{ path: '(folder)', reason: `Couldn't refresh the folder: ${getErrorMessage(err)}` }] });
+      setBundles([]);
+      return;
+    }
+    if (staged) { setResult(staged); setBundles(found); setNewBundles(undecided); staged = null; }
 
     if (undecided.length >= 2) {
       setPickerOpen(true);
@@ -241,7 +272,14 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     if (!handle || !folderName) return;
     const op = ++opRef.current;
     setBusy(true);
-    try { await runScan(folderName, rescan(handle), handle); } finally { if (op === opRef.current) setBusy(false); }
+    try {
+      await runScan(folderName, rescan(handle), handle, true);
+    } catch (err) {
+      // Anything else (the folder can't be read at all, a backup failing to load
+      // after the new list is in) is reported beside the list it leaves standing.
+      if (op !== opRef.current) return;
+      setResult((r) => ({ ...r, errors: [...r.errors, { path: '(folder)', reason: `Couldn't refresh the folder: ${getErrorMessage(err)}` }] }));
+    } finally { if (op === opRef.current) setBusy(false); }
   }, [handle, folderName, runScan]);
 
   const forget = useCallback(async () => {
@@ -278,7 +316,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     const existing = await listDirNames(handle);
     const finalName = resolveWriteName(name, opts.mode, existing);
     await writeFileToDir(handle, finalName, write);
-    await refresh();
+    await refresh(); // a failed rescan says so in the list; the file is written either way
     return { target: 'folder', path: finalName };
   }, [handle, refresh]);
 
