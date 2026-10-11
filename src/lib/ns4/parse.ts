@@ -1,7 +1,7 @@
 import type { NS4Program, NS4Layer, Morphable, Ns4SampleRef, Ns4FileKind, Ns4OrganFx } from './types';
 import { hasCbinMagic, fileTypeTag, readCbinHeader } from '../clavia/cbin';
 import { buildParamMap } from './maps';
-import { decodeAllParams } from './coverage';
+import { decodeAllParams, type DecodedParam } from './coverage';
 import { programCategoryName } from '../clavia/categories';
 import { formatSlot } from '../clavia/slot';
 
@@ -46,8 +46,39 @@ export function parseNs4Program(bytes: Uint8Array): NS4Program {
   }
 
   // Decode all params (two-pass: raw values then interpret + morph resolution).
-  const decoded = decodeAllParams(bytes, buildParamMap());
+  const { layers, organFx, activeScene } = decodeNs4Engines(decodeAllParams(bytes, buildParamMap()));
 
+  // ── CBIN header metadata (bytes 0x00–0x2B; verified) ──
+  // bank/location/category/version sit in front of the bit-packed body. The
+  // program *name* is not in the file — it's the filename, set on import.
+  const header = readCbinHeader(bytes);
+
+  return {
+    parsed: true,
+    kind,
+    category: programCategoryName(header.category),
+    categoryId: header.category,
+    bank: header.bank,
+    location: header.location,
+    slot: formatSlot(header.bank, header.location),
+    programVersion: formatVersion(header.versionRaw),
+    activeScene,
+    layers,
+    organFx,
+    bytes,
+    warnings,
+  };
+}
+
+/**
+ * Build the engine layers + global organ FX from decoded params. Split out of
+ * {@link parseNs4Program} so a preset (the same engine block, relocated — see
+ * preset.ts) fills the same NS4Layer model and renders with the Program cards.
+ * Layers whose `layer on/off` param is absent from `decoded` are skipped.
+ */
+export function decodeNs4Engines(decoded: DecodedParam[]): {
+  layers: NS4Layer[]; organFx: Ns4OrganFx; activeScene: 'I' | 'II';
+} {
   // Key = "group:name" to avoid collisions between piano ('p') and synth ('y') params
   // that share the same base name (e.g. both have "volume [A]", "layer on/off [A]").
   const byKey = new Map(decoded.map((d) => [`${d.group}:${d.name}`, d]));
@@ -614,25 +645,10 @@ export function parseNs4Program(bytes: Uint8Array): NS4Program {
     },
   };
 
-  // ── CBIN header metadata (bytes 0x00–0x2B; verified) ──
-  // bank/location/category/version sit in front of the bit-packed body. The
-  // program *name* is not in the file — it's the filename, set on import.
-  const header = readCbinHeader(bytes);
-
   return {
-    parsed: true,
-    kind,
-    category: programCategoryName(header.category),
-    categoryId: header.category,
-    bank: header.bank,
-    location: header.location,
-    slot: formatSlot(header.bank, header.location),
-    programVersion: formatVersion(header.versionRaw),
-    activeScene: m('which layer scene is active') === 'II' ? 'II' : 'I',
     layers: [...organLayers, ...pianoLayers, ...synthLayers],
     organFx,
-    bytes,
-    warnings,
+    activeScene: m('which layer scene is active') === 'II' ? 'II' : 'I',
   };
 }
 

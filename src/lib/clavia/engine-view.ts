@@ -89,7 +89,7 @@ export type EngineCardModel =
   | { kind: 'piano'; title: string; volume: VolumeView; piano: PianoCardModel; stats: Stat[] }
   | {
       kind: 'synth'; title: string; volume: VolumeView; synth: SynthCardModel;
-      env: EnvCurveView | null; modEnv?: EnvCurveView; stats: Stat[];
+      env: EnvCurveView | null; modEnv?: EnvCurveView; filterEnv?: EnvCurveView; stats: Stat[];
     };
 
 /** Map a "-4.7 dB" style volume to a 0–100 meter fill, clamped to a -40..+6 dB window. */

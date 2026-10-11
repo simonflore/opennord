@@ -17,7 +17,7 @@ export function EngineCard({ card, children }: { card: EngineCardModel; children
       <h4>{card.title}</h4>
       {card.kind === 'organ' && <OrganPanel m={card.organ} />}
       {card.kind === 'piano' && <PianoBody m={card.piano} stats={card.stats} />}
-      {card.kind === 'synth' && <SynthBody m={card.synth} env={card.env} modEnv={card.modEnv} stats={card.stats} />}
+      {card.kind === 'synth' && <SynthBody m={card.synth} env={card.env} modEnv={card.modEnv} filterEnv={card.filterEnv} stats={card.stats} />}
       <Meter label="vol" value={card.volume.value} fill={card.volume.fill} morph={card.volume.morph} />
       {children}
     </div>
@@ -85,7 +85,9 @@ function PianoBody({ m, stats }: { m: PianoCardModel; stats: Stat[] }) {
   );
 }
 
-function SynthBody({ m, env, modEnv, stats }: { m: SynthCardModel; env: EnvCurveView | null; modEnv?: EnvCurveView; stats: Stat[] }) {
+function SynthBody({ m, env, modEnv, filterEnv, stats }: {
+  m: SynthCardModel; env: EnvCurveView | null; modEnv?: EnvCurveView; filterEnv?: EnvCurveView; stats: Stat[];
+}) {
   const filterType = m.filterType !== '—' ? m.filterType : '';
   const secondary = [m.oscDetail, filterType].filter(Boolean).join(' · ');
   return (
@@ -98,6 +100,7 @@ function SynthBody({ m, env, modEnv, stats }: { m: SynthCardModel; env: EnvCurve
       </div>
       {env && <EnvCurve a={env.a} d={env.d} s={env.s} r={env.r} caption="amp env" />}
       {modEnv && <EnvCurve a={modEnv.a} d={modEnv.d} s={modEnv.s} r={modEnv.r} caption="mod env" />}
+      {filterEnv && <EnvCurve a={filterEnv.a} d={filterEnv.d} s={filterEnv.s} r={filterEnv.r} caption="filter env" />}
       <StatGrid stats={stats} />
     </>
   );

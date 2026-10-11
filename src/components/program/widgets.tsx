@@ -211,7 +211,7 @@ export function EnvCurve({ a, d, s, r, caption }: { a: number; d: number; s: num
   const path = `M2,40 L${x1.toFixed(1)},4 L${x2.toFixed(1)},${sy.toFixed(1)} L${x3.toFixed(1)},${sy.toFixed(1)} L${x4.toFixed(1)},40`;
   return (
     <div className="ps-env">
-      <svg viewBox="0 0 120 44" className="ps-env-svg" role="img" aria-label={caption ?? 'envelope'}>
+      <svg viewBox="0 0 120 44" preserveAspectRatio="xMinYMid meet" className="ps-env-svg" role="img" aria-label={caption ?? 'envelope'}>
         <path d={path} fill="none" stroke="var(--ink)" strokeWidth="1.5" strokeLinejoin="round" />
       </svg>
       {caption && <span className="ps-env-cap">{caption}</span>}
