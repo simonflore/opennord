@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { useLocation, useNavigate, useRouter } from '@tanstack/react-router';
 import { Button, SplitView } from '@/components/ui';
 import type { NavTo } from '@/components/shell/nav';
+import { useLeaveEntry } from './openEntry';
 
 /**
  * Shared master/detail shell for every Library category (Programs, Presets,
@@ -13,19 +13,6 @@ import type { NavTo } from '@/components/shell/nav';
  * list's route. The parent still decides `wide` (via `useSplitLayout`) and owns
  * selection (from the route).
  */
-/**
- * Back from an entry to its `list`: a step back in history when the entry was
- * opened from that list's row, so the system Back doesn't then reopen it;
- * otherwise (a deep link, a ⌘K jump) the entry's history entry is replaced by
- * the list, for the same reason.
- */
-export function useBackToList(list: NavTo): () => void {
-  const navigate = useNavigate();
-  const router = useRouter();
-  const fromList = useLocation({ select: (l) => !!l.state.fromList });
-  return () => (fromList ? router.history.back() : void navigate({ to: list, replace: true }));
-}
-
 export function CategorySplit({
   wide, master, detail, hasDetail, list, onBack, backLabel, selectedId,
 }: {
@@ -38,13 +25,13 @@ export function CategorySplit({
   hasDetail: boolean;
   /** The bare list's route: where back goes. */
   list: NavTo;
-  /** Back to the list; defaults to `useBackToList(list)`. */
+  /** Back to the list; defaults to `useLeaveEntry(list)`. */
   onBack?: () => void;
   backLabel: string;
   /** The open entry: when it changes, its row (`data-open-row`) scrolls into the list's view. */
   selectedId?: string;
 }) {
-  const backToList = useBackToList(list);
+  const backToList = useLeaveEntry(list);
 
   const masterBox = useRef<HTMLDivElement>(null);
   // Once per selection, as soon as its row is on screen: the rows can arrive

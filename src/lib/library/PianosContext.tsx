@@ -45,24 +45,25 @@ function usePianosStateValue() {
     setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const clearSelected = () => setSelected(new Set());
 
-  // The usage tags and the picked samples name this Nord's slots: a new
+  // The usage tags and the picked pianos name this Nord's slots: a new
   // connection starts without them, so nothing picked on one Nord is removed
   // from the next.
   useEffect(() => {
-    setUsage(null); setUnusedOnly(false); setSelected(new Set());
+    setUsage(null); setScanPct(null); setUnusedOnly(false); setSelected(new Set());
   }, [session]);
 
   async function scanUsage() {
     if (!session) return;
     setScanPct(0);
     try {
-      const u = await findUnusedPianos(session, (done, total) =>
-        setScanPct(total ? Math.round((done / total) * 100) : 0));
+      const u = await findUnusedPianos(session, (done, total) => {
+        if (isCurrent(session)) setScanPct(total ? Math.round((done / total) * 100) : 0);
+      });
       if (isCurrent(session)) setUsage(u); // not tags for another Nord connected meanwhile
     } catch {
       if (isCurrent(session)) setUsage(null); // scan failed (unsupported/disconnected) — leave the list untagged
     } finally {
-      setScanPct(null);
+      if (isCurrent(session)) setScanPct(null); // a scan on another Nord's session doesn't touch this one's
     }
   }
 

@@ -45,18 +45,34 @@ export function useOpenEntry() {
 }
 
 /**
- * After an entry is removed: back to the bare `list` if that entry is the one
- * open now (read from the route when called, so a removal that finishes after
- * the user moved on closes nothing else), replacing its route so Back doesn't
- * return to an entry that's gone.
+ * Leave the open entry for its `list`: a step back in history when it was
+ * opened from that list, so the system Back doesn't reopen it and the list
+ * isn't in history twice; otherwise (a deep link, a ⌘K jump from elsewhere)
+ * its history entry is replaced by the list, for the same reason. Reads the
+ * route when called; does nothing unless an entry of `list` is open.
  */
-export function useCloseRemoved(list: NavTo) {
+export function useLeaveEntry(list: NavTo): () => void {
   const navigate = useNavigate();
   const router = useRouter();
-  return useCallback((id: string) => {
-    const path = trimSlash(router.state.location.pathname);
-    if (isUnder(path, list) && decodeURIComponent(path.slice(list.length + 1)) === id) {
-      void navigate({ to: list, replace: true });
-    }
+  return useCallback(() => {
+    const { pathname, state } = router.state.location;
+    const path = trimSlash(pathname);
+    if (path === list || !isUnder(path, list)) return;
+    if (state.fromList) router.history.back();
+    else void navigate({ to: list, replace: true });
   }, [navigate, router, list]);
+}
+
+/**
+ * After an entry is removed: leave it (useLeaveEntry) if it's the one open now,
+ * read from the route's params when called, so a removal that finishes after
+ * the user moved on closes nothing else.
+ */
+export function useCloseRemoved(list: NavTo): (id: string) => void {
+  const router = useRouter();
+  const leave = useLeaveEntry(list);
+  return useCallback((id: string) => {
+    const params: Record<string, unknown> = router.state.matches.at(-1)?.params ?? {};
+    if (Object.values(params).includes(id)) leave();
+  }, [router, leave]);
 }

@@ -30,6 +30,9 @@ export function createAppRouter(extra: AnyRoute[] = []) {
     // (or going back in history) returns to where the list was, on a phone too.
     scrollRestoration: true,
     getScrollRestorationKey: (location) => trimSlash(location.pathname),
+    // The split's detail pane stays mounted between entries; a newly opened
+    // entry starts at its top instead of inheriting the last one's scroll.
+    scrollToTopSelectors: ['.on-split__detail'],
     defaultNotFoundComponent: () => {
       if (typeof window !== 'undefined') window.location.hash = '#/library/programs';
       return null;
