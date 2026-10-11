@@ -39,6 +39,7 @@ Usage (from packages/core):
     python3 scripts/gen-fw-program-maps.py lead-4   <lead-4-offsets.csv>       src/lib/nl4/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py lead-a1  <lead-a1-offsets.csv>      src/lib/nla/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py electro-4 <electro-4-offsets.csv>   src/lib/ne4/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py stage-2  <stage-2-offsets.csv>      src/lib/ns2/layout.generated.ts
 
 Wave 2 morph deltas (the keys dialect's "@m1".."@m5" rows) are left out like
 every "@" row: the firmware stores morph deltas as delta + (max - min), one bit
@@ -55,6 +56,17 @@ data from file 0x1A, one MSB-first bitstream of descriptor parameters stored raw
   electro-4: name,block,param_index,stream_bit_offset,...,bit_width,min,max,default,ctl_id,notes
              (not-stored rows have no stream_bit_offset)
 Reserved rows are dropped; the Lead 4 sparse morph lists become `morphLists`.
+
+The Stage 2 (`stage-2`) is a descriptor-container record in the electro-4 dialect,
+with two differences. Its data starts at file 0x2E behind the NSM-era header (0x1A
+behind the legacy one), which the reader handles; the layout's bits are relative
+to the record data either way. And its morphable parameters carry inline deltas
+that the CSV describes in the notes ("morphable: 3 signed deltas of N bits ... at
+stream bits a..b precede the value"), not as rows. With `morphNotes` set, each
+becomes `<parameter key>.morph<Source>` (deltaOf the parameter): one per source in
+the descriptor's mask, one bit wider than the parameter, two's complement (the
+record reader FUN_30032CCE reads deltas with the sign-extending FUN_301EDBE6 and
+keeps them within +/-max).
 """
 import csv
 import re
@@ -228,6 +240,23 @@ MODELS = {
             {'const': 'NE4_LAYOUT', 'type': 'Ne4FieldKey', 'version': None, 'blocks': None},
         ],
     },
+    'stage-2': {
+        'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord Stage 2',
+        'source': 'Stage 2 OS 3.00 parameter containers',
+        'container': 'Stage 2 OS 3.00 container list FUN_300325FA (7 global, then 15 per slot for A and B), '
+                     'record write FUN_30032F1A / read FUN_30032CCE',
+        'dataStart': 'file 0x2E behind the NSM-era header, 0x1A behind the legacy one',
+        'dataBytes': 519,  # 21 global + 2 x 249 (the slot stride)
+        # Inline morph deltas from the CSV notes (see the module docstring).
+        'morphNotes': True,
+        # The layout reproduces every whole-field read of the earlier
+        # ns3-program-viewer-derived decoder, which was checked against real files.
+        'confidence': lambda row: 'high',
+        'records': [
+            # Record version 7 (the load path converts 1-6 up to 7; medium-high).
+            {'const': 'NS2_LAYOUT', 'type': 'Ns2FieldKey', 'version': 7, 'blocks': None},
+        ],
+    },
 }
 
 SKIP_SUFFIX = re.compile(r'(_obsolete|_shadow|_requested|_Dirty)', re.IGNORECASE)
@@ -368,6 +397,27 @@ def ts_str(s):
 
 
 MORPH_LIST = re.compile(r'entries\[(\d+)\] \{param index (\d+)b, source (\d+)b, delta (\d+)b signed\}')
+MORPH_NOTE = re.compile(
+    r'morphable: (\d+) signed deltas of (\d+) bits \(sources ([0-9/]+) = ([^;]*); descriptor mask (\d+)\) '
+    r'at stream bits (\d+)\.\.(\d+) precede the value')
+MORPH_SOURCE_KEYS = {'Wheel': 'morphWheel', 'After Touch': 'morphAfterTouch', 'Ctrl Pedal': 'morphCtrlPedal'}
+
+
+def note_deltas(base, notes):
+    """The inline morph deltas a `morphable: ...` note describes, in stream order (they precede the value)."""
+    m = MORPH_NOTE.search(notes)
+    if not m:
+        return []
+    count, width, _, names, mask, start, end = m.groups()
+    count, width, start, end = int(count), int(width), int(start), int(end)
+    sources = [n.strip() for n in names.split('/')]
+    assert len(sources) == count == bin(int(mask)).count('1'), notes
+    assert width == base['width'] + 1 and start + count * width == end + 1 == base['bit'], (base['key'], notes)
+    span = base['max'] - base['min']
+    return [dict(base, key=f"{base['key']}.{MORPH_SOURCE_KEYS[src]}", name=f"{base['name']} morph {src}",
+                 bit=start + i * width, width=width, min=-span, max=span, enc='twos', cc=None,
+                 src=f"{base['src']} · {src} morph", deltaOf=base['key'], delta=True, **{'def': 0})
+            for i, src in enumerate(sources)]
 
 
 def main_legacy():
@@ -389,7 +439,7 @@ def main_legacy():
         f"// Provenance: {cfg['source']}; {cfg['container']}.",
         "// Static analysis of the firmware's own parameter descriptors. Knowledge only —",
         "// parameter names, bit positions, ranges and defaults; no firmware bytes or",
-        "// tables (docs/LEGAL.md). `bit` is relative to the record data (file 0x1A).",
+        f"// tables (docs/LEGAL.md). `bit` is relative to the record data ({cfg.get('dataStart', 'file 0x1A')}).",
         "import type { LegacyLayout } from '../clavia/legacy-record';",
     ]
     summary = []
@@ -401,6 +451,8 @@ def main_legacy():
         data_bytes = max((bit_of(r) + int(r['bit_width']) + 7) // 8 for r in stored)
         if lists and end_rows:
             assert data_bytes == int(end_rows[0]['byte']), (data_bytes, end_rows[0]['byte'])
+        if 'dataBytes' in cfg:
+            assert data_bytes == cfg['dataBytes'], (data_bytes, cfg['dataBytes'])
 
         fields, morph_lists = [], []
         for i, r in enumerate(stored):
@@ -424,7 +476,7 @@ def main_legacy():
             enc = encoding(r, lo, cfg)
             assert lo >= 0 or enc == 'twos', name
             cc = r['midi_cc'] if lead else r['ctl_id']
-            fields.append({
+            field = {
                 'key': f"{blocks[r['block']]}.{legacy_key(name)}" if blocks else name,
                 'name': name, 'id': int(pid), 'block': r['block'], 'delta': lead and r['morph'] == 'delta',
                 'bit': bit_of(r), 'width': int(r['bit_width']), 'min': lo, 'max': hi,
@@ -432,10 +484,13 @@ def main_legacy():
                 'enc': enc, 'confidence': cfg['confidence'](r),
                 'src': f"{cfg['source']} · {r['block']} {pid}",
                 'cc': int(cc) if cc not in ('', None) else None,
-            })
+            }
+            if cfg.get('morphNotes'):
+                fields.extend(note_deltas(field, r['notes']))
+            fields.append(field)
         for f in fields:
             assert 0 <= f['bit'] and f['bit'] + f['width'] <= data_bytes * 8, f
-            if f['delta']:
+            if f['delta'] and 'deltaOf' not in f:
                 base = [g for g in fields if g['block'] == f['block'] and g['id'] == f['id'] and not g['delta']]
                 assert len(base) == 1, f
                 f['deltaOf'] = base[0]['key']
