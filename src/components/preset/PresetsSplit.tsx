@@ -4,7 +4,6 @@ import { usePresetsState } from '@/lib/library/PresetsContext';
 import { PresetsBrowse } from './PresetsBrowse';
 import { PresetInspector } from './PresetInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
-import { useLeaveRemoved } from '@/components/library/useLeaveRemoved';
 import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSplitLayout } from '@/lib/responsive';
 
@@ -18,7 +17,6 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
   const s = usePresetsState();
   const navigate = useNavigate();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
-  useLeaveRemoved(selectedId, !!entry, '/library/presets');
 
   function importPreset() {
     const input = document.createElement('input');
@@ -55,7 +53,7 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
   );
 
   const detail = entry
-    ? <PresetInspector entry={entry} session={s.session} />
+    ? <PresetInspector key={entry.id} entry={entry} session={s.session} />
     : selectedId ? <EmptyNote className="p-4">This preset isn’t in your library (yet). Pick it from the list.</EmptyNote>
     : <EmptyNote className="p-4">Pick a preset to see its details.</EmptyNote>;
 
@@ -65,7 +63,8 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
       master={list}
       detail={detail}
       hasDetail={!!selectedId}
-      onBack={() => navigate({ to: '/library/presets' })}
+      list="/library/presets"
+      known={!!entry}
       backLabel="← Presets"
       selectedId={selectedId}
     />

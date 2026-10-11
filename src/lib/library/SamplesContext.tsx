@@ -151,27 +151,42 @@ function useSamplesStateValue() {
   // Reads of sample bytes that are still running, by entry id. A second request
   // for the same sample (StrictMode's second effect run, a quick re-open) joins
   // the read in flight instead of pulling it twice; progress goes to the latest
-  // requester. Settled reads are dropped, so the next open reads afresh.
-  const reads = useRef(new Map<string, { bytes: Promise<Uint8Array>; progress: (pct: number) => void }>());
+  // requester. When every requester has gone (aborted its signal), the read is
+  // dropped: a Nord pull still waiting for the session never runs, so the sample
+  // opened next isn't stuck behind the ones clicked past. Settled reads are
+  // dropped too, so the next open reads afresh.
+  type Read = { bytes: Promise<Uint8Array>; progress: (pct: number) => void; users: number; stop: AbortController };
+  const reads = useRef(new Map<string, Read>());
   /**
    * The bytes of a sample, read from wherever it lives: in memory (imported), a
    * Nord pull, or a backup. Rejects with the reason when it can't be read from
-   * here (a Nord sample with no Nord connected, a file that's gone).
+   * here (a Nord sample with no Nord connected, a file that's gone). Abort
+   * `signal` once the bytes aren't wanted any more.
    */
-  const readSample = useCallback((e: SampleEntry, onProgress: (pct: number) => void): Promise<Uint8Array> => {
+  const readSample = useCallback((e: SampleEntry, onProgress: (pct: number) => void, signal: AbortSignal): Promise<Uint8Array> => {
     if (e.source === 'local' && e.bytes) return Promise.resolve(e.bytes);
-    const running = reads.current.get(e.id);
-    if (running) { running.progress = onProgress; return running.bytes; }
-    const read: { bytes: Promise<Uint8Array>; progress: (pct: number) => void } = { bytes: Promise.resolve(new Uint8Array()), progress: onProgress };
-    const raw = e.source === 'nord' && e.device && session
-      ? pullSample(session, e.device, (done, total) => read.progress(total ? Math.round((done / total) * 100) : 0))
-      : e.source === 'backup' && e.backupRef ? extractBackupEntry(folder, e.backupRef) : null;
-    if (!raw) {
-      return Promise.reject(new Error(e.source === 'nord' ? 'connect your Nord to read it.' : 'its file isn’t available.'));
+    let read = reads.current.get(e.id);
+    if (!read) {
+      const r: Read = { bytes: Promise.resolve(new Uint8Array()), progress: onProgress, users: 0, stop: new AbortController() };
+      const raw = e.source === 'nord' && e.device && session
+        ? pullSample(session, e.device, (done, total) => r.progress(total ? Math.round((done / total) * 100) : 0), r.stop.signal)
+        : e.source === 'backup' && e.backupRef ? extractBackupEntry(folder, e.backupRef) : null;
+      if (!raw) {
+        return Promise.reject(new Error(e.source === 'nord' ? 'connect your Nord to read it.' : 'its file isn’t available.'));
+      }
+      r.bytes = raw.finally(() => { if (reads.current.get(e.id) === r) reads.current.delete(e.id); });
+      reads.current.set(e.id, r);
+      read = r;
     }
-    read.bytes = raw.finally(() => reads.current.delete(e.id));
-    reads.current.set(e.id, read);
-    return read.bytes;
+    const r = read;
+    r.progress = onProgress;
+    r.users++;
+    signal.addEventListener('abort', () => {
+      if (--r.users > 0) return;
+      r.stop.abort();
+      if (reads.current.get(e.id) === r) reads.current.delete(e.id);
+    }, { once: true });
+    return r.bytes;
   }, [session, folder]);
 
   // The list's filters, once: `filtered` and the "clear filters" button both read

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
-import { useLeaveRemoved } from '@/components/library/useLeaveRemoved';
 import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSamplesState } from '@/lib/library/SamplesContext';
 import { useSplitLayout } from '@/lib/responsive';
@@ -34,13 +33,13 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   // asks the context for its bytes whenever the sample, its presence in the
   // list or the attempt changes (readSample shares a read already running, so
   // StrictMode doesn't pull twice), and its cleanup ignores a read that a newer
-  // route, a retry or leaving has overtaken. An entry that leaves the list
-  // closes; one that comes back (a folder rescan) is read again. The lookup and
-  // reader are read through a ref: they change identity often.
+  // route, a retry or leaving has overtaken, and lets go of the read. A sample
+  // named before it's listed (a deep link while the folder scans) is read once
+  // it arrives. The lookup and reader are read through a ref: they change
+  // identity often.
   const [attempt, setAttempt] = useState(0);
   const entry = selectedId ? s.entryById(selectedId) : undefined;
   const known = !!entry;
-  useLeaveRemoved(selectedId, known, '/library/samples');
   const io = useRef({ entryById: s.entryById, readSample: s.readSample });
   useEffect(() => { io.current = { entryById: s.entryById, readSample: s.readSample }; });
 
@@ -55,13 +54,14 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     setInspect(null);
     const e = io.current.entryById(selectedId);
     if (!e) return; // named but not (yet) in the list
-    let cancelled = false;
+    const stop = new AbortController();
+    const live = () => !stop.signal.aborted;
     if (e.source !== 'local') setPullPct(0);
-    io.current.readSample(e, (pct) => { if (!cancelled) setPullPct(pct); }).then(
-      (bytes) => { if (!cancelled) setInspect({ id: e.id, bytes, name: e.name, factory: e.factory }); },
-      (err) => { if (!cancelled) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`); },
-    ).finally(() => { if (!cancelled) setPullPct(null); });
-    return () => { cancelled = true; setPullPct(null); };
+    io.current.readSample(e, (pct) => { if (live()) setPullPct(pct); }, stop.signal).then(
+      (bytes) => { if (live()) setInspect({ id: e.id, bytes, name: e.name, factory: e.factory }); },
+      (err) => { if (live()) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`); },
+    ).finally(() => { if (live()) setPullPct(null); });
+    return () => { stop.abort(); setPullPct(null); };
   }, [selectedId, known, attempt]);
 
   // Back to the bare list (which closes the open sample and drops its read).
@@ -151,6 +151,8 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
       master={list}
       detail={detail}
       hasDetail={hasDetail}
+      list="/library/samples"
+      known={known}
       onBack={back}
       backLabel="← Samples"
       selectedId={selectedId}

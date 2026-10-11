@@ -182,9 +182,12 @@ export class NordSession {
    * Run `fn` inside a `begin(partition)` … `end()` session, always ending it.
    * The device only shows "synchronizing" while a session is open, so callers
    * should bracket each operation rather than hold a session open at idle.
+   * An aborted `signal` drops the operation if it's still queued (one that has
+   * begun runs to its end, so the device isn't left mid-transfer).
    */
-  withSession<T>(partition: number, fn: () => Promise<T>): Promise<T> {
+  withSession<T>(partition: number, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
     return this.exclusive(async () => {
+      signal?.throwIfAborted();
       const begun = await this.begin(partition);
       if (begun.status !== 0) throw new SessionRefusedError(partition, begun.status);
       try {
