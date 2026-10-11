@@ -103,7 +103,11 @@
         "zip"
       ],
       "category": "public.app-category.music",
-      "artifactName": "OpenNord-mac.${ext}"
+      "artifactName": "OpenNord-mac.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "electron/entitlements.mac.plist",
+      "entitlementsInherit": "electron/entitlements.mac.plist"
     },
     "win": {
       "target": "nsis"

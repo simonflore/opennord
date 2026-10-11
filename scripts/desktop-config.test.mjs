@@ -37,4 +37,13 @@ describe('desktop build config', () => {
     expect(build.files).toContain('!**/node_modules/usb/build/**');
     expect(scripts['electron:pack:win']).toContain('--x64');
   });
+
+  it('signs macOS with the hardened runtime and the minimal entitlements', () => {
+    expect(build.mac.hardenedRuntime).toBe(true);
+    expect(build.mac.entitlements).toBe('electron/entitlements.mac.plist');
+    expect(build.mac.entitlementsInherit).toBe('electron/entitlements.mac.plist');
+    expect(build.mac.identity).toBeUndefined();
+    const plist = readFileSync(new URL('../electron/entitlements.mac.plist', import.meta.url), 'utf8');
+    expect(plist).toContain('com.apple.security.cs.allow-jit');
+  });
 });
