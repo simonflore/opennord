@@ -1,0 +1,79 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { parseNs4Preset } from './preset';
+import { presetVoices, presetParamSections } from './preset-view';
+import { blankPreset as blank, hasGt } from './gt-fixtures';
+
+describe('presetVoices', () => {
+  it.each([['ns4o', 183, 'organ'], ['ns4n', 195, 'piano'], ['ns4y', 541, 'synth']] as const)(
+    'gives a %s preset one %s card per enabled voice', (tag, size, kind) => {
+      const preset = parseNs4Preset(blank(tag, size))!;
+      const voices = presetVoices(preset);
+      expect(voices).toHaveLength(preset.layers.length);
+      expect(voices[0].card.kind).toBe(kind);
+      expect(voices[0].card.title).toBe(kind.toUpperCase());
+    });
+
+  it('draws nine drawbars for an organ preset', () => {
+    const card = presetVoices(parseNs4Preset(blank('ns4o', 183))!)[0].card;
+    expect(card.kind === 'organ' && card.organ.drawbars).toHaveLength(9);
+  });
+});
+
+describe('presetParamSections', () => {
+  it('keeps every row, split into panel sections with Sound first', () => {
+    const rows = parseNs4Preset(blank('ns4y', 541))!.layers[0].rows;
+    const sections = presetParamSections(rows);
+    expect(sections.reduce((n, s) => n + s.rows.length, 0)).toBe(rows.length);
+    expect(sections[0].label).toBe('Sound');
+    expect(sections.map((s) => s.label)).toEqual(expect.arrayContaining(['Filter', 'Envelopes', 'Effects']));
+    expect(sections.find((s) => s.key === 'fx')!.rows.every((r) => r.name.startsWith('FX '))).toBe(true);
+  });
+});
+
+// Factory presets are Nord content — git-ignored, so these run only where the
+// local corpus is present (docs/LEGAL.md). Values match the flat parameter list.
+const DIR = 'fixtures/stage-4';
+const load = (name: string) => parseNs4Preset(new Uint8Array(readFileSync(resolve(__dirname, '../../..', DIR, name))))!;
+const PAD = 'Synth Preset_Bank 1_Slow Motion Pad.ns4y';
+const B3 = 'Organ Preset_Bank 1_B3 Cocktail.ns4o';
+const UPRIGHT = 'Piano Preset_Bank 1_Powerful Upright.ns4n';
+
+describe.skipIf(!hasGt(`${DIR}/${PAD}`, `${DIR}/${B3}`, `${DIR}/${UPRIGHT}`))('presetVoices — factory presets', () => {
+  it('synth: filter, envelopes and only the effects that are on', () => {
+    const [v] = presetVoices(load(PAD));
+    if (v.card.kind !== 'synth') throw new Error('expected a synth card');
+    expect(v.card.synth.filterType).toBe('LP24');
+    expect(v.card.synth.cutoff).toBe('4.2 kHz');
+    expect(v.card.env).not.toBeNull();
+    expect(v.card.filterEnv).toBeDefined();
+    expect(v.fx.map((fx) => fx.label)).toEqual(['Mod 1', 'Mod 2', 'Amp/EQ', 'Comp', 'Delay', 'Reverb']);
+    expect(v.fx.filter((fx) => fx.on).map((fx) => fx.label)).toEqual(['Amp/EQ', 'Reverb']);
+    expect(v.fx[5].detail).toContain('HALL');
+    expect(v.fx[2].eq).toEqual({ bassDb: -5, midDb: 0, trebDb: 0, midHz: 999 });
+    // The knob sits where the printed frequency is on the Stage's semitone scale (4.2 kHz = step 99 of 127).
+    expect(v.card.synth.cutoffFill).toBe(78);
+    expect(v.card.synth.filter).toMatchObject({ type: 'LP24', cutoffHz: 4200, res: 0 });
+    expect(v.card.synth.wave).toEqual({ shape: 'saw' });
+    expect(v.card.synth.lfo).toMatchObject({ shape: 'triangle', rate: '0.60 Hz' });
+    // The delay tempo is morphed by aftertouch and pedal — listed even though the delay is off.
+    expect(v.morphs.map((m) => m.name)).toContain('FX delay tempo');
+  });
+
+  it('organ: the B3 with its registration', () => {
+    const preset = load(B3);
+    const [v] = presetVoices(preset);
+    if (v.card.kind !== 'organ') throw new Error('expected an organ card');
+    expect(v.card.organ.model).toBe('B3');
+    const row = (n: number) => preset.layers[0].rows.find((r) => r.name === `drawbar ${n}`)!.display;
+    expect(v.card.organ.drawbars.map((d) => d.label)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9].map(row));
+    expect(v.fx).toEqual([]);
+  });
+
+  it('piano: the model by name', () => {
+    const [v] = presetVoices(load(UPRIGHT));
+    if (v.card.kind !== 'piano') throw new Error('expected a piano card');
+    expect(v.card.piano.model).toBe('Amber Upright XL');
+  });
+});

@@ -114,15 +114,15 @@ const nl4sFiles = () => readdirSync(FIXTURE_DIR).filter((f) => f.endsWith('.nl4s
 const nl4pFiles = () => readdirSync(FIXTURE_DIR).filter((f) => f.endsWith('.nl4p'));
 
 describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNl4 (nl4s fixtures)', () => {
-  // Real files go back to record version 6; the firmware converts 6 and 7 on load and the
-  // reader reads them with the version-8 layout (every value stays in range on the corpus).
+  // Real files go back to record version 6, which the firmware converts on load (convert.ts).
   it('decodes every nl4s fixture without warnings, record version 6-8', () => {
     for (const name of nl4sFiles()) {
       const prog = decodeNl4(load(name));
       expect(prog.parsed, name).toBe(true);
       expect(prog.fileType, name).toBe('nl4s');
       expect([6, 7, 8], name).toContain(prog.recordVersion);
-      expect(prog.warnings, name).toHaveLength(0);
+      // An older record carries only the note that it was converted as the firmware converts it.
+      expect(prog.warnings.filter((w) => !w.includes('OpenNord converts it the same way')), name).toEqual([]);
     }
   });
 
@@ -149,7 +149,8 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNl4 (nl4p fixtures)', () => {
       const prog = decodeNl4(load(name));
       expect(prog.fileType, name).toBe('nl4p');
       expect([6, 7, 8, 9], name).toContain(prog.recordVersion);
-      expect(prog.warnings, name).toHaveLength(0);
+      // An older record carries only the note that it was converted as the firmware converts it.
+      expect(prog.warnings.filter((w) => !w.includes('OpenNord converts it the same way')), name).toEqual([]);
       expect(prog.slots, name).toHaveLength(4);
       for (const s of prog.slots!) expect(s.outOfRange, name).toEqual([]);
     }
