@@ -630,7 +630,7 @@ export function decodeNs3(bytes: Uint8Array): Ns3File {
     if (slots === 2 || slots === 3) panels.push(panel(get, 'B', os300DelayRate));
   }
   return {
-    ...fw, format: 'ns3f', layoutMatched, values, warnings, panels,
+    ...fw, format: 'ns3f', layoutMatched, values, outOfRange: layoutMatched ? fw.outOfRange : [], warnings, panels,
     ...(os300DelayRate.length > 0 && { os300DelayRate }),
   };
 }

@@ -12,13 +12,22 @@ import {
   checkProgram, validateBytes, validateArchive, summarizeRows, formatSummary, alignmentVerdict,
   redactWriteMessage, isNordFileName, isArchiveName, rowProblems,
 } from './fixture-validate';
-import { runFixtureScan, listFixtureInputs, resolveUserPath } from './fixture-files';
+import { runFixtureScan, listFixtureInputs, resolveUserPath, validateInput } from './fixture-files';
 import { homedir } from 'node:os';
 
 /** A clean Piano 3 program (legacy record, firmware defaults, sealed CRC-16). */
 const np3 = () => synthLegacyLayoutFile('np3p', NP3_LAYOUT);
 /** A clean Electro 7 program (NSM-era header, firmware-layout body, sealed CRC-32). */
 const ne7 = () => sealFileChecksum(synthFwFile('ne7p', synthFwBody(NE7_LAYOUT), 100));
+
+/** An Electro 7 program with one field's bits set past its range. */
+function ne7OutOfRange(): Uint8Array {
+  const f = NE7_LAYOUT.fields.find((x) => x.enc !== 'raw' && x.max < 2 ** x.width - 1);
+  if (!f) throw new Error('no Electro 7 field with spare raw values');
+  const body = synthFwBody(NE7_LAYOUT);
+  writeBits(body, (NE7_LAYOUT.blocks[f.block].offset + 1) * 8 + f.bit, f.width, 2 ** f.width - 1);
+  return sealFileChecksum(synthFwFile('ne7p', body, 100));
+}
 
 /** A Piano 3 program with one field's bits set past its range (the firmware would reset it). */
 function np3OutOfRange(): Uint8Array {
@@ -118,9 +127,11 @@ describe('validateArchive', () => {
       'Program/Bank A/Broken.np3p': np3OutOfRange(),
       'Settings/x.np3s': synthLegacyLayoutFile('np3s', NP3_LAYOUT),
       'notes.txt': strToU8('hello'),
+      '__MACOSX/Program/Bank A/._Soft.np3p': strToU8('resource fork'),
+      'Program/Bank A/._Soft.np3p': strToU8('resource fork'),
     });
     const rows = await validateArchive('Backups/My.np3b', new Blob([zip]), null);
-    expect(rows[0]).toMatchObject({ kind: 'backup', model: 'piano-3', skippedEntries: 1 });
+    expect(rows[0]).toMatchObject({ kind: 'backup', model: 'piano-3', skippedEntries: 3 });
     expect(rows.map((r) => r.path)).toEqual([
       'Backups/My.np3b',
       'Backups/My.np3b › Program/Bank A/Soft.np3p',
@@ -144,7 +155,20 @@ describe('summary', () => {
     const rows = [validateBytes('a.ne7p', ne7(), null), validateBytes('b.ne7p', ne7(), null)];
     const [s] = summarizeRows(rows);
     expect(s).toMatchObject({ model: 'electro-7', layoutStatus: 'candidate', programs: 2, cleanReads: 2 });
-    expect(alignmentVerdict(s)).toBe('2 real files read with no out-of-range values → alignment looks right');
+    expect(alignmentVerdict(s)).toBe('2 real files read cleanly → alignment looks right');
+  });
+
+  it('counts a block-chain file’s out-of-range values against its layout', () => {
+    const rows = [validateBytes('a.ne7p', ne7(), null), validateBytes('b.ne7p', ne7OutOfRange(), null)];
+    expect(rows[1].check?.reader.outOfRange).toBe(1);
+    expect(alignmentVerdict(summarizeRows(rows)[0])).toBe('1 of 2 read cleanly (1 with out-of-range values) → alignment needs a look');
+  });
+
+  it('does not count a file the reader warns about (an older format) as a clean read', () => {
+    const old = sealFileChecksum(synthFwFile('ne7p', synthFwBody(NE7_LAYOUT, {}, 90), 100));
+    const [s] = summarizeRows([validateBytes('a.ne7p', old, null)]);
+    expect(s).toMatchObject({ programs: 1, readOk: 1, warned: 1, converted: 1, cleanReads: 0 });
+    expect(alignmentVerdict(s)).toBe('0 of 1 read cleanly (1 with reader warnings) → alignment needs a look');
   });
 
   it('says a candidate layout needs a look when a file has out-of-range values', () => {
@@ -220,8 +244,15 @@ describe('runFixtureScan (files on disk)', () => {
     expect(snapshot(dir)).toEqual(before);
 
     const text = formatSummary(rows, 'fixtures/.report.json');
-    expect(text).toContain('OK   Nord Piano 3: 2 real files read with no out-of-range values → alignment looks right');
-    expect(text).toContain('OK   Nord Electro 7: 1 real file read with no out-of-range values → alignment looks right');
+    expect(text).toContain('OK   Nord Piano 3: 2 real files read cleanly → alignment looks right');
+    expect(text).toContain('OK   Nord Electro 7: 1 real file read cleanly → alignment looks right');
+  });
+
+  it('records a file it cannot read by its error code, never its absolute path', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'nordfiles-'));
+    const [row] = await validateInput({ abs: join(dir, 'gone.ns3f'), label: 'gone.ns3f', model: null, size: 0 });
+    expect(row.issues).toEqual(['could not read: ENOENT']);
+    expect(JSON.stringify(row)).not.toContain(dir);
   });
 
   it('takes fixtures/<model-id>/ folders recursively and notes unknown folder names', async () => {
