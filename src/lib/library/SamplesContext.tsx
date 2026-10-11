@@ -44,6 +44,8 @@ const extForGeneration = (g: string) => SAMPLE_EXT[g] ?? 'nsmp4';
  *  Samples-screen view state. Mirrors useLibraryStateValue for programs. */
 function useSamplesStateValue() {
   const { session, sampleEntries, setSampleEntries } = useDevice();
+  const currentSession = useRef(session);
+  useEffect(() => { currentSession.current = session; }, [session]);
   const folder = useFolder();
   const imported = useImportedSamples();
   const prefs = useSamplesPrefs();
@@ -148,7 +150,8 @@ function useSamplesStateValue() {
         executePlan(sessionDeviceIO(session), PARTITION_SAMP_LIB, planOffload(addrs), occ,
           { onProgress: (p) => setRemovePct(Math.round((p.opIndex / p.opCount) * 100)) }));
       // 2. refresh the device sample list
-      try { setSampleEntries(await enumerateSampleLibrary(session)); } catch { /* leave as-is */ }
+      // Unless the Nord changed meanwhile: then this list is the old one's.
+      try { const es = await enumerateSampleLibrary(session); if (currentSession.current === session) setSampleEntries(es); } catch { /* leave as-is */ }
       clearSelected();
       return res.ok
         ? { removed: toRemove.length, failed: copyFailed }

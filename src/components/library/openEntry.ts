@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate, useRouter } from '@tanstack/react-router';
-import { isUnder } from '../../lib/library/categories';
+import { isUnder, trimSlash } from '../../lib/library/categories';
 import type { LibraryEntry } from '../../lib/library/types';
 import type { NavTo } from '../shell/nav';
 
@@ -28,8 +28,8 @@ export function useOpenEntry() {
   const router = useRouter();
   return useMemo(() => {
     const how = (list: string) => {
-      const { pathname: raw, state } = router.state.location;
-      const pathname = raw.replace(/\/+$/, ''); // `/library/presets/` is the list too
+      const { state } = router.state.location;
+      const pathname = trimSlash(router.state.location.pathname);
       if (pathname === list) return { replace: false, state: { fromList: true } };
       if (isUnder(pathname, list)) return { replace: true, state: { fromList: !!state.fromList } };
       return { replace: false, state: { fromList: false } };
