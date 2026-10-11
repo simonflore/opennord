@@ -78,7 +78,7 @@ export function reverbPart(type: string | undefined, modifier?: string | false):
 }
 
 /** Header rows every firmware-layout reader shows: the version, then the transpose when it is on. */
-export function fwHeader(p: FwProgram<string>, transpose?: string): [string, string][] {
+export function fwHeader(p: Pick<FwProgram<string>, 'version'>, transpose?: string): [string, string][] {
   const rows: [string, string][] = [['Version', `v${p.version}`]];
   if (transpose) rows.push(['Transpose', transpose]);
   return rows;
@@ -88,6 +88,22 @@ export function fwHeader(p: FwProgram<string>, transpose?: string): [string, str
 export function headerOnly(title: string, p: FwProgram<string>, model: string, extraNote?: string): DecodedProgram {
   const note = `${model}: this file's structure didn't match the layout read from the firmware, so only the file header is shown.`;
   return { title, header: fwHeader(p), sections: [], note: extraNote ? `${note} ${extraNote}` : note, warnings: p.warnings };
+}
+
+/**
+ * The presentation when a legacy record (clavia/legacy-record.ts) was not read:
+ * the file header only, with the reason in the warnings.
+ */
+export function legacyHeaderOnly(
+  title: string, p: Pick<FwProgram<string>, 'version' | 'warnings'>, model: string, extraNote?: string,
+): DecodedProgram {
+  const note = `${model}: the program settings in this file couldn't be read, so only the file header is shown.`;
+  return { title, header: fwHeader(p), sections: [], note: extraNote ? `${note} ${extraNote}` : note, warnings: p.warnings };
+}
+
+/** Two 15-bit reference ids (piano or sample) as one fixed-width hex fingerprint. */
+export function refId(ids: readonly [number, number]): string {
+  return `0x${((ids[0] * 0x8000 + ids[1]) >>> 0).toString(16).padStart(8, '0')}`;
 }
 
 /** The effects that are on, or "None on". */
