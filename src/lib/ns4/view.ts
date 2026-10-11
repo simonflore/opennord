@@ -294,6 +294,33 @@ export function pianoStats(l: NS4Layer): Stat[] {
   );
 }
 
+// Each chip's detail comes from the effect's real params, not just its name.
+const j = (...parts: (string | undefined | false)[]) => parts.filter(Boolean).join(' · ');
+const modD = (m: NS4Layer['fxMod1']) => j(m?.mode, m?.rate?.value, m?.amount?.value && `amt ${m.amount.value}`) || 'on';
+const ampD = (a: NS4Layer['ampSimEq']) => j(a?.mode, a?.drive?.value && `drv ${a.drive.value}`) || 'on';
+const compD = (c: NS4Layer['comp']) => j(c?.amount && `${c.amount}`, c?.response) || 'on';
+const delayD = (d: NS4Layer['delay']) => j(d?.tempo?.value, d?.mix?.value && `mix ${d.mix.value}`, d?.feedback?.value && `fb ${d.feedback.value}`) || 'on';
+const revD = (r: NS4Layer['reverb']) => j(r?.type, r?.amount?.value && `amt ${r.amount.value}`) || 'on';
+
+/**
+ * The effects switched on for one piano/synth layer. `engine` prefixes each
+ * label ("Synth Reverb") where several engines share a row; omit it when the
+ * layer stands alone (a preset).
+ */
+export function layerFxChips(l: NS4Layer, engine?: string): FxChipModel[] {
+  const tag = `${l.kind ?? 'x'}${l.id}`;
+  const named = (fx: string) => (engine ? `${engine} ${fx}` : fx);
+  const all: Array<[key: string, fx: string, on: boolean | undefined, detail: string]> = [
+    ['mod1', 'Mod 1', l.fxMod1?.on, modD(l.fxMod1)],
+    ['mod2', 'Mod 2', l.fxMod2?.on, modD(l.fxMod2)],
+    ['amp', 'Amp/EQ', l.ampSimEq?.on, ampD(l.ampSimEq)],
+    ['comp', 'Comp', l.comp?.on, compD(l.comp)],
+    ['delay', 'Delay', l.delay?.on, delayD(l.delay)],
+    ['reverb', 'Reverb', l.reverb?.on, revD(l.reverb)],
+  ];
+  return all.filter(([, , on]) => on).map(([key, fx, , detail]) => ({ key: `${tag}-${key}`, label: named(fx), detail }));
+}
+
 /**
  * Compact list of effects that are switched on. Per-layer FX come from each
  * active piano/synth layer; organ FX is a single global set (Ns4OrganFx).
@@ -303,19 +330,6 @@ export function fxChips(p: NS4Program, scene?: 'I' | 'II'): FxChipModel[] {
   const push = (key: string, label: string, on: boolean | undefined, detail: string) => {
     if (on) chips.push({ key, label, detail });
   };
-
-  // Build each chip's detail from the effect's real params, not just its name.
-  const j = (...parts: (string | undefined | false)[]) => parts.filter(Boolean).join(' · ');
-  type Mod = NS4Layer['fxMod1'];
-  type Delay = NS4Layer['delay'];
-  type Reverb = NS4Layer['reverb'];
-  type Amp = NS4Layer['ampSimEq'];
-  type Comp = NS4Layer['comp'];
-  const modD = (m: Mod) => j(m?.mode, m?.rate?.value, m?.amount?.value && `amt ${m.amount.value}`) || 'on';
-  const ampD = (a: Amp) => j(a?.mode, a?.drive?.value && `drv ${a.drive.value}`) || 'on';
-  const compD = (c: Comp) => j(c?.amount && `${c.amount}`, c?.response) || 'on';
-  const delayD = (d: Delay) => j(d?.tempo?.value, d?.mix?.value && `mix ${d.mix.value}`, d?.feedback?.value && `fb ${d.feedback.value}`) || 'on';
-  const revD = (r: Reverb) => j(r?.type, r?.amount?.value && `amt ${r.amount.value}`) || 'on';
 
   // Each NS4 engine has its own FX chain, so prefix every chip with the engine
   // it belongs to (e.g. "Piano Reverb" vs "Synth Reverb") — without this, two
@@ -329,16 +343,7 @@ export function fxChips(p: NS4Program, scene?: 'I' | 'II'): FxChipModel[] {
     const letter = (kindCount.get(l.kind ?? 'x') ?? 0) > 1 ? ` ${l.id}` : '';
     return `${kind}${letter}`;
   };
-  for (const l of fxLayers) {
-    const tag = `${l.kind ?? 'x'}${l.id}`;
-    const eng = engineName(l);
-    push(`${tag}-mod1`, `${eng} Mod 1`, l.fxMod1?.on, modD(l.fxMod1));
-    push(`${tag}-mod2`, `${eng} Mod 2`, l.fxMod2?.on, modD(l.fxMod2));
-    push(`${tag}-amp`, `${eng} Amp/EQ`, l.ampSimEq?.on, ampD(l.ampSimEq));
-    push(`${tag}-comp`, `${eng} Comp`, l.comp?.on, compD(l.comp));
-    push(`${tag}-delay`, `${eng} Delay`, l.delay?.on, delayD(l.delay));
-    push(`${tag}-reverb`, `${eng} Reverb`, l.reverb?.on, revD(l.reverb));
-  }
+  for (const l of fxLayers) chips.push(...layerFxChips(l, engineName(l)));
 
   const o = p.organFx;
   if (o) {

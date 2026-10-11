@@ -3,15 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseNs4Preset } from './preset';
 import { presetVoices, presetParamSections } from './preset-view';
-import { buildCbinHeader } from '../clavia/cbin';
-import { hasGt } from './gt-fixtures';
-
-/** Zero-bodied preset with a real header — see preset.test.ts. */
-function blank(tag: string, size: number): Uint8Array {
-  const buf = new Uint8Array(size);
-  buf.set(buildCbinHeader({ formatType: 1, tag, bank: 0, location: 0, category: 0, versionRaw: 205 }), 0);
-  return buf;
-}
+import { blankPreset as blank, hasGt } from './gt-fixtures';
 
 describe('presetVoices', () => {
   it.each([['ns4o', 183, 'organ'], ['ns4n', 195, 'piano'], ['ns4y', 541, 'synth']] as const)(
