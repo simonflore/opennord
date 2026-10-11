@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { MODELS, ALL_MODELS, modelById, modelByTag, modelByProductId, identifyModelByProductId, programPartitionIndex } from './partitions';
+import {
+  MODELS, ALL_MODELS, modelById, modelByTag, modelByProductId, identifyModelByProductId, programPartitionIndex,
+  hasDeviceTransfer, type NordModelId,
+} from './partitions';
 
 describe('partition registry', () => {
   it('resolves a model from its program tag (anchor for shared tags)', () => {
@@ -109,59 +112,217 @@ describe('partition registry', () => {
     expect(m.partitions.filter((p) => p.native).map((p) => p.staticIndex)).toEqual([0, 2, 4, 6]);
   });
 
-  // Lead 4 adds partitions in this order:
-  //   SPartitionUserE2P  "Performance" (CFileSpec from nl4p CFileType) → program
-  //   SPartitionProgram  (CFileSpec from nl4s CFileType)               → synth-preset
-  //   SPartitionSettings "Settings"   (CFileSpec from nl4t CFileType)  → settings
-  // NO piano, NO samples, NO live partition. baseline('nl4p', false) was wrong:
-  // baseline adds live (not traced) and misses synth-preset ('nl4s') + settings fourcc 'nl4t'.
-  it('lead-4 partition spec matches the NSM partition list', () => {
-    const m = modelById('lead-4')!;
-    expect(m.programTag).toBe('nl4p');
-    const kinds = m.partitions.map((p) => p.kind);
-    expect(kinds).toEqual(['program', 'synth-preset', 'settings']);
-    // Program partition carries nl4p fourcc
-    const prog = m.partitions.find((p) => p.kind === 'program');
-    expect(prog?.fourcc).toBe('nl4p');
-    // Synth-preset partition carries nl4s fourcc
-    const preset = m.partitions.find((p) => p.kind === 'synth-preset');
-    expect(preset?.fourcc).toBe('nl4s');
-    // Settings partition carries nl4t fourcc
-    const settings = m.partitions.find((p) => p.kind === 'settings');
-    expect(settings?.fourcc).toBe('nl4t');
+  // Lead 4 OS 1.32 firmware registration: 0 Program [nl4s],
+  // 1 Performance [nl4p], 2 Settings [nl4t]. NSM's CLead4Base constructor
+  // adds Performance first; the firmware order wins. The Performance tag stays
+  // the registry's programTag, so it carries the `program` kind.
+  it('Lead 4 / Lead A1 follow the firmware order: Program (sound), Performance, Settings', () => {
+    const cases = [
+      ['lead-4', 'nl4s', 'nl4p', 'nl4t'],
+      ['lead-a1', 'nlas', 'nlap', 'nlat'],
+    ] as const;
+    for (const [id, sound, perf, settings] of cases) {
+      const m = modelById(id)!;
+      expect(m.programTag, id).toBe(perf);
+      expect(m.partitions.map((p) => [p.staticIndex, p.kind, p.label, p.fourcc]), id).toEqual([
+        [0, 'synth-preset', 'Programs', sound],
+        [1, 'program', 'Performances', perf],
+        [2, 'settings', 'Settings', settings],
+      ]);
+      expect(m.fileTransferVersion, id).toBe(8);
+    }
   });
 
-  // Wave 2 partition order:
-  //   SPartitionNative "Samp Lib (Native)"      → samplib-native (factory)
-  //   SPartitionSampLibV3                       → samplib (user)
-  //   (conditional SPartitionROMFlash "Transient" — OG-mode only, skipped on NW1-v3 hardware)
-  //   SPartitionUserE2P "Program" (tag "nw2p")  → program
-  //   SPartitionLive    (tag "nw2l")            → live
-  //   SPartitionSettings "Settings" (tag "nw2s")→ settings  ← NOT synth-preset
-  //   SPartitionNative "E2P FFS"                → ffs (native housekeeping)
-  // Backup ext: "nw2b" (ctor: wxString::wxString(...,"nw2b")).
-  // The prior baseline had synth-preset('nw2s') — wrong: nw2s is the settings tag,
-  // and the synth-preset kind doesn't appear in the constructor at all.
-  it('wave-2 partition spec matches the NSM partition list', () => {
+  // Wave 2 OS 1.24 firmware registration: 5 partitions, no
+  // "E2P FFS" and no "Transient" (NSM's list has both).
+  it('wave-2 follows the firmware order: no E2P FFS', () => {
     const m = modelById('wave-2')!;
     expect(m.programTag).toBe('nw2p');
-    const kinds = m.partitions.map((p) => p.kind);
-    // Core order: samplib-native, samplib, program, live, settings, ffs
-    expect(kinds).toEqual(['samplib-native', 'samplib', 'program', 'live', 'settings', 'ffs']);
-    // Program partition carries nw2p fourcc
-    const prog = m.partitions.find((p) => p.kind === 'program');
-    expect(prog?.fourcc).toBe('nw2p');
-    // Live partition carries nw2l fourcc
-    const live = m.partitions.find((p) => p.kind === 'live');
-    expect(live?.fourcc).toBe('nw2l');
-    // Settings partition carries nw2s fourcc (NOT synth-preset)
-    const settings = m.partitions.find((p) => p.kind === 'settings');
-    expect(settings?.fourcc).toBe('nw2s');
-    // No synth-preset partition
+    expect(m.partitions.map((p) => [p.staticIndex, p.kind, p.fourcc ?? null])).toEqual([
+      [0, 'samplib-native', null],
+      [1, 'samplib', null],
+      [2, 'program', 'nw2p'],
+      [3, 'live', 'nw2l'],
+      [4, 'settings', 'nw2s'],
+    ]);
     expect(m.partitions.find((p) => p.kind === 'synth-preset')).toBeUndefined();
-    // ffs is native (factory)
-    const ffs = m.partitions.find((p) => p.kind === 'ffs');
-    expect(ffs?.native).toBe(true);
+  });
+
+  it('Electro 6 follows the firmware order: Program at 4, ne6t is Settings, no pedals or set list', () => {
+    const m = modelById('electro-6')!;
+    expect(m.partitions.map((p) => [p.staticIndex, p.kind, p.fourcc ?? null])).toEqual([
+      [0, 'piano-native', null],
+      [1, 'piano', null],
+      [2, 'samplib-native', null],
+      [3, 'samplib', null],
+      [4, 'program', 'ne6p'],
+      [5, 'live', 'ne6l'],
+      [6, 'settings', 'ne6t'],
+    ]);
+  });
+
+  // Electro 7 OS 1.30 firmware registration: 10 partitions;
+  // `ne7s` is the synth-preset archive tag, not a partition.
+  it('adds the Electro 7 with its 10 firmware partitions', () => {
+    const m = modelById('electro-7')!;
+    expect(m).toMatchObject({
+      name: 'Nord Electro 7', programTag: 'ne7p', staticProductId: 0x3b, fileTransferVersion: 10,
+      os: { min: 100, recommended: 100 },
+    });
+    expect(m.productId).toBeUndefined(); // NSM-recovered, not hardware-confirmed
+    expect(m.partitions.map((p) => [p.staticIndex, p.kind, p.fourcc ?? null])).toEqual([
+      [0, 'piano-native', null],
+      [1, 'piano', null],
+      [2, 'pedal-native', null],
+      [3, 'pedal', null],
+      [4, 'samplib-native', null],
+      [5, 'samplib', null],
+      [6, 'program', 'ne7p'],
+      [7, 'live', 'ne7l'],
+      [8, 'settings', 'ne7t'],
+      [9, 'synth-preset', 'ne7r'],
+    ]);
+    expect(m.partitions.some((p) => p.fourcc === 'ne7s')).toBe(false);
+    expect(modelByTag('ne7p')?.id).toBe('electro-7');
+    expect(identifyModelByProductId(0x3b)?.id).toBe('electro-7');
+    expect(modelByProductId(0x3b)).toBeUndefined();
+  });
+
+  it('Organ 3 registers only Program, Live, Settings (Program at 0)', () => {
+    expect(modelById('organ-3')!.partitions.map((p) => [p.staticIndex, p.kind, p.fourcc])).toEqual([
+      [0, 'program', 'no3p'],
+      [1, 'live', 'no3l'],
+      [2, 'settings', 'no3t'],
+    ]);
+  });
+
+  // Piano 4 / 5 / 6, Grand, Grand 2: one 9-partition list on all five; the
+  // `…t` file is Settings (np6t / ng2t were wrongly a Set List).
+  it('the ARM pianos register the same 9 partitions, with Settings at 8', () => {
+    const cases = [
+      ['piano-4', 'np4p', 'np4l', 'np4t'],
+      ['grand', 'ngp', 'ngl', 'ngs'],
+      ['piano-5', 'np5p', 'np5l', 'np5t'],
+      ['piano-6', 'np6p', 'np6l', 'np6t'],
+      ['grand-2', 'ng2p', 'ng2l', 'ng2t'],
+    ] as const;
+    for (const [id, program, live, settings] of cases) {
+      const m = modelById(id)!;
+      expect(m.partitions.map((p) => [p.staticIndex, p.kind, p.fourcc ?? null]), id).toEqual([
+        [0, 'piano-native', null],
+        [1, 'piano', null],
+        [2, 'pedal-native', null],
+        [3, 'pedal', null],
+        [4, 'samplib-native', null],
+        [5, 'samplib', null],
+        [6, 'program', program],
+        [7, 'live', live],
+        [8, 'settings', settings],
+      ]);
+      expect(m.fileTransferVersion, id).toBe(10);
+    }
+  });
+
+  // ColdFire models.
+  it('the ColdFire models follow their firmware registration order', () => {
+    const order = (id: NordModelId) => modelById(id)!.partitions.map((p) => [p.staticIndex, p.kind]);
+    const e3 = [[0, 'piano-native'], [1, 'samplib-native'], [2, 'piano'], [3, 'samplib'],
+      [4, 'program'], [5, 'live'], [6, 'settings'], [7, 'organ-preset']];
+    expect(order('electro-3')).toEqual(e3);
+    expect(order('electro-3-hp')).toEqual(e3);
+    expect(order('electro-4')).toEqual(e3.slice(0, 7));
+    expect(order('electro-5')).toEqual([[0, 'piano-native'], [1, 'piano'], [2, 'samplib-native'],
+      [3, 'samplib'], [4, 'program'], [5, 'setlist'], [6, 'live'], [7, 'settings']]);
+    expect(order('piano-1')).toEqual([[0, 'piano-native'], [1, 'pedal-native'], [2, 'piano'],
+      [3, 'program'], [4, 'live'], [5, 'settings']]);
+    const p23 = [[0, 'piano-native'], [1, 'piano'], [2, 'pedal'], [3, 'pedal-native'],
+      [4, 'samplib-native'], [5, 'samplib'], [6, 'program'], [7, 'live'], [8, 'settings']];
+    expect(order('piano-2')).toEqual(p23);
+    expect(order('piano-3')).toEqual(p23);
+    expect(order('c2d')).toEqual([[0, 'pipe-native'], [1, 'pipe'], [2, 'program'], [3, 'settings']]);
+    expect(order('wave')).toEqual([[0, 'samplib'], [1, 'program'], [2, 'swave'], [3, 'ramfs'], [4, 'settings']]);
+  });
+
+  it('records each model\'s FileTransfer version from its firmware', () => {
+    const versions: Partial<Record<NordModelId, number>> = {
+      'stage-4': 10, 'stage-3': 10, 'stage-2': 8, 'stage-2-ex': 8,
+      'electro-3': 4, 'electro-3-hp': 4, 'piano-1': 4, 'c2d': 4, 'wave': 4,
+      'piano-2': 6, 'electro-4': 7, 'electro-5': 10, 'piano-3': 10,
+      'electro-6': 10, 'electro-7': 10, 'organ-3': 10, 'wave-2': 10,
+      'lead-4': 8, 'lead-a1': 8,
+    };
+    for (const [id, v] of Object.entries(versions)) {
+      expect(modelById(id as NordModelId)!.fileTransferVersion, id).toBe(v);
+    }
+    // Not yet mapped, or no transfer at all: left unset.
+    for (const id of ['stage-classic', 'stage-ex', 'c2', 'c1'] as const) {
+      expect(modelById(id)!.fileTransferVersion, id).toBeUndefined();
+    }
+  });
+
+  it('marks the C1 as having no USB file transfer', () => {
+    const c1 = modelById('c1')!;
+    expect(c1).toMatchObject({ name: 'Nord C1', deviceTransfer: false, programTag: null, partitions: [] });
+    expect(hasDeviceTransfer(c1)).toBe(false);
+    expect(ALL_MODELS.filter((m) => !hasDeviceTransfer(m)).map((m) => m.id)).toEqual(['c1']);
+  });
+
+  it('sample codecs follow what each firmware loads', () => {
+    const codec = (id: NordModelId) => modelById(id)!.sampleCodec;
+    // ColdFire: `.nsmp` NWS v8/v11 only — Electro 5 and Piano 3 refuse `.nsmp3`.
+    for (const id of ['electro-3', 'electro-3-hp', 'electro-4', 'electro-5', 'piano-2', 'piano-3', 'wave'] as const) {
+      expect(codec(id), id).toBe('og');
+    }
+    expect(codec('piano-1')).toBeNull(); // no sample library at all
+    expect(codec('piano-4')).toBe('codec3'); // `.nsmp3` only
+    expect(codec('grand')).toBe('codec3');
+    // `.nsmp3` and `.nsmp4` accepted; the newest is recorded.
+    for (const id of ['piano-5', 'piano-6', 'grand-2'] as const) expect(codec(id), id).toBe('codec4');
+  });
+
+  it('never marks a factory, ROM, SWave or RAMFS partition as user-writable', () => {
+    const readOnly = new Set(['piano-native', 'pedal-native', 'samplib-native', 'swave', 'ramfs', 'pipe-native', 'pipe', 'ffs']);
+    for (const m of ALL_MODELS) {
+      for (const p of m.partitions) {
+        if (readOnly.has(p.kind)) expect(p.native, `${m.id} ${p.kind}`).toBe(true);
+      }
+    }
+  });
+
+  it('only Stage 4 and Stage 2 carry hardware-confirmed indices; every firmware-read list is in order', () => {
+    for (const m of ALL_MODELS) {
+      const confirmed = m.partitions.filter((p) => p.index !== undefined);
+      if (m.id === 'stage-4' || m.id === 'stage-2' || m.id === 'stage-2-ex') continue;
+      expect(confirmed, m.id).toEqual([]);
+      // A model with a known FileTransfer version has a mapped OS: its list is
+      // the registration order, so staticIndex is the position.
+      if (m.fileTransferVersion !== undefined) {
+        expect(m.partitions.map((p) => p.staticIndex), m.id).toEqual(m.partitions.map((_, i) => i));
+      }
+    }
+  });
+
+  it('a fourcc means the same partition kind on every model (backup classification scans them all)', () => {
+    const kindOf = new Map<string, string>();
+    for (const m of ALL_MODELS) {
+      for (const p of m.partitions) {
+        if (!p.fourcc) continue;
+        const seen = kindOf.get(p.fourcc);
+        if (seen) expect(p.kind, `${m.id} ${p.fourcc}`).toBe(seen);
+        else kindOf.set(p.fourcc, p.kind);
+      }
+    }
+  });
+
+  it('no firmware-read model registers a Set List except the Electro 5, and none an E2P FFS', () => {
+    for (const m of ALL_MODELS) {
+      if (m.fileTransferVersion === undefined) continue;
+      expect(m.partitions.some((p) => p.kind === 'ffs'), m.id).toBe(false);
+      const setlists = m.partitions.filter((p) => p.kind === 'setlist').map((p) => p.fourcc);
+      if (m.id === 'electro-5') expect(setlists).toEqual(['ne5t']);
+      else if (m.id === 'stage-3') expect(setlists).toEqual(['ns3s']); // Songs
+      else expect(setlists, m.id).toEqual([]);
+    }
   });
 
   // Electro 5 adds partitions in this order:

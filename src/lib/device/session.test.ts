@@ -143,6 +143,29 @@ describe('NordSession', () => {
     expect(order).toEqual(['a:start', 'a:end', 'b:start', 'b:end']);
   });
 
+  it('frames requests with the model\'s own version, and keeps it when negotiation names none', async () => {
+    // A Lead 4 speaks FileTransfer 8 and drops 0x0a frames.
+    const negReply = encodeMessage(0x03, [], new Uint8Array([0x01, 0x0a, 0x02])); // no 0x0c entry
+    const t = new MockTransport([negReply, encodeMessage(CReqBegin | 1, [0])]);
+    const session = new NordSession(t);
+    session.useFileTransferVersion(8);
+
+    expect(await session.negotiateVersion()).toBe(8);
+    await session.begin(1);
+    expect([...t.sent[1].slice(8, 12)]).toEqual([0, 0, 0, 0x08]);
+  });
+
+  it('lets the negotiated version replace the model\'s version', async () => {
+    const negReply = encodeMessage(0x03, [], new Uint8Array([0x01, 0x0c, 0x07])); // FileTransfer 7
+    const t = new MockTransport([negReply, encodeMessage(CReqBegin | 1, [0])]);
+    const session = new NordSession(t);
+    session.useFileTransferVersion(8);
+
+    expect(await session.negotiateVersion()).toBe(7);
+    await session.begin(1);
+    expect([...t.sent[1].slice(8, 12)]).toEqual([0, 0, 0, 0x07]);
+  });
+
   it('keeps the default version 0x0a when the device does not advertise FileTransfer', async () => {
     const negReply = encodeMessage(0x03, [], new Uint8Array([0x01, 0x0a, 0x02])); // only proto 0x0a, no 0x0c
     const t = new MockTransport([negReply, encodeMessage(CReqBegin | 1, [0])]);

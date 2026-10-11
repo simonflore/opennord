@@ -26,6 +26,16 @@ describe('identifyNordFile', () => {
     expect(info.version).toBe('1.02');
   });
 
+  it('names the Electro 7 and Organ 3 from their program tags', () => {
+    expect(identifyNordFile(cbin('ne7p', 1))).toMatchObject({
+      recognized: true, kind: 'program', modelId: 'electro-7', modelName: 'Nord Electro 7', modelGeneration: 'NW1-v4',
+    });
+    expect(identifyNordFile(cbin('no3p', 1))).toMatchObject({ kind: 'program', modelId: 'organ-3' });
+    // Settings and synth-preset files are not programs and name no model.
+    expect(identifyNordFile(cbin('ne7t', 1))).toMatchObject({ kind: 'unknown', modelId: undefined });
+    expect(identifyNordFile(cbin('ne7r', 1))).toMatchObject({ kind: 'unknown', modelId: undefined });
+  });
+
   it('decodes a Stage 3 (ns3f, NSM-era) header — slot/category/version', () => {
     const info = identifyNordFile(cbin('ns3f', 1, { bank: 5, loc: 19, cat: 21, ver: 304 }));
     expect(info).toMatchObject({

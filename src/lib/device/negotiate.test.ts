@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parseVersionReply, PROTOCOL_NEGOTIATE, MSG_QRY_VERSIONS, shouldNegotiateVersion, NS4_PRODUCT_ID } from './negotiate';
-import { PROTOCOL_ID } from './opcodes';
+import {
+  parseVersionReply, PROTOCOL_NEGOTIATE, MSG_QRY_VERSIONS, shouldNegotiateVersion, NS4_PRODUCT_ID,
+  initialFileTransferVersion,
+} from './negotiate';
+import { PROTOCOL_ID, PROTOCOL_VERSION } from './opcodes';
+import { ALL_MODELS, MODELS } from '../clavia/partitions';
 
 describe('parseVersionReply', () => {
   it('parses the captured NS2 version-negotiation reply (issue #31)', () => {
@@ -42,5 +46,30 @@ describe('shouldNegotiateVersion', () => {
   it('negotiates for other models so they can adopt a non-default version (NS2 = 0x08)', () => {
     expect(shouldNegotiateVersion(0x0030)).toBe(true); // a non-NS4 Clavia product id
     expect(NS4_PRODUCT_ID).toBe(0x002e);
+  });
+
+  it('negotiates for every registry model whose firmware speaks a version below 10', () => {
+    for (const m of ALL_MODELS) {
+      const pid = m.productId ?? m.staticProductId;
+      if (pid === undefined || m.fileTransferVersion === undefined || m.fileTransferVersion >= 10) continue;
+      expect(shouldNegotiateVersion(pid), m.id).toBe(true);
+    }
+  });
+});
+
+describe('initialFileTransferVersion', () => {
+  it('starts from the model\'s firmware FileTransfer version', () => {
+    expect(initialFileTransferVersion(MODELS['stage-4'])).toBe(0x0a);
+    expect(initialFileTransferVersion(MODELS['stage-2'])).toBe(8);
+    expect(initialFileTransferVersion(MODELS['lead-4'])).toBe(8);
+    expect(initialFileTransferVersion(MODELS['electro-4'])).toBe(7);
+    expect(initialFileTransferVersion(MODELS['piano-2'])).toBe(6);
+    expect(initialFileTransferVersion(MODELS['electro-3'])).toBe(4);
+    expect(initialFileTransferVersion(MODELS['wave'])).toBe(4);
+  });
+
+  it('falls back to the Stage 4 default when the model or its version is unknown', () => {
+    expect(initialFileTransferVersion(undefined)).toBe(PROTOCOL_VERSION);
+    expect(initialFileTransferVersion(MODELS['stage-classic'])).toBe(PROTOCOL_VERSION); // no version on record
   });
 });

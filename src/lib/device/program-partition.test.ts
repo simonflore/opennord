@@ -23,6 +23,8 @@ describe('resolveModelProgramPartition — by USB product id', () => {
     // Electro 4 (0x23): static index 4 — the Stage-4 6 would be its Settings partition.
     expect(resolveProgramPartition(0x0023)).toBe(4);
     expect(resolveProgramPartition(0x0027)).toBe(4); // Electro 5
+    expect(resolveProgramPartition(0x0029)).toBe(4); // Electro 6
+    expect(resolveProgramPartition(0x003b)).toBe(6); // Electro 7 (NSM CElectro7)
   });
 
   it('falls back to the Stage-4 index for unknown devices', () => {
@@ -51,29 +53,31 @@ describe('resolveModelProgramPartition — index precedence', () => {
     expect(resolveModelProgramPartition(undefined)).toBe(PARTITION_PROGRAM);
   });
 
-  it('resolves the NSM-constructor-recovered program partition for each model', () => {
-    // Ordinals from the product constructors (Add-order); Stage 2's HW-validated
-    // pedal-shift map (index 6, issue #31) corroborates the pedal-bearing set.
-    expect(resolveModelProgramPartition(MODELS['electro-5'])).toBe(4); // ne5p, no pedal
-    expect(resolveModelProgramPartition(MODELS['wave'])).toBe(1);      // nwp, OG flash
-    expect(resolveModelProgramPartition(MODELS['wave-2'])).toBe(2);    // nw2p, NW1-v3 skips Transient
-    expect(resolveModelProgramPartition(MODELS['lead-4'])).toBe(0);    // nl4p Performance, only 3 partitions
-    expect(resolveModelProgramPartition(MODELS['piano-4'])).toBe(6);   // pedal-shift → 6
-    expect(resolveModelProgramPartition(MODELS['piano-5'])).toBe(6);
-    expect(resolveModelProgramPartition(MODELS['grand-2'])).toBe(6);
-    // NSM 9.22 constructors with no conditional Add().
-    expect(resolveModelProgramPartition(MODELS['stage-3'])).toBe(7);  // after SWave ROMFlash
-    expect(resolveModelProgramPartition(MODELS['electro-4'])).toBe(4);
+  it('resolves the statically-recovered program partition for each model', () => {
+    // Firmware registration order.
+    expect(resolveModelProgramPartition(MODELS['stage-3'])).toBe(7);  // after SWave
+    expect(resolveModelProgramPartition(MODELS['electro-3'])).toBe(4);
     expect(resolveModelProgramPartition(MODELS['electro-3-hp'])).toBe(4);
-    expect(resolveModelProgramPartition(MODELS['electro-6'])).toBe(6);
+    expect(resolveModelProgramPartition(MODELS['electro-4'])).toBe(4);
+    expect(resolveModelProgramPartition(MODELS['electro-5'])).toBe(4);
+    expect(resolveModelProgramPartition(MODELS['electro-6'])).toBe(4); // no pedals (NSM said 6)
+    expect(resolveModelProgramPartition(MODELS['electro-7'])).toBe(6);
     expect(resolveModelProgramPartition(MODELS['piano-1'])).toBe(3);
     expect(resolveModelProgramPartition(MODELS['piano-2'])).toBe(6);
     expect(resolveModelProgramPartition(MODELS['piano-3'])).toBe(6);
+    expect(resolveModelProgramPartition(MODELS['piano-4'])).toBe(6);
+    expect(resolveModelProgramPartition(MODELS['piano-5'])).toBe(6);
     expect(resolveModelProgramPartition(MODELS['piano-6'])).toBe(6);
     expect(resolveModelProgramPartition(MODELS['grand'])).toBe(6);
-    expect(resolveModelProgramPartition(MODELS['c2'])).toBe(2);       // after Pipe ROMFlash
-    expect(resolveModelProgramPartition(MODELS['c2d'])).toBe(2);
-    expect(resolveModelProgramPartition(MODELS['organ-3'])).toBe(2);
+    expect(resolveModelProgramPartition(MODELS['grand-2'])).toBe(6);
+    expect(resolveModelProgramPartition(MODELS['wave'])).toBe(1);
+    expect(resolveModelProgramPartition(MODELS['wave-2'])).toBe(2);
+    expect(resolveModelProgramPartition(MODELS['c2d'])).toBe(2);       // after Pipe
+    expect(resolveModelProgramPartition(MODELS['organ-3'])).toBe(0);   // only 3 partitions
+    expect(resolveModelProgramPartition(MODELS['lead-4'])).toBe(1);    // nl4p Performance; 0 is nl4s
+    expect(resolveModelProgramPartition(MODELS['lead-a1'])).toBe(1);   // nlap Performance; 0 is nlas
+    // No version on record: default partition ordinal.
+    expect(resolveModelProgramPartition(MODELS['c2'])).toBe(2);
   });
 
   it('still resolves hardware-validated models from their real index, unchanged', () => {
