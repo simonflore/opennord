@@ -14,54 +14,55 @@ describe('MatrixView', () => {
     expect(html).toContain('Nord Stage 3');
     expect(html).toContain('text-connected'); // validated status color
   });
-  it('shows graded statuses across the line (works / ready to test / likely)', () => {
+  it('shows each capability as an icon whose accessible name says the status', () => {
     const html = render();
-    expect(html).toContain('Works');         // Stage 4 (validated)
-    expect(html).toContain('>Ready to test</td>'); // a cell, not just the intro: read from the model's own firmware or files
-    expect(html).toContain('Likely');        // assumed from a sibling (e.g. the Electro 7's sample generation)
+    expect(html).toContain('aria-label="Copy from Nord: Works"');          // Stage 4 (validated)
+    expect(html).toContain('aria-label="Copy from Nord: Ready to test"');  // read from the model's own firmware
+    expect(html).toContain('aria-label="Samples: Likely"');                // Electro 7's sample generation
+    expect(html).toContain('aria-label="Samples: Not available"');         // no sample engine
     expect(html).not.toContain('In progress');
   });
-  it('explains each chip in a labelled legend', () => {
+  it('explains every icon in a labelled legend', () => {
     const legend = render().match(/<ul[^>]*aria-label="What each status means"[^>]*>(.*?)<\/ul>/)?.[1] ?? '';
-    for (const chip of ['Works', 'Ready to test', 'Likely', '—']) expect(legend).toContain(`${chip}</span>`);
+    for (const label of ['Works', 'Ready to test', 'Likely', 'Not available', 'Full map', 'Header only']) {
+      expect(legend).toContain(`${label}</span>`);
+    }
   });
-  it('has a reader for every model with program files, and says "—" for the C1, which has none', () => {
+  const row = (html: string, name: string) =>
+    html.slice(html.indexOf(`${name}</th>`), html.indexOf('</tr>', html.indexOf(`${name}</th>`)));
+  it('has a reader for every model with program files; the C1 has none', () => {
     const html = render();
-    expect(html).not.toMatch(/<\/th><td[^>]*>Not yet</);
-    expect(html).toMatch(/Nord C1<\/th><td[^>]*>—</);
+    expect(html).not.toContain('Program parameters: Needs a tester');
+    expect(row(html, 'Nord C1')).toContain('aria-label="Program parameters: Not available"');
   });
-  it('marks the readers that cover every stored parameter as "full map"', () => {
+  it('marks the readers that cover every stored parameter as a full map', () => {
     const html = render();
-    const row = (name: string) => html.slice(html.indexOf(`${name}</th>`), html.indexOf('</tr>', html.indexOf(`${name}</th>`)));
-    expect(row('Nord Electro 6')).toContain('full map');
-    expect(row('Nord Lead 4')).toContain('full map');
-    expect(row('Nord Wave 2')).not.toContain('full map'); // morph amounts not read yet
-    expect(row('Nord Stage 3')).toContain('full map'); // firmware layout (#54)
-    expect(row('Nord Stage 2')).toContain('full map'); // firmware descriptor layout
-    expect(row('Nord Stage 2 EX')).toContain('full map'); // same ns2p format
-    expect(row('Nord Stage 4')).not.toContain('full map'); // already validated
-    expect(html).toContain('reads every parameter a program stores');
+    expect(row(html, 'Nord Electro 6')).toContain(', full map');
+    expect(row(html, 'Nord Lead 4')).toContain(', full map');
+    expect(row(html, 'Nord Wave 2')).not.toContain(', full map'); // morph amounts not read yet
+    expect(row(html, 'Nord Stage 3')).toContain(', full map');    // firmware layout
+    expect(row(html, 'Nord Stage 2')).toContain(', full map');    // firmware descriptor layout
+    expect(row(html, 'Nord Stage 2 EX')).toContain(', full map'); // same ns2p format
+    expect(row(html, 'Nord Stage 4')).not.toContain(', full map'); // already validated
   });
-  it('shows the parameter count of the firmware-layout readers', () => {
-    expect(render()).toMatch(/Nord Grand<\/th><td[^>]*>\d+ params/);
-    expect(render()).toMatch(/Nord Electro 3<\/th><td[^>]*>82 params/);
-    expect(render()).toMatch(/Nord Electro 5<\/th><td[^>]*>129 params/);
-    expect(render()).toMatch(/Nord C2<\/th><td[^>]*>86 params/);
+  it('shows the parameter count as a bare number', () => {
+    const html = render();
+    expect(row(html, 'Nord Stage 4')).toContain('406 parameters');
+    expect(row(html, 'Nord Grand')).toMatch(/\d+ parameters/);
+    expect(row(html, 'Nord Electro 3')).toContain('82 parameters');
+    expect(row(html, 'Nord Electro 5')).toContain('129 parameters');
+    expect(row(html, 'Nord C2')).toContain('86 parameters');
   });
-  it('says "Header only" where the layout is mapped but files still open header-only (Stage Classic / EX)', () => {
-    expect(render()).toMatch(/Nord Stage Classic<\/th><td[^>]*>Header only</);
-    expect(render()).toMatch(/Nord Stage EX<\/th><td[^>]*>Header only</);
+  it('marks Stage Classic / EX "Header only": the layout is mapped but files still open header-only', () => {
+    const html = render();
+    expect(row(html, 'Nord Stage Classic')).toContain('aria-label="Header only:');
+    expect(row(html, 'Nord Stage EX')).toContain('aria-label="Header only:');
   });
   it('prompts to connect a Nord when none is connected', () => {
     expect(render()).toContain('the check is read-only');
   });
   it('links to the Contribute tool for undecoded models', () => {
     expect(render()).toContain('href="#/contribute"');
-  });
-  it('shows a Program Parameters column with Stage 4 parameter count', () => {
-    const html = render();
-    expect(html).toContain('Program Parameters');
-    expect(html).toContain('params'); // Stage 4 → "406 params"
   });
   it('renders Fred’s six columns and drops Open files / List patches', () => {
     const html = render();

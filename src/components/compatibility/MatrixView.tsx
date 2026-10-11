@@ -6,25 +6,28 @@ import { decodeForModel, getModelProgress, DECODE_LABEL, type DecodeStatus } fro
 import { ByteMapView } from './ByteMapView';
 import { cn } from '@/lib/cn';
 
-const CHIP: Record<ValidationStatus, string> = {
-  validated: 'Works', re: 'Ready to test', inferred: 'Likely', unsupported: '—', unknown: 'Needs a tester',
+/** What each status means: the label doubles as the icon's accessible name and tooltip. */
+const STATUS: Record<ValidationStatus, { label: string; glyph: string; hint: string }> = {
+  validated: { label: 'Works', glyph: '✓', hint: 'tried on a real instrument' },
+  re: { label: 'Ready to test', glyph: '●', hint: 'built from its own firmware or files' },
+  inferred: { label: 'Likely', glyph: '○', hint: 'assumed from a sibling model' },
+  unsupported: { label: 'Not available', glyph: '–', hint: 'the instrument can’t do it' },
+  unknown: { label: 'Needs a tester', glyph: '?', hint: 'not known yet' },
 };
 
-/** What each chip means, for the legend under the intro. */
-const FULL_MAP_TITLE = "Every parameter the instrument stores in a program, from its own firmware; not yet checked against a real file";
-const FULL_MAP_CHIP = 'ml-1.5 rounded-sm border border-current px-1 py-px text-[9px] font-semibold uppercase tracking-[0.5px]';
+/** Program Parameters marks. */
+const FULL_MAP = { glyph: '◆', label: 'Full map', hint: 'reads every setting a program stores' };
+const FULL_MAP_TITLE = 'Full map: every setting the instrument stores in a program, from its own firmware; not yet checked against a real file';
+const HEADER_ONLY = { label: 'Header only', hint: 'format known, files not opened yet' };
+/** A dashed ring (drawn, not a font glyph): the format is mapped but files don't open yet. */
+const HEADER_ONLY_RING = 'inline-block h-[14px] w-[14px] rounded-full border-[1.5px] border-dashed border-current align-middle';
 
-const LEGEND: [ValidationStatus, string][] = [
-  ['validated', 'tried on a real instrument'],
-  ['re', 'built from this model’s own software or files; not yet tried on one'],
-  ['inferred', 'assumed from a sibling model'],
-  ['unsupported', 'the instrument can’t do it'],
-];
+const LEGEND: ValidationStatus[] = ['validated', 're', 'inferred', 'unsupported'];
 
 const DECODE_CELL: Record<DecodeStatus, ValidationStatus> = { full: 'validated', partial: 're', started: 're', none: 'unknown' };
 
 // Status colors mirror validation.ts's ValidationStatus, mapped onto the
-// token vocabulary (tailwind-baseline.md): connected/warn/dim/muted/red-bright.
+// token vocabulary (tailwind-baseline.md): connected/warn/dim/muted/danger.
 const CELL_COLOR: Record<ValidationStatus, string> = {
   validated: 'text-connected',
   re: 'text-warn',
@@ -33,10 +36,29 @@ const CELL_COLOR: Record<ValidationStatus, string> = {
   unknown: 'text-danger',
 };
 
-const cellBase = 'border-b border-line px-2 py-1.5 text-left whitespace-nowrap max-[560px]:px-1.5 max-[560px]:py-1';
-const thModel = cn(cellBase, 'text-ink font-bold');
-const thCap = cn(cellBase, 'text-dim font-semibold');
-const cell = cn(cellBase, 'font-bold');
+/** The round badge behind a status glyph, tinted with the status colour itself. */
+const BADGE = cn(
+  'inline-flex h-[18px] w-[18px] items-center justify-center rounded-full text-[11px] leading-none font-bold',
+  'bg-[color-mix(in_srgb,currentColor_14%,transparent)]',
+);
+
+function StatusIcon({ status, label }: { status: ValidationStatus; label?: string }) {
+  const s = STATUS[status];
+  const name = label ? `${label}: ${s.label}` : s.label;
+  return (
+    <span role="img" aria-label={name} title={name} className={cn(BADGE, CELL_COLOR[status])}>
+      <span aria-hidden="true">{s.glyph}</span>
+    </span>
+  );
+}
+
+const cellBase = 'border-b border-line px-1.5 py-1.5 whitespace-nowrap max-[560px]:px-1 max-[560px]:py-1';
+const thModel = cn(cellBase, 'text-left text-ink font-bold');
+const thCap = cn(
+  cellBase,
+  'w-[64px] text-center align-bottom text-[10px] leading-tight font-semibold text-dim whitespace-normal max-[560px]:w-[46px] max-[560px]:text-[9px]',
+);
+const cell = cn(cellBase, 'text-center');
 
 export function MatrixView() {
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -48,23 +70,37 @@ export function MatrixView() {
       <h1 className="m-0 text-[18px] font-extrabold text-ink">Nord compatibility</h1>
       <p className="mt-1 mb-4 text-[13px] text-dim">What OpenNord can do with each Nord — and where we need your help.</p>
       <p className="mt-1 mb-4 text-[13px] text-dim">
-        See your model marked <em>Ready to test</em>?{' '}
+        See <StatusIcon status="re" /> on your model?{' '}
         <a className="text-red-bright hover:text-red" href="#/contribute">Help confirm it →</a> — a quick read-only check and a few of your own programs, about 10 minutes.
       </p>
       {/* role="list": Safari drops list semantics from a list-style:none <ul>. */}
-      <ul role="list" aria-label="What each status means" className="m-0 mb-4 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-[12px] text-dim">
-        {LEGEND.map(([s, text]) => (
-          <li key={s}><span className={cn('font-bold', CELL_COLOR[s])}>{CHIP[s]}</span> {text}</li>
+      <ul
+        role="list"
+        aria-label="What each status means"
+        className="m-0 mb-4 grid list-none grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-x-4 gap-y-1.5 p-0 text-[12px] text-dim"
+      >
+        {LEGEND.map((s) => (
+          <li key={s} className="flex items-center gap-2">
+            <StatusIcon status={s} />
+            <span><span className="font-semibold text-ink">{STATUS[s].label}</span> · {STATUS[s].hint}</span>
+          </li>
         ))}
-        <li><span className={cn(FULL_MAP_CHIP, 'ml-0', CELL_COLOR.re)}>full map</span> reads every parameter a program stores</li>
+        <li className="flex items-center gap-2">
+          <span aria-hidden="true" className="w-[18px] text-center text-[11px] text-warn">{FULL_MAP.glyph}</span>
+          <span><span className="font-semibold text-ink">{FULL_MAP.label}</span> · {FULL_MAP.hint}</span>
+        </li>
+        <li className="flex items-center gap-2">
+          <span aria-hidden="true" className="flex w-[18px] justify-center text-warn"><span className={HEADER_ONLY_RING} /></span>
+          <span><span className="font-semibold text-ink">{HEADER_ONLY.label}</span> · {HEADER_ONLY.hint}</span>
+        </li>
       </ul>
       <ProbePanel />
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-[11px] max-[560px]:text-[10px]">
+        <table className="w-full max-w-[880px] border-collapse text-[12px] max-[560px]:text-[11px]">
           <thead>
             <tr>
               <th className={thModel}>Model</th>
-              <th className={thCap}>Program Parameters</th>
+              <th className={cn(thCap, 'w-[84px] max-[560px]:w-[60px]')}>Program Parameters</th>
               {MATRIX_COLUMNS.map((c) => <th key={c} className={thCap}>{CAPABILITY_LABEL[c]}</th>)}
             </tr>
           </thead>
@@ -101,30 +137,39 @@ export function MatrixView() {
                     {(() => {
                       // A model with no reachable files at all (the C1) has nothing to decode.
                       if (statusFor(m.id, 'file-read').status === 'unsupported') {
-                        return <td className={cn(cell, CELL_COLOR.unsupported)} title="No program files">—</td>;
+                        return <td className={cell}><StatusIcon status="unsupported" label="Program parameters" /></td>;
+                      }
+                      if (d.headerOnly) {
+                        return (
+                          <td className={cn(cell, 'text-warn')} title={`${HEADER_ONLY.label}: ${d.headerOnly}`}>
+                            <span role="img" aria-label={`${HEADER_ONLY.label}: ${d.headerOnly}`} className={HEADER_ONLY_RING} />
+                          </td>
+                        );
+                      }
+                      if (d.status === 'none') {
+                        return <td className={cell}><StatusIcon status="unknown" label="Program parameters" /></td>;
                       }
                       const text =
-                        d.headerOnly ? 'Header only'
-                        : d.paramCount != null ? `${d.paramCount} params`
+                        d.paramCount != null ? String(d.paramCount)
                         : d.status === 'partial' ? 'Partial'
-                        : d.status === 'started' ? (d.pct != null ? `${d.pct}%` : `${d.controlCount}✓`)
-                        : 'Not yet';
+                        : d.pct != null ? `${d.pct}%` : `${d.controlCount}✓`;
                       // Stage 4 (validated) is already green; elsewhere the full-map mark says the
                       // reader covers every stored parameter even though no real file confirmed it yet.
                       const fullMap = d.fullMap && d.status !== 'full';
+                      const title = fullMap ? FULL_MAP_TITLE : DECODE_LABEL[d.status];
                       return (
-                        <td
-                          className={cn(cell, CELL_COLOR[DECODE_CELL[d.status]])}
-                          title={d.headerOnly ?? (fullMap ? FULL_MAP_TITLE : DECODE_LABEL[d.status])}
-                        >
-                          {text}
-                          {fullMap && <span className={FULL_MAP_CHIP}>full map</span>}
+                        <td className={cn(cell, 'font-bold tabular-nums', CELL_COLOR[DECODE_CELL[d.status]])} title={title}>
+                          <span className="sr-only">{d.paramCount != null ? `${text} parameters` : text}{fullMap ? ', full map' : ''}</span>
+                          <span aria-hidden="true">
+                            {text}
+                            {fullMap && <span className="ml-1 text-[9px] align-[1px]">{FULL_MAP.glyph}</span>}
+                          </span>
                         </td>
                       );
                     })()}
                     {MATRIX_COLUMNS.map((c) => {
                       const s = statusFor(m.id, c).status;
-                      return <td key={c} className={cn(cell, CELL_COLOR[s])} title={CHIP[s]}>{CHIP[s]}</td>;
+                      return <td key={c} className={cell}><StatusIcon status={s} label={CAPABILITY_LABEL[c]} /></td>;
                     })}
                   </tr>
 
