@@ -67,7 +67,9 @@ function useLibraryStateValue() {
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.
   const { filtered, clearFilters, ensureListed } = useListFilters(shown, [
-    { active: query.trim() !== '', reset: () => setQuery('') },
+    // The search counts once the list has caught up with it (listQuery), so the
+    // empty state never reads a still-empty list as an empty library.
+    { active: listQuery.trim() !== '', reset: () => setQuery('') },
     { active: source !== 'all', reset: () => setSource('all') },
     { active: generation !== 'all', reset: () => setGeneration('all') },
     { active: category !== 'all', reset: () => setCategory('all') },
