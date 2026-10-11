@@ -1,10 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { decodeDependencyReply, computeSampleUsage, normalizeSampleName, findUnusedPianos, type SampleDep } from './dependencies';
+import {
+  decodeDependencyReply, computeSampleUsage, normalizeSampleName, findUnusedPianos, findUnusedSamples,
+  NO_DEPENDENCIES_MESSAGE, type SampleDep,
+} from './dependencies';
 import type { ProgramEntry } from './transfer';
 import { CQryFileIterate, CQryFileInfo, CQryFileGetDependency, PARTITION_PROGRAM } from './opcodes';
 
 /** Build a synthetic CRpyFileGetDependency (0x29) payload (status word at offset 0). */
-function makeDepPayload(bank: number, slot: number, entries: Array<{ present: boolean; id: number; name: string }>): Uint8Array {
+function makeDepPayload(
+  bank: number, slot: number, entries: Array<{ present: boolean; id: number; name: string }>, fileTransferVersion = 10,
+): Uint8Array {
   const enc = new TextEncoder();
   const parts: number[] = [];
   const pushU32 = (v: number) => parts.push((v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff); // BE
@@ -20,7 +25,7 @@ function makeDepPayload(bank: number, slot: number, entries: Array<{ present: bo
     const name = enc.encode(e.name);
     pushU32(name.length);
     parts.push(...name);
-    pushU32(0); pushU32(0); pushU32(0); // 3×u32 trailing (version ≥ 9)
+    if (fileTransferVersion >= 9) { pushU32(0); pushU32(0); pushU32(0); } // 3×u32 trailing (version ≥ 9)
   }
   return new Uint8Array(parts);
 }
@@ -38,6 +43,17 @@ describe('decodeDependencyReply', () => {
       { present: true, id: 0x11223344, name: 'Royal Grand 3D XL 6.1' },
       { present: false, id: 0x55667788, name: 'White Grand XL 6.3' },
     ]);
+  });
+
+  it('reads a FileTransfer 6–8 reply, whose entries have no trailing words', () => {
+    const entries = [
+      { present: true, id: 7, name: 'Bright Grand' },
+      { present: false, id: 9, name: 'Wurlitzer 1' },
+    ];
+    const v8 = makeDepPayload(0, 1, entries, 8);
+    expect(decodeDependencyReply(v8, 8).deps).toEqual(entries);
+    // Read as a version-10 reply, the second entry would be lost.
+    expect(decodeDependencyReply(v8, 10).deps).toHaveLength(1);
   });
 
   it('handles an empty dependency list', () => {
@@ -111,6 +127,7 @@ function makeFakeSession(opts: {
   programName: string;
   depPianoName: string;
   installedPianoNames: string[];
+  fileTransferVersion?: number;
 }): object {
   const enc = new TextEncoder();
 
@@ -165,6 +182,7 @@ function makeFakeSession(opts: {
     ({ msgId, status, payload });
 
   return {
+    fileTransferVersion: opts.fileTransferVersion ?? 10,
     exclusive<T>(fn: () => Promise<T>) {
       return fn();
     },
@@ -241,5 +259,21 @@ describe('findUnusedPianos', () => {
 
     expect(result.unused.map((p) => p.name)).toEqual(['Piano A', 'Piano B']);
     expect(result.used).toHaveLength(0);
+  });
+});
+
+describe('dependency scans on older instruments', () => {
+  it('refuse on FileTransfer 5 and older (no dependency query) before sending anything', async () => {
+    for (const fileTransferVersion of [3, 4, 5]) {
+      const session = makeFakeSession({
+        programName: 'P', depPianoName: 'X', installedPianoNames: ['X'], fileTransferVersion,
+      }) as { request: (...a: unknown[]) => unknown };
+      let sent = 0;
+      const request = session.request;
+      session.request = (...a: unknown[]) => { sent++; return request(...a); };
+      await expect(findUnusedSamples(session as never)).rejects.toThrow(NO_DEPENDENCIES_MESSAGE);
+      await expect(findUnusedPianos(session as never)).rejects.toThrow(NO_DEPENDENCIES_MESSAGE);
+      expect(sent, `v${fileTransferVersion}`).toBe(0);
+    }
   });
 });

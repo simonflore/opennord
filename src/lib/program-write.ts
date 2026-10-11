@@ -36,6 +36,7 @@ import { NL4_LAYOUT } from './nl4/layout.generated';
 import { NLA_LAYOUT } from './nla/layout.generated';
 import { NP2_LAYOUT } from './np2/layout.generated';
 import { NP3_LAYOUT } from './np3/layout.generated';
+import { NS1_LAYOUT } from './ns1/layout.generated';
 
 export { ProgramWriteError };
 
@@ -105,6 +106,9 @@ export const PROGRAM_WRITERS: Partial<Record<ClaviaModel, Writer>> = {
   nw1: legacy(NW1_LAYOUT),
   np2: legacy(NP2_LAYOUT),
   np3: legacy(NP3_LAYOUT),
+  // Placed by the CBIN framing rule like its reader (not yet seen in a real file): the exact
+  // 426 / 444-byte size, record version 10 and a holding checksum guard every write.
+  ns1: legacy(NS1_LAYOUT),
   nl4: legacy(NL4_LAYOUT, { tags: ['nl4p'], why: 'Lead 4 performances can’t be written yet, only single programs' }),
   nla: legacy(NLA_LAYOUT, { tags: ['nlap'], why: 'Lead A1 performances can’t be written yet, only single programs' }),
 };
@@ -112,7 +116,6 @@ export const PROGRAM_WRITERS: Partial<Record<ClaviaModel, Writer>> = {
 /** Models whose programs OpenNord reads (or partly reads) but does not write, and why. */
 export const NOT_WRITABLE: Partial<Record<ClaviaModel, string>> = {
   ns4: 'Stage 4 programs are edited through the Stage 4 writer',
-  ns1: 'where a Stage Classic / EX program’s settings start inside its file is not confirmed yet',
   np1: 'where a Nord Piano program’s settings sit in its file is an unconfirmed guess, and the record has no version to check it by',
 };
 

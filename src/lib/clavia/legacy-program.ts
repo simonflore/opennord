@@ -9,9 +9,8 @@
  * it this adds what these readers share: the record version checked against
  * the one the firmware writes (older ones it converts are converted the same
  * way when the model has a converter — record-convert.ts — else read with the
- * current layout and a warning; any other opens header-only), a file too short for the record header-only,
- * and — where the record's position in the file is not established — header
- * only with a warning rather than a guess. Pure; never throws; model → clavia.
+ * current layout and a warning; any other opens header-only) and a file too
+ * short for the record header-only. Pure; never throws; model → clavia.
  */
 import { formatCbinVersion } from './cbin';
 import { legacyLayoutVersion, legacyRecordVersion, readLegacyFile, type LegacyLayout } from './legacy-record';
@@ -39,12 +38,10 @@ export interface LegacyProgram<K extends string> {
   name?: string;
 }
 
-/** What a model's firmware reads, and whether its record's place in the file is known. */
+/** What a model's firmware reads. */
 export interface LegacyRecordSpec {
   /** Model name for messages, e.g. "Electro 5". */
   readonly model: string;
-  /** False while the record's position in the file is not established: the file then opens header-only. */
-  readonly located?: boolean;
   /** Older record versions the firmware converts on load. */
   readonly converted?: readonly number[];
   /**
@@ -53,8 +50,6 @@ export interface LegacyRecordSpec {
    * current layout as stored, with a warning that a few values may be off.
    */
   readonly convert?: RecordConverter;
-  /** The warning shown when the record is not located. */
-  readonly unknownStart?: string;
 }
 
 /** Read a legacy program file against `layout` (see the module comment). Never throws. */
@@ -67,9 +62,6 @@ export function decodeLegacyProgram<K extends string>(
     _data: new Uint8Array(0), warnings, bytes,
   });
 
-  if (spec.located === false) {
-    return headerOnly([spec.unknownStart ?? `Where the ${spec.model} program record starts in this file is not known yet; showing the file header only.`]);
-  }
   const current = layout.recordVersion;
   const reads = (v: number) => v === current || !!spec.converted?.includes(v);
   // The instrument’s own copy of the version sits in front of the data; NSM keeps

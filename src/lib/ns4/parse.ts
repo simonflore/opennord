@@ -23,9 +23,8 @@ export function parseNs4Program(bytes: Uint8Array): NS4Program {
   const recognized = hasCbinMagic(bytes);
   const tag = recognized ? fileTypeTag(bytes) : '';
 
-  // 'ns4p' is a standalone program; 'ns4l' is the same program extracted from a
-  // bundle/library (identical body, only the type tag differs). Both decode the
-  // full program model. 'nsmp' is a Nord Sample (audio content, NOT a program).
+  // 'ns4p' is a program; 'ns4l' is a Live slot's file, which holds the same
+  // record (only the type tag differs). Both decode the full program model. 'nsmp' is a Nord Sample (audio content, NOT a program).
   // See the maintainers’ notes.
   let kind: Ns4FileKind = 'preset-unknown';
   if (tag === 'ns4p' || tag === 'ns4l') kind = 'program';

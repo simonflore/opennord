@@ -24,7 +24,7 @@ describe('MatrixView', () => {
   });
   it('explains every icon in a labelled legend', () => {
     const legend = render().match(/<ul[^>]*aria-label="What each status means"[^>]*>(.*?)<\/ul>/)?.[1] ?? '';
-    for (const label of ['Works', 'Ready to test', 'Likely', 'Not available', 'Full map', 'Header only']) {
+    for (const label of ['Works', 'Ready to test', 'Likely', 'Not available', 'Full map']) {
       expect(legend).toContain(`${label}</span>`);
     }
   });
@@ -53,10 +53,11 @@ describe('MatrixView', () => {
     expect(row(html, 'Nord Electro 5')).toContain('129 parameters');
     expect(row(html, 'Nord C2')).toContain('86 parameters');
   });
-  it('marks Stage Classic / EX "Header only": the layout is mapped but files still open header-only', () => {
+  it('reads Stage Classic / EX files: their record follows the CBIN framing rule', () => {
     const html = render();
-    expect(row(html, 'Nord Stage Classic')).toContain('aria-label="Header only:');
-    expect(row(html, 'Nord Stage EX')).toContain('aria-label="Header only:');
+    expect(html).not.toContain('Header only');
+    expect(row(html, 'Nord Stage Classic')).toContain('199 parameters, full map');
+    expect(row(html, 'Nord Stage EX')).toContain('199 parameters, full map');
   });
   it('prompts to connect a Nord when none is connected', () => {
     expect(render()).toContain('the check is read-only');

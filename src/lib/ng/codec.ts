@@ -5,6 +5,6 @@ import type { NgProgram } from './types';
 /** Nord Grand programs (`ngp`; `ngl` = Live). Read-only. */
 export const ngCodec: ModelCodec<NgProgram> = {
   model: 'ng',
-  tags: ['ngp', 'ngl'],
+  tags: ['ngp'],
   decode: decodeNg,
 };

@@ -1,65 +1,54 @@
 /**
  * Nord Stage Classic / Stage EX (`.nspg`) reader — the OS 5.08 / 6.08
  * descriptor record (`layout.generated.ts`, the maintainers’ tools
- * `stage-classic`). The record layout is known; where it starts in a `.nspg`
- * file is not (types.ts), so `decodeNs1` opens a file header-only with a
- * warning unless a record start is passed explicitly (RE tooling, tests). It
- * never guesses one. Never throws.
+ * `stage-classic`) read through the shared legacy program reader.
+ *
+ * Framing is the one CBIN rule every Nord file follows (clavia/cbin.ts
+ * `cbinRecord`): the record — its u8 version first, then 399 data bytes — sits
+ * at 0x2C behind an NSM-era header and at 0x18 behind a legacy one (then the
+ * 2-byte trailer), so a whole file is 444 or 426 bytes. NSM never parses the
+ * body; it passes on what the instrument sends. The alignment is not yet
+ * confirmed on a real file, so the coverage map calls it a candidate. A file
+ * longer than the record (padding the firmware notes don't show) still reads,
+ * with a size note. Never throws.
  */
-import { formatCbinVersion } from '../clavia/cbin';
 import { decodeLegacyProgram } from '../clavia/legacy-program';
 import { outOfRangeWarning } from '../clavia/block-chain';
 import { legacyMorphDeltas, readLegacyRecord } from '../clavia/legacy-record';
 import { NS1_LAYOUT } from './layout.generated';
 import type { Ns1Program, Ns1Record } from './types';
 
-/** Where the record starts in a `.nspg` file: not established, so null. */
-export const NS1_RECORD_START: number | null = null;
-
 /** The record's current version; the firmware converts 0–9 up on load. */
 export const NS1_RECORD_VERSION = 10;
 
-const UNKNOWN_START =
-  'Stage Classic / EX: where the program settings start inside a .nspg file is not confirmed yet, so only the file header is shown.';
+/** Older record versions the firmware converts on load. */
+const CONVERTED = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-/** Read one located 400-byte record (its u8 version first). Never throws. */
+/** Bytes in the whole record: the u8 version + the data. */
+export const NS1_RECORD_BYTES = (NS1_LAYOUT.versionBytes ?? 1) + NS1_LAYOUT.dataBytes;
+
+/** Read one 400-byte record (its u8 version first). Never throws. */
 export function decodeNs1Record(record: Uint8Array): Ns1Record {
   const warnings: string[] = [];
   const recordVersion = record[0] ?? 0;
-  if (record.length < NS1_LAYOUT.dataBytes) {
-    warnings.push(`Record too short: ${record.length} bytes (the firmware record is ${NS1_LAYOUT.dataBytes}).`);
+  if (record.length < NS1_RECORD_BYTES) {
+    warnings.push(`Record too short: ${record.length} bytes (the program record is ${NS1_RECORD_BYTES}).`);
   }
   if (recordVersion < NS1_RECORD_VERSION) {
     warnings.push(`Record version ${recordVersion}: the instrument converts it to version ${NS1_RECORD_VERSION} on load; values may be off.`);
   } else if (recordVersion > NS1_RECORD_VERSION) {
     warnings.push(`Record version ${recordVersion} is newer than OpenNord reads (${NS1_RECORD_VERSION}); values may be off.`);
   }
-  const { values, outOfRange } = readLegacyRecord(record, NS1_LAYOUT);
+  const { values, outOfRange } = readLegacyRecord(record, NS1_LAYOUT, NS1_LAYOUT.versionBytes ?? 1);
   if (outOfRange.length > 0) warnings.push(outOfRangeWarning(outOfRange));
   return { recordVersion, values, outOfRange, morphDeltas: legacyMorphDeltas(NS1_LAYOUT, values), warnings };
 }
 
-/**
- * Decode a `.nspg` file. Header only (with a warning) unless `recordStart`
- * — the file offset of the record's u8 version — is given.
- */
-export function decodeNs1(bytes: Uint8Array, recordStart: number | null = NS1_RECORD_START): Ns1Program {
-  if (recordStart === null) {
-    const p = decodeLegacyProgram(bytes, NS1_LAYOUT, { model: 'Stage Classic / EX', located: false, unknownStart: UNKNOWN_START });
-    return { ...p, format: 'nspg', record: null };
-  }
-  const version = formatCbinVersion(bytes);
-  if (bytes.length < recordStart + NS1_LAYOUT.dataBytes) {
-    return {
-      parsed: true, format: 'nspg', version, recordVersion: null, layoutMatched: false, values: {}, outOfRange: [],
-      _data: new Uint8Array(0), record: null, bytes,
-      warnings: [`File too short for a ${NS1_LAYOUT.dataBytes}-byte record at 0x${recordStart.toString(16)}; showing the file header only.`],
-    };
-  }
-  const data = bytes.slice(recordStart, recordStart + NS1_LAYOUT.dataBytes);
-  const record = decodeNs1Record(data);
-  return {
-    parsed: true, format: 'nspg', version, recordVersion: record.recordVersion, layoutMatched: true,
-    values: record.values, outOfRange: record.outOfRange, _data: data, record, bytes, warnings: record.warnings,
-  };
+/** Decode a `.nspg` file (full bytes, CBIN header included). */
+export function decodeNs1(bytes: Uint8Array): Ns1Program {
+  const p = decodeLegacyProgram(bytes, NS1_LAYOUT, { model: 'Stage Classic / EX', converted: CONVERTED });
+  const record: Ns1Record | null = p.layoutMatched
+    ? { recordVersion: p.recordVersion ?? 0, values: p.values, outOfRange: p.outOfRange, morphDeltas: legacyMorphDeltas(NS1_LAYOUT, p.values), warnings: p.warnings }
+    : null;
+  return { ...p, format: 'nspg', record };
 }

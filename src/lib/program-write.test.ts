@@ -4,7 +4,7 @@ import type { FwLayout } from './clavia/block-chain';
 import type { LegacyLayout } from './clavia/legacy-record';
 import { sealFileChecksum, verifyFileChecksum } from './clavia/checksum';
 import { synthFwBody, synthFwFile, synthLegacyLayoutFile } from './clavia/block-chain.synth';
-import { NOT_WRITABLE, PROGRAM_WRITERS, ProgramWriteError, writeProgram } from './program-write';
+import { NOT_WRITABLE, PROGRAM_WRITERS, writeProgram } from './program-write';
 import { decodeNs3 } from './ns3/decode';
 import { decodeNs2 } from './ns2/decode';
 import { decodeNg } from './ng/decode';
@@ -26,6 +26,7 @@ import { decodeNl4 } from './nl4/decode';
 import { decodeNla } from './nla/decode';
 import { decodeNp2 } from './np2/decode';
 import { decodeNp3 } from './np3/decode';
+import { decodeNs1 } from './ns1/decode';
 import { NS3_LAYOUT } from './ns3/layout.generated';
 import { NS2_LAYOUT } from './ns2/layout.generated';
 import { NG_LAYOUT } from './ng/layout.generated';
@@ -47,6 +48,7 @@ import { NL4_LAYOUT } from './nl4/layout.generated';
 import { NLA_LAYOUT } from './nla/layout.generated';
 import { NP2_LAYOUT } from './np2/layout.generated';
 import { NP3_LAYOUT } from './np3/layout.generated';
+import { NS1_LAYOUT } from './ns1/layout.generated';
 
 type Values = Partial<Record<string, number>>;
 interface Case { tag: string; layout: FwLayout | LegacyLayout; read: (bytes: Uint8Array) => Values }
@@ -74,6 +76,7 @@ const CASES: Partial<Record<ClaviaModel, Case>> = {
   nla: { tag: 'nlas', layout: NLA_LAYOUT, read: (b) => decodeNla(b).values },
   np2: { tag: 'np2p', layout: NP2_LAYOUT, read: (b) => decodeNp2(b).values },
   np3: { tag: 'np3p', layout: NP3_LAYOUT, read: (b) => decodeNp3(b).values },
+  ns1: { tag: 'nspg', layout: NS1_LAYOUT, read: (b) => decodeNs1(b).values },
 };
 
 const isFw = (l: FwLayout | LegacyLayout): l is FwLayout => 'blocks' in l;
@@ -98,7 +101,7 @@ function edits(layout: FwLayout | LegacyLayout): Record<string, number> {
 describe('writeProgram', () => {
   it('covers every model OpenNord reads with a layout, except the ones it says it can’t write', () => {
     expect(Object.keys(PROGRAM_WRITERS).sort()).toEqual(Object.keys(CASES).sort());
-    expect(Object.keys(NOT_WRITABLE).sort()).toEqual(['np1', 'ns1', 'ns4']);
+    expect(Object.keys(NOT_WRITABLE).sort()).toEqual(['np1', 'ns4']);
   });
 
   for (const [model, c] of Object.entries(CASES) as [ClaviaModel, Case][]) {
@@ -122,8 +125,7 @@ describe('writeProgram', () => {
   }
 
   it('refuses the models it can’t write, and Lead performances', () => {
-    expect(() => writeProgram('ns1', new Uint8Array(0), {})).toThrow(/Stage Classic/);
-    expect(() => writeProgram('np1', new Uint8Array(0), {})).toThrow(ProgramWriteError);
+    expect(() => writeProgram('np1', new Uint8Array(0), {})).toThrow(/Nord Piano/);
     expect(() => writeProgram('unknown', new Uint8Array(0), {})).toThrow(/not supported/);
     const nl4p = sealFileChecksum(synthLegacyLayoutFile('nl4p', NL4_LAYOUT, {}, { version: 9 }));
     expect(() => writeProgram('nl4', nl4p, {})).toThrow(/Lead 4 performances/);
@@ -157,5 +159,13 @@ describe('writeProgram', () => {
     expect(() => writeProgram('ne3', synthLegacyLayoutFile('nepg', NE3HP_LAYOUT, {}, { version: 100 }), {})).toThrow(/version 100/);
     expect(() => writeProgram('ns2', synthLegacyLayoutFile('ns2p', NS2_LAYOUT, {}, { version: 6 }), {})).toThrow(/version 6/);
     expect(() => writeProgram('ne5', synthLegacyLayoutFile('ne5p', NE5_LAYOUT, {}, { version: 3 }), {})).toThrow(/version 3/);
+    expect(() => writeProgram('ns1', synthLegacyLayoutFile('nspg', NS1_LAYOUT, {}, { version: 9 }), {})).toThrow(/version 9/);
+  });
+
+  it('Stage Classic / EX: writes only a whole 426 / 444-byte file', () => {
+    const file = sealFileChecksum(synthLegacyLayoutFile('nspg', NS1_LAYOUT));
+    const padded = new Uint8Array(file.length + 2);
+    padded.set(file);
+    expect(() => writeProgram('ns1', sealFileChecksum(padded), {})).toThrow(/428 bytes; the program record makes 426/);
   });
 });

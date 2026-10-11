@@ -1,7 +1,5 @@
 import { identifyNordFile } from '../../lib/clavia/nord-file';
 
-const KIND_LABEL: Record<string, string> = { program: 'Program', performance: 'Performance', sample: 'Sample', unknown: 'File' };
-
 /**
  * Structure view for a recognized Nord file we don't fully decode yet — Stage 2/3
  * programs and other CBIN files. Shows the generation and the header fields we can
@@ -36,7 +34,7 @@ export function NordFileCard({ bytes }: { bytes: Uint8Array }) {
   return (
     <div className="ps">
       <div className="ps-card">
-        <h4>{title} · {KIND_LABEL[info.kind] ?? 'File'}</h4>
+        <h4>{title} · {info.kindLabel}</h4>
         {!info.headerDecoded && (
           <p className="ps-sub" style={{ marginTop: 0 }}>
             Legacy {title} header — slot, category and version aren’t decoded yet.

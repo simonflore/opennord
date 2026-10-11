@@ -8,16 +8,17 @@
  * is not in the binary"), and only framing bytes are copied — the header from the
  * version field up to (not including) the NSM-era CRC at 0x18, and the record /
  * body version word (plus the first block length on a block chain). No parameter
- * bits, no checksum, no hash. Only tags a reader claims ({@link PROGRAM_TAGS}) are
- * reported, so samples (which embed a name), pianos and presets never are.
+ * bits, no checksum, no hash. Only a file a program reader reads is reported
+ * (formats.ts `programTagFor`: a program, or a Live file holding a program record),
+ * so samples (which embed a name), pianos, presets, Settings and Songs never are.
  * Reader warnings are generic strings built from sizes, versions and layout
  * field names. One report per distinct file per session; gated on the per-device
  * opt-in (file-support-pref.ts), off by default.
  */
 import type { DiagnosticEvent, Diagnostics } from '../capabilities/types';
-import { identifyNordFile, type NordFileInfo } from '../clavia/nord-file';
-import { LEGACY_RECORD_OFFSET, NSM_RECORD_OFFSET } from '../clavia/legacy-record';
-import { PROGRAM_TAGS, parseClaviaFile } from '../formats';
+import { identifyNordFile } from '../clavia/nord-file';
+import { cbinFraming } from '../clavia/cbin';
+import { parseClaviaFile, programTagFor } from '../formats';
 import { legacyVersionBytes } from '../contribute/coverage';
 import { decodeNs3 } from '../ns3/decode';
 import { decodeNs2 } from '../ns2/decode';
@@ -101,11 +102,11 @@ export function verdictOf(program: Loose): ReaderVerdict {
 }
 
 /** Run the reader OpenNord uses for this file (the views' own entry points). Never throws. */
-function readerVerdict(bytes: Uint8Array, info: NordFileInfo): ReaderVerdict {
+function readerVerdict(bytes: Uint8Array, programTag: string): ReaderVerdict {
   try {
-    // Stage 3 / Stage 2 programs render through their own decoders, not a codec.
-    if (info.tag === 'ns3f') return verdictOf(decodeNs3(bytes) as unknown as Loose);
-    if (info.tag === 'ns2p') return verdictOf(decodeNs2(bytes) as unknown as Loose);
+    // Stage 3 / Stage 2 programs (and their Lives) render through their own decoders, not a codec.
+    if (programTag === 'ns3f') return verdictOf(decodeNs3(bytes) as unknown as Loose);
+    if (programTag === 'ns2p') return verdictOf(decodeNs2(bytes) as unknown as Loose);
     return verdictOf(parseClaviaFile(bytes).program as unknown as Loose);
   } catch (e) {
     // Only the error's class name: a message is ours, but keep the payload minimal.
@@ -115,18 +116,19 @@ function readerVerdict(bytes: Uint8Array, info: NordFileInfo): ReaderVerdict {
 }
 
 /**
- * The `file.read` event for a program file, or null when the bytes aren't a
- * program file a reader claims. Pure apart from the build constants.
+ * The `file.read` event for a file a program reader reads, or null for any
+ * other bytes. Pure apart from the build constants.
  */
 export function buildFileReadEvent(bytes: Uint8Array): DiagnosticEvent | null {
   const info = identifyNordFile(bytes);
-  if (!info.recognized || !PROGRAM_TAGS.has(info.tag)) return null;
+  const programTag = info.recognized ? programTagFor(info, bytes) : undefined;
+  if (!programTag) return null;
 
-  const bodyOffset = info.formatType === 0 ? LEGACY_RECORD_OFFSET : NSM_RECORD_OFFSET;
+  const bodyOffset = cbinFraming(bytes).recordOffset;
   // A legacy record opens with its version (u16, or u8 on the Wave) — copy just that, never the data after it.
   // A tag shared by several models (the Lead programs) has no model id: assume the narrower legacy window.
   const bodyBytes = info.modelId ? (legacyVersionBytes(info.modelId) ?? BLOCK_CHAIN_BODY_BYTES) : 2;
-  const reader = readerVerdict(bytes, info);
+  const reader = readerVerdict(bytes, programTag);
   const status = reader.layoutMatched === null ? 'read (no layout check)' : reader.headerOnly ? 'header-only' : 'read';
   const detail: FileReadDetail = {
     tag: info.tag,

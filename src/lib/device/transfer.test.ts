@@ -241,8 +241,10 @@ describe('deleteProgram', () => {
   });
 });
 
-import { pullFile, pushFile } from './transfer';
+import { pullFile, pushFile, pushRefusal } from './transfer';
 import { buildCbinHeader } from '../clavia/cbin';
+import { synthLegacyLayoutFile } from '../clavia/block-chain.synth';
+import { NS2_LAYOUT } from '../ns2/layout.generated';
 
 describe('pushFile', () => {
   it('derives the FileCreate fourcc from the file header (e.g. ns4o), not hardcoded ns4p', async () => {
@@ -259,6 +261,68 @@ describe('pushFile', () => {
     await pushFile(s, 1, 3, file, 'Champagne');
     const create = decodeReply(t.sent[0]);
     expect(create.words[3]).toBe(ext2Type('ns4o')); // fourcc word
+  });
+
+  /** A legacy (formatType 0) file: the 24-byte header, `record`, then a 2-byte trailer. */
+  function legacyFile(tag: string, version: number, record: number[]): Uint8Array {
+    const header = buildCbinHeader({ formatType: 0, tag, bank: 0, location: 0, category: 3, versionRaw: version });
+    const file = new Uint8Array(0x18 + record.length + 2);
+    file.set(header.subarray(0, 0x18));
+    file.set(record, 0x18);
+    file.set([0xab, 0xcd], file.length - 2);
+    return file;
+  }
+
+  it('sends a legacy file\'s record alone — from 0x18, without the 2-byte trailer — as NSM does', async () => {
+    const record = [0, 7, 10, 20, 30, 40, 50];
+    const { t, s } = await openWritable([
+      encodeMessage(CReqFileCreate | 1, [0]),
+      encodeMessage(CReqFileWrite | 1, [0]),
+      encodeMessage(CReqFileClose | 1, [0]),
+    ]);
+    await pushFile(s, 0, 5, legacyFile('ns2p', 7, record), 'Legacy');
+    const create = decodeReply(t.sent[0]);
+    expect(create.words[2]).toBe(record.length); // size word: the record, no header, no trailer
+    expect(create.words[5]).toBe(3); // category
+    const write = decodeReply(t.sent[1]);
+    expect([...write.payload.subarray(16)]).toEqual(record); // after {bank, slot, offset, length}
+  });
+
+  it('sends the same record for a Stage 2 program behind either header (what the instrument stores)', async () => {
+    const values = { 'slotA_common.organEnable': 1 } as const;
+    const legacy = synthLegacyLayoutFile('ns2p', NS2_LAYOUT, values, { version: 7 }); // 547 bytes, CRC-16 trailer
+    const nsm = synthLegacyLayoutFile('ns2p', NS2_LAYOUT, values, { version: 7, nsmHeader: true }); // 565 bytes
+    const sent: Uint8Array[] = [];
+    for (const file of [legacy, nsm]) {
+      const { t, s } = await openWritable([
+        encodeMessage(CReqFileCreate | 1, [0]),
+        encodeMessage(CReqFileWrite | 1, [0]),
+        encodeMessage(CReqFileClose | 1, [0]),
+      ]);
+      await pushFile(s, 0, 5, file, 'Ballad');
+      expect(decodeReply(t.sent[0]).words[2], `${file.length}`).toBe(521); // the record: 2-byte version + data
+      sent.push(decodeReply(t.sent[1]).payload.subarray(16));
+    }
+    expect([...sent[0]]).toEqual([...sent[1]]);
+    expect([...sent[0]]).toEqual([...nsm.subarray(0x2c)]);
+    expect([...sent[0]]).toEqual([...legacy.subarray(0x18, legacy.length - 2)]);
+  });
+
+  it('refuses before any frame what NSM refuses: a header newer than NSM-era, an old Stage 2 sound', async () => {
+    const newer = buildCbinHeader({ formatType: 2, tag: 'ns4p', bank: 0, location: 0, category: 0, versionRaw: 100 });
+    const cases: [Uint8Array, RegExp][] = [
+      [new Uint8Array([...newer, 1, 2, 3]), /newer format/],
+      [legacyFile('ns2p', 5, [0, 5, 1, 2]), /older Stage 2 OS/],
+      [legacyFile('ns2s', 2, [0, 2, 1, 2]), /older Stage 2 OS/],
+      [new Uint8Array(64), /not a Nord file/], // no CBIN magic: nothing to strip a header from
+    ];
+    for (const [file, message] of cases) {
+      const { t, s } = await openWritable([]);
+      await expect(pushFile(s, 0, 0, file, 'x')).rejects.toThrow(message);
+      expect(t.sent).toHaveLength(0);
+    }
+    expect(pushRefusal(legacyFile('ns2p', 6, [0, 6]))).toBeUndefined();
+    expect(pushRefusal(legacyFile('ns2l', 2, [0, 2]))).toBeUndefined(); // NSM checks Programs and Synth presets only
   });
 });
 
