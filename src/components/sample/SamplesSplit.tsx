@@ -35,7 +35,7 @@ export function SamplesSplit() {
     setPullError('');
     if (e.source === 'local' && e.bytes) {
       setLoadNew(false);
-      setInspect({ bytes: e.bytes, name: e.name });
+      setInspect({ id: e.id, bytes: e.bytes, name: e.name });
       return;
     }
     if (e.source === 'nord' && e.device && session) {
@@ -43,7 +43,7 @@ export function SamplesSplit() {
       try {
         const bytes = await pullSample(session, e.device,
           (done, total) => setPullPct(total ? Math.round((done / total) * 100) : 0));
-        setInspect({ bytes, name: e.name });
+        setInspect({ id: e.id, bytes, name: e.name });
       } catch (err) {
         setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
       } finally {
@@ -55,7 +55,7 @@ export function SamplesSplit() {
       setLoadNew(false); setInspect(null); setPullPct(0);
       try {
         const bytes = await extractBackupEntry(folder, e.backupRef);
-        setInspect({ bytes, name: e.name, factory: e.factory });
+        setInspect({ id: e.id, bytes, name: e.name, factory: e.factory });
       } catch (err) {
         setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
       } finally {
@@ -109,6 +109,7 @@ export function SamplesSplit() {
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery}
         onOpen={(e) => void openEntry(e)} onLoadNew={startLoadNew}
+        activeId={inspect?.id ?? null}
         onImport={importSample}
         onRemove={(id) => void s.removeSample(id)}
         storedCount={s.storedCount} storedBytes={s.storedBytes}

@@ -40,6 +40,7 @@ export function PresetsSplit() {
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
         onSelect={(e) => setSelectedId(e.id)}
+        activeId={selectedId}
         onImport={importPreset}
         onRemove={(id) => void s.removePreset(id)}
       />

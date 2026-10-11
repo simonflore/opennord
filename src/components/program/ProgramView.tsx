@@ -5,6 +5,7 @@ import { activeLayers, scenesDiffer, engineCardModel, headerView, fxChips } from
 import { ProgramHeader } from './ProgramHeader';
 import { ProgramZones } from './ProgramZones';
 import { EngineCard } from './EngineCard';
+import { LedSwitch } from './widgets';
 import { OrganPlay } from './OrganPlay';
 import { FxRow } from './FxRow';
 import { Morphs } from './Morphs';
@@ -87,19 +88,15 @@ export function ProgramView({ program }: { program: NordProgram }) {
   // The two Layer Scenes, as the panel's scene buttons: lit = the one shown here;
   // "saved" marks the scene the program was stored with.
   const sceneSwitch = canToggle && (
-    <div className="ps-scene" role="group" aria-label="Layer scene">
-      {(['I', 'II'] as const).map((s) => (
-        <button
-          key={s}
-          className={`ps-key ps-scene-btn${scene === s ? ' on' : ''}`}
-          onClick={() => setScene(s)}
-          aria-pressed={scene === s}
-        >
-          Scene {s}
-          {program.activeScene === s && <span className="ps-key-note">saved</span>}
-        </button>
-      ))}
-    </div>
+    <LedSwitch
+      className="ps-scene"
+      label="Layer scene"
+      value={scene}
+      onChange={setScene}
+      options={(['I', 'II'] as const).map((s) => ({
+        value: s, label: `Scene ${s}`, note: program.activeScene === s ? 'saved' : undefined,
+      }))}
+    />
   );
 
   return (
