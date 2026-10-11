@@ -51,9 +51,13 @@ describe('manualCheckOutcome', () => {
     expect(manualCheckOutcome({ ...base, available: '0.2.0', readyVersion: '0.2.0', deviceOpen: true }))
       .toEqual({ kind: 'ready-on-quit', version: '0.2.0' });
   });
-  it('reports the error, ahead of anything else', () => {
-    expect(manualCheckOutcome({ ...base, available: '0.2.0', error: 'net::ERR_INTERNET_DISCONNECTED' }))
+  it('reports a failed check', () => {
+    expect(manualCheckOutcome({ ...base, error: 'net::ERR_INTERNET_DISCONNECTED' }))
       .toEqual({ kind: 'error', message: 'net::ERR_INTERNET_DISCONNECTED' });
+  });
+  it('still offers an update that is already downloaded when the check itself fails (offline)', () => {
+    expect(manualCheckOutcome({ ...base, readyVersion: '0.2.0', error: 'net::ERR_INTERNET_DISCONNECTED' }))
+      .toEqual({ kind: 'ready', version: '0.2.0' });
   });
 });
 
@@ -75,7 +79,7 @@ describe('manualCheckMessage', () => {
   it('never uses updater jargon', () => {
     const outcomes = [
       { kind: 'up-to-date', current: '0.1.0' }, { kind: 'downloading', version: '0.2.0' },
-      { kind: 'ready', version: '0.2.0' }, { kind: 'ready-on-quit', version: '0.2.0' },
+      { kind: 'ready-on-quit', version: '0.2.0' },
       { kind: 'error', message: 'x' },
     ] as const;
     for (const o of outcomes) {
@@ -86,17 +90,14 @@ describe('manualCheckMessage', () => {
 });
 
 describe('shouldOfferMove', () => {
-  it('offers on a packaged Mac app outside Applications', () => {
-    expect(shouldOfferMove({ platform: 'darwin', packaged: true, inApplications: false })).toBe(true);
+  it('offers on a Mac app outside Applications', () => {
+    expect(shouldOfferMove({ platform: 'darwin', inApplications: false })).toBe(true);
   });
   it('does not offer once it is in Applications', () => {
-    expect(shouldOfferMove({ platform: 'darwin', packaged: true, inApplications: true })).toBe(false);
-  });
-  it('does not offer in development', () => {
-    expect(shouldOfferMove({ platform: 'darwin', packaged: false, inApplications: false })).toBe(false);
+    expect(shouldOfferMove({ platform: 'darwin', inApplications: true })).toBe(false);
   });
   it('does not offer on Windows', () => {
-    expect(shouldOfferMove({ platform: 'win32', packaged: true, inApplications: false })).toBe(false);
+    expect(shouldOfferMove({ platform: 'win32', inApplications: false })).toBe(false);
   });
 });
 
@@ -124,6 +125,10 @@ describe('shortError', () => {
     const out = shortError('y'.repeat(5_000));
     expect(out.length).toBeLessThanOrEqual(300);
     expect(out.endsWith('…')).toBe(true);
+  });
+  it('accepts whatever was thrown, not only strings', () => {
+    expect(shortError(new Error('boom\nstack'))).toBe('boom');
+    expect(shortError({ code: 7 })).toBe('[object Object]');
   });
   it('leaves a short message alone', () => {
     expect(shortError('net::ERR_INTERNET_DISCONNECTED')).toBe('net::ERR_INTERNET_DISCONNECTED');

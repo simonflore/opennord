@@ -12,8 +12,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
-    "typecheck:electron": "tsc --noEmit -p electron/tsconfig.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p electron/tsconfig.json",
     "lint": "eslint src && stylelint \"src/**/*.css\"",
     "lint:fix": "eslint src --fix && stylelint \"src/**/*.css\" --fix",
     "fixtures:scan": "vitest run src/lib/clavia/fixtures-scan.test.ts --reporter=default",
@@ -108,7 +107,6 @@
       "category": "public.app-category.music",
       "artifactName": "OpenNord-mac.${ext}",
       "hardenedRuntime": true,
-      "gatekeeperAssess": false,
       "entitlements": "electron/entitlements.mac.plist",
       "entitlementsInherit": "electron/entitlements.mac.plist"
     },
@@ -116,7 +114,6 @@
       "target": "nsis"
     },
     "nsis": {
-      "oneClick": true,
       "perMachine": false,
       "artifactName": "OpenNord-win-x64.${ext}"
     }

@@ -43,8 +43,9 @@ export function manualCheckOutcome(i: {
   deviceOpen: boolean;
   error: string | null;
 }): ManualOutcome {
-  if (i.error) return { kind: 'error', message: i.error };
+  // A downloaded update outranks a failed check: offline, it can still be installed.
   if (i.readyVersion) return { kind: i.deviceOpen ? 'ready-on-quit' : 'ready', version: i.readyVersion };
+  if (i.error) return { kind: 'error', message: i.error };
   if (i.available) return { kind: 'downloading', version: i.available };
   return { kind: 'up-to-date', current: i.current };
 }
@@ -54,20 +55,19 @@ export function manualCheckOutcome(i: {
  * "no release found" error, for one, appends the entire releases feed after its
  * first line — tens of kilobytes that would otherwise land in a dialog.
  */
-export function shortError(message: string): string {
+export function shortError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
   const firstLine = message.split('\n', 1)[0].trim();
   return firstLine.length > 300 ? `${firstLine.slice(0, 299)}…` : firstLine;
 }
 
-/** Dialog copy for a manual check. `ready` is shown through the restart prompt instead. */
-export function manualCheckMessage(o: ManualOutcome): { message: string; detail: string } {
+/** Dialog copy for a manual check. `ready` has none: it is answered with the restart prompt. */
+export function manualCheckMessage(o: Exclude<ManualOutcome, { kind: 'ready' }>): { message: string; detail: string } {
   switch (o.kind) {
     case 'up-to-date':
       return { message: 'OpenNord is up to date.', detail: `You have version ${o.current}.` };
     case 'downloading':
       return { message: `Downloading OpenNord ${o.version}…`, detail: 'You can keep working. You’ll be asked to restart when it’s ready.' };
-    case 'ready':
-      return { message: `OpenNord ${o.version} is ready to install.`, detail: 'Restart to finish updating.' };
     case 'ready-on-quit':
       return { message: `OpenNord ${o.version} is ready to install.`, detail: 'Your Nord is connected, so nothing will restart now. The update installs when you quit OpenNord.' };
     case 'error':
@@ -76,8 +76,8 @@ export function manualCheckMessage(o: ManualOutcome): { message: string; detail:
 }
 
 /** macOS can only replace the app in place when it runs from an Applications folder. */
-export function shouldOfferMove(i: { platform: string; packaged: boolean; inApplications: boolean }): boolean {
-  return i.platform === 'darwin' && i.packaged && !i.inApplications;
+export function shouldOfferMove(i: { platform: string; inApplications: boolean }): boolean {
+  return i.platform === 'darwin' && !i.inApplications;
 }
 
 /**
