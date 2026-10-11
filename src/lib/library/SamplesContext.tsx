@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedSamples } from '@/lib/library/useImportedSamples';
@@ -80,14 +80,14 @@ function useSamplesStateValue() {
   }, [session, setSampleEntries]);
 
   // Tag device samples the scan found unused (match by normalized name).
-  const unusedNames = usage ? new Set(usage.unused.map((s) => normalizeSampleName(s.name))) : null;
-  const allEntries: SampleEntry[] = [
+  const unusedNames = useMemo(() => (usage ? new Set(usage.unused.map((s) => normalizeSampleName(s.name))) : null), [usage]);
+  const allEntries: SampleEntry[] = useMemo(() => [
     ...nordSampleEntriesFromDevice(sampleEntries).map((e) =>
       unusedNames ? { ...e, unused: unusedNames.has(normalizeSampleName(e.name)) } : e),
     ...sampleEntriesFromScanned(folder.result.samples),
     ...sampleEntriesFromBackupRefs(folder.result.backupSamples).map((e) => ({ ...e, factory: origins.get(e.id) })),
     ...imported.entries,
-  ];
+  ], [sampleEntries, unusedNames, folder.result.samples, folder.result.backupSamples, origins, imported.entries]);
   const nordCount = allEntries.filter((e) => e.source === 'nord').length;
   const localCount = allEntries.length - nordCount;
   const storedCount = imported.entries.length;
@@ -146,10 +146,12 @@ function useSamplesStateValue() {
     }
   }
 
+  /** Every filter off and the search cleared (the list's "clear filters"). */
+  const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setGeneration('all'); setCategory('all'); setUnusedOnly(false); }, []);
   /** Show one entry by name: every filter off, the search set to it (the ⌘K palette's jump). */
-  const reveal = (name: string) => { setSource('all'); setGeneration('all'); setCategory('all'); setUnusedOnly(false); setQuery(name); };
+  const reveal = useCallback((name: string) => { clearFilters(); setQuery(name); }, [clearFilters]);
   return {
-    all: allEntries, reveal,
+    all: allEntries, clearFilters, reveal,
     shown, source, setSource, generation, setGeneration,
     category, setCategory, categoriesPresent, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, showUnknownGen, folder,

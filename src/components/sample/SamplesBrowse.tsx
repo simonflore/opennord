@@ -39,7 +39,7 @@ const SORT_LABEL: Record<SampleSort, string> = {
 export function SamplesBrowse(
   { entries, source, generation, query, nordCount, localCount, showSourceFacet, showUnknownGen,
     category = 'all', onCategory, categoriesPresent = [],
-    onSource, onGeneration, onQuery, onOpen, onLoadNew, onImport, onRemove, activeId,
+    onSource, onGeneration, onQuery, clearFilters, onOpen, onLoadNew, onImport, onRemove, activeId,
     storedCount, storedBytes, prefs,
     canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly,
     selected, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
@@ -55,6 +55,8 @@ export function SamplesBrowse(
     onSource: (s: LibrarySource | 'all') => void;
     onGeneration: (g: SampleGeneration | 'all') => void;
     onQuery: (q: string) => void;
+    /** Every filter off and the search cleared (from the list's context). */
+    clearFilters: () => void;
     onOpen: (e: SampleEntry) => void;
     /** The entry open in the detail pane, highlighted in the list. */
     activeId?: string | null;
@@ -156,7 +158,6 @@ export function SamplesBrowse(
 
   const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || generation !== 'all' || unusedOnly
     || (categoriesPresent.length > 1 && (category ?? 'all') !== 'all');
-  const clearFilters = () => { onQuery(''); onSource('all'); onGeneration('all'); onUnusedOnly(false); onCategory?.('all'); };
 
   const actions = (
     <>

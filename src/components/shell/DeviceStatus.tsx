@@ -6,7 +6,7 @@ import { Led } from './Led';
  * The Nord's connection, as the top bar shows it: an LED that's green only while
  * a Nord is connected, its name, and Connect or Manage. At phone width only the
  * LED and a short name stay — device transfer rides vendor-USB, which a phone
- * browser can't reach (see nav.ts DEVICE_DISABLED_HINT).
+ * browser can't reach (see usbAvailability in lib/device/capacitor-usb).
  */
 export function DeviceStatus({ onManage }: { onManage: () => void }) {
   const { session, deviceName, entries } = useDevice();

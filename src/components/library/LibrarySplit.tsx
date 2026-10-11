@@ -32,6 +32,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
       onCategory={s.setCategory}
       categoriesPresent={s.categoriesPresent}
       onQuery={s.setQuery}
+      clearFilters={s.clearFilters}
       activeId={selectedId}
       onOpen={(e) => openProgram(navigate, e)}
       onImport={s.importFile}

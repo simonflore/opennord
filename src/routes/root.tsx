@@ -34,7 +34,8 @@ function AppShell({ path }: { path: string }) {
   // line") opens the palette, or closes it again; it never opens over another dialog.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== 'k' || !(isApple ? e.metaKey : e.ctrlKey)) return;
+      // e.key can be missing (autofill, some IMEs).
+      if (e.key?.toLowerCase() !== 'k' || !(isApple ? e.metaKey : e.ctrlKey)) return;
       e.preventDefault();
       setPalette((open) => !open && !document.querySelector('[role="dialog"]'));
     };

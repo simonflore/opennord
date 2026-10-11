@@ -1,12 +1,11 @@
-/* Native shell only (Capacitor) — additive, scoped under [data-native] so the
-   web build is byte-identical. `[data-native]` is a document-level attribute
-   (set once for the native wrapper), not component state, so these stay as
-   CSS attribute-selector rules rather than component-level Tailwind utilities.
-   `.on-topbar` / `.on-rail` / `.on-content` / `.on-tabs` here are plain hook classes kept on the shell
-   frame (TopBar, Rail, PhoneTabs, root.tsx) purely so these selectors have something to
-   target — all other rail/content/nav styling lives in those components as
-   Tailwind utilities (see tailwind-baseline.md). index.html already sets
-   viewport-fit=cover. */
+/* The app shell's layout hooks. `--topbar-h` (below) applies everywhere: the
+   top bar is that tall and the sticky rail is placed and sized from it. The rest
+   is native-only (Capacitor), scoped under [data-native] — a document-level
+   attribute set once for the native wrapper — so it layers safe-area insets on
+   top of the components' Tailwind utilities without touching the web build.
+   `.on-topbar` / `.on-rail` / `.on-content` / `.on-tabs` are plain hook classes
+   on the shell frame (TopBar, Rail, root.tsx, PhoneTabs) so these selectors
+   have something to target; index.html already sets viewport-fit=cover. */
 [data-native] .on-rail {
   padding-left: env(safe-area-inset-left);
 }
