@@ -25,7 +25,7 @@ export type NordModelId =
   | 'grand' | 'grand-2' | 'organ-3';
 
 export type PartitionKind =
-  | 'ffs' | 'piano-native' | 'pedal-native' | 'samplib-native'
+  | 'piano-native' | 'pedal-native' | 'samplib-native'
   | 'piano' | 'pedal' | 'samplib'
   | 'program' | 'live' | 'synth-preset' | 'organ-preset' | 'piano-preset'
   | 'setlist' | 'settings'
@@ -123,9 +123,6 @@ export interface ModelInfo {
 
 const P = (kind: PartitionKind, label: string, native: boolean, fourcc?: string, index?: number): PartitionSpec =>
   ({ kind, label, native, fourcc, index });
-/** Attach a statically-recovered protocol index (see `PartitionSpec.staticIndex`). */
-const S = (spec: PartitionSpec, staticIndex: number): PartitionSpec => ({ ...spec, staticIndex });
-
 /** Partitions in the firmware's registration order: each spec's `staticIndex`
  *  is its position in the list (see `PartitionSpec.staticIndex`). */
 const firmwareOrder = (...specs: PartitionSpec[]): PartitionSpec[] =>
@@ -233,20 +230,20 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // Stage 4 entry they carry no fourcc (library files are mapped by extension).
     // 6 SWave is synth-wave ROM flash managed by NSM: the firmware likely accepts
     // writes there, but OpenNord treats it as read-only (`native`).
-    partitions: [
-      S(P('piano-native', 'Piano (factory)', true), 0),
-      S(P('piano', 'Piano', false), 1),
-      S(P('pedal-native', 'Pedal (factory)', true), 2),
-      S(P('pedal', 'Piano Pedal', false), 3),
-      S(P('samplib-native', 'Sample Library (factory)', true), 4),
-      S(P('samplib', 'Sample Library', false), 5),
-      S(P('swave', 'Synth Waves (factory)', true), 6),
-      S(P('program', 'Programs', false, 'ns3f'), 7),
-      S(P('synth-preset', 'Synth Presets', false, 'ns3y'), 8),
-      S(P('setlist', 'Songs', false, 'ns3s'), 9),
-      S(P('live', 'Live', false, 'ns3l'), 10),
-      S(P('settings', 'Settings', false, 'ns3t'), 11),
-    ],
+    partitions: firmwareOrder(
+      P('piano-native', 'Piano (factory)', true),
+      P('piano', 'Piano', false),
+      P('pedal-native', 'Pedal (factory)', true),
+      P('pedal', 'Piano Pedal', false),
+      P('samplib-native', 'Sample Library (factory)', true),
+      P('samplib', 'Sample Library', false),
+      P('swave', 'Synth Waves (factory)', true),
+      P('program', 'Programs', false, 'ns3f'),
+      P('synth-preset', 'Synth Presets', false, 'ns3y'),
+      P('setlist', 'Songs', false, 'ns3s'),
+      P('live', 'Live', false, 'ns3l'),
+      P('settings', 'Settings', false, 'ns3t'),
+    ),
   },
   'stage-2': {
     // Hardware-validated indices from a live CQryPartList probe on a Nord Stage 2
