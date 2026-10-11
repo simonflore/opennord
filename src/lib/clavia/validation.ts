@@ -9,8 +9,8 @@
  * The non-Stage-4 rows are a reverse-engineering assessment (not hardware-tested):
  * the whole line shares ONE vendor-USB FileTransfer transport (docs/NORD-PRODUCT-LINE.md).
  * Where we read the model's own OS image (docs/FIRMWARE-LINE.md: FileTransfer version,
- * partition order, file formats) a cell is `re`; where we only assume it from a sibling
- * (Stage Classic, Stage EX, C2) it stays `inferred`. The C1's firmware has no USB
+ * partition order, file formats) a cell is `re` — every model with USB transfer now; a
+ * cell assumed from a sibling stays `inferred`. The C1's firmware has no USB
  * transfer at all. Only Stage 4 is `validated`; real owners running the read-only probe
  * upgrade cells to `validated`.
  */
@@ -40,23 +40,23 @@ export interface CapabilityStatus { status: ValidationStatus; note?: string; }
 
 export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, CapabilityStatus>>>> = {
   'stage-classic': {
-    'file-read': { status: 'inferred', note: "OG gen, tag 'nsp' (distinct from RE'd ns2p); no decoder, same-era inference" },
-    enumerate: { status: 'inferred', note: "shared vendor-USB FileTransfer (0x0FFC-gated); read-only CQryPartList, OG sibling, untested" },
-    pull: { status: 'inferred', note: "shared FileTransfer Download; read-only, OG-sibling inference, untested" },
-    push: { status: 'inferred', note: "shared FileTransfer Upload; WRITE \u2014 untested-write risk, OG-sibling inference" },
-    delete: { status: 'inferred', note: "shared FileTransfer Delete; WRITE \u2014 untested-write risk, OG-sibling inference" },
-    backup: { status: 'inferred', note: "nsb/ns2exb ZIP backup via FileTransfer; OG-sibling inference, untested" },
-    samples: { status: 'unsupported', note: "sampleCodec null in partitions.ts; no sample engine" },
+    'file-read': { status: 'inferred', note: "OG gen, tag 'nspg' (shared with the first-gen Stage EX); no decoder, same-era inference" },
+    enumerate: { status: 're', note: "FileTransfer v3 in the OS 5.08 firmware (frames of exactly version 3, no session lock); 4 partitions: 0 Native, 1 Piano, 2 Program nspg, 3 Synth nss — no Live, no Settings (static); read-only, untested" },
+    pull: { status: 're', note: "shared FileTransfer Download at v3 (firmware); read-only, untested" },
+    push: { status: 're', note: "shared FileTransfer Upload at v3 (firmware); WRITE \u2014 untested-write risk" },
+    delete: { status: 're', note: "shared FileTransfer Delete at v3 (firmware); WRITE \u2014 untested-write risk" },
+    backup: { status: 're', note: "ZIP of the user partitions, from the 4-partition list the OS 5.08 firmware registers, pulled over FileTransfer v3; untested on HW" },
+    samples: { status: 'unsupported', note: "no sample library in the OS 5.08 firmware (sampleCodec null); pianos CNSP up to v5" },
   },
   'stage-ex': {
     // First-gen Nord Stage EX (sibling of Stage Classic), tag 'nspg' \u2014 NOT Stage 2 EX.
-    'file-read': { status: 'inferred', note: "OG gen, tag 'nspg' (first-gen Stage EX, distinct from RE'd ns2p); no decoder, same-era inference" },
-    enumerate: { status: 'inferred', note: "shared vendor-USB FileTransfer (0x0FFC-gated); read-only, OG-sibling inference, untested" },
-    pull: { status: 'inferred', note: "shared FileTransfer Download; read-only, OG-sibling inference, untested" },
-    push: { status: 'inferred', note: "shared FileTransfer Upload; WRITE \u2014 untested-write risk, OG-sibling inference" },
-    delete: { status: 'inferred', note: "shared FileTransfer Delete; WRITE \u2014 untested-write risk, OG-sibling inference" },
-    backup: { status: 'inferred', note: "nsb/ns2exb ZIP backup via FileTransfer; OG-sibling inference, untested" },
-    samples: { status: 'unsupported', note: "sampleCodec null in partitions.ts; no user sample engine" },
+    'file-read': { status: 'inferred', note: "OG gen, tag 'nspg' (shared with the Stage Classic); no decoder, same-era inference" },
+    enumerate: { status: 're', note: "FileTransfer v4 in the OS 6.08 firmware (frames 3..4, no session lock); 4 partitions: 0 Native (FFS), 1 Piano, 2 Program nspg, 3 Synth nss — no Live, no Settings (static); read-only, untested" },
+    pull: { status: 're', note: "shared FileTransfer Download at v4 (firmware); read-only, untested" },
+    push: { status: 're', note: "shared FileTransfer Upload at v4 (firmware); WRITE \u2014 untested-write risk" },
+    delete: { status: 're', note: "shared FileTransfer Delete at v4 (firmware); WRITE \u2014 untested-write risk" },
+    backup: { status: 're', note: "ZIP of the user partitions, from the 4-partition list the OS 6.08 firmware registers, pulled over FileTransfer v4; untested on HW" },
+    samples: { status: 'unsupported', note: "no sample library in the OS 6.08 firmware (sampleCodec null); pianos CNSP up to v5" },
   },
   'stage-2-ex': {
     // Nord Stage 2 EX = Stage 2 + extended memory; shares the ns2p body + OG transport.
@@ -253,12 +253,12 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 'unsupported', note: "no sample engine" },
   },
   'c2': {
-    'file-read': { status: 'inferred', note: "OG sibling of stage-2 (re); no nc2p body decoder yet" },
-    enumerate: { status: 'inferred', note: "shared vendor-USB FileTransfer (0x0FFC, CC2 handler); no C2 OS image read (the C2D speaks v4); read-only, untested" },
-    pull: { status: 'inferred', note: "shared FileTransfer Download; read-only, OG-sibling inference, untested" },
-    push: { status: 'inferred', note: "shared FileTransfer Upload; WRITE — untested-write risk, OG-sibling inference" },
-    delete: { status: 'inferred', note: "shared FileTransfer Delete; WRITE — untested-write risk, OG-sibling inference" },
-    backup: { status: 'inferred', note: "nc2b ZIP backup via FileTransfer; OG-sibling inference, untested" },
+    'file-read': { status: 'inferred', note: "OG gen, tag ncpg (its own, not the C2D's nc2p); no body decoder yet" },
+    enumerate: { status: 're', note: "FileTransfer v4 in the OS 2.00 firmware (frames 3..4, no session lock); 5 partitions: 0 Pipe (Native), 1 Pipe, 2 Program ncpg, 3 Live, 4 System — Pipe partitions read-only (static); read-only, untested" },
+    pull: { status: 're', note: "shared FileTransfer Download at v4 (firmware); read-only, untested" },
+    push: { status: 're', note: "shared FileTransfer Upload at v4 (firmware); WRITE — untested-write risk" },
+    delete: { status: 're', note: "shared FileTransfer Delete at v4 (firmware); WRITE — untested-write risk" },
+    backup: { status: 're', note: "ZIP of the user partitions, from the 5-partition list the OS 2.00 firmware registers, pulled over FileTransfer v4; untested on HW" },
     samples: { status: 'unsupported', note: "sampleCodec null in partitions.ts; C2 has no sample engine" },
   },
   'c2d': {
