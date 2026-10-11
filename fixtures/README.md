@@ -25,7 +25,10 @@ single file.
 - Backups and bundles (`.ns3b`, `.ns4b`, `.ne5b`, `.np3b`, `…pbundle`, …) are opened and every
   program inside is checked too, shown as `Backup.ns3b › Program/Bank A/Name.ns3f`. Samples and
   pianos inside a backup are skipped.
-- Other files (audio, PDFs, …) and hidden files are ignored.
+- Other files (audio, PDFs, …) and hidden files (`.DS_Store`, `._…`) are ignored, and links
+  are not followed. A folder the scan isn't allowed to open is skipped and counted at the end
+  (if that is a folder you meant, give Terminal access under System Settings › Privacy &
+  Security › Files and Folders).
 
 ### Nothing leaves your machine, nothing is changed
 
@@ -42,17 +45,19 @@ One block per instrument, for example:
 ```
 Nord Piano 3 (piano-3) — layout candidate
   files 3 + 1 backup(s) · programs checked 3
-  read OK 3 · header-only 0 · out-of-range 0 · converted from an older version 0
+  read OK 3 · header-only 0 · out-of-range 0 · with warnings 0 · converted from an older version 0
   checksum OK 3 / fail 0
   no-op write: identical 3 · differs 0 · refused 0
   write-back:  identical 3 · differs 0 · refused 0
-  → 3 real files read with no out-of-range values → alignment looks right
+  → 3 real files read cleanly → alignment looks right
 ```
 
 - **read OK** — the reader found every setting where its layout says. **header-only** means it
   could only read the file's header (the program will show without its settings).
 - **out-of-range** — files with a setting outside the values the instrument allows. One or two
   can happen; many usually mean the layout is shifted.
+- **with warnings** — files the reader read but warned about (an older format, a part of the
+  file sized differently from the layout); the most common warnings are listed under the block.
 - **converted from an older version** — files saved by an older OS, which the instrument (and
   OpenNord) update when loading.
 - **checksum** — whether each file's own checksum holds, as the instrument checks it.
@@ -62,7 +67,8 @@ Nord Piano 3 (piano-3) — layout candidate
   reason is shown); *not writable* means OpenNord doesn't save that model at all.
 - **layout candidate** — a model whose layout comes from the firmware but has not been checked
   against a real file yet. The `→` line says what your files showed: *alignment looks right*
-  when every file read cleanly, *needs a look* when some didn't. The last block of the summary
+  when every file read cleanly (read with the layout, no warning, no out-of-range value, its
+  checksum holding, the expected length), *needs a look* when some didn't. The last block of the summary
   lists these models together.
 - Lines starting with `!` name files that need a look; the full list is in the report.
 

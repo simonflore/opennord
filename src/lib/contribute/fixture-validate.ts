@@ -230,9 +230,10 @@ function opensEntry(entry: ZipEntry): boolean {
   return fileTagInfo(ext)?.container === 'cbin' && entry.size <= MAX_PROGRAM_ENTRY_BYTES;
 }
 
-/** A row for a file the scan could not read at all. */
+/** A row for a file the scan could not read at all. A file-system error is kept as its code: its message names the absolute path. */
 export function errorRow(path: string, model: NordModelId | null, size: number, error: unknown): ValidationRow {
-  const message = getErrorMessage(error);
+  const code = (error as { code?: unknown } | null)?.code;
+  const message = typeof code === 'string' ? code : getErrorMessage(error);
   return { name: baseName(path), ext: extOf(path), kind: 'unknown', headerOk: false, error: message, path, model, size, issues: [`could not read: ${message}`] };
 }
 
@@ -285,11 +286,13 @@ export interface ModelSummary {
   headerOnly: number;
   noLayoutCheck: number;
   outOfRangeFiles: number;
+  /** Programs read with a warning besides out-of-range values (an older format, a resized block, …). */
+  warned: number;
   converted: number;
   checksumOk: number;
   checksumFail: number;
   lengthOff: number;
-  /** Programs read with the layout, no out-of-range value, checksum holding and the expected length. */
+  /** Programs read with the layout, no warning or out-of-range value, checksum holding and the expected length. */
   cleanReads: number;
   noOp: Record<WriteOutcome, number>;
   writeBack: Record<WriteOutcome, number>;
@@ -302,7 +305,8 @@ export interface ModelSummary {
 const emptyOutcomes = (): Record<WriteOutcome, number> => ({ identical: 0, differs: 0, refused: 0, 'not-writable': 0, skipped: 0 });
 
 const isClean = (c: ProgramCheck) =>
-  c.reader.layoutMatched === true && c.reader.outOfRange === 0 && c.checksumOk && c.framing.lengthOk !== false;
+  c.reader.layoutMatched === true && c.reader.warningCount === 0 && c.reader.outOfRange === 0 &&
+  c.checksumOk && c.framing.lengthOk !== false;
 
 /** Whether a row needs a look (listed by file in the console summary). */
 export function rowProblems(row: ValidationRow): string[] {
@@ -337,7 +341,7 @@ export function summarizeRows(rows: readonly ValidationRow[]): ModelSummary[] {
     const list = byModel.get(model)!;
     const s: ModelSummary = {
       model, name: model ? MODELS[model]?.name ?? model : 'No model', layoutStatus: model ? programLayoutInfo(model)?.status ?? null : null,
-      files: 0, archives: 0, programs: 0, readOk: 0, headerOnly: 0, noLayoutCheck: 0, outOfRangeFiles: 0, converted: 0,
+      files: 0, archives: 0, programs: 0, readOk: 0, headerOnly: 0, noLayoutCheck: 0, outOfRangeFiles: 0, warned: 0, converted: 0,
       checksumOk: 0, checksumFail: 0, lengthOff: 0, cleanReads: 0, noOp: emptyOutcomes(), writeBack: emptyOutcomes(),
       problems: 0, topWarnings: [], topRefusals: [],
     };
@@ -353,6 +357,8 @@ export function summarizeRows(rows: readonly ValidationRow[]): ModelSummary[] {
       else if (c.reader.layoutMatched === null) s.noLayoutCheck++;
       if (c.reader.headerOnly) s.headerOnly++;
       if (c.reader.outOfRange > 0) s.outOfRangeFiles++;
+      // Out-of-range values carry a warning of their own, counted above.
+      if (c.reader.layoutMatched === true && c.reader.warningCount > (c.reader.outOfRange > 0 ? 1 : 0)) s.warned++;
       if (c.reader.convertedFrom !== null) s.converted++;
       if (c.checksumOk) s.checksumOk++; else s.checksumFail++;
       if (c.framing.lengthOk === false) s.lengthOff++;
@@ -374,11 +380,13 @@ export function summarizeRows(rows: readonly ValidationRow[]): ModelSummary[] {
 export function alignmentVerdict(s: ModelSummary): string {
   if (s.programs === 0) return 'no program files in this run — alignment still unchecked';
   if (s.cleanReads === s.programs) {
-    return `${s.programs} real file${s.programs === 1 ? '' : 's'} read with no out-of-range values → alignment looks right`;
+    return `${s.programs} real file${s.programs === 1 ? '' : 's'} read cleanly → alignment looks right`;
   }
   const why = [
     s.headerOnly && `${s.headerOnly} header-only`,
+    s.noLayoutCheck && `${s.noLayoutCheck} with no layout check`,
     s.outOfRangeFiles && `${s.outOfRangeFiles} with out-of-range values`,
+    s.warned && `${s.warned} with reader warnings`,
     s.checksumFail && `${s.checksumFail} checksum fail`,
     s.lengthOff && `${s.lengthOff} of unexpected length`,
   ].filter(Boolean).join(', ');
@@ -407,7 +415,7 @@ export function formatSummary(rows: readonly ValidationRow[], reportPath: string
     if (s.programs > 0) {
       lines.push(
         `  read OK ${s.readOk} · header-only ${s.headerOnly}${s.noLayoutCheck ? ` · read (no layout check) ${s.noLayoutCheck}` : ''}` +
-        ` · out-of-range ${s.outOfRangeFiles} · converted from an older version ${s.converted}`,
+        ` · out-of-range ${s.outOfRangeFiles} · with warnings ${s.warned} · converted from an older version ${s.converted}`,
         `  checksum OK ${s.checksumOk} / fail ${s.checksumFail}${s.lengthOff ? ` · unexpected length ${s.lengthOff}` : ''}`,
         `  no-op write: ${outcomes(s.noOp)}`,
         `  write-back:  ${outcomes(s.writeBack)}`,

@@ -139,6 +139,8 @@ export interface FwBodyDecode<K extends string> {
   formatVersion: number | null;
   /** Decoded values by field key. Empty when the layout did not match. */
   values: Partial<Record<K, number>>;
+  /** Fields outside their descriptor range (the firmware resets these to default on load). */
+  outOfRange: K[];
   warnings: string[];
 }
 
@@ -146,17 +148,18 @@ export interface FwBodyDecode<K extends string> {
 export function decodeFwBody<K extends string>(body: Uint8Array, layout: FwLayout<K>): FwBodyDecode<K> {
   const warnings: string[] = [];
   const values: Partial<Record<K, number>> = {};
+  const outOfRange: K[] = [];
   const walk = walkBlockChain(body);
 
   if (!walk.ok) {
     warnings.push(`Not a ${layout.model} program body: ${walk.reason}. Showing the file header only.`);
-    return { layoutMatched: false, formatVersion: walk.formatVersion, values, warnings };
+    return { layoutMatched: false, formatVersion: walk.formatVersion, values, outOfRange, warnings };
   }
   if (walk.blocks.length !== layout.blocks.length) {
     warnings.push(
       `Expected ${layout.blocks.length} blocks for a ${layout.model} program, found ${walk.blocks.length}. ` +
       'This file uses a layout OpenNord has not seen yet; showing the file header only.');
-    return { layoutMatched: false, formatVersion: walk.formatVersion, values, warnings };
+    return { layoutMatched: false, formatVersion: walk.formatVersion, values, outOfRange, warnings };
   }
 
   const v = walk.formatVersion;
@@ -172,7 +175,6 @@ export function decodeFwBody<K extends string>(body: Uint8Array, layout: FwLayou
   }
 
   let clipped = 0;
-  const outOfRange: string[] = [];
   for (const f of layout.fields) {
     const blk = walk.blocks[f.block];
     if (f.bit + f.width > blk.length * 8) { clipped++; continue; }
@@ -183,7 +185,7 @@ export function decodeFwBody<K extends string>(body: Uint8Array, layout: FwLayou
   }
   if (clipped > 0) warnings.push(`${clipped} field(s) fall outside a shortened block and were skipped.`);
   if (outOfRange.length > 0) warnings.push(outOfRangeWarning(outOfRange));
-  return { layoutMatched: true, formatVersion: v, values, warnings };
+  return { layoutMatched: true, formatVersion: v, values, outOfRange, warnings };
 }
 
 /** The decoded shape shared by the firmware-layout readers (see the list at the top of this file). */
@@ -197,6 +199,8 @@ export interface FwProgram<K extends string> {
   readonly layoutMatched: boolean;
   /** Decoded values by generated field key; empty when `layoutMatched` is false. */
   readonly values: Partial<Record<K, number>>;
+  /** Fields outside their descriptor range (the firmware resets these to default on load). */
+  readonly outOfRange: readonly K[];
   /** Full raw body for RE tooling. */
   readonly _rawBody: Uint8Array;
   readonly warnings: readonly string[];
@@ -229,7 +233,7 @@ export function decodeFwProgram<K extends string>(bytes: Uint8Array, layout: FwL
   try {
     decoded = decodeFwBody(body, layout);
   } catch (e) {
-    decoded = { layoutMatched: false, formatVersion: null, values: {}, warnings: [`Could not read the program body: ${String(e)}`] };
+    decoded = { layoutMatched: false, formatVersion: null, values: {}, outOfRange: [], warnings: [`Could not read the program body: ${String(e)}`] };
   }
   return {
     parsed: true,
@@ -237,6 +241,7 @@ export function decodeFwProgram<K extends string>(bytes: Uint8Array, layout: FwL
     formatVersion: decoded.formatVersion,
     layoutMatched: decoded.layoutMatched,
     values: decoded.values,
+    outOfRange: decoded.outOfRange,
     _rawBody: body,
     warnings: [...warnings, ...decoded.warnings],
     bytes,
