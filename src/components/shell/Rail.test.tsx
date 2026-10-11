@@ -31,41 +31,41 @@ function buttonFor(html: string, label: string): string {
 describe('Rail', () => {
   it('lists the library with counts, then the tools', () => {
     const html = render('library/programs');
-    for (const label of ['programs', 'presets', 'user samples', 'piano samples', 'device', 'compatibility', 'contribute']) {
+    for (const label of ['Programs', 'Presets', 'User Samples', 'Piano Samples', 'Device', 'Compatibility', 'Contribute']) {
       expect(html).toContain(`>${label}<`);
     }
     expect(html).toContain('>384<');
     // Every category is ready: no disabled entries (the literal attribute, not
     // the `disabled:*` variant in the class list).
-    for (const label of ['programs', 'presets', 'user samples', 'piano samples']) {
+    for (const label of ['Programs', 'Presets', 'User Samples', 'Piano Samples']) {
       expect(buttonFor(html, label)).not.toContain('disabled=""');
     }
   });
 
   it('marks the open list, including below it', () => {
-    expect(buttonFor(render('library/samples'), 'user samples')).toContain('aria-current="page"');
-    expect(buttonFor(render('library/programs/local:abc'), 'programs')).toContain('aria-current="page"');
+    expect(buttonFor(render('library/samples'), 'User Samples')).toContain('aria-current="page"');
+    expect(buttonFor(render('library/programs/local:abc'), 'Programs')).toContain('aria-current="page"');
   });
 
   it('shows sources only when there are some, and moves the highlight to a picked one', () => {
     expect(render('library/programs')).not.toContain('Sources');
-    const html = render('library/programs', { sources: [{ source: 'nord', label: 'on the nord', count: 512, live: true }], activeSource: 'nord' });
+    const html = render('library/programs', { sources: [{ source: 'nord', label: 'On Nord', count: 512, live: true }], activeSource: 'nord' });
     expect(html).toContain('Sources');
-    expect(buttonFor(html, 'on the nord')).toContain('aria-current="page"');
-    expect(buttonFor(html, 'programs')).not.toContain('aria-current');
+    expect(buttonFor(html, 'On Nord')).toContain('aria-current="page"');
+    expect(buttonFor(html, 'Programs')).not.toContain('aria-current');
   });
 
   it('exposes the developer tools entry', () => {
-    expect(render('library')).toContain('developer');
+    expect(render('library')).toContain('Developer');
   });
 
   it('hides Community when the community capability is unavailable (open build)', () => {
-    expect(render('library')).not.toContain('community');
+    expect(render('library')).not.toContain('Community');
   });
 
   it('shows Community with its sub-items when the capability is available and active', () => {
     const html = render('community', { caps: { community: { available: true } } });
-    for (const label of ['community', 'browse', 'share a patch', 'my shares']) expect(html).toContain(`>${label}<`);
+    for (const label of ['Community', 'Browse', 'Share a patch', 'My shares']) expect(html).toContain(`>${label}<`);
   });
 });
 

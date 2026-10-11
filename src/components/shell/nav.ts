@@ -1,3 +1,6 @@
+import { useMemo } from 'react';
+import { useCapabilities } from '../../lib/capabilities/CapabilitiesContext';
+
 /** Route paths the shell can navigate to — kept in sync with the route tree in router.tsx. */
 export type NavTo =
   | '/library' | '/library/programs' | '/library/pianos' | '/library/samples' | '/library/presets'
@@ -5,14 +8,7 @@ export type NavTo =
 
 export interface Dest { to: NavTo; label: string }
 
-/** The tools beside the library: the Rail's Tools group and the palette's pages. */
-export const TOOLS: Dest[] = [
-  { to: '/device', label: 'Device' },
-  { to: '/compatibility', label: 'Compatibility' },
-];
-
-/** RE-only destinations — present only in the web/dev build (__RE__). */
-export const RE_DESTS: Dest[] = [{ to: '/contribute', label: 'Contribute' }];
+export const ABOUT: Dest = { to: '/about', label: 'About & legal' };
 
 export const DEV_DESTS: Dest[] = [
   { to: '/dev/inspect', label: 'Decode Inspector' },
@@ -23,7 +19,6 @@ export const DEV_DESTS: Dest[] = [
 // Cloud and Community are build-injected routes (present only when a proprietary
 // build supplies them and the capability is available), so they sit outside the
 // base NavTo union — cast once.
-export const CLOUD_TO = '/cloud' as NavTo;
 export const COMMUNITY_TO = '/community' as NavTo;
 export const COMMUNITY_SUB: Dest[] = [
   { to: '/community' as NavTo, label: 'Browse' },
@@ -38,3 +33,21 @@ export const DEVICE_DISABLED_HINT = 'Connecting to the Nord needs Chrome or Edge
 
 /** The shortcut key's name on this platform, for the ⌘K hints. */
 export const MOD_KEY = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl ';
+
+/**
+ * The tools beside the library, as this build and its capabilities allow: the
+ * rail's Tools group and the palette's pages both read this, so a gated
+ * destination is added in one place. Cloud and Community appear only when a
+ * proprietary build supplies them; Contribute only in the web/dev build.
+ */
+export function useTools(): Dest[] {
+  const caps = useCapabilities();
+  const cloud = caps.cloud.available, community = caps.community.available;
+  return useMemo(() => [
+    { to: '/device', label: 'Device' },
+    { to: '/compatibility', label: 'Compatibility' },
+    ...(cloud ? [{ to: '/cloud' as NavTo, label: 'Cloud' }] : []),
+    ...(community ? [{ to: COMMUNITY_TO, label: 'Community' }] : []),
+    ...(__RE__ ? [{ to: '/contribute' as NavTo, label: 'Contribute' }] : []),
+  ], [cloud, community]);
+}

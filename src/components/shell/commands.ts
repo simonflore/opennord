@@ -15,12 +15,21 @@ export interface Command {
 
 const GROUP_ORDER: Record<CommandGroup, number> = { Pages: 0, Programs: 1, Presets: 2, Samples: 3, Pianos: 4 };
 
-/** 0 = the label starts with the word, 1 = a word in it does, 2 = it's inside a word, -1 = absent. */
-function wordScore(label: string, word: string): number {
-  const at = label.indexOf(word);
+/** 0 = the text starts with the word, 1 = a later word does, 2 = it's inside a word, -1 = absent. */
+function wordScore(text: string, word: string): number {
+  const at = text.indexOf(word);
   if (at < 0) return -1;
   if (at === 0) return 0;
-  return /[\s\-_:·/(]/.test(label[at - 1]) || label.slice(0, at).split(/\s+/).some((w) => w.startsWith(word)) ? 1 : 2;
+  return /[\s\-_:·/(]/.test(text[at - 1]) ? 1 : 2;
+}
+
+// The lowercased text a command is searched by, built once per command rather
+// than on every keystroke.
+const searchText = new WeakMap<Command, string>();
+function textOf(c: Command): string {
+  let t = searchText.get(c);
+  if (t === undefined) searchText.set(c, (t = `${c.label} ${c.hint ?? ''}`.toLowerCase()));
+  return t;
 }
 
 /**
@@ -31,21 +40,21 @@ function wordScore(label: string, word: string): number {
 export function rankCommands(commands: Command[], query: string, limit = 50): Command[] {
   const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return commands.filter((c) => c.group === 'Pages');
-  const scored: { c: Command; score: number }[] = [];
+  const scored: { c: Command; score: number; text: string }[] = [];
   for (const c of commands) {
-    const text = `${c.label} ${c.hint ?? ''}`.toLowerCase();
+    const text = textOf(c);
     let score = 0;
     for (const w of words) {
       const s = wordScore(text, w);
       if (s < 0) { score = -1; break; }
       score += s;
     }
-    if (score >= 0) scored.push({ c, score });
+    if (score >= 0) scored.push({ c, score, text });
   }
   scored.sort((a, b) =>
     a.score - b.score
     || GROUP_ORDER[a.c.group] - GROUP_ORDER[b.c.group]
     || a.c.label.length - b.c.label.length
-    || a.c.label.localeCompare(b.c.label));
+    || (a.text < b.text ? -1 : a.text > b.text ? 1 : 0));
   return scored.slice(0, limit).map((s) => s.c);
 }
