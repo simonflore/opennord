@@ -27,7 +27,7 @@ const samplePrefs = (): SamplesPrefsApi => ({
 });
 
 const sampleHandlers = {
-  onSource: noop, onGeneration: noop, onQuery: noop, clearFilters: noop, onOpen: noop, onLoadNew: noop,
+  onSource: noop, onGeneration: noop, onQuery: noop, clearFilters: noop, filtered: false, onOpen: noop, onLoadNew: noop,
   onImport: noop, onRemove: noop,
   canScanUsage: false, onScanUsage: noop, scanPct: null, unusedCount: null,
   unusedOnly: false, onUnusedOnly: noop,
@@ -59,7 +59,7 @@ const makeSample = (over: Partial<SampleEntry>): SampleEntry => ({
 });
 
 const pianoBase = {
-  source: 'all' as const, setSource: noop, query: '', setQuery: noop, clearFilters: noop,
+  source: 'all' as const, setSource: noop, query: '', setQuery: noop, clearFilters: noop, filtered: false,
   showSourceFacet: false, sort: 'default' as const, setSort: noop,
   isFavorite: () => false, toggleFavorite: noop, onSelect: noop,
   canScanUsage: false, onScanUsage: noop, scanPct: null as number | null,

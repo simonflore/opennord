@@ -25,7 +25,7 @@ export function CategorySplit({
   hasDetail: boolean;
   onBack: () => void;
   backLabel: string;
-  /** The open entry: when it changes, its row (aria-current) scrolls into the list's view. */
+  /** The open entry: when it changes, its row (`data-open-row`) scrolls into the list's view. */
   selectedId?: string;
 }) {
   const masterBox = useRef<HTMLDivElement>(null);
@@ -33,10 +33,12 @@ export function CategorySplit({
   // after the selection (a folder scan, the Nord's list, narrow → wide), so this
   // checks after every render but scrolls only the first time it finds the row.
   const revealed = useRef<string | null>(null);
+  // The wide list is a fresh mount after narrow → wide, so it needs revealing again.
+  useEffect(() => { revealed.current = null; }, [wide]);
   useEffect(() => {
     if (!selectedId) { revealed.current = null; return; }
     if (revealed.current === selectedId) return;
-    const row = masterBox.current?.querySelector<HTMLElement>('[aria-current="true"]');
+    const row = masterBox.current?.querySelector<HTMLElement>('[data-open-row]');
     if (!row) return;
     revealed.current = selectedId;
     revealInScroller(row);

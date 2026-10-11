@@ -29,6 +29,8 @@ interface Props {
   onQuery: (q: string) => void;
   /** Every filter off and the search cleared (from the list's context). */
   clearFilters: () => void;
+  /** Whether any filter or search is narrowing the list (from the list's context). */
+  filtered: boolean;
   onOpen: (e: LibraryEntry) => void;
   /** The entry open in the detail pane, highlighted in the list. */
   activeId?: string | null;
@@ -50,7 +52,7 @@ const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', ...SOURCE
 const SORT_LABEL: Record<LibrarySort, string> = { default: 'Default', name: 'Name (A–Z)', source: 'Source' };
 
 export function LibraryView({
-  entries, source, query, onSource, onQuery, clearFilters, onOpen, onImport, onRemove, activeId,
+  entries, source, query, onSource, onQuery, clearFilters, filtered, onOpen, onImport, onRemove, activeId,
   generation = 'all', onGeneration, generationsPresent = [],
   category = 'all', onCategory, categoriesPresent = [],
   importError, onDismissImportError, prefs, folder,
@@ -74,9 +76,6 @@ export function LibraryView({
 
   // When a search/facet is hiding everything, show the shared "no match" state
   // rather than the first-run onboarding (which would wrongly read as "empty").
-  const filtered = query.trim() !== '' || source !== 'all'
-    || (generationsPresent.length > 1 && (generation ?? 'all') !== 'all')
-    || (categoriesPresent.length > 1 && (category ?? 'all') !== 'all');
 
   // A folder is connected but turned up nothing at all — distinct from never
   // having picked one, and distinct from "found presets/pianos/samples/backups

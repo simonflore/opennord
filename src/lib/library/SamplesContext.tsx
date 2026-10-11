@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedSamples } from '@/lib/library/useImportedSamples';
@@ -20,6 +20,7 @@ import { buildOccupancy, type Addr } from '@/lib/device/reorg';
 import { PARTITION_SAMP_LIB } from '@/lib/device/opcodes';
 import { downloadBytes } from '@/lib/download';
 import { useEnsureListed } from '@/lib/library/useEnsureListed';
+import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 
 // pure helper, exported for tests
 export function selectedBytes(entries: SampleEntry[], selected: Set<string>): number {
@@ -149,9 +150,36 @@ function useSamplesStateValue() {
 
   /** Every filter off and the search cleared (the list's "clear filters"). */
   const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setGeneration('all'); setCategory('all'); setUnusedOnly(false); }, []);
+  // Reads of sample bytes that are still running, by entry id. A second request
+  // for the same sample (StrictMode's second effect run, a quick re-open) joins
+  // the read in flight instead of pulling it twice; progress goes to the latest
+  // requester. Settled reads are dropped, so the next open reads afresh.
+  const reads = useRef(new Map<string, { bytes: Promise<Uint8Array>; progress: (pct: number) => void }>());
+  /**
+   * The bytes of a sample, read from wherever it lives: in memory (imported), a
+   * Nord pull, or a backup. null when it can't be read from here (a Nord sample
+   * with no Nord connected).
+   */
+  const readSample = useCallback((e: SampleEntry, onProgress: (pct: number) => void): Promise<Uint8Array> | null => {
+    if (e.source === 'local' && e.bytes) return Promise.resolve(e.bytes);
+    const running = reads.current.get(e.id);
+    if (running) { running.progress = onProgress; return running.bytes; }
+    const read: { bytes: Promise<Uint8Array>; progress: (pct: number) => void } = { bytes: Promise.resolve(new Uint8Array()), progress: onProgress };
+    const raw = e.source === 'nord' && e.device && session
+      ? pullSample(session, e.device, (done, total) => read.progress(total ? Math.round((done / total) * 100) : 0))
+      : e.source === 'backup' && e.backupRef ? extractBackupEntry(folder, e.backupRef) : null;
+    if (!raw) return null;
+    read.bytes = raw.finally(() => reads.current.delete(e.id));
+    reads.current.set(e.id, read);
+    return read.bytes;
+  }, [session, folder]);
+
+  // Whether any filter is narrowing the list; clearFilters undoes exactly these.
+  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || generation !== 'all' || unusedOnly
+    || (categoriesPresent.length > 1 && category !== 'all');
   const ensureListed = useEnsureListed(shown, clearFilters);
   return {
-    all: allEntries, clearFilters, ensureListed,
+    all: allEntries, clearFilters, filtered, ensureListed, readSample,
     shown, source, setSource, generation, setGeneration,
     category, setCategory, categoriesPresent, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, showUnknownGen, folder,

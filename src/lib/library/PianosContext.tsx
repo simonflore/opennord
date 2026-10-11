@@ -135,9 +135,11 @@ function usePianosStateValue() {
 
   /** Every filter off and the search cleared (the list's "clear filters"). */
   const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setUnusedOnly(false); }, []);
+  // Whether any filter is narrowing the list; clearFilters undoes exactly these.
+  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || unusedOnly;
   const ensureListed = useEnsureListed(shown, clearFilters);
   return {
-    all: allEntries, clearFilters, ensureListed,
+    all: allEntries, clearFilters, filtered, ensureListed,
     shown, source, setSource, query, setQuery, prefs, entryById, nordCount, localCount, showSourceFacet, folder, session,
     // Piano-usage cleanup (device-connected)
     canScanUsage: !!session, scanUsage, scanPct, unusedCount,
