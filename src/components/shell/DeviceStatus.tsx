@@ -14,10 +14,11 @@ export function DeviceStatus({ onManage }: { onManage: () => void }) {
   const { session, deviceName, entries } = useDevice();
   // The family is wider than the Stage 4: without a product name, just "Nord".
   const name = deviceName || 'Nord';
-  // Whether this host can reach a Nord over USB at all (Android Chrome can; an
-  // iPhone or Safari can't). Decides whether a phone shows Connect.
+  // Whether this host can connect a Nord now (Android Chrome can; an iPhone,
+  // Safari or an iPad still waiting on its USB driver can't). Decides whether a
+  // narrow screen shows Connect.
   const reach = usbAvailability();
-  const usbReachable = reach !== 'unsupported' && reach !== 'iphone';
+  const usbReachable = reach === 'webusb' || reach === 'electron';
   return (
     <div className="flex items-center gap-2.5">
       <span className="inline-flex items-center gap-2 font-mono text-xs text-dim" title={session ? `${name} · ${entries.length} programs` : undefined}>

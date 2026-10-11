@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
@@ -7,12 +7,12 @@ import { useSamplesState } from '@/lib/library/SamplesContext';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { pullSample } from '@/lib/device/samples';
 import { useSplitLayout } from '@/lib/responsive';
-import type { SampleEntry } from '@/lib/library/sample-entries';
 import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 import { useNavigate } from '@tanstack/react-router';
+import { openSample } from '@/components/library/openEntry';
 
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
@@ -33,65 +33,50 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const [pullError, setPullError] = useState('');
   const navigate = useNavigate();
 
-  // Each open gets a number; a pull that finishes after a newer open is dropped,
-  // so the inspector always shows the sample the route names.
-  const latest = useRef(0);
-  const openEntry = useCallback(async (e: SampleEntry) => {
-    const req = ++latest.current;
-    const current = () => req === latest.current;
-    setPullError('');
-    if (e.source === 'local' && e.bytes) {
-      setLoadNew(false);
-      setInspect({ id: e.id, bytes: e.bytes, name: e.name });
-      return;
-    }
-    if (e.source === 'nord' && e.device && session) {
-      setLoadNew(false); setInspect(null); setPullPct(0);
-      try {
-        const bytes = await pullSample(session, e.device,
-          (done, total) => { if (current()) setPullPct(total ? Math.round((done / total) * 100) : 0); });
-        if (current()) setInspect({ id: e.id, bytes, name: e.name });
-      } catch (err) {
-        if (current()) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
-      } finally {
-        if (current()) setPullPct(null);
-      }
-      return;
-    }
-    if (e.source === 'backup' && e.backupRef) {
-      setLoadNew(false); setInspect(null); setPullPct(0);
-      try {
-        const bytes = await extractBackupEntry(folder, e.backupRef);
-        if (current()) setInspect({ id: e.id, bytes, name: e.name, factory: e.factory });
-      } catch (err) {
-        if (current()) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
-      } finally {
-        if (current()) setPullPct(null);
-      }
-      return;
-    }
-  }, [session, folder]);
+  // The route names the open sample; `attempt` bumps to retry it. The effect
+  // reads that sample's bytes (pulling from the Nord or a backup when it lives
+  // there), and its cleanup drops a read that a newer route, a retry or leaving
+  // has overtaken. One read per id+attempt is shared, so StrictMode's second
+  // effect run doesn't pull twice. Session, folder and the lookup are read
+  // through a ref: they change identity often, and must not restart a pull.
+  const [attempt, setAttempt] = useState(0);
+  const known = !!(selectedId && s.entryById(selectedId));
+  const io = useRef({ entryById: s.entryById, session, folder });
+  useEffect(() => { io.current = { entryById: s.entryById, session, folder }; });
+  const reading = useRef<{ key: string; bytes: Promise<Uint8Array> } | null>(null);
 
-  // The route names the open sample: open it once its entry is known (a deep link
-  // can arrive before the folder or the Nord has been read). The ref keeps it to
-  // one open per id, so a re-render or StrictMode's second effect run doesn't
-  // pull it twice. Leaving the sample's route closes it.
-  const opened = useRef<string | null>(null);
-  const { entryById } = s;
   useEffect(() => {
     if (!selectedId) {
-      if (opened.current) { opened.current = null; latest.current++; setInspect((i) => (i?.id ? null : i)); }
+      setInspect((i) => (i?.id ? null : i)); // leaving a sample closes it (a preview stays)
       return;
     }
-    if (opened.current === selectedId) return;
+    setLoadNew(false);
+    setPullError('');
+    const { entryById, session: sess, folder: dir } = io.current;
     const e = entryById(selectedId);
-    if (!e) return;
-    opened.current = selectedId;
-    void openEntry(e);
-  }, [selectedId, entryById, openEntry]);
+    if (!e) { setInspect(null); return; } // named but not (yet) in the list
+    if (e.source === 'local' && e.bytes) { setInspect({ id: e.id, bytes: e.bytes, name: e.name }); return; }
 
-  // Back to the bare list; a pull still running for the open sample is dropped.
-  const toList = () => { latest.current++; if (selectedId) navigate({ to: '/library/samples' }); };
+    let cancelled = false;
+    const key = `${e.id}#${attempt}`;
+    if (reading.current?.key !== key) {
+      const read = e.source === 'nord' && e.device && sess
+        ? pullSample(sess, e.device, (done, total) => { if (!cancelled) setPullPct(total ? Math.round((done / total) * 100) : 0); })
+        : e.source === 'backup' && e.backupRef ? extractBackupEntry(dir, e.backupRef) : null;
+      if (!read) { setInspect(null); return; }
+      reading.current = { key, bytes: read };
+    }
+    setInspect(null);
+    setPullPct(0);
+    reading.current!.bytes.then(
+      (bytes) => { if (!cancelled) setInspect({ id: e.id, bytes, name: e.name, factory: e.factory }); },
+      (err) => { if (!cancelled) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`); },
+    ).finally(() => { if (!cancelled) setPullPct(null); });
+    return () => { cancelled = true; setPullPct(null); };
+  }, [selectedId, known, attempt]);
+
+  // Back to the bare list (which closes the open sample and drops its read).
+  const toList = () => { if (selectedId) navigate({ to: '/library/samples' }); };
   const startLoadNew = () => { toList(); setInspect(null); setLoadNew(true); setPullError(''); };
   const back = () => { toList(); setInspect(null); setLoadNew(false); setPullError(''); };
 
@@ -138,7 +123,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters}
         // Clicking the open sample again retries it (a failed pull, say).
-        onOpen={(e) => (e.id === selectedId ? void openEntry(e) : navigate({ to: '/library/samples/{-$sampleId}', params: { sampleId: e.id } }))}
+        onOpen={(e) => (e.id === selectedId ? setAttempt((n) => n + 1) : openSample(navigate, e.id))}
         onLoadNew={startLoadNew}
         activeId={selectedId ?? null}
         onImport={importSample}
@@ -162,7 +147,9 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     <SampleInspector key={initial ? `${initial.name}-${initial.bytes.length}` : 'new'} initial={initial} />
   );
   const hasDetail = loadNew || inspect !== null;
-  const detail = hasDetail ? inspector : <EmptyNote>Pick a sample to inspect it.</EmptyNote>;
+  const detail = hasDetail ? inspector
+    : selectedId && !known ? <EmptyNote>This sample isn’t in your library (yet). Pick it from the list.</EmptyNote>
+    : <EmptyNote>Pick a sample to inspect it.</EmptyNote>;
 
   return (
     <CategorySplit
@@ -172,6 +159,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
       hasDetail={hasDetail}
       onBack={back}
       backLabel="← Samples"
+      selectedId={selectedId}
     />
   );
 }

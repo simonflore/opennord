@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Button, SplitView } from '@/components/ui';
 
 /**
@@ -9,10 +9,10 @@ import { Button, SplitView } from '@/components/ui';
  * labels, whether the empty pane rendered). This owns that branch; a category
  * supplies its `master`, its `detail`, whether a detail is selected, and how
  * to go back. The parent still decides `wide` (via `useSplitLayout`) and owns
- * selection, since that's URL-driven for some categories and local for others.
+ * selection (from the route).
  */
 export function CategorySplit({
-  wide, master, detail, narrowDetail, hasDetail, onBack, backLabel,
+  wide, master, detail, narrowDetail, hasDetail, onBack, backLabel, selectedId,
 }: {
   /** True when there's room for both panes (from `useSplitLayout`). */
   wide: boolean;
@@ -25,7 +25,15 @@ export function CategorySplit({
   hasDetail: boolean;
   onBack: () => void;
   backLabel: string;
+  /** The open entry: when it changes, its row (aria-current) scrolls into the list's view. */
+  selectedId?: string;
 }) {
+  const masterBox = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const row = selectedId ? masterBox.current?.querySelector<HTMLElement>('[aria-current="true"]') : null;
+    if (row) revealInScroller(row);
+  }, [selectedId]);
+
   // Narrow: one pane at a time — master until something is selected, then the
   // detail with a back button to return to the list.
   if (!wide) {
@@ -37,5 +45,22 @@ export function CategorySplit({
       </div>
     );
   }
-  return <SplitView master={master} detail={detail} />;
+  return <SplitView master={<div ref={masterBox} className="contents">{master}</div>} detail={detail} />;
+}
+
+/**
+ * Scroll `row` into view inside its nearest scrolling ancestor only — never
+ * the page — and only as far as needed (a ⌘K jump or deep link can name a row
+ * far down the list).
+ */
+function revealInScroller(row: HTMLElement) {
+  let box = row.parentElement;
+  while (box && !(/(auto|scroll)/.test(getComputedStyle(box).overflowY) && box.scrollHeight > box.clientHeight)) {
+    box = box.parentElement;
+  }
+  if (!box || box === document.scrollingElement) return;
+  const r = row.getBoundingClientRect();
+  const b = box.getBoundingClientRect();
+  if (r.top < b.top) box.scrollTop -= b.top - r.top;
+  else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom;
 }

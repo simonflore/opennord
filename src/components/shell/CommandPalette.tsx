@@ -8,7 +8,7 @@ import { useLibraryState } from '../../lib/library/LibraryContext';
 import { usePresetsState } from '../../lib/library/PresetsContext';
 import { useSamplesState } from '../../lib/library/SamplesContext';
 import { usePianosState } from '../../lib/library/PianosContext';
-import { openProgram } from '../library/openProgram';
+import { openPiano, openPreset, openProgram, openSample } from '../library/openEntry';
 import { rankCommands, type Command } from './commands';
 import { ABOUT, COMMUNITY_SUB, COMMUNITY_TO, DEV_DESTS, useTools } from './nav';
 import { groupLabel, rowActive } from './styles';
@@ -28,12 +28,9 @@ function useCommands(): Command[] {
   // Only the (memoised) lists and their stable callbacks go into the memo, so a
   // provider update that doesn't touch the lists keeps the same commands.
   const lists = useMemo(() => [
-    { group: 'Presets' as const, all: presets.all, ensureListed: presets.ensureListed,
-      open: (id: string) => navigate({ to: '/library/presets/{-$presetId}', params: { presetId: id } }) },
-    { group: 'Samples' as const, all: samples.all, ensureListed: samples.ensureListed,
-      open: (id: string) => navigate({ to: '/library/samples/{-$sampleId}', params: { sampleId: id } }) },
-    { group: 'Pianos' as const, all: pianos.all, ensureListed: pianos.ensureListed,
-      open: (id: string) => navigate({ to: '/library/pianos/{-$pianoId}', params: { pianoId: id } }) },
+    { group: 'Presets' as const, all: presets.all, ensureListed: presets.ensureListed, open: (id: string) => openPreset(navigate, id) },
+    { group: 'Samples' as const, all: samples.all, ensureListed: samples.ensureListed, open: (id: string) => openSample(navigate, id) },
+    { group: 'Pianos' as const, all: pianos.all, ensureListed: pianos.ensureListed, open: (id: string) => openPiano(navigate, id) },
   ], [navigate, presets.all, presets.ensureListed, samples.all, samples.ensureListed, pianos.all, pianos.ensureListed]);
 
   return useMemo(() => {

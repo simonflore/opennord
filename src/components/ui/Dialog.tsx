@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import * as RD from '@radix-ui/react-dialog';
 import { cn } from '@/lib/cn';
 
@@ -30,8 +30,20 @@ export interface DialogProps {
  * fixed-position overlay still stacks correctly. Focus trap / scroll lock / aria
  * live on the Content and are unaffected by skipping the portal.
  */
+// How many Dialogs are open right now, for shortcuts that must not open over one.
+let openDialogs = 0;
+/** True while any Dialog is open (the app's ⌘K stays shut over another dialog). */
+export function anyDialogOpen(): boolean {
+  return openDialogs > 0;
+}
+
 export function Dialog({ open, onClose, title, children, footer, bare, className, autoFocus = true }: DialogProps) {
   const content = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    openDialogs++;
+    return () => { openDialogs--; };
+  }, [open]);
   return (
     <RD.Root open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <RD.Overlay
