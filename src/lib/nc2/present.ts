@@ -9,6 +9,7 @@
 import { decodeNc2 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
+import { onOf, shortRecord } from '../clavia/fw-present';
 
 export const NC2_NOTE =
   'C2D: OpenNord’s program map (OS 1.12), not yet checked on a real file — treat these values as provisional. Every parameter is read; the first B3 drawbar set of each manual, the pedal drawbars and the effect switches are shown.';
@@ -25,13 +26,7 @@ export function nc2Decoded(bytes: Uint8Array): DecodedProgram {
   const p = decodeNc2(bytes);
   const title = 'Nord C2D · Program';
   const header: [string, string][] = [['Version', `v${p.version}`]];
-  if (!p.complete) {
-    return {
-      title, header, sections: [],
-      note: 'C2D: this file is shorter than the program record the firmware writes, so only the file header is shown.',
-      warnings: p.warnings,
-    };
-  }
+  if (!p.complete) return shortRecord(title, header, 'C2D', p.warnings);
   const pedal: DecodedSection = {
     id: 'PD', label: 'PEDAL',
     engines: [{ label: 'Pedal', parts: [p.pedalDrawbars.join(' ')] }],
@@ -41,7 +36,7 @@ export function nc2Decoded(bytes: Uint8Array): DecodedProgram {
     id: 'FX', label: 'EFFECTS',
     engines: [{
       label: 'Switches',
-      parts: p.effectSwitches.map((s, i) => `set ${i + 1}: ${s.filter((v) => v).length} of ${s.length} on`),
+      parts: p.effectSwitches.map((s, i) => `set ${i + 1}: ${onOf(s)} on`),
     }],
   };
   return {
