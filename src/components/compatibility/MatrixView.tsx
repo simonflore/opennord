@@ -38,7 +38,7 @@ export function MatrixView() {
       <p className="mt-1 mb-4 text-[13px] text-dim">What OpenNord can do with each Nord — and where we need your help.</p>
       <p className="mt-1 mb-4 text-[13px] text-dim">
         See your model marked <em>In progress</em> or <em>Needs a tester</em>?{' '}
-        <a className="text-red-bright hover:text-red" href="#/contribute">Help decode it →</a> — change one control at a time and OpenNord learns the format.
+        <a className="text-red-bright hover:text-red" href="#/contribute">Help confirm it →</a> — a quick read-only check and a few of your own programs, about 10 minutes.
       </p>
       <ProbePanel />
       <div className="overflow-x-auto">
@@ -103,8 +103,8 @@ export function MatrixView() {
                             : d.status !== 'none'
                             ? <p className="m-0 text-xs text-dim">Decoded by the {m.name} reader — open one of its programs from your Library to view it. A byte-coverage map for this format isn’t built yet.</p>
                             : progress?.bodyBytes
-                            ? <p className="m-0 text-xs text-dim">Body is {progress.bodyBytes} bytes — body map coming soon. <a className="text-red-bright hover:text-red" href="#/contribute">Help decode it →</a></p>
-                            : <p className="m-0 text-xs text-dim">No body data yet for this format. <a className="text-red-bright hover:text-red" href="#/contribute">Be the first to map it →</a></p>
+                            ? <p className="m-0 text-xs text-dim">Body is {progress.bodyBytes} bytes — body map coming soon. <a className="text-red-bright hover:text-red" href="#/contribute">Share a few programs →</a></p>
+                            : <p className="m-0 text-xs text-dim">No body data yet for this format. <a className="text-red-bright hover:text-red" href="#/contribute">Share a few programs →</a></p>
                           }
                         </div>
                       </td>

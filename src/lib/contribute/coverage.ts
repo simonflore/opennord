@@ -4,8 +4,8 @@
  *
  * Stage 4 has a complete parameter map (the ns4decode-derived offset map, our
  * oracle). Stage 3 has a partial hand-built decoder. Every other model's progress
- * comes from `coverage-data.ts` — the curated state you maintain as you process
- * contributions. We always know a model's body *size*, so even undecoded models
+ * comes from `coverage-data.ts` — the curated state maintained by hand as fields
+ * are mapped. We always know a model's body *size*, so even undecoded models
  * have a concrete target to fill.
  */
 import { buildParamMap } from '../ns4/maps';
@@ -160,7 +160,7 @@ export function getModelProgress(modelId: string): ModelProgress | undefined {
  * but not field-pinned) are reported separately as `candidateBytes` and still
  * render on the byte map; they don't inflate the headline.
  *
- * When a model has no `regions` (older entries, or contribution-only localization),
+ * When a model has no `regions` (older entries, or controls localized without regions),
  * we fall back to counting the union of `controls` bytes as confirmed.
  */
 export function summarizeProgress(
@@ -203,7 +203,7 @@ export function decodeForModel(modelId: string): ModelDecode {
   if (decoder === 'partial') {
     return { status: 'partial', paramCount: null, bodyBytes: prog?.bodyBytes ?? null, ...summary };
   }
-  // Undecoded: 'started' once contributions have localized a control, else 'none'.
+  // Undecoded: 'started' once a control is localized in coverage-data, else 'none'.
   return {
     status: summary.controlCount > 0 ? 'started' : 'none',
     paramCount: null,
