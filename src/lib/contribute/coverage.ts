@@ -252,7 +252,9 @@ export function decodeForModel(modelId: string): ModelDecode {
   const prog = getModelProgress(modelId); // includes traced Stage 2/3 regions
   const summary = prog ? summarizeProgress(prog) : { coveredBytes: 0, candidateBytes: 0, controlCount: 0, pct: null };
   if (decoder === 'partial') {
-    return { status: 'partial', paramCount: null, bodyBytes: prog?.bodyBytes ?? null, ...summary };
+    // Firmware-layout readers know exactly how many parameters they read.
+    const paramCount = FW_LAYOUTS[modelId]?.layout.fields.length ?? null;
+    return { status: 'partial', paramCount, bodyBytes: prog?.bodyBytes ?? null, ...summary };
   }
   // Undecoded: 'started' once a control is localized in coverage-data, else 'none'.
   return {
@@ -266,6 +268,6 @@ export function decodeForModel(modelId: string): ModelDecode {
 export const DECODE_LABEL: Record<DecodeStatus, string> = {
   full: 'Fully decoded',
   partial: 'Partly decoded',
-  started: 'In progress',
+  started: 'Some parameters mapped',
   none: 'Not decoded yet — your captures build this',
 };
