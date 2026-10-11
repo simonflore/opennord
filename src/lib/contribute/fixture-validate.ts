@@ -286,7 +286,7 @@ export interface ModelSummary {
   headerOnly: number;
   noLayoutCheck: number;
   outOfRangeFiles: number;
-  /** Programs read with a warning besides out-of-range values (an older format, a resized block, …). */
+  /** Programs read with a warning besides out-of-range values and full-conversion notes (a resized block, a short file, …). */
   warned: number;
   converted: number;
   checksumOk: number;
@@ -304,8 +304,15 @@ export interface ModelSummary {
 
 const emptyOutcomes = (): Record<WriteOutcome, number> => ({ identical: 0, differs: 0, refused: 0, 'not-writable': 0, skipped: 0 });
 
+/** A note that the reader converted an older record exactly as the firmware does: informational, not a misread. */
+const isFullConversionNote = (w: string) => w.includes('OpenNord converts it the same way');
+
+/** Reader warnings that point at a misread, leaving out full-conversion notes. */
+const alignmentWarnings = (c: ProgramCheck) =>
+  c.reader.warningCount - c.reader.warnings.filter(isFullConversionNote).length;
+
 const isClean = (c: ProgramCheck) =>
-  c.reader.layoutMatched === true && c.reader.warningCount === 0 && c.reader.outOfRange === 0 &&
+  c.reader.layoutMatched === true && alignmentWarnings(c) === 0 && c.reader.outOfRange === 0 &&
   c.checksumOk && c.framing.lengthOk !== false;
 
 /** Whether a row needs a look (listed by file in the console summary). */
@@ -358,7 +365,7 @@ export function summarizeRows(rows: readonly ValidationRow[]): ModelSummary[] {
       if (c.reader.headerOnly) s.headerOnly++;
       if (c.reader.outOfRange > 0) s.outOfRangeFiles++;
       // Out-of-range values carry a warning of their own, counted above.
-      if (c.reader.layoutMatched === true && c.reader.warningCount > (c.reader.outOfRange > 0 ? 1 : 0)) s.warned++;
+      if (c.reader.layoutMatched === true && alignmentWarnings(c) > (c.reader.outOfRange > 0 ? 1 : 0)) s.warned++;
       if (c.reader.convertedFrom !== null) s.converted++;
       if (c.checksumOk) s.checksumOk++; else s.checksumFail++;
       if (c.framing.lengthOk === false) s.lengthOff++;

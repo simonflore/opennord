@@ -63,10 +63,10 @@ describe('decodeNla (synthetic, firmware layout)', () => {
     expect(decodeNla(nlas({ 'slot.param14': 120 })).outOfRange).toEqual(['slot.param14']);
   });
 
-  it('reads an .nlap: performance common, then slot A at data byte 7', () => {
+  it('reads an .nlap: performance common, then slot A at data byte 19', () => {
     const data = new Uint8Array(399);
     writeLegacyRecord(data, NLA_PERF_LAYOUT, { 'perf.param2': 120 });
-    writeLegacyRecord(data, NLA_LAYOUT, { 'slot.param0': 4 }, 7);
+    writeLegacyRecord(data, NLA_LAYOUT, { 'slot.param0': 4 }, 19);
     const p = decodeNla(synthLegacyFile('nlap', 7, data));
     expect(p.performance?.['perf.param2']).toBe(120);
     expect(p.values['slot.param0']).toBe(4);

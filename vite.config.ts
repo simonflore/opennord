@@ -50,6 +50,10 @@ export default defineConfig({
   test: {
     css: false,
     testTimeout: 30_000,
-    exclude: ['**/node_modules/**', '**/dist/**', '**/.claude/**'],
+    // The gitignored local RE folders (docs/LEGAL.md) can hold third-party test files; never run them.
+    exclude: [
+      '**/node_modules/**', '**/dist/**', '**/.claude/**',
+      'research/**',
+    ],
   },
 });

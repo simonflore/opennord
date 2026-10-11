@@ -11,9 +11,11 @@
  * the maintainers’ tools and read through the shared legacy-record
  * reader (clavia/legacy-record.ts).
  *
- * `.nlap`: 7 bytes of performance-common settings then the slots;
- * the firmware record (401 bytes) leaves 12 bytes unplaced, so slot A at data
- * byte 7 is medium confidence and slots B-D are not read yet.
+ * `.nlap`: 7 bytes of performance-common settings, 12 bytes not yet
+ * named, then 4 × 95-byte slots (7 + 12 + 380 = the 399 data bytes of the
+ * 401-byte firmware record). Slot A therefore starts at data byte 19: on a real
+ * performance every slot reads in range only there, and blocks matching real
+ * `.nlas` programs sit at 19 + 95k. Slots B-D are not read yet.
  *
  * Never throws: a short or odd-sized file is read as far as it goes, with a warning.
  */
@@ -24,6 +26,8 @@ import { NLA_LAYOUT, NLA_PERF_LAYOUT, type NlaFieldKey } from './layout.generate
 import type { NlaProgram } from './types';
 
 const NLAP_COMMON_BYTES = NLA_PERF_LAYOUT.dataBytes; // 7
+/** Slot A's data offset in a performance: the common bytes, then 12 bytes not yet named. */
+const NLAP_SLOT_A = NLAP_COMMON_BYTES + 12;
 
 /** Decode a Nord Lead A1 program (full file bytes including the CBIN header). */
 export function decodeNla(bytes: Uint8Array): NlaProgram {
@@ -36,7 +40,7 @@ export function decodeNla(bytes: Uint8Array): NlaProgram {
   } else if (!performance && bytes.length !== nlasBytes) {
     warnings.push(`Program file is ${bytes.length} bytes, the program record makes ${nlasBytes}`);
   }
-  const { values, outOfRange } = readLegacyRecord(data, NLA_LAYOUT, performance ? NLAP_COMMON_BYTES : 0);
+  const { values, outOfRange } = readLegacyRecord(data, NLA_LAYOUT, performance ? NLAP_SLOT_A : 0);
 
   // The layout lists each parameter's deltas in source order; group them under it.
   const morphDeltas: Partial<Record<NlaFieldKey, number[]>> = {};
