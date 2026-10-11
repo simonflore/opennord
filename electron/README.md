@@ -96,12 +96,18 @@ tell it from the new one.
    It checks the machine, packs + signs + notarizes macOS, verifies the result
    (`codesign`, `stapler`, Gatekeeper), downloads the Windows installer CI built
    for the same commit, and uploads everything to a **draft** release on
-   `simonflore/opennord`.
-4. Install both builds on clean machines and connect a Nord.
-5. Confirm the public mirror has the released commit, then publish the draft.
+   `simonflore/opennord`. The draft's tag is pinned to this commit as the public
+   mirror has it; if the mirror has not caught up yet, the command says so and
+   stops before packing.
+4. Install both builds on clean machines — including an Intel Mac — and connect
+   a Nord.
+5. Publish the draft.
 
-`-- --mac-only` releases macOS alone; `-- --dry-run` stops before uploading. A
-published version is never replaced — the command refuses; bump instead.
+`-- --dry-run` does everything except upload; add `--mac-only` to rehearse the
+macOS half before a Windows build exists. There is no mac-only *release*: a
+published release without the Windows files becomes "latest" and breaks the
+Windows download link and update feed. A published version is never replaced —
+the command refuses; bump instead.
 
 ### One-time setup of the release Mac
 
