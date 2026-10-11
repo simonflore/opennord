@@ -50,13 +50,6 @@ function isDisabled(tagHtml: string): boolean {
   return /\sdisabled(=|>|\/)/.test(tagHtml);
 }
 
-/** Pull the `<span>…</span>` whose text content is exactly `label`. */
-function spanFor(html: string, label: string): string {
-  const m = html.match(new RegExp(`<span[^>]*>${label}</span>`));
-  if (!m) throw new Error(`no <span>${label}</span> in markup`);
-  return m[0];
-}
-
 describe('LibraryView', () => {
   it('renders the title, counts, every entry, and source badges', () => {
     const html = renderToStaticMarkup(
@@ -70,11 +63,9 @@ describe('LibraryView', () => {
     expect(html).toContain('On Nord');
     expect(html).toContain('Local');
     expect(html).toContain('Import file');
-    // engine glimpse chips from the EngineSummary (piano+synth, organ) —
-    // each color-codes by kind so a multi-engine patch reads apart at a glance
-    expect(spanFor(html, 'piano')).toContain('text-engine-piano');
-    expect(spanFor(html, 'synth')).toContain('text-engine-synth');
-    expect(spanFor(html, 'organ')).toContain('text-engine-organ');
+    // the P/O/S engine LEDs from the EngineSummary (piano+synth, organ), named for screen readers
+    expect(html).toContain('aria-label="Piano on, Organ off, Synth on"');
+    expect(html).toContain('aria-label="Piano off, Organ on, Synth off"');
   });
 
   it('renders the category facet only when more than one category is present', () => {

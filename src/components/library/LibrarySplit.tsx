@@ -70,6 +70,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
               : selectedId ? <NotListedNote noun="program" />
               : <EmptyNote>Pick a program to see its details.</EmptyNote>)}
           hasDetail={!!selectedId}
+          fullWhenEmpty
           list="/library/programs"
           backLabel="← Library"
           selectedId={selectedId}
