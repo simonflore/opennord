@@ -555,6 +555,23 @@ The unused DM table at `0xB09D1` holds `−(1 − c)/18`. With it, a decay would
 - Product polyphony. There are 16 voice slots on each of the three cores. How the host
   allocates voices across cores and layers is not traced.
 
+## 9. Related notes (2026-10-11)
+
+- **Program field → Edt → dispatcher key**, one table for every synth field, and the
+  **arpeggiator** (modes, direction mapping, zigzag, step count, pattern): see
+  [`STAGE4-ENGINES.md`](STAGE4-ENGINES.md) §3–§4.
+- **`Syn_kMode` and unison (confirmed writes).** Edt 250 is 0 for a Samples layer and 1 for
+  oscillators. `FUN_c0115478` sends the unison setting to keys 6 and 7 for oscillators, but
+  for a Samples layer it sends key 6 = 0, key 7 = 4 and the unison value to key `0x37`: sample
+  layers have their own unison path (`STAGE4-ENGINES.md` §3.1). The detune amounts remain open.
+- **The Electro 7 reuses this engine's data.** Its synth voice cores hold the same attack and
+  decay/release tables (128 of 129 entries identical), the same tan pre-warp cutoff table,
+  the same drive waveshaper and the same 256-point exp/ratio curve (`dm:0xB074C` here), and
+  its panel shows the same time and cutoff lists. So §7.4 (cutoff) and §7.5 (envelopes)
+  describe the Electro 7 as well. Its oscillators are a subset with different code
+  (polyBLEP pulse, a seven-saw SuperSaw, 4-operator FM): see
+  [`ELECTRO7-ENGINES.md`](ELECTRO7-ENGINES.md) §4.
+
 ## Reproduction
 
 All of this came from local, gitignored artefacts: the unpacked CODE image, the per-core

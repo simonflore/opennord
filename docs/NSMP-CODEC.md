@@ -227,7 +227,7 @@ every model that takes one takes the other, so `convertNsmp(x, 2)` (v11) suits a
 | Piano 6 (1.20) | `.nsmp3` and `.nsmp4` | `c01234ac` | high |
 | Grand 2 (1.22) | `.nsmp3` and `.nsmp4` | `c0123620` | high |
 | Wave 2 (1.24) | **undetermined** — a {8, 11, 30, 40} map exists at `c01e1040`, but no generation check was located (NSM treats it as `.nsmp3`) | | low |
-| Electro 7 (1.30) | **undetermined** — a {8, 11, 30, 40} map exists at `c04bfd24`, but no check using it was located | | low |
+| Electro 7 (1.30) | `.nsmp3` and `.nsmp4` (root tag `NSMP` or `NWS`, map {8, 11, 30, 40} at `c04bfd24`, then the Stage 4's generation 3–4 check) | `c007de44`; the sample DSP program is the Stage 4's NW1 decoder (`ELECTRO7-ENGINES.md` §6) | high |
 | Piano 1 (1.50), C2D (1.12) | none: no sample code | | high |
 | Organ 3 (1.00), Lead 4 (1.32), Lead A1 (1.36) | none: no sample partition | | high |
 | Stage Classic, Stage EX, C2 | not read | | — |
