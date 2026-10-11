@@ -12,7 +12,9 @@
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join, basename } from 'path';
 import { describe, it, expect } from 'vitest';
-import { decodeNw2, NW2_SLOTS, nw2SlotEnabled, nw2SlotSource } from './decode';
+import {
+  decodeNw2, NW2_SLOTS, nw2ImpulseTarget, nw2MorphedValue, nw2MorphSources, nw2SlotEnabled, nw2SlotMorphs, nw2SlotSource,
+} from './decode';
 import { nw2Decoded } from './present';
 import { NW2_LAYOUT, type Nw2FieldKey } from './layout.generated';
 import { synthFwBody, synthFwFile } from '../clavia/block-chain.synth';
@@ -52,10 +54,25 @@ describe('NW2 firmware layout', () => {
     expect(bodyBit('slotAArp.gatePtnDur')).toBe(143 * 8 + 2); // the old "drawbars"
   });
 
-  it('leaves the morph deltas out: base values only, no field overlaps a delta', () => {
-    expect(NW2_LAYOUT.fields.some((f) => f.name.includes('@'))).toBe(false);
-    // GlideRate (7 bits at 72 b7) is followed by its five 8-bit deltas before Osc Bank (77 b0).
-    expect(bodyBit('slotACommon.glideRate') + 7 + 5 * 8).toBe(bodyBit('slotACommon.oscBank'));
+  it('reads every morph buffer inline after its base value, one bit wider', () => {
+    expect(NW2_LAYOUT.fields).toHaveLength(1196);
+    // GlideRate (7 bits at 72 b7) is followed by its five 8-bit buffers before Osc Bank (77 b0).
+    const glide = bodyBit('slotACommon.glideRate');
+    expect(['morphImpulse', 'morphWheel', 'morphPedal', 'morphAfterTouch', 'morphVelocity']
+      .map((m) => bodyBit(`slotACommon.glideRate.${m}` as Nw2FieldKey))).toEqual([0, 1, 2, 3, 4].map((i) => glide + 7 + 8 * i));
+    expect(glide + 7 + 5 * 8).toBe(bodyBit('slotACommon.oscBank'));
+    for (const f of NW2_LAYOUT.fields) {
+      const m = /^(.*)\.morph(\w+)$/.exec(f.key);
+      if (!m) continue;
+      const base = NW2_LAYOUT.fields.find((g) => g.key === m[1])!;
+      const span = base.max - base.min;
+      expect(f.width, f.key).toBe(base.width + 1);
+      // Impulse: an unsigned target (0 = off); the others: deltas stored as delta + span.
+      expect([f.enc, f.min, f.max], f.key).toEqual(m[2] === 'Impulse' ? ['u', 0, span + 1] : ['offset', -span, span]);
+    }
+    // Kind 6 parameters carry all five buffers, kind 2 the Impulse buffer only.
+    const count = (suffix: string) => NW2_LAYOUT.fields.filter((f) => f.key.startsWith('slotA') && f.key.endsWith(suffix)).length;
+    expect([count('.morphImpulse'), count('.morphWheel'), count('.morphVelocity')]).toEqual([63, 29, 29]);
   });
 });
 
@@ -94,6 +111,29 @@ describe('decodeNw2 (synthetic, firmware layout)', () => {
     expect(body[77 + 488] & 1).toBe(0);
   });
 
+  it('reads morphs: Impulse targets (stored target − min + 1) and continuous deltas (stored delta + span)', () => {
+    const p = decodeNw2(file({
+      'slotAFilter.fltFreq': 60, 'slotAFilter.fltFreq.morphImpulse': 101, 'slotAFilter.fltFreq.morphWheel': -40,
+      'slotAFilter.fltFreq.morphVelocity': 127,
+      'common.slotPanA': -10, 'common.slotPanA.morphImpulse': 1,
+      'slotBFilter.fltFreq.morphPedal': 5,
+    }));
+    expect(p.warnings).toEqual([]);
+    expect(readBits(p._rawBody, bodyBit('slotAFilter.fltFreq.morphWheel'), 8)).toBe(-40 + 127);
+    expect(readBits(p._rawBody, bodyBit('slotAFilter.fltFreq.morphImpulse'), 8)).toBe(101);
+    expect(nw2ImpulseTarget(p, 'slotAFilter.fltFreq')).toBe(100);
+    expect(nw2ImpulseTarget(p, 'common.slotPanA')).toBe(-60); // stored 1 = the range minimum
+    expect(nw2ImpulseTarget(p, 'slotBFilter.fltFreq')).toBeUndefined(); // stored 0 = no Impulse morph
+    expect(nw2MorphSources(p, 'slotAFilter.fltFreq')).toEqual(['Impulse', 'Wheel', 'Velocity']);
+    expect([...nw2SlotMorphs(p, 'A').keys()]).toEqual(['common.slotPanA', 'slotAFilter.fltFreq']);
+    expect([...nw2SlotMorphs(p, 'B').entries()]).toEqual([['slotBFilter.fltFreq', ['Pedal']]]);
+    // base + ((Σ delta·position) + 64) >> 7, clamped to the range.
+    expect(nw2MorphedValue(p, 'slotAFilter.fltFreq', {})).toBe(60);
+    expect(nw2MorphedValue(p, 'slotAFilter.fltFreq', { Wheel: 127 })).toBe(60 - 40);
+    expect(nw2MorphedValue(p, 'slotAFilter.fltFreq', { Wheel: 64 })).toBe(60 - 20);
+    expect(nw2MorphedValue(p, 'slotAFilter.fltFreq', { Velocity: 127 })).toBe(127);
+  });
+
   it('a broken chain or a truncated file → header-only with a warning', () => {
     const bytes = file();
     bytes[0x2c + 68 + 244] = 0;
@@ -107,14 +147,17 @@ describe('decodeNw2 (synthetic, firmware layout)', () => {
     const d = nw2Decoded(file({
       'common.slotEnable': 0b0011, 'common.slotLevelB': 100,
       'slotBCommon.oscBank': 4, 'slotBFx.fxEnable': 1, 'slotBFx.fxType': 2, 'slotBReverb.rvbEnable': 1,
+      'slotBFilter.fltFreq.morphWheel': 20, 'slotBAmpEnv.ampEnvRls.morphImpulse': 3, 'common.slotLevelB.morphVelocity': -9,
     }));
     expect(d.sections.map((s) => s.label)).toEqual(['SLOT A', 'SLOT B', 'SLOT C', 'SLOT D']);
     const [, b, c] = d.sections;
     expect(b.engines.map((e) => [e.label, e.parts])).toEqual([
       ['Voice', ['Sample', 'level 100']], ['Filter', ['LP24']], ['Effects', ['Phaser', 'Stage']],
+      ['Morph', ['3 controls', 'Impulse', 'Wheel', 'Velocity']],
     ]);
     expect(c.engines[0].parts).toEqual(['Oscillator', 'level 127', '(off)']);
-    expect(c.engines.at(-1)?.parts).toEqual(['None on']);
+    expect(c.engines.at(-1)).toEqual({ label: 'Morph', parts: ['none'] });
+    expect(c.engines.at(-2)?.parts).toEqual(['None on']);
   });
 });
 

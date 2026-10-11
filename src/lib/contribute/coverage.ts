@@ -175,10 +175,12 @@ const FW_LAYOUTS: Record<string, { layout: FwLayout; status: 'confirmed' | 'cand
 };
 const _fwProgress: Record<string, ModelProgress> = {};
 
-/** Firmware-layout readers that still leave part of the stored program out, and what. */
-const NOT_FULL_MAP: Record<string, string> = {
-  'wave-2': 'morph amounts are not read yet',
-};
+/**
+ * Firmware-layout readers that still leave part of the stored program out, and
+ * what. None today: the Wave 2's morph buffers are read since the morph-source
+ * order was recovered.
+ */
+const NOT_FULL_MAP: Record<string, string> = {};
 
 /** Readers whose record layout is mapped but whose files still open header-only, and why. */
 const NSPG_START_UNKNOWN =

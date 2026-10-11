@@ -29,7 +29,8 @@ What is kept (only high/medium-confidence fields):
   - NOT the "@kind3" rows of the older keys CSVs (unnamed bits; the e7 dialect
     names them, e.g. `Edt_Org_kLevel.pedalAssign`, and those are kept);
   - the "@Wheel" / "@AfterTouch" / "@CtrlPedal" morph deltas only for a model that
-    sets `morphs` (the Stage 3): each becomes `<block>.<param>.morph<Source>`. A delta
+    sets `morphs` (the Stage 3; the Wave 2 with its own `morphSources`, below): each
+    becomes `<block>.<param>.morph<Source>`. A delta
     is one bit wider than its parameter and stored as `delta + (max - min)`, which is
     `value - min` with min = -(max - min), so it reads with the 'offset' encoding;
   - NOT parameters the firmware itself marks obsolete, shadow, requested or
@@ -45,6 +46,7 @@ Usage (from packages/core):
     python3 scripts/gen-fw-program-maps.py grand-2  <grand-2-offsets.csv>      src/lib/ng2/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py electro-6 <electro-6-offsets.csv>   src/lib/ne6/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py wave-2   <wave-2-offsets.csv>       src/lib/nw2/layout.generated.ts
+        (the morph-corrected CSV: named "@Impulse".."@Velocity" buffer rows, see below)
     python3 scripts/gen-fw-program-maps.py lead-4   <lead-4-offsets.csv>       src/lib/nl4/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py lead-a1  <lead-a1-offsets.csv>      src/lib/nla/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py electro-4 <electro-4-offsets.csv>   src/lib/ne4/layout.generated.ts
@@ -63,13 +65,15 @@ Usage (from packages/core):
     # Cross-check only: the Stage EX OS 6.08 descriptors give the Stage Classic layout field for field.
     python3 scripts/gen-fw-program-maps.py stage-ex <stage-ex-offsets.csv>     /tmp/ns1-ex.generated.ts
 
-Wave 2 morph deltas (the keys dialect's "@m1".."@m5" rows) are left out like
-every "@" row of a model without `morphs`: the firmware stores morph deltas as
-delta + (max - min), one bit wider than the base, but morph buffer 1 reads as
-unsigned 0..(max-min)+1 with offset 0 (medium), which the CSV's "raw = delta + 127"
-rows contradict. Until that is reconciled the Wave 2 layout carries base values
-only. The Stage 3 keeps its morph deltas: its offset map gives the
-delta + (max - min) storage with high confidence.
+Wave 2 morphs (the keys dialect's "@Impulse".."@Velocity" rows of the corrected CSV,
+which renames the older CSV's "@m1".."@m5" by morph buffer): `morphSources` maps
+them to `<block>.<param>.morph<Source>`. A parameter of registry kind 6 stores its
+base value and morph buffers 1-5 (Impulse, Wheel, Pedal, After Touch, Velocity),
+kind 2 the base and buffer 1, kind 1 the base only; each buffer one bit wider than
+the base (FUN_c00a5ed0). Buffer 1 (Impulse) is an absolute target, unsigned: 0 = no
+Impulse morph, else target = raw + min - 1. Buffers 2-5 are continuous deltas
+stored as delta + (max - min), read with the 'offset' encoding even though the
+Wave 2's base values are two's complement (`negatives: 'twos'` would misread them).
 
 Legacy records (Lead 4, Lead A1, Electro 3 / 3 HP / 4, C2D, Wave; `kind: 'legacy'`)
 are not block chains: the formatType-0 file holds the record at file 0x18 — a
@@ -235,6 +239,11 @@ MODELS = {
         # Registry init FUN_c00a6e64: all three program builders set signed mode 0,
         # so negative-min fields are stored as two's complement.
         'negatives': 'twos',
+        # Morph buffers 1-5 (FUN_c00a5ed0 with registry params {6, 2, mask 2, signed 0};
+        # sources from the label table c01d71a8: None, Impulse, Wheel, Pedal, ATouch, Velocity).
+        'morphs': True,
+        'morphSources': {'Impulse': 'morphImpulse', 'Wheel': 'morphWheel', 'Pedal': 'morphPedal',
+                         'ATouch': 'morphAfterTouch', 'Velocity': 'morphVelocity'},
         # MultiCommon from the format function (high); the four Single slots at
         # body 68 + 244k from the slot sub-chain (high/medium).
         'confidence': lambda row: 'medium' if row['block'].startswith('Single') else 'high',
@@ -457,6 +466,10 @@ MODELS = {
 
 MORPH_SOURCES = {'Wheel': 'morphWheel', 'AfterTouch': 'morphAfterTouch', 'CtrlPedal': 'morphCtrlPedal'}
 
+# Field lists longer than CHUNK_ABOVE are emitted in FIELD_CHUNK-sized chunks (see main()).
+CHUNK_ABOVE = 800
+FIELD_CHUNK = 500
+
 SKIP_SUFFIX = re.compile(r'(_obsolete|_shadow|_requested|_Dirty)', re.IGNORECASE)
 
 
@@ -545,25 +558,28 @@ def main():
     for r in rows:
         name = r['name']
         base, _, source = name.partition('@')
-        morph = cfg.get('morphs') and source in MORPH_SOURCES
+        msrc = cfg.get('morphSources', MORPH_SOURCES)
+        morph = cfg.get('morphs') and source in msrc
         if r['block'].lower() == 'header' or name.startswith('[') or ('@' in name and not morph) \
                 or SKIP_SUFFIX.search(name):
             continue
         b = block_index[r['block']]
         lo, hi = int(r['min']), int(r['max'])
         if morph:
-            assert lo == -hi, name  # delta + (max - min): the 'offset' encoding with min = -(max - min)
+            # delta + (max - min): the 'offset' encoding with min = -(max - min); the Wave 2's
+            # Impulse buffer is an unsigned target (0 = off, else value - min + 1).
+            assert lo == -hi or (lo == 0 and source == 'Impulse'), name
         pid = r.get('param_id') or ''
         if not pid:
             m = re.search(r'\bid (\d+)', r['notes'])
             pid = m.group(1) if m else ''
         fields.append({
-            'key': f"{blocks[b]['key']}.{short_key(base, cfg)}" + (f'.{MORPH_SOURCES[source]}' if morph else ''),
+            'key': f"{blocks[b]['key']}.{short_key(base, cfg)}" + (f'.{msrc[source]}' if morph else ''),
             'name': name, 'block': b,
             'bit': body_bit(r) - (blocks[b]['offset'] + 1) * 8,
             'width': int(r['width']), 'min': lo, 'max': hi,
             'def': int(r['default']) if r['default'] not in ('', None) else 0,
-            'enc': encoding(r, lo, cfg), 'confidence': cfg['confidence'](r),
+            'enc': ('offset' if lo < 0 else 'u') if morph else encoding(r, lo, cfg), 'confidence': cfg['confidence'](r),
             'src': cfg['source'] + (f' · id {pid}' if pid else '') + (f' · {source} morph' if morph else ''),
         })
 
@@ -582,7 +598,12 @@ def main():
     out.append("// Static analysis of the firmware's own parameter registry. Knowledge only —")
     out.append("// parameter names, bit positions, ranges and defaults; no firmware bytes or")
     out.append("// tables (docs/LEGAL.md). Only high/medium-confidence fields are listed.")
-    out.append("import type { FwLayout } from '../clavia/block-chain';")
+    # TypeScript gives up on one array literal of more than ~1000 differently-keyed
+    # objects (TS2590), so a long field list (the Wave 2 with its morph buffers) is
+    # emitted in typed chunks and spread into the layout.
+    chunks = [fields[i:i + FIELD_CHUNK] for i in range(0, len(fields), FIELD_CHUNK)] \
+        if len(fields) > CHUNK_ABOVE else []
+    out.append("import type { %sFwLayout } from '../clavia/block-chain';" % ('FwField, ' if chunks else ''))
     out.append("")
     out.append(f"export type {cfg['type']} =")
     for i, k in enumerate(keys):
@@ -598,14 +619,28 @@ def main():
     for b in blocks:
         out.append(f"    {{ key: '{b['key']}', name: '{b['name']}', offset: {b['offset']}, length: {b['length']} }},")
     out.append("  ],")
-    out.append("  fields: [")
-    for f in fields:
-        out.append(
-            f"    {{ key: '{f['key']}', name: '{f['name']}', block: {f['block']}, bit: {f['bit']}, "
-            f"width: {f['width']}, min: {f['min']}, max: {f['max']}, def: {f['def']}, "
-            f"enc: '{f['enc']}', confidence: '{f['confidence']}', src: '{f['src']}' }},")
-    out.append("  ],")
+    def field_line(f):
+        return (f"    {{ key: '{f['key']}', name: '{f['name']}', block: {f['block']}, bit: {f['bit']}, "
+                f"width: {f['width']}, min: {f['min']}, max: {f['max']}, def: {f['def']}, "
+                f"enc: '{f['enc']}', confidence: '{f['confidence']}', src: '{f['src']}' }},")
+    if chunks:
+        out.append("  fields: [" + ', '.join(f'...FIELDS_{i}' for i in range(len(chunks))) + "],")
+    else:
+        out.append("  fields: [")
+        out.extend(field_line(f) for f in fields)
+        out.append("  ],")
     out.append("};")
+    if chunks:
+        # The chunks go in front of the layout that spreads them.
+        at = out.index(f"export const {cfg['const']}: FwLayout<{cfg['type']}> = {{")
+        lines = []
+        for i, chunk in enumerate(chunks):
+            lines.append(f"/** Fields {i * FIELD_CHUNK}–{i * FIELD_CHUNK + len(chunk) - 1} (see the generator's TS2590 note). */")
+            lines.append(f"const FIELDS_{i}: readonly FwField<{cfg['type']}>[] = [")
+            lines.extend(field_line(f)[2:] for f in chunk)
+            lines.append("];")
+            lines.append("")
+        out[at:at] = lines
     with open(out_path, 'w') as fh:
         fh.write('\n'.join(out) + '\n')
     print(f'{model_id}: {len(blocks)} blocks, {len(fields)} fields, {body_bytes}-byte body -> {out_path}')

@@ -39,7 +39,7 @@ describe('MatrixView', () => {
     const html = render();
     expect(row(html, 'Nord Electro 6')).toContain(', full map');
     expect(row(html, 'Nord Lead 4')).toContain(', full map');
-    expect(row(html, 'Nord Wave 2')).not.toContain(', full map'); // morph amounts not read yet
+    expect(row(html, 'Nord Wave 2')).toContain(', full map');     // morph buffers read too
     expect(row(html, 'Nord Stage 3')).toContain(', full map');    // firmware layout
     expect(row(html, 'Nord Stage 2')).toContain(', full map');    // firmware descriptor layout
     expect(row(html, 'Nord Stage 2 EX')).toContain(', full map'); // same ns2p format

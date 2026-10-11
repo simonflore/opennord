@@ -12,11 +12,22 @@
  *                 Dly, Rvb, Vib
  *
  * Negative-min fields are two's complement in their width (registry init
- * FUN_c00a6e64, signed mode 0). Morphable parameters carry 5 deltas (encoding
- * kind 6) or 1 delta (kind 2) after their base value, each one bit wider; the
- * layout reads the base values only — the delta encoding of morph buffer 1 is
- * not reconciled yet (see scripts/gen-fw-program-maps.py), so no deltas are
- * decoded. Fields come from the generated layout (`layout.generated.ts`).
+ * FUN_c00a6e64, signed mode 0). Morphs (FUN_c00a5ed0): a parameter of kind 6
+ * stores its base value and then five morph buffers, kind 2 the base and
+ * buffer 1, kind 1 the base only; each buffer is one bit wider than the base.
+ * The layout reads them as `<field>.morph<Source>`:
+ *
+ *   buffer 1  Impulse      absolute target, unsigned: 0 = no Impulse morph, else
+ *                          target = stored + min − 1; while the Impulse button is
+ *                          held it replaces the base value
+ *   buffer 2  Wheel        continuous delta, stored as delta + (max − min),
+ *   buffer 3  Pedal        within ±(max − min); the effective value is
+ *   buffer 4  After Touch  base + ((Σ delta·position) + 64) >> 7, clamped to the
+ *   buffer 5  Velocity     parameter's range (positions 0–127)
+ *
+ * The buffer order is high confidence, the source names medium-high (the
+ * firmware's morph-source label table). Fields come from the generated layout
+ * (`layout.generated.ts`).
  *
  * The earlier corpus-only reader (26 fixtures, 2026-06-22 / 2026-07-04) is
  * reconciled as follows: its 0xfe/0xff "source flag" at body 77+244k is the top
@@ -36,6 +47,9 @@ export type { Nw2FieldKey };
 export interface Nw2Program extends FwProgram<Nw2FieldKey> {
   readonly format: 'nw2p';
 }
+
+/** A morph source, in morph-buffer order (buffers 1–5). */
+export type Nw2MorphSource = 'Impulse' | 'Wheel' | 'Pedal' | 'After Touch' | 'Velocity';
 
 /** The four voice slots. */
 export type Nw2Slot = 'A' | 'B' | 'C' | 'D';
