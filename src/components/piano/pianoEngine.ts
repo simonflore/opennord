@@ -58,6 +58,27 @@ export function loopDecayTimeConstant(factor: number | undefined): number | null
   return factor !== undefined && factor > 0 && factor < 1 ? -1 / (NSP_ENVELOPE_RATE * Math.log(factor)) : null;
 }
 
+/** One mix per audio context, shared by every piano opened: headroom for chords, then a
+ *  limiter for the big ones. */
+const buses = new WeakMap<AudioContext, GainNode>();
+function mix(ctx: AudioContext): GainNode {
+  let bus = buses.get(ctx);
+  if (!bus) {
+    bus = ctx.createGain();
+    bus.gain.setValueAtTime(MIX_HEADROOM, ctx.currentTime);
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.1;
+    bus.connect(limiter);
+    limiter.connect(ctx.destination);
+    buses.set(ctx, bus);
+  }
+  return bus;
+}
+
 export interface PianoEngine {
   noteOn(midi: number, velocity: number): void;
   noteOff(midi: number): void;
@@ -87,23 +108,6 @@ export function createPianoEngine(
   const buffers = new Map<number, AudioBuffer>(); // stroke index → audio, least recently used first
   let cached = 0;
 
-  // Every voice goes through one bus: headroom for chords, then a limiter for the big ones.
-  let bus: GainNode | null = null;
-  function mix(ctx: AudioContext): GainNode {
-    if (bus) return bus;
-    bus = ctx.createGain();
-    bus.gain.setValueAtTime(MIX_HEADROOM, ctx.currentTime);
-    const limiter = ctx.createDynamicsCompressor();
-    limiter.threshold.value = -3;
-    limiter.knee.value = 0;
-    limiter.ratio.value = 20;
-    limiter.attack.value = 0.002;
-    limiter.release.value = 0.1;
-    bus.connect(limiter);
-    limiter.connect(ctx.destination);
-    return bus;
-  }
-
   const sounding = () => new Set(held.keys());
   const changed = () => onChange?.(sounding());
 
@@ -123,15 +127,16 @@ export function createPianoEngine(
 
   const stop = (v: Voice, at?: number) => { try { v.src.stop(at); } catch { /* already stopped */ } };
 
-  /** Let go of the note on `midi`, if any, fading it out. */
-  function release(midi: number, timeConstant: number): void {
+  /** Let go of the note on `midi`, fading it out; false when no note was held there. */
+  function release(midi: number, timeConstant: number): boolean {
     const v = held.get(midi);
-    if (!v) return;
+    if (!v) return false;
     held.delete(midi);
     fading.add(v);
     const now = getSharedCtx().currentTime;
     v.gain.gain.setTargetAtTime(0, now, timeConstant);
     stop(v, now + timeConstant * FADE_SPAN);
+    return true;
   }
 
   return {
@@ -192,7 +197,7 @@ export function createPianoEngine(
       out.connect(output);
       changed();
     },
-    noteOff(midi) { release(midi, RELEASE_TIME_CONSTANT); changed(); },
+    noteOff(midi) { if (release(midi, RELEASE_TIME_CONSTANT)) changed(); },
     stopAll() {
       for (const midi of [...held.keys()]) release(midi, STEAL_TIME_CONSTANT);
       changed();
