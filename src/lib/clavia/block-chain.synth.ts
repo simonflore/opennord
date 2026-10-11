@@ -1,12 +1,14 @@
 /**
  * Synthetic program builder for the firmware-layout readers — the inverse of
- * block-chain.ts, for tests and dev tooling only (OpenNord does not write these
- * formats). Builds a body the way the firmware serialiser lays it out: u32 BE
- * version, then each block's length byte and its MSB-first fields, reserved
- * bits zero. Pure.
+ * block-chain.ts and legacy-record.ts, for tests and dev tooling only (OpenNord
+ * does not write these formats). Builds a body the way the firmware serialiser
+ * lays it out: u32 BE version, then each block's length byte and its MSB-first
+ * fields, reserved bits zero; or a legacy record's bitstream at file 0x1A. Pure.
  */
 import { buildCbinHeader } from './cbin';
+import { sealTrailerChecksum } from './crc16';
 import type { FwField, FwLayout } from './block-chain';
+import { LEGACY_DATA_OFFSET, type LegacyLayout } from './legacy-record';
 
 /** Write `width` bits of `value` MSB-first at absolute bit `startBit` of `body`. */
 export function writeBits(body: Uint8Array, startBit: number, width: number, value: number): void {
@@ -48,4 +50,20 @@ export function synthFwFile(tag: string, body: Uint8Array, versionRaw = 100): Ui
   out.set(header);
   out.set(body, header.length);
   return out;
+}
+
+/** Write `layout`'s fields at their descriptor defaults, overridden by `values`, into a legacy record at data byte `byteOffset`. */
+export function writeLegacyRecord<K extends string>(
+  data: Uint8Array, layout: LegacyLayout<K>, values: Partial<Record<K, number>> = {}, byteOffset = 0,
+): void {
+  for (const f of layout.fields) writeBits(data, byteOffset * 8 + f.bit, f.width, fieldRaw(values[f.key] ?? f.def, f));
+}
+
+/** A legacy formatType-0 file: CBIN magic, `tag`, the u16 record version at 0x14, `data` from 0x1A, a sealed CRC-16 trailer. */
+export function synthLegacyFile(tag: string, recordVersion: number, data: Uint8Array): Uint8Array {
+  const header = buildCbinHeader({ formatType: 0, tag, bank: 0, location: 0, category: 0, versionRaw: recordVersion });
+  const out = new Uint8Array(LEGACY_DATA_OFFSET + data.length + 2);
+  out.set(header.subarray(0, LEGACY_DATA_OFFSET));
+  out.set(data, LEGACY_DATA_OFFSET);
+  return sealTrailerChecksum(out);
 }
