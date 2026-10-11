@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
 import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSamplesState } from '@/lib/library/SamplesContext';
-import { useDevice } from '@/lib/device/DeviceContext';
+import { useOpenSample } from '@/lib/library/useOpenSample';
 import { useSplitLayout } from '@/lib/responsive';
-import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
 import { useNavigate } from '@tanstack/react-router';
 import { closeRemoved, openSample } from '@/components/library/openEntry';
@@ -21,64 +20,28 @@ import { closeRemoved, openSample } from '@/components/library/openEntry';
 export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = useSamplesState();
-  // The thing currently shown in the detail pane: pulled/folder bytes, or null.
-  const [inspect, setInspect] = useState<InspectorInput | null>(null);
+  // The sample the route names, read by useOpenSample.
+  const open = useOpenSample(selectedId);
+  // A file shown off the route: an import just made, or "Preview a file" (loadNew).
+  const [preview, setPreview] = useState<InspectorInput | null>(null);
   const [loadNew, setLoadNew] = useState(false);
-  const [pullPct, setPullPct] = useState<number | null>(null);
-  const [pullError, setPullError] = useState('');
   // An import that wasn't a sample file: shown above the list, apart from the open sample.
   const [importError, setImportError] = useState('');
   const navigate = useNavigate();
 
-  // The route names the open sample; `attempt` bumps to retry it. Its bytes are
-  // read once per sample and attempt: when the route or a retry changes that
-  // (the previous read is let go), or when a sample named before it's listed
-  // (a deep link while the folder scans) arrives. A rescan that drops and
-  // re-adds the open entry leaves its read and inspector alone. readSample
-  // shares a read already running, so StrictMode doesn't read twice. The lookup
-  // and reader are read through a ref: they change identity often.
-  const [attempt, setAttempt] = useState(0);
-  const entry = selectedId ? s.entryById(selectedId) : undefined;
-  const known = !!entry;
-  const io = useRef({ entryById: s.entryById, readSample: s.readSample });
-  useEffect(() => { io.current = { entryById: s.entryById, readSample: s.readSample }; });
-
-  const reading = useRef<{ key: string; stop: AbortController } | null>(null);
-  useEffect(() => () => { reading.current?.stop.abort(); reading.current = null; }, []);
-  // A new Nord session reads afresh: a Nord sample's id names its slot, and the
-  // slot may hold another sample now.
-  const { session } = useDevice();
-  useEffect(() => { reading.current?.stop.abort(); reading.current = null; }, [session]);
+  // Opening a sample from the route closes a preview.
   useEffect(() => {
-    const key = selectedId ? `${selectedId}\n${attempt}` : '';
-    if (reading.current?.key === key) return; // this sample's read has started
-    reading.current?.stop.abort();
-    reading.current = null;
-    setPullPct(null);
-    if (!selectedId) {
-      setInspect((i) => (i?.id ? null : i)); // leaving a sample closes it (a preview stays)
-      return;
-    }
+    if (!selectedId) return;
+    setPreview(null);
     setLoadNew(false);
-    setPullError('');
     setImportError('');
-    setInspect(null);
-    const e = io.current.entryById(selectedId);
-    if (!e) return; // named but not (yet) in the list: read when it arrives
-    const stop = new AbortController();
-    reading.current = { key, stop };
-    const live = () => !stop.signal.aborted;
-    if (e.source === 'nord') setPullPct(0); // only a Nord pull reports progress
-    io.current.readSample(e, (pct) => { if (live()) setPullPct(pct); }, stop.signal).then(
-      (bytes) => { if (live()) setInspect({ id: e.id, bytes, name: e.name, factory: e.factory }); },
-      (err) => { if (live()) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`); },
-    ).finally(() => { if (live()) setPullPct(null); });
-  }, [selectedId, known, attempt, session]);
+  }, [selectedId]);
 
-  // Back to the bare list (which closes the open sample and drops its read).
+  // Off the open sample, to the bare list (which closes it and lets go of its read).
   const toList = () => { if (selectedId) navigate({ to: '/library/samples' }); };
-  const startLoadNew = () => { toList(); setInspect(null); setLoadNew(true); setPullError(''); setImportError(''); };
-  const back = () => { toList(); setInspect(null); setLoadNew(false); setPullError(''); };
+  const startLoadNew = () => { toList(); setPreview(null); setLoadNew(true); setImportError(''); };
+  // The back button replaces the sample's history entry, so the system Back doesn't reopen it.
+  const back = () => { if (selectedId) navigate({ to: '/library/samples', replace: true }); setPreview(null); setLoadNew(false); };
 
   function importSample() {
     const input = document.createElement('input');
@@ -100,7 +63,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
       await s.importSample(f);                  // persist + add to the list
       toList();
       setLoadNew(false);
-      setInspect({ bytes, name: f.name });      // open it now
+      setPreview({ bytes, name: f.name });      // open it now
     };
     input.oncancel = cleanup;
     input.click();
@@ -121,7 +84,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters} filtered={s.filtered}
         // Clicking the open sample again retries it, but only when its read failed.
-        onOpen={(e) => (e.id !== selectedId ? openSample(navigate, e.id) : pullError && setAttempt((n) => n + 1))}
+        onOpen={(e) => (e.id !== selectedId ? openSample(navigate, e.id) : open.state === 'failed' && open.retry())}
         onLoadNew={startLoadNew}
         activeId={selectedId ?? null}
         onImport={importSample}
@@ -139,22 +102,23 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     </div>
   );
 
-  const initial = loadNew ? undefined : (inspect ?? undefined);
-  // The factory tag comes from the entry as it is now (a backup's origin can
-  // resolve after its bytes do), not frozen when the sample opened.
-  const factory = initial?.id && initial.id === selectedId ? entry?.factory : undefined;
   // Remount the inspector per sample (key on name+size) so its load effect re-runs.
-  const inspector = (
+  const inspector = (initial?: InspectorInput, factory?: boolean) => (
     <SampleInspector key={initial ? `${initial.name}-${initial.bytes.length}` : 'new'} initial={initial} factory={factory} />
   );
   // A sample named by the route is the detail even before its bytes arrive, so a
   // phone shows its progress, error or "not found" instead of the bare list.
-  const hasDetail = loadNew || inspect !== null || !!selectedId;
-  const detail = loadNew || inspect ? inspector
-    : !selectedId ? <EmptyNote>Pick a sample to inspect it.</EmptyNote>
-    : !known ? <EmptyNote>This sample isn’t in your library right now. Pick one from the list.</EmptyNote>
-    : pullError ? <div role="alert"><EmptyNote>{pullError} Click it in the list to try again.</EmptyNote></div>
-    : <EmptyNote>Reading the sample…{pullPct !== null && ` ${pullPct}%`}</EmptyNote>;
+  // Its factory tag comes from the entry as it is now (a backup's origin can
+  // resolve after its bytes do).
+  const hasDetail = !!selectedId || loadNew || preview !== null;
+  const detail = selectedId ? (
+    open.state === 'missing' ? <EmptyNote>This sample isn’t in your library right now. Pick one from the list.</EmptyNote>
+    : open.state === 'failed' ? <div role="alert"><EmptyNote>{open.error} Click it in the list to try again.</EmptyNote></div>
+    : open.state === 'open' ? inspector(open.sample, open.factory)
+    : <EmptyNote>Reading the sample…{open.state === 'reading' && open.pct !== null && ` ${open.pct}%`}</EmptyNote>
+  ) : loadNew ? inspector()
+    : preview ? inspector(preview)
+    : <EmptyNote>Pick a sample to inspect it.</EmptyNote>;
 
   return (
     <CategorySplit

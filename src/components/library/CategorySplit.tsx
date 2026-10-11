@@ -25,7 +25,7 @@ export function CategorySplit({
   hasDetail: boolean;
   /** The bare list's route: where back goes. */
   list: NavTo;
-  /** Back to the list; defaults to navigating to `list`. */
+  /** Back to the list; defaults to `list`, replacing the entry's history entry so the system Back doesn't reopen it. */
   onBack?: () => void;
   backLabel: string;
   /** The open entry: when it changes, its row (`data-open-row`) scrolls into the list's view. */
@@ -55,7 +55,7 @@ export function CategorySplit({
     if (!hasDetail) return <>{master}</>;
     return (
       <div>
-        <Button variant="ghost" onClick={onBack ?? (() => navigate({ to: list }))}>{backLabel}</Button>
+        <Button variant="ghost" onClick={onBack ?? (() => navigate({ to: list, replace: true }))}>{backLabel}</Button>
         {detail}
       </div>
     );
