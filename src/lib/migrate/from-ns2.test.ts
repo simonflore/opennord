@@ -244,4 +244,13 @@ describe('fromNs2 — dropped-feature reporting', () => {
     const { dropped } = fromNs2(progBothActive);
     expect(dropped).toContain('second slot (Slot B)');
   });
+
+  it('reports the program-wide rotary speaker as dropped once, only when it is on', () => {
+    const rotary = { on: true, source: 'Organ', driveMidi: 40, stopMode: false, speed: 'Fast' };
+    expect(fromNs2({ ...prog, rotary }).dropped.filter((d) => d === 'rotary speaker')).toHaveLength(1);
+    expect(fromNs2({ ...prog, rotary: { ...rotary, on: false } }).dropped).not.toContain('rotary speaker');
+    // An older shape that still lists it as a slot effect is not reported twice.
+    const withSlotRotary = { ...prog, rotary, slots: [{ ...slotA, fx: [...slotA.fx, { name: 'Rotary' }] }, slotB] };
+    expect(fromNs2(withSlotRotary).dropped.filter((d) => d === 'rotary speaker')).toHaveLength(1);
+  });
 });
