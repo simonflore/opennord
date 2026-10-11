@@ -6,6 +6,7 @@ import type { LibraryEntry } from './types';
 import type { ScannedProgram } from '../folder/scan';
 import type { EngineSummary } from '../clavia/engines';
 import type { NS4Program } from '../ns4/types';
+import { zonedProgram } from '../../test-utils/ns4';
 
 const ns4Bytes = new Uint8Array(
   readFileSync(fileURLToPath(new URL('../ns4/__fixtures__/regressionTest.ns4p', import.meta.url))),
@@ -146,5 +147,37 @@ describe('sortEntries', () => {
     const copy = [...sample];
     sortEntries(sample, 'name', none);
     expect(sample).toEqual(copy);
+  });
+});
+
+describe('filterEntries — LED filter keys', () => {
+  const ns4 = (zones: Record<'piano' | 'organ', string>, split = true) =>
+    zonedProgram([{ kind: 'piano', kbZones: zones.piano }, { kind: 'organ', kbZones: zones.organ }], split);
+  const pianoOrgan: EngineSummary = { axis: 'engine', engines: [{ kind: 'piano', layers: ['A'] }, { kind: 'organ', layers: ['B'] }] };
+  const synthOnly: EngineSummary = { axis: 'container', term: 'Panel', groups: [{ id: 'A', engines: ['synth'] }] };
+  const entries: LibraryEntry[] = [
+    { id: 'split', name: 'Split', source: 'local', engines: pianoOrgan, program: ns4({ piano: '0011', organ: '1100' }) },
+    { id: 'layered', name: 'Layered', source: 'local', engines: pianoOrgan, program: ns4({ piano: '1111', organ: '1111' }) },
+    // Zones set but the Split switch off: the Nord plays both across the keyboard.
+    { id: 'switchOff', name: 'Switch off', source: 'local', engines: pianoOrgan, program: ns4({ piano: '0011', organ: '1100' }, false) },
+    { id: 'synth', name: 'Synth', source: 'local', engines: synthOnly },
+    { id: 'unread', name: 'Unread', source: 'nord' },
+  ];
+  const ids = (engines: string[], split = false) =>
+    filterEntries(entries, 'all', '', 'all', 'all', { engines: new Set(engines as never[]), split }).map((e) => e.id);
+
+  it('keeps programs that play every lit engine, on either axis', () => {
+    expect(ids(['piano'])).toEqual(['split', 'layered', 'switchOff']);
+    expect(ids(['piano', 'organ'])).toEqual(['split', 'layered', 'switchOff']);
+    expect(ids(['synth'])).toEqual(['synth']);
+    expect(ids(['piano', 'synth'])).toEqual([]);
+  });
+
+  it('Split keeps only programs that split the keyboard', () => {
+    expect(ids([], true)).toEqual(['split']);
+  });
+
+  it('with no key lit, nothing is filtered (an unread slot included)', () => {
+    expect(ids([])).toEqual(['split', 'layered', 'switchOff', 'synth', 'unread']);
   });
 });

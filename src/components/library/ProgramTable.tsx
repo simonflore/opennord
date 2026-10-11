@@ -6,7 +6,7 @@ import { LibraryRow, FavoriteStar } from './LibraryCard';
 import { ZoneStrip } from './ZoneStrip';
 import { SlotTag, genTone } from './SlotTag';
 import { CardRemoveButton } from './CardRemoveButton';
-import { activeEngineKinds, type EngineKind, type EngineSummary } from '../../lib/clavia/engines';
+import { activeEngineKinds, LIBRARY_ENGINES as ENGINES, type EngineSummary } from '../../lib/clavia/engines';
 import { isNs4Program, type NordProgram } from '../../lib/formats';
 import { activeLayers, fxChips } from '../../lib/ns4/view';
 import type { LibraryEntry } from '../../lib/library/types';
@@ -24,12 +24,6 @@ const COLS = cn(
 );
 // The columns a narrow container drops.
 const WIDE = '@max-[600px]:hidden';
-
-const ENGINES: { kind: EngineKind; letter: string; name: string }[] = [
-  { kind: 'piano', letter: 'P', name: 'Piano' },
-  { kind: 'organ', letter: 'O', name: 'Organ' },
-  { kind: 'synth', letter: 'S', name: 'Synth' },
-];
 
 const dash = <span className="text-muted">—</span>;
 /** A cell's column name for screen readers (the header row is visual only). */
