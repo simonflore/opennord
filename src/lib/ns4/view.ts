@@ -9,6 +9,9 @@ import type { NS4Program, NS4Layer, Morphable, Ns4OrganFx } from './types';
 import { decodeAllParams } from './coverage';
 import { collapseMorphs, type ParamRow } from './params-view';
 import { buildParamMap } from './maps';
+import { readFieldBytes } from './bits';
+import { interpretValue } from './interpret';
+import { LIBRARY_ENGINES, type EngineKind } from '../clavia/engines';
 import { organModelSpec, ORGAN_MODELS } from './organ-models';
 import { ns4Engines } from './engines';
 import type {
@@ -106,16 +109,29 @@ export function layerZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesView[
   }));
 }
 
+/** The program's Split switch, read from its one bit (no full parameter decode). */
+let _splitParam: ReturnType<typeof buildParamMap>[number] | undefined;
+function splitOn(p: NS4Program): boolean {
+  const param = (_splitParam ??= paramMap().find((q) => q.name === 'split on/off'));
+  const f = param?.layers[0];
+  if (!param || !f || f.begBit < 0) return false;
+  return interpretValue(param.id, param.name, readFieldBytes(p.bytes, f.begBit, f.endBit)) === 'on';
+}
+
 /**
  * Per engine, in the Library's piano/organ/synth order, which of the four zones
- * it plays; an engine that plays nowhere is left out. Built on `layerZones`, so
- * it stays cheap enough for every row of a long list.
+ * it plays; an engine that plays nowhere is left out. A layer's zones only count
+ * with the Split switch on; off, every engine plays the whole keyboard. Reads
+ * the zone flags and that one bit (no parameter decode), so it stays cheap
+ * enough for every row of a long list.
  */
-export function engineZones(p: NS4Program): { kind: 'piano' | 'organ' | 'synth'; cells: boolean[] }[] {
+export function engineZones(p: NS4Program): { kind: EngineKind; cells: boolean[] }[] {
   const zones = layerZones(p);
-  return (['piano', 'organ', 'synth'] as const)
-    .map((kind) => ({ kind, cells: zones.map((z) => z.layers.some((l) => l.kind === kind)) }))
-    .filter((r) => r.cells.some(Boolean));
+  const split = splitOn(p);
+  return LIBRARY_ENGINES
+    .map(({ kind }) => ({ kind, cells: zones.map((z) => z.layers.some((l) => l.kind === kind)) }))
+    .filter((r) => r.cells.some(Boolean))
+    .map((r) => (split ? r : { ...r, cells: r.cells.map(() => true) }));
 }
 
 /** Whether a program splits the keyboard: some engine plays only part of it. */

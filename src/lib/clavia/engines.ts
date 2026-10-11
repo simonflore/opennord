@@ -13,6 +13,13 @@
  */
 export type EngineKind = 'organ' | 'piano' | 'synth';
 
+/** The Library's engine order (piano, organ, synth) with each one's LED letter and name. */
+export const LIBRARY_ENGINES: readonly { kind: EngineKind; letter: string; name: string }[] = [
+  { kind: 'piano', letter: 'P', name: 'Piano' },
+  { kind: 'organ', letter: 'O', name: 'Organ' },
+  { kind: 'synth', letter: 'S', name: 'Synth' },
+];
+
 export type EngineSummary =
   /** Stage 2/3 — the container leads. `id` is the bare letter ('A'); `term` is the instrument's word. */
   | { axis: 'container'; term: 'Slot' | 'Panel'; groups: { id: string; engines: EngineKind[] }[] }
