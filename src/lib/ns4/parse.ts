@@ -346,7 +346,8 @@ export function decodeNs4Engines(decoded: DecodedParam[]): {
         `arp range/env with A.T. [${id}]`,
         `arp range/env with ctrlped [${id}]`,
       ),
-      patternLength: r('arp pattern length'),
+      // The raw field is offset; the interpreted display is the step count the Nord shows.
+      patternLength: parseFloatOrUndef(s('arp pattern length')) ?? r('arp pattern length'),
       pattern: s('arp pattern on/off') === 'on',
       kbSync: s('KB sync on/off') === 'on',
       kbHold: s('KB hold') === 'on',
