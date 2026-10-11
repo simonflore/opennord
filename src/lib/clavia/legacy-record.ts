@@ -1,6 +1,9 @@
 /**
  * Reader for **legacy (formatType 0) CBIN records** — the Lead 4 (`.nl4s` /
- * `.nl4p`), Lead A1 (`.nlas` / `.nlap`) and Electro 4 (`.ne4p`) program files.
+ * `.nl4p`), Lead A1 (`.nlas` / `.nlap`), Electro 4 (`.ne4p`) and Stage 2 / 2 EX
+ * (`.ns2p`) program files. The Stage 2 record is the same descriptor-container
+ * bitstream; NSM also writes it behind the NSM-era header, where the data
+ * starts at file 0x2E (`legacyData`'s `dataOffset`).
  *
  * These are not registry block chains (block-chain.ts). The firmware writes a
  * u16 record version and then the record data; NSM stores the version at file
@@ -82,9 +85,13 @@ export interface LegacyMorphEntry {
   readonly delta: number;
 }
 
-/** The record data of a legacy file: file 0x1A up to the 2-byte trailer. */
-export function legacyData(bytes: Uint8Array): Uint8Array {
-  return bytes.slice(LEGACY_DATA_OFFSET, Math.max(LEGACY_DATA_OFFSET, bytes.length - 2));
+/**
+ * The record data of a legacy file: file 0x1A up to the 2-byte trailer.
+ * `dataOffset` is where the data starts when it isn't 0x1A: a Stage 2 record
+ * behind the NSM-era header starts at 0x2E.
+ */
+export function legacyData(bytes: Uint8Array, dataOffset: number = LEGACY_DATA_OFFSET): Uint8Array {
+  return bytes.slice(dataOffset, Math.max(dataOffset, bytes.length - 2));
 }
 
 /** The u16 LE record version at file 0x14. */
