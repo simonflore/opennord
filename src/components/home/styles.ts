@@ -15,7 +15,7 @@ export const heroBtn = buttonVariants({ variant: 'primary', size: 'lg' });
 /** The red-tinted icon tile. Features uses it at 40px; Proof overrides to 34px. */
 export const iconTile = 'mb-3 inline-flex h-10 w-10 items-center justify-center rounded-sm border border-[color-mix(in_srgb,var(--red)_22%,var(--line))] bg-[color-mix(in_srgb,var(--red)_12%,transparent)] text-red-bright';
 
-/** The amber "not shipped yet" / "Alpha" marker. More and DesktopApp. */
+/** The amber "not shipped yet" / "Beta" marker. More and DesktopApp. */
 export const roadmapTag = 'rounded-full border border-[color-mix(in_srgb,var(--warn)_45%,var(--line))] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[1px] text-warn';
 
 /** The inline red link out to a fuller page. Matrix and DesktopApp. */

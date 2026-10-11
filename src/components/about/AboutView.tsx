@@ -1,4 +1,6 @@
-import { Card, BuyMeACoffeeButton } from '../ui';
+import { useState } from 'react';
+import { Button, Card, BuyMeACoffeeButton } from '../ui';
+import { VERSION_FULL } from '../../lib/version';
 import { GigmeisterLink, GIGMEISTER_BLURB } from '../sibling/Gigmeister';
 
 const secH = 'mb-1 text-[13px] font-bold text-ink';
@@ -58,7 +60,7 @@ export function AboutView() {
           <p className={secP}>
             OpenNord is free software, licensed under the GNU{' '}
             <strong className={strong}>AGPL-3.0-or-later</strong>. It is provided <strong className={strong}>“as is”,
-            without warranty of any kind.</strong> This is early <strong className={strong}>alpha</strong>{' '}
+            without warranty of any kind.</strong> This is <strong className={strong}>beta</strong>{' '}
             software — features may change or break, and device transfer writes to
             real hardware, so back up your keyboard and use it at your own risk.
           </p>
@@ -96,7 +98,24 @@ export function AboutView() {
         </Card>
       </div>
 
-      <div className="mt-4 text-[11px] text-muted">OpenNord · alpha</div>
+      <VersionLine />
+    </div>
+  );
+}
+
+/**
+ * The exact build, with a copy button: what to paste into a bug report so a
+ * problem can be traced to the commit it was seen on.
+ */
+function VersionLine() {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard?.writeText(VERSION_FULL).then(() => setCopied(true), () => {});
+  };
+  return (
+    <div className="mt-4 flex items-center gap-3 text-[11px] text-muted">
+      <span className="font-mono">{VERSION_FULL}</span>
+      <Button variant="ghost" onClick={copy}>{copied ? 'Copied' : 'Copy version'}</Button>
     </div>
   );
 }
