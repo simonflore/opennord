@@ -1,12 +1,11 @@
 /**
  * Nord Electro 5 (`.ne5p`) reader — the Electro 5 OS 2.04 parameter containers
  * (`layout.generated.ts`, generated) read
- * through the shared legacy-record reader: the u16 record version at 0x14
+ * through the shared legacy program reader: the u16 record version at 0x18
  * (4; version 3 is converted by the firmware, 1 and 2 refused), the 119-byte
- * record from file 0x1A, the 2-byte trailer. See types.ts for the layout and
+ * data from file 0x1A, the 2-byte trailer. See types.ts for the layout and
  * how it renames the fields of the earlier corpus decoder. Never throws.
  */
-import { LEGACY_DATA_OFFSET } from '../clavia/legacy-record';
 import { decodeLegacyProgram } from '../clavia/legacy-program';
 import { storedTrailerChecksum } from '../clavia/crc16';
 import { NE5_LAYOUT, type Ne5FieldKey } from './layout.generated';
@@ -44,7 +43,7 @@ function organSet(get: Get, type: Ne5OrganType): Ne5OrganSet {
 
 /** Decode a Nord Electro 5 program (full file bytes including the CBIN header). */
 export function decodeNe5(bytes: Uint8Array): Ne5Program {
-  const p = decodeLegacyProgram(bytes, NE5_LAYOUT, { model: 'Electro 5', dataOffset: LEGACY_DATA_OFFSET, converted: CONVERTED });
+  const p = decodeLegacyProgram(bytes, NE5_LAYOUT, { model: 'Electro 5', converted: CONVERTED });
   const get: Get = (key) => p.values[key] ?? 0;
   return {
     ...p,

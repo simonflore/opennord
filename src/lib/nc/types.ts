@@ -13,7 +13,7 @@
  * then one switch set per organ).
  *
  * File alignment (medium): like the C2D the record version is the CBIN version
- * field (0x14) and the data starts at 0x1A, with the 2-byte trailer after it —
+ * field (0x14) and the record's own u16 at 0x18, and the data starts at 0x1A, with the 2-byte trailer after it —
  * a predicted 26 + 269 + 2 = 297-byte file, not yet checked on a real one.
  * Block names come from descriptor shapes and control ids (medium); the
  * organ-model order 0 B3, 1 Vox, 2 Farfisa, 3 Pipe is inferred.

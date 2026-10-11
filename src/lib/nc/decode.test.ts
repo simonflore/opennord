@@ -6,12 +6,10 @@ import { describe, it, expect } from 'vitest';
 import { decodeNc } from './decode';
 import { ncDecoded } from './present';
 import { NCP_LAYOUT, type NcpFieldKey } from './layout.generated';
-import { synthLegacyFile, writeLegacyRecord } from '../clavia/block-chain.synth';
+import { synthLegacyLayoutFile } from '../clavia/block-chain.synth';
 
 function ncpg(values: Partial<Record<NcpFieldKey, number>> = {}, version = 100): Uint8Array {
-  const data = new Uint8Array(NCP_LAYOUT.dataBytes);
-  writeLegacyRecord(data, NCP_LAYOUT, values);
-  return synthLegacyFile('ncpg', version, data);
+  return synthLegacyLayoutFile('ncpg', NCP_LAYOUT, values, { version: version });
 }
 
 describe('C2 firmware layout', () => {

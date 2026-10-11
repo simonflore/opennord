@@ -16,16 +16,14 @@ import { describe, it, expect } from 'vitest';
 import { decodeNe5 } from './decode';
 import { ne5Decoded } from './present';
 import { NE5_LAYOUT, type Ne5FieldKey } from './layout.generated';
-import { synthLegacyFile, writeLegacyRecord } from '../clavia/block-chain.synth';
+import { synthLegacyLayoutFile } from '../clavia/block-chain.synth';
 
 const field = (key: Ne5FieldKey) => NE5_LAYOUT.fields.find((f) => f.key === key)!;
 /** The old decoder's "body" offset (from file 0x2C) of a field's first byte. */
 const body = (key: Ne5FieldKey) => 0x1a + (field(key).bit >> 3) - 0x2c;
 
 function ne5p(values: Partial<Record<Ne5FieldKey, number>> = {}, version = 4): Uint8Array {
-  const data = new Uint8Array(NE5_LAYOUT.dataBytes);
-  writeLegacyRecord(data, NE5_LAYOUT, values);
-  return synthLegacyFile('ne5p', version, data);
+  return synthLegacyLayoutFile('ne5p', NE5_LAYOUT, values, { version: version });
 }
 
 describe('NE5 firmware layout', () => {

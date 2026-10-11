@@ -48,7 +48,7 @@ export function decodeNs1Record(record: Uint8Array): Ns1Record {
  */
 export function decodeNs1(bytes: Uint8Array, recordStart: number | null = NS1_RECORD_START): Ns1Program {
   if (recordStart === null) {
-    const p = decodeLegacyProgram(bytes, NS1_LAYOUT, { model: 'Stage Classic / EX', dataOffset: null, unknownStart: UNKNOWN_START });
+    const p = decodeLegacyProgram(bytes, NS1_LAYOUT, { model: 'Stage Classic / EX', located: false, unknownStart: UNKNOWN_START });
     return { ...p, format: 'nspg', record: null };
   }
   const version = formatCbinVersion(bytes);
