@@ -1,10 +1,10 @@
 import { createRouter, createHashHistory, type AnyRoute } from '@tanstack/react-router';
 import { rootRoute } from '@/routes/root';
 import { HomeRoute } from '@/routes/home';
-import { LibraryIndexRoute, ProgramsRoute, ProgramRoute } from '@/routes/library';
-import { SamplesRoute, SampleRoute, SamplesRedirectRoute } from '@/routes/samples';
-import { PresetsRoute, PresetRoute } from '@/routes/presets';
-import { PianosRoute, PianoRoute } from '@/routes/pianos';
+import { LibraryIndexRoute, ProgramsRoute } from '@/routes/library';
+import { SamplesRoute, SamplesRedirectRoute } from '@/routes/samples';
+import { PresetsRoute } from '@/routes/presets';
+import { PianosRoute } from '@/routes/pianos';
 import { DeviceRoute } from '@/routes/device';
 import { AboutRoute } from '@/routes/about';
 import { CompatibilityRoute } from '@/routes/compatibility';
@@ -15,9 +15,9 @@ import { RE_ROUTES } from '@/router-re';
 export function createAppRouter(extra: AnyRoute[] = []) {
   const routeTree = rootRoute.addChildren([
     HomeRoute,
-    LibraryIndexRoute, ProgramsRoute, ProgramRoute,
-    SamplesRedirectRoute, SamplesRoute, SampleRoute,
-    PresetsRoute, PresetRoute, PianosRoute, PianoRoute, DeviceRoute, CompatibilityRoute, AboutRoute,
+    LibraryIndexRoute, ProgramsRoute,
+    SamplesRedirectRoute, SamplesRoute,
+    PresetsRoute, PianosRoute, DeviceRoute, CompatibilityRoute, AboutRoute,
     ...RE_ROUTES,
     ...extra,
   ]);

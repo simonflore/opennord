@@ -8,7 +8,7 @@ import { useSplitLayout } from '@/lib/responsive';
 
 /**
  * Pianos master/detail: the browse list + a thin piano inspector.
- * `/library/pianos` and `/library/pianos/$pianoId` both render this; the open
+ * `/library/pianos/{-$pianoId}` renders this, with or without a piano; the open
  * piano comes from the route.
  */
 export function PianosSplit({ selectedId }: { selectedId?: string }) {
@@ -26,7 +26,7 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
         showSourceFacet={s.showSourceFacet}
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
-        onSelect={(e) => navigate({ to: '/library/pianos/$pianoId', params: { pianoId: e.id } })}
+        onSelect={(e) => navigate({ to: '/library/pianos/{-$pianoId}', params: { pianoId: e.id } })}
         activeId={selectedId}
         canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct}
         unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
@@ -48,7 +48,8 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
       wide={wide}
       master={list}
       detail={detail}
-      hasDetail={!!entry}
+      narrowDetail={entry ? detail : <EmptyNote className="p-4">This piano isn’t in your library (yet). Pick it from the list.</EmptyNote>}
+      hasDetail={!!selectedId}
       onBack={() => navigate({ to: '/library/pianos' })}
       backLabel="← Pianos"
     />

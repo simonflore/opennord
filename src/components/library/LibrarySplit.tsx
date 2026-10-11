@@ -9,7 +9,7 @@ import { useSplitLayout } from '@/lib/responsive';
 import { openProgram } from './openProgram';
 
 /**
- * The Library as master/detail. Both `/library/programs` and `/library/programs/$programId` render
+ * The Library as master/detail. `/library/programs/{-$programId}` renders
  * this: at wide widths the list stays visible beside a detail pane; below the
  * split breakpoint it shows one pane at a time (today's full-page behavior).
  */

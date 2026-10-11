@@ -11,6 +11,8 @@ import { cn } from '@/lib/cn';
  * category supplies only what differs: the `badge`, `engines`, `strip` and
  * `footExtras`.
  */
+const scrollIntoViewOnce = (el: HTMLElement | null) => el?.scrollIntoView({ block: 'nearest' });
+
 export function LibraryCard({
   name, source, favorite, onToggleFavorite, onOpen,
   badge, unused, select, engines, footExtras, strip, selected,
@@ -40,6 +42,9 @@ export function LibraryCard({
     // top, engines / zone strip / source underneath. The open entry carries the
     // accent bar, like the selected row in a table.
     <div
+      // The open entry scrolls into the list's view when it opens (a ⌘K jump or a
+      // deep link can name a row far down the list).
+      ref={selected ? scrollIntoViewOnce : undefined}
       className={cn(
         'group relative grid cursor-pointer select-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-1',
         'border-b border-line py-2 pr-3 pl-1',
