@@ -45,12 +45,12 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     presetEntries, setPresetEntries,
     pianoEntries, setPianoEntries,
     capacity, setCapacity,
-    // A new connection starts with empty sample/preset/piano lists (each library
-    // reads its own for the new session): the last Nord's lists name slots this
-    // one may fill differently.
+    // A new connection starts without the last Nord's per-device state (sample,
+    // preset and piano lists, capacity): each is read again for this session,
+    // and the last Nord's lists name slots this one may fill differently.
     setConnection: (s, e, name, pid) => {
       setSession(s); setEntries(e); setDeviceName(name); setProductId(pid);
-      setSampleEntries([]); setPresetEntries([]); setPianoEntries([]);
+      setSampleEntries([]); setPresetEntries([]); setPianoEntries([]); setCapacity(null);
     },
     setEntries,
     disconnect: () => {

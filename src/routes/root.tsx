@@ -8,13 +8,15 @@ import { PhoneTabs } from '@/components/shell/PhoneTabs';
 import { CommandPalette } from '@/components/shell/CommandPalette';
 import { useRailData } from '@/components/shell/useShell';
 import { isApple } from '@/lib/platform';
+import { trimSlash } from '@/lib/library/categories';
 import { anyDialogOpen } from '@/components/ui';
 
 /** The persistent app shell: top bar, left rail (phone: bottom tabs) + routed content outlet. */
 export const rootRoute = createRootRoute({ component: RootLayout });
 
 function RootLayout() {
-  const path = useRouterState({ select: (s) => s.location.pathname });
+  // Trailing slash trimmed once, so every comparison below sees one spelling of a page.
+  const path = useRouterState({ select: (s) => trimSlash(s.location.pathname) });
 
   // The landing page (`/`) is its own full-bleed marketing surface — no app shell.
   if (path === '/') {

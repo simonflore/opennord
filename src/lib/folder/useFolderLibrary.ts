@@ -11,7 +11,8 @@ import type { FolderSource } from './source';
 import type { ScanResult } from './scan';
 import { getErrorMessage } from '../errors';
 
-const EMPTY: ScanResult = { programs: [], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] };
+const emptyResult = (): ScanResult => ({ programs: [], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
+const EMPTY = emptyResult();
 
 /** A user dismissing the folder picker is not an error worth surfacing. */
 function isCancel(err: unknown): boolean {
@@ -77,8 +78,6 @@ function addBatch(r: ScanResult, b: ScanBatch) {
   r.backupPianos.push(...(b.backupPianos ?? []));
   r.backupSamples.push(...(b.backupSamples ?? []));
 }
-const emptyResult = (): ScanResult => ({ programs: [], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
-
 export function useFolderLibrary(makeScanner: () => Scanner = createScanner): FolderLibrary {
   const [folderName, setFolderName] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult>(EMPTY);
@@ -122,15 +121,15 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     // `keep` (a refresh of the same folder): the last scan stays shown until the
     // new one has re-read what was showing (the loose files and the remembered
     // backups), so the lists, and an entry open beside them, don't empty out
-    // meanwhile; if the refresh fails, the list empties as a new scan's would.
-    // A new folder starts empty and fills as it scans.
+    // meanwhile. A failed refresh empties them and says why, as a failed scan
+    // would. A new folder starts empty and fills as it scans.
     let staged: ScanResult | null = keep ? emptyResult() : null;
-    if (!keep) { setResult(EMPTY); setBundles([]); setNewBundles([]); }
-    setPickerOpen(false);
+    if (!keep) { setResult(EMPTY); setBundles([]); }
+    setNewBundles([]); setPickerOpen(false); // a backup applied mid-refresh would be overwritten
     const shown = append(gen);
     const onBatch = (b: ScanBatch) => {
-      if (gen !== genRef.current) return;
-      if (staged) addBatch(staged, b); else shown(b);
+      if (!staged) shown(b);
+      else if (gen === genRef.current) addBatch(staged, b);
     };
 
     let found: BundleDescriptor[];
@@ -139,24 +138,27 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     try {
       found = await scanner.scanLoose(source, onBatch);
       if (gen !== genRef.current) return;
-      setBundles(found);
+      if (!staged) setBundles(found);
 
       choice = await loadBundleChoice(name, dirHandle ?? undefined);
       if (gen !== genRef.current) return;
       const decided = new Set(choice?.decided ?? []);
       const skipped = new Set(choice?.skipped ?? []);
       undecided = found.filter((b) => !decided.has(b.path) && !skipped.has(b.path));
-      setNewBundles(undecided);
+      if (!staged) setNewBundles(undecided);
 
       // Re-apply remembered "load" choices silently.
       const toReload = found.filter((b) => decided.has(b.path)).map((b) => b.path);
       if (toReload.length > 0) await scanner.expandBundles(toReload, onBatch);
       if (gen !== genRef.current) return;
     } catch (err) {
-      if (staged && gen === genRef.current) setResult(EMPTY);
+      if (staged && gen === genRef.current) {
+        setResult({ ...emptyResult(), errors: [{ path: name, reason: `Couldn't refresh the folder: ${getErrorMessage(err)}` }] });
+        setBundles([]);
+      }
       throw err;
     }
-    if (staged) { setResult(staged); staged = null; }
+    if (staged) { setResult(staged); setBundles(found); setNewBundles(undecided); staged = null; }
 
     if (undecided.length >= 2) {
       setPickerOpen(true);
@@ -309,7 +311,8 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     const existing = await listDirNames(handle);
     const finalName = resolveWriteName(name, opts.mode, existing);
     await writeFileToDir(handle, finalName, write);
-    await refresh();
+    // The file is written: a rescan that fails says so in the list, not as a failed save.
+    await refresh().catch(() => undefined);
     return { target: 'folder', path: finalName };
   }, [handle, refresh]);
 
