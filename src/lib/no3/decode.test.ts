@@ -35,6 +35,19 @@ describe('decodeNo3 (Organ 3, firmware layout, provisional block order)', () => 
     expect(v['manualADrawbar.drawbarValue1']).toBe(2);
   });
 
+  it('stores negative values as two\'s complement, not value − min', () => {
+    const body = synthFwBody(NO3_LAYOUT, {}, 200);
+    const at = (key: No3FieldKey) => {
+      const f = NO3_LAYOUT.fields.find((x) => x.key === key)!;
+      return (NO3_LAYOUT.blocks[f.block].offset + 1) * 8 + f.bit;
+    };
+    writeBits(body, at('common.programTranspose'), 4, 0b1111); // −1
+    writeBits(body, at('common.eqBass'), 7, 0);                // 0, not −60
+    const v = decodeNo3(synthFwFile('no3p', body)).values;
+    expect(v['common.programTranspose']).toBe(-1);
+    expect(v['common.eqBass']).toBe(0);
+  });
+
   it('warns on a format version other than 2.00 but still reads', () => {
     const p = decodeNo3(synthFwFile('no3p', synthFwBody(NO3_LAYOUT, {}, 100)));
     expect(p.layoutMatched).toBe(true);
