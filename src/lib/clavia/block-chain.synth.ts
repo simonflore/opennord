@@ -1,39 +1,25 @@
 /**
- * Synthetic program builder for the firmware-layout readers — the inverse of
- * block-chain.ts and legacy-record.ts, for tests and dev tooling only (OpenNord
- * does not write these formats). Builds a body the way the firmware serialiser
- * lays it out: u32 BE version, then each block's length byte and its MSB-first
- * fields, reserved bits zero; or a legacy record's bitstream at file 0x1A. Pure.
+ * Synthetic program builder for the firmware-layout readers — builds whole new
+ * files from a layout, for tests and dev tooling only. (Editing a real file goes
+ * through layout-write.ts, which changes only the fields asked for and keeps
+ * every other bit.) Builds a body the way the firmware serialiser lays it out:
+ * u32 BE version, then each block's length byte and its MSB-first fields,
+ * reserved bits zero; or a legacy record's bitstream at file 0x1A. Pure.
  */
 import { buildCbinHeader } from './cbin';
 import { sealTrailerChecksum } from './crc16';
-import type { FwField, FwLayout } from './block-chain';
+import { writeBits } from './bitstream';
+import { fieldRaw, type FwLayout } from './block-chain';
 import { LEGACY_DATA_OFFSET, LEGACY_RECORD_OFFSET, NSM_RECORD_OFFSET, type LegacyLayout } from './legacy-record';
 
-/** Write `width` bits of `value` MSB-first at absolute bit `startBit` of `body`. */
-export function writeBits(body: Uint8Array, startBit: number, width: number, value: number): void {
-  for (let i = 0; i < width; i++) {
-    const bit = startBit + i;
-    const on = Math.floor(value / 2 ** (width - 1 - i)) % 2 === 1;
-    const mask = 1 << (7 - (bit & 7));
-    body[bit >> 3] = on ? body[bit >> 3] | mask : body[bit >> 3] & ~mask;
-  }
-}
+// The encode primitives live in production code; re-exported for the tests that import them from here.
+export { writeBits, fieldRaw };
 
 /** Absolute body bit of a layout field: its block's first payload bit plus its own bit. */
 export function fieldBit<K extends string>(layout: FwLayout<K>, key: K): number {
   const f = layout.fields.find((x) => x.key === key);
   if (!f) throw new Error(`no field ${key} in the ${layout.model} layout`);
   return (layout.blocks[f.block].offset + 1) * 8 + f.bit;
-}
-
-/** The raw bits a field stores for `value` (inverse of `fieldValue`). */
-export function fieldRaw(value: number, f: Pick<FwField, 'enc' | 'width' | 'min'>): number {
-  switch (f.enc) {
-    case 'offset': return value - f.min;
-    case 'twos': return value < 0 ? value + 2 ** f.width : value;
-    default: return value >>> 0;
-  }
 }
 
 /** A body for `layout` with every field at its firmware default, overridden by `values`. */
@@ -50,13 +36,18 @@ export function synthFwBody<K extends string>(
   return body;
 }
 
-/** A whole file: the NSM-era CBIN header for `tag` followed by `body`. */
-export function synthFwFile(tag: string, body: Uint8Array, versionRaw = 100): Uint8Array {
-  const header = buildCbinHeader({ formatType: 1, tag, bank: 0, location: 0, category: 0, versionRaw });
-  const out = new Uint8Array(header.length + body.length);
-  out.set(header);
-  out.set(body, header.length);
-  return out;
+/**
+ * A whole file: the NSM-era CBIN header for `tag` followed by `body` (checksum
+ * not sealed); with `legacyHeader`, the 24-byte legacy header, `body` from 0x18
+ * and a sealed CRC-16 trailer.
+ */
+export function synthFwFile(tag: string, body: Uint8Array, versionRaw = 100, opts: { legacyHeader?: boolean } = {}): Uint8Array {
+  const header = buildCbinHeader({ formatType: opts.legacyHeader ? 0 : 1, tag, bank: 0, location: 0, category: 0, versionRaw });
+  const start = opts.legacyHeader ? LEGACY_RECORD_OFFSET : NSM_RECORD_OFFSET;
+  const out = new Uint8Array(start + body.length + (opts.legacyHeader ? 2 : 0));
+  out.set(header.subarray(0, start));
+  out.set(body, start);
+  return opts.legacyHeader ? sealTrailerChecksum(out) : out;
 }
 
 /** Write `layout`'s fields at their descriptor defaults, overridden by `values`, into a legacy record at data byte `byteOffset`. */
