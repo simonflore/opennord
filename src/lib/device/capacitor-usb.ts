@@ -5,7 +5,7 @@ import { base64ToBytes, bytesToBase64 } from './base64';
 import { isElectronUsb } from './electron-usb';
 
 /** Why USB transfer is or isn't reachable on this host. */
-export type UsbAvailability = 'electron' | 'webusb' | 'ipad-dext-pending' | 'unsupported';
+export type UsbAvailability = 'electron' | 'webusb' | 'ipad-dext-pending' | 'iphone' | 'unsupported';
 
 /**
  * Classify the host's USB-transfer reach:
@@ -15,13 +15,15 @@ export type UsbAvailability = 'electron' | 'webusb' | 'ipad-dext-pending' | 'uns
  *                         Electron's renderer also exposes navigator.usb.
  *   - 'webusb'            Chromium desktop browser — use WebUsbTransport.
  *   - 'ipad-dext-pending' native iPad — the DriverKit path; gate on nordUsbAvailable().
- *   - 'unsupported'       any other browser/device (iPhone, Safari, etc.).
+ *   - 'iphone'            the iOS app on an iPhone — no USB route (DriverKit is iPad-only).
+ *   - 'unsupported'       any other browser (Safari, Firefox, mobile browsers).
  */
 export function usbAvailability(): UsbAvailability {
   if (isElectronUsb()) return 'electron';
   if (typeof navigator !== 'undefined' && 'usb' in navigator) return 'webusb';
-  // The DriverKit path is iPad-only (M1+); the same iOS build on an iPhone has no USB route.
-  if (isCapacitorPlatform() && getCapacitorPlatform() === 'ios' && !/iPhone|iPod/.test(globalThis.navigator?.userAgent ?? '')) return 'ipad-dext-pending';
+  if (isCapacitorPlatform() && getCapacitorPlatform() === 'ios') {
+    return /iPhone|iPod/.test(globalThis.navigator?.userAgent ?? '') ? 'iphone' : 'ipad-dext-pending';
+  }
   return 'unsupported';
 }
 

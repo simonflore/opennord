@@ -40,7 +40,8 @@ function AppShell({ path }: { path: string }) {
       const isK = key === 'k' || (!/^[a-z]$/.test(key) && e.code === 'KeyK');
       if (!isK || !(isApple ? e.metaKey : e.ctrlKey)) return;
       e.preventDefault();
-      setPalette((open) => !open && !document.querySelector('[role="dialog"]'));
+      if (e.repeat) return; // holding the keys doesn't flicker it
+      setPalette((open) => !open && !document.querySelector('[role="dialog"], [role="alertdialog"]'));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

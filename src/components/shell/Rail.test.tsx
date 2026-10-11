@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router';
+import { buttonFor } from '../../test-utils/markup';
 import { Rail, type SourceItem } from './Rail';
 import { TopBar } from './TopBar';
 import { PhoneTabs } from './PhoneTabs';
@@ -23,11 +24,6 @@ function render(path: string, opts: { caps?: Partial<Capabilities>; sources?: So
   );
 }
 
-/** The `<button …>` tag that holds `label`. */
-function buttonFor(html: string, label: string): string {
-  const idx = html.indexOf(`>${label}<`);
-  return html.slice(html.lastIndexOf('<button', idx), idx);
-}
 
 describe('Rail', () => {
   it('lists the library with counts, then the tools', () => {

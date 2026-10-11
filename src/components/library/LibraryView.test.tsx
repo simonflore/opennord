@@ -4,6 +4,7 @@ import { LibraryView } from './LibraryView';
 import type { LibraryEntry } from '../../lib/library/types';
 import type { LibraryPrefsApi } from '../../lib/library/prefs';
 import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
+import { buttonFor } from '../../test-utils/markup';
 
 const entries: LibraryEntry[] = [
   { id: 'nord:A:14', name: 'Wurli Dream', source: 'nord', slot: 'A:14',
@@ -43,11 +44,6 @@ const folder = (over: Partial<FolderLibrary> = {}): FolderLibrary => ({
 const handlers = { onSource: () => {}, onQuery: () => {}, clearFilters: () => {}, onOpen: () => {}, onImport: () => {}, onRemove: () => {} };
 
 /** Pull the `<button>…</button>` whose text content is exactly `label`. */
-function buttonFor(html: string, label: string): string {
-  const m = html.match(new RegExp(`<button[^>]*>${label}</button>`));
-  if (!m) throw new Error(`no <button>${label}</button> in markup`);
-  return m[0];
-}
 
 /** True when a rendered tag carries the actual `disabled` DOM attribute —
  * distinct from the always-present `disabled:…` Tailwind variant classes the

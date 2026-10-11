@@ -125,10 +125,12 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     };
   }, [reach]);
 
-  // Info cards: a plain browser without WebUSB, or an iPad whose DEXT isn't ready.
-  if (reach === 'unsupported' || (reach === 'ipad-dext-pending' && ipadReady !== true)) {
+  // Info cards: a browser without WebUSB, the iPhone app, or an iPad whose DEXT isn't ready.
+  if (reach === 'unsupported' || reach === 'iphone' || (reach === 'ipad-dext-pending' && ipadReady !== true)) {
     const ipad = reach === 'ipad-dext-pending';
-    const infoTitle = ipad ? 'USB transfer is coming to iPad' : 'Open this in Chrome or Edge to connect';
+    const infoTitle = ipad ? 'USB transfer is coming to iPad'
+      : reach === 'iphone' ? "USB transfer isn't available on iPhone"
+      : 'Open this in Chrome or Edge to connect';
     // Inline: the host page already frames the step, so no nested card or heading.
     if (inline) return <p className={cn(connectLead, 'mt-2')}>{infoTitle}.</p>;
     return (
@@ -139,6 +141,8 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
           <p className={connectLead}>
             {ipad
               ? "Moving programs to and from your Nord over USB is on the way for iPad. Everything else — browsing, samples, sharing — works right here today."
+              : reach === 'iphone'
+              ? 'An iPhone has no way to talk to the Nord over USB. Use the iPad app, or Chrome or Edge on a computer, to move programs; everything else — browsing, samples, sharing — works right here.'
               : "Talking to your Nord over USB needs Chrome or Edge on a computer. Everything else in OpenNord — browsing, samples, sharing — works in any browser; switch over when you're ready to move programs to and from the keyboard."}
           </p>
         </div>
