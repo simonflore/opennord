@@ -10,7 +10,7 @@
 import { decodeNe3 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
-import { label, parts } from '../clavia/fw-present';
+import { label, onOf, parts, shortRecord } from '../clavia/fw-present';
 import type { Ne3OrganPreset } from './types';
 
 /** Organ model 0–2 (FUN_30009764 maps them to the B3 / Farf / Vx categories). */
@@ -43,20 +43,14 @@ function organPreset(id: string, title: string, model: number, p: Ne3OrganPreset
   };
 }
 
-const onCount = (switches: readonly number[]) => `${switches.filter((v) => v).length} of ${switches.length} switches on`;
+const onCount = (switches: readonly number[]) => `${onOf(switches)} switches on`;
 
 export function ne3Decoded(bytes: Uint8Array): DecodedProgram {
   const p = decodeNe3(bytes);
   const title = p.hp ? 'Nord Electro 3 HP · Program' : 'Nord Electro 3 · Program';
   const header: [string, string][] = [['Version', `v${p.version}`]];
   if (!p.hp) header.push(['Model', 'Electro 3 or 3 HP']);
-  if (!p.complete) {
-    return {
-      title, header, sections: [],
-      note: "Electro 3: this file is shorter than the program record the firmware writes, so only the file header is shown.",
-      warnings: p.warnings,
-    };
-  }
+  if (!p.complete) return shortRecord(title, header, 'Electro 3', p.warnings);
   const organOff = p.focus !== 'organ';
   const types = p.hp ? NE3_HP_PIANO_TYPES : EITHER_PIANO_TYPES;
   const piano: DecodedSection = {

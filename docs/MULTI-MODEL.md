@@ -332,7 +332,8 @@ Two differences from the records above:
 - **Framing.** NSM writes it behind either header: the data starts at 0x2E
   behind the NSM-era header and runs to the end of the file (565 bytes, no
   trailer), and at 0x1A behind the legacy one, before the 2-byte trailer (547
-  bytes) — `legacyData(bytes, dataOffset, trailerBytes)`. Checked on
+  bytes) — the record rule the other legacy readers share (`legacyDataOffset`,
+  `legacyTrailerBytes`). Checked on
   ns3-program-viewer's 489-file test corpus (kept local).
 - **Morph deltas.** Inline before each morphable parameter, one per source
   (`<key>.morphWheel` / `.morphAfterTouch` / `.morphCtrlPedal`, two's complement,

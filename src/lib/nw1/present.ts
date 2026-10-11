@@ -7,13 +7,13 @@
  */
 import { decodeNw1 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
+import { morphCountPart, shortRecord } from '../clavia/fw-present';
 import type { Nw1Section } from './types';
 
 export const NW1_NOTE =
   'Wave: layout from the instrument firmware (OS 2.14), alignment not yet checked on a real file. All parameters and morph amounts are read; they are named by MIDI CC until the Wave controller chart is mapped.';
 
 const morphed = (s: Nw1Section) => Object.values(s.morphs).filter((d) => d.some((x) => x !== 0)).length;
-const morphPart = (n: number) => (n === 0 ? 'none' : `${n} control${n === 1 ? '' : 's'}`);
 const same = (a: Nw1Section, b: Nw1Section) =>
   a.params.every((v, i) => v === b.params[i]) &&
   Object.entries(a.morphs).every(([id, d]) => d.every((x, k) => x === b.morphs[Number(id)]?.[k]));
@@ -22,16 +22,10 @@ export function nw1Decoded(bytes: Uint8Array): DecodedProgram {
   const p = decodeNw1(bytes);
   const title = 'Nord Wave · Program';
   const header: [string, string][] = [['Version', `v${p.version}`]];
-  if (!p.complete) {
-    return {
-      title, header, sections: [],
-      note: 'Wave: this file is shorter than the program record the firmware writes, so only the file header is shown.',
-      warnings: p.warnings,
-    };
-  }
+  if (!p.complete) return shortRecord(title, header, 'Wave', p.warnings);
   const slot = (id: string, label: string, s: Nw1Section, copy: boolean): DecodedSection => ({
     id, label,
-    engines: [{ label: 'Morph', parts: [morphPart(morphed(s))] }],
+    engines: [{ label: 'Morph', parts: [morphCountPart(morphed(s))] }],
     chips: copy ? ['Same as slot A'] : undefined,
   });
   return {
