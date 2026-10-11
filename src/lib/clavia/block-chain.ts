@@ -196,17 +196,17 @@ export interface FwProgram<K extends string> {
 
 /**
  * Decode a whole file (CBIN header + body) against a layout. Never throws.
- * `bodyOffset` is where the body starts: the NSM-era header's 0x2C, or 0x18 for a
- * Stage 3 file with the shorter legacy (formatType 0) header.
+ * The body is `bytes[bodyOffset, bodyEnd)`: by default from the NSM-era header's
+ * 0x2C to EOF (a legacy Stage 3 file passes 0x18 and stops before its trailer).
  */
 export function decodeFwProgram<K extends string>(
-  bytes: Uint8Array, layout: FwLayout<K>, bodyOffset: number = CBIN_BODY_OFFSET,
+  bytes: Uint8Array, layout: FwLayout<K>, bodyOffset: number = CBIN_BODY_OFFSET, bodyEnd: number = bytes.length,
 ): FwProgram<K> {
   const warnings: string[] = [];
   if (bytes.length < bodyOffset) {
     warnings.push(`File too short: ${bytes.length} bytes (a Nord file header alone is ${bodyOffset}).`);
   }
-  const body = bytes.slice(bodyOffset);
+  const body = bytes.slice(bodyOffset, Math.max(bodyOffset, bodyEnd));
   let decoded: FwBodyDecode<K>;
   try {
     decoded = decodeFwBody(body, layout);

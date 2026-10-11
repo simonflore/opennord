@@ -142,18 +142,19 @@ Notes on the table:
 **The Stage 3 reader now uses this layout (2026-10-11).** `src/lib/ns3/layout.generated.ts` is generated from the registry offset map by `scripts/gen-fw-program-maps.py` (`stage-3`), and `src/lib/ns3/decode.ts` reads it through the shared block-chain reader (`src/lib/clavia/block-chain.ts`), like the Grand, Piano 6, Electro 7 and Organ 3:
 
 - 19 blocks, a 548-byte body (592-byte file), 175 distinct parameters, plus the morph deltas of the 41 morphable ones. That closes the "about 200 parameters" gap. Slot B and Organ Preset II repeat parameters, so they are counted once.
-- Every byte-level test of the earlier decoder passes unchanged against the generated layout, on a body framed the way the firmware writes it. So the layout reads the same offsets the earlier decoder read from real files.
-- The typed panel shape the app uses (`Ns3Panel`) is now built from the layout's values. The labels come from the firmware's tables where it has one: the vibrato/chorus mode is labelled per organ model (Vox Less/More/Original, Farfisa Light/Heavy × Slow/Fast, Pipe C1), synth vibrato 6 is "After Touch", and the Clav timbres use the firmware's abbreviations.
+- Every byte-level test of the earlier decoder passes unchanged against the generated layout, on a body framed the way the firmware writes it.
+- Checked on real files: ns3-program-viewer's public test corpus (kept local, not committed). All 842 NSM-era `.ns3f` are 592 bytes and open with `00 00 01 30 11` (one with `00 00 01 2F 11`, version 303), and their chains walk the layout's 19 block lengths to the end of the file. So do the one `.ns3l` and, from 0x18, the five legacy 574-byte files (3.00–3.02). On all of them the panels read the same values as the earlier decoder, apart from the relabelled vibrato modes, and the morph deltas agree with the corpus's asserted morph targets.
+- The typed panel shape the app uses (`Ns3Panel`) is now built from the layout's values. The labels come from the firmware's tables where it has one: the vibrato/chorus mode is stored as the selector position (V1 C1 V2 C2 V3 C3) and named per organ model (Vox V1/V2/V3 = Less/More/Original, Farfisa V1/V2/C2/C3 = Light/Heavy × Slow/Fast, Pipe C1), synth vibrato 6 is "After Touch", and the Clav timbres use the firmware's abbreviations.
 - Version handling:
   - 3.00–3.04 read natively;
   - parameters added in 3.03 and 3.04 get their defaults in older files, as the firmware does;
   - a 2.0x body has other slot-block sizes, so it opens header-only with a warning;
   - a file whose chain doesn't match the layout also opens header-only with a warning;
-  - a legacy (formatType 0) header is 0x14 bytes shorter, so its body is read from 0x18.
+  - a legacy (formatType 0) header is 0x14 bytes shorter, so its body is read from 0x18. The file ends with the 2-byte CRC-16 trailer of the legacy Clavia files (`clavia/crc16.ts`), which the body stops before.
 - Not applied: the 3.00 delay-rate rescale and the pre-3.02 Dual-KB style fix-up, whose computations aren't known.
-- The `.ns3y` synth preset's Synth block is field for field the program's Synth block. `.ns3y` files are not read yet.
+- The `.ns3y` synth preset's Synth block is field for field the program's Synth block (the corpus's 102-byte `.ns3y` files are version 300 plus one 53-byte block). `.ns3y` and `.ns3l` files are not routed to the reader yet.
 
-Still to do: confirm the framing on a real `.ns3f` (question 7 below), and check the amp-type label order and the meaning of rotary speed 3.
+Still to do: check the amp-type label order and the meaning of rotary speed 3.
 
 **Stage 4.** The Stage 4 image carries the same registry framework. Its program body walks as 24 length-prefixed blocks that end exactly at the end of the file.
 
@@ -306,7 +307,7 @@ Its key-contact model differs. Its rotary speeds weren't found.
 
 **Programs:**
 
-7. A real `.ns3f`: are bytes 0x2C–0x30 `00 00 01 30 11` (version 304, first block length 17)?
+7. ~~A real `.ns3f`: are bytes 0x2C–0x30 `00 00 01 30 11` (version 304, first block length 17)?~~ Yes, on every file of ns3-program-viewer's corpus (§3).
 8. Is the amp type value order confirmed by a real file?
 
 **Effects:**
