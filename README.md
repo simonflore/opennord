@@ -5,7 +5,7 @@
 > Status: **early — the reverse-engineering is done, the product is being built.** OpenNord is family-wide by design: one shared file container and one shared USB transport run the whole Nord line (`src/lib/clavia/` carries a full-line model registry). The **Nord Stage series comes first** — Stage 2 / 3 / 4 files read today, and **Stage 4** is decoded and validated (0-mismatch against ns4decode) with its USB transfer protocol reverse-engineered and **hardware-validated both ways** (enumerate, read, *and* write — on a real device). Other families (Electro, Piano, Lead, …) are mapped and next. What remains is the product layer — UI, community sharing, AI — see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 > [!WARNING]
-> **Alpha software — use at your own risk.** OpenNord is under active development,
+> **Beta software — use at your own risk.** OpenNord is under active development,
 > provided **as-is, with no warranty** (see the [AGPL-3.0](LICENSE), sections 15–16).
 > Things will change and break. Most of all: **device transfer writes to real
 > hardware.** Writing a program to your Nord overwrites whatever was in that slot —
