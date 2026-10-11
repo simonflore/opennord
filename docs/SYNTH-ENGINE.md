@@ -447,7 +447,7 @@ generically. Values 5–7 are unreachable on v1.66.
 | OSC CTRL, linear mode | x | `x` | `FUN_c01c61f0` (mode 2) | ✅ (which algorithms: ❓) |
 | Depth curve C(v) | 0–127 | smooth `0.5·(v/20)^2.5` up to 0.5 st at v = 20, then piecewise linear through 28 points of the displayed curve (`DEPTH_LANDMARKS` in `synth-scaling.ts`, e.g. (36, 2), (73, 12), (116, 38), (127, 48) semitones). Within the display's rounding at every v ≥ 20 (±0.05 st below 12.5 st, ±0.25 st above); within 3 cents below 20. The earlier 14-point fit was up to 0.67 st sharp (v = 116) | ARM table `0xC02CA2C0` (129 floats) | ✅ |
 | WAVE anti-alias fade | inc f (cycles/sample) | `g = clamp((0.4608 − f)/0.2304, 0, 1)`: full level to 0.2304·fs (≈ 20 kHz), silent at 0.4608·fs | WAVE kernel `sw:0x1247B6` | ✅ |
-| Unison | 0–3 | keys 6 and 7 both get the setting (0–3) | `FUN_c0115478` | ✅ (detune amounts: ❓) |
+| Unison | 0–3 | keys 6 and 7 both get the setting (0–3); a Samples layer uses key `0x37` instead (§9) | `FUN_c0115478` | ✅ (detune amounts: ❓) |
 
 The depth curve is also the LFO→pitch amount curve (§7.6). Its displayed values match it
 exactly ("50 cent" at 20, "8.7 semi" at 64, "48 semi" at 127).
@@ -555,21 +555,13 @@ The unused DM table at `0xB09D1` holds `−(1 − c)/18`. With it, a decay would
 - Product polyphony. There are 16 voice slots on each of the three cores. How the host
   allocates voices across cores and layers is not traced.
 
-## 9. Related notes (2026-10-11)
+## 9. Related notes
 
-- **Program field → Edt → dispatcher key**, one table for every synth field, and the
-  **arpeggiator** (modes, direction mapping, zigzag, step count, pattern): see
-  [`STAGE4-ENGINES.md`](STAGE4-ENGINES.md) §3–§4.
-- **`Syn_kMode` and unison (confirmed writes).** Edt 250 is 0 for a Samples layer and 1 for
-  oscillators. `FUN_c0115478` sends the unison setting to keys 6 and 7 for oscillators, but
-  for a Samples layer it sends key 6 = 0, key 7 = 4 and the unison value to key `0x37`: sample
-  layers have their own unison path (`STAGE4-ENGINES.md` §3.1). The detune amounts remain open.
-- **The Electro 7 reuses this engine's data.** Its synth voice cores hold the same attack and
-  decay/release tables (128 of 129 entries identical), the same tan pre-warp cutoff table,
-  the same drive waveshaper and the same 256-point exp/ratio curve (`dm:0xB074C` here), and
-  its panel shows the same time and cutoff lists. So §7.4 (cutoff) and §7.5 (envelopes)
-  describe the Electro 7 as well. Its oscillators are a subset with different code
-  (polyBLEP pulse, a seven-saw SuperSaw, 4-operator FM): see
+- Every synth program field → Edt → dispatcher key in one table, the Samples-layer unison
+  path (`Syn_kMode` = 0 sends the unison value to key `0x37`, not keys 6/7), and the
+  arpeggiator: [`STAGE4-ENGINES.md`](STAGE4-ENGINES.md) §3–§4.
+- The Electro 7 synth reuses this engine's envelope, cutoff, drive-shaper and exp/ratio
+  (`dm:0xB074C`) data, so §7.4 and §7.5 describe it too; its oscillators are different code:
   [`ELECTRO7-ENGINES.md`](ELECTRO7-ENGINES.md) §4.
 
 ## Reproduction

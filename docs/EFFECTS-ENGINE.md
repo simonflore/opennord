@@ -802,14 +802,9 @@ This is a scratch-only toolchain, not committed:
 
 Outputs stay local.
 
-### 10.15 The Electro 7 runs this library (2026-10-11)
+### 10.15 The Electro 7 runs this library
 
-The Electro 7 (OS 1.30) carries a subset of these modules unchanged, on its effects + synth
-DSP (`DSPFxSy`, both cores) and its organ DSP: Auto-Pan, Tremolo, Ring Mod, Wah, A-Wah, Phaser
-Type I, Flanger, Chorus, Vibe, Ensemble, the overdrive / voicing / cabinet / 2× SVF amp chain,
-both delay-line variants, a compressor, the reverb tank and the spring. Absent: Pump, Phaser
-Type II, Chorus Analog, Spin, the delay feedback effects, LP24/HP24 and the plain send. Its
-pools use the same 16-byte `{dsp, code address, flags, variant}` entries filled by a static
-initialiser (`0xC0118010`). So §10.3–§10.11 describe the Electro 7's effect algorithms too;
-the knob formulas were not re-derived on its ARM, and its menu order is open. Details and
-evidence: [`ELECTRO7-ENGINES.md`](ELECTRO7-ENGINES.md) §5.
+The Electro 7 (OS 1.30) carries a subset of these modules as the same code, pooled the same
+way (§10.2 entries, filled by its static initialiser `0xC0118010`). So §10.3–§10.11 describe
+its effect algorithms too; its knob formulas were not re-derived and its menu order is open.
+Which modules it has and lacks: [`ELECTRO7-ENGINES.md`](ELECTRO7-ENGINES.md) §5.

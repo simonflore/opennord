@@ -83,7 +83,7 @@ says where the behaviour is specified. All router → key pairs are read from
 | `595-8` filter env amt (+ morphs) | 312 | `0x2B` | filter envelope | SYNTH §7.4 |
 | `599-7`, `600-6`, `601-5` filter env A/D/R | 313–315 | `0x18`, `0x19` (+ `0x1A`), `0x1B` | filter envelope | SYNTH §7.5 |
 | `602-4` filter velocity | 316 | `0x1C` | filter envelope | SYNTH §7.7 |
-| `416-1`, `453-5`, `602-6`, `603-5` vibrato mode / delay / rate / amount | 260, 263, 261, 262 | `0x35` (`FUN_c011521c`) | vibrato | SYNTH §7.6 |
+| `416-1`, `453-5`, `602-6`, `603-5` vibrato mode / delay / rate / amount | 260, 263, 261, 262 | `0x35` (`FUN_c011521c`: mode × amount); delay and rate reach it through the morph path (likely) | vibrato | SYNTH §7.6 |
 | `416-7` / `416-6` mono / legato | 257 | `0x30` / `0x31` | voice allocator | SYNTH §7.7 |
 | `416-8` voice priority | 258 | — | voice allocator | open |
 | `417-2` glide | 259 | morph path, probably `0x03` | portamento | open (guess) |
@@ -94,7 +94,7 @@ says where the behaviour is specified. All router → key pairs are read from
 Effects fields (`705-1` … `755-6` and the reverb/delay/compressor fields) map one to one onto
 the `Edt_Effects_*` ids; `EFFECTS-ENGINE.md` §10.3–§10.11 gives each one's module and law.
 
-### 3.1 Two notes on the synth path (new)
+### 3.1 Two notes on the synth path
 
 - **`Syn_kMode` (confirmed writes, likely meaning).** `FUN_c0115478` reads Edt 250 and the
   unison setting. With an oscillator layer (250 ≠ 0) the unison value 0–3 goes to keys 6 and

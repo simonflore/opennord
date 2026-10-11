@@ -49,7 +49,7 @@ hypothesis worth testing.
 | Program | Image (CODE) | Cores | Runs | Evidence | Conf. |
 |---|---|---|---|---|---|
 | `DSPFxSy` | `0xC0513B14`, 2 ADI SHARC+ boot streams | c1, c2 | **synth voices + effect chains**, same code on both cores | strings `DSPFxSyCore1/2` in `p2-code`; identical voice functions at identical addresses in both cores; effect units pooled on both (§5.1) | confirmed |
-| `DSPOrg` | `0xC054A178`, 2 SHARC+ streams | c1 (small, ~23 KB of L1 code), c2 | organ tone generation and organ effect chain (c2); reverb units are also pooled on c1 | `DSPOrgCore1/2`; c2 contains code matching parts of the Stage 4 organ generator (`sw:0x121505` ≈ Stage 4 `0x12272D`, `0x12178A` ≈ `0x1229B3`); pool entries | confirmed (names), likely (roles) |
+| `DSPOrg` | `0xC054A178`, 2 SHARC+ streams | c1 (small, ~23 KB of L1 code), c2 | organ tone generation and organ effect chain (c2); reverb units are also pooled on c1 | `DSPOrgCore1/2`; c2 contains code matching parts of the Stage 4 organ generator (`sw:0x121505` ≈ Stage 4 `0x12272D`, the Vox bank; `0x12178A` ≈ `0x1229B3`); pool entries | confirmed (names), likely (roles) |
 | `DSPSmp` | `0xC056F158`, older 48-bit SHARC format | — | NW1 sample decoder | 95 % of its code chunks also occur in the Stage 4 `DSPSmp` image (DSP 3) | confirmed (identity) |
 | piano decoder | `0xC058CD18` (size word at `0xC058CD14`) | — | CNSP piano decoder | every code chunk also occurs in the Stage 4 piano image (DSP 4) | confirmed (identity) |
 
@@ -83,7 +83,7 @@ note-on word ─► voice setup sw:0x120300 ─► per-voice generator via the k
 
   | Key | Edt id → parameter | Value sent | Conf. |
   |---|---|---|---|
-  | 0 | 169 `Syn_kMode` | 0, 1, 2 (§4.1) | confirmed |
+  | 0 | 169 `Syn_kMode` | 0, 1.0, 2.0; mode 0 then re-reads Edt 222 `Syn_kSmpId` to load the sample (`0xC00FF3B8`, §4.1) | confirmed |
   | 2 / 3 | 178 / 179 analog main / aux waveform | index | confirmed |
   | 4 / 5 / 6 | 181 detune / 182 semitone / 180 osc mix | value | confirmed |
   | 7 | 184 FM algorithm | 0–9 | confirmed |
@@ -105,11 +105,10 @@ note-on word ─► voice setup sw:0x120300 ─► per-voice generator via the k
   | 43 | 173 vibrato rate | `floor(60·v/127)`: the knob is quantised to 61 steps | confirmed |
   | 47 | 212 dynamics | 1–3, else 0 | confirmed |
 
-- **Mode handler (confirmed, `0xC00FF3B8`).** Mode 0 sends key 0 = 0 and then re-reads
-  Edt 222 (`Syn_kSmpId`) to load the sample; modes 1 and 2 send key 0 = 1.0 and 2.0.
-- **No DSP code addresses on the ARM side for the synth (confirmed).** Unlike the Stage 4
-  (74-entry oscillator table on the ARM), no Electro 7 synth kernel address occurs in the ARM
-  image outside the DSP boot images. The DSP picks the generator itself (§4.2).
+- **No oscillator table on the ARM side (confirmed).** Unlike the Stage 4 (74-entry
+  oscillator table on the ARM), no address of an Electro 7 analog or FM kernel occurs in the
+  ARM image outside the DSP boot images; only the sample-voice routines are pooled (§4.2).
+  The DSP picks the generator itself.
 - **Effects use the Stage 4 resource pools (confirmed).** The static initialiser at
   `0xC0118010` fills the pools at `0xC05C6D28…0xC05DFEA4` with 16-byte entries
   `{dsp, code byte address, flags, variant}` exactly as on the Stage 4 (`EFFECTS-ENGINE.md`
@@ -160,11 +159,10 @@ algorithms ("FM Algorithm 1"–"10"). The panel splits the patch into a **Body**
 amount (0–127, keys 29 / 22), plus a common FM Amount (morphable), Feedback (0–28), Balance
 between Body and Spectra (−15…+15), keyboard level scaling Lo/Hi (0–10, "Amt L"/"Amt H") and
 envelope time tracking for attack and decay/release (0–10, "Time Track"). The ratio index →
-frequency ratio mapping was not traced; the image carries a ratio label list running from
-0.25 to 24 (quarter steps to 3, half steps to 9, then 10, 11, 12, 14, 16, 20, 24), but which
-knob uses it is not established (guess). The Stage 4's 256-point exp/ratio curve (used there by
-the Sync and Bell kernels) is also in the Electro 7 voice image (`dm:0xB09FC`); which Electro 7
-kernel reads it was not traced.
+frequency ratio mapping was not traced. The image carries a ratio label list from 0.25 to 24
+in steps that widen as the ratio grows; which knob uses it is not established (guess). The
+Stage 4's 256-point exp/ratio curve (used there by the Sync and Bell kernels) is also in the
+Electro 7 voice image (`dm:0xB09FC`); which Electro 7 kernel reads it was not traced.
 
 ### 4.3 Filter
 
@@ -230,8 +228,8 @@ function's code occurs unchanged in the Stage 4 module.
 **Not present on the Electro 7 (confirmed by absence):** Pump, Phaser Type II, Chorus
 Analog, Spin, the delay feedback effects (Flam line, Space diffusers, the feedback Vibe), the
 LP24/HP24 amp filter and the plain send module (`0x125103`, the Stage 4's "To Rotary" path).
-Each scores at most 0.24 against every Electro 7 core. So the Electro 7 has no Comp *Response*, no delay feedback effect
-and no amp filter types, which matches its registry (§5.2).
+Each scores at most 0.24 against every Electro 7 core. So the Electro 7 has no Comp
+*Response*, no delay feedback effect and no amp filter types, which matches its registry (§5.2).
 
 Because the DSP modules are the same code, everything `EFFECTS-ENGINE.md` §10 says about a
 module's **signal flow** applies. The **knob → DSP value** formulas there were read from the
@@ -242,12 +240,12 @@ The effects sample rate on `DSPFxSy` (which also runs the synth) was not establi
 
 | Section | Parameters (Edt id: range) | Differs from the Stage 4 |
 |---|---|---|
-| Effect 1 | enable, Rate 0–127, Amount 0–127, Type 0–4 (256–258), pedal/wheel assign on Rate and Amount | 5 types instead of 12; no master-clock switch |
+| Effect 1 | enable, Rate 0–127 (256), Amount 0–127 (257), Type 0–4 (258), pedal/wheel assign on Rate and Amount | 5 types instead of 12; no master-clock switch |
 | Effect 2 | enable, Rate, Amount, Type 0–4, **Mono** flag (264) | 5 types; stereo/mono is a separate switch, not separate types |
 | Amp/EQ | enable, Drive 0–127, Type 0–5, Treble/Mid/Bass −60…+60 (0.25 dB steps on the Stage 4: ±15 dB), Mid Freq 0–127 | 6 types; no LP24/HP24 |
 | Delay | enable, Tempo 14-bit, Mix, **Ping-pong 0–3**, Filter 0–3, Feedback, Mode (Normal/Analog) | ping-pong has four settings (Stage 4: on/off); no feedback effect |
 | Compressor | enable, Amount (default 38), Global (Common) | no Response switch |
-| Reverb (global) | enable, Type 0–4, **Chorale** flag, Colour 0–2, per-section Amount and Send enable | Chorale is its own switch, 5 base types |
+| Reverb (global) | enable, Type 0–4, **Chorale** flag, Colour 0–2, Send enable; Amount per section | Chorale is its own switch, 5 base types |
 | Rotary (global) | enable, Speed 0–2, Source 0–2, Drive, horn/rotor stop angles (16-bit), stop-angle mode | stop angle is continuous |
 | Global flags | Delay Global, Comp Global (Common block) | as on the Stage 4 |
 
@@ -282,12 +280,9 @@ The loader compares the root tag with `NWS` and `NSMP`, takes the file's version
 when `v − 8 ≤ 32` looks up the generation in a byte map (`0xC04BFD24`: 8 → 1, 11 → 2,
 30 → 3, 40 → 4). It continues only when the generation is 3 or 4 and a second header field
 equals 4. This is instruction for instruction the Stage 4's check (`0xC01D7A2C`), so the
-Electro 7 loads the same sample files as the Stage 4 and refuses `.nsmp` (generations 1–2).
-`FIRMWARE-LINE.md` §5 had found the map but not the check; it is now located.
-
-So the Electro 7 needs no new sample-format spec: everything in
-[`NSMP-CODEC.md`](NSMP-CODEC.md) for codec 3/4 applies. `.nsmp` files must be converted up
-(as for the Stage 4) before they load.
+Electro 7 loads the same sample files as the Stage 4 and refuses `.nsmp` (generations 1–2),
+which must be converted up first. No new sample-format spec is needed:
+[`NSMP-CODEC.md`](NSMP-CODEC.md) for codec 3/4 applies.
 
 ## 7. Confidence summary and what is open
 

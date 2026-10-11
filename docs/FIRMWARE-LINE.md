@@ -194,7 +194,7 @@ The Piano 6 gate's thresholds (0x423–0x42F → generation < 3, 0x430 < 4, 0x44
 | Electro 7 | `.nsmp3` and `.nsmp4`: the map {8, 11, 30, 40} (`c04bfd24`) feeds the Stage 4's generation 3–4 check at `c007de44` (`ELECTRO7-ENGINES.md` §6) | E7 `c007de44` | high |
 | Wave 2 | a {8, 11, 30, 40} map exists; no check using it located. NSM treats Wave 2 as `.nsmp3` | W2 `c01e1040` | low |
 
-So `.nsmp3`/`.nsmp4` files must be converted down (`convertNsmp(x, 2)` or `(x, 1)`) for every ColdFire model, the Electro 5 and Piano 3 included. The registry's `sampleCodec` holds one value per model; where two are accepted it records the newest (Piano 5/6, Grand 2: `codec4`). Electro 7's `codec4` is now confirmed as its newest accepted codec (it takes `.nsmp3` too).
+So `.nsmp3`/`.nsmp4` files must be converted down (`convertNsmp(x, 2)` or `(x, 1)`) for every ColdFire model, the Electro 5 and Piano 3 included. The registry's `sampleCodec` holds one value per model; where two are accepted it records the newest (Piano 5/6, Grand 2: `codec4`). The Electro 7's `codec4` is its newest accepted codec (it takes `.nsmp3` too).
 
 ## 6. Program formats
 
