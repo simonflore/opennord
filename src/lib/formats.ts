@@ -103,6 +103,9 @@ const CODECS: readonly ModelCodec<NordProgram>[] = [
   ncCodec,
 ];
 
+/** Every program file-type tag OpenNord reads: the codecs' tags plus Stage 3 / Stage 2, which decode outside CODECS. */
+export const PROGRAM_TAGS: ReadonlySet<string> = new Set([...CODECS.flatMap((c) => c.tags), 'ns3f', 'ns2p']);
+
 /** True when `program` is a fully-structured NS4 program (has `kind`). */
 export function isNs4Program(program: NordProgram): program is NS4Program {
   return 'kind' in program;
