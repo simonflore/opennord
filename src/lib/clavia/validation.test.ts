@@ -55,7 +55,7 @@ describe('validation matrix', () => {
     }
   });
   it('file-read is re where a descriptor-layout reader reads the program record', () => {
-    for (const id of ['electro-3', 'electro-3-hp', 'c2d'] as const) {
+    for (const id of ['electro-3', 'electro-3-hp', 'c2d', 'wave'] as const) {
       expect(statusFor(id, 'file-read').status, id).toBe('re');
       expect(statusFor(id, 'file-read').note, id).toMatch(/firmware descriptor layout/);
     }

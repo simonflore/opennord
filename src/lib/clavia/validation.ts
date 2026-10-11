@@ -225,7 +225,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 'unsupported', note: "sampleCodec null in partitions.ts; no sample engine on Lead A1" },
   },
   'wave': {
-    'file-read': { status: 're', note: "nwp OG header + 306-byte dual-slot body decoder (lib/nw1); dual synth-slot architecture confirmed via 1018-fixture corpus (Slot 2 mirrors Slot 1 at stride +140), validated vs real .nwp fixtures, not HW-tested. The OS 2.14 firmware confirms the 140-byte slot block; record alignment (0x1A vs 0x2C) still open" },
+    'file-read': { status: 're', note: "nwp legacy formatType-0 record read through the OS 2.14 firmware descriptor layout (lib/nw1): u8 record version 8 at file 0x18 (6-7 converted by the firmware), 321 data bytes from 0x19 (global, slot A, slot B at +140, common, inline morph deltas), 2 pad bytes, CRC-16 trailer = the 350-byte .nwp the 1018-file corpus shows. Alignment medium until the corpus range test runs; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v4 in the OS 2.14 firmware (frames 3..4, no session lock); 5 partitions, Program at 1, SWave/RAMFS read-only (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v4 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v4 (firmware); WRITE — untested-write risk" },
