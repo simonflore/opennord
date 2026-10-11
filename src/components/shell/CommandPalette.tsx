@@ -23,13 +23,14 @@ function useCommands(): Command[] {
   const presets = usePresetsState();
   const samples = useSamplesState();
   const pianos = usePianosState();
-  // Only the (memoised) lists and the stable reveal() go into the memo, so typing
-  // or a provider update that doesn't touch the lists keeps the same commands.
+  // Only the (memoised) lists and their stable setters go into the memo, so a
+  // provider update that doesn't touch the lists keeps the same commands.
   const lists = useMemo(() => [
-    { group: 'Presets' as const, to: '/library/presets' as const, all: presets.all, reveal: presets.reveal },
-    { group: 'Samples' as const, to: '/library/samples' as const, all: samples.all, reveal: samples.reveal },
-    { group: 'Pianos' as const, to: '/library/pianos' as const, all: pianos.all, reveal: pianos.reveal },
-  ], [presets.all, presets.reveal, samples.all, samples.reveal, pianos.all, pianos.reveal]);
+    { group: 'Presets' as const, to: '/library/presets' as const, all: presets.all, clearFilters: presets.clearFilters, setQuery: presets.setQuery },
+    { group: 'Samples' as const, to: '/library/samples' as const, all: samples.all, clearFilters: samples.clearFilters, setQuery: samples.setQuery },
+    { group: 'Pianos' as const, to: '/library/pianos' as const, all: pianos.all, clearFilters: pianos.clearFilters, setQuery: pianos.setQuery },
+  ], [presets.all, presets.clearFilters, presets.setQuery, samples.all, samples.clearFilters, samples.setQuery,
+    pianos.all, pianos.clearFilters, pianos.setQuery]);
 
   return useMemo(() => {
     const pages: Command[] = [
@@ -47,9 +48,9 @@ function useCommands(): Command[] {
 
     // Presets, samples and pianos have no page of their own: jumping to one opens
     // its list with every filter off, searched down to that name.
-    const entries = lists.flatMap(({ group, to, all, reveal }) => all.map((e): Command => ({
+    const entries = lists.flatMap(({ group, to, all, clearFilters, setQuery }) => all.map((e): Command => ({
       id: `${group}:${e.id}`, group, label: e.name, hint: hint(e),
-      run: () => { reveal(e.name); navigate({ to }); },
+      run: () => { clearFilters(); setQuery(e.name); navigate({ to }); },
     })));
 
     return [...pages, ...programCommands, ...entries];
@@ -96,6 +97,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
     c.run();
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing) return; // Enter commits an IME composition, not a command
     if (e.key === 'ArrowDown') { e.preventDefault(); setIndex(Math.min(active + 1, results.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex(Math.max(active - 1, 0)); }
     else if (e.key === 'Enter') { e.preventDefault(); run(results[active]); }

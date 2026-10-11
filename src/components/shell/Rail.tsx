@@ -26,8 +26,8 @@ interface Props {
   sources: SourceItem[];
   /** The source the program list is filtered to, if any. */
   activeSource: LibrarySource | 'all';
-  /** Filter the program list to a source, or back to everything with 'all'. */
-  onPickSource: (source: LibrarySource | 'all') => void;
+  /** Show only the programs from one source. */
+  onPickSource: (source: LibrarySource) => void;
 }
 
 /**
@@ -35,7 +35,7 @@ interface Props {
  * in sentence case in the data), the count right-aligned, and the active entry
  * raised with the accent bar on its left edge.
  */
-function Item({ label, active, onClick, count, led, disabled, title, sub }: {
+function Item({ label, active, onClick, count, led, disabled, title, sub, toggle }: {
   label: string;
   active: boolean;
   onClick: () => void;
@@ -45,6 +45,8 @@ function Item({ label, active, onClick, count, led, disabled, title, sub }: {
   disabled?: boolean;
   title?: string;
   sub?: boolean;
+  /** A filter rather than a page: announced as pressed, not as the current page. */
+  toggle?: boolean;
 }) {
   return (
     <button
@@ -58,7 +60,8 @@ function Item({ label, active, onClick, count, led, disabled, title, sub }: {
           ? rowActive
           : 'text-dim hover:text-ink hover:[background:color-mix(in_srgb,var(--lift)_3%,transparent)]',
       )}
-      aria-current={active ? 'page' : undefined}
+      aria-current={!toggle && active ? 'page' : undefined}
+      aria-pressed={toggle ? active : undefined}
       disabled={disabled}
       title={title}
       onClick={onClick}
@@ -110,9 +113,8 @@ export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSo
             key={c.id}
             label={c.label}
             count={counts[c.id]}
-            // A source filter moves the highlight to Sources.
-            active={isActive(c.path) && !(c.id === 'programs' && activeSource !== 'all')}
-            onClick={() => { if (c.id === 'programs') onPickSource('all'); onNavigate(c.path); }}
+            active={isActive(c.path)}
+            onClick={() => onNavigate(c.path)}
           />
         ))}
       </Group>
@@ -124,6 +126,7 @@ export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSo
               key={s.source}
               label={s.label}
               count={s.count}
+              toggle
               led={s.live}
               active={onPrograms && activeSource === s.source}
               onClick={() => { onPickSource(s.source); onNavigate('/library/programs'); }}
