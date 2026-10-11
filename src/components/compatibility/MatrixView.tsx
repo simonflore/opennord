@@ -23,14 +23,15 @@ const LEGEND: ValidationStatus[] = ['validated', 're', 'inferred', 'unsupported'
 
 const DECODE_CELL: Record<DecodeStatus, ValidationStatus> = { full: 'validated', partial: 're', started: 're', none: 'unknown' };
 
-// Status colors mirror validation.ts's ValidationStatus, mapped onto the
-// token vocabulary (tailwind-baseline.md): connected/warn/dim/muted/danger.
+// A status reads from its glyph and how bright it is, not from a hue: green is
+// kept for "a Nord is connected" and the accent for active/selected (tokens.css).
+// Ink steps down with confidence; the badge tints with the same colour.
 const CELL_COLOR: Record<ValidationStatus, string> = {
-  validated: 'text-connected',
-  re: 'text-warn',
-  inferred: 'text-dim',
+  validated: 'text-ink',
+  re: 'text-dim',
+  inferred: 'text-muted',
   unsupported: 'text-muted',
-  unknown: 'text-danger',
+  unknown: 'text-muted',
 };
 
 /** The round badge behind a status glyph, tinted with the status colour itself. */
@@ -83,7 +84,7 @@ export function MatrixView() {
           </li>
         ))}
         <li className="flex items-center gap-2">
-          <span aria-hidden="true" className="w-[18px] text-center text-[11px] text-warn">{FULL_MAP.glyph}</span>
+          <span aria-hidden="true" className="w-[18px] text-center text-[11px] text-dim">{FULL_MAP.glyph}</span>
           <span><span className="font-semibold text-ink">{FULL_MAP.label}</span> · {FULL_MAP.hint}</span>
         </li>
       </ul>
@@ -139,7 +140,7 @@ export function MatrixView() {
                         d.paramCount != null ? String(d.paramCount)
                         : d.status === 'partial' ? 'Partial'
                         : d.pct != null ? `${d.pct}%` : `${d.controlCount}✓`;
-                      // Stage 4 (validated) is already green; elsewhere the full-map mark says the
+                      // Stage 4 (validated) is already marked Works; elsewhere the full-map mark says the
                       // reader covers every stored parameter even though no real file confirmed it yet.
                       const fullMap = d.fullMap && d.status !== 'full';
                       const title = fullMap ? FULL_MAP_TITLE : DECODE_LABEL[d.status];

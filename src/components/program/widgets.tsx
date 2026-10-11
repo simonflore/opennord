@@ -51,9 +51,9 @@ export function DrawbarStack({ drawbars }: { drawbars: DrawbarView[] }) {
     <div className="ps-dbstack">
       {drawbars.map((d, i) => (
         <div className="ps-db" key={i}>
-          <div className="ps-db-num">{d.label}</div>
           <div className="ps-db-track" style={{ ['--lvl' as string]: Math.max(0, Math.min(8, d.level)) }}>
-            <div className={`ps-db-tab ${d.color}`} />
+            {/* The level is printed on the cap, so it travels with the drawbar as it's pulled. */}
+            <div className={`ps-db-tab ${d.color}`}><span className="ps-db-num">{d.label}</span></div>
             {d.morph && <div className="ps-db-morph" title={morphTooltip(d.morph)} />}
           </div>
           {d.footage && <div className="ps-db-foot">{d.footage}</div>}
