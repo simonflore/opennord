@@ -95,11 +95,15 @@ export function MatrixView() {
                       {m.name}
                     </th>
                     {(() => {
+                      // A model with no reachable files at all (the C1) has nothing to decode.
+                      if (statusFor(m.id, 'file-read').status === 'unsupported') {
+                        return <td className={cn(cell, CELL_COLOR.unsupported)} title="No program files">—</td>;
+                      }
                       const text =
                         d.paramCount != null ? `${d.paramCount} params`
                         : d.status === 'partial' ? 'Partial'
                         : d.status === 'started' ? (d.pct != null ? `${d.pct}%` : `${d.controlCount}✓`)
-                        : '—';
+                        : 'Not yet';
                       return <td className={cn(cell, CELL_COLOR[DECODE_CELL[d.status]])} title={DECODE_LABEL[d.status]}>{text}</td>;
                     })()}
                     {MATRIX_COLUMNS.map((c) => {
