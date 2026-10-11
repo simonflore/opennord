@@ -1,4 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
+import { openPiano } from '@/components/library/openEntry';
 import { usePianosState } from '@/lib/library/PianosContext';
 import { PianosBrowse } from './PianosBrowse';
 import { PianoInspector } from './PianoInspector';
@@ -26,7 +27,7 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
         showSourceFacet={s.showSourceFacet}
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
-        onSelect={(e) => navigate({ to: '/library/pianos/{-$pianoId}', params: { pianoId: e.id } })}
+        onSelect={(e) => openPiano(navigate, e.id)}
         activeId={selectedId}
         canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct}
         unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
@@ -41,6 +42,7 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
 
   const detail = entry
     ? <PianoInspector key={entry.id} entry={entry} session={s.session} />
+    : selectedId ? <EmptyNote className="p-4">This piano isn’t in your library (yet). Pick it from the list.</EmptyNote>
     : <EmptyNote className="p-4">Pick a piano to see its details.</EmptyNote>;
 
   return (
@@ -48,10 +50,10 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
       wide={wide}
       master={list}
       detail={detail}
-      narrowDetail={entry ? detail : <EmptyNote className="p-4">This piano isn’t in your library (yet). Pick it from the list.</EmptyNote>}
       hasDetail={!!selectedId}
       onBack={() => navigate({ to: '/library/pianos' })}
       backLabel="← Pianos"
+      selectedId={selectedId}
     />
   );
 }

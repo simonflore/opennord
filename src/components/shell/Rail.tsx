@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, memo, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { READY_CATEGORIES, isUnder, type CategoryId } from '../../lib/library/categories';
 import type { LibrarySource } from '../../lib/library/types';
@@ -80,10 +80,11 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
 /**
  * The desktop rail: Library (with counts), Sources (where the programs come
  * from) and Tools, then the developer tools, About and the beta label at the
- * foot. The wordmark and the Nord's connection live in the TopBar above; at
+ * foot. Memoised, with memoised data props, so a list change that doesn't move a
+ * count (a search keystroke, a scan tick) doesn't re-render it. The wordmark and the Nord's connection live in the TopBar above; at
  * phone width the rail gives way to PhoneTabs.
  */
-export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSource }: Props) {
+export const Rail = memo(function Rail({ path, onNavigate, counts, sources, activeSource, onPickSource }: Props) {
   const tools = useTools();
   // An entry is active on its page and the pages beneath it (/library/programs/$id keeps programs lit).
   const isActive = (to: string) => isUnder(path, to);
@@ -170,4 +171,4 @@ export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSo
       </div>
     </nav>
   );
-}
+});

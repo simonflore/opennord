@@ -6,7 +6,7 @@ import { CategorySplit } from './CategorySplit';
 import { EmptyNote } from './EmptyNote';
 import { useLibraryState } from '@/lib/library/LibraryContext';
 import { useSplitLayout } from '@/lib/responsive';
-import { openProgram } from './openProgram';
+import { openProgram } from './openEntry';
 
 /**
  * The Library as master/detail. `/library/programs/{-$programId}` renders
@@ -67,6 +67,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
           hasDetail={!!selectedId}
           onBack={() => navigate({ to: '/library/programs' })}
           backLabel="← Library"
+          selectedId={selectedId}
         />
       </div>
     </div>

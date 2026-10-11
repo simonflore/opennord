@@ -1,4 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
+import { openPreset } from '@/components/library/openEntry';
 import { usePresetsState } from '@/lib/library/PresetsContext';
 import { PresetsBrowse } from './PresetsBrowse';
 import { PresetInspector } from './PresetInspector';
@@ -43,7 +44,7 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
         kinds={s.kinds} showSourceFacet={s.showSourceFacet}
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
-        onSelect={(e) => navigate({ to: '/library/presets/{-$presetId}', params: { presetId: e.id } })}
+        onSelect={(e) => openPreset(navigate, e.id)}
         activeId={selectedId}
         onImport={importPreset}
         onRemove={(id) => void s.removePreset(id)}
@@ -53,6 +54,7 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
 
   const detail = entry
     ? <PresetInspector entry={entry} session={s.session} />
+    : selectedId ? <EmptyNote className="p-4">This preset isn’t in your library (yet). Pick it from the list.</EmptyNote>
     : <EmptyNote className="p-4">Pick a preset to see its details.</EmptyNote>;
 
   return (
@@ -60,10 +62,10 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
       wide={wide}
       master={list}
       detail={detail}
-      narrowDetail={entry ? detail : <EmptyNote className="p-4">This preset isn’t in your library (yet). Pick it from the list.</EmptyNote>}
       hasDetail={!!selectedId}
       onBack={() => navigate({ to: '/library/presets' })}
       backLabel="← Presets"
+      selectedId={selectedId}
     />
   );
 }
