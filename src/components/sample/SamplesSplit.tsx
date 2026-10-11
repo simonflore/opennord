@@ -107,7 +107,7 @@ export function SamplesSplit() {
         nordCount={s.nordCount} localCount={s.localCount}
         showSourceFacet={s.showSourceFacet} showUnknownGen={s.showUnknownGen}
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
-        onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery}
+        onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters}
         onOpen={(e) => void openEntry(e)} onLoadNew={startLoadNew}
         activeId={inspect?.id ?? null}
         onImport={importSample}

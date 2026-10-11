@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { usePresetsPrefs } from '@/lib/library/prefs';
@@ -34,11 +34,11 @@ function usePresetsStateValue() {
     return () => { cancelled = true; };
   }, [session, setPresetEntries]);
 
-  const allEntries: PresetEntry[] = [
+  const allEntries: PresetEntry[] = useMemo(() => [
     ...presetEntriesFromDevice(presetEntries),
     ...presetEntriesFromScanned(folder.result.presets),
     ...imported.entries,
-  ];
+  ], [presetEntries, folder.result.presets, imported.entries]);
   const nordCount = allEntries.filter((e) => e.source === 'nord').length;
   const localCount = allEntries.length - nordCount;
   const showSourceFacet = nordCount > 0 && localCount > 0;
@@ -47,10 +47,12 @@ function usePresetsStateValue() {
   const shown = sortPresets(filterPresets(allEntries, source, kind, query), prefs.sort, prefs.favorites);
   const entryById = (id: string) => allEntries.find((e) => e.id === id);
 
+  /** Every filter off and the search cleared (the list's "clear filters"). */
+  const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setKind('all'); }, []);
   /** Show one entry by name: every filter off, the search set to it (the ⌘K palette's jump). */
-  const reveal = (name: string) => { setSource('all'); setKind('all'); setQuery(name); };
+  const reveal = useCallback((name: string) => { clearFilters(); setQuery(name); }, [clearFilters]);
   return {
-    all: allEntries, reveal,
+    all: allEntries, clearFilters, reveal,
     shown, source, setSource, kind, setKind, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, kinds, folder, session,
     importPreset: imported.add, removePreset: imported.remove,

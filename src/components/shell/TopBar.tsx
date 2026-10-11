@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
+import { BetaBadge } from './BetaBadge';
 import { DeviceStatus } from './DeviceStatus';
 import { Wordmark } from './Wordmark';
 import { isApple } from '../../lib/platform';
@@ -24,7 +25,7 @@ export function TopBar({ onSearch, onManageDevice }: { onSearch: () => void; onM
       <button
         type="button"
         onClick={onSearch}
-        aria-keyshortcuts="Meta+K Control+K"
+        aria-keyshortcuts={isApple ? 'Meta+K' : 'Control+K'}
         className={cn(
           'flex h-[30px] min-w-0 max-w-[540px] flex-1 cursor-pointer items-center gap-2.5 rounded-sm border border-line fill-sink px-2.5 text-left',
           'font-mono text-xs text-muted transition-colors hover:border-muted',
@@ -34,7 +35,9 @@ export function TopBar({ onSearch, onManageDevice }: { onSearch: () => void; onM
         <kbd className="flex-none rounded-[3px] border border-line px-1.5 py-px font-mono text-[10px] text-dim max-[720px]:hidden">{isApple ? '⌘' : 'Ctrl '}K</kbd>
         <span className="truncate">Go to a program, sample or page…</span>
       </button>
-      <div className="ml-auto flex-none">
+      <div className="ml-auto flex flex-none items-center gap-3">
+        {/* The rail carries the beta label on wider screens. */}
+        <span className="hidden max-[720px]:block"><BetaBadge /></span>
         <DeviceStatus onManage={onManageDevice} />
       </div>
     </header>

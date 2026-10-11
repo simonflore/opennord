@@ -18,7 +18,7 @@ export function PianosSplit() {
       <PianosBrowse
         entries={s.shown}
         source={s.source} setSource={s.setSource}
-        query={s.query} setQuery={s.setQuery}
+        query={s.query} setQuery={s.setQuery} clearFilters={s.clearFilters}
         showSourceFacet={s.showSourceFacet}
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}

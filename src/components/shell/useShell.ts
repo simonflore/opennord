@@ -24,6 +24,8 @@ export function useRailData() {
   const bySource = countBySource(library.all);
   const sources: SourceItem[] = (Object.keys(SOURCE_LABEL) as LibrarySource[])
     .map((source) => ({ source, label: SOURCE_LABEL[source], count: bySource[source], live: source === 'nord' && !!session }))
-    .filter((s) => s.count > 0 || s.live);
+    // An empty source stays listed while it's the active filter, so the rail
+    // always shows what the list is filtered to (e.g. On Nord after unplugging).
+    .filter((s) => s.count > 0 || s.live || s.source === library.source);
   return { counts, sources, activeSource: library.source, onPickSource: library.setSource };
 }

@@ -2,7 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { READY_CATEGORIES, type CategoryId } from '../../lib/library/categories';
 import type { LibrarySource } from '../../lib/library/types';
-import { BUILD, COMMIT, VERSION_FULL } from '../../lib/version';
+import { BetaBadge } from './BetaBadge';
 import { Led } from './Led';
 import { groupLabel, rowActive } from './styles';
 import { ABOUT, COMMUNITY_SUB, COMMUNITY_TO, DEV_DESTS, useTools, type NavTo } from './nav';
@@ -164,19 +164,8 @@ export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSo
         <Item label={ABOUT.label} active={isActive(ABOUT.to)} onClick={() => onNavigate(ABOUT.to)} />
       </div>
 
-      <div
-        className="mx-4 flex flex-col gap-[3px] border-t border-line pt-3"
-        title={`${VERSION_FULL}. OpenNord is beta software, provided as-is with no warranty. Features may break, and device transfer writes to real hardware — back up your keyboard first. Use at your own risk.`}
-      >
-        <span className="flex items-center gap-1.5">
-          <span className="rounded-sm border border-warn px-[5px] py-px text-[8px] font-bold tracking-[1px] text-warn">
-            BETA
-          </span>
-          <span className="font-mono text-[10px] text-dim" aria-label={`build ${BUILD ?? COMMIT ?? 'dev'}`}>
-            {BUILD ?? COMMIT ?? 'dev'}
-          </span>
-        </span>
-        <span className="text-[9px] leading-[1.4] text-muted">use at your own risk</span>
+      <div className="mx-4 border-t border-line pt-3">
+        <BetaBadge withNote />
       </div>
     </nav>
   );
