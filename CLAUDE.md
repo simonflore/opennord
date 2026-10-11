@@ -198,7 +198,7 @@ desktop/iPad-only bonus path (vendor-USB), never a hard dependency.
 
 ### Brand Personality
 **Confident & precise** — reads like a pro instrument: trustworthy, exact,
-premium. The italic "Nord" mark stays; the single accent is a signal orange
+premium. The wordmark is lowercase mono "open" + accent "nord" (`components/shell/Wordmark.tsx`); the single accent is a signal orange
 (`--accent`, legacy name `--red`) on graphite. Physical only where it is a
 control on the Nord (see Aesthetic Direction) — never decorative texture. Speak the
 **musician's language**: never surface protocol/engineer jargon (bytes, opcodes,

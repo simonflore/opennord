@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
 import { GigmeisterFooterNote } from '@/components/sibling/Gigmeister';
 import { CONTENT } from './layout';
+import { Wordmark } from '../shell/Wordmark';
 
 const footerLink = 'text-xs font-semibold text-dim no-underline transition-colors duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)] hover:text-ink';
 
@@ -10,9 +11,7 @@ export function SiteFooter() {
     <footer className={cn(CONTENT, 'mt-6 border-t border-line py-6')}>
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div>
-          <div className="text-[19px] font-extrabold tracking-[-0.3px] text-ink">
-            Open<span className="italic text-red">Nord</span>
-          </div>
+          <Wordmark className="text-lg" />
           <p className="mt-2 max-w-[20rem] text-[13px] leading-[1.55] text-dim">
             An open companion for Nord® keyboards.
           </p>

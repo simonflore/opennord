@@ -3,6 +3,9 @@ import type { EngineSummary } from '../clavia/engines';
 
 export type LibrarySource = 'nord' | 'local' | 'backup' | 'cloud';
 
+/** How each source reads in the UI: badges, filters, the rail and the palette. */
+export const SOURCE_LABEL: Record<LibrarySource, string> = { nord: 'On Nord', local: 'Local', backup: 'Backup', cloud: 'Cloud' };
+
 /** Library sort order. `default` keeps the natural source order (Nord → folder → local). */
 export type LibrarySort = 'default' | 'name' | 'source';
 

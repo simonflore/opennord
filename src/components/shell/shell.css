@@ -1,23 +1,38 @@
-/* Native shell only (Capacitor) — additive, scoped under [data-native] so the
-   web build is byte-identical. `[data-native]` is a document-level attribute
-   (set once for the native wrapper), not component state, so these stay as
-   CSS attribute-selector rules rather than component-level Tailwind utilities.
-   `.on-rail` / `.on-content` here are plain hook classes kept on the shell
-   frame (Rail.tsx / root.tsx) purely so these selectors have something to
-   target — all other rail/content/nav styling lives in those components as
-   Tailwind utilities (see tailwind-baseline.md). index.html already sets
-   viewport-fit=cover. */
+/* The app shell's layout hooks. `--topbar-h` (below) applies everywhere: the
+   top bar is that tall and the sticky rail is placed and sized from it. The rest
+   is native-only (Capacitor), scoped under [data-native] — a document-level
+   attribute set once for the native wrapper — so it layers safe-area insets on
+   top of the components' Tailwind utilities without touching the web build.
+   `.on-topbar` / `.on-rail` / `.on-content` / `.on-tabs` are plain hook classes
+   on the shell frame (TopBar, Rail, root.tsx, PhoneTabs) so these selectors
+   have something to target; index.html already sets viewport-fit=cover. */
 [data-native] .on-rail {
-  padding-top: max(var(--s-4), env(safe-area-inset-top));
-  padding-left: max(var(--s-3), env(safe-area-inset-left));
+  padding-left: env(safe-area-inset-left);
 }
 [data-native] .on-content {
   padding-right: max(var(--s-6), env(safe-area-inset-right));
   padding-bottom: max(var(--s-4), env(safe-area-inset-bottom));
+}
+/* Below 720px the fixed tab bar (56px + inset) sits over the bottom of the
+   page, so the content keeps that much room. */
+@media (max-width: 720px) {
+  [data-native] .on-content {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
 }
 /* Suppress the iOS long-press callout / text selection on app chrome. */
 [data-native] {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+}
+/* The top bar's height, which the sticky rail below is placed and sized from.
+   The native shell adds the status-bar inset on top. */
+:root { --topbar-h: 44px; }
+[data-native] { --topbar-h: calc(44px + env(safe-area-inset-top)); }
+[data-native] .on-topbar {
+  padding-top: env(safe-area-inset-top);
+}
+[data-native] .on-tabs {
+  padding-bottom: env(safe-area-inset-bottom);
 }
