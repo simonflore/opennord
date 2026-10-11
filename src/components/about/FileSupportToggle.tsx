@@ -2,14 +2,14 @@ import { useCapabilities } from '../../lib/capabilities/CapabilitiesContext';
 import { useFileSupportOptIn } from '../../lib/diagnostics/file-support-pref';
 import { cn } from '../../lib/cn';
 
-/** Plain-language summary of what a file-support report holds — shared by every place the toggle shows. */
-export const FILE_SUPPORT_COPY =
+/** Plain-language summary of what a file-support report holds (docs/LEGAL.md "Diagnostics" has the full list). */
+const FILE_SUPPORT_COPY =
   'When this is on, each program you open sends one short report on how well OpenNord could read it: ' +
   'the file type and size, which Nord it comes from, its format version, a few format markers from the ' +
   'start of the file (not enough to rebuild a sound), whether OpenNord read the whole program or only ' +
   'its header, and your browser and OpenNord version. Your sounds and settings, program names and file ' +
-  'names are never sent. One report per file ' +
-  'per visit. Off unless you turn it on; the choice is saved on this device only.';
+  'names are never sent. One report per file per visit. Off unless you turn it on; the choice is saved ' +
+  'on this device only.';
 
 /**
  * The "Help improve file support" opt-in (lib/diagnostics/file-read.ts). Off by
