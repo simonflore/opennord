@@ -27,12 +27,15 @@ describe('decodedProgramFor — lite piano/organ models', () => {
   });
 
   const ne6 = firstFixture('electro-6', '.ne6p');
-  it.skipIf(!ne6)('Electro 6 → organ drawbar sections with B3 footage', () => {
+  it.skipIf(!ne6)('Electro 6 → piano/synth/organ manual sections, drawbars per manual', () => {
     const d = decodedProgramFor(ne6!)!;
     expect(d.title).toContain('Electro 6');
-    expect(d.sections.map((s) => s.label)).toEqual(['ORGAN UPPER', 'ORGAN LOWER']);
-    expect(d.sections[0].drawbars).toBeDefined();
-    expect(d.sections[0].drawbars!.length).toBe(9); // 9 Hammond drawbars
+    // Firmware layout (OS 2.66): the old "upper/lower" pair is manual A Preset I/II;
+    // each organ manual now shows its sounding preset.
+    expect(d.sections.map((s) => s.label)).toEqual(['PIANO', 'SAMPLE SYNTH', 'ORGAN A', 'ORGAN B', 'EFFECTS']);
+    const organA = d.sections.find((s) => s.id === 'OA')!;
+    expect(organA.drawbars).toBeDefined();
+    expect(organA.drawbars!.length).toBe(9); // 9 drawbars
   });
 
   const piano5 = firstFixture('piano-5', '.np5p');

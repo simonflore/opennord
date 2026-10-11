@@ -133,7 +133,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 're', note: "sampleCodec 'og': the OS 2.04 loader accepts .nsmp NWS v8/v11 only and refuses .nsmp3 (convert down); not HW-tested on E5" },
   },
   'electro-6': {
-    'file-read': { status: 're', note: "ne6p NW1-v3 header + 211-byte body decoder (lib/ne6), validated vs real .ne6p fixtures, not HW-tested. The OS 2.66 firmware registry gives the exact block layout: the drawbars at body 143/158 are manual A Preset I/II (not upper/lower), and several decoder labels need renaming" },
+    'file-read': { status: 're', note: "ne6p NW1-v3 header + 211-byte body read through the OS 2.66 firmware registry layout (lib/ne6;, 14 blocks, two's-complement negatives): piano, synth, organ manuals A/B (Preset I/II drawbars) and effects. Reproduces the bytes pinned on real .ne6p fixtures; not HW-tested" },
     enumerate: { status: 'inferred', note: "FileTransfer v10 in the OS 2.66 firmware (Stage 3 begin handler, lock → 18); 7 partitions, Program at 4 (NSM said 6), ne6t = Settings; read-only, untested" },
     pull: { status: 'inferred', note: "shared FileTransfer Download at v10 (firmware); read-only, untested" },
     push: { status: 'inferred', note: "shared FileTransfer Upload at v10 (firmware); WRITE — untested-write risk" },
