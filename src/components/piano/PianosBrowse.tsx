@@ -30,7 +30,7 @@ function fmtMB(bytes: number): string {
 
 export function PianosBrowse({
   entries, source, setSource, query, setQuery,
-  showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect,
+  showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect, activeId,
   // Piano-usage cleanup (device-connected)
   canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly,
   // Reclaim-space selection
@@ -47,6 +47,8 @@ export function PianosBrowse({
   isFavorite: (id: string) => boolean;
   toggleFavorite: (id: string) => void;
   onSelect: (e: PianoEntry) => void;
+  /** The entry open in the detail pane, highlighted in the list. */
+  activeId?: string | null;
   // Piano-usage cleanup
   canScanUsage: boolean;
   onScanUsage: () => void;
@@ -187,6 +189,7 @@ export function PianosBrowse({
                 favorite={isFavorite(entry.id)}
                 onToggleFavorite={() => toggleFavorite(entry.id)}
                 onOpen={() => onSelect(entry)}
+                selected={entry.id === activeId}
                 unused={entry.unused}
                 select={unusedOnly && entry.source === 'nord' && entry.unused
                   ? { checked: selected.has(entry.id), onToggle: () => toggleSelected(entry.id) }

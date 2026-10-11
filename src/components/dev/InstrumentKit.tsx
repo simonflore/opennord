@@ -12,6 +12,9 @@ import type { ReactNode } from 'react';
 import { b3DrawbarViews, drawbarViews } from '../../lib/clavia/drawbars';
 import { ORGAN_MODELS } from '../../lib/ns4/organ-models';
 import { Card } from '../ui';
+import type { ProgramEntry } from '../../lib/device/transfer';
+import { SlotGrid } from '../device/SlotGrid';
+import { BankLabel } from '../device/BankLabel';
 import { Chip, DrawbarStack, EnvCurve, Knob, Lcd, Meter, ModelSelector, StatGrid, ToggleGroup } from '../program/widgets';
 
 /** The palette, by role. Each swatch is a token, so this list can't drift from tokens.css. */
@@ -38,6 +41,11 @@ const SWATCHES: Array<{ token: string; role: string }> = [
 // then a non-B3 model, which draws every bar in the single default colour.
 const B3 = b3DrawbarViews([8, 8, 8, 4, 0, 2, 0, 6, 0]).map((d, i) => (i === 2 ? { ...d, morph: { wheel: '5' } } : d));
 const VOX = drawbarViews([8, 6, 4, 0, 2, 0, 5]);
+
+// The top of a bank on the Device page — a few programs and empty slots, so the
+// data cells render without a Nord connected.
+const BANK: ProgramEntry[] = ['Royal Grand Bright', 'Soul Split', 'Grand + Strings', 'Gospel B3', 'Wurly Stage', 'Clav Funk Wah', '', 'Vox Continental', 'Brass Stab Split', 'Upright Dark']
+  .flatMap((name, slot) => (name ? [{ bank: 0, slot, name, categoryId: 0, version: 313, sizeBytes: 0, fourcc: 'ns4p' }] : []));
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -123,6 +131,13 @@ export function InstrumentKit() {
           </div>
         </Section>
       </div>
+
+      <Section title="Device bank · data cells">
+        <div>
+          <BankLabel bank={0} />
+          <SlotGrid bank={0} slotCount={16} entries={BANK} onGesture={() => {}} />
+        </div>
+      </Section>
     </div>
   );
 }

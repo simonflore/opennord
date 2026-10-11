@@ -91,17 +91,27 @@ function paramLookup(p: NS4Program): Map<string, string> {
 }
 
 /**
- * Keyboard split / zone layout: which active layers sound in each of the four
- * zones (from each layer's `kbZones` "[1o]{4}" string), the split-point note at
- * each active boundary, and program transpose. Drives the ProgramZones strip.
+ * Which active layers sound in each of the four keyboard zones, from each
+ * layer's `kbZones` "[1o]{4}" string. Cheap (no parameter decode), so a library
+ * row can use it; `programZones` builds the full split view on top of it.
  */
-export function programZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesView {
+export function layerZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesView['zones'] {
   const active = activeLayers(p, scene);
-  const zones = [0, 1, 2, 3].map((z) => ({
+  return [0, 1, 2, 3].map((z) => ({
     layers: active
       .filter((l) => (l.kbZones ?? '')[z] === '1')
       .map((l) => ({ kind: l.kind ?? '?', id: l.id })),
   }));
+}
+
+/**
+ * Keyboard split / zone layout: which active layers sound in each of the four
+ * zones, the split-point note at each active boundary, and program transpose.
+ * Drives the ProgramZones strip.
+ */
+export function programZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesView {
+  const active = activeLayers(p, scene);
+  const zones = layerZones(p, scene);
   const lut = paramLookup(p);
   const hasSplit = lut.get('split on/off') === 'on';
   const boundary = (i: number): string | null =>
@@ -113,8 +123,10 @@ export function programZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesVie
     const x = lut.get(`KB zones ${i}-${i + 1} split point Xfade`);
     return x && x !== 'none' ? x : null;
   };
-  const transpose = lut.get('program transpose on/off') === 'on'
-    ? (lut.get('program transpose amount') ?? null)
+  // Transpose switched on at 0 semitones changes nothing, so it reads as off.
+  const amount = lut.get('program transpose amount');
+  const transpose = lut.get('program transpose on/off') === 'on' && amount && parseInt(amount, 10) !== 0
+    ? amount
     : null;
   const pitchStickLayer = active.find((l) => l.pitchStick?.on);
   const performance = {

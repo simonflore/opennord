@@ -23,6 +23,7 @@ export function PianosSplit() {
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
         onSelect={(e) => setSelectedId(e.id)}
+        activeId={selectedId}
         canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct}
         unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
         selected={s.selected} toggleSelected={s.toggleSelected}
