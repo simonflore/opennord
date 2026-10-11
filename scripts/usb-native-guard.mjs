@@ -44,7 +44,9 @@ function clean() {
 
   const release = join(core, 'release');
   if (existsSync(release)) {
-    rmSync(release, { recursive: true, force: true });
+    // Retries: on macOS, Finder can drop a .DS_Store into the folder mid-delete,
+    // which fails the removal with ENOTEMPTY.
+    rmSync(release, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     console.log('usb native guard: emptied release/ so verify can only see this run’s output');
   }
 }

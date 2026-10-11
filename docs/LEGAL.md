@@ -55,6 +55,10 @@ OpenNord studies the instrument's firmware (`os.cab`, the DSP programs inside it
 
 When unsure whether something is "a constant" or "a table", treat a handful of values that a manual or a measurement could also give you as knowledge, and anything you'd have to dump from the image as data.
 
+**Recorded exceptions.** Where a small table is needed to read a user's own files the way the instrument does and no formula reproduces it, the maintainer may decide to keep it in the repo; each such table is listed here, with its size and why:
+
+- `src/lib/nl4/convert.ts` — the Nord Lead 4's Amp Env Attack and Arp Tempo curves (2 × 128 values), which convert programs saved by OS versions 6–7 to the current knob scales. Most Lead 4 programs in circulation are from those versions.
+
 ## Sharing & community features (when they exist)
 
 Any feature that uploads or shares files follows the authorship bright line above, plus standard hygiene for user-generated content:

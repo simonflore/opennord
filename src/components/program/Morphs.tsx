@@ -1,5 +1,5 @@
 import type { NS4Program } from '../../lib/ns4/types';
-import { morphSummary } from '../../lib/ns4/view';
+import { morphSummary, type MorphSummaryRow } from '../../lib/ns4/view';
 
 /**
  * A dedicated "what moves in performance" panel. The engine cards mark
@@ -9,7 +9,11 @@ import { morphSummary } from '../../lib/ns4/view';
  * when the program has no morphs.
  */
 export function Morphs({ program }: { program: NS4Program }) {
-  const rows = morphSummary(program);
+  return <MorphList rows={morphSummary(program)} />;
+}
+
+/** The morph panel for any set of morph rows (a program's, or a preset's). */
+export function MorphList({ rows }: { rows: MorphSummaryRow[] }) {
   if (rows.length === 0) return null;
   return (
     <div className="ps-card ps-morphs">
