@@ -22,7 +22,11 @@ function sectionChips(panel: Ns3Panel): string[] {
     const f = [percussion.third && '3rd', percussion.fast && 'Fast', percussion.soft && 'Soft'].filter(Boolean);
     chips.push(`Percussion${f.length ? ` · ${f.join(' / ')}` : ''}`);
   }
-  for (const fx of panel.fx) chips.push(fx.type ? `${fx.name}: ${fx.type}` : fx.name);
+  for (const fx of panel.fx) {
+    // A type, else a rate the chip must show (a 3.00 delay time kept on its old scale).
+    const detail = fx.type ?? (fx.params?.rate !== undefined ? `rate ${fx.params.rate}` : undefined);
+    chips.push(detail ? `${fx.name}: ${detail}` : fx.name);
+  }
   return chips;
 }
 

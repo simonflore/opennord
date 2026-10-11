@@ -14,7 +14,8 @@ import type { LegacyLayout } from './clavia/legacy-record';
 import { fileTypeTag } from './clavia/cbin';
 import { ProgramWriteError, writeFwProgram, writeLegacyProgram, type FwWriteOptions } from './clavia/layout-write';
 import { NS3_LAYOUT } from './ns3/layout.generated';
-import { ns3FieldsAbsent } from './ns3/decode';
+import { decodeNs3, ns3FieldsAbsent } from './ns3/decode';
+import { ns3FieldsConverted } from './ns3/convert';
 import { NG_LAYOUT } from './ng/layout.generated';
 import { NG2_LAYOUT } from './ng2/layout.generated';
 import { NP4_LAYOUT } from './np4/layout.generated';
@@ -53,13 +54,37 @@ const legacy = (layout: LegacyLayout, refuse?: { tags: readonly string[]; why: s
 };
 
 /**
+ * The Stage 3 writes 3.00–3.04 bodies as they are, but the firmware fixes up a
+ * few values of a 3.00 / 3.01 body on load (ns3/convert.ts), and the reader
+ * shows them fixed up. Writing such a setting back would store the converted
+ * value in the old format, so it is refused — unless it is what the reader
+ * shows, which is left as stored (a full read → edit one → write round-trips).
+ */
+const ns3: Writer = (bytes, values) => {
+  const p = decodeNs3(bytes);
+  const converted = p.formatVersion === null ? [] : ns3FieldsConverted(p.formatVersion);
+  const rest: Record<string, number | undefined> = { ...values };
+  for (const k of converted) {
+    const v = rest[k];
+    if (v === undefined) continue;
+    if (v !== p.values[k]) {
+      throw new ProgramWriteError(
+        `${k}: this Stage 3 program is in format ${((p.formatVersion ?? 0) / 100).toFixed(2)}, which stores this setting ` +
+        'the way an older OS did; OpenNord doesn’t write it');
+    }
+    delete rest[k];
+  }
+  return writeFwProgram(bytes, NS3_LAYOUT, rest, { absentIn: ns3FieldsAbsent });
+};
+
+/**
  * The models OpenNord writes, each with its reader's layout. Only the native
  * format/record version is written (layout-write.ts); the Stage 3 also refuses
- * settings an older 3.x file does not store yet.
+ * settings an older 3.x file does not store yet, or stores the old way.
  */
 export const PROGRAM_WRITERS: Partial<Record<ClaviaModel, Writer>> = {
   // Firmware block-chain layouts (clavia/block-chain.ts).
-  ns3: fw(NS3_LAYOUT, { absentIn: ns3FieldsAbsent }),
+  ns3,
   ng: fw(NG_LAYOUT),
   ng2: fw(NG2_LAYOUT),
   np4: fw(NP4_LAYOUT),

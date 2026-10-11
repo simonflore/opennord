@@ -7,6 +7,12 @@ import { decodeNs3 } from './decode';
 import { frameNs3Body, ns3SynthFile as ns3File, ns3ZeroFile as ns3buf } from './file.synth';
 import { NS3_LAYOUT, type Ns3FieldKey } from './layout.generated';
 
+/** A 3.00 body's delay as OS 3.00 stored it: rate 64 on the 0–127 scale, zero deltas (stored 127 = decoded −16256). */
+const OS300_DELAY: Partial<Record<Ns3FieldKey, number>> = Object.fromEntries((['A', 'B'] as const).flatMap((s) => [
+  [`effects${s}.dlyRateClkDiv`, 64],
+  ...['morphWheel', 'morphAfterTouch', 'morphCtrlPedal'].map((m) => [`effects${s}.dlyRateClkDiv.${m}`, -16256]),
+]));
+
 // `ns3buf()` is a Stage 3 file framed the way the firmware writes it (u32 format
 // version, then the 19 length-prefixed blocks) with every field bit zero. The
 // byte-level tests below poke the absolute file offsets the earlier corpus
@@ -650,7 +656,52 @@ describe('decodeNs3 — firmware layout (Stage 3 OS 2.64 registry)', () => {
   });
 
   it('versions inside 3.00–3.04 read without a warning', () => {
-    for (const v of [300, 301, 302, 303, 304]) expect(decodeNs3(ns3File({}, v)).warnings).toEqual([]);
+    for (const v of [300, 301, 302, 303, 304]) expect(decodeNs3(ns3File(OS300_DELAY, v)).warnings).toEqual([]);
+  });
+
+  it('fixes up older 3.x values as the firmware does: Dual-KB style below 3.02, defaults for newer settings', () => {
+    const style = (v: number, s: number) => decodeNs3(ns3File({ ...OS300_DELAY, 'common.dualKbdStyle': s }, v)).values['common.dualKbdStyle'];
+    expect([style(300, 0), style(301, 0), style(301, 2), style(302, 0), style(304, 0)]).toEqual([1, 1, 2, 0, 0]);
+    const old = decodeNs3(ns3File({ ...OS300_DELAY, 'common.pitchStickRange': 5, 'externA.volPedalEnable': 0 }, 302)).values;
+    expect([old['common.pitchStickRange'], old['externA.volPedalEnable']]).toEqual([1, 1]);
+  });
+
+  it('3.00 delay rate, clock synced: N(x) = 128·x (16383 for 127), deltas N(rate + d) − N(rate)', () => {
+    const p = decodeNs3(ns3File({
+      ...OS300_DELAY, 'effectsA.dlyEnable': 1, 'effectsA.dlyClkEnable': 1, 'effectsA.dlyRateClkDiv': 100,
+      // Stored as delta + 127 in the 15-bit field: decoded value = delta − 16256.
+      'effectsA.dlyRateClkDiv.morphWheel': 27 - 16256, 'effectsA.dlyRateClkDiv.morphAfterTouch': -30 - 16256,
+      'effectsA.dlyRateClkDiv.morphCtrlPedal': -101 - 16256,
+    }, 300));
+    expect(p.layoutMatched).toBe(true);
+    expect(p.values).toMatchObject({
+      'effectsA.dlyRateClkDiv': 12800,
+      'effectsA.dlyRateClkDiv.morphWheel': 16383 - 12800, // target 127 → 16383
+      'effectsA.dlyRateClkDiv.morphAfterTouch': 128 * 70 - 12800,
+      'effectsA.dlyRateClkDiv.morphCtrlPedal': 128 * -1 - 12800, // a target below 0 → 128·target
+      'effectsB.dlyRateClkDiv': 64, // clock off: kept on the 3.00 scale
+    });
+    expect(p.os300DelayRate).toEqual(['B']);
+    expect(p.warnings).toEqual([]); // panel B's delay is off
+  });
+
+  it('3.00 delay rate, free-running: kept as stored on the 3.00 scale and shown so; impossible values refuse', () => {
+    const p = decodeNs3(ns3File({
+      ...OS300_DELAY, 'effectsA.dlyEnable': 1, 'effectsA.dlyRateClkDiv': 64,
+      'effectsA.dlyRateClkDiv.morphWheel': -20 - 16256,
+    }, 300));
+    expect(p.values).toMatchObject({ 'effectsA.dlyRateClkDiv': 64, 'effectsA.dlyRateClkDiv.morphWheel': -20 });
+    expect(p.os300DelayRate).toEqual(['A', 'B']);
+    expect(p.warnings).toEqual([expect.stringMatching(/OS 3\.00.*original 0–127 scale/)]);
+    expect(p.panels[0].fx.find((f) => f.name === 'Delay')?.params).toMatchObject({ rate: '64 (OS 3.00 scale)' });
+    // A 3.04 file shows no rate there.
+    expect(decodeNs3(ns3File({ 'effectsA.dlyEnable': 1 }, 304)).panels[0].fx.find((f) => f.name === 'Delay')?.params?.rate).toBeUndefined();
+    // A rate above 127, or a target in 128–16383, makes the instrument refuse the program.
+    for (const v of [{ 'effectsA.dlyRateClkDiv': 128 }, { 'effectsA.dlyRateClkDiv.morphWheel': 100 - 16256 }]) {
+      const r = decodeNs3(ns3File({ ...OS300_DELAY, ...v }, 300));
+      expect(r.layoutMatched).toBe(false);
+      expect(r.warnings).toEqual([expect.stringMatching(/won’t load it/)]);
+    }
   });
 
   it('odd, short or unframed files → header-only with a warning, never a throw', () => {

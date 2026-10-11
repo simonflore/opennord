@@ -129,12 +129,26 @@ describe('writeProgram', () => {
     expect(() => writeProgram('nl4', nl4p, {})).toThrow(/Lead 4 performances/);
   });
 
-  it('Stage 3: refuses a setting an older 3.x file does not store, accepts its default, and refuses 2.0x', () => {
+  it('Stage 3: refuses a setting an older 3.x file does not store or stores the old way, accepts what it reads, and refuses 2.0x', () => {
     const v302 = sealFileChecksum(synthFwFile('ns3f', synthFwBody(NS3_LAYOUT, { 'common.pitchStickRange': 0 }, 302), 302));
     const def = NS3_LAYOUT.fields.find((f) => f.key === 'common.pitchStickRange')!.def;
     expect(decodeNs3(v302).values['common.pitchStickRange']).toBe(def);
     expect(writeProgram('ns3', v302, decodeNs3(v302).values)).toEqual(v302);
     expect(() => writeProgram('ns3', v302, { 'common.pitchStickRange': def + 1 })).toThrow(/does not store this setting yet/);
+    // A 3.00 body: the reader shows the converted Dual-KB style and synced delay rate; writing
+    // those values back leaves the stored ones alone, any other value is refused.
+    const v300 = sealFileChecksum(synthFwFile('ns3f', synthFwBody(NS3_LAYOUT, {
+      'common.dualKbdStyle': 0, 'effectsA.dlyClkEnable': 1, 'effectsA.dlyRateClkDiv': 10, 'effectsB.dlyRateClkDiv': 20,
+      'effectsA.dlyRateClkDiv.morphWheel': -16256, 'effectsA.dlyRateClkDiv.morphAfterTouch': -16256,
+      'effectsA.dlyRateClkDiv.morphCtrlPedal': -16256, 'effectsB.dlyRateClkDiv.morphWheel': -16256,
+      'effectsB.dlyRateClkDiv.morphAfterTouch': -16256, 'effectsB.dlyRateClkDiv.morphCtrlPedal': -16256,
+    }, 300), 300));
+    const read = decodeNs3(v300).values;
+    expect([read['common.dualKbdStyle'], read['effectsA.dlyRateClkDiv']]).toEqual([1, 1280]);
+    expect(writeProgram('ns3', v300, read)).toEqual(v300);
+    expect(() => writeProgram('ns3', v300, { 'effectsA.dlyRateClkDiv': 2560 })).toThrow(/stores this setting the way an older OS did/);
+    expect(() => writeProgram('ns3', v300, { 'common.dualKbdStyle': 2 })).toThrow(/older OS/);
+    expect(writeProgram('ns3', v300, { 'common.dualKbdEnable': 1 })).not.toEqual(v300);
     const v203 = sealFileChecksum(synthFwFile('ns3f', synthFwBody(NS3_LAYOUT, {}, 203), 203));
     expect(() => writeProgram('ns3', v203, {})).toThrow(/OpenNord writes only formats 3\.00–3\.04/);
   });
