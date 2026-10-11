@@ -1,6 +1,7 @@
 import { Button } from '../ui';
 import { useDevice } from '../../lib/device/DeviceContext';
-import { usbAvailability } from '../../lib/device/capacitor-usb';
+import { useEffect, useState } from 'react';
+import { nordUsbAvailable, usbAvailability } from '../../lib/device/capacitor-usb';
 import { Led } from './Led';
 
 
@@ -18,7 +19,8 @@ export function DeviceStatus({ onManage }: { onManage: () => void }) {
   // Safari or an iPad still waiting on its USB driver can't). Decides whether a
   // narrow screen shows Connect.
   const reach = usbAvailability();
-  const usbReachable = reach === 'webusb' || reach === 'electron';
+  const ipadReady = useIpadDriverReady(reach === 'ipad-dext-pending');
+  const usbReachable = reach === 'webusb' || reach === 'electron' || ipadReady;
   return (
     <div className="flex items-center gap-2.5">
       <span className="inline-flex items-center gap-2 font-mono text-xs text-dim" title={session ? `${name} · ${entries.length} programs` : undefined}>
@@ -30,4 +32,16 @@ export function DeviceStatus({ onManage }: { onManage: () => void }) {
       </span>
     </div>
   );
+}
+
+/** On an iPad, whether its USB driver is installed and ready (the same probe the Device page uses). */
+function useIpadDriverReady(ipad: boolean): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (!ipad) return;
+    let alive = true;
+    void nordUsbAvailable().then((ok) => { if (alive) setReady(ok); });
+    return () => { alive = false; };
+  }, [ipad]);
+  return ready;
 }

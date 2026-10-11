@@ -29,10 +29,18 @@ export function CategorySplit({
   selectedId?: string;
 }) {
   const masterBox = useRef<HTMLDivElement>(null);
+  // Once per selection, as soon as its row is on screen: the rows can arrive
+  // after the selection (a folder scan, the Nord's list, narrow → wide), so this
+  // checks after every render but scrolls only the first time it finds the row.
+  const revealed = useRef<string | null>(null);
   useEffect(() => {
-    const row = selectedId ? masterBox.current?.querySelector<HTMLElement>('[aria-current="true"]') : null;
-    if (row) revealInScroller(row);
-  }, [selectedId]);
+    if (!selectedId) { revealed.current = null; return; }
+    if (revealed.current === selectedId) return;
+    const row = masterBox.current?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!row) return;
+    revealed.current = selectedId;
+    revealInScroller(row);
+  });
 
   // Narrow: one pane at a time — master until something is selected, then the
   // detail with a back button to return to the list.

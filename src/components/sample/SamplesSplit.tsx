@@ -36,17 +36,20 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   // The route names the open sample; `attempt` bumps to retry it. The effect
   // reads that sample's bytes (pulling from the Nord or a backup when it lives
   // there), and its cleanup drops a read that a newer route, a retry or leaving
-  // has overtaken. One read per id+attempt is shared, so StrictMode's second
-  // effect run doesn't pull twice. Session, folder and the lookup are read
-  // through a ref: they change identity often, and must not restart a pull.
+  // has overtaken. The read in flight is shared by key (sample, attempt and
+  // Nord session), so StrictMode's second effect run doesn't pull twice; a
+  // failed read is forgotten, so opening the sample again retries it. Session,
+  // folder and the lookup are read through a ref: they change identity often,
+  // and must not restart a pull.
   const [attempt, setAttempt] = useState(0);
   const known = !!(selectedId && s.entryById(selectedId));
   const io = useRef({ entryById: s.entryById, session, folder });
   useEffect(() => { io.current = { entryById: s.entryById, session, folder }; });
-  const reading = useRef<{ key: string; bytes: Promise<Uint8Array> } | null>(null);
+  const reading = useRef<{ key: string; session: unknown; bytes: Promise<Uint8Array> } | null>(null);
 
   useEffect(() => {
     if (!selectedId) {
+      reading.current = null;
       setInspect((i) => (i?.id ? null : i)); // leaving a sample closes it (a preview stays)
       return;
     }
@@ -59,18 +62,25 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
 
     let cancelled = false;
     const key = `${e.id}#${attempt}`;
-    if (reading.current?.key !== key) {
-      const read = e.source === 'nord' && e.device && sess
-        ? pullSample(sess, e.device, (done, total) => { if (!cancelled) setPullPct(total ? Math.round((done / total) * 100) : 0); })
+    if (reading.current?.key !== key || reading.current.session !== sess) {
+      // Progress goes to whichever run is current for this key, not the run that started it.
+      const progress = (done: number, total: number) => {
+        if (reading.current?.key === key) setPullPct(total ? Math.round((done / total) * 100) : 0);
+      };
+      const read = e.source === 'nord' && e.device && sess ? pullSample(sess, e.device, progress)
         : e.source === 'backup' && e.backupRef ? extractBackupEntry(dir, e.backupRef) : null;
       if (!read) { setInspect(null); return; }
-      reading.current = { key, bytes: read };
+      reading.current = { key, session: sess, bytes: read };
     }
+    const current = reading.current;
     setInspect(null);
     setPullPct(0);
-    reading.current!.bytes.then(
+    current.bytes.then(
       (bytes) => { if (!cancelled) setInspect({ id: e.id, bytes, name: e.name, factory: e.factory }); },
-      (err) => { if (!cancelled) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`); },
+      (err) => {
+        if (reading.current === current) reading.current = null; // retry on the next open
+        if (!cancelled) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
+      },
     ).finally(() => { if (!cancelled) setPullPct(null); });
     return () => { cancelled = true; setPullPct(null); };
   }, [selectedId, known, attempt]);
@@ -122,8 +132,8 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         showSourceFacet={s.showSourceFacet} showUnknownGen={s.showUnknownGen}
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters}
-        // Clicking the open sample again retries it (a failed pull, say).
-        onOpen={(e) => (e.id === selectedId ? setAttempt((n) => n + 1) : openSample(navigate, e.id))}
+        // Clicking the open sample again retries it, but only when it didn't open.
+        onOpen={(e) => (e.id !== selectedId ? openSample(navigate, e.id) : !inspect && pullPct === null && setAttempt((n) => n + 1))}
         onLoadNew={startLoadNew}
         activeId={selectedId ?? null}
         onImport={importSample}
@@ -146,10 +156,14 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const inspector = (
     <SampleInspector key={initial ? `${initial.name}-${initial.bytes.length}` : 'new'} initial={initial} />
   );
-  const hasDetail = loadNew || inspect !== null;
-  const detail = hasDetail ? inspector
-    : selectedId && !known ? <EmptyNote>This sample isn’t in your library (yet). Pick it from the list.</EmptyNote>
-    : <EmptyNote>Pick a sample to inspect it.</EmptyNote>;
+  // A sample named by the route is the detail even before its bytes arrive, so a
+  // phone shows its progress, error or "not found" instead of the bare list.
+  const hasDetail = loadNew || inspect !== null || !!selectedId;
+  const detail = loadNew || inspect ? inspector
+    : !selectedId ? <EmptyNote>Pick a sample to inspect it.</EmptyNote>
+    : !known ? <EmptyNote>This sample isn’t in your library (yet). Pick it from the list.</EmptyNote>
+    : pullError ? <EmptyNote>{pullError} Click it in the list to try again.</EmptyNote>
+    : <EmptyNote>Reading the sample… {pullPct ?? 0}%</EmptyNote>;
 
   return (
     <CategorySplit
