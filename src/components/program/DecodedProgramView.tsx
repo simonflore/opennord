@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { DecodedProgram, DecodedSection } from '../../lib/clavia/decoded';
-import { DrawbarStack } from './widgets';
+import { DrawbarStack, ReadoutWarnings } from './widgets';
 
 /** One section card: engine rows + optional drawbar stack + optional chips. */
 function SectionCard({ section, names }: { section: DecodedSection; names: Record<string, string> }) {
@@ -61,14 +61,7 @@ export function DecodedProgramView({ program }: { program: DecodedProgram }) {
         </div>
       </div>
 
-      {program.warnings && program.warnings.length > 0 && (
-        <div className="ps-card" style={{ marginTop: 12 }}>
-          <h4>Readout warnings</h4>
-          <ul className="ps-sub" style={{ margin: '8px 0 0', paddingLeft: 18, color: 'var(--warn)' }}>
-            {program.warnings.map((w) => <li key={w}>{w}</li>)}
-          </ul>
-        </div>
-      )}
+      <ReadoutWarnings warnings={program.warnings} />
 
       {program.sections.map((s) => <SectionCard key={s.id} section={s} names={names} />)}
 

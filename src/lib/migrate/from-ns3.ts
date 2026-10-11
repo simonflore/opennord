@@ -1,6 +1,6 @@
 /**
- * Lift a decoded Stage 3 program (ns3/decode.ts, oracle: ns3-program-viewer)
- * into CommonProgram. Pure model→model; every mapping cites its source field.
+ * Lift a decoded Stage 3 program (ns3/decode.ts, read with the Stage 3 firmware's
+ * program layout) into CommonProgram. Pure model→model; every mapping cites its source field.
  */
 import type { Ns3Program, Ns3Panel } from '../ns3/decode';
 import type { CommonProgram, CommonFxUnit, CommonFxSlot, LiftResult } from './common';
@@ -8,7 +8,7 @@ import { dbStringToMidi, timeStringToMs, freqStringToHz } from './units';
 
 export type { LiftResult } from './common';
 
-// Ns3Fx.name values, per ns3/decode.ts `readFx` (ns3-fx-*.js): 'Rotary',
+// Ns3Fx.name values, per ns3/decode.ts `effects`: 'Rotary',
 // 'Effect 1', 'Effect 2', 'Amp/EQ', 'Comp', 'Delay', 'Reverb'.
 const FX_SLOT_BY_NAME: Record<string, CommonFxSlot> = {
   'effect 1': 'mod1',
@@ -42,7 +42,7 @@ function liftFx(fx: Ns3Panel['fx'], dropped: string[]): CommonFxUnit[] {
     const rate = f.params?.rate;
     out.push({
       slot,
-      on: true, // decoder only emits active fx entries (readFx pushes only enabled units)
+      on: true, // decodeNs3's `effects` lists only the units switched on
       type: f.type,
       amountMidi: typeof amount === 'number' ? amount : undefined,
       rateMidi: typeof rate === 'number' ? rate : undefined,
@@ -67,11 +67,11 @@ export function fromNs3(
   if (y.arp?.on) dropped.push('arpeggiator');
 
   // Synth mode: ns3's oscillator.type is one of Classic/Wave/Formant/Super/Sample
-  // (ns3/decode.ts SYNTH_OSC table, read at 0x8D(b1-0)+0x8E(b7)). Only 'Sample'
+  // (ns3/decode.ts SYNTH_OSC table, Edt_Syn_kOscBank). Only 'Sample'
   // means the panel is playing back a factory sample; everything else is one of
   // the four analog-modeled oscillator families. sampleId is only meaningful
   // when type === 'Sample' (decode.ts comment on Ns3Synth.sampleId); a 0 id
-  // (u64 read default when the field is absent) is treated as "no sample".
+  // (the firmware default) is treated as "no sample".
   const isSample = y.oscillator.type === 'Sample' && y.sampleId !== 0;
 
   const common: CommonProgram = {
@@ -119,7 +119,7 @@ export function fromNs3(
   // Resonance: ns3 emits a "0.0".."10.0" 0-10 display string (lin10() in
   // ns3/decode.ts); normalize to 0-1. When filter.type === 'LP+HP', the
   // resonance field carries the HP cutoff frequency label instead (see
-  // ns3/decode.ts:523–526), so leave resonance01 undefined in that case.
+  // ns3/decode.ts `synth`), so leave resonance01 undefined in that case.
   if (common.synth && y.filter.type !== 'LP+HP') {
     const resonanceRaw = parseFloat(y.filter.resonance);
     if (!Number.isNaN(resonanceRaw)) {
