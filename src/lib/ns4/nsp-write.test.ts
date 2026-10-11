@@ -32,6 +32,17 @@ function piano(channels: 1 | 2): NpnoInput {
   };
 }
 
+
+/** A built piano rewritten in the legacy v5 envelope, as CNSP v5 (NSM version 530). */
+function v5Piano(): Uint8Array {
+  const img = readNpnoImage(buildNpno(piano(1)).bytes);
+  img.envelope = 'v5';
+  img.cbinVersion = 530;
+  img.header[0x04] = 0x04; img.header[0x05] = 0x50; // CNSP v5
+  img.header[0x16] = 0x04; img.header[0x17] = 0x50;
+  img.header[0x1a] = 3;
+  return writeNpnoImage(img).bytes;
+}
 describe('buildNpno', () => {
   for (const channels of [1, 2] as const) {
     it(`writes a ${channels === 1 ? 'mono' : 'stereo'} piano every reader accepts and decodes bit-exactly`, () => {
@@ -241,13 +252,7 @@ describe('writeNpnoImage / readNpnoImage', () => {
   });
 
   it('writes the legacy v5 envelope with its CRC-16 trailer', () => {
-    const img = readNpnoImage(buildNpno(piano(1)).bytes);
-    img.envelope = 'v5';
-    img.cbinVersion = 530;
-    img.header[0x04] = 0x04; img.header[0x05] = 0x50; // CNSP v5
-    img.header[0x16] = 0x04; img.header[0x17] = 0x50;
-    img.header[0x1a] = 3;
-    const { bytes } = writeNpnoImage(img);
+    const bytes = v5Piano();
     expect(String.fromCharCode(...bytes.subarray(0x18, 0x1c))).toBe('CNSP');
     const acc = checkNpnoAcceptance(bytes, { deep: true });
     expect(acc.checks.filter((c) => !c.ok)).toEqual([]);
@@ -277,7 +282,10 @@ describe('checkNpnoAcceptance', () => {
   it('holds the metadata version to the Stage 4 generations too, not just the header version', () => {
     const img = readNpnoImage(buildNpno(piano(1)).bytes);
     img.header[0x16] = 0x04; img.header[0x17] = 0x40; // v4 metadata: NSM knows it, the Stage 4 doesn't take it
-    expect(failedIds(writeNpnoImage(img).bytes)).toEqual(['stage4-generation']);
+    const acc = checkNpnoAcceptance(writeNpnoImage(img).bytes);
+    expect(acc.checks.filter((c) => !c.ok).map((c) => c.id)).toEqual(['stage4-generation']);
+    expect(acc.checks.find((c) => c.id === 'stage4-generation')!.detail)
+      .toBe('This Nord loads pianos from version 5 on; this file is version 4');
   });
 
   it("fails a key map whose zones don't match the notes' roots, or run against them", () => {
@@ -327,6 +335,61 @@ describe('checkNpnoAcceptance', () => {
     expect(failed()).not.toContain('voice-table');
     expect(voiceTableEntries('stage-2')).toBe(0x4000);
     expect(voiceTableEntries()).toBe(0x6000);
+  });
+
+  it('holds the voice table to every model in clavia/media-compat, and skips it where not established', () => {
+    const bytes = withStrokes(0x4001);
+    const ids = (model: NpnoModel) => checkNpnoAcceptance(bytes, { model }).checks.map((c) => `${c.id}:${c.ok}`);
+    for (const m of ['electro-5', 'piano-3'] as const) expect(ids(m)).toContain('voice-table:false');
+    for (const m of ['piano-4', 'piano-5', 'piano-6', 'grand', 'grand-2'] as const) expect(ids(m)).toContain('voice-table:true');
+    // Not read on these: no voice-table claim either way.
+    for (const m of ['electro-6', 'electro-7'] as const) expect(ids(m).some((c) => c.startsWith('voice-table'))).toBe(false);
+    expect(voiceTableEntries('electro-5')).toBe(0x4000);
+    expect(voiceTableEntries('grand-2')).toBe(0x6000);
+    expect(voiceTableEntries('electro-6')).toBeUndefined();
+    expect(voiceTableEntries('wave')).toBeUndefined();
+  });
+
+  it('refuses a version 6 piano on a Nord that loads version 5 only, in plain words', () => {
+    const v6 = buildNpno(piano(1)).bytes;
+    for (const model of ['electro-3-hp', 'electro-4', 'piano-1', 'piano-2'] as const) {
+      const acc = checkNpnoAcceptance(v6, { model });
+      expect(acc.checks.filter((c) => !c.ok).map((c) => c.id)).toEqual(['stage4-partition', 'stage4-generation']);
+      expect(acc.checks.find((c) => c.id === 'stage4-generation')!.detail)
+        .toBe('This Nord loads pianos up to version 5; this file is version 6');
+      expect(checkNpnoAcceptance(v5Piano(), { model }).checks.filter((c) => !c.ok)).toEqual([]);
+    }
+    // The Electro 3 takes v4 and v5; v6 is still refused.
+    expect(checkNpnoAcceptance(v6, { model: 'electro-3' }).checks.find((c) => c.id === 'stage4-generation')!.detail)
+      .toBe('This Nord loads pianos up to version 5; this file is version 6');
+    expect(checkNpnoAcceptance(v5Piano(), { model: 'electro-3' }).ok).toBe(true);
+  });
+
+  it('accepts version 5 and 6 on the models that load both', () => {
+    const v6 = buildNpno(piano(1)).bytes;
+    for (const model of ['stage-2', 'stage-3', 'stage-4', 'electro-5', 'electro-6', 'electro-7', 'piano-3', 'piano-4', 'piano-5', 'piano-6', 'grand', 'grand-2'] as const) {
+      expect(checkNpnoAcceptance(v6, { model }).ok).toBe(true);
+      expect(checkNpnoAcceptance(v5Piano(), { model }).ok).toBe(true);
+    }
+  });
+
+  it('says a Nord without pianos does not load one, and flags a model not traced yet', () => {
+    const v6 = buildNpno(piano(1)).bytes;
+    for (const model of ['wave', 'wave-2', 'organ-3', 'lead-4', 'lead-a1', 'c2d'] as const) {
+      expect(checkNpnoAcceptance(v6, { model }).checks).toEqual([{ id: 'model-pianos', ok: false, detail: "This Nord doesn't load pianos" }]);
+    }
+    const untraced = checkNpnoAcceptance(v6, { model: 'stage-classic' });
+    expect(untraced.ok).toBe(true);
+    expect(untraced.checks[0]).toMatchObject({ id: 'model-pianos', ok: true, detail: expect.stringMatching(/doesn't know yet/) });
+  });
+
+  it('builds for a model only when it loads version 6 pianos', () => {
+    expect(() => buildNpno({ ...piano(1), model: 'piano-2' }))
+      .toThrow("This Nord loads pianos up to version 5; OpenNord builds version 6 pianos only, so it can't make one for this Nord yet.");
+    expect(() => buildNpno({ ...piano(1), model: 'organ-3' })).toThrow("This Nord doesn't load pianos.");
+    expect(buildNpno({ ...piano(1), model: 'stage-2' }).bytes).toEqual(buildNpno(piano(1)).bytes);
+    // Not traced yet: built and checked as for a Stage 4.
+    expect(buildNpno({ ...piano(1), model: 'stage-classic' }).bytes).toEqual(buildNpno(piano(1)).bytes);
   });
 
   it('fails a zone with more than 30 layers of one kind', () => {

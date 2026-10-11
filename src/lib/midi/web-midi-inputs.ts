@@ -1,8 +1,7 @@
 /** Web MIDI backend of the MIDI-input seam (./midi-inputs.ts): desktop Chromium /
  *  Firefox. Attach to every input (any controller) and stream raw messages,
  *  re-binding on hot-plug. Throws Error('unsupported') where Web MIDI is absent,
- *  Error('denied') if the permission prompt is rejected. Mirrors the acquisition
- *  in ./web-midi.ts (which stays for the Nord CC path). */
+ *  Error('denied') if the permission prompt is rejected. */
 import type { MidiInputsHandle } from './midi-inputs-types';
 
 /** True when this host exposes Web MIDI. */
