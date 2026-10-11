@@ -116,7 +116,7 @@ export interface ModelInfo {
   /**
    * `false` when the instrument has no USB file transfer at all (C1: no USB
    * device descriptor and no FileTransfer code in its OS). Omitted = present.
-   * Device code must not offer such a model as a transfer target.
+   * It has no program tag and no partitions, so device code never targets it.
    */
   deviceTransfer?: false;
 }
@@ -629,9 +629,4 @@ export function programPartitionIndex(model: ModelInfo | undefined): number | un
  */
 export function programPartitionStaticIndex(model: ModelInfo | undefined): number | undefined {
   return model?.partitions.find((p) => p.kind === 'program')?.staticIndex;
-}
-
-/** False for a model with no USB file transfer at all (`deviceTransfer: false`, the C1). */
-export function hasDeviceTransfer(model: ModelInfo): boolean {
-  return model.deviceTransfer !== false;
 }

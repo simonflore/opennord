@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   MODELS, ALL_MODELS, modelById, modelByTag, modelByProductId, identifyModelByProductId, programPartitionIndex,
-  hasDeviceTransfer, type NordModelId,
+  type NordModelId,
 } from './partitions';
 
 describe('partition registry', () => {
@@ -262,8 +262,7 @@ describe('partition registry', () => {
   it('marks the C1 as having no USB file transfer', () => {
     const c1 = modelById('c1')!;
     expect(c1).toMatchObject({ name: 'Nord C1', deviceTransfer: false, programTag: null, partitions: [] });
-    expect(hasDeviceTransfer(c1)).toBe(false);
-    expect(ALL_MODELS.filter((m) => !hasDeviceTransfer(m)).map((m) => m.id)).toEqual(['c1']);
+    expect(ALL_MODELS.filter((m) => m.deviceTransfer === false).map((m) => m.id)).toEqual(['c1']);
   });
 
   it('sample codecs follow what each firmware loads', () => {
