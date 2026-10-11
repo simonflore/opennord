@@ -172,19 +172,16 @@ export interface LegacyRecordRead<K extends string> {
 /**
  * Read every field of `layout` from the record starting at data byte `byteOffset`.
  * A second stored copy (`copyOf`) overwrites its first copy, as the firmware
- * reader does; both keys then hold the value the instrument uses. Never throws.
+ * reader does; both keys then hold the value the instrument uses, and the range
+ * check applies to that value. Never throws.
  */
 export function readLegacyRecord<K extends string>(
   data: Uint8Array, layout: LegacyLayout<K>, byteOffset = 0,
 ): LegacyRecordRead<K> {
-  const values: Partial<Record<K, number>> = {};
-  const outOfRange: K[] = [];
-  for (const f of layout.fields) {
-    const v = fieldValue(readBits(data, byteOffset * 8 + f.bit, f.width), f);
-    if (v < f.min || v > f.max) outOfRange.push(f.key);
-    values[f.key] = v;
-  }
+  const values = {} as Record<K, number>;
+  for (const f of layout.fields) values[f.key] = fieldValue(readBits(data, byteOffset * 8 + f.bit, f.width), f);
   for (const f of layout.fields) if (f.copyOf) values[f.copyOf] = values[f.key];
+  const outOfRange = layout.fields.filter((f) => values[f.key] < f.min || values[f.key] > f.max).map((f) => f.key);
   return { values, outOfRange };
 }
 
