@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { NordSession } from './session';
 import { MockTransport } from './transport';
 import { encodeMessage, decodeReply } from './protocol';
-import { CQryFileInfo, CQryFileIterate, ext2Type, CReqBegin, CReqFileCreate, CReqFileWrite, CQryFileGetFocus } from './opcodes';
-import { enumeratePrograms, enumerateFiles, getFocusedSlot } from './transfer';
+import { CQryFileInfo, CQryFileIterate, ext2Type, CReqBegin, CReqFileCreate, CReqFileWrite } from './opcodes';
+import { enumeratePrograms, enumerateFiles } from './transfer';
 import { WriteBlockedError } from './write-guard';
 
 /** A session with Program (6) open and confirmed writable; the Begin is consumed
@@ -284,26 +284,5 @@ describe('pullFile progress', () => {
     const file = await pullFile(session, entry, (done, total) => progress.push([done, total]));
     expect([...file.subarray(44)]).toEqual([...body]); // body round-trips after the 44-byte header
     expect(progress).toEqual([[4096, 5000], [5000, 5000]]);
-  });
-});
-
-describe('getFocusedSlot', () => {
-  // GetFocus reply (inferred): status@word0, bank@word1, slot@word2.
-  const focusReply = (status: number, bank: number, slot: number) =>
-    encodeMessage(CQryFileGetFocus | 1, [status, bank, slot]);
-
-  it('decodes the focused {bank, slot} from a status-0 reply', async () => {
-    const s = new NordSession(new MockTransport([focusReply(0, 6, 3)]));
-    expect(await getFocusedSlot(s)).toEqual({ bank: 6, slot: 3 });
-  });
-
-  it('returns null on a non-zero status', async () => {
-    const s = new NordSession(new MockTransport([focusReply(2, 6, 3)]));
-    expect(await getFocusedSlot(s)).toBeNull();
-  });
-
-  it('returns null when the query fails (unsupported / malformed reply)', async () => {
-    const s = new NordSession(new MockTransport([new Uint8Array(0)]));
-    expect(await getFocusedSlot(s)).toBeNull();
   });
 });

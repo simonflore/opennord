@@ -6,13 +6,13 @@ import { StorageMeter } from './StorageMeter';
 import { OrganizeGrids } from './OrganizeGrids';
 import { BankLabel } from './BankLabel';
 import { Button, FileInput } from '../ui';
-import { ALL_MODELS, hasDeviceTransfer } from '../../lib/clavia/partitions';
+import { ALL_MODELS } from '../../lib/clavia/partitions';
 import type { ReorgApi } from './useReorg';
 
 /** Program file extensions across the whole Nord line (ns4p, ns3f, ns2p, …) — the
  *  push flow reads each file's own CBIN tag, so the picker accepts any of them
- *  rather than Stage 4 alone. Models with no USB transfer (C1) are left out. */
-const PROGRAM_ACCEPT = [...new Set(ALL_MODELS.filter(hasDeviceTransfer).map((m) => m.programTag).filter(Boolean))]
+ *  rather than Stage 4 alone. */
+const PROGRAM_ACCEPT = [...new Set(ALL_MODELS.map((m) => m.programTag).filter(Boolean))]
   .map((tag) => `.${tag}`)
   .join(',');
 

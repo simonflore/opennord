@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   MODELS, ALL_MODELS, modelById, modelByTag, modelByProductId, identifyModelByProductId, programPartitionIndex,
-  hasDeviceTransfer, type NordModelId,
+  type NordModelId,
 } from './partitions';
 
 describe('partition registry', () => {
@@ -105,7 +105,6 @@ describe('partition registry', () => {
       [10, 'live', 'ns3l'],
       [11, 'settings', 'ns3t'],
     ]);
-    expect(m.partitions.some((p) => p.kind === 'ffs')).toBe(false); // no E2P FFS on the wire
     // Static, not hardware-confirmed: nothing carries a protocol `index`.
     expect(m.partitions.every((p) => p.index === undefined)).toBe(true);
     // Factory partitions and SWave are read-only.
@@ -263,8 +262,7 @@ describe('partition registry', () => {
   it('marks the C1 as having no USB file transfer', () => {
     const c1 = modelById('c1')!;
     expect(c1).toMatchObject({ name: 'Nord C1', deviceTransfer: false, programTag: null, partitions: [] });
-    expect(hasDeviceTransfer(c1)).toBe(false);
-    expect(ALL_MODELS.filter((m) => !hasDeviceTransfer(m)).map((m) => m.id)).toEqual(['c1']);
+    expect(ALL_MODELS.filter((m) => m.deviceTransfer === false).map((m) => m.id)).toEqual(['c1']);
   });
 
   it('sample codecs follow what each firmware loads', () => {
@@ -314,10 +312,10 @@ describe('partition registry', () => {
     }
   });
 
-  it('no firmware-read model registers a Set List except the Electro 5, and none an E2P FFS', () => {
+  // No E2P FFS partition anywhere: the registry has no such kind (no firmware registers one).
+  it('no firmware-read model registers a Set List except the Electro 5', () => {
     for (const m of ALL_MODELS) {
       if (m.fileTransferVersion === undefined) continue;
-      expect(m.partitions.some((p) => p.kind === 'ffs'), m.id).toBe(false);
       const setlists = m.partitions.filter((p) => p.kind === 'setlist').map((p) => p.fourcc);
       if (m.id === 'electro-5') expect(setlists).toEqual(['ne5t']);
       else if (m.id === 'stage-3') expect(setlists).toEqual(['ns3s']); // Songs

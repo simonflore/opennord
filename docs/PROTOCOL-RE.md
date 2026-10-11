@@ -189,7 +189,8 @@ per model rather than hard-coding it. OpenNord does this in
 Before negotiating, connect frames with the identified model's own version from the
 registry (`initialFileTransferVersion`, the table above); the device's reply wins
 when it names FileTransfer, and the model's version stays when it doesn't. Whether
-the v4/v6/v7 models answer the `0x07` query at all hasn't been checked.
+the v4/v6/v7 models answer the `0x07` query at all hasn't been checked, so connect
+bounds that reply read (the probe's 3 s timeout) and keeps the model's version on silence.
 
 **Nord Stage 2 (fw 3.00) — verified differences vs the NS4 above:**
 

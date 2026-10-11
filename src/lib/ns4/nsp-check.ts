@@ -16,6 +16,9 @@
  *    three. They differ only in the voice table every loaded piano shares (see
  *    {@link voiceTableEntries}) and in which piano partition NSM offers (v6 needs Stage 2
  *    OS ≥ 2.29 / Stage 3 OS ≥ 1.61, older systems take v5 only).
+ *  - The rest of the line (Electro, Piano, Grand, C2D, Wave, Organ, Lead): which CNSP versions
+ *    each model's gate loads, and its voice table, are in `clavia/media-compat.ts`, one row per
+ *    model with the firmware function it comes from. The `model` option reads that table.
  *
  * The CBIN CRC (v6) / CRC-16 trailer (v5) is what the rest of OpenNord already checks for
  * every Clavia file; whether the instrument re-checks it after a USB write is unknown.
@@ -26,7 +29,7 @@ import { verifyNs4Checksum } from '../clavia/checksum';
 import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
 import { decodeNspStroke, findCnsp, readLayerTable, readNspDirectory, type NspStroke } from './nsp-audio';
 import { nspChecksumKind, readNspZones } from './nsp';
-import type { NordModelId } from '../clavia/partitions';
+import { mediaCompat, pianoVersionNumber, type MediaModelId, type PianoAcceptance } from '../clavia/media-compat';
 
 /** CNSP checksum: byte sum of everything after the 22-byte CNSP header, over the CNSP stream
  *  (`CNSP` tag … last block; NSM CNSPFileInputStream ctor @0x100040254 → Zevs::Checksum::Get32). */
@@ -50,8 +53,12 @@ export interface NpnoAcceptance {
   nsmVersion?: number;
 }
 
-/** The models whose piano gate and loader are traced: one shared piano code base. */
-export type NpnoModel = Extract<NordModelId, 'stage-2' | 'stage-3' | 'stage-4'>;
+/**
+ * The instrument a piano is checked for: any model of the line. What each one loads is in
+ * `clavia/media-compat.ts` (Stage 2/3/4, Electro 5, Piano 3 and the ARM pianos share one piano
+ * code base; the older ColdFire models have their own gates).
+ */
+export type NpnoModel = MediaModelId;
 
 /**
  * Voice-table entries the Stage 4 loader has for every loaded piano's notes together
@@ -60,11 +67,42 @@ export type NpnoModel = Extract<NordModelId, 'stage-2' | 'stage-3' | 'stage-4'>;
 export const VOICE_TABLE_ENTRIES = 0x6000;
 
 /**
- * The voice table every loaded piano shares, per model: 0x4000 entries on the Stage 2
- * (`0x301745DC`), 0x6000 on the Stage 3 (`0xC0119040`) and Stage 4 (`0xC00B47B8`).
+ * The voice table every loaded piano shares, per model (`clavia/media-compat.ts`): 0x4000
+ * entries on the Stage 2 (`0x301745DC`), Electro 5 and Piano 3 (the ColdFire gen-5 loaders),
+ * 0x6000 on the Stage 3 (`0xC0119040`), Stage 4 (`0xC00B47B8`) and the Piano 4/5/6, Grand and
+ * Grand 2. Undefined where the firmware pass didn't establish it (older ColdFire loaders,
+ * Electro 6/7) or the model loads no pianos.
  */
-export function voiceTableEntries(model: NpnoModel = 'stage-4'): number {
-  return model === 'stage-2' ? 0x4000 : VOICE_TABLE_ENTRIES;
+export function voiceTableEntries(model: NpnoModel = 'stage-4'): number | undefined {
+  const p = mediaCompat(model).pianos;
+  return typeof p === 'object' ? p.voiceTable : undefined;
+}
+
+/**
+ * The piano rules a check applies for a model. A model whose pianos aren't established yet
+ * (Stage Classic/EX, C2) is held to the Stage 4's, which the caller is told.
+ */
+function pianoRules(model: NpnoModel | undefined): { rules: PianoAcceptance | 'none'; traced: boolean } {
+  const own = mediaCompat(model ?? 'stage-4').pianos;
+  if (own === 'unknown') return { rules: mediaCompat('stage-4').pianos as PianoAcceptance, traced: false };
+  return { rules: own, traced: true };
+}
+
+/** `[0x450, 0x464]` → "version 5 or 6". */
+function versionsPhrase(versions: readonly number[]): string {
+  const n = versions.map((v) => pianoVersionNumber(v)!);
+  return n.length === 1 ? `version ${n[0]}` : `version ${n.slice(0, -1).join(', ')} or ${n[n.length - 1]}`;
+}
+
+/** Why a file of CNSP version `v` doesn't load, in a player's words. */
+function versionRefusal(v: number, versions: readonly number[]): string {
+  const file = pianoVersionNumber(v);
+  const newest = pianoVersionNumber(Math.max(...versions))!;
+  const oldest = pianoVersionNumber(Math.min(...versions))!;
+  if (file === undefined) return `This file's piano version isn't one a Nord loads (this Nord loads ${versionsPhrase(versions)})`;
+  if (file > newest) return `This Nord loads pianos up to version ${newest}; this file is version ${file}`;
+  if (file < oldest) return `This Nord loads pianos from version ${oldest} on; this file is version ${file}`;
+  return `This Nord loads pianos of ${versionsPhrase(versions)}; this file is version ${file}`;
 }
 
 /**
@@ -94,7 +132,10 @@ export const MAX_PIANO_NAME = 32;
 export interface NpnoCheckOptions {
   /** Also decode every stroke (catches a broken block stream; costs a full decode). */
   deep?: boolean;
-  /** The instrument the piano is meant for; sets the voice-table size. Default `stage-4`. */
+  /**
+   * The instrument the piano is meant for (default `stage-4`): sets the piano versions it loads
+   * and its voice-table size, per `clavia/media-compat.ts`.
+   */
   model?: NpnoModel;
   /**
    * The name the piano will be stored under on the instrument (the file name, with its
@@ -114,10 +155,6 @@ function headerVersionKnown(v: number): boolean {
 function metaVersionKnown(v: number): boolean {
   return (v >= 0x407 && v <= 0x430) || v === 0x440 || v === 0x450 || v === 0x464;
 }
-/** `Zevs::Piano::GetFormat(Version2BCD(v))`: only 0x440/0x450/0x464 map to a format. */
-function pianoFormat(v: number): number | undefined {
-  return ({ 0x440: 4, 0x450: 5, 0x464: 6 } as Record<number, number>)[v];
-}
 
 /**
  * Run every known acceptance check. `deep` also decodes every stroke (catches a broken
@@ -134,6 +171,14 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: NpnoCheckOptions = 
     add('name-length', n <= MAX_PIANO_NAME, n <= MAX_PIANO_NAME
       ? `the name "${opts.fileName}" fits a Nord (${n} of ${MAX_PIANO_NAME} characters)`
       : `The name "${opts.fileName}" is too long for a Nord (${n} characters, ${MAX_PIANO_NAME} at most) — it would show "Piano name error"`);
+  }
+  const { rules, traced } = pianoRules(opts.model);
+  if (rules === 'none') {
+    add('model-pianos', false, "This Nord doesn't load pianos");
+    return done();
+  }
+  if (!traced) {
+    add('model-pianos', true, "OpenNord doesn't know yet which pianos this Nord loads; checked as for a Stage 4");
   }
   if (!add('cbin', hasCbinMagic(bytes) && fileTypeTag(bytes) === 'npno', 'CBIN magic and the `npno` type tag')) return done();
   const cnsp = findCnsp(bytes);
@@ -157,13 +202,18 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: NpnoCheckOptions = 
   add('meta-version', metaVersionKnown(meta), `metadata version 0x${meta.toString(16)} in the accepted set`);
   add('cnsp-checksum', cnspChecksum(bytes.subarray(cnsp, end)) === u32(cnsp + 6), 'CNSP byte-sum checksum at +0x06 (NSM rejects a mismatch)');
 
-  const format = pianoFormat(version);
+  // `Zevs::Piano::GetFormat(Version2BCD(v))`: only 0x440/0x450/0x464 map to a format (4/5/6).
+  const format = pianoVersionNumber(version);
   const nsmVersion = format === undefined ? undefined : format * 100 + bytes[cnsp + 0x1a] * 10;
   add('nsm-format', format !== undefined, 'header version maps to a piano format (Zevs::Piano::GetFormat)');
   if (nsmVersion !== undefined) {
     // NSM's V6 piano partition (Stage 4; Stage 3 OS ≥ 1.61, `0x1001AFCEC`; Stage 2 OS ≥ 2.29,
-    // `0x1000A9FA4`). Older Stage 2/3 systems only get the V5 partition (500–599).
-    add('stage4-partition', nsmVersion >= 500 && nsmVersion <= 699, `NSM version ${nsmVersion} within the piano partition (500–699)`);
+    // `0x1000A9FA4`) takes 500–699; older Stage 2/3 systems only get the V5 partition (500–599).
+    // For other models the range follows the versions the firmware loads (media-compat);
+    // NSM's own partition per model wasn't traced beyond the Stage line. The id is historical.
+    const lo = pianoVersionNumber(Math.min(...rules.versions))! * 100;
+    const hi = pianoVersionNumber(Math.max(...rules.versions))! * 100 + 99;
+    add('stage4-partition', nsmVersion >= lo && nsmVersion <= hi, `NSM version ${nsmVersion} within the piano partition (${lo}–${hi})`);
     const cbinVersion = bytes[0x14] | (bytes[0x15] << 8);
     add('cbin-version', cbinVersion === nsmVersion, `CBIN version ${cbinVersion} matches the CNSP version ${nsmVersion} (true of every factory file)`);
   }
@@ -172,11 +222,13 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: NpnoCheckOptions = 
   // below each version's threshold: 3/4/5/6/7 for 0x423–0x42F/0x430/0x440/0x450/0x464. All three
   // models build their piano manager with generation 5 and 120 slots (Stage 4 {4, 120, 5} at
   // 0xC0249AC4 → 0xC00C0A04; Stage 3 at 0xC0000614 → 0xC0119040; Stage 2 0x30170C2E →
-  // 0x301745DC), so only v5 (0x450) and v6 (0x464) load anywhere; 0x423–0x440 are rejected
-  // ("Unsupported version"). The id keeps its historical name.
-  const loadable = (v: number) => v === 0x450 || v === 0x464;
-  add('stage4-generation', loadable(version) && loadable(meta),
-    `header (0x${version.toString(16)}) and metadata (0x${meta.toString(16)}) versions are v5 (0x450) or v6 (0x464) — the only generations a Stage 2, 3 or 4 loads`);
+  // 0x301745DC), so only v5 (0x450) and v6 (0x464) load there; 0x423–0x440 are rejected
+  // ("Unsupported version"). Other models differ (media-compat): the Electro 3 HP, Electro 4,
+  // Piano 1 and Piano 2 load v5 only, the Electro 3 v4 and v5. The id keeps its historical name.
+  const bad = [version, meta].find((v) => !rules.versions.some((x) => x === v));
+  add('stage4-generation', bad === undefined, bad === undefined
+    ? `header (0x${version.toString(16)}) and metadata (0x${meta.toString(16)}) versions are ones this Nord loads (${versionsPhrase(rules.versions)})`
+    : versionRefusal(bad, rules.versions));
 
   const dir = readNspDirectory(bytes);
   add('directory', !!dir, 'stroke directory (+0x61C) and records (+0x732) readable, blocks inside the file');
@@ -191,15 +243,21 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: NpnoCheckOptions = 
   add('block-size', dir.blockWords === 511 * dir.channels, `block size ${dir.blockWords} words (511 per channel)`);
   // "Piano is too big": the loader refuses more strokes than the smaller of 0x149F and the
   // free voice-table entries (Stage 4 0xC00B5618, Stage 3 0xC01170EC, Stage 2 0x30173736).
+  // Where a model's own limit wasn't read (media-compat `maxStrokes` absent), the line's
+  // 0x149F still holds the file to what every traced Nord takes.
   const count = strokes.length;
   add('piano-size', count <= MAX_PIANO_STROKES, count <= MAX_PIANO_STROKES
     ? `${thousands(count)} recorded notes, within the ${thousands(MAX_PIANO_STROKES)} a Nord loads in one piano`
     : `This piano has more notes than a Nord can load (${thousands(count)}; ${thousands(MAX_PIANO_STROKES)} at most) — it would show "Piano is too big"`);
   // The voice table is shared with every loaded piano, so a file can only be held to the
   // empty-instrument bound; whether it fits next to the others only the instrument knows.
-  const table = voiceTableEntries(opts.model);
-  add('voice-table', count <= table,
-    `${thousands(count)} notes fit the instrument's voice table (${thousands(table)} entries, shared with every loaded piano)`);
+  // Skipped where the model's table size wasn't established (media-compat `voiceTable`).
+  const table = rules.voiceTable;
+  if (table !== undefined) {
+    add('voice-table', count <= table, count <= table
+      ? `${thousands(count)} notes fit the instrument's voice table (${thousands(table)} entries, shared with every loaded piano)`
+      : `This piano has more notes than this Nord has room for (${thousands(count)}; ${thousands(table)} at most, shared with every loaded piano) — it would show "Piano is too big"`);
+  }
   // 30 layer slots per root and stroke type (Stage 4 0xC00A3988; Stage 2 0x301B3FEC has no
   // bound check, so more would overwrite memory there).
   const perSlot = new Map<string, number>();

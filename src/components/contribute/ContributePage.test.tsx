@@ -7,8 +7,15 @@ import { DeviceProvider } from '../../lib/device/DeviceContext';
 import { ContributePage } from './ContributePage';
 
 describe('ContributePage', () => {
-  it('renders the help-decode intro when no device session is present', () => {
+  it('shows the three asks, with a connect step when no Nord is connected', () => {
     render(<DeviceProvider><ContributePage /></DeviceProvider>);
-    expect(screen.getByRole('heading', { name: /help decode your nord/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /help confirm opennord/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /check your nord/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /share two or three of your programs/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /measure a few sounds/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /share programs/i })).toHaveAttribute('href', expect.stringContaining('labels=programs'));
+    // No WebUSB here: the connect step explains it in-line, not as a nested card with its own heading.
+    expect(screen.getByText(/open this in chrome or edge to connect/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /open this in chrome/i })).toBeNull();
   });
 });

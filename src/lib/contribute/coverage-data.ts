@@ -1,13 +1,8 @@
 /**
- * Curated per-model decode progress — the checked-in "state" you maintain as you
- * process contribution bundles. No backend: localize a control to its bytes,
- * add an entry here, and the coverage map (contribute landing + compatibility
- * matrix) updates.
- *
- * Workflow: open a contribution JSON, decide which body bytes a labeled change
- * occupies (the bundle already gives candidate `ranges` per entry), then add a
- * `MappedControl`. `bodyBytes` is the model's body size — read it from any export
- * (file length − 44-byte CBIN header) the first time you touch a model.
+ * Curated per-model decode progress, maintained by hand as fields are mapped (from
+ * firmware, NSM or real files). The compatibility matrix renders it: add a
+ * `MappedControl` when a field's bytes are known. `bodyBytes` is the model's body
+ * size (file length − 44-byte CBIN header).
  *
  * Stage 4 is NOT listed here — it's fully decoded from the offset map already.
  * Nor are the firmware-layout models (Grand, Piano 6, Electro 7, Organ 3): their
@@ -17,7 +12,7 @@
 export interface MappedControl {
   /** What the control is, e.g. "Filter cutoff" or "CC 70". */
   label: string;
-  /** Body-relative byte ranges it occupies (same shape as a contribution entry). */
+  /** Body-relative byte ranges it occupies. */
   ranges: Array<{ start: number; end: number }>;
 }
 
@@ -46,8 +41,8 @@ export interface ModelProgress {
   regions?: BodyRegion[];
 }
 
-// Keyed by model id (clavia/partitions.ts). Add models + controls as you process
-// contributions. Example (delete when you add a real one):
+// Keyed by model id (clavia/partitions.ts). Add models + controls as fields are
+// mapped. Example:
 //   'electro-6': {
 //     bodyBytes: 1234,
 //     controls: [{ label: 'Organ drawbar 1', ranges: [{ start: 39, end: 39 }] }],

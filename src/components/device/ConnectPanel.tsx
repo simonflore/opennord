@@ -6,7 +6,7 @@ import { ElectronUsbTransport } from '../../lib/device/electron-usb';
 import { NordSession } from '../../lib/device/session';
 import { NordStatus, SessionRefusedError } from '../../lib/device/protocol';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
-import { identifyDevice, resolveDeviceAccess, type DeviceIdentity } from '../../lib/device/connect-probe';
+import { identifyDevice, resolveDeviceAccess, PROBE_REPLY_TIMEOUT_MS, type DeviceIdentity } from '../../lib/device/connect-probe';
 import { modelById } from '../../lib/clavia/partitions';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
 import { initialFileTransferVersion, shouldNegotiateVersion } from '../../lib/device/negotiate';
@@ -77,7 +77,7 @@ const DEFAULT_LEAD =
   'Plug your Stage 4 into this computer over USB to back up your sounds, browse every ' +
   'program in one place, and move patches between the keyboard and OpenNord.';
 
-export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE, lead = DEFAULT_LEAD }: {
+export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE, lead = DEFAULT_LEAD, inline = false }: {
   onConnected: (session: NordSession, entries: ProgramEntry[], deviceName: string, productId: number) => void;
   /** Callback when the user clicks "open a backup offline" (optional). */
   onOpenBackup?: () => void;
@@ -85,6 +85,9 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
   title?: string;
   /** Override the connect-card lead copy. */
   lead?: string;
+  /** Just the button and its notes, for a page that already frames the step (no card,
+   *  heading or lead). */
+  inline?: boolean;
 }) {
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState('');
@@ -125,13 +128,14 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
   // Info cards: a plain browser without WebUSB, or an iPad whose DEXT isn't ready.
   if (reach === 'unsupported' || (reach === 'ipad-dext-pending' && ipadReady !== true)) {
     const ipad = reach === 'ipad-dext-pending';
+    const infoTitle = ipad ? 'USB transfer is coming to iPad' : 'Open this in Chrome or Edge to connect';
+    // Inline: the host page already frames the step, so no nested card or heading.
+    if (inline) return <p className={cn(connectLead, 'mt-2')}>{infoTitle}.</p>;
     return (
       <div className="flex justify-center px-4 py-6">
         <div className="w-full max-w-[460px] rounded-lg border border-line bg-surface p-6">
           <SectionLabel>Your Nord</SectionLabel>
-          <h2 className={connectTitle}>
-            {ipad ? 'USB transfer is coming to iPad' : 'Open this in Chrome or Edge to connect'}
-          </h2>
+          <h2 className={connectTitle}>{infoTitle}</h2>
           <p className={connectLead}>
             {ipad
               ? "Moving programs to and from your Nord over USB is on the way for iPad. Everything else — browsing, samples, sharing — works right here today."
@@ -151,13 +155,12 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     // Start from the model's own FileTransfer version (registry, from its
     // firmware: 4/6/7/8/10), else the NS4 default 0x0a — a frame above a
     // device's version is dropped without a reply. Then adopt what the device
-    // advertises (NS2 = 0x08). Best-effort: if it doesn't answer the handshake,
-    // the model's version stands. Skipped for the NS4 itself — it already uses
-    // 0x0a, and the handshake's reply read is unbounded, so querying a device
-    // that won't answer hangs connect.
+    // advertises (NS2 = 0x08). Best-effort and bounded: whether the older
+    // models answer the handshake at all is unknown, so on silence or an error
+    // the model's version stands. Skipped for the NS4, which already uses 0x0a.
     session.useFileTransferVersion(initialFileTransferVersion(deviceIdentity.model));
     if (shouldNegotiateVersion(productId)) {
-      await session.negotiateVersion().catch(() => undefined);
+      await session.withReplyTimeout(PROBE_REPLY_TIMEOUT_MS, () => session.negotiateVersion()).catch(() => undefined);
     }
     // Address the model's Program partition and decide what may be written.
     // The model comes from the best-known product id (hardware-confirmed, else
@@ -246,58 +249,64 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     }
   }
 
+  const body = (
+    <>
+      {needsUsbDk && (
+        <div
+          className="mb-4 rounded-md border border-[color-mix(in_srgb,var(--warn)_35%,var(--line))] bg-[color-mix(in_srgb,var(--warn)_6%,transparent)] p-3"
+          role="note"
+        >
+          <p className="m-0 mb-1 text-xs font-bold text-ink">Connecting an older Nord, like the Stage 2?</p>
+          <p className="m-0 text-xs leading-[1.55] text-dim">
+            This app can already reach newer Nords (Stage 3 and 4) — no extra steps. An older
+            Nord needs one more thing first: a free, one-time driver called <strong>UsbDk</strong>.
+            It won’t stop Nord Sound Manager from working, and you only install it once.
+          </p>
+          <a
+            className="mt-2 inline-block text-xs font-bold text-warn underline hover:text-red-bright"
+            href="https://github.com/daynix/UsbDk/releases"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Get UsbDk →
+          </a>
+        </div>
+      )}
+      <Button
+        variant="primary"
+        size="md"
+        onClick={connect}
+        disabled={status === 'connecting'}
+      >
+        {status === 'connecting' ? 'Connecting…' : 'Connect your Nord'}
+      </Button>
+      {status === 'error' && <p className="on-error mt-3">{message}</p>}
+      <p className="mt-4 border-t border-line pt-3 text-xs leading-[1.5] text-muted">
+        Using Nord Sound Manager? Quit it first — it keeps the USB connection to itself, so only
+        one app can talk to the Nord at a time.
+      </p>
+      {onOpenBackup && (
+        <p className="mt-4 border-t border-line pt-3 text-xs leading-[1.5] text-muted">
+          No Nord handy?{' '}
+          <button
+            type="button"
+            onClick={onOpenBackup}
+            className={cn('cursor-pointer border-0 bg-transparent p-0 underline [font:inherit]', 'text-[var(--deps-ink)]')}
+          >
+            Open a backup to organize offline
+          </button>
+        </p>
+      )}
+    </>
+  );
+  if (inline) return <div className="mt-2" aria-live="polite">{body}</div>;
   return (
     <div className="flex justify-center px-4 py-6" aria-live="polite">
       <div className="w-full max-w-[460px] rounded-lg border border-line bg-surface p-6">
         <SectionLabel>Your Nord</SectionLabel>
         <h2 className={connectTitle}>{title}</h2>
         <p className={connectLead}>{lead}</p>
-        {needsUsbDk && (
-          <div
-            className="mb-4 rounded-md border border-[color-mix(in_srgb,var(--warn)_35%,var(--line))] bg-[color-mix(in_srgb,var(--warn)_6%,transparent)] p-3"
-            role="note"
-          >
-            <p className="m-0 mb-1 text-xs font-bold text-ink">Connecting an older Nord, like the Stage 2?</p>
-            <p className="m-0 text-xs leading-[1.55] text-dim">
-              This app can already reach newer Nords (Stage 3 and 4) — no extra steps. An older
-              Nord needs one more thing first: a free, one-time driver called <strong>UsbDk</strong>.
-              It won’t stop Nord Sound Manager from working, and you only install it once.
-            </p>
-            <a
-              className="mt-2 inline-block text-xs font-bold text-warn underline hover:text-red-bright"
-              href="https://github.com/daynix/UsbDk/releases"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Get UsbDk →
-            </a>
-          </div>
-        )}
-        <Button
-          variant="primary"
-          size="md"
-          onClick={connect}
-          disabled={status === 'connecting'}
-        >
-          {status === 'connecting' ? 'Connecting…' : 'Connect your Nord'}
-        </Button>
-        {status === 'error' && <p className="on-error mt-3">{message}</p>}
-        <p className="mt-4 border-t border-line pt-3 text-xs leading-[1.5] text-muted">
-          Using Nord Sound Manager? Quit it first — it keeps the USB connection to itself, so only
-          one app can talk to the Nord at a time.
-        </p>
-        {onOpenBackup && (
-          <p className="mt-4 border-t border-line pt-3 text-xs leading-[1.5] text-muted">
-            No Nord handy?{' '}
-            <button
-              type="button"
-              onClick={onOpenBackup}
-              className={cn('cursor-pointer border-0 bg-transparent p-0 underline [font:inherit]', 'text-[var(--deps-ink)]')}
-            >
-              Open a backup to organize offline
-            </button>
-          </p>
-        )}
+        {body}
       </div>
     </div>
   );
