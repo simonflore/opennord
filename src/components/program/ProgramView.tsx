@@ -84,26 +84,27 @@ export function ProgramView({ program }: { program: NordProgram }) {
   const canToggle = scenesDiffer(program);
   const firstOrganId = layers.find((l) => l.kind === 'organ')?.id;
 
+  // The two Layer Scenes, as the panel's scene buttons: lit = the one shown here;
+  // "saved" marks the scene the program was stored with.
+  const sceneSwitch = canToggle && (
+    <div className="ps-scene" role="group" aria-label="Layer scene">
+      {(['I', 'II'] as const).map((s) => (
+        <button
+          key={s}
+          className={`ps-key ps-scene-btn${scene === s ? ' on' : ''}`}
+          onClick={() => setScene(s)}
+          aria-pressed={scene === s}
+        >
+          Scene {s}
+          {program.activeScene === s && <span className="ps-key-note">saved</span>}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className="ps">
-      <ProgramHeader header={headerView(program, scene)} />
-
-      {canToggle && (
-        <div className="ps-scene">
-          <span className="ps-scene-l">LAYER SCENE</span>
-          {(['I', 'II'] as const).map((s) => (
-            <button
-              key={s}
-              className={`ps-key ps-scene-btn${scene === s ? ' on' : ''}`}
-              onClick={() => setScene(s)}
-              aria-pressed={scene === s}
-              title={program.activeScene === s ? 'Saved active scene' : undefined}
-            >
-              {s}{program.activeScene === s ? ' ●' : ''}
-            </button>
-          ))}
-        </div>
-      )}
+      <ProgramHeader header={headerView(program, scene)} aside={sceneSwitch} />
 
       <ProgramZones program={program} scene={scene} />
       <div className="ps-grid">

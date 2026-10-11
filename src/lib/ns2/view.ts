@@ -54,7 +54,7 @@ function organCard(slot: Ns2Slot): OrganPanelModel {
     },
     octave: o.octaveShift,
     // preset/sustain/rotary omitted: preset2 is a preset selector (not on/off);
-    // rotary is an FX.
+    // the rotary is a program effect (Ns2Program.rotary, a global FX chip).
   };
 }
 

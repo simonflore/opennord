@@ -29,6 +29,9 @@ import { ncDecoded } from './nc/present';
 import { ns1Decoded } from './ns1/present';
 import { np1Decoded } from './np1/present';
 import { np2Decoded } from './np2/present';
+import { ne3Decoded } from './ne3/present';
+import { nc2Decoded } from './nc2/present';
+import { nw1Decoded } from './nw1/present';
 
 /** Family-wide piano-name lookup (the 32-bit piano name hash → display name). */
 const pianoName = (hash: number): string | undefined => PIANO_NAMES[hash];
@@ -67,6 +70,12 @@ const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.tag === 'nppg', present: np1Decoded },
   { match: (i) => i.tag === 'nspg', present: (bytes) => ns1Decoded(bytes) },
   { match: (i) => i.tag === 'ncpg', present: ncDecoded },
+  // Legacy-record readers (clavia/legacy-record.ts), firmware-derived and provisional
+  // until a real file confirms the alignment. The Electro 3 Live partition's tag is
+  // not known, and the C2D and Wave register no Live partition, so only programs route here.
+  { match: (i) => i.tag === 'nepg', present: ne3Decoded },
+  { match: (i) => i.tag === 'nc2p', present: nc2Decoded },
+  { match: (i) => i.tag === 'nwp', present: nw1Decoded },
 ];
 
 /** The shared decoded-program presentation for a file, or null if no model claims it. */

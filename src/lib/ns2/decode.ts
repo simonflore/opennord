@@ -45,13 +45,16 @@
  * Never throws.
  */
 import { NORD_DB } from '../clavia/volume';
-import { LEGACY_DATA_OFFSET, legacyData, legacyRecordVersion, readLegacyRecord } from '../clavia/legacy-record';
+import {
+  NSM_RECORD_OFFSET, legacyData, legacyDataOffset, legacyMorphDeltas, legacyRecordVersion, legacyTrailerBytes,
+  readLegacyRecord,
+} from '../clavia/legacy-record';
 import { NS2_LAYOUT, type Ns2FieldKey } from './layout.generated';
 
 export type { Ns2FieldKey };
 
 /** Record data start behind the NSM-era header: 0x2C bytes of header, then the u16 record version. */
-export const NS2_NSM_DATA_OFFSET = 0x2e;
+export const NS2_NSM_DATA_OFFSET = NSM_RECORD_OFFSET + 2;
 
 // ── Type tables — identical to ns3-program-viewer's ns2-mapping.js ────────────
 
@@ -222,7 +225,9 @@ const ENV_ATTACK: readonly string[] = [
   '45 s',
 ];
 
-// ns2SynthEnvDecayMap — used for mod.decay + mod.release AND amp.attack + amp.decay
+// ns2SynthEnvDecayMap — mod decay/release and amp decay/release (the viewer's
+// separate ns2SynthEnvReleaseMap is the same table). Entry 59 is 1.05 s; the
+// viewer's table has '1050 s' there, which would read as 17 minutes.
 const ENV_DECAY: readonly string[] = [
   '3.0 ms',
   '3.5 ms',
@@ -283,139 +288,7 @@ const ENV_DECAY: readonly string[] = [
   '851 ms',
   '915 ms',
   '983 ms',
-  '1050 s',
-  '1.13 s',
-  '1.21 s',
-  '1.3 s',
-  '1.39 s',
-  '1.49 s',
-  '1.59 s',
-  '1.7 s',
-  '1.82 s',
-  '1.94 s',
-  '2.07 s',
-  '2.21 s',
-  '2.35 s',
-  '2.51 s',
-  '2.67 s',
-  '2.84 s',
-  '3.02 s',
-  '3.21 s',
-  '3.41 s',
-  '3.62 s',
-  '3.85 s',
-  '4.09 s',
-  '4.34 s',
-  '4.61 s',
-  '4.89 s',
-  '5.19 s',
-  '5.51 s',
-  '5.84 s',
-  '6.19 s',
-  '6.57 s',
-  '6.96 s',
-  '7.38 s',
-  '7.82 s',
-  '8.29 s',
-  '8.78 s',
-  '9.3 s',
-  '9.85 s',
-  '10 s',
-  '11 s',
-  '11 s',
-  '12 s',
-  '13 s',
-  '14 s',
-  '14 s',
-  '15 s',
-  '16 s',
-  '17 s',
-  '18 s',
-  '19 s',
-  '20 s',
-  '21 s',
-  '22 s',
-  '24 s',
-  '25 s',
-  '27 s',
-  '28 s',
-  '30 s',
-  '31 s',
-  '33 s',
-  '35 s',
-  '37 s',
-  '39 s',
-  '41 s',
-  '44 s',
-  '46 s',
-  '49 s',
-  '52 s',
-  '55 s',
-  '58 s',
-];
-
-// ns2SynthEnvReleaseMap — used ONLY for amp.release
-const ENV_RELEASE: readonly string[] = [
-  '3.0 ms',
-  '3.5 ms',
-  '4.0 ms',
-  '4.6 ms',
-  '5.3 ms',
-  '6.0 ms',
-  '6.9 ms',
-  '7.9 ms',
-  '9.0 ms',
-  '10 ms',
-  '12 ms',
-  '13 ms',
-  '15 ms',
-  '17 ms',
-  '19 ms',
-  '21 ms',
-  '23 ms',
-  '26 ms',
-  '29 ms',
-  '33 ms',
-  '36 ms',
-  '41 ms',
-  '45 ms',
-  '50 ms',
-  '55 ms',
-  '61 ms',
-  '68 ms',
-  '75 ms',
-  '82 ms',
-  '91 ms',
-  '100 ms',
-  '110 ms',
-  '120 ms',
-  '132 ms',
-  '144 ms',
-  '158 ms',
-  '173 ms',
-  '188 ms',
-  '206 ms',
-  '224 ms',
-  '244 ms',
-  '265 ms',
-  '288 ms',
-  '313 ms',
-  '340 ms',
-  '368 ms',
-  '399 ms',
-  '432 ms',
-  '467 ms',
-  '505 ms',
-  '545 ms',
-  '588 ms',
-  '634 ms',
-  '683 ms',
-  '736 ms',
-  '792 ms',
-  '851 ms',
-  '915 ms',
-  '983 ms',
-  '1050 s',
+  '1.05 s',
   '1.13 s',
   '1.21 s',
   '1.3 s',
@@ -1119,7 +992,7 @@ function synth(s: SlotGet): Ns2SynthSlot {
       decayMidi: modDec,
       decay: ENV_DECAY[modDec] ?? '?',
       releaseMidi: modRel,
-      release: ENV_DECAY[modRel] ?? '?', // mod release uses the decay map (oracle)
+      release: ENV_DECAY[modRel] ?? '?',
       velocity: s('synth.modEnvelopeVelocity') === 1,
     },
     ampEnv: {
@@ -1128,7 +1001,7 @@ function synth(s: SlotGet): Ns2SynthSlot {
       decayMidi: ampDec,
       decay: ENV_DECAY[ampDec] ?? '?',
       releaseMidi: ampRel,
-      release: ENV_RELEASE[ampRel] ?? '?', // amp release uses the release map (oracle)
+      release: ENV_DECAY[ampRel] ?? '?',
       velocity: s('synth.ampEnvelopeVelocity') === 1,
     },
     lfoWave: lutStr(LFO_WAVE, s('synth.lFOWave')),
@@ -1208,11 +1081,10 @@ const LAYOUT_VERSION = NS2_LAYOUT.recordVersion ?? 7;
 /** Decode a Stage 2 / 2 EX `.ns2p` into its active slot(s), plus every layout field in `values`. */
 export function decodeNs2(bytes: Uint8Array): Ns2File {
   const warnings: string[] = [];
-  // Header type byte 0x04: 1 = NSM-era header (data at 0x2E), else legacy (data at 0x1A).
-  const nsm = (bytes[0x04] ?? 0) === 1;
-  const dataOffset = nsm ? NS2_NSM_DATA_OFFSET : LEGACY_DATA_OFFSET;
-  // An NSM-era file ends with the record (565 bytes); a legacy one adds the 2-byte trailer (547).
-  const trailerBytes = nsm ? 0 : 2;
+  // Data at 0x2E behind the NSM-era header (no trailer, 565 bytes), else at 0x1A
+  // followed by the 2-byte trailer (547).
+  const dataOffset = legacyDataOffset(bytes, NS2_LAYOUT);
+  const trailerBytes = legacyTrailerBytes(bytes);
   // The u16 record version also sits in the CBIN version field (0x14, LE) on both headers.
   const recordVersion = legacyRecordVersion(bytes);
   const data = legacyData(bytes, dataOffset, trailerBytes);
@@ -1232,10 +1104,7 @@ export function decodeNs2(bytes: Uint8Array): Ns2File {
   }
 
   const { values, outOfRange } = readLegacyRecord(data, NS2_LAYOUT);
-  const morphDeltas: Partial<Record<Ns2FieldKey, number[]>> = {};
-  for (const f of NS2_LAYOUT.fields) {
-    if (f.deltaOf) (morphDeltas[f.deltaOf] ??= []).push(values[f.key] ?? 0);
-  }
+  const morphDeltas = legacyMorphDeltas(NS2_LAYOUT, values);
 
   const { get, slot } = reader(values);
   // Program common descriptors 0-2: slot select (2 bits, read as one value) and

@@ -6,6 +6,7 @@
  */
 import { decodeNla } from './decode';
 import type { DecodedProgram } from '../clavia/decoded';
+import { morphCountPart } from '../clavia/fw-present';
 
 export function nlaDecoded(bytes: Uint8Array): DecodedProgram {
   const p = decodeNla(bytes);
@@ -15,7 +16,7 @@ export function nlaDecoded(bytes: Uint8Array): DecodedProgram {
     header: [['Version', `v${p.version}`]],
     sections: [{
       id: 'V', label: p.performance ? 'SLOT A' : 'SOUND',
-      engines: [{ label: 'Morph', parts: [morphed === 0 ? 'none' : `${morphed} control${morphed === 1 ? '' : 's'}`] }],
+      engines: [{ label: 'Morph', parts: [morphCountPart(morphed)] }],
     }],
     note: 'Lead A1: layout from the instrument firmware (OS 1.36). All parameters and morph amounts are read; they are named by MIDI CC until the A1 controller chart is mapped.',
     warnings: p.warnings,

@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
-  LEGACY_DATA_OFFSET, legacyData, legacyRecordVersion, readLegacyRecord, readMorphList,
+  LEGACY_DATA_OFFSET, legacyData, legacyDataOffset, legacyFileBytes, legacyLayoutData, legacyLayoutVersion,
+  legacyMorphDeltas, legacyRecordOffset, legacyRecordVersion, readLegacyFile, readLegacyRecord, readMorphList,
   type LegacyLayout, type LegacyMorphList,
 } from './legacy-record';
-import { synthLegacyFile, writeBits, writeLegacyRecord } from './block-chain.synth';
+import { synthLegacyFile, synthLegacyLayoutFile, writeBits, writeLegacyRecord } from './block-chain.synth';
 import { verifyTrailerChecksum } from './crc16';
 
 /** A tiny record: a raw 7-bit level, a two's-complement 8-bit delta, a 1-bit flag. */
@@ -47,6 +48,67 @@ describe('legacy formatType-0 record', () => {
     expect(verifyTrailerChecksum(file)).toBe(true);
     expect(legacyRecordVersion(file)).toBe(3);
     expect(readLegacyRecord(legacyData(file), TINY).values).toEqual({ 's.level': 64, 's.delta': 0, 's.flag': 1 });
+  });
+
+  it('places the record at 0x18 after a legacy header and 0x2C after an NSM-era one, with the layout’s version width', () => {
+    const wide = { ...TINY, recordVersion: 101 };
+    const narrow = { ...TINY, recordVersion: 8, versionBytes: 1 as const, padBytes: 2 };
+    const a = synthLegacyLayoutFile('test', wide, { 's.level': 99 });
+    expect(a).toHaveLength(0x18 + 2 + 3 + 2);
+    expect([legacyRecordOffset(a), legacyDataOffset(a, wide), legacyFileBytes(a, wide)]).toEqual([0x18, 0x1a, a.length]);
+    expect(legacyLayoutVersion(a, wide)).toBe(101);
+    expect([a[0x18], a[0x19]]).toEqual([0, 101]); // big-endian, like the bitstream
+    expect(verifyTrailerChecksum(a)).toBe(true);
+    expect(readLegacyRecord(legacyLayoutData(a, wide), wide).values['s.level']).toBe(99);
+
+    const b = synthLegacyLayoutFile('test', narrow, { 's.level': 42 });
+    expect(b).toHaveLength(0x18 + 1 + 3 + 2 + 2);
+    expect([legacyDataOffset(b, narrow), legacyLayoutVersion(b, narrow), b[0x18]]).toEqual([0x19, 8, 8]);
+    expect(legacyLayoutData(b, narrow)).toHaveLength(3 + 2); // padding stays with the data
+    expect(readLegacyRecord(legacyLayoutData(b, narrow), narrow).values['s.level']).toBe(42);
+
+    const c = synthLegacyLayoutFile('test', wide, { 's.level': 7 }, { nsmHeader: true });
+    expect(c).toHaveLength(0x2c + 2 + 3); // no 2-byte trailer after an NSM-era header
+    expect([legacyRecordOffset(c), legacyDataOffset(c, wide), legacyLayoutVersion(c, wide)]).toEqual([0x2c, 0x2e, 101]);
+    expect(readLegacyFile(c, wide).values['s.level']).toBe(7);
+    expect(readLegacyFile(c, wide).warnings).toEqual([]);
+  });
+
+  it('reads a whole file with warnings for size, record version and range, never throwing', () => {
+    const layout = { ...TINY, recordVersion: 101 };
+    const ok = readLegacyFile(synthLegacyLayoutFile('test', layout), layout);
+    expect(ok).toMatchObject({ recordVersion: 101, complete: true, warnings: [], outOfRange: [] });
+    const old = readLegacyFile(synthLegacyLayoutFile('test', layout, {}, { version: 100 }), layout, [100, 101]);
+    expect(old.warnings).toEqual([]);
+    expect(readLegacyFile(synthLegacyLayoutFile('test', layout, {}, { version: 99 }), layout).warnings.join(' ')).toContain('Record version 99');
+    expect(readLegacyFile(synthLegacyLayoutFile('test', layout, { 's.level': 120 }), layout).warnings.join(' ')).toContain('s.level');
+    const short = readLegacyFile(new Uint8Array(0x1b), layout);
+    expect(short.complete).toBe(false);
+    expect(short.warnings.join(' ')).toContain('too short');
+    const long = synthLegacyLayoutFile('test', layout);
+    expect(readLegacyFile(new Uint8Array([...long, 0]), layout).warnings.join(' ')).toContain('makes 31');
+  });
+
+  it('lets a second stored copy overwrite the first, as the firmware reader does', () => {
+    const layout: LegacyLayout<'a.x' | 'adup.x'> = {
+      model: 'Test', source: 'test', container: 'test', recordVersion: 1, dataBytes: 1,
+      fields: [
+        { key: 'a.x', name: 'a.x', id: 0, bit: 0, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 't' },
+        { key: 'adup.x', name: 'adup.x', id: 0, bit: 4, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 't', copyOf: 'a.x' },
+      ],
+    };
+    const data = new Uint8Array(1);
+    writeLegacyRecord(data, layout, { 'a.x': 3 });
+    expect(data[0]).toBe(0x33); // the writer repeats the container
+    writeBits(data, 4, 4, 5);
+    expect(readLegacyRecord(data, layout).values).toEqual({ 'a.x': 5, 'adup.x': 5 });
+    // An out-of-range first copy doesn't count: the second one is what loads.
+    writeBits(data, 0, 4, 15);
+    expect(readLegacyRecord(data, layout)).toEqual({ values: { 'a.x': 5, 'adup.x': 5 }, outOfRange: [] });
+  });
+
+  it('groups inline morph deltas under their parameter', () => {
+    expect(legacyMorphDeltas(TINY, { 's.level': 64, 's.delta': -3, 's.flag': 1 })).toEqual({ 's.level': [-3] });
   });
 
   it('reads only the used entries of a sparse morph list, with signed deltas', () => {

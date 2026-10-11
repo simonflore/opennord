@@ -55,6 +55,12 @@ describe('validation matrix', () => {
       }
     }
   });
+  it('file-read is re where a descriptor-layout reader reads the program record', () => {
+    for (const id of ['electro-3', 'electro-3-hp', 'c2d', 'wave'] as const) {
+      expect(statusFor(id, 'file-read').status, id).toBe('re');
+      expect(statusFor(id, 'file-read').note, id).toMatch(/firmware descriptor layout/);
+    }
+  });
   // CLead4Base::ConvertLocation @0x00000001000ddcf8 — slot display NSM-traced.
   // CLead4Base::CLead4Base @0x00000001000dd364 — 3-partition spec NSM-traced.
   // CLead4Base::Archive_OnPostUnZip @0x00000001000dda94 — backup flow NSM-traced (nl4b).

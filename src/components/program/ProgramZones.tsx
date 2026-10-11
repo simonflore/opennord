@@ -1,52 +1,78 @@
+import type { CSSProperties } from 'react';
 import type { NS4Program } from '../../lib/ns4/types';
 import { programZones } from '../../lib/ns4/view';
+import { BLACK_KEYS, BLACK_KEY_WIDTH, WHITE_KEYS, shortXfade, zoneLanes } from './zone-map';
 
-const KIND_ABBR: Record<string, string> = { organ: 'ORG', piano: 'PNO', synth: 'SY' };
+const KIND_ABBR: Record<string, string> = { organ: 'ORG', piano: 'PNO', synth: 'SYN' };
+const pct = (f: number) => `${(f * 100).toFixed(3)}%`;
 
 /**
- * Keyboard split map + performance routing — which layers play where (with the
- * split-point notes and crossfades between zones), transpose, and the program's
- * keyboard-performance flags (pitch stick, sustain, KB hold). Renders when there's
- * anything routing-related to show; a plain layered patch needs none of it.
+ * Keyboard split map + performance routing: one lane per layer, in its engine
+ * colour, over the stretch of the keyboard it plays, with the split points (and
+ * their crossfades) marked on a real keyboard. Then the program's performance
+ * switches — transpose, pitch stick, sustain, KB hold — as lit LED keys. Renders
+ * when there's anything routing-related to show; a plain layered patch needs none.
  */
 export function ProgramZones({ program, scene }: { program: NS4Program; scene?: 'I' | 'II' }) {
   const z = programZones(program, scene);
   const perf = z.performance;
   const hasPerf = !!perf.pitchStick || perf.sustain || perf.kbHold;
   if (!z.hasSplit && !z.transpose && !hasPerf) return null;
+  const { lanes, splits } = zoneLanes(z.zones, z.boundaries, z.xfade);
+  const describe = splits.length
+    ? `Keyboard split at ${splits.map((s) => s.note).join(' and ')}`
+    : 'Keyboard layers';
 
   return (
     <div className="ps-zones">
       <div className="ps-zones-hd">
         <span className="ps-zones-t">{z.hasSplit ? 'KEYBOARD SPLIT' : 'KEYBOARD'}</span>
-        {z.transpose && <span className="ps-zones-tr">transpose {z.transpose}</span>}
-        {perf.pitchStick && <span className="ps-perf-chip">pitch stick {perf.pitchStick}</span>}
-        {perf.sustain && <span className="ps-perf-chip">sustain</span>}
-        {perf.kbHold && <span className="ps-perf-chip">KB hold</span>}
+        {z.transpose && <span className="ps-key on">transpose {z.transpose}</span>}
+        {perf.pitchStick && (
+          <span className="ps-key on">pitch stick{perf.pitchStick === 'on' ? '' : ` ${perf.pitchStick}`}</span>
+        )}
+        {perf.sustain && <span className="ps-key on">sustain</span>}
+        {perf.kbHold && <span className="ps-key on">KB hold</span>}
       </div>
 
       {z.hasSplit && (
-        <div className="ps-zonebar">
-          {z.zones.map((zone, i) => (
-            <div className="ps-zone" key={i}>
-              <div className="ps-zone-cell">
-                {zone.layers.length === 0
-                  ? <span className="ps-zone-empty">—</span>
-                  : zone.layers.map((l) => (
-                      <span className={`ps-zone-chip ps-zone-${l.kind}`} key={`${l.kind}${l.id}`}>
-                        {KIND_ABBR[l.kind] ?? '?'}·{l.id}
-                      </span>
-                    ))}
+        <figure className="ps-zonebar ps-kmap" aria-label={describe}>
+          {lanes.map((l) => (
+            <div className="ps-kmap-row" key={`${l.kind}${l.id}`}>
+              <span className="ps-kmap-name">{KIND_ABBR[l.kind] ?? '?'} {l.id}</span>
+              <div className="ps-kmap-track">
+                {l.segments.map((s) => (
+                  <span
+                    key={s.from}
+                    className={`ps-kmap-seg ps-zone-${l.kind}`}
+                    style={{ left: pct(s.from), width: pct(s.to - s.from) }}
+                  />
+                ))}
               </div>
-              {i < 3 && (
-                <span className="ps-zone-split">
-                  {z.boundaries[i] ?? ''}
-                  {z.xfade[i] && <span className="ps-zone-xfade" title="crossfade">↔{z.xfade[i]}</span>}
-                </span>
-              )}
             </div>
           ))}
-        </div>
+          <div className="ps-kmap-row" aria-hidden="true">
+            <span className="ps-kmap-name" />
+            <div className="ps-kmap-keys" style={{ ['--whites' as string]: WHITE_KEYS } as CSSProperties}>
+              {BLACK_KEYS.map((x) => (
+                <span key={x} className="ps-kmap-black" style={{ left: pct(x), width: pct(BLACK_KEY_WIDTH) }} />
+              ))}
+            </div>
+          </div>
+          {splits.map((s, i) => (
+            <div
+              className="ps-kmap-split"
+              key={s.note}
+              // Alternate label lines so two close split points never overprint.
+              style={{ ['--x' as string]: s.x, ['--line' as string]: i % 2 } as CSSProperties}
+            >
+              <span>
+                {s.note}
+                {s.xfade && <span className="ps-zone-xfade" title="crossfade"> · xfade {shortXfade(s.xfade)}</span>}
+              </span>
+            </div>
+          ))}
+        </figure>
       )}
     </div>
   );
