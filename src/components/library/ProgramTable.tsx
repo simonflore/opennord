@@ -50,7 +50,9 @@ function EngineLeds({ summary }: { summary?: EngineSummary }) {
  */
 const ProgramFacts = memo(function ProgramFacts({ program }: { program?: NordProgram }) {
   const ns4 = program && isNs4Program(program) ? program : undefined;
-  const piano = ns4 && activeLayers(ns4).find((l) => l.kind === 'piano')?.pianoType;
+  // Stage 4 stacks up to two piano layers: both types, once each.
+  const pianos = ns4 && [...new Set(activeLayers(ns4).filter((l) => l.kind === 'piano').map((l) => l.pianoType).filter(Boolean))];
+  const piano = pianos && pianos.length ? pianos.join(' + ') : undefined;
   return (
     <>
       <span className={cn(WIDE, 'truncate')}>{piano ?? dash}</span>
@@ -62,8 +64,9 @@ const ProgramFacts = memo(function ProgramFacts({ program }: { program?: NordPro
 /**
  * The program list as a console table (B×A): a header naming each column, then
  * one dense row per program, on the shared LibraryRow (Enter/Space open, the
- * favourite star, remove for an imported program). J/K open the next or
- * previous program, skipping Nord slots that haven't been read yet.
+ * favourite star, remove for an imported program). The J/K keys that step
+ * through it are useStepKeys, on the program page (so they work with the
+ * table folded away on a narrow screen too).
  */
 export function ProgramTable({
   entries, activeId, favorites, onToggleFavorite, onOpen, onRemove,
@@ -75,7 +78,6 @@ export function ProgramTable({
   onOpen: (e: LibraryEntry) => void;
   onRemove: (id: string) => void;
 }) {
-  useStepKeys(entries, activeId, onOpen);
   return (
     <div className="@container">
       <div
@@ -104,7 +106,6 @@ export function ProgramTable({
           className={cn(COLS, 'min-h-10 font-mono text-[11px] text-dim')}
           selected={e.id === activeId}
           onOpen={() => onOpen(e)}
-          label={e.name}
         >
           <FavoriteStar name={e.name} favorite={favorites.has(e.id)} onToggle={() => onToggleFavorite(e.id)} />
           <span>
@@ -131,27 +132,31 @@ export function ProgramTable({
 }
 
 /**
- * J and K open the next and previous program in the list (from the open one, or
- * the first with none open). Left alone while typing, over a dialog, or with a
- * modifier held; Nord slots not read yet (no program) are stepped over, since
- * opening one leaves for the Device page. One listener for the table's
- * lifetime, reading the latest list through a ref.
+ * J and K open the next and previous program in the list, counted from the open
+ * one (from the top with none open). Nord slots not read yet (no program) are
+ * stepped over, since opening one leaves for the Device page. Left alone while
+ * typing or composing, over a dialog, with a modifier held, or on key repeat;
+ * a non-Latin layout uses the keys in J's and K's places. One listener for the
+ * page's lifetime, reading the latest list through a ref.
  */
-function useStepKeys(entries: LibraryEntry[], activeId: string | null | undefined, onOpen: (e: LibraryEntry) => void) {
+export function useStepKeys(entries: LibraryEntry[], activeId: string | null | undefined, onOpen: (e: LibraryEntry) => void) {
   const latest = useRef({ entries, activeId, onOpen });
   useEffect(() => { latest.current = { entries, activeId, onOpen }; });
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      const key = ev.key.toLowerCase();
-      if ((key !== 'j' && key !== 'k') || ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
+      if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey || ev.repeat || ev.isComposing) return;
+      const key = ev.key?.toLowerCase() ?? '';
+      const step = key === 'j' || (!/^[a-z]$/.test(key) && ev.code === 'KeyJ') ? 1
+        : key === 'k' || (!/^[a-z]$/.test(key) && ev.code === 'KeyK') ? -1 : 0;
+      if (!step) return;
       const t = ev.target;
       if ((t instanceof Element && t.closest('input, textarea, select, [contenteditable="true"]')) || anyDialogOpen()) return;
       const { entries, activeId, onOpen } = latest.current;
-      const readable = entries.filter((e) => e.program);
-      if (!readable.length) return;
-      const at = readable.findIndex((e) => e.id === activeId);
-      const next = at < 0 ? readable[0] : readable[key === 'j' ? Math.min(at + 1, readable.length - 1) : Math.max(at - 1, 0)];
-      if (next.id === activeId) return;
+      const at = entries.findIndex((e) => e.id === activeId);
+      let i = at < 0 ? (step > 0 ? -1 : entries.length) : at;
+      do i += step; while (i >= 0 && i < entries.length && !entries[i].program);
+      const next = entries[i];
+      if (!next) return;
       ev.preventDefault();
       onOpen(next);
     };

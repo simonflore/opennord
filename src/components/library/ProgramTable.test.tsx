@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render } from '@testing-library/react';
-import { ProgramTable } from './ProgramTable';
+import { cleanup, fireEvent, renderHook } from '@testing-library/react';
+import { useStepKeys } from './ProgramTable';
 import type { LibraryEntry } from '../../lib/library/types';
 
 afterEach(cleanup);
@@ -12,40 +12,55 @@ const entries: LibraryEntry[] = [
   { id: 'unread', name: 'Unread slot', source: 'nord', slot: 'A:2' }, // no program yet
   { id: 'b', name: 'Bravo', source: 'local', program },
 ];
-const renderTable = (activeId: string | null, onOpen = vi.fn()) => {
-  render(<ProgramTable entries={entries} activeId={activeId} favorites={new Set()} onToggleFavorite={() => {}} onOpen={onOpen} onRemove={() => {}} />);
+const keysFrom = (activeId: string | null) => {
+  const onOpen = vi.fn();
+  renderHook(() => useStepKeys(entries, activeId, onOpen));
   return onOpen;
 };
 
-describe('ProgramTable J/K', () => {
+describe('useStepKeys (J/K)', () => {
   it('J opens the first program when none is open', () => {
-    const onOpen = renderTable(null);
+    const onOpen = keysFrom(null);
     fireEvent.keyDown(window, { key: 'j' });
     expect(onOpen).toHaveBeenCalledWith(entries[0]);
   });
 
   it('steps over a Nord slot that has not been read', () => {
-    const onOpen = renderTable('a');
+    const onOpen = keysFrom('a');
     fireEvent.keyDown(window, { key: 'j' });
     expect(onOpen).toHaveBeenCalledWith(entries[2]);
   });
 
-  it('K goes back, and stays put at the top', () => {
-    const onOpen = renderTable('b');
-    fireEvent.keyDown(window, { key: 'k' });
-    expect(onOpen).toHaveBeenCalledWith(entries[0]);
+  it('steps from an open unread slot, not from the top', () => {
+    const down = keysFrom('unread');
+    fireEvent.keyDown(window, { key: 'j' });
+    expect(down).toHaveBeenCalledWith(entries[2]);
     cleanup();
-    const atTop = renderTable('a');
+    const up = keysFrom('unread');
     fireEvent.keyDown(window, { key: 'k' });
-    expect(atTop).not.toHaveBeenCalled();
+    expect(up).toHaveBeenCalledWith(entries[0]);
   });
 
-  it('leaves the keys alone while typing or with a modifier', () => {
-    const onOpen = renderTable(null);
+  it('K stays put at the top', () => {
+    const onOpen = keysFrom('a');
+    fireEvent.keyDown(window, { key: 'k' });
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('uses the key in J’s place on a non-Latin layout', () => {
+    const onOpen = keysFrom(null);
+    fireEvent.keyDown(window, { key: 'о', code: 'KeyJ' });
+    expect(onOpen).toHaveBeenCalledWith(entries[0]);
+  });
+
+  it('leaves the keys alone while typing, with a modifier, on repeat or without a key', () => {
+    const onOpen = keysFrom(null);
     const input = document.createElement('input');
     document.body.appendChild(input);
     fireEvent.keyDown(input, { key: 'j' });
     fireEvent.keyDown(window, { key: 'j', metaKey: true });
+    fireEvent.keyDown(window, { key: 'j', repeat: true });
+    fireEvent.keyDown(window, {});
     expect(onOpen).not.toHaveBeenCalled();
     input.remove();
   });

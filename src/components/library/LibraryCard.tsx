@@ -9,12 +9,10 @@ import { cn } from '@/lib/cn';
  * a11y details identical by construction (each category once hand-rolled its
  * own and they drifted); a row supplies only its layout (`className`) and cells.
  */
-export function LibraryRow({ className, selected, onOpen, label, children }: {
+export function LibraryRow({ className, selected, onOpen, children }: {
   className: string;
   selected?: boolean;
   onOpen: () => void;
-  /** The row's accessible name (its entry's name). */
-  label?: string;
   children: ReactNode;
 }) {
   return (
@@ -27,7 +25,6 @@ export function LibraryRow({ className, selected, onOpen, label, children }: {
       )}
       role="button"
       tabIndex={0}
-      aria-label={label}
       aria-current={selected ? 'true' : undefined}
       data-open-row={selected || undefined}
       onClick={onOpen}
