@@ -19,7 +19,7 @@ little else.
 | Problem | Effect |
 | --- | --- |
 | Electron 33 | Eleven majors behind (current: 44); no longer gets security fixes |
-| `target="_blank"` links (17 in the web app) open new app windows | nordkeyboards.com, the forum, GitHub and others load inside OpenNord instead of the browser. Child windows are believed to inherit the preload, which would expose the Nord USB bridge to them — to be confirmed in the first task |
+| `target="_blank"` links (17 in the web app) open new app windows | nordkeyboards.com, the forum, GitHub and others load inside OpenNord instead of the browser. Checked on the Electron 33 build: the site does open in a second app window, but that window does **not** get the Nord USB bridge |
 | No navigation limits, no permission handler | The window can be navigated anywhere; any permission request is granted by default |
 | No sandbox on the renderer | More reach than a page that only draws UI needs |
 | The USB IPC answers any sender | Any frame or window in the app can drive the Nord |
@@ -63,11 +63,11 @@ only for the app's own origin:
 
 | Permission | Why the app needs it |
 | --- | --- |
-| `midi` | Live MIDI keyboard input for the rompler (Web MIDI, without sysex) |
+| `midi`, `midiSysex` | Live MIDI keyboard input for the rompler. The app asks for MIDI without sysex, but Chromium 152 reports even that request as `midiSysex`, so refusing it refuses all MIDI |
 | `clipboard-sanitized-write` | Copy buttons |
 | `fileSystem` | The folder picker and save dialog behind the local Library |
 
-`midiSysex`, camera, microphone, geolocation, notifications, `usb`/`hid`/`serial`
+Camera, microphone, geolocation, notifications, `usb`/`hid`/`serial`
 (the Nord goes through the native bridge, not WebUSB) and everything else are
 refused. The exact Electron permission names are confirmed against Electron 44's
 types during implementation; if the app needs one this list misses, it is added
