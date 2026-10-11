@@ -111,4 +111,11 @@ describe('parameter counts of the legacy-record readers', () => {
     expect(decodeForModel('lead-4').paramCount).toBe(86);
     expect(decodeForModel('lead-a1').paramCount).toBe(52);
   });
+
+  it('count the Electro 3 presets and per-instrument effect switches once; the HP adds five', () => {
+    // common 1 · organ common 6 · preset 37 · piano 18 · shared effects 15 · switches 5
+    expect(decodeForModel('electro-3').paramCount).toBe(82);
+    expect(decodeForModel('electro-3-hp').paramCount).toBe(87);
+    expect(decodeForModel('electro-3')).toMatchObject({ bodyBytes: 108, coveredBytes: 0 });
+  });
 });

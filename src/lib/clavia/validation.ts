@@ -99,7 +99,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
   //    notes cite the model's own FileTransfer version and partition order; the
   //    connect probe still confirms Program on the device before any write.
   'electro-3': {
-    'file-read': { status: 'inferred', note: "OG gen, tag nepg; sibling of stage-2 (re), no E3 file RE'd" },
+    'file-read': { status: 're', note: "nepg legacy formatType-0 record read through the OS 3.14 firmware descriptor layout (lib/ne3): u16 record version 101 at file 0x18 (100 upgraded on load), 108 data bytes from 0x1A (136-byte file); organ model + Preset I/II drawbars and tabs, piano type and model, effect switches. Alignment medium — no real E3 file checked yet" },
     enumerate: { status: 're', note: "FileTransfer v4 in the OS 3.14 firmware (frames 3..4, no session lock); 8 partitions, Program at 4 (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v4 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v4 (firmware); WRITE — untested-write risk" },
@@ -108,7 +108,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 're', note: "sampleCodec 'og': firmware loads .nsmp with NWS v8/v11 only (codec 1/2); not HW-tested on E3" },
   },
   'electro-3-hp': {
-    'file-read': { status: 'inferred', note: "OG gen, tag nepg (same as E3); sibling of stage-2 (re), no HP file RE'd" },
+    'file-read': { status: 're', note: "nepg (same tag, version and size as the E3) read through the OS 3.16 firmware descriptor layout (lib/ne3): the E3 record plus 5 parameters in its reserved space, which also tell an HP file apart when non-zero. Alignment medium — no real HP file checked yet" },
     enumerate: { status: 're', note: "FileTransfer v4 in the OS 3.16 firmware (frames 3..4, no session lock); 8 partitions, Program at 4 (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v4 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v4 (firmware); WRITE — untested-write risk" },

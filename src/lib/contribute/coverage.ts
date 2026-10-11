@@ -26,6 +26,8 @@ import type { LegacyLayout } from '../clavia/legacy-record';
 import { NL4_LAYOUT } from '../nl4/layout.generated';
 import { NLA_LAYOUT } from '../nla/layout.generated';
 import { NE4_LAYOUT } from '../ne4/layout.generated';
+import { NE3_LAYOUT } from '../ne3/layout.generated';
+import { NE3HP_LAYOUT } from '../ne3/layout-hp.generated';
 
 /** The single canonical Stage 4 param map (ns4decode port + corpus-RE'd extras). */
 const NS4_PARAMS = buildParamMap();
@@ -68,6 +70,8 @@ const DECODER_BY_ID: Record<string, 'full' | 'partial'> = {
   'organ-3': 'partial',
   'wave-2': 'partial',
   // Legacy-record readers (clavia/legacy-record.ts), read-only.
+  'electro-3': 'partial',
+  'electro-3-hp': 'partial',
   'electro-4': 'partial',
   'lead-4': 'partial',
   'lead-a1': 'partial',
@@ -184,12 +188,14 @@ const FW_LAYOUTS: Record<string, { layout: FwLayout; status: 'confirmed' | 'cand
 };
 const _fwProgress: Record<string, ModelProgress> = {};
 
-// ── Legacy-record models: byte map of the record data (file 0x1A on) ─────────
+// ── Legacy-record models: byte map of the record data (after the record version) ─
 // Lead 4 (high) → 'confirmed'. Electro 4 (its layout is medium confidence, although it
-// reproduces the corpus drawbar/sample anchors) and Lead A1 (alignment unchecked
-// against real files) → 'candidate'.
+// reproduces the corpus drawbar/sample anchors), Lead A1 and Electro 3 / 3 HP
+// (alignment unchecked against real files) → 'candidate'.
 // Lead 4 maps its program record (a performance is 7 common bytes + 4 of them).
 const LEGACY_LAYOUTS: Record<string, { layout: LegacyLayout; status: 'confirmed' | 'candidate' }> = {
+  'electro-3': { layout: NE3_LAYOUT, status: 'candidate' },
+  'electro-3-hp': { layout: NE3HP_LAYOUT, status: 'candidate' },
   'electro-4': { layout: NE4_LAYOUT, status: 'candidate' },
   'lead-4': { layout: NL4_LAYOUT, status: 'confirmed' },
   'lead-a1': { layout: NLA_LAYOUT, status: 'candidate' },
@@ -226,15 +232,15 @@ function layoutProgress(layout: FwLayout, status: 'confirmed' | 'candidate'): Mo
   return { bodyBytes: layout.bodyBytes, controls: [], regions: kindsToRegions(kind, status) };
 }
 
-/** Byte regions from a legacy record layout, labelled by parameter set (the key prefix). */
+/** Byte regions from a legacy record layout (padding included), labelled by parameter set (the key prefix). */
 function legacyLayoutProgress(layout: LegacyLayout, status: 'confirmed' | 'candidate'): ModelProgress {
-  const kind: string[] = new Array<string>(layout.dataBytes).fill('Reserved');
+  const kind: string[] = new Array<string>(layout.dataBytes + (layout.padBytes ?? 0)).fill('Reserved');
   for (const f of layout.fields) mark(kind, f.bit, f.width, `field:${f.key.split('.')[0]}`);
   for (const m of layout.morphLists ?? []) {
     mark(kind, m.countBit, m.countWidth, `field:${m.set} morph list`);
     mark(kind, m.entryBit, m.maxEntries * (m.paramBits + m.sourceBits + m.deltaBits), `field:${m.set} morph list`);
   }
-  return { bodyBytes: layout.dataBytes, controls: [], regions: kindsToRegions(kind, status) };
+  return { bodyBytes: kind.length, controls: [], regions: kindsToRegions(kind, status) };
 }
 
 let _ns3Progress: ModelProgress | undefined;
@@ -304,15 +310,19 @@ export function summarizeProgress(
  * Parameters a firmware layout reads, counted like the Stage 4's {@link NS4_PARAM_COUNT}:
  * each firmware parameter once, however many layers, slots or sections repeat it
  * (Wave 2 stores its parameters once per slot, Grand 2 per layer). Sub-fields (the
- * Electro 7's `<knob>.pedalAssign` / `.wheelAssign` flags) belong to their knob, and
- * a Lead A1 inline morph delta to the parameter it modulates.
+ * Electro 7's `<knob>.pedalAssign` / `.wheelAssign` flags) belong to their knob, an
+ * inline morph delta (Lead A1, Wave) to the parameter it modulates, and a second
+ * stored copy (the C2D's repeated containers) to its first copy.
  */
 function distinctParams(layout: FwLayout | LegacyLayout): number {
-  const params = layout.fields.filter((f) => f.key.split('.').length === 2 && !('deltaOf' in f && f.deltaOf));
-  // Legacy records name fields by descriptor; a set stored twice (the Electro 4's
-  // Preset I/II, blockX1/X2) shares its descriptor ids.
-  const ident = (f: (typeof params)[number]) =>
-    'id' in f ? `${f.key.split('.')[0].replace(/(II?|\d)$/, '')}#${f.id}` : f.name;
+  const params = layout.fields.filter((f) =>
+    f.key.split('.').length === 2 && !('deltaOf' in f && f.deltaOf) && !('copyOf' in f && f.copyOf));
+  // Legacy records name fields by descriptor; a set stored more than once (the
+  // Electro 4's Preset I/II and blockX1/X2, or the sets a layout names in `sets`:
+  // the Electro 3's presets, the C2D's manuals, the Wave's slots) shares its descriptor ids.
+  const sets = 'sets' in layout ? layout.sets : undefined;
+  const setOf = (prefix: string) => sets?.[prefix] ?? prefix.replace(/(II?|\d)$/, '');
+  const ident = (f: (typeof params)[number]) => ('id' in f ? `${setOf(f.key.split('.')[0])}#${f.id}` : f.name);
   return new Set(params.map(ident)).size;
 }
 
