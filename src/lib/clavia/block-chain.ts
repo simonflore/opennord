@@ -124,6 +124,15 @@ export function fieldValue(raw: number, field: Pick<FwField, 'enc' | 'width' | '
   }
 }
 
+/** The raw bits a field stores for `value` (inverse of {@link fieldValue}; no range check). */
+export function fieldRaw(value: number, field: Pick<FwField, 'enc' | 'width' | 'min'>): number {
+  switch (field.enc) {
+    case 'offset': return value - field.min;
+    case 'twos': return value < 0 ? value + 2 ** field.width : value;
+    default: return value >>> 0;
+  }
+}
+
 export interface FwBodyDecode<K extends string> {
   /** True when the chain walked to EOF with the layout's block count, so fields were read. */
   layoutMatched: boolean;

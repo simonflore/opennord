@@ -44,11 +44,12 @@ export interface NlaProgram {
   readonly outOfRange: readonly NlaFieldKey[];
   /**
    * File trailer checksum (last two bytes, little-endian): CRC-16/CCITT-FALSE
-   * over the whole file except those bytes. Confirmed 50/51 corpus files
-   * 2026-07-04 (the miss is a 141-byte oddball with a zeroed trailer).
+   * over the whole file except those bytes. Confirmed on every legacy-header
+   * corpus file 2026-07-04. An NSM-era file (141 bytes) has no trailer — its
+   * CRC-32 sits in the header (clavia/checksum.ts) — so this is meaningless there.
    */
   readonly checksum: number;
-  /** Record data (file 0x1A up to the CRC trailer). */
+  /** Record data (file 0x1A up to the CRC trailer; 0x2E to EOF behind an NSM-era header). */
   readonly _data: Uint8Array;
   readonly warnings: readonly string[];
   bytes: Uint8Array;
