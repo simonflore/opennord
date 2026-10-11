@@ -1,4 +1,6 @@
-import type { useNavigate } from '@tanstack/react-router';
+import { useMemo } from 'react';
+import { useNavigate, useRouter } from '@tanstack/react-router';
+import { isUnder } from '../../lib/library/categories';
 import type { LibraryEntry } from '../../lib/library/types';
 import type { NavTo } from '../shell/nav';
 
@@ -8,28 +10,39 @@ type Navigate = ReturnType<typeof useNavigate>;
 // components against its own router.
 declare module '@tanstack/react-router' {
   interface HistoryState {
-    /** Opened from its list's row, so the narrow back button can step back to it (see useBackToList). */
+    /** Opened from its list, so the narrow back button can step back to it (see useBackToList). */
     fromList?: boolean;
   }
 }
 
 /**
- * Open a library program: its own page when it has been read, otherwise the
- * Device page (a Nord slot that hasn't been pulled yet). `fromList` when opened
- * from the list's row, so going back steps back to it (useBackToList).
+ * Open library entries on their routes. The lists' rows and the ⌘K palette
+ * share these. How depends on where the app is: from the entry's list, push
+ * and remember that (Back then steps back to the list, see useBackToList); from
+ * another entry of the same list, replace it, so history holds one entry per
+ * visit and Back still knows where it came from; from anywhere else, push.
+ * A program that hasn't been read (a Nord slot) opens the Device page instead.
  */
-export function openProgram(navigate: Navigate, e: LibraryEntry, fromList = false) {
-  if (e.program) navigate({ to: '/library/programs/{-$programId}', params: { programId: e.id }, state: { fromList } });
-  else navigate({ to: '/device' });
+export function useOpenEntry() {
+  const navigate = useNavigate();
+  const router = useRouter();
+  return useMemo(() => {
+    const how = (list: string) => {
+      const { pathname, state } = router.state.location;
+      if (pathname === list) return { replace: false, state: { fromList: true } };
+      if (isUnder(pathname, list)) return { replace: true, state: { fromList: !!state.fromList } };
+      return { replace: false, state: { fromList: false } };
+    };
+    return {
+      program: (e: LibraryEntry) => (e.program
+        ? navigate({ to: '/library/programs/{-$programId}', params: { programId: e.id }, ...how('/library/programs') })
+        : navigate({ to: '/device' })),
+      preset: (id: string) => navigate({ to: '/library/presets/{-$presetId}', params: { presetId: id }, ...how('/library/presets') }),
+      sample: (id: string) => navigate({ to: '/library/samples/{-$sampleId}', params: { sampleId: id }, ...how('/library/samples') }),
+      piano: (id: string) => navigate({ to: '/library/pianos/{-$pianoId}', params: { pianoId: id }, ...how('/library/pianos') }),
+    };
+  }, [navigate, router]);
 }
-
-/** Open a preset, sample or piano on its list's route. The lists and the ⌘K palette share these. */
-export const openPreset = (navigate: Navigate, id: string, fromList = false) =>
-  navigate({ to: '/library/presets/{-$presetId}', params: { presetId: id }, state: { fromList } });
-export const openSample = (navigate: Navigate, id: string, fromList = false) =>
-  navigate({ to: '/library/samples/{-$sampleId}', params: { sampleId: id }, state: { fromList } });
-export const openPiano = (navigate: Navigate, id: string, fromList = false) =>
-  navigate({ to: '/library/pianos/{-$pianoId}', params: { pianoId: id }, state: { fromList } });
 
 /**
  * After removing entries: back to the bare `list` if the open one was among

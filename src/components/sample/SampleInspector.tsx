@@ -45,7 +45,7 @@ interface Loaded {
 }
 
 /** What the inspector shows; `id` is the list entry it came from (none for a previewed file). */
-export interface InspectorInput { id?: string; bytes: Uint8Array; name: string; factory?: boolean; }
+export interface InspectorInput { id?: string; bytes: Uint8Array; name: string; }
 
 /**
  * Audition the sample mapped to zone `index`. A zone references its stroke by
@@ -61,7 +61,7 @@ function playZone(loaded: Loaded, index: number): void {
 
 export function SampleInspector({ initial, factory }: {
   initial?: InspectorInput;
-  /** Whether it's Nord factory content, when known now; overrides the flag read at load. */
+  /** Whether `initial` is Nord factory content (never a file dropped or picked here). */
   factory?: boolean;
 } = {}) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -206,7 +206,7 @@ export function SampleInspector({ initial, factory }: {
                 legacy={loaded.file.legacy}
                 rootSplitOnly={rootSplitOnly}
                 // Factory content drives the editor's "edit it for your own use" disclaimer.
-                factory={loaded.fromInitial && (factory ?? !!initial?.factory)}
+                factory={loaded.fromInitial && !!factory}
                 unison={sampleUnisonView(loaded.bytes)?.summary ?? null}
                 onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
                 onNoteOn={(midi) => { loaded.sampler?.noteOn(midi, 100); transport.refresh(); }}

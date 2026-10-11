@@ -10,6 +10,8 @@ import {
 } from '@/lib/library/sample-entries';
 import type { LibrarySource } from '@/lib/library/types';
 import { enumerateSampleLibrary, pullSample } from '@/lib/device/samples';
+import type { NordSession } from '@/lib/device/session';
+import type { ProgramEntry } from '@/lib/device/transfer';
 import { findUnusedSamples, normalizeSampleName, type SampleUsage } from '@/lib/device/dependencies';
 import { useBackupOrigins } from './useBackupOrigins';
 import { planOffload } from '@/lib/device/offload';
@@ -31,6 +33,7 @@ function sessionNo(session: object): number {
   return n;
 }
 const nordReadPrefix = (session: object) => `nord@${sessionNo(session)}:`;
+const NO_DEVICE_SAMPLES: ProgramEntry[] = [];
 
 // pure helper, exported for tests
 export function selectedBytes(entries: SampleEntry[], selected: Set<string>): number {
@@ -82,24 +85,29 @@ function useSamplesStateValue() {
   // Lazily enumerate the user Sample Library when a device is connected. Cheap
   // (names/slots only); absent partitions reject and are ignored. No byte pull
   // here — the pull happens on tap, in SamplesSplit.
+  // The device list counts only once read from this session: right after a
+  // reconnect it still holds the last Nord's samples, whose slots this one may
+  // fill differently.
+  const [listedOn, setListedOn] = useState<NordSession | null>(null);
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
     enumerateSampleLibrary(session)
-      .then((es) => { if (!cancelled) setSampleEntries(es); })
+      .then((es) => { if (!cancelled) { setSampleEntries(es); setListedOn(session); } })
       .catch(() => { /* sample partition absent/unsupported — leave empty */ });
     return () => { cancelled = true; };
   }, [session, setSampleEntries]);
+  const deviceSamples = session && listedOn === session ? sampleEntries : NO_DEVICE_SAMPLES;
 
   // Tag device samples the scan found unused (match by normalized name).
   const unusedNames = useMemo(() => (usage ? new Set(usage.unused.map((s) => normalizeSampleName(s.name))) : null), [usage]);
   const allEntries: SampleEntry[] = useMemo(() => [
-    ...nordSampleEntriesFromDevice(sampleEntries).map((e) =>
+    ...nordSampleEntriesFromDevice(deviceSamples).map((e) =>
       unusedNames ? { ...e, unused: unusedNames.has(normalizeSampleName(e.name)) } : e),
     ...sampleEntriesFromScanned(folder.result.samples),
     ...sampleEntriesFromBackupRefs(folder.result.backupSamples).map((e) => ({ ...e, factory: origins.get(e.id) })),
     ...imported.entries,
-  ], [sampleEntries, unusedNames, folder.result.samples, folder.result.backupSamples, origins, imported.entries]);
+  ], [deviceSamples, unusedNames, folder.result.samples, folder.result.backupSamples, origins, imported.entries]);
   const nordCount = allEntries.filter((e) => e.source === 'nord').length;
   const localCount = allEntries.length - nordCount;
   const storedCount = imported.entries.length;
@@ -168,18 +176,19 @@ function useSamplesStateValue() {
   type Read = { bytes: Promise<Uint8Array>; progress: (pct: number) => void; users: number };
   const reads = useRef(new Map<string, Read>());
   /**
-   * Which read a sample's bytes come from: its id, and for a Nord sample also
-   * the session and what the slot holds (its id names a slot, which may hold
+   * Which read a sample's bytes come from: its id and size, and for a Nord
+   * sample also the session and what the slot holds (its id names a slot, which may hold
    * another sample after a reconnect or once the list is read again), so a read
    * is never reused for different bytes.
    */
   const readKey = useCallback(
     (e: SampleEntry) => (e.source === 'nord' && session
       ? `${nordReadPrefix(session)}${e.id}:${e.name}:${e.device?.sizeBytes ?? ''}`
-      : e.id),
+      : `${e.id}:${e.size ?? ''}`), // a file changed in place (a refresh) reads again
     [session],
   );
-  // A new session (or none) lets go of the last one's reads, and with them its session.
+  // A new session (or none) forgets the last one's reads, so none is joined; a
+  // pull still running there finishes or fails on its own.
   useEffect(() => {
     const live = session ? nordReadPrefix(session) : null;
     for (const key of [...reads.current.keys()]) {

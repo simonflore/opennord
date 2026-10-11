@@ -57,6 +57,31 @@ describe('useFolderLibrary gate', () => {
     expect(result.current.pickerOpen).toBe(false);
   });
 
+  it('a refresh keeps the last scan shown until the new loose pass is in', async () => {
+    vi.mocked(access.pickFolder).mockResolvedValueOnce({ name: 'F', handle: {} as FileSystemDirectoryHandle, source: [] as File[] } as never);
+    let finish = () => {};
+    let scans = 0;
+    const scanner: Scanner = {
+      async scanLoose(_source, onBatch) {
+        const id = scans++ === 0 ? 'folder:old.ns4p' : 'folder:new.ns4p';
+        onBatch({ programs: [prog(id)], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
+        if (id === 'folder:new.ns4p') await new Promise<void>((res) => { finish = res; });
+        return [];
+      },
+      async expandBundles() {},
+    };
+    const { result } = renderHook(() => useFolderLibrary(() => scanner));
+    await act(async () => { await result.current.choose(); });
+    const ids = () => result.current.result.programs.map((p) => p.id);
+    expect(ids()).toEqual(['folder:old.ns4p']);
+    let refreshed!: Promise<void>;
+    act(() => { refreshed = result.current.refresh(); });
+    await waitFor(() => expect(scans).toBe(2));
+    expect(ids()).toEqual(['folder:old.ns4p']); // still the last scan, not empty
+    await act(async () => { finish(); await refreshed; });
+    expect(ids()).toEqual(['folder:new.ns4p']);
+  });
+
   it('opens the picker (does not auto-expand) when >=2 new bundles are found', async () => {
     const scanner = fakeScanner([{ path: 'A.ns4b', size: 1 }, { path: 'B.ns4b', size: 2 }]);
     const { result } = renderHook(() => useFolderLibrary(() => scanner));
