@@ -149,12 +149,12 @@ function record(values: Values = {}): Uint8Array {
   writeLegacyRecord(data, NS2_LAYOUT, values);
   return data;
 }
-/** An NSM-era file: 0x2C-byte header, u16 BE record version, data, 2-byte trailer. */
+/** An NSM-era file: 0x2C-byte header (record version at 0x14 too), u16 BE record version, data; no trailer. */
 function nsmFile(values: Values = {}, version = 7): Uint8Array {
-  const body = new Uint8Array(2 + NS2_LAYOUT.dataBytes + 2);
+  const body = new Uint8Array(2 + NS2_LAYOUT.dataBytes);
   body[0] = version >> 8; body[1] = version & 0xff;
   body.set(record(values), 2);
-  return synthFwFile('ns2p', body);
+  return synthFwFile('ns2p', body, version);
 }
 /** A legacy (formatType 0) file: data at 0x1A, record version at 0x14. */
 const legacyFile = (values: Values = {}, version = 7) => synthLegacyFile('ns2p', version, record(values));
@@ -172,8 +172,11 @@ describe('NS2 firmware layout', () => {
       expect(b, a.key).toMatchObject({ bit: a.bit + 249 * 8, width: a.width, min: a.min, max: a.max, def: a.def });
     }
     expect(NS2_LAYOUT.fields.filter((f) => f.key.startsWith('slotB_'))).toHaveLength(slotA.length);
-    // 0x2E + 519 + 2 = the 547 + 20 bytes of an NSM-era file; 0x1A + 519 + 2 = 547 legacy.
+    // The real file sizes: NSM-era 0x2E + 519 = 565 (no trailer), legacy 0x1A + 519 + 2 = 547.
+    expect(NS2_NSM_DATA_OFFSET + NS2_LAYOUT.dataBytes).toBe(565);
     expect(LEGACY_DATA_OFFSET + NS2_LAYOUT.dataBytes + 2).toBe(547);
+    expect(nsmFile()).toHaveLength(565);
+    expect(legacyFile()).toHaveLength(547);
   });
 
   it('stores parameters raw, morph deltas one bit wider in two\'s complement just before them, without overlaps', () => {
@@ -293,7 +296,8 @@ describe('decodeNs2 (synthetic, firmware layout)', () => {
   });
 
   it('flags a short file and an older or newer record version, and never throws', () => {
-    expect(decodeNs2(nsmFile().slice(0, 0x2e + 100)).warnings[0]).toMatch(/shorter than a Stage 2 program/);
+    expect(decodeNs2(nsmFile().slice(0, 0x2e + 100)).warnings[0]).toMatch(/shorter than a Stage 2 program.*expected 565/);
+    expect(decodeNs2(legacyFile().slice(0, 546)).warnings[0]).toMatch(/expected 547/);
     expect(decodeNs2(legacyFile({}, 5)).warnings[0]).toMatch(/older Stage 2 OS/);
     expect(decodeNs2(nsmFile({}, 8)).warnings[0]).toMatch(/newer Stage 2 format/);
     expect(() => decodeNs2(new Uint8Array(3))).not.toThrow();
@@ -369,12 +373,21 @@ function ns2Files(): string[] {
   return out;
 }
 
+// ns3-program-viewer's public test corpus (489 .ns2p, kept local) passed all of
+// these when the reader was written: 488 NSM-era 565-byte files at version 7 and
+// one legacy 547-byte file at version 6, no value out of range, the same slot
+// values as the earlier decoder except the slot B detune fix, and morph deltas
+// that land on every target the file names assert.
 describe.skipIf(ns2Files().length === 0)('decodeNs2 (fixtures)', () => {
-  it('every real program holds the whole 519-byte record at its header\'s data offset', () => {
+  it('every real program is one whole record behind its header, with every value in range', () => {
     for (const path of ns2Files()) {
-      const p = decodeNs2(new Uint8Array(readFileSync(path)));
+      const bytes = new Uint8Array(readFileSync(path));
+      const p = decodeNs2(bytes);
+      expect(bytes.length, path).toBe(p.dataOffset === NS2_NSM_DATA_OFFSET ? 565 : 547);
       expect(p.warnings.filter((w) => /shorter/.test(w)), path).toEqual([]);
+      expect(p.outOfRange, path).toEqual([]);
       expect(p.slots.length, path).toBeGreaterThan(0);
+      expect(p.recordVersion, path).toBeGreaterThan(0);
       expect(p.recordVersion, path).toBeLessThanOrEqual(7);
     }
   });

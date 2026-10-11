@@ -14,11 +14,14 @@
  * shared legacy-record reader (clavia/legacy-record.ts) reads them all into
  * `values`, the inline morph deltas included.
  *
- * Where the data starts: file 0x2E behind the NSM-era header (formatType 1;
- * the record version is the u16 at 0x2C), file 0x1A behind the 20-byte
- * shorter legacy header (formatType 0; the CBIN version field at 0x14 holds
- * the record version) — high. Version 7 is current; the Nord converts 1-6 up
- * to 7 in place when it loads them (same size), which isn't applied here.
+ * Framing (high; every file of ns3-program-viewer's test corpus agrees):
+ * behind the NSM-era header (formatType 1) the record version is the BE u16
+ * at 0x2C, the data runs from 0x2E to the end of the file (565 bytes); behind
+ * the 20-byte shorter legacy header (formatType 0) the version is at 0x18 and
+ * the data at 0x1A, followed by the 2-byte trailer (547 bytes). Both headers
+ * also carry the record version in the CBIN version field (0x14, LE), which
+ * is what's read here. Version 7 is current; the Nord converts 1-6 up to 7 in
+ * place when it loads them (same size), which isn't applied here.
  *
  * Morphs: every morphable parameter is preceded by one delta per morph source
  * (Wheel, After Touch, Ctrl Pedal), one bit wider than the parameter, two's
@@ -1208,14 +1211,15 @@ export function decodeNs2(bytes: Uint8Array): Ns2File {
   // Header type byte 0x04: 1 = NSM-era header (data at 0x2E), else legacy (data at 0x1A).
   const nsm = (bytes[0x04] ?? 0) === 1;
   const dataOffset = nsm ? NS2_NSM_DATA_OFFSET : LEGACY_DATA_OFFSET;
-  const recordVersion = nsm
-    ? ((bytes[0x2c] ?? 0) << 8) | (bytes[0x2d] ?? 0)
-    : legacyRecordVersion(bytes);
-  const data = legacyData(bytes, dataOffset);
+  // An NSM-era file ends with the record (565 bytes); a legacy one adds the 2-byte trailer (547).
+  const trailerBytes = nsm ? 0 : 2;
+  // The u16 record version also sits in the CBIN version field (0x14, LE) on both headers.
+  const recordVersion = legacyRecordVersion(bytes);
+  const data = legacyData(bytes, dataOffset, trailerBytes);
   if (data.length < NS2_LAYOUT.dataBytes) {
     warnings.push(
       `This file is shorter than a Stage 2 program (${bytes.length} bytes, expected ` +
-      `${dataOffset + NS2_LAYOUT.dataBytes + 2}); settings past the end show as 0.`,
+      `${dataOffset + NS2_LAYOUT.dataBytes + trailerBytes}); settings past the end show as 0.`,
     );
   }
   if (recordVersion > LAYOUT_VERSION) {
