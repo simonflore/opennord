@@ -1,13 +1,15 @@
 # File checksums — SOLVED
 
-Every Clavia CBIN file carries one checksum, and which one depends only on the
-header type in byte `0x04`. Change any parameter (or, on a legacy file, any header
+Every Clavia CBIN file checked so far carries one checksum, and which one depends
+only on the header type in byte `0x04`. Change any parameter (or, on a legacy file, any header
 byte) and it goes stale; the Nord and Nord Sound Manager reject the file. Both are
 implemented in [`src/lib/clavia/checksum.ts`](../src/lib/clavia/checksum.ts) and
 [`src/lib/clavia/crc16.ts`](../src/lib/clavia/crc16.ts); `sealFileChecksum` /
 `verifyFileChecksum` pick the right one. Every writer reseals with them: the Stage 4
 writer (`ns4/writer.ts`) and the in-place program writers for the firmware-layout
-formats (`clavia/layout-write.ts`, by model in `lib/program-write.ts`).
+formats (`clavia/layout-write.ts`, by model in `lib/program-write.ts`). Those reseal
+only a file whose checksum already holds, so a model whose trailer is not yet
+confirmed (below) is never given a checksum it might not use.
 
 ## NSM-era files (byte `0x04` = 1): CRC-32
 
@@ -45,6 +47,10 @@ stored as a little-endian u16 in the last 2 bytes
 - The same CRC-16 frames the USB transport (`device/protocol.ts`). The instrument
   firmware computes it MSB-first with polynomial 0x1021 from a table it builds at
   runtime (seen in the Electro 3 OS: no constant CRC table in the image).
+- Confirmed on real Stage 2 / 3, Lead 4 / A1 and Wave files. Not yet checked on
+  real Electro 3 / 4 / 5, C2 / C2D or Piano 2 / 3 files — and an early corpus
+  reading of `.ne4p` files did not match it over `bytes[0:len-2]` — so for those
+  models it is a strong guess, not a fact.
 
 ## Evidence
 

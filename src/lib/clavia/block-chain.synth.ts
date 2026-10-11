@@ -36,13 +36,18 @@ export function synthFwBody<K extends string>(
   return body;
 }
 
-/** A whole file: the NSM-era CBIN header for `tag` followed by `body`. */
-export function synthFwFile(tag: string, body: Uint8Array, versionRaw = 100): Uint8Array {
-  const header = buildCbinHeader({ formatType: 1, tag, bank: 0, location: 0, category: 0, versionRaw });
-  const out = new Uint8Array(header.length + body.length);
-  out.set(header);
-  out.set(body, header.length);
-  return out;
+/**
+ * A whole file: the NSM-era CBIN header for `tag` followed by `body` (checksum
+ * not sealed); with `legacyHeader`, the 24-byte legacy header, `body` from 0x18
+ * and a sealed CRC-16 trailer.
+ */
+export function synthFwFile(tag: string, body: Uint8Array, versionRaw = 100, opts: { legacyHeader?: boolean } = {}): Uint8Array {
+  const header = buildCbinHeader({ formatType: opts.legacyHeader ? 0 : 1, tag, bank: 0, location: 0, category: 0, versionRaw });
+  const start = opts.legacyHeader ? LEGACY_RECORD_OFFSET : NSM_RECORD_OFFSET;
+  const out = new Uint8Array(start + body.length + (opts.legacyHeader ? 2 : 0));
+  out.set(header.subarray(0, start));
+  out.set(body, start);
+  return opts.legacyHeader ? sealTrailerChecksum(out) : out;
 }
 
 /** Write `layout`'s fields at their descriptor defaults, overridden by `values`, into a legacy record at data byte `byteOffset`. */
