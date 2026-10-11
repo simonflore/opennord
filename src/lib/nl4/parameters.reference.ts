@@ -1,22 +1,29 @@
 /**
  * Nord Lead 4 / 4R parameter reference — the complete MIDI-CC parameter
- * inventory transcribed from the official manual. This is an ORACLE for
- * reverse-engineering the bit-packed `.nl4s`/`.nl4p` body, NOT a decode map:
- * it lists every parameter that must be present, its CC number, and its value
- * range or ordered enumeration. It is not yet aligned to body bit-offsets (the
- * body is a 7-bit-packed bitstream, so a parameter's byte value is not its raw
- * enum index — differential RE still has to place each field).
+ * inventory transcribed from the official manual. It is the NAMING oracle for
+ * the `.nl4s`/`.nl4p` record, NOT a decode map: it lists every parameter, its CC
+ * number, and its value range or ordered enumeration. Bit offsets come from the
+ * firmware descriptors (`layout.generated.ts`), whose CCs tie each stored field
+ * to an entry here.
  *
- * How to use it: when a differential pass isolates a field, match its
- * cardinality/range and behaviour against this list to name it, and cite the
- * manual page. Enum orders are printed exactly as the manual lists them, so the
- * index → label mapping is authoritative once the field's offset is found.
+ * Enum orders are printed exactly as the manual lists them, so the index →
+ * label mapping is authoritative where the descriptor's cardinality agrees.
  *
  * Source: Nord Lead 4 English User Manual v1.3x, Edition H — MIDI Controller
  * list (p.48) for CC numbers + value convention; panel-reference sections
  * (pp.25, 27-33) for the enum orderings. Fetched from nordkeyboards.com.
  * Value convention: on/off = 0/127; stepped selectors start at 0 and increment
  * evenly across the knob range.
+ *
+ * Firmware cross-check (Lead 4 OS 1.32 parameter descriptors, see
+ * `layout.generated.ts`): the stored fields are now placed by the firmware, and
+ * this list names them by CC (83 of the 92 CCs are stored; the 9 missing are
+ * performance controllers — Bank Select, Mod Wheel, Volume/Ctrl/Sustain pedals,
+ * Impulse Morph buttons — plus Pan and Noise KBT). Descriptor max+1 agrees with
+ * the manual for Osc 1 waveform, filter type, LFO 2 / mod-env destinations, FX
+ * type, clock divisions and arpeggiator direction. Where it disagrees, the entry
+ * carries a `firmware` note. Descriptor params 56-59 (four 12-bit fields, no CC)
+ * are probably the chord-memory note masks (medium).
  */
 
 /** One documented Nord Lead 4 parameter. Either `values` (enum) or `range`. */
@@ -32,6 +39,8 @@ export interface Nl4ParameterRef {
   readonly values?: readonly string[];
   /** Continuous range [min, max] for knob parameters. */
   readonly range?: readonly [number, number];
+  /** Where the Lead 4 OS 1.32 descriptor disagrees with the manual (cardinality, width, CC). */
+  readonly firmware?: string;
 }
 
 /**
@@ -39,7 +48,7 @@ export interface Nl4ParameterRef {
  */
 export const NL4_PARAMETERS: readonly Nl4ParameterRef[] = [
   { name: "Voice Mode Unison", cc: 16, section: "voice", values: ["Off", "Unison 1", "Unison 2", "Unison 3"] },
-  { name: "Pitch Bend Range", cc: 118, section: "voice", values: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "24", "48", "-12", "-24"] },
+  { name: "Pitch Bend Range", cc: 118, section: "voice", values: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "24", "48", "-12", "-24"], firmware: "descriptor 71 is 4 bits, max 12 (13 values, default 2); the manual lists 16" },
   { name: "Vib Select", cc: 56, section: "voice", values: ["Off", "Dly Vib 1", "Dly Vib 2", "Whl"] },
   { name: "Glide Rate", cc: 5, section: "voice", range: [0, 127] },
   { name: "Mono Selector", cc: 15, section: "voice", values: ["Poly", "Mono", "Legato"] },
@@ -82,13 +91,13 @@ export const NL4_PARAMETERS: readonly Nl4ParameterRef[] = [
   { name: "Mod Env Impsync", cc: 6, section: "env", values: ["Off", "On"] },
   { name: "Osc 1 Waveform", cc: 30, section: "osc", values: ["Triangle", "Sawtooth", "Pulse (PWM 50%)", "Pulse 10%", "Pulse 33%", "Wave (wavetable)", "Sine"] },
   { name: "Osc 1 Wavetable Selection", cc: 49, section: "osc", range: [0, 127] },
-  { name: "Osc 2 Waveform", cc: 31, section: "osc", values: ["Triangle", "Sawtooth", "Pulse", "Sine", "Noise"] },
+  { name: "Osc 2 Waveform", cc: 31, section: "osc", values: ["Triangle", "Sawtooth", "Pulse", "Sine", "Noise"], firmware: "descriptor 30 has max 6 (7 values); the manual lists 5" },
   { name: "Osc 2 Semi Tones", cc: 78, section: "osc", range: [0, 127] },
   { name: "Osc 2 Fine Tune", cc: 33, section: "osc", range: [0, 127] },
   { name: "Osc 2 KBT", cc: 34, section: "osc", values: ["Off", "On"] },
   { name: "Osc 2 Noise Res", cc: 61, section: "osc", range: [0, 127] },
   { name: "Osc 2 Noise Freq", cc: 62, section: "osc", range: [0, 127] },
-  { name: "Osc 2 Noise KBT", cc: 63, section: "osc", values: ["Off", "On"] },
+  { name: "Osc 2 Noise KBT", cc: 63, section: "osc", values: ["Off", "On"], firmware: "no descriptor carries CC 63; probably descriptor 73 (1 bit, default on), which carries CC 60 (medium)" },
   { name: "Osc Mod Amount", cc: 69, section: "osc", range: [0, 127] },
   { name: "Osc Mod Select", cc: 105, section: "osc", values: ["Off", "FM 1", "FM 2", "FM 3", "H Sync", "S Sync"] },
   { name: "Osc Mix", cc: 8, section: "osc", range: [0, 127] },
@@ -112,14 +121,14 @@ export const NL4_PARAMETERS: readonly Nl4ParameterRef[] = [
   { name: "FX Selection", cc: 53, section: "fx", values: ["Crush", "Compressor", "Drive", "Talk 1", "Talk 2", "Comb"] },
   { name: "FX On/Off", cc: 52, section: "fx", values: ["Off", "On"] },
   { name: "FX Amount", cc: 55, section: "fx", range: [0, 127] },
-  { name: "Delay Tempo", cc: 77, section: "fx", range: [0, 127] },
+  { name: "Delay Tempo", cc: 77, section: "fx", range: [0, 127], firmware: "FX descriptor 13 is 14 bits wide but max 127" },
   { name: "Delay Clk Division", cc: 57, section: "fx", values: ["2", "4", "8", "16", "32", "64", "4d", "8d", "16d", "2t", "4t", "8t", "16t", "32t", "4s", "8s", "16s"] },
   { name: "Delay Feedback", cc: 79, section: "fx", range: [0, 3] },
   { name: "Delay/Reverb Amount", cc: 76, section: "fx", range: [0, 127] },
   { name: "Delay Mst Clk", cc: 51, section: "fx", values: ["Off", "On"] },
   { name: "Delay / Reverb selection", cc: 50, section: "fx", values: ["Delay", "Reverb"] },
   { name: "Reverb Bright", cc: 94, section: "fx", range: [0, 127] },
-  { name: "Reverb Model", cc: 96, section: "fx", values: ["Room", "Stage", "Hall"] },
+  { name: "Reverb Model", cc: 96, section: "fx", values: ["Room", "Stage", "Hall"], firmware: "FX descriptor 6 is 0-3 (4 values, default 1); the manual lists 3 names" },
   { name: "Delay/Reverb On Off", cc: 97, section: "fx", values: ["Off", "On"] },
   { name: "Pattern selection", cc: 117, section: "global", range: [0, 127] },
   { name: "Slot Focus", cc: 119, section: "global", values: ["Slot A", "Slot B", "Slot C", "Slot D"] },
