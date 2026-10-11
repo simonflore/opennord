@@ -62,7 +62,7 @@ describe('ne7Decoded', () => {
       'organ.isEnabled': 1, 'organ.organModel': 0, 'organ.level': 100,
       'organDrawbars1.drawbarValue1': 8, 'organDrawbars1.drawbarValue2': 6, 'organDrawbars1.percussionEnable': 1,
       'piano.isEnabled': 1, 'piano.bank': 3, 'synth.isEnabled': 0,
-      'synthPreset.analogMainWaveform': 5, 'synthPreset.analogAuxWaveform': 6, 'synthPreset.fmAlgorithm': 2,
+      'synthPreset.analogMainWaveform': 5, 'synthPreset.fmAlgorithm': 2,
       'common.rotaryEnable': 1,
     }));
     expect(d.note).toBe(NE7_PROVISIONAL_NOTE);
@@ -74,7 +74,8 @@ describe('ne7Decoded', () => {
     expect(byId.D1.chips).toEqual(['Percussion']);
     expect(byId.P.engines[0].parts[0]).toBe('Clavinet');
     expect(byId.S.engines[0].parts).toContain('(off)');
-    expect(byId.S.engines[1].parts).toEqual(['Analog SuperSaw + Noise', 'FM Algorithm 3']);
+    // Synth mode labels are unknown, so the preset's analog/FM sound is not shown for a mode that may be off.
+    expect(byId.S.engines.map((e) => e.label)).toEqual(['Synth', 'Effects']);
     expect(byId.G.engines[0].parts).toEqual(['Rotary']);
   });
 

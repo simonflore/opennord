@@ -4,9 +4,12 @@
  * note.
  *
  * Display labels are the Electro 7's own pointer arrays in the OS 1.30 image:
- * organ model, piano category, analog main/aux waves and
- * FM algorithm. The firmware has no text labels for Fx1, Fx2, Amp or Reverb
- * types (probably drawn as graphics), so effects show as on/off only.
+ * organ model and piano category. The firmware has no text
+ * labels for Fx1, Fx2, Amp or Reverb types (probably drawn as graphics), so
+ * effects show as on/off only. The embedded synth preset stores the analog
+ * waveforms and the FM algorithm side by side, and which `Syn_kMode` value is
+ * Analog, FM or Sample is not known yet — so the preset's sound is held back
+ * rather than shown for a mode that may not be active.
  */
 import { decodeNe7 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
@@ -17,10 +20,6 @@ import { effectsSection, fwHeader, headerOnlyNote, hexId, label, levelPart, octa
 export const NE7_ORGAN_MODEL = ['B3', 'Vox', 'Farf', 'Pipe', 'Soft B3', 'B3+Bass'] as const;
 /** Pno_kBank 0–5 (piano category). */
 export const NE7_PIANO_CATEGORY = ['Grand', 'Upright', 'Electric', 'Clavinet', 'Digital', 'Misc'] as const;
-/** Syn_kAnalogMainWaveform 0–5. */
-export const NE7_ANALOG_MAIN_WAVE = ['Triangle', 'Saw', 'Square', 'Pulse33', 'Pulse10', 'SuperSaw'] as const;
-/** Syn_kAnalogAuxWaveform 0–6. */
-export const NE7_ANALOG_AUX_WAVE = ['Off', 'Triangle', 'Saw', 'Square', 'Pulse33', 'Pulse10', 'Noise'] as const;
 
 /** Organ models that use Hammond drawbar footage (B3, Soft B3, B3+Bass). */
 const B3_MODELS = new Set([0, 4, 5]);
@@ -102,22 +101,12 @@ export function ne7Decoded(
     chips: parts(g('piano.enableStringRes') ? 'String Res' : undefined),
   };
 
-  const mainWave = label(NE7_ANALOG_MAIN_WAVE, g('synthPreset.analogMainWaveform'));
-  const auxWave = label(NE7_ANALOG_AUX_WAVE, g('synthPreset.analogAuxWaveform'));
-  const algo = g('synthPreset.fmAlgorithm');
   const synth: DecodedSection = {
     id: 'S', label: 'SYNTH',
     engines: [
       {
         label: 'Synth',
         parts: parts(levelPart(g('synth.level')), octavePart(g('synth.octaveShift')), !g('synth.isEnabled') && '(off)'),
-      },
-      {
-        label: 'Preset',
-        parts: parts(
-          mainWave && `Analog ${mainWave}${auxWave && auxWave !== 'Off' ? ` + ${auxWave}` : ''}`,
-          algo !== undefined && algo <= 9 ? `FM Algorithm ${algo + 1}` : undefined,
-        ),
       },
       { label: 'Effects', parts: sectionFx(g, 'synthFx') },
     ],
