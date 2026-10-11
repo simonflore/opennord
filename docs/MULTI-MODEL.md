@@ -195,15 +195,20 @@ Then **Stage 2 / 2EX** need their own map. The Stage 2 firmware writes a flat bo
 | `.ns2p/.ns2s` | ns2 | program | Recognized (header undecoded); decode = delta off NS3 |
 | `.ngp/.ngl` | ng (Grand) | program | **Read-only, firmware layout** (`lib/ng`) — Piano 4 layout + `Com_kSplPos`; not yet checked on a real file |
 | `.np6p/.np6l` | np6 | program | **Read-only, firmware layout** (`lib/np6`) — Grand 2 layout + 3 deltas; not yet checked on a real file |
+| `.np4p/.np4l` | np4 | program | **Read-only, firmware layout** (`lib/np4`) — block lengths match the corpus |
+| `.np5p/.np5l` | np5 | program | **Read-only, firmware layout** (`lib/np5`) — block lengths match the corpus |
+| `.ng2p/.ng2l` | ng2 | program | **Read-only, firmware layout** (`lib/ng2`) — block lengths match the corpus |
 | `.ne7p/.ne7l` | ne7 | program | **Read-only, firmware layout, provisional** (`lib/ne7`) — block order not yet confirmed on a real file |
 | `.no3p/.no3l` | no3 | program | **Read-only, firmware layout, provisional** (`lib/no3`) — block order not yet confirmed on a real file |
 | `.ns3b/.ns2b/.ns3fb/…` | ns3/ns2 | bundle | Existing ZIP reader + extensions (M1 gap) |
 
-## Firmware-layout readers (Grand, Piano 6, Electro 7, Organ 3)
+## Firmware-layout readers (Grand, Grand 2, Piano 4/5/6, Electro 7, Organ 3)
 
-Four models have no corpus decoder and no third-party oracle, but their own
-firmware's parameter registry gives the program layout directly (static
-analysis, knowledge only — `docs/LEGAL.md`). They read through the same
+These models have no third-party oracle, but their own firmware's parameter
+registry gives the program layout directly (static analysis, knowledge only —
+`docs/LEGAL.md`). The Piano 4, Piano 5 and Grand 2 had corpus-RE'd decoders
+first; they now read through the firmware layouts too, which corrected several
+of their offsets (see each model's `types.ts`). They read through the same
 `ModelCodec` seam as everything else:
 
 ```
@@ -235,6 +240,9 @@ src/lib/<model>/present.ts       values → DecodedProgram (musician labels from
 | Model | Tag | Firmware source | Body | Confidence |
 |---|---|---|---|---|
 | Grand | `ngp` | OS 1.68 registry `FUN_c004f960`; archive `FUN_c00520cc` (1.00–1.01) | 90 B, 4 blocks | high — Piano 4 layout bit for bit + `Com_kSplPos` at bit 59 |
+| Grand 2 | `ng2p` | OS 1.22 registry `FUN_c01125f8`; archive `FUN_c010dac0` | 185 B, 11 blocks | high — reproduces the corpus block lengths; corpus files are 1.02 |
+| Piano 4 | `np4p` | OS 2.66 registry `FUN_c004c648`; archive `FUN_c004ed00` (1.00–1.01) | 90 B, 4 blocks | high — reproduces the corpus block lengths and the bundle piano references |
+| Piano 5 | `np5p` | OS 1.34 registry `FUN_c00f8188`; archive `FUN_c00f6ccc` (1.00–1.01, medium) | 237 B, 6 blocks | high — global Effects block; reproduces the corpus block lengths |
 | Piano 6 | `np6p` | OS 1.20 registry `FUN_c0112544`; archive `FUN_c010db30` | 185 B, 11 blocks | high (two's complement: medium) — Grand 2 layout + `Com_kFxEnable`, `EffectsSectionMode`, split AmpEnv decay/release |
 | Electro 7 | `ne7p` | OS 1.30 registry `FUN_c009c394`; archive `FUN_c00a8148` / tree `FUN_c00aa7c8` (1.00–1.10) | 353 B, 13 blocks | **provisional** — block order medium; buffer sizes match the firmware's own totals |
 | Organ 3 | `no3p` | OS 1.00 registry `FUN_c00c0120`; archive `FUN_c00b9888` (2.00) | 204 B, 8 blocks | **provisional** — block order assumed from insertion order (medium) |
@@ -246,12 +254,13 @@ not yet confirmed on a real file") on every decode, and their coverage byte maps
 are `candidate`, not `confirmed`. The Grand's three-letter tag is padded in the
 header; `fileTypeTag` drops trailing NUL/space so it compares as `ngp`.
 
-**Follow-ups.** The block-chain reader lives in `clavia/block-chain.ts`; besides
-these four it now runs the Electro 6 and Wave 2 readers (`lib/ne6`, `lib/nw2`),
-which replaced their corpus-only decoders. Moving the other older corpus
-decoders (np4, np5, ng2) onto it — the firmware findings correct several of
-their offsets — is a separate change. A real `.ngp`, `.np6p`, `.ne7p` or `.no3p` file is the next
-check for each (expected sizes 134, 229, 397 and 248 bytes).
+**Follow-ups.** The block-chain reader lives in `clavia/block-chain.ts`; it now
+runs every registry-family reader (Grand, Grand 2, Piano 4/5/6, Electro 6/7,
+Organ 3, Wave 2), and `clavia/legacy-record.ts` the Lead 4 / Lead A1 / Electro 4
+records. A real `.ngp`, `.np6p`, `.ne7p` or `.no3p` file is the next check for
+each (expected sizes 134, 229, 397 and 248 bytes); for the others, the
+gitignored corpus tests (`describe.skipIf` on `fixtures/<model>`) pin the
+firmware reading against the values the old decoders had confirmed.
 
 **Legacy records (Electro 4, Lead 4, Lead A1).** These formatType-0 files are
 not block chains: the u16 record version sits at file 0x14 and the record data

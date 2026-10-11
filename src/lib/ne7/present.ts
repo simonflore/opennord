@@ -14,7 +14,10 @@
 import { decodeNe7 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
-import { DRAWBAR_NUMBERS, effectsSection, fwHeader, headerOnly, hexId, label, levelPart, noneOn, octavePart, parts, transposeText } from '../clavia/fw-present';
+import {
+  DRAWBAR_NUMBERS, effectsSection, fwHeader, headerOnly, label, levelPart, noneOn, octavePart, parts, pianoParts,
+  soundIdRow, transposeText, type PianoNameResolver,
+} from '../clavia/fw-present';
 import type { Ne7FieldKey } from './layout.generated';
 
 /** Org_kOrganModel 0–5. */
@@ -54,18 +57,16 @@ function drawbarSet(g: Get, n: 1 | 2 | 3, b3: boolean): DecodedSection {
   };
 }
 
-export function ne7Decoded(
-  bytes: Uint8Array,
-  resolvePianoName?: (hash: number) => string | undefined,
-): DecodedProgram {
+export function ne7Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolver): DecodedProgram {
   const p = decodeNe7(bytes);
   const title = 'Nord Electro 7 · Program';
   if (!p.layoutMatched) return headerOnly(title, p, 'Electro 7', NE7_PROVISIONAL_NOTE);
   const g: Get = (k) => p.values[k];
 
-  const header = fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue')));
-  const pianoHash = g('piano.nameHash');
-  if (pianoHash !== undefined) header.push(['Piano sound id', hexId(pianoHash)]);
+  const header = [
+    ...fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue'))),
+    ...soundIdRow('Piano sound id', g('piano.nameHash')),
+  ];
 
   const model = g('organ.organModel');
   const organ: DecodedSection = {
@@ -81,15 +82,14 @@ export function ne7Decoded(
   };
   const b3 = model !== undefined && B3_MODELS.has(model);
 
-  const category = label(NE7_PIANO_CATEGORY, g('piano.bank'));
-  const pianoName = pianoHash !== undefined ? resolvePianoName?.(pianoHash) : undefined;
   const piano: DecodedSection = {
     id: 'P', label: 'PIANO',
     engines: [
       {
         label: 'Piano',
-        parts: parts(pianoName ?? category ?? 'Piano', pianoName && category, levelPart(g('piano.level')),
-          octavePart(g('piano.octaveShift')), !g('piano.isEnabled') && '(off)'),
+        parts: parts(
+          ...pianoParts(g('piano.nameHash'), label(NE7_PIANO_CATEGORY, g('piano.bank')), g('piano.variation'), resolvePianoName),
+          levelPart(g('piano.level')), octavePart(g('piano.octaveShift')), !g('piano.isEnabled') && '(off)'),
       },
       { label: 'Effects', parts: sectionFx(g, 'pianoFx') },
     ],
