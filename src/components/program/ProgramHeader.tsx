@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { HeaderView } from '../../lib/clavia/engine-view';
 import { EngineTags } from '../library/EngineTags';
+import { IdentityLcd } from './widgets';
 
 /**
  * The program's identity, the way the Nord shows it: slot and name on the LCD,
@@ -14,10 +15,7 @@ export function ProgramHeader({ header: h, aside }: { header: HeaderView; aside?
   return (
     <div className="ps-hd">
       <div className="ps-hd-id">
-        <div className="ps-lcd ps-lcd-id">
-          <h2 className="big">{slot}{h.name}</h2>
-          <div>{h.category} · {h.version}</div>
-        </div>
+        <IdentityLcd name={`${slot}${h.name}`} lines={[`${h.category} · ${h.version}`]} />
         <EngineTags summary={h.engines} detail />
       </div>
       {aside}

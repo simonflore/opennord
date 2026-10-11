@@ -1,6 +1,7 @@
 import type { SampleHeaderView } from '../../lib/ns4/sample-view';
 import { formatBytes } from '../../lib/format';
 import { Pill } from '../ui';
+import { IdentityLcd } from '../program/widgets';
 
 /** Signed gain in dB, e.g. +2.9 dB / −6.0 dB. */
 const fmtDb = (db: number): string => `${db >= 0 ? '+' : '−'}${Math.abs(db).toFixed(1)} dB`;
@@ -18,10 +19,7 @@ export function SampleHeader({ view }: { view: SampleHeaderView }) {
   return (
     <div className="ps-hd">
       <div className="ps-hd-id">
-        <div className="ps-lcd ps-lcd-id">
-          <h2 className="big">{view.name}</h2>
-          <div>{view.codecLabel} · {count} · {formatBytes(view.sizeBytes)}</div>
-        </div>
+        <IdentityLcd name={view.name} lines={[`${view.codecLabel} · ${count} · ${formatBytes(view.sizeBytes)}`]} />
         <div className="ps-meta">
           {view.unison && (
             <span className="ps-key on" title={`Unison ${view.unison} — auditioned as a stacked, panned voice`}>Unison</span>

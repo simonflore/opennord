@@ -22,7 +22,7 @@ export function CategoryPanel({
   headExtra?: ReactNode;
   /** The `<BrowseToolbar>` element (search + facets + sort). */
   toolbar: ReactNode;
-  /** Between the head and the grid (reclaim bar, remove-result status…). */
+  /** Between the head and the list (reclaim bar, remove-result status…). */
   banners?: ReactNode;
   /** True when there are no entries to show → render `emptyState` instead of the list. */
   isEmpty: boolean;

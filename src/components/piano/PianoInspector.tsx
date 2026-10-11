@@ -5,6 +5,7 @@ import { downloadBytes } from '@/lib/download';
 import { formatBytes } from '@/lib/format';
 import type { NordSession } from '@/lib/device/session';
 import { Button } from '@/components/ui';
+import { IdentityLcd } from '@/components/program/widgets';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 import { noteName } from '@/lib/ns4/sample-view';
@@ -75,11 +76,10 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
 
   return (
     <div className="ps" style={{ maxWidth: 460 }}>
-      {/* Identity on the LCD: the piano's name, where it lives, and its layout. */}
-      <div className="ps-lcd ps-lcd-id" style={{ marginBottom: 12 }}>
-        <h2 className="big">{entry.name}</h2>
-        <div>Piano library · {sourceLabel}</div>
-        {detail && <div>{detail}</div>}
+      <div className="ps-hd">
+        <div className="ps-hd-id">
+          <IdentityLcd name={entry.name} lines={[`Piano library · ${sourceLabel}`, ...(detail ? [detail] : [])]} />
+        </div>
       </div>
       {entry.factory && (
         <p className="ps-sub">
