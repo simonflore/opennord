@@ -13,7 +13,7 @@ const CHIP: Record<ValidationStatus, string> = {
 /** What each chip means, for the legend under the intro. */
 const LEGEND: [ValidationStatus, string][] = [
   ['validated', 'tried on a real instrument'],
-  ['re', "built from this model's own software or files; not yet tried on one"],
+  ['re', 'built from this model’s own software or files; not yet tried on one'],
   ['inferred', 'assumed from a sibling model'],
   ['unsupported', 'the instrument can’t do it'],
 ];
@@ -48,7 +48,8 @@ export function MatrixView() {
         See your model marked <em>Ready to test</em>?{' '}
         <a className="text-red-bright hover:text-red" href="#/contribute">Help confirm it →</a> — a quick read-only check and a few of your own programs, about 10 minutes.
       </p>
-      <ul className="m-0 mb-4 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-[12px] text-dim">
+      {/* role="list": Safari drops list semantics from a list-style:none <ul>. */}
+      <ul role="list" aria-label="What each status means" className="m-0 mb-4 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-[12px] text-dim">
         {LEGEND.map(([s, text]) => (
           <li key={s}><span className={cn('font-bold', CELL_COLOR[s])}>{CHIP[s]}</span> {text}</li>
         ))}
@@ -95,8 +96,8 @@ export function MatrixView() {
                     </th>
                     {(() => {
                       const text =
-                        d.status === 'full' ? `${d.paramCount} params`
-                        : d.status === 'partial' ? (d.paramCount != null ? `${d.paramCount} params` : 'Partial')
+                        d.paramCount != null ? `${d.paramCount} params`
+                        : d.status === 'partial' ? 'Partial'
                         : d.status === 'started' ? (d.pct != null ? `${d.pct}%` : `${d.controlCount}✓`)
                         : '—';
                       return <td className={cn(cell, CELL_COLOR[DECODE_CELL[d.status]])} title={DECODE_LABEL[d.status]}>{text}</td>;

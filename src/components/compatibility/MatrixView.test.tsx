@@ -17,9 +17,13 @@ describe('MatrixView', () => {
   it('shows graded statuses across the line (works / ready to test / likely)', () => {
     const html = render();
     expect(html).toContain('Works');         // Stage 4 (validated)
-    expect(html).toContain('Ready to test'); // read from the model's own firmware or files
+    expect(html).toContain('>Ready to test</td>'); // a cell, not just the intro: read from the model's own firmware or files
     expect(html).toContain('Likely');        // assumed from a sibling (Stage Classic, C2)
     expect(html).not.toContain('In progress');
+  });
+  it('explains each chip in a labelled legend', () => {
+    const legend = render().match(/<ul[^>]*aria-label="What each status means"[^>]*>(.*?)<\/ul>/)?.[1] ?? '';
+    for (const chip of ['Works', 'Ready to test', 'Likely', '—']) expect(legend).toContain(`${chip}</span>`);
   });
   it('shows the parameter count of the firmware-layout readers', () => {
     expect(render()).toMatch(/Nord Grand<\/th><td[^>]*>\d+ params/);
