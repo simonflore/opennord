@@ -39,7 +39,7 @@ const SORT_LABEL: Record<SampleSort, string> = {
 export function SamplesBrowse(
   { entries, source, generation, query, nordCount, localCount, showSourceFacet, showUnknownGen,
     category = 'all', onCategory, categoriesPresent = [],
-    onSource, onGeneration, onQuery, clearFilters, onOpen, onLoadNew, onImport, onRemove, activeId,
+    onSource, onGeneration, onQuery, clearFilters, filtered, onOpen, onLoadNew, onImport, onRemove, activeId,
     storedCount, storedBytes, prefs,
     canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly,
     selected, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
@@ -57,6 +57,8 @@ export function SamplesBrowse(
     onQuery: (q: string) => void;
     /** Every filter off and the search cleared (from the list's context). */
     clearFilters: () => void;
+    /** Whether any filter or search is narrowing the list (from the list's context). */
+    filtered: boolean;
     onOpen: (e: SampleEntry) => void;
     /** The entry open in the detail pane, highlighted in the list. */
     activeId?: string | null;
@@ -156,8 +158,6 @@ export function SamplesBrowse(
 
   const confirmTitle = `Remove ${selected.size} ${selected.size === 1 ? 'sample' : 'samples'} · frees ~${fmtMB(selectedFreeBytes)}`;
 
-  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || generation !== 'all' || unusedOnly
-    || (categoriesPresent.length > 1 && (category ?? 'all') !== 'all');
 
   const actions = (
     <>
@@ -186,7 +186,7 @@ export function SamplesBrowse(
       {/* Reclaim bar — shown when at least one sample is selected */}
       {selected.size > 0 && (
         <div
-          className="sticky top-0 z-[2] mb-3 flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-2.5"
+          className="sticky top-[var(--sticky-top)] z-[2] mb-3 flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-2.5"
           role="region"
           aria-label="Selected samples"
         >

@@ -22,7 +22,15 @@ export const READY_CATEGORIES = LIBRARY_CATEGORIES.filter(
   (c): c is Extract<LibraryCategory, { ready: true }> => c.ready,
 );
 
+/** A pathname without its trailing slash (`/library/presets/` is `/library/presets`; `/` stays). */
+export const trimSlash = (path: string) => path.replace(/(.)\/+$/, '$1');
+
+/** True when `path` is `to` or a page beneath it (`/library/programs/abc` is under `/library/programs`). */
+export function isUnder(path: string, to: string): boolean {
+  return path === to || path.startsWith(to + '/');
+}
+
 /** Match a pathname (e.g. `/library/programs` or `/library/programs/$id`) to its category. */
 export function categoryForPath(path: string): LibraryCategory | undefined {
-  return LIBRARY_CATEGORIES.find((c) => path === c.path || path.startsWith(c.path + '/'));
+  return LIBRARY_CATEGORIES.find((c) => isUnder(path, c.path));
 }

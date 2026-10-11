@@ -8,6 +8,7 @@
  */
 
 import { Wordmark } from '../shell/Wordmark';
+import { Led } from '../shell/Led';
 import '../../styles/nord.css';
 import type { ReactNode } from 'react';
 import { b3DrawbarViews, drawbarViews } from '../../lib/clavia/drawbars';
@@ -16,7 +17,9 @@ import { Card } from '../ui';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import { SlotGrid } from '../device/SlotGrid';
 import { BankLabel } from '../device/BankLabel';
-import { Chip, DrawbarStack, EnvCurve, Knob, Lcd, Meter, ModelSelector, StatGrid, ToggleGroup } from '../program/widgets';
+import {
+  ArpRow, Chip, DrawbarStack, EnvCurve, FilterCurve, FxChain, Knob, Lcd, LfoRow, Meter, ModelSelector, StatGrid, ToggleGroup, WaveGlyph,
+} from '../program/widgets';
 
 /** The palette, by role. Each swatch is a token, so this list can't drift from tokens.css. */
 const SWATCHES: Array<{ token: string; role: string }> = [
@@ -103,13 +106,21 @@ export function InstrumentKit() {
           <ToggleGroup label="Not available on this model" groupDim items={[{ label: 'On', on: false }, { label: 'Soft', on: false }]} />
         </Section>
 
+        <Section title="Status LEDs · shell">
+          <div className="flex items-center gap-4 font-mono text-[11px] text-dim">
+            <span className="inline-flex items-center gap-2"><Led on={false} /> off</span>
+            <span className="inline-flex items-center gap-2"><Led on /> open / selected</span>
+            <span className="inline-flex items-center gap-2"><Led on tone="connected" /> Nord connected</span>
+          </div>
+        </Section>
+
         <Section title="Knobs · ring = where in the range, number = the value">
           <div className="ps-knobs">
             <Knob value="0" caption="min" fill={0} />
             <Knob value="5.0" caption="mid" fill={50} />
             <Knob value="10" caption="max" fill={100} />
             <Knob value="soft" caption="no range" />
-            <Knob value="3.2 kHz" caption="morphed" fill={62} morph={{ wheel: '8.1 kHz' }} />
+            <Knob value="3.2 kHz" caption="morphed" fill={62} morph={{ wheel: '8.1 kHz' }} morphFill={[87]} />
           </div>
         </Section>
 
@@ -130,6 +141,29 @@ export function InstrumentKit() {
             <Chip label="Reverb" detail="Hall · 3.1 s" />
             <Chip label="Rotary" detail="Slow" />
           </div>
+        </Section>
+
+        <Section title="Curves · schematic, the printed value is the truth">
+          <FilterCurve filter={{ type: 'LP24', cutoffHz: 1200, res: 0.6, morphHz: [6000] }} />
+          <FilterCurve filter={{ type: 'LPHP', cutoffHz: 5000, hpHz: 300 }} />
+          <div className="ps-knobs">
+            <WaveGlyph shape="saw" />
+            <WaveGlyph shape="pulse" width={0.25} />
+            <WaveGlyph shape="noise" />
+          </div>
+          <LfoRow lfo={{ shape: 'triangle', rate: '0.60 Hz', target: 'FILTER', amount: '2.8', morph: { wheel: '6.0' } }} />
+          <ArpRow arp={{
+            mode: 'Arp', direction: 'UP', rate: '1/8', range: '2 oct',
+            steps: Array.from({ length: 8 }, (_, i) => ({ accent: i % 4 === 0, pan: i === 2 ? 'L' : i === 6 ? 'R' : 'C' })),
+          }} />
+        </Section>
+
+        <Section title="Effect chain · every slot, lit when on">
+          <FxChain slots={[
+            { key: 'mod1', label: 'Mod 1', on: false, detail: '' },
+            { key: 'amp', label: 'Amp/EQ', on: true, detail: 'JC · drv 2.0', eq: { bassDb: -5, midDb: 3, trebDb: 6, midHz: 900 } },
+            { key: 'reverb', label: 'Reverb', on: true, detail: 'HALL · amt 4.7' },
+          ]} />
         </Section>
       </div>
 

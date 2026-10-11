@@ -10,9 +10,10 @@ export function enumerateSampleLibrary(session: NordSession): Promise<ProgramEnt
   return session.withSession(PARTITION_SAMP_LIB, () => enumerateFiles(session));
 }
 
-/** Pull one sample off the board, reporting (done, total) bytes as it streams. */
+/** Pull one sample off the board, reporting (done, total) bytes as it streams.
+ *  `wanted` false when its turn on the session comes drops the pull. */
 export function pullSample(
-  session: NordSession, entry: ProgramEntry, onProgress: (done: number, total: number) => void,
+  session: NordSession, entry: ProgramEntry, onProgress: (done: number, total: number) => void, wanted?: () => boolean,
 ): Promise<Uint8Array> {
-  return session.withSession(PARTITION_SAMP_LIB, () => pullFile(session, entry, onProgress));
+  return session.withSession(PARTITION_SAMP_LIB, () => pullFile(session, entry, onProgress), wanted);
 }
