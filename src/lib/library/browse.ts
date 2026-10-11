@@ -1,6 +1,15 @@
 /** Generic, model-agnostic browse helpers shared by the Library and Samples
  *  screens. Pure — no React, no DOM. */
 
+import type { LibrarySource } from './types';
+
+/** How many entries come from each source, in one pass. */
+export function countBySource(entries: { source: LibrarySource }[]): Record<LibrarySource, number> {
+  const n: Record<LibrarySource, number> = { nord: 0, local: 0, backup: 0, cloud: 0 };
+  for (const e of entries) n[e.source]++;
+  return n;
+}
+
 /** Case-insensitive trimmed substring match; an empty query matches anything. */
 export function matchesQuery(name: string, query: string): boolean {
   const q = query.trim().toLowerCase();

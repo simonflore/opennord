@@ -12,6 +12,7 @@ const baseProps = {
   setKind: noop,
   query: '',
   setQuery: noop,
+  clearFilters: noop,
   showSourceFacet: false,
   sort: 'default' as const,
   setSort: noop,

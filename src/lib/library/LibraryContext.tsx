@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedLibrary } from '@/lib/library/useImportedLibrary';
@@ -27,11 +27,15 @@ function useLibraryStateValue() {
   const imported = useImportedLibrary();
   const prefs = useLibraryPrefs();
 
-  const allEntries: LibraryEntry[] = [
+  // Memoised so the list keeps its identity across renders that don't change it
+  // (the ⌘K palette's command list is built from it).
+  const allEntries: LibraryEntry[] = useMemo(() => [
     ...nordEntriesFromDevice(deviceEntries),
     ...entriesFromScannedPrograms(folder.result.programs),
     ...imported.entries,
-  ];
+  ], [deviceEntries, folder.result.programs, imported.entries]);
+  /** Every filter off and the search cleared (the list's "clear filters"). */
+  const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setGeneration('all'); setCategory('all'); }, []);
   // Generations present across the *unfiltered* list — drives whether the format
   // facet is worth showing (only when there's more than one). Stage 4 → 2 order.
   const generationsPresent = (['Stage 4', 'Stage 3', 'Stage 2'] as const)
@@ -74,6 +78,7 @@ function useLibraryStateValue() {
   }
 
   return {
+    all: allEntries, clearFilters,
     shown, source, setSource, generation, setGeneration, generationsPresent,
     category, setCategory, categoriesPresent, query, setQuery,
     importFile, importError, clearImportError: () => setImportError(''), imported, prefs, folder, entryById,

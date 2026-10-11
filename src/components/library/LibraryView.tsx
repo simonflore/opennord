@@ -9,7 +9,7 @@ import { EngineTags } from './EngineTags';
 import { ZoneStrip } from './ZoneStrip';
 import { SlotTag, genTone } from './SlotTag';
 import { CardRemoveButton } from './CardRemoveButton';
-import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
+import { SOURCE_LABEL, type LibraryEntry, type LibrarySource, type LibrarySort } from '../../lib/library/types';
 import type { LibraryPrefsApi } from '../../lib/library/prefs';
 import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
 
@@ -27,6 +27,8 @@ interface Props {
   onCategory?: (c: string | 'all') => void;
   categoriesPresent?: string[];
   onQuery: (q: string) => void;
+  /** Every filter off and the search cleared (from the list's context). */
+  clearFilters: () => void;
   onOpen: (e: LibraryEntry) => void;
   /** The entry open in the detail pane, highlighted in the list. */
   activeId?: string | null;
@@ -43,12 +45,12 @@ interface Props {
 }
 
 const TABS: Array<LibrarySource | 'all'> = ['all', 'nord', 'local', 'backup', 'cloud'];
-const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', nord: 'On Nord', local: 'Local', backup: 'Backup', cloud: 'Cloud' };
+const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', ...SOURCE_LABEL };
 
 const SORT_LABEL: Record<LibrarySort, string> = { default: 'Default', name: 'Name (A–Z)', source: 'Source' };
 
 export function LibraryView({
-  entries, source, query, onSource, onQuery, onOpen, onImport, onRemove, activeId,
+  entries, source, query, onSource, onQuery, clearFilters, onOpen, onImport, onRemove, activeId,
   generation = 'all', onGeneration, generationsPresent = [],
   category = 'all', onCategory, categoriesPresent = [],
   importError, onDismissImportError, prefs, folder,
@@ -75,7 +77,6 @@ export function LibraryView({
   const filtered = query.trim() !== '' || source !== 'all'
     || (generationsPresent.length > 1 && (generation ?? 'all') !== 'all')
     || (categoriesPresent.length > 1 && (category ?? 'all') !== 'all');
-  const clearFilters = () => { onQuery(''); onSource('all'); onGeneration?.('all'); onCategory?.('all'); };
 
   // A folder is connected but turned up nothing at all — distinct from never
   // having picked one, and distinct from "found presets/pianos/samples/backups

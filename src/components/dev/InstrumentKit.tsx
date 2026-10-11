@@ -7,6 +7,7 @@
  * a widget grows one. Not a product screen; the native build stubs it out.
  */
 
+import { Wordmark } from '../shell/Wordmark';
 import '../../styles/nord.css';
 import type { ReactNode } from 'react';
 import { b3DrawbarViews, drawbarViews } from '../../lib/clavia/drawbars';
@@ -61,7 +62,7 @@ export function InstrumentKit() {
     <div className="ps flex flex-col gap-5">
       <header className="flex flex-col gap-1">
         <h1 className="m-0 font-mono text-lg font-semibold">
-          open<span className="text-accent">nord</span> <span className="font-normal text-dim">/ kit</span>
+          <Wordmark /> <span className="font-normal text-dim">/ kit</span>
         </h1>
         <p className="m-0 max-w-[70ch] font-mono text-xs text-dim">
           Physical only where it is a control on the Nord. Every physical control shows its number. One accent means

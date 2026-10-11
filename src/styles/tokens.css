@@ -45,7 +45,6 @@
   --color-surface-2: var(--surface-2);
   --color-sink: var(--sink);
   --color-line: var(--line);
-  --color-devbox-bg: var(--devbox-bg);
   --color-accent: var(--accent);
   --color-accent-bright: var(--accent-bright);
   /* Legacy names for the accent. New code uses `accent`; existing `red`
@@ -53,6 +52,7 @@
   --color-red: var(--accent);
   --color-red-bright: var(--accent-bright);
   --color-connected: var(--connected);
+  --color-led-off: var(--led-off);
   --color-lcd-cyan: var(--lcd-cyan);
   --color-engine-synth: var(--engine-synth);
   --color-engine-organ: var(--engine-organ);
@@ -131,12 +131,6 @@
     linear-gradient(90deg, color-mix(in srgb, var(--red) 9%, transparent), transparent 18%),
     var(--grad-surface);
 }
-/* The rail's device-status box — same top-lit recipe as the others but mixed
-   into --devbox-bg (its own step between --bg and --surface) rather than
-   --surface/--surface-2, so it reads as a distinct panel on the rail. */
-@utility fill-devbox {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--lift) 4%, var(--devbox-bg)), var(--devbox-bg));
-}
 /* The app shell's stage backdrop — a faint top glow over near-black so the
    whole app reads as sitting on a lit stage rather than a flat page. */
 @utility stage-backdrop {
@@ -151,6 +145,11 @@
 @utility inset-1      { box-shadow: var(--shadow-inset); }
 @utility glow         { box-shadow: var(--glow-red); }
 @utility glow-hi      { box-shadow: var(--glow-red), var(--shadow-2); }
+/* A lit LED's halo: accent for selected/open, connected-green for "a Nord is connected". */
+@utility led-glow           { box-shadow: var(--led-on-glow); }
+@utility led-glow-connected { box-shadow: var(--led-connected-glow); }
+/* The selected row's accent bar on its left edge (rail entries, palette results). */
+@utility accent-bar   { box-shadow: inset 3px 0 0 var(--accent); }
 
 :root,
 :root[data-theme='dark'] {
@@ -160,7 +159,6 @@
   --surface-2: #202124;  /* an instrument module (engine card, inspector panel) */
   --sink: #141517;       /* rail, inputs, recessed tracks */
   --line: #2c2e33;
-  --devbox-bg: #1e1f22;  /* device-status box on the rail (between bg and surface) */
   --scrim: rgb(0 0 0 / 60%);  /* modal/dialog backdrop over the app */
 
   /* accent + state */
@@ -186,6 +184,7 @@
   /* LEDs and LED buttons — the physical on/off state of a Nord control. */
   --led-off: #3b2a20;
   --led-on-glow: 0 0 7px var(--accent);
+  --led-connected-glow: 0 0 7px var(--connected);
   --key-face: linear-gradient(#34353a, #27282c);   /* an LED button's cap */
   --key-edge: 0 2px 0 #111214, inset 0 1px 0 rgb(255 255 255 / 9%);
   /* The keyboard drawn under the zone map. */

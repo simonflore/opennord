@@ -40,7 +40,7 @@ const folder = (over: Partial<FolderLibrary> = {}): FolderLibrary => ({
 });
 
 // Props common to every render; entries/source vary per test.
-const handlers = { onSource: () => {}, onQuery: () => {}, onOpen: () => {}, onImport: () => {}, onRemove: () => {} };
+const handlers = { onSource: () => {}, onQuery: () => {}, clearFilters: () => {}, onOpen: () => {}, onImport: () => {}, onRemove: () => {} };
 
 /** Pull the `<button>…</button>` whose text content is exactly `label`. */
 function buttonFor(html: string, label: string): string {
