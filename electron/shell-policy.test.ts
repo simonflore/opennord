@@ -58,11 +58,11 @@ describe('externalUrlToOpen', () => {
 
 describe('isPermissionAllowed', () => {
   it('allows exactly what the app uses', () => {
-    expect([...ALLOWED_PERMISSIONS].sort()).toEqual(['clipboard-sanitized-write', 'fileSystem', 'midi']);
+    expect([...ALLOWED_PERMISSIONS].sort()).toEqual(['clipboard-sanitized-write', 'fileSystem', 'midi', 'midiSysex']);
     for (const p of ALLOWED_PERMISSIONS) expect(isPermissionAllowed(p, 'file:///', packed)).toBe(true);
   });
-  it('refuses everything else, including raw device access and sysex', () => {
-    for (const p of ['midiSysex', 'usb', 'hid', 'serial', 'media', 'geolocation', 'notifications', 'clipboard-read', 'openExternal', 'unknown']) {
+  it('refuses everything else, including raw device access', () => {
+    for (const p of ['usb', 'hid', 'serial', 'media', 'geolocation', 'notifications', 'clipboard-read', 'openExternal', 'unknown']) {
       expect(isPermissionAllowed(p, 'file:///', packed)).toBe(false);
     }
   });
