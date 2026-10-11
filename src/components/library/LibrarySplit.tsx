@@ -67,10 +67,10 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
           master={list}
           detail={program
             ?? (entry ? <EmptyNote>This slot hasn’t been read from your Nord yet. Read it on the Device page.</EmptyNote>
-              : selectedId ? <NotListedNote noun="program" />
-              : <EmptyNote>Pick a program to see its details.</EmptyNote>)}
+              : <NotListedNote noun="program" />)}
           hasDetail={!!selectedId}
-          fullWhenEmpty
+          // Nothing open: the table spans the page, every column showing.
+          solo={!selectedId}
           list="/library/programs"
           backLabel="← Library"
           selectedId={selectedId}

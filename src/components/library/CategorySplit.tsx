@@ -14,7 +14,7 @@ import { useLeaveEntry } from './openEntry';
  * selection (from the route).
  */
 export function CategorySplit({
-  wide, master, detail, hasDetail, list, onBack, backLabel, selectedId, fullWhenEmpty,
+  wide, master, detail, hasDetail, list, onBack, backLabel, selectedId, solo,
 }: {
   /** True when there's room for both panes (from `useSplitLayout`). */
   wide: boolean;
@@ -30,8 +30,8 @@ export function CategorySplit({
   backLabel: string;
   /** The open entry: when it changes, its row (`data-open-row`) scrolls into the list's view. */
   selectedId?: string;
-  /** Wide, with nothing open: the master spans the full width instead of sitting beside an empty pane. */
-  fullWhenEmpty?: boolean;
+  /** Wide: the master alone across the full width (the program table, nothing open). */
+  solo?: boolean;
 }) {
   const backToList = useLeaveEntry(list);
 
@@ -66,7 +66,7 @@ export function CategorySplit({
     <SplitView
       master={<div ref={masterBox} className="contents">{master}</div>}
       detail={detail}
-      solo={fullWhenEmpty && !hasDetail}
+      solo={solo}
     />
   );
 }
