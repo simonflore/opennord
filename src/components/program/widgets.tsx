@@ -112,6 +112,19 @@ export function Chip({ label, detail }: { label: string; detail: string }) {
   );
 }
 
+/** A reader's warnings about the file (a layout mismatch, out-of-range values, …); nothing when there are none. */
+export function ReadoutWarnings({ warnings }: { warnings?: readonly string[] }) {
+  if (!warnings || warnings.length === 0) return null;
+  return (
+    <div className="ps-card" style={{ marginTop: 12 }}>
+      <h4>Readout warnings</h4>
+      <ul className="ps-sub" style={{ margin: '8px 0 0', paddingLeft: 18, color: 'var(--warn)' }}>
+        {warnings.map((w) => <li key={w}>{w}</li>)}
+      </ul>
+    </div>
+  );
+}
+
 /** Horizontal level meter with a label and value readout. `fill` is 0–100. */
 export function Meter({ label, value, fill, morph }: { label: string; value: string; fill: number; morph?: Morph }) {
   const w = Math.max(0, Math.min(100, Math.round(fill)));

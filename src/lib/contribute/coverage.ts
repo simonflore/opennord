@@ -3,17 +3,17 @@
  * still need work instead of re-deriving what's already decoded.
  *
  * Stage 4 has a complete parameter map (the ns4decode-derived offset map, our
- * oracle). Stage 3 has a partial hand-built decoder. Stage 2 / 2 EX and the other
- * firmware-layout readers map their body from a per-model parameter
- * descriptors or registry. Every other model's progress
+ * oracle). Stage 2 / 2 EX, Stage 3 and the other firmware-layout readers map
+ * their body from a per-model parameter registry or descriptors. Every
+ * other model's progress
  * comes from `coverage-data.ts` — the curated state maintained by hand as fields
  * are mapped. We always know a model's body *size*, so even undecoded models
  * have a concrete target to fill.
  */
 import { buildParamMap } from '../ns4/maps';
 import { MODEL_PROGRESS, type ModelProgress, type BodyRegion } from './coverage-data';
-import { decodeNs3 } from '../ns3/decode';
 import type { FwLayout } from '../clavia/block-chain';
+import { NS3_LAYOUT } from '../ns3/layout.generated';
 import { NG_LAYOUT } from '../ng/layout.generated';
 import { NG2_LAYOUT } from '../ng2/layout.generated';
 import { NP4_LAYOUT } from '../np4/layout.generated';
@@ -58,9 +58,10 @@ export const NS4_PARAM_COUNT = new Set(NS4_PARAMS.map((p) => p.id)).size;
 // Models with a (full/partial) decoder independent of contributions.
 const DECODER_BY_ID: Record<string, 'full' | 'partial'> = {
   'stage-4': 'full',
-  'stage-3': 'partial',
   // Firmware-layout readers (clavia/block-chain.ts), read-only. Grand, Piano 6,
-  // Electro 7 and Organ 3 are not yet checked on real files.
+  // Electro 7 and Organ 3 are not yet checked on real files; the Stage 3 layout
+  // reproduces every offset the earlier corpus decoder read from real files.
+  'stage-3': 'partial',
   'grand': 'partial',
   'grand-2': 'partial',
   'piano-4': 'partial',
@@ -130,54 +131,15 @@ function getNs4Progress(): ModelProgress {
   return _ns4Progress;
 }
 
-// ── Stage 3 coverage traced from the reader ──────────────────────────────────
-// The ns3 decoder reads the program body directly (no internal slice), so a
-// tracking Proxy records exactly which bytes a decode touches = the bytes the
-// reader decodes. Tracing crafted synthetic inputs (varied fills × panel-flag
-// values) fires every conditional branch, yielding the reader's full read
-// footprint with no fixtures, no duplicated offset table, and no drift.
-const CBIN_HEADER = 44;
-
-function tracedReaderProgress(
-  decode: (b: Uint8Array) => unknown, flagOffsets: number[],
-): ModelProgress {
-  const touched = new Set<number>();
-  const record = (bytes: Uint8Array) => {
-    const proxy = new Proxy(bytes, {
-      get(t, prop, recv) {
-        if (typeof prop === 'string') {
-          const n = Number(prop);
-          if (Number.isInteger(n) && n >= 0) touched.add(n);
-        }
-        return Reflect.get(t, prop, recv);
-      },
-    });
-    try { decode(proxy as Uint8Array); } catch { /* garbage input may throw mid-parse; reads so far still count */ }
-  };
-  // Fire all branches: varied fills, and every panel/slot-flag value at the flag byte(s).
-  for (const fill of [0x00, 0xff, 0xaa, 0x55]) {
-    for (const flag of [0x00, 0x20, 0x40, 0x60, 0x80, 0xc0, 0xe0]) {
-      const b = new Uint8Array(768).fill(fill);
-      b[0x04] = 1; // content-version marker (selects the +0 offset path)
-      for (const fo of flagOffsets) b[fo] = flag;
-      record(b);
-    }
-  }
-  const body = [...touched].filter((o) => o >= CBIN_HEADER).map((o) => o - CBIN_HEADER);
-  if (body.length === 0) return { bodyBytes: null, controls: [], regions: [] };
-  const bodyBytes = Math.max(...body) + 1;
-  const covered = new Set(body);
-  const regions = coveredToRegions(covered, bodyBytes, () => 'Decoded by reader');
-  return { bodyBytes, controls: [], regions };
-}
-
 // ── Firmware-layout models: byte map synthesized from the generated layout ──
-// Grand, Grand 2, Piano 4/5/6, Electro 6 and Wave 2 come from a high-confidence
-// firmware map → 'confirmed' (Piano 4 / 5, Grand 2, Electro 6 and Wave 2 also
-// reproduce the corpus block lengths and anchors of the earlier readers).
+// Stage 3, Grand, Grand 2, Piano 4/5/6, Electro 6 and Wave 2 come from a
+// high-confidence firmware map → 'confirmed' (Stage 3, Piano 4 / 5, Grand 2,
+// Electro 6 and Wave 2 also reproduce the offsets, block lengths and anchors of
+// the earlier readers).
 // Electro 7 and Organ 3 have a medium-confidence block order (not yet seen in a
 // real file) → 'candidate', so they don't inflate the headline percentage.
 const FW_LAYOUTS: Record<string, { layout: FwLayout; status: 'confirmed' | 'candidate' }> = {
+  'stage-3': { layout: NS3_LAYOUT, status: 'confirmed' },
   'grand': { layout: NG_LAYOUT, status: 'confirmed' },
   'grand-2': { layout: NG2_LAYOUT, status: 'confirmed' },
   'piano-4': { layout: NP4_LAYOUT, status: 'confirmed' },
@@ -253,18 +215,15 @@ function legacyLayoutProgress(layout: LegacyLayout, status: 'confirmed' | 'candi
   return { bodyBytes: layout.dataBytes, controls: [], regions: kindsToRegions(kind, status) };
 }
 
-let _ns3Progress: ModelProgress | undefined;
-
 /**
  * Returns the decode progress for any model — synthesized from the NS4 offset
- * map (Stage 4), traced from the reader (Stage 3), synthesized from the
- * generated firmware layout (Grand, Grand 2, Piano 4/5/6, Electro 6/7, Organ 3,
- * Wave 2) or legacy record layout (Stage 2 / 2 EX, Electro 4, Lead 4, Lead A1),
- * or curated from MODEL_PROGRESS (every other model).
+ * map (Stage 4), from the generated firmware layout (Stage 3, Grand, Grand 2,
+ * Piano 4/5/6, Electro 6/7, Organ 3, Wave 2) or legacy record layout (Stage 2 /
+ * 2 EX, Electro 4, Lead 4, Lead A1), or curated from MODEL_PROGRESS (every other
+ * model).
  */
 export function getModelProgress(modelId: string): ModelProgress | undefined {
   if (modelId === 'stage-4') return getNs4Progress();
-  if (modelId === 'stage-3') return (_ns3Progress ??= tracedReaderProgress(decodeNs3, [0x31, 0x1d]));
   const fw = FW_LAYOUTS[modelId];
   if (fw) return (_fwProgress[modelId] ??= layoutProgress(fw.layout, fw.status));
   const legacy = LEGACY_LAYOUTS[modelId];
@@ -336,7 +295,7 @@ export function decodeForModel(modelId: string): ModelDecode {
   if (decoder === 'full') {
     return { status: 'full', paramCount: NS4_PARAM_COUNT, bodyBytes: NS4_BODY_BYTES, coveredBytes: 0, candidateBytes: 0, controlCount: NS4_PARAM_COUNT, pct: 100, fullMap: true };
   }
-  const prog = getModelProgress(modelId); // includes traced Stage 3 regions
+  const prog = getModelProgress(modelId);
   const summary = prog ? summarizeProgress(prog) : { coveredBytes: 0, candidateBytes: 0, controlCount: 0, pct: null };
   if (decoder === 'partial') {
     const layout = (FW_LAYOUTS[modelId] ?? LEGACY_LAYOUTS[modelId])?.layout;
