@@ -14,10 +14,10 @@ export const CONTENT = 'mx-auto max-w-content px-6';
  * is a desktop luxury, and unclamped at phone width it is just scrolling. The
  * app is mobile-first (working principle 4).
  */
-export const SEC = cn(CONTENT, 'py-[clamp(64px,10vw,160px)]');
+export const SEC = cn(CONTENT, 'py-[clamp(40px,5vw,80px)]');
 
 /** The tighter rhythm, for sections that ride close to their neighbour. */
-export const SEC_TIGHT = cn(CONTENT, 'py-[clamp(32px,5vw,80px)]');
+export const SEC_TIGHT = cn(CONTENT, 'py-[clamp(20px,2.5vw,40px)]');
 
 /**
  * Scroll to an in-page section without writing to the URL hash.

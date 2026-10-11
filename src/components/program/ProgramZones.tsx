@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { NS4Program } from '../../lib/ns4/types';
-import { programZones } from '../../lib/ns4/view';
+import { programZones, type ProgramZonesView } from '../../lib/ns4/view';
 import { BLACK_KEYS, BLACK_KEY_WIDTH, WHITE_KEYS, shortXfade, zoneLanes } from './zone-map';
 
 const KIND_ABBR: Record<string, string> = { organ: 'ORG', piano: 'PNO', synth: 'SYN' };
@@ -14,7 +14,11 @@ const pct = (f: number) => `${(f * 100).toFixed(3)}%`;
  * when there's anything routing-related to show; a plain layered patch needs none.
  */
 export function ProgramZones({ program, scene }: { program: NS4Program; scene?: 'I' | 'II' }) {
-  const z = programZones(program, scene);
+  return <ZonesPanel view={programZones(program, scene)} />;
+}
+
+/** The split map and performance keys for an already-built view (the landing page draws one by hand). */
+export function ZonesPanel({ view: z }: { view: ProgramZonesView }) {
   const perf = z.performance;
   const hasPerf = !!perf.pitchStick || perf.sustain || perf.kbHold;
   if (!z.hasSplit && !z.transpose && !hasPerf) return null;
