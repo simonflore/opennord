@@ -91,10 +91,15 @@ describe('buildFileReadEvent', () => {
   });
 
   it('takes only the record version from a legacy record', () => {
-    const bytes = synthLegacyFile('nspg', 10, new Uint8Array(398).fill(0xee));
+    const bytes = synthLegacyFile('ne5p', 4, new Uint8Array(119).fill(0xee));
     const d = buildFileReadEvent(bytes)!.detail as unknown as FileReadDetail;
-    expect(d.framing.atBody).toHaveLength(4);
+    expect(d.framing.atBody).toHaveLength(4); // the u16 record version
     expect(JSON.stringify(d.framing)).not.toContain('ee');
+    // The Stage Classic / EX record opens with a u8 version.
+    const nspg = synthLegacyFile('nspg', 10, new Uint8Array(398).fill(0xee));
+    const n = buildFileReadEvent(nspg)!.detail as unknown as FileReadDetail;
+    expect(n.framing.atBody).toHaveLength(2);
+    expect(JSON.stringify(n.framing)).not.toContain('ee');
   });
 
   it('takes only the record version behind an NSM-era header, at its own width', () => {
