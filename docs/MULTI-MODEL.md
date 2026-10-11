@@ -303,9 +303,11 @@ morph deltas. The Lead A1 alignment is medium until a corpus check.
 `ns2/layout.generated.ts`, 519 bytes of data (21 global + 2 × 249 per slot).
 Two differences from the records above:
 
-- **Data offset.** NSM writes it behind either header: the data starts at
-  0x2E behind the NSM-era header and at 0x1A behind the legacy one
-  (`legacyData(bytes, dataOffset)`).
+- **Framing.** NSM writes it behind either header: the data starts at 0x2E
+  behind the NSM-era header and runs to the end of the file (565 bytes, no
+  trailer), and at 0x1A behind the legacy one, before the 2-byte trailer (547
+  bytes) — `legacyData(bytes, dataOffset, trailerBytes)`. Checked on
+  ns3-program-viewer's 489-file test corpus (kept local).
 - **Morph deltas.** Inline before each morphable parameter, one per source
   (`<key>.morphWheel` / `.morphAfterTouch` / `.morphCtrlPedal`, two's complement,
   one bit wider); `decodeNs2` groups them in `morphDeltas`.

@@ -3,7 +3,8 @@
  * `.nl4p`), Lead A1 (`.nlas` / `.nlap`), Electro 4 (`.ne4p`) and Stage 2 / 2 EX
  * (`.ns2p`) program files. The Stage 2 record is the same descriptor-container
  * bitstream; NSM also writes it behind the NSM-era header, where the data
- * starts at file 0x2E (`legacyData`'s `dataOffset`).
+ * starts at file 0x2E and the file has no trailer (`legacyData`'s
+ * `dataOffset` / `trailerBytes`).
  *
  * These are not registry block chains (block-chain.ts). The firmware writes a
  * u16 record version and then the record data; NSM stores the version at file
@@ -87,11 +88,12 @@ export interface LegacyMorphEntry {
 
 /**
  * The record data of a legacy file: file 0x1A up to the 2-byte trailer.
- * `dataOffset` is where the data starts when it isn't 0x1A: a Stage 2 record
- * behind the NSM-era header starts at 0x2E.
+ * `dataOffset` and `trailerBytes` cover the other framing: a Stage 2 record
+ * behind the NSM-era header starts at 0x2E and runs to the end of the file
+ * (565-byte `.ns2p`, no trailer).
  */
-export function legacyData(bytes: Uint8Array, dataOffset: number = LEGACY_DATA_OFFSET): Uint8Array {
-  return bytes.slice(dataOffset, Math.max(dataOffset, bytes.length - 2));
+export function legacyData(bytes: Uint8Array, dataOffset: number = LEGACY_DATA_OFFSET, trailerBytes = 2): Uint8Array {
+  return bytes.slice(dataOffset, Math.max(dataOffset, bytes.length - trailerBytes));
 }
 
 /** The u16 LE record version at file 0x14. */

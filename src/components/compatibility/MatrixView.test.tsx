@@ -37,7 +37,8 @@ describe('MatrixView', () => {
     expect(row('Nord Lead 4')).toContain('full map');
     expect(row('Nord Wave 2')).not.toContain('full map'); // morph amounts not read yet
     expect(row('Nord Stage 3')).toContain('full map'); // firmware layout (#54)
-    expect(row('Nord Stage 2')).not.toContain('full map'); // hand-built reader
+    expect(row('Nord Stage 2')).toContain('full map'); // firmware descriptor layout
+    expect(row('Nord Stage 2 EX')).toContain('full map'); // same ns2p format
     expect(row('Nord Stage 4')).not.toContain('full map'); // already validated
     expect(html).toContain('reads every parameter a program stores');
   });
