@@ -25,6 +25,7 @@ import { np6Decoded } from './np6/present';
 import { ne7Decoded } from './ne7/present';
 import { no3Decoded } from './no3/present';
 import { np3Decoded } from './np3/present';
+import { np2Decoded } from './np2/present';
 
 /** Family-wide piano-name lookup (the 32-bit piano name hash → display name). */
 const pianoName = (hash: number): string | undefined => PIANO_NAMES[hash];
@@ -59,6 +60,7 @@ const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.tag === 'no3p' || i.tag === 'no3l', present: no3Decoded },
   // Later ColdFire legacy records (clavia/legacy-program.ts).
   { match: (i) => i.tag === 'np3p' || i.tag === 'np3l', present: np3Decoded },
+  { match: (i) => i.tag === 'np2p', present: np2Decoded },
 ];
 
 /** The shared decoded-program presentation for a file, or null if no model claims it. */

@@ -162,7 +162,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 'unsupported', note: "no sample library and no sample code in the OS 1.50 firmware (sampleCodec null)" },
   },
   'piano-2': {
-    'file-read': { status: 'inferred', note: "OG sibling of stage-2 (re); np2p body codec not yet RE'd" },
+    'file-read': { status: 're', note: "np2p read-only reader (lib/np2) generated from the OS 1.22 firmware's own parameter descriptors: u16 version 2 + 42 bytes (common, piano, synth, effects; 52 parameters; version 1 read with a warning, the firmware converts it), data taken at file 0x1A (70-byte file). Names mostly from matching MIDI controllers with the Piano 3 (medium). No real .np2p checked yet; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v6 in the OS 1.22 firmware (frames 3..6); 9 partitions, Program at 6 (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v6 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v6 (firmware); WRITE — untested-write risk" },
