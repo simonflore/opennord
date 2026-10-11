@@ -38,7 +38,7 @@ describe('MEDIA_COMPAT', () => {
       expect(pianoVersions(m), m).toEqual([v5, v6]);
     }
     for (const m of ['electro-3-hp', 'electro-4', 'piano-1', 'piano-2'] as const) expect(pianoVersions(m), m).toEqual([v5]);
-    expect(pianoVersions('electro-3')).toEqual([v4, v5]);
+    for (const m of ['electro-3', 'stage-classic', 'stage-ex'] as const) expect(pianoVersions(m), m).toEqual([v4, v5]);
     for (const m of ['wave', 'wave-2', 'organ-3', 'lead-4', 'lead-a1', 'c2d'] as const) expect(pianoVersions(m), m).toBe('none');
   });
 
@@ -57,7 +57,7 @@ describe('MEDIA_COMPAT', () => {
     for (const m of ['stage-3', 'piano-4', 'grand', 'electro-6'] as const) expect(sampleGens(m), m).toEqual([3]);
     for (const m of ['stage-4', 'piano-5', 'piano-6', 'grand-2'] as const) expect(sampleGens(m), m).toEqual([3, 4]);
     for (const m of ['wave-2', 'electro-7'] as const) expect(sampleGens(m), m).toBe('unknown');
-    for (const m of ['piano-1', 'c2d', 'organ-3', 'lead-4', 'lead-a1'] as const) expect(sampleGens(m), m).toBe('none');
+    for (const m of ['piano-1', 'c2d', 'organ-3', 'lead-4', 'lead-a1', 'stage-classic', 'stage-ex'] as const) expect(sampleGens(m), m).toBe('none');
   });
 });
 
@@ -67,7 +67,8 @@ describe('pianoWriteVersion / sampleTarget / acceptsSample', () => {
     expect(pianoWriteVersion('piano-2')).toBe(v5);
     expect(pianoWriteVersion('electro-3')).toBe(v5);
     expect(pianoWriteVersion('wave')).toBeUndefined();
-    expect(pianoWriteVersion('stage-classic')).toBeUndefined();
+    expect(pianoWriteVersion('stage-classic')).toBe(v5);
+    expect(pianoWriteVersion('c2')).toBeUndefined();
   });
 
   it('picks the newest sample generation a model loads, as a convertNsmp target', () => {

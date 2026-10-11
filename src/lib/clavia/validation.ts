@@ -9,8 +9,8 @@
  * The non-Stage-4 rows are a reverse-engineering assessment (not hardware-tested):
  * the whole line shares ONE vendor-USB FileTransfer transport (docs/NORD-PRODUCT-LINE.md).
  * Where we read the model's own OS image (docs/FIRMWARE-LINE.md: FileTransfer version,
- * partition order, file formats) a cell is `re`; where we only assume it from a sibling
- * (Stage Classic, Stage EX, C2) it stays `inferred`. The C1's firmware has no USB
+ * partition order, file formats) a cell is `re` — every model with USB transfer now; a
+ * cell assumed from a sibling stays `inferred`. The C1's firmware has no USB
  * transfer at all. Only Stage 4 is `validated`; real owners running the read-only probe
  * upgrade cells to `validated`.
  */
@@ -40,23 +40,23 @@ export interface CapabilityStatus { status: ValidationStatus; note?: string; }
 
 export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, CapabilityStatus>>>> = {
   'stage-classic': {
-    'file-read': { status: 'inferred', note: "OG gen, tag 'nsp' (distinct from RE'd ns2p); no decoder, same-era inference" },
-    enumerate: { status: 'inferred', note: "shared vendor-USB FileTransfer (0x0FFC-gated); read-only CQryPartList, OG sibling, untested" },
-    pull: { status: 'inferred', note: "shared FileTransfer Download; read-only, OG-sibling inference, untested" },
-    push: { status: 'inferred', note: "shared FileTransfer Upload; WRITE \u2014 untested-write risk, OG-sibling inference" },
-    delete: { status: 'inferred', note: "shared FileTransfer Delete; WRITE \u2014 untested-write risk, OG-sibling inference" },
-    backup: { status: 'inferred', note: "nsb/ns2exb ZIP backup via FileTransfer; OG-sibling inference, untested" },
-    samples: { status: 'unsupported', note: "sampleCodec null in partitions.ts; no sample engine" },
+    'file-read': { status: 're', note: "nspg program record known from the OS 5.08 firmware's own descriptors (lib/ns1: u8 version 10 + common, panel A, panel B = 400 bytes; 101 morphable parameters with 3 signed deltas each). Record start in a .nspg file unconfirmed — files open header-only with a warning until a real file pins it; not HW-tested" },
+    enumerate: { status: 're', note: "FileTransfer v3 in the OS 5.08 firmware (frames of exactly version 3, no session lock); 4 partitions: 0 Native, 1 Piano, 2 Program nspg, 3 Synth nss — no Live, no Settings (static); read-only, untested" },
+    pull: { status: 're', note: "shared FileTransfer Download at v3 (firmware); read-only, untested" },
+    push: { status: 're', note: "shared FileTransfer Upload at v3 (firmware); WRITE \u2014 untested-write risk" },
+    delete: { status: 're', note: "shared FileTransfer Delete at v3 (firmware); WRITE \u2014 untested-write risk" },
+    backup: { status: 're', note: "ZIP of the user partitions, from the 4-partition list the OS 5.08 firmware registers, pulled over FileTransfer v3; untested on HW" },
+    samples: { status: 'unsupported', note: "no sample library in the OS 5.08 firmware (sampleCodec null); pianos CNSP up to v5" },
   },
   'stage-ex': {
     // First-gen Nord Stage EX (sibling of Stage Classic), tag 'nspg' \u2014 NOT Stage 2 EX.
-    'file-read': { status: 'inferred', note: "OG gen, tag 'nspg' (first-gen Stage EX, distinct from RE'd ns2p); no decoder, same-era inference" },
-    enumerate: { status: 'inferred', note: "shared vendor-USB FileTransfer (0x0FFC-gated); read-only, OG-sibling inference, untested" },
-    pull: { status: 'inferred', note: "shared FileTransfer Download; read-only, OG-sibling inference, untested" },
-    push: { status: 'inferred', note: "shared FileTransfer Upload; WRITE \u2014 untested-write risk, OG-sibling inference" },
-    delete: { status: 'inferred', note: "shared FileTransfer Delete; WRITE \u2014 untested-write risk, OG-sibling inference" },
-    backup: { status: 'inferred', note: "nsb/ns2exb ZIP backup via FileTransfer; OG-sibling inference, untested" },
-    samples: { status: 'unsupported', note: "sampleCodec null in partitions.ts; no user sample engine" },
+    'file-read': { status: 're', note: "nspg program record known from the OS 6.08 firmware's own descriptors — identical to the Stage Classic's (lib/ns1, 400 bytes). Record start in a .nspg file unconfirmed — files open header-only with a warning until a real file pins it; not HW-tested" },
+    enumerate: { status: 're', note: "FileTransfer v4 in the OS 6.08 firmware (frames 3..4, no session lock); 4 partitions: 0 Native (FFS), 1 Piano, 2 Program nspg, 3 Synth nss — no Live, no Settings (static); read-only, untested" },
+    pull: { status: 're', note: "shared FileTransfer Download at v4 (firmware); read-only, untested" },
+    push: { status: 're', note: "shared FileTransfer Upload at v4 (firmware); WRITE \u2014 untested-write risk" },
+    delete: { status: 're', note: "shared FileTransfer Delete at v4 (firmware); WRITE \u2014 untested-write risk" },
+    backup: { status: 're', note: "ZIP of the user partitions, from the 4-partition list the OS 6.08 firmware registers, pulled over FileTransfer v4; untested on HW" },
+    samples: { status: 'unsupported', note: "no sample library in the OS 6.08 firmware (sampleCodec null); pianos CNSP up to v5" },
   },
   'stage-2-ex': {
     // Nord Stage 2 EX = Stage 2 + extended memory; shares the ns2p body + OG transport.
@@ -126,7 +126,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 're', note: "sampleCodec 'og': firmware loads .nsmp with NWS v8/v11 only; not HW-tested on E4" },
   },
   'electro-5': {
-    'file-read': { status: 're', note: "ne5p legacy formatType-0 header NSM-traced (CElectro5 ctor, BankToCategories, 8-partition spec); sequential 1-based slot display (CElectro5::ConvertLocation returns unhandled for programs — base class applies sequential scheme); validated vs real .ne5p fixtures, not HW-tested" },
+    'file-read': { status: 're', note: "ne5p legacy formatType-0 header NSM-traced (CElectro5 ctor, BankToCategories, 8-partition spec); sequential 1-based slot display (CElectro5::ConvertLocation returns unhandled for programs — base class applies sequential scheme). Body read from file 0x1A through the OS 2.04 firmware's own parameter containers (lib/ne5: u16 version 4 + 119 bytes, 173 parameters — piano, Sample Synth, B3/Vox/Farfisa/Church presets, effects; version 3 read with a warning, 1–2 refused); reproduces the drawbar and sample-reference bytes pinned on real .ne5p fixtures; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v10 in the OS 2.04 (ColdFire) firmware; 8 partitions, Program at 4 (firmware agrees with NSM); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v10 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v10 (firmware); WRITE — untested-write risk" },
@@ -153,7 +153,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 'inferred', note: "sample generation not located in the firmware; codec4 is a guess (a {8,11,30,40} version map exists)" },
   },
   'piano-1': {
-    'file-read': { status: 'inferred', note: "OG sibling of stage-2 (re); nppg body codec not yet RE'd" },
+    'file-read': { status: 're', note: "nppg read-only reader (lib/np1) generated from the OS 1.50 firmware's own parameter descriptors: a 20-byte record (piano, effects; 29 parameters) with no version and no converter. Where the record starts in a .nppg file is a guess (0x1A, low) — values are provisional until a real file confirms it; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v4 in the OS 1.50 firmware (frames 3..4, no session lock); 6 partitions, Program at 3 (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v4 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v4 (firmware); WRITE — untested-write risk" },
@@ -162,7 +162,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 'unsupported', note: "no sample library and no sample code in the OS 1.50 firmware (sampleCodec null)" },
   },
   'piano-2': {
-    'file-read': { status: 'inferred', note: "OG sibling of stage-2 (re); np2p body codec not yet RE'd" },
+    'file-read': { status: 're', note: "np2p read-only reader (lib/np2) generated from the OS 1.22 firmware's own parameter descriptors: u16 version 2 + 42 bytes (common, piano, synth, effects; 52 parameters; version 1 read with a warning, the firmware converts it), data taken at file 0x1A (70-byte file). Names mostly from matching MIDI controllers with the Piano 3 (medium). No real .np2p checked yet; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v6 in the OS 1.22 firmware (frames 3..6); 9 partitions, Program at 6 (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v6 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v6 (firmware); WRITE — untested-write risk" },
@@ -171,7 +171,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 're', note: "sampleCodec 'og': firmware loads .nsmp with NWS v8/v11 only; not HW-tested" },
   },
   'piano-3': {
-    'file-read': { status: 'inferred', note: "ColdFire (Stage 2 generation) firmware, not NW1-v3; np3p container not extracted, no body decoder" },
+    'file-read': { status: 're', note: "np3p read-only reader (lib/np3) generated from the OS 2.04 firmware's own parameter containers: u16 version 4 + 53 bytes (common, piano, synth, effects; 76 parameters), data taken at file 0x1A (81-byte file, medium). No real .np3p checked yet; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v10 in the OS 2.04 (ColdFire) firmware; 9 partitions, Program at 6 (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v10 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v10 (firmware); WRITE — untested-write risk" },
@@ -253,12 +253,12 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 'unsupported', note: "no sample engine" },
   },
   'c2': {
-    'file-read': { status: 'inferred', note: "nc2p files decode with the C2D firmware layout (lib/nc2); no C2 OS image read, so the shared record is assumed, not checked" },
-    enumerate: { status: 'inferred', note: "shared vendor-USB FileTransfer (0x0FFC, CC2 handler); no C2 OS image read (the C2D speaks v4); read-only, untested" },
-    pull: { status: 'inferred', note: "shared FileTransfer Download; read-only, OG-sibling inference, untested" },
-    push: { status: 'inferred', note: "shared FileTransfer Upload; WRITE — untested-write risk, OG-sibling inference" },
-    delete: { status: 'inferred', note: "shared FileTransfer Delete; WRITE — untested-write risk, OG-sibling inference" },
-    backup: { status: 'inferred', note: "nc2b ZIP backup via FileTransfer; OG-sibling inference, untested" },
+    'file-read': { status: 're', note: "ncpg read-only reader (lib/nc) generated from the C2 OS 2.00 firmware's own parameter containers: u16 version 100 (the only one read) + 269 bytes, 66 containers (B3 drawbar sets and percussion, Vox, Farfisa, pipe presets and couplers, bass modes, effects). Record alignment in the file (data at 0x1A, 297-byte file) unconfirmed; block names medium; not HW-tested" },
+    enumerate: { status: 're', note: "FileTransfer v4 in the OS 2.00 firmware (frames 3..4, no session lock); 5 partitions: 0 Pipe (Native), 1 Pipe, 2 Program ncpg, 3 Live, 4 System — Pipe partitions read-only (static); read-only, untested" },
+    pull: { status: 're', note: "shared FileTransfer Download at v4 (firmware); read-only, untested" },
+    push: { status: 're', note: "shared FileTransfer Upload at v4 (firmware); WRITE — untested-write risk" },
+    delete: { status: 're', note: "shared FileTransfer Delete at v4 (firmware); WRITE — untested-write risk" },
+    backup: { status: 're', note: "ZIP of the user partitions, from the 5-partition list the OS 2.00 firmware registers, pulled over FileTransfer v4; untested on HW" },
     samples: { status: 'unsupported', note: "sampleCodec null in partitions.ts; C2 has no sample engine" },
   },
   'c2d': {

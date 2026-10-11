@@ -153,7 +153,7 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     const session = new NordSession(transport);
     const deviceIdentity = identity ?? identifyDevice(productId);
     // Start from the model's own FileTransfer version (registry, from its
-    // firmware: 4/6/7/8/10), else the NS4 default 0x0a — a frame above a
+    // firmware: 3/4/6/7/8/10), else the NS4 default 0x0a — a frame above a
     // device's version is dropped without a reply. Then adopt what the device
     // advertises (NS2 = 0x08). Best-effort and bounded: whether the older
     // models answer the handshake at all is unknown, so on silence or an error

@@ -30,7 +30,7 @@
  * (`<model>/layout.generated.ts`). Pure; model → clavia.
  */
 import { readBits } from './bitstream';
-import { fieldValue, type FwEncoding } from './block-chain';
+import { fieldValue, outOfRangeWarning, type FwEncoding } from './block-chain';
 
 /** File offset where legacy formatType-0 record data begins (after a u16 record version). */
 export const LEGACY_DATA_OFFSET = 0x1a;
@@ -218,9 +218,7 @@ export function readLegacyFile<K extends string>(
     warnings.push(`Record version ${recordVersion}; the firmware reads ${versions.join(', ')}`);
   }
   const { values, outOfRange } = readLegacyRecord(data, layout);
-  if (complete && outOfRange.length > 0) {
-    warnings.push(`${outOfRange.length} value(s) outside the firmware's range (${outOfRange.slice(0, 4).join(', ')}${outOfRange.length > 4 ? ', …' : ''}).`);
-  }
+  if (complete && outOfRange.length > 0) warnings.push(outOfRangeWarning(outOfRange));
   return { recordVersion, data, complete, values, outOfRange, warnings };
 }
 

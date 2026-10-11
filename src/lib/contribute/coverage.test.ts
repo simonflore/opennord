@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { MODEL_PROGRESS } from './coverage-data';
 import { decodeForModel, getModelProgress, summarizeProgress, NS4_PARAM_COUNT, DECODE_LABEL } from './coverage';
 import { NS4_OFFSET_MAP } from '../ns4/offset-map.generated';
 import { NE7_LAYOUT } from '../ne7/layout.generated';
@@ -34,10 +35,16 @@ describe('decodeForModel', () => {
   });
 
   it('reports a curated model with controls mapped as started', () => {
-    const d = decodeForModel('electro-5');
-    expect(d.status).toBe('started');
-    expect(d.controlCount).toBeGreaterThan(0);
-    expect(d.pct).toBeGreaterThan(0);
+    // A synthetic curated entry: every model with a curated map so far has since got a reader.
+    MODEL_PROGRESS['test-model'] = { bodyBytes: 10, controls: [{ label: 'Level', ranges: [{ start: 2, end: 3 }] }] };
+    try {
+      const d = decodeForModel('test-model');
+      expect(d.status).toBe('started');
+      expect(d.controlCount).toBe(1);
+      expect(d.pct).toBe(20);
+    } finally {
+      delete MODEL_PROGRESS['test-model'];
+    }
   });
 
   it('reports NE6 as partly decoded, with its byte map from the firmware layout', () => {
@@ -149,7 +156,6 @@ describe('parameter counts of the legacy-record readers', () => {
   it('count each C2D parameter once across presets, manuals and repeated containers', () => {
     expect(decodeForModel('c2d').paramCount).toBe(91);
     expect(decodeForModel('c2d')).toMatchObject({ status: 'partial', bodyBytes: 345, coveredBytes: 0 });
-    expect(decodeForModel('c2').status).toBe('none'); // no C2 firmware read
   });
 
   it('count each Wave parameter once across both slots, without the morph deltas', () => {
@@ -159,13 +165,28 @@ describe('parameter counts of the legacy-record readers', () => {
   });
 });
 
+describe('parameter counts of the later ColdFire readers', () => {
+  it('count each stored parameter once (Electro 5 presets, C2 manuals and presets, Stage panels A/B), without the Stage morph deltas', () => {
+    const counts = Object.fromEntries(['electro-5', 'piano-3', 'piano-2', 'piano-1', 'stage-classic', 'c2']
+      .map((id) => [id, decodeForModel(id).paramCount]));
+    expect(counts).toEqual({ 'electro-5': 129, 'piano-3': 76, 'piano-2': 52, 'piano-1': 29, 'stage-classic': 199, c2: 86 });
+    expect(decodeForModel('stage-ex').paramCount).toBe(counts['stage-classic']);
+  });
+
+  it('mark the Stage Classic / EX header-only (their record start in a file is unknown), and no other reader', () => {
+    for (const id of ['stage-classic', 'stage-ex']) expect(decodeForModel(id).headerOnly, id).toMatch(/header only/);
+    for (const id of ['electro-5', 'piano-3', 'piano-2', 'piano-1', 'c2']) expect(decodeForModel(id).headerOnly, id).toBeUndefined();
+  });
+});
+
 describe('fullMap', () => {
   it('is set for the firmware-layout and legacy-record readers except Wave 2, and for the Stage 4', () => {
     for (const id of ['stage-4', 'stage-3', 'grand', 'grand-2', 'piano-4', 'piano-5', 'piano-6', 'electro-6', 'electro-7', 'organ-3', 'lead-4', 'lead-a1', 'electro-4',
-      'stage-2', 'stage-2-ex', 'electro-3', 'electro-3-hp', 'c2d', 'wave']) {
+      'stage-2', 'stage-2-ex', 'electro-3', 'electro-3-hp', 'c2d', 'wave', 'electro-5', 'piano-3', 'piano-2', 'piano-1', 'c2']) {
       expect(decodeForModel(id).fullMap, id).toBe(true);
     }
-    for (const id of ['wave-2', 'electro-5', 'c2']) {
+    // Stage Classic / EX: the record is mapped, but files open header-only until its start is confirmed.
+    for (const id of ['wave-2', 'stage-classic', 'stage-ex']) {
       expect(decodeForModel(id).fullMap, id).toBe(false);
     }
   });

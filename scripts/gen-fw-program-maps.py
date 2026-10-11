@@ -54,6 +54,14 @@ Usage (from packages/core):
     python3 scripts/gen-fw-program-maps.py wave     <wave-offsets.csv>         src/lib/nw1/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py stage-3  <ns3-offsets.csv>          src/lib/ns3/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py stage-2  <stage-2-offsets.csv>      src/lib/ns2/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py electro-5 <electro-5-offsets.csv>   src/lib/ne5/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py piano-3  <piano-3-offsets.csv>      src/lib/np3/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py piano-2  <piano-2-offsets.csv>      src/lib/np2/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py piano-1  <piano-1-offsets.csv>      src/lib/np1/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py stage-classic <stage-classic-offsets.csv> src/lib/ns1/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py c2       <c2-offsets.csv>           src/lib/nc/layout.generated.ts
+    # Cross-check only: the Stage EX OS 6.08 descriptors give the Stage Classic layout field for field.
+    python3 scripts/gen-fw-program-maps.py stage-ex <stage-ex-offsets.csv>     /tmp/ns1-ex.generated.ts
 
 Wave 2 morph deltas (the keys dialect's "@m1".."@m5" rows) are left out like
 every "@" row of a model without `morphs`: the firmware stores morph deltas as
@@ -74,6 +82,27 @@ padding (`padBytes`). Their output is a LegacyLayout (src/lib/clavia/legacy-reco
              (not-stored rows have no stream_bit_offset; the Electro 3 / 3 HP, C2D,
              Wave and Stage 2 CSVs use the same columns)
 Reserved rows are dropped; the Lead 4 sparse morph lists become `morphLists`.
+
+The Stage 2 (`stage-2`) is a descriptor-container record in the electro-4 dialect,
+with two differences. Its data starts at file 0x2E behind the NSM-era header (0x1A
+behind the legacy one), which the reader handles; the layout's bits are relative
+to the record data either way. And its morphable parameters carry inline deltas
+that the CSV describes in the notes ("morphable: 3 signed deltas of N bits ... at
+stream bits a..b precede the value"), not as rows. With `morphNotes` set, each
+becomes `<parameter key>.morph<Source>` (deltaOf the parameter): one per source in
+the descriptor's mask, one bit wider than the parameter, two's complement (the
+record reader FUN_30032CCE reads deltas with the sign-extending FUN_301EDBE6 and
+keeps them within +/-max).
+
+The later ColdFire records (Electro 5, Piano 3, Piano 2, Nord Piano, Stage Classic,
+Stage EX, C2) use the electro-4 dialect with a `block.key` name per row. Their configs
+add `labels` (a field's `name` is the "label: ..." text of its notes, where there
+is one) and, on the Stage models, `morphRows`: a `<param>.morphN` row is one of the
+three morph deltas stored before its parameter, one bit wider and two's complement
+(`negatives: 'twos'`), and gets `deltaOf` like a Lead A1 inline delta. The Stage
+record opens with a u8 version (its Header row) at record bit 0, so its `bit`s
+count from the record start, wherever that sits in the file (`recordNote`).
+
 In the electro-4 dialect a morphable parameter's inline deltas come from its
 note, "morphable: N signed deltas of W bits (sources ...) at stream bits X..Y
 precede the value": one delta per morph source, one bit wider than the
@@ -323,6 +352,79 @@ MODELS = {
             # Record version 7 (the load path converts 1-6 up to 7; medium-high).
             {'const': 'NS2_LAYOUT', 'type': 'Ns2FieldKey', 'version': 7, 'blocks': None},
         ],
+    },
+    # Later ColdFire records (electro-4 dialect with `block.key` names; see the docstring).
+    'electro-5': {
+        'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord Electro 5', 'labels': True,
+        'source': 'Electro 5 OS 2.04 parameter containers',
+        'container': 'Electro 5 OS 2.04 program record: 24 containers of 26-byte records, '
+                     'u16 version 4 + 119 bytes (v3 converted, v1/v2 refused)',
+        'confidence': lambda row: 'high' if 'confidence high' in row['notes'] else 'medium',
+        'records': [{'const': 'NE5_LAYOUT', 'type': 'Ne5FieldKey', 'version': 4, 'blocks': None}],
+    },
+    'piano-3': {
+        'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord Piano 3', 'labels': True,
+        'source': 'Piano 3 OS 2.04 parameter containers',
+        'container': 'Piano 3 OS 2.04 program record: u16 version 4 + 53 bytes (common, piano, synth, effects)',
+        'confidence': lambda row: 'high' if 'confidence high' in row['notes'] else 'medium',
+        'records': [{'const': 'NP3_LAYOUT', 'type': 'Np3FieldKey', 'version': 4, 'blocks': None}],
+    },
+    'piano-2': {
+        'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord Piano 2', 'labels': True,
+        'source': 'Piano 2 OS 1.22 parameter descriptors',
+        'container': 'Piano 2 OS 1.22 program record: 24-byte descriptors, u16 version 2 + 42 bytes '
+                     '(v1 converted: common param 4 remapped)',
+        'confidence': lambda row: 'medium',
+        'records': [{'const': 'NP2_LAYOUT', 'type': 'Np2FieldKey', 'version': 2, 'blocks': None}],
+    },
+    'piano-1': {
+        'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord Piano', 'labels': True,
+        'source': 'Nord Piano OS 1.50 parameter descriptors',
+        'container': 'Nord Piano OS 1.50 program record: 20 bytes in a 31-byte flash slot, no version, '
+                     'no converter; file position 0x1A assumed (low)',
+        'confidence': lambda row: 'medium',
+        'records': [{'const': 'NP1_LAYOUT', 'type': 'Np1FieldKey', 'version': None, 'blocks': None}],
+    },
+    'stage-classic': {
+        # The Stage EX (OS 6.08) registers the same descriptors; both write `.nspg`.
+        'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord Stage Classic / Stage EX', 'labels': True,
+        'source': 'Stage Classic OS 5.08 parameter descriptors',
+        'container': 'Stage Classic OS 5.08 program record: u8 version 10 (0–9 converted), common, '
+                     'panel A, panel B = 400 bytes; Stage EX OS 6.08 identical',
+        # Morph deltas: one bit wider than their parameter, two's complement (medium).
+        'negatives': 'twos', 'morphRows': True,
+        # Panels A and B store the same descriptors: count each parameter once.
+        'sets': {'panelA': 'panel', 'panelB': 'panel'},
+        'recordNote': '`bit` is relative to the record start (its u8 version is bit 0); '
+                      'where the record starts in a .nspg file is not confirmed.',
+        'confidence': lambda row: 'medium' if re.search(r'\.morph\d$', row['name']) else 'high',
+        'records': [{'const': 'NS1_LAYOUT', 'type': 'Ns1FieldKey', 'version': 10, 'blocks': None}],
+    },
+    'stage-ex': {
+        'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord Stage EX', 'labels': True,
+        'source': 'Stage EX OS 6.08 parameter descriptors',
+        'container': 'Stage EX OS 6.08 program record: u8 version 10 (0–9 converted), common, '
+                     'panel A, panel B = 400 bytes',
+        'negatives': 'twos', 'morphRows': True,
+        # Panels A and B store the same descriptors: count each parameter once.
+        'sets': {'panelA': 'panel', 'panelB': 'panel'},
+        'recordNote': '`bit` is relative to the record start (its u8 version is bit 0); '
+                      'where the record starts in a .nspg file is not confirmed.',
+        'confidence': lambda row: 'medium' if re.search(r'\.morph\d$', row['name']) else 'high',
+        'records': [{'const': 'NS1_EX_LAYOUT', 'type': 'Ns1ExFieldKey', 'version': 10, 'blocks': None}],
+    },
+    'c2': {
+        'kind': 'legacy', 'dialect': 'electro-4', 'model': 'Nord C2',
+        'source': 'C2 OS 2.00 parameter containers',
+        'container': 'C2 OS 2.00 program record: u16 version 100 (the only one read, no converter) + 269 bytes, '
+                     '66 containers',
+        # Container order and positions from the firmware; block names and the file alignment medium.
+        'confidence': lambda row: 'medium',
+        # As on the C2D, the upper and lower manuals, the numbered presets / drawbar sets /
+        # couplers and the four per-organ effect sets share their descriptor tables.
+        'sets': lambda block: re.sub(r'(Upper|Lower)$', 'Manual', re.sub(r'(Upper|Lower)(?=.)', '', re.sub(
+            r'\d+$', '', re.sub(r'^effects(B3|Vox|Farf|Pipe)$', 'effectsOrgan', block)))),
+        'records': [{'const': 'NCP_LAYOUT', 'type': 'NcpFieldKey', 'version': 100, 'blocks': None}],
     },
     'stage-3': {
         'const': 'NS3_LAYOUT', 'type': 'Ns3FieldKey', 'model': 'Nord Stage 3',
@@ -578,7 +680,7 @@ def main_legacy():
         f"// Provenance: {cfg['source']}; {cfg['container']}.",
         "// Static analysis of the firmware's own parameter descriptors. Knowledge only —",
         "// parameter names, bit positions, ranges and defaults; no firmware bytes or",
-        f"// tables (docs/LEGAL.md). `bit` is relative to the record data ({data_start}).",
+        "// tables (docs/LEGAL.md). " + cfg.get('recordNote', f"`bit` is relative to the record data ({data_start})."),
         "import type { LegacyLayout } from '../clavia/legacy-record';",
     ]
     summary = []
@@ -615,9 +717,11 @@ def main_legacy():
             enc = encoding(r, lo, cfg)
             assert lo >= 0 or enc == 'twos', name
             cc = r['midi_cc'] if lead else r['ctl_id']
+            label = re.match(r'label: ([^;(]+?)\s*(?:[(;]|$)', r['notes']) if cfg.get('labels') else None
             field = {
                 'key': f"{blocks[r['block']]}.{legacy_key(name)}" if blocks else name,
-                'name': name, 'id': int(pid), 'block': r['block'], 'delta': lead and r['morph'] == 'delta',
+                'name': label.group(1) if label else name, 'id': int(pid), 'block': r['block'],
+                'delta': (lead and r['morph'] == 'delta') or bool(cfg.get('morphRows') and re.search(r'\.morph\d$', name)),
                 'copy': not lead and 'second copy' in r['notes'],
                 'bit': bit_of(r), 'width': int(r['bit_width']), 'min': lo, 'max': hi,
                 'def': int(r['default']) if r['default'] not in ('', None) else 0,

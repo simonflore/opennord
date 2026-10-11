@@ -18,9 +18,9 @@
  *
  * Confidence: the container order is the firmware's (high); the block names
  * are inferred from descriptor shapes and control ids (medium–low), and the
- * alignment in the file is medium until a real file confirms it. C2 programs
- * share the `nc2p` tag; no C2 image was read, so they are assumed to use the
- * same record (unverified).
+ * alignment in the file is medium until a real file confirms it. The C2 has
+ * its own program tag and record (`ncpg`, C2 OS 2.00: lib/nc); `nc2p` is the
+ * C2D's alone.
  */
 import type { Nc2FieldKey } from './layout.generated';
 

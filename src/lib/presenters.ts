@@ -24,6 +24,11 @@ import { ngDecoded } from './ng/present';
 import { np6Decoded } from './np6/present';
 import { ne7Decoded } from './ne7/present';
 import { no3Decoded } from './no3/present';
+import { np3Decoded } from './np3/present';
+import { ncDecoded } from './nc/present';
+import { ns1Decoded } from './ns1/present';
+import { np1Decoded } from './np1/present';
+import { np2Decoded } from './np2/present';
 import { ne3Decoded } from './ne3/present';
 import { nc2Decoded } from './nc2/present';
 import { nw1Decoded } from './nw1/present';
@@ -44,7 +49,7 @@ interface PresenterEntry {
 const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.generation === 'Stage 3' && i.kind === 'performance', present: ns3Decoded },
   { match: (i) => i.generation === 'Stage 2' && i.kind === 'program', present: ns2Decoded },
-  { match: (i) => i.tag === 'ne5p', present: ne5Decoded },
+  { match: (i) => i.tag === 'ne5p' || i.tag === 'ne5l', present: ne5Decoded },
   { match: (i) => i.tag === 'ne6p' || i.tag === 'ne6l', present: ne6Decoded },
   { match: (i) => i.tag === 'nw2p' || i.tag === 'nw2l', present: nw2Decoded },
   { match: (i) => i.tag === 'nlas' || i.tag === 'nlap', present: nlaDecoded },
@@ -59,6 +64,12 @@ const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.tag === 'np6p' || i.tag === 'np6l', present: (bytes) => np6Decoded(bytes, pianoName) },
   { match: (i) => i.tag === 'ne7p' || i.tag === 'ne7l', present: (bytes) => ne7Decoded(bytes, pianoName) },
   { match: (i) => i.tag === 'no3p' || i.tag === 'no3l', present: no3Decoded },
+  // Later ColdFire legacy records (clavia/legacy-program.ts).
+  { match: (i) => i.tag === 'np3p' || i.tag === 'np3l', present: np3Decoded },
+  { match: (i) => i.tag === 'np2p', present: np2Decoded },
+  { match: (i) => i.tag === 'nppg', present: np1Decoded },
+  { match: (i) => i.tag === 'nspg', present: (bytes) => ns1Decoded(bytes) },
+  { match: (i) => i.tag === 'ncpg', present: ncDecoded },
   // Legacy-record readers (clavia/legacy-record.ts), firmware-derived and provisional
   // until a real file confirms the alignment. The Electro 3 Live partition's tag is
   // not known, and the C2D and Wave register no Live partition, so only programs route here.

@@ -32,7 +32,7 @@ Every message, all fields **big-endian**:
 [u32 length]      total bytes incl. this field + the trailing CRC16
 [u32 protocolId]  0x0000000C = FileTransfer  (MIDIX / InstrCtrl have other ids)
 [u32 version]     FileTransfer version — 0x0000000A on NS4, 0x00000008 on NS2;
-                  4, 6, 7, 8 or 10 across the line (per-model table under
+                  3, 4, 6, 7, 8 or 10 across the line (per-model table under
                   "Accepted frame versions"; negotiated per device — see Multi-model below)
 [u32 msgId]       opcode (table below)
 [ payload ]       msgId-specific, big-endian u32 words (+ trailing bytes for some)
@@ -143,7 +143,7 @@ carries no count.
 
 **Accepted frame versions.** Frames with any other version are dropped silently.
 Every model accepts frames from version 3 up to its own FileTransfer version, so a
-version-10 frame reaches nothing on a v4–v8 model. Static, from each model's OS
+version-10 frame reaches nothing on a v3–v8 model. Static, from each model's OS
 image (the transfer service's constructor argument and the frame-version check in
 its dispatcher); details and addresses in `docs/FIRMWARE-LINE.md` §2. The registry
 records each value as `ModelInfo.fileTransferVersion`.
@@ -162,12 +162,13 @@ records each value as `ModelInfo.fileTransferVersion`.
 | Piano 3 (2.04) | 10 | 3–10 | yes |
 | Piano 4 (2.66), Piano 5 (1.34), Piano 6 (1.20), Grand (1.68), Grand 2 (1.22) | 10 | 3–10 | yes |
 | Organ 3 (1.00), Wave 2 (1.24) | 10 | 3–10 | yes |
-| Wave (2.14), C2D (1.12) | 4 | 3–4 | **no** |
+| Wave (2.14), C2D (1.12), C2 (2.00) | 4 | 3–4 | **no** |
+| Stage Classic (5.08) | 3 | 3 only | **no** |
+| Stage EX (6.08) | 4 | 3–4 | **no** |
 | Lead 4 (1.32), Lead A1 (1.36) | 8 | 3–8 | yes |
 | C1 (1.12) | — no USB transfer at all | — | — |
 
-Not read: Stage Classic, Stage EX, C2. NSM's `CLead4_FTv7` class suggests Lead 4
-OS 1.12 and older spoke version 7.
+NSM's `CLead4_FTv7` class suggests Lead 4 OS 1.12 and older spoke version 7.
 
 **Read size.** One read reply carries at most about 64 KiB (`0xFFE8` bytes minus
 headers).

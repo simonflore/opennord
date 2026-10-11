@@ -45,6 +45,7 @@ describe('validation matrix', () => {
   const FIRMWARE_READ = [
     'electro-3', 'electro-3-hp', 'electro-4', 'electro-5', 'electro-6', 'electro-7', 'piano-1', 'piano-2',
     'piano-3', 'piano-4', 'piano-5', 'piano-6', 'wave', 'wave-2', 'c2d', 'grand', 'grand-2', 'organ-3',
+    'stage-classic', 'stage-ex', 'c2',
   ] as const;
   it('transfer caps are re wherever the model\'s own firmware was read', () => {
     for (const id of FIRMWARE_READ) {
@@ -58,13 +59,6 @@ describe('validation matrix', () => {
     for (const id of ['electro-3', 'electro-3-hp', 'c2d', 'wave'] as const) {
       expect(statusFor(id, 'file-read').status, id).toBe('re');
       expect(statusFor(id, 'file-read').note, id).toMatch(/firmware descriptor layout/);
-    }
-  });
-  it('transfer caps stay inferred where no OS image was read (Stage Classic, Stage EX, C2)', () => {
-    for (const id of ['stage-classic', 'stage-ex', 'c2'] as const) {
-      for (const cap of ['enumerate', 'pull', 'push', 'delete', 'backup'] as const) {
-        expect(statusFor(id, cap).status, `${id} ${cap}`).toBe('inferred');
-      }
     }
   });
   // CLead4Base::ConvertLocation @0x00000001000ddcf8 — slot display NSM-traced.

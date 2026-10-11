@@ -378,7 +378,7 @@ describe('checkNpnoAcceptance', () => {
     for (const model of ['wave', 'wave-2', 'organ-3', 'lead-4', 'lead-a1', 'c2d'] as const) {
       expect(checkNpnoAcceptance(v6, { model }).checks).toEqual([{ id: 'model-pianos', ok: false, detail: "This Nord doesn't load pianos" }]);
     }
-    const untraced = checkNpnoAcceptance(v6, { model: 'stage-classic' });
+    const untraced = checkNpnoAcceptance(v6, { model: 'c2' });
     expect(untraced.ok).toBe(true);
     expect(untraced.checks[0]).toMatchObject({ id: 'model-pianos', ok: true, detail: expect.stringMatching(/doesn't know yet/) });
   });
@@ -389,7 +389,7 @@ describe('checkNpnoAcceptance', () => {
     expect(() => buildNpno({ ...piano(1), model: 'organ-3' })).toThrow("This Nord doesn't load pianos.");
     expect(buildNpno({ ...piano(1), model: 'stage-2' }).bytes).toEqual(buildNpno(piano(1)).bytes);
     // Not traced yet: built and checked as for a Stage 4.
-    expect(buildNpno({ ...piano(1), model: 'stage-classic' }).bytes).toEqual(buildNpno(piano(1)).bytes);
+    expect(buildNpno({ ...piano(1), model: 'c2' }).bytes).toEqual(buildNpno(piano(1)).bytes);
   });
 
   it('fails a zone with more than 30 layers of one kind', () => {
