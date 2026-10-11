@@ -33,7 +33,12 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const [pullError, setPullError] = useState('');
   const navigate = useNavigate();
 
+  // Each open gets a number; a pull that finishes after a newer open is dropped,
+  // so the inspector always shows the sample the route names.
+  const latest = useRef(0);
   const openEntry = useCallback(async (e: SampleEntry) => {
+    const req = ++latest.current;
+    const current = () => req === latest.current;
     setPullError('');
     if (e.source === 'local' && e.bytes) {
       setLoadNew(false);
@@ -44,12 +49,12 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
       setLoadNew(false); setInspect(null); setPullPct(0);
       try {
         const bytes = await pullSample(session, e.device,
-          (done, total) => setPullPct(total ? Math.round((done / total) * 100) : 0));
-        setInspect({ id: e.id, bytes, name: e.name });
+          (done, total) => { if (current()) setPullPct(total ? Math.round((done / total) * 100) : 0); });
+        if (current()) setInspect({ id: e.id, bytes, name: e.name });
       } catch (err) {
-        setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
+        if (current()) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
       } finally {
-        setPullPct(null);
+        if (current()) setPullPct(null);
       }
       return;
     }
@@ -57,11 +62,11 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
       setLoadNew(false); setInspect(null); setPullPct(0);
       try {
         const bytes = await extractBackupEntry(folder, e.backupRef);
-        setInspect({ id: e.id, bytes, name: e.name, factory: e.factory });
+        if (current()) setInspect({ id: e.id, bytes, name: e.name, factory: e.factory });
       } catch (err) {
-        setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
+        if (current()) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`);
       } finally {
-        setPullPct(null);
+        if (current()) setPullPct(null);
       }
       return;
     }
@@ -75,7 +80,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const { entryById } = s;
   useEffect(() => {
     if (!selectedId) {
-      if (opened.current) { opened.current = null; setInspect((i) => (i?.id ? null : i)); }
+      if (opened.current) { opened.current = null; latest.current++; setInspect((i) => (i?.id ? null : i)); }
       return;
     }
     if (opened.current === selectedId) return;
@@ -85,7 +90,8 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     void openEntry(e);
   }, [selectedId, entryById, openEntry]);
 
-  const toList = () => { if (selectedId) navigate({ to: '/library/samples' }); };
+  // Back to the bare list; a pull still running for the open sample is dropped.
+  const toList = () => { latest.current++; if (selectedId) navigate({ to: '/library/samples' }); };
   const startLoadNew = () => { toList(); setInspect(null); setLoadNew(true); setPullError(''); };
   const back = () => { toList(); setInspect(null); setLoadNew(false); setPullError(''); };
 
@@ -131,7 +137,9 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         showSourceFacet={s.showSourceFacet} showUnknownGen={s.showUnknownGen}
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters}
-        onOpen={(e) => navigate({ to: '/library/samples/$sampleId', params: { sampleId: e.id } })} onLoadNew={startLoadNew}
+        // Clicking the open sample again retries it (a failed pull, say).
+        onOpen={(e) => (e.id === selectedId ? void openEntry(e) : navigate({ to: '/library/samples/{-$sampleId}', params: { sampleId: e.id } }))}
+        onLoadNew={startLoadNew}
         activeId={selectedId ?? null}
         onImport={importSample}
         onRemove={(id) => void s.removeSample(id)}

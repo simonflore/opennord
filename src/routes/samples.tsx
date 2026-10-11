@@ -7,23 +7,21 @@ import { SamplesSplit } from '@/components/sample/SamplesSplit';
 export const SamplesRedirectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/samples',
-  beforeLoad: () => { throw redirect({ to: '/library/samples' }); },
+  beforeLoad: () => { throw redirect({ to: '/library/samples/{-$sampleId}' }); },
 });
 
+/**
+ * The user-samples list, with one sample open in the inspector when the path
+ * names one (pulled from the Nord first when it lives there). One route (an
+ * optional id), so the page stays mounted between the list and a sample.
+ */
 export const SamplesRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/library/samples',
-  component: () => <SamplesSplit />,
+  path: '/library/samples/{-$sampleId}',
+  component: SamplesScreen,
 });
 
-/** One sample open in the inspector (pulled from the Nord first when it lives there). */
-export const SampleRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/library/samples/$sampleId',
-  component: SampleScreen,
-});
-
-function SampleScreen() {
-  const { sampleId } = useParams({ from: '/library/samples/$sampleId' });
+function SamplesScreen() {
+  const { sampleId } = useParams({ from: SamplesRoute.id });
   return <SamplesSplit selectedId={sampleId} />;
 }

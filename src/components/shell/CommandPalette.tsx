@@ -29,11 +29,11 @@ function useCommands(): Command[] {
   // provider update that doesn't touch the lists keeps the same commands.
   const lists = useMemo(() => [
     { group: 'Presets' as const, all: presets.all, ensureListed: presets.ensureListed,
-      open: (id: string) => navigate({ to: '/library/presets/$presetId', params: { presetId: id } }) },
+      open: (id: string) => navigate({ to: '/library/presets/{-$presetId}', params: { presetId: id } }) },
     { group: 'Samples' as const, all: samples.all, ensureListed: samples.ensureListed,
-      open: (id: string) => navigate({ to: '/library/samples/$sampleId', params: { sampleId: id } }) },
+      open: (id: string) => navigate({ to: '/library/samples/{-$sampleId}', params: { sampleId: id } }) },
     { group: 'Pianos' as const, all: pianos.all, ensureListed: pianos.ensureListed,
-      open: (id: string) => navigate({ to: '/library/pianos/$pianoId', params: { pianoId: id } }) },
+      open: (id: string) => navigate({ to: '/library/pianos/{-$pianoId}', params: { pianoId: id } }) },
   ], [navigate, presets.all, presets.ensureListed, samples.all, samples.ensureListed, pianos.all, pianos.ensureListed]);
 
   return useMemo(() => {

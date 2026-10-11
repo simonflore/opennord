@@ -8,7 +8,7 @@ import { useSplitLayout } from '@/lib/responsive';
 
 /**
  * Presets master/detail: the browse list + a thin recognized-preset inspector.
- * `/library/presets` and `/library/presets/$presetId` both render this; the
+ * `/library/presets/{-$presetId}` renders this, with or without a preset; the
  * open preset comes from the route.
  */
 export function PresetsSplit({ selectedId }: { selectedId?: string }) {
@@ -43,7 +43,7 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
         kinds={s.kinds} showSourceFacet={s.showSourceFacet}
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
-        onSelect={(e) => navigate({ to: '/library/presets/$presetId', params: { presetId: e.id } })}
+        onSelect={(e) => navigate({ to: '/library/presets/{-$presetId}', params: { presetId: e.id } })}
         activeId={selectedId}
         onImport={importPreset}
         onRemove={(id) => void s.removePreset(id)}
@@ -60,7 +60,8 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
       wide={wide}
       master={list}
       detail={detail}
-      hasDetail={!!entry}
+      narrowDetail={entry ? detail : <EmptyNote className="p-4">This preset isn’t in your library (yet). Pick it from the list.</EmptyNote>}
+      hasDetail={!!selectedId}
       onBack={() => navigate({ to: '/library/presets' })}
       backLabel="← Presets"
     />

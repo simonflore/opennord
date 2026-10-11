@@ -7,6 +7,6 @@ import type { LibraryEntry } from '../../lib/library/types';
  * the ⌘K palette both open programs this way.
  */
 export function openProgram(navigate: ReturnType<typeof useNavigate>, e: LibraryEntry) {
-  if (e.program) navigate({ to: '/library/programs/$programId', params: { programId: e.id } });
+  if (e.program) navigate({ to: '/library/programs/{-$programId}', params: { programId: e.id } });
   else navigate({ to: '/device' });
 }
