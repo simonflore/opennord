@@ -30,6 +30,8 @@ function errorShape(e: unknown): Record<string, unknown> {
 // Stage 4 transfer flows are validated; other models connect read-only unless the
 // read-only probe confirms where their programs live (resolveDeviceAccess).
 const NORD_FILTER: USBDeviceFilter = { vendorId: 0x0ffc };
+/** How often the iPad app looks again for a Nord that wasn't plugged in yet. */
+const IPAD_RECHECK_MS = 2000;
 
 type Status = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -98,16 +100,21 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
   const [ipadReady, setIpadReady] = useState<boolean | null>(
     reach === 'ipad-dext-pending' ? null : false,
   );
+  // The driver only shows up once a Nord is plugged in (and the driver is switched
+  // on in Settings), and nothing announces that — so keep asking until it's there.
   useEffect(() => {
-    if (reach !== 'ipad-dext-pending') return;
+    if (reach !== 'ipad-dext-pending' || ipadReady === true) return;
     let alive = true;
-    nordUsbAvailable().then((ok) => {
+    const check = () => nordUsbAvailable().then((ok) => {
       if (alive) setIpadReady(ok);
     });
+    void check();
+    const timer = setInterval(check, IPAD_RECHECK_MS);
     return () => {
       alive = false;
+      clearInterval(timer);
     };
-  }, [reach]);
+  }, [reach, ipadReady]);
 
   // Desktop app, Windows only: without the UsbDk runtime, older Nords (e.g. the
   // Stage 2) still can't be reached — the app silently falls back to the same
@@ -128,7 +135,7 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
   // Info cards: a plain browser without WebUSB, or an iPad whose DEXT isn't ready.
   if (reach === 'unsupported' || (reach === 'ipad-dext-pending' && ipadReady !== true)) {
     const ipad = reach === 'ipad-dext-pending';
-    const infoTitle = ipad ? 'USB transfer is coming to iPad' : 'Open this in Chrome or Edge to connect';
+    const infoTitle = ipad ? 'Plug your Nord into this iPad' : 'Open this in Chrome or Edge to connect';
     // Inline: the host page already frames the step, so no nested card or heading.
     if (inline) return <p className={cn(connectLead, 'mt-2')}>{infoTitle}.</p>;
     return (
@@ -138,7 +145,7 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
           <h2 className={connectTitle}>{infoTitle}</h2>
           <p className={connectLead}>
             {ipad
-              ? "Moving programs to and from your Nord over USB is on the way for iPad. Everything else — browsing, samples, sharing — works right here today."
+              ? "Connect your Nord with a USB cable and switch it on — this screen picks it up by itself. The first time, also open Settings → Apps → OpenNord → Drivers and switch the Nord driver on. This needs an iPad with an M1 chip or newer."
               : "Talking to your Nord over USB needs Chrome or Edge on a computer. Everything else in OpenNord — browsing, samples, sharing — works in any browser; switch over when you're ready to move programs to and from the keyboard."}
           </p>
         </div>
@@ -205,13 +212,19 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
         return;
       }
       if (reach === 'ipad-dext-pending') {
-        transport = new CapacitorUsbTransport();
-        // TODO(ipad-dext): placeholder name + productId 0 — the four-method seam
-        // can't report device identity yet; surface the real model/PID once the
-        // DriverKit DEXT lands. The Stage 4 is only ASSUMED, so
-        // the probe must find its program files before anything is written.
-        await runSession(transport, 'Nord Stage 4', 0, { model: modelById('stage-4'), confirmed: false });
-        diagnostics.record({ kind: 'device.connect', ok: true, message: 'Connected (iPad DEXT)', detail: { path: 'ipad-dext' } });
+        const ipad = new CapacitorUsbTransport();
+        transport = ipad;
+        // The driver reports which Nord this is once it's open. If it couldn't
+        // (0), the Stage 4 is only ASSUMED, so the probe must find its program
+        // files before anything is written.
+        productId = await ipad.identify();
+        if (productId) await runSession(ipad, identifyDevice(productId).model?.name ?? 'Nord', productId);
+        else await runSession(ipad, 'Nord Stage 4', 0, { model: modelById('stage-4'), confirmed: false });
+        diagnostics.record({
+          kind: 'device.connect', ok: true,
+          message: `Connected (pid 0x${productId.toString(16)}, iPad)`,
+          detail: { path: 'ipad-dext', productId },
+        });
         return;
       }
       // WebUSB: reconnect silently if authorized before; else show the chooser.
