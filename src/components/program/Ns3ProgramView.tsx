@@ -9,7 +9,7 @@ import { BandedProgramView, useResolvedSampleNames, type ProgramBand } from './B
  * labelled band. No layer scenes, morphs, zones, or program-global FX.
  */
 export function Ns3ProgramView({ bytes, name }: { bytes: Uint8Array; name?: string }) {
-  const { panels, name: decodedName } = useMemo(() => decodeNs3(bytes), [bytes]);
+  const { panels, name: decodedName, warnings } = useMemo(() => decodeNs3(bytes), [bytes]);
   const names = useResolvedSampleNames(() => resolveNs3Names(panels), [panels]);
 
   const bands: ProgramBand[] = panels.map((panel) => ({
@@ -26,6 +26,7 @@ export function Ns3ProgramView({ bytes, name }: { bytes: Uint8Array; name?: stri
       header={ns3HeaderView(bytes, name ?? decodedName, panels)}
       bands={bands}
       sampleRefs={ns3SampleRefs(panels, names)}
+      warnings={warnings}
     />
   );
 }

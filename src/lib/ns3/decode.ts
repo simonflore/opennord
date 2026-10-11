@@ -1,63 +1,91 @@
 /**
- * Nord Stage 3 (`.ns3f`) program decoder — Tier 2 of multi-model support (#22).
+ * Nord Stage 3 (`.ns3f`) program reader — firmware-derived layout. A Live
+ * program (`.ns3l`) has the same body (firmware FUN_c00d2f9c → FUN_c007a51c).
  *
- * NS3 stores a flat, bit-packed body with two panels (A then B); a panel-enable
- * flag at 0x31 says which are active, and Panel B's fields repeat Panel A's
- * shifted by `PANEL_STRIDE`. All offsets/masks below are transcribed **from
- * ns3-program-viewer's source** (the oracle named in docs/MULTI-MODEL.md) —
- * `src/server/ns3/program/ns3-{panel,piano,organ,synth,synth-filter,synth-osc-control,
- * fx-multi-effect-1,fx-multi-effect-2,fx-amp-sim-eq,fx-compressor,fx-delay,
- * fx-reverb,fx-rotary-speaker,mapping}.js` — and cross-checked against real `.ns3f`
- * files. Credit: Chris55 (ATTRIBUTION.md).
+ * The body is the Stage 3 OS 2.64 firmware's own program format (registry
+ * FUN_c0075058, Multi format FUN_c007a51c, serialiser FUN_c00e0108 — see
+ * docs/STAGE2-3-FIRMWARE.md §3): a u32 format version (3.00–3.04), then 19
+ * length-prefixed blocks — MultiCommon, then for slot (panel) A and B: Piano,
+ * SynthCommon, Synth, Organ, Organ Preset I, Organ Preset II, Extern, Effects,
+ * Mixer. `layout.generated.ts` (scripts/gen-fw-program-maps.py) lists every field
+ * with its firmware parameter id, and the shared block-chain reader
+ * (clavia/block-chain.ts) reads them all into `values`. Morph deltas (Wheel /
+ * After Touch / Ctrl Pedal) are read too, as `<field>.morph<Source>`.
  *
- * A handful of widths/positions are corrected from the Stage 3 OS 2.64 firmware's
- * parameter registry (FUN_c0075058) and program serialiser (FUN_c00e0108) — see
- * docs/STAGE2-3-FIRMWARE.md §3: effect 1/2 rate bits, piano timbre / osc config /
- * osc wave widths, rotary speed (2 bits), amp EQ bias and amp-type labels. The
- * vib/chorus mode and rotary speed sit in the program-wide MultiCommon block
- * (absolute 0x34-0x35), so they're NOT shifted by the panel stride.
+ * On top of those values this module builds the typed panel shape the rest of
+ * the app uses (`Ns3Panel`): engine on/off, levels in dB, sample ids, drawbars,
+ * labels and the synth/FX display strings. Every number comes from the layout;
+ * the labels come from the firmware's own label tables where it has one
+ * (display registration FUN_c0088ec0) and from ns3-program-viewer's tables
+ * (Chris55, ATTRIBUTION.md) for the display curves (LFO/arp rates, envelope
+ * times, filter frequency) and the oscillator wave names.
  *
- * v2 adds FULL parameter coverage: synth oscillator waveform/config/pitch,
- * ADSR envelopes (mod + amp), LFO wave/rate, voice/glide/unison/vibrato,
- * arpeggiator (range/pattern/rate/masterClock), filter resonance/drive/kbTrack,
- * per-FX parameters (effect1/2 rate+amount, amp/EQ treble/mid/bass,
- * compressor amount, delay feedback/mix, reverb amount, rotary speed),
- * organ octave shift, piano timbre/octave, panel octave shift, plus the
- * program name field.
+ * Versions: the firmware reads 3.00–3.04 natively (new parameters take reserved
+ * bits, so block sizes don't change) and converts 2.01–2.03 on load. A 2.0x body
+ * lays its slot blocks out differently, so it is returned header-only with a
+ * warning, as is any file whose chain doesn't match the layout. A legacy
+ * (formatType 0) header is 0x14 bytes shorter, so its body starts at 0x18.
+ * Never throws.
  */
-const PANEL_STRIDE = 263; // Panel B = Panel A + 0x107
+import { CBIN_BODY_OFFSET } from '../clavia/cbin';
+import { decodeFwProgram, type FwProgram } from '../clavia/block-chain';
+import { NORD_DB } from '../clavia/volume';
+import { NS3_FILTER_FREQ } from './filter-freq';
+import { NS3_LAYOUT, type Ns3FieldKey } from './layout.generated';
 
-// ── Type tables ─────────────────────────────────────────────────────────────
-// All from ns3-mapping.js (Chris55/ns3-program-viewer)
+export type { Ns3FieldKey };
+
+/** The legacy (formatType 0) header is 0x14 bytes shorter than the NSM-era one. */
+const LEGACY_HEADER_SHIFT = 0x14;
+
+// ── Label tables ────────────────────────────────────────────────────────────
+// "Firmware" = the Stage 3 OS 2.64 label table registered for that parameter
+// (display registration FUN_c0088ec0). The rest come from ns3-mapping.js
+// (Chris55/ns3-program-viewer) and agree with the firmware where it has a table.
+
+// Param_Pno_kBank (firmware).
 const PIANO_TYPE = ['Grand', 'Upright', 'Electric', 'Clav', 'Digital', 'Misc'];
-/** Organ models, in decode order — also reused by ns3/view.ts for the model selector. */
+/** Organ models, Param_Org_kModel 0-4 (firmware) — also the model selector in ns3/view.ts. */
 export const ORGAN_TYPE = ['B3', 'Vox', 'Farfisa', 'Pipe1', 'Pipe2'];
+// Edt_Syn_kOscBank 0-4.
 const SYNTH_OSC = ['Classic', 'Wave', 'Formant', 'Super', 'Sample'];
+// Param_Syn_kFltType (firmware).
 const SYNTH_FILTER = ['LP12', 'LP24', 'Mini Moog', 'LP+HP', 'BP24', 'HP24'];
+// Param_Effects_kRvbType (firmware); the Bright switch is a separate field (rvbBright).
 const REVERB_TYPE = ['Room 1', 'Room 2', 'Stage 1', 'Stage 2', 'Hall 1', 'Hall 2'];
+// Param_Effects_kFx1Type / kFx2Type (firmware).
 const EFFECT1_TYPE = ['Panning', 'Tremolo', 'Ring Mod', 'Wah-Wah', 'Auto-Wah 1', 'Auto-Wah 2'];
 const EFFECT2_TYPE = ['Phaser 1', 'Phaser 2', 'Flanger', 'Vibe', 'Chorus 1', 'Chorus 2'];
-const VIB_CHORUS = ['V1', 'C1', 'V2', 'C2', 'V3', 'C3'];
-// Amp/EQ model labels, raw 0-5 (3 bits). Stage 3 OS 2.64 firmware label table for
-// Param_Effects_kAmpType (display registration FUN_c0088ec0). Replaces the
-// ns3-mapping.js list (JC/Small/Twin/Bright/Mean), which disagrees with the
-// firmware; real-file confirmation of the stored-value -> label order is pending.
+/**
+ * Param_Com_kOrgVibratoType 0-5, labelled per organ model (firmware: one table of
+ * 5 models × 6). Slots the firmware marks invalid fall back to `#n`.
+ */
+const VIB_CHORUS_BY_MODEL: readonly (readonly string[])[] = [
+  ['V1', 'C1', 'V2', 'C2', 'V3', 'C3'],                       // B3
+  ['Less', 'More', 'Original'],                               // Vox
+  ['Light/Slow', 'Light/Fast', 'Heavy/Slow', 'Heavy/Fast'],   // Farfisa
+  ['C1'],                                                     // Pipe1
+  ['C1'],                                                     // Pipe2
+];
+function vibChorusLabel(model: number, mode: number): string {
+  return (VIB_CHORUS_BY_MODEL[model] ?? VIB_CHORUS_BY_MODEL[0])[mode] ?? `#${mode}`;
+}
+// Param_Effects_kAmpType 0-5 (firmware). Real-file confirmation of the
+// stored-value → label order is pending.
 const AMP_TYPE = ['Clean', 'Twin', 'JC', 'Small', 'LP24', 'HP24'];
-// Rotary speed, raw 0-3 (2 bits, default 1). Stage 3 OS 2.64 firmware
-// Param_Effects_kLeslieSpeed menu: Stop / Slow / Fast (raw 3 has no label and
-// falls back to `#3`). Consistent with ns3-program-viewer's 1-bit read, whose
-// bit is this field's high bit (b0=1 -> raw 2/3 -> Fast).
+// Param_Effects_kLeslieSpeed 0-3 (2 bits, default 1): Stop / Slow / Fast (raw 3
+// has no label and falls back to `#3`).
 const ROTARY_SPEED = ['Stop', 'Slow', 'Fast'];
 
-// ns3-mapping.js: ns3SynthVoiceMap
+// Param_Syn_kVoiceMode (firmware).
 const SYNTH_VOICE = ['Poly', 'Legato', 'Mono'];
-// ns3-mapping.js: ns3SynthUnisonMap
+// Param_Syn_kUnison (firmware).
 const SYNTH_UNISON = ['Off', '1', '2', '3'];
-// ns3-mapping.js: ns3SynthVibratoMap
-const SYNTH_VIBRATO = ['Off', 'Delay 1', 'Delay 2', 'Delay 3', 'Wheel', 'AT'];
-// ns3-mapping.js: ns3SynthLfoWaveMap
+// Param_Syn_kVibratoMode (firmware).
+const SYNTH_VIBRATO = ['Off', 'Delay 1', 'Delay 2', 'Delay 3', 'Wheel', 'After Touch'];
+// Param_Syn_kLFOWave (firmware).
 const LFO_WAVE = ['Triangle', 'Saw', 'Neg Saw', 'Square', 'S/H'];
-// ns3-mapping.js: ns3SynthOscillatorsTypeMap (osc config / dual-osc mode)
+// ns3-mapping.js: ns3SynthOscillatorsTypeMap (Edt_Syn_kOscConf 0-14)
 const OSC_CONFIG = ['None','1 Pitch','2 Shape','3 Sync','4 Detune','5 MixSin','6 MixTri','7 MixSaw','8 MixSqr','9 MixBell','10 MixNs1','11 MixNs2','12 FM1','13 FM2','14 RM'];
 // ns3-mapping.js: ns3SynthOscillator1ClassicWaveTypeMap
 const OSC_CLASSIC_WAVE = ['Sine','Triangle','Saw','Square','Pulse 33','Pulse 10','ESaw','ESquare'];
@@ -65,15 +93,15 @@ const OSC_CLASSIC_WAVE = ['Sine','Triangle','Saw','Square','Pulse 33','Pulse 10'
 const OSC_FORMANT_WAVE = ['Formant Wave Aaa','Formant Wave Eee','Formant Wave Iii','Formant Wave Ooo','Formant Wave Uuu','Formant Wave Yyy','Formant Wave AO','Formant Wave AE','Formant Wave OE'];
 // ns3-mapping.js: ns3SynthOscillator1SuperWaveTypeMap
 const OSC_SUPER_WAVE = ['Super Wave Saw','Super Wave Saw 2','Super Wave Square','Super Wave Square 2','Super Wave Bright','Super Wave Bright 2','Super Wave Strings','Super Wave Organ'];
-// ns3-mapping.js: ns3SynthFilterKbTrackMap
+// Param_Syn_kFltKbdTrk (firmware).
 const FILTER_KB_TRACK = ['Off', '1/3', '2/3', '1'];
-// ns3-mapping.js: ns3SynthFilterDriveMap
+// Param_Syn_kFltDrive (firmware).
 const FILTER_DRIVE = ['Off', '1', '2', '3'];
-// ns3-mapping.js: ns3SynthAmpEnvelopeVelocityMap
+// ns3-mapping.js: ns3SynthAmpEnvelopeVelocityMap (Param_Syn_kAmpEnvVel 0-3)
 const AMP_VELOCITY = ['Off', '1', '2', '3'];
-// ns3-mapping.js: ns3ArpeggiatorRangeMap
+// Param_Syn_kArpRange (firmware).
 const ARP_RANGE = ['1 Octave', '2 Octaves', '3 Octaves', '4 Octaves'];
-// ns3-mapping.js: ns3ArpeggiatorPatternMap
+// Param_Syn_kArpPattern (firmware).
 const ARP_PATTERN = ['Up', 'Down', 'Up/Down', 'Random'];
 
 // ns3-mapping.js: ns3SynthLfoRateMap (128 entries, 0.03 Hz – 523 Hz)
@@ -189,141 +217,121 @@ const ARP_RATE: readonly string[] = [
   '910 bpm','950 bpm','990 bpm','Fast 1','Fast 2','Fast 3','Fast 4','Fast 5',
 ];
 
-import { NORD_DB } from '../clavia/volume';
-import { NS3_FILTER_FREQ } from './filter-freq';
-
-const u8  = (b: Uint8Array, o: number): number => b[o] ?? 0;
-const u16 = (b: Uint8Array, o: number): number => ((b[o] ?? 0) << 8) | (b[o + 1] ?? 0);
-// 64-bit big-endian read as BigInt — sampleId hashes span a 64-bit field.
-const u64 = (b: Uint8Array, o: number): bigint => {
-  let v = 0n;
-  for (let i = 0; i < 8; i++) v = (v << 8n) | BigInt(b[o + i] ?? 0);
-  return v;
-};
 const lut = (table: readonly string[], v: number): string => table[v] ?? `#${v}`;
-// Engine volume shares the enable word: bits 10-4 are the 7-bit level → dB.
-const vol = (b: Uint8Array, o: number): string => NORD_DB[(u16(b, o) & 0x07f0) >>> 4] ?? '?';
 // Linear 0-10 in 1 decimal place
 const lin10 = (midi: number): string => (midi / 12.7).toFixed(1);
 
-export interface Ns3Fx { name: string; type?: string; params?: Record<string, string | number> }
-
 /**
- * The 9 organ drawbar positions (0-8) from a drawbar block base `o` — masks per
- * ns3-organ.js `getDrawbars`. The same layout serves both presets (preset 1 at
- * 0xBE, preset 2 at 0xD9). (B3 reads them straight; Vox/Farfisa relabel for display.)
+ * Piano timbre (Pno_kEq, 4 bits). The firmware's label table holds three groups:
+ * acoustic/digital (4 labels), Clav (8 combinations) and Electric (6, adding the
+ * Dyno settings). Values past a group fall back to `#n`.
  */
-function readDrawbars(b: Uint8Array, o: number): number[] {
-  return [
-    (u8(b, o) & 0xf0) >>> 4,         // 0xBE
-    (u8(b, o + 2) & 0x1e) >>> 1,     // 0xC0
-    (u16(b, o + 4) & 0x03c0) >>> 6,  // 0xC2
-    (u8(b, o + 7) & 0x78) >>> 3,     // 0xC5
-    u8(b, o + 9) & 0x0f,             // 0xC7
-    (u16(b, o + 11) & 0x01e0) >>> 5, // 0xC9
-    (u8(b, o + 14) & 0x3c) >>> 2,    // 0xCC
-    (u16(b, o + 16) & 0x0780) >>> 7, // 0xCE
-    (u8(b, o + 19) & 0xf0) >>> 4,    // 0xD1
-  ];
+const TIMBRE_GRAND = ['None', 'Soft', 'Mid', 'Bright'];
+const TIMBRE_CLAV = ['None', 'Soft', 'Treble', 'Soft+Treb', 'Brilliant', 'Soft+Brill', 'Treb+Brill', 'Soft+Trb+Brill'];
+const TIMBRE_ELECTRIC = ['None', 'Soft', 'Mid', 'Bright', 'Dyno1', 'Dyno2'];
+const PIANO_ELECTRIC = 2;
+const PIANO_CLAV = 3;
+
+function pianoTimbre(bank: number, eq: number): string {
+  if (bank === PIANO_ELECTRIC) return lut(TIMBRE_ELECTRIC, eq);
+  if (bank === PIANO_CLAV) return lut(TIMBRE_CLAV, eq);
+  return lut(TIMBRE_GRAND, eq);
 }
 
 // ── Waveform name per osc type ───────────────────────────────────────────────
 // Labels per ns3-synth.js waveForm1 switch on oscillatorType. The index is ONE
-// 9-bit field (0-399) at 0x8E(b6)…0x8F(b6) for every bank — Stage 3 OS 2.64
-// registry FUN_c0075058 (Edt_Syn_kOscWave) / serialiser FUN_c00e0108 — where
-// ns3-synth.js masked 3-6 low bits per bank. Indices past a bank's label table
-// fall back to `#n` (lut), so the wider read never indexes past a table.
+// 9-bit field (Edt_Syn_kOscWave, 0-399) for every bank; indices past a bank's
+// label table fall back to `#n`.
 function oscWaveform(oscType: string, waveIdx: number): string {
   switch (oscType) {
     case 'Classic': return lut(OSC_CLASSIC_WAVE, waveIdx);
-    case 'Wave':    return waveWaveformLabel(waveIdx);
+    case 'Wave':    return lut(OSC_WAVE_WAVE, waveIdx);
     case 'Formant': return lut(OSC_FORMANT_WAVE, waveIdx);
     case 'Super':   return lut(OSC_SUPER_WAVE, waveIdx);
     default:        return '';
   }
 }
 
-// ── Synth waveform index for Wave OSC (ns3-synth-oscillators docs show 46 entries) ──
-function waveWaveformLabel(idx: number): string {
-  const WAVE_WAVE = [
-    'Wave 2nd Harm','Wave 3rd Harm','Wave 4th Harm','Wave 5th Harm','Wave 6th Harm',
-    'Wave 7th Harm','Wave 8th Harm','Wave Organ 1','Wave Organ 2','Wave Principal',
-    'Wave Flute 1','Wave Flute 2','Wave Clarinet 1','Wave Clarinet 2','Wave Alto Sax',
-    'Wave Tenor Sax','Wave 2nd Spectra','Wave 3rd Spectra','Wave 4th Spectra','Wave 5th Spectra',
-    'Wave 6th Spectra','Wave 7th Spectra','Wave 8th Spectra','Wave Saw Random','Wave Saw Bright',
-    'Wave Sqr Bright','Wave Saw NoFund','Wave EPiano 1','Wave EPiano 2','Wave EPiano 3',
-    'Wave DX 1','Wave DX 2','Wave Full Tines','Wave Ac Piano','Wave Ice 1','Wave Ice 2',
-    'Wave Clavinet 1','Wave Clavinet 2','Wave Clavinet 3','Wave Triplets','Wave Bell',
-    'Wave Bar 1','Wave Bar 2','Wave Tines','Wave Marimba','Wave Tubular Bells',
-  ];
-  return WAVE_WAVE[idx] ?? `#${idx}`;
-}
+// Wave-bank waveform names (ns3-synth-oscillators docs show 46 entries).
+const OSC_WAVE_WAVE = [
+  'Wave 2nd Harm','Wave 3rd Harm','Wave 4th Harm','Wave 5th Harm','Wave 6th Harm',
+  'Wave 7th Harm','Wave 8th Harm','Wave Organ 1','Wave Organ 2','Wave Principal',
+  'Wave Flute 1','Wave Flute 2','Wave Clarinet 1','Wave Clarinet 2','Wave Alto Sax',
+  'Wave Tenor Sax','Wave 2nd Spectra','Wave 3rd Spectra','Wave 4th Spectra','Wave 5th Spectra',
+  'Wave 6th Spectra','Wave 7th Spectra','Wave 8th Spectra','Wave Saw Random','Wave Saw Bright',
+  'Wave Sqr Bright','Wave Saw NoFund','Wave EPiano 1','Wave EPiano 2','Wave EPiano 3',
+  'Wave DX 1','Wave DX 2','Wave Full Tines','Wave Ac Piano','Wave Ice 1','Wave Ice 2',
+  'Wave Clavinet 1','Wave Clavinet 2','Wave Clavinet 3','Wave Triplets','Wave Bell',
+  'Wave Bar 1','Wave Bar 2','Wave Tines','Wave Marimba','Wave Tubular Bells',
+];
+
+export interface Ns3Fx { name: string; type?: string; params?: Record<string, string | number> }
 
 export interface Ns3SynthOscillator {
-  /** Oscillator type: Classic / Wave / Formant / Super / Sample. ns3-synth.js 0x8D(b1-0)+0x8E(b7). */
+  /** Oscillator bank: Classic / Wave / Formant / Super / Sample (Edt_Syn_kOscBank). */
   type: string;
-  /** Waveform name for the osc type (blank for Sample). */
+  /** Waveform name for the bank (blank for Sample); Edt_Syn_kOscWave, one 9-bit index. */
   waveform: string;
-  /** Dual-osc configuration mode. 0x8F(b5-1), 5 bits (Stage 3 OS 2.64 registry Edt_Syn_kOscConf). */
+  /** Dual-osc configuration (Edt_Syn_kOscConf, 0-14). */
   config: string;
-  /** Osc 2 pitch offset in semitones (−12=Sub … +48). ns3-synth.js 0x8F(b0)+0x90(b7-3). */
+  /** Osc 2 pitch in semitones, −12 = Sub … +48 (Edt_Syn_kDualOscDetune 0-60, 12 = 0). */
   pitch: string;
 }
 
 export interface Ns3SynthEnv {
   /** Attack time. */
   attack: string;
-  /** Decay time ("Sustain" at max for mod env). */
+  /** Decay time ("Sustain" at max for the decays). */
   decay: string;
-  /** Release time ("Inf" at max for mod env release). */
+  /** Release time ("Inf" at max for the mod env release). */
   release: string;
 }
 
 export interface Ns3SynthFilter {
-  /** Filter type. ns3-synth-filter.js 0x98(b4-2). */
+  /** Filter type (Param_Syn_kFltType). */
   type: string;
-  /** Cutoff frequency. 0x98(b1-0)+0x99(b7-3). */
+  /** Cutoff frequency (Param_Syn_kFltFreq). */
   cutoff: string;
-  /** Resonance (or HP freq for LP+HP mode). 0x9C(b2-0)+0x9D(b7-4). */
+  /** Resonance 0-10, or the HP cutoff for LP+HP (Param_Syn_kFltRes). */
   resonance: string;
-  /** Filter keyboard tracking. 0xA5(b5-4). */
+  /** Keyboard tracking (Param_Syn_kFltKbdTrk). */
   kbTrack: string;
-  /** Filter drive. 0xA5(b3-2). */
+  /** Drive (Param_Syn_kFltDrive). */
   drive: string;
 }
 
 export interface Ns3SynthLfo {
-  /** LFO waveform. ns3-synth.js 0x86(b2-0). */
+  /** LFO waveform (Param_Syn_kLFOWave). */
   wave: string;
-  /** LFO rate (Hz or master-clock division). 0x87(b6-0). */
+  /** LFO rate, Hz or master-clock division (Param_Syn_kLFORateClkDiv). */
   rate: string;
-  /** Whether rate is synced to master clock. 0x87(b7). */
+  /** Rate synced to the master clock (Param_Syn_kLFOClkEnable). */
   masterClock: boolean;
 }
 
 export interface Ns3SynthArp {
-  /** Arpeggiator enabled. ns3-synth.js 0x80(b6). */
+  /** Arpeggiator running (Param_Syn_kArpRun). */
   on: boolean;
-  /** Octave range. 0x80(b4-3). */
+  /** Octave range (Param_Syn_kArpRange). */
   range: string;
-  /** Pattern direction. 0x80(b2-1). */
+  /** Pattern (Param_Syn_kArpPattern). */
   pattern: string;
-  /** Rate (bpm or master-clock division). 0x81(b7-1). */
+  /** Rate, bpm or master-clock division (Param_Syn_kArpRateClkDiv). */
   rate: string;
-  /** Whether rate is synced to master clock. 0x80(b0). */
+  /** Rate synced to the master clock (Param_Syn_kArpClkEnable). */
   masterClock: boolean;
 }
 
 export interface Ns3Synth {
   on: boolean;
   volume: string;
-  /** Poly/Legato/Mono. ns3-synth.js 0x84(b0)+0x85(b7). */
+  /** Poly / Legato / Mono (Param_Syn_kVoiceMode). */
   voice: string;
-  /** Glide 0-10. 0x85(b6-0). */
+  /** Glide 0-10 (Param_Syn_kGlideRate). */
   glide: string;
-  /** Unison Off/1/2/3. 0x86(b7-6). */
+  /** Unison Off/1/2/3 (Param_Syn_kUnison). */
   unison: string;
-  /** Vibrato mode. 0x86(b5-3). */
+  /** Vibrato mode (Param_Syn_kVibratoMode). */
   vibrato: string;
   oscillator: Ns3SynthOscillator;
   filter: Ns3SynthFilter;
@@ -331,7 +339,7 @@ export interface Ns3Synth {
   envMod: Ns3SynthEnv;
   envAmp: Ns3SynthEnv & { velocity: string };
   arp: Ns3SynthArp;
-  /** Factory sample reference (only meaningful when osc === 'Sample'). */
+  /** Factory sample reference (only meaningful when osc === 'Sample'); Param_Syn_kSmpNameHash. */
   sampleId: number;
   // ── preserved from v1 for UI compat ──
   osc: string;
@@ -343,20 +351,20 @@ export interface Ns3Panel {
   id: 'A' | 'B';
   organ: {
     on: boolean; type: string; volume: string; drawbars: number[];
-    /** Octave shift −2..+2. ns3-organ.js 0xBA(b3-0). */
+    /** Octave shift (Param_Org_kOctaveShift). */
     octaveShift: number;
-    /** Vibrato/Chorus (B3): on + mode (V1/C1/V2/…). */
+    /** Vibrato/Chorus: the active preset's switch + the program-wide mode, labelled per organ model. */
     vibChorus: { on: boolean; mode: string };
     /** Percussion (B3): on + 3rd-harmonic / fast-decay / soft-volume flags. */
     percussion: { on: boolean; third: boolean; fast: boolean; soft: boolean };
   };
   piano: {
     on: boolean; type: string; volume: string;
-    /** Factory sample reference: 32-bit hash + clavinet/harpsichord variant. Resolve via library/service. */
+    /** Factory sample reference: 32-bit name hash + variation. Resolve via library/service. */
     sampleId: number; sampleVariation: number;
-    /** Piano timbre (soft/neutral/bright). 0x4E(b6-3), 4 bits (Stage 3 OS 2.64 registry Param_Pno_kEq). */
+    /** Piano timbre (Param_Pno_kEq, 4 bits). */
     timbre: string;
-    /** Octave shift −2..+2. 0x56(b3-0) on piano panel (shared with synth offset word). */
+    /** Octave shift (Param_Pno_kOctaveShift). */
     octaveShift: number;
   };
   synth: Ns3Synth;
@@ -364,341 +372,219 @@ export interface Ns3Panel {
   fx: Ns3Fx[];
 }
 
-// ── FX parameter reads ────────────────────────────────────────────────────────
-/** Amp EQ bands are stored as `value − min`, min = −60 (see readFx). */
-const AMP_EQ_BIAS = 60;
-// All offsets from ns3-fx-*.js (Chris55/ns3-program-viewer)
-/** The effects this panel has switched on, with type and parameters. */
-function readFx(b: Uint8Array, base: number, common: number): Ns3Fx[] {
-  const fx: Ns3Fx[] = [];
-
-  // Rotary Speaker — ns3-fx-rotary-speaker.js: enabled 0x10B(b7) (per panel).
-  // Speed is program-wide: it lives in the MultiCommon block at absolute
-  // 0x34(b0)+0x35(b7), 2 bits, for BOTH panels — Stage 3 OS 2.64 registry
-  // FUN_c0075058 (Param_Effects_kLeslieSpeed) / serialiser FUN_c00e0108.
-  if ((u8(b, base + 0x10b) & 0x80) !== 0) {
-    const speedRaw = (u16(b, common + 0x34) & 0x0180) >>> 7;
-    fx.push({
-      name: 'Rotary',
-      params: { speed: lut(ROTARY_SPEED, speedRaw) },
-    });
-  }
-
-  // Effect 1 — ns3-fx-multi-effect-1.js: enabled 0x10B(b4), type 0x10B(b1-0)+0x10C(b7)
-  if ((u8(b, base + 0x10b) & 0x10) !== 0) {
-    const type = lut(EFFECT1_TYPE, (u16(b, base + 0x10b) & 0x0380) >>> 7);
-    // rate 0x10C(b5-0)+0x10D(b7): 7 bits; amount 0x110(b6-0): 7 bits.
-    // Rate bit position per Stage 3 OS 2.64 registry FUN_c0075058
-    // (Param_Effects_kFx1RateClkDiv) / serialiser FUN_c00e0108.
-    const rateMidi = (u16(b, base + 0x10c) & 0x3f80) >>> 7;  // (u8@0x10C & 0x3F)<<1 | b@0x10D>>7
-    const amountMidi = u8(b, base + 0x110) & 0x7f;
-    fx.push({ name: 'Effect 1', type, params: { rate: rateMidi, amount: lin10(amountMidi) } });
-  }
-
-  // Effect 2 — ns3-fx-multi-effect-2.js: enabled 0x114(b7), type 0x114(b4-2)
-  if ((u8(b, base + 0x114) & 0x80) !== 0) {
-    const type = lut(EFFECT2_TYPE, (u8(b, base + 0x114) & 0x1c) >>> 2);
-    // rate 0x114(b1-0)+0x115(b7-3): 7 bits; amount 0x115(b2-0)+0x116(b7-4): 7 bits.
-    // Rate bit position per Stage 3 OS 2.64 registry FUN_c0075058
-    // (Param_Effects_kFx2Rate) / serialiser FUN_c00e0108.
-    const rateMidi = ((u8(b, base + 0x114) & 0x03) << 5) | (u8(b, base + 0x115) >>> 3);
-    const amountMidi = ((u8(b, base + 0x115) & 0x07) << 4) | (u8(b, base + 0x116) & 0xf0) >>> 4;
-    fx.push({ name: 'Effect 2', type, params: { rate: rateMidi, amount: lin10(amountMidi) } });
-  }
-
-  // Amp/EQ — ns3-fx-amp-sim-eq.js: enabled 0x129(b2), type 0x12A(b7-5)
-  if ((u8(b, base + 0x129) & 0x04) !== 0) {
-    const type = lut(AMP_TYPE, (u8(b, base + 0x12a) & 0xe0) >>> 5);
-    // treble 0x12A(b4-0)+0x12B(b7-6): 7 bits; bass 0x12C(b6-0): 7 bits; mid 0x12B(b5-0)+0x12C(b7): 7 bits.
-    // Each EQ band is −60…+60 stored as value + 60 (`raw = value − min`) —
-    // Stage 3 OS 2.64 registry FUN_c0075058 (Param_Effects_kAmpTreble/Mid/Bass).
-    const trebleRaw = ((u8(b, base + 0x12a) & 0x1f) << 2) | (u8(b, base + 0x12b) & 0xc0) >>> 6;
-    const midRaw = ((u8(b, base + 0x12b) & 0x3f) << 1) | (u8(b, base + 0x12c) & 0x80) >>> 7;
-    const bassRaw = u8(b, base + 0x12c) & 0x7f;
-    fx.push({
-      name: 'Amp/EQ', type,
-      params: { treble: trebleRaw - AMP_EQ_BIAS, mid: midRaw - AMP_EQ_BIAS, bass: bassRaw - AMP_EQ_BIAS },
-    });
-  }
-
-  // Compressor — ns3-fx-compressor.js: enabled 0x139(b5), amount 0x139(b4-0)+0x13A(b7-6): 7 bits
-  if ((u8(b, base + 0x139) & 0x20) !== 0) {
-    const amountMidi = ((u8(b, base + 0x139) & 0x1f) << 2) | (u8(b, base + 0x13a) & 0xc0) >>> 6;
-    fx.push({ name: 'Comp', params: { amount: lin10(amountMidi) } });
-  }
-
-  // Delay — ns3-fx-delay.js: enabled 0x119(b3), masterClock 0x119(b0)
-  if ((u8(b, base + 0x119) & 0x08) !== 0) {
-    // feedback 0x125(b2-0)+0x126(b7-4): 7 bits; mix 0x121(b4-0)+0x122(b7-6): 7 bits
-    const feedbackMidi = ((u8(b, base + 0x125) & 0x07) << 4) | (u8(b, base + 0x126) & 0xf0) >>> 4;
-    const mixMidi = ((u8(b, base + 0x121) & 0x1f) << 2) | (u8(b, base + 0x122) & 0xc0) >>> 6;
-    fx.push({ name: 'Delay', params: { feedback: lin10(feedbackMidi), mix: lin10(mixMidi) } });
-  }
-
-  // Reverb — ns3-fx-reverb.js: enabled 0x134(b1), type 0x134(b0)+0x135(b7-6): 3 bits
-  if ((u8(b, base + 0x134) & 0x02) !== 0) {
-    const type = lut(REVERB_TYPE, (u16(b, base + 0x134) & 0x01c0) >>> 6);
-    // amount 0x135(b4-0)+0x136(b7-6): 7 bits
-    const amountMidi = ((u8(b, base + 0x135) & 0x1f) << 2) | (u8(b, base + 0x136) & 0xc0) >>> 6;
-    fx.push({ name: 'Reverb', type, params: { amount: lin10(amountMidi) } });
-  }
-
-  return fx;
-}
-
 export interface Ns3Program {
-  /** The active panels (A and/or B), per the 0x31 panel-enable flag. */
+  /** The active panels (A and/or B), per the program-wide slot enable. */
   panels: Ns3Panel[];
-  /** Program name, decoded from the name block (up to 16 ASCII chars). */
+  /** Program name — not stored in the file; injected from the filename. */
   name?: string;
 }
 
 /**
- * Decode the organ engine, reading the **active preset's** drawbar + vib/percussion
- * blocks. Preset 2 (enabled @0xBB.b2) mirrors preset 1's layout, shifted: drawbars
- * 0xBE→0xD9, vib/percussion enable byte 0xD3→0xEE (the vib/chorus *mode* @0x34 is a
- * shared global). Preset-1 files are unaffected (the common, validated path).
- *
- * `common` is the MultiCommon block origin (0 for NSM-era files, −0x14 legacy):
- * the vib/chorus mode is read there for BOTH panels.
+ * What {@link decodeNs3} returns: the panel shape plus the firmware-layout read
+ * it was built from (every field in `values`, the format version, warnings).
  */
-function organ(b: Uint8Array, base: number, common: number): Ns3Panel['organ'] {
-  const preset2 = (u8(b, base + 0xbb) & 0x04) !== 0;
-  const drawbarBase = base + (preset2 ? 0xd9 : 0xbe);
-  const pb = base + (preset2 ? 0xee : 0xd3); // percussion/vib enable byte
-  // Octave shift: ns3-organ.js 0xBA(b3-0) — 4-bit raw, center=6 (range ±2), shift = raw − 6.
-  const octRaw = u8(b, base + 0xba) & 0x0f;
-  const octaveShift = octRaw - 6; // 4→-2, 6→0, 8→+2
+export interface Ns3File extends FwProgram<Ns3FieldKey>, Ns3Program {
+  readonly format: 'ns3f';
+}
+
+type Slot = 'A' | 'B';
+/** The field names inside a slot block, e.g. FieldOf<'synth'> = 'oscBank' | … */
+type FieldOf<B extends string> = Ns3FieldKey extends infer K ? (K extends `${B}A.${infer F}` ? F : never) : never;
+type Values = Partial<Record<Ns3FieldKey, number>>;
+
+const DEFAULTS = new Map<Ns3FieldKey, number>(NS3_LAYOUT.fields.map((f) => [f.key, f.def]));
+
+/** A field's value; a field a shortened block left out reads as its firmware default. */
+function reader(v: Values) {
+  return (key: Ns3FieldKey): number => v[key] ?? DEFAULTS.get(key) ?? 0;
+}
+type Get = ReturnType<typeof reader>;
+
+/** Engine level 0-127 → the Nord dB display. */
+const db = (level: number): string => NORD_DB[level] ?? '?';
+
+const DRAWBARS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+
+function organ(get: Get, s: Slot): Ns3Panel['organ'] {
+  const model = get(`organ${s}.model`);
+  // Org_kPresetFocus is 2 bits (0-3); its low bit selects Preset II, as the
+  // corpus decoder read it (the meaning of 2/3 is not known).
+  const preset = (get(`organ${s}.presetFocus`) & 1) === 1 ? `organPresetII${s}` as const : `organPresetI${s}` as const;
   return {
-    on: (u16(b, base + 0xb6) & 0x8000) !== 0,
-    type: lut(ORGAN_TYPE, (u8(b, base + 0xbb) & 0x70) >>> 4),
-    volume: vol(b, base + 0xb6),
-    drawbars: readDrawbars(b, drawbarBase),
-    octaveShift,
-    // Vib/chorus mode is program-wide: MultiCommon absolute 0x34(b3-1), 3 bits, for
-    // both panels — Stage 3 OS 2.64 registry FUN_c0075058 (Param_Com_kOrgVibratoType)
-    // / serialiser FUN_c00e0108. (Panel B used to read base+0x34 = 0x13B.)
-    vibChorus: { on: (u8(b, pb) & 0x10) !== 0, mode: lut(VIB_CHORUS, (u8(b, common + 0x34) & 0x0e) >>> 1) },
+    on: get(`organ${s}.enable`) === 1,
+    type: lut(ORGAN_TYPE, model),
+    volume: db(get(`organ${s}.level`)),
+    drawbars: DRAWBARS.map((n) => get(`${preset}.db${n}`)),
+    octaveShift: get(`organ${s}.octaveShift`),
+    // The vibrato/chorus mode is program-wide (MultiCommon), its labels per organ model.
+    vibChorus: { on: get(`${preset}.vibratoEnable`) === 1, mode: vibChorusLabel(model, get('common.orgVibratoType')) },
     percussion: {
-      on: (u8(b, pb) & 0x08) !== 0,
-      third: (u8(b, pb) & 0x04) !== 0,
-      fast: (u8(b, pb) & 0x02) !== 0,
-      soft: (u8(b, pb) & 0x01) !== 0,
+      on: get(`${preset}.b3PercEnable`) === 1,
+      third: get(`${preset}.b3PercHarmonic`) === 1,
+      fast: get(`${preset}.b3PercSpeed`) === 1,
+      soft: get(`${preset}.b3PercLevel`) === 1,
     },
   };
 }
 
-/**
- * Piano timbre — labels from ns3-piano.js ns3PianoTimbreMap; the field is 0x4E
- * bits 6-3 (4 bits, 0-15) per Stage 3 OS 2.64 registry FUN_c0075058 (Param_Pno_kEq).
- * The raw value maps to per-type label arrays (index 0 = None); a raw value past
- * the table (8-15, unlabeled) falls back to `#n`:
- *   Grand/Upright/Digital/Misc: None, Soft, Mid, Bright
- *   Electric:                   None, Soft, Mid, Bright, Dyno1, Dyno2
- *   Clav:                       None, Soft, Treble, Soft+Treble, Brilliant, Soft+Brill, Treble+Brill, Soft+Trb+Brill
- * We resolve per-type using PIANO_TYPE index; fall back to Grand labels for unknown types.
- */
-function pianoTimbre(typeIdx: number, timbreRaw: number): string {
-  // Grand=0, Upright=1, Electric=2, Clav=3, Digital=4, Misc=5
-  const GRAND   = ['None', 'Soft', 'Mid', 'Bright', 'None', 'None', 'None', 'None'];
-  const ELECTRIC = ['None', 'Soft', 'Mid', 'Bright', 'Dyno1', 'Dyno2', 'None', 'None'];
-  const CLAV    = ['None', 'Soft', 'Treble', 'Soft+Treble', 'Brilliant', 'Soft+Brill', 'Treble+Brill', 'Soft+Trb+Brill'];
-  if (typeIdx === 2) return lut(ELECTRIC, timbreRaw);
-  if (typeIdx === 3) return lut(CLAV, timbreRaw);
-  return lut(GRAND, timbreRaw);
-}
-
-function piano(b: Uint8Array, base: number): Ns3Panel['piano'] {
-  // timbre: 0x4E(b6-3), 4 bits — Stage 3 OS 2.64 registry FUN_c0075058
-  // (Param_Pno_kEq) / serialiser FUN_c00e0108 (ns3-piano.js read only b5-3).
-  const timbreRaw = (u8(b, base + 0x4e) & 0x78) >>> 3;
-  const typeIdx = (u8(b, base + 0x48) & 0x38) >>> 3;
-  // Piano octave shift: ns3-piano.js 0x47(b3-0), center=6, shift = raw − 6.
-  const octRaw = u8(b, base + 0x47) & 0x0f;
-  const octaveShift = octRaw - 6;
+function piano(get: Get, s: Slot): Ns3Panel['piano'] {
+  const bank = get(`piano${s}.bank`);
   return {
-    on: (u16(b, base + 0x43) & 0x8000) !== 0,
-    type: lut(PIANO_TYPE, typeIdx),
-    volume: vol(b, base + 0x43),
-    sampleId: Number((u64(b, base + 0x49) & 0x0ffffffff0000000n) >> 28n),
-    sampleVariation: (u8(b, base + 0x49) & 0x30) >>> 4,
-    timbre: pianoTimbre(typeIdx, timbreRaw),
-    octaveShift,
+    on: get(`piano${s}.enable`) === 1,
+    type: lut(PIANO_TYPE, bank),
+    volume: db(get(`piano${s}.level`)),
+    sampleId: get(`piano${s}.nameHash`),
+    sampleVariation: get(`piano${s}.variation`),
+    timbre: pianoTimbre(bank, get(`piano${s}.eq`)),
+    octaveShift: get(`piano${s}.octaveShift`),
   };
 }
 
-/**
- * Decode the full Synth engine.
- * All offsets from ns3-synth.js and ns3-synth-filter.js (Chris55/ns3-program-viewer).
- */
-function synth(b: Uint8Array, base: number): Ns3Synth {
-  // ── oscillator ───────────────────────────────────────────────────────────
-  // Osc type: 0x8D(b1-0)+0x8E(b7) — ns3-synth.js
-  const o8dW = u16(b, base + 0x8d);
-  const o8eW = u16(b, base + 0x8e);
-  const o8fW = u16(b, base + 0x8f);
-  // Osc wave: 9-bit index 0x8E(b6-0)+0x8F(b7-6) — see oscWaveform.
-  const waveIdx = (o8eW & 0x7fc0) >>> 6;
-  const oscType = lut(SYNTH_OSC, (o8dW & 0x0380) >>> 7);
-  // Osc config: 0x8F(b5-1), 5 bits (0-14) — Stage 3 OS 2.64 registry FUN_c0075058
-  // (Edt_Syn_kOscConf) / serialiser FUN_c00e0108 (ns3-synth.js read only b4-1).
-  const oscConfigIdx = (u8(b, base + 0x8f) & 0x3e) >>> 1;
-  // Osc 2 pitch: 0x8F(b0)+0x90(b7-3) = 6 bits, value -12..+48 (raw-12) — ns3-synth.js
-  const osc2PitchRaw = (o8fW & 0x01f8) >>> 3;
-  const osc2Pitch = osc2PitchRaw - 12;
-  const pitchStr = osc2Pitch === -12 ? 'Sub' : `${osc2Pitch > 0 ? '+' : ''}${osc2Pitch} semi`;
-  // Waveform name depends on osc type
-  const waveform = oscWaveform(oscType, waveIdx);
+function synth(get: Get, s: Slot): Ns3Synth {
+  const y = (k: FieldOf<'synth'>) => get(`synth${s}.${k}`);
+  const oscType = lut(SYNTH_OSC, y('oscBank'));
+  // Osc 2 pitch: 0-60 stored, 12 = unison → −12 (Sub) … +48 semitones.
+  const osc2Pitch = y('dualOscDetune') - 12;
+  const pitch = osc2Pitch === -12 ? 'Sub' : `${osc2Pitch > 0 ? '+' : ''}${osc2Pitch} semi`;
 
-  // ── filter ───────────────────────────────────────────────────────────────
-  // ns3-synth-filter.js
-  const o98 = u8(b, base + 0x98);
-  const o98W = u16(b, base + 0x98);
-  const o9cW = u16(b, base + 0x9c);
-  const oA5W = u16(b, base + 0xa5);
-  const filterTypeIdx = (o98 & 0x1c) >>> 2;
-  const filterTypeStr = lut(SYNTH_FILTER, filterTypeIdx);
-  const filterCutoffMidi = (o98W & 0x03f8) >>> 3;
-  const filterResFreqMidi = (o9cW & 0x07f0) >>> 4;
-  const kbTrackIdx = (oA5W & 0x3000) >>> 12;
-  const driveIdx = (oA5W & 0x0c00) >>> 10;
-  // Resonance: for LP+HP, this field is HP cutoff freq; otherwise resonance 0-10
-  const resStr = filterTypeStr === 'LP+HP'
-    ? lut(NS3_FILTER_FREQ, filterResFreqMidi)
-    : lin10(filterResFreqMidi);
+  const filterType = lut(SYNTH_FILTER, y('fltType'));
+  const cutoff = lut(NS3_FILTER_FREQ, y('fltFreq'));
+  // For LP+HP the resonance knob sets the HP cutoff.
+  const resonance = filterType === 'LP+HP' ? lut(NS3_FILTER_FREQ, y('fltRes')) : lin10(y('fltRes'));
 
-  // ── LFO ──────────────────────────────────────────────────────────────────
-  // ns3-synth.js: lfoWave 0x86(b2-0), lfoRate 0x87(b6-0), lfoMC 0x87(b7)
-  const o86 = u8(b, base + 0x86);
-  const o87 = u8(b, base + 0x87);
-  const lfoRateMidi = o87 & 0x7f;
-  const lfoMC = (o87 & 0x80) !== 0;
-
-  // ── Envelopes ────────────────────────────────────────────────────────────
-  // ns3-synth.js
-  // Mod env: attack 0x8B(b7-1)=7bits, decay 0x8B(b0)+0x8C(b7-2)=7bits, release 0x8C(b1-0)+0x8D(b7-3)=7bits
-  const o8bW = u16(b, base + 0x8b);
-  const o8cW = u16(b, base + 0x8c);
-  const modAttackMidi = (o8bW & 0xfe00) >>> 9;
-  const modDecayMidi = (o8bW & 0x01fc) >>> 2;
-  const modReleaseMidi = (o8cW & 0x03f8) >>> 3;
-  // Amp env: attack 0xA5(b1-0)+0xA6(b7-3), decay 0xA6(b2-0)+0xA7(b7-4), release 0xA7(b3-0)+0xA8(b7-5)
-  const oA5WA = u16(b, base + 0xa5);
-  const oA6W = u16(b, base + 0xa6);
-  const oA7W = u16(b, base + 0xa7);
-  const oA8 = u8(b, base + 0xa8);
-  const ampAttackMidi = (oA5WA & 0x03f8) >>> 3;
-  const ampDecayMidi = (oA6W & 0x07f0) >>> 4;
-  const ampReleaseMidi = (oA7W & 0x0fe0) >>> 5;
-  // Amp velocity: 0xA8(b4-3) — ns3-synth.js synthOffsetA8 & 0x18) >>> 3
-  const ampVelocityIdx = (oA8 & 0x18) >>> 3;
-
-  // ── Voice / Glide / Unison / Vibrato ─────────────────────────────────────
-  // ns3-synth.js
-  // voice: 0x84(b0)+0x85(b7) = (u16@0x84 & 0x0180) >>> 7; glide: 0x85(b6-0) = u16@0x84 & 0x007f
-  const o84W = u16(b, base + 0x84);
-  const voiceIdx = (o84W & 0x0180) >>> 7;
-  const glideMidi = o84W & 0x007f;
-  const unisonIdx = (o86 & 0xc0) >>> 6;
-  const vibratoIdx = (o86 & 0x38) >>> 3;
-
-  // ── Arpeggiator ──────────────────────────────────────────────────────────
-  // ns3-synth.js: 0x80(b6)=enable, 0x80(b4-3)=range, 0x80(b2-1)=pattern, 0x80(b0)=masterClock
-  // rate: 0x81(b7-1) = 7bits
-  const o80 = u8(b, base + 0x80);
-  const o81 = u8(b, base + 0x81);
-  const arpOn = (o80 & 0x40) !== 0;
-  const arpRangeIdx = (o80 & 0x18) >>> 3;
-  const arpPatternIdx = (o80 & 0x06) >>> 1;
-  const arpMC = (o80 & 0x01) !== 0;
-  const arpRateMidi = (o81 & 0xfe) >>> 1;
-
-  // ── Sample ID ─────────────────────────────────────────────────────────────
-  const sampleId = Number((u64(b, base + 0xa5) & 0x07fffffff8n) >> 3n);
+  const lfoMC = y('lfoClkEnable') === 1;
+  const arpMC = y('arpClkEnable') === 1;
+  const modDecay = y('modEnvDcy');
+  const modRelease = y('modEnvRls');
+  const ampDecay = y('ampEnvDcy');
 
   return {
-    on: (u16(b, base + 0x52) & 0x8000) !== 0,
-    volume: vol(b, base + 0x52),
-    voice: lut(SYNTH_VOICE, voiceIdx),
-    glide: lin10(glideMidi),
-    unison: lut(SYNTH_UNISON, unisonIdx),
-    vibrato: lut(SYNTH_VIBRATO, vibratoIdx),
+    on: get(`synthCommon${s}.enable`) === 1,
+    volume: db(get(`synthCommon${s}.level`)),
+    voice: lut(SYNTH_VOICE, y('voiceMode')),
+    glide: lin10(y('glideRate')),
+    unison: lut(SYNTH_UNISON, y('unison')),
+    vibrato: lut(SYNTH_VIBRATO, y('vibratoMode')),
     oscillator: {
       type: oscType,
-      waveform,
-      config: lut(OSC_CONFIG, oscConfigIdx),
-      pitch: pitchStr,
+      waveform: oscWaveform(oscType, y('oscWave')),
+      config: lut(OSC_CONFIG, y('oscConf')),
+      pitch,
     },
     filter: {
-      type: filterTypeStr,
-      cutoff: lut(NS3_FILTER_FREQ, filterCutoffMidi),
-      resonance: resStr,
-      kbTrack: lut(FILTER_KB_TRACK, kbTrackIdx),
-      drive: lut(FILTER_DRIVE, driveIdx),
+      type: filterType,
+      cutoff,
+      resonance,
+      kbTrack: lut(FILTER_KB_TRACK, y('fltKbdTrk')),
+      drive: lut(FILTER_DRIVE, y('fltDrive')),
     },
     lfo: {
-      wave: lut(LFO_WAVE, o86 & 0x07),
-      rate: lfoMC ? lut(LFO_RATE_MC, lfoRateMidi) : lut(LFO_RATE, lfoRateMidi),
+      wave: lut(LFO_WAVE, y('lfoWave')),
+      rate: lut(lfoMC ? LFO_RATE_MC : LFO_RATE, y('lfoRateClkDiv')),
       masterClock: lfoMC,
     },
     envMod: {
-      attack: lut(ENV_ATTACK, modAttackMidi),
-      decay: modDecayMidi === 127 ? 'Sustain' : lut(ENV_DECAY_REL, modDecayMidi),
-      release: modReleaseMidi === 127 ? 'Inf' : lut(ENV_DECAY_REL, modReleaseMidi),
+      attack: lut(ENV_ATTACK, y('modEnvAtc')),
+      decay: modDecay === 127 ? 'Sustain' : lut(ENV_DECAY_REL, modDecay),
+      release: modRelease === 127 ? 'Inf' : lut(ENV_DECAY_REL, modRelease),
     },
     envAmp: {
-      attack: lut(ENV_ATTACK, ampAttackMidi),
-      decay: ampDecayMidi === 127 ? 'Sustain' : lut(ENV_DECAY_REL, ampDecayMidi),
-      release: lut(ENV_DECAY_REL, ampReleaseMidi),
-      velocity: lut(AMP_VELOCITY, ampVelocityIdx),
+      attack: lut(ENV_ATTACK, y('ampEnvAtc')),
+      decay: ampDecay === 127 ? 'Sustain' : lut(ENV_DECAY_REL, ampDecay),
+      release: lut(ENV_DECAY_REL, y('ampEnvRls')),
+      velocity: lut(AMP_VELOCITY, y('ampEnvVel')),
     },
     arp: {
-      on: arpOn,
-      range: lut(ARP_RANGE, arpRangeIdx),
-      pattern: lut(ARP_PATTERN, arpPatternIdx),
-      rate: arpMC ? lut(ARP_RATE_MC, arpRateMidi) : lut(ARP_RATE, arpRateMidi),
+      on: y('arpRun') === 1,
+      range: lut(ARP_RANGE, y('arpRange')),
+      pattern: lut(ARP_PATTERN, y('arpPattern')),
+      rate: lut(arpMC ? ARP_RATE_MC : ARP_RATE, y('arpRateClkDiv')),
       masterClock: arpMC,
     },
-    sampleId,
+    sampleId: y('smpNameHash'),
     // v1-compat aliases
     osc: oscType,
-    filter_type: filterTypeStr,
-    cutoff: lut(NS3_FILTER_FREQ, filterCutoffMidi),
+    filter_type: filterType,
+    cutoff,
   };
+}
+
+/** The effects this panel has switched on, in signal order, with type and parameters. */
+function effects(get: Get, s: Slot): Ns3Fx[] {
+  const e = (k: FieldOf<'effects'>) => get(`effects${s}.${k}`);
+  const fx: Ns3Fx[] = [];
+  // Rotary speed is program-wide (MultiCommon Param_Effects_kLeslieSpeed, 2 bits).
+  if (e('leslieEnable')) fx.push({ name: 'Rotary', params: { speed: lut(ROTARY_SPEED, get('common.leslieSpeed')) } });
+  if (e('fx1Enable')) {
+    fx.push({ name: 'Effect 1', type: lut(EFFECT1_TYPE, e('fx1Type')), params: { rate: e('fx1RateClkDiv'), amount: lin10(e('fx1Amt')) } });
+  }
+  if (e('fx2Enable')) {
+    fx.push({ name: 'Effect 2', type: lut(EFFECT2_TYPE, e('fx2Type')), params: { rate: e('fx2Rate'), amount: lin10(e('fx2Amt')) } });
+  }
+  // Amp EQ bands are −60…+60 (stored value − min, already applied by the layout).
+  if (e('ampEnable')) {
+    fx.push({ name: 'Amp/EQ', type: lut(AMP_TYPE, e('ampType')), params: { treble: e('ampTreble'), mid: e('ampMid'), bass: e('ampBass') } });
+  }
+  if (e('cmpEnable')) fx.push({ name: 'Comp', params: { amount: lin10(e('cmpAmt')) } });
+  if (e('dlyEnable')) fx.push({ name: 'Delay', params: { feedback: lin10(e('dlyFeedback')), mix: lin10(e('dlyMix')) } });
+  if (e('rvbEnable')) fx.push({ name: 'Reverb', type: lut(REVERB_TYPE, e('rvbType')), params: { amount: lin10(e('rvbAmt')) } });
+  return fx;
+}
+
+function panel(get: Get, id: Slot): Ns3Panel {
+  return { id, piano: piano(get, id), organ: organ(get, id), synth: synth(get, id), fx: effects(get, id) };
 }
 
 /**
- * `base` is the panel origin (Panel B = +PANEL_STRIDE); `common` is the MultiCommon
- * block origin (just the legacy version shift) — program-wide fields (vib/chorus
- * mode, rotary speed) are read there for both panels.
+ * Parameters added inside 3.x took reserved (zero) bits; on loading an older 3.x
+ * file the firmware sets them to their defaults (version fix-ups, FUN_c007dd14).
+ * Two more fix-ups are not applied here because what they compute isn't known:
+ * the delay rate of a 3.00 file (rescaled to 14 bits) and the Dual-KB style
+ * before 3.02.
  */
-function readPanel(b: Uint8Array, id: 'A' | 'B', base: number, common: number): Ns3Panel {
-  return {
-    id,
-    piano: piano(b, base),
-    organ: organ(b, base, common),
-    synth: synth(b, base),
-    fx: readFx(b, base, common),
-  };
+const ADDED_IN: readonly { before: number; keys: readonly Ns3FieldKey[] }[] = [
+  { before: 303, keys: ['common.pitchStickRange'] },               // id 157
+  { before: 304, keys: ['externA.volPedalEnable', 'externB.volPedalEnable'] }, // id 245
+];
+
+function withVersionDefaults(values: Values, formatVersion: number): Values {
+  const fixed = ADDED_IN.filter((a) => formatVersion < a.before);
+  if (fixed.length === 0) return values;
+  const out = { ...values };
+  for (const a of fixed) for (const k of a.keys) out[k] = DEFAULTS.get(k) ?? 0;
+  return out;
 }
 
-/** Decode a Stage 3 `.ns3f` into its active panel(s). */
-export function decodeNs3(bytes: Uint8Array): Ns3Program {
-  // Legacy (pre-NSM) .ns3f exports pack the body 0x14 bytes earlier than the common
-  // NSM-era files: the NSM-era header inserts 20 bytes before the panel block. Key on
-  // the CBIN formatType at 0x04 (0 = legacy, 1 = NSM-era — see clavia/cbin.ts). The
-  // `11 ?? 2? e0` panel marker plus the `b6`/`3a` body anchors align at exactly -0x14
-  // between a formatType-0 and formatType-1 file (verified against Fred's fmt0 files
-  // Gothic esamble.ns3f / Natural Strings.ns3f, 2026-07-15; the fmt1 corpus is unchanged).
-  const versionOffset = (bytes[0x04] ?? 0) === 0 ? -20 : 0;
-  // 0x31 bits 6-5: 0 = panel A only, 1 = panel B only, 2 = both.
-  const flag = (u8(bytes, 0x31 + versionOffset) & 0x60) >>> 5;
-  const panels: Ns3Panel[] = [];
-  if (flag === 0 || flag === 2) panels.push(readPanel(bytes, 'A', 0 * PANEL_STRIDE + versionOffset, versionOffset));
-  if (flag === 1 || flag === 2) panels.push(readPanel(bytes, 'B', 1 * PANEL_STRIDE + versionOffset, versionOffset));
+/** Lowest body format the layout describes; 2.0x bodies (converted by the Nord on load) differ. */
+const FIRST_LAYOUT_VERSION = NS3_LAYOUT.versionRange?.[0] ?? 300;
 
-  // Program name is stored at a fixed offset outside the panel area.
-  // ns3-program.js reads it from bytes 0x10 onward (16 bytes), null-terminated.
-  // For now we don't emit it (it lives in the CBIN header layer).
-  return { panels };
+/** Decode a Stage 3 program into its active panel(s), plus every layout field in `values`. */
+export function decodeNs3(bytes: Uint8Array): Ns3File {
+  const legacy = (bytes[0x04] ?? 0) === 0;
+  const fw = decodeFwProgram(bytes, NS3_LAYOUT, legacy ? CBIN_BODY_OFFSET - LEGACY_HEADER_SHIFT : CBIN_BODY_OFFSET);
+  let { layoutMatched, values, warnings } = fw;
+  const v = fw.formatVersion;
+  if (layoutMatched && v !== null && v < FIRST_LAYOUT_VERSION) {
+    // A 2.0x body: Piano, SynthCommon and Organ have other sizes and fields
+    // (firmware "Multi v1" registry), so reading it with the 3.x layout would misplace values.
+    layoutMatched = false;
+    values = {};
+    warnings = [
+      `This program uses the Stage 3's format ${(v / 100).toFixed(2)} from an early OS, which the Nord converts ` +
+      `when it loads it. OpenNord reads formats ${(FIRST_LAYOUT_VERSION / 100).toFixed(2)}–` +
+      `${((NS3_LAYOUT.versionRange?.[1] ?? 304) / 100).toFixed(2)}; showing the file header only.`,
+    ];
+  }
+
+  if (layoutMatched && v !== null) values = withVersionDefaults(values, v);
+
+  const panels: Ns3Panel[] = [];
+  if (layoutMatched) {
+    const get = reader(values);
+    // Param_Com_kSlotEnable 1-3: bit 0 = slot A, bit 1 = slot B.
+    const slots = get('common.slotEnable');
+    if (slots === 1 || slots === 3) panels.push(panel(get, 'A'));
+    if (slots === 2 || slots === 3) panels.push(panel(get, 'B'));
+  }
+  return { ...fw, format: 'ns3f', layoutMatched, values, warnings, panels };
 }

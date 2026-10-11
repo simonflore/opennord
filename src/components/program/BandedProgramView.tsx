@@ -16,15 +16,25 @@ export interface SampleRef { key: string; label: string; }
  * program-global FX row → referenced-samples strip. Each model builds the data via
  * its own view.ts and renders this.
  */
-export function BandedProgramView({ header, bands, globalFxChips, sampleRefs }: {
+export function BandedProgramView({ header, bands, globalFxChips, sampleRefs, warnings }: {
   header: HeaderView;
   bands: ProgramBand[];
   globalFxChips?: FxChipModel[];
   sampleRefs: SampleRef[];
+  /** Reader anomalies (a file the layout doesn't match, out-of-range values, …). */
+  warnings?: readonly string[];
 }) {
   return (
     <div className="ps">
       <ProgramHeader header={header} />
+      {warnings && warnings.length > 0 && (
+        <div className="ps-card" style={{ marginTop: 12 }}>
+          <h4>Readout warnings</h4>
+          <ul className="ps-sub" style={{ margin: '8px 0 0', paddingLeft: 18, color: 'var(--warn)' }}>
+            {warnings.map((w) => <li key={w}>{w}</li>)}
+          </ul>
+        </div>
+      )}
       {bands.map((band) => (
         <section className="ps-panel" key={band.id}>
           <div className="ps-panel-lbl">{band.label}</div>

@@ -382,6 +382,7 @@ describe('AllParamsDrawer', () => {
 });
 
 import { ProgramView } from './ProgramView';
+import { NS3_FILE_BYTES, frameNs3Body } from '../../lib/ns3/file.synth';
 
 describe('ProgramView (integration)', () => {
   it('renders header, active engines, FX, sample refs, and the params drawer', () => {
@@ -408,11 +409,12 @@ describe('ProgramView (integration)', () => {
   });
 
   it('routes a Stage 3 performance file to the rich Ns3 program view', () => {
-    const ns3f = new Uint8Array(64);
+    const ns3f = new Uint8Array(NS3_FILE_BYTES);
     ns3f.set([0x43, 0x42, 0x49, 0x4e]); // CBIN
     ns3f[0x04] = 1;
     for (let i = 0; i < 4; i++) ns3f[0x08 + i] = 'ns3f'.charCodeAt(i);
     ns3f[0x0c] = 5; ns3f[0x0e] = 19; ns3f[0x10] = 21; ns3f[0x14] = 0x30; ns3f[0x15] = 0x01; // v3.04
+    frameNs3Body(ns3f); // body framed as the firmware writes it; fields zero → panel A
     const html = renderToStaticMarkup(<ProgramView program={parseNs4Program(ns3f)} />);
     expect(html).toContain('PANEL A'); // the Stage 3 panel band (rich per-engine view)
     expect(html).toContain('v3.04');   // header still surfaces the decoded version
