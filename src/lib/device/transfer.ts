@@ -5,7 +5,7 @@ import {
 } from './opcodes';
 import { NordError } from './protocol';
 import { readAsciiFixed } from '../clavia/ascii';
-import { buildCbinHeader, cbinFraming, cbinRecord, readCbinHeader } from '../clavia/cbin';
+import { buildCbinHeader, cbinFraming, cbinRecord, hasCbinMagic, readCbinHeader } from '../clavia/cbin';
 import { patchNs4Checksum } from '../clavia/checksum';
 import { formatSlot } from '../clavia/slot';
 import { programCategoryName } from '../clavia/categories';
@@ -160,12 +160,14 @@ export function programEntryView(e: ProgramEntry): ProgramRowView {
 
 /**
  * Why Nord Sound Manager would refuse to send this file to an instrument, in a
- * musician's words — or undefined when it can be sent. NSM 9.22 refuses a CBIN
+ * musician's words — or undefined when it can be sent. Bytes that aren't a
+ * CBIN file are never sent. NSM 9.22 refuses a CBIN
  * header newer than the NSM-era one (formatType ≥ 2), and Stage 2 Programs and
  * Synth presets whose version field (0x14) is below 6 (files from before the
  * Stage 2 OS it supports).
  */
 export function pushRefusal(fileBytes: Uint8Array): string | undefined {
+  if (!hasCbinMagic(fileBytes)) return 'This is not a Nord file, so it was not sent.';
   if (!cbinFraming(fileBytes).supported) {
     return 'This file was saved in a newer format than OpenNord knows, so it was not sent.';
   }

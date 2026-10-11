@@ -42,7 +42,7 @@ describe('readNs4Bundle', () => {
     expect(entries[0].name).toBe('BreakFree Solo');
   });
 
-  it('accepts the .ns4l (bundle-extracted) extension', () => {
+  it('accepts the .ns4l (Live) extension', () => {
     const zip = zipSync({ 'Lead.ns4l': solo });
     const entries = readNs4Bundle(zip);
     expect(entries).toHaveLength(1);

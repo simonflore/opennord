@@ -8,9 +8,9 @@ import type { ModelCodec } from '../clavia/model';
 import { parseNs4Program } from './parse';
 import type { NS4Program } from './types';
 
-/** Claims `.ns4p` (standalone) and `.ns4l` (bundle-extracted) programs. */
+/** Claims `.ns4p` programs; a Live (`.ns4l`) reaches it through formats.ts `programTagFor`. */
 export const ns4Codec: ModelCodec<NS4Program> = {
   model: 'ns4',
-  tags: ['ns4p', 'ns4l'],
+  tags: ['ns4p'],
   decode: parseNs4Program,
 };

@@ -4,6 +4,6 @@ import type { Ne5Program } from './types';
 
 export const ne5Codec: ModelCodec<Ne5Program> = {
   model: 'ne5',
-  tags: ['ne5p', 'ne5l'],
+  tags: ['ne5p'],
   decode: decodeNe5,
 };
