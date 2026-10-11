@@ -166,10 +166,10 @@ describe('parameter counts of the legacy-record readers', () => {
 });
 
 describe('parameter counts of the later ColdFire readers', () => {
-  it('count each stored parameter once (Electro 5 presets, Stage panels A/B), without the Stage morph deltas', () => {
+  it('count each stored parameter once (Electro 5 presets, C2 manuals and presets, Stage panels A/B), without the Stage morph deltas', () => {
     const counts = Object.fromEntries(['electro-5', 'piano-3', 'piano-2', 'piano-1', 'stage-classic', 'c2']
       .map((id) => [id, decodeForModel(id).paramCount]));
-    expect(counts).toEqual({ 'electro-5': 129, 'piano-3': 76, 'piano-2': 52, 'piano-1': 29, 'stage-classic': 199, c2: 139 });
+    expect(counts).toEqual({ 'electro-5': 129, 'piano-3': 76, 'piano-2': 52, 'piano-1': 29, 'stage-classic': 199, c2: 86 });
     expect(decodeForModel('stage-ex').paramCount).toBe(counts['stage-classic']);
   });
 });
