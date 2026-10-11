@@ -24,6 +24,7 @@ import { ngDecoded } from './ng/present';
 import { np6Decoded } from './np6/present';
 import { ne7Decoded } from './ne7/present';
 import { no3Decoded } from './no3/present';
+import { ne3Decoded } from './ne3/present';
 
 /** Family-wide piano-name lookup (the 32-bit piano name hash → display name). */
 const pianoName = (hash: number): string | undefined => PIANO_NAMES[hash];
@@ -56,6 +57,10 @@ const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.tag === 'np6p' || i.tag === 'np6l', present: (bytes) => np6Decoded(bytes, pianoName) },
   { match: (i) => i.tag === 'ne7p' || i.tag === 'ne7l', present: (bytes) => ne7Decoded(bytes, pianoName) },
   { match: (i) => i.tag === 'no3p' || i.tag === 'no3l', present: no3Decoded },
+  // Legacy-record readers (clavia/legacy-record.ts), firmware-derived and provisional
+  // until a real file confirms the alignment. The Electro 3 Live partition's tag is
+  // not known, so only programs route here.
+  { match: (i) => i.tag === 'nepg', present: ne3Decoded },
 ];
 
 /** The shared decoded-program presentation for a file, or null if no model claims it. */
