@@ -10,11 +10,14 @@
  *   .nl4s   343 = 26 + 315 (program record) + 2 (CRC)          record version 8
  *   .nl4p  1295 = 26 + 7 (common) + 4 × 315 (slots) + 2 (CRC)  record version 9
  *
+ * Behind an NSM-era header the data starts at 0x2E and there is no trailer, as
+ * on the Lead A1 (legacy-record.ts).
+ *
  * Never throws: a short or odd-sized file is read as far as it goes, with a warning.
  */
 import { fileTypeTag, formatCbinVersion } from '../clavia/cbin';
 import {
-  LEGACY_DATA_OFFSET, legacyData, legacyRecordVersion, readLegacyRecord, readMorphList,
+  legacyData, legacyDataOffset, legacyRecordVersion, legacyTrailerBytes, readLegacyRecord, readMorphList,
 } from '../clavia/legacy-record';
 import { storedTrailerChecksum } from '../clavia/crc16';
 import { NL4_LAYOUT, NL4_PERF_LAYOUT, type Nl4FieldKey } from './layout.generated';
@@ -22,8 +25,8 @@ import type { Nl4MorphEntry, Nl4Program, Nl4Record } from './types';
 
 const PROGRAM_BYTES = NL4_LAYOUT.dataBytes; // 315
 const PERF_COMMON_BYTES = NL4_PERF_LAYOUT.dataBytes; // 7
-const NL4S_FILE_BYTES = LEGACY_DATA_OFFSET + PROGRAM_BYTES + 2; // 343
-const NL4P_FILE_BYTES = LEGACY_DATA_OFFSET + PERF_COMMON_BYTES + 4 * PROGRAM_BYTES + 2; // 1295
+/** A `.nl4p` performance's data: the common settings, then four program records. */
+const NL4P_DATA_BYTES = PERF_COMMON_BYTES + 4 * PROGRAM_BYTES;
 
 /** Field key by `${set}.${descriptor index}`, for naming morph-list entries. */
 const KEY_BY_SET_ID = new Map<string, Nl4FieldKey>(
@@ -45,7 +48,12 @@ function readRecord(data: Uint8Array, byteOffset: number): Nl4Record {
 
 export function decodeNl4(bytes: Uint8Array): Nl4Program {
   const warnings: string[] = [];
-  if (bytes.length < LEGACY_DATA_OFFSET + 2) {
+  // Data from 0x1A to the 2-byte trailer; behind an NSM-era header from 0x2E to EOF (legacy-record.ts).
+  const dataOffset = legacyDataOffset(bytes, NL4_LAYOUT);
+  const framing = dataOffset + legacyTrailerBytes(bytes);
+  const nl4sBytes = framing + PROGRAM_BYTES; // 343
+  const nl4pBytes = framing + NL4P_DATA_BYTES; // 1295
+  if (bytes.length <= framing) {
     warnings.push(`File too short: ${bytes.length} bytes`);
   }
   const tag = fileTypeTag(bytes);
@@ -54,19 +62,19 @@ export function decodeNl4(bytes: Uint8Array): Nl4Program {
     version: formatCbinVersion(bytes),
     recordVersion: legacyRecordVersion(bytes),
     checksum: bytes.length >= 2 ? storedTrailerChecksum(bytes) : 0,
-    _data: legacyData(bytes),
+    _data: legacyData(bytes, dataOffset, legacyTrailerBytes(bytes)),
     bytes,
   };
 
-  if (tag === 'nl4s' || (tag !== 'nl4p' && bytes.length <= NL4S_FILE_BYTES)) {
-    if (bytes.length >= LEGACY_DATA_OFFSET + 2 && bytes.length !== NL4S_FILE_BYTES) {
-      warnings.push(`Program file is ${bytes.length} bytes, the firmware record makes ${NL4S_FILE_BYTES}`);
+  if (tag === 'nl4s' || (tag !== 'nl4p' && bytes.length <= nl4sBytes)) {
+    if (bytes.length > framing && bytes.length !== nl4sBytes) {
+      warnings.push(`Program file is ${bytes.length} bytes, the firmware record makes ${nl4sBytes}`);
     }
     return { ...common, fileType: 'nl4s', program: readRecord(common._data, 0), warnings };
   }
 
-  if (bytes.length !== NL4P_FILE_BYTES) {
-    warnings.push(`Performance file is ${bytes.length} bytes, the firmware record makes ${NL4P_FILE_BYTES}`);
+  if (bytes.length !== nl4pBytes) {
+    warnings.push(`Performance file is ${bytes.length} bytes, the firmware record makes ${nl4pBytes}`);
   }
   const slot = (k: number) => readRecord(common._data, PERF_COMMON_BYTES + PROGRAM_BYTES * k);
   return {

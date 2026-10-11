@@ -4,12 +4,13 @@
  *
  * Clavia uses this same CRC in two places:
  *  - the Nord USB transport frame checksum (src/lib/device/protocol.ts), and
- *  - the 2-byte little-endian trailer of the legacy program/preset file
- *    formats (.nwp, .nl4s/.nl4p, .nlas/.nlap — see verifyTrailerChecksum),
+ *  - the 2-byte little-endian trailer of every legacy (CBIN format type 0)
+ *    file — .nwp, .nl4s/.nl4p, .nlas/.nlap, legacy .ns2p/.ns3f, … (see
+ *    verifyTrailerChecksum; the CRC covers the header too),
  *    and of v5 Nord Piano libraries (.npno, docs/NSP-FORMAT.md).
  *
- * Distinct from the Stage 4 `.ns4p` header checksum, which is a CRC-32 stored
- * in the CBIN header (src/lib/clavia/checksum.ts).
+ * Distinct from the checksum of NSM-era (format type 1) files, a CRC-32 stored
+ * in the CBIN header (src/lib/clavia/checksum.ts, which also picks between the two).
  */
 
 /** The CRC of each byte value: the bit-by-bit loop folded into a table (one lookup per byte). */
@@ -45,9 +46,14 @@ export function storedTrailerChecksum(bytes: Uint8Array): number {
  * final two bytes and stored little-endian in those bytes.
  *
  * Confirmed by corpus brute-force 2026-07-04: 1018/1018 .nwp, 1275/1275 .nl4s,
- * 494/494 .nl4p, 50/51 .nlas (the one miss is a 141-byte oddball with a zeroed
- * trailer), 1/1 .nlap. A zeroed trailer is treated as "absent" and returns
- * false without implying corruption — callers decide how to surface it.
+ * 494/494 .nl4p, 50/51 .nlas, 1/1 .nlap. The .nlas "miss" is no oddball but an
+ * ordinary NSM-era file (format type 1): a 44-byte header, then the record
+ * (u16 version 7 at 0x2C and 95 bytes of data) to EOF — 141 bytes — with the
+ * CRC-32 of checksum.ts at 0x18 and no trailer. NSM writes every file it saves
+ * that way (the instrument's record verbatim behind the NSM-era header) and only
+ * reads the legacy header + CRC-16 trailer form. Use checksum.ts
+ * `verifyFileChecksum` for a file of either header type; on an NSM-era file
+ * this returns false without implying corruption.
  */
 export function verifyTrailerChecksum(bytes: Uint8Array): boolean {
   if (bytes.length < 3) return false;

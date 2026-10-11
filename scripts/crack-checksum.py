@@ -2,10 +2,11 @@
 """
 crack-checksum — reverse-engineer the Nord Stage 4 program checksum.
 
-Each .ns4p file stores a 32-bit checksum at bytes 24..27 (param 025-1..028-8,
-big-endian). Decoding the file is solved; *generating* a valid checksum is not,
-and it's the one thing standing between OpenNord and a write/edit path (export a
-program the Nord will actually load via Nord Sound Manager).
+Each .ns4p file stores a 32-bit checksum at bytes 24..27 (param 025-1..028-8),
+little-endian. This tool found it: CRC-32/ISO-HDLC (zlib) over bytes[44:],
+implemented in src/lib/clavia/checksum.ts and the same for every NSM-era
+(format type 1) CBIN file — see docs/CHECKSUM.md. It is kept for the next
+format whose checksum is unknown.
 
 This tool attacks the checksum from a folder of real .ns4p files:
 
@@ -114,7 +115,8 @@ def load_files(paths: list[str]) -> list[tuple[str, bytes]]:
 
 
 def stored_checksum(data: bytes) -> int:
-    return int.from_bytes(data[CHECKSUM_LO:CHECKSUM_HI], "big")
+    # Stored little-endian (the parameter data itself is big-endian / MSB-first).
+    return int.from_bytes(data[CHECKSUM_LO:CHECKSUM_HI], "little")
 
 
 def candidate_ranges(n: int) -> list[tuple[int, int]]:
@@ -128,7 +130,7 @@ def catalogue_sweep(files: list[tuple[str, bytes]]) -> bool:
     print("\n[1] Catalogue sweep — standard CRC-32 variants over all ranges")
     name0, data0 = files[0]
     target0 = stored_checksum(data0)
-    targets0 = {target0, int.from_bytes(data0[CHECKSUM_LO:CHECKSUM_HI], "little")}
+    targets0 = {target0, int.from_bytes(data0[CHECKSUM_LO:CHECKSUM_HI], "big")}
     hits = []
     for (cname, poly, init, refin, refout, xo) in CATALOGUE:
         for (s, e) in candidate_ranges(len(data0)):
@@ -273,7 +275,7 @@ def _report_constant(poly, refin, refout, s, K, length, files):
     print("-" * 62)
     print(f"  verified across {len(files)} file(s): {'PASS' if ok else 'FAIL'}")
     print("=" * 62)
-    print("\n  → port to lib/ns4/checksum.ts and the write path is unlocked.")
+    print("\n  → port to lib/clavia/checksum.ts and the write path is unlocked.")
 
 
 # ------------------------------------------------------------------ main
@@ -281,7 +283,8 @@ def dump_for_reveng(files: list[tuple[str, bytes]], s: int = PAYLOAD_START_DEFAU
     """Emit payload+checksum as hex so CRC RevEng can solve an arbitrary poly.
 
     reveng treats the trailing 4 bytes as the CRC, so we append the stored
-    big-endian checksum to each payload. Feed the output to:
+    checksum value (read little-endian from the file) to each
+    payload as 4 big-endian bytes. Feed the output to:
         reveng -w 32 -s <line> <line> ...
     """
     print("# space-separated hex messages for: reveng -w 32 -s ...")

@@ -565,11 +565,16 @@ const ADDED_IN: readonly { before: number; keys: readonly Ns3FieldKey[] }[] = [
   { before: 304, keys: ['externA.volPedalEnable', 'externB.volPedalEnable'] }, // id 245
 ];
 
+/** Fields a body of `formatVersion` does not store yet: the firmware loads them at their defaults. */
+export function ns3FieldsAbsent(formatVersion: number): Ns3FieldKey[] {
+  return ADDED_IN.filter((a) => formatVersion < a.before).flatMap((a) => a.keys);
+}
+
 function withVersionDefaults(values: Values, formatVersion: number): Values {
-  const fixed = ADDED_IN.filter((a) => formatVersion < a.before);
-  if (fixed.length === 0) return values;
+  const absent = ns3FieldsAbsent(formatVersion);
+  if (absent.length === 0) return values;
   const out = { ...values };
-  for (const a of fixed) for (const k of a.keys) out[k] = DEFAULTS.get(k) ?? 0;
+  for (const k of absent) out[k] = DEFAULTS.get(k) ?? 0;
   return out;
 }
 
