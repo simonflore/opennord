@@ -207,7 +207,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 're', note: "firmware accepts .nsmp3 and .nsmp4; sampleCodec records codec4; not HW-tested" },
   },
   'lead-4': {
-    'file-read': { status: 're', note: "nl4p CBIN header NSM-traced: CLead4Base::ConvertLocation @0x00000001000ddcf8 (2-bank/50-slot display); header validated vs real .nl4p + .nl4s fixtures, not HW-tested. Body read from file 0x1A through the OS 1.32 firmware descriptor layout (lib/nl4: slot + FX sets, sparse morph lists, performance common; the earlier corpus reader read 18 bytes late)" },
+    'file-read': { status: 're', note: "nl4p CBIN header NSM-traced: CLead4Base::ConvertLocation @0x00000001000ddcf8 (2-bank/50-slot display); header validated vs real .nl4p + .nl4s fixtures, not HW-tested. Body read from file 0x1A through the OS 1.32 firmware descriptor layout (lib/nl4: slot + FX sets, sparse morph lists, performance common; the earlier corpus reader read 18 bytes late). Records from OS versions 6-7 (and version-8 performances) are converted as the OS 1.32 load path converts them (lib/nl4/convert.ts); 1,769 real files read with every value in range" },
     enumerate: { status: 're', note: "FileTransfer v8 in the OS 1.32 firmware (frames 3..8 — a v10 frame is dropped); 3 partitions: 0 Program nl4s, 1 Performance nl4p, 2 Settings nl4t; read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v8 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v8 (firmware); WRITE — untested-write risk" },
