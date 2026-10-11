@@ -9,7 +9,8 @@ let probes = 0;
 const listeners = new Set<() => void>();
 function probe() {
   const n = ++probes;
-  void nordUsbAvailable().then((ok) => {
+  // A probe that throws (plugin missing, driver error) means not ready.
+  void nordUsbAvailable().catch(() => false).then((ok) => {
     if (n !== probes || ok === ready) return; // only the latest probe counts
     ready = ok;
     for (const l of listeners) l();

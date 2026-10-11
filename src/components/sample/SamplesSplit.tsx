@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
 import { CategorySplit, useBackToList } from '@/components/library/CategorySplit';
-import { EmptyNote } from '@/components/library/EmptyNote';
+import { EmptyNote, NotListedNote } from '@/components/library/EmptyNote';
 import { useSamplesState } from '@/lib/library/SamplesContext';
 import { useOpenSample } from '@/lib/library/useOpenSample';
 import { useSplitLayout } from '@/lib/responsive';
 import { readFileBytes } from '../../lib/file';
 import { useNavigate } from '@tanstack/react-router';
-import { closeRemoved, useOpenEntry } from '@/components/library/openEntry';
+import { useCloseRemoved, useOpenEntry } from '@/components/library/openEntry';
 
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
@@ -28,6 +28,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   // An import that wasn't a sample file: shown above the list, apart from the open sample.
   const [importError, setImportError] = useState('');
   const navigate = useNavigate();
+  const closeRemoved = useCloseRemoved('/library/samples');
   const openEntry = useOpenEntry();
 
   // Opening a sample from the route closes a preview.
@@ -38,8 +39,9 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     setImportError('');
   }, [selectedId]);
 
-  // Off the open sample, to the bare list (which closes it and lets go of its read).
-  const toList = () => { if (selectedId) navigate({ to: '/library/samples' }); };
+  // Off the open sample, to the bare list (which closes it and lets go of its read),
+  // replacing it so Back doesn't reopen it.
+  const toList = () => { if (selectedId) navigate({ to: '/library/samples', replace: true }); };
   const startLoadNew = () => { toList(); setPreview(null); setLoadNew(true); setImportError(''); };
   const backToList = useBackToList('/library/samples');
   const back = () => { if (selectedId) backToList(); setPreview(null); setLoadNew(false); };
@@ -89,7 +91,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         onLoadNew={startLoadNew}
         activeId={selectedId ?? null}
         onImport={importSample}
-        onRemove={(id) => { void s.removeSample(id); closeRemoved(navigate, '/library/samples', selectedId, [id]); }}
+        onRemove={(id) => void s.removeSample(id).then(() => closeRemoved(id))}
         storedCount={s.storedCount} storedBytes={s.storedBytes}
         prefs={s.prefs}
         canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct}
@@ -113,7 +115,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   // resolve after its bytes do).
   const hasDetail = !!selectedId || loadNew || preview !== null;
   const detail = selectedId ? (
-    open.state === 'missing' ? <EmptyNote>This sample isn’t in your library right now. Pick one from the list.</EmptyNote>
+    open.state === 'missing' ? <NotListedNote noun="sample" />
     : open.state === 'failed' ? <div role="alert"><EmptyNote>{open.error} Click it in the list to try again.</EmptyNote></div>
     : open.state === 'open' ? (
       <>

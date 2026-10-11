@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createRootRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { ErrorBoundary } from '@/components/shell/ErrorBoundary';
 import { Rail } from '@/components/shell/Rail';
@@ -35,6 +35,8 @@ function AppShell({ path }: { path: string }) {
   // Stable, so the memoised rail doesn't re-render when only the palette changes.
   const go = useCallback((to: NavTo) => navigate({ to }), [navigate]);
   const [palette, setPalette] = useState<false | 'search' | 'menu'>(false);
+  const paletteOpen = useRef(false);
+  useEffect(() => { paletteOpen.current = !!palette; }, [palette]);
 
   // ⌘K (Ctrl+K off the Mac, where Ctrl+K in a text field is "delete to end of
   // line") opens the palette, or closes it again; it never opens over another dialog.
@@ -46,9 +48,11 @@ function AppShell({ path }: { path: string }) {
       if (e.altKey || e.shiftKey || !(isApple ? e.metaKey : e.ctrlKey)) return;
       const key = e.key?.toLowerCase() ?? '';
       if (key !== 'k' && (/^[a-z]$/.test(key) || e.code !== 'KeyK')) return;
+      // Over another dialog the key is left alone (for the browser), not swallowed.
+      if (!paletteOpen.current && anyDialogOpen()) return;
       e.preventDefault();
       if (e.repeat) return; // holding the keys doesn't flicker it
-      setPalette((open) => (open || anyDialogOpen() ? false : 'search'));
+      setPalette((open) => (open ? false : 'search'));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
