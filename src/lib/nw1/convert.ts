@@ -6,15 +6,18 @@
  *
  * - version 6 only: global parameter 7 := 40;
  * - per slot, when Osc 1 plays waveform 4 or 5 (parameter 19) with Osc 1 Sync
- *   Mode off (33): Osc 1 Shape (23) and its morphs := 0; LFO 1 Amount (8) and
- *   its morphs := 0 when LFO 1 Dest (5) is 1; when LFO 1 Dest is 2, LFO 1
- *   Amount := 0 if Osc 2 also plays waveform 4 or 5 (24), else LFO 1 Dest := 3;
- *   LFO 2 Amount (13) and its morphs := 0 when LFO 2 Dest (10) is 1;
- * - per slot, when Osc 2 plays waveform 4 or 5: Osc 2 Shape (32) and its morphs
- *   := 0; LFO 1 Dest 2 → 1 when Osc 1 is not on waveform 4 or 5; LFO 2 Amount
- *   := 0 when LFO 1 Dest is 3 (as the firmware does it, morphs kept); Mod
- *   Envelope Amount (16) := 64 and its morphs := 0 when Mod Envelope Dest (17)
+ *   Mode off (33): Osc 1 Shape (23) := 0; LFO 1 Amount (8) := 0 when LFO 1
+ *   Dest (5) is 1; when LFO 1 Dest is 2, LFO 1 Amount := 0 if Osc 2 also plays
+ *   waveform 4 or 5 (24), else LFO 1 Dest := 3; LFO 2 Amount (13) := 0 when
+ *   LFO 2 Dest (10) is 1;
+ * - per slot, when Osc 2 plays waveform 4 or 5: Osc 2 Shape (32) := 0; LFO 1
+ *   Dest 2 → 1 when Osc 1 is not on waveform 4 or 5; LFO 2 Amount := 0 when
+ *   LFO 1 Dest is 3; Mod Envelope Amount (16) := 64 when Mod Envelope Dest (17)
  *   is 1.
+ *
+ * Every amount or shape the converter resets loses its morph deltas too; the
+ * conditions are the slot's values before any reset (reads them
+ * once per slot).
  *
  * Pure; never throws.
  */
@@ -32,7 +35,7 @@ export const convertNw1: RecordConverter = (data, from) => {
     const k = (n: number) => `${slot}.param${n}` as Nw1FieldKey;
     const get = (n: number) => r.get(k(n));
     const set = (n: number, v: number) => r.set(k(n), v);
-    /** Set a parameter, and zero its morph deltas. */
+    /** Reset a parameter and its morph deltas. */
     const setWithMorphs = (n: number, v: number) => {
       set(n, v);
       for (const s of MORPH_SRC) {
@@ -41,19 +44,17 @@ export const convertNw1: RecordConverter = (data, from) => {
       }
     };
     const special = (w: number) => w === 4 || w === 5;
-    if (special(get(19)) && get(33) === 0) {
+    const osc1 = special(get(19)), osc2 = special(get(24)), lfo1Dest = get(5);
+    if (osc1 && get(33) === 0) {
       setWithMorphs(23, 0);
-      if (get(5) === 1) setWithMorphs(8, 0);
-      if (get(5) === 2) {
-        if (special(get(24))) set(8, 0);
-        else set(5, 3);
-      }
+      if (lfo1Dest === 1 || (lfo1Dest === 2 && osc2)) setWithMorphs(8, 0);
+      else if (lfo1Dest === 2) set(5, 3);
       if (get(10) === 1) setWithMorphs(13, 0);
     }
-    if (special(get(24))) {
+    if (osc2) {
       setWithMorphs(32, 0);
-      if (get(5) === 2 && !special(get(19))) set(5, 1);
-      if (get(5) === 3) set(13, 0);
+      if (lfo1Dest === 2 && !osc1) set(5, 1);
+      else if (lfo1Dest === 3) setWithMorphs(13, 0);
       if (get(17) === 1) setWithMorphs(16, 64);
     }
   }
