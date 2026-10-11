@@ -24,19 +24,32 @@
  * bits, so block sizes don't change) and converts 2.01–2.03 on load. A 2.0x body
  * lays its slot blocks out differently, so it is returned header-only with a
  * warning, as is any file whose chain doesn't match the layout. A legacy
- * (formatType 0) header is 0x14 bytes shorter, so its body starts at 0x18.
- * Never throws.
+ * (formatType 0) file has a header 0x14 bytes shorter, so its body starts at
+ * 0x18, and ends with a 2-byte CRC-16 trailer. Never throws.
+ *
+ * The framing matches every file of ns3-program-viewer's public test corpus
+ * (842 NSM-era `.ns3f` of 592 bytes at format 3.03/3.04, five legacy ones of
+ * 574 bytes at 3.00–3.02, one `.ns3l`). On those files the panels read the
+ * same values as the earlier corpus-derived decoder; only the Vox/Farfisa/Pipe
+ * vibrato and synth "After Touch" labels differ.
  */
 import { CBIN_BODY_OFFSET } from '../clavia/cbin';
 import { decodeFwProgram, type FwProgram } from '../clavia/block-chain';
+import { DRAWBAR_NUMBERS } from '../clavia/fw-present';
 import { NORD_DB } from '../clavia/volume';
 import { NS3_FILTER_FREQ } from './filter-freq';
 import { NS3_LAYOUT, type Ns3FieldKey } from './layout.generated';
 
 export type { Ns3FieldKey };
 
-/** The legacy (formatType 0) header is 0x14 bytes shorter than the NSM-era one. */
-const LEGACY_HEADER_SHIFT = 0x14;
+/**
+ * A legacy (formatType 0) file: the header is 0x14 bytes shorter than the
+ * NSM-era one, and the body is followed by the 2-byte LE CRC-16 trailer of the
+ * legacy Clavia files (clavia/crc16.ts; it holds on every legacy `.ns3f` in
+ * ns3-program-viewer's corpus).
+ */
+const LEGACY_BODY_OFFSET = CBIN_BODY_OFFSET - 0x14;
+const LEGACY_TRAILER_BYTES = 2;
 
 // ── Label tables ────────────────────────────────────────────────────────────
 // "Firmware" = the Stage 3 OS 2.64 label table registered for that parameter
@@ -57,18 +70,23 @@ const REVERB_TYPE = ['Room 1', 'Room 2', 'Stage 1', 'Stage 2', 'Hall 1', 'Hall 2
 const EFFECT1_TYPE = ['Panning', 'Tremolo', 'Ring Mod', 'Wah-Wah', 'Auto-Wah 1', 'Auto-Wah 2'];
 const EFFECT2_TYPE = ['Phaser 1', 'Phaser 2', 'Flanger', 'Vibe', 'Chorus 1', 'Chorus 2'];
 /**
- * Param_Com_kOrgVibratoType 0-5, labelled per organ model (firmware: one table of
- * 5 models × 6). Slots the firmware marks invalid fall back to `#n`.
+ * Param_Com_kOrgVibratoType 0-5 is the selector position V1 C1 V2 C2 V3 C3, shared
+ * by every organ model. Vox and Farfisa name the positions they use (firmware
+ * label table; positions as in ns3-program-viewer's ns3-organ.js and the Stage 4's
+ * per-model fields), and a position they don't use reads as the next one, as
+ * ns3-organ.js reads it. The pipe organs have only C1.
  */
-const VIB_CHORUS_BY_MODEL: readonly (readonly string[])[] = [
-  ['V1', 'C1', 'V2', 'C2', 'V3', 'C3'],                       // B3
-  ['Less', 'More', 'Original'],                               // Vox
-  ['Light/Slow', 'Light/Fast', 'Heavy/Slow', 'Heavy/Fast'],   // Farfisa
-  ['C1'],                                                     // Pipe1
-  ['C1'],                                                     // Pipe2
-];
+const VIB_POSITION = ['V1', 'C1', 'V2', 'C2', 'V3', 'C3'];
+const VIB_NAMES: Partial<Record<number, Partial<Record<string, string>>>> = {
+  1: { V1: 'Less', V2: 'More', V3: 'Original' },                                   // Vox
+  2: { V1: 'Light/Slow', V2: 'Light/Fast', C2: 'Heavy/Slow', C3: 'Heavy/Fast' },   // Farfisa
+};
 function vibChorusLabel(model: number, mode: number): string {
-  return (VIB_CHORUS_BY_MODEL[model] ?? VIB_CHORUS_BY_MODEL[0])[mode] ?? `#${mode}`;
+  const pos = VIB_POSITION[mode];
+  if (pos === undefined) return `#${mode}`;
+  if (model === 3 || model === 4) return 'C1';
+  const names = VIB_NAMES[model];
+  return names ? names[pos] ?? names[VIB_POSITION[mode + 1]] ?? pos : pos;
 }
 // Param_Effects_kAmpType 0-5 (firmware). Real-file confirmation of the
 // stored-value → label order is pending.
@@ -224,11 +242,13 @@ const lin10 = (midi: number): string => (midi / 12.7).toFixed(1);
 /**
  * Piano timbre (Pno_kEq, 4 bits). The firmware's label table holds three groups:
  * acoustic/digital (4 labels), Clav (8 combinations) and Electric (6, adding the
- * Dyno settings). Values past a group fall back to `#n`.
+ * Dyno settings). The value is kept when the piano type changes, so real files
+ * hold e.g. a Grand at 4; values 4-7 past a group read as None, as
+ * ns3-program-viewer's ns3PianoTimbreMap reads them. Values past 7 fall back to `#n`.
  */
-const TIMBRE_GRAND = ['None', 'Soft', 'Mid', 'Bright'];
+const TIMBRE_GRAND = ['None', 'Soft', 'Mid', 'Bright', 'None', 'None', 'None', 'None'];
 const TIMBRE_CLAV = ['None', 'Soft', 'Treble', 'Soft+Treb', 'Brilliant', 'Soft+Brill', 'Treb+Brill', 'Soft+Trb+Brill'];
-const TIMBRE_ELECTRIC = ['None', 'Soft', 'Mid', 'Bright', 'Dyno1', 'Dyno2'];
+const TIMBRE_ELECTRIC = ['None', 'Soft', 'Mid', 'Bright', 'Dyno1', 'Dyno2', 'None', 'None'];
 const PIANO_ELECTRIC = 2;
 const PIANO_CLAV = 3;
 
@@ -403,8 +423,6 @@ type Get = ReturnType<typeof reader>;
 /** Engine level 0-127 → the Nord dB display. */
 const db = (level: number): string => NORD_DB[level] ?? '?';
 
-const DRAWBARS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
-
 function organ(get: Get, s: Slot): Ns3Panel['organ'] {
   const model = get(`organ${s}.model`);
   // Org_kPresetFocus is 2 bits (0-3); its low bit selects Preset II, as the
@@ -414,7 +432,7 @@ function organ(get: Get, s: Slot): Ns3Panel['organ'] {
     on: get(`organ${s}.enable`) === 1,
     type: lut(ORGAN_TYPE, model),
     volume: db(get(`organ${s}.level`)),
-    drawbars: DRAWBARS.map((n) => get(`${preset}.db${n}`)),
+    drawbars: DRAWBAR_NUMBERS.map((n) => get(`${preset}.db${n}`)),
     octaveShift: get(`organ${s}.octaveShift`),
     // The vibrato/chorus mode is program-wide (MultiCommon), its labels per organ model.
     vibChorus: { on: get(`${preset}.vibratoEnable`) === 1, mode: vibChorusLabel(model, get('common.orgVibratoType')) },
@@ -561,7 +579,9 @@ const FIRST_LAYOUT_VERSION = NS3_LAYOUT.versionRange?.[0] ?? 300;
 /** Decode a Stage 3 program into its active panel(s), plus every layout field in `values`. */
 export function decodeNs3(bytes: Uint8Array): Ns3File {
   const legacy = (bytes[0x04] ?? 0) === 0;
-  const fw = decodeFwProgram(bytes, NS3_LAYOUT, legacy ? CBIN_BODY_OFFSET - LEGACY_HEADER_SHIFT : CBIN_BODY_OFFSET);
+  const fw = legacy
+    ? decodeFwProgram(bytes, NS3_LAYOUT, LEGACY_BODY_OFFSET, bytes.length - LEGACY_TRAILER_BYTES)
+    : decodeFwProgram(bytes, NS3_LAYOUT);
   let { layoutMatched, values, warnings } = fw;
   const v = fw.formatVersion;
   if (layoutMatched && v !== null && v < FIRST_LAYOUT_VERSION) {

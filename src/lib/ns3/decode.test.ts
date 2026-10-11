@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { buildCbinHeader } from '../clavia/cbin';
 import { readBits } from '../clavia/bitstream';
 import { synthFwBody, synthFwFile, writeBits } from '../clavia/block-chain.synth';
@@ -12,11 +13,16 @@ import { NS3_LAYOUT, type Ns3FieldKey } from './layout.generated';
 // decoder (ns3-program-viewer offsets) read; they pass unchanged against the
 // firmware layout, which shows the layout reproduces those offsets.
 
-/** A legacy (formatType 0) `.ns3f`: the header is 0x14 bytes shorter, so the body starts at 0x18. */
+/**
+ * A legacy (formatType 0) `.ns3f`: the header is 0x14 bytes shorter, so the body
+ * starts at 0x18, and a 2-byte CRC-16 trailer follows it (574 bytes, like the
+ * legacy files of ns3-program-viewer's corpus).
+ */
 function legacyBuf(): Uint8Array {
-  const out = new Uint8Array(0x18 + NS3_LAYOUT.bodyBytes);
+  const out = new Uint8Array(0x18 + NS3_LAYOUT.bodyBytes + 2);
   out.set(buildCbinHeader({ formatType: 0, tag: 'ns3f', bank: 0, location: 0, category: 0, versionRaw: 304 }).slice(0, 0x18));
-  return frameNs3Body(out, 0x18);
+  frameNs3Body(out.subarray(0, out.length - 2), 0x18);
+  return out;
 }
 
 describe('decodeNs3', () => {
@@ -452,15 +458,12 @@ describe('decodeNs3', () => {
   // Tests skip gracefully if fixture files are absent (gitignored corpus).
   // If you update/add fixtures, re-run /tmp/ns3-crosscheck.mjs to refresh these values.
   describe('fixture oracle cross-check (skip if files absent)', () => {
-    const FIXTURES_DIR = new URL('../../../../fixtures/stage-3/', import.meta.url).pathname;
+    // packages/core/fixtures/stage-3/ (fixtures/README.md).
+    const FIXTURES_DIR = new URL('../../../fixtures/stage-3/', import.meta.url).pathname;
 
     function readFixture(name: string): Uint8Array | null {
       try {
-        // vitest/Node: synchronous require for fixture reads
-        // biome-ignore lint: require is intentional here for sync reads in vitest
-        const fs = require('fs') as typeof import('fs');
-        const b = fs.readFileSync(`${FIXTURES_DIR}${name}`);
-        return new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
+        return new Uint8Array(readFileSync(`${FIXTURES_DIR}${name}`));
       } catch { return null; }
     }
 
@@ -592,10 +595,13 @@ describe('decodeNs3 — firmware layout (Stage 3 OS 2.64 registry)', () => {
     const mode = (model: number, type: number) =>
       decodeNs3(ns3File({ 'organA.model': model, 'common.orgVibratoType': type })).panels[0].organ.vibChorus.mode;
     expect(mode(0, 5)).toBe('C3');
-    expect(mode(1, 2)).toBe('Original');
-    expect(mode(2, 3)).toBe('Heavy/Fast');
-    expect(mode(3, 0)).toBe('C1');
-    expect(mode(1, 4)).toBe('#4'); // a slot the firmware marks invalid
+    // The stored value is the selector position V1 C1 V2 C2 V3 C3 for every model.
+    expect([0, 2, 4].map((v) => mode(1, v))).toEqual(['Less', 'More', 'Original']);
+    expect([0, 2, 3, 5].map((v) => mode(2, v))).toEqual(['Light/Slow', 'Light/Fast', 'Heavy/Slow', 'Heavy/Fast']);
+    expect(mode(1, 1)).toBe('More');       // a position Vox doesn't use reads as the next one
+    expect(mode(2, 4)).toBe('Heavy/Fast');
+    expect(mode(3, 1)).toBe('C1');         // the pipe organs have only C1
+    expect(mode(4, 0)).toBe('C1');
   });
 
   it('uses the firmware labels for synth vibrato and Clav timbre', () => {
@@ -603,8 +609,8 @@ describe('decodeNs3 — firmware layout (Stage 3 OS 2.64 registry)', () => {
     const clav = (eq: number) => decodeNs3(ns3File({ 'pianoA.bank': 3, 'pianoA.eq': eq })).panels[0].piano.timbre;
     expect(clav(3)).toBe('Soft+Treb');
     expect(clav(6)).toBe('Treb+Brill');
-    // Acoustic pianos have four timbres; anything past them has no label.
-    expect(decodeNs3(ns3File({ 'pianoA.bank': 0, 'pianoA.eq': 4 })).panels[0].piano.timbre).toBe('#4');
+    // Acoustic pianos have four timbres; a value kept from another piano type reads as None.
+    expect(decodeNs3(ns3File({ 'pianoA.bank': 0, 'pianoA.eq': 4 })).panels[0].piano.timbre).toBe('None');
   });
 
   it('reads the drawbars, vibrato switch and percussion of Preset II when it has focus', () => {

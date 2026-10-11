@@ -78,7 +78,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 're', note: "firmware loads .nsmp with an NWS v8/v11 body only; OpenNord converts other formats (convertNsmp). Untested on HW" },
   },
   'stage-3': {
-    'file-read': { status: 're', note: "ns3f read-only body reader (lib/ns3) generated from the Stage 3 OS 2.64 firmware registry: u32 format version + 19 length-prefixed blocks, 175 parameters plus their morph deltas. The layout reproduces every offset the earlier ns3-program-viewer-derived decoder read from real files; the block framing itself is not yet confirmed on a real file. Formats 3.00–3.04; 2.0x bodies open header-only. Not HW-tested" },
+    'file-read': { status: 're', note: "ns3f read-only body reader (lib/ns3) generated from the Stage 3 OS 2.64 firmware registry: u32 format version + 19 length-prefixed blocks, 175 parameters plus their morph deltas. Framing and values checked against ns3-program-viewer's public corpus of real files (848 .ns3f/.ns3l, NSM-era and legacy). Formats 3.00–3.04; 2.0x bodies open header-only. Not HW-tested" },
     enumerate: { status: 're', note: "same transfer code as Stage 4 (firmware); partition order per the firmware, Program = 7. A Stage 3 Compact on an older build got 'status 18' (session lock left held); fixed in #38, not retested on HW" },
     pull: { status: 're', note: "FileTransfer Download RE'd; read-only, no Stage 3 HW test" },
     push: { status: 're', note: "FileTransfer Upload RE'd; WRITE only to the Program partition the connect probe confirms; untested on HW" },

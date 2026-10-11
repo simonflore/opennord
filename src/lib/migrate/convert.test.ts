@@ -85,6 +85,10 @@ describe('migrateToNs4', () => {
     await expect(migrateToNs4(ns4Fixture, { templateBytes })).rejects.toThrow(/Stage 2 and Stage 3/);
   });
 
+  it('rejects a Stage 3 file the reader could not read instead of converting the empty template', async () => {
+    await expect(migrateToNs4(cbin('ns3f'), { templateBytes })).rejects.toThrow(/couldn't be read/);
+  });
+
   it('rejects a non-Nord buffer', async () => {
     await expect(migrateToNs4(new Uint8Array(100), { templateBytes })).rejects.toThrow(/Stage 2 and Stage 3/);
   });
