@@ -20,7 +20,8 @@ export function CardRemoveButton({ name, onRemove }: { name: string; onRemove: (
       aria-label={`Remove ${name}`}
       title="Remove from library"
       onClick={onRemove}
-      onKeyDown={(ev: KeyboardEvent) => ev.stopPropagation()}
+      // Only the keys that would also open the row; J/K and the rest still reach the page.
+      onKeyDown={(ev: KeyboardEvent) => { if (ev.key === 'Enter' || ev.key === ' ') ev.stopPropagation(); }}
     >
       ✕
     </button>

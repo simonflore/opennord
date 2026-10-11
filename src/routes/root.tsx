@@ -9,6 +9,7 @@ import { CommandPalette } from '@/components/shell/CommandPalette';
 import { useRailData } from '@/components/shell/useShell';
 import { isApple } from '@/lib/platform';
 import { trimSlash } from '@/lib/library/categories';
+import { isLetterKey } from '@/lib/keys';
 import { anyDialogOpen } from '@/components/ui';
 
 /** The persistent app shell: top bar, left rail (phone: bottom tabs) + routed content outlet. */
@@ -42,12 +43,8 @@ function AppShell({ path }: { path: string }) {
   // line") opens the palette, or closes it again; it never opens over another dialog.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // The letter K as typed (Dvorak, Colemak…); on a non-Latin layout (Cyrillic,
-      // Greek…) the key in K's place. e.key can be missing (autofill).
       // Alt/Option (AltGr on Windows) or Shift means another character or shortcut.
-      if (e.altKey || e.shiftKey || !(isApple ? e.metaKey : e.ctrlKey)) return;
-      const key = e.key?.toLowerCase() ?? '';
-      if (key !== 'k' && (/^[a-z]$/.test(key) || e.code !== 'KeyK')) return;
+      if (e.altKey || e.shiftKey || !(isApple ? e.metaKey : e.ctrlKey) || !isLetterKey(e, 'k')) return;
       // Over another dialog the key is left alone (for the browser), not swallowed.
       if (!paletteOpen.current && anyDialogOpen()) return;
       e.preventDefault();

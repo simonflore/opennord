@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, renderHook } from '@testing-library/react';
-import { useStepKeys } from './ProgramTable';
+import { useStepKeys } from './useStepKeys';
 import type { LibraryEntry } from '../../lib/library/types';
 
 afterEach(cleanup);

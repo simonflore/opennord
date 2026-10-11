@@ -50,7 +50,8 @@ export function FavoriteStar({ name, favorite, onToggle }: { name: string; favor
       aria-pressed={favorite}
       title={favorite ? 'Remove from favorites' : 'Add to favorites'}
       onClick={(ev) => { ev.stopPropagation(); onToggle(); }}
-      onKeyDown={(ev) => ev.stopPropagation()}
+      // Only the keys that would also open the row; J/K and the rest still reach the page.
+      onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') ev.stopPropagation(); }}
     >{favorite ? '★' : '☆'}</button>
   );
 }

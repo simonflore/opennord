@@ -1,6 +1,6 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo } from 'react';
 import { cn } from '@/lib/cn';
-import { SourceBadge, anyDialogOpen } from '../ui';
+import { SourceBadge } from '../ui';
 import { Led } from '../shell/Led';
 import { LibraryRow, FavoriteStar } from './LibraryCard';
 import { ZoneStrip } from './ZoneStrip';
@@ -17,8 +17,10 @@ import type { LibraryEntry } from '../../lib/library/types';
 // remove button for an imported program.
 const COLS = cn(
   'grid items-center gap-x-3 pr-3',
-  'grid-cols-[36px_52px_minmax(0,1fr)_88px_52px_64px_84px_24px_auto]',
-  '@max-[600px]:grid-cols-[36px_52px_minmax(0,1fr)_52px_auto]',
+  // Fixed widths throughout (the name takes the rest), so every row lines up
+  // whatever its last cell holds (a badge, or a badge and the remove button).
+  'grid-cols-[36px_52px_minmax(0,1fr)_88px_52px_64px_84px_24px_96px]',
+  '@max-[600px]:grid-cols-[36px_52px_minmax(0,1fr)_52px_44px]',
 );
 // The columns a narrow container drops.
 const WIDE = '@max-[600px]:hidden';
@@ -30,6 +32,8 @@ const ENGINES: { kind: EngineKind; letter: string; name: string }[] = [
 ];
 
 const dash = <span className="text-muted">—</span>;
+/** A cell's column name for screen readers (the header row is visual only). */
+const Col = ({ children }: { children: string }) => <span className="sr-only">{children}: </span>;
 
 /** The P/O/S LEDs: lit for each engine the program plays. */
 function EngineLeds({ summary }: { summary?: EngineSummary }) {
@@ -98,7 +102,7 @@ export function ProgramTable({
         <span className={WIDE}>Zones</span>
         <span className={WIDE}>Piano</span>
         <span className={WIDE}>FX</span>
-        <span className={cn(WIDE, 'text-right')}>Source</span>
+        <span className={WIDE}>Source</span>
       </div>
       {entries.map((e) => (
         <LibraryRow
@@ -112,11 +116,11 @@ export function ProgramTable({
             <SlotTag tone={e.slot ? undefined : genTone(e.generation)}>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>
           </span>
           <span className="min-w-0 truncate font-sans text-[14px] font-semibold text-ink">{e.name}</span>
-          <span className={cn(WIDE, 'truncate font-sans text-[12px]')}>{e.category ?? dash}</span>
+          <span className={cn(WIDE, 'truncate font-sans text-[12px]')}><Col>Category</Col>{e.category ?? dash}</span>
           <EngineLeds summary={e.engines} />
-          <span className={WIDE}><ZoneStrip program={e.program} /></span>
+          <span className={WIDE}><ZoneStrip program={e.program} fallback={dash} /></span>
           <ProgramFacts program={e.program} />
-          <span className="flex items-center justify-end gap-2">
+          <span className="flex items-center gap-2">
             <span className={WIDE}><SourceBadge source={e.source} /></span>
             {e.source === 'local' && (
               <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
@@ -129,38 +133,4 @@ export function ProgramTable({
       </p>
     </div>
   );
-}
-
-/**
- * J and K open the next and previous program in the list, counted from the open
- * one (from the top with none open). Nord slots not read yet (no program) are
- * stepped over, since opening one leaves for the Device page. Left alone while
- * typing or composing, over a dialog, with a modifier held, or on key repeat;
- * a non-Latin layout uses the keys in J's and K's places. One listener for the
- * page's lifetime, reading the latest list through a ref.
- */
-export function useStepKeys(entries: LibraryEntry[], activeId: string | null | undefined, onOpen: (e: LibraryEntry) => void) {
-  const latest = useRef({ entries, activeId, onOpen });
-  useEffect(() => { latest.current = { entries, activeId, onOpen }; });
-  useEffect(() => {
-    const onKey = (ev: KeyboardEvent) => {
-      if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey || ev.repeat || ev.isComposing) return;
-      const key = ev.key?.toLowerCase() ?? '';
-      const step = key === 'j' || (!/^[a-z]$/.test(key) && ev.code === 'KeyJ') ? 1
-        : key === 'k' || (!/^[a-z]$/.test(key) && ev.code === 'KeyK') ? -1 : 0;
-      if (!step) return;
-      const t = ev.target;
-      if ((t instanceof Element && t.closest('input, textarea, select, [contenteditable="true"]')) || anyDialogOpen()) return;
-      const { entries, activeId, onOpen } = latest.current;
-      const at = entries.findIndex((e) => e.id === activeId);
-      let i = at < 0 ? (step > 0 ? -1 : entries.length) : at;
-      do i += step; while (i >= 0 && i < entries.length && !entries[i].program);
-      const next = entries[i];
-      if (!next) return;
-      ev.preventDefault();
-      onOpen(next);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
 }
