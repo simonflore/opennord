@@ -1,43 +1,36 @@
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import { parseNs4Preset } from '@/lib/ns4/preset';
+import { drawbarLevels } from '@/lib/ns4/view';
 
 interface Glance { text: string; drawbars?: number[] }
 
-// A list row redraws often and a library holds hundreds of presets: decode each
-// file once, keyed by its bytes (dropped with them).
-const cache = new WeakMap<Uint8Array, Glance | null>();
-
-function glanceOf(bytes: Uint8Array): Glance | null {
-  if (cache.has(bytes)) return cache.get(bytes)!;
+/** What to say about a preset on its row; null when we don't decode it. */
+function describe(bytes: Uint8Array): Glance | null {
   const preset = parseNs4Preset(bytes);
   const first = preset?.layers[0];
-  let glance: Glance | null = null;
-  if (preset && first?.headline) {
-    const more = preset.layers.length > 1 ? ` · ${preset.layers.length} layers` : '';
-    if (preset.engine === 'organ') {
-      const drawbars = (first.model?.drawbars ?? []).map((d) => Number(d?.value));
-      const plain = drawbars.length === 9 && drawbars.every((n) => Number.isInteger(n) && n >= 0 && n <= 8);
-      glance = { text: (first.model?.organModel ?? 'Organ') + more, drawbars: plain ? drawbars : undefined };
-      if (!plain) glance.text = first.headline + more;
-    } else if (preset.engine === 'synth' && first.model) {
-      // Name the sound source the way a player would: the sample, the analog
-      // wave, or the oscillator type when its wave has no name (FM, wavetable).
-      const m = first.model;
-      const named = (v?: string) => v?.match(/\(([^)]+)\)/)?.[1];
-      const source = m.source === 'samples' ? m.sample?.name : named(m.oscWave) ?? named(m.oscType);
-      glance = { text: [source, m.filter?.type].filter(Boolean).join(' · ') + more };
-    } else {
-      glance = { text: first.headline + more };
-    }
+  if (!preset || !first?.headline) return null;
+  const more = preset.layers.length > 1 ? ` · ${preset.layers.length} layers` : '';
+  // An organ's registration reads faster drawn than as nine digits.
+  // (Only plain 0–8 positions: a VOX combo like "4+5" has no single height.)
+  const m = first.model;
+  if (preset.engine === 'organ' && m?.organModel && m.drawbars?.every((d) => /^[0-8]$/.test(d?.value ?? ''))) {
+    return { text: m.organModel + more, drawbars: drawbarLevels(m) };
   }
-  cache.set(bytes, glance);
-  return glance;
+  return { text: first.headline + more };
+}
+
+// A list row redraws often and a library holds hundreds of presets: describe
+// each file once, keyed by its bytes (dropped with them).
+const cache = new WeakMap<Uint8Array, Glance | null>();
+function glanceOf(bytes: Uint8Array): Glance | null {
+  if (!cache.has(bytes)) cache.set(bytes, describe(bytes));
+  return cache.get(bytes) ?? null;
 }
 
 /**
- * What a preset is, on its list row: the piano model, the synth's oscillator and
- * filter, or the organ's registration drawn as nine small drawbars. Nothing for
- * a preset we hold no bytes for (still on the Nord) or don't decode.
+ * What a preset is, on its list row: the piano model, the synth's sound source
+ * and filter, or the organ's registration drawn as nine small drawbars. Nothing
+ * for a preset we hold no bytes for (still on the Nord) or don't decode.
  */
 export function PresetGlance({ entry }: { entry: PresetEntry }) {
   const g = entry.bytes ? glanceOf(entry.bytes) : null;
