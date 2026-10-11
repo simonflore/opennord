@@ -48,6 +48,10 @@ describe('MatrixView', () => {
     expect(render()).toMatch(/Nord Electro 5<\/th><td[^>]*>129 params/);
     expect(render()).toMatch(/Nord C2<\/th><td[^>]*>86 params/);
   });
+  it('says "Header only" where the layout is mapped but files still open header-only (Stage Classic / EX)', () => {
+    expect(render()).toMatch(/Nord Stage Classic<\/th><td[^>]*>Header only</);
+    expect(render()).toMatch(/Nord Stage EX<\/th><td[^>]*>Header only</);
+  });
   it('prompts to connect a Nord when none is connected', () => {
     expect(render()).toContain('the check is read-only');
   });

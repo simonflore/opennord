@@ -14,6 +14,9 @@ import type { Ns1FieldKey } from './layout.generated';
 
 const TITLE = 'Nord Stage Classic / EX · Program';
 
+const UNLOCATED_NOTE =
+  'Stage Classic / EX: the program layout is known from the instrument firmware (OS 5.08 / 6.08), but not yet where it starts inside a .nspg file, so only the file header is shown until a real file confirms it.';
+
 /** Organ Model (common, 0–2): order inferred from the Stage 2 (medium). */
 export const NS1_ORGAN_MODELS = ['B3', 'Vox', 'Farfisa'] as const;
 
@@ -54,10 +57,9 @@ function panel(g: Get, model: number, p: 'A' | 'B'): DecodedSection[] {
 
 export function ns1Decoded(bytes: Uint8Array, recordStart: number | null = NS1_RECORD_START): DecodedProgram {
   const p = decodeNs1(bytes, recordStart);
-  if (!p.layoutMatched) {
-    return legacyHeaderOnly(TITLE, p, 'Stage Classic / EX',
-      'The program layout is known from the instrument firmware (OS 5.08 / 6.08); its position in the file still has to be confirmed on a real file.');
-  }
+  if (!p.layoutMatched && recordStart !== null) return legacyHeaderOnly(TITLE, p, 'Stage Classic / EX');
+  // Not a read failure: the layout is known, its place in the file is not.
+  if (!p.layoutMatched) return { title: TITLE, header: fwHeader(p), sections: [], note: UNLOCATED_NOTE, warnings: p.warnings };
   const g: Get = (key) => p.values[key] ?? 0;
   const model = g('common.organModel');
   return {

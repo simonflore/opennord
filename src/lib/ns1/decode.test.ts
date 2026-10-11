@@ -88,7 +88,8 @@ describe('decodeNs1 / ns1Decoded', () => {
     expect(p.warnings.join(' ')).toMatch(/not confirmed/);
     const d = ns1Decoded(nspg());
     expect(d.sections).toEqual([]);
-    expect(d.note).toMatch(/position in the file still has to be confirmed/);
+    expect(d.note).toMatch(/not yet where it starts inside a \.nspg file/);
+    expect(d.note).not.toMatch(/couldn't be read/);
   });
 
   it('reads the record at an explicit start and presents both panels', () => {

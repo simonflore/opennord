@@ -60,6 +60,8 @@ export interface ModelDecode {
   pct: number | null;
   /** The reader covers every parameter the instrument stores in a program (its firmware's own map). */
   fullMap: boolean;
+  /** Set when the layout is mapped but files still open header-only: why, in a musician's words. */
+  headerOnly?: string;
 }
 
 /** Distinct parameters in the Stage 4 map (each id may span multiple layers). */
@@ -176,10 +178,12 @@ const _fwProgress: Record<string, ModelProgress> = {};
 /** Firmware-layout readers that still leave part of the stored program out, and what. */
 const NOT_FULL_MAP: Record<string, string> = {
   'wave-2': 'morph amounts are not read yet',
-  // The record layout is complete, but where it starts in a .nspg file is not confirmed.
-  'stage-classic': 'files open header-only until the record start in a .nspg file is confirmed',
-  'stage-ex': 'files open header-only until the record start in a .nspg file is confirmed',
 };
+
+/** Readers whose record layout is mapped but whose files still open header-only, and why. */
+const NSPG_START_UNKNOWN =
+  'The program layout is mapped from the firmware, but where it starts in a .nspg file is not confirmed yet, so files show their header only';
+const HEADER_ONLY: Record<string, string> = { 'stage-classic': NSPG_START_UNKNOWN, 'stage-ex': NSPG_START_UNKNOWN };
 
 // ── Legacy-record models: byte map of the record data (after the record version) ─
 // Lead 4 (high) → 'confirmed'. Stage 2 / 2 EX → 'confirmed': framing, values and
@@ -342,8 +346,9 @@ export function decodeForModel(modelId: string): ModelDecode {
   if (decoder === 'partial') {
     const layout = (FW_LAYOUTS[modelId] ?? LEGACY_LAYOUTS[modelId])?.layout;
     const paramCount = layout ? distinctParams(layout) : null;
-    const fullMap = !!layout && !(modelId in NOT_FULL_MAP);
-    return { status: 'partial', paramCount, bodyBytes: prog?.bodyBytes ?? null, ...summary, fullMap };
+    const headerOnly = HEADER_ONLY[modelId];
+    const fullMap = !!layout && !(modelId in NOT_FULL_MAP) && !headerOnly;
+    return { status: 'partial', paramCount, bodyBytes: prog?.bodyBytes ?? null, ...summary, fullMap, ...(headerOnly && { headerOnly }) };
   }
   // Undecoded: 'started' once a control is localized in coverage-data, else 'none'.
   return {
