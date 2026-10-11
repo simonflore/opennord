@@ -54,6 +54,12 @@ describe('validation matrix', () => {
       }
     }
   });
+  it('file-read is re where a descriptor-layout reader reads the program record', () => {
+    for (const id of ['electro-3', 'electro-3-hp', 'c2d', 'wave'] as const) {
+      expect(statusFor(id, 'file-read').status, id).toBe('re');
+      expect(statusFor(id, 'file-read').note, id).toMatch(/firmware descriptor layout/);
+    }
+  });
   it('transfer caps stay inferred where the OS is not yet mapped (Stage Classic, Stage EX, C2)', () => {
     for (const id of ['stage-classic', 'stage-ex', 'c2'] as const) {
       for (const cap of ['enumerate', 'pull', 'push', 'delete', 'backup'] as const) {
