@@ -7,7 +7,7 @@ import { downloadBytes } from '../../lib/download';
 import { getErrorMessage } from '../../lib/errors';
 import { useFolder } from '../../lib/folder/FolderContext';
 import { useFolderWrite } from '../../lib/folder/useFolderWrite';
-import { WriteTargetDialog } from '../ui';
+import { selectClass, WriteTargetDialog } from '../ui';
 
 type Status =
   | { kind: 'idle' }
@@ -29,14 +29,7 @@ const GENERATIONS: { code: TargetCodec; ext: string; label: string; experimental
 ];
 
 /** The piano types a Nord files pianos under, as its panel names them. */
-const PIANO_TYPES: { value: number; label: string }[] = [
-  { value: NPNO_PIANO_TYPE.grand, label: 'Grand' },
-  { value: NPNO_PIANO_TYPE.upright, label: 'Upright' },
-  { value: NPNO_PIANO_TYPE.electric, label: 'Electric' },
-  { value: NPNO_PIANO_TYPE.clav, label: 'Clav' },
-  { value: NPNO_PIANO_TYPE.digital, label: 'Digital' },
-  { value: NPNO_PIANO_TYPE.misc, label: 'Misc' },
-];
+const PIANO_TYPES = Object.entries(NPNO_PIANO_TYPE).map(([key, value]) => ({ value, label: key[0].toUpperCase() + key.slice(1) }));
 
 /** Which generation a loaded file is, as a {@link GENERATIONS} code (`.nsmp` -> 2). */
 function sourceGeneration(file: NsmpFile): TargetCodec | 0 {
@@ -61,18 +54,18 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
   const [pianoType, setPianoType] = useState<number>(NPNO_PIANO_TYPE.electric);
   const [building, setBuilding] = useState(false);
 
-  // Keep a ref to the latest pending output so onFallback can always access it.
-  const pendingRef = useRef<{ out: Uint8Array; filename: string } | null>(null);
+  // The conversion being saved, for whichever way the save ends: into the folder or as a download.
+  const pendingRef = useRef<{ out: Uint8Array; filename: string; warnings: string[] } | null>(null);
 
   const folderWrite = useFolderWrite({
     prefScope: 'sample',
     onSaved: (path, folderName) =>
-      setStatus({ kind: 'done', msg: `Saved to ${folderName}/${path}`, warnings: [] }),
+      setStatus({ kind: 'done', msg: `Saved to ${folderName}/${path}`, warnings: pendingRef.current?.warnings ?? [] }),
     onFallback: () => {
       const p = pendingRef.current;
       if (p) {
         downloadBytes(p.out, p.filename);
-        setStatus({ kind: 'done', msg: `Saved ${p.filename}`, warnings: [] });
+        setStatus({ kind: 'done', msg: `Saved ${p.filename}`, warnings: p.warnings });
       }
     },
   });
@@ -83,16 +76,10 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
 
   /** Save a converted file: into the linked folder when there is one, else as a download. */
   async function save(out: Uint8Array, filename: string, existing: boolean, warnings: string[]) {
-    // Capture output so onFallback can access it when writeBack returns 'download'
-    // or when there is no folder linked.
-    pendingRef.current = { out, filename };
+    pendingRef.current = { out, filename, warnings };
     await folderWrite.save({ name: filename, existing, write: async (w) => {
       await w.write(out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer);
     } });
-    // If we fell back via onFallback (no folder), the warnings still need showing.
-    if (!folder.folderName) {
-      setStatus((s) => s.kind === 'done' ? { ...s, warnings } : s);
-    }
   }
 
   async function convert(target: TargetCodec) {
@@ -111,10 +98,7 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
     try {
       // The file's own name: a converted sample's stored name is often a placeholder.
       const { bytes: out, fileName, warnings } = nsmpToNpno(bytes, { name: pianoNameFrom(name?.trim() || file.name?.trim() || 'Piano'), pianoType });
-      await save(out, fileName, folder.result.pianos.some((p) => `${p.name}.npno` === fileName), [
-        ...warnings,
-        'A piano made by OpenNord has not been tried on a Nord yet. Back up your Nord before you load it.',
-      ]);
+      await save(out, fileName, folder.result.pianos.some((p) => `${p.name}.npno` === fileName), warnings);
     } catch (e) {
       setStatus({ kind: 'error', msg: getErrorMessage(e) });
     } finally {
@@ -158,9 +142,7 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <label className="ps-sub" style={{ margin: 0, display: 'flex', gap: 6, alignItems: 'center' }}>
           Piano type
-          <select
-            className="cursor-pointer rounded-sm border border-line px-[10px] py-1.5 text-xs text-ink fill-raised elev-1 hover:border-muted"
-            value={pianoType} onChange={(e) => setPianoType(Number(e.target.value))}>
+          <select className={selectClass} value={pianoType} onChange={(e) => setPianoType(Number(e.target.value))}>
             {PIANO_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </label>
