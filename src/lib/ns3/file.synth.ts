@@ -1,8 +1,8 @@
 /**
- * Synthetic Stage 3 files for tests and dev tooling (OpenNord does not write
- * `.ns3f`). A body is framed the way the firmware writes it — u32 format version,
- * then the 19 length-prefixed blocks of `NS3_LAYOUT` — so the block-chain reader
- * accepts it. Pure.
+ * Synthetic Stage 3 files for tests and dev tooling (editing a real `.ns3f`
+ * goes through program-write.ts). A body is framed the way the firmware writes
+ * it — u32 format version, then the 19 length-prefixed blocks of `NS3_LAYOUT` —
+ * so the block-chain reader accepts it. Pure.
  */
 import { CBIN_BODY_OFFSET, buildCbinHeader } from '../clavia/cbin';
 import { synthFwBody, synthFwFile, writeBits } from '../clavia/block-chain.synth';

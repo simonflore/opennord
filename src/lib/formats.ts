@@ -103,12 +103,12 @@ const CODECS: readonly ModelCodec<NordProgram>[] = [
   nc2Codec,
   ne4Codec,
   ne5Codec,
-  // Firmware-layout readers (clavia/block-chain.ts): read-only.
+  // Firmware-layout readers (clavia/block-chain.ts); their writers are in program-write.ts.
   ngCodec,
   np6Codec,
   ne7Codec,
   no3Codec,
-  // Later ColdFire legacy records (clavia/legacy-program.ts): read-only.
+  // Later ColdFire legacy records (clavia/legacy-program.ts); writers in program-write.ts.
   np3Codec,
   np2Codec,
   np1Codec,

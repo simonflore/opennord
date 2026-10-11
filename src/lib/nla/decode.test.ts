@@ -90,7 +90,7 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNla (fixtures)', () => {
   it('decodes every 123-byte fixture without warnings', () => {
     for (const name of fixtures()) {
       const file = load(name);
-      if (file.length !== 123) continue; // the corpus has one 141-byte oddball
+      // 123 bytes, or 141 behind an NSM-era header (record at 0x2C, no trailer).
       const prog = decodeNla(file);
       expect(prog.parsed, name).toBe(true);
       expect(prog.warnings, name).toHaveLength(0);

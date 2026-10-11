@@ -30,12 +30,10 @@
  * nibble packing the corpus RE found. Never throws.
  */
 import { formatCbinVersion } from '../clavia/cbin';
-import { LEGACY_DATA_OFFSET, legacyData, readLegacyRecord } from '../clavia/legacy-record';
+import { legacyFileBytes, legacyLayoutData, readLegacyRecord } from '../clavia/legacy-record';
 import { storedTrailerChecksum } from '../clavia/crc16';
 import { NE4_LAYOUT, type Ne4FieldKey } from './layout.generated';
 import type { Ne4B3Preset, Ne4FarfisaPreset, Ne4Program, Ne4VoxPreset } from './types';
-
-const NE4P_FILE_BYTES = LEGACY_DATA_OFFSET + NE4_LAYOUT.dataBytes + 2; // 136
 
 type Block = 'b3PresetI' | 'b3PresetII' | 'voxPresetI' | 'voxPresetII' | 'farfPresetI' | 'farfPresetII' | 'pianoSample';
 type Get = (block: Block, index: number) => number;
@@ -63,12 +61,14 @@ function farf(get: Get, block: 'farfPresetI' | 'farfPresetII'): Ne4FarfisaPreset
 /** Decode a Nord Electro 4 program (full file bytes including the CBIN header). */
 export function decodeNe4(bytes: Uint8Array): Ne4Program {
   const warnings: string[] = [];
-  if (bytes.length < LEGACY_DATA_OFFSET + 2) {
-    warnings.push(`File too short: ${bytes.length} bytes (expected ${NE4P_FILE_BYTES})`);
-  } else if (bytes.length !== NE4P_FILE_BYTES) {
-    warnings.push(`Program file is ${bytes.length} bytes, the firmware record makes ${NE4P_FILE_BYTES}`);
+  // 136 bytes; behind an NSM-era header the record sits at 0x2C with no trailer (legacy-record.ts).
+  const fileBytes = legacyFileBytes(bytes, NE4_LAYOUT);
+  const data = legacyLayoutData(bytes, NE4_LAYOUT);
+  if (data.length === 0) {
+    warnings.push(`File too short: ${bytes.length} bytes (expected ${fileBytes})`);
+  } else if (bytes.length !== fileBytes) {
+    warnings.push(`Program file is ${bytes.length} bytes, the firmware record makes ${fileBytes}`);
   }
-  const data = legacyData(bytes);
   const { values, outOfRange } = readLegacyRecord(data, NE4_LAYOUT);
   const get: Get = (block, index) => values[`${block}.${index}` as Ne4FieldKey] ?? 0;
 

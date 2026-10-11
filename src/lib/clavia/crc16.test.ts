@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { describe, it, expect } from 'vitest';
 import { crc16ccitt, sealTrailerChecksum, storedTrailerChecksum, verifyTrailerChecksum } from './crc16';
+import { verifyNs4Checksum } from './checksum';
 
 /** The textbook bit-by-bit CRC-16/CCITT-FALSE, as a reference for the table-driven one. */
 function bitwise(data: Uint8Array): number {
@@ -71,9 +72,9 @@ describe('legacy file trailer checksum (corpus)', () => {
     it.skipIf(!existsSync(dirPath))(`every ${ext} fixture carries a valid trailer`, () => {
       for (const name of readdirSync(dirPath).filter(f => f.endsWith(ext))) {
         const bytes = new Uint8Array(readFileSync(join(dirPath, name)));
-        const stored = bytes[bytes.length - 2] | (bytes[bytes.length - 1] << 8);
-        if (stored === 0) continue; // trailer absent (one known .nlas oddball)
-        expect(verifyTrailerChecksum(bytes), `${dir}/${name}`).toBe(true);
+        // An NSM-era file (a 141-byte .nlas) has no trailer: its CRC-32 sits in the header.
+        if (bytes[0x04] === 1) expect(verifyNs4Checksum(bytes), `${dir}/${name}`).toBe(true);
+        else expect(verifyTrailerChecksum(bytes), `${dir}/${name}`).toBe(true);
       }
     });
   }
