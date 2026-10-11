@@ -35,11 +35,13 @@ const MATRIX = SAMPLE_MODELS.map((id) => ({
   cells: MATRIX_COLS.map((c) => cellFor(id, c.caps)),
 }));
 
+// One ladder of brightness, no status colours: green means "Nord connected" and
+// the accent means selected, so neither belongs in a table of claims.
 const cellBase = 'inline-flex h-[22px] w-[22px] items-center justify-center rounded-full text-xs leading-none';
 const CELL_META: Record<Cell, { glyph: string; label: string; cls: string }> = {
-  v: { glyph: '✓', label: 'Validated on hardware', cls: 'text-connected bg-[color-mix(in_srgb,var(--connected)_15%,transparent)]' },
-  re: { glyph: '●', label: "Ready to test — built from this model's own software or files, not yet tried on one", cls: 'text-red-bright bg-[color-mix(in_srgb,var(--red)_15%,transparent)]' },
-  inf: { glyph: '○', label: 'Likely — assumed from a sibling model', cls: 'text-dim bg-[color-mix(in_srgb,var(--lift)_6%,transparent)]' },
+  v: { glyph: '✓', label: 'Validated on hardware', cls: 'font-bold text-ink bg-[color-mix(in_srgb,var(--lift)_16%,transparent)]' },
+  re: { glyph: '●', label: "Ready to test — built from this model's own software or files, not yet tried on one", cls: 'text-muted bg-transparent' },
+  inf: { glyph: '○', label: 'Likely — assumed from a sibling model', cls: 'text-muted bg-transparent' },
   na: { glyph: '–', label: 'Not applicable', cls: 'text-muted bg-transparent' },
 };
 
