@@ -12,6 +12,7 @@ import type { LibrarySource } from '@/lib/library/types';
 import { enumeratePresets } from '@/lib/device/presets';
 import { modelById } from '@/lib/clavia/partitions';
 import { useEnsureListed } from '@/lib/library/useEnsureListed';
+import { useListFilters } from '@/lib/library/useListFilters';
 
 /** Merges device + folder presets into one filtered/sorted list and owns the
  *  Presets-screen view state. Mirrors useSamplesStateValue, recognition-only. */
@@ -48,10 +49,13 @@ function usePresetsStateValue() {
   const shown = sortPresets(filterPresets(allEntries, source, kind, query), prefs.sort, prefs.favorites);
   const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
 
-  /** Every filter off and the search cleared (the list's "clear filters"). */
-  const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setKind('all'); }, []);
-  // Whether any filter is narrowing the list; clearFilters undoes exactly these.
-  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || kind !== 'all';
+  // The list's filters, once: `filtered` and the "clear filters" button both read
+  // this, and a filter counts while set even if its facet is hidden right now.
+  const { filtered, clearFilters } = useListFilters([
+    { active: query.trim() !== '', reset: () => setQuery('') },
+    { active: source !== 'all', reset: () => setSource('all') },
+    { active: kind !== 'all', reset: () => setKind('all') },
+  ]);
   const ensureListed = useEnsureListed(shown, clearFilters);
   return {
     all: allEntries, clearFilters, filtered, ensureListed,

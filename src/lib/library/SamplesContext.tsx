@@ -20,6 +20,7 @@ import { buildOccupancy, type Addr } from '@/lib/device/reorg';
 import { PARTITION_SAMP_LIB } from '@/lib/device/opcodes';
 import { downloadBytes } from '@/lib/download';
 import { useEnsureListed } from '@/lib/library/useEnsureListed';
+import { useListFilters } from '@/lib/library/useListFilters';
 import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 
 // pure helper, exported for tests
@@ -148,8 +149,6 @@ function useSamplesStateValue() {
     }
   }
 
-  /** Every filter off and the search cleared (the list's "clear filters"). */
-  const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setGeneration('all'); setCategory('all'); setUnusedOnly(false); }, []);
   // Reads of sample bytes that are still running, by entry id. A second request
   // for the same sample (StrictMode's second effect run, a quick re-open) joins
   // the read in flight instead of pulling it twice; progress goes to the latest
@@ -174,9 +173,15 @@ function useSamplesStateValue() {
     return read.bytes;
   }, [session, folder]);
 
-  // Whether any filter is narrowing the list; clearFilters undoes exactly these.
-  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || generation !== 'all' || unusedOnly
-    || (categoriesPresent.length > 1 && category !== 'all');
+  // The list's filters, once: `filtered` and the "clear filters" button both read
+  // this, and a filter counts while set even if its facet is hidden right now.
+  const { filtered, clearFilters } = useListFilters([
+    { active: query.trim() !== '', reset: () => setQuery('') },
+    { active: source !== 'all', reset: () => setSource('all') },
+    { active: generation !== 'all', reset: () => setGeneration('all') },
+    { active: category !== 'all', reset: () => setCategory('all') },
+    { active: unusedOnly, reset: () => setUnusedOnly(false) },
+  ]);
   const ensureListed = useEnsureListed(shown, clearFilters);
   return {
     all: allEntries, clearFilters, filtered, ensureListed, readSample,

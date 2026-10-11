@@ -44,6 +44,19 @@ export function CategorySplit({
     revealInScroller(row);
   });
 
+  // Narrow: the list unmounts while an entry is open, and the router scrolls the
+  // page to the top on each navigation. So remember how far down the list was,
+  // and put it back on return (after the router's own reset, hence the frame).
+  const listY = useRef(0);
+  const showingList = !wide && !hasDetail;
+  useEffect(() => {
+    if (!showingList) return;
+    const restore = requestAnimationFrame(() => window.scrollTo(0, listY.current));
+    const save = () => { listY.current = window.scrollY; };
+    window.addEventListener('scroll', save, { passive: true });
+    return () => { cancelAnimationFrame(restore); window.removeEventListener('scroll', save); };
+  }, [showingList]);
+
   // Narrow: one pane at a time — master until something is selected, then the
   // detail with a back button to return to the list.
   if (!wide) {

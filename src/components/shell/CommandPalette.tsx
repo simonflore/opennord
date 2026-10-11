@@ -45,7 +45,9 @@ function useCommands(): Command[] {
 
     const programCommands = programs.map((e): Command => ({
       id: `program:${e.id}`, group: 'Programs', label: e.name, hint: hint(e), keywords: e.slot,
-      run: () => { ensureListed(e.id); openProgram(navigate, e); },
+      // Only a program that opens beside the list needs its row shown (an unread
+      // Nord slot goes to the Device page instead, leaving the list's filters alone).
+      run: () => { if (e.program) ensureListed(e.id); openProgram(navigate, e); },
     }));
 
     // Every entry opens on its own route, with its list showing its row.
@@ -158,9 +160,10 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
                 onMouseMove={(e) => {
                   // Only a real pointer move picks a row: scrolling the list under a
                   // resting pointer (↑/↓) must not steal the keyboard's highlight.
+                  // The first move only records where the pointer rests.
                   const last = pointer.current;
                   pointer.current = { x: e.clientX, y: e.clientY };
-                  if (last && last.x === e.clientX && last.y === e.clientY) return;
+                  if (!last || (last.x === e.clientX && last.y === e.clientY)) return;
                   setActiveId(c.id);
                 }}
                 onClick={() => run(c)}
