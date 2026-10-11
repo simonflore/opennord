@@ -21,6 +21,9 @@
 
 /** Playback rate of piano strokes (the CP80's A4 stroke measures 440.4 Hz at this rate). */
 export const NSP_SAMPLE_RATE = 44100;
+/** Envelope updates a second on the instrument; a stroke's
+ *  `loopDecay` applies once per update. */
+export const NSP_ENVELOPE_RATE = 22050;
 
 const DIR_OFFSET = 0x61c;
 /** u16[128] layers-per-root-note table, right after version/channels/count. */
@@ -127,6 +130,11 @@ function zoneOf(table: number[], raw: Omit<NspStroke, 'zone'>[]): number[] {
   }
   let zone = -1;
   return raw.map((s) => (s.velocityFrom === 0 && !s.release) || zone < 0 ? ++zone : zone);
+}
+
+/** How many key zones the directory's strokes make up. */
+export function nspZoneCount(dir: NspDirectory): number {
+  return dir.strokes.reduce((n, s) => Math.max(n, s.zone + 1), 0);
 }
 
 /** Read the stroke directory; `undefined` if the file has no readable CNSP directory. */

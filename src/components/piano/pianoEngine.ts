@@ -14,7 +14,7 @@
  */
 import { getSharedCtx } from '@/components/sample/audioPlayer';
 import { normalizeChannels, toAudioBuffer } from '@/lib/ns4/nsmp-audio';
-import { NSP_SAMPLE_RATE, decodeNspStroke, strokeFor, touchAttenuation, type NspDirectory } from '@/lib/ns4/nsp-audio';
+import { NSP_ENVELOPE_RATE, NSP_SAMPLE_RATE, decodeNspStroke, nspZoneCount, strokeFor, touchAttenuation, type NspDirectory } from '@/lib/ns4/nsp-audio';
 import { NSP_ROOT_OFFSET, type NspZone } from '@/lib/ns4/nsp';
 import { getErrorMessage } from '@/lib/errors';
 
@@ -28,8 +28,6 @@ const STEAL_TIME_CONSTANT = 0.001;
 /** Time constants until a fading voice is stopped (−60 dB at 6.9). */
 const FADE_SPAN = 7;
 
-/** Envelope updates a second on the instrument (§1.3); the loop decay is per update. */
-const ENVELOPE_RATE = 22_050;
 /** Time constants until a note decaying in its loop is stopped (about −78 dB). */
 const LOOP_SPAN = 9;
 
@@ -37,9 +35,8 @@ const LOOP_SPAN = 9;
 const CACHE_SAMPLES = 24_000_000;
 
 /** The key zone `midi` plays and the re-pitch from its recording, in semitones; `null` when
- *  no zone covers the key, or the key map doesn't agree with the recordings. */
-export function pianoKey(zones: readonly NspZone[], zoneCount: number, midi: number): { zone: number; semitones: number } | null {
-  if (zones.length !== zoneCount) return null;
+ *  no zone covers the key. */
+export function pianoKey(zones: readonly NspZone[], midi: number): { zone: number; semitones: number } | null {
   const zone = zones.findIndex((z) => z.lowNote <= midi && midi <= z.highNote);
   return zone < 0 ? null : { zone, semitones: midi - zones[zone].rootNote - NSP_ROOT_OFFSET };
 }
@@ -52,36 +49,40 @@ export function attenuationGain(velocity: number): number {
 /** Seconds for a looping note's level to fall by 1/e, from the stroke's per-update factor;
  *  `null` when the note holds its level (factor 1) or the value is unusable. */
 export function loopDecayTimeConstant(factor: number | undefined): number | null {
-  return factor !== undefined && factor > 0 && factor < 1 ? -1 / (ENVELOPE_RATE * Math.log(factor)) : null;
+  return factor !== undefined && factor > 0 && factor < 1 ? -1 / (NSP_ENVELOPE_RATE * Math.log(factor)) : null;
 }
 
 export interface PianoEngine {
   noteOn(midi: number, velocity: number): void;
   noteOff(midi: number): void;
   stopAll(): void;
-  /** Held notes: midi → key zone (for the keyboard highlight). */
-  sounding(): Map<number, number>;
+  /** The held notes (for the keyboard highlight). */
+  sounding(): Set<number>;
 }
 
 export interface PianoEngineEvents {
   /** A recording couldn't be decoded; the key stays silent. */
   onError?: (message: string) => void;
   /** The held notes changed (a key went down or up, or a note rang out). */
-  onChange?: () => void;
+  onChange?: (held: Set<number>) => void;
 }
 
+/** `null` when the key map doesn't name the recordings one for one, so keys can't be played. */
 export function createPianoEngine(
   bytes: Uint8Array,
   dir: NspDirectory,
   zones: readonly NspZone[],
   { onError, onChange }: PianoEngineEvents = {},
-): PianoEngine {
-  const zoneCount = dir.strokes.reduce((n, s) => Math.max(n, s.zone + 1), 0);
-  type Voice = { midi: number; zone: number; src: AudioBufferSourceNode; gain: GainNode };
+): PianoEngine | null {
+  if (zones.length === 0 || zones.length !== nspZoneCount(dir)) return null;
+  type Voice = { src: AudioBufferSourceNode; gain: GainNode };
   const held = new Map<number, Voice>(); // insertion order = oldest first
-  const fading = new Set<Voice>();
+  const fading = new Set<Voice>(); // oldest first
   const buffers = new Map<number, AudioBuffer>(); // stroke index → audio, least recently used first
   let cached = 0;
+
+  const sounding = () => new Set(held.keys());
+  const changed = () => onChange?.(sounding());
 
   function bufferFor(ctx: AudioContext, index: number): AudioBuffer {
     const hit = buffers.get(index);
@@ -97,24 +98,22 @@ export function createPianoEngine(
     return buf;
   }
 
-  function fade(v: Voice, timeConstant: number): void {
-    const now = getSharedCtx().currentTime;
-    fading.add(v);
-    v.gain.gain.setTargetAtTime(0, now, timeConstant);
-    try { v.src.stop(now + timeConstant * FADE_SPAN); } catch { /* already stopped */ }
-  }
+  const stop = (v: Voice, at?: number) => { try { v.src.stop(at); } catch { /* already stopped */ } };
 
+  /** Let go of the note on `midi`, if any, fading it out. */
   function release(midi: number, timeConstant: number): void {
     const v = held.get(midi);
     if (!v) return;
     held.delete(midi);
-    fade(v, timeConstant);
-    onChange?.();
+    fading.add(v);
+    const now = getSharedCtx().currentTime;
+    v.gain.gain.setTargetAtTime(0, now, timeConstant);
+    stop(v, now + timeConstant * FADE_SPAN);
   }
 
   return {
     noteOn(midi, velocity) {
-      const key = pianoKey(zones, zoneCount, midi);
+      const key = pianoKey(zones, midi);
       const stroke = key && strokeFor(dir, key.zone, velocity);
       if (!key || !stroke) return;
       const ctx = getSharedCtx();
@@ -126,15 +125,11 @@ export function createPianoEngine(
         return;
       }
       release(midi, STEAL_TIME_CONSTANT); // restrike: the old note makes way
+      // Make room: a voice already fading goes first, else the oldest held note.
       while (held.size + fading.size >= MAX_VOICES) {
-        const oldest = fading.values().next().value ?? held.values().next().value;
-        if (!oldest) break;
-        if (fading.has(oldest)) {
-          fading.delete(oldest);
-          try { oldest.src.stop(); } catch { /* already stopped */ }
-        } else {
-          release(oldest.midi, STEAL_TIME_CONSTANT);
-        }
+        const faded = fading.values().next().value;
+        if (faded) { fading.delete(faded); stop(faded); }
+        else release(held.keys().next().value!, STEAL_TIME_CONSTANT);
       }
       const src = ctx.createBufferSource();
       src.buffer = buffer;
@@ -144,39 +139,40 @@ export function createPianoEngine(
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(attenuationGain(velocity), now);
       src.connect(gain);
-      // A held note stays in its loop; from there its level falls at the stroke's own rate, on
-      // a gain stage of its own so the key-up fade multiplies on top.
-      let fadedOutAt: number | null = null;
-      const decay = stroke.loop ? loopDecayTimeConstant(stroke.loopDecay) : null;
-      if (stroke.loop) {
-        src.loop = true;
-        src.loopStart = stroke.loop.start / NSP_SAMPLE_RATE;
-        src.loopEnd = (stroke.loop.start + stroke.loop.length) / NSP_SAMPLE_RATE;
-      }
-      if (decay !== null) {
-        const entersLoop = now + src.loopStart / rate;
-        const fall = ctx.createGain();
-        fall.gain.setValueAtTime(1, now);
-        fall.gain.setTargetAtTime(0, entersLoop, decay);
-        gain.connect(fall);
-        fall.connect(ctx.destination);
-        fadedOutAt = entersLoop + decay * LOOP_SPAN;
-      } else {
-        gain.connect(ctx.destination);
-      }
-      const voice: Voice = { midi, zone: key.zone, src, gain };
+      const voice: Voice = { src, gain };
       // A note that rings out clears itself; one already replaced on its key leaves the new one alone.
       src.onended = () => {
         fading.delete(voice);
-        if (held.get(midi) === voice) { held.delete(midi); onChange?.(); }
+        if (held.get(midi) === voice) { held.delete(midi); changed(); }
       };
       held.set(midi, voice);
       src.start();
-      if (fadedOutAt !== null) src.stop(fadedOutAt);
-      onChange?.();
+      let out: AudioNode = gain;
+      if (stroke.loop) {
+        // A held note stays in its loop; from there its level falls at the stroke's own rate,
+        // on a gain stage of its own so the key-up fade multiplies on top.
+        src.loop = true;
+        src.loopStart = stroke.loop.start / NSP_SAMPLE_RATE;
+        src.loopEnd = (stroke.loop.start + stroke.loop.length) / NSP_SAMPLE_RATE;
+        const decay = loopDecayTimeConstant(stroke.loopDecay);
+        if (decay !== null) {
+          const entersLoop = now + src.loopStart / rate;
+          const fall = ctx.createGain();
+          fall.gain.setValueAtTime(1, now);
+          fall.gain.setTargetAtTime(0, entersLoop, decay);
+          gain.connect(fall);
+          out = fall;
+          src.stop(entersLoop + decay * LOOP_SPAN);
+        }
+      }
+      out.connect(ctx.destination);
+      changed();
     },
-    noteOff(midi) { release(midi, RELEASE_TIME_CONSTANT); },
-    stopAll() { for (const midi of [...held.keys()]) release(midi, STEAL_TIME_CONSTANT); },
-    sounding() { return new Map([...held].map(([midi, v]) => [midi, v.zone])); },
+    noteOff(midi) { release(midi, RELEASE_TIME_CONSTANT); changed(); },
+    stopAll() {
+      for (const midi of [...held.keys()]) release(midi, STEAL_TIME_CONSTANT);
+      changed();
+    },
+    sounding,
   };
 }

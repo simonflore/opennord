@@ -34,18 +34,11 @@ export function PianoListen({ bytes }: { bytes: Uint8Array }) {
   const [selected, setSelected] = useState(-1);
   const [error, setError] = useState('');
 
-  const zoneCount = dir ? dir.strokes.reduce((n, s) => Math.max(n, s.zone + 1), 0) : 0;
-  // Every key plays only when the key map names the recordings one for one.
-  const mapped = zoneCount > 0 && zones.length === zoneCount;
-
-  const engine = useMemo(() => {
-    if (!dir || !mapped) return null;
-    const e = createPianoEngine(bytes, dir, zones, {
-      onError: setError,
-      onChange: () => setSounding(new Set(e.sounding().keys())),
-    });
-    return e;
-  }, [bytes, dir, zones, mapped]);
+  // Null when the key map doesn't name the recordings one for one: then only the recordings play.
+  const engine = useMemo(
+    () => dir ? createPianoEngine(bytes, dir, zones, { onError: setError, onChange: setSounding }) : null,
+    [bytes, dir, zones],
+  );
   useEffect(() => () => { engine?.stopAll(); }, [engine]);
 
   // A MIDI keyboard plays the same engine, with its own touch. Depends on the provider's
@@ -95,7 +88,7 @@ export function PianoListen({ bytes }: { bytes: Uint8Array }) {
           {midi && <MidiConnect what="this piano" />}
         </>
       ) : (
-        <RecordingButtons bytes={bytes} zoneCount={zoneCount} velocity={velocity} />
+        <RecordingButtons bytes={bytes} velocity={velocity} />
       )}
       {error && <p className="ps-sub on-error" style={{ marginTop: 8 }}>{error}</p>}
     </div>
@@ -103,8 +96,8 @@ export function PianoListen({ bytes }: { bytes: Uint8Array }) {
 }
 
 /** Without a key map that names the recordings: one button per recording, as recorded. */
-function RecordingButtons({ bytes, zoneCount, velocity }: { bytes: Uint8Array; zoneCount: number; velocity: number }) {
-  const { playing, error, toggle } = usePianoVoice(bytes);
+function RecordingButtons({ bytes, velocity }: { bytes: Uint8Array; velocity: number }) {
+  const { zoneCount, playing, error, toggle } = usePianoVoice(bytes);
   return (
     <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>

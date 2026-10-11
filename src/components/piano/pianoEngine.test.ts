@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { attenuationGain, createPianoEngine, loopDecayTimeConstant, pianoKey, MAX_VOICES } from './pianoEngine';
+import { attenuationGain, createPianoEngine, loopDecayTimeConstant, pianoKey, MAX_VOICES, type PianoEngineEvents } from './pianoEngine';
 import { readNspDirectory } from '@/lib/ns4/nsp-audio';
 import { readNspZones, type NspZone } from '@/lib/ns4/nsp';
 import { makeNpno, tone } from '@/lib/ns4/nsp-synth.testing';
@@ -45,24 +45,25 @@ function synth() {
   const bytes = makeNpno([s(3000, 0), s(2000, 64), s(1000, 0)], 1, 0x2c);
   return { bytes, dir: readNspDirectory(bytes)!, zones: readNspZones(bytes) };
 }
+function engineFor(events?: PianoEngineEvents) {
+  const { bytes, dir, zones } = synth();
+  return { engine: createPianoEngine(bytes, dir, zones, events)!, dir };
+}
 
 describe('pianoKey', () => {
   const zones: NspZone[] = [{ rootNote: 48, lowNote: 0, highNote: 59 }, { rootNote: 72, lowNote: 60, highNote: 127 }];
 
   it('finds the zone a key plays and how far to re-pitch its recording', () => {
     // A recording sounds 4 semitones above its key-map root (NSP_ROOT_OFFSET).
-    expect(pianoKey(zones, 2, 52)).toEqual({ zone: 0, semitones: 0 });
-    expect(pianoKey(zones, 2, 40)).toEqual({ zone: 0, semitones: -12 });
-    expect(pianoKey(zones, 2, 60)).toEqual({ zone: 1, semitones: -16 });
+    expect(pianoKey(zones, 52)).toEqual({ zone: 0, semitones: 0 });
+    expect(pianoKey(zones, 40)).toEqual({ zone: 0, semitones: -12 });
+    expect(pianoKey(zones, 60)).toEqual({ zone: 1, semitones: -16 });
   });
 
   it('plays nothing for a key no zone covers', () => {
-    expect(pianoKey([{ rootNote: 48, lowNote: 40, highNote: 59 }], 1, 30)).toBeNull();
+    expect(pianoKey([{ rootNote: 48, lowNote: 40, highNote: 59 }], 30)).toBeNull();
   });
 
-  it('plays nothing when the key map disagrees with the recordings', () => {
-    expect(pianoKey(zones, 3, 52)).toBeNull();
-  });
 });
 
 describe('attenuationGain', () => {
@@ -89,49 +90,49 @@ describe('loopDecayTimeConstant', () => {
 });
 
 describe('createPianoEngine', () => {
-  it('plays a key from its zone, re-pitched, at the level of the touch', () => {
+  it('is not made when the key map disagrees with the recordings', () => {
     const { bytes, dir, zones } = synth();
-    const engine = createPianoEngine(bytes, dir, zones);
+    expect(createPianoEngine(bytes, dir, zones.slice(0, 1))).toBeNull();
+  });
+
+  it('plays a key from its zone, re-pitched, at the level of the touch', () => {
+    const { engine, dir } = engineFor();
     engine.noteOn(40, 127);
     expect(audioMock.created).toHaveLength(1);
     expect(audioMock.created[0].buffer!.length).toBe(dir.strokes[0].frames);
     expect(audioMock.created[0].playbackRate.value).toBeCloseTo(0.5, 6); // an octave below the recording
     expect(audioMock.gains[0].calls[0]).toEqual(['set', 1, 0]);
-    expect(engine.sounding()).toEqual(new Map([[40, 0]]));
+    expect(engine.sounding()).toEqual(new Set([40]));
   });
 
   it('picks the softer recording for a soft touch', () => {
-    const { bytes, dir, zones } = synth();
-    const engine = createPianoEngine(bytes, dir, zones);
+    const { engine, dir } = engineFor();
     engine.noteOn(52, 20);
     expect(audioMock.created[0].buffer!.length).toBe(dir.strokes[1].frames);
   });
 
   it('holds several notes at once and fades one out on key-up', () => {
-    const { bytes, dir, zones } = synth();
-    const engine = createPianoEngine(bytes, dir, zones);
+    const { engine } = engineFor();
     engine.noteOn(52, 100);
     engine.noteOn(72, 100);
-    expect([...engine.sounding().keys()]).toEqual([52, 72]);
+    expect([...engine.sounding()]).toEqual([52, 72]);
     audioMock.ctx.currentTime = 1;
     engine.noteOff(52);
-    expect([...engine.sounding().keys()]).toEqual([72]);
+    expect([...engine.sounding()]).toEqual([72]);
     expect(audioMock.gains[0].calls.at(-1)![0]).toBe('target');
     expect(audioMock.created[0].stopped).toBeGreaterThan(1); // stops after the fade, not at once
     expect(audioMock.created[1].stopped).toBeNull();
   });
 
   it('clears a note that rings out by itself', () => {
-    const { bytes, dir, zones } = synth();
-    const engine = createPianoEngine(bytes, dir, zones);
+    const { engine } = engineFor();
     engine.noteOn(52, 100);
     audioMock.created[0].onended!();
     expect(engine.sounding().size).toBe(0);
   });
 
   it('restriking a held key fades the old note and keeps the new one', () => {
-    const { bytes, dir, zones } = synth();
-    const engine = createPianoEngine(bytes, dir, zones);
+    const { engine } = engineFor();
     engine.noteOn(52, 100);
     engine.noteOn(52, 100);
     expect(audioMock.created[0].stopped).not.toBeNull();
@@ -140,25 +141,22 @@ describe('createPianoEngine', () => {
   });
 
   it('decodes a recording once and reuses it', () => {
-    const { bytes, dir, zones } = synth();
-    const engine = createPianoEngine(bytes, dir, zones);
+    const { engine } = engineFor();
     engine.noteOn(52, 100);
     engine.noteOn(53, 100);
     expect(audioMock.created[0].buffer).toBe(audioMock.created[1].buffer);
   });
 
   it('never sounds more voices than the cap', () => {
-    const { bytes, dir, zones } = synth();
-    const engine = createPianoEngine(bytes, dir, zones);
+    const { engine } = engineFor();
     for (let k = 0; k < MAX_VOICES + 3; k++) engine.noteOn(k, 100);
     expect(engine.sounding().size).toBe(MAX_VOICES);
     expect(engine.sounding().has(0)).toBe(false); // the oldest went first
   });
 
   it('tells the keyboard whenever the held notes change', () => {
-    const { bytes, dir, zones } = synth();
     const onChange = vi.fn();
-    const engine = createPianoEngine(bytes, dir, zones, { onChange });
+    const { engine } = engineFor({ onChange });
     engine.noteOn(52, 100);
     expect(onChange).toHaveBeenCalledTimes(1);
     engine.noteOff(52);
@@ -166,6 +164,7 @@ describe('createPianoEngine', () => {
     engine.noteOn(72, 100);
     audioMock.created[1].onended!();
     expect(onChange).toHaveBeenCalledTimes(4);
+    expect(onChange).toHaveBeenLastCalledWith(new Set());
   });
 
   it('sustains a held note in its loop, fading at the piano\'s own rate', () => {
@@ -174,7 +173,7 @@ describe('createPianoEngine', () => {
     // Record +0x2E: the loop-sustain decay, Q23.
     new DataView(bytes.buffer).setUint32(0x2c + 0x732 + 0x2e, 2 ** 23 - 1000);
     const dir = readNspDirectory(bytes)!;
-    const engine = createPianoEngine(bytes, dir, readNspZones(bytes));
+    const engine = createPianoEngine(bytes, dir, readNspZones(bytes))!;
     engine.noteOn(40, 127); // an octave down: reaches the loop twice as late
     const src = audioMock.created[0];
     expect(src.loop).toBe(true);
@@ -190,8 +189,7 @@ describe('createPianoEngine', () => {
   });
 
   it('stopAll releases everything', () => {
-    const { bytes, dir, zones } = synth();
-    const engine = createPianoEngine(bytes, dir, zones);
+    const { engine } = engineFor();
     engine.noteOn(52, 100);
     engine.noteOn(72, 100);
     engine.stopAll();
@@ -204,7 +202,7 @@ describe('createPianoEngine', () => {
     const onError = vi.fn();
     const broken = bytes.slice();
     broken.fill(0, dir.strokes[2].offset, dir.strokes[2].offset + 2); // zero block header
-    const engine = createPianoEngine(broken, dir, zones, { onError });
+    const engine = createPianoEngine(broken, dir, zones, { onError })!;
     expect(() => engine.noteOn(72, 100)).not.toThrow();
     expect(onError).toHaveBeenCalledOnce();
     expect(engine.sounding().size).toBe(0);
