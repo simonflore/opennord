@@ -239,6 +239,13 @@ describe('partition registry', () => {
     expect(order('piano-2')).toEqual(p23);
     expect(order('piano-3')).toEqual(p23);
     expect(order('c2d')).toEqual([[0, 'pipe-native'], [1, 'pipe'], [2, 'program'], [3, 'settings']]);
+    // C2 OS 2.00: like the C2D plus a Live partition; its own program tag.
+    expect(order('c2')).toEqual([[0, 'pipe-native'], [1, 'pipe'], [2, 'program'], [3, 'live'], [4, 'settings']]);
+    // Stage Classic OS 5.08 / Stage EX OS 6.08: 4 partitions, no Live, no Settings.
+    for (const id of ['stage-classic', 'stage-ex'] as const) {
+      expect(order(id), id).toEqual([[0, 'piano-native'], [1, 'piano'], [2, 'program'], [3, 'synth-preset']]);
+      expect(modelById(id)!.partitions.map((p) => p.fourcc), id).toEqual([undefined, undefined, 'nspg', 'nss']);
+    }
     expect(order('wave')).toEqual([[0, 'samplib'], [1, 'program'], [2, 'swave'], [3, 'ramfs'], [4, 'settings']]);
   });
 
@@ -249,14 +256,13 @@ describe('partition registry', () => {
       'piano-2': 6, 'electro-4': 7, 'electro-5': 10, 'piano-3': 10,
       'electro-6': 10, 'electro-7': 10, 'organ-3': 10, 'wave-2': 10,
       'lead-4': 8, 'lead-a1': 8,
+      'stage-classic': 3, 'stage-ex': 4, 'c2': 4,
     };
     for (const [id, v] of Object.entries(versions)) {
       expect(modelById(id as NordModelId)!.fileTransferVersion, id).toBe(v);
     }
-    // Not yet mapped, or no transfer at all: left unset.
-    for (const id of ['stage-classic', 'stage-ex', 'c2', 'c1'] as const) {
-      expect(modelById(id)!.fileTransferVersion, id).toBeUndefined();
-    }
+    // Every model's OS is mapped; only the C1, which has no transfer at all, leaves it unset.
+    expect(ALL_MODELS.filter((m) => m.fileTransferVersion === undefined).map((m) => m.id)).toEqual(['c1']);
   });
 
   it('marks the C1 as having no USB file transfer', () => {
@@ -369,7 +375,9 @@ describe('partition registry', () => {
     expect(ex.name).toBe('Nord Stage EX');
     expect(ex.programTag).toBe('nspg');
     expect(ex.sampleCodec).toBeNull();
-    expect(modelByTag('nspg')?.id).toBe('stage-ex');
+    // Stage Classic and Stage EX write the same nspg record; the Classic is the tag's anchor.
+    expect(modelById('stage-classic')!.programTag).toBe('nspg');
+    expect(modelByTag('nspg')?.id).toBe('stage-classic');
 
     // Stage 2 EX: shares ns2p with Stage 2, same partition structure; stage-2 stays anchor.
     const ex2 = modelById('stage-2-ex')!;
@@ -379,6 +387,13 @@ describe('partition registry', () => {
     expect(modelByTag('ns2p')?.id).toBe('stage-2'); // anchor unchanged
     expect(ex2.partitions.map((p) => p.kind))
       .toEqual(MODELS['stage-2'].partitions.map((p) => p.kind));
+  });
+
+  // The C2 has its own program tag (OS 2.00); `nc2p` is the C2D's alone.
+  it('resolves ncpg to the C2 and nc2p to the C2D', () => {
+    expect(modelById('c2')!.programTag).toBe('ncpg');
+    expect(modelByTag('ncpg')?.id).toBe('c2');
+    expect(modelByTag('nc2p')?.id).toBe('c2d');
   });
 
   // NSM 9.22 picks the model by the PID (its instrument id).

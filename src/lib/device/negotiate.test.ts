@@ -70,6 +70,10 @@ describe('initialFileTransferVersion', () => {
 
   it('falls back to the Stage 4 default when the model or its version is unknown', () => {
     expect(initialFileTransferVersion(undefined)).toBe(PROTOCOL_VERSION);
-    expect(initialFileTransferVersion(MODELS['stage-classic'])).toBe(PROTOCOL_VERSION); // no version on record
+    // Every registry model with transfer has a version now; one without falls back.
+    expect(initialFileTransferVersion({ ...MODELS['stage-4'], fileTransferVersion: undefined })).toBe(PROTOCOL_VERSION);
+    expect(initialFileTransferVersion(MODELS['stage-classic'])).toBe(3);
+    expect(initialFileTransferVersion(MODELS['stage-ex'])).toBe(4);
+    expect(initialFileTransferVersion(MODELS['c2'])).toBe(4);
   });
 });

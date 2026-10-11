@@ -18,6 +18,8 @@
  * Organ:   no3 / nc2 (C2D)
  * Wave:    nw1 / nw2
  * Lead:    nl4 / nla
+ * Later ColdFire records: np3 / np2 / np1 (Piano 3 / 2 / Nord Piano),
+ *          ns1 (Stage Classic / EX), nc (C2)
  * New models added as corpus RE produces skeleton decoders.
  */
 export type ClaviaModel =
@@ -27,6 +29,7 @@ export type ClaviaModel =
   | 'no3' | 'nc2'
   | 'nw1' | 'nw2'
   | 'nl4' | 'nla'
+  | 'np3' | 'np2' | 'np1' | 'ns1' | 'nc'
   | 'unknown';
 
 /**

@@ -28,9 +28,9 @@ const CASES: Case[] = [
     tag: 'nepg', layout: NE3HP_LAYOUT, model: 'ne3', registry: 'electro-3', coverage: ['electro-3', 'electro-3-hp'],
     title: 'Nord Electro 3 · Program', fileBytes: 136,
   },
-  // nc2p is shared with the C2, the registry's anchor model for the tag; the layout is the C2D's.
+  // nc2p is the C2D's own tag (the C2 writes ncpg, lib/nc).
   {
-    tag: 'nc2p', layout: NC2_LAYOUT, model: 'nc2', registry: 'c2', coverage: ['c2d'],
+    tag: 'nc2p', layout: NC2_LAYOUT, model: 'nc2', registry: 'c2d', coverage: ['c2d'],
     title: 'Nord C2D · Program', fileBytes: 373,
   },
   {

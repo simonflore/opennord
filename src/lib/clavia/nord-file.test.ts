@@ -147,4 +147,13 @@ describe('identifyNordFile', () => {
     expect(info.slot).toBe('B:42');
     expect(info.version).toBeUndefined();
   });
+
+  it('names a .nc2p file the Nord C2D and a .ncpg file the Nord C2 (each has its own tag)', () => {
+    expect(identifyNordFile(cbin('nc2p', 0, { ver: 100 }))).toMatchObject({ modelId: 'c2d', modelName: 'Nord C2D' });
+    expect(identifyNordFile(cbin('ncpg', 0, { ver: 100 }))).toMatchObject({ modelId: 'c2', modelName: 'Nord C2' });
+  });
+
+  it('names a .nspg file the Nord Stage Classic (the Stage EX writes the same record)', () => {
+    expect(identifyNordFile(cbin('nspg', 0))).toMatchObject({ modelId: 'stage-classic', modelName: 'Nord Stage Classic' });
+  });
 });
