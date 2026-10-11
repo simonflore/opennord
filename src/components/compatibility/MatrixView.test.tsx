@@ -25,6 +25,11 @@ describe('MatrixView', () => {
     const legend = render().match(/<ul[^>]*aria-label="What each status means"[^>]*>(.*?)<\/ul>/)?.[1] ?? '';
     for (const chip of ['Works', 'Ready to test', 'Likely', '—']) expect(legend).toContain(`${chip}</span>`);
   });
+  it('says "Not yet" for undecoded models and "—" for the C1, which has no program files', () => {
+    const html = render();
+    expect(html).toMatch(/Nord Electro 3<\/th><td[^>]*>Not yet</);
+    expect(html).toMatch(/Nord C1<\/th><td[^>]*>—</);
+  });
   it('shows the parameter count of the firmware-layout readers', () => {
     expect(render()).toMatch(/Nord Grand<\/th><td[^>]*>\d+ params/);
   });

@@ -253,7 +253,9 @@ export function decodeForModel(modelId: string): ModelDecode {
   const summary = prog ? summarizeProgress(prog) : { coveredBytes: 0, candidateBytes: 0, controlCount: 0, pct: null };
   if (decoder === 'partial') {
     // Firmware-layout readers know exactly how many parameters they read.
-    const paramCount = FW_LAYOUTS[modelId]?.layout.fields.length ?? null;
+    // Sub-fields (the Electro 7's `<knob>.pedalAssign` / `.wheelAssign` flags) are part of
+    // a parameter, not parameters of their own.
+    const paramCount = FW_LAYOUTS[modelId]?.layout.fields.filter((f) => f.key.split('.').length === 2).length ?? null;
     return { status: 'partial', paramCount, bodyBytes: prog?.bodyBytes ?? null, ...summary };
   }
   // Undecoded: 'started' once a control is localized in coverage-data, else 'none'.
@@ -269,5 +271,5 @@ export const DECODE_LABEL: Record<DecodeStatus, string> = {
   full: 'Fully decoded',
   partial: 'Partly decoded',
   started: 'Some parameters mapped',
-  none: 'Not decoded yet — your captures build this',
+  none: 'Not decoded yet',
 };
