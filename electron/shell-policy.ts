@@ -56,12 +56,17 @@ export function externalUrlToOpen(url: string): string | null {
 
 /**
  * Everything the web app asks the browser for. Anything not listed is refused:
- *   midi                       live MIDI keyboard input for the rompler (no sysex)
+ *   midi, midiSysex            live MIDI keyboard input for the rompler
  *   clipboard-sanitized-write  copy buttons
  *   fileSystem                 the folder picker and save dialog behind the local Library
  * The Nord itself goes through the native bridge, so `usb` is deliberately absent.
+ *
+ * `midiSysex` is here although the app asks for MIDI *without* sysex: Chromium
+ * (seen on 152 / Electron 44) reports even a plain `requestMIDIAccess()` to the
+ * shell as `midiSysex`, so refusing it refuses all MIDI input. The access the
+ * page gets back is still the non-sysex one it asked for.
  */
-export const ALLOWED_PERMISSIONS: readonly string[] = ['midi', 'clipboard-sanitized-write', 'fileSystem'];
+export const ALLOWED_PERMISSIONS: readonly string[] = ['midi', 'midiSysex', 'clipboard-sanitized-write', 'fileSystem'];
 
 export function isPermissionAllowed(permission: string, requester: string, app: AppLocation): boolean {
   return ALLOWED_PERMISSIONS.includes(permission) && isAppOrigin(requester, app);
