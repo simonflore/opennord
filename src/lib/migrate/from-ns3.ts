@@ -42,7 +42,7 @@ function liftFx(fx: Ns3Panel['fx'], dropped: string[]): CommonFxUnit[] {
     const rate = f.params?.rate;
     out.push({
       slot,
-      on: true, // decoder only emits active fx entries (readFx pushes only enabled units)
+      on: true, // decodeNs3's `effects` lists only the units switched on
       type: f.type,
       amountMidi: typeof amount === 'number' ? amount : undefined,
       rateMidi: typeof rate === 'number' ? rate : undefined,
