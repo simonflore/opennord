@@ -23,7 +23,7 @@
 import { sealTrailerChecksum } from '../clavia/crc16';
 import { computeNs4Checksum } from '../clavia/checksum';
 import {
-  BLOCK_OVERLAP, decodeNspStroke, findCnsp, framesPerBlock, PREDICTORS, readLayerTable, readNspDirectory,
+  BLOCK_OVERLAP, decodeNspStroke, findCnsp, framesPerBlock, NSP_ENVELOPE_RATE, PREDICTORS, readLayerTable, readNspDirectory,
 } from './nsp-audio';
 import { NSP_ROOT_OFFSET } from './nsp';
 import {
@@ -492,6 +492,11 @@ export interface NpnoLayerInput {
   floorDb: number;
   /** Optional sustain loop in whole frames: `start` ≥ 0, `length` ≥ 4, `start + length` ≤ PCM length. */
   loop?: { start: number; length: number };
+  /**
+   * How fast a held note fades inside its loop, in dB a second; 0 holds its level. Default:
+   * a piano-like rate from the root ({@link defaultDecayCoefficient}).
+   */
+  decayDbPerSecond?: number;
   /** Override the stored level word (+0x34) directly; see {@link buildNpno} for the default. */
   levelWord?: number;
 }
@@ -578,11 +583,19 @@ function defaultHeader(input: NpnoInput): Uint8Array {
   return h;
 }
 
-function defaultRecord(opts: { floor: number; prevFloor: number | undefined; level: number; root: number; id: number }): Uint8Array {
+/**
+ * The Q23 coefficient at +0x2E for a decay in dB a second: the level is multiplied by it
+ * 22,050 times a second inside the loop. 0 dB/s is 1.0 (hold).
+ */
+export function decayCoefficient(dbPerSecond: number): number {
+  return Math.max(1, Math.min(0x800000, Math.round(0x800000 * 10 ** (-Math.max(0, dbPerSecond) / (20 * NSP_ENVELOPE_RATE)))));
+}
+
+function defaultRecord(opts: { floor: number; prevFloor: number | undefined; level: number; root: number; id: number; decayDbPerSecond?: number }): Uint8Array {
   const r = new Uint8Array(NPNO_RECORD_SIZE);
   r[0x04] = 0; // flags: normal stroke
   r[0x05] = opts.floor; // attenuation floor, 0.2 dB steps
-  be32(r, 0x2e, defaultDecayCoefficient(opts.root));
+  be32(r, 0x2e, opts.decayDbPerSecond === undefined ? defaultDecayCoefficient(opts.root) : decayCoefficient(opts.decayDbPerSecond));
   r[0x32] = 0;
   r[0x33] = opts.floor; // copy of the attenuation floor (as in every factory v6 record)
   be16(r, 0x34, opts.level);
@@ -739,7 +752,7 @@ export function buildNpno(input: NpnoInput): NpnoBuildResult {
         record: defaultRecord({
           floor: floorUnits(l),
           prevFloor: k > 0 ? floorUnits(z.layers[k - 1]) : undefined,
-          level, root, id: strokes.length + 1,
+          level, root, id: strokes.length + 1, decayDbPerSecond: l.decayDbPerSecond,
         }),
       });
     });
