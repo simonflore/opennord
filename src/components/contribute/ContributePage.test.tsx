@@ -14,5 +14,8 @@ describe('ContributePage', () => {
     expect(screen.getByRole('heading', { name: /share two or three of your programs/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /measure a few sounds/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /share programs/i })).toHaveAttribute('href', expect.stringContaining('labels=programs'));
+    // No WebUSB here: the connect step explains it in-line, not as a nested card with its own heading.
+    expect(screen.getByText(/open this in chrome or edge to connect/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /open this in chrome/i })).toBeNull();
   });
 });

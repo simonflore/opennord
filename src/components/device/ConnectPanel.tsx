@@ -128,13 +128,14 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
   // Info cards: a plain browser without WebUSB, or an iPad whose DEXT isn't ready.
   if (reach === 'unsupported' || (reach === 'ipad-dext-pending' && ipadReady !== true)) {
     const ipad = reach === 'ipad-dext-pending';
+    const infoTitle = ipad ? 'USB transfer is coming to iPad' : 'Open this in Chrome or Edge to connect';
+    // Inline: the host page already frames the step, so no nested card or heading.
+    if (inline) return <p className={cn(connectLead, 'mt-2')}>{infoTitle}.</p>;
     return (
       <div className="flex justify-center px-4 py-6">
         <div className="w-full max-w-[460px] rounded-lg border border-line bg-surface p-6">
           <SectionLabel>Your Nord</SectionLabel>
-          <h2 className={connectTitle}>
-            {ipad ? 'USB transfer is coming to iPad' : 'Open this in Chrome or Edge to connect'}
-          </h2>
+          <h2 className={connectTitle}>{infoTitle}</h2>
           <p className={connectLead}>
             {ipad
               ? "Moving programs to and from your Nord over USB is on the way for iPad. Everything else — browsing, samples, sharing — works right here today."
