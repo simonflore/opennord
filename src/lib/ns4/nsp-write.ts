@@ -27,8 +27,9 @@ import {
 } from './nsp-audio';
 import { NSP_ROOT_OFFSET } from './nsp';
 import {
-  checkNpnoAcceptance, cnspChecksum, MAX_LAYERS_PER_ROOT, MAX_PIANO_NAME, MAX_PIANO_STROKES,
+  checkNpnoAcceptance, cnspChecksum, MAX_LAYERS_PER_ROOT, MAX_PIANO_NAME, MAX_PIANO_STROKES, type NpnoModel,
 } from './nsp-check';
+import { mediaCompat, pianoVersionNumber, pianoWriteVersion } from '../clavia/media-compat';
 
 // ── Container constants (offsets relative to the `CNSP` tag unless noted) ──────────────────
 
@@ -38,7 +39,8 @@ export const NPNO_RECORD_SIZE = 0x76;
 /**
  * CNSP format codes. 0x464 = the v6 format (Stage 4 / Piano 5 era), 0x450 = v5. Both load on
  * the Stage 2, 3 and 4 (the gate's piano generation is 5 on all three), but NSM only offers
- * v6 on Stage 2 OS ≥ 2.29 and Stage 3 OS ≥ 1.61.
+ * v6 on Stage 2 OS ≥ 2.29 and Stage 3 OS ≥ 1.61. Some older models load
+ * v5 only (Electro 3 HP, Electro 4, Piano 1, Piano 2: `clavia/media-compat.ts`).
  */
 export const CNSP_V6 = 0x464;
 export const CNSP_V5 = 0x450;
@@ -528,6 +530,12 @@ export interface NpnoInput {
    * the gain into the level word so relative loudness is kept. Default true.
    */
   normalize?: boolean;
+  /**
+   * The Nord the piano is for. `buildNpno` writes version 6 only, so it refuses a model whose
+   * piano section loads older versions only, or none (`clavia/media-compat.ts`), and checks
+   * the result against that model. Default: any model that loads v6 (checked as a Stage 4).
+   */
+  model?: NpnoModel;
 }
 
 /** Level word baseline (0.1 dB attenuation, hypothesis). */
@@ -600,6 +608,17 @@ const floorUnits = (l: NpnoLayerInput) => Math.round(l.floorDb * 5);
 
 /** Validate the input; throws with a musician-readable message. */
 function validateZones(input: NpnoInput): void {
+  if (input.model !== undefined) {
+    // The version a model takes comes from its firmware gate (media-compat). A v5 piano can't be
+    // built from scratch yet: v5 records store the floor and level differently.
+    const pianos = mediaCompat(input.model).pianos;
+    const newest = pianoWriteVersion(input.model);
+    if (pianos === 'none') throw new Error("This Nord doesn't load pianos.");
+    if (newest !== undefined && newest !== CNSP_V6) {
+      throw new Error(`This Nord loads pianos up to version ${pianoVersionNumber(newest)}; `
+        + 'OpenNord builds version 6 pianos only, so it can\'t make one for this Nord yet.');
+    }
+  }
   if (!input.zones.length) throw new Error('A piano needs at least one key zone.');
   // "Piano is too big" on every model above 0x149F notes (nsp-check MAX_PIANO_STROKES).
   const notes = input.zones.reduce((n, z) => n + z.layers.length, 0);
@@ -734,7 +753,7 @@ export function buildNpno(input: NpnoInput): NpnoBuildResult {
   }
   // Everything above was validated, so a failed check here is OpenNord's bug, not the input's.
   const fileName = suggestedFileName(input);
-  const failed = checkNpnoAcceptance(result.bytes, { fileName }).checks.filter((c) => !c.ok);
+  const failed = checkNpnoAcceptance(result.bytes, { fileName, model: input.model }).checks.filter((c) => !c.ok);
   if (failed.length) {
     throw new Error(`OpenNord built this piano, but it wouldn't load on a Nord (failed check: ${failed.map((c) => c.id).join(', ')}). `
       + 'This is a bug in OpenNord, not in your recordings — please report it.');
