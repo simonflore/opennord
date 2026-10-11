@@ -90,7 +90,6 @@ button.ps-key { cursor: pointer; }
    (pushed fully in), and the printed number above is the truth. */
 .ps-dbstack { display: flex; gap: 6px; justify-content: space-between; align-items: flex-end; margin: 6px 0; }
 .ps-db { flex: 1; text-align: center; }
-.ps-db-num { font: 500 11px var(--mono); color: var(--ink); margin-bottom: 4px; }
 .ps-db-track { --lvl: 0; --cap: 20px; --pull: calc((100% - var(--cap)) * var(--lvl) / 8 + var(--cap));
   position: relative; height: 120px; width: 100%; max-width: 18px;
   margin: 0 auto 6px; background: var(--organ-db-track); border-radius: 2px;
@@ -103,6 +102,13 @@ button.ps-key { cursor: pointer; }
 .ps-db-tab.white::after { background: var(--organ-db-white); }
 .ps-db-tab.black::after { background: var(--organ-db-black); outline: 1px solid var(--organ-db-black-edge); }
 .ps-db-tab.default::after { background: var(--organ-db-default); }
+/* The level, on the cap's face (above its ::after fill): light on the dark caps,
+   dark on the white and accent ones. */
+.ps-db-num { position: absolute; z-index: 1; left: -6px; right: -6px; bottom: 0; height: var(--cap);
+  display: flex; align-items: center; justify-content: center;
+  font: 600 11px var(--mono); color: var(--organ-db-white); }
+.ps-db-tab.white .ps-db-num { color: var(--organ-db-black); }
+.ps-db-tab.default .ps-db-num { color: var(--text-on-accent); }
 /* Where a morph pulls the drawbar to (--mlvl, 0–8): a dashed line at that cap
    position. Without a plain target it sits under the cap, as a mark only. */
 .ps-db-morph { position: absolute; left: -5px; right: -5px;
