@@ -125,14 +125,18 @@ function PaletteBody({ onClose, keys }: {
     onClose();
     c.run();
   };
-  keys.current = (e) => {
+  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     // Enter commits an IME composition, not a command (WebKit reports it as keyCode 229).
     if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); if (results.length) setActiveId(results[Math.min(active + 1, results.length - 1)].id); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); if (results.length) setActiveId(results[Math.max(active - 1, 0)].id); }
     else if (e.key === 'Enter') { e.preventDefault(); run(results[active]); }
   };
-  useEffect(() => () => { keys.current = null; }, [keys]);
+  // Handed to the dialog after each render (the latest results and highlight).
+  useEffect(() => {
+    keys.current = onKeyDown;
+    return () => { keys.current = null; };
+  });
 
   return (
     <>

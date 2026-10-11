@@ -11,9 +11,9 @@ export function enumerateSampleLibrary(session: NordSession): Promise<ProgramEnt
 }
 
 /** Pull one sample off the board, reporting (done, total) bytes as it streams.
- *  An aborted `signal` drops the pull while it waits its turn on the session. */
+ *  `wanted` false when its turn on the session comes drops the pull. */
 export function pullSample(
-  session: NordSession, entry: ProgramEntry, onProgress: (done: number, total: number) => void, signal?: AbortSignal,
+  session: NordSession, entry: ProgramEntry, onProgress: (done: number, total: number) => void, wanted?: () => boolean,
 ): Promise<Uint8Array> {
-  return session.withSession(PARTITION_SAMP_LIB, () => pullFile(session, entry, onProgress), signal);
+  return session.withSession(PARTITION_SAMP_LIB, () => pullFile(session, entry, onProgress), wanted);
 }

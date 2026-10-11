@@ -1,8 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Button, SplitView } from '@/components/ui';
-
-type ListRoute = '/library/programs' | '/library/presets' | '/library/samples' | '/library/pianos';
+import type { NavTo } from '@/components/shell/nav';
 
 /**
  * Shared master/detail shell for every Library category (Programs, Presets,
@@ -25,7 +24,7 @@ export function CategorySplit({
   /** Whether a detail is selected — narrow shows only the master until it is. */
   hasDetail: boolean;
   /** The bare list's route: where back goes, and where a removed entry leaves to. */
-  list: ListRoute;
+  list: NavTo;
   /** Whether the open entry (`selectedId`) is in the list now. */
   known: boolean;
   /** Back to the list; defaults to navigating to `list`. */
@@ -41,11 +40,9 @@ export function CategorySplit({
   // hasn't loaded yet stays put. Replaces the history entry, so Back skips it.
   const shown = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (known) shown.current = selectedId;
-    else if (selectedId && shown.current === selectedId) {
-      shown.current = undefined;
-      void navigate({ to: list, replace: true });
-    }
+    if (known) { shown.current = selectedId; return; }
+    if (selectedId && shown.current === selectedId) void navigate({ to: list, replace: true });
+    shown.current = undefined; // only the entry shown just now counts, not one shown before
   }, [selectedId, known, list, navigate]);
 
   const masterBox = useRef<HTMLDivElement>(null);
