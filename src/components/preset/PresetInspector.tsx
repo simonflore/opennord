@@ -12,6 +12,7 @@ import { Button } from '@/components/ui';
 import { EngineCard } from '@/components/program/EngineCard';
 import { FxRow } from '@/components/program/FxRow';
 import { IdentityLcd } from '@/components/program/widgets';
+import { ParamsDrawer, type ParamsDrawerGroup } from '@/components/program/AllParamsDrawer';
 
 const KIND_LABEL: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'Organ preset', 'piano-preset': 'Piano preset', 'synth-preset': 'Synth preset',
@@ -78,51 +79,20 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
   );
 }
 
-/** Every parameter of the preset, for reference: collapsed by default, split
- *  into panel sections, searchable (the Program view's "all parameters" drawer). */
+/** Every parameter of the preset, for reference: the Program view's drawer,
+ *  sectioned the way the panel reads. Stacked voices tag each section's layer. */
 function PresetParams({ preset }: { preset: Ns4Preset }) {
   const [query, setQuery] = useState('');
-  const searching = query.trim().length > 0;
-  const stacked = preset.layers.length > 1;
-  const layers = preset.layers.map((l) => ({ letter: l.letter, sections: presetParamSections(filterRows(l.rows, query)) }));
-  const total = preset.layers.reduce((n, l) => n + l.rows.length, 0);
-  const none = searching && layers.every((l) => l.sections.length === 0);
-
-  return (
-    <details className="ps-drawer">
-      <summary>Show all parameters ({total})</summary>
-      <input
-        className="ps-param-search"
-        placeholder="Search parameters…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        aria-label="Search parameters"
-      />
-      {none && <p className="ps-sub">No parameters match “{query}”.</p>}
-      {layers.flatMap((l) => l.sections.map((g) => (
-        <details className="ps-pgroup" key={`${l.letter}-${g.key}`} open={searching}>
-          <summary>
-            {g.label}
-            {stacked && <span className="ps-player">{l.letter}</span>}
-            <span className="ps-pgroup-n">{g.rows.length}</span>
-          </summary>
-          <table className="ps-params">
-            <tbody>
-              {g.rows.map((r, i) => (
-                <tr key={i}>
-                  <td>{r.name}</td>
-                  <td>
-                    {r.display}
-                    {r.morphs.wheel && <span className="ps-morph" title={`wheel → ${r.morphs.wheel}`}>✎W</span>}
-                    {r.morphs.at && <span className="ps-morph" title={`aftertouch → ${r.morphs.at}`}>✎A</span>}
-                    {r.morphs.pedal && <span className="ps-morph" title={`pedal → ${r.morphs.pedal}`}>✎P</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </details>
-      )))}
-    </details>
+  const sections = useMemo(() => {
+    const stacked = preset.layers.length > 1;
+    return preset.layers.flatMap((l) => presetParamSections(l.rows).map((g): ParamsDrawerGroup => ({
+      ...g, key: `${l.letter}-${g.key}`, tag: stacked ? l.letter : undefined,
+    })));
+  }, [preset]);
+  const total = useMemo(() => sections.reduce((n, g) => n + g.rows.length, 0), [sections]);
+  const groups = useMemo(
+    () => sections.map((g) => ({ ...g, rows: filterRows(g.rows, query) })).filter((g) => g.rows.length > 0),
+    [sections, query],
   );
+  return <ParamsDrawer total={total} query={query} onQuery={setQuery} groups={groups} />;
 }
