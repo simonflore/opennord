@@ -232,7 +232,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 're', note: "sampleCodec 'og': firmware loads .nsmp NWS v8/v11 (and nwi entries); not HW-tested" },
   },
   'wave-2': {
-    'file-read': { status: 're', note: "nw2p NSM-era (formatType 1) header: NSMP-only slot display (programs → unhandled → formatSlot grid display), 19 program categories; validated vs 26 real .nw2p fixtures, not HW-tested. The OS 1.24 firmware registry gives the real layout: MultiCommon then slots at body 68 + 244k (the decoder uses 244k)" },
+    'file-read': { status: 're', note: "nw2p NSM-era (formatType 1) header: NSMP-only slot display (programs → unhandled → formatSlot grid display), 19 program categories; body read through the OS 1.24 firmware registry layout (lib/nw2;, MultiCommon then four slots at body 68 + 244k, two's-complement negatives, morph deltas not yet read); reproduces the slot sources pinned on 26 real .nw2p fixtures and their bundle meta.xml; not HW-tested" },
     enumerate: { status: 'inferred', note: "FileTransfer v10 in the OS 1.24 firmware; 5 partitions (no E2P FFS), Program at 2 (static); read-only, untested" },
     pull: { status: 'inferred', note: "shared FileTransfer Download at v10 (firmware); read-only, untested" },
     push: { status: 'inferred', note: "shared FileTransfer Upload at v10 (firmware); WRITE — untested-write risk" },
