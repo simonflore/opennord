@@ -1,5 +1,5 @@
 // src/routes/library.tsx
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { createRoute, redirect, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { rootRoute } from '@/routes/root';
 import { LibrarySplit } from '@/components/library/LibrarySplit';
@@ -23,7 +23,7 @@ export const LibraryIndexRoute = createRoute({
 export const ProgramsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/programs/{-$programId}',
-  // `?source=nord`: the list shows one source's programs (a link or Back keeps it).
+  // `?source=nord`: the list shows one source's programs (see useSourceInUrl).
   validateSearch: (search: Record<string, unknown>): { source?: LibrarySource } =>
     (isSource(search.source) ? { source: search.source } : {}),
   component: ProgramsScreen,
@@ -36,27 +36,31 @@ function ProgramsScreen() {
 }
 
 /**
- * Keeps the program list's source filter (held in LibraryContext, which sits
- * above the router) and the URL's `?source=` in step. On arrival a source in
- * the URL wins (a shared link, Back); with none, a filter already set is
- * written into the URL. After that, whichever side changed leads: the URL
- * (Back/Forward, a link) sets the filter, and the filter (the rail's Sources,
- * the list's tabs) replaces the URL.
+ * The program list's source filter (held in LibraryContext, above the router)
+ * shown in the URL as `?source=`. The filter is the one owner: a source in the
+ * URL on arrival (a shared link, a reload) is applied once, before the list
+ * paints; after that the URL only mirrors the filter, replaced in place, so Back
+ * and plain links to the list keep the filter you set.
  */
 function useSourceInUrl() {
   const { source: url } = useSearch({ from: ProgramsRoute.id });
   const { source, setSource } = useLibraryState();
   const navigate = useNavigate({ from: ProgramsRoute.fullPath });
-  const seen = useRef<{ url: LibrarySource | 'all'; filter: LibrarySource | 'all' } | null>(null);
+  // On arrival the URL's source is handed to the filter; until the filter shows
+  // it (the next render) the mirror waits, or it would write the old one back.
+  const arrival = useRef<{ done: boolean; applying?: LibrarySource }>({ done: false });
+  useLayoutEffect(() => {
+    if (arrival.current.done) return;
+    arrival.current = { done: true, applying: url && url !== source ? url : undefined };
+    if (arrival.current.applying) setSource(arrival.current.applying);
+  }, [url, source, setSource]);
   useEffect(() => {
-    const fromUrl = url ?? 'all';
-    const last = seen.current;
-    seen.current = { url: fromUrl, filter: source };
-    if (last ? fromUrl !== last.url : url !== undefined) {
-      if (fromUrl !== source) { seen.current.filter = fromUrl; setSource(fromUrl); }
-    } else if (fromUrl !== source) {
-      seen.current.url = source;
-      void navigate({ search: source === 'all' ? {} : { source }, replace: true, resetScroll: false });
+    const { applying } = arrival.current;
+    if (applying) {
+      if (source !== applying) return;
+      arrival.current.applying = undefined;
     }
-  }, [url, source, setSource, navigate]);
+    if ((url ?? 'all') === source) return;
+    void navigate({ search: source === 'all' ? {} : { source }, replace: true, resetScroll: false });
+  }, [url, source, navigate]);
 }

@@ -60,7 +60,8 @@ export function useLeaveEntry(list: NavTo): () => void {
     const path = trimSlash(pathname);
     if (path === list || !isUnder(path, list)) return;
     if (state.fromList) router.history.back();
-    else void navigate({ to: list, replace: true, search: true }); // keeps the list's filter (?source=)
+    // The program list keeps its ?source= filter; the other lists have no search.
+    else void navigate({ to: list, replace: true, search: list === '/library/programs' ? true : {} });
   }, [navigate, router, list]);
 }
 
