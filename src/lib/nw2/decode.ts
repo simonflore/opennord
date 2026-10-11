@@ -1,109 +1,40 @@
 /**
- * Nord Wave 2 (`.nw2p`) body decoder.
+ * Nord Wave 2 (`.nw2p`) body reader — read-only.
  *
- * Body offset: 0x2c (44). Body length: 1044 bytes (1088 - 44).
- *
- * Four voice slots each exactly 244 bytes, followed by a 68-byte global tail:
- * | Slot | Body range  | Drawbar offset | Drawbar encoding            |
- * |------|-------------|----------------|-----------------------------|
- * | 0    | [0-243]     | body[143-147]  | 5 bytes, 9 nibbles (NE6)    |
- * | 1    | [244-487]   | body[387-391]  | 5 bytes, 9 nibbles (NE6)    |
- * | 2    | [488-731]   | body[631-635]  | 5 bytes, 9 nibbles (NE6)    |
- * | 3    | [732-975]   | body[875-879]  | 5 bytes, 9 nibbles (NE6)    |
- * | tail | [976-1043]  | —              | 68-byte global tail          |
- *
- * Drawbar encoding: 9 × 4-bit nibbles, high nibble first.
- *   bytes[0-3] = bars 1-8 (2 per byte), byte[4] high nibble = bar 9,
- *   byte[4] low nibble = trailing (always 0 in the 26-file corpus).
- *
- * Slot source selector (body local[77-80] per slot) — CONFIRMED vs the Elijah
- * Fox bundle meta.xml dependency list (26/26 programs: count of 0xff slots ==
- * depCnt, slot order == dep order; see types.ts header for the evidence):
- *   local[77] = source kind (0xfe = oscillator waveform, 0xff = sample slot)
- *   sample slots: 10-bit sample index ((local[78]<<8|local[79])<<2)|(local[80]>>6)
- *   oscillator slots: local[79] = waveform selector (0 = Sine, "Sine Pad" anchor)
- *
- * NOTE on skeleton bug: the original DRAWBAR_OFFSETS were [144, 388, 631, 876].
- * Offsets for slots 0, 1, and 3 were off by 1 (the first byte 0x37 at local[143]
- * was misidentified as constant padding; it is in fact part of the drawbar block,
- * encoding bars 1 and 2 as nibbles [3, 7] — the default position in 25/26 fixtures).
- * Source: Eli Bass 6 fixture confirms non-default bars=[3,7,7,7,7,7,7,7,4] starting
- * at the corrected offset.
- *
- * Source: 26-file corpus statistical analysis (2026-06-22).
+ * Applies the Wave 2 OS 1.24 registry layout (`layout.generated.ts`, generated
+ * generated) through the shared block-chain reader
+ * (clavia/block-chain.ts): the u32 version, MultiCommon, then four 244-byte
+ * slots of ten blocks each at body 68 + 244k — 41 blocks, a 1044-byte body.
+ * The version word and the length-prefixed chain must end exactly at EOF;
+ * anything else returns the header-only result with a warning. Never throws.
  */
+import { decodeFwProgram } from '../clavia/block-chain';
+import { NW2_LAYOUT } from './layout.generated';
+import type { Nw2Program, Nw2Slot, Nw2SlotSource } from './types';
 
-import { CBIN_BODY_OFFSET as BODY_OFFSET, formatCbinVersion } from '../clavia/cbin';
-import { readDrawbars } from '../clavia/drawbars';
-import type { Nw2VoiceSlot, Nw2Waveform, Nw2Program } from './types';
+export const NW2_SLOTS: readonly Nw2Slot[] = ['A', 'B', 'C', 'D'];
 
-const u8 = (b: Uint8Array, o: number): number => b[o] ?? 0;
+/** Edt_Syn_kOscBank value that selects a Sample Library sample. */
+export const NW2_OSC_BANK_SAMPLES = 4;
 
-// Corrected drawbar anchor offsets within the body (previously off by 1 for slots 0,1,3)
-// Slot local offset 143: slot0=143, slot1=244+143=387, slot2=488+143=631, slot3=732+143=875
-const DRAWBAR_OFFSETS = [143, 387, 631, 875] as const;
-// Slot start offsets (body-relative), confirmed by ~244-byte period
-const SLOT_STARTS = [0, 244, 488, 732] as const;
-const SLOT_SIZE = 244;
+export function decodeNw2(bytes: Uint8Array): Nw2Program {
+  return { format: 'nw2p', ...decodeFwProgram(bytes, NW2_LAYOUT) };
+}
 
 /**
- * Decode the slot sound source from body local[77-80].
- * kind + sample index are CONFIRMED against bundle meta.xml dependencies; the
- * oscillator waveform selector is anchored (0 = Sine) but not fully mapped.
+ * Whether a slot is on: bit k of MultiCommon Edt_Com_kSlotEnable (a 1–15 mask,
+ * bit 0 = slot A; medium — read from its default 1 and its range). Undefined
+ * when the layout did not match.
  */
-function readWaveform(slotBody: Uint8Array): Nw2Waveform {
-  const oscFlag = u8(slotBody, 77);
-  if (oscFlag === 0xff) {
-    return {
-      kind: 'sample',
-      oscFlag,
-      sampleIndex: (((u8(slotBody, 78) << 8) | u8(slotBody, 79)) << 2) | (u8(slotBody, 80) >> 6),
-    };
-  }
-  return { kind: 'oscillator', oscFlag, waveformId: u8(slotBody, 79) };
+export function nw2SlotEnabled(p: Nw2Program, slot: Nw2Slot): boolean | undefined {
+  const mask = p.values['common.slotEnable'];
+  return mask === undefined ? undefined : ((mask >> NW2_SLOTS.indexOf(slot)) & 1) === 1;
 }
 
-function readSlot(body: Uint8Array, slotIndex: number): Nw2VoiceSlot {
-  const drawbarOffset = DRAWBAR_OFFSETS[slotIndex];
-  const slotStart = SLOT_STARTS[slotIndex];
-  const slotBody = body.slice(slotStart, slotStart + SLOT_SIZE);
-  // Slot starts with the Stage synth engine layout: bit0 = layer on/off, bits1-7 = volume.
-  // Confirmed: slots 1-3 read on={0,1} + volume 0-112; slot 0 is off (all-zero) in the corpus.
-  // Stage oracle: y layer on/off [1b] + y volume [7b] (group y — every engine's leading fields).
-  const head = slotBody[0] ?? 0;
-  return {
-    on: (head >>> 7) === 1,
-    volume: head & 0x7f,
-    drawbars: readDrawbars(body, drawbarOffset),
-    waveform: readWaveform(slotBody),
-    // The 7-byte oscillator/waveform region local[77-83] — oscFlag + bank + id + 4 unknown bytes.
-    // Candidate: full extent of this region not yet decoded.
-    _oscWaveformRegion: slotBody.slice(77, 84),
-    _raw: slotBody,
-  };
-}
-
-/** Decode a Nord Wave 2 program body (full file bytes including CBIN header). */
-export function decodeNw2(bytes: Uint8Array): Nw2Program {
-  const warnings: string[] = [];
-  if (bytes.length < BODY_OFFSET) {
-    warnings.push(`File too short: ${bytes.length} bytes (expected ≥ ${BODY_OFFSET})`);
-  }
-  const body = bytes.slice(BODY_OFFSET);
-
-  const version = formatCbinVersion(bytes);
-
-  return {
-    parsed: true,
-    version,
-    slots: [readSlot(body, 0), readSlot(body, 1), readSlot(body, 2), readSlot(body, 3)],
-    // Global preamble: body[0-4], constant across all 26 fixtures (00 00 01 2d 3f).
-    // byte[2]=0x01 may be a format version marker.
-    _globalPreamble: body.slice(0, 5),
-    // Global tail: body[976-1043] (68 bytes), follows all four slots.
-    _globalTail: body.slice(976, 1044),
-    _rawBody: body,
-    bytes,
-    warnings,
-  };
+/** A slot's sound source, or undefined when the layout did not match. */
+export function nw2SlotSource(p: Nw2Program, slot: Nw2Slot): Nw2SlotSource | undefined {
+  const bank = p.values[`slot${slot}Common.oscBank`];
+  const wave = p.values[`slot${slot}Common.oscWave`];
+  if (bank === undefined || wave === undefined) return undefined;
+  return { bank, kind: bank === NW2_OSC_BANK_SAMPLES ? 'sample' : 'oscillator', wave };
 }

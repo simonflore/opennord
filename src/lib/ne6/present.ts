@@ -1,36 +1,91 @@
 /**
- * Nord Electro 6 → DecodedProgram. Confirmed: the organ upper/lower drawbars
- * (B3 footage, corpus differential). The sample/piano section is identified; its
- * 32-bit sound id is surfaced as a fingerprint (no factory-name table exists for
- * the lite line — see the ne6-np4-sample-name-blocked note). FX not decoded.
+ * Nord Electro 6 → DecodedProgram. Every value comes from the Electro 6 OS 2.66
+ * registry layout (see decode.ts): piano / sample synth / organ sections with
+ * their enables, levels and octave shifts, the sounding drawbar preset of each
+ * organ manual, and the global effects, labelled with the instrument's own
+ * display texts (labels.ts). The piano and synth sample references are 32-bit
+ * name hashes, shown as fingerprints (no Electro 6 name table yet).
  */
 import { decodeNe6 } from './decode';
-import { drawbarViews, B3_FOOTAGE } from '../clavia/drawbars';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
+import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
+import {
+  DRAWBAR_NUMBERS, effectsSection, fwHeader, headerOnly, hexId, label, levelPart, octavePart, parts, transposeText,
+} from '../clavia/fw-present';
+import type { Ne6FieldKey } from './layout.generated';
+import {
+  NE6_AMP_TYPES, NE6_FX1_TYPES, NE6_FX2_TYPES, NE6_ORGAN_MODELS, NE6_PIANO_TYPES, NE6_REVERB_TYPES, ne6VibratoLabel,
+} from './labels';
 
-const hexBytes = (b: Uint8Array) => '0x' + Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+/** Organ models that use Hammond drawbar footage (B3, B3 Bass). */
+const B3_MODELS = new Set([0, 5]);
 
-function manual(id: string, label: string, bars: readonly number[]): DecodedSection {
+type Get = (key: Ne6FieldKey) => number | undefined;
+
+function organManual(g: Get, m: 'A' | 'B'): DecodedSection {
+  const second = g(`manual${m}PresetCommon.presetFocus`) === 1;
+  const preset = second ? `manual${m}PresetII` as const : `manual${m}PresetI` as const;
+  const model = g('organManualCommon.model');
+  const bars = DRAWBAR_NUMBERS.map((i) => g(`${preset}.db${i}`) ?? 0);
+  const vibrato = ne6VibratoLabel(model, g('organManualCommon.vibratoType'));
   return {
-    id, label,
-    engines: [{ label: 'Drawbars', parts: [bars.join(' ')] }],
-    drawbars: drawbarViews([...bars], B3_FOOTAGE),
+    id: `O${m}`, label: `ORGAN ${m}`,
+    engines: [{
+      label: 'Organ',
+      parts: parts(label(NE6_ORGAN_MODELS, model) ?? 'Organ', levelPart(g('organManualCommon.level')),
+        second ? 'Preset II' : 'Preset I', octavePart(g(`organMulti${m}.octaveShift`)), !g('organ.enable') && '(off)'),
+    }],
+    drawbars: drawbarViews(bars, model !== undefined && B3_MODELS.has(model) ? B3_FOOTAGE : undefined),
+    chips: parts(
+      g(`${preset}.vibratoEnable`) ? (vibrato ? `Vibrato ${vibrato}` : 'Vibrato') : undefined,
+      g(`${preset}.b3PercEnable`) ? 'Percussion' : undefined,
+    ),
   };
 }
 
 export function ne6Decoded(bytes: Uint8Array): DecodedProgram {
   const p = decodeNe6(bytes);
+  const title = 'Nord Electro 6 · Program';
+  if (!p.layoutMatched) return headerOnly(title, p, 'Electro 6');
+  const g: Get = (k) => p.values[k];
+
+  const header = fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue')));
+  const pianoHash = g('piano.nameHash');
+  if (pianoHash !== undefined) header.push(['Piano sound id', hexId(pianoHash)]);
+  const sampleHash = g('synth.smpNameHash');
+  if (sampleHash !== undefined) header.push(['Sample sound id', hexId(sampleHash)]);
+
+  const piano: DecodedSection = {
+    id: 'P', label: 'PIANO',
+    engines: [{
+      label: 'Piano',
+      parts: parts(label(NE6_PIANO_TYPES, g('piano.bank')) ?? 'Piano', levelPart(g('piano.level')),
+        octavePart(g('piano.octaveShift')), !g('piano.enable') && '(off)'),
+    }],
+  };
+  const synth: DecodedSection = {
+    id: 'S', label: 'SAMPLE SYNTH',
+    engines: [{
+      label: 'Synth',
+      parts: parts(levelPart(g('synth.level')), octavePart(g('synth.octaveShift')), !g('synth.enable') && '(off)'),
+    }],
+  };
+
+  const fxType = (table: readonly string[], key: Ne6FieldKey, fallback: string) => label(table, g(key)) ?? fallback;
+  const reverb = `${fxType(NE6_REVERB_TYPES, 'effects.rvbType', 'Reverb')}${g('effects.rvbBright') ? ' Bright' : ''}`;
+  const effects = effectsSection(parts(
+    g('effects.fx1Enable') ? fxType(NE6_FX1_TYPES, 'effects.fx1Type', 'Effect 1') : undefined,
+    g('effects.fx2Enable') ? fxType(NE6_FX2_TYPES, 'effects.fx2Type', 'Effect 2') : undefined,
+    g('effects.dlyEnable') ? 'Delay' : undefined,
+    g('effects.spkEnable') ? fxType(NE6_AMP_TYPES, 'effects.spkType', 'Amp') : undefined,
+    g('effects.eqlEnable') ? 'EQ' : undefined,
+    g('effects.rvbEnable') ? reverb : undefined,
+  ));
+
   return {
-    title: 'Nord Electro 6 · Program',
-    header: [
-      ['Version', `v${p.version}`],
-      ['Sample sound id', hexBytes(p.sample.modelId)],
-    ],
-    sections: [
-      manual('OU', 'ORGAN UPPER', p.organ.upper.bars),
-      manual('OL', 'ORGAN LOWER', p.organ.lower.bars),
-    ],
-    note: 'Electro 6: organ drawbars confirmed (B3 footage). Sample/piano section identified (sound id is a fingerprint, not yet name-resolved); FX/synth params not yet decoded.',
+    title, header,
+    sections: [piano, synth, organManual(g, 'A'), organManual(g, 'B'), effects],
+    note: 'Electro 6: OpenNord’s program map (OS 2.66). Piano, synth and organ sections, drawbar presets and effects decoded; sample names are fingerprints until a name table exists.',
     warnings: p.warnings,
   };
 }

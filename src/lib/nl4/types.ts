@@ -1,90 +1,81 @@
 /**
  * Nord Lead 4 program model.
  *
- * Two file variants share this type, discriminated by `fileType`:
+ * Both file variants are legacy (formatType 0) CBIN records: the u16 record
+ * version sits at file 0x14 and the record data starts at **file 0x1A**, then a
+ * 2-byte LE CRC-16 trailer (clavia/legacy-record.ts). Layout from the Lead 4
+ * OS 1.32 parameter descriptors (serialiser →),
+ * generated into `layout.generated.ts`; values are stored raw (minimum 0):
  *
- * `nl4s` (Sound, 343 bytes) — single voice / sound slot. Body = file[44:] (299 bytes).
- *   Bit-packed parameter regions separated by all-zero reserved gaps:
- *   - Header / global   body[0-24]    (cluster A) — gap body[25-29]=0
- *   - Voice/FX params   body[30-246]  — 2 osc, filter, 2 env, 2 LFO, FX, arp
- *   - Morph/assign      body[248-288] — gap body[247]=0, pad body[289-296]=0
- *   - Checksum          body[297-298] (LE CRC-16/CCITT-FALSE trailer, confirmed)
- *   The regions are bit-packed, not byte-per-parameter; only a few byte-aligned
- *   selectors are recoverable from corpus statistics.
+ * `nl4s` (Program/"Sound", 343 bytes) — record version 8, 315 data bytes:
+ *   bits 0-387     slot set: 78 descriptors, ending in a 44-bit
+ *                  reserved field
+ *   bits 388-2047  morph list: 7-bit count + 87 × {param 7b, source 4b, delta 8b}
+ *   bits 2048-2130 FX/delay set: 15 descriptors
+ *   bits 2131-2519 FX morph list: 5-bit count + 24 × {param 4b, source 4b, delta 8b}
  *
- * `nl4p` (Program, 1295 bytes) — multi-slot structure (315-byte stride):
- *   - 4 slot groups: body[0-295], [304-610], [619-925], [934-1240]
- *   - Constant-zero gaps between slots; LE CRC-16/CCITT-FALSE trailer at body[1249-1250]
+ * `nl4p` (Performance, 1295 bytes) — record version 9: 7 bytes of
+ *   performance-common settings, then 4 × 315-byte program records
+ *   at data offset 7 + 315k (file 0x21 + 315k).
  *
- * Source: corpus RE 2026-06-22 (101 nl4s + 26 nl4p); re-censused 2026-07-04
- * over 1275 nl4s + 494 nl4p (factory sound banks 1-3, performance banks A/B and
- * 9 artist banks). The larger corpus falsified the earlier "cluster B 30-102 /
- * cluster C 238-264 with zero gap 103-237" split — the JD73-heavy corpus simply
- * never varied those bytes.
+ * Field names come from matching each descriptor's MIDI CC to
+ * `parameters.reference.ts`; descriptors without a CC are "param N".
+ *
+ * The earlier corpus reader read the body from file 0x2C, i.e. 18 bytes late
+ * (old body[k] = data[k + 18]): its "head selector" (body[30]) was the top bits
+ * of the morph count, "enable" (body[239]) the top bit of Delay/Reverb Amount,
+ * "enum A" (body[245]) the high bits of the 14-bit Delay Tempo and "B"
+ * (body[248]) the FX morph count. Those readings are dropped.
  */
+import type { LegacyMorphEntry } from '../clavia/legacy-record';
+import type { Nl4FieldKey, Nl4PerfFieldKey } from './layout.generated';
+
+export type { Nl4FieldKey, Nl4PerfFieldKey };
 
 /**
- * nl4s voice/FX param run (body[30-246]). Bit-packed; only the head selector
- * at body[30] is byte-aligned and statistically separable. The packed region
- * holds 2 oscillators, the filter, the amp + mod ADSR envelopes, the two LFOs
- * and the FX/arp params — per-field offsets need differential RE, so the body
- * is passed through raw until then.
+ * One used morph-list entry: descriptor index within its set, morph source
+ * 0-8 (the 9 sources hard-coded in; names unresolved), signed
+ * 8-bit delta.
  */
-export interface Nl4Voice {
-  /**
-   * Head selector — values 0-10 observed across 1275 files (body[30]); at
-   * least a 4-bit selector at the start of the voice block. Exact mapping
-   * unverified. (The earlier 101-file corpus mis-read this as a 2-bit enum.)
-   */
-  readonly mode: number;
-  /** Bit-packed params body[31-246] (osc/filter/env/LFO/FX; offsets unmapped). */
-  readonly _packed: Uint8Array;
+export interface Nl4MorphEntry extends LegacyMorphEntry {
+  /** The field that index names, when it is a stored parameter. */
+  readonly key?: Nl4FieldKey;
 }
 
-/**
- * nl4s byte-aligned islands in the packed run + the morph/assign block
- * (body[248-288]). The boolean enable and enum A are byte-aligned and
- * separable; the rest is sub-byte and passed through raw.
- */
-export interface Nl4FxArp {
-  /** Enable flag — 0/1 boolean (body[239]); confirmed binary at 1275 files. */
-  readonly enabled: boolean;
-  /** Enum A — 0-7, all 8 values observed (body[245]). Unverified label. */
-  readonly modeA: number;
-  /**
-   * Stepped value B — 0-20 observed (body[248]); a knob or wide enum, not the
-   * 0-8 enum the smaller corpus suggested. Unverified label.
-   */
-  readonly modeB: number;
-  /** Bit-packed morph/assign block body[248-288]. */
-  readonly _packed: Uint8Array;
+/** One 315-byte program record: the whole `.nl4s` data, or one `.nl4p` slot. */
+export interface Nl4Record {
+  /** Slot-set and FX-set parameters by generated key. */
+  readonly values: Partial<Record<Nl4FieldKey, number>>;
+  /** Slot-set morph assignments (count from bits 388-394). */
+  readonly morphs: readonly Nl4MorphEntry[];
+  /** FX-set morph assignments (count from bits 2131-2135). */
+  readonly fxMorphs: readonly Nl4MorphEntry[];
+  /** Parameters above their descriptor max (the firmware resets these to default on load). */
+  readonly outOfRange: readonly Nl4FieldKey[];
+  /** The 315 raw record bytes. */
+  readonly _raw: Uint8Array;
 }
 
 export interface Nl4Program {
   readonly parsed: true;
   readonly fileType: 'nl4s' | 'nl4p';
+  /** CBIN version string — for these files the u16 at 0x14 is the record version (8 / 9 → "0.08" / "0.09"). */
   readonly version: string;
+  /** u16 record version at file 0x14: Program 8, Performance 9. */
+  readonly recordVersion: number;
   /**
-   * File trailer checksum — LE CRC-16/CCITT-FALSE over file[0:-2] (clavia/crc16.ts;
-   * nl4s body[297-298], nl4p
-   * body[1249-1250]). Confirmed.
+   * File trailer checksum — LE CRC-16/CCITT-FALSE over file[0:-2]
+   * (clavia/crc16.ts). Confirmed 1275/1275 nl4s, 494/494 nl4p.
    */
-  readonly checksum?: number;
-  /** nl4s: header / global param block body[0-24] (bit-packed, raw). */
-  readonly _clusterA?: Uint8Array;
-  /** nl4s: voice/FX param run (body[30-246]). */
-  readonly voice?: Nl4Voice;
-  /** nl4s: byte-aligned islands + morph/assign block (body[248-288]). */
-  readonly fxArp?: Nl4FxArp;
-  /** nl4p: slot 0 params body[0-295] */
-  readonly _slot0?: Uint8Array;
-  /** nl4p: slot 1 params body[304-610] */
-  readonly _slot1?: Uint8Array;
-  /** nl4p: slot 2 params body[619-925] */
-  readonly _slot2?: Uint8Array;
-  /** nl4p: slot 3 params body[934-1240] */
-  readonly _slot3?: Uint8Array;
-  readonly _rawBody: Uint8Array;
+  readonly checksum: number;
+  /** nl4s: the program record. */
+  readonly program?: Nl4Record;
+  /** nl4p: performance-common parameters (slot focus, slot-enable mask, tempo, hold …). */
+  readonly performance?: Partial<Record<Nl4PerfFieldKey, number>>;
+  /** nl4p: the four slot records A-D. */
+  readonly slots?: readonly [Nl4Record, Nl4Record, Nl4Record, Nl4Record];
+  /** Record data (file 0x1A up to the CRC trailer). */
+  readonly _data: Uint8Array;
   readonly warnings: readonly string[];
   bytes: Uint8Array;
   name?: string;
