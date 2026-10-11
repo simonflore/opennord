@@ -9,7 +9,6 @@ import { DeviceRoute } from '@/routes/device';
 import { AboutRoute } from '@/routes/about';
 import { CompatibilityRoute } from '@/routes/compatibility';
 import { RE_ROUTES } from '@/router-re';
-import { trimSlash } from './lib/library/categories';
 
 /** Build the app router, optionally with extra (proprietary) routes injected by the
  *  commercial build. The open build calls it with no args. */
@@ -26,10 +25,11 @@ export function createAppRouter(extra: AnyRoute[] = []) {
     routeTree,
     history: createHashHistory(),
     defaultPreload: false,
-    // Each page keeps its scroll: leaving a list for an entry and coming back
-    // (or going back in history) returns to where the list was, on a phone too.
+    // Each history entry keeps its scroll: Back from an entry to its list (the
+    // back button steps back when it can) returns to where the list was, on a
+    // phone too, while a newly opened page starts fresh and the split's list
+    // pane keeps its place.
     scrollRestoration: true,
-    getScrollRestorationKey: (location) => trimSlash(location.pathname),
     // The split's detail pane stays mounted between entries; a newly opened
     // entry starts at its top instead of inheriting the last one's scroll.
     scrollToTopSelectors: ['.on-split__detail'],

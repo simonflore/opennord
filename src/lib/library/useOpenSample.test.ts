@@ -35,6 +35,13 @@ describe('useOpenSample', () => {
     expect(ctx.readSample).toHaveBeenCalledTimes(1);
   });
 
+  it('opens a local sample from the bytes in hand, without reading', () => {
+    ctx.entries.set('h', { ...entry('h', 'local'), bytes } as SampleEntry);
+    const { result } = renderHook(() => useOpenSample('h'));
+    expect(result.current).toMatchObject({ state: 'open', sample: { id: 'h', bytes } });
+    expect(ctx.readSample).not.toHaveBeenCalled();
+  });
+
   it('keeps the sample open through a rescan that drops and re-adds the entry', async () => {
     const { result, rerender } = renderHook(() => useOpenSample('a'));
     await act(async () => {});

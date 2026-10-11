@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
+import { Button } from '@/components/ui';
 import { CategorySplit } from '@/components/library/CategorySplit';
 import { EmptyNote, NotListedNote } from '@/components/library/EmptyNote';
 import { useSamplesState } from '@/lib/library/SamplesContext';
 import { useOpenSample } from '@/lib/library/useOpenSample';
 import { useSplitLayout } from '@/lib/responsive';
-import { readFileBytes } from '../../lib/file';
 import { useCloseRemoved, useLeaveEntry, useOpenEntry } from '@/components/library/openEntry';
 
 /**
@@ -21,8 +21,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const s = useSamplesState();
   // The sample the route names, read by useOpenSample.
   const open = useOpenSample(selectedId);
-  // A file shown off the route: an import just made, or "Preview a file" (loadNew).
-  const [preview, setPreview] = useState<InspectorInput | null>(null);
+  // "Preview a file": the inspector's own drop/pick zone, off the route.
   const [loadNew, setLoadNew] = useState(false);
   // An import that wasn't a sample file: shown above the list, apart from the open sample.
   const [importError, setImportError] = useState('');
@@ -32,15 +31,14 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   // Opening a sample from the route closes a preview.
   useEffect(() => {
     if (!selectedId) return;
-    setPreview(null);
     setLoadNew(false);
     setImportError('');
   }, [selectedId]);
 
   // Off the open sample, to the bare list (which closes it and lets go of its read).
   const toList = useLeaveEntry('/library/samples');
-  const startLoadNew = () => { toList(); setPreview(null); setLoadNew(true); setImportError(''); };
-  const back = () => { toList(); setPreview(null); setLoadNew(false); };
+  const startLoadNew = () => { toList(); setLoadNew(true); setImportError(''); };
+  const back = () => { toList(); setLoadNew(false); };
 
   function importSample() {
     const input = document.createElement('input');
@@ -58,11 +56,9 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         return;
       }
       setImportError('');
-      const bytes = await readFileBytes(f);
-      await s.importSample(f);                  // persist + add to the list
-      toList();
+      const id = await s.importSample(f);      // persist + add to the list
       setLoadNew(false);
-      setPreview({ bytes, name: f.name });      // open it now
+      openEntry.sample(id);                     // and open it, like any library sample
     };
     input.oncancel = cleanup;
     input.click();
@@ -82,8 +78,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         showSourceFacet={s.showSourceFacet} showUnknownGen={s.showUnknownGen}
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters} filtered={s.filtered}
-        // Clicking the open sample again retries it, but only when its read failed.
-        onOpen={(e) => (e.id !== selectedId ? openEntry.sample(e.id) : open.state === 'failed' && open.retry())}
+        onOpen={(e) => openEntry.sample(e.id)}
         onLoadNew={startLoadNew}
         activeId={selectedId ?? null}
         onImport={importSample}
@@ -109,10 +104,15 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   // phone shows its progress, error or "not found" instead of the bare list.
   // Its factory tag comes from the entry as it is now (a backup's origin can
   // resolve after its bytes do).
-  const hasDetail = !!selectedId || loadNew || preview !== null;
+  const hasDetail = !!selectedId || loadNew;
   const detail = selectedId ? (
     open.state === 'missing' ? <NotListedNote noun="sample" />
-    : open.state === 'failed' ? <div role="alert"><EmptyNote>{open.error} Click it in the list to try again.</EmptyNote></div>
+    : open.state === 'failed' ? (
+      <div role="alert" className="flex flex-col items-center">
+        <EmptyNote>{open.error}</EmptyNote>
+        <Button variant="secondary" onClick={open.retry}>Try again</Button>
+      </div>
+    )
     : open.state === 'open' ? (
       <>
         {!open.listed && <EmptyNote>This sample isn’t in your library right now.</EmptyNote>}
@@ -121,7 +121,6 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     )
     : <EmptyNote>Reading the sample…{open.state === 'reading' && open.pct !== null && ` ${open.pct}%`}</EmptyNote>
   ) : loadNew ? inspector()
-    : preview ? inspector(preview)
     : <EmptyNote>Pick a sample to inspect it.</EmptyNote>;
 
   return (
