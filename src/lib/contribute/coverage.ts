@@ -217,6 +217,30 @@ export function legacyVersionBytes(modelId: string): 1 | 2 | null {
   return legacy ? (legacy.layout.versionBytes ?? 2) : null;
 }
 
+/** What the program layout a model is read with promises, for checking it against real files. */
+export interface ProgramLayoutInfo {
+  /** 'candidate' = the layout's alignment is not yet checked on a real file. */
+  readonly status: 'confirmed' | 'candidate';
+  /** The record (legacy: version + data + padding) or body (block chain: version + blocks) length the layout makes. */
+  readonly recordBytes: number;
+  /** The record / body format versions the firmware reads as they are, or null when the layout names none. */
+  readonly nativeVersions: readonly [number, number] | null;
+}
+
+/** The program layout `modelId` is read with (firmware block chain or legacy record), or null (Stage 4, curated models). */
+export function programLayoutInfo(modelId: string): ProgramLayoutInfo | null {
+  const fw = FW_LAYOUTS[modelId];
+  if (fw) return { status: fw.status, recordBytes: fw.layout.bodyBytes, nativeVersions: fw.layout.versionRange };
+  const legacy = LEGACY_LAYOUTS[modelId];
+  if (!legacy) return null;
+  const l = legacy.layout;
+  return {
+    status: legacy.status,
+    recordBytes: (l.versionBytes ?? 2) + l.dataBytes + (l.padBytes ?? 0),
+    nativeVersions: l.recordVersion === null ? null : [l.recordVersion, l.recordVersion],
+  };
+}
+
 /** Run-length encode per-byte kinds; `field:<label>` bytes take `status`, everything else is constant. */
 function kindsToRegions(kind: string[], status: 'confirmed' | 'candidate'): BodyRegion[] {
   const regions: BodyRegion[] = [];

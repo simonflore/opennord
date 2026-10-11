@@ -36,7 +36,7 @@ npm test             # parser/decoder tests (vitest)
 npm run typecheck    # tsc --noEmit  ┐
 npm run lint         # eslint + stylelint ┘ CI gates — keep both green
 npm run build        # production build
-npm run fixtures:scan # auto-RE harness over the local corpus (gitignored)
+npm run fixtures:scan # check real files: fixtures/<model>/ and/or NORD_FILES=~/Music/Nord (see fixtures/README.md)
 npm run cap:sync     # wrap for iOS (Capacitor) once you add the ios/ platform
 ```
 
