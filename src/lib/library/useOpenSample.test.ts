@@ -35,17 +35,20 @@ describe('useOpenSample', () => {
     expect(ctx.readSample).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the bytes through a rescan that drops and re-adds the entry', async () => {
+  it('keeps the sample open through a rescan that drops and re-adds the entry', async () => {
     const { result, rerender } = renderHook(() => useOpenSample('a'));
     await act(async () => {});
     const kept = ctx.entries.get('a')!;
     ctx.entries.delete('a');
     rerender();
-    expect(result.current.state).toBe('missing');
+    expect(result.current).toMatchObject({ state: 'open', listed: false });
+    const shown = result.current.state === 'open' && result.current.sample;
     ctx.entries.set('a', { ...kept });
     rerender();
     await act(async () => {});
-    expect(result.current.state).toBe('open');
+    expect(result.current).toMatchObject({ state: 'open', listed: true });
+    // the same object, so the inspector doesn't reload it
+    expect(result.current.state === 'open' && result.current.sample).toBe(shown);
     expect(ctx.readSample).toHaveBeenCalledTimes(1);
   });
 
@@ -70,6 +73,25 @@ describe('useOpenSample', () => {
     await act(async () => { if (result.current.state === 'failed') result.current.retry(); });
     expect(result.current.state).toBe('open');
     expect(ctx.readSample).toHaveBeenCalledTimes(2);
+  });
+
+  it('says a sample named before it is listed is missing, and reads it when it arrives', async () => {
+    const { result, rerender } = renderHook(() => useOpenSample('later'));
+    expect(result.current.state).toBe('missing');
+    ctx.entries.set('later', entry('later', 'local'));
+    rerender();
+    await act(async () => {});
+    expect(result.current).toMatchObject({ state: 'open', listed: true });
+  });
+
+  it('stops a read that has not finished when its entry leaves the list', async () => {
+    ctx.readSample.mockReturnValue(new Promise(() => {}));
+    const { rerender } = renderHook(() => useOpenSample('n'));
+    await act(async () => {});
+    const signal: AbortSignal = ctx.readSample.mock.calls[0][2];
+    ctx.entries.delete('n');
+    rerender();
+    expect(signal.aborted).toBe(true);
   });
 
   it('lets go of the read when the route moves on', async () => {

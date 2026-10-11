@@ -22,7 +22,6 @@ import { downloadBytes } from '@/lib/download';
 import { useListFilters } from '@/lib/library/useListFilters';
 import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 
-// pure helper, exported for tests
 // Numbers each Nord session, so reads key by session without holding on to it.
 const sessionNos = new WeakMap<object, number>();
 let lastSessionNo = 0;
@@ -31,7 +30,9 @@ function sessionNo(session: object): number {
   if (n === undefined) sessionNos.set(session, (n = ++lastSessionNo));
   return n;
 }
+const nordReadPrefix = (session: object) => `nord@${sessionNo(session)}:`;
 
+// pure helper, exported for tests
 export function selectedBytes(entries: SampleEntry[], selected: Set<string>): number {
   return entries.filter((e) => selected.has(e.id)).reduce((n, e) => n + (e.device?.sizeBytes ?? e.size ?? 0), 0);
 }
@@ -167,14 +168,24 @@ function useSamplesStateValue() {
   type Read = { bytes: Promise<Uint8Array>; progress: (pct: number) => void; users: number };
   const reads = useRef(new Map<string, Read>());
   /**
-   * Which read a sample's bytes come from: its id, and for a Nord sample the
-   * session too (its id names a slot, which may hold another sample after a
-   * reconnect), so a read on one session is never reused on the next.
+   * Which read a sample's bytes come from: its id, and for a Nord sample also
+   * the session and what the slot holds (its id names a slot, which may hold
+   * another sample after a reconnect or once the list is read again), so a read
+   * is never reused for different bytes.
    */
   const readKey = useCallback(
-    (e: SampleEntry) => (e.source === 'nord' && session ? `${e.id}@${sessionNo(session)}` : e.id),
+    (e: SampleEntry) => (e.source === 'nord' && session
+      ? `${nordReadPrefix(session)}${e.id}:${e.name}:${e.device?.sizeBytes ?? ''}`
+      : e.id),
     [session],
   );
+  // A new session (or none) lets go of the last one's reads, and with them its session.
+  useEffect(() => {
+    const live = session ? nordReadPrefix(session) : null;
+    for (const key of [...reads.current.keys()]) {
+      if (key.startsWith('nord@') && (!live || !key.startsWith(live))) reads.current.delete(key);
+    }
+  }, [session]);
   const readSample = useCallback((e: SampleEntry, onProgress: (pct: number) => void, signal: AbortSignal): Promise<Uint8Array> => {
     if (e.source === 'local' && e.bytes) return Promise.resolve(e.bytes);
     const key = readKey(e);
