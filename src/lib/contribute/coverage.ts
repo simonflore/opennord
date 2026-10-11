@@ -244,6 +244,16 @@ export function summarizeProgress(
   };
 }
 
+/**
+ * Parameters a firmware layout reads, counted like the Stage 4's {@link NS4_PARAM_COUNT}:
+ * each firmware parameter once, however many layers, slots or sections repeat it
+ * (Wave 2 stores its parameters once per slot, Grand 2 per layer). Sub-fields (the
+ * Electro 7's `<knob>.pedalAssign` / `.wheelAssign` flags) belong to their knob.
+ */
+function distinctParams(layout: FwLayout): number {
+  return new Set(layout.fields.filter((f) => f.key.split('.').length === 2).map((f) => f.name)).size;
+}
+
 export function decodeForModel(modelId: string): ModelDecode {
   const decoder = DECODER_BY_ID[modelId];
   if (decoder === 'full') {
@@ -252,10 +262,7 @@ export function decodeForModel(modelId: string): ModelDecode {
   const prog = getModelProgress(modelId); // includes traced Stage 2/3 regions
   const summary = prog ? summarizeProgress(prog) : { coveredBytes: 0, candidateBytes: 0, controlCount: 0, pct: null };
   if (decoder === 'partial') {
-    // Firmware-layout readers know exactly how many parameters they read.
-    // Sub-fields (the Electro 7's `<knob>.pedalAssign` / `.wheelAssign` flags) are part of
-    // a parameter, not parameters of their own.
-    const paramCount = FW_LAYOUTS[modelId]?.layout.fields.filter((f) => f.key.split('.').length === 2).length ?? null;
+    const paramCount = FW_LAYOUTS[modelId] ? distinctParams(FW_LAYOUTS[modelId].layout) : null;
     return { status: 'partial', paramCount, bodyBytes: prog?.bodyBytes ?? null, ...summary };
   }
   // Undecoded: 'started' once a control is localized in coverage-data, else 'none'.
