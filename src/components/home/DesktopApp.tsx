@@ -52,7 +52,7 @@ export function DesktopApp() {
             </a>
           </div>
           <p className="mt-4 flex flex-wrap items-center gap-2 text-xs leading-[1.55] text-muted">
-            <span className={roadmapTag}>Alpha</span>
+            <span className={roadmapTag}>Beta</span>
             First launch needs a quick step (the UsbDk driver, for reaching older
             Nords) —{' '}
             <a className={covLink} href={RELEASE_PAGE} target="_blank" rel="noopener noreferrer">
