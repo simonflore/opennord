@@ -105,7 +105,6 @@ describe('partition registry', () => {
       [10, 'live', 'ns3l'],
       [11, 'settings', 'ns3t'],
     ]);
-    expect(m.partitions.some((p) => p.kind === 'ffs')).toBe(false); // no E2P FFS on the wire
     // Static, not hardware-confirmed: nothing carries a protocol `index`.
     expect(m.partitions.every((p) => p.index === undefined)).toBe(true);
     // Factory partitions and SWave are read-only.
@@ -314,10 +313,10 @@ describe('partition registry', () => {
     }
   });
 
-  it('no firmware-read model registers a Set List except the Electro 5, and none an E2P FFS', () => {
+  // No E2P FFS partition anywhere: the registry has no such kind (no firmware registers one).
+  it('no firmware-read model registers a Set List except the Electro 5', () => {
     for (const m of ALL_MODELS) {
       if (m.fileTransferVersion === undefined) continue;
-      expect(m.partitions.some((p) => p.kind === 'ffs'), m.id).toBe(false);
       const setlists = m.partitions.filter((p) => p.kind === 'setlist').map((p) => p.fourcc);
       if (m.id === 'electro-5') expect(setlists).toEqual(['ne5t']);
       else if (m.id === 'stage-3') expect(setlists).toEqual(['ns3s']); // Songs
