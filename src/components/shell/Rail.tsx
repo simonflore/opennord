@@ -35,15 +35,13 @@ interface Props {
  * in sentence case in the data), the count right-aligned, and the active entry
  * raised with the accent bar on its left edge.
  */
-function Item({ label, active, onClick, count, led, disabled, title, sub, toggle }: {
+function Item({ label, active, onClick, count, led, sub, toggle }: {
   label: string;
   active: boolean;
   onClick: () => void;
   count?: number;
   /** Show an LED before the label; true lights it (only "connected" does). */
   led?: boolean;
-  disabled?: boolean;
-  title?: string;
   sub?: boolean;
   /** A filter rather than a page: announced as pressed, not as the current page. */
   toggle?: boolean;
@@ -55,15 +53,12 @@ function Item({ label, active, onClick, count, led, disabled, title, sub, toggle
         sub ? 'pl-7 text-[11px]' : 'pl-4',
         'cursor-pointer transition-colors duration-[120ms]',
         'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-focus)]',
-        'disabled:cursor-not-allowed disabled:opacity-50',
         active
           ? rowActive
           : 'text-dim hover:text-ink hover:tint-hover',
       )}
       aria-current={!toggle && active ? 'page' : undefined}
       aria-pressed={toggle ? active : undefined}
-      disabled={disabled}
-      title={title}
       onClick={onClick}
     >
       {led !== undefined && <Led on={led} tone="connected" />}

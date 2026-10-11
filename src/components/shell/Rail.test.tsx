@@ -32,11 +32,6 @@ describe('Rail', () => {
       expect(html).toContain(`>${label}<`);
     }
     expect(html).toContain('>384<');
-    // Every category is ready: no disabled entries (the literal attribute, not
-    // the `disabled:*` variant in the class list).
-    for (const label of ['Programs', 'Presets', 'User Samples', 'Piano Samples']) {
-      expect(buttonFor(html, label)).not.toContain('disabled=""');
-    }
   });
 
   it('marks the open list, including below it', () => {

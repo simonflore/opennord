@@ -12,6 +12,7 @@ import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
+import { useFocusRequest } from '@/components/library/useFocusRequest';
 
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
@@ -30,6 +31,8 @@ export function SamplesSplit() {
   const [loadNew, setLoadNew] = useState(false);
   const [pullPct, setPullPct] = useState<number | null>(null);
   const [pullError, setPullError] = useState('');
+  // A ⌘K jump opens its sample here (openEntry is a hoisted declaration below).
+  useFocusRequest(s, (e) => void openEntry(e));
 
   async function openEntry(e: SampleEntry) {
     setPullError('');

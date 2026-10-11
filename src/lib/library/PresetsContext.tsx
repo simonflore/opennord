@@ -47,10 +47,12 @@ function usePresetsStateValue() {
   const shown = sortPresets(filterPresets(allEntries, source, kind, query), prefs.sort, prefs.favorites);
   const entryById = (id: string) => allEntries.find((e) => e.id === id);
 
+  /** An entry the ⌘K palette asked to open: its page opens it on arrival (useFocusRequest). */
+  const [focusId, setFocusId] = useState<string | null>(null);
   /** Every filter off and the search cleared (the list's "clear filters"). */
   const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setKind('all'); }, []);
   return {
-    all: allEntries, clearFilters,
+    all: allEntries, clearFilters, focusId, setFocusId,
     shown, source, setSource, kind, setKind, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, kinds, folder, session,
     importPreset: imported.add, removePreset: imported.remove,
