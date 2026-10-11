@@ -3,15 +3,16 @@
  * — `fixtures/<model-id>/…` and, with `NORD_FILES=/some/folder`, every Nord file
  * under that folder — and run fixture-validate.ts over them. Files are only
  * ever opened for reading; a backup is read entry by entry through its ZIP
- * directory, and a file too large to be a program (a sample, a piano) only for
- * its header.
+ * directory; a piano or sample is read whole (one at a time) to decode its
+ * notes; any other file too large to be a program only for its header.
  */
 import * as fs from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, relative, resolve } from 'node:path';
 import { MODELS, type NordModelId } from '../clavia/partitions';
 import {
-  errorRow, isArchiveName, isNordFileName, validateArchive, validateBytes, MAX_PROGRAM_ENTRY_BYTES, type ValidationRow,
+  errorRow, isArchiveName, isMediaFileName, isNordFileName, validateArchive, validateBytes, validateMediaBytes,
+  MAX_PROGRAM_ENTRY_BYTES, type ValidationRow,
 } from './fixture-validate';
 
 /** Bytes read from a file too large to be a program: enough for any header the identifiers read. */
@@ -49,7 +50,11 @@ function walk(dir: string, visit: (abs: string, size: number) => void): number {
 
 const unreadableNote = (where: string, n: number) => (n ? [`${where}: ${n} folder(s) could not be opened (no permission) — skipped`] : []);
 
-/** `fixtures/<model-id>/**` — the curated local corpus. Folders that aren't a model id are noted and skipped. */
+/**
+ * `fixtures/<model-id>/**` — the curated local corpus — plus the Nord files in
+ * any other folder or loose at the top (samples, pianos, sound banks), whose
+ * model is taken from each file.
+ */
 export function listFixtureInputs(root: string): { inputs: InputFile[]; notes: string[] } {
   const inputs: InputFile[] = [];
   const notes: string[] = [];
@@ -57,10 +62,19 @@ export function listFixtureInputs(root: string): { inputs: InputFile[]; notes: s
   let unreadable = 0;
   for (const id of fs.readdirSync(root).sort()) {
     const dir = join(root, id);
-    // README.md, .report.json; a model folder may be a link to a library elsewhere.
-    if (id.startsWith('.') || !fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory()) continue;
-    if (!(id in MODELS)) { notes.push(`fixtures/${id} is not a known model id — skipped`); continue; }
-    unreadable += walk(dir, (abs, size) => inputs.push({ abs, label: `${id}/${relative(dir, abs)}`, model: id as NordModelId, size }));
+    if (id.startsWith('.')) continue; // .report.json
+    const st = fs.statSync(dir, { throwIfNoEntry: false });
+    if (st?.isFile()) {
+      if (isNordFileName(id)) inputs.push({ abs: dir, label: id, model: null, size: st.size });
+      continue;
+    }
+    if (!st?.isDirectory()) continue;
+    // A model folder may be a link to a library elsewhere; any other folder's files carry their own model.
+    // Only Nord files are taken: a bundle's meta.xml or a README is not one.
+    const model = id in MODELS ? (id as NordModelId) : null;
+    unreadable += walk(dir, (abs, size) => {
+      if (isNordFileName(abs)) inputs.push({ abs, label: `${id}/${relative(dir, abs)}`, model, size });
+    });
   }
   return { inputs, notes: [...notes, ...unreadableNote('fixtures', unreadable)] };
 }
@@ -104,6 +118,7 @@ export async function validateInput(input: InputFile): Promise<ValidationRow[]> 
   try {
     // A Blob over the file on disk: the archive is read slice by slice, never loaded whole.
     if (isArchiveName(input.abs)) return await validateArchive(input.label, await fs.openAsBlob(input.abs), input.model);
+    if (isMediaFileName(input.abs)) return [await validateMediaBytes(input.label, new Uint8Array(fs.readFileSync(input.abs)), input.model)];
     if (input.size > MAX_PROGRAM_ENTRY_BYTES) {
       return [validateBytes(input.label, readHead(input.abs, HEAD_BYTES), input.model, input.size, true)];
     }

@@ -14,8 +14,17 @@
  *   must give back the file byte for byte, and a write-back of every value the
  *   reader returned, which must too.
  *
- * Backups and bundles (ZIP) are opened and each program entry inside is checked
- * the same way. Never throws per file; never writes. What a row records is what
+ * A Stage 4 preset (organ `ns4o`, piano `ns4n`, synth `ns4y`) gets its checksum
+ * and the preset reader's result (ns4/preset.ts): decoded, how many voices, and
+ * whether every voice's identity — organ model, piano model, synth oscillator
+ * and filter — came out. OpenNord writes no presets, so there is no write check.
+ *
+ * A piano (`.npno`) or sample (`.nsmp*`) gets its check value and a decode of
+ * every note (stroke) it holds (ns4/nsp-audio.ts, ns4/nsmp.ts): how many there
+ * are and how many decode. The audio is decoded in memory and dropped.
+ *
+ * Backups and bundles (ZIP) are opened and each program or preset entry inside
+ * is checked the same way. Never throws per file; never writes. What a row records is what
  * the scanner already did (tags, sizes, versions, warnings) plus counts and
  * byte offsets — no parameter values (a writer's refusal message has its value
  * redacted) and no names other than the file's own path.
@@ -32,6 +41,11 @@ import { identifyBackup } from '../clavia/backup/backup-index';
 import { parseClaviaFile, programTagFor } from '../formats';
 import { writeProgram, PROGRAM_WRITERS, NOT_WRITABLE, type ProgramValues } from '../program-write';
 import { readerResult, type ReaderVerdict } from '../diagnostics/file-read';
+import { parseNs4Preset } from '../ns4/preset';
+import { readNspIdentity } from '../ns4/nsp';
+import { readNspDirectory, decodeNspStroke } from '../ns4/nsp-audio';
+import { readNsmp, decodeNsmp } from '../ns4/nsmp';
+import { pianoChecksumHolds } from '../ns4/backup-check';
 import { ns3FieldsConverted } from '../ns3/convert';
 import { getErrorMessage } from '../errors';
 import { programLayoutInfo } from './coverage';
@@ -76,6 +90,24 @@ export interface ProgramCheck {
   writeBack: WriteCheck;
 }
 
+export interface PresetCheck {
+  checksumOk: boolean;
+  /** The preset reader decoded it. */
+  read: boolean;
+  /** Enabled voices (layers) it decoded. */
+  voices: number;
+  /** Every decoded voice has its identity (organ model, piano model, synth oscillator + filter). */
+  identified: boolean;
+}
+
+export interface MediaCheck {
+  kind: 'piano' | 'sample';
+  checksumOk: boolean;
+  /** Notes (strokes) the file holds, and how many of them decode. */
+  notes: number;
+  notesDecoded: number;
+}
+
 export interface ValidationRow extends FixtureFinding {
   /** The file's path as given (relative to the folder scanned); a backup entry is `backup › entry`. */
   path: string;
@@ -87,6 +119,8 @@ export interface ValidationRow extends FixtureFinding {
   /** Backup / bundle entries not opened: not Nord program-type files, or too large to be one. */
   skippedEntries?: number;
   check?: ProgramCheck;
+  preset?: PresetCheck;
+  media?: MediaCheck;
 }
 
 const extOf = (name: string) => (name.split('.').pop() ?? '').toLowerCase();
@@ -192,6 +226,61 @@ export function checkProgram(bytes: Uint8Array, model: NordModelId | null): Prog
   };
 }
 
+/** The checks on a Stage 4 preset, or null for any other file. Never throws. */
+export function checkPreset(bytes: Uint8Array): PresetCheck | null {
+  const tag = identifyNordFile(bytes).tag;
+  if (tag !== 'ns4o' && tag !== 'ns4n' && tag !== 'ns4y') return null;
+  let preset: ReturnType<typeof parseNs4Preset> = null;
+  try { preset = parseNs4Preset(bytes); } catch { /* counted as not read */ }
+  return {
+    checksumOk: verifyFileChecksum(bytes),
+    read: preset !== null,
+    voices: preset?.layers.length ?? 0,
+    identified: !!preset && preset.layers.every((l) => !!l.headline),
+  };
+}
+
+const noPace = async () => {};
+
+/**
+ * The checks on a piano or a sample: check value, then every note decoded (in
+ * memory, then dropped). Null for any other file. Never throws.
+ */
+export async function checkMedia(bytes: Uint8Array): Promise<MediaCheck | null> {
+  try {
+    if (readNspIdentity(bytes)) {
+      const checksumOk = await pianoChecksumHolds(bytes, noPace);
+      const dir = readNspDirectory(bytes);
+      let notesDecoded = 0;
+      for (const stroke of dir?.strokes ?? []) {
+        try { decodeNspStroke(bytes, dir!, stroke); notesDecoded++; } catch { /* counted as not decoded */ }
+      }
+      return { kind: 'piano', checksumOk, notes: dir?.strokes.length ?? 0, notesDecoded };
+    }
+    const s = readNsmp(bytes);
+    if (!s.recognized || s.pianoLibrary) return null;
+    let notesDecoded = 0;
+    try { notesDecoded = decodeNsmp(bytes).length; } catch { /* none decoded */ }
+    return { kind: 'sample', checksumOk: s.checksumValid, notes: s.strokeCount, notesDecoded };
+  } catch {
+    return null;
+  }
+}
+
+/** A piano or sample file: identified, then {@link checkMedia}. Never throws. */
+export async function validateMediaBytes(path: string, bytes: Uint8Array, model: NordModelId | null): Promise<ValidationRow> {
+  const row = validateBytes(path, bytes, model, bytes.length, true);
+  const media = await checkMedia(bytes);
+  if (media) row.media = media;
+  return row;
+}
+
+/** Whether a file name is a piano or sample (checked with {@link validateMediaBytes}). */
+export function isMediaFileName(name: string): boolean {
+  const ext = extOf(name);
+  return ext.startsWith('nsmp') || ext === 'npno';
+}
+
 /** The model a file belongs to when no folder says: the one its tag names. */
 function modelOf(bytes: Uint8Array, name: string): NordModelId | null {
   const info = identifyNordFile(bytes);
@@ -216,6 +305,10 @@ export function validateBytes(
   try {
     const check = checkProgram(bytes, m);
     if (check) row.check = check;
+    else {
+      const preset = checkPreset(bytes);
+      if (preset) row.preset = preset;
+    }
   } catch (e) {
     row.issues.push(`check failed: ${getErrorMessage(e)}`);
   }
@@ -295,6 +388,15 @@ export interface ModelSummary {
   /** Programs read with the layout, no warning or out-of-range value, checksum holding and the expected length. */
   cleanReads: number;
   noOp: Record<WriteOutcome, number>;
+  presets: number;
+  presetsRead: number;
+  presetChecksumOk: number;
+  presetsIdentified: number;
+  pianos: number;
+  samples: number;
+  mediaChecksumOk: number;
+  notes: number;
+  notesDecoded: number;
   writeBack: Record<WriteOutcome, number>;
   /** Rows the scan could not read or check, plus registry cross-check findings. */
   problems: number;
@@ -315,9 +417,21 @@ const isClean = (c: ProgramCheck) =>
   c.reader.layoutMatched === true && alignmentWarnings(c) === 0 && c.reader.outOfRange === 0 &&
   c.checksumOk && c.framing.lengthOk !== false;
 
-/** Whether a row needs a look (listed by file in the console summary). */
+/**
+ * Whether a row needs a look (listed by file in the console summary). A refused
+ * write is not one: the writers refuse older formats and performances by design,
+ * and the summary counts those refusals by reason.
+ */
 export function rowProblems(row: ValidationRow): string[] {
   const out = [...row.issues];
+  const p = row.preset;
+  if (p && !p.read) out.push('preset not read');
+  if (p && !p.checksumOk) out.push('checksum does not hold');
+  if (p?.read && !p.identified) out.push('a voice without its identity (model / oscillator)');
+  const m = row.media;
+  if (m && !m.checksumOk) out.push('checksum does not hold');
+  if (m && m.notes === 0) out.push('holds no notes');
+  if (m && m.notesDecoded < m.notes) out.push(`${m.notes - m.notesDecoded} of ${m.notes} notes did not decode`);
   const c = row.check;
   if (!c) return out;
   if (c.reader.headerOnly) out.push('header only');
@@ -325,9 +439,7 @@ export function rowProblems(row: ValidationRow): string[] {
   if (!c.checksumOk) out.push('checksum does not hold');
   if (c.framing.lengthOk === false) out.push(`record ${c.framing.recordBytes} bytes, layout makes ${c.framing.expectedRecordBytes.join(' or ')}`);
   if (c.noOpWrite.outcome === 'differs') out.push(`no-op write differs (${c.noOpWrite.diffBytes} bytes from 0x${c.noOpWrite.firstDiffAt?.toString(16)})`);
-  if (c.noOpWrite.outcome === 'refused') out.push(`no-op write refused: ${c.noOpWrite.reason}`);
   if (c.writeBack.outcome === 'differs') out.push(`write-back differs (${c.writeBack.diffBytes} bytes from 0x${c.writeBack.firstDiffAt?.toString(16)})`);
-  if (c.writeBack.outcome === 'refused') out.push(`write-back refused: ${c.writeBack.reason}`);
   return out;
 }
 
@@ -350,6 +462,8 @@ export function summarizeRows(rows: readonly ValidationRow[]): ModelSummary[] {
       model, name: model ? MODELS[model]?.name ?? model : 'No model', layoutStatus: model ? programLayoutInfo(model)?.status ?? null : null,
       files: 0, archives: 0, programs: 0, readOk: 0, headerOnly: 0, noLayoutCheck: 0, outOfRangeFiles: 0, warned: 0, converted: 0,
       checksumOk: 0, checksumFail: 0, lengthOff: 0, cleanReads: 0, noOp: emptyOutcomes(), writeBack: emptyOutcomes(),
+      presets: 0, presetsRead: 0, presetChecksumOk: 0, presetsIdentified: 0,
+      pianos: 0, samples: 0, mediaChecksumOk: 0, notes: 0, notesDecoded: 0,
       problems: 0, topWarnings: [], topRefusals: [],
     };
     const warnings = new Map<string, number>();
@@ -357,6 +471,18 @@ export function summarizeRows(rows: readonly ValidationRow[]): ModelSummary[] {
     for (const r of list) {
       if (r.kind === 'backup') s.archives++; else s.files++;
       if (r.issues.length > 0) s.problems++;
+      if (r.preset) {
+        s.presets++;
+        if (r.preset.read) s.presetsRead++;
+        if (r.preset.checksumOk) s.presetChecksumOk++;
+        if (r.preset.identified) s.presetsIdentified++;
+      }
+      if (r.media) {
+        if (r.media.kind === 'piano') s.pianos++; else s.samples++;
+        if (r.media.checksumOk) s.mediaChecksumOk++;
+        s.notes += r.media.notes;
+        s.notesDecoded += r.media.notesDecoded;
+      }
       const c = r.check;
       if (!c) continue;
       s.programs++;
@@ -410,15 +536,19 @@ const clip = (s: string, n = 110) => (s.length > n ? `${s.slice(0, n - 1)}…` :
 export function formatSummary(rows: readonly ValidationRow[], reportPath: string, maxProblemsPerModel = 5): string {
   const summaries = summarizeRows(rows);
   const programs = summaries.reduce((n, s) => n + s.programs, 0);
+  const presets = summaries.reduce((n, s) => n + s.presets, 0);
+  const media = summaries.reduce((n, s) => n + s.pianos + s.samples, 0);
   const archives = summaries.reduce((n, s) => n + s.archives, 0);
   const files = summaries.reduce((n, s) => n + s.files, 0);
   const lines: string[] = [
     `OpenNord file check — ${files} file(s)${archives ? ` (incl. the contents of ${archives} backup/bundle file(s))` : ''}, ` +
-    `${programs} program(s) checked. Nothing was changed or sent anywhere. Full report: ${reportPath}`,
+    `${programs} program(s)${presets ? `, ${presets} preset(s)` : ''}${media ? `, ${media} piano(s)/sample(s)` : ''} checked. Nothing was changed or sent anywhere. Full report: ${reportPath}`,
   ];
   for (const s of summaries) {
     lines.push('', `${s.name}${s.model ? ` (${s.model})` : ''}${s.layoutStatus ? ` — layout ${s.layoutStatus}` : ''}`);
-    lines.push(`  files ${s.files}${s.archives ? ` + ${s.archives} backup(s)` : ''} · programs checked ${s.programs}`);
+    lines.push(`  files ${s.files}${s.archives ? ` + ${s.archives} backup(s)` : ''} · programs checked ${s.programs}` +
+      (s.presets ? ` · presets checked ${s.presets}` : '') +
+      (s.pianos ? ` · pianos checked ${s.pianos}` : '') + (s.samples ? ` · samples checked ${s.samples}` : ''));
     if (s.programs > 0) {
       lines.push(
         `  read OK ${s.readOk} · header-only ${s.headerOnly}${s.noLayoutCheck ? ` · read (no layout check) ${s.noLayoutCheck}` : ''}` +
@@ -430,6 +560,12 @@ export function formatSummary(rows: readonly ValidationRow[], reportPath: string
       if (s.layoutStatus === 'candidate') lines.push(`  → ${alignmentVerdict(s)}`);
       for (const [w, n] of s.topWarnings) lines.push(`  warning ×${n}: ${clip(w)}`);
       for (const [w, n] of s.topRefusals) lines.push(`  write refused ×${n}: ${clip(w)}`);
+    }
+    if (s.presets > 0) {
+      lines.push(`  presets: read ${s.presetsRead} · voice identified ${s.presetsIdentified} · checksum OK ${s.presetChecksumOk} / fail ${s.presets - s.presetChecksumOk}`);
+    }
+    if (s.pianos + s.samples > 0) {
+      lines.push(`  pianos/samples: checksum OK ${s.mediaChecksumOk} / fail ${s.pianos + s.samples - s.mediaChecksumOk} · notes decoded ${s.notesDecoded} of ${s.notes}`);
     }
     const flagged = rows.filter((r) => r.model === s.model).map((r) => [r.path, rowProblems(r)] as const).filter(([, p]) => p.length > 0);
     for (const [path, p] of flagged.slice(0, maxProblemsPerModel)) lines.push(`  ! ${clip(path, 70)}: ${clip(p.join('; '))}`);

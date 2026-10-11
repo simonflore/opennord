@@ -182,21 +182,22 @@ const NOT_FULL_MAP: Record<string, string> = {};
 
 // ── Legacy-record models: byte map of the record data (after the record version) ─
 // Lead 4 (high) → 'confirmed'. Stage 2 / 2 EX → 'confirmed': framing, values and
-// morph deltas checked on ns3-program-viewer's corpus of real files. Electro 4 (its
-// layout is medium confidence, although it reproduces the corpus drawbar/sample
-// anchors), Lead A1, Electro 3 / 3 HP, C2D and Wave (alignment unchecked against
-// real files) → 'candidate'.
+// morph deltas checked on ns3-program-viewer's corpus of real files. Electro 4 (23
+// files), Wave (1,018) and Lead A1 programs (50 .nlas + 1 .nlap) → 'confirmed': every
+// real file reads with each value in range, its checksum holding and a no-op write
+// byte-identical (fixtures:scan, 2026-10). Electro 3 / 3 HP and C2D (alignment
+// unchecked against real files) → 'candidate'.
 // Lead 4 maps its program record (a performance is 7 common bytes + 4 of them).
 const LEGACY_LAYOUTS: Record<string, { layout: LegacyLayout; status: 'confirmed' | 'candidate' }> = {
   'stage-2': { layout: NS2_LAYOUT, status: 'confirmed' },
   'stage-2-ex': { layout: NS2_LAYOUT, status: 'confirmed' },
   'electro-3': { layout: NE3_LAYOUT, status: 'candidate' },
   'electro-3-hp': { layout: NE3HP_LAYOUT, status: 'candidate' },
-  'electro-4': { layout: NE4_LAYOUT, status: 'candidate' },
+  'electro-4': { layout: NE4_LAYOUT, status: 'confirmed' },
   'c2d': { layout: NC2_LAYOUT, status: 'candidate' },
-  'wave': { layout: NW1_LAYOUT, status: 'candidate' },
+  'wave': { layout: NW1_LAYOUT, status: 'confirmed' },
   'lead-4': { layout: NL4_LAYOUT, status: 'confirmed' },
-  'lead-a1': { layout: NLA_LAYOUT, status: 'candidate' },
+  'lead-a1': { layout: NLA_LAYOUT, status: 'confirmed' },
   // Electro 5: file size, record version and the corpus drawbar / sample anchors agree
   // with the OS 2.04 containers (organ and effects descriptors high) → 'confirmed'.
   'electro-5': { layout: NE5_LAYOUT, status: 'confirmed' },

@@ -20,8 +20,11 @@ programs, a folder of backups — subfolders are searched too. If the path has s
 `NORD_FILES="$HOME/Documents/Nord Backups" npm run fixtures:scan`. You can also point it at a
 single file.
 
-- Programs, Lives, presets and settings files are read as they are. The model is taken from
-  each file.
+- Programs and Lives are read as they are. The model is taken from each file.
+- Stage 4 presets (organ, piano, synth) are read too: their checksum, and whether every voice
+  comes out with its identity (organ model, piano model, synth oscillator and filter).
+- Pianos (`.npno`) and samples (`.nsmp`, `.nsmp3`, `.nsmp4`) are checked by their checksum and
+  by decoding every note they hold. The sound is decoded in memory and dropped.
 - Backups and bundles (`.ns3b`, `.ns4b`, `.ne5b`, `.np3b`, `…pbundle`, …) are opened and every
   program inside is checked too, shown as `Backup.ns3b › Program/Bank A/Name.ns3f`. Samples and
   pianos inside a backup are skipped.
@@ -61,6 +64,8 @@ Nord Piano 3 (piano-3) — layout candidate
 - **converted from an older version** — files saved by an older OS, which the instrument (and
   OpenNord) update when loading.
 - **checksum** — whether each file's own checksum holds, as the instrument checks it.
+- **presets** — read, voice identified and checksum, per preset.
+- **pianos/samples** — checksum, and how many of the notes they hold decode.
 - **no-op write** — OpenNord saves the file without changing anything; it must come out
   byte-for-byte identical. **write-back** saves every setting the reader read back into the file;
   that must come out identical too. *refused* means OpenNord declined to save that file (the
@@ -70,7 +75,9 @@ Nord Piano 3 (piano-3) — layout candidate
   when every file read cleanly (read with the layout, no warning, no out-of-range value, its
   checksum holding, the expected length), *needs a look* when some didn't. The last block of the summary
   lists these models together.
-- Lines starting with `!` name files that need a look; the full list is in the report.
+- Lines starting with `!` name files that need a look; the full list is in the report. A
+  refused write is not listed per file: the writers refuse older formats and performances by
+  design, and the block counts those refusals by reason.
 
 Sharing the summary text (or the report) with the OpenNord developers is what turns a
 candidate layout into a confirmed one. It holds no program settings, but it does hold your file
@@ -79,7 +86,8 @@ and folder names — look it over first.
 ## The `fixtures/` corpus
 
 You can also drop files here, one folder per model, and run `npm run fixtures:scan` with no
-`NORD_FILES`:
+`NORD_FILES`. Nord files in any other folder here, or loose at the top, are checked too, with
+the model taken from each file:
 
 ```
 fixtures/<model-id>/AnyName.ns3f      # programs / presets / performances
