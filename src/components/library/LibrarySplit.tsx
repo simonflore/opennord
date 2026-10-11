@@ -1,22 +1,22 @@
-import { useNavigate } from '@tanstack/react-router';
 import { Blueprint } from '@/components/ui';
 import { LibraryView } from './LibraryView';
 import { ProgramView } from '@/components/program/ProgramView';
 import { CategorySplit } from './CategorySplit';
-import { EmptyNote } from './EmptyNote';
+import { EmptyNote, NotListedNote } from './EmptyNote';
 import { useLibraryState } from '@/lib/library/LibraryContext';
 import { useSplitLayout } from '@/lib/responsive';
-import { openProgram } from './openProgram';
+import { useCloseRemoved, useOpenEntry } from './openEntry';
 
 /**
- * The Library as master/detail. Both `/library/programs` and `/library/programs/$programId` render
+ * The Library as master/detail. `/library/programs/{-$programId}` renders
  * this: at wide widths the list stays visible beside a detail pane; below the
  * split breakpoint it shows one pane at a time (today's full-page behavior).
  */
 export function LibrarySplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = useLibraryState();
-  const navigate = useNavigate();
+  const closeRemoved = useCloseRemoved('/library/programs');
+  const open = useOpenEntry();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
 
   const list = (
@@ -33,10 +33,11 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
       categoriesPresent={s.categoriesPresent}
       onQuery={s.setQuery}
       clearFilters={s.clearFilters}
+      filtered={s.filtered}
       activeId={selectedId}
-      onOpen={(e) => openProgram(navigate, e)}
+      onOpen={(e) => open.program(e)}
       onImport={s.importFile}
-      onRemove={s.imported.remove}
+      onRemove={(id) => void s.imported.remove(id).then(() => closeRemoved(id))}
       importError={s.importError}
       onDismissImportError={s.clearImportError}
       prefs={s.prefs}
@@ -47,7 +48,9 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
   // The program view (when loaded) is the same node in both layouts; only the
   // "nothing to show" copy differs — narrow points back to the list (which is
   // hidden behind the back button), wide points at the list beside it.
-  const program = entry?.program ? <ProgramView program={entry.program} /> : null;
+  // Keyed per program: the list and programs share one route now, so without a
+  // key the next program would inherit this one's view state (its scene).
+  const program = entry?.program ? <ProgramView key={entry.id} program={entry.program} /> : null;
 
   // The blueprint frame is mounted HERE rather than on the shell's <main>
   // (routes/root.tsx) on purpose: <main> is shared by every app screen, and
@@ -62,11 +65,14 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
         <CategorySplit
           wide={wide}
           master={list}
-          detail={program ?? <EmptyNote>Pick a program to see its details.</EmptyNote>}
-          narrowDetail={program ?? <EmptyNote>This program isn’t open. Pick it from the Library.</EmptyNote>}
+          detail={program
+            ?? (entry ? <EmptyNote>This slot hasn’t been read from your Nord yet. Read it on the Device page.</EmptyNote>
+              : selectedId ? <NotListedNote noun="program" />
+              : <EmptyNote>Pick a program to see its details.</EmptyNote>)}
           hasDetail={!!selectedId}
-          onBack={() => navigate({ to: '/library/programs' })}
+          list="/library/programs"
           backLabel="← Library"
+          selectedId={selectedId}
         />
       </div>
     </div>

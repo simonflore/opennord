@@ -12,5 +12,5 @@ export { Blueprint, blueprintVariants } from './Blueprint';
 export { Pill } from './Pill';
 export { FileInput } from './FileInput';
 export { SplitView } from './SplitView';
-export { Dialog, type DialogProps } from './Dialog';
+export { Dialog, anyDialogOpen, type DialogProps } from './Dialog';
 export { WriteTargetDialog } from './WriteTargetDialog';

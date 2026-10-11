@@ -11,6 +11,7 @@ import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
 import { enumeratePresets } from '@/lib/device/presets';
 import { modelById } from '@/lib/clavia/partitions';
+import { useListFilters } from '@/lib/library/useListFilters';
 
 /** Merges device + folder presets into one filtered/sorted list and owns the
  *  Presets-screen view state. Mirrors useSamplesStateValue, recognition-only. */
@@ -45,14 +46,17 @@ function usePresetsStateValue() {
   const kinds = presentKinds(allEntries);
 
   const shown = sortPresets(filterPresets(allEntries, source, kind, query), prefs.sort, prefs.favorites);
-  const entryById = (id: string) => allEntries.find((e) => e.id === id);
+  const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
 
-  /** Every filter off and the search cleared (the list's "clear filters"). */
-  const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setKind('all'); }, []);
-  /** Show one entry by name: every filter off, the search set to it (the ⌘K palette's jump). */
-  const reveal = useCallback((name: string) => { clearFilters(); setQuery(name); }, [clearFilters]);
+  // The list's filters, once: `filtered` and the "clear filters" button both read
+  // this, and a filter counts while set even if its facet is hidden right now.
+  const { filtered, clearFilters, ensureListed } = useListFilters(shown, [
+    { active: query.trim() !== '', reset: () => setQuery('') },
+    { active: source !== 'all', reset: () => setSource('all') },
+    { active: kind !== 'all', reset: () => setKind('all') },
+  ]);
   return {
-    all: allEntries, clearFilters, reveal,
+    all: allEntries, clearFilters, filtered, ensureListed,
     shown, source, setSource, kind, setKind, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, kinds, folder, session,
     importPreset: imported.add, removePreset: imported.remove,

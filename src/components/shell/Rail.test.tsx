@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router';
+import { buttonFor } from '../../test-utils/markup';
 import { Rail, type SourceItem } from './Rail';
 import { TopBar } from './TopBar';
 import { PhoneTabs } from './PhoneTabs';
@@ -23,11 +24,6 @@ function render(path: string, opts: { caps?: Partial<Capabilities>; sources?: So
   );
 }
 
-/** The `<button …>` tag that holds `label`. */
-function buttonFor(html: string, label: string): string {
-  const idx = html.indexOf(`>${label}<`);
-  return html.slice(html.lastIndexOf('<button', idx), idx);
-}
 
 describe('Rail', () => {
   it('lists the library with counts, then the tools', () => {
@@ -36,11 +32,6 @@ describe('Rail', () => {
       expect(html).toContain(`>${label}<`);
     }
     expect(html).toContain('>384<');
-    // Every category is ready: no disabled entries (the literal attribute, not
-    // the `disabled:*` variant in the class list).
-    for (const label of ['Programs', 'Presets', 'User Samples', 'Piano Samples']) {
-      expect(buttonFor(html, label)).not.toContain('disabled=""');
-    }
   });
 
   it('marks the open list, including below it', () => {
@@ -48,12 +39,13 @@ describe('Rail', () => {
     expect(buttonFor(render('/library/programs/local:abc'), 'Programs')).toContain('aria-current="page"');
   });
 
-  it('shows sources only when there are some, and moves the highlight to a picked one', () => {
+  it('shows sources only when there are some, and lights the picked one beside Programs', () => {
     expect(render('/library/programs')).not.toContain('Sources');
     const html = render('/library/programs', { sources: [{ source: 'nord', label: 'On Nord', count: 512, live: true }], activeSource: 'nord' });
     expect(html).toContain('Sources');
-    expect(buttonFor(html, 'On Nord')).toContain('aria-current="page"');
-    expect(buttonFor(html, 'Programs')).not.toContain('aria-current');
+    expect(buttonFor(html, 'On Nord')).toContain('aria-pressed="true"');
+    // Programs is still the open page; the source shows what it's filtered to.
+    expect(buttonFor(html, 'Programs')).toContain('aria-current="page"');
   });
 
   it('exposes the developer tools entry', () => {

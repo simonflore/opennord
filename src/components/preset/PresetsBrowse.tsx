@@ -20,7 +20,7 @@ const parsePresetSort = (raw: string): PresetSort =>
   raw === 'name' || raw === 'size' ? raw : 'default';
 
 export function PresetsBrowse({
-  entries, source, setSource, kind, setKind, query, setQuery, clearFilters,
+  entries, source, setSource, kind, setKind, query, setQuery, clearFilters, filtered,
   kinds, showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect, onImport, onRemove, activeId,
 }: {
   entries: PresetEntry[];
@@ -29,6 +29,8 @@ export function PresetsBrowse({
   query: string; setQuery: (q: string) => void;
   /** Every filter off and the search cleared (from the list's context). */
   clearFilters: () => void;
+  /** Whether any filter or search is narrowing the list (from the list's context). */
+  filtered: boolean;
   kinds: PresetKind[];
   showSourceFacet: boolean;
   sort: PresetSort; setSort: (s: PresetSort) => void;
@@ -62,7 +64,6 @@ export function PresetsBrowse({
 
   const sortOptions = (Object.keys(SORT_LABEL) as PresetSort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }));
 
-  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || kind !== 'all';
 
   return (
     <CategoryPanel

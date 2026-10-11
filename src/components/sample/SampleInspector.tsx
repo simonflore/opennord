@@ -40,12 +40,13 @@ interface Loaded {
   strokesByGlobalID: Map<number, DecodedStrokeResult>;
   /** Polyphonic player, null when audio isn't decodable. */
   sampler: Sampler | null;
-  /** Nord factory content — drives the editor's "edit it for your own use" disclaimer. */
-  factory: boolean;
+  /** Loaded from `initial` (the library's sample), not dropped or picked here
+   *  (the user's own file, never factory content). */
+  fromInitial: boolean;
 }
 
 /** What the inspector shows; `id` is the list entry it came from (none for a previewed file). */
-export interface InspectorInput { id?: string; bytes: Uint8Array; name: string; factory?: boolean; }
+export interface InspectorInput { id?: string; bytes: Uint8Array; name: string; }
 
 /**
  * Audition the sample mapped to zone `index`. A zone references its stroke by
@@ -59,7 +60,11 @@ function playZone(loaded: Loaded, index: number): void {
   if (stroke) playPcm(stroke.channels, undefined, stroke.sampleRate);
 }
 
-export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) {
+export function SampleInspector({ initial, factory }: {
+  initial?: InspectorInput;
+  /** Whether `initial` is Nord factory content (never a file dropped or picked here). */
+  factory?: boolean;
+} = {}) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const loadCount = useRef(0);
@@ -104,7 +109,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded?.sampler, loaded?.decodable, setSink, clearSink, transport.refresh]);
 
-  function loadBytes(bytes: Uint8Array, name: string, factory = false) {
+  function loadBytes(bytes: Uint8Array, name: string, fromInitial: boolean) {
     const file = readNsmp(bytes);
     const decodable = file.codec === 3 || file.codec === 4 || file.legacy;
     let decoded: DecodedStrokeResult[] = [];
@@ -137,7 +142,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
         detuneCents, unison: readSampleUnison(bytes), unisonLevel: () => unisonRef.current, alternates: readNoteAlternates(bytes),
       })
       : null;
-    setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current, playableZones, order, strokesByGlobalID, sampler, factory });
+    setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current, playableZones, order, strokesByGlobalID, sampler, fromInitial });
   }
 
   async function onFile(f: File) {
@@ -147,11 +152,11 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     const gen = ++loadCount.current;
     const bytes = await readFileBytes(f);
     if (gen !== loadCount.current) return; // superseded while reading
-    loadBytes(bytes, f.name); // a dropped/picked file is the user's own — not factory
+    loadBytes(bytes, f.name, false); // a dropped/picked file is the user's own — not factory
   }
 
   useEffect(() => {
-    if (initial) { ++loadCount.current; loadBytes(initial.bytes, initial.name, !!initial.factory); }
+    if (initial) { ++loadCount.current; loadBytes(initial.bytes, initial.name, true); }
   }, [initial]);
 
   // Legacy (NWS-container, OG) files edit in place too, but only when the map is
@@ -205,7 +210,8 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                 codec={loaded.file.codec === 4 ? 4 : loaded.file.legacy ? 'og' : 3}
                 legacy={loaded.file.legacy}
                 rootSplitOnly={rootSplitOnly}
-                factory={loaded.factory}
+                // Factory content drives the editor's "edit it for your own use" disclaimer.
+                factory={loaded.fromInitial && !!factory}
                 unison={sampleUnisonView(loaded.bytes)?.summary ?? null}
                 onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
                 onNoteOn={(midi) => { loaded.sampler?.noteOn(midi, 100); transport.refresh(); }}

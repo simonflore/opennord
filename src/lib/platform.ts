@@ -41,3 +41,8 @@ export function isWebPlatform(): boolean {
 
 /** Apple keyboards: ⌘ is the shortcut modifier, and Ctrl+letter edits text. */
 export const isApple = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+
+/** An iPhone (or iPod): the iOS app there has no USB route to the Nord (DriverKit is iPad-only). */
+export function isIphone(): boolean {
+  return typeof navigator !== 'undefined' && /iPhone|iPod/.test(navigator.platform);
+}

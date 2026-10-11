@@ -1,6 +1,6 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, memo, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
-import { READY_CATEGORIES, type CategoryId } from '../../lib/library/categories';
+import { READY_CATEGORIES, isUnder, type CategoryId } from '../../lib/library/categories';
 import type { LibrarySource } from '../../lib/library/types';
 import { BetaBadge } from './BetaBadge';
 import { Led } from './Led';
@@ -26,7 +26,7 @@ interface Props {
   sources: SourceItem[];
   /** The source the program list is filtered to, if any. */
   activeSource: LibrarySource | 'all';
-  /** Filter the program list to a source, or back to everything with 'all'. */
+  /** Show only the programs from one source, or every source again with 'all'. */
   onPickSource: (source: LibrarySource | 'all') => void;
 }
 
@@ -35,16 +35,16 @@ interface Props {
  * in sentence case in the data), the count right-aligned, and the active entry
  * raised with the accent bar on its left edge.
  */
-function Item({ label, active, onClick, count, led, disabled, title, sub }: {
+function Item({ label, active, onClick, count, led, sub, toggle }: {
   label: string;
   active: boolean;
   onClick: () => void;
   count?: number;
   /** Show an LED before the label; true lights it (only "connected" does). */
   led?: boolean;
-  disabled?: boolean;
-  title?: string;
   sub?: boolean;
+  /** A filter rather than a page: announced as pressed, not as the current page. */
+  toggle?: boolean;
 }) {
   return (
     <button
@@ -53,14 +53,12 @@ function Item({ label, active, onClick, count, led, disabled, title, sub }: {
         sub ? 'pl-7 text-[11px]' : 'pl-4',
         'cursor-pointer transition-colors duration-[120ms]',
         'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-focus)]',
-        'disabled:cursor-not-allowed disabled:opacity-50',
         active
           ? rowActive
-          : 'text-dim hover:text-ink hover:[background:color-mix(in_srgb,var(--lift)_3%,transparent)]',
+          : 'text-dim hover:text-ink hover:tint-hover',
       )}
-      aria-current={active ? 'page' : undefined}
-      disabled={disabled}
-      title={title}
+      aria-current={!toggle && active ? 'page' : undefined}
+      aria-pressed={toggle ? active : undefined}
       onClick={onClick}
     >
       {led !== undefined && <Led on={led} tone="connected" />}
@@ -82,14 +80,14 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
 /**
  * The desktop rail: Library (with counts), Sources (where the programs come
  * from) and Tools, then the developer tools, About and the beta label at the
- * foot. The wordmark and the Nord's connection live in the TopBar above; at
+ * foot. Memoised, with memoised data props, so a list change that doesn't move a
+ * count (a search keystroke, a scan tick) doesn't re-render it. The wordmark and the Nord's connection live in the TopBar above; at
  * phone width the rail gives way to PhoneTabs.
  */
-export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSource }: Props) {
+export const Rail = memo(function Rail({ path, onNavigate, counts, sources, activeSource, onPickSource }: Props) {
   const tools = useTools();
-  // An entry is active when the path equals it or sits beneath it (e.g.
-  // /library/programs/$id keeps programs lit).
-  const isActive = (to: string) => path === to || path.startsWith(to + '/');
+  // An entry is active on its page and the pages beneath it (/library/programs/$id keeps programs lit).
+  const isActive = (to: string) => isUnder(path, to);
   const onPrograms = isActive('/library/programs');
 
   return (
@@ -110,9 +108,8 @@ export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSo
             key={c.id}
             label={c.label}
             count={counts[c.id]}
-            // A source filter moves the highlight to Sources.
-            active={isActive(c.path) && !(c.id === 'programs' && activeSource !== 'all')}
-            onClick={() => { if (c.id === 'programs') onPickSource('all'); onNavigate(c.path); }}
+            active={isActive(c.path)}
+            onClick={() => onNavigate(c.path)}
           />
         ))}
       </Group>
@@ -124,9 +121,16 @@ export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSo
               key={s.source}
               label={s.label}
               count={s.count}
+              toggle
               led={s.live}
               active={onPrograms && activeSource === s.source}
-              onClick={() => { onPickSource(s.source); onNavigate('/library/programs'); }}
+              // Pressing the lit source again shows every source.
+              // Off the program list, it also goes there; on it (or a program open
+              // beside it) it only filters, so the open program stays.
+              onClick={() => {
+                onPickSource(onPrograms && activeSource === s.source ? 'all' : s.source);
+                if (!onPrograms) onNavigate('/library/programs');
+              }}
             />
           ))}
         </Group>
@@ -138,8 +142,6 @@ export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSo
             <Item
               label={d.label}
               active={isActive(d.to)}
-              disabled={!!d.disabled}
-              title={d.disabled}
               onClick={() => onNavigate(d.to)}
             />
             {/* Community's own pages, while on it. */}
@@ -169,4 +171,4 @@ export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSo
       </div>
     </nav>
   );
-}
+});

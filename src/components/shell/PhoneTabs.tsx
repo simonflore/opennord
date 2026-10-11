@@ -30,8 +30,9 @@ export function PhoneTabs({ path, onNavigate, onMore }: { path: string; onNaviga
           </button>
         );
       })}
-      <button className={cn(tab, !current ? 'text-ink' : 'text-muted')} onClick={onMore}>
-        <Led on={!current} />
+      {/* More opens the palette (every page), so it's never the "current" section. */}
+      <button className={cn(tab, 'text-muted')} aria-haspopup="dialog" onClick={onMore}>
+        <Led on={false} />
         More
       </button>
     </nav>
