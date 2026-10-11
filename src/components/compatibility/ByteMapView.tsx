@@ -4,10 +4,11 @@ import { cn } from '@/lib/cn';
 
 const COLS = 16;
 
+// Neutral steps, darkest = least known: green and the accent mean other things (tokens.css).
 const CELL_COLOR: Record<RegionStatus, string> = {
-  confirmed: 'bg-connected',
-  candidate: 'bg-warn opacity-75',
-  unknown: 'bg-danger opacity-60',
+  confirmed: 'bg-ink',
+  candidate: 'bg-dim',
+  unknown: 'bg-muted opacity-50',
   constant: 'bg-line',
 };
 const cellCls = (status: RegionStatus) =>
@@ -47,7 +48,7 @@ export function ByteMapView({ progress }: { progress: ModelProgress }) {
   return (
     <div className="mt-4">
       <div className="mb-2 flex items-center gap-1.5 text-xs text-dim">
-        <span className="font-semibold text-connected">{coveredBytes} decoded</span>
+        <span className="font-semibold text-ink">{coveredBytes} decoded</span>
         {candidateBytes > 0 && <><span className="text-muted">·</span><span>{candidateBytes} identified</span></>}
         <span className="text-muted">·</span>
         <span>{controlCount} controls</span>
