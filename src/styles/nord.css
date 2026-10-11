@@ -56,6 +56,11 @@
   margin-left: -1px; border-radius: 2px; background: var(--ink); transform-origin: 50% 170%;
   transform: rotate(calc(-135deg + var(--v) * 2.7deg)); }
 /* Neutral dial (no arc, no pointer) — when there is no real 0–100 value to show. */
+/* A morphed knob: a second arc over the ring, from the value to where the wheel /
+   aftertouch / pedal sweeps it (--m0…--m1 %), in the morph colour. */
+.ps-dial-morph { background:
+  conic-gradient(from 225deg, transparent calc(var(--m0) * 2.7deg), var(--organ-morph) 0 calc(var(--m1) * 2.7deg), transparent 0),
+  conic-gradient(from 225deg, var(--accent) calc(var(--v) * 2.7deg), var(--dial-bg) 0 270deg, transparent 0); }
 .ps-dial-flat { --v: 0; }
 .ps-dial-flat i::after { display: none; }
 .ps-knob b { display: block; font: 500 11px var(--mono); margin-top: 4px; color: var(--ink); }
@@ -98,8 +103,10 @@ button.ps-key { cursor: pointer; }
 .ps-db-tab.white::after { background: var(--organ-db-white); }
 .ps-db-tab.black::after { background: var(--organ-db-black); outline: 1px solid var(--organ-db-black-edge); }
 .ps-db-tab.default::after { background: var(--organ-db-default); }
+/* Where a morph pulls the drawbar to (--mlvl, 0–8): a dashed line at that cap
+   position. Without a plain target it sits under the cap, as a mark only. */
 .ps-db-morph { position: absolute; left: -5px; right: -5px;
-  top: calc(var(--pull) + 2px); border-top: 2px dashed var(--organ-morph); }
+  top: calc((100% - var(--cap)) * var(--mlvl, var(--lvl)) / 8 + var(--cap) + 2px); border-top: 2px dashed var(--organ-morph); }
 .ps-db-foot { font: 400 10px var(--mono); color: var(--muted); }
 
 /* A toggle group is one line: its label, then its LED keys — compact, like a
@@ -198,7 +205,43 @@ button.ps-key { cursor: pointer; }
   border-bottom: 1px solid var(--line); padding-bottom: 3px; }
 .ps-stat-v { font-size: 11px; font-weight: 600; color: var(--ink); text-align: right; font-family: var(--mono); }
 
-.ps-env { margin-top: 11px; }
+/* Small curves (filter response, EQ, wave shapes): data, so flat ink lines. */
+.ps-curve-line { fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.ps-curve-axis { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ps-curve-morph { stroke: var(--organ-morph); stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
+.ps-osc { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ps-osc .ps-lcd { flex: 1; min-width: 0; margin-bottom: 0; }
+.ps-wave { width: 60px; height: 24px; flex: none; }
+/* The filter: its two knobs, then the response they make. */
+.ps-filter { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.ps-curve { flex: 1 1 120px; min-width: 0; }
+.ps-curve-svg { width: 100%; height: 44px; display: block; background: var(--sink); border-radius: var(--r-sm); }
+/* A modulation source (LFO, arpeggiator): a glyph and a line of settings. */
+.ps-mod { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 11px; }
+.ps-mod-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ps-mod-txt b { font: 500 11px var(--mono); color: var(--ink); }
+/* Arpeggiator pattern: one cell per step; an accented step stands taller. */
+.ps-steps { display: flex; align-items: flex-end; gap: 3px; height: 22px; margin: 0; padding: 0; list-style: none; }
+.ps-step { width: 10px; height: 10px; border-radius: 2px; background: var(--text-tertiary);
+  font: 500 8px/10px var(--mono); color: var(--bg); text-align: center; }
+.ps-step.accent { height: 20px; background: var(--ink); }
+.ps-step:nth-child(4n + 1):not(:first-child) { margin-left: 4px; }
+/* The effect chain: every slot in signal order, lit when on. */
+.ps-chain { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ps-slot { background: var(--key-face); box-shadow: var(--key-edge); border-radius: var(--r-sm); padding: 8px 10px;
+  font: 500 12px var(--mono); min-width: 0; color: var(--muted); }
+.ps-slot .t { display: flex; align-items: center; gap: 7px; margin-bottom: 3px;
+  font: 600 10px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.ps-slot .t::before { content: ''; width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--led-off);
+  box-shadow: inset 0 1px 1px rgb(0 0 0 / 60%); }
+.ps-slot.on { color: var(--ink); }
+.ps-slot.on .t { color: var(--ink); }
+.ps-slot.on .t::before { background: var(--accent); box-shadow: var(--led-on-glow); }
+.ps-eq { display: block; width: 100%; height: 24px; margin-top: 6px; }
+
+/* Envelopes sit side by side while the card has room. */
+.ps-envs { display: flex; flex-wrap: wrap; gap: 0 14px; }
+.ps-env { flex: 1 1 110px; min-width: 0; margin-top: 11px; }
 .ps-env-svg { width: 100%; height: 38px; display: block; }
 
 .ps-kbd { width: 100%; display: block; margin: 6px 0 12px; touch-action: none; user-select: none; }

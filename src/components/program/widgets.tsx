@@ -5,7 +5,11 @@
  */
 
 import type { ReactNode } from 'react';
-import type { DrawbarView } from '../../lib/clavia/engine-view';
+import type { ArpView, DrawbarView, FxSlotModel, LfoView } from '../../lib/clavia/engine-view';
+import {
+  eqResponse, filterResponse, freqX, wavePoints, FILTER_ZERO_Y,
+  type CurvePoint, type EqShape, type FilterShape, type WaveShape,
+} from '../../lib/clavia/curves';
 
 interface Morph { wheel?: string; at?: string; pedal?: string }
 
@@ -29,16 +33,35 @@ export function MorphMark({ morph }: { morph: Morph }) {
  * value. Pass `morph`
  * to flag a value that moves with wheel / aftertouch / pedal.
  */
-export function Knob({ value, caption, fill, morph }: { value: string; caption: string; fill?: number; morph?: Morph }) {
+export function Knob({ value, caption, fill, morph, morphFill }: {
+  value: string; caption: string; fill?: number; morph?: Morph;
+  /** Positions (0–100) the morph sources sweep the knob to; drawn as a second arc from the value. */
+  morphFill?: number[];
+}) {
   const hasFill = typeof fill === 'number';
-  const v = hasFill ? Math.max(0, Math.min(100, Math.round(fill))) : 0;
+  const pct = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+  const v = hasFill ? pct(fill) : 0;
+  const swept = hasFill && morphFill?.length ? [v, ...morphFill.map(pct)] : null;
+  const style = !hasFill ? undefined : {
+    ['--v' as string]: v,
+    ...(swept && { ['--m0' as string]: Math.min(...swept), ['--m1' as string]: Math.max(...swept) }),
+  };
+  const cls = !hasFill ? 'ps-dial ps-dial-flat' : swept ? 'ps-dial ps-dial-morph' : 'ps-dial';
   return (
     <div className="ps-knob">
-      <div className={hasFill ? 'ps-dial' : 'ps-dial ps-dial-flat'} style={hasFill ? { ['--v' as string]: v } : undefined}><i /></div>
+      <div className={cls} style={style}><i /></div>
       <b>{value}{morph && <MorphMark morph={morph} />}</b>
       <span>{caption}</span>
     </div>
   );
+}
+
+/** The drawbar positions a morph pulls to; undefined for one that isn't a plain 0–8 (a VOX combo). */
+function morphLevels(m: Morph): (number | undefined)[] {
+  return [m.wheel, m.at, m.pedal].filter((t): t is string => !!t).map((t) => {
+    const n = Number(t);
+    return Number.isInteger(n) && n >= 0 && n <= 8 ? n : undefined;
+  });
 }
 
 /**
@@ -54,7 +77,10 @@ export function DrawbarStack({ drawbars }: { drawbars: DrawbarView[] }) {
           <div className="ps-db-num">{d.label}</div>
           <div className="ps-db-track" style={{ ['--lvl' as string]: Math.max(0, Math.min(8, d.level)) }}>
             <div className={`ps-db-tab ${d.color}`} />
-            {d.morph && <div className="ps-db-morph" title={morphTooltip(d.morph)} />}
+            {d.morph && morphLevels(d.morph).map((lvl, k) => (
+              <div className="ps-db-morph" key={k} title={morphTooltip(d.morph!)}
+                   style={lvl === undefined ? undefined : { ['--mlvl' as string]: lvl }} />
+            ))}
           </div>
           {d.footage && <div className="ps-db-foot">{d.footage}</div>}
         </div>
@@ -215,6 +241,113 @@ export function EnvCurve({ a, d, s, r, caption }: { a: number; d: number; s: num
         <path d={path} fill="none" stroke="var(--ink)" strokeWidth="1.5" strokeLinejoin="round" />
       </svg>
       {caption && <span className="ps-env-cap">{caption}</span>}
+    </div>
+  );
+}
+
+/** Points in a unit box → an SVG path inside a w×h viewBox, inset by `pad`. */
+function curvePath(pts: CurvePoint[], w: number, h: number, pad = 2): string {
+  return pts.map((p, i) => `${i ? 'L' : 'M'}${(pad + p.x * (w - 2 * pad)).toFixed(1)},${(pad + p.y * (h - 2 * pad)).toFixed(1)}`).join(' ');
+}
+
+/**
+ * The filter as a response curve (20 Hz → 20 kHz): where it cuts, how steeply,
+ * and the resonance peak. Dashed ticks mark the cutoffs a morph sweeps to. A
+ * schematic of the setting — the knobs beside it print the values.
+ */
+export function FilterCurve({ filter }: { filter: FilterShape & { morphHz?: number[] } }) {
+  const w = 120, h = 44, pad = 2;
+  const x = (hz: number) => pad + freqX(hz) * (w - 2 * pad);
+  const zero = pad + FILTER_ZERO_Y * (h - 2 * pad);
+  return (
+    <div className="ps-curve">
+      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="ps-curve-svg" role="img"
+           aria-label={`${filter.type} filter response`}>
+        <line x1={pad} x2={w - pad} y1={zero} y2={zero} className="ps-curve-axis" />
+        {filter.morphHz?.map((hz, i) => (
+          <line key={i} x1={x(hz)} x2={x(hz)} y1={pad} y2={h - pad} className="ps-curve-morph" />
+        ))}
+        <path d={curvePath(filterResponse(filter), w, h, pad)} className="ps-curve-line" />
+      </svg>
+      <span className="ps-env-cap">{filter.type} filter</span>
+    </div>
+  );
+}
+
+/** A small wave-shape glyph (an oscillator's or LFO's waveform). */
+export function WaveGlyph({ shape, width, cycles = 2, label }: { shape: WaveShape; width?: number; cycles?: number; label?: string }) {
+  return (
+    <svg viewBox="0 0 60 24" className="ps-wave" role="img" aria-label={label ?? `${shape} wave`}>
+      <path d={curvePath(wavePoints(shape, cycles, width), 60, 24, 3)} className="ps-curve-line" />
+    </svg>
+  );
+}
+
+/** The LFO: its waveform, then speed, depth and what it moves. */
+export function LfoRow({ lfo }: { lfo: LfoView }) {
+  return (
+    <div className="ps-mod">
+      <WaveGlyph shape={lfo.shape} label={`LFO ${lfo.shape}`} />
+      <div className="ps-mod-txt">
+        <span className="ps-env-cap">LFO → {lfo.target}</span>
+        <b>{lfo.rate}{lfo.amount && ` · amt ${lfo.amount}`}{lfo.morph && <MorphMark morph={lfo.morph} />}</b>
+      </div>
+    </div>
+  );
+}
+
+/** The arpeggiator: mode, direction, speed and range; then its step pattern (accents taller, pan as L/R). */
+export function ArpRow({ arp }: { arp: ArpView }) {
+  const settings = [arp.mode, arp.direction, arp.rate, arp.range && `range ${arp.range}`].filter(Boolean).join(' · ');
+  return (
+    <div className="ps-mod ps-arp">
+      <div className="ps-mod-txt">
+        <span className="ps-env-cap">Arpeggiator</span>
+        <b>{settings || 'on'}</b>
+      </div>
+      {arp.steps && (
+        <ol className="ps-steps" aria-label={`Pattern, ${arp.steps.length} steps`}>
+          {arp.steps.map((st, i) => (
+            <li key={i} className={st.accent ? 'ps-step accent' : 'ps-step'}
+                title={`Step ${i + 1}${st.accent ? ' · accent' : ''}${st.pan !== 'C' ? ` · pan ${st.pan}` : ''}`}>
+              {st.pan !== 'C' && <span>{st.pan}</span>}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+/** A three-band EQ curve (bass shelf, swept mid, treble shelf) around a 0 dB line. */
+export function EqCurve({ eq }: { eq: EqShape }) {
+  return (
+    <svg viewBox="0 0 80 24" preserveAspectRatio="none" className="ps-eq" role="img"
+         aria-label={`EQ: bass ${eq.bassDb} dB, mid ${eq.midDb} dB, treble ${eq.trebDb} dB`}>
+      <line x1="2" x2="78" y1="12" y2="12" className="ps-curve-axis" />
+      <path d={curvePath(eqResponse(eq), 80, 24, 2)} className="ps-curve-line" />
+    </svg>
+  );
+}
+
+/**
+ * A layer's effect chain in signal order: every slot is drawn, lit when on and
+ * dimmed when off, so the chain reads at a glance. Amp/EQ draws its EQ curve.
+ */
+export function FxChain({ slots, title = 'FX' }: { slots: FxSlotModel[]; title?: string }) {
+  if (slots.length === 0) return null;
+  return (
+    <div className="ps-card ps-fx">
+      <h4>{title}</h4>
+      <ol className="ps-chain">
+        {slots.map((fx) => (
+          <li key={fx.key} className={fx.on ? 'ps-slot on' : 'ps-slot'} aria-label={`${fx.label} ${fx.on ? 'on' : 'off'}`}>
+            <div className="t">{fx.label}</div>
+            {fx.on ? fx.detail : 'off'}
+            {fx.on && fx.eq && <EqCurve eq={fx.eq} />}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

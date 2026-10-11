@@ -5,6 +5,7 @@ import { LibraryCard } from '../library/LibraryCard';
 import { LibraryEmpty } from '../library/LibraryEmpty';
 import { SlotTag } from '../library/SlotTag';
 import { CardRemoveButton } from '../library/CardRemoveButton';
+import { PresetGlance } from './PresetGlance';
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
@@ -90,6 +91,7 @@ export function PresetsBrowse({
                 onOpen={() => onSelect(e)}
                 selected={e.id === activeId}
                 badge={<SlotTag>{e.slot ?? KIND_LABEL[e.kind]}</SlotTag>}
+                engines={<PresetGlance entry={e} />}
                 footExtras={
                   <>
                     {e.size != null && <SlotTag>{formatBytes(e.size)}</SlotTag>}

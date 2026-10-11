@@ -10,8 +10,8 @@ import { presetVoices, presetParamSections } from '@/lib/ns4/preset-view';
 import { filterRows } from '@/lib/ns4/params-view';
 import { Button } from '@/components/ui';
 import { EngineCard } from '@/components/program/EngineCard';
-import { FxRow } from '@/components/program/FxRow';
-import { IdentityLcd } from '@/components/program/widgets';
+import { MorphList } from '@/components/program/Morphs';
+import { FxChain, IdentityLcd } from '@/components/program/widgets';
 import { ParamsDrawer, type ParamsDrawerGroup } from '@/components/program/AllParamsDrawer';
 
 const KIND_LABEL: Record<PresetEntry['kind'], string> = {
@@ -66,8 +66,9 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
               {stacked && <div className="ps-panel-lbl">Layer {v.letter}</div>}
               <div className="ps-preset-grid">
                 <EngineCard card={v.card} />
-                <FxRow chips={v.fxChips} title="FX" />
+                <FxChain slots={v.fx} />
               </div>
+              <MorphList rows={v.morphs} />
             </section>
           ))}
           <PresetParams preset={decoded} />

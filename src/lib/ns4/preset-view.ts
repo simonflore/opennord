@@ -3,18 +3,19 @@
  * program (see preset.ts), so it renders with the same cards and FX chips the
  * Program view uses — this file only adapts a decoded preset to those shapes.
  */
-import type { EngineCardModel, FxChipModel } from '../clavia/engine-view';
-import { envCurve } from '../clavia/engine-view';
+import type { EngineCardModel, FxSlotModel } from '../clavia/engine-view';
 import type { Ns4Preset } from './preset';
 import type { ParamGroup, ParamRow } from './params-view';
-import { engineCardModel, layerFxChips } from './view';
+import { engineCardModel, layerFxChain, morphRows, type MorphSummaryRow } from './view';
 
 export interface PresetVoiceView {
   letter: 'A' | 'B' | 'C';
   card: EngineCardModel;
-  /** Effects switched on for this voice. Organ presets carry none: the organ's
-   *  effects are program-wide, outside the preset's block. */
-  fxChips: FxChipModel[];
+  /** This voice's effect chain, on and off. Empty for an organ preset: the
+   *  organ's effects are program-wide, outside the preset's block. */
+  fx: FxSlotModel[];
+  /** Controls the wheel, aftertouch or pedal moves, with where each one lands. */
+  morphs: MorphSummaryRow[];
 }
 
 /** One card + FX row per enabled voice of the preset. */
@@ -25,12 +26,16 @@ export function presetVoices(preset: Ns4Preset): PresetVoiceView[] {
     const l = layer.model;
     if (!l) return [];
     // Rotary and vib/chorus type are program-wide organ settings — not in a preset.
-    const base = engineCardModel(l, undefined, false);
-    const title = single ? engine : `${engine} · ${layer.letter}`;
-    const card: EngineCardModel = base.kind === 'synth'
-      ? { ...base, title, filterEnv: envCurve(l.filter?.env) ?? undefined }
-      : { ...base, title };
-    return [{ letter: layer.letter, card, fxChips: layerFxChips(l) }];
+    const card: EngineCardModel = {
+      ...engineCardModel(l, undefined, false),
+      title: single ? engine : `${engine} · ${layer.letter}`,
+    };
+    return [{
+      letter: layer.letter,
+      card,
+      fx: l.kind === 'organ' ? [] : layerFxChain(l),
+      morphs: morphRows(layer.rows, single ? undefined : `Layer ${layer.letter}`),
+    }];
   });
 }
 

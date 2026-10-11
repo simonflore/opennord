@@ -2,7 +2,9 @@ import type { ReactNode } from 'react';
 import type {
   EngineCardModel, OrganPanelModel, PianoCardModel, SynthCardModel, EnvCurveView, Stat,
 } from '../../lib/clavia/engine-view';
-import { DrawbarStack, ModelSelector, ToggleGroup, Knob, Lcd, Meter, StatGrid, EnvCurve } from './widgets';
+import {
+  DrawbarStack, ModelSelector, ToggleGroup, Knob, Lcd, Meter, StatGrid, EnvCurve, FilterCurve, WaveGlyph, LfoRow, ArpRow,
+} from './widgets';
 import { resolveFactory } from '../../lib/device/factory';
 import { ProgramPianoAudition } from './ProgramPianoAudition';
 
@@ -93,14 +95,24 @@ function SynthBody({ m, env, modEnv, filterEnv, stats }: {
   return (
     <>
       <div className="ps-sub">{m.source} oscillator</div>
-      <Lcd primary={m.osc} secondary={secondary} />
-      <div className="ps-knobs">
-        <Knob value={m.cutoff} caption="cutoff" morph={m.cutoffMorph} />
-        <Knob value={m.res} caption="res" morph={m.resMorph} />
+      <div className="ps-osc">
+        <Lcd primary={m.osc} secondary={secondary} />
+        {m.wave && <WaveGlyph shape={m.wave.shape} width={m.wave.width} label={`${m.wave.shape} wave`} />}
       </div>
-      {env && <EnvCurve a={env.a} d={env.d} s={env.s} r={env.r} caption="amp env" />}
-      {modEnv && <EnvCurve a={modEnv.a} d={modEnv.d} s={modEnv.s} r={modEnv.r} caption="mod env" />}
-      {filterEnv && <EnvCurve a={filterEnv.a} d={filterEnv.d} s={filterEnv.s} r={filterEnv.r} caption="filter env" />}
+      <div className="ps-filter">
+        <div className="ps-knobs">
+          <Knob value={m.cutoff} caption="cutoff" fill={m.cutoffFill} morph={m.cutoffMorph} morphFill={m.cutoffMorphFill} />
+          <Knob value={m.res} caption={m.resCaption ?? 'res'} fill={m.resFill} morph={m.resMorph} morphFill={m.resMorphFill} />
+        </div>
+        {m.filter && <FilterCurve filter={m.filter} />}
+      </div>
+      <div className="ps-envs">
+        {env && <EnvCurve a={env.a} d={env.d} s={env.s} r={env.r} caption="amp env" />}
+        {modEnv && <EnvCurve a={modEnv.a} d={modEnv.d} s={modEnv.s} r={modEnv.r} caption="mod env" />}
+        {filterEnv && <EnvCurve a={filterEnv.a} d={filterEnv.d} s={filterEnv.s} r={filterEnv.r} caption="filter env" />}
+      </div>
+      {m.lfo && <LfoRow lfo={m.lfo} />}
+      {m.arp && <ArpRow arp={m.arp} />}
       <StatGrid stats={stats} />
     </>
   );
