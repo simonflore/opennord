@@ -1,7 +1,31 @@
 /* OpenNord design tokens — the single source of truth for color/space/type.
-   Studio Dark is the only theme today; a light theme is a second [data-theme] block. */
+   Studio Dark is the only theme today; a light theme is a second [data-theme] block.
+
+   Palette: the "B×A" direction (2026-10) — a dense graphite console where data
+   stays flat and anything that is a control on the Nord is drawn physical
+   (LEDs, knobs, drawbars, the LCD). Rules that keep it coherent:
+     · ONE accent (--accent): active, selected, or changed. Nothing else.
+     · The LCD green (--lcd-ink on --lcd-screen) is only for identity — the name
+       of the program / sample / piano / device you are looking at.
+     · Engine colours (--engine-*) only mark keyboard zones and engine identity.
+     · Green (--connected) only ever means the Nord is connected. */
 
 @import "tailwindcss";
+
+/* Bundled typefaces (OFL) — self-hosted so the Electron and iPad apps work
+   offline. Latin subset only (covers U+0000–00FF, so Swedish/German program
+   names render in the face); anything outside it falls back to the system font.
+   The full per-weight files would also ship Cyrillic/Vietnamese faces — about
+   half a megabyte in the native bundles — for text this UI never shows. */
+@import "@fontsource/ibm-plex-sans-condensed/latin-300.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-400.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-500.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-600.css";
+@import "@fontsource/ibm-plex-sans-condensed/latin-700.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+@import "@fontsource/ibm-plex-mono/latin-600.css";
+@import "@fontsource/share-tech-mono/latin-400.css";
 
 /* Tailwind's auto content-detection doesn't cross the workspace-package boundary
    into packages/core when the composed app (apps/web) builds, so scan core's own
@@ -9,37 +33,47 @@
    so it stays valid in the standalone public mirror too. */
 @source "../";
 
-/* Tailwind v4 theme — generated utilities resolve to the SAME values as the
-   custom properties below, so `bg-surface` == `background: var(--surface)`.
-   tokens.css stays the single source of truth; this block just exposes the
-   scalar tokens to Tailwind's utility generator. Values are copied verbatim.
-   Composite tokens (gradients, shadows, glows, motion) stay as CSS custom
-   properties below and are used via arbitrary values, e.g. shadow-[var(--shadow-2)]. */
+/* Tailwind v4 theme. The palette, radii and type families are NOT copied here:
+   `@theme inline` points each utility straight at the :root custom property
+   below, so `bg-surface` compiles to `background-color: var(--surface)` and the
+   :root block stays the only place a value is written. Composite tokens
+   (gradients, shadows, glows, motion) stay as CSS custom properties and are used
+   via the semantic @utility classes or arbitrary values, e.g. shadow-[var(--shadow-2)]. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-sink: var(--sink);
+  --color-line: var(--line);
+  --color-devbox-bg: var(--devbox-bg);
+  --color-accent: var(--accent);
+  --color-accent-bright: var(--accent-bright);
+  /* Legacy names for the accent. New code uses `accent`; existing `red`
+     utilities migrate screen by screen. */
+  --color-red: var(--accent);
+  --color-red-bright: var(--accent-bright);
+  --color-connected: var(--connected);
+  --color-lcd-cyan: var(--lcd-cyan);
+  --color-engine-synth: var(--engine-synth);
+  --color-engine-organ: var(--engine-organ);
+  --color-engine-piano: var(--engine-piano);
+  --color-warn: var(--warn);
+  --color-focus: var(--focus);
+  --color-ink: var(--ink);
+  --color-dim: var(--dim);
+  --color-muted: var(--muted);
+  --color-text-on-accent: var(--text-on-accent);
+  --color-text-tertiary: var(--text-tertiary);
+
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+}
+
 @theme {
-  --color-bg: #15171c;
-  --color-surface: #1d2027;
-  --color-surface-2: #23272f;
-  --color-sink: #101216;
-  --color-line: #2b2f39;
-  --color-devbox-bg: #191b21;
-  --color-red: #e0202e;
-  --color-red-bright: #ff5a52;
-  --color-connected: #34d36b;
-  --color-lcd-cyan: #aee9ff;
-  --color-warn: #ffb454;
-  --color-focus: #6aa9ff;
-  --color-ink: #e9ebf0;
-  --color-dim: #8a909c;
-  --color-muted: #6f7480;
-  --color-text-on-accent: #ffffff;
-  --color-text-tertiary: #aeb4c0;
-
-  --radius-sm: 8px;
-  --radius-md: 11px;
-  --radius-lg: 14px;
-
-  --font-sans: -apple-system, system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* ── Display scale — weight follows size ───────────────────────────────────
      The weight/leading/tracking travel WITH the size token, so a component
@@ -64,9 +98,9 @@
   --text-display-3--letter-spacing: -0.02em;
 
   /* The blueprint grid's own step. A dashed rule shows roughly half the ink of
-     a solid one, and --line (#2b2f39) is already near threshold on --bg
-     (#15171c), so the grid would vanish if it reused --line. */
-  --color-grid: #343a47;
+     a solid one, and --line (#2c2e33) is already near threshold on --bg
+     (#18191b), so the grid would vanish if it reused --line. */
+  --color-grid: #3a3c42;
 
   /* The editorial content column. HomeView's CONTENT and the Blueprint frame
      both resolve to this, so they cannot drift apart. NOTE: the app shell's
@@ -120,33 +154,52 @@
 :root,
 :root[data-theme='dark'] {
   /* surfaces */
-  --bg: #15171c;
-  --surface: #1d2027;
-  --surface-2: #23272f;
-  --sink: #101216;       /* rail, inputs */
-  --line: #2b2f39;
-  --devbox-bg: #191b21;  /* device-status box on the rail (between bg and surface) */
+  --bg: #18191b;
+  --surface: #1b1c1f;
+  --surface-2: #202124;  /* an instrument module (engine card, inspector panel) */
+  --sink: #141517;       /* rail, inputs, recessed tracks */
+  --line: #2c2e33;
+  --devbox-bg: #1e1f22;  /* device-status box on the rail (between bg and surface) */
   --scrim: rgb(0 0 0 / 60%);  /* modal/dialog backdrop over the app */
 
   /* accent + state */
-  --red: #e0202e;
-  --red-bright: #ff5a52;
-  --connected: #34d36b;
-  --lcd-cyan: #aee9ff;
+  --accent: #ff6a1a;        /* the ONE signal: active, selected, changed */
+  --accent-bright: #ff8c4f; /* accent as text/hover on dark surfaces */
+  --red: var(--accent);     /* legacy name — migrates to --accent screen by screen */
+  --red-bright: var(--accent-bright);
+  --connected: #47e27f;     /* only ever means "the Nord is connected" */
+  --lcd-cyan: #aee9ff;      /* secondary info cue (format tags, x-fade); not the LCD itself */
+
+  /* The LCD: identity only — the name of what you're looking at. */
+  --lcd-screen: #0a130e;
+  --lcd-ink: #a6f7cf;
+  --lcd-glow: 0 0 6px rgb(120 255 190 / 40%);
+  --lcd-bezel: inset 0 2px 6px rgb(0 0 0 / 90%), inset 0 0 0 1px #000000, 0 1px 0 rgb(255 255 255 / 6%);
+
+  /* Engine identity — keyboard zones, engine tags, zone strips. Nothing else. */
+  --engine-synth: #4a9be8;
+  --engine-organ: #c98a2b;
+  --engine-piano: #d9d3c5;
+
+  /* LEDs and LED buttons — the physical on/off state of a Nord control. */
+  --led-off: #3b2a20;
+  --led-on-glow: 0 0 7px var(--accent);
+  --key-face: linear-gradient(#34353a, #27282c);   /* an LED button's cap */
+  --key-edge: 0 2px 0 #111214, inset 0 1px 0 rgb(255 255 255 / 9%);
   --warn: #ffb454;
   --focus: #6aa9ff;      /* keyboard focus ring — distinct from --red action */
 
   /* text */
-  --ink: #e9ebf0;
-  --dim: #8a909c;
-  --muted: #6f7480;
-  --text-on-accent: #ffffff;   /* text on --red fills (buttons, active chips) */
-  --text-tertiary: #aeb4c0;    /* tag/chip label — one step brighter than --dim */
+  --ink: #ecebe6;
+  --dim: #9a9a94;
+  --muted: #85857f;            /* ≥4.5:1 on --bg */
+  --text-on-accent: #141414;   /* text on --accent fills — white fails contrast on orange */
+  --text-tertiary: #c9c8c2;    /* tag/chip label — one step brighter than --dim */
 
   /* radius */
-  --r-sm: 8px;
-  --r-md: 11px;
-  --r-lg: 14px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
 
   /* ── Depth & material ──────────────────────────────────────────────────────
      The front-panel feel: surfaces are lit from above, so they carry a faint
@@ -194,31 +247,36 @@
   /* Organ drawbar tab colors — the classic Hammond brown/white/black coding.
      Documented exception to "no hardcoded color" (like the LCD blues): these are
      instrument-faithful drawbar colors, kept as named tokens so the rule holds. */
-  --organ-db-brown: #7a4a2a;
-  --organ-db-white: #efeff1;
-  --organ-db-black: #15151a;
+  --organ-db-brown: #5a2f1c;
+  --organ-db-white: #efece4;
+  --organ-db-black: #1d1d1f;
+  /* The pulled-out drawbar rod (chrome) and the cap's top-lit bevel. */
+  --organ-db-rod: linear-gradient(90deg, #8d8f94, #e3e4e6 45%, #9a9ca1);
+  --organ-db-cap-hi: inset 0 1px 0 rgb(255 255 255 / 35%), 0 3px 5px rgb(0 0 0 / 60%);
+  /* Recess depths: a drawbar slot (deep) and a meter track (shallow). */
+  --slot-inset: inset 0 2px 4px #000000;
+  --track-inset: inset 0 1px 2px #000000;
   --organ-db-default: var(--red-bright);
   --organ-morph: var(--lcd-cyan);
-  --organ-db-track: #0c0c0e;
+  --organ-db-track: #0f1012;
   --organ-db-black-edge: #3a3a42;
-  --organ-on-bg: #2a1416;
 
   /* Instrument-panel surfaces — faithful front-panel greys/LCD, like the organ
      drawbars above. Tokenized so the "no hardcoded color" rule holds in nord.css. */
-  --dial-bg: #353d4b;
-  --dial-shell-hi: #4c5563;    /* radial highlight at top of a dial */
-  --meter-track: #333b49;
-  --fx-border: #5b6472;
+  --dial-bg: #34363b;          /* the unlit part of a knob's value ring */
+  --dial-shell-hi: #5b5d62;    /* radial highlight at top of a dial */
+  --meter-track: var(--sink);
+  --fx-border: #45474d;
   --deps-bg: #221b1d;
   --deps-border: #43222a;
   --deps-ink: #ff7a72;         /* dependency warning text (brighter red) */
-  --lcd-bg: #10384e;           /* sample-waveform LCD backdrop */
-  --lcd-deep: #0d2a3a;         /* LCD gradient floor */
-  --lcd-edge: #1d5775;         /* LCD bezel border */
-  --wave: #ff3b3b;             /* waveform trace */
-  --accent-soft: rgba(224, 32, 46, 0.18); /* translucent red — loop region on the waveform */
-  --panel-pill: #2c3340;       /* dark pill/chip backdrop on the panel */
-  --dial-shell-lo: #171b22;    /* dial inner shadow floor */
+  --wave-bg: var(--sink);      /* sample-waveform backdrop — flat data, not an LCD */
+  --wave: var(--ink);          /* waveform trace */
+  /* Loop region on the waveform. A literal, not color-mix(): WaveCanvas hands it
+     to a canvas fillStyle, which older WebKit (iPad) can't parse color-mix() in. */
+  --accent-soft: rgba(255, 106, 26, 0.14);
+  --panel-pill: #26272b;       /* dark pill/chip backdrop on the panel */
+  --dial-shell-lo: var(--bg);  /* dial inner shadow floor */
   /* Keyboard-zone fills — a 6-hue data-viz palette for the zone map. */
   --zone-1: #2f4a59;
   --zone-2: #473a59;
@@ -247,8 +305,9 @@
   --di-y: #4f8cff;        /* synth */
 
   /* type */
-  --font: -apple-system, system-ui, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font: 'IBM Plex Sans Condensed', -apple-system, system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-lcd: 'Share Tech Mono', 'IBM Plex Mono', ui-monospace, monospace;
 }
 
 /* Global default so any unstyled text uses the UI font, not the browser serif. */

@@ -9,7 +9,9 @@ Use utilities for chrome; keep `nord.css` + composite tokens as CSS.
 | hairline border | `border border-line` | `1px solid var(--line)` |
 | primary text | `text-ink` | `var(--ink)` |
 | dim/muted text | `text-dim` / `text-muted` | `var(--dim)/(--muted)` |
-| red accent | `bg-red text-text-on-accent` | `var(--red)` |
+| accent (active · selected · changed) | `bg-accent text-text-on-accent`, `text-accent` | `var(--accent)` (legacy name `--red`, `bg-red`) |
+| engine identity (zones, tags) | `text-engine-synth/organ/piano` | `var(--engine-*)` |
+| values, slots, sizes | `font-mono` (IBM Plex Mono) | `var(--mono)` |
 | radius | `rounded-sm/md/lg` | `var(--r-sm/md/lg)` |
 | display type (weight follows size) | `text-display-1/2/3` | — |
 | blueprint grid line | `border-grid` / `bg-grid` | `var(--color-grid)` |
@@ -29,20 +31,22 @@ vocabulary, never inline `[background:var(--…)]` in components:
 | Utility | is | use for |
 |---|---|---|
 | `fill-surface` / `fill-raised` / `fill-sink` | top-lit gradient fills | panels, cards, raised controls |
-| `fill-primary` | red gradient | primary CTA fills |
+| `fill-primary` | accent gradient | primary CTA fills |
 | `edge-hi` | top bevel highlight | — |
 | `elev-1` / `elev-2` / `elev-3` | edge-hi + shadow-1/2, or shadow-3 | resting / raised / floating |
 | `inset-1` | recessed shadow | pressed, sunken inputs |
-| `glow` / `glow-hi` | red halo (+ shadow-2) | primary affordance / its hover |
+| `glow` / `glow-hi` | accent halo (+ shadow-2) | primary affordance / its hover |
 
 **Pattern (the Button is the reference):** `cva` for variants + `cn()` to merge;
 raw utilities for layout/spacing/color; the vocabulary above for composites.
 Interactive primitives (Dialog, Menu, Tabs, Toast, Tooltip, Select) → Radix,
 copied-in shadcn-style, styled with these utilities.
 
-**Never** put a raw hex in a component. New colors go in `tokens.css` + `@theme`;
+**Never** put a raw hex in a component. A new color is written once, in the `:root`
+block of `tokens.css`, and exposed as `--color-x: var(--x)` in `@theme inline`;
 new composite treatments go in the `@utility` block in tokens.css.
-Instrument visuals (dials/LCD/drawbars/waveform) stay in `nord.css`.
+Instrument visuals (dials/LCD/drawbars/waveform) stay in `nord.css`; every state of
+them renders on the dev-only `/dev/kit` page — check it after touching either file.
 
 ## The blueprint register (spec: the maintainers’ notes)
 
