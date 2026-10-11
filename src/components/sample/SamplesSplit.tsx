@@ -4,6 +4,7 @@ import { SampleInspector, type InspectorInput } from './SampleInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
 import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSamplesState } from '@/lib/library/SamplesContext';
+import { useDevice } from '@/lib/device/DeviceContext';
 import { useSplitLayout } from '@/lib/responsive';
 import { getErrorMessage } from '../../lib/errors';
 import { readFileBytes } from '../../lib/file';
@@ -44,6 +45,10 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
 
   const reading = useRef<{ key: string; stop: AbortController } | null>(null);
   useEffect(() => () => { reading.current?.stop.abort(); reading.current = null; }, []);
+  // A new Nord session reads afresh: a Nord sample's id names its slot, and the
+  // slot may hold another sample now.
+  const { session } = useDevice();
+  useEffect(() => { reading.current?.stop.abort(); reading.current = null; }, [session]);
   useEffect(() => {
     const key = selectedId ? `${selectedId}\n${attempt}` : '';
     if (reading.current?.key === key) return; // this sample's read has started
@@ -68,7 +73,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
       (bytes) => { if (live()) setInspect({ id: e.id, bytes, name: e.name, factory: e.factory }); },
       (err) => { if (live()) setPullError(`Could not read ${e.name}: ${getErrorMessage(err)}`); },
     ).finally(() => { if (live()) setPullPct(null); });
-  }, [selectedId, known, attempt]);
+  }, [selectedId, known, attempt, session]);
 
   // Back to the bare list (which closes the open sample and drops its read).
   const toList = () => { if (selectedId) navigate({ to: '/library/samples' }); };
@@ -115,8 +120,8 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         showSourceFacet={s.showSourceFacet} showUnknownGen={s.showUnknownGen}
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters} filtered={s.filtered}
-        // Clicking the open sample again retries it, but only when it didn't open.
-        onOpen={(e) => (e.id !== selectedId ? openSample(navigate, e.id) : !inspect && pullPct === null && setAttempt((n) => n + 1))}
+        // Clicking the open sample again retries it, but only when its read failed.
+        onOpen={(e) => (e.id !== selectedId ? openSample(navigate, e.id) : pullError && setAttempt((n) => n + 1))}
         onLoadNew={startLoadNew}
         activeId={selectedId ?? null}
         onImport={importSample}
@@ -128,12 +133,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         selected={s.selected} toggleSelected={s.toggleSelected}
         selectAllUnused={s.selectAllUnused} clearSelected={s.clearSelected}
         selectedFreeBytes={s.selectedFreeBytes}
-        removeFromNord={async (opts) => {
-          const ids = [...s.selected];
-          const result = await s.removeFromNord(opts);
-          if (result.removed) closeRemoved(navigate, '/library/samples', selectedId, ids);
-          return result;
-        }}
+        removeFromNord={s.removeFromNord}
         removing={s.removing} removePct={s.removePct}
       />
     </div>
@@ -152,7 +152,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const hasDetail = loadNew || inspect !== null || !!selectedId;
   const detail = loadNew || inspect ? inspector
     : !selectedId ? <EmptyNote>Pick a sample to inspect it.</EmptyNote>
-    : !known ? <EmptyNote>This sample isn’t in your library (yet). Pick it from the list.</EmptyNote>
+    : !known ? <EmptyNote>This sample isn’t in your library right now. Pick one from the list.</EmptyNote>
     : pullError ? <div role="alert"><EmptyNote>{pullError} Click it in the list to try again.</EmptyNote></div>
     : <EmptyNote>Reading the sample…{pullPct !== null && ` ${pullPct}%`}</EmptyNote>;
 

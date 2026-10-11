@@ -54,7 +54,7 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
 
   const detail = entry
     ? <PresetInspector key={entry.id} entry={entry} session={s.session} />
-    : selectedId ? <EmptyNote className="p-4">This preset isn’t in your library (yet). Pick it from the list.</EmptyNote>
+    : selectedId ? <EmptyNote className="p-4">This preset isn’t in your library right now. Pick one from the list.</EmptyNote>
     : <EmptyNote className="p-4">Pick a preset to see its details.</EmptyNote>;
 
   return (

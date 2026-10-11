@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { closeRemoved, openPiano } from '@/components/library/openEntry';
+import { openPiano } from '@/components/library/openEntry';
 import { usePianosState } from '@/lib/library/PianosContext';
 import { PianosBrowse } from './PianosBrowse';
 import { PianoInspector } from './PianoInspector';
@@ -34,12 +34,7 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
         selected={s.selected} toggleSelected={s.toggleSelected}
         selectAllUnused={s.selectAllUnused} clearSelected={s.clearSelected}
         selectedFreeBytes={s.selectedFreeBytes}
-        removeFromNord={async (opts) => {
-          const ids = [...s.selected];
-          const result = await s.removeFromNord(opts);
-          if (result.removed) closeRemoved(navigate, '/library/pianos', selectedId, ids);
-          return result;
-        }}
+        removeFromNord={s.removeFromNord}
         removing={s.removing} removePct={s.removePct}
       />
     </div>
@@ -47,7 +42,7 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
 
   const detail = entry
     ? <PianoInspector key={entry.id} entry={entry} session={s.session} />
-    : selectedId ? <EmptyNote className="p-4">This piano isn’t in your library (yet). Pick it from the list.</EmptyNote>
+    : selectedId ? <EmptyNote className="p-4">This piano isn’t in your library right now. Pick one from the list.</EmptyNote>
     : <EmptyNote className="p-4">Pick a piano to see its details.</EmptyNote>;
 
   return (
