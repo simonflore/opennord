@@ -2,21 +2,19 @@ import { Link } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
 import { DeviceStatus } from './DeviceStatus';
 import { Wordmark } from './Wordmark';
-
-/** The shortcut key's name on this platform, for the ⌘K hint. */
-const MOD_KEY = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl ';
+import { isApple } from '../../lib/platform';
 
 /**
  * The console's top bar: the wordmark, the ⌘K jump-to field (a button that
- * opens the palette) and the Nord's connection on the right. Sticky, 44px, so
- * the rail below it can size itself from the same number.
+ * opens the palette) and the Nord's connection on the right. Sticky, and
+ * `--topbar-h` tall (shell.css), so the rail below sizes itself from the same value.
  */
 export function TopBar({ onSearch, onManageDevice }: { onSearch: () => void; onManageDevice: () => void }) {
   return (
     <header
       className={cn(
         // `on-topbar`: hook for the native shell's safe-area inset (shell.css).
-        'on-topbar sticky top-0 z-30 flex h-11 flex-none items-center gap-4 border-b border-line bg-surface px-4',
+        'on-topbar sticky top-0 z-30 flex h-[var(--topbar-h)] flex-none items-center gap-4 border-b border-line bg-surface px-4',
         'max-[720px]:gap-3 max-[720px]:px-3',
       )}
     >
@@ -33,7 +31,7 @@ export function TopBar({ onSearch, onManageDevice }: { onSearch: () => void; onM
           'max-[720px]:max-w-none',
         )}
       >
-        <kbd className="flex-none rounded-[3px] border border-line px-1.5 py-px font-mono text-[10px] text-dim max-[720px]:hidden">{MOD_KEY}K</kbd>
+        <kbd className="flex-none rounded-[3px] border border-line px-1.5 py-px font-mono text-[10px] text-dim max-[720px]:hidden">{isApple ? '⌘' : 'Ctrl '}K</kbd>
         <span className="truncate">Go to a program, sample or page…</span>
       </button>
       <div className="ml-auto flex-none">

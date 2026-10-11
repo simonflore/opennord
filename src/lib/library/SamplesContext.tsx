@@ -146,8 +146,10 @@ function useSamplesStateValue() {
     }
   }
 
+  /** Show one entry by name: every filter off, the search set to it (the ⌘K palette's jump). */
+  const reveal = (name: string) => { setSource('all'); setGeneration('all'); setCategory('all'); setUnusedOnly(false); setQuery(name); };
   return {
-    all: allEntries,
+    all: allEntries, reveal,
     shown, source, setSource, generation, setGeneration,
     category, setCategory, categoriesPresent, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, showUnknownGen, folder,

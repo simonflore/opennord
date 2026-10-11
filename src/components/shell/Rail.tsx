@@ -100,7 +100,7 @@ export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSo
         // Capacitor safe-area insets on top of the utilities below.
         'on-rail',
         'flex w-[196px] flex-none flex-col gap-[18px] box-border py-3.5 fill-sink border-r border-line',
-        'sticky top-11 h-[calc(100vh-44px)] self-start overflow-y-auto',
+        'sticky top-[var(--topbar-h)] h-[calc(100vh-var(--topbar-h))] self-start overflow-y-auto',
         'max-[720px]:hidden',
       )}
     >

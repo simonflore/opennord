@@ -6,6 +6,7 @@ import { TopBar } from '@/components/shell/TopBar';
 import { PhoneTabs } from '@/components/shell/PhoneTabs';
 import { CommandPalette } from '@/components/shell/CommandPalette';
 import { useRailData } from '@/components/shell/useShell';
+import { isApple } from '@/lib/platform';
 
 /** The persistent app shell: top bar, left rail (phone: bottom tabs) + routed content outlet. */
 export const rootRoute = createRootRoute({ component: RootLayout });
@@ -29,13 +30,13 @@ function AppShell({ path }: { path: string }) {
   const rail = useRailData();
   const [palette, setPalette] = useState(false);
 
-  // ⌘K / Ctrl+K opens the palette from anywhere in the app.
+  // ⌘K (Ctrl+K off the Mac, where Ctrl+K in a text field is "delete to end of
+  // line") opens the palette, or closes it again; it never opens over another dialog.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setPalette((o) => !o);
-      }
+      if (e.key.toLowerCase() !== 'k' || !(isApple ? e.metaKey : e.ctrlKey)) return;
+      e.preventDefault();
+      setPalette((open) => !open && !document.querySelector('[role="dialog"]'));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

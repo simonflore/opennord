@@ -8,6 +8,7 @@ import { useLibraryState } from '../../lib/library/LibraryContext';
 import { usePresetsState } from '../../lib/library/PresetsContext';
 import { useSamplesState } from '../../lib/library/SamplesContext';
 import { usePianosState } from '../../lib/library/PianosContext';
+import { openProgram } from '../library/openProgram';
 import { rankCommands, type Command, type CommandGroup } from './commands';
 import { ABOUT, DEV_DESTS, useTools, type NavTo } from './nav';
 import { groupLabel, rowActive } from './styles';
@@ -26,22 +27,19 @@ function useCommands(): Command[] {
   return useMemo(() => {
     const pages: Command[] = [
       ...READY_CATEGORIES.map((c) => ({ to: c.path, label: c.label })),
-      ...tools,
+      // A tool that can't be used here (Device without USB) is left out, as the rail greys it out.
+      ...tools.filter((d) => !d.disabled),
       ...(__RE__ ? DEV_DESTS : []),
       ABOUT,
     ].map((d) => ({ id: `page:${d.to}`, group: 'Pages', label: d.label, run: () => navigate({ to: d.to }) }));
 
     const programs = library.all.map((e): Command => ({
       id: `program:${e.id}`, group: 'Programs', label: e.name, hint: hint(e),
-      run: () => {
-        library.setSource('all');
-        if (e.program) navigate({ to: '/library/programs/$programId', params: { programId: e.id } });
-        else navigate({ to: '/device' });
-      },
+      run: () => openProgram(navigate, e),
     }));
 
     // Presets, samples and pianos have no page of their own: jumping to one opens
-    // its list searched down to that name.
+    // its list with every filter off, searched down to that name.
     const lists: [CommandGroup, NavTo, typeof presets | typeof samples | typeof pianos][] = [
       ['Presets', '/library/presets', presets],
       ['Samples', '/library/samples', samples],
@@ -49,7 +47,7 @@ function useCommands(): Command[] {
     ];
     const entries = lists.flatMap(([group, to, list]) => list.all.map((e): Command => ({
       id: `${group}:${e.id}`, group, label: e.name, hint: hint(e),
-      run: () => { list.setSource('all'); list.setQuery(e.name); navigate({ to }); },
+      run: () => { list.reveal(e.name); navigate({ to }); },
     })));
 
     return [...pages, ...programs, ...entries];

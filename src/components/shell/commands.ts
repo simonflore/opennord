@@ -15,12 +15,16 @@ export interface Command {
 
 const GROUP_ORDER: Record<CommandGroup, number> = { Pages: 0, Programs: 1, Presets: 2, Samples: 3, Pianos: 4 };
 
-/** 0 = the text starts with the word, 1 = a later word does, 2 = it's inside a word, -1 = absent. */
+const SEP = /[\s\-_:·/(]/;
+
+/** 0 = the text starts with the word, 1 = a later word does, 2 = it's only inside a word, -1 = absent. */
 function wordScore(text: string, word: string): number {
-  const at = text.indexOf(word);
-  if (at < 0) return -1;
-  if (at === 0) return 0;
-  return /[\s\-_:·/(]/.test(text[at - 1]) ? 1 : 2;
+  let best = -1;
+  for (let at = text.indexOf(word); at >= 0 && best !== 0; at = text.indexOf(word, at + 1)) {
+    const s = at === 0 ? 0 : SEP.test(text[at - 1]) ? 1 : 2;
+    if (best < 0 || s < best) best = s;
+  }
+  return best;
 }
 
 // The lowercased text a command is searched by, built once per command rather
@@ -33,9 +37,11 @@ function textOf(c: Command): string {
 }
 
 /**
- * Every word of the query must appear in the label (or its hint). Better matches
- * first, then pages before programs before presets…, then shorter labels. With
- * no query, only the pages: the palette then works as a menu.
+ * Every word of the query must appear in the label (or its hint). The best
+ * `limit` matches are kept (better match, then shorter label), then listed by
+ * group — pages, programs, presets, samples, pianos — best first within each,
+ * so every group heading appears once. With no query, only the pages: the
+ * palette then works as a menu.
  */
 export function rankCommands(commands: Command[], query: string, limit = 50): Command[] {
   const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -56,5 +62,6 @@ export function rankCommands(commands: Command[], query: string, limit = 50): Co
     || GROUP_ORDER[a.c.group] - GROUP_ORDER[b.c.group]
     || a.c.label.length - b.c.label.length
     || (a.text < b.text ? -1 : a.text > b.text ? 1 : 0));
-  return scored.slice(0, limit).map((s) => s.c);
+  // Array#sort is stable, so this keeps the ranking inside each group.
+  return scored.slice(0, limit).sort((a, b) => GROUP_ORDER[a.c.group] - GROUP_ORDER[b.c.group]).map((s) => s.c);
 }

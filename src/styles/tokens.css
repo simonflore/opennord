@@ -52,6 +52,7 @@
   --color-red: var(--accent);
   --color-red-bright: var(--accent-bright);
   --color-connected: var(--connected);
+  --color-led-off: var(--led-off);
   --color-lcd-cyan: var(--lcd-cyan);
   --color-engine-synth: var(--engine-synth);
   --color-engine-organ: var(--engine-organ);
@@ -144,6 +145,11 @@
 @utility inset-1      { box-shadow: var(--shadow-inset); }
 @utility glow         { box-shadow: var(--glow-red); }
 @utility glow-hi      { box-shadow: var(--glow-red), var(--shadow-2); }
+/* A lit LED's halo: accent for selected/open, connected-green for "a Nord is connected". */
+@utility led-glow           { box-shadow: var(--led-on-glow); }
+@utility led-glow-connected { box-shadow: var(--led-connected-glow); }
+/* The selected row's accent bar on its left edge (rail entries, palette results). */
+@utility accent-bar   { box-shadow: inset 3px 0 0 var(--accent); }
 
 :root,
 :root[data-theme='dark'] {
@@ -178,6 +184,7 @@
   /* LEDs and LED buttons — the physical on/off state of a Nord control. */
   --led-off: #3b2a20;
   --led-on-glow: 0 0 7px var(--accent);
+  --led-connected-glow: 0 0 7px var(--connected);
   --key-face: linear-gradient(#34353a, #27282c);   /* an LED button's cap */
   --key-edge: 0 2px 0 #111214, inset 0 1px 0 rgb(255 255 255 / 9%);
   /* The keyboard drawn under the zone map. */
