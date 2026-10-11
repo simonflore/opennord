@@ -36,7 +36,7 @@ checkNpnoAcceptance(bytes, { deep: true, model: 'stage-3', fileName }); // every
   input the file can't hold (overlapping or fractional key ranges, a version minor outside 0–9,
   an unknown `pianoType`, a recording too long for the u16 block count) or a Nord won't load
   (more than 5,279 recordings, more than 30 layers in a zone, a name whose file name runs past
-  32 characters; see [Limits](#limits-on-all-three-models)), and on zones whose recorded notes
+  32 characters; see [Limits](#limits)), and on zones whose recorded notes
   don't rise with their keys: the file stores notes by root and the key map by key, so the two
   orders must agree. It then runs `checkNpnoAcceptance` on the result (with its file name) and
   refuses to return a file that fails it.
@@ -58,9 +58,16 @@ checkNpnoAcceptance(bytes, { deep: true, model: 'stage-3', fileName }); // every
 - `encodeNpnoStroke(stroke, channels)`: the block encoder on its own.
 - `checkNpnoAcceptance(bytes, { deep, model, fileName })`: the checks we found in NSM and the
   Stage 2/3/4 firmware (list below), plus a structural walk and, with `deep`, a full decode.
-  `model` (`'stage-2' | 'stage-3' | 'stage-4'`, default `'stage-4'`) sets the voice-table size;
+  `model` (any model id, default `'stage-4'`) sets the piano versions the instrument loads and
+  its voice-table size, from `src/lib/clavia/media-compat.ts` (see
+  [Which version loads where](#which-version-loads-where)). A file the model doesn't take fails
+  `stage4-generation` in plain words ("This Nord loads pianos up to version 5; this file is
+  version 6"); a model without a piano section returns the single failed check `model-pianos`.
   `fileName` adds the 32-character name check. The voice-table check can only hold one file to
   an empty instrument (see below).
+- `buildNpno({ …, model })` refuses a model that doesn't load version 6 pianos (v5-only models,
+  models without pianos) with a plain-words error, and checks its output against that model.
+  It doesn't write v5 from scratch: v5 records store the layer floor and level differently.
 
 `readNsp`, `readNspIdentity`, `readNspDirectory`, `decodeNspStroke`, `identifyNsmp` and the folder
 classifier all read the output, including a one-zone piano (`readNsp` takes a single zone when
@@ -203,15 +210,59 @@ on the Stage 3 and "Piano is broken" on the Stage 2. Differences:
   of `writeNpnoImage` is for those older systems.
 - Neither gate checks the CNSP byte sum or either CRC (medium confidence).
 
-### Limits on all three models
+### Which version loads where
+
+One row per model, from the instrument firmware (static analysis of Nord's public OS updaters;
+knowledge only, `docs/LEGAL.md`). The code copy, with the function behind each row, is
+`src/lib/clavia/media-compat.ts`. Confidence: high = seen in code or data, medium = inferred
+(pattern match, shared code).
+
+| Model (OS read) | Piano versions loaded | Voice table | Stroke limit | Source | Confidence |
+|---|---|---|---|---|---|
+| Stage 4 (1.66) | v5, v6 | 0x6000 | 0x149F | gate `0xC00B92E4`, manager `0xC0249AC4`, loader `0xC00B47B8`, limit `0xC00B5618` | high |
+| Stage 3 (2.64) | v5, v6 (NSM offers v6 on OS ≥ 1.61) | 0x6000 | 0x149F | gate `0xC011A4EC`, table `0xC0119040`, limit `0xC01170EC` | high |
+| Stage 2 (3.00) | v5, v6 (NSM offers v6 on OS ≥ 2.29) | 0x4000 | 0x149F | gate `0x30175C08`, table `0x301745DC`, limit `0x30173736` | high |
+| Stage 2 EX | as the Stage 2 (same OS) | 0x4000 | 0x149F | not read separately | medium |
+| Electro 5 (2.04) | v5, v6 | 0x4000 | 0x149F | gates `FUN_3011DB4E` / `FUN_3011E9AC`, manager `FUN_3011D590(…, 5, 0x78)` | high |
+| Piano 3 (2.04) | v5, v6 | 0x4000 | 0x149F | gates `FUN_3006338E` / `FUN_30063C08`, manager `FUN_30062F08(…, 5, 0x78)` | high |
+| Electro 6 (2.66) | v5, v6 | not read | not read | gate `FUN_c00d5828` (Stage 3 ladder), manager {4, 120, 5} at `c00005e8` | high |
+| Electro 7 (1.30) | v5, v6 | not read | not read | gate `FUN_c0158fe0`, manager {2, 120, 5} at `c000c794` | medium |
+| Piano 4 (2.66) | v5, v6 | 0x6000 | 0x149F | gate `FUN_c00ae1a4` (= Stage 3), limit `FUN_c00aa8e8` | high |
+| Piano 6 (1.20) | v5, v6 | 0x6000 | 0x149F | gate `FUN_c0095a64`, limit `FUN_c00a1e5c` | high |
+| Grand (1.68), Piano 5 (1.34), Grand 2 (1.22) | v5, v6 | 0x6000 | 0x149F | the same compare pattern (Grand `c00b75fc`, Piano 5 `c0083f6c`, Grand 2 `c0095a04`), not decompiled; limit constants present | medium |
+| Electro 3 (3.14) | **v4, v5** | not read | not read | gate `FUN_300422F8` | high |
+| Electro 3 HP (3.16) | **v5 only** | not read | not read | gate `FUN_3004283E` | high |
+| Electro 4 (1.22) | **v5 only** | not read | not read | gate `FUN_30049D4E` | high |
+| Piano 1 (1.50) | **v5 only** (v6 is unknown to the loader, status 4) | not read | not read | loader `FUN_3004C442`, generation 5 via `FUN_30048240` | high |
+| Piano 2 (1.22) | **v5 only** (v6: status 4) | not read | not read | loader `FUN_300C376A`, generation 5 via `FUN_300C0E2A` | high |
+| C2D (1.12) | none: the Pipe loader `FUN_3003B5A0` takes only an embedded CNSP 0x440 pipe | — | — | | high |
+| Wave (2.14), Wave 2 (1.24), Organ 3 (1.00), Lead 4 (1.32), Lead A1 (1.36) | none: no piano code or partition | — | — | | high |
+| C1 (1.12) | none: no USB stack at all (not a registry model) | — | — | | high |
+| Stage Classic, Stage EX, C2 | not read | — | — | | — |
+
+What this means for OpenNord's files:
+
+- `buildNpno` writes **v6**, which every model in the first group takes. For the v5-only models
+  (Electro 3 HP, Electro 4, Piano 1, Piano 2, and the Electro 3) it refuses when given the
+  `model`; a v5 file needs the v5 envelope (`writeNpnoImage` with `envelope: 'v5'`, a v5
+  header and v5 records), which OpenNord can re-wrap but not yet build from recordings.
+- Older Electro 3 systems: NSM's `CElectro3_PreNPNOv5` covers OS 1.00–2.06, which suggests those
+  builds predate v5 pianos. Only OS 3.14 was read.
+- "Not read" means the firmware pass didn't establish the value. `checkNpnoAcceptance` then
+  skips the voice-table check for that model and still holds the file to the 0x149F notes every
+  traced loader enforces.
+- A model not read at all (Stage Classic/EX, C2) is checked against the Stage 4's rules, and the
+  result says so (`model-pianos`, passed, with that caveat).
+
+### Limits
 
 | Limit | Value | What the instrument does | Source |
 |---|---|---|---|
-| Notes (strokes) per piano | ≤ 0x149F = **5,279** (and ≤ the free voice-table entries) | "Piano is too big" (status 5) | Stage 4 `0xC00B5618`, Stage 3 `0xC01170EC`, Stage 2 `0x30173736`/`0x30173568` |
-| Voice table, shared by every loaded piano | 0x4000 (Stage 2), 0x6000 (Stage 3/4) | "Piano is too big" | Stage 2 `0x301745DC`, Stage 3 `0xC0119040`, Stage 4 `0xC00B47B8` |
+| Notes (strokes) per piano | ≤ 0x149F = **5,279** (and ≤ the free voice-table entries) | "Piano is too big" (status 5) | Stage 4 `0xC00B5618`, Stage 3 `0xC01170EC`, Stage 2 `0x30173736`/`0x30173568`; Piano 4 `FUN_c00aa8e8`, Piano 6 `FUN_c00a1e5c`; the same on Electro 5 and Piano 3 |
+| Voice table, shared by every loaded piano | 0x4000 (Stage 2, Electro 5, Piano 3), 0x6000 (Stage 3/4, Piano 4/5/6, Grand, Grand 2); other models in the table above | "Piano is too big" | Stage 2 `0x301745DC`, Stage 3 `0xC0119040`, Stage 4 `0xC00B47B8`; the rest in the table above |
 | Name of the piano's partition entry | ≤ **32 characters** (whether the `.npno` extension counts is unknown; OpenNord counts it) | "Piano name error" (status 6) | Stage 2 `0x30174084`; Stage 3 the same |
 | Layers per root note, per stroke type | **30** slots (dynamic layers and key-release sounds each have their own) | Stage 2 has no bound check, so a 31st corrupts memory | Stage 4 `0xC00A3988`; Stage 3 inferred; Stage 2 `0x301B3FEC` (inferred) |
-| Pianos | 120 slots across both piano partitions | — | the piano manager constructors above |
+| Pianos | 120 slots across both piano partitions (Stage line, Electro 5/6/7, Piano 3/4/5/6, Grand, Grand 2) | — | the piano manager constructors above |
 
 No byte-size limit appears in the firmware: "Piano is too big" counts notes, not bytes. The
 Stage 2 display shows the header's `name#variant` split at `#`, at most 16 characters of the name

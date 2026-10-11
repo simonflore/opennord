@@ -186,7 +186,9 @@ only one matters to us:
 - **The only thing worth building (later):** generation-gating at *transfer* time —
   NSM "checks prior to download whether the OS supports the files" (v6.80). When we
   add device sample transfer-back, detect the target board's generation and
-  convert/warn. That's a transfer-layer feature, not a codec/revision one.
+  convert/warn. That's a transfer-layer feature, not a codec/revision one. The per-model
+  answer it needs is now in [Which models load which sample generation](#which-models-load-which-sample-generation)
+  (`clavia/media-compat.ts` `sampleTarget`).
 - **`readNsmp().codec` = `floor(versionRaw/100)`** → correct for 3/4 but **0 for
   both legacy versions** (v8 *and* v11). The real signal for `.nsmp` is the
   `legacy` flag; `codec` is left as the extension digit (it feeds `.nsmp${codec}`,
@@ -195,6 +197,45 @@ only one matters to us:
   codec-2 stroke framing (`GetStrokeBinOffset = 0x3c`, vs codec-1's `0x60`) is
   untested. `readNsmp` emits an "unverified generation" warning for any legacy
   `versionRaw !== 8` so such a file isn't silently decoded with the v8 layout.
+
+## Which models load which sample generation
+
+From the instrument firmware (static analysis of Nord's public OS updaters, 2026-10; knowledge
+only, `docs/LEGAL.md`). Each loader maps the file's version to a generation — NWS v8 → 1,
+NWS v11 → 2, NSMP 30 → 3, NSMP 40 → 4 — and then accepts only the generations it supports. The
+code copy, with the function behind each row, is `src/lib/clavia/media-compat.ts`
+(`acceptsSample`, `sampleTarget`). Generations 1 and 2 are both `.nsmp` (rev A / rev B above);
+every model that takes one takes the other, so `convertNsmp(x, 2)` (v11) suits all of them.
+
+| Model (OS read) | Loads | Source | Confidence |
+|---|---|---|---|
+| Stage 2 (3.00) | `.nsmp` (NWS v8, v11) | `STAGE2-3-FIRMWARE.md` §4 | high |
+| Stage 2 EX | as the Stage 2 (same OS) | not read separately | medium |
+| Electro 3 (3.14) | `.nsmp` (NWS v8, v11) | `FUN_3004B84A` | high |
+| Electro 3 HP (3.16) | `.nsmp` (NWS v8, v11) | `FUN_3004BD74` | high |
+| Electro 4 (1.22) | `.nsmp` (NWS v8, v11) | `FUN_30053768` | high |
+| Electro 5 (2.04) | `.nsmp` (NWS v8, v11); **`.nsmp3` refused** — its table maps 30 → 3, but the loader takes generations 1–2 only | `FUN_301344A6` / `FUN_301342A8`, table `0x30227E6D` | high |
+| Piano 2 (1.22) | `.nsmp` (NWS v8, v11; also `nwi` entries) | `FUN_300D078C` | high |
+| Piano 3 (2.04) | `.nsmp` (NWS v8, v11); `.nsmp3` refused | `FUN_300715FA`, table `0x301241B4` (8 → 1, 11 → 2) | high |
+| Wave (2.14) | `.nsmp` (NWS v8, v11; also `nwi` entries) | `FUN_3002B990` | high |
+| Stage 3 (2.64) | `.nsmp3` only (NSM converts `.nsmp`; `.nsmp4` refused) | `STAGE2-3-FIRMWARE.md` §4 | high |
+| Piano 4 (2.66) | `.nsmp3` only | map `c00c3428`, `cmp #3` at `c0036220` | high |
+| Grand (1.68) | `.nsmp3` only | map `c00cc66c`, check at `c003962c` | high |
+| Electro 6 (2.66) | `.nsmp3` only | the Stage 3 map {8 → 1, 11 → 2, 30 → 3} at `c01bc870`; the check itself was not located | medium |
+| Stage 4 (1.66) | `.nsmp3` and `.nsmp4` | map {8, 11, 30, 40} + generation 3–4 check `0xC01D7A2C` | high |
+| Piano 5 (1.34) | `.nsmp3` and `.nsmp4` | the Stage 4 check at `c0109f50` | high |
+| Piano 6 (1.20) | `.nsmp3` and `.nsmp4` | `c01234ac` | high |
+| Grand 2 (1.22) | `.nsmp3` and `.nsmp4` | `c0123620` | high |
+| Wave 2 (1.24) | **undetermined** — a {8, 11, 30, 40} map exists at `c01e1040`, but no generation check was located (NSM treats it as `.nsmp3`) | | low |
+| Electro 7 (1.30) | **undetermined** — a {8, 11, 30, 40} map exists at `c04bfd24`, but no check using it was located | | low |
+| Piano 1 (1.50), C2D (1.12) | none: no sample code | | high |
+| Organ 3 (1.00), Lead 4 (1.32), Lead A1 (1.36) | none: no sample partition | | high |
+| Stage Classic, Stage EX, C2 | not read | | — |
+
+This corrects `NORD-PRODUCT-LINE.md`'s codec column in several places (Electro 5 and Piano 3
+take `.nsmp`, not `.nsmp3`; Piano 1 takes no samples; Piano 4 and Grand take `.nsmp3` only;
+Grand 2 and Stage 4 take both `.nsmp3` and `.nsmp4`), and the `sampleCodec` field in
+`clavia/partitions.ts` likewise. Those are left to the registry change.
 
 ## Body chunk grammar — partly verified
 
