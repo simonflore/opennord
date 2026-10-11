@@ -101,18 +101,37 @@ export function verdictOf(program: Loose): ReaderVerdict {
   };
 }
 
-/** Run the reader OpenNord uses for this file (the views' own entry points). Never throws. */
-function readerVerdict(bytes: Uint8Array, programTag: string): ReaderVerdict {
+/** What the reader OpenNord uses for a file returned (null when it threw), and its verdict. */
+export interface ReaderResult {
+  program: Loose | null;
+  verdict: ReaderVerdict;
+}
+
+/**
+ * Run the reader OpenNord uses for this file (the views' own entry points) and
+ * judge its result. Never throws. Shared with the RE fixture scan
+ * (contribute/fixture-validate.ts), which also needs the decoded `values`.
+ */
+export function readerResult(bytes: Uint8Array, programTag: string): ReaderResult {
   try {
     // Stage 3 / Stage 2 programs (and their Lives) render through their own decoders, not a codec.
-    if (programTag === 'ns3f') return verdictOf(decodeNs3(bytes) as unknown as Loose);
-    if (programTag === 'ns2p') return verdictOf(decodeNs2(bytes) as unknown as Loose);
-    return verdictOf(parseClaviaFile(bytes).program as unknown as Loose);
+    const program = (programTag === 'ns3f' ? decodeNs3(bytes)
+      : programTag === 'ns2p' ? decodeNs2(bytes)
+      : parseClaviaFile(bytes).program) as unknown as Loose;
+    return { program, verdict: verdictOf(program) };
   } catch (e) {
     // Only the error's class name: a message is ours, but keep the payload minimal.
     const name = e instanceof Error ? e.name : 'Error';
-    return { layoutMatched: false, headerOnly: true, recordVersion: null, warningCount: 1, warnings: [`reader threw ${name}`], outOfRange: 0 };
+    return {
+      program: null,
+      verdict: { layoutMatched: false, headerOnly: true, recordVersion: null, warningCount: 1, warnings: [`reader threw ${name}`], outOfRange: 0 },
+    };
   }
+}
+
+/** The verdict of the reader OpenNord uses for this file. Never throws. */
+export function readerVerdict(bytes: Uint8Array, programTag: string): ReaderVerdict {
+  return readerResult(bytes, programTag).verdict;
 }
 
 /**
