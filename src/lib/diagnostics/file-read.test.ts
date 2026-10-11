@@ -2,9 +2,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { buildFileReadEvent, reportFileRead, resetFileReadSession, verdictOf, type FileReadDetail } from './file-read';
 import { FILE_SUPPORT_PREF_KEY, readFileSupportOptIn, writeFileSupportOptIn } from './file-support-pref';
-import { synthFwBody, synthFwFile, synthLegacyFile } from '../clavia/block-chain.synth';
+import { synthFwBody, synthFwFile, synthLegacyFile, synthLegacyLayoutFile } from '../clavia/block-chain.synth';
 import { buildCbinHeader } from '../clavia/cbin';
 import { NG_LAYOUT } from '../ng/layout.generated';
+import { NW1_LAYOUT } from '../nw1/layout.generated';
+import { NLA_LAYOUT } from '../nla/layout.generated';
 import { httpDiagnostics } from '../capabilities/defaults';
 import type { DiagnosticEvent, Diagnostics } from '../capabilities/types';
 import { BUILD, COMMIT } from '../version';
@@ -92,6 +94,18 @@ describe('buildFileReadEvent', () => {
     const d = buildFileReadEvent(bytes)!.detail as unknown as FileReadDetail;
     expect(d.framing.atBody).toHaveLength(4);
     expect(JSON.stringify(d.framing)).not.toContain('ee');
+  });
+
+  it('takes only the record version behind an NSM-era header, at its own width', () => {
+    const lead = synthLegacyLayoutFile('nlas', NLA_LAYOUT, {}, { version: 7, nsmHeader: true });
+    lead.fill(0xee, 0x2c + 2);
+    const ld = buildFileReadEvent(lead)!.detail as unknown as FileReadDetail;
+    expect(ld.framing).toMatchObject({ bodyOffset: 0x2c, atBody: '0007' });
+    // The Wave stores a one-byte version.
+    const wave = synthLegacyLayoutFile('nwp', NW1_LAYOUT, {}, { version: 3 });
+    wave.fill(0xee, 0x18 + 1, wave.length - 2);
+    const wd = buildFileReadEvent(wave)!.detail as unknown as FileReadDetail;
+    expect(wd.framing).toMatchObject({ bodyOffset: 0x18, atBody: '03' });
   });
 
   it('never reports a sample (samples embed their name), a non-program file or an unrecognized one', () => {
