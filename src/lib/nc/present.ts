@@ -10,7 +10,7 @@
 import { decodeNc } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
-import { fwHeader, label, legacyHeaderOnly, parts } from '../clavia/fw-present';
+import { DRAWBAR_NUMBERS, fwHeader, label, legacyHeaderOnly, onOf, parts } from '../clavia/fw-present';
 import type { NcpFieldKey } from './layout.generated';
 
 export const NC_NOTE =
@@ -18,8 +18,6 @@ export const NC_NOTE =
 
 /** common.organModel (0–3) — order inferred (medium). */
 export const NC_ORGAN_MODELS = ['B3', 'Vox', 'Farfisa', 'Pipe'] as const;
-
-const NINE = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
 type Get = (key: string) => number;
 
@@ -30,17 +28,17 @@ function manual(g: Get, model: number, m: 'Upper' | 'Lower'): DecodedSection {
     engines: [{ label: 'Organ', parts: [label(NC_ORGAN_MODELS, model) ?? 'Organ'] }],
   };
   const on = (prefix: string, field: string, name: string) =>
-    NINE.flatMap((i) => (g(`${prefix}.${field}${i}`) ? [`${name} ${i}`] : []));
+    DRAWBAR_NUMBERS.flatMap((i) => (g(`${prefix}.${field}${i}`) ? [`${name} ${i}`] : []));
   if (model === 0) {
     const set = g(`b3${m}.drawbarSet`) + 1;
     section.engines[0].parts.push(`drawbar set ${set}`);
-    section.drawbars = drawbarViews(NINE.map((i) => g(`b3${m}Drawbar${set}.drawbar${i}`)), B3_FOOTAGE);
+    section.drawbars = drawbarViews(DRAWBAR_NUMBERS.map((i) => g(`b3${m}Drawbar${set}.drawbar${i}`)), B3_FOOTAGE);
     const perc = m === 'Upper' ? [0, 1, 2, 3].filter((i) => g(`b3Perc${set}.param${i}`)).length : 0;
     section.chips = parts(g(`b3${m}.vibratoOn`) ? 'Vibrato/Chorus' : undefined, perc ? `Percussion (${perc} switch${perc > 1 ? 'es' : ''})` : undefined);
   } else if (model === 1) {
     const preset = g(`vox${m}.presetSelect`) + 1;
     section.engines[0].parts.push(`preset ${preset}`);
-    section.drawbars = drawbarViews(NINE.map((i) => g(`vox${m}Preset${preset}.drawbar${i}`)));
+    section.drawbars = drawbarViews(DRAWBAR_NUMBERS.map((i) => g(`vox${m}Preset${preset}.drawbar${i}`)));
   } else if (model === 2) {
     const preset = g(`farf${m}.presetSelect`) + 1;
     section.engines[0].parts.push(`preset ${preset}`);
@@ -68,10 +66,9 @@ export function ncDecoded(bytes: Uint8Array): DecodedProgram {
     drawbars: drawbarViews([g('b3Bass.drawbar1'), g('b3Bass.drawbar2')], ['16′', '8′']),
   };
   const fx = ['effectsB3', 'effectsVox', 'effectsFarf', 'effectsPipe'][model] ?? 'effectsB3';
-  const switches = [0, 1, 2, 3].filter((i) => g(`${fx}.param${i}`)).length;
   const effects: DecodedSection = {
     id: 'FX', label: 'EFFECTS',
-    engines: [{ label: 'Switches', parts: [`${switches} of 4 on`] }],
+    engines: [{ label: 'Switches', parts: [`${onOf([0, 1, 2, 3].map((i) => g(`${fx}.param${i}`)))} on`] }],
   };
   return {
     title, header: fwHeader(p),

@@ -1,7 +1,8 @@
 /**
  * Small presentation helpers shared by the firmware-layout readers (Stage 3,
  * Grand, Grand 2, Piano 4/5/6, Electro 6/7, Organ 3, Wave 2 — see block-chain.ts)
- * and the legacy-record ones (Electro 3, C2D, Wave, Lead A1 — legacy-record.ts).
+ * and the legacy-record ones (Electro 3, C2D, Wave, Lead A1 — legacy-record.ts;
+ * Electro 5, Piano 2 / 3, Nord Piano, C2, Stage Classic / EX — legacy-program.ts).
  * They turn decoded values into the musician-facing fragments the shared
  * DecodedProgramView shows.
  * Pure; model → clavia.
@@ -112,6 +113,38 @@ export const COLDFIRE_PIANO_TYPES = ['Grand', 'Upright', 'E-Piano 1', 'E-Piano 2
 /** Two 15-bit reference ids (piano or sample) as one fixed-width hex fingerprint. */
 export function refId(ids: readonly [number, number]): string {
   return `0x${((ids[0] * 0x8000 + ids[1]) >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+/** Header rows of the Electro 5 and the ColdFire Piano 2 / 3: the split, then the piano and sample fingerprints. */
+export function soundRefRows(
+  split: number, pianoIds: readonly [number, number], sampleIds: readonly [number, number],
+): [string, string][] {
+  return [['Split', split ? 'on' : 'off'], ['Piano sound id', refId(pianoIds)], ['Sample sound id', refId(sampleIds)]];
+}
+
+/** Their piano card: the type, its model number, then the level and "(off)" where the record stores them. */
+export function coldfirePianoSection(type: number, model: number, level?: number, on?: number): DecodedSection {
+  return {
+    id: 'P', label: 'PIANO',
+    engines: [{
+      label: 'Piano',
+      parts: parts(label(COLDFIRE_PIANO_TYPES, type) ?? 'Piano', `no. ${model + 1}`, levelPart(level), on === 0 && '(off)'),
+    }],
+  };
+}
+
+/** Their sample synth card, titled as on the panel ("SAMPLE SYNTH" / "SYNTH"). */
+export function sampleSynthSection(
+  title: string, s: { sample: number; attack: number; dcyRel: number; level?: number; on?: number },
+): DecodedSection {
+  return {
+    id: 'S', label: title,
+    engines: [{
+      label: 'Synth',
+      parts: parts(`sample ${s.sample + 1}`, levelPart(s.level), `attack ${s.attack}`, `decay/release ${s.dcyRel}`,
+        s.on === 0 && '(off)'),
+    }],
+  };
 }
 
 /** The presentation when a legacy record is cut short: the file header only. */

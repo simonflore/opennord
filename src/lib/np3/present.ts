@@ -6,9 +6,9 @@
  * fingerprints. Provisional until a real `.np3p` confirms the file alignment.
  */
 import { decodeNp3 } from './decode';
-import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
+import type { DecodedProgram } from '../clavia/decoded';
 import {
-  COLDFIRE_PIANO_TYPES, effectsSection, fwHeader, label, legacyHeaderOnly, levelPart, parts, refId,
+  coldfirePianoSection, effectsSection, fwHeader, legacyHeaderOnly, parts, sampleSynthSection, soundRefRows,
 } from '../clavia/fw-present';
 import type { Np3FieldKey } from './layout.generated';
 
@@ -21,28 +21,13 @@ export function np3Decoded(bytes: Uint8Array): DecodedProgram {
   if (!p.layoutMatched) return legacyHeaderOnly(title, p, 'Piano 3');
   const g = (k: Np3FieldKey) => p.values[k] ?? 0;
 
-  const header = fwHeader(p);
-  header.push(['Split', g('common.keyboardSplitKeybSplit') ? 'on' : 'off']);
-  header.push(['Piano sound id', refId([g('piano.pianoIdA'), g('piano.pianoIdB')])]);
-  header.push(['Sample sound id', refId([g('synth.sampleIdA'), g('synth.sampleIdB')])]);
-
-  const piano: DecodedSection = {
-    id: 'P', label: 'PIANO',
-    engines: [{
-      label: 'Piano',
-      parts: parts(label(COLDFIRE_PIANO_TYPES, g('piano.pianoType')) ?? 'Piano', `no. ${g('piano.pianoModel') + 1}`,
-        levelPart(g('common.pianoLevel')), !g('common.pianoOn') && '(off)'),
-    }],
-  };
-  const synth: DecodedSection = {
-    id: 'S', label: 'SAMPLE SYNTH',
-    engines: [{
-      label: 'Synth',
-      parts: parts(`sample ${g('synth.sampleSelect') + 1}`, levelPart(g('common.synthLevel')),
-        `attack ${g('synth.sampleSynthAttack')}`, `decay/release ${g('synth.sampleSynthDcyRel')}`,
-        !g('common.synthOn') && '(off)'),
-    }],
-  };
+  const header = [...fwHeader(p), ...soundRefRows(g('common.keyboardSplitKeybSplit'),
+    [g('piano.pianoIdA'), g('piano.pianoIdB')], [g('synth.sampleIdA'), g('synth.sampleIdB')])];
+  const piano = coldfirePianoSection(g('piano.pianoType'), g('piano.pianoModel'), g('common.pianoLevel'), g('common.pianoOn'));
+  const synth = sampleSynthSection('SAMPLE SYNTH', {
+    sample: g('synth.sampleSelect'), attack: g('synth.sampleSynthAttack'), dcyRel: g('synth.sampleSynthDcyRel'),
+    level: g('common.synthLevel'), on: g('common.synthOn'),
+  });
   const effects = effectsSection(parts(
     g('effects.effects1Fx1') ? 'Effect 1' : undefined,
     g('effects.effects2Fx2') ? 'Effect 2' : undefined,
