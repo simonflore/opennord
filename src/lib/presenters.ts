@@ -41,7 +41,7 @@ interface PresenterEntry {
 const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.generation === 'Stage 3' && i.kind === 'performance', present: ns3Decoded },
   { match: (i) => i.generation === 'Stage 2' && i.kind === 'program', present: ns2Decoded },
-  { match: (i) => i.tag === 'ne5p', present: ne5Decoded },
+  { match: (i) => i.tag === 'ne5p' || i.tag === 'ne5l', present: ne5Decoded },
   { match: (i) => i.tag === 'ne6p' || i.tag === 'ne6l', present: ne6Decoded },
   { match: (i) => i.tag === 'nw2p' || i.tag === 'nw2l', present: nw2Decoded },
   { match: (i) => i.tag === 'nlas' || i.tag === 'nlap', present: nlaDecoded },

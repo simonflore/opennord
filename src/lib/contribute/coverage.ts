@@ -28,6 +28,7 @@ import { NL4_LAYOUT } from '../nl4/layout.generated';
 import { NLA_LAYOUT } from '../nla/layout.generated';
 import { NE4_LAYOUT } from '../ne4/layout.generated';
 import { NS2_LAYOUT } from '../ns2/layout.generated';
+import { NE5_LAYOUT } from '../ne5/layout.generated';
 
 /** The single canonical Stage 4 param map (ns4decode port + corpus-RE'd extras). */
 const NS4_PARAMS = buildParamMap();
@@ -78,6 +79,7 @@ const DECODER_BY_ID: Record<string, 'full' | 'partial'> = {
   'electro-4': 'partial',
   'lead-4': 'partial',
   'lead-a1': 'partial',
+  'electro-5': 'partial',
 };
 
 // ── Stage 4 coverage synthesized from the offset map ─────────────────────────
@@ -170,6 +172,9 @@ const LEGACY_LAYOUTS: Record<string, { layout: LegacyLayout; status: 'confirmed'
   'electro-4': { layout: NE4_LAYOUT, status: 'candidate' },
   'lead-4': { layout: NL4_LAYOUT, status: 'confirmed' },
   'lead-a1': { layout: NLA_LAYOUT, status: 'candidate' },
+  // Electro 5: file size, record version and the corpus drawbar / sample anchors agree
+  // with the OS 2.04 containers (organ and effects descriptors high) → 'confirmed'.
+  'electro-5': { layout: NE5_LAYOUT, status: 'confirmed' },
 };
 
 /** Run-length encode per-byte kinds; `field:<label>` bytes take `status`, everything else is constant. */

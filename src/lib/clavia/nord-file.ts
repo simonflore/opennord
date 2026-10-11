@@ -104,8 +104,8 @@ export function identifyNordFile(bytes: Uint8Array): NordFileInfo {
     //    (SUMMER 69 sits in slot 69) — so format it directly, not via formatSlot;
     //  - 0x14 (LE) is a *file-format* version integer (e.g. 4 for ne5p, 2-7 for ns2p),
     //    not a firmware/OS version string — not musician-facing, not surfaced.
-    //  Full slot/engine decode lives in lib/ns2/decode.ts (ns2) and will live in
-    //  lib/ne5/decode.ts (ne5p) when that body codec is built.
+    //  Full slot/engine decode lives in lib/ns2/decode.ts (ns2) and in
+    //  lib/ne5/decode.ts (ne5p).
     info.headerDecoded = true;
     // ne5p and nl4p use sequential 1-based slot numbering — ConvertLocation returns
     // "unhandled" (base class sequential display), not the Stage 8-column grid.
