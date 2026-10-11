@@ -4,6 +4,7 @@ import type { EngineCardModel, FxChipModel, HeaderView } from '../../lib/clavia/
 import { ProgramHeader } from './ProgramHeader';
 import { EngineCard } from './EngineCard';
 import { FxRow } from './FxRow';
+import { ReadoutWarnings } from './widgets';
 
 const SAMPLE_LIBRARY = 'https://www.nordkeyboards.com/sounds/sample-library/';
 
@@ -27,14 +28,7 @@ export function BandedProgramView({ header, bands, globalFxChips, sampleRefs, wa
   return (
     <div className="ps">
       <ProgramHeader header={header} />
-      {warnings && warnings.length > 0 && (
-        <div className="ps-card" style={{ marginTop: 12 }}>
-          <h4>Readout warnings</h4>
-          <ul className="ps-sub" style={{ margin: '8px 0 0', paddingLeft: 18, color: 'var(--warn)' }}>
-            {warnings.map((w) => <li key={w}>{w}</li>)}
-          </ul>
-        </div>
-      )}
+      <ReadoutWarnings warnings={warnings} />
       {bands.map((band) => (
         <section className="ps-panel" key={band.id}>
           <div className="ps-panel-lbl">{band.label}</div>
