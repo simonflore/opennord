@@ -14,7 +14,8 @@
 import { decodeNg2 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import {
-  effectsSection, fwHeader, headerOnly, hexId, label, levelPart, noneOn, octavePart, parts, transposeText, variationPart,
+  ampPart, effectsSection, fwHeader, headerOnly, label, levelPart, noneOn, octavePart, parts, pianoParts, reverbPart,
+  soundIdRow, transposeText, type PianoNameResolver,
 } from '../clavia/fw-present';
 import type { Ng2FieldKey } from './layout.generated';
 
@@ -41,23 +42,21 @@ function layerFx(g: Get, blk: `${'piano' | 'synth'}Fx${'A' | 'B'}`): string[] {
     g(`${blk}.fx1Enable`) ? label(NG2_FX1, g(`${blk}.fx1Type`)) ?? 'Effect 1' : undefined,
     g(`${blk}.fx2Enable`) ? label(NG2_FX2, g(`${blk}.fx2Type`)) ?? 'Effect 2' : undefined,
     g(`${blk}.dlyEnable`) ? `Delay${filter && filter !== 'Bypass' ? ` ${filter}` : ''}` : undefined,
-    g(`${blk}.ampEnable`) ? `Amp ${label(NG2_AMP, g(`${blk}.ampType`)) ?? ''}`.trim() : undefined,
+    g(`${blk}.ampEnable`) ? ampPart(label(NG2_AMP, g(`${blk}.ampType`))) : undefined,
     g(`${blk}.cmpEnable`) ? 'Comp' : undefined,
     g(`${blk}.eqEnable`) ? 'EQ' : undefined,
   );
 }
 
-function pianoLayer(g: Get, id: 'A' | 'B', on: boolean, resolve?: (hash: number) => string | undefined): DecodedSection {
+function pianoLayer(g: Get, id: 'A' | 'B', on: boolean, resolve?: PianoNameResolver): DecodedSection {
   const blk = `piano${id}` as const;
-  const type = label(NG2_PIANO_TYPE, g(`${blk}.bank`));
-  const hash = g(`${blk}.nameHash`);
-  const name = hash !== undefined ? resolve?.(hash) : undefined;
   return {
     id: `P${id}`, label: `PIANO ${id}`,
     engines: [
       {
         label: 'Piano',
-        parts: parts(name ?? type ?? 'Piano', name && type, variationPart(g(`${blk}.variation`)),
+        parts: parts(
+          ...pianoParts(g(`${blk}.nameHash`), label(NG2_PIANO_TYPE, g(`${blk}.bank`)), g(`${blk}.variation`), resolve),
           levelPart(g(`${blk}.layerLevel`)), octavePart(g(`${blk}.octaveShift`)), !on && '(off)'),
       },
       { label: 'Effects', parts: on ? noneOn(layerFx(g, `pianoFx${id}`)) : ['—'] },
@@ -80,24 +79,20 @@ function synthLayer(g: Get, id: 'A' | 'B', on: boolean): DecodedSection {
   };
 }
 
-export function ng2Decoded(
-  bytes: Uint8Array,
-  resolvePianoName?: (hash: number) => string | undefined,
-): DecodedProgram {
+export function ng2Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolver): DecodedProgram {
   const p = decodeNg2(bytes);
   const title = 'Nord Grand 2 · Program';
   if (!p.layoutMatched) return headerOnly(title, p, 'Grand 2');
   const g: Get = (k) => p.values[k];
 
-  const header = fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue')));
-  for (const id of ['A', 'B'] as const) {
-    const h = g(`piano${id}.nameHash`);
-    if (h !== undefined) header.push([`Piano ${id} sound id`, hexId(h)]);
-  }
+  const header = [
+    ...fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue'))),
+    ...soundIdRow('Piano A sound id', g('pianoA.nameHash')),
+    ...soundIdRow('Piano B sound id', g('pianoB.nameHash')),
+  ];
 
   const pianoOn = g('pianoCommon.layerEnable') ?? 0;
   const synthOn = g('synthCommon.layerEnable') ?? 0;
-  const reverb = label(NG2_REVERB, g('common.effectsRvbType'));
   const color = label(NG2_REVERB_COLOR, g('common.effectsRvbColor'));
 
   return {
@@ -109,7 +104,7 @@ export function ng2Decoded(
       synthLayer(g, 'B', (synthOn & 2) !== 0),
       effectsSection(parts(
         g('common.effectsRvbEnable')
-          ? `Reverb ${reverb ?? ''}${color && color !== 'Normal' ? ` ${color}` : ''}`.trim() : undefined,
+          ? reverbPart(label(NG2_REVERB, g('common.effectsRvbType')), color !== 'Normal' && color) : undefined,
       ), 'RV', 'REVERB'),
     ],
     note: 'Grand 2: piano and sample-synth layers and their effects read with OpenNord’s map of Grand 2 OS 1.22 programs.',

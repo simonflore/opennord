@@ -15,7 +15,8 @@
 import { decodeNp5 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import {
-  effectsSection, fwHeader, headerOnly, hexId, label, levelPart, octavePart, parts, transposeText, variationPart,
+  ampPart, effectsSection, fwHeader, headerOnly, label, levelPart, octavePart, parts, pianoParts, reverbPart,
+  soundIdRow, transposeText, type PianoNameResolver,
 } from '../clavia/fw-present';
 import type { Np5FieldKey } from './layout.generated';
 
@@ -34,16 +35,14 @@ export const NP5_REVERB_COLOR = ['Normal', 'Dark', 'Bright'] as const;
 
 type Get = (key: Np5FieldKey) => number | undefined;
 
-function pianoLayer(g: Get, id: 'A' | 'B', on: boolean, resolve?: (hash: number) => string | undefined): DecodedSection {
+function pianoLayer(g: Get, id: 'A' | 'B', on: boolean, resolve?: PianoNameResolver): DecodedSection {
   const blk = `piano${id}` as const;
-  const type = label(NP5_PIANO_TYPE, g(`${blk}.bank`));
-  const hash = g(`${blk}.nameHash`);
-  const name = hash !== undefined ? resolve?.(hash) : undefined;
   return {
     id: `P${id}`, label: `PIANO ${id}`,
     engines: [{
       label: 'Piano',
-      parts: parts(name ?? type ?? 'Piano', name && type, variationPart(g(`${blk}.variation`)),
+      parts: parts(
+        ...pianoParts(g(`${blk}.nameHash`), label(NP5_PIANO_TYPE, g(`${blk}.bank`)), g(`${blk}.variation`), resolve),
         levelPart(g(`${blk}.level`)), octavePart(g(`${blk}.octaveShift`)), !on && '(off)'),
     }],
     chips: parts(g(`${blk}.pedalNoise`) ? 'Pedal Noise' : undefined),
@@ -61,24 +60,20 @@ function synthLayer(g: Get, id: 'A' | 'B', on: boolean): DecodedSection {
   };
 }
 
-export function np5Decoded(
-  bytes: Uint8Array,
-  resolvePianoName?: (hash: number) => string | undefined,
-): DecodedProgram {
+export function np5Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolver): DecodedProgram {
   const p = decodeNp5(bytes);
   const title = 'Nord Piano 5 · Program';
   if (!p.layoutMatched) return headerOnly(title, p, 'Piano 5');
   const g: Get = (k) => p.values[k];
 
-  const header = fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue')));
-  for (const id of ['A', 'B'] as const) {
-    const h = g(`piano${id}.nameHash`);
-    if (h !== undefined) header.push([`Piano ${id} sound id`, hexId(h)]);
-  }
+  const header = [
+    ...fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue'))),
+    ...soundIdRow('Piano A sound id', g('pianoA.nameHash')),
+    ...soundIdRow('Piano B sound id', g('pianoB.nameHash')),
+  ];
 
   const pianoOn = g('common.slotPnoEnable') ?? 0;
   const synthOn = g('common.slotSynEnable') ?? 0;
-  const reverb = label(NP5_REVERB, g('effects.rvbType'));
   const color = label(NP5_REVERB_COLOR, g('effects.rvbColor'));
 
   return {
@@ -92,10 +87,10 @@ export function np5Decoded(
         g('effects.fx1Enable') ? label(NP5_FX1, g('effects.fx1Type')) ?? 'Effect 1' : undefined,
         g('effects.fx2Enable') ? label(NP5_FX2, g('effects.fx2Type')) ?? 'Effect 2' : undefined,
         g('effects.dlyEnable') ? 'Delay' : undefined,
-        g('effects.spkEnable') ? `Amp ${label(NP5_SPEAKER, g('effects.spkType')) ?? ''}`.trim() : undefined,
+        g('effects.spkEnable') ? ampPart(label(NP5_SPEAKER, g('effects.spkType'))) : undefined,
         g('effects.eqlEnable') ? 'EQ' : undefined,
         g('effects.rvbEnable')
-          ? `Reverb ${reverb ?? ''}${color && color !== 'Normal' ? ` ${color}` : ''}`.trim() : undefined,
+          ? reverbPart(label(NP5_REVERB, g('effects.rvbType')), color !== 'Normal' && color) : undefined,
       )),
     ],
     note: 'Piano 5: piano and sample-synth layers and the effects read with OpenNord’s map of Piano 5 OS 1.34 programs.',
