@@ -194,7 +194,7 @@ Then **Stage 2 / 2EX** need their own map. The Stage 2 firmware writes a flat bo
 | `.ns3f` | ns3 | program | **Read-only, firmware layout** (`lib/ns3`) — Stage 3 OS 2.64 registry, 175 parameters + morph deltas; the panel view is built on it |
 | `.ns3l/.ns3y` | ns3 | live / synth preset | Recognized; `.ns3l` has the `.ns3f` body and `.ns3y` is one Synth block of it, neither routed to the reader yet |
 | `.ns2p` | ns2 | program | **Read-only, firmware layout** (`lib/ns2`) — Stage 2 OS 3.00 descriptor containers, 198 parameters + morph deltas; Stage 2 EX shares it; the slot view is built on it |
-| `.ns2s` | ns2 | synth preset | Recognized; not routed to the reader |
+| `.ns2l/.ns2s` | ns2 | live / synth preset | Recognized; neither routed to the reader. The one corpus `.ns2l` (547 bytes, legacy header) reads as a program record; `.ns2s` is a 60/78-byte synth preset |
 | `.ngp/.ngl` | ng (Grand) | program | **Read-only, firmware layout** (`lib/ng`) — Piano 4 layout + `Com_kSplPos`; not yet checked on a real file |
 | `.np6p/.np6l` | np6 | program | **Read-only, firmware layout** (`lib/np6`) — Grand 2 layout + 3 deltas; not yet checked on a real file |
 | `.np4p/.np4l` | np4 | program | **Read-only, firmware layout** (`lib/np4`) — block lengths match the corpus |
