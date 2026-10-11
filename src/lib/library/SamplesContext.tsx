@@ -156,10 +156,10 @@ function useSamplesStateValue() {
   const reads = useRef(new Map<string, { bytes: Promise<Uint8Array>; progress: (pct: number) => void }>());
   /**
    * The bytes of a sample, read from wherever it lives: in memory (imported), a
-   * Nord pull, or a backup. null when it can't be read from here (a Nord sample
-   * with no Nord connected).
+   * Nord pull, or a backup. Rejects with the reason when it can't be read from
+   * here (a Nord sample with no Nord connected, a file that's gone).
    */
-  const readSample = useCallback((e: SampleEntry, onProgress: (pct: number) => void): Promise<Uint8Array> | null => {
+  const readSample = useCallback((e: SampleEntry, onProgress: (pct: number) => void): Promise<Uint8Array> => {
     if (e.source === 'local' && e.bytes) return Promise.resolve(e.bytes);
     const running = reads.current.get(e.id);
     if (running) { running.progress = onProgress; return running.bytes; }
@@ -167,7 +167,9 @@ function useSamplesStateValue() {
     const raw = e.source === 'nord' && e.device && session
       ? pullSample(session, e.device, (done, total) => read.progress(total ? Math.round((done / total) * 100) : 0))
       : e.source === 'backup' && e.backupRef ? extractBackupEntry(folder, e.backupRef) : null;
-    if (!raw) return null;
+    if (!raw) {
+      return Promise.reject(new Error(e.source === 'nord' ? 'connect your Nord to read it.' : 'its file isn’t available.'));
+    }
     read.bytes = raw.finally(() => reads.current.delete(e.id));
     reads.current.set(e.id, read);
     return read.bytes;

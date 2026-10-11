@@ -5,10 +5,12 @@ import { nordUsbAvailable } from './capacitor-usb';
 // probed when the first one subscribes and again whenever the app returns to
 // the foreground (the driver is approved in Settings mid-session).
 let ready: boolean | null = null;
+let probes = 0;
 const listeners = new Set<() => void>();
 function probe() {
+  const n = ++probes;
   void nordUsbAvailable().then((ok) => {
-    if (ok === ready) return;
+    if (n !== probes || ok === ready) return; // only the latest probe counts
     ready = ok;
     for (const l of listeners) l();
   });
