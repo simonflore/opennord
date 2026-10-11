@@ -57,6 +57,9 @@ export interface DiagnosticEvent {
  */
 export interface Diagnostics {
   record(event: DiagnosticEvent): void;
+  /** True when events leave the device (sent to a server); the UI uses it to
+   *  say honestly where a report goes. Absent/false = console only. */
+  readonly remote?: boolean;
 }
 
 /** The full set of pluggable capabilities the UI consumes through the seam. */

@@ -5,13 +5,15 @@ import { ConnectPanel } from '../device/ConnectPanel';
 import { Card, buttonVariants } from '../ui';
 import { ProbePanel } from '../compatibility/ProbePanel';
 import { measureIssueUrl, programsIssueUrl } from '../../lib/contribute/asks';
+import { FileSupportToggle } from '../about/FileSupportToggle';
 
 const copy = 'my-2 text-[13px] leading-[1.55] text-dim';
 
 /**
  * How owners help: confirm on their own Nord what OpenNord has mapped.
- * Three short steps a musician can do: a read-only check, a few of their own programs,
- * and (optionally) measurements that stay on their computer.
+ * Short steps a musician can do: a read-only check, a few of their own programs,
+ * (optionally) measurements that stay on their computer, and the opt-in
+ * file-support reports.
  */
 export function ContributePage() {
   const { session, deviceName, setConnection } = useDevice();
@@ -49,6 +51,9 @@ export function ContributePage() {
             list. Your recordings stay on your computer; you only share the numbers.
           </p>
           <IssueLink href={measureIssueUrl(deviceName)}>Offer to measure</IssueLink>
+        </Ask>
+        <Ask n={4} title="Help improve file support" time="1 click">
+          <FileSupportToggle className="mt-2" showTitle={false} />
         </Ask>
       </ol>
     </section>
