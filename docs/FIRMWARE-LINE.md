@@ -29,12 +29,12 @@ The Stage 2, 3 and 4 are covered in detail in [`STAGE2-3-FIRMWARE.md`](STAGE2-3-
 | Electro 3 | 3.14 | ColdFire | descriptor container | **4** |
 | Electro 3 HP | 3.16 | ColdFire | descriptor container | **4** |
 | Electro 4 | 1.22 | ColdFire | descriptor container | **7** |
-| Electro 5 | 2.04 | ColdFire (newer compiler) | not extracted | 10 |
+| Electro 5 | 2.04 | ColdFire (newer compiler) | descriptor container (newer) | 10 |
 | Electro 6 | 2.66 | ARMv7 | Stage 3 registry | 10 |
 | **Electro 7** | 1.30 | ARMv7 | Stage 4 registry | 10 |
-| Nord Piano (1) | 1.50 | ColdFire | not mapped | **4** |
-| Piano 2 | 1.22 | ColdFire | not mapped | **6** |
-| Piano 3 | 2.04 | ColdFire (newer compiler) | not extracted | 10 |
+| Nord Piano (1) | 1.50 | ColdFire | descriptor container | **4** |
+| Piano 2 | 1.22 | ColdFire | descriptor container | **6** |
+| Piano 3 | 2.04 | ColdFire (newer compiler) | descriptor container (newer) | 10 |
 | Piano 4 | 2.66 | ARMv7 | Stage 3 registry | 10 |
 | Piano 5 | 1.34 | ARMv7 | Stage 3 registry (hybrid container) | 10 |
 | Piano 6 | 1.20 | ARMv7 | Stage 3 framing, Stage 4-style builders | 10 |
@@ -44,11 +44,14 @@ The Stage 2, 3 and 4 are covered in detail in [`STAGE2-3-FIRMWARE.md`](STAGE2-3-
 | Wave | 2.14 | ColdFire | descriptor container | **4** |
 | Wave 2 | 1.24 | ARMv7 | Stage 3 registry | 10 |
 | C2D | 1.12 | ColdFire | descriptor container (set function only) | **4** |
+| C2 | 2.00 | ColdFire | descriptor container | **4** |
+| Stage Classic | 5.08 | ColdFire | descriptor container (u8 version, morph deltas) | **3** |
+| Stage EX | 6.08 | ColdFire | same record as the Stage Classic | **4** |
 | **C1** | 1.12 | ColdFire | — | **none** |
 | Lead 4 | 1.32 | ARMv7 | Lead descriptor framework | **8** |
 | Lead A1 | 1.36 | ARMv7 | Lead descriptor framework | **8** |
 
-Not read: Stage Classic, Stage EX, C2 (registry entries stay on NSM's baseline).
+Every model's OS image has now been read; the Stage Classic, Stage EX and C2 were the last (2026-10-11), and their registry rows left NSM's baseline.
 
 **Electro 3 is ColdFire, not Thumb (high).** The packed CODE section in its `os.cab` is LZO1X data (0x702D8 bytes, the "470 KB" analysed in `NSP-FORMAT.md`). Unpacked it is 0xF7B60 bytes of ColdFire code (4,163 functions); strings are reached by absolute addresses (e.g. "Native (Piano)" at `0x300F0190`, referenced from `0x3005324A`). The earlier "Thumb wall" came from disassembling compressed bytes.
 
@@ -62,7 +65,8 @@ Every model except the C1 runs the same FileTransfer family as the Stage 2/3/4: 
 
 | Group | Models | Version | Frames accepted | Begin takes a lock (18 when held) |
 |---|---|---|---|---|
-| v4 | Electro 3, Electro 3 HP, Nord Piano, C2D, Wave | 4 | 3..4 | **no** |
+| v3 | Stage Classic | 3 | exactly 3 | **no** |
+| v4 | Electro 3, Electro 3 HP, Nord Piano, C2, C2D, Wave, Stage EX | 4 | 3..4 | **no** |
 | v6 | Piano 2 | 6 | 3..6 | yes (Stage 2 code) |
 | v7 | Electro 4 | 7 | 3..7 | yes (Stage 2 code) |
 | v8 | Stage 2, Lead 4, Lead A1 | 8 | 3..8 | yes |
@@ -126,6 +130,8 @@ The firmware registration order, which is what `CQryPartList` returns. All are `
 | Wave | 0 Samp Lib · **1 Program [nwp]** · 2 SWave · 3 RAMFS · 4 System | 5 | high |
 | Wave 2 | 0 Samp Lib (N) · 1 Samp Lib [nsmp] (26×100) · **2 Program [nw2p]** (16×25; also lists `nlxp`) · 3 Live [nw2l] (1×5) · 4 Settings [nw2s] | 5 | high |
 | C2D | 0 Pipe (N) · 1 Pipe · **2 Program [nc2p]** (1×126) · 3 System | 4 | high |
+| C2 | 0 Pipe (N) · 1 Pipe · **2 Program [ncpg]** (1×126) · 3 Live (1×2) · 4 System | 5 | high |
+| Stage Classic / Stage EX | 0 Native (EX: "Native (FFS)") · 1 Piano · **2 Program [nspg]** · 3 Synth [nss] | 4 | high |
 | Lead 4 | 0 Program [nl4s] (4×99) · **1 Performance [nl4p]** (2×50) · 2 Settings [nl4t] | 3 | high |
 | Lead A1 | 0 Program [nlas] (8×50) · **1 Performance [nlap]** (4×50) · 2 Settings [nlat] | 3 | high |
 
@@ -147,6 +153,8 @@ Bold = the Program partition. Bank × slot counts come from each partition's des
 - **Electro 3**: the plain E3 registers Organ Presets too (NSM gives it only to the HP).
 - **Electro 4**: also user Piano (2) and Samp Lib (3); Program 4 agrees.
 - **C2D**: no Live partition (NSM lists 5).
+- **C2**: program tag `ncpg` (NSM's CC2 tag set `ncb`/`ncpg`/`ncli`/`ncsy`), not the C2D's `nc2p`; 5 partitions with Live; recommended OS 2.00.
+- **Stage Classic / EX**: program tag `nspg` on both (the registry had `nsp` for the Classic); no Live and no Settings partitions, a Synth partition `nss` instead.
 - **Wave**: no factory sample library and no Live partition; SWave and RAMFS hold unknown content (treated read-only).
 
 The registry keeps OpenNord's convention that the `program` kind marks the partition holding `programTag` files. On the Leads that is the Performance partition (`nl4p`/`nlap`); the single-sound "Program" partition (`nl4s`/`nlas`) carries the `synth-preset` kind.
@@ -161,6 +169,7 @@ The CNSP header version decides what a model loads: `0x440` = v4, `0x450` = v5, 
 | Electro 3 HP, Electro 4 | v5 only | — | `FUN_3004283E`, `FUN_30049D4E` | high |
 | Nord Piano, Piano 2 | v5 only (0x464 unknown → status 4; ≤0x440 "Unsupported") | generation 5, first argument 2 (probably one slot per piano partition, low) | `FUN_3004C442` / `FUN_30048240`; `FUN_300C376A` / `FUN_300C0E2A` | high |
 | Electro 5, Piano 3 | v5, v6 | generation 5, 120 slots; voice table 0x4000 entries; strokes ≤ 0x149F | E5 `FUN_3011DB4E`/`FUN_3011E9AC`, manager `FUN_3011D590`; P3 `FUN_3006338E`/`FUN_30063C08`, `FUN_30062F08` | high |
+| Stage Classic, Stage EX | 0x423–0x42F, 0x430, 0x440 (v4), 0x450 (v5); v6 refused | — | OS 5.08 / 6.08 piano gate | high |
 | C2D | Pipe: embedded CNSP 0x440 only | — | `FUN_3003B5A0` | high |
 | Electro 6 | v5, v6 | generation 5, 120 slots | gate `FUN_c00d5828`, manager {4,120,5} at `c00005e8` | high |
 | Electro 7 | v5, v6 | generation 5, 120 slots | gate `FUN_c0158fe0`, manager {2,120,5} at `c000c794` | medium–high |
@@ -178,6 +187,7 @@ The Piano 6 gate's thresholds (0x423–0x42F → generation < 3, 0x430 < 4, 0x44
 | Electro 5 | `.nsmp` NWS v8/v11 only — refuses `.nsmp3`. Its version table (`0x30227E6D`) maps 8→1, 11→2, 30→3, but the loader accepts generations 1–2 and parses only an NWS root | `FUN_301344A6` / `FUN_301342A8` | high |
 | Piano 3 | `.nsmp` NWS v8/v11 only (table `0x301241B4` maps 8 and 11) | `FUN_300715FA` | high |
 | Nord Piano, C2D, C1 | no sample code | — | high |
+| Stage Classic, Stage EX | no sample library partition | — | high |
 | Piano 4, Grand | `.nsmp3` only (generation-3 check) | P4 `c00c3428` + `cmp #3` at `c0036220`; Grand `c00cc66c`, `c003962c` | high |
 | Piano 5, Piano 6, Grand 2 | `.nsmp3` and `.nsmp4` (map 8→1, 11→2, 30→3, 40→4 with a generation 3–4 check, as Stage 4 `c01d7a2c`) | P5 `c0109f50`, P6 `c01234ac`, G2 `c0123620` | high |
 | Electro 6 | Stage 3 map {8→1, 11→2, 30→3} → `.nsmp3` | `c01bc870`; generation check not located | medium |
@@ -190,8 +200,9 @@ So `.nsmp3`/`.nsmp4` files must be converted down (`convertNsmp(x, 2)` or `(x, 1
 | Family | Models | Framing | Notes |
 |---|---|---|---|
 | Stage 2-era descriptor container | Stage 2 (and 2 EX; per-parameter morph-source mask variant, `STAGE2-3-FIRMWARE.md` §3), Electro 3, Electro 3 HP, Electro 4, C2D, Wave | 24-byte parameter records {id, default, max, bit width, morphable flag, not-stored flag, control id (probably a MIDI CC, low)}; MSB-first; a morphable value is preceded by one signed delta per morph source, one bit wider than the value | write/read/set byte-matched in E3, E3 HP, E4 (high), set function in C2D (medium); Wave write `FUN_300056A4`, read `FUN_30005906` |
-| — newer ColdFire containers | Electro 5, Piano 3 | record pointers with default (+4), max (+8), kind (+0x15) | layout not extracted (E5 set function `FUN_300F7B98`) |
-| — not mapped | Nord Piano, Piano 2 | — | — |
+| — newer ColdFire containers | Electro 5, Piano 3 | record pointers with default (+4), max (+8), kind (+0x15); 26-byte parameter records | E5 set function `FUN_300F7B98`; layouts extracted (below) |
+| — same family | Piano 2, Nord Piano, C2 | 24-byte descriptors (Piano 2: +0x12 = 1 marks a stored one) | layouts extracted (below) |
+| — with morph deltas | Stage Classic, Stage EX | u8 record version, then the bitstream; a morphable value is preceded by 3 deltas one bit wider | signedness of the deltas medium (read as two's complement) |
 | Stage 3 registry | Electro 6, Wave 2, Piano 4, Grand, Piano 5, Piano 6, Grand 2 | u32 version, then a chain of blocks, each an 8-bit length + MSB-first fields in registration order, padded to a byte | a negative-minimum field is stored as **two's complement**, not `value − min`: the registry's signed mode is 0 (pianos: registry start `FUN_c007eed8(reg,7,0)`; Electro 6: `FUN_c009aad8`, both builders pass 0; Wave 2: `FUN_c00a6e64`, all three builders pass 0; the Stage 3 passes `(7,1)` to `FUN_c00debc8`) — high, except medium on Piano 6. Morph deltas are never two's complement |
 | Stage 4 registry | Electro 7, Organ 3 | table-driven registry; archive tree of buffers | block order from the archive builders (medium); negative-minimum fields two's complement (signed mode 0: Electro 7 global `0xc05da57c`, Organ 3 global `0xc041e800`; high) |
 | Lead descriptor framework | Lead 4, Lead A1 | u16 record version, then an MSB-first bitstream from 0x1C-byte descriptors {id, default, max, bits, morph-source mask, flags, MIDI CC}; values raw (minimum 0) | serialiser `FUN_c01208a8` → `FUN_c01156b4` |
@@ -208,17 +219,23 @@ So `.nsmp3`/`.nsmp4` files must be converted down (`convertNsmp(x, 2)` or `(x, 1
 - **Electro 7 (medium).** 251 parameters in 11 buffers (`FUN_c009c394`); archive `FUN_c00a8148`, version fields (1, 0, 10). Tree: Common · Organ folder (Organ, Fx, 2 layers, 3 drawbar sets) · Piano folder (Piano, Fx) · Synth folder (Synth, an embedded synth-preset archive, Fx) → predicted 353-byte body, 397-byte file. A new format: `ne6p` code cannot be reused. Encoding kind 3 adds two 1-bit morph slots after the value: the knob's pedal and wheel assignment (slot order high, which is pedal and which wheel medium). Negative-minimum fields are two's complement: the registry builder clears the signed-mode global `0xc05da57c`, the parameter constructor `FUN_c01236c8` then marks them signed with offset 0 and the reader `FUN_c0124ae4` sign-extends; read as `value − min`, Analog Osc Mix, Analog Semitone and FM Balance fall out of range in 75 factory values (high).
 - **Organ 3 (medium).** Registry `FUN_c00c0120` (182 parameters, no morphs); archive `FUN_c00b9888` version 2.00. Predicted 204-byte body, 248-byte file.
 - **Lead 4 (high).** In these legacy (formatType 0) files the record starts at **file 0x1A**; the u16 at 0x14 is the record version, 0x16–0x19 unknown. Program data 315 bytes: slot set (78 descriptors, ending in a 44-bit reserved field), a 7-bit morph count and 87 sparse morph entries {parameter, source, signed delta}, then the FX set and its morph list. 9 morph sources. Performance = 7 bytes of common settings + 4 × 315. Record sizes (u16 version + data): Program 317, Performance 1269, Settings 38; versions 8 / 9 / 3.
+- **Electro 5 (high; names medium).** 24 containers of 26-byte records: common, piano, sampleSynth, then per organ (B3, Vox, Farfisa, Church) Global, Upper, Lower, Preset I, Preset II, then effects; 952 bits = 119 bytes, no morphs. Record `[u16 version 4][119 bytes]` at file 0x18, so the data starts at **0x1A** and the file is 26 + 119 + 2 = 147 bytes (high); the CBIN version at 0x14 carries the same 4. Version 3 is converted (the converter moves an EQ bit); 1 and 2 are refused. 173 parameters, 167 with firmware labels. The earlier corpus decoder had the drawbar offsets right but the names wrong: body 21 / 28 are B3 Preset I / II, 39 / 45 Vox Preset I / II, 55 Farfisa Preset I, 71 Church Preset I; its "sample section active" bit is the top bit of the B3 vibrato/chorus type and its "sample model id" the Sample Synth sample select plus two 15-bit sample ids (`lib/ne5/types.ts`).
+- **Piano 3 (layout high, file medium).** Common 96 · piano 96 · synth 88 · effects 144 bits = 53 bytes, 76 parameters; record version 4; predicted 26 + 53 + 2 = 81-byte file.
+- **Piano 2 (layout high, names medium).** Common, piano, synth, effects: 336 bits = 42 bytes, 52 parameters; record version 2 (version 1 is converted: common parameter 4 is remapped); 70-byte file. Names mostly by matching control ids with the Piano 3.
+- **Nord Piano (layout high, file position low).** Piano then effects: 156 bits = 20 bytes in a 31-byte flash slot, 29 parameters; no record version and no converter. The file position 0x1A (48-byte file) is a guess.
+- **C2 (layout high, names and alignment medium).** 66 containers (common; B3 with three drawbar sets per manual and percussion per upper set; Vox and Farfisa with three presets per manual; pipe with six presets per manual and six couplers; B3 bass, pipe bass, Trek bass; shared and per-organ effects), no repeated containers (unlike the C2D), no morphs: 269 bytes, 385 fields. Record version 100, the only one read. Predicted file: data at 0x1A, 297 bytes.
+- **Stage Classic / Stage EX (layout high, file position unknown).** Identical descriptors on OS 5.08 and 6.08: a u8 version (10; 0–9 converted up), common (40 parameters), panel A (166) and panel B (166) = exactly 400 bytes. 101 morphable parameters, each preceded by 3 deltas one bit wider (signedness medium). Where the record starts in a `.nspg` file is not known (the Stage 2 rule would put it at 0x18, unconfirmed), so OpenNord opens these files header-only.
 - **Lead A1 (medium).** Program data 95 bytes (47 + 18 descriptors) with inline morph deltas, 2 sources. Performance 7 + 4 × 95 bytes leaves 12 bytes unexplained (401 − 2 − 387). Record versions 7 / 7.
 
-The per-parameter offset maps (Electro 4, Electro 6, Electro 7, Organ 3, Wave, Wave 2, Piano 4/5/6, Grand, Grand 2, Lead 4, Lead A1) are format knowledge and can be committed with the decoders that use them; they are not in this PR.
+The per-parameter offset CSVs are format knowledge, but they stay in the local workspace; what is committed is the generated layout of each reader (`scripts/gen-fw-program-maps.py` → `<model>/layout.generated.ts`), which the readers of every model above now use: Electro 4/5/6/7, Piano 2/3/4/5/6, Nord Piano, Grand, Grand 2, Organ 3, C2, Wave 2, Lead 4, Lead A1, Stage Classic / EX (record only).
 
 ## 7. Open questions for hardware
 
 **USB**
 
-1. `CQryPartList` on each model, to promote `staticIndex` to `index`. Expected counts: Electro 3 8, Electro 4 7, Electro 5 8, Electro 6 7 (Program 4), Electro 7 10, Nord Piano 6, Piano 2/3 9, Piano 4/5/6, Grand, Grand 2 9 (Program 6), Organ 3 3 (Program 0), Wave 5, Wave 2 5, C2D 4, Lead 4 / A1 3 (Program 0, Performance 1).
+1. `CQryPartList` on each model, to promote `staticIndex` to `index`. Expected counts: Stage Classic / EX 4 (Program 2), C2 5 (Program 2), Electro 3 8, Electro 4 7, Electro 5 8, Electro 6 7 (Program 4), Electro 7 10, Nord Piano 6, Piano 2/3 9, Piano 4/5/6, Grand, Grand 2 9 (Program 6), Organ 3 3 (Program 0), Wave 5, Wave 2 5, C2D 4, Lead 4 / A1 3 (Program 0, Performance 1).
 2. The negotiation reply (protocol 0x07) on a v4/v6/v7 model: does it advertise FileTransfer at the version above? Until checked, connect frames with the registry version when the reply names none.
-3. A v4 model (Electro 3, Nord Piano, C2D, Wave): confirm that begin never answers 18.
+3. A v3/v4 model (Stage Classic, Stage EX, Electro 3, Nord Piano, C2, C2D, Wave): confirm that begin never answers 18, and that the Stage Classic drops any frame not of version 3.
 4. What the Wave's SWave and RAMFS partitions hold, and whether they accept writes.
 5. USB product ids: Electro 7 (NSM `0x3B`), Lead A1 (NSM `CMini` `0x25`?). Did Lead 4 OS ≤ 1.12 speak version 7?
 
@@ -232,4 +249,4 @@ The per-parameter offset maps (Electro 4, Electro 6, Electro 7, Organ 3, Wave, W
 8. Real `.ne7p` and `.no3p` files (predicted 397 and 248 bytes), `.np6p` and `.ngp` files: block lengths, which of the Electro 7's two assign bits is pedal and which wheel, and whether layer-dependent saves omit folders (Electro 7). The Piano 6 / Grand 2 top-level program version (a RAM global in the firmware).
 9. The legacy record start at 0x1A on `.ne4p`, `.nl4s`/`.nlas` (and whether `ne5p` follows it; `ns2p` does behind the legacy header, and starts at 0x2E behind the NSM-era one, `STAGE2-3-FIRMWARE.md` §3); the Wave's alignment (a corpus test: the alignment under which no field exceeds its maximum).
 10. Wave 2's five morph deltas (which source each is); the Lead 4's 9 and the A1's 2 morph sources; the A1 Performance's extra 12 bytes.
-11. Electro 5, Piano 3, Electro 3, Nord Piano, Piano 2 and C2D program layouts are still unextracted.
+11. Real files for the newly extracted ColdFire layouts: where the record starts in a `.nspg` (Stage Classic / EX — the readers stay header-only until it is known) and a `.nppg` (Nord Piano, 0x1A guessed); the sizes of `.np3p` (81), `.np2p` (70) and `.ncpg` (297); the Electro 5 piano-type and organ-model orders (inferred).
