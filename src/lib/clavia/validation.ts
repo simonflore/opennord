@@ -171,7 +171,7 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
     samples: { status: 're', note: "sampleCodec 'og': firmware loads .nsmp with NWS v8/v11 only; not HW-tested" },
   },
   'piano-3': {
-    'file-read': { status: 'inferred', note: "ColdFire (Stage 2 generation) firmware, not NW1-v3; np3p container not extracted, no body decoder" },
+    'file-read': { status: 're', note: "np3p read-only reader (lib/np3) generated from the OS 2.04 firmware's own parameter containers: u16 version 4 + 53 bytes (common, piano, synth, effects; 76 parameters), data taken at file 0x1A (81-byte file, medium). No real .np3p checked yet; not HW-tested" },
     enumerate: { status: 're', note: "FileTransfer v10 in the OS 2.04 (ColdFire) firmware; 9 partitions, Program at 6 (static); read-only, untested" },
     pull: { status: 're', note: "shared FileTransfer Download at v10 (firmware); read-only, untested" },
     push: { status: 're', note: "shared FileTransfer Upload at v10 (firmware); WRITE — untested-write risk" },

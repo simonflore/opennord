@@ -101,6 +101,13 @@ export function legacyHeaderOnly(
   return { title, header: fwHeader(p), sections: [], note: extraNote ? `${note} ${extraNote}` : note, warnings: p.warnings };
 }
 
+/**
+ * The ColdFire pianos' and Electros' piano type (0–5). Their containers give
+ * the range only; this order is inferred (medium) from the offset maps and the
+ * Stage 2's table (Grand, Upright, E Piano 1, E Piano 2, Clavinet, Harpsi).
+ */
+export const COLDFIRE_PIANO_TYPES = ['Grand', 'Upright', 'E-Piano 1', 'E-Piano 2', 'Clav', 'Harpsichord'] as const;
+
 /** Two 15-bit reference ids (piano or sample) as one fixed-width hex fingerprint. */
 export function refId(ids: readonly [number, number]): string {
   return `0x${((ids[0] * 0x8000 + ids[1]) >>> 0).toString(16).padStart(8, '0')}`;

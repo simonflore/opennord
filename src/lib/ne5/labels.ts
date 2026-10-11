@@ -5,7 +5,7 @@
  * orders are inferred (medium): the organ models follow the Electro 6 table
  * (B3, Vox, Farfisa, Pipe1, Pipe2, then B3 Bass, which the Electro 5 lacks) —
  * five values for the Electro 5's 0–4 range, the two pipe organs sharing the
- * Church sound set; the piano types follow the offset map's inferred order.
+ * Church sound set; the piano types are fw-present's COLDFIRE_PIANO_TYPES.
  */
 import type { Ne5OrganType } from './types';
 
@@ -14,6 +14,3 @@ export const NE5_ORGAN_MODELS = ['B3', 'Vox', 'Farfisa', 'Pipe 1', 'Pipe 2'] as 
 
 /** The sound set each organ model plays. */
 export const NE5_ORGAN_SET: readonly Ne5OrganType[] = ['b3', 'vox', 'farf', 'church', 'church'];
-
-/** Piano type (piano container, 0–5) — inferred order (medium). */
-export const NE5_PIANO_TYPES = ['Grand', 'Upright', 'E-Piano 1', 'E-Piano 2', 'Clav', 'Harpsichord'] as const;

@@ -8,8 +8,8 @@
 import { decodeNe5 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
-import { effectsSection, fwHeader, label, legacyHeaderOnly, parts, refId } from '../clavia/fw-present';
-import { NE5_ORGAN_MODELS, NE5_ORGAN_SET, NE5_PIANO_TYPES } from './labels';
+import { COLDFIRE_PIANO_TYPES, effectsSection, fwHeader, label, legacyHeaderOnly, parts, refId } from '../clavia/fw-present';
+import { NE5_ORGAN_MODELS, NE5_ORGAN_SET } from './labels';
 import type { Ne5Program } from './types';
 
 const PRESET = ['Preset I', 'Preset II'] as const;
@@ -44,7 +44,7 @@ export function ne5Decoded(bytes: Uint8Array): DecodedProgram {
 
   const piano: DecodedSection = {
     id: 'P', label: 'PIANO',
-    engines: [{ label: 'Piano', parts: parts(label(NE5_PIANO_TYPES, p.piano.type) ?? 'Piano', `no. ${p.piano.model + 1}`) }],
+    engines: [{ label: 'Piano', parts: parts(label(COLDFIRE_PIANO_TYPES, p.piano.type) ?? 'Piano', `no. ${p.piano.model + 1}`) }],
   };
   const synth: DecodedSection = {
     id: 'S', label: 'SAMPLE SYNTH',
