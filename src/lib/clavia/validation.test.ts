@@ -54,9 +54,9 @@ describe('validation matrix', () => {
     expect(statusFor('lead-4', 'file-read').status).toBe('re');
     expect(statusFor('lead-4', 'backup').status).toBe('re');
   });
-  it('lead-4 transfer caps stay at inferred (hardware-gated)', () => {
+  it('lead-4 transfer caps are re (FileTransfer v8 in the OS 1.32 firmware, not HW-tested)', () => {
     for (const cap of ['enumerate', 'pull', 'push', 'delete'] as const) {
-      expect(statusFor('lead-4', cap).status, `lead-4 ${cap}`).toBe('inferred');
+      expect(statusFor('lead-4', cap).status, `lead-4 ${cap}`).toBe('re');
     }
   });
   it('lead-4 samples is unsupported (sampleCodec null — no sample engine)', () => {
