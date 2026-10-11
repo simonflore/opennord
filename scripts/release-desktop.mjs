@@ -3,18 +3,18 @@
 // both to a DRAFT release on the public repo. Publishing stays a manual click.
 // See docs/specs/2026-10-11-desktop-signed-releases-design.md and electron/README.md.
 //
-//   npm run release:desktop              both platforms
-//   npm run release:desktop -- --mac-only
-//   npm run release:desktop -- --dry-run    everything except the upload
+//   npm run release:desktop                          both platforms
+//   npm run release:desktop -- --dry-run             everything except the upload
+//   npm run release:desktop -- --dry-run --mac-only  rehearse the mac half alone
 //
 // Everything that decides something is a pure function below, so it is tested
 // without git, gh or the network (release-desktop.test.mjs).
 
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /** The `xcrun notarytool store-credentials` profile name (electron/README.md). */
 export const NOTARY_PROFILE = 'opennord-notary';
@@ -75,6 +75,50 @@ export function releaseAssets({ macOnly }) {
   return macOnly ? [...MAC_ASSETS] : [...MAC_ASSETS, ...WIN_ASSETS];
 }
 
+/**
+ * Command-line flags. Unknown flags are refused rather than ignored, and
+ * --mac-only is rehearsal-only: a PUBLISHED release without the Windows files
+ * becomes "latest", so releases/latest/download/OpenNord-win-x64.exe and the
+ * Windows update feed would both 404. Every release tag gets a Windows build
+ * from CI anyway.
+ */
+export function parseFlags(argv) {
+  const known = ['--mac-only', '--dry-run'];
+  const unknown = argv.filter((flag) => !known.includes(flag));
+  if (unknown.length > 0) throw new Error(`Unknown option ${unknown.join(', ')} — expected ${known.join(' or ')}.`);
+  const macOnly = argv.includes('--mac-only');
+  const dryRun = argv.includes('--dry-run');
+  if (macOnly && !dryRun) {
+    throw new Error('--mac-only only works with --dry-run: a release without the Windows files would break the Windows download link and update feed.');
+  }
+  return { macOnly, dryRun };
+}
+
+/**
+ * `gh` arguments that create the draft. `target` is the commit on the PUBLIC
+ * repo the tag is cut from when the draft is published; without it GitHub uses
+ * whatever the mirror's default branch is at that moment, which may be later
+ * than the commit these binaries were built from.
+ */
+export function releaseCreateArgs({ tag, version, publicRepo, target }) {
+  return ['release', 'create', tag, '--repo', publicRepo, '--draft', '--target', target, '--title', `OpenNord ${version}`, '--notes', ''];
+}
+
+/**
+ * True when this module is the script node was started with. import.meta.url
+ * is percent-encoded and symlink-resolved, so argv[1] has to be made the same
+ * before comparing — a checkout path with a space would otherwise never match
+ * and the command would exit 0 having done nothing.
+ */
+export function isMainModule(metaUrl, entry) {
+  if (!entry) return false;
+  try {
+    return metaUrl === pathToFileURL(realpathSync(entry)).href;
+  } catch {
+    return false;
+  }
+}
+
 const core = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const APP = join(core, 'release', 'mac-universal', 'OpenNord.app');
 
@@ -99,9 +143,13 @@ function fatal(message) {
 }
 
 function main() {
-  const flags = process.argv.slice(2);
-  const macOnly = flags.includes('--mac-only');
-  const dryRun = flags.includes('--dry-run');
+  let flags;
+  try {
+    flags = parseFlags(process.argv.slice(2));
+  } catch (error) {
+    fatal(error.message);
+  }
+  const { macOnly, dryRun } = flags;
 
   const pkg = JSON.parse(readFileSync(join(core, 'package.json'), 'utf8'));
   const { version } = pkg;
@@ -135,7 +183,7 @@ function main() {
     ]);
     if (runsJson === null) fatal('could not list the Windows CI runs (gh run list failed).');
     windowsRun = pickWindowsRun(JSON.parse(runsJson), headCommit);
-    if (!windowsRun.ok) fatal(`${windowsRun.reason}\n  (Use --mac-only to release macOS alone.)`);
+    if (!windowsRun.ok) fatal(windowsRun.reason);
   }
 
   // 3. Refuse early if this version is already out.
@@ -147,16 +195,32 @@ function main() {
     fatal(error.message);
   }
 
-  // 4. Pack macOS. APPLE_KEYCHAIN_PROFILE is what makes electron-builder notarize.
+  // 4. Find the commit the public tag must point at: this checkout's commit as
+  //    the mirror sees it. mirror-core.yml pushes `git subtree split` of this
+  //    package, which is deterministic, so the same split here names the same
+  //    commit — and its absence over there means the mirror has not caught up.
+  let target = null;
+  if (!dryRun) {
+    const top = tryRun('git', ['rev-parse', '--show-toplevel']);
+    const prefix = (tryRun('git', ['rev-parse', '--show-prefix']) ?? '').replace(/\/$/, '');
+    console.log('\nWorking out the public commit for this release (about half a minute)…');
+    target = top && prefix ? tryRun('git', ['-C', top, 'subtree', 'split', `--prefix=${prefix}`, 'HEAD']) : null;
+    if (!target) fatal('could not compute the public mirror commit (git subtree split failed).');
+    if (tryRun('gh', ['api', `repos/${publicRepo}/commits/${target}`, '-q', '.sha']) === null) {
+      fatal(`the public repo ${publicRepo} does not have commit ${target} yet — wait for the mirror workflow to finish, then re-run.`);
+    }
+  }
+
+  // 5. Pack macOS. APPLE_KEYCHAIN_PROFILE is what makes electron-builder notarize.
   run('npm', ['run', 'electron:pack'], { APPLE_KEYCHAIN_PROFILE: NOTARY_PROFILE });
 
-  // 5. Verify. stapler is the check that notarization really happened:
+  // 6. Verify. stapler is the check that notarization really happened:
   //    electron-builder only warns when it skips it.
   run('codesign', ['--verify', '--deep', '--strict', APP]);
   run('xcrun', ['stapler', 'validate', APP]);
   run('spctl', ['--assess', '--type', 'execute', '--verbose', APP]);
 
-  // 6. Gather every asset into one directory.
+  // 7. Gather every asset into one directory.
   const staging = mkdtempSync(join(tmpdir(), 'opennord-release-'));
   if (!macOnly) {
     run('gh', ['run', 'download', String(windowsRun.id), '--repo', ciRepo, '--name', `OpenNord-win-x64-${headCommit}`, '--dir', staging]);
@@ -174,12 +238,15 @@ function main() {
     return;
   }
 
-  // 7. Draft release on the public repo. Publishing is a manual click.
+  // 8. Draft release on the public repo. Publishing is a manual click.
   if (action === 'create') {
-    run('gh', ['release', 'create', tag, '--repo', publicRepo, '--draft', '--title', `OpenNord ${version}`, '--notes', '']);
+    run('gh', releaseCreateArgs({ tag, version, publicRepo, target }));
+  } else {
+    // A reused draft may predate a re-tag; keep its target on this build's commit.
+    run('gh', ['release', 'edit', tag, '--repo', publicRepo, '--draft', '--target', target]);
   }
   run('gh', ['release', 'upload', tag, ...files, '--repo', publicRepo, '--clobber']);
-  console.log(`\nDraft ready: https://github.com/${publicRepo}/releases — check that the public mirror has caught up, then publish it.`);
+  console.log(`\nDraft ready: https://github.com/${publicRepo}/releases — its tag will be cut from ${target}. Test the builds, then publish it.`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (isMainModule(import.meta.url, process.argv[1])) main();

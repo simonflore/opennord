@@ -125,8 +125,8 @@ permissions and no new secrets.
 
 1. **Preflight.** Clean working tree; tag `desktop-v<version>` exists at `HEAD`;
    `gh` is authenticated; a Developer ID Application identity is in the keychain;
-   the `notarytool` keychain profile exists; `xcrun notarytool` resolves (full
-   Xcode selected, not the Command Line Tools).
+   the `notarytool` keychain profile exists; `xcrun notarytool` resolves (it
+   ships with Xcode and with the Command Line Tools).
 2. **Pack macOS.** Guard clean → web build → main/preload bundle →
    `electron-builder --mac --universal --publish never` (signs, notarizes,
    staples) → guard verify.
@@ -140,9 +140,18 @@ permissions and no new secrets.
    on `simonflore/opennord` and upload all five assets plus blockmaps.
 6. **Print** the draft's URL. Publishing is a manual click.
 
-`--mac-only` skips step 4 and uploads no Windows assets, for a macOS-only fix.
-There is no Windows-only mode: without the macOS feed file a release would
-strand Mac users once spec 2 ships.
+There is no single-platform release. A published release missing one
+platform's files becomes "latest", which breaks that platform's
+`releases/latest/download/…` link and, once spec 2 ships, its update feed. Every
+release tag gets a Windows build from CI, so a macOS-only fix still ships both.
+`--dry-run` stops before uploading; `--dry-run --mac-only` rehearses the macOS
+half before a Windows build exists.
+
+**The public tag is pinned.** `desktop-v<version>` exists only in the private
+monorepo; GitHub creates the public tag when the draft is published. The command
+computes this commit's mirror equivalent (`git subtree split`, the same
+operation `mirror-core.yml` pushes), refuses if the public repo does not have it
+yet, and creates the draft with that commit as its target.
 
 Nothing secret is stored in the repo or in CI. The certificate lives in the
 login keychain and the notarization credential in a `notarytool` keychain
@@ -152,13 +161,11 @@ profile created once by hand.
 
 Documented in `electron/README.md`, not automated:
 
-- `sudo xcode-select -s /Applications/Xcode.app` — notarization and stapling need
-  the full Xcode.
+- Xcode or the Command Line Tools; `notarytool` and `stapler` ship with either.
 - Install a **Developer ID Application** certificate in the login keychain.
 - `xcrun notarytool store-credentials` to create the keychain profile.
-- A Node version on which `vite build` runs. Node 26 has broken Vite on this
-  machine before; confirm at the start of implementation and, if it still does,
-  pin the release command to a working version via `.nvmrc`.
+- Node 26 (what CI uses). Checked on this Mac during implementation: the web
+  build and the pack run on it.
 
 ## Website
 
@@ -203,4 +210,4 @@ The "Never run electron-rebuild" section stays as is.
   doubles as the checklist for setting up a second one.
 - **Mirror lag** — the release sits on the public repo while the tag sits on the
   private monorepo. The AGPL source for a release is the mirrored core commit;
-  confirm the mirror has caught up before publishing the draft.
+  the release command pins the draft to it and refuses until the mirror has it.
