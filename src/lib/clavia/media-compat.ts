@@ -229,9 +229,11 @@ export function mediaCompat(model: MediaModelId): MediaCompat {
   return MEDIA_COMPAT[model] ?? { pianos: 'unknown', samples: 'unknown' };
 }
 
-/** `0x450` → 5. */
+const VERSION_NUMBER: Record<number, number> = { [v4]: 4, [v5]: 5, [v6]: 6 };
+
+/** `0x450` → 5; undefined for a version that isn't v4, v5 or v6. */
 export function pianoVersionNumber(v: number): number | undefined {
-  return ({ [v4]: 4, [v5]: 5, [v6]: 6 } as Record<number, number>)[v];
+  return VERSION_NUMBER[v];
 }
 
 /** The CNSP version to write for a model: the newest it loads; undefined if it loads none (or isn't known). */
