@@ -39,18 +39,21 @@ function useLibraryStateValue() {
 
   // Memoised so the list keeps its identity across renders that don't change it
   // (the ⌘K palette's command list is built from it).
-  const allEntries: LibraryEntry[] = useMemo(() => [
-    ...nordEntriesFromDevice(deviceEntries),
-    ...entriesFromScannedPrograms(folder.result.programs),
-    ...imported.entries,
-  ], [deviceEntries, folder.result.programs, imported.entries]);
+  // Each source's entries are built on their own, so a device poll or a rescan
+  // keeps the other sources' entry objects (and their memoised table rows).
+  const nordEntries = useMemo(() => nordEntriesFromDevice(deviceEntries), [deviceEntries]);
+  const folderEntries = useMemo(() => entriesFromScannedPrograms(folder.result.programs), [folder.result.programs]);
+  const allEntries: LibraryEntry[] = useMemo(
+    () => [...nordEntries, ...folderEntries, ...imported.entries],
+    [nordEntries, folderEntries, imported.entries],
+  );
   // Generations present across the *unfiltered* list — drives whether the format
   // facet is worth showing (only when there's more than one). Stage 4 → 2 order.
-  const generationsPresent = (['Stage 4', 'Stage 3', 'Stage 2'] as const)
-    .filter((g) => allEntries.some((e) => e.generation === g));
+  const generationsPresent = useMemo(() => (['Stage 4', 'Stage 3', 'Stage 2'] as const)
+    .filter((g) => allEntries.some((e) => e.generation === g)), [allEntries]);
   // Categories present across the *unfiltered* list — drives whether the
   // category facet is worth showing (only when there's more than one).
-  const categoriesPresent = presentCategories(allEntries);
+  const categoriesPresent = useMemo(() => presentCategories(allEntries), [allEntries]);
   // The list follows the search a beat behind (an interruptible render), so the
   // field keeps up with typing in a library of thousands.
   const listQuery = useDeferredValue(query);

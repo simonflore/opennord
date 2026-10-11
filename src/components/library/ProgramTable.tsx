@@ -1,4 +1,4 @@
-import { memo, useLayoutEffect, useRef, type RefObject } from 'react';
+import { memo } from 'react';
 import { cn } from '@/lib/cn';
 import { SourceBadge } from '../ui';
 import { Led } from '../shell/Led';
@@ -66,15 +66,14 @@ type RowActions = {
 };
 
 /**
- * One program row. Memoised on its entry, open and favourite state: stepping
- * with J/K or starring a program re-renders the rows that changed, not the list.
- * `actions` is a stable ref to the table's latest handlers.
+ * One program row. Memoised on its entry, open and favourite state (the
+ * handlers are stable): stepping with J/K or starring a program re-renders the
+ * rows that changed, not the list.
  */
-const ProgramRow = memo(function ProgramRow({ entry: e, selected, favorite, actions }: {
+const ProgramRow = memo(function ProgramRow({ entry: e, selected, favorite, onOpen, onToggleFavorite, onRemove }: RowActions & {
   entry: LibraryEntry;
   selected: boolean;
   favorite: boolean;
-  actions: RefObject<RowActions>;
 }) {
   return (
     <LibraryRow
@@ -82,9 +81,9 @@ const ProgramRow = memo(function ProgramRow({ entry: e, selected, favorite, acti
       // can hold thousands); 40px stands in for its height until first shown.
       className={cn(COLS, 'min-h-10 font-mono text-[11px] text-dim [content-visibility:auto] [contain-intrinsic-size:auto_40px]')}
       selected={selected}
-      onOpen={() => actions.current.onOpen(e)}
+      onOpen={() => onOpen(e)}
     >
-      <FavoriteStar name={e.name} favorite={favorite} onToggle={() => actions.current.onToggleFavorite(e.id)} />
+      <FavoriteStar name={e.name} favorite={favorite} onToggle={() => onToggleFavorite(e.id)} />
       <span>
         <SlotTag tone={e.slot ? undefined : genTone(e.generation)}>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>
       </span>
@@ -96,7 +95,7 @@ const ProgramRow = memo(function ProgramRow({ entry: e, selected, favorite, acti
       <span className="flex items-center gap-2">
         <span className={WIDE}><SourceBadge source={e.source} /></span>
         {e.source === 'local' && (
-          <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); actions.current.onRemove(e.id); }} />
+          <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
         )}
       </span>
     </LibraryRow>
@@ -110,20 +109,13 @@ const ProgramRow = memo(function ProgramRow({ entry: e, selected, favorite, acti
  * through it are useStepKeys, on the program page (so they work with the
  * table folded away on a narrow screen too).
  */
-export function ProgramTable({
-  entries, activeId, favorites, onToggleFavorite, onOpen, onRemove,
-}: {
+export const ProgramTable = memo(function ProgramTable({
+  entries, activeId, favorites, ...actions
+}: RowActions & {
   entries: LibraryEntry[];
   activeId?: string | null;
   favorites: ReadonlySet<string>;
-  onToggleFavorite: (id: string) => void;
-  onOpen: (e: LibraryEntry) => void;
-  onRemove: (id: string) => void;
 }) {
-  // The latest handlers, read when a row is used, so the rows' props stay
-  // stable while the parent passes new closures each render.
-  const actions = useRef<RowActions>({ onOpen, onToggleFavorite, onRemove });
-  useLayoutEffect(() => { actions.current = { onOpen, onToggleFavorite, onRemove }; });
   return (
     <div className="@container">
       <div
@@ -147,11 +139,11 @@ export function ProgramTable({
         <span className={WIDE}>Source</span>
       </div>
       {entries.map((e) => (
-        <ProgramRow key={e.id} entry={e} selected={e.id === activeId} favorite={favorites.has(e.id)} actions={actions} />
+        <ProgramRow key={e.id} entry={e} selected={e.id === activeId} favorite={favorites.has(e.id)} {...actions} />
       ))}
       <p className="m-0 px-3 py-2 font-mono text-[10px] text-muted max-[720px]:hidden">
         <kbd>J</kbd> <kbd>K</kbd> next / previous · <kbd>↵</kbd> open
       </p>
     </div>
   );
-}
+});
