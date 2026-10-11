@@ -63,6 +63,35 @@ Any feature that uploads or shares files follows the authorship bright line abov
 - **A clear content license / terms** governs what an uploader grants and how shared files may be used — in place **before** any upload feature ships.
 - **Takedown & moderation.** Honor takedown requests, provide a report path, and remove infringing, factory-laden, or abusive content.
 
+## Diagnostics (privacy)
+
+Files are read and decoded on the user's device. The free/local build sends nothing:
+its diagnostics sink is the browser console. A build that configures a diagnostics
+collector (the hosted app sets `VITE_DIAGNOSTICS_URL`) sends small JSON events,
+each stamped with the time and the browser's user-agent string:
+
+- **Keyboard connection** (`device.connect`, `device.error`, `device.partition-probe`) —
+  always on in such a build: whether connecting worked, the model, the USB descriptor
+  layout, the error name/message, and the partition-probe map. No programs, sounds or
+  names.
+- **File support** (`file.read`) — **opt-in, off by default**, stored per device
+  ("Help improve file support" on the About and Contribute pages). One report per
+  distinct program file per visit, when it is opened: the file-type tag, model id,
+  size, the header's format byte (0x04) and version field (0x14), two 6-byte framing
+  windows as hex (0x14–0x19, and the first 6 bytes where the reader expects the
+  record/body: 0x18 after a legacy header, 0x2C after an NSM-era one — the version
+  word and block length, at most the leading bits of the first parameter block), the
+  reader's verdict (layout matched / header only, record version, its generic warning
+  messages, the count of out-of-range values) and the app build. **Never** program
+  contents or values beyond those windows, program names, file names, or a hash of
+  the file. Program files carry no name in the binary (`clavia/cbin.ts`,
+  the maintainers’ notes); sample files do, so they are never reported. Implementation:
+  `src/lib/diagnostics/file-read.ts`.
+
+No account id or IP address is stored with an event. **Retention is not implemented
+yet:** events are kept in the backend's database until deleted by hand. The user-facing
+summary is on the About page.
+
 ## This is not legal advice
 
 Maintainers and contributors should sanity-check local law before relying on the above. If in doubt about a specific feature, open an issue and discuss before shipping it.
