@@ -47,6 +47,17 @@ checkNpnoAcceptance(bytes, { deep: true, model: 'stage-3', fileName }); // every
   44.1 kHz (the rate the piano DSP plays), starting at the attack, every channel the same length.
   A layer can have a sustain loop in whole frames: `start ≥ 0`, `length ≥ 4` (the seam copies 4
   frames), `start + length` ≤ the layer's length.
+- A looped layer can set `decayDbPerSecond`: how fast a held note fades inside its loop (0 holds
+  its level). It is written as the Q23 coefficient at +0x2E, `10^(−dB/(20·22050))` per envelope
+  update (`PIANO-ENGINE.md` §1.4). Left out, the layer gets the piano-like default from its root.
+- `nsmpToNpno(bytes, { name })` (`src/lib/ns4/nsmp-to-npno.ts`) builds a piano from a Nord Sample
+  (`.nsmp`, `.nsmp3`, `.nsmp4`). The piano DSP never plays a recording above its own pitch, so
+  each sample zone is resampled to sound at its top key, and keys more than 3 semitones above
+  a recording get their own copy, four keys each. Zones sharing their keys become dynamic
+  layers, with floors that put the layer switch at the velocity that divided them. A short
+  loop is repeated until rounding it to whole frames detunes it by under a third of a cent. A
+  recording with no loop that is still sounding at its end gets a half-second fade. Like
+  `buildNpno`, hardware-untested.
 - A zone's `rootNote` is **the MIDI note the recording sounds at** (60 for a C4 sample), 5–127.
   The instrument plays every stroke 4 semitones above the root it stores (`NSP_ROOT_OFFSET`,
   `NSP-FORMAT.md` "Root offset"), so the file stores `rootNote − 4`: a C4 recording is written as
