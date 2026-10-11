@@ -6,19 +6,14 @@
  * Only programs the owner made are asked for (settings, never Nord audio), and
  * recordings stay on the owner's computer — only numbers are shared (docs/LEGAL.md).
  */
-const NEW_ISSUE = 'https://github.com/simonflore/opennord/issues/new';
+import { newIssueUrl } from '../device/report';
 
-function issueUrl(label: string, title: string, body: string): string {
-  return `${NEW_ISSUE}?labels=${encodeURIComponent(label)}`
-    + `&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-}
-
-/** "Share two or three of your programs": the files plus what the Nord's display shows. */
-export function programsIssueUrl(deviceName?: string): string {
-  const model = deviceName ?? '';
-  return issueUrl('programs', `Programs from my ${deviceName ?? 'Nord'}`, [
+/** "Share two or three of your programs": the files plus what the Nord's display shows.
+ *  `deviceName` is the connected Nord's name, or '' when none is connected. */
+export function programsIssueUrl(deviceName = ''): string {
+  return newIssueUrl('programs', `Programs from my ${deviceName || 'Nord'}`, [
     '## My Nord',
-    `- Model: ${model}`,
+    `- Model: ${deviceName}`,
     '- OS version (shown in the System menu):',
     '',
     '## Programs',
@@ -34,10 +29,10 @@ export function programsIssueUrl(deviceName?: string): string {
 }
 
 /** "Measure a few sounds": a volunteer form; we reply with what to measure for that model. */
-export function measureIssueUrl(deviceName?: string): string {
-  return issueUrl('measurements', `I can measure sounds on my ${deviceName ?? 'Nord'}`, [
+export function measureIssueUrl(deviceName = ''): string {
+  return newIssueUrl('measurements', `I can measure sounds on my ${deviceName || 'Nord'}`, [
     '## My Nord',
-    `- Model: ${deviceName ?? ''}`,
+    `- Model: ${deviceName}`,
     '- OS version (shown in the System menu):',
     '- Audio interface:',
     '',

@@ -21,13 +21,20 @@ export function probeReportMarkdown(r: ProbeReport): string {
   ].join('\n');
 }
 
-/** A pre-filled GitHub issue URL so an owner can contribute the report in one click.
- *  Uses encodeURIComponent (spaces → %20) so the title/body survive GitHub's parser. */
+/** A pre-filled new-issue URL on the public repo. Uses encodeURIComponent (spaces →
+ *  %20) so the title/body survive GitHub's parser. */
+export function newIssueUrl(label: string, title: string, body: string): string {
+  return 'https://github.com/simonflore/opennord/issues/new'
+    + `?labels=${encodeURIComponent(label)}`
+    + `&title=${encodeURIComponent(title)}`
+    + `&body=${encodeURIComponent(body)}`;
+}
+
+/** A pre-filled GitHub issue URL so an owner can contribute the report in one click. */
 export function probeIssueUrl(r: ProbeReport): string {
-  const title = `Hardware validation: ${r.deviceName} (${hex(r.productId)})`;
-  const q =
-    'labels=hardware-validation' +
-    `&title=${encodeURIComponent(title)}` +
-    `&body=${encodeURIComponent(probeReportMarkdown(r))}`;
-  return `https://github.com/simonflore/opennord/issues/new?${q}`;
+  return newIssueUrl(
+    'hardware-validation',
+    `Hardware validation: ${r.deviceName} (${hex(r.productId)})`,
+    probeReportMarkdown(r),
+  );
 }
