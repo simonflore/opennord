@@ -41,9 +41,12 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
   return (
     <div className="ps">
       <div className="ps-hd">
-        <div>
-          <div className="ps-nm">Your programs</div>
-          <div className="ps-meta"><span>{deviceName} · {entries.length} programs</span></div>
+        {/* The connected Nord's identity on the LCD, with its program storage under it. */}
+        <div className="ps-hd-id">
+          <div className="ps-lcd ps-lcd-id">
+            <h2 className="big">{deviceName}</h2>
+            <div>{entries.length} programs</div>
+          </div>
           {capacity && <StorageMeter label="STORAGE" capacity={capacity} mode="slots" />}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -61,7 +64,7 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
         [...byBank.keys()].sort((a, b) => a - b).map((bank) => (
           <div key={bank} style={{ marginBottom: 14 }}>
             <BankLabel bank={bank} />
-            <div style={{ display: 'grid', gap: 6 }}>
+            <div style={{ display: 'grid', borderTop: '1px solid var(--line)' }}>
               {byBank.get(bank)!
                 .slice()
                 .sort((a, b) => a.slot - b.slot)
@@ -76,14 +79,11 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
                           textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 'none', color: 'inherit',
                         }}
                       >
-                        <span style={{ fontWeight: 600 }}>{v.name}</span>
-                        <span className="ps-sub" style={{ margin: 0 }}>{v.slot} · {v.category} · {v.version}</span>
+                        <span className="ps-row-slot">{v.slot}</span>
+                        <span style={{ flex: 1, fontWeight: 600 }}>{v.name}</span>
+                        <span className="ps-fact">{v.category} · {v.version}</span>
                       </button>
-                      <button
-                        onClick={() => onDelete(e)}
-                        title={`Delete ${v.name}`}
-                        style={{ cursor: 'pointer', background: 'transparent', border: '1px solid var(--deps-border)', color: 'var(--warn)', borderRadius: 6, padding: '4px 8px', fontSize: 11 }}
-                      >
+                      <button className="ps-row-del" onClick={() => onDelete(e)} title={`Delete ${v.name}`}>
                         Delete
                       </button>
                     </div>

@@ -15,14 +15,18 @@
 .ps-pill { background: var(--panel-pill); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; font-size: 11px; }
 /* Caution pill — e.g. a "factory?" / unverified marker in a header. */
 .ps-pill--warning { color: var(--warn); border-color: var(--deps-border); }
-/* The red "BANK X" heading above a bank's slot grid/list (device views). */
-.ps-bank-head { margin: 0 0 6px; color: var(--red-bright); letter-spacing: 1.5px; }
-/* A list row with the red accent rail — a program/sample entry in a device browser. */
+/* The "BANK X" heading above a bank's slot grid/list (device views) — a panel label. */
+.ps-bank-head { margin: 0 0 6px; font: 600 11px var(--font); letter-spacing: .09em; color: var(--dim); }
+/* A flat entry row in a device browser — data, like a library row. */
 .ps-accent-row {
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
-  background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--red);
-  border-radius: 8px; padding: 8px 12px; color: var(--ink);
+  border-bottom: 1px solid var(--line); padding: 6px 10px; color: var(--ink);
 }
+.ps-accent-row:hover { background: var(--surface-2); }
+.ps-row-slot { font: 500 12px var(--mono); color: var(--dim); min-width: 3.2em; }
+.ps-row-del { cursor: pointer; background: transparent; border: 1px solid var(--line); color: var(--danger);
+  border-radius: var(--r-sm); padding: 4px 8px; font: 600 11px var(--font); }
+.ps-row-del:hover { border-color: var(--danger); }
 .ps-logo { color: var(--red); font-style: italic; font-weight: 800; font-size: 22px; }
 
 .ps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
@@ -138,6 +142,8 @@
 .ps-scene { display: flex; flex-direction: column; gap: 8px; }
 @media (max-width: 720px) { .ps-scene { flex-direction: row; } }
 .ps-scene-btn { cursor: pointer; min-height: 32px; }
+/* Small flat facts after the header's keys — file version, checksum. */
+.ps-fact { font: 400 11px var(--mono); color: var(--dim); }
 .ps-key-note { font: 400 10px var(--mono); letter-spacing: 0; text-transform: none; color: var(--dim); }
 
 .ps-zones { margin: 0 0 16px; }

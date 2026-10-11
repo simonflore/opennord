@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { Card, SourceBadge, type LibrarySource } from '../ui';
+import { SourceBadge, type LibrarySource } from '../ui';
 import { cn } from '@/lib/cn';
 
 /**
- * Shared entry card for every Library category (Programs, Presets, User
+ * Shared entry row for every Library category (Programs, Presets, User
  * Samples, Piano Samples). Each of those hand-rolled the same entry-card
  * skeleton — a `Card` wrapper made keyboard-activatable, a favorite star, the
  * name, an optional "unused" tag, an optional reclaim checkbox, and a foot
@@ -14,7 +14,7 @@ import { cn } from '@/lib/cn';
  */
 export function LibraryCard({
   name, source, favorite, onToggleFavorite, onOpen,
-  badge, unused, select, engines, footExtras,
+  badge, unused, select, engines, footExtras, strip, selected,
 }: {
   name: string;
   source: LibrarySource;
@@ -27,30 +27,37 @@ export function LibraryCard({
   unused?: boolean;
   /** Reclaim-flow selection checkbox; omit when the card isn't selectable. */
   select?: { checked: boolean; onToggle: () => void };
-  /** Engine/summary row between the name and the foot. */
+  /** Engine/summary tags on the row's second line. */
   engines?: ReactNode;
-  /** Foot content after the source badge (size, factory pill, remove…). */
+  /** Second-line content after the source (size, factory pill, remove…). */
   footExtras?: ReactNode;
+  /** A small glance beside the engines — the program's keyboard-zone strip. */
+  strip?: ReactNode;
+  /** This entry is the one open in the detail pane. */
+  selected?: boolean;
 }) {
   return (
-    <Card
-      accent={source === 'nord'}
+    // A dense two-line row (B×A: data stays flat): favourite + name + badge on
+    // top, engines / zone strip / source underneath. The open entry carries the
+    // accent bar, like the selected row in a table.
+    <div
       className={cn(
-        'group cursor-pointer select-none',
-        'transition-[transform,box-shadow,border-color] duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)]',
-        'hover:-translate-y-0.5 hover:border-muted hover:elev-3',
-        'focus-visible:-translate-y-0.5',
+        'group relative grid cursor-pointer select-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-1',
+        'border-b border-line py-2 pr-3 pl-1',
+        'transition-colors duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)] hover:bg-surface-2 focus-visible:bg-surface-2',
+        selected && "bg-surface-2 before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent before:content-['']",
       )}
       role="button"
       tabIndex={0}
+      aria-current={selected ? 'true' : undefined}
       onClick={onOpen}
       onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onOpen(); } }}
     >
-      <div className="flex items-baseline justify-between gap-2">
+      <div className="flex items-center">
         {select && (
           <input
             type="checkbox"
-            className="mr-2 flex-none"
+            className="ml-2 mr-1 flex-none"
             aria-label={`Select ${name}`}
             checked={select.checked}
             onChange={select.onToggle}
@@ -59,11 +66,11 @@ export function LibraryCard({
         )}
         <button
           className={cn(
-            '-my-2 inline-flex min-h-11 min-w-11 flex-none items-center justify-center text-base leading-none opacity-0',
+            '-my-3 inline-flex min-h-11 min-w-9 flex-none items-center justify-center text-[15px] leading-none opacity-0',
             'transition-[opacity,color] duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)]',
             'group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100',
-            'hover:text-red-bright',
-            favorite ? 'text-red opacity-100' : 'text-muted',
+            'hover:text-accent-bright',
+            favorite ? 'text-accent opacity-100' : 'text-muted',
           )}
           aria-label={favorite ? `Unfavorite ${name}` : `Favorite ${name}`}
           aria-pressed={favorite}
@@ -71,22 +78,27 @@ export function LibraryCard({
           onClick={(ev) => { ev.stopPropagation(); onToggleFavorite(); }}
           onKeyDown={(ev) => ev.stopPropagation()}
         >{favorite ? '★' : '☆'}</button>
-        <span className="min-w-0 flex-1 truncate text-[14px] font-bold text-ink">{name}</span>
+      </div>
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="min-w-0 truncate text-[14px] font-semibold text-ink">{name}</span>
         {unused && (
           <span
-            className="shrink-0 rounded px-[5px] py-[3px] text-[9px]/none font-semibold uppercase tracking-[0.04em] text-warn shadow-[inset_0_0_0_1px_var(--warn)]"
+            className="shrink-0 rounded-sm px-[5px] py-[3px] text-[9px]/none font-semibold uppercase tracking-[0.04em] text-warn shadow-[inset_0_0_0_1px_var(--warn)]"
             title="Not used by any program"
           >
             unused
           </span>
         )}
-        {badge}
       </div>
-      {engines}
-      <div className="mt-[11px] flex items-center justify-between gap-2">
-        <SourceBadge source={source} />
-        {footExtras}
+      <div className="font-mono">{badge}</div>
+      <div className="col-span-2 col-start-2 flex min-w-0 items-center gap-3">
+        <div className="min-w-0 overflow-hidden">{engines}</div>
+        {strip}
+        <span className="ml-auto flex flex-none items-center gap-2 font-mono text-[11px] text-dim">
+          <SourceBadge source={source} />
+          {footExtras}
+        </span>
       </div>
-    </Card>
+    </div>
   );
 }

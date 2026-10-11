@@ -15,9 +15,11 @@ const pct = (f: number) => `${(f * 100).toFixed(3)}%`;
  */
 export function ProgramZones({ program, scene }: { program: NS4Program; scene?: 'I' | 'II' }) {
   const z = programZones(program, scene);
+  // Transpose switched on at 0 semitones changes nothing, so it isn't lit.
+  const transpose = z.transpose && !/^[+-]?0(\s|$)/.test(z.transpose) ? z.transpose : null;
   const perf = z.performance;
   const hasPerf = !!perf.pitchStick || perf.sustain || perf.kbHold;
-  if (!z.hasSplit && !z.transpose && !hasPerf) return null;
+  if (!z.hasSplit && !transpose && !hasPerf) return null;
   const { lanes, splits } = zoneLanes(z.zones, z.boundaries, z.xfade);
   const describe = splits.length
     ? `Keyboard split at ${splits.map((s) => s.note).join(' and ')}`
@@ -27,7 +29,7 @@ export function ProgramZones({ program, scene }: { program: NS4Program; scene?: 
     <div className="ps-zones">
       <div className="ps-zones-hd">
         <span className="ps-zones-t">{z.hasSplit ? 'KEYBOARD SPLIT' : 'KEYBOARD'}</span>
-        {z.transpose && <span className="ps-key on">transpose {z.transpose}</span>}
+        {transpose && <span className="ps-key on">transpose {transpose}</span>}
         {perf.pitchStick && (
           <span className="ps-key on">pitch stick{perf.pitchStick === 'on' ? '' : ` ${perf.pitchStick}`}</span>
         )}

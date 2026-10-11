@@ -28,11 +28,14 @@ export function SamplesSplit() {
   // The thing currently shown in the detail pane: pulled/folder bytes, or null.
   const [inspect, setInspect] = useState<InspectorInput | null>(null);
   const [loadNew, setLoadNew] = useState(false);
+  // Which list entry is open, for the list's selected row (null for a previewed file).
+  const [openId, setOpenId] = useState<string | null>(null);
   const [pullPct, setPullPct] = useState<number | null>(null);
   const [pullError, setPullError] = useState('');
 
   async function openEntry(e: SampleEntry) {
     setPullError('');
+    setOpenId(e.id);
     if (e.source === 'local' && e.bytes) {
       setLoadNew(false);
       setInspect({ bytes: e.bytes, name: e.name });
@@ -64,7 +67,7 @@ export function SamplesSplit() {
       return;
     }
   }
-  const startLoadNew = () => { setInspect(null); setLoadNew(true); setPullError(''); };
+  const startLoadNew = () => { setInspect(null); setOpenId(null); setLoadNew(true); setPullError(''); };
   const back = () => { setInspect(null); setLoadNew(false); setPullError(''); };
 
   function importSample() {
@@ -109,6 +112,7 @@ export function SamplesSplit() {
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery}
         onOpen={(e) => void openEntry(e)} onLoadNew={startLoadNew}
+        activeId={openId}
         onImport={importSample}
         onRemove={(id) => void s.removeSample(id)}
         storedCount={s.storedCount} storedBytes={s.storedBytes}

@@ -6,6 +6,7 @@ import { LibraryEmpty } from './LibraryEmpty';
 import { BundlePicker } from './BundlePicker';
 import { NewBackupsBanner } from './NewBackupsBanner';
 import { EngineTags } from './EngineTags';
+import { ZoneStrip } from './ZoneStrip';
 import { SlotTag, genTone } from './SlotTag';
 import { CardRemoveButton } from './CardRemoveButton';
 import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
@@ -27,6 +28,8 @@ interface Props {
   categoriesPresent?: string[];
   onQuery: (q: string) => void;
   onOpen: (e: LibraryEntry) => void;
+  /** The entry open in the detail pane, highlighted in the list. */
+  activeId?: string;
   onImport: () => void;
   /** Remove an imported program (local source only). */
   onRemove: (id: string) => void;
@@ -45,7 +48,7 @@ const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', nord: 'On
 const SORT_LABEL: Record<LibrarySort, string> = { default: 'Default', name: 'Name (A–Z)', source: 'Source' };
 
 export function LibraryView({
-  entries, source, query, onSource, onQuery, onOpen, onImport, onRemove,
+  entries, source, query, onSource, onQuery, onOpen, onImport, onRemove, activeId,
   generation = 'all', onGeneration, generationsPresent = [],
   category = 'all', onCategory, categoriesPresent = [],
   importError, onDismissImportError, prefs, folder,
@@ -216,10 +219,12 @@ export function LibraryView({
               favorite={favorites.has(e.id)}
               onToggleFavorite={() => onToggleFavorite(e.id)}
               onOpen={() => onOpen(e)}
+              selected={e.id === activeId}
               badge={<SlotTag tone={e.slot ? undefined : genTone(e.generation)}>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>}
               engines={e.engines
-                ? <div className="mt-2.5"><EngineTags summary={e.engines} /></div>
-                : <div className="mt-2.5 text-[11px] text-muted">—</div>}
+                ? <EngineTags summary={e.engines} />
+                : <span className="text-[11px] text-muted">—</span>}
+              strip={<ZoneStrip program={e.program} />}
               footExtras={e.source === 'local' && (
                 <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
               )}

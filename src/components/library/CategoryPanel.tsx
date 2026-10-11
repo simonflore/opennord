@@ -5,9 +5,9 @@ import './library.css';
  * Shared browse-screen chrome for every Library category (Programs, Presets,
  * User Samples, Piano Samples). Each of those hand-rolled the same panel
  * frame — title + counts + actions over a `BrowseToolbar`, then an empty state
- * or a card grid — which let them drift (different titles, empty copy, spacing).
+ * or the entry list — which let them drift (different titles, empty copy, spacing).
  * This owns the frame so they're consistent by construction; a category only
- * supplies its title/counts/actions, its toolbar, any banners, and its cards.
+ * supplies its title/counts/actions, its toolbar, any banners, and its rows.
  */
 export function CategoryPanel({
   title, counts, actions, headExtra, toolbar, banners, isEmpty, emptyState, children,
@@ -24,10 +24,10 @@ export function CategoryPanel({
   toolbar: ReactNode;
   /** Between the head and the grid (reclaim bar, remove-result status…). */
   banners?: ReactNode;
-  /** True when there are no cards to show → render `emptyState` instead of the grid. */
+  /** True when there are no entries to show → render `emptyState` instead of the list. */
   isEmpty: boolean;
   emptyState: ReactNode;
-  /** The category's cards; wrapped in the card grid by the panel. */
+  /** The category's entry rows; wrapped in the list by the panel. */
   children: ReactNode;
 }) {
   return (
@@ -38,12 +38,12 @@ export function CategoryPanel({
     // utilities). The rest of this shell converts freely.
     <div className="lib-panel flex flex-col">
       <div className="flex-none">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div>
             <h1 className="m-0 text-[18px] font-extrabold text-ink">{title}</h1>
             <div className="mt-0.5 text-[11px] text-dim">{counts}</div>
           </div>
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
+          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
         </div>
         {headExtra}
         {toolbar}
@@ -51,7 +51,9 @@ export function CategoryPanel({
       {banners}
       <div className="lib-panel__body">
         {isEmpty ? emptyState : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-3 max-[560px]:grid-cols-1">
+          // A flush list of rows (LibraryCard), not a card grid: a library is
+          // scanned, so density wins here.
+          <div className="flex flex-col border-t border-line">
             {children}
           </div>
         )}
