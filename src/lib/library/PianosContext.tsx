@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { usePianosPrefs } from '@/lib/library/prefs';
@@ -70,13 +70,13 @@ function usePianosStateValue() {
   }, [session, setPianoEntries]);
 
   // Tag device pianos the scan found unused (match by normalized name).
-  const unusedNames = usage ? new Set(usage.unused.map((s) => normalizeSampleName(s.name))) : null;
-  const allEntries: PianoEntry[] = [
+  const unusedNames = useMemo(() => (usage ? new Set(usage.unused.map((s) => normalizeSampleName(s.name))) : null), [usage]);
+  const allEntries: PianoEntry[] = useMemo(() => [
     ...pianoEntriesFromDevice(pianoEntries).map((e) =>
       unusedNames ? { ...e, unused: unusedNames.has(normalizeSampleName(e.name)) } : e),
     ...pianoEntriesFromScanned(folder.result.pianos),
     ...pianoEntriesFromBackupRefs(folder.result.backupPianos),
-  ];
+  ], [pianoEntries, unusedNames, folder.result.pianos, folder.result.backupPianos]);
   const nordCount = allEntries.filter((e) => e.source === 'nord').length;
   const localCount = allEntries.length - nordCount;
   const showSourceFacet = nordCount > 0 && localCount > 0;
@@ -132,7 +132,12 @@ function usePianosStateValue() {
     }
   }
 
+  /** Every filter off and the search cleared (the list's "clear filters"). */
+  const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setUnusedOnly(false); }, []);
+  /** Show one entry by name: every filter off, the search set to it (the ⌘K palette's jump). */
+  const reveal = useCallback((name: string) => { clearFilters(); setQuery(name); }, [clearFilters]);
   return {
+    all: allEntries, clearFilters, reveal,
     shown, source, setSource, query, setQuery, prefs, entryById, nordCount, localCount, showSourceFacet, folder, session,
     // Piano-usage cleanup (device-connected)
     canScanUsage: !!session, scanUsage, scanPct, unusedCount,

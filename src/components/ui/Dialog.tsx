@@ -8,6 +8,13 @@ export interface DialogProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
+  /**
+   * A bare dialog keeps only the modal shell (scrim, surface, focus trap): its
+   * title is for screen readers only, there's no padding or footer, and
+   * `className` places and sizes it (the ⌘K palette).
+   */
+  bare?: boolean;
+  className?: string;
 }
 
 /**
@@ -21,7 +28,7 @@ export interface DialogProps {
  * fixed-position overlay still stacks correctly. Focus trap / scroll lock / aria
  * live on the Content and are unaffected by skipping the portal.
  */
-export function Dialog({ open, onClose, title, children, footer }: DialogProps) {
+export function Dialog({ open, onClose, title, children, footer, bare, className }: DialogProps) {
   return (
     <RD.Root open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <RD.Overlay
@@ -31,15 +38,14 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps) 
       <RD.Content
         aria-describedby={undefined}
         className={cn(
-          'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
-          'w-[min(92vw,480px)] max-h-[85vh] overflow-auto',
-          'rounded-lg border border-line bg-surface p-4 shadow-[var(--shadow-3)]',
-          'focus:outline-none',
+          'fixed z-50 rounded-lg border border-line bg-surface shadow-[var(--shadow-3)] focus:outline-none',
+          !bare && 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(92vw,480px)] max-h-[85vh] overflow-auto p-4',
+          className,
         )}
       >
-        <RD.Title className="mb-3 text-lg font-semibold text-ink">{title}</RD.Title>
-        <div className="text-ink">{children}</div>
-        {footer && <div className="mt-4 flex justify-end gap-2">{footer}</div>}
+        <RD.Title className={bare ? 'sr-only' : 'mb-3 text-lg font-semibold text-ink'}>{title}</RD.Title>
+        {bare ? children : <div className="text-ink">{children}</div>}
+        {!bare && footer && <div className="mt-4 flex justify-end gap-2">{footer}</div>}
       </RD.Content>
     </RD.Root>
   );

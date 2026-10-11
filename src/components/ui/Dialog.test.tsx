@@ -20,6 +20,14 @@ describe('Dialog', () => {
     expect(screen.getByTestId('dialog-backdrop')).toBeInTheDocument();
   });
 
+  it('a bare dialog keeps the title for screen readers only and takes its own layout', () => {
+    render(<Dialog open bare onClose={() => {}} title="Go to" className="top-[12vh]"><input aria-label="q" /></Dialog>);
+    const dialog = screen.getByRole('dialog', { name: 'Go to' });
+    expect(dialog.className).toContain('top-[12vh]');
+    expect(dialog.className).not.toContain('p-4');
+    expect(screen.getByText('Go to').className).toBe('sr-only');
+  });
+
   it('calls onClose on Escape', () => {
     const onClose = vi.fn();
     render(<Dialog open onClose={onClose} title="X">body</Dialog>);

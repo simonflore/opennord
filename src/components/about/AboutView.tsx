@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Button, Card, BuyMeACoffeeButton } from '../ui';
 import { VERSION_FULL } from '../../lib/version';
 import { GigmeisterLink, GIGMEISTER_BLURB } from '../sibling/Gigmeister';
+import { useCapabilities } from '../../lib/capabilities/CapabilitiesContext';
+import { FileSupportToggle } from './FileSupportToggle';
 
 const secH = 'mb-1 text-[13px] font-bold text-ink';
 const secP = 'm-0 text-[13px] leading-[1.55] text-dim';
@@ -11,13 +13,15 @@ const strong = 'font-semibold text-ink';
  * About & legal surface for the hosted app. The repo carries the full LICENSE /
  * docs/LEGAL.md / ATTRIBUTION; this puts the user-facing essentials in front of
  * anyone using the web app: the non-affiliation disclaimer (required on every
- * surface — docs/LEGAL.md), the privacy posture (all client-side), the
+ * surface — docs/LEGAL.md), the privacy posture (client-side; which diagnostics
+ * leave the device, and the opt-in for file-support reports), the
  * sharing/sound-content line, the license + no-warranty notice, and credits.
  *
  * No public source link while the repository is private — see the AGPL §13 note
  * in docs/LEGAL.md before the app is opened to other users.
  */
 export function AboutView() {
+  const remote = useCapabilities().diagnostics.remote === true;
   return (
     <div className="max-w-[640px]">
       <div className="mb-4">
@@ -40,10 +44,23 @@ export function AboutView() {
         <Card>
           <div className={secH}>Your music stays on your device</div>
           <p className={secP}>
-            OpenNord runs entirely in your browser. The files you open are read and
-            decoded on your own device — nothing is uploaded to a server, and there
-            is no tracking or analytics.
+            OpenNord runs in your browser. The files you open are read and decoded
+            on your own device — your programs are only uploaded when you choose to
+            share or back them up, and there is no tracking or analytics.
           </p>
+          {remote && (
+            <p className={`${secP} mt-2`}>
+              To fix connection problems on models we can’t test ourselves, OpenNord
+              sends a short report when you connect a keyboard: whether it worked,
+              which Nord it is, how its USB connection looks and any error, plus your
+              browser’s name. Never your programs, sounds or names. Reports are kept
+              on our server; there is no automatic deletion yet.
+            </p>
+          )}
+        </Card>
+
+        <Card>
+          <FileSupportToggle />
         </Card>
 
         <Card>

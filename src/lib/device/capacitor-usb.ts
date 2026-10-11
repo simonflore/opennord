@@ -20,7 +20,8 @@ export type UsbAvailability = 'electron' | 'webusb' | 'ipad-dext-pending' | 'uns
 export function usbAvailability(): UsbAvailability {
   if (isElectronUsb()) return 'electron';
   if (typeof navigator !== 'undefined' && 'usb' in navigator) return 'webusb';
-  if (isCapacitorPlatform() && getCapacitorPlatform() === 'ios') return 'ipad-dext-pending';
+  // The DriverKit path is iPad-only (M1+); the same iOS build on an iPhone has no USB route.
+  if (isCapacitorPlatform() && getCapacitorPlatform() === 'ios' && !/iPhone|iPod/.test(globalThis.navigator?.userAgent ?? '')) return 'ipad-dext-pending';
   return 'unsupported';
 }
 

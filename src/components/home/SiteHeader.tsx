@@ -2,9 +2,10 @@ import { Link } from '@tanstack/react-router';
 import { buttonVariants } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { CONTENT, scrollToSection } from './layout';
+import { Wordmark } from '../shell/Wordmark';
 
 const navLink = cn(
-  'text-xs font-semibold text-dim no-underline',
+  'font-mono text-xs lowercase text-dim no-underline',
   'transition-colors duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)] hover:text-ink',
   'max-[720px]:hidden',
 );
@@ -12,12 +13,8 @@ const navLink = cn(
 export function SiteHeader() {
   return (
     <header className={cn(CONTENT, 'flex items-center justify-between gap-4 py-4')}>
-      <Link
-        to="/"
-        className="text-[19px] font-extrabold tracking-[-0.3px] text-ink no-underline"
-        aria-label="OpenNord home"
-      >
-        Open<span className="italic text-red">Nord</span>
+      <Link to="/" className="no-underline" aria-label="OpenNord home">
+        <Wordmark className="text-lg" />
       </Link>
       <nav className="flex items-center gap-6 max-[720px]:gap-3" aria-label="Primary">
         <a className={navLink} href="#features" onClick={scrollToSection('features')}>What it does</a>

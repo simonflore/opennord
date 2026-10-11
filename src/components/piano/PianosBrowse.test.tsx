@@ -5,7 +5,7 @@ import { PianosBrowse, keepCopyIdsFor } from './PianosBrowse';
 import type { PianoEntry } from '@/lib/library/piano-entries';
 
 const noop = () => {};
-const base = { source: 'all' as const, setSource: noop, query: '', setQuery: noop, showSourceFacet: false, sort: 'default' as const, setSort: noop, isFavorite: () => false, toggleFavorite: noop, onSelect: noop };
+const base = { source: 'all' as const, setSource: noop, query: '', setQuery: noop, clearFilters: noop, showSourceFacet: false, sort: 'default' as const, setSort: noop, isFavorite: () => false, toggleFavorite: noop, onSelect: noop };
 const e = (over: Partial<PianoEntry>): PianoEntry => ({ id: '1', name: 'Grand', source: 'local', size: 1900000, factory: null, ...over });
 
 const reclaimBase = {
