@@ -18,7 +18,7 @@ describe('MatrixView', () => {
     const html = render();
     expect(html).toContain('aria-label="Copy from Nord: Works"');          // Stage 4 (validated)
     expect(html).toContain('aria-label="Copy from Nord: Ready to test"');  // read from the model's own firmware
-    expect(html).toContain('aria-label="Samples: Likely"');                // Electro 7's sample generation
+    expect(html).toContain('aria-label="Samples: Ready to test"');         // e.g. the Electro 7's firmware loader
     expect(html).toContain('aria-label="Samples: Not available"');         // no sample engine
     expect(html).not.toContain('In progress');
   });
