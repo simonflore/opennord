@@ -95,12 +95,12 @@ Classic`). Values 47+ are unnamed in firmware 3.40; the raw id is surfaced there
 
 **One checksum.** Every NSM-era file (Stage 4, Stage 3, Stage 2, …) carries one
 checksum: the CRC-32 at 0x18 over everything after the header (`docs/CHECKSUM.md`).
-On the real Stage 4 files 0x1C–0x2B are zero, and there is no second CRC anywhere. Byte 0x78 of an NSM-era
-`.ns3f` (0x64 in a legacy one), sometimes read as a "CRC2", is not a checksum: it
-is bit-packed parameter data inside the Stage 3 body (16 distinct values over 842
-real files), written like any other field and needing no recompute. So the write
-path patches only the one checksum — or, on a legacy (format type 0) file, the
-CRC-16 trailer instead.
+On the real Stage 4 files 0x1C–0x2B are zero, and there is no second CRC anywhere.
+Byte 0x78 of an NSM-era `.ns3f` (0x64 in a legacy one), sometimes read as a
+"CRC2", is not a checksum: it is bit-packed parameter data inside the Stage 3
+body (16 distinct values over 842 real files), written like any other field and
+needing no recompute. So the write path patches only the one checksum — or, on a
+legacy (format type 0) file, the CRC-16 trailer instead.
 
 > Per-parameter offsets live in `offset-map.generated.ts` (the `BBB-b` byte/bit
 > notation `bits.ts` reads), derived from ns4decode. The table above is just the

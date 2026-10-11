@@ -2,9 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { ClaviaModel } from './clavia/model';
 import type { FwLayout } from './clavia/block-chain';
 import type { LegacyLayout } from './clavia/legacy-record';
-import { buildCbinHeader } from './clavia/cbin';
 import { sealFileChecksum, verifyFileChecksum } from './clavia/checksum';
-import { sealTrailerChecksum } from './clavia/crc16';
 import { synthFwBody, synthFwFile, synthLegacyLayoutFile } from './clavia/block-chain.synth';
 import { NOT_WRITABLE, PROGRAM_WRITERS, ProgramWriteError, writeProgram } from './program-write';
 import { decodeNs3 } from './ns3/decode';
@@ -84,12 +82,7 @@ const isFw = (l: FwLayout | LegacyLayout): l is FwLayout => 'blocks' in l;
 function synth(c: Case, nsmHeader: boolean): Uint8Array {
   if (!isFw(c.layout)) return sealFileChecksum(synthLegacyLayoutFile(c.tag, c.layout, {}, { nsmHeader }));
   const version = c.layout.versionRange?.[1] ?? 100;
-  const body = synthFwBody(c.layout, {}, version);
-  if (nsmHeader) return sealFileChecksum(synthFwFile(c.tag, body, version));
-  const out = new Uint8Array(0x18 + body.length + 2);
-  out.set(buildCbinHeader({ formatType: 0, tag: c.tag, bank: 0, location: 0, category: 0, versionRaw: version }).subarray(0, 0x18));
-  out.set(body, 0x18);
-  return sealTrailerChecksum(out);
+  return sealFileChecksum(synthFwFile(c.tag, synthFwBody(c.layout, {}, version), version, { legacyHeader: !nsmHeader }));
 }
 
 /** Every third field (copies excluded), set away from its default. */
@@ -109,9 +102,7 @@ describe('writeProgram', () => {
   });
 
   for (const [model, c] of Object.entries(CASES) as [ClaviaModel, Case][]) {
-    // The Stage 3 reader reads both headers; the legacy readers all do (record at 0x18 or 0x2C).
-    const headers = !isFw(c.layout) || model === 'ns3' ? [true, false] : [true];
-    for (const nsmHeader of headers) {
+    for (const nsmHeader of [true, false]) {
       it(`${c.layout.model} (${nsmHeader ? 'NSM-era' : 'legacy'} header): its own reader reads back what was written`, () => {
         const file = synth(c, nsmHeader);
         const before = c.read(file);

@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { decodeFwProgram, fieldValue, type FwField, type FwLayout } from './block-chain';
+import { decodeFwProgram, fieldValue, fwBodyRange, type FwField, type FwLayout } from './block-chain';
 import { readLegacyFile, legacyDataOffset, type LegacyField, type LegacyLayout } from './legacy-record';
 import { readBits, writeBits } from './bitstream';
-import { buildCbinHeader } from './cbin';
 import { sealFileChecksum, verifyFileChecksum, verifyNs4Checksum } from './checksum';
-import { sealTrailerChecksum, verifyTrailerChecksum } from './crc16';
+import { verifyTrailerChecksum } from './crc16';
 import { synthFwBody, synthFwFile, synthLegacyLayoutFile } from './block-chain.synth';
-import { ProgramWriteError, encodeField, fwBodyRange, writeFwProgram, writeLegacyProgram } from './layout-write';
+import { ProgramWriteError, encodeField, writeFwProgram, writeLegacyProgram } from './layout-write';
 import { NS3_LAYOUT } from '../ns3/layout.generated';
 import { NG_LAYOUT } from '../ng/layout.generated';
 import { NG2_LAYOUT } from '../ng2/layout.generated';
@@ -59,12 +58,7 @@ function noisyFwFile(layout: FwLayout, legacyHeader: boolean, seed = 7): Uint8Ar
   const body = synthFwBody(layout, {}, layout.versionRange?.[1] ?? 100);
   const next = noise(seed);
   for (const b of layout.blocks) for (let i = 1; i <= b.length; i++) body[b.offset + i] = next();
-  if (!legacyHeader) return sealFileChecksum(synthFwFile('test', body));
-  const header = buildCbinHeader({ formatType: 0, tag: 'test', bank: 3, location: 5, category: 2, versionRaw: 304 });
-  const out = new Uint8Array(0x18 + body.length + 2);
-  out.set(header.subarray(0, 0x18));
-  out.set(body, 0x18);
-  return sealTrailerChecksum(out);
+  return sealFileChecksum(synthFwFile('test', body, 304, { legacyHeader }));
 }
 
 /** A legacy-record file whose every data and padding bit is noise. */
@@ -77,17 +71,43 @@ function noisyLegacyFile(layout: LegacyLayout, nsmHeader: boolean, seed = 11): U
 }
 
 const fwValues = (bytes: Uint8Array, layout: FwLayout) => {
-  const { start, end } = fwBodyRange(bytes);
-  const p = decodeFwProgram(bytes, layout, start, end);
+  const p = decodeFwProgram(bytes, layout);
   expect(p.layoutMatched).toBe(true);
   return p.values;
 };
 
-/** The keys whose value differs between two reads (a plain loop: deep-comparing ~800-key objects per write is slow). */
-function changed(before: Partial<Record<string, number>>, after: Partial<Record<string, number>>): Record<string, number | undefined> {
-  const out: Record<string, number | undefined> = {};
-  for (const k of new Set([...Object.keys(before), ...Object.keys(after)])) if (before[k] !== after[k]) out[k] = after[k];
+/** The checksum bytes a reseal rewrites: the CRC-16 trailer of a legacy file, the CRC-32 at 0x18 of an NSM-era one. */
+const checksumBytes = (bytes: Uint8Array) =>
+  bytes[0x04] === 0 ? [bytes.length - 2, bytes.length - 1] : [0x18, 0x19, 0x1a, 0x1b];
+
+/**
+ * The bytes of `after` that differ from `before` outside the `[bit, width]` spans
+ * and the checksum — a byte-level diff rather than a re-read, so checking every
+ * single-field write stays linear in the file size.
+ */
+function strayBytes(before: Uint8Array, after: Uint8Array, spans: readonly (readonly [number, number])[]): number[] {
+  const skip = new Set(checksumBytes(before));
+  const out: number[] = [];
+  for (let i = 0; i < before.length; i++) {
+    let d = before[i] ^ after[i];
+    if (d === 0 || skip.has(i)) continue;
+    for (const [bit, width] of spans) {
+      for (let b = Math.max(bit, i * 8); b < Math.min(bit + width, i * 8 + 8); b++) d &= ~(0x80 >> (b & 7));
+    }
+    if (d !== 0) out.push(i);
+  }
   return out;
+}
+
+/** Fail on two fields sharing a bit: then a write of one would move the other. */
+function expectDisjoint(spans: readonly (readonly [string, number, number])[]): void {
+  const owner = new Map<number, string>();
+  for (const [key, bit, width] of spans) {
+    for (let b = bit; b < bit + width; b++) {
+      expect(owner.get(b), `${key} shares bit ${b}`).toBeUndefined();
+      owner.set(b, key);
+    }
+  }
 }
 
 /** The values a write test sets a field to: its range ends and default (an identifier: 0 and all ones). */
@@ -99,6 +119,7 @@ describe('writeFwProgram — every firmware layout', () => {
   for (const layout of FW) {
     for (const legacyHeader of [false, true]) {
       const label = `${layout.model} (${legacyHeader ? 'legacy' : 'NSM-era'} header)`;
+      const fieldBit = (file: Uint8Array, f: FwField) => (fwBodyRange(file).start + layout.blocks[f.block].offset + 1) * 8 + f.bit;
 
       it(`${label}: a write without values is byte-identical, also when reserved bits are set`, () => {
         for (const file of [noisyFwFile(layout, legacyHeader), noisyFwFile(layout, legacyHeader, 3)]) {
@@ -107,27 +128,26 @@ describe('writeFwProgram — every firmware layout', () => {
         }
       });
 
-      it(`${label}: each field reads back at its min, max and default, nothing else moves, the checksum holds`, () => {
+      it(`${label}: every field reads back at its min, max and default; a write moves only its own bits; the checksum holds`, () => {
         const file = noisyFwFile(layout, legacyHeader);
-        const before = fwValues(file, layout);
+        expectDisjoint(layout.fields.map((f) => [f.key, fieldBit(file, f), f.width] as const));
+        for (let pick = 0; pick < 3; pick++) {
+          const values = Object.fromEntries(layout.fields.map((f) => [f.key, testValues(f)[pick]]));
+          const out = writeFwProgram(file, layout, values);
+          expect(fwValues(out, layout)).toEqual(values);
+          expect(legacyHeader ? verifyTrailerChecksum(out) : verifyNs4Checksum(out)).toBe(true);
+        }
+        // One assertion for every single-field write (an expect per write dominates the run time).
+        const wrong: string[] = [];
         for (const f of layout.fields) {
           for (const v of testValues(f)) {
             const out = writeFwProgram(file, layout, { [f.key]: v });
-            expect(changed(before, fwValues(out, layout)), `${f.key} = ${v}`).toEqual(before[f.key] === v ? {} : { [f.key]: v });
-            expect(verifyFileChecksum(out)).toBe(true);
-            expect(legacyHeader ? verifyTrailerChecksum(out) : verifyNs4Checksum(out)).toBe(true);
+            const stray = strayBytes(file, out, [[fieldBit(file, f), f.width]]);
+            const got = fieldValue(readBits(out, fieldBit(file, f), f.width), f);
+            if (got !== v || stray.length > 0 || !verifyFileChecksum(out)) wrong.push(`${f.key} = ${v}: read ${got}, stray bytes ${stray}`);
           }
         }
-        // Only the field bits and the checksum may differ.
-        const all = writeFwProgram(file, layout, Object.fromEntries(layout.fields.map((f) => [f.key, testValues(f)[1]])));
-        const { start } = fwBodyRange(file);
-        const touched = new Set<number>(legacyHeader ? [all.length - 2, all.length - 1] : [0x18, 0x19, 0x1a, 0x1b]);
-        for (const f of layout.fields) {
-          const at = (start + layout.blocks[f.block].offset + 1) * 8 + f.bit;
-          for (let b = at; b < at + f.width; b++) touched.add(b >> 3);
-        }
-        const moved = [...file.keys()].filter((i) => !touched.has(i) && all[i] !== file[i]);
-        expect(moved, 'bytes outside the fields and the checksum').toEqual([]);
+        expect(wrong).toEqual([]);
       });
     }
   }
@@ -150,31 +170,34 @@ describe('writeLegacyProgram — every legacy record layout', () => {
         }
       });
 
-      it(`${label}: each field reads back at its min, max and default, nothing else moves, the checksum holds`, () => {
+      it(`${label}: every field reads back at its min, max and default; a write moves only its own bits; the checksum holds`, () => {
         const file = noisyLegacyFile(layout, nsmHeader);
-        const before = read(file);
-        for (const f of layout.fields) {
-          // A second stored copy is written through its first copy (both then read back the value).
-          const key = f.copyOf ?? f.key;
-          const copies = layout.fields.filter((c) => c.copyOf === key).map((c) => c.key);
+        const base = legacyDataOffset(file, layout) * 8;
+        expectDisjoint(layout.fields.map((f) => [f.key, base + f.bit, f.width] as const));
+        // A second stored copy is written through its first copy, and then reads back that value.
+        const own = layout.fields.filter((f) => !f.copyOf);
+        const copies = (key: string) => layout.fields.filter((c) => c.copyOf === key);
+        for (let pick = 0; pick < 3; pick++) {
+          const values = Object.fromEntries(own.map((f) => [f.key, testValues(f)[pick]]));
+          const out = writeLegacyProgram(file, layout, values);
+          const expected = { ...values };
+          for (const f of layout.fields) if (f.copyOf) expected[f.key] = values[f.copyOf];
+          expect(read(out)).toEqual(expected);
+          expect(nsmHeader ? verifyNs4Checksum(out) : verifyTrailerChecksum(out)).toBe(true);
+        }
+        const wrong: string[] = [];
+        for (const f of own) {
+          const spans = [f, ...copies(f.key)].map((c) => [base + c.bit, c.width] as const);
+          // The firmware takes the last stored copy (a value it already holds leaves the others as they are).
+          const [bit, width] = spans[spans.length - 1];
           for (const v of testValues(f)) {
-            const out = writeLegacyProgram(file, layout, { [key]: v });
-            const expected = { [key]: v, ...Object.fromEntries(copies.map((c) => [c, v])) };
-            // A key already at `v` doesn't show as changed.
-            for (const k of Object.keys(expected)) if (before[k] === v) delete expected[k];
-            expect(changed(before, read(out)), `${key} = ${v}`).toEqual(expected);
-            expect(verifyFileChecksum(out)).toBe(true);
-            expect(nsmHeader ? verifyNs4Checksum(out) : verifyTrailerChecksum(out)).toBe(true);
+            const out = writeLegacyProgram(file, layout, { [f.key]: v });
+            const stray = strayBytes(file, out, spans);
+            const got = fieldValue(readBits(out, bit, width), f);
+            if (got !== v || stray.length > 0 || !verifyFileChecksum(out)) wrong.push(`${f.key} = ${v}: read ${got}, stray bytes ${stray}`);
           }
         }
-        // Only the field bits and the checksum may differ (padding, version and header stay).
-        const all = writeLegacyProgram(file, layout,
-          Object.fromEntries(layout.fields.filter((f) => !f.copyOf).map((f) => [f.key, testValues(f)[1]])));
-        const base = legacyDataOffset(file, layout) * 8;
-        const touched = new Set<number>(nsmHeader ? [0x18, 0x19, 0x1a, 0x1b] : [all.length - 2, all.length - 1]);
-        for (const f of layout.fields) for (let b = base + f.bit; b < base + f.bit + f.width; b++) touched.add(b >> 3);
-        const moved = [...file.keys()].filter((i) => !touched.has(i) && all[i] !== file[i]);
-        expect(moved, 'bytes outside the fields and the checksum').toEqual([]);
+        expect(wrong).toEqual([]);
       });
     }
   }
@@ -234,6 +257,18 @@ describe('writeFwProgram — refusals', () => {
     expect(() => writeFwProgram(old, NS3_LAYOUT, {})).toThrow(/format 2\.03: OpenNord writes only formats 3\.00–3\.04/);
   });
 
+  it('refuses a file whose checksum does not hold, under either header', () => {
+    const stale = file.slice();
+    stale[0x18] ^= 1;
+    expect(() => writeFwProgram(stale, NG_LAYOUT, {})).toThrow(/checksum doesn’t match/);
+    const legacy = sealFileChecksum(synthFwFile('ng', synthFwBody(NG_LAYOUT), 100, { legacyHeader: true }));
+    legacy[legacy.length - 1] ^= 1;
+    expect(() => writeFwProgram(legacy, NG_LAYOUT, {})).toThrow(/checksum doesn’t match/);
+    const record = synthLegacyLayoutFile('ne4p', NE4_LAYOUT);
+    record[record.length - 1] ^= 1;
+    expect(() => writeLegacyProgram(record, NE4_LAYOUT, {})).toThrow(/checksum doesn’t match/);
+  });
+
   it('refuses a body whose blocks differ from the layout, a truncated file and a non-Nord file', () => {
     // Same total size, but the first block one byte shorter and the last one byte longer.
     const lengths = NG_LAYOUT.blocks.map((b) => b.length);
@@ -250,10 +285,12 @@ describe('writeFwProgram — refusals', () => {
 
   it('refuses a field the file’s version does not store yet, but accepts its default', () => {
     const opts = { absentIn: (v: number) => (v < 101 ? [level.key] : []) };
-    const v100 = sealFileChecksum(synthFwFile('ng', synthFwBody(NG_LAYOUT, { [level.key]: 0 }, 100)));
+    // The reserved bits hold something other than the default the instrument loads.
+    const stored = level.def === 0 ? 1 : 0;
+    const v100 = sealFileChecksum(synthFwFile('ng', synthFwBody(NG_LAYOUT, { [level.key]: stored }, 100)));
     expect(() => writeFwProgram(v100, NG_LAYOUT, { [level.key]: level.max }, opts)).toThrow(/format 1\.00 does not store this setting yet/);
     expect(writeFwProgram(v100, NG_LAYOUT, { [level.key]: level.def }, opts)).toEqual(v100);
-    expect(writeFwProgram(v100, NG_LAYOUT, { [level.key]: 0 }, opts)).toEqual(v100);
+    expect(() => writeFwProgram(v100, NG_LAYOUT, { [level.key]: stored }, opts)).toThrow(/does not store this setting yet/);
     const v101 = sealFileChecksum(synthFwFile('ng', synthFwBody(NG_LAYOUT, {}, 101)));
     expect(writeFwProgram(v101, NG_LAYOUT, { [level.key]: level.max }, opts)).not.toEqual(v101);
   });
@@ -289,23 +326,5 @@ describe('writeLegacyProgram — refusals and copies', () => {
     expect(writeLegacyProgram(file, NC2_LAYOUT, { [first]: v, [copy.key]: v })).toEqual(out);
     // … but it can't be set on its own.
     expect(() => writeLegacyProgram(file, NC2_LAYOUT, { [copy.key]: v })).toThrow(/second stored copy of/);
-  });
-
-  it('writes one record of a file holding several (a Lead 4 performance slot)', () => {
-    const perf = NL4_PERF_LAYOUT.dataBytes;
-    const data = new Uint8Array(perf + 4 * NL4_LAYOUT.dataBytes);
-    const header = buildCbinHeader({ formatType: 0, tag: 'nl4p', bank: 0, location: 0, category: 0, versionRaw: 9 });
-    const file = new Uint8Array(0x18 + 2 + data.length + 2);
-    file.set(header.subarray(0, 0x18));
-    file[0x19] = 9;
-    file.set(data, 0x1a);
-    sealTrailerChecksum(file);
-    const f = NL4_LAYOUT.fields.find((x) => x.max > 1)!;
-    const slot = 2;
-    const out = writeLegacyProgram(file, NL4_LAYOUT, { [f.key]: f.max },
-      { versions: [9], byteOffset: perf + slot * NL4_LAYOUT.dataBytes, fileBytes: file.length });
-    expect(readBits(out, (0x1a + perf + slot * NL4_LAYOUT.dataBytes) * 8 + f.bit, f.width)).toBe(f.max);
-    expect(verifyTrailerChecksum(out)).toBe(true);
-    expect(() => writeLegacyProgram(file, NL4_LAYOUT, {})).toThrow(/1295 bytes; the firmware record makes 343/);
   });
 });

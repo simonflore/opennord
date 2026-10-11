@@ -4,9 +4,10 @@
  *
  * Clavia uses this same CRC in two places:
  *  - the Nord USB transport frame checksum (src/lib/device/protocol.ts), and
- *  - the 2-byte little-endian trailer of every legacy (CBIN format type 0)
- *    file — .nwp, .nl4s/.nl4p, .nlas/.nlap, legacy .ns2p/.ns3f, … (see
- *    verifyTrailerChecksum; the CRC covers the header too),
+ *  - the 2-byte little-endian trailer of the legacy (CBIN format type 0)
+ *    files — .nwp, .nl4s/.nl4p, .nlas/.nlap, legacy .ns2p/.ns3f (see
+ *    verifyTrailerChecksum; the CRC covers the header too; unconfirmed on the
+ *    Electro, C2/C2D and Piano 2/3 files, docs/CHECKSUM.md),
  *    and of v5 Nord Piano libraries (.npno, docs/NSP-FORMAT.md).
  *
  * Distinct from the checksum of NSM-era (format type 1) files, a CRC-32 stored

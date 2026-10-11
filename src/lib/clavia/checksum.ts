@@ -70,18 +70,19 @@ export function storedNs4Checksum(bytes: Uint8Array): number {
   ) >>> 0;
 }
 
+/** Write the CRC-32 of an NSM-era file into its own bytes[24:28]; returns `bytes`. */
+function writeNs4Checksum(bytes: Uint8Array): Uint8Array {
+  const cs = computeNs4Checksum(bytes);
+  for (let i = 0; i < 4; i++) bytes[CHECKSUM_OFFSET + i] = (cs >>> (8 * i)) & 0xff;
+  return bytes;
+}
+
 /**
  * Write the correct checksum into a mutable copy of `bytes` (an NSM-era file).
  * Always call this before saving or transmitting a generated/edited `.ns4p`.
  */
 export function patchNs4Checksum(bytes: Uint8Array): Uint8Array {
-  const out = new Uint8Array(bytes);
-  const cs = computeNs4Checksum(bytes);
-  out[CHECKSUM_OFFSET] = cs & 0xff;
-  out[CHECKSUM_OFFSET + 1] = (cs >>> 8) & 0xff;
-  out[CHECKSUM_OFFSET + 2] = (cs >>> 16) & 0xff;
-  out[CHECKSUM_OFFSET + 3] = (cs >>> 24) & 0xff;
-  return out;
+  return writeNs4Checksum(new Uint8Array(bytes));
 }
 
 /** True for a legacy (format type 0) file, which closes with the CRC-16 trailer instead of the header CRC-32. */
@@ -97,9 +98,7 @@ function isLegacyHeader(bytes: Uint8Array): boolean {
 export function sealFileChecksum(bytes: Uint8Array): Uint8Array {
   if (isLegacyHeader(bytes)) return sealTrailerChecksum(bytes);
   if (bytes.length < HEADER_SIZE) throw new Error('an NSM-era file needs its 44-byte header');
-  const cs = computeNs4Checksum(bytes);
-  for (let i = 0; i < 4; i++) bytes[CHECKSUM_OFFSET + i] = (cs >>> (8 * i)) & 0xff;
-  return bytes;
+  return writeNs4Checksum(bytes);
 }
 
 /** Whether a CBIN file's checksum holds, for either header type (see {@link sealFileChecksum}). */
