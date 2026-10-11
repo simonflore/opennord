@@ -41,7 +41,10 @@ const folder = (over: Partial<FolderLibrary> = {}): FolderLibrary => ({
 });
 
 // Props common to every render; entries/source vary per test.
-const handlers = { onSource: () => {}, onQuery: () => {}, clearFilters: () => {}, filtered: false, onOpen: () => {}, onImport: () => {}, onRemove: () => {} };
+const handlers = {
+  onSource: () => {}, onQuery: () => {}, clearFilters: () => {}, filtered: false, onOpen: () => {}, onImport: () => {}, onRemove: () => {},
+  engines: new Set<never>(), onToggleEngine: () => {}, splitOnly: false, onSplitOnly: () => {},
+};
 
 /** True when a rendered tag carries the actual `disabled` DOM attribute —
  * distinct from the always-present `disabled:…` Tailwind variant classes the
