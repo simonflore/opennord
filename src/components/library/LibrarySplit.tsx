@@ -37,7 +37,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
       activeId={selectedId}
       onOpen={(e) => openProgram(navigate, e)}
       onImport={s.importFile}
-      onRemove={(id) => { s.imported.remove(id); closeRemoved(navigate, '/library/programs', selectedId, [id]); }}
+      onRemove={(id) => { void s.imported.remove(id); closeRemoved(navigate, '/library/programs', selectedId, [id]); }}
       importError={s.importError}
       onDismissImportError={s.clearImportError}
       prefs={s.prefs}
@@ -67,7 +67,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
           master={list}
           detail={program
             ?? (entry ? <EmptyNote>This slot hasn’t been read from your Nord yet. Read it on the Device page.</EmptyNote>
-              : selectedId ? <EmptyNote>This program isn’t in your library (yet). Pick it from the list.</EmptyNote>
+              : selectedId ? <EmptyNote>This program isn’t in your library right now. Pick one from the list.</EmptyNote>
               : <EmptyNote>Pick a program to see its details.</EmptyNote>)}
           hasDetail={!!selectedId}
           list="/library/programs"
