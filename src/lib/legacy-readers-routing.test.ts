@@ -14,6 +14,7 @@ import { synthLegacyLayoutFile } from './clavia/block-chain.synth';
 import type { LegacyLayout } from './clavia/legacy-record';
 import { NE3_LAYOUT } from './ne3/layout.generated';
 import { NE3HP_LAYOUT } from './ne3/layout-hp.generated';
+import { NC2_LAYOUT } from './nc2/layout.generated';
 import { DecodedProgramView } from '../components/program/DecodedProgramView';
 import { decodeForModel, getModelProgress } from './contribute/coverage';
 
@@ -25,6 +26,11 @@ const CASES: Case[] = [
   {
     tag: 'nepg', layout: NE3HP_LAYOUT, model: 'ne3', registry: 'electro-3', coverage: ['electro-3', 'electro-3-hp'],
     title: 'Nord Electro 3 · Program', fileBytes: 136,
+  },
+  // nc2p is shared with the C2, the registry's anchor model for the tag; the layout is the C2D's.
+  {
+    tag: 'nc2p', layout: NC2_LAYOUT, model: 'nc2', registry: 'c2', coverage: ['c2d'],
+    title: 'Nord C2D · Program', fileBytes: 373,
   },
 ];
 
