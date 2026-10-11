@@ -102,6 +102,9 @@ describe('legacy formatType-0 record', () => {
     expect(data[0]).toBe(0x33); // the writer repeats the container
     writeBits(data, 4, 4, 5);
     expect(readLegacyRecord(data, layout).values).toEqual({ 'a.x': 5, 'adup.x': 5 });
+    // An out-of-range first copy doesn't count: the second one is what loads.
+    writeBits(data, 0, 4, 15);
+    expect(readLegacyRecord(data, layout)).toEqual({ values: { 'a.x': 5, 'adup.x': 5 }, outOfRange: [] });
   });
 
   it('groups inline morph deltas under their parameter', () => {
