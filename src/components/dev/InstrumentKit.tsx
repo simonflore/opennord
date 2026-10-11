@@ -30,6 +30,7 @@ const SWATCHES: Array<{ token: string; role: string }> = [
   { token: '--engine-organ', role: 'organ · zones' },
   { token: '--engine-piano', role: 'piano · zones' },
   { token: '--warn', role: 'warning · nearly full' },
+  { token: '--danger', role: 'error · unknown' },
 ];
 
 // Built by the same helpers the real panel uses, so the kit can't drift from it.
