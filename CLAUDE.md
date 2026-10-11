@@ -236,8 +236,9 @@ controls, and token colors that meet contrast on dark surfaces.
 
 ### Design Principles
 1. **One token source.** Every color/space/radius/type step comes from
-   `tokens.css` — the CSS custom properties AND the Tailwind `@theme` block that
-   mirrors them (so `bg-surface` == `var(--surface)`). A hardcoded hex in a
+   `tokens.css` — values live once, in the `:root` custom properties, and the
+   Tailwind `@theme inline` block points at them (`--color-surface:
+   var(--surface)`, so `bg-surface` == `var(--surface)`). A hardcoded hex in a
    component is a review failure (rare, intentional one-offs like the LCD green are
    the documented exception). New composite treatments (gradients / layered
    shadows / glow) go as semantic `@utility` in `tokens.css` (`fill-*`, `elev-*`,

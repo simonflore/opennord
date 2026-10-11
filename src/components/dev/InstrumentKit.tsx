@@ -9,8 +9,9 @@
 
 import '../../styles/nord.css';
 import type { ReactNode } from 'react';
-import type { DrawbarView } from '../../lib/clavia/engine-view';
-import { cn } from '@/lib/cn';
+import { b3DrawbarViews, drawbarViews } from '../../lib/clavia/drawbars';
+import { ORGAN_MODELS } from '../../lib/ns4/organ-models';
+import { Card } from '../ui';
 import { Chip, DrawbarStack, EnvCurve, Knob, Lcd, Meter, ModelSelector, StatGrid, ToggleGroup } from '../program/widgets';
 
 /** The palette, by role. Each swatch is a token, so this list can't drift from tokens.css. */
@@ -31,28 +32,18 @@ const SWATCHES: Array<{ token: string; role: string }> = [
   { token: '--warn', role: 'warning · nearly full' },
 ];
 
-// A B3 registration with every cap colour, a morph target, and a pushed-in bar.
-const B3: DrawbarView[] = [
-  { level: 8, label: '8', footage: '16′', color: 'brown' },
-  { level: 8, label: '8', footage: '5⅓′', color: 'brown' },
-  { level: 8, label: '8', footage: '8′', color: 'white', morph: { wheel: '5' } },
-  { level: 4, label: '4', footage: '4′', color: 'white' },
-  { level: 0, label: '0', footage: '2⅔′', color: 'black' },
-  { level: 2, label: '2', footage: '2′', color: 'white' },
-  { level: 0, label: '0', footage: '1⅗′', color: 'black' },
-  { level: 6, label: '6', footage: '1⅓′', color: 'black' },
-  { level: 0, label: '0', footage: '1′', color: 'white' },
-];
+// Built by the same helpers the real panel uses, so the kit can't drift from it.
+// A B3 registration showing every cap colour, a morph target and pushed-in bars;
+// then a non-B3 model, which draws every bar in the single default colour.
+const B3 = b3DrawbarViews([8, 8, 8, 4, 0, 2, 0, 6, 0]).map((d, i) => (i === 2 ? { ...d, morph: { wheel: '5' } } : d));
+const VOX = drawbarViews([8, 6, 4, 0, 2, 0, 5]);
 
-// A non-B3 model (VOX/Farfisa/Pipe) draws every bar in the single default colour.
-const VOX: DrawbarView[] = ['8', '6', '4', '0', '2', '0', '5'].map((l) => ({ level: Number(l), label: l, color: 'default' }));
-
-function Section({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className={cn('flex flex-col gap-4 rounded-lg border border-line bg-surface p-5', className)}>
+    <Card className="flex flex-col gap-4 p-5">
       <h2 className="m-0 text-[11px] font-semibold uppercase tracking-[.09em] text-dim">{title}</h2>
       {children}
-    </section>
+    </Card>
   );
 }
 
@@ -89,13 +80,13 @@ export function InstrumentKit() {
           <p className="m-0 text-2xl font-bold">Soul Split <span className="font-mono text-[11px] font-normal text-dim">sans 700 · names</span></p>
           <p className="m-0 text-[11px] font-semibold uppercase tracking-[.09em] text-dim">Organ A · Rotary · Timbre <span className="font-mono normal-case tracking-normal">sans 600 caps · labels</span></p>
           <p className="m-0 font-mono text-xs">A:12 · 3.2 kHz · -6.0 dB · 888 000 000 <span className="text-dim">mono · values and slots</span></p>
-          <div className="lcd self-start px-3 py-2 text-lg tracking-[.05em]">A:12 SOUL SPLIT</div>
+          <div className="self-start"><Lcd primary="A:12 SOUL SPLIT" secondary="Share Tech Mono · LCD only" /></div>
         </div>
       </Section>
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-5">
         <Section title="LED buttons">
-          <ModelSelector models={['B3', 'Vox', 'Farf', 'Pipe']} active="B3" />
+          <ModelSelector models={ORGAN_MODELS} active="B3" />
           <ToggleGroup label="Percussion" items={[
             { label: 'On', on: true }, { label: '2nd', on: false }, { label: '3rd', on: true }, { label: 'Fast', on: false },
           ]} />

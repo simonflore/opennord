@@ -1,10 +1,9 @@
 /* Program Studio — the instrument panel (B×A direction, see tokens.css).
    Data stays flat; anything that is a control on the Nord is drawn physical:
-   LED buttons (.ps-model, .ps-tg-btn, .ps-scene-btn), knobs with a value ring
-   (.ps-dial), drawbars (.ps-db-*), and the LCD (.ps-lcd, identity only). */
+   LED buttons (.ps-key), knobs with a value ring (.ps-dial), drawbars
+   (.ps-db-*), and the LCD (.ps-lcd, identity only). */
 .ps {
-  --navy: var(--bg); --card: var(--surface); --led: var(--red-bright); --grn: var(--connected); --lcd: var(--lcd-deep);
-  background: var(--navy); color: var(--ink); border-radius: var(--r-lg); padding: var(--s-3) var(--s-4);
+  background: var(--bg); color: var(--ink); border-radius: var(--r-lg); padding: var(--s-3) var(--s-4);
   font-family: var(--font);
 }
 .ps * { box-sizing: border-box; }
@@ -33,8 +32,6 @@
   border-radius: var(--r-md); padding: 12px 14px 14px; box-shadow: var(--edge-hi); }
 .ps-card h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px;
   font: 600 11px var(--font); letter-spacing: .09em; text-transform: uppercase; color: var(--ink); }
-.ps-card h4::before { content: ''; width: 7px; height: 7px; border-radius: 50%; flex: none;
-  background: var(--accent); box-shadow: var(--led-on-glow); }
 .ps-sub { color: var(--dim); font-size: 11px; margin-bottom: 9px; }
 
 .ps-knobs { display: flex; gap: 14px; flex-wrap: wrap; }
@@ -52,26 +49,28 @@
   margin-left: -1px; border-radius: 2px; background: var(--ink); transform-origin: 50% 170%;
   transform: rotate(calc(-135deg + var(--v) * 2.7deg)); }
 /* Neutral dial (no arc, no pointer) — when there is no real 0–100 value to show. */
-.ps-dial-flat { background: conic-gradient(from 225deg, var(--dial-bg) 270deg, transparent 0); }
+.ps-dial-flat { --v: 0; }
 .ps-dial-flat i::after { display: none; }
 .ps-knob b { display: block; font: 500 11px var(--mono); margin-top: 4px; color: var(--ink); }
-.ps-knob span { font: 600 10px var(--font); color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
+/* The panel label: the small caps caption under a knob, over a meter, stat or chip. */
+.ps-knob span, .ps-meter-label, .ps-chip .t, .ps-stat-l, .ps-env-cap {
+  font: 600 10px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 
 /* ── Organ panel (faithful Stage 4 replica) ───────────────────────────────── */
 .ps-organ-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
-/* LED buttons — the physical on/off state of a Nord control: a key cap with an
-   LED dot. Shared by the organ model row, toggle groups and the scene switch. */
+/* LED buttons (.ps-key) — the physical on/off state of a Nord control: a key cap
+   with an LED dot, lit when `.on`. The organ model row, toggle groups and the
+   scene switch all use it; an engine card's heading shows the same lit LED. */
 .ps-models { display: flex; gap: 6px; flex-wrap: wrap; }
-.ps-model, .ps-tg-btn, .ps-scene-btn {
+.ps-key {
   display: inline-flex; align-items: center; gap: 7px; min-height: 26px; padding: 0 9px;
   border: 0; border-radius: var(--r-sm); background: var(--key-face); box-shadow: var(--key-edge);
   font: 600 11px var(--font); letter-spacing: .05em; text-transform: uppercase; color: var(--dim); }
-.ps-model::before, .ps-tg-btn::before, .ps-scene-btn::before {
+.ps-key.on { color: var(--ink); }
+.ps-key::before, .ps-card h4::before {
   content: ''; width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--led-off);
   box-shadow: inset 0 1px 1px rgb(0 0 0 / 60%); }
-.ps-model.on, .ps-tg-btn.on, .ps-scene-btn.on { color: var(--ink); }
-.ps-model.on::before, .ps-tg-btn.on::before, .ps-scene-btn.on::before {
-  background: var(--accent); box-shadow: var(--led-on-glow); }
+.ps-key.on::before, .ps-card h4::before { background: var(--accent); box-shadow: var(--led-on-glow); }
 
 /* Drawbars, as on the instrument: a chrome rod pulled out of a dark slot, ending
    in a coloured cap. --lvl (0–8) is set on the track; the cap shows even at 0
@@ -79,11 +78,12 @@
 .ps-dbstack { display: flex; gap: 6px; justify-content: space-between; align-items: flex-end; margin: 6px 0; }
 .ps-db { flex: 1; text-align: center; }
 .ps-db-num { font: 500 11px var(--mono); color: var(--ink); margin-bottom: 4px; }
-.ps-db-track { --lvl: 0; --cap: 20px; position: relative; height: 120px; width: 100%; max-width: 18px;
+.ps-db-track { --lvl: 0; --cap: 20px; --pull: calc((100% - var(--cap)) * var(--lvl) / 8 + var(--cap));
+  position: relative; height: 120px; width: 100%; max-width: 18px;
   margin: 0 auto 6px; background: var(--organ-db-track); border-radius: 2px;
   box-shadow: var(--slot-inset); }
 .ps-db-tab { position: absolute; left: 3px; right: 3px; top: 0;
-  height: calc((100% - var(--cap)) * var(--lvl) / 8 + var(--cap)); background: var(--organ-db-rod); }
+  height: var(--pull); background: var(--organ-db-rod); }
 .ps-db-tab::after { content: ''; position: absolute; left: -6px; right: -6px; bottom: 0; height: var(--cap);
   border-radius: 3px 3px 5px 5px; box-shadow: var(--organ-db-cap-hi); }
 .ps-db-tab.brown::after { background: var(--organ-db-brown); }
@@ -91,7 +91,7 @@
 .ps-db-tab.black::after { background: var(--organ-db-black); outline: 1px solid var(--organ-db-black-edge); }
 .ps-db-tab.default::after { background: var(--organ-db-default); }
 .ps-db-morph { position: absolute; left: -5px; right: -5px;
-  top: calc((100% - var(--cap)) * var(--lvl) / 8 + var(--cap) + 2px); border-top: 2px dashed var(--organ-morph); }
+  top: calc(var(--pull) + 2px); border-top: 2px dashed var(--organ-morph); }
 .ps-db-foot { font: 400 10px var(--mono); color: var(--muted); }
 
 .ps-tgroup { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 12px; }
@@ -108,8 +108,7 @@
 
 .ps-meter { margin-top: 9px; }
 /* Meters are data: flat ink on a recessed track (warn colour when nearly full). */
-.ps-meter-label { font: 600 10px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--dim);
-  display: flex; justify-content: space-between; }
+.ps-meter-label { display: flex; justify-content: space-between; }
 .ps-meter-label span:last-child { font: 500 11px var(--mono); text-transform: none; letter-spacing: 0; color: var(--ink); }
 .ps-meter-track { height: 6px; border-radius: 2px; background: var(--meter-track); margin-top: 4px; overflow: hidden;
   box-shadow: var(--track-inset); }
@@ -119,7 +118,6 @@
 .ps-chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .ps-chip { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 7px 10px;
   font: 500 12px var(--mono); flex: 1; min-width: 120px; }
-.ps-chip .t { font: 600 10px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 
 .ps-scene { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
 .ps-scene-l { font: 600 11px var(--font); letter-spacing: .09em; color: var(--dim); }
@@ -163,12 +161,10 @@
 .ps-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 14px; margin-top: 11px; }
 .ps-stat { display: flex; justify-content: space-between; gap: 8px; align-items: baseline;
   border-bottom: 1px solid var(--line); padding-bottom: 3px; }
-.ps-stat-l { font: 600 10px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 .ps-stat-v { font-size: 11px; font-weight: 600; color: var(--ink); text-align: right; font-family: var(--mono); }
 
 .ps-env { margin-top: 11px; }
 .ps-env-svg { width: 100%; height: 38px; display: block; }
-.ps-env-cap { font: 600 10px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 
 .ps-kbd { width: 100%; display: block; margin: 6px 0 12px; touch-action: none; user-select: none; }
 .ps-kbd-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 11px; color: var(--dim); }
@@ -199,7 +195,7 @@
 .ps-deps { margin-top: 12px; background: var(--deps-bg); border: 1px solid var(--deps-border); border-radius: 10px; padding: 10px 12px; }
 .ps-deps-t { font-size: 10px; letter-spacing: 1px; color: var(--deps-ink); font-weight: 700; }
 .ps-dep { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; margin: 5px 10px 0 0;
-  color: var(--grn); text-decoration: none; }
+  color: var(--connected); text-decoration: none; }
 .ps-dep:hover { text-decoration: underline; }
 
 /* Stage 3 panel band: a labelled group wrapping one panel's cards + FX. */

@@ -68,7 +68,7 @@ export function ModelSelector({ models, active }: { models: readonly string[]; a
   return (
     <div className="ps-models">
       {models.map((m) => (
-        <span key={m} className={m.toUpperCase() === active.toUpperCase() ? 'ps-model on' : 'ps-model'}>{m}</span>
+        <span key={m} className={m.toUpperCase() === active.toUpperCase() ? 'ps-key ps-model on' : 'ps-key ps-model'}>{m}</span>
       ))}
     </div>
   );
@@ -86,7 +86,7 @@ export function ToggleGroup({ label, items, groupDim }: { label: ReactNode; item
     <div className={groupDim ? 'ps-tgroup dim' : 'ps-tgroup'}>
       <p className="ps-tgroup-lbl">{label}</p>
       <div className="ps-tgrow">
-        {items.map((it, i) => <span key={i} className={it.on ? 'ps-tg-btn on' : 'ps-tg-btn off'}>{it.label}</span>)}
+        {items.map((it, i) => <span key={i} className={it.on ? 'ps-key ps-tg-btn on' : 'ps-key ps-tg-btn off'}>{it.label}</span>)}
       </div>
     </div>
   );
