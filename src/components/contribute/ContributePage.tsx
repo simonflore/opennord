@@ -27,7 +27,7 @@ export function ContributePage() {
       <ol className="m-0 mt-4 grid list-none gap-3 p-0">
         <Ask n={1} title="Check your Nord" time="2 min">
           <p className={copy}>
-            Connect it (Chrome or Edge on a computer, or the iPad app) and run the check. It only
+            Connect it (Chrome or Edge on a computer) and run the check. It only
             reads; nothing on your keyboard changes. Then share the result in one click.
           </p>
           {session ? <ProbePanel /> : (
