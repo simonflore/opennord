@@ -30,7 +30,7 @@ const CELL_COLOR: Record<ValidationStatus, string> = {
   re: 'text-warn',
   inferred: 'text-dim',
   unsupported: 'text-muted',
-  unknown: 'text-red-bright',
+  unknown: 'text-danger',
 };
 
 const cellBase = 'border-b border-line px-2 py-1.5 text-left whitespace-nowrap max-[560px]:px-1.5 max-[560px]:py-1';

@@ -237,7 +237,7 @@ export function PianosBrowse({
           {' '}Download a copy first
         </label>
         {removeError && (
-          <p className="mt-2 text-xs text-red" role="alert">{removeError}</p>
+          <p className="mt-2 text-xs text-danger" role="alert">{removeError}</p>
         )}
       </Dialog>
     </>

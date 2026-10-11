@@ -238,7 +238,7 @@ describe('layer scenes', () => {
         { id: 'B', kind: 'synth', enabled: false, enabledSceneII: true },
       ],
     } as unknown as import('../../lib/ns4/types').NS4Program;
-    expect(renderToStaticMarkup(<ProgramView program={diff} />)).toContain('LAYER SCENE');
+    expect(renderToStaticMarkup(<ProgramView program={diff} />)).toContain('aria-label="Layer scene"');
   });
 });
 
