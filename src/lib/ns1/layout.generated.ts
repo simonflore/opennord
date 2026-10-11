@@ -1342,4 +1342,8 @@ export const NS1_LAYOUT: LegacyLayout<Ns1FieldKey> = {
     { key: 'panelB.externMode', name: 'Extern Mode', id: 164, bit: 3196, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'high', src: 'Stage Classic OS 5.08 parameter descriptors · panelB 164' },
     { key: 'panelB.param165', name: 'panelB.param165', id: 165, bit: 3197, width: 3, min: 0, max: 6, def: 5, enc: 'u', confidence: 'high', src: 'Stage Classic OS 5.08 parameter descriptors · panelB 165' },
   ],
+  sets: {
+    panelA: 'panel',
+    panelB: 'panel',
+  },
 };

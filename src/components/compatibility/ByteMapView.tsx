@@ -7,7 +7,7 @@ const COLS = 16;
 const CELL_COLOR: Record<RegionStatus, string> = {
   confirmed: 'bg-connected',
   candidate: 'bg-warn opacity-75',
-  unknown: 'bg-red-bright opacity-60',
+  unknown: 'bg-danger opacity-60',
   constant: 'bg-line',
 };
 const cellCls = (status: RegionStatus) =>

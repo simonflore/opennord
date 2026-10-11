@@ -1,7 +1,8 @@
 /**
  * Small presentation helpers shared by the firmware-layout readers (Stage 3,
- * Grand, Grand 2, Piano 4/5/6, Electro 6/7, Organ 3, Wave 2 — see block-chain.ts). They
- * turn decoded values into the musician-facing fragments the shared
+ * Grand, Grand 2, Piano 4/5/6, Electro 6/7, Organ 3, Wave 2 — see block-chain.ts)
+ * and the legacy-record ones (Electro 3, C2D, Wave, Lead A1 — legacy-record.ts).
+ * They turn decoded values into the musician-facing fragments the shared
  * DecodedProgramView shows.
  * Pure; model → clavia.
  */
@@ -111,6 +112,26 @@ export const COLDFIRE_PIANO_TYPES = ['Grand', 'Upright', 'E-Piano 1', 'E-Piano 2
 /** Two 15-bit reference ids (piano or sample) as one fixed-width hex fingerprint. */
 export function refId(ids: readonly [number, number]): string {
   return `0x${((ids[0] * 0x8000 + ids[1]) >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+/** The presentation when a legacy record is cut short: the file header only. */
+export function shortRecord(
+  title: string, header: [string, string][], model: string, warnings: readonly string[],
+): DecodedProgram {
+  return {
+    title, header, sections: [], warnings,
+    note: `${model}: this file is shorter than the program record the instrument writes, so only the file header is shown.`,
+  };
+}
+
+/** How many controls a sound morphs: "none", "1 control", "3 controls". */
+export function morphCountPart(n: number): string {
+  return n === 0 ? 'none' : `${n} control${n === 1 ? '' : 's'}`;
+}
+
+/** "2 of 5": how many of a set of on/off switches are on. */
+export function onOf(switches: readonly number[]): string {
+  return `${switches.filter((v) => v).length} of ${switches.length}`;
 }
 
 /** The effects that are on, or "None on". */

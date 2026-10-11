@@ -1,0 +1,1256 @@
+// AUTO-GENERATED (c2d) — DO NOT EDIT MANUALLY.
+//
+// Provenance: C2D OS 1.12 parameter containers; C2D OS 1.12 container list (115 instances, record version 100).
+// Knowledge only —
+// parameter names, bit positions, ranges and defaults; no firmware bytes or
+// tables (docs/LEGAL.md). `bit` is relative to the record data (file 0x1A).
+import type { LegacyLayout } from '../clavia/legacy-record';
+
+export type Nc2FieldKey =
+  | 'common.param0'
+  | 'common.param1'
+  | 'common.param2'
+  | 'b3Common.param0'
+  | 'b3Perc0.param0'
+  | 'b3Perc0.param1'
+  | 'b3Perc0.param2'
+  | 'b3Perc0.param3'
+  | 'b3Perc1.param0'
+  | 'b3Perc1.param1'
+  | 'b3Perc1.param2'
+  | 'b3Perc1.param3'
+  | 'b3Perc2.param0'
+  | 'b3Perc2.param1'
+  | 'b3Perc2.param2'
+  | 'b3Perc2.param3'
+  | 'b3Perc4.param0'
+  | 'b3Perc4.param1'
+  | 'b3Perc4.param2'
+  | 'b3Perc4.param3'
+  | 'b3Perc5.param0'
+  | 'b3Perc5.param1'
+  | 'b3Perc5.param2'
+  | 'b3Perc5.param3'
+  | 'b3Manual0.param0'
+  | 'b3Drawbars0_0.param0'
+  | 'b3Drawbars0_0.param1'
+  | 'b3Drawbars0_0.param2'
+  | 'b3Drawbars0_0.param3'
+  | 'b3Drawbars0_0.param4'
+  | 'b3Drawbars0_0.param5'
+  | 'b3Drawbars0_0.param6'
+  | 'b3Drawbars0_0.param7'
+  | 'b3Drawbars0_0.param8'
+  | 'b3VibOn0_0.param0'
+  | 'b3Drawbars0_1.param0'
+  | 'b3Drawbars0_1.param1'
+  | 'b3Drawbars0_1.param2'
+  | 'b3Drawbars0_1.param3'
+  | 'b3Drawbars0_1.param4'
+  | 'b3Drawbars0_1.param5'
+  | 'b3Drawbars0_1.param6'
+  | 'b3Drawbars0_1.param7'
+  | 'b3Drawbars0_1.param8'
+  | 'b3VibOn0_1.param0'
+  | 'b3Drawbars0_2.param0'
+  | 'b3Drawbars0_2.param1'
+  | 'b3Drawbars0_2.param2'
+  | 'b3Drawbars0_2.param3'
+  | 'b3Drawbars0_2.param4'
+  | 'b3Drawbars0_2.param5'
+  | 'b3Drawbars0_2.param6'
+  | 'b3Drawbars0_2.param7'
+  | 'b3Drawbars0_2.param8'
+  | 'b3VibOn0_2.param0'
+  | 'b3Drawbars0_3.param0'
+  | 'b3Drawbars0_3.param1'
+  | 'b3Drawbars0_3.param2'
+  | 'b3Drawbars0_3.param3'
+  | 'b3Drawbars0_3.param4'
+  | 'b3Drawbars0_3.param5'
+  | 'b3Drawbars0_3.param6'
+  | 'b3Drawbars0_3.param7'
+  | 'b3Drawbars0_3.param8'
+  | 'b3VibOn0_4.param0'
+  | 'b3Drawbars0_3dup.param0'
+  | 'b3Drawbars0_3dup.param1'
+  | 'b3Drawbars0_3dup.param2'
+  | 'b3Drawbars0_3dup.param3'
+  | 'b3Drawbars0_3dup.param4'
+  | 'b3Drawbars0_3dup.param5'
+  | 'b3Drawbars0_3dup.param6'
+  | 'b3Drawbars0_3dup.param7'
+  | 'b3Drawbars0_3dup.param8'
+  | 'b3VibOn0_5.param0'
+  | 'b3Manual1.param0'
+  | 'b3Drawbars1_0.param0'
+  | 'b3Drawbars1_0.param1'
+  | 'b3Drawbars1_0.param2'
+  | 'b3Drawbars1_0.param3'
+  | 'b3Drawbars1_0.param4'
+  | 'b3Drawbars1_0.param5'
+  | 'b3Drawbars1_0.param6'
+  | 'b3Drawbars1_0.param7'
+  | 'b3Drawbars1_0.param8'
+  | 'b3VibOn1_0.param0'
+  | 'b3Drawbars1_1.param0'
+  | 'b3Drawbars1_1.param1'
+  | 'b3Drawbars1_1.param2'
+  | 'b3Drawbars1_1.param3'
+  | 'b3Drawbars1_1.param4'
+  | 'b3Drawbars1_1.param5'
+  | 'b3Drawbars1_1.param6'
+  | 'b3Drawbars1_1.param7'
+  | 'b3Drawbars1_1.param8'
+  | 'b3VibOn1_1.param0'
+  | 'b3Drawbars1_2.param0'
+  | 'b3Drawbars1_2.param1'
+  | 'b3Drawbars1_2.param2'
+  | 'b3Drawbars1_2.param3'
+  | 'b3Drawbars1_2.param4'
+  | 'b3Drawbars1_2.param5'
+  | 'b3Drawbars1_2.param6'
+  | 'b3Drawbars1_2.param7'
+  | 'b3Drawbars1_2.param8'
+  | 'b3VibOn1_2.param0'
+  | 'b3Drawbars1_3.param0'
+  | 'b3Drawbars1_3.param1'
+  | 'b3Drawbars1_3.param2'
+  | 'b3Drawbars1_3.param3'
+  | 'b3Drawbars1_3.param4'
+  | 'b3Drawbars1_3.param5'
+  | 'b3Drawbars1_3.param6'
+  | 'b3Drawbars1_3.param7'
+  | 'b3Drawbars1_3.param8'
+  | 'b3VibOn1_4.param0'
+  | 'b3Drawbars1_3dup.param0'
+  | 'b3Drawbars1_3dup.param1'
+  | 'b3Drawbars1_3dup.param2'
+  | 'b3Drawbars1_3dup.param3'
+  | 'b3Drawbars1_3dup.param4'
+  | 'b3Drawbars1_3dup.param5'
+  | 'b3Drawbars1_3dup.param6'
+  | 'b3Drawbars1_3dup.param7'
+  | 'b3Drawbars1_3dup.param8'
+  | 'b3VibOn1_5.param0'
+  | 'voxCommon.param0'
+  | 'voxCommon.param1'
+  | 'voxManual0.param0'
+  | 'voxDrawbars0_0.param0'
+  | 'voxDrawbars0_0.param1'
+  | 'voxDrawbars0_0.param2'
+  | 'voxDrawbars0_0.param3'
+  | 'voxDrawbars0_0.param4'
+  | 'voxDrawbars0_0.param5'
+  | 'voxDrawbars0_0.param6'
+  | 'voxDrawbars0_0.param7'
+  | 'voxDrawbars0_0.param8'
+  | 'voxDrawbars0_1.param0'
+  | 'voxDrawbars0_1.param1'
+  | 'voxDrawbars0_1.param2'
+  | 'voxDrawbars0_1.param3'
+  | 'voxDrawbars0_1.param4'
+  | 'voxDrawbars0_1.param5'
+  | 'voxDrawbars0_1.param6'
+  | 'voxDrawbars0_1.param7'
+  | 'voxDrawbars0_1.param8'
+  | 'voxDrawbars0_2.param0'
+  | 'voxDrawbars0_2.param1'
+  | 'voxDrawbars0_2.param2'
+  | 'voxDrawbars0_2.param3'
+  | 'voxDrawbars0_2.param4'
+  | 'voxDrawbars0_2.param5'
+  | 'voxDrawbars0_2.param6'
+  | 'voxDrawbars0_2.param7'
+  | 'voxDrawbars0_2.param8'
+  | 'voxDrawbars0_3.param0'
+  | 'voxDrawbars0_3.param1'
+  | 'voxDrawbars0_3.param2'
+  | 'voxDrawbars0_3.param3'
+  | 'voxDrawbars0_3.param4'
+  | 'voxDrawbars0_3.param5'
+  | 'voxDrawbars0_3.param6'
+  | 'voxDrawbars0_3.param7'
+  | 'voxDrawbars0_3.param8'
+  | 'voxDrawbars0_3dup.param0'
+  | 'voxDrawbars0_3dup.param1'
+  | 'voxDrawbars0_3dup.param2'
+  | 'voxDrawbars0_3dup.param3'
+  | 'voxDrawbars0_3dup.param4'
+  | 'voxDrawbars0_3dup.param5'
+  | 'voxDrawbars0_3dup.param6'
+  | 'voxDrawbars0_3dup.param7'
+  | 'voxDrawbars0_3dup.param8'
+  | 'voxManual1.param0'
+  | 'voxDrawbars1_0.param0'
+  | 'voxDrawbars1_0.param1'
+  | 'voxDrawbars1_0.param2'
+  | 'voxDrawbars1_0.param3'
+  | 'voxDrawbars1_0.param4'
+  | 'voxDrawbars1_0.param5'
+  | 'voxDrawbars1_0.param6'
+  | 'voxDrawbars1_0.param7'
+  | 'voxDrawbars1_0.param8'
+  | 'voxDrawbars1_1.param0'
+  | 'voxDrawbars1_1.param1'
+  | 'voxDrawbars1_1.param2'
+  | 'voxDrawbars1_1.param3'
+  | 'voxDrawbars1_1.param4'
+  | 'voxDrawbars1_1.param5'
+  | 'voxDrawbars1_1.param6'
+  | 'voxDrawbars1_1.param7'
+  | 'voxDrawbars1_1.param8'
+  | 'voxDrawbars1_2.param0'
+  | 'voxDrawbars1_2.param1'
+  | 'voxDrawbars1_2.param2'
+  | 'voxDrawbars1_2.param3'
+  | 'voxDrawbars1_2.param4'
+  | 'voxDrawbars1_2.param5'
+  | 'voxDrawbars1_2.param6'
+  | 'voxDrawbars1_2.param7'
+  | 'voxDrawbars1_2.param8'
+  | 'voxDrawbars1_3.param0'
+  | 'voxDrawbars1_3.param1'
+  | 'voxDrawbars1_3.param2'
+  | 'voxDrawbars1_3.param3'
+  | 'voxDrawbars1_3.param4'
+  | 'voxDrawbars1_3.param5'
+  | 'voxDrawbars1_3.param6'
+  | 'voxDrawbars1_3.param7'
+  | 'voxDrawbars1_3.param8'
+  | 'voxDrawbars1_3dup.param0'
+  | 'voxDrawbars1_3dup.param1'
+  | 'voxDrawbars1_3dup.param2'
+  | 'voxDrawbars1_3dup.param3'
+  | 'voxDrawbars1_3dup.param4'
+  | 'voxDrawbars1_3dup.param5'
+  | 'voxDrawbars1_3dup.param6'
+  | 'voxDrawbars1_3dup.param7'
+  | 'voxDrawbars1_3dup.param8'
+  | 'farfCommon.param0'
+  | 'farfCommon.param1'
+  | 'farfManual0.param0'
+  | 'farfTabs0_0.param0'
+  | 'farfTabs0_0.param1'
+  | 'farfTabs0_0.param2'
+  | 'farfTabs0_0.param3'
+  | 'farfTabs0_0.param4'
+  | 'farfTabs0_0.param5'
+  | 'farfTabs0_0.param6'
+  | 'farfTabs0_0.param7'
+  | 'farfTabs0_0.param8'
+  | 'farfTabs0_1.param0'
+  | 'farfTabs0_1.param1'
+  | 'farfTabs0_1.param2'
+  | 'farfTabs0_1.param3'
+  | 'farfTabs0_1.param4'
+  | 'farfTabs0_1.param5'
+  | 'farfTabs0_1.param6'
+  | 'farfTabs0_1.param7'
+  | 'farfTabs0_1.param8'
+  | 'farfTabs0_2.param0'
+  | 'farfTabs0_2.param1'
+  | 'farfTabs0_2.param2'
+  | 'farfTabs0_2.param3'
+  | 'farfTabs0_2.param4'
+  | 'farfTabs0_2.param5'
+  | 'farfTabs0_2.param6'
+  | 'farfTabs0_2.param7'
+  | 'farfTabs0_2.param8'
+  | 'farfTabs0_3.param0'
+  | 'farfTabs0_3.param1'
+  | 'farfTabs0_3.param2'
+  | 'farfTabs0_3.param3'
+  | 'farfTabs0_3.param4'
+  | 'farfTabs0_3.param5'
+  | 'farfTabs0_3.param6'
+  | 'farfTabs0_3.param7'
+  | 'farfTabs0_3.param8'
+  | 'farfTabs0_3dup.param0'
+  | 'farfTabs0_3dup.param1'
+  | 'farfTabs0_3dup.param2'
+  | 'farfTabs0_3dup.param3'
+  | 'farfTabs0_3dup.param4'
+  | 'farfTabs0_3dup.param5'
+  | 'farfTabs0_3dup.param6'
+  | 'farfTabs0_3dup.param7'
+  | 'farfTabs0_3dup.param8'
+  | 'farfManual1.param0'
+  | 'farfTabs1_0.param0'
+  | 'farfTabs1_0.param1'
+  | 'farfTabs1_0.param2'
+  | 'farfTabs1_0.param3'
+  | 'farfTabs1_0.param4'
+  | 'farfTabs1_0.param5'
+  | 'farfTabs1_0.param6'
+  | 'farfTabs1_0.param7'
+  | 'farfTabs1_0.param8'
+  | 'farfTabs1_1.param0'
+  | 'farfTabs1_1.param1'
+  | 'farfTabs1_1.param2'
+  | 'farfTabs1_1.param3'
+  | 'farfTabs1_1.param4'
+  | 'farfTabs1_1.param5'
+  | 'farfTabs1_1.param6'
+  | 'farfTabs1_1.param7'
+  | 'farfTabs1_1.param8'
+  | 'farfTabs1_2.param0'
+  | 'farfTabs1_2.param1'
+  | 'farfTabs1_2.param2'
+  | 'farfTabs1_2.param3'
+  | 'farfTabs1_2.param4'
+  | 'farfTabs1_2.param5'
+  | 'farfTabs1_2.param6'
+  | 'farfTabs1_2.param7'
+  | 'farfTabs1_2.param8'
+  | 'farfTabs1_3.param0'
+  | 'farfTabs1_3.param1'
+  | 'farfTabs1_3.param2'
+  | 'farfTabs1_3.param3'
+  | 'farfTabs1_3.param4'
+  | 'farfTabs1_3.param5'
+  | 'farfTabs1_3.param6'
+  | 'farfTabs1_3.param7'
+  | 'farfTabs1_3.param8'
+  | 'farfTabs1_3dup.param0'
+  | 'farfTabs1_3dup.param1'
+  | 'farfTabs1_3dup.param2'
+  | 'farfTabs1_3dup.param3'
+  | 'farfTabs1_3dup.param4'
+  | 'farfTabs1_3dup.param5'
+  | 'farfTabs1_3dup.param6'
+  | 'farfTabs1_3dup.param7'
+  | 'farfTabs1_3dup.param8'
+  | 'pipeCommon.param0'
+  | 'pipeCommon.param1'
+  | 'pipeX0.param0'
+  | 'pipeX0.param1'
+  | 'pipeX0.param2'
+  | 'pipeX0.param3'
+  | 'pipeX1.param0'
+  | 'pipeX1.param1'
+  | 'pipeX1.param2'
+  | 'pipeX1.param3'
+  | 'pipeX2.param0'
+  | 'pipeX2.param1'
+  | 'pipeX2.param2'
+  | 'pipeX2.param3'
+  | 'pipeX3.param0'
+  | 'pipeX3.param1'
+  | 'pipeX3.param2'
+  | 'pipeX3.param3'
+  | 'pipeX4.param0'
+  | 'pipeX4.param1'
+  | 'pipeX4.param2'
+  | 'pipeX4.param3'
+  | 'pipeX5.param0'
+  | 'pipeX5.param1'
+  | 'pipeX5.param2'
+  | 'pipeX5.param3'
+  | 'pipeX7.param0'
+  | 'pipeX7.param1'
+  | 'pipeX7.param2'
+  | 'pipeX7.param3'
+  | 'pipeManual0.param0'
+  | 'pipeStops0_0.param0'
+  | 'pipeStops0_0.param1'
+  | 'pipeStops0_0.param2'
+  | 'pipeStops0_0.param3'
+  | 'pipeStops0_0.param4'
+  | 'pipeStops0_0.param5'
+  | 'pipeStops0_0.param6'
+  | 'pipeStops0_0.param7'
+  | 'pipeStops0_0.param8'
+  | 'pipeStops0_1.param0'
+  | 'pipeStops0_1.param1'
+  | 'pipeStops0_1.param2'
+  | 'pipeStops0_1.param3'
+  | 'pipeStops0_1.param4'
+  | 'pipeStops0_1.param5'
+  | 'pipeStops0_1.param6'
+  | 'pipeStops0_1.param7'
+  | 'pipeStops0_1.param8'
+  | 'pipeStops0_2.param0'
+  | 'pipeStops0_2.param1'
+  | 'pipeStops0_2.param2'
+  | 'pipeStops0_2.param3'
+  | 'pipeStops0_2.param4'
+  | 'pipeStops0_2.param5'
+  | 'pipeStops0_2.param6'
+  | 'pipeStops0_2.param7'
+  | 'pipeStops0_2.param8'
+  | 'pipeStops0_3.param0'
+  | 'pipeStops0_3.param1'
+  | 'pipeStops0_3.param2'
+  | 'pipeStops0_3.param3'
+  | 'pipeStops0_3.param4'
+  | 'pipeStops0_3.param5'
+  | 'pipeStops0_3.param6'
+  | 'pipeStops0_3.param7'
+  | 'pipeStops0_3.param8'
+  | 'pipeStops0_4.param0'
+  | 'pipeStops0_4.param1'
+  | 'pipeStops0_4.param2'
+  | 'pipeStops0_4.param3'
+  | 'pipeStops0_4.param4'
+  | 'pipeStops0_4.param5'
+  | 'pipeStops0_4.param6'
+  | 'pipeStops0_4.param7'
+  | 'pipeStops0_4.param8'
+  | 'pipeStops0_5.param0'
+  | 'pipeStops0_5.param1'
+  | 'pipeStops0_5.param2'
+  | 'pipeStops0_5.param3'
+  | 'pipeStops0_5.param4'
+  | 'pipeStops0_5.param5'
+  | 'pipeStops0_5.param6'
+  | 'pipeStops0_5.param7'
+  | 'pipeStops0_5.param8'
+  | 'pipeStops0_6.param0'
+  | 'pipeStops0_6.param1'
+  | 'pipeStops0_6.param2'
+  | 'pipeStops0_6.param3'
+  | 'pipeStops0_6.param4'
+  | 'pipeStops0_6.param5'
+  | 'pipeStops0_6.param6'
+  | 'pipeStops0_6.param7'
+  | 'pipeStops0_6.param8'
+  | 'pipeStops0_6dup.param0'
+  | 'pipeStops0_6dup.param1'
+  | 'pipeStops0_6dup.param2'
+  | 'pipeStops0_6dup.param3'
+  | 'pipeStops0_6dup.param4'
+  | 'pipeStops0_6dup.param5'
+  | 'pipeStops0_6dup.param6'
+  | 'pipeStops0_6dup.param7'
+  | 'pipeStops0_6dup.param8'
+  | 'pipeVibOn0_0.param0'
+  | 'pipeVibOn0_1.param0'
+  | 'pipeVibOn0_2.param0'
+  | 'pipeVibOn0_3.param0'
+  | 'pipeVibOn0_4.param0'
+  | 'pipeVibOn0_5.param0'
+  | 'pipeVibOn0_7.param0'
+  | 'pipeManual1.param0'
+  | 'pipeStops1_0.param0'
+  | 'pipeStops1_0.param1'
+  | 'pipeStops1_0.param2'
+  | 'pipeStops1_0.param3'
+  | 'pipeStops1_0.param4'
+  | 'pipeStops1_0.param5'
+  | 'pipeStops1_0.param6'
+  | 'pipeStops1_0.param7'
+  | 'pipeStops1_0.param8'
+  | 'pipeStops1_1.param0'
+  | 'pipeStops1_1.param1'
+  | 'pipeStops1_1.param2'
+  | 'pipeStops1_1.param3'
+  | 'pipeStops1_1.param4'
+  | 'pipeStops1_1.param5'
+  | 'pipeStops1_1.param6'
+  | 'pipeStops1_1.param7'
+  | 'pipeStops1_1.param8'
+  | 'pipeStops1_2.param0'
+  | 'pipeStops1_2.param1'
+  | 'pipeStops1_2.param2'
+  | 'pipeStops1_2.param3'
+  | 'pipeStops1_2.param4'
+  | 'pipeStops1_2.param5'
+  | 'pipeStops1_2.param6'
+  | 'pipeStops1_2.param7'
+  | 'pipeStops1_2.param8'
+  | 'pipeStops1_3.param0'
+  | 'pipeStops1_3.param1'
+  | 'pipeStops1_3.param2'
+  | 'pipeStops1_3.param3'
+  | 'pipeStops1_3.param4'
+  | 'pipeStops1_3.param5'
+  | 'pipeStops1_3.param6'
+  | 'pipeStops1_3.param7'
+  | 'pipeStops1_3.param8'
+  | 'pipeStops1_4.param0'
+  | 'pipeStops1_4.param1'
+  | 'pipeStops1_4.param2'
+  | 'pipeStops1_4.param3'
+  | 'pipeStops1_4.param4'
+  | 'pipeStops1_4.param5'
+  | 'pipeStops1_4.param6'
+  | 'pipeStops1_4.param7'
+  | 'pipeStops1_4.param8'
+  | 'pipeStops1_5.param0'
+  | 'pipeStops1_5.param1'
+  | 'pipeStops1_5.param2'
+  | 'pipeStops1_5.param3'
+  | 'pipeStops1_5.param4'
+  | 'pipeStops1_5.param5'
+  | 'pipeStops1_5.param6'
+  | 'pipeStops1_5.param7'
+  | 'pipeStops1_5.param8'
+  | 'pipeStops1_6.param0'
+  | 'pipeStops1_6.param1'
+  | 'pipeStops1_6.param2'
+  | 'pipeStops1_6.param3'
+  | 'pipeStops1_6.param4'
+  | 'pipeStops1_6.param5'
+  | 'pipeStops1_6.param6'
+  | 'pipeStops1_6.param7'
+  | 'pipeStops1_6.param8'
+  | 'pipeStops1_6dup.param0'
+  | 'pipeStops1_6dup.param1'
+  | 'pipeStops1_6dup.param2'
+  | 'pipeStops1_6dup.param3'
+  | 'pipeStops1_6dup.param4'
+  | 'pipeStops1_6dup.param5'
+  | 'pipeStops1_6dup.param6'
+  | 'pipeStops1_6dup.param7'
+  | 'pipeStops1_6dup.param8'
+  | 'pipeVibOn1_0.param0'
+  | 'pipeVibOn1_1.param0'
+  | 'pipeVibOn1_2.param0'
+  | 'pipeVibOn1_3.param0'
+  | 'pipeVibOn1_4.param0'
+  | 'pipeVibOn1_5.param0'
+  | 'pipeVibOn1_7.param0'
+  | 'pedalA.param0'
+  | 'pedalADrawbars0.param0'
+  | 'pedalADrawbars0.param1'
+  | 'pedalADrawbars2.param0'
+  | 'pedalADrawbars2.param1'
+  | 'pedalB.param0'
+  | 'pedalBStops0.param0'
+  | 'pedalBStops0.param1'
+  | 'pedalBStops0.param2'
+  | 'pedalBStops0.param3'
+  | 'pedalBStops2.param0'
+  | 'pedalBStops2.param1'
+  | 'pedalBStops2.param2'
+  | 'pedalBStops2.param3'
+  | 'pedalC.param0'
+  | 'pedalC.param1'
+  | 'pedalCStops0.param0'
+  | 'pedalCStops0.param1'
+  | 'pedalCStops1.param0'
+  | 'pedalCStops1.param1'
+  | 'pedalCStops2.param0'
+  | 'pedalCStops2.param1'
+  | 'pedalCStops3.param0'
+  | 'pedalCStops3.param1'
+  | 'pedalCStops4.param0'
+  | 'pedalCStops4.param1'
+  | 'pedalCStops5.param0'
+  | 'pedalCStops5.param1'
+  | 'pedalCStops7.param0'
+  | 'pedalCStops7.param1'
+  | 'effects.param0'
+  | 'effects.param1'
+  | 'effects.param2'
+  | 'effects.param3'
+  | 'effects.param4'
+  | 'effects.param5'
+  | 'effects.param6'
+  | 'rotary.param0'
+  | 'rotary.param1'
+  | 'rotary.param2'
+  | 'rotary.param3'
+  | 'rotary.param4'
+  | 'rotary.param5'
+  | 'rotary.param6'
+  | 'rotary.param7'
+  | 'fxSwitch0.param0'
+  | 'fxSwitch0.param1'
+  | 'fxSwitch0.param2'
+  | 'fxSwitch0.param3'
+  | 'fxSwitch1.param0'
+  | 'fxSwitch1.param1'
+  | 'fxSwitch1.param2'
+  | 'fxSwitch1.param3'
+  | 'fxSwitch2.param0'
+  | 'fxSwitch2.param1'
+  | 'fxSwitch2.param2'
+  | 'fxSwitch2.param3'
+  | 'fxSwitch3.param0'
+  | 'fxSwitch3.param1'
+  | 'fxSwitch3.param2'
+  | 'fxSwitch3.param3';
+
+export const NC2_LAYOUT: LegacyLayout<Nc2FieldKey> = {
+  model: 'Nord C2D',
+  source: 'C2D OS 1.12 parameter containers',
+  container: 'C2D OS 1.12 container list (115 instances, record version 100)',
+  recordVersion: 100,
+  dataBytes: 345,
+  fields: [
+    { key: 'common.param0', name: 'common.param0', id: 0, bit: 0, width: 3, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · common 0', cc: 9 },
+    { key: 'common.param1', name: 'common.param1', id: 1, bit: 3, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · common 1', cc: 110 },
+    { key: 'common.param2', name: 'common.param2', id: 2, bit: 4, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · common 2', cc: 117 },
+    { key: 'b3Common.param0', name: 'b3Common.param0', id: 0, bit: 64, width: 3, min: 0, max: 5, def: 5, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Common 0', cc: 84 },
+    { key: 'b3Perc0.param0', name: 'b3Perc0.param0', id: 0, bit: 80, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc0 0', cc: 87 },
+    { key: 'b3Perc0.param1', name: 'b3Perc0.param1', id: 1, bit: 81, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc0 1', cc: 28 },
+    { key: 'b3Perc0.param2', name: 'b3Perc0.param2', id: 2, bit: 82, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc0 2', cc: 27 },
+    { key: 'b3Perc0.param3', name: 'b3Perc0.param3', id: 3, bit: 83, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc0 3', cc: 95 },
+    { key: 'b3Perc1.param0', name: 'b3Perc1.param0', id: 0, bit: 88, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc1 0', cc: 87 },
+    { key: 'b3Perc1.param1', name: 'b3Perc1.param1', id: 1, bit: 89, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc1 1', cc: 28 },
+    { key: 'b3Perc1.param2', name: 'b3Perc1.param2', id: 2, bit: 90, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc1 2', cc: 27 },
+    { key: 'b3Perc1.param3', name: 'b3Perc1.param3', id: 3, bit: 91, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc1 3', cc: 95 },
+    { key: 'b3Perc2.param0', name: 'b3Perc2.param0', id: 0, bit: 96, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc2 0', cc: 87 },
+    { key: 'b3Perc2.param1', name: 'b3Perc2.param1', id: 1, bit: 97, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc2 1', cc: 28 },
+    { key: 'b3Perc2.param2', name: 'b3Perc2.param2', id: 2, bit: 98, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc2 2', cc: 27 },
+    { key: 'b3Perc2.param3', name: 'b3Perc2.param3', id: 3, bit: 99, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc2 3', cc: 95 },
+    { key: 'b3Perc4.param0', name: 'b3Perc4.param0', id: 0, bit: 104, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc4 0', cc: 87 },
+    { key: 'b3Perc4.param1', name: 'b3Perc4.param1', id: 1, bit: 105, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc4 1', cc: 28 },
+    { key: 'b3Perc4.param2', name: 'b3Perc4.param2', id: 2, bit: 106, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc4 2', cc: 27 },
+    { key: 'b3Perc4.param3', name: 'b3Perc4.param3', id: 3, bit: 107, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc4 3', cc: 95 },
+    { key: 'b3Perc5.param0', name: 'b3Perc5.param0', id: 0, bit: 112, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc5 0', cc: 87 },
+    { key: 'b3Perc5.param1', name: 'b3Perc5.param1', id: 1, bit: 113, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc5 1', cc: 28 },
+    { key: 'b3Perc5.param2', name: 'b3Perc5.param2', id: 2, bit: 114, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc5 2', cc: 27 },
+    { key: 'b3Perc5.param3', name: 'b3Perc5.param3', id: 3, bit: 115, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Perc5 3', cc: 95 },
+    { key: 'b3Manual0.param0', name: 'b3Manual0.param0', id: 0, bit: 120, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Manual0 0', cc: 3 },
+    { key: 'b3Drawbars0_0.param0', name: 'b3Drawbars0_0.param0', id: 0, bit: 136, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_0 0' },
+    { key: 'b3Drawbars0_0.param1', name: 'b3Drawbars0_0.param1', id: 1, bit: 140, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_0 1' },
+    { key: 'b3Drawbars0_0.param2', name: 'b3Drawbars0_0.param2', id: 2, bit: 144, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_0 2' },
+    { key: 'b3Drawbars0_0.param3', name: 'b3Drawbars0_0.param3', id: 3, bit: 148, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_0 3' },
+    { key: 'b3Drawbars0_0.param4', name: 'b3Drawbars0_0.param4', id: 4, bit: 152, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_0 4' },
+    { key: 'b3Drawbars0_0.param5', name: 'b3Drawbars0_0.param5', id: 5, bit: 156, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_0 5' },
+    { key: 'b3Drawbars0_0.param6', name: 'b3Drawbars0_0.param6', id: 6, bit: 160, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_0 6' },
+    { key: 'b3Drawbars0_0.param7', name: 'b3Drawbars0_0.param7', id: 7, bit: 164, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_0 7' },
+    { key: 'b3Drawbars0_0.param8', name: 'b3Drawbars0_0.param8', id: 8, bit: 168, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_0 8' },
+    { key: 'b3VibOn0_0.param0', name: 'b3VibOn0_0.param0', id: 0, bit: 184, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3VibOn0_0 0', cc: 85 },
+    { key: 'b3Drawbars0_1.param0', name: 'b3Drawbars0_1.param0', id: 0, bit: 192, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_1 0' },
+    { key: 'b3Drawbars0_1.param1', name: 'b3Drawbars0_1.param1', id: 1, bit: 196, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_1 1' },
+    { key: 'b3Drawbars0_1.param2', name: 'b3Drawbars0_1.param2', id: 2, bit: 200, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_1 2' },
+    { key: 'b3Drawbars0_1.param3', name: 'b3Drawbars0_1.param3', id: 3, bit: 204, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_1 3' },
+    { key: 'b3Drawbars0_1.param4', name: 'b3Drawbars0_1.param4', id: 4, bit: 208, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_1 4' },
+    { key: 'b3Drawbars0_1.param5', name: 'b3Drawbars0_1.param5', id: 5, bit: 212, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_1 5' },
+    { key: 'b3Drawbars0_1.param6', name: 'b3Drawbars0_1.param6', id: 6, bit: 216, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_1 6' },
+    { key: 'b3Drawbars0_1.param7', name: 'b3Drawbars0_1.param7', id: 7, bit: 220, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_1 7' },
+    { key: 'b3Drawbars0_1.param8', name: 'b3Drawbars0_1.param8', id: 8, bit: 224, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_1 8' },
+    { key: 'b3VibOn0_1.param0', name: 'b3VibOn0_1.param0', id: 0, bit: 240, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3VibOn0_1 0', cc: 85 },
+    { key: 'b3Drawbars0_2.param0', name: 'b3Drawbars0_2.param0', id: 0, bit: 248, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_2 0' },
+    { key: 'b3Drawbars0_2.param1', name: 'b3Drawbars0_2.param1', id: 1, bit: 252, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_2 1' },
+    { key: 'b3Drawbars0_2.param2', name: 'b3Drawbars0_2.param2', id: 2, bit: 256, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_2 2' },
+    { key: 'b3Drawbars0_2.param3', name: 'b3Drawbars0_2.param3', id: 3, bit: 260, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_2 3' },
+    { key: 'b3Drawbars0_2.param4', name: 'b3Drawbars0_2.param4', id: 4, bit: 264, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_2 4' },
+    { key: 'b3Drawbars0_2.param5', name: 'b3Drawbars0_2.param5', id: 5, bit: 268, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_2 5' },
+    { key: 'b3Drawbars0_2.param6', name: 'b3Drawbars0_2.param6', id: 6, bit: 272, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_2 6' },
+    { key: 'b3Drawbars0_2.param7', name: 'b3Drawbars0_2.param7', id: 7, bit: 276, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_2 7' },
+    { key: 'b3Drawbars0_2.param8', name: 'b3Drawbars0_2.param8', id: 8, bit: 280, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_2 8' },
+    { key: 'b3VibOn0_2.param0', name: 'b3VibOn0_2.param0', id: 0, bit: 296, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3VibOn0_2 0', cc: 85 },
+    { key: 'b3Drawbars0_3.param0', name: 'b3Drawbars0_3.param0', id: 0, bit: 304, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3 0' },
+    { key: 'b3Drawbars0_3.param1', name: 'b3Drawbars0_3.param1', id: 1, bit: 308, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3 1' },
+    { key: 'b3Drawbars0_3.param2', name: 'b3Drawbars0_3.param2', id: 2, bit: 312, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3 2' },
+    { key: 'b3Drawbars0_3.param3', name: 'b3Drawbars0_3.param3', id: 3, bit: 316, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3 3' },
+    { key: 'b3Drawbars0_3.param4', name: 'b3Drawbars0_3.param4', id: 4, bit: 320, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3 4' },
+    { key: 'b3Drawbars0_3.param5', name: 'b3Drawbars0_3.param5', id: 5, bit: 324, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3 5' },
+    { key: 'b3Drawbars0_3.param6', name: 'b3Drawbars0_3.param6', id: 6, bit: 328, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3 6' },
+    { key: 'b3Drawbars0_3.param7', name: 'b3Drawbars0_3.param7', id: 7, bit: 332, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3 7' },
+    { key: 'b3Drawbars0_3.param8', name: 'b3Drawbars0_3.param8', id: 8, bit: 336, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3 8' },
+    { key: 'b3VibOn0_4.param0', name: 'b3VibOn0_4.param0', id: 0, bit: 352, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3VibOn0_4 0', cc: 85 },
+    { key: 'b3Drawbars0_3dup.param0', name: 'b3Drawbars0_3dup.param0', id: 0, bit: 360, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3dup 0', copyOf: 'b3Drawbars0_3.param0' },
+    { key: 'b3Drawbars0_3dup.param1', name: 'b3Drawbars0_3dup.param1', id: 1, bit: 364, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3dup 1', copyOf: 'b3Drawbars0_3.param1' },
+    { key: 'b3Drawbars0_3dup.param2', name: 'b3Drawbars0_3dup.param2', id: 2, bit: 368, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3dup 2', copyOf: 'b3Drawbars0_3.param2' },
+    { key: 'b3Drawbars0_3dup.param3', name: 'b3Drawbars0_3dup.param3', id: 3, bit: 372, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3dup 3', copyOf: 'b3Drawbars0_3.param3' },
+    { key: 'b3Drawbars0_3dup.param4', name: 'b3Drawbars0_3dup.param4', id: 4, bit: 376, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3dup 4', copyOf: 'b3Drawbars0_3.param4' },
+    { key: 'b3Drawbars0_3dup.param5', name: 'b3Drawbars0_3dup.param5', id: 5, bit: 380, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3dup 5', copyOf: 'b3Drawbars0_3.param5' },
+    { key: 'b3Drawbars0_3dup.param6', name: 'b3Drawbars0_3dup.param6', id: 6, bit: 384, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3dup 6', copyOf: 'b3Drawbars0_3.param6' },
+    { key: 'b3Drawbars0_3dup.param7', name: 'b3Drawbars0_3dup.param7', id: 7, bit: 388, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3dup 7', copyOf: 'b3Drawbars0_3.param7' },
+    { key: 'b3Drawbars0_3dup.param8', name: 'b3Drawbars0_3dup.param8', id: 8, bit: 392, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars0_3dup 8', copyOf: 'b3Drawbars0_3.param8' },
+    { key: 'b3VibOn0_5.param0', name: 'b3VibOn0_5.param0', id: 0, bit: 408, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3VibOn0_5 0', cc: 85 },
+    { key: 'b3Manual1.param0', name: 'b3Manual1.param0', id: 0, bit: 416, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Manual1 0', cc: 3 },
+    { key: 'b3Drawbars1_0.param0', name: 'b3Drawbars1_0.param0', id: 0, bit: 432, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_0 0' },
+    { key: 'b3Drawbars1_0.param1', name: 'b3Drawbars1_0.param1', id: 1, bit: 436, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_0 1' },
+    { key: 'b3Drawbars1_0.param2', name: 'b3Drawbars1_0.param2', id: 2, bit: 440, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_0 2' },
+    { key: 'b3Drawbars1_0.param3', name: 'b3Drawbars1_0.param3', id: 3, bit: 444, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_0 3' },
+    { key: 'b3Drawbars1_0.param4', name: 'b3Drawbars1_0.param4', id: 4, bit: 448, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_0 4' },
+    { key: 'b3Drawbars1_0.param5', name: 'b3Drawbars1_0.param5', id: 5, bit: 452, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_0 5' },
+    { key: 'b3Drawbars1_0.param6', name: 'b3Drawbars1_0.param6', id: 6, bit: 456, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_0 6' },
+    { key: 'b3Drawbars1_0.param7', name: 'b3Drawbars1_0.param7', id: 7, bit: 460, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_0 7' },
+    { key: 'b3Drawbars1_0.param8', name: 'b3Drawbars1_0.param8', id: 8, bit: 464, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_0 8' },
+    { key: 'b3VibOn1_0.param0', name: 'b3VibOn1_0.param0', id: 0, bit: 480, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3VibOn1_0 0', cc: 85 },
+    { key: 'b3Drawbars1_1.param0', name: 'b3Drawbars1_1.param0', id: 0, bit: 488, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_1 0' },
+    { key: 'b3Drawbars1_1.param1', name: 'b3Drawbars1_1.param1', id: 1, bit: 492, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_1 1' },
+    { key: 'b3Drawbars1_1.param2', name: 'b3Drawbars1_1.param2', id: 2, bit: 496, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_1 2' },
+    { key: 'b3Drawbars1_1.param3', name: 'b3Drawbars1_1.param3', id: 3, bit: 500, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_1 3' },
+    { key: 'b3Drawbars1_1.param4', name: 'b3Drawbars1_1.param4', id: 4, bit: 504, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_1 4' },
+    { key: 'b3Drawbars1_1.param5', name: 'b3Drawbars1_1.param5', id: 5, bit: 508, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_1 5' },
+    { key: 'b3Drawbars1_1.param6', name: 'b3Drawbars1_1.param6', id: 6, bit: 512, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_1 6' },
+    { key: 'b3Drawbars1_1.param7', name: 'b3Drawbars1_1.param7', id: 7, bit: 516, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_1 7' },
+    { key: 'b3Drawbars1_1.param8', name: 'b3Drawbars1_1.param8', id: 8, bit: 520, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_1 8' },
+    { key: 'b3VibOn1_1.param0', name: 'b3VibOn1_1.param0', id: 0, bit: 536, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3VibOn1_1 0', cc: 85 },
+    { key: 'b3Drawbars1_2.param0', name: 'b3Drawbars1_2.param0', id: 0, bit: 544, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_2 0' },
+    { key: 'b3Drawbars1_2.param1', name: 'b3Drawbars1_2.param1', id: 1, bit: 548, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_2 1' },
+    { key: 'b3Drawbars1_2.param2', name: 'b3Drawbars1_2.param2', id: 2, bit: 552, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_2 2' },
+    { key: 'b3Drawbars1_2.param3', name: 'b3Drawbars1_2.param3', id: 3, bit: 556, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_2 3' },
+    { key: 'b3Drawbars1_2.param4', name: 'b3Drawbars1_2.param4', id: 4, bit: 560, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_2 4' },
+    { key: 'b3Drawbars1_2.param5', name: 'b3Drawbars1_2.param5', id: 5, bit: 564, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_2 5' },
+    { key: 'b3Drawbars1_2.param6', name: 'b3Drawbars1_2.param6', id: 6, bit: 568, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_2 6' },
+    { key: 'b3Drawbars1_2.param7', name: 'b3Drawbars1_2.param7', id: 7, bit: 572, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_2 7' },
+    { key: 'b3Drawbars1_2.param8', name: 'b3Drawbars1_2.param8', id: 8, bit: 576, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_2 8' },
+    { key: 'b3VibOn1_2.param0', name: 'b3VibOn1_2.param0', id: 0, bit: 592, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3VibOn1_2 0', cc: 85 },
+    { key: 'b3Drawbars1_3.param0', name: 'b3Drawbars1_3.param0', id: 0, bit: 600, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3 0' },
+    { key: 'b3Drawbars1_3.param1', name: 'b3Drawbars1_3.param1', id: 1, bit: 604, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3 1' },
+    { key: 'b3Drawbars1_3.param2', name: 'b3Drawbars1_3.param2', id: 2, bit: 608, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3 2' },
+    { key: 'b3Drawbars1_3.param3', name: 'b3Drawbars1_3.param3', id: 3, bit: 612, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3 3' },
+    { key: 'b3Drawbars1_3.param4', name: 'b3Drawbars1_3.param4', id: 4, bit: 616, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3 4' },
+    { key: 'b3Drawbars1_3.param5', name: 'b3Drawbars1_3.param5', id: 5, bit: 620, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3 5' },
+    { key: 'b3Drawbars1_3.param6', name: 'b3Drawbars1_3.param6', id: 6, bit: 624, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3 6' },
+    { key: 'b3Drawbars1_3.param7', name: 'b3Drawbars1_3.param7', id: 7, bit: 628, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3 7' },
+    { key: 'b3Drawbars1_3.param8', name: 'b3Drawbars1_3.param8', id: 8, bit: 632, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3 8' },
+    { key: 'b3VibOn1_4.param0', name: 'b3VibOn1_4.param0', id: 0, bit: 648, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3VibOn1_4 0', cc: 85 },
+    { key: 'b3Drawbars1_3dup.param0', name: 'b3Drawbars1_3dup.param0', id: 0, bit: 656, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3dup 0', copyOf: 'b3Drawbars1_3.param0' },
+    { key: 'b3Drawbars1_3dup.param1', name: 'b3Drawbars1_3dup.param1', id: 1, bit: 660, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3dup 1', copyOf: 'b3Drawbars1_3.param1' },
+    { key: 'b3Drawbars1_3dup.param2', name: 'b3Drawbars1_3dup.param2', id: 2, bit: 664, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3dup 2', copyOf: 'b3Drawbars1_3.param2' },
+    { key: 'b3Drawbars1_3dup.param3', name: 'b3Drawbars1_3dup.param3', id: 3, bit: 668, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3dup 3', copyOf: 'b3Drawbars1_3.param3' },
+    { key: 'b3Drawbars1_3dup.param4', name: 'b3Drawbars1_3dup.param4', id: 4, bit: 672, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3dup 4', copyOf: 'b3Drawbars1_3.param4' },
+    { key: 'b3Drawbars1_3dup.param5', name: 'b3Drawbars1_3dup.param5', id: 5, bit: 676, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3dup 5', copyOf: 'b3Drawbars1_3.param5' },
+    { key: 'b3Drawbars1_3dup.param6', name: 'b3Drawbars1_3dup.param6', id: 6, bit: 680, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3dup 6', copyOf: 'b3Drawbars1_3.param6' },
+    { key: 'b3Drawbars1_3dup.param7', name: 'b3Drawbars1_3dup.param7', id: 7, bit: 684, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3dup 7', copyOf: 'b3Drawbars1_3.param7' },
+    { key: 'b3Drawbars1_3dup.param8', name: 'b3Drawbars1_3dup.param8', id: 8, bit: 688, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Drawbars1_3dup 8', copyOf: 'b3Drawbars1_3.param8' },
+    { key: 'b3VibOn1_5.param0', name: 'b3VibOn1_5.param0', id: 0, bit: 704, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3VibOn1_5 0', cc: 85 },
+    { key: 'voxCommon.param0', name: 'voxCommon.param0', id: 0, bit: 712, width: 4, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxCommon 0', cc: 84 },
+    { key: 'voxCommon.param1', name: 'voxCommon.param1', id: 1, bit: 716, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxCommon 1', cc: 85 },
+    { key: 'voxManual0.param0', name: 'voxManual0.param0', id: 0, bit: 728, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxManual0 0', cc: 3 },
+    { key: 'voxDrawbars0_0.param0', name: 'voxDrawbars0_0.param0', id: 0, bit: 744, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_0 0' },
+    { key: 'voxDrawbars0_0.param1', name: 'voxDrawbars0_0.param1', id: 1, bit: 748, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_0 1' },
+    { key: 'voxDrawbars0_0.param2', name: 'voxDrawbars0_0.param2', id: 2, bit: 752, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_0 2' },
+    { key: 'voxDrawbars0_0.param3', name: 'voxDrawbars0_0.param3', id: 3, bit: 756, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_0 3' },
+    { key: 'voxDrawbars0_0.param4', name: 'voxDrawbars0_0.param4', id: 4, bit: 760, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_0 4' },
+    { key: 'voxDrawbars0_0.param5', name: 'voxDrawbars0_0.param5', id: 5, bit: 764, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_0 5' },
+    { key: 'voxDrawbars0_0.param6', name: 'voxDrawbars0_0.param6', id: 6, bit: 768, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_0 6' },
+    { key: 'voxDrawbars0_0.param7', name: 'voxDrawbars0_0.param7', id: 7, bit: 772, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_0 7' },
+    { key: 'voxDrawbars0_0.param8', name: 'voxDrawbars0_0.param8', id: 8, bit: 776, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_0 8' },
+    { key: 'voxDrawbars0_1.param0', name: 'voxDrawbars0_1.param0', id: 0, bit: 800, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_1 0' },
+    { key: 'voxDrawbars0_1.param1', name: 'voxDrawbars0_1.param1', id: 1, bit: 804, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_1 1' },
+    { key: 'voxDrawbars0_1.param2', name: 'voxDrawbars0_1.param2', id: 2, bit: 808, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_1 2' },
+    { key: 'voxDrawbars0_1.param3', name: 'voxDrawbars0_1.param3', id: 3, bit: 812, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_1 3' },
+    { key: 'voxDrawbars0_1.param4', name: 'voxDrawbars0_1.param4', id: 4, bit: 816, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_1 4' },
+    { key: 'voxDrawbars0_1.param5', name: 'voxDrawbars0_1.param5', id: 5, bit: 820, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_1 5' },
+    { key: 'voxDrawbars0_1.param6', name: 'voxDrawbars0_1.param6', id: 6, bit: 824, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_1 6' },
+    { key: 'voxDrawbars0_1.param7', name: 'voxDrawbars0_1.param7', id: 7, bit: 828, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_1 7' },
+    { key: 'voxDrawbars0_1.param8', name: 'voxDrawbars0_1.param8', id: 8, bit: 832, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_1 8' },
+    { key: 'voxDrawbars0_2.param0', name: 'voxDrawbars0_2.param0', id: 0, bit: 856, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_2 0' },
+    { key: 'voxDrawbars0_2.param1', name: 'voxDrawbars0_2.param1', id: 1, bit: 860, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_2 1' },
+    { key: 'voxDrawbars0_2.param2', name: 'voxDrawbars0_2.param2', id: 2, bit: 864, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_2 2' },
+    { key: 'voxDrawbars0_2.param3', name: 'voxDrawbars0_2.param3', id: 3, bit: 868, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_2 3' },
+    { key: 'voxDrawbars0_2.param4', name: 'voxDrawbars0_2.param4', id: 4, bit: 872, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_2 4' },
+    { key: 'voxDrawbars0_2.param5', name: 'voxDrawbars0_2.param5', id: 5, bit: 876, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_2 5' },
+    { key: 'voxDrawbars0_2.param6', name: 'voxDrawbars0_2.param6', id: 6, bit: 880, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_2 6' },
+    { key: 'voxDrawbars0_2.param7', name: 'voxDrawbars0_2.param7', id: 7, bit: 884, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_2 7' },
+    { key: 'voxDrawbars0_2.param8', name: 'voxDrawbars0_2.param8', id: 8, bit: 888, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_2 8' },
+    { key: 'voxDrawbars0_3.param0', name: 'voxDrawbars0_3.param0', id: 0, bit: 912, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3 0' },
+    { key: 'voxDrawbars0_3.param1', name: 'voxDrawbars0_3.param1', id: 1, bit: 916, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3 1' },
+    { key: 'voxDrawbars0_3.param2', name: 'voxDrawbars0_3.param2', id: 2, bit: 920, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3 2' },
+    { key: 'voxDrawbars0_3.param3', name: 'voxDrawbars0_3.param3', id: 3, bit: 924, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3 3' },
+    { key: 'voxDrawbars0_3.param4', name: 'voxDrawbars0_3.param4', id: 4, bit: 928, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3 4' },
+    { key: 'voxDrawbars0_3.param5', name: 'voxDrawbars0_3.param5', id: 5, bit: 932, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3 5' },
+    { key: 'voxDrawbars0_3.param6', name: 'voxDrawbars0_3.param6', id: 6, bit: 936, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3 6' },
+    { key: 'voxDrawbars0_3.param7', name: 'voxDrawbars0_3.param7', id: 7, bit: 940, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3 7' },
+    { key: 'voxDrawbars0_3.param8', name: 'voxDrawbars0_3.param8', id: 8, bit: 944, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3 8' },
+    { key: 'voxDrawbars0_3dup.param0', name: 'voxDrawbars0_3dup.param0', id: 0, bit: 968, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3dup 0', copyOf: 'voxDrawbars0_3.param0' },
+    { key: 'voxDrawbars0_3dup.param1', name: 'voxDrawbars0_3dup.param1', id: 1, bit: 972, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3dup 1', copyOf: 'voxDrawbars0_3.param1' },
+    { key: 'voxDrawbars0_3dup.param2', name: 'voxDrawbars0_3dup.param2', id: 2, bit: 976, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3dup 2', copyOf: 'voxDrawbars0_3.param2' },
+    { key: 'voxDrawbars0_3dup.param3', name: 'voxDrawbars0_3dup.param3', id: 3, bit: 980, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3dup 3', copyOf: 'voxDrawbars0_3.param3' },
+    { key: 'voxDrawbars0_3dup.param4', name: 'voxDrawbars0_3dup.param4', id: 4, bit: 984, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3dup 4', copyOf: 'voxDrawbars0_3.param4' },
+    { key: 'voxDrawbars0_3dup.param5', name: 'voxDrawbars0_3dup.param5', id: 5, bit: 988, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3dup 5', copyOf: 'voxDrawbars0_3.param5' },
+    { key: 'voxDrawbars0_3dup.param6', name: 'voxDrawbars0_3dup.param6', id: 6, bit: 992, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3dup 6', copyOf: 'voxDrawbars0_3.param6' },
+    { key: 'voxDrawbars0_3dup.param7', name: 'voxDrawbars0_3dup.param7', id: 7, bit: 996, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3dup 7', copyOf: 'voxDrawbars0_3.param7' },
+    { key: 'voxDrawbars0_3dup.param8', name: 'voxDrawbars0_3dup.param8', id: 8, bit: 1000, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars0_3dup 8', copyOf: 'voxDrawbars0_3.param8' },
+    { key: 'voxManual1.param0', name: 'voxManual1.param0', id: 0, bit: 1024, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxManual1 0', cc: 3 },
+    { key: 'voxDrawbars1_0.param0', name: 'voxDrawbars1_0.param0', id: 0, bit: 1040, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_0 0' },
+    { key: 'voxDrawbars1_0.param1', name: 'voxDrawbars1_0.param1', id: 1, bit: 1044, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_0 1' },
+    { key: 'voxDrawbars1_0.param2', name: 'voxDrawbars1_0.param2', id: 2, bit: 1048, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_0 2' },
+    { key: 'voxDrawbars1_0.param3', name: 'voxDrawbars1_0.param3', id: 3, bit: 1052, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_0 3' },
+    { key: 'voxDrawbars1_0.param4', name: 'voxDrawbars1_0.param4', id: 4, bit: 1056, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_0 4' },
+    { key: 'voxDrawbars1_0.param5', name: 'voxDrawbars1_0.param5', id: 5, bit: 1060, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_0 5' },
+    { key: 'voxDrawbars1_0.param6', name: 'voxDrawbars1_0.param6', id: 6, bit: 1064, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_0 6' },
+    { key: 'voxDrawbars1_0.param7', name: 'voxDrawbars1_0.param7', id: 7, bit: 1068, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_0 7' },
+    { key: 'voxDrawbars1_0.param8', name: 'voxDrawbars1_0.param8', id: 8, bit: 1072, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_0 8' },
+    { key: 'voxDrawbars1_1.param0', name: 'voxDrawbars1_1.param0', id: 0, bit: 1096, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_1 0' },
+    { key: 'voxDrawbars1_1.param1', name: 'voxDrawbars1_1.param1', id: 1, bit: 1100, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_1 1' },
+    { key: 'voxDrawbars1_1.param2', name: 'voxDrawbars1_1.param2', id: 2, bit: 1104, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_1 2' },
+    { key: 'voxDrawbars1_1.param3', name: 'voxDrawbars1_1.param3', id: 3, bit: 1108, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_1 3' },
+    { key: 'voxDrawbars1_1.param4', name: 'voxDrawbars1_1.param4', id: 4, bit: 1112, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_1 4' },
+    { key: 'voxDrawbars1_1.param5', name: 'voxDrawbars1_1.param5', id: 5, bit: 1116, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_1 5' },
+    { key: 'voxDrawbars1_1.param6', name: 'voxDrawbars1_1.param6', id: 6, bit: 1120, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_1 6' },
+    { key: 'voxDrawbars1_1.param7', name: 'voxDrawbars1_1.param7', id: 7, bit: 1124, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_1 7' },
+    { key: 'voxDrawbars1_1.param8', name: 'voxDrawbars1_1.param8', id: 8, bit: 1128, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_1 8' },
+    { key: 'voxDrawbars1_2.param0', name: 'voxDrawbars1_2.param0', id: 0, bit: 1152, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_2 0' },
+    { key: 'voxDrawbars1_2.param1', name: 'voxDrawbars1_2.param1', id: 1, bit: 1156, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_2 1' },
+    { key: 'voxDrawbars1_2.param2', name: 'voxDrawbars1_2.param2', id: 2, bit: 1160, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_2 2' },
+    { key: 'voxDrawbars1_2.param3', name: 'voxDrawbars1_2.param3', id: 3, bit: 1164, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_2 3' },
+    { key: 'voxDrawbars1_2.param4', name: 'voxDrawbars1_2.param4', id: 4, bit: 1168, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_2 4' },
+    { key: 'voxDrawbars1_2.param5', name: 'voxDrawbars1_2.param5', id: 5, bit: 1172, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_2 5' },
+    { key: 'voxDrawbars1_2.param6', name: 'voxDrawbars1_2.param6', id: 6, bit: 1176, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_2 6' },
+    { key: 'voxDrawbars1_2.param7', name: 'voxDrawbars1_2.param7', id: 7, bit: 1180, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_2 7' },
+    { key: 'voxDrawbars1_2.param8', name: 'voxDrawbars1_2.param8', id: 8, bit: 1184, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_2 8' },
+    { key: 'voxDrawbars1_3.param0', name: 'voxDrawbars1_3.param0', id: 0, bit: 1208, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3 0' },
+    { key: 'voxDrawbars1_3.param1', name: 'voxDrawbars1_3.param1', id: 1, bit: 1212, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3 1' },
+    { key: 'voxDrawbars1_3.param2', name: 'voxDrawbars1_3.param2', id: 2, bit: 1216, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3 2' },
+    { key: 'voxDrawbars1_3.param3', name: 'voxDrawbars1_3.param3', id: 3, bit: 1220, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3 3' },
+    { key: 'voxDrawbars1_3.param4', name: 'voxDrawbars1_3.param4', id: 4, bit: 1224, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3 4' },
+    { key: 'voxDrawbars1_3.param5', name: 'voxDrawbars1_3.param5', id: 5, bit: 1228, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3 5' },
+    { key: 'voxDrawbars1_3.param6', name: 'voxDrawbars1_3.param6', id: 6, bit: 1232, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3 6' },
+    { key: 'voxDrawbars1_3.param7', name: 'voxDrawbars1_3.param7', id: 7, bit: 1236, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3 7' },
+    { key: 'voxDrawbars1_3.param8', name: 'voxDrawbars1_3.param8', id: 8, bit: 1240, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3 8' },
+    { key: 'voxDrawbars1_3dup.param0', name: 'voxDrawbars1_3dup.param0', id: 0, bit: 1264, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3dup 0', copyOf: 'voxDrawbars1_3.param0' },
+    { key: 'voxDrawbars1_3dup.param1', name: 'voxDrawbars1_3dup.param1', id: 1, bit: 1268, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3dup 1', copyOf: 'voxDrawbars1_3.param1' },
+    { key: 'voxDrawbars1_3dup.param2', name: 'voxDrawbars1_3dup.param2', id: 2, bit: 1272, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3dup 2', copyOf: 'voxDrawbars1_3.param2' },
+    { key: 'voxDrawbars1_3dup.param3', name: 'voxDrawbars1_3dup.param3', id: 3, bit: 1276, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3dup 3', copyOf: 'voxDrawbars1_3.param3' },
+    { key: 'voxDrawbars1_3dup.param4', name: 'voxDrawbars1_3dup.param4', id: 4, bit: 1280, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3dup 4', copyOf: 'voxDrawbars1_3.param4' },
+    { key: 'voxDrawbars1_3dup.param5', name: 'voxDrawbars1_3dup.param5', id: 5, bit: 1284, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3dup 5', copyOf: 'voxDrawbars1_3.param5' },
+    { key: 'voxDrawbars1_3dup.param6', name: 'voxDrawbars1_3dup.param6', id: 6, bit: 1288, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3dup 6', copyOf: 'voxDrawbars1_3.param6' },
+    { key: 'voxDrawbars1_3dup.param7', name: 'voxDrawbars1_3dup.param7', id: 7, bit: 1292, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3dup 7', copyOf: 'voxDrawbars1_3.param7' },
+    { key: 'voxDrawbars1_3dup.param8', name: 'voxDrawbars1_3dup.param8', id: 8, bit: 1296, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · voxDrawbars1_3dup 8', copyOf: 'voxDrawbars1_3.param8' },
+    { key: 'farfCommon.param0', name: 'farfCommon.param0', id: 0, bit: 1320, width: 4, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfCommon 0', cc: 84 },
+    { key: 'farfCommon.param1', name: 'farfCommon.param1', id: 1, bit: 1324, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfCommon 1', cc: 85 },
+    { key: 'farfManual0.param0', name: 'farfManual0.param0', id: 0, bit: 1336, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfManual0 0', cc: 3 },
+    { key: 'farfTabs0_0.param0', name: 'farfTabs0_0.param0', id: 0, bit: 1352, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_0 0' },
+    { key: 'farfTabs0_0.param1', name: 'farfTabs0_0.param1', id: 1, bit: 1353, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_0 1' },
+    { key: 'farfTabs0_0.param2', name: 'farfTabs0_0.param2', id: 2, bit: 1354, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_0 2' },
+    { key: 'farfTabs0_0.param3', name: 'farfTabs0_0.param3', id: 3, bit: 1355, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_0 3' },
+    { key: 'farfTabs0_0.param4', name: 'farfTabs0_0.param4', id: 4, bit: 1356, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_0 4' },
+    { key: 'farfTabs0_0.param5', name: 'farfTabs0_0.param5', id: 5, bit: 1357, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_0 5' },
+    { key: 'farfTabs0_0.param6', name: 'farfTabs0_0.param6', id: 6, bit: 1358, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_0 6' },
+    { key: 'farfTabs0_0.param7', name: 'farfTabs0_0.param7', id: 7, bit: 1359, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_0 7' },
+    { key: 'farfTabs0_0.param8', name: 'farfTabs0_0.param8', id: 8, bit: 1360, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_0 8' },
+    { key: 'farfTabs0_1.param0', name: 'farfTabs0_1.param0', id: 0, bit: 1384, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_1 0' },
+    { key: 'farfTabs0_1.param1', name: 'farfTabs0_1.param1', id: 1, bit: 1385, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_1 1' },
+    { key: 'farfTabs0_1.param2', name: 'farfTabs0_1.param2', id: 2, bit: 1386, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_1 2' },
+    { key: 'farfTabs0_1.param3', name: 'farfTabs0_1.param3', id: 3, bit: 1387, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_1 3' },
+    { key: 'farfTabs0_1.param4', name: 'farfTabs0_1.param4', id: 4, bit: 1388, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_1 4' },
+    { key: 'farfTabs0_1.param5', name: 'farfTabs0_1.param5', id: 5, bit: 1389, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_1 5' },
+    { key: 'farfTabs0_1.param6', name: 'farfTabs0_1.param6', id: 6, bit: 1390, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_1 6' },
+    { key: 'farfTabs0_1.param7', name: 'farfTabs0_1.param7', id: 7, bit: 1391, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_1 7' },
+    { key: 'farfTabs0_1.param8', name: 'farfTabs0_1.param8', id: 8, bit: 1392, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_1 8' },
+    { key: 'farfTabs0_2.param0', name: 'farfTabs0_2.param0', id: 0, bit: 1416, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_2 0' },
+    { key: 'farfTabs0_2.param1', name: 'farfTabs0_2.param1', id: 1, bit: 1417, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_2 1' },
+    { key: 'farfTabs0_2.param2', name: 'farfTabs0_2.param2', id: 2, bit: 1418, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_2 2' },
+    { key: 'farfTabs0_2.param3', name: 'farfTabs0_2.param3', id: 3, bit: 1419, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_2 3' },
+    { key: 'farfTabs0_2.param4', name: 'farfTabs0_2.param4', id: 4, bit: 1420, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_2 4' },
+    { key: 'farfTabs0_2.param5', name: 'farfTabs0_2.param5', id: 5, bit: 1421, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_2 5' },
+    { key: 'farfTabs0_2.param6', name: 'farfTabs0_2.param6', id: 6, bit: 1422, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_2 6' },
+    { key: 'farfTabs0_2.param7', name: 'farfTabs0_2.param7', id: 7, bit: 1423, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_2 7' },
+    { key: 'farfTabs0_2.param8', name: 'farfTabs0_2.param8', id: 8, bit: 1424, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_2 8' },
+    { key: 'farfTabs0_3.param0', name: 'farfTabs0_3.param0', id: 0, bit: 1448, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3 0' },
+    { key: 'farfTabs0_3.param1', name: 'farfTabs0_3.param1', id: 1, bit: 1449, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3 1' },
+    { key: 'farfTabs0_3.param2', name: 'farfTabs0_3.param2', id: 2, bit: 1450, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3 2' },
+    { key: 'farfTabs0_3.param3', name: 'farfTabs0_3.param3', id: 3, bit: 1451, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3 3' },
+    { key: 'farfTabs0_3.param4', name: 'farfTabs0_3.param4', id: 4, bit: 1452, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3 4' },
+    { key: 'farfTabs0_3.param5', name: 'farfTabs0_3.param5', id: 5, bit: 1453, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3 5' },
+    { key: 'farfTabs0_3.param6', name: 'farfTabs0_3.param6', id: 6, bit: 1454, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3 6' },
+    { key: 'farfTabs0_3.param7', name: 'farfTabs0_3.param7', id: 7, bit: 1455, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3 7' },
+    { key: 'farfTabs0_3.param8', name: 'farfTabs0_3.param8', id: 8, bit: 1456, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3 8' },
+    { key: 'farfTabs0_3dup.param0', name: 'farfTabs0_3dup.param0', id: 0, bit: 1480, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3dup 0', copyOf: 'farfTabs0_3.param0' },
+    { key: 'farfTabs0_3dup.param1', name: 'farfTabs0_3dup.param1', id: 1, bit: 1481, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3dup 1', copyOf: 'farfTabs0_3.param1' },
+    { key: 'farfTabs0_3dup.param2', name: 'farfTabs0_3dup.param2', id: 2, bit: 1482, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3dup 2', copyOf: 'farfTabs0_3.param2' },
+    { key: 'farfTabs0_3dup.param3', name: 'farfTabs0_3dup.param3', id: 3, bit: 1483, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3dup 3', copyOf: 'farfTabs0_3.param3' },
+    { key: 'farfTabs0_3dup.param4', name: 'farfTabs0_3dup.param4', id: 4, bit: 1484, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3dup 4', copyOf: 'farfTabs0_3.param4' },
+    { key: 'farfTabs0_3dup.param5', name: 'farfTabs0_3dup.param5', id: 5, bit: 1485, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3dup 5', copyOf: 'farfTabs0_3.param5' },
+    { key: 'farfTabs0_3dup.param6', name: 'farfTabs0_3dup.param6', id: 6, bit: 1486, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3dup 6', copyOf: 'farfTabs0_3.param6' },
+    { key: 'farfTabs0_3dup.param7', name: 'farfTabs0_3dup.param7', id: 7, bit: 1487, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3dup 7', copyOf: 'farfTabs0_3.param7' },
+    { key: 'farfTabs0_3dup.param8', name: 'farfTabs0_3dup.param8', id: 8, bit: 1488, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs0_3dup 8', copyOf: 'farfTabs0_3.param8' },
+    { key: 'farfManual1.param0', name: 'farfManual1.param0', id: 0, bit: 1512, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfManual1 0', cc: 3 },
+    { key: 'farfTabs1_0.param0', name: 'farfTabs1_0.param0', id: 0, bit: 1528, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_0 0' },
+    { key: 'farfTabs1_0.param1', name: 'farfTabs1_0.param1', id: 1, bit: 1529, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_0 1' },
+    { key: 'farfTabs1_0.param2', name: 'farfTabs1_0.param2', id: 2, bit: 1530, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_0 2' },
+    { key: 'farfTabs1_0.param3', name: 'farfTabs1_0.param3', id: 3, bit: 1531, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_0 3' },
+    { key: 'farfTabs1_0.param4', name: 'farfTabs1_0.param4', id: 4, bit: 1532, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_0 4' },
+    { key: 'farfTabs1_0.param5', name: 'farfTabs1_0.param5', id: 5, bit: 1533, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_0 5' },
+    { key: 'farfTabs1_0.param6', name: 'farfTabs1_0.param6', id: 6, bit: 1534, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_0 6' },
+    { key: 'farfTabs1_0.param7', name: 'farfTabs1_0.param7', id: 7, bit: 1535, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_0 7' },
+    { key: 'farfTabs1_0.param8', name: 'farfTabs1_0.param8', id: 8, bit: 1536, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_0 8' },
+    { key: 'farfTabs1_1.param0', name: 'farfTabs1_1.param0', id: 0, bit: 1560, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_1 0' },
+    { key: 'farfTabs1_1.param1', name: 'farfTabs1_1.param1', id: 1, bit: 1561, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_1 1' },
+    { key: 'farfTabs1_1.param2', name: 'farfTabs1_1.param2', id: 2, bit: 1562, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_1 2' },
+    { key: 'farfTabs1_1.param3', name: 'farfTabs1_1.param3', id: 3, bit: 1563, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_1 3' },
+    { key: 'farfTabs1_1.param4', name: 'farfTabs1_1.param4', id: 4, bit: 1564, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_1 4' },
+    { key: 'farfTabs1_1.param5', name: 'farfTabs1_1.param5', id: 5, bit: 1565, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_1 5' },
+    { key: 'farfTabs1_1.param6', name: 'farfTabs1_1.param6', id: 6, bit: 1566, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_1 6' },
+    { key: 'farfTabs1_1.param7', name: 'farfTabs1_1.param7', id: 7, bit: 1567, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_1 7' },
+    { key: 'farfTabs1_1.param8', name: 'farfTabs1_1.param8', id: 8, bit: 1568, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_1 8' },
+    { key: 'farfTabs1_2.param0', name: 'farfTabs1_2.param0', id: 0, bit: 1592, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_2 0' },
+    { key: 'farfTabs1_2.param1', name: 'farfTabs1_2.param1', id: 1, bit: 1593, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_2 1' },
+    { key: 'farfTabs1_2.param2', name: 'farfTabs1_2.param2', id: 2, bit: 1594, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_2 2' },
+    { key: 'farfTabs1_2.param3', name: 'farfTabs1_2.param3', id: 3, bit: 1595, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_2 3' },
+    { key: 'farfTabs1_2.param4', name: 'farfTabs1_2.param4', id: 4, bit: 1596, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_2 4' },
+    { key: 'farfTabs1_2.param5', name: 'farfTabs1_2.param5', id: 5, bit: 1597, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_2 5' },
+    { key: 'farfTabs1_2.param6', name: 'farfTabs1_2.param6', id: 6, bit: 1598, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_2 6' },
+    { key: 'farfTabs1_2.param7', name: 'farfTabs1_2.param7', id: 7, bit: 1599, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_2 7' },
+    { key: 'farfTabs1_2.param8', name: 'farfTabs1_2.param8', id: 8, bit: 1600, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_2 8' },
+    { key: 'farfTabs1_3.param0', name: 'farfTabs1_3.param0', id: 0, bit: 1624, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3 0' },
+    { key: 'farfTabs1_3.param1', name: 'farfTabs1_3.param1', id: 1, bit: 1625, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3 1' },
+    { key: 'farfTabs1_3.param2', name: 'farfTabs1_3.param2', id: 2, bit: 1626, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3 2' },
+    { key: 'farfTabs1_3.param3', name: 'farfTabs1_3.param3', id: 3, bit: 1627, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3 3' },
+    { key: 'farfTabs1_3.param4', name: 'farfTabs1_3.param4', id: 4, bit: 1628, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3 4' },
+    { key: 'farfTabs1_3.param5', name: 'farfTabs1_3.param5', id: 5, bit: 1629, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3 5' },
+    { key: 'farfTabs1_3.param6', name: 'farfTabs1_3.param6', id: 6, bit: 1630, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3 6' },
+    { key: 'farfTabs1_3.param7', name: 'farfTabs1_3.param7', id: 7, bit: 1631, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3 7' },
+    { key: 'farfTabs1_3.param8', name: 'farfTabs1_3.param8', id: 8, bit: 1632, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3 8' },
+    { key: 'farfTabs1_3dup.param0', name: 'farfTabs1_3dup.param0', id: 0, bit: 1656, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3dup 0', copyOf: 'farfTabs1_3.param0' },
+    { key: 'farfTabs1_3dup.param1', name: 'farfTabs1_3dup.param1', id: 1, bit: 1657, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3dup 1', copyOf: 'farfTabs1_3.param1' },
+    { key: 'farfTabs1_3dup.param2', name: 'farfTabs1_3dup.param2', id: 2, bit: 1658, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3dup 2', copyOf: 'farfTabs1_3.param2' },
+    { key: 'farfTabs1_3dup.param3', name: 'farfTabs1_3dup.param3', id: 3, bit: 1659, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3dup 3', copyOf: 'farfTabs1_3.param3' },
+    { key: 'farfTabs1_3dup.param4', name: 'farfTabs1_3dup.param4', id: 4, bit: 1660, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3dup 4', copyOf: 'farfTabs1_3.param4' },
+    { key: 'farfTabs1_3dup.param5', name: 'farfTabs1_3dup.param5', id: 5, bit: 1661, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3dup 5', copyOf: 'farfTabs1_3.param5' },
+    { key: 'farfTabs1_3dup.param6', name: 'farfTabs1_3dup.param6', id: 6, bit: 1662, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3dup 6', copyOf: 'farfTabs1_3.param6' },
+    { key: 'farfTabs1_3dup.param7', name: 'farfTabs1_3dup.param7', id: 7, bit: 1663, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3dup 7', copyOf: 'farfTabs1_3.param7' },
+    { key: 'farfTabs1_3dup.param8', name: 'farfTabs1_3dup.param8', id: 8, bit: 1664, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · farfTabs1_3dup 8', copyOf: 'farfTabs1_3.param8' },
+    { key: 'pipeCommon.param0', name: 'pipeCommon.param0', id: 0, bit: 1688, width: 3, min: 0, max: 7, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeCommon 0', cc: 3 },
+    { key: 'pipeCommon.param1', name: 'pipeCommon.param1', id: 1, bit: 1691, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeCommon 1', cc: 84 },
+    { key: 'pipeX0.param0', name: 'pipeX0.param0', id: 0, bit: 1704, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX0 0', cc: 103 },
+    { key: 'pipeX0.param1', name: 'pipeX0.param1', id: 1, bit: 1705, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX0 1', cc: 104 },
+    { key: 'pipeX0.param2', name: 'pipeX0.param2', id: 2, bit: 1707, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX0 2', cc: 105 },
+    { key: 'pipeX0.param3', name: 'pipeX0.param3', id: 3, bit: 1709, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX0 3', cc: 106 },
+    { key: 'pipeX1.param0', name: 'pipeX1.param0', id: 0, bit: 1720, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX1 0', cc: 103 },
+    { key: 'pipeX1.param1', name: 'pipeX1.param1', id: 1, bit: 1721, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX1 1', cc: 104 },
+    { key: 'pipeX1.param2', name: 'pipeX1.param2', id: 2, bit: 1723, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX1 2', cc: 105 },
+    { key: 'pipeX1.param3', name: 'pipeX1.param3', id: 3, bit: 1725, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX1 3', cc: 106 },
+    { key: 'pipeX2.param0', name: 'pipeX2.param0', id: 0, bit: 1736, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX2 0', cc: 103 },
+    { key: 'pipeX2.param1', name: 'pipeX2.param1', id: 1, bit: 1737, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX2 1', cc: 104 },
+    { key: 'pipeX2.param2', name: 'pipeX2.param2', id: 2, bit: 1739, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX2 2', cc: 105 },
+    { key: 'pipeX2.param3', name: 'pipeX2.param3', id: 3, bit: 1741, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX2 3', cc: 106 },
+    { key: 'pipeX3.param0', name: 'pipeX3.param0', id: 0, bit: 1752, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX3 0', cc: 103 },
+    { key: 'pipeX3.param1', name: 'pipeX3.param1', id: 1, bit: 1753, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX3 1', cc: 104 },
+    { key: 'pipeX3.param2', name: 'pipeX3.param2', id: 2, bit: 1755, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX3 2', cc: 105 },
+    { key: 'pipeX3.param3', name: 'pipeX3.param3', id: 3, bit: 1757, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX3 3', cc: 106 },
+    { key: 'pipeX4.param0', name: 'pipeX4.param0', id: 0, bit: 1768, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX4 0', cc: 103 },
+    { key: 'pipeX4.param1', name: 'pipeX4.param1', id: 1, bit: 1769, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX4 1', cc: 104 },
+    { key: 'pipeX4.param2', name: 'pipeX4.param2', id: 2, bit: 1771, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX4 2', cc: 105 },
+    { key: 'pipeX4.param3', name: 'pipeX4.param3', id: 3, bit: 1773, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX4 3', cc: 106 },
+    { key: 'pipeX5.param0', name: 'pipeX5.param0', id: 0, bit: 1784, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX5 0', cc: 103 },
+    { key: 'pipeX5.param1', name: 'pipeX5.param1', id: 1, bit: 1785, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX5 1', cc: 104 },
+    { key: 'pipeX5.param2', name: 'pipeX5.param2', id: 2, bit: 1787, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX5 2', cc: 105 },
+    { key: 'pipeX5.param3', name: 'pipeX5.param3', id: 3, bit: 1789, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX5 3', cc: 106 },
+    { key: 'pipeX7.param0', name: 'pipeX7.param0', id: 0, bit: 1800, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX7 0', cc: 103 },
+    { key: 'pipeX7.param1', name: 'pipeX7.param1', id: 1, bit: 1801, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX7 1', cc: 104 },
+    { key: 'pipeX7.param2', name: 'pipeX7.param2', id: 2, bit: 1803, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX7 2', cc: 105 },
+    { key: 'pipeX7.param3', name: 'pipeX7.param3', id: 3, bit: 1805, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeX7 3', cc: 106 },
+    { key: 'pipeManual0.param0', name: 'pipeManual0.param0', id: 0, bit: 1816, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeManual0 0' },
+    { key: 'pipeStops0_0.param0', name: 'pipeStops0_0.param0', id: 0, bit: 1848, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_0 0', cc: 16 },
+    { key: 'pipeStops0_0.param1', name: 'pipeStops0_0.param1', id: 1, bit: 1849, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_0 1', cc: 17 },
+    { key: 'pipeStops0_0.param2', name: 'pipeStops0_0.param2', id: 2, bit: 1850, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_0 2', cc: 18 },
+    { key: 'pipeStops0_0.param3', name: 'pipeStops0_0.param3', id: 3, bit: 1851, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_0 3', cc: 19 },
+    { key: 'pipeStops0_0.param4', name: 'pipeStops0_0.param4', id: 4, bit: 1852, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_0 4', cc: 20 },
+    { key: 'pipeStops0_0.param5', name: 'pipeStops0_0.param5', id: 5, bit: 1853, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_0 5', cc: 21 },
+    { key: 'pipeStops0_0.param6', name: 'pipeStops0_0.param6', id: 6, bit: 1854, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_0 6', cc: 22 },
+    { key: 'pipeStops0_0.param7', name: 'pipeStops0_0.param7', id: 7, bit: 1855, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_0 7', cc: 23 },
+    { key: 'pipeStops0_0.param8', name: 'pipeStops0_0.param8', id: 8, bit: 1856, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_0 8', cc: 24 },
+    { key: 'pipeStops0_1.param0', name: 'pipeStops0_1.param0', id: 0, bit: 1864, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_1 0', cc: 16 },
+    { key: 'pipeStops0_1.param1', name: 'pipeStops0_1.param1', id: 1, bit: 1865, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_1 1', cc: 17 },
+    { key: 'pipeStops0_1.param2', name: 'pipeStops0_1.param2', id: 2, bit: 1866, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_1 2', cc: 18 },
+    { key: 'pipeStops0_1.param3', name: 'pipeStops0_1.param3', id: 3, bit: 1867, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_1 3', cc: 19 },
+    { key: 'pipeStops0_1.param4', name: 'pipeStops0_1.param4', id: 4, bit: 1868, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_1 4', cc: 20 },
+    { key: 'pipeStops0_1.param5', name: 'pipeStops0_1.param5', id: 5, bit: 1869, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_1 5', cc: 21 },
+    { key: 'pipeStops0_1.param6', name: 'pipeStops0_1.param6', id: 6, bit: 1870, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_1 6', cc: 22 },
+    { key: 'pipeStops0_1.param7', name: 'pipeStops0_1.param7', id: 7, bit: 1871, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_1 7', cc: 23 },
+    { key: 'pipeStops0_1.param8', name: 'pipeStops0_1.param8', id: 8, bit: 1872, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_1 8', cc: 24 },
+    { key: 'pipeStops0_2.param0', name: 'pipeStops0_2.param0', id: 0, bit: 1880, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_2 0', cc: 16 },
+    { key: 'pipeStops0_2.param1', name: 'pipeStops0_2.param1', id: 1, bit: 1881, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_2 1', cc: 17 },
+    { key: 'pipeStops0_2.param2', name: 'pipeStops0_2.param2', id: 2, bit: 1882, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_2 2', cc: 18 },
+    { key: 'pipeStops0_2.param3', name: 'pipeStops0_2.param3', id: 3, bit: 1883, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_2 3', cc: 19 },
+    { key: 'pipeStops0_2.param4', name: 'pipeStops0_2.param4', id: 4, bit: 1884, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_2 4', cc: 20 },
+    { key: 'pipeStops0_2.param5', name: 'pipeStops0_2.param5', id: 5, bit: 1885, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_2 5', cc: 21 },
+    { key: 'pipeStops0_2.param6', name: 'pipeStops0_2.param6', id: 6, bit: 1886, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_2 6', cc: 22 },
+    { key: 'pipeStops0_2.param7', name: 'pipeStops0_2.param7', id: 7, bit: 1887, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_2 7', cc: 23 },
+    { key: 'pipeStops0_2.param8', name: 'pipeStops0_2.param8', id: 8, bit: 1888, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_2 8', cc: 24 },
+    { key: 'pipeStops0_3.param0', name: 'pipeStops0_3.param0', id: 0, bit: 1896, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_3 0', cc: 16 },
+    { key: 'pipeStops0_3.param1', name: 'pipeStops0_3.param1', id: 1, bit: 1897, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_3 1', cc: 17 },
+    { key: 'pipeStops0_3.param2', name: 'pipeStops0_3.param2', id: 2, bit: 1898, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_3 2', cc: 18 },
+    { key: 'pipeStops0_3.param3', name: 'pipeStops0_3.param3', id: 3, bit: 1899, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_3 3', cc: 19 },
+    { key: 'pipeStops0_3.param4', name: 'pipeStops0_3.param4', id: 4, bit: 1900, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_3 4', cc: 20 },
+    { key: 'pipeStops0_3.param5', name: 'pipeStops0_3.param5', id: 5, bit: 1901, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_3 5', cc: 21 },
+    { key: 'pipeStops0_3.param6', name: 'pipeStops0_3.param6', id: 6, bit: 1902, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_3 6', cc: 22 },
+    { key: 'pipeStops0_3.param7', name: 'pipeStops0_3.param7', id: 7, bit: 1903, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_3 7', cc: 23 },
+    { key: 'pipeStops0_3.param8', name: 'pipeStops0_3.param8', id: 8, bit: 1904, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_3 8', cc: 24 },
+    { key: 'pipeStops0_4.param0', name: 'pipeStops0_4.param0', id: 0, bit: 1912, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_4 0', cc: 16 },
+    { key: 'pipeStops0_4.param1', name: 'pipeStops0_4.param1', id: 1, bit: 1913, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_4 1', cc: 17 },
+    { key: 'pipeStops0_4.param2', name: 'pipeStops0_4.param2', id: 2, bit: 1914, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_4 2', cc: 18 },
+    { key: 'pipeStops0_4.param3', name: 'pipeStops0_4.param3', id: 3, bit: 1915, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_4 3', cc: 19 },
+    { key: 'pipeStops0_4.param4', name: 'pipeStops0_4.param4', id: 4, bit: 1916, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_4 4', cc: 20 },
+    { key: 'pipeStops0_4.param5', name: 'pipeStops0_4.param5', id: 5, bit: 1917, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_4 5', cc: 21 },
+    { key: 'pipeStops0_4.param6', name: 'pipeStops0_4.param6', id: 6, bit: 1918, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_4 6', cc: 22 },
+    { key: 'pipeStops0_4.param7', name: 'pipeStops0_4.param7', id: 7, bit: 1919, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_4 7', cc: 23 },
+    { key: 'pipeStops0_4.param8', name: 'pipeStops0_4.param8', id: 8, bit: 1920, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_4 8', cc: 24 },
+    { key: 'pipeStops0_5.param0', name: 'pipeStops0_5.param0', id: 0, bit: 1928, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_5 0', cc: 16 },
+    { key: 'pipeStops0_5.param1', name: 'pipeStops0_5.param1', id: 1, bit: 1929, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_5 1', cc: 17 },
+    { key: 'pipeStops0_5.param2', name: 'pipeStops0_5.param2', id: 2, bit: 1930, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_5 2', cc: 18 },
+    { key: 'pipeStops0_5.param3', name: 'pipeStops0_5.param3', id: 3, bit: 1931, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_5 3', cc: 19 },
+    { key: 'pipeStops0_5.param4', name: 'pipeStops0_5.param4', id: 4, bit: 1932, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_5 4', cc: 20 },
+    { key: 'pipeStops0_5.param5', name: 'pipeStops0_5.param5', id: 5, bit: 1933, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_5 5', cc: 21 },
+    { key: 'pipeStops0_5.param6', name: 'pipeStops0_5.param6', id: 6, bit: 1934, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_5 6', cc: 22 },
+    { key: 'pipeStops0_5.param7', name: 'pipeStops0_5.param7', id: 7, bit: 1935, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_5 7', cc: 23 },
+    { key: 'pipeStops0_5.param8', name: 'pipeStops0_5.param8', id: 8, bit: 1936, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_5 8', cc: 24 },
+    { key: 'pipeStops0_6.param0', name: 'pipeStops0_6.param0', id: 0, bit: 1944, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6 0', cc: 16 },
+    { key: 'pipeStops0_6.param1', name: 'pipeStops0_6.param1', id: 1, bit: 1945, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6 1', cc: 17 },
+    { key: 'pipeStops0_6.param2', name: 'pipeStops0_6.param2', id: 2, bit: 1946, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6 2', cc: 18 },
+    { key: 'pipeStops0_6.param3', name: 'pipeStops0_6.param3', id: 3, bit: 1947, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6 3', cc: 19 },
+    { key: 'pipeStops0_6.param4', name: 'pipeStops0_6.param4', id: 4, bit: 1948, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6 4', cc: 20 },
+    { key: 'pipeStops0_6.param5', name: 'pipeStops0_6.param5', id: 5, bit: 1949, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6 5', cc: 21 },
+    { key: 'pipeStops0_6.param6', name: 'pipeStops0_6.param6', id: 6, bit: 1950, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6 6', cc: 22 },
+    { key: 'pipeStops0_6.param7', name: 'pipeStops0_6.param7', id: 7, bit: 1951, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6 7', cc: 23 },
+    { key: 'pipeStops0_6.param8', name: 'pipeStops0_6.param8', id: 8, bit: 1952, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6 8', cc: 24 },
+    { key: 'pipeStops0_6dup.param0', name: 'pipeStops0_6dup.param0', id: 0, bit: 1960, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6dup 0', cc: 16, copyOf: 'pipeStops0_6.param0' },
+    { key: 'pipeStops0_6dup.param1', name: 'pipeStops0_6dup.param1', id: 1, bit: 1961, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6dup 1', cc: 17, copyOf: 'pipeStops0_6.param1' },
+    { key: 'pipeStops0_6dup.param2', name: 'pipeStops0_6dup.param2', id: 2, bit: 1962, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6dup 2', cc: 18, copyOf: 'pipeStops0_6.param2' },
+    { key: 'pipeStops0_6dup.param3', name: 'pipeStops0_6dup.param3', id: 3, bit: 1963, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6dup 3', cc: 19, copyOf: 'pipeStops0_6.param3' },
+    { key: 'pipeStops0_6dup.param4', name: 'pipeStops0_6dup.param4', id: 4, bit: 1964, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6dup 4', cc: 20, copyOf: 'pipeStops0_6.param4' },
+    { key: 'pipeStops0_6dup.param5', name: 'pipeStops0_6dup.param5', id: 5, bit: 1965, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6dup 5', cc: 21, copyOf: 'pipeStops0_6.param5' },
+    { key: 'pipeStops0_6dup.param6', name: 'pipeStops0_6dup.param6', id: 6, bit: 1966, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6dup 6', cc: 22, copyOf: 'pipeStops0_6.param6' },
+    { key: 'pipeStops0_6dup.param7', name: 'pipeStops0_6dup.param7', id: 7, bit: 1967, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6dup 7', cc: 23, copyOf: 'pipeStops0_6.param7' },
+    { key: 'pipeStops0_6dup.param8', name: 'pipeStops0_6dup.param8', id: 8, bit: 1968, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops0_6dup 8', cc: 24, copyOf: 'pipeStops0_6.param8' },
+    { key: 'pipeVibOn0_0.param0', name: 'pipeVibOn0_0.param0', id: 0, bit: 1976, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn0_0 0', cc: 85 },
+    { key: 'pipeVibOn0_1.param0', name: 'pipeVibOn0_1.param0', id: 0, bit: 1984, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn0_1 0', cc: 85 },
+    { key: 'pipeVibOn0_2.param0', name: 'pipeVibOn0_2.param0', id: 0, bit: 1992, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn0_2 0', cc: 85 },
+    { key: 'pipeVibOn0_3.param0', name: 'pipeVibOn0_3.param0', id: 0, bit: 2000, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn0_3 0', cc: 85 },
+    { key: 'pipeVibOn0_4.param0', name: 'pipeVibOn0_4.param0', id: 0, bit: 2008, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn0_4 0', cc: 85 },
+    { key: 'pipeVibOn0_5.param0', name: 'pipeVibOn0_5.param0', id: 0, bit: 2016, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn0_5 0', cc: 85 },
+    { key: 'pipeVibOn0_7.param0', name: 'pipeVibOn0_7.param0', id: 0, bit: 2024, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn0_7 0', cc: 85 },
+    { key: 'pipeManual1.param0', name: 'pipeManual1.param0', id: 0, bit: 2032, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeManual1 0' },
+    { key: 'pipeStops1_0.param0', name: 'pipeStops1_0.param0', id: 0, bit: 2064, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_0 0', cc: 16 },
+    { key: 'pipeStops1_0.param1', name: 'pipeStops1_0.param1', id: 1, bit: 2065, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_0 1', cc: 17 },
+    { key: 'pipeStops1_0.param2', name: 'pipeStops1_0.param2', id: 2, bit: 2066, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_0 2', cc: 18 },
+    { key: 'pipeStops1_0.param3', name: 'pipeStops1_0.param3', id: 3, bit: 2067, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_0 3', cc: 19 },
+    { key: 'pipeStops1_0.param4', name: 'pipeStops1_0.param4', id: 4, bit: 2068, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_0 4', cc: 20 },
+    { key: 'pipeStops1_0.param5', name: 'pipeStops1_0.param5', id: 5, bit: 2069, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_0 5', cc: 21 },
+    { key: 'pipeStops1_0.param6', name: 'pipeStops1_0.param6', id: 6, bit: 2070, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_0 6', cc: 22 },
+    { key: 'pipeStops1_0.param7', name: 'pipeStops1_0.param7', id: 7, bit: 2071, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_0 7', cc: 23 },
+    { key: 'pipeStops1_0.param8', name: 'pipeStops1_0.param8', id: 8, bit: 2072, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_0 8', cc: 24 },
+    { key: 'pipeStops1_1.param0', name: 'pipeStops1_1.param0', id: 0, bit: 2080, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_1 0', cc: 16 },
+    { key: 'pipeStops1_1.param1', name: 'pipeStops1_1.param1', id: 1, bit: 2081, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_1 1', cc: 17 },
+    { key: 'pipeStops1_1.param2', name: 'pipeStops1_1.param2', id: 2, bit: 2082, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_1 2', cc: 18 },
+    { key: 'pipeStops1_1.param3', name: 'pipeStops1_1.param3', id: 3, bit: 2083, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_1 3', cc: 19 },
+    { key: 'pipeStops1_1.param4', name: 'pipeStops1_1.param4', id: 4, bit: 2084, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_1 4', cc: 20 },
+    { key: 'pipeStops1_1.param5', name: 'pipeStops1_1.param5', id: 5, bit: 2085, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_1 5', cc: 21 },
+    { key: 'pipeStops1_1.param6', name: 'pipeStops1_1.param6', id: 6, bit: 2086, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_1 6', cc: 22 },
+    { key: 'pipeStops1_1.param7', name: 'pipeStops1_1.param7', id: 7, bit: 2087, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_1 7', cc: 23 },
+    { key: 'pipeStops1_1.param8', name: 'pipeStops1_1.param8', id: 8, bit: 2088, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_1 8', cc: 24 },
+    { key: 'pipeStops1_2.param0', name: 'pipeStops1_2.param0', id: 0, bit: 2096, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_2 0', cc: 16 },
+    { key: 'pipeStops1_2.param1', name: 'pipeStops1_2.param1', id: 1, bit: 2097, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_2 1', cc: 17 },
+    { key: 'pipeStops1_2.param2', name: 'pipeStops1_2.param2', id: 2, bit: 2098, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_2 2', cc: 18 },
+    { key: 'pipeStops1_2.param3', name: 'pipeStops1_2.param3', id: 3, bit: 2099, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_2 3', cc: 19 },
+    { key: 'pipeStops1_2.param4', name: 'pipeStops1_2.param4', id: 4, bit: 2100, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_2 4', cc: 20 },
+    { key: 'pipeStops1_2.param5', name: 'pipeStops1_2.param5', id: 5, bit: 2101, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_2 5', cc: 21 },
+    { key: 'pipeStops1_2.param6', name: 'pipeStops1_2.param6', id: 6, bit: 2102, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_2 6', cc: 22 },
+    { key: 'pipeStops1_2.param7', name: 'pipeStops1_2.param7', id: 7, bit: 2103, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_2 7', cc: 23 },
+    { key: 'pipeStops1_2.param8', name: 'pipeStops1_2.param8', id: 8, bit: 2104, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_2 8', cc: 24 },
+    { key: 'pipeStops1_3.param0', name: 'pipeStops1_3.param0', id: 0, bit: 2112, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_3 0', cc: 16 },
+    { key: 'pipeStops1_3.param1', name: 'pipeStops1_3.param1', id: 1, bit: 2113, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_3 1', cc: 17 },
+    { key: 'pipeStops1_3.param2', name: 'pipeStops1_3.param2', id: 2, bit: 2114, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_3 2', cc: 18 },
+    { key: 'pipeStops1_3.param3', name: 'pipeStops1_3.param3', id: 3, bit: 2115, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_3 3', cc: 19 },
+    { key: 'pipeStops1_3.param4', name: 'pipeStops1_3.param4', id: 4, bit: 2116, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_3 4', cc: 20 },
+    { key: 'pipeStops1_3.param5', name: 'pipeStops1_3.param5', id: 5, bit: 2117, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_3 5', cc: 21 },
+    { key: 'pipeStops1_3.param6', name: 'pipeStops1_3.param6', id: 6, bit: 2118, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_3 6', cc: 22 },
+    { key: 'pipeStops1_3.param7', name: 'pipeStops1_3.param7', id: 7, bit: 2119, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_3 7', cc: 23 },
+    { key: 'pipeStops1_3.param8', name: 'pipeStops1_3.param8', id: 8, bit: 2120, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_3 8', cc: 24 },
+    { key: 'pipeStops1_4.param0', name: 'pipeStops1_4.param0', id: 0, bit: 2128, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_4 0', cc: 16 },
+    { key: 'pipeStops1_4.param1', name: 'pipeStops1_4.param1', id: 1, bit: 2129, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_4 1', cc: 17 },
+    { key: 'pipeStops1_4.param2', name: 'pipeStops1_4.param2', id: 2, bit: 2130, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_4 2', cc: 18 },
+    { key: 'pipeStops1_4.param3', name: 'pipeStops1_4.param3', id: 3, bit: 2131, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_4 3', cc: 19 },
+    { key: 'pipeStops1_4.param4', name: 'pipeStops1_4.param4', id: 4, bit: 2132, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_4 4', cc: 20 },
+    { key: 'pipeStops1_4.param5', name: 'pipeStops1_4.param5', id: 5, bit: 2133, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_4 5', cc: 21 },
+    { key: 'pipeStops1_4.param6', name: 'pipeStops1_4.param6', id: 6, bit: 2134, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_4 6', cc: 22 },
+    { key: 'pipeStops1_4.param7', name: 'pipeStops1_4.param7', id: 7, bit: 2135, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_4 7', cc: 23 },
+    { key: 'pipeStops1_4.param8', name: 'pipeStops1_4.param8', id: 8, bit: 2136, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_4 8', cc: 24 },
+    { key: 'pipeStops1_5.param0', name: 'pipeStops1_5.param0', id: 0, bit: 2144, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_5 0', cc: 16 },
+    { key: 'pipeStops1_5.param1', name: 'pipeStops1_5.param1', id: 1, bit: 2145, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_5 1', cc: 17 },
+    { key: 'pipeStops1_5.param2', name: 'pipeStops1_5.param2', id: 2, bit: 2146, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_5 2', cc: 18 },
+    { key: 'pipeStops1_5.param3', name: 'pipeStops1_5.param3', id: 3, bit: 2147, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_5 3', cc: 19 },
+    { key: 'pipeStops1_5.param4', name: 'pipeStops1_5.param4', id: 4, bit: 2148, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_5 4', cc: 20 },
+    { key: 'pipeStops1_5.param5', name: 'pipeStops1_5.param5', id: 5, bit: 2149, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_5 5', cc: 21 },
+    { key: 'pipeStops1_5.param6', name: 'pipeStops1_5.param6', id: 6, bit: 2150, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_5 6', cc: 22 },
+    { key: 'pipeStops1_5.param7', name: 'pipeStops1_5.param7', id: 7, bit: 2151, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_5 7', cc: 23 },
+    { key: 'pipeStops1_5.param8', name: 'pipeStops1_5.param8', id: 8, bit: 2152, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_5 8', cc: 24 },
+    { key: 'pipeStops1_6.param0', name: 'pipeStops1_6.param0', id: 0, bit: 2160, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6 0', cc: 16 },
+    { key: 'pipeStops1_6.param1', name: 'pipeStops1_6.param1', id: 1, bit: 2161, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6 1', cc: 17 },
+    { key: 'pipeStops1_6.param2', name: 'pipeStops1_6.param2', id: 2, bit: 2162, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6 2', cc: 18 },
+    { key: 'pipeStops1_6.param3', name: 'pipeStops1_6.param3', id: 3, bit: 2163, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6 3', cc: 19 },
+    { key: 'pipeStops1_6.param4', name: 'pipeStops1_6.param4', id: 4, bit: 2164, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6 4', cc: 20 },
+    { key: 'pipeStops1_6.param5', name: 'pipeStops1_6.param5', id: 5, bit: 2165, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6 5', cc: 21 },
+    { key: 'pipeStops1_6.param6', name: 'pipeStops1_6.param6', id: 6, bit: 2166, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6 6', cc: 22 },
+    { key: 'pipeStops1_6.param7', name: 'pipeStops1_6.param7', id: 7, bit: 2167, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6 7', cc: 23 },
+    { key: 'pipeStops1_6.param8', name: 'pipeStops1_6.param8', id: 8, bit: 2168, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6 8', cc: 24 },
+    { key: 'pipeStops1_6dup.param0', name: 'pipeStops1_6dup.param0', id: 0, bit: 2176, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6dup 0', cc: 16, copyOf: 'pipeStops1_6.param0' },
+    { key: 'pipeStops1_6dup.param1', name: 'pipeStops1_6dup.param1', id: 1, bit: 2177, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6dup 1', cc: 17, copyOf: 'pipeStops1_6.param1' },
+    { key: 'pipeStops1_6dup.param2', name: 'pipeStops1_6dup.param2', id: 2, bit: 2178, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6dup 2', cc: 18, copyOf: 'pipeStops1_6.param2' },
+    { key: 'pipeStops1_6dup.param3', name: 'pipeStops1_6dup.param3', id: 3, bit: 2179, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6dup 3', cc: 19, copyOf: 'pipeStops1_6.param3' },
+    { key: 'pipeStops1_6dup.param4', name: 'pipeStops1_6dup.param4', id: 4, bit: 2180, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6dup 4', cc: 20, copyOf: 'pipeStops1_6.param4' },
+    { key: 'pipeStops1_6dup.param5', name: 'pipeStops1_6dup.param5', id: 5, bit: 2181, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6dup 5', cc: 21, copyOf: 'pipeStops1_6.param5' },
+    { key: 'pipeStops1_6dup.param6', name: 'pipeStops1_6dup.param6', id: 6, bit: 2182, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6dup 6', cc: 22, copyOf: 'pipeStops1_6.param6' },
+    { key: 'pipeStops1_6dup.param7', name: 'pipeStops1_6dup.param7', id: 7, bit: 2183, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6dup 7', cc: 23, copyOf: 'pipeStops1_6.param7' },
+    { key: 'pipeStops1_6dup.param8', name: 'pipeStops1_6dup.param8', id: 8, bit: 2184, width: 1, min: 0, max: 1, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeStops1_6dup 8', cc: 24, copyOf: 'pipeStops1_6.param8' },
+    { key: 'pipeVibOn1_0.param0', name: 'pipeVibOn1_0.param0', id: 0, bit: 2192, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn1_0 0', cc: 85 },
+    { key: 'pipeVibOn1_1.param0', name: 'pipeVibOn1_1.param0', id: 0, bit: 2200, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn1_1 0', cc: 85 },
+    { key: 'pipeVibOn1_2.param0', name: 'pipeVibOn1_2.param0', id: 0, bit: 2208, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn1_2 0', cc: 85 },
+    { key: 'pipeVibOn1_3.param0', name: 'pipeVibOn1_3.param0', id: 0, bit: 2216, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn1_3 0', cc: 85 },
+    { key: 'pipeVibOn1_4.param0', name: 'pipeVibOn1_4.param0', id: 0, bit: 2224, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn1_4 0', cc: 85 },
+    { key: 'pipeVibOn1_5.param0', name: 'pipeVibOn1_5.param0', id: 0, bit: 2232, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn1_5 0', cc: 85 },
+    { key: 'pipeVibOn1_7.param0', name: 'pipeVibOn1_7.param0', id: 0, bit: 2240, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pipeVibOn1_7 0', cc: 85 },
+    { key: 'pedalA.param0', name: 'pedalA.param0', id: 0, bit: 2248, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalA 0', cc: 14 },
+    { key: 'pedalADrawbars0.param0', name: 'pedalADrawbars0.param0', id: 0, bit: 2264, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalADrawbars0 0', cc: 16 },
+    { key: 'pedalADrawbars0.param1', name: 'pedalADrawbars0.param1', id: 1, bit: 2268, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalADrawbars0 1', cc: 17 },
+    { key: 'pedalADrawbars2.param0', name: 'pedalADrawbars2.param0', id: 0, bit: 2296, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalADrawbars2 0', cc: 16 },
+    { key: 'pedalADrawbars2.param1', name: 'pedalADrawbars2.param1', id: 1, bit: 2300, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalADrawbars2 1', cc: 17 },
+    { key: 'pedalB.param0', name: 'pedalB.param0', id: 0, bit: 2328, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalB 0', cc: 14 },
+    { key: 'pedalBStops0.param0', name: 'pedalBStops0.param0', id: 0, bit: 2344, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalBStops0 0', cc: 16 },
+    { key: 'pedalBStops0.param1', name: 'pedalBStops0.param1', id: 1, bit: 2348, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalBStops0 1', cc: 17 },
+    { key: 'pedalBStops0.param2', name: 'pedalBStops0.param2', id: 2, bit: 2352, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalBStops0 2', cc: 18 },
+    { key: 'pedalBStops0.param3', name: 'pedalBStops0.param3', id: 3, bit: 2356, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalBStops0 3', cc: 19 },
+    { key: 'pedalBStops2.param0', name: 'pedalBStops2.param0', id: 0, bit: 2376, width: 4, min: 0, max: 8, def: 8, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalBStops2 0', cc: 16 },
+    { key: 'pedalBStops2.param1', name: 'pedalBStops2.param1', id: 1, bit: 2380, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalBStops2 1', cc: 17 },
+    { key: 'pedalBStops2.param2', name: 'pedalBStops2.param2', id: 2, bit: 2384, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalBStops2 2', cc: 18 },
+    { key: 'pedalBStops2.param3', name: 'pedalBStops2.param3', id: 3, bit: 2388, width: 4, min: 0, max: 8, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalBStops2 3', cc: 19 },
+    { key: 'pedalC.param0', name: 'pedalC.param0', id: 0, bit: 2408, width: 3, min: 0, max: 7, def: 6, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalC 0' },
+    { key: 'pedalC.param1', name: 'pedalC.param1', id: 1, bit: 2411, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalC 1', cc: 14 },
+    { key: 'pedalCStops0.param0', name: 'pedalCStops0.param0', id: 0, bit: 2424, width: 2, min: 0, max: 2, def: 2, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops0 0', cc: 16 },
+    { key: 'pedalCStops0.param1', name: 'pedalCStops0.param1', id: 1, bit: 2426, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops0 1', cc: 17 },
+    { key: 'pedalCStops1.param0', name: 'pedalCStops1.param0', id: 0, bit: 2432, width: 2, min: 0, max: 2, def: 2, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops1 0', cc: 16 },
+    { key: 'pedalCStops1.param1', name: 'pedalCStops1.param1', id: 1, bit: 2434, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops1 1', cc: 17 },
+    { key: 'pedalCStops2.param0', name: 'pedalCStops2.param0', id: 0, bit: 2440, width: 2, min: 0, max: 2, def: 2, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops2 0', cc: 16 },
+    { key: 'pedalCStops2.param1', name: 'pedalCStops2.param1', id: 1, bit: 2442, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops2 1', cc: 17 },
+    { key: 'pedalCStops3.param0', name: 'pedalCStops3.param0', id: 0, bit: 2448, width: 2, min: 0, max: 2, def: 2, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops3 0', cc: 16 },
+    { key: 'pedalCStops3.param1', name: 'pedalCStops3.param1', id: 1, bit: 2450, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops3 1', cc: 17 },
+    { key: 'pedalCStops4.param0', name: 'pedalCStops4.param0', id: 0, bit: 2456, width: 2, min: 0, max: 2, def: 2, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops4 0', cc: 16 },
+    { key: 'pedalCStops4.param1', name: 'pedalCStops4.param1', id: 1, bit: 2458, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops4 1', cc: 17 },
+    { key: 'pedalCStops5.param0', name: 'pedalCStops5.param0', id: 0, bit: 2464, width: 2, min: 0, max: 2, def: 2, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops5 0', cc: 16 },
+    { key: 'pedalCStops5.param1', name: 'pedalCStops5.param1', id: 1, bit: 2466, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops5 1', cc: 17 },
+    { key: 'pedalCStops7.param0', name: 'pedalCStops7.param0', id: 0, bit: 2472, width: 2, min: 0, max: 2, def: 2, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops7 0', cc: 16 },
+    { key: 'pedalCStops7.param1', name: 'pedalCStops7.param1', id: 1, bit: 2474, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · pedalCStops7 1', cc: 17 },
+    { key: 'effects.param0', name: 'effects.param0', id: 0, bit: 2480, width: 23, min: 0, max: 8323072, def: 4194304, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · effects 0', cc: 77 },
+    { key: 'effects.param1', name: 'effects.param1', id: 1, bit: 2503, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · effects 1', cc: 76 },
+    { key: 'effects.param2', name: 'effects.param2', id: 2, bit: 2510, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · effects 2', cc: 114 },
+    { key: 'effects.param3', name: 'effects.param3', id: 3, bit: 2517, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · effects 3', cc: 116 },
+    { key: 'effects.param4', name: 'effects.param4', id: 4, bit: 2524, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · effects 4', cc: 113 },
+    { key: 'effects.param5', name: 'effects.param5', id: 5, bit: 2531, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · effects 5', cc: 111 },
+    { key: 'effects.param6', name: 'effects.param6', id: 6, bit: 2538, width: 7, min: 0, max: 127, def: 64, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · effects 6', cc: 102 },
+    { key: 'rotary.param0', name: 'rotary.param0', id: 0, bit: 2576, width: 2, min: 0, max: 3, def: 1, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · rotary 0', cc: 78 },
+    { key: 'rotary.param1', name: 'rotary.param1', id: 1, bit: 2578, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · rotary 1', cc: 75 },
+    { key: 'rotary.param2', name: 'rotary.param2', id: 2, bit: 2579, width: 3, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · rotary 2', cc: 81 },
+    { key: 'rotary.param3', name: 'rotary.param3', id: 3, bit: 2582, width: 3, min: 0, max: 5, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · rotary 3', cc: 96 },
+    { key: 'rotary.param4', name: 'rotary.param4', id: 4, bit: 2585, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · rotary 4' },
+    { key: 'rotary.param5', name: 'rotary.param5', id: 5, bit: 2586, width: 2, min: 0, max: 2, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · rotary 5', cc: 82 },
+    { key: 'rotary.param6', name: 'rotary.param6', id: 6, bit: 2588, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · rotary 6' },
+    { key: 'rotary.param7', name: 'rotary.param7', id: 7, bit: 2595, width: 7, min: 0, max: 127, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · rotary 7' },
+    { key: 'fxSwitch0.param0', name: 'fxSwitch0.param0', id: 0, bit: 2632, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch0 0', cc: 80 },
+    { key: 'fxSwitch0.param1', name: 'fxSwitch0.param1', id: 1, bit: 2633, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch0 1', cc: 115 },
+    { key: 'fxSwitch0.param2', name: 'fxSwitch0.param2', id: 2, bit: 2634, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch0 2', cc: 112 },
+    { key: 'fxSwitch0.param3', name: 'fxSwitch0.param3', id: 3, bit: 2635, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch0 3', cc: 97 },
+    { key: 'fxSwitch1.param0', name: 'fxSwitch1.param0', id: 0, bit: 2664, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch1 0', cc: 80 },
+    { key: 'fxSwitch1.param1', name: 'fxSwitch1.param1', id: 1, bit: 2665, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch1 1', cc: 115 },
+    { key: 'fxSwitch1.param2', name: 'fxSwitch1.param2', id: 2, bit: 2666, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch1 2', cc: 112 },
+    { key: 'fxSwitch1.param3', name: 'fxSwitch1.param3', id: 3, bit: 2667, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch1 3', cc: 97 },
+    { key: 'fxSwitch2.param0', name: 'fxSwitch2.param0', id: 0, bit: 2696, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch2 0', cc: 80 },
+    { key: 'fxSwitch2.param1', name: 'fxSwitch2.param1', id: 1, bit: 2697, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch2 1', cc: 115 },
+    { key: 'fxSwitch2.param2', name: 'fxSwitch2.param2', id: 2, bit: 2698, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch2 2', cc: 112 },
+    { key: 'fxSwitch2.param3', name: 'fxSwitch2.param3', id: 3, bit: 2699, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch2 3', cc: 97 },
+    { key: 'fxSwitch3.param0', name: 'fxSwitch3.param0', id: 0, bit: 2728, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch3 0', cc: 80 },
+    { key: 'fxSwitch3.param1', name: 'fxSwitch3.param1', id: 1, bit: 2729, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch3 1', cc: 115 },
+    { key: 'fxSwitch3.param2', name: 'fxSwitch3.param2', id: 2, bit: 2730, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch3 2', cc: 112 },
+    { key: 'fxSwitch3.param3', name: 'fxSwitch3.param3', id: 3, bit: 2731, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · fxSwitch3 3', cc: 97 },
+  ],
+  sets: {
+    b3Perc0: 'b3Perc',
+    b3Perc1: 'b3Perc',
+    b3Perc2: 'b3Perc',
+    b3Perc4: 'b3Perc',
+    b3Perc5: 'b3Perc',
+    b3Manual0: 'b3Manual',
+    b3Drawbars0_0: 'b3Drawbars',
+    b3VibOn0_0: 'b3VibOn',
+    b3Drawbars0_1: 'b3Drawbars',
+    b3VibOn0_1: 'b3VibOn',
+    b3Drawbars0_2: 'b3Drawbars',
+    b3VibOn0_2: 'b3VibOn',
+    b3Drawbars0_3: 'b3Drawbars',
+    b3VibOn0_4: 'b3VibOn',
+    b3Drawbars0_3dup: 'b3Drawbars',
+    b3VibOn0_5: 'b3VibOn',
+    b3Manual1: 'b3Manual',
+    b3Drawbars1_0: 'b3Drawbars',
+    b3VibOn1_0: 'b3VibOn',
+    b3Drawbars1_1: 'b3Drawbars',
+    b3VibOn1_1: 'b3VibOn',
+    b3Drawbars1_2: 'b3Drawbars',
+    b3VibOn1_2: 'b3VibOn',
+    b3Drawbars1_3: 'b3Drawbars',
+    b3VibOn1_4: 'b3VibOn',
+    b3Drawbars1_3dup: 'b3Drawbars',
+    b3VibOn1_5: 'b3VibOn',
+    voxManual0: 'voxManual',
+    voxDrawbars0_0: 'voxDrawbars',
+    voxDrawbars0_1: 'voxDrawbars',
+    voxDrawbars0_2: 'voxDrawbars',
+    voxDrawbars0_3: 'voxDrawbars',
+    voxDrawbars0_3dup: 'voxDrawbars',
+    voxManual1: 'voxManual',
+    voxDrawbars1_0: 'voxDrawbars',
+    voxDrawbars1_1: 'voxDrawbars',
+    voxDrawbars1_2: 'voxDrawbars',
+    voxDrawbars1_3: 'voxDrawbars',
+    voxDrawbars1_3dup: 'voxDrawbars',
+    farfManual0: 'farfManual',
+    farfTabs0_0: 'farfTabs',
+    farfTabs0_1: 'farfTabs',
+    farfTabs0_2: 'farfTabs',
+    farfTabs0_3: 'farfTabs',
+    farfTabs0_3dup: 'farfTabs',
+    farfManual1: 'farfManual',
+    farfTabs1_0: 'farfTabs',
+    farfTabs1_1: 'farfTabs',
+    farfTabs1_2: 'farfTabs',
+    farfTabs1_3: 'farfTabs',
+    farfTabs1_3dup: 'farfTabs',
+    pipeX0: 'pipeX',
+    pipeX1: 'pipeX',
+    pipeX2: 'pipeX',
+    pipeX3: 'pipeX',
+    pipeX4: 'pipeX',
+    pipeX5: 'pipeX',
+    pipeX7: 'pipeX',
+    pipeManual0: 'pipeManual',
+    pipeStops0_0: 'pipeStops',
+    pipeStops0_1: 'pipeStops',
+    pipeStops0_2: 'pipeStops',
+    pipeStops0_3: 'pipeStops',
+    pipeStops0_4: 'pipeStops',
+    pipeStops0_5: 'pipeStops',
+    pipeStops0_6: 'pipeStops',
+    pipeStops0_6dup: 'pipeStops',
+    pipeVibOn0_0: 'pipeVibOn',
+    pipeVibOn0_1: 'pipeVibOn',
+    pipeVibOn0_2: 'pipeVibOn',
+    pipeVibOn0_3: 'pipeVibOn',
+    pipeVibOn0_4: 'pipeVibOn',
+    pipeVibOn0_5: 'pipeVibOn',
+    pipeVibOn0_7: 'pipeVibOn',
+    pipeManual1: 'pipeManual',
+    pipeStops1_0: 'pipeStops',
+    pipeStops1_1: 'pipeStops',
+    pipeStops1_2: 'pipeStops',
+    pipeStops1_3: 'pipeStops',
+    pipeStops1_4: 'pipeStops',
+    pipeStops1_5: 'pipeStops',
+    pipeStops1_6: 'pipeStops',
+    pipeStops1_6dup: 'pipeStops',
+    pipeVibOn1_0: 'pipeVibOn',
+    pipeVibOn1_1: 'pipeVibOn',
+    pipeVibOn1_2: 'pipeVibOn',
+    pipeVibOn1_3: 'pipeVibOn',
+    pipeVibOn1_4: 'pipeVibOn',
+    pipeVibOn1_5: 'pipeVibOn',
+    pipeVibOn1_7: 'pipeVibOn',
+    pedalADrawbars0: 'pedalADrawbars',
+    pedalADrawbars2: 'pedalADrawbars',
+    pedalBStops0: 'pedalBStops',
+    pedalBStops2: 'pedalBStops',
+    pedalCStops0: 'pedalCStops',
+    pedalCStops1: 'pedalCStops',
+    pedalCStops2: 'pedalCStops',
+    pedalCStops3: 'pedalCStops',
+    pedalCStops4: 'pedalCStops',
+    pedalCStops5: 'pedalCStops',
+    pedalCStops7: 'pedalCStops',
+    fxSwitch0: 'fxSwitch',
+    fxSwitch1: 'fxSwitch',
+    fxSwitch2: 'fxSwitch',
+    fxSwitch3: 'fxSwitch',
+  },
+};

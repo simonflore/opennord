@@ -58,6 +58,7 @@
   --color-engine-organ: var(--engine-organ);
   --color-engine-piano: var(--engine-piano);
   --color-warn: var(--warn);
+  --color-danger: var(--danger);
   --color-focus: var(--focus);
   --color-ink: var(--ink);
   --color-dim: var(--dim);
@@ -168,6 +169,7 @@
   --red: var(--accent);     /* legacy name — migrates to --accent screen by screen */
   --red-bright: var(--accent-bright);
   --connected: #47e27f;     /* only ever means "the Nord is connected" */
+  --danger: #ff7a72;        /* errors and unknowns — never the accent, which means active */
   --lcd-cyan: #aee9ff;      /* secondary info cue (format tags, x-fade); not the LCD itself */
 
   /* The LCD: identity only — the name of what you're looking at. */
@@ -186,6 +188,11 @@
   --led-on-glow: 0 0 7px var(--accent);
   --key-face: linear-gradient(#34353a, #27282c);   /* an LED button's cap */
   --key-edge: 0 2px 0 #111214, inset 0 1px 0 rgb(255 255 255 / 9%);
+  /* The keyboard drawn under the zone map. */
+  --key-white: #e9e6de;
+  --key-black: #151516;
+  --key-gap: #8f8a80;
+  --keybed-shadow: inset 0 3px 0 #0b0b0c;
   --warn: #ffb454;
   --focus: #6aa9ff;      /* keyboard focus ring — distinct from --red action */
 
@@ -269,7 +276,7 @@
   --fx-border: #45474d;
   --deps-bg: #221b1d;
   --deps-border: #43222a;
-  --deps-ink: #ff7a72;         /* dependency warning text (brighter red) */
+  --deps-ink: var(--danger);   /* dependency warning text */
   --wave-bg: var(--sink);      /* sample-waveform backdrop — flat data, not an LCD */
   --wave: var(--ink);          /* waveform trace */
   /* Loop region on the waveform. A literal, not color-mix(): WaveCanvas hands it

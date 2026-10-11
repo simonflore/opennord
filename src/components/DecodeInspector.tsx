@@ -220,7 +220,7 @@ function DiffList({ diff, map }: { diff: number[]; map: ReturnType<typeof buildP
           const owners = paramsCoveringByte(map, i).map((p) => p.name);
           return (
             <li key={i}>
-              byte {i} — {owners.length ? owners.join(', ') : <em className="text-red">unknown (gap to decode)</em>}
+              byte {i} — {owners.length ? owners.join(', ') : <em className="text-danger">unknown (gap to decode)</em>}
             </li>
           );
         })}
