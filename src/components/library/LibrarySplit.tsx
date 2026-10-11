@@ -1,5 +1,6 @@
 import { Blueprint } from '@/components/ui';
 import { LibraryView } from './LibraryView';
+import { useStepKeys } from './useStepKeys';
 import { ProgramView } from '@/components/program/ProgramView';
 import { CategorySplit } from './CategorySplit';
 import { EmptyNote, NotListedNote } from './EmptyNote';
@@ -18,6 +19,8 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
   const closeRemoved = useCloseRemoved('/library/programs');
   const open = useOpenEntry();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
+  // J/K step through the programs, here so they keep working with the list folded away (narrow).
+  useStepKeys(s.shown, selectedId, open.program);
 
   const list = (
     <LibraryView
@@ -67,9 +70,10 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
           master={list}
           detail={program
             ?? (entry ? <EmptyNote>This slot hasn’t been read from your Nord yet. Read it on the Device page.</EmptyNote>
-              : selectedId ? <NotListedNote noun="program" />
-              : <EmptyNote>Pick a program to see its details.</EmptyNote>)}
+              : selectedId ? <NotListedNote noun="program" /> : null)}
           hasDetail={!!selectedId}
+          // Nothing open: the table spans the page, every column showing.
+          solo={!selectedId}
           list="/library/programs"
           backLabel="← Library"
           selectedId={selectedId}

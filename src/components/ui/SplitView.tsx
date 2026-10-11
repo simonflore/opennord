@@ -14,9 +14,14 @@ import type { ReactNode } from 'react';
  * utilities here would be inert. Left wired to `ui.css`'s `.on-split*` rules
  * until that cross-file coupling is untangled.
  */
-export function SplitView({ master, detail }: { master: ReactNode; detail: ReactNode }) {
+export function SplitView({ master, detail, solo }: {
+  master: ReactNode;
+  detail: ReactNode;
+  /** Only the master, across the full width (nothing open yet); the same tree, so it stays mounted. */
+  solo?: boolean;
+}) {
   return (
-    <div className="on-split">
+    <div className={solo ? 'on-split on-split--solo' : 'on-split'}>
       <div className="on-split__master">{master}</div>
       <div className="on-split__detail">{detail}</div>
     </div>
