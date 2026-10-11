@@ -39,8 +39,9 @@ function useLibraryStateValue() {
 
   // Memoised so the list keeps its identity across renders that don't change it
   // (the ⌘K palette's command list is built from it).
-  // Each source's entries are built on their own, so a device poll or a rescan
-  // keeps the other sources' entry objects (and their memoised table rows).
+  // Each source's entries are built on their own, so a Nord read, a folder
+  // rescan or an import keeps the other sources' entry objects (and their
+  // memoised table rows).
   const nordEntries = useMemo(() => nordEntriesFromDevice(deviceEntries), [deviceEntries]);
   const folderEntries = useMemo(() => entriesFromScannedPrograms(folder.result.programs), [folder.result.programs]);
   const allEntries: LibraryEntry[] = useMemo(
@@ -63,7 +64,8 @@ function useLibraryStateValue() {
     filterEntries(allEntries, source, listQuery, generation, category, { engines, split: splitOnly }),
     prefs.sort, prefs.favorites,
   ), [allEntries, source, listQuery, generation, category, engines, splitOnly, prefs.sort, prefs.favorites]);
-  const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
+  const byId = useMemo(() => new Map(allEntries.map((e) => [e.id, e])), [allEntries]);
+  const entryById = useCallback((id: string) => byId.get(id), [byId]);
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.
   const { filtered, clearFilters, ensureListed } = useListFilters(shown, [
