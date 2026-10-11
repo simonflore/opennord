@@ -1,5 +1,5 @@
-// UNVALIDATED — needs com.apple.developer.driverkit entitlement + M1+ iPad + Nord
-// Stage 4 to sign/run/validate (docs/IPAD.md).
+// Compiles against the iOS SDK; NOT yet run on hardware — needs an M1+ iPad and
+// a Nord to validate (docs/IPAD.md).
 import Foundation
 import Capacitor
 
@@ -22,8 +22,10 @@ public class NordUsbPlugin: CAPPlugin, CAPBridgedPlugin {
 
   @objc func open(_ call: CAPPluginCall) {
     queue.async {
-      do { try self.connection.open(); call.resolve() }
-      catch { call.reject("Could not open the Nord: \(error)") }
+      do {
+        try self.connection.open()
+        call.resolve(["productId": self.connection.productId])
+      } catch { call.reject("Could not open the Nord: \(error)") }
     }
   }
 
@@ -39,19 +41,28 @@ public class NordUsbPlugin: CAPPlugin, CAPBridgedPlugin {
 
   @objc func bulkIn(_ call: CAPPluginCall) {
     let maxLength = call.getInt("maxLength") ?? 0
+    let timeoutMs = call.getInt("timeoutMs") ?? 0
     queue.async {
       do {
-        let data = try self.connection.bulkIn(maxLength: maxLength)
-        call.resolve(["data": data.base64EncodedString()])
+        if let data = try self.connection.bulkIn(maxLength: maxLength, timeoutMs: timeoutMs) {
+          call.resolve(["data": data.base64EncodedString()])
+        } else {
+          call.resolve(["data": "", "timedOut": true])
+        }
       } catch { call.reject("USB read failed: \(error)") }
     }
   }
 
   @objc func close(_ call: CAPPluginCall) {
+    // A read may be holding the queue; end it first so close isn't stuck behind it.
+    connection.cancelPendingRead()
     queue.async { self.connection.close(); call.resolve() }
   }
 
   @objc func isAvailable(_ call: CAPPluginCall) {
-    queue.async { call.resolve(["available": self.connection.isAvailable]) }
+    // Off the I/O queue: this is asked while a read may be in flight.
+    DispatchQueue.global(qos: .userInitiated).async {
+      call.resolve(["available": self.connection.isAvailable])
+    }
   }
 }

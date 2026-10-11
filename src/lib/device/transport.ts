@@ -11,8 +11,7 @@ export interface NordTransport {
    * Read up to maxLength bytes from bulk IN (endpoint 0x82) — one reply frame.
    * With `timeoutMs`, a transport that can cancel its read rejects with
    * {@link TransportTimeoutError} once that long passes without a reply, and
-   * leaves no read pending (so it can't swallow a later reply). Transports that
-   * can't cancel a read (the iPad bridge) ignore it.
+   * leaves no read pending (so it can't swallow a later reply).
    */
   bulkIn(maxLength: number, timeoutMs?: number): Promise<Uint8Array>;
   close(): Promise<void>;

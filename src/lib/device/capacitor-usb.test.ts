@@ -19,6 +19,7 @@ vi.mock('capacitor-nord-usb', () => ({
 
 import { CapacitorUsbTransport, nordUsbAvailable, usbAvailability } from './capacitor-usb';
 import { bytesToBase64 } from './base64';
+import { TransportTimeoutError } from './transport';
 
 function setNavigatorUsb(present: boolean) {
   if (present) (navigator as unknown as { usb?: unknown }).usb = {};
@@ -70,9 +71,31 @@ describe('nordUsbAvailable', () => {
 
 describe('CapacitorUsbTransport', () => {
   it('open() calls the plugin', async () => {
-    open.mockResolvedValue(undefined);
+    open.mockResolvedValue({ productId: 0x2e });
     await new CapacitorUsbTransport().open();
     expect(open).toHaveBeenCalledTimes(1);
+  });
+  it('identify() reports the product id and open() reuses that open', async () => {
+    open.mockResolvedValue({ productId: 0x2e });
+    const t = new CapacitorUsbTransport();
+    await expect(t.identify()).resolves.toBe(0x2e);
+    await t.open();
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+  it('identify() can be retried after a failed open', async () => {
+    open.mockRejectedValueOnce(new Error('no Nord')).mockResolvedValue({ productId: 0x2e });
+    const t = new CapacitorUsbTransport();
+    await expect(t.identify()).rejects.toThrow('no Nord');
+    await expect(t.identify()).resolves.toBe(0x2e);
+  });
+  it('close() lets the next open() reach the plugin again', async () => {
+    open.mockResolvedValue({ productId: 0x2e });
+    close.mockResolvedValue(undefined);
+    const t = new CapacitorUsbTransport();
+    await t.open();
+    await t.close();
+    await t.open();
+    expect(open).toHaveBeenCalledTimes(2);
   });
   it('bulkOut() base64-encodes the exact bytes', async () => {
     bulkOut.mockResolvedValue(undefined);
@@ -84,7 +107,12 @@ describe('CapacitorUsbTransport', () => {
     bulkIn.mockResolvedValue({ data: bytesToBase64(new Uint8Array([1, 2, 3])) });
     const out = await new CapacitorUsbTransport().bulkIn(16);
     expect(Array.from(out)).toEqual([1, 2, 3]);
-    expect(bulkIn).toHaveBeenCalledWith({ maxLength: 16 });
+    expect(bulkIn).toHaveBeenCalledWith({ maxLength: 16, timeoutMs: undefined });
+  });
+  it('bulkIn() passes the timeout down and throws TransportTimeoutError when it passes', async () => {
+    bulkIn.mockResolvedValue({ data: '', timedOut: true });
+    await expect(new CapacitorUsbTransport().bulkIn(16, 250)).rejects.toBeInstanceOf(TransportTimeoutError);
+    expect(bulkIn).toHaveBeenCalledWith({ maxLength: 16, timeoutMs: 250 });
   });
   it('close() calls the plugin', async () => {
     close.mockResolvedValue(undefined);

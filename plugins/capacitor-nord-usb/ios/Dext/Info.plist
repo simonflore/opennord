@@ -1,37 +1,58 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- UNVALIDATED — needs com.apple.developer.driverkit entitlement + M1+ iPad + Nord
-     Stage 4 to sign/run/validate (docs/IPAD.md). VID 4092=0x0FFC, PID 46=0x002E. -->
+<!-- Matches every Clavia device's vendor interface (class 0xFF, subclass 0xFF,
+     protocol 0xFF — docs/PROTOCOL-RE.md), not one product id: the app tells the
+     models apart from the product id the driver reports. idVendor 4092 = 0x0FFC.
+     Only the Stage 4 (pid 0x002E) is hardware-confirmed to use that interface. -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>$(DEVELOPMENT_LANGUAGE)</string>
+  <key>CFBundleExecutable</key>
+  <string>$(EXECUTABLE_NAME)</string>
   <key>CFBundleIdentifier</key>
-  <string>org.opennord.app.NordUsbDriver</string>
+  <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
   <key>CFBundleName</key>
-  <string>NordUsbDriver</string>
+  <string>$(PRODUCT_NAME)</string>
   <key>CFBundlePackageType</key>
-  <string>DEXT</string>
+  <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$(MARKETING_VERSION)</string>
+  <key>CFBundleVersion</key>
+  <string>$(CURRENT_PROJECT_VERSION)</string>
   <key>OSBundleUsageDescription</key>
-  <string>Transfers programs to and from a connected Nord keyboard.</string>
+  <string>Moves programs and sounds between this iPad and a connected Nord keyboard.</string>
   <key>IOKitPersonalities</key>
   <dict>
     <key>NordUsbDriver</key>
     <dict>
+      <key>CFBundleIdentifier</key>
+      <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
       <key>CFBundleIdentifierKernel</key>
       <string>com.apple.kpi.iokit</string>
       <key>IOClass</key>
       <string>IOUserService</string>
-      <key>IOUserClass</key>
-      <string>NordUsbDriver</string>
       <key>IOProviderClass</key>
       <string>IOUSBHostInterface</string>
+      <key>IOUserClass</key>
+      <string>NordUsbDriver</string>
       <key>IOUserServerName</key>
-      <string>org.opennord.app.NordUsbDriver</string>
+      <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
       <key>idVendor</key>
       <integer>4092</integer>
-      <key>idProduct</key>
-      <integer>46</integer>
-      <key>bInterfaceNumber</key>
-      <integer>0</integer>
+      <key>bInterfaceSubClass</key>
+      <integer>255</integer>
+      <key>bInterfaceProtocol</key>
+      <integer>255</integer>
+      <key>UserClientProperties</key>
+      <dict>
+        <key>IOClass</key>
+        <string>IOUserUserClient</string>
+        <key>IOUserClass</key>
+        <string>NordUsbUserClient</string>
+      </dict>
     </dict>
   </dict>
 </dict>

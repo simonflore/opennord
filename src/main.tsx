@@ -4,14 +4,15 @@ import './styles/tokens.css';
 import './components/ui/ui.css';
 import { App } from './App';
 import { router } from './router';
-import { isCapacitorPlatform } from './lib/platform';
+import { isCapacitorPlatform, isIpadAppOnMac } from './lib/platform';
 import { CapabilitiesProvider } from '@/lib/capabilities/CapabilitiesContext';
 import { httpDiagnostics } from '@/lib/capabilities/defaults';
 
 document.documentElement.dataset.theme = 'dark';
 // Native shells get a `data-native` flag so additive shell CSS (safe areas, no
 // browser chrome) can target [data-native] without touching the web build.
-if (isCapacitorPlatform()) document.documentElement.dataset.native = 'true';
+// `mac` is the same app in a Mac window, which has no status bar to make room for.
+if (isCapacitorPlatform()) document.documentElement.dataset.native = isIpadAppOnMac() ? 'mac' : 'true';
 
 // Diagnostics: when a collector URL is configured at build time (a Coolify env
 // var on the client deployment, pointing at the backend's ingest route), ship

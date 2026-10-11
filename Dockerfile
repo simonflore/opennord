@@ -11,7 +11,11 @@ WORKDIR /app
 # Python toolchain, so its build fails; because it's optional, npm warns and
 # continues rather than failing the install. (Don't use --omit=optional: it would
 # also drop rolldown/esbuild's platform-native bindings that Vite needs.)
+# The two in-repo Capacitor plugins are `file:` devDependencies (the iPad build
+# finds them that way), so npm needs their manifests in place to link them.
 COPY package.json package-lock.json ./
+COPY plugins/capacitor-nord-usb/package.json plugins/capacitor-nord-usb/
+COPY plugins/capacitor-midi-input/package.json plugins/capacitor-midi-input/
 RUN npm ci
 
 # Build: `tsc -b && vite build` -> static assets in /app/dist
