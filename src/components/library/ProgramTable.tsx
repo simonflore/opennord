@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import '../../styles/nord.css';
 import { cn } from '@/lib/cn';
 import { SourceBadge } from '../ui';
 import { Led } from '../shell/Led';
@@ -7,7 +6,7 @@ import { LibraryRow, FavoriteStar } from './LibraryCard';
 import { ZoneStrip } from './ZoneStrip';
 import { SlotTag, genTone } from './SlotTag';
 import { CardRemoveButton } from './CardRemoveButton';
-import { activeEngineKinds, type EngineKind, type EngineSummary } from '../../lib/clavia/engines';
+import { activeEngineKinds, LIBRARY_ENGINES as ENGINES, type EngineSummary } from '../../lib/clavia/engines';
 import { isNs4Program, type NordProgram } from '../../lib/formats';
 import { activeLayers, fxChips } from '../../lib/ns4/view';
 import type { LibraryEntry } from '../../lib/library/types';
@@ -25,12 +24,6 @@ const COLS = cn(
 );
 // The columns a narrow container drops.
 const WIDE = '@max-[600px]:hidden';
-
-const ENGINES: { kind: EngineKind; letter: string; name: string }[] = [
-  { kind: 'piano', letter: 'P', name: 'Piano' },
-  { kind: 'organ', letter: 'O', name: 'Organ' },
-  { kind: 'synth', letter: 'S', name: 'Synth' },
-];
 
 const dash = <span className="text-muted">—</span>;
 /** A cell's column name for screen readers (the header row is visual only). */
@@ -132,34 +125,6 @@ export function ProgramTable({
       <p className="m-0 px-3 py-2 font-mono text-[10px] text-muted max-[720px]:hidden">
         <kbd>J</kbd> <kbd>K</kbd> next / previous · <kbd>↵</kbd> open
       </p>
-    </div>
-  );
-}
-
-/**
- * The LED filter keys above the table, as on the instrument: lit keys narrow the
- * list to programs that play every lit engine, and Split to programs that split
- * the keyboard. Press a lit key to let it go.
- */
-export function TraitKeys({ engines, onToggleEngine, splitOnly, onSplitOnly }: {
-  engines: ReadonlySet<EngineKind>;
-  onToggleEngine: (k: EngineKind) => void;
-  splitOnly: boolean;
-  onSplitOnly: (on: boolean) => void;
-}) {
-  return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="Show programs that play">
-      {ENGINES.map((e) => (
-        <button
-          key={e.kind}
-          className={cn('ps-key', engines.has(e.kind) && 'on')}
-          aria-pressed={engines.has(e.kind)}
-          onClick={() => onToggleEngine(e.kind)}
-        >{e.name}</button>
-      ))}
-      <button className={cn('ps-key', splitOnly && 'on')} aria-pressed={splitOnly} onClick={() => onSplitOnly(!splitOnly)}>
-        Split
-      </button>
     </div>
   );
 }

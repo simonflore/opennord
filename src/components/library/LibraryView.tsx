@@ -1,7 +1,8 @@
 import './library.css';
 import { Button, BrowseToolbar, type FacetGroup } from '../ui';
 import { CategoryPanel } from './CategoryPanel';
-import { ProgramTable, TraitKeys } from './ProgramTable';
+import { ProgramTable } from './ProgramTable';
+import { TraitKeys } from './TraitKeys';
 import type { EngineKind } from '../../lib/clavia/engines';
 import { LibraryEmpty } from './LibraryEmpty';
 import { BundlePicker } from './BundlePicker';

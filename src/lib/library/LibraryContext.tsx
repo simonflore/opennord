@@ -51,10 +51,12 @@ function useLibraryStateValue() {
   // Categories present across the *unfiltered* list — drives whether the
   // category facet is worth showing (only when there's more than one).
   const categoriesPresent = presentCategories(allEntries);
-  const shown = sortEntries(
+  // Memoised: the Split key reads each program's zones, which other renders
+  // (an open program, a device poll) shouldn't redo.
+  const shown = useMemo(() => sortEntries(
     filterEntries(allEntries, source, query, generation, category, { engines, split: splitOnly }),
     prefs.sort, prefs.favorites,
-  );
+  ), [allEntries, source, query, generation, category, engines, splitOnly, prefs.sort, prefs.favorites]);
   const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.
