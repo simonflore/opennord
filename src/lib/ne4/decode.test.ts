@@ -1,185 +1,144 @@
+/**
+ * NE4 decoder tests.
+ *
+ * 1. Synthetic records built from the firmware layout (Electro 4 OS 1.22
+ *    descriptors, via layout.generated.ts) — always run.
+ * 2. Cross-checks against the 16 real .ne4p fixtures (gitignored; skipped when
+ *    absent). The corpus expectations are kept, restated in firmware terms: the
+ *    "active" drawbars (body 16-20) are B3 Preset II, the factory-default pair
+ *    (body 4-8 / 25-29) is Vox Preset I / II, "sectionFlags" (body 0) is B3
+ *    Preset I's percussion switches + 3-bit field, and the 5-byte "refId" (body
+ *    37-41) is pianoSample type / model / variation / reference ids.
+ */
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { describe, it, expect } from 'vitest';
 import { decodeNe4 } from './decode';
+import { NE4_LAYOUT, type Ne4FieldKey } from './layout.generated';
+import { synthLegacyFile, writeLegacyRecord } from '../clavia/block-chain.synth';
+
+const fileByte = (key: Ne4FieldKey) => 0x1a + (NE4_LAYOUT.fields.find((f) => f.key === key)!.bit >> 3);
+
+function ne4p(values: Partial<Record<Ne4FieldKey, number>> = {}): Uint8Array {
+  const data = new Uint8Array(NE4_LAYOUT.dataBytes);
+  writeLegacyRecord(data, NE4_LAYOUT, values);
+  return synthLegacyFile('ne4p', 103, data); // any trailer: the E4 CRC coverage is unverified
+}
+
+describe('NE4 firmware layout', () => {
+  it('is a 108-byte bitstream at file 0x1A with the drawbar sets at the corpus anchors', () => {
+    expect(NE4_LAYOUT).toMatchObject({ dataBytes: 108, recordVersion: null });
+    expect(0x1a + NE4_LAYOUT.dataBytes + 2).toBe(136);
+    expect(fileByte('b3PresetI.0')).toBe(0x27);
+    expect(fileByte('voxPresetI.0')).toBe(0x2c + 4);
+    expect(fileByte('b3PresetII.0')).toBe(0x2c + 16);
+    expect(fileByte('voxPresetII.0')).toBe(0x2c + 25);
+    expect(fileByte('farfPresetI.0')).toBe(0x37);
+    expect(fileByte('farfPresetII.0')).toBe(0x4c);
+    expect(fileByte('pianoSample.0')).toBe(0x2c + 37);
+    expect(fileByte('effects.0')).toBe(0x2c + 51);
+  });
+
+  it('stores every value raw with minimum 0, without overlaps, and drops the not-stored and reserved descriptors', () => {
+    const used = new Set<number>();
+    for (const f of NE4_LAYOUT.fields) {
+      expect([f.enc, f.min], f.key).toEqual(['u', 0]);
+      for (let b = f.bit; b < f.bit + f.width; b++) { expect(used.has(b), f.key).toBe(false); used.add(b); }
+    }
+    const keys = NE4_LAYOUT.fields.map((f) => f.key as string);
+    expect(keys).not.toContain('b3Common.1'); // not stored
+    expect(keys).not.toContain('programCommon.4'); // reserved
+  });
+});
+
+describe('decodeNe4 (synthetic, firmware layout)', () => {
+  it('decodes the default record: B3 888000000, Vox 880000088, trailer', () => {
+    const file = ne4p();
+    const p = decodeNe4(file);
+    expect(p.warnings).toEqual([]);
+    expect(p.outOfRange).toEqual([]);
+    expect(p.version).toBe('1.03');
+    expect(p.organ.b3PresetI.drawbars).toEqual([8, 8, 8, 0, 0, 0, 0, 0, 0]);
+    expect(p.organ.b3PresetII.drawbars).toEqual([8, 8, 8, 0, 0, 0, 0, 0, 0]);
+    expect(p.organ.voxPresetI.drawbars).toEqual([8, 8, 0, 0, 0, 0, 0, 8, 8]);
+    expect(p.organ.farfPresetI.tabs).toEqual([1, 1, 1, 0, 0, 0, 0, 0, 0]);
+    expect(p.organ.b3PresetI.mode).toBe(2);
+    expect(file[0x2c]).toBe(0x04); // the corpus "sectionFlags" default = B3 Preset I mode 2
+    expect(p.checksum).toBe(file[134] | (file[135] << 8));
+    expect(p._data).toHaveLength(108);
+  });
+
+  it('reads B3 vibrato + percussion, Farfisa vibrato and the piano/sample reference', () => {
+    const p = decodeNe4(ne4p({
+      'b3PresetII.9': 5, 'b3PresetII.11': 1, 'b3PresetII.14': 1, 'b3PresetII.15': 4,
+      'farfPresetII.9': 3,
+      'pianoSample.0': 5, 'pianoSample.1': 37, 'pianoSample.3': 0x1cb3, 'pianoSample.4': 0x7fff,
+    }));
+    expect(p.organ.b3PresetII).toMatchObject({ vibratoType: 5, percussion: [1, 0, 0, 1], mode: 4 });
+    expect(p.organ.farfPresetII.vibrato).toBe(3);
+    expect(p.pianoSample).toEqual({ type: 5, model: 37, variation: 0, refIds: [0x1cb3, 0x7fff] });
+    expect(p.values['effects.12']).toBe(127); // descriptor default
+  });
+
+  it('flags values above their descriptor max', () => {
+    expect(decodeNe4(ne4p({ 'b3PresetI.0': 9 })).outOfRange).toEqual(['b3PresetI.0']);
+  });
+
+  it('warns on truncated or mis-sized files, never throws', () => {
+    expect(decodeNe4(new Uint8Array(5)).warnings.length).toBeGreaterThan(0);
+    expect(decodeNe4(new Uint8Array(92)).warnings.join(' ')).toContain('136');
+  });
+});
 
 const FIXTURE_DIR = join(__dirname, '../../../fixtures/electro-4');
 const load = (name: string) => new Uint8Array(readFileSync(join(FIXTURE_DIR, name)));
-const fixtures = () => readdirSync(FIXTURE_DIR).filter(f => f.endsWith('.ne4p'));
+const fixtures = () => readdirSync(FIXTURE_DIR).filter((f) => f.endsWith('.ne4p'));
 
-describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNe4', () => {
-  it('decodes every fixture without warnings', () => {
+describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNe4 (fixtures)', () => {
+  it('decodes every fixture without warnings, version 1.03, values in range', () => {
     for (const name of fixtures()) {
       const prog = decodeNe4(load(name));
       expect(prog.parsed, name).toBe(true);
       expect(prog.warnings, name).toHaveLength(0);
+      expect(prog.version, name).toBe('1.03');
+      expect(prog.outOfRange, name).toEqual([]);
     }
   });
 
-  it('reads version 1.03 from all fixtures', () => {
+  it('B3 Preset II drawbars (was the "active" set at body 16-20)', () => {
+    expect(decodeNe4(load('Infectd Square 1 FS.ne4p')).organ.b3PresetII.drawbars).toEqual([8, 8, 8, 0, 0, 0, 0, 0, 0]);
+    expect(decodeNe4(load('Freddie Smith Nord Samples.ne4p')).organ.b3PresetII.drawbars).toEqual([8, 8, 8, 8, 0, 0, 0, 0, 0]);
+  });
+
+  it('Vox Preset I / II drawbars (were the factory-default pair at body 4-8 / 25-29)', () => {
     for (const name of fixtures()) {
-      expect(decodeNe4(load(name)).version, name).toBe('1.03');
+      const o = decodeNe4(load(name)).organ;
+      expect(o.voxPresetI.drawbars, name).toEqual([8, 8, 0, 0, 0, 0, 0, 8, 8]);
+      expect(o.voxPresetII.drawbars, name).toEqual([8, 8, 0, 0, 0, 0, 0, 8, 8]);
     }
   });
 
-  it('exposes correctly-sized clusters (backward compat)', () => {
-    const prog = decodeNe4(load(fixtures()[0]));
-    expect(prog._clusterA).toHaveLength(6);
-    expect(prog._clusterB).toHaveLength(9);
-    expect(prog._clusterC).toHaveLength(13);
-    expect(prog._tail).toHaveLength(4);
+  it('B3 Preset I percussion + mode (was "sectionFlags" 0x04 / 0x38 / 0xf6 at body 0)', () => {
+    expect(decodeNe4(load('Infectd Square 1 FS.ne4p')).organ.b3PresetI).toMatchObject({ percussion: [0, 0, 0, 0], mode: 2 });
+    expect(decodeNe4(load('Nord Stage Electro Lead Samples.ne4p')).organ.b3PresetI).toMatchObject({ percussion: [0, 0, 1, 1], mode: 4 });
+    expect(decodeNe4(load('Nord Stage Electro Lead Samples (2).ne4p')).organ.b3PresetI).toMatchObject({ percussion: [1, 1, 1, 1], mode: 3 });
   });
 
-  it('exposes correctly-sized new fields', () => {
-    const prog = decodeNe4(load(fixtures()[0]));
-    expect(prog._organSection).toHaveLength(9);
-    expect(prog._sampleSection).toHaveLength(13);
-    expect(prog._tail23).toHaveLength(2);
+  it('pianoSample type/model/ids (was the 5-byte "refId" a941cb3d51 at body 37-41)', () => {
+    // a9 41 cb 3d 51 → type 5, model 37, variation 0, id0 0x1cb3; the sibling sound
+    // a5 81 cb 3d 51 shares the ids and differs in model (22).
+    const sq1 = decodeNe4(load('Infectd Square 1 FS.ne4p')).pianoSample;
+    const sq2 = decodeNe4(load('Infected Squ 2FS.ne4p')).pianoSample;
+    expect(sq1).toMatchObject({ type: 5, model: 37, variation: 0 });
+    expect(sq2).toMatchObject({ type: 5, model: 22, variation: 0 });
+    expect(sq1.refIds[0]).toBe(0x1cb3);
+    expect(sq2.refIds).toEqual(sq1.refIds);
   });
 
-  describe('active organ drawbars (confirmed — corpus RE 2026-06-22)', () => {
-    it('decodes "Infectd Square 1 FS" as 888000000', () => {
-      const prog = decodeNe4(load('Infectd Square 1 FS.ne4p'));
-      expect(prog.organ.active.bars).toEqual([8, 8, 8, 0, 0, 0, 0, 0, 0]);
-    });
-
-    it('decodes "Freddie Smith Nord Samples" as 888800000', () => {
-      const prog = decodeNe4(load('Freddie Smith Nord Samples.ne4p'));
-      expect(prog.organ.active.bars).toEqual([8, 8, 8, 8, 0, 0, 0, 0, 0]);
-    });
-
-    it('keeps `upper` as a backward-compat alias of `active`', () => {
-      for (const name of fixtures()) {
-        const prog = decodeNe4(load(name));
-        expect(prog.organ.upper.bars, name).toEqual(prog.organ.active.bars);
-      }
-    });
-
-    it('returns exactly 9 drawbar values for every fixture', () => {
-      for (const name of fixtures()) {
-        const prog = decodeNe4(load(name));
-        expect(prog.organ.active.bars, name).toHaveLength(9);
-      }
-    });
-
-    it('all drawbar values are in range 0-8 for every fixture', () => {
-      for (const name of fixtures()) {
-        const prog = decodeNe4(load(name));
-        for (const bar of prog.organ.active.bars) {
-          expect(bar, `${name} bar value`).toBeGreaterThanOrEqual(0);
-          expect(bar, `${name} bar value`).toBeLessThanOrEqual(8);
-        }
-      }
-    });
-
-    it('exposes _vibPercFlags (and its _extraNibs alias) as a 3-tuple', () => {
-      for (const name of fixtures()) {
-        const prog = decodeNe4(load(name));
-        expect(prog.organ._vibPercFlags, name).toHaveLength(3);
-        expect(prog.organ._extraNibs, name).toEqual(prog.organ._vibPercFlags);
-      }
-    });
-  });
-
-  describe('default organ drawbar slots (confirmed — corpus RE 2026-06-22)', () => {
-    // body[4-8] and body[25-29] are the factory-default 8,8,0,0,0,0,0,8,8 block,
-    // byte-identical and constant across all 16 corpus files.
-    const DEFAULT = [8, 8, 0, 0, 0, 0, 0, 8, 8];
-
-    it('decodes presetDefault1 (body[4-8]) as the factory default for all fixtures', () => {
-      for (const name of fixtures()) {
-        const prog = decodeNe4(load(name));
-        expect(prog.organ.presetDefault1.bars, name).toEqual(DEFAULT);
-      }
-    });
-
-    it('decodes presetDefault2 (body[25-29]) identical to presetDefault1 for all fixtures', () => {
-      for (const name of fixtures()) {
-        const prog = decodeNe4(load(name));
-        expect(prog.organ.presetDefault2.bars, name).toEqual(DEFAULT);
-        expect(prog.organ.presetDefault2.bars, name).toEqual(prog.organ.presetDefault1.bars);
-      }
-    });
-  });
-
-  describe('section flags (candidate — Stage oracle 084-5/6/7)', () => {
-    it('reads body[0] as sectionFlags (default 0x04)', () => {
-      const prog = decodeNe4(load('Infectd Square 1 FS.ne4p'));
-      expect(prog.sectionFlags).toBe(0x04);
-      expect(prog._byte0).toBe(prog.sectionFlags); // backward-compat alias
-    });
-
-    it('reads the non-default 0x38 / 0xf6 values on Lead Samples files', () => {
-      expect(decodeNe4(load('Nord Stage Electro Lead Samples.ne4p')).sectionFlags).toBe(0x38);
-      expect(decodeNe4(load('Nord Stage Electro Lead Samples (2).ne4p')).sectionFlags).toBe(0xf6);
-    });
-
-    it('only ever observes 0x04 / 0x38 / 0xf6 across the corpus', () => {
-      for (const name of fixtures()) {
-        const prog = decodeNe4(load(name));
-        expect([0x04, 0x38, 0xf6], name).toContain(prog.sectionFlags);
-      }
-    });
-  });
-
-  describe('sample reference + voice params (candidate — Stage piano model ID)', () => {
-    it('exposes refId as 5 bytes and voiceParams as 2 bytes', () => {
-      const prog = decodeNe4(load('Infectd Square 1 FS.ne4p'));
-      expect(prog.sample.refId).toHaveLength(5);
-      expect(prog.sample.voiceParams).toHaveLength(2);
-    });
-
-    it('reads the known refId for "Infectd Square 1 FS" (a941cb3d51)', () => {
-      const prog = decodeNe4(load('Infectd Square 1 FS.ne4p'));
-      expect(Array.from(prog.sample.refId)).toEqual([0xa9, 0x41, 0xcb, 0x3d, 0x51]);
-      expect(Array.from(prog.sample.voiceParams)).toEqual([0x0c, 0x23]);
-    });
-
-    it('sq1 vs sq2: same sample set shares refId tail, differs in voiceParams', () => {
-      // "Infected Squ 2FS" is the sibling sound on the same sample set:
-      // refId differs only in the low bytes (a9→a5, 41→81); the sound-level
-      // voiceParams change (0c/23 → 0d/a3).
-      const sq2 = decodeNe4(load('Infected Squ 2FS.ne4p'));
-      expect(Array.from(sq2.sample.refId)).toEqual([0xa5, 0x81, 0xcb, 0x3d, 0x51]);
-      expect(Array.from(sq2.sample.voiceParams)).toEqual([0x0d, 0xa3]);
-    });
-  });
-
-  describe('tail bytes', () => {
-    it('_tail0 and _tail1 low nibble is always 0 or 8 (bit-3 flag pattern)', () => {
-      for (const name of fixtures()) {
-        const prog = decodeNe4(load(name));
-        const lo0 = prog._tail0 & 0xf;
-        const lo1 = prog._tail1 & 0xf;
-        expect([0, 8], `${name} _tail0 lo nibble`).toContain(lo0);
-        expect([0, 8], `${name} _tail1 lo nibble`).toContain(lo1);
-      }
-    });
-
-    it('_tail and _tail0/_tail1/_tail23 are consistent', () => {
-      for (const name of fixtures()) {
-        const prog = decodeNe4(load(name));
-        expect(prog._tail[0], `${name} _tail[0] = _tail0`).toBe(prog._tail0);
-        expect(prog._tail[1], `${name} _tail[1] = _tail1`).toBe(prog._tail1);
-        expect(prog._tail[2], `${name} _tail[2] = _tail23[0]`).toBe(prog._tail23[0]);
-        expect(prog._tail[3], `${name} _tail[3] = _tail23[1]`).toBe(prog._tail23[1]);
-      }
-    });
-  });
-
-  describe('_organSection and _sampleSection aliases', () => {
-    it('_organSection bytes match _clusterB bytes', () => {
-      for (const name of fixtures()) {
-        const prog = decodeNe4(load(name));
-        expect(Array.from(prog._organSection), name).toEqual(Array.from(prog._clusterB));
-      }
-    });
-
-    it('_sampleSection bytes match _clusterC bytes', () => {
-      for (const name of fixtures()) {
-        const prog = decodeNe4(load(name));
-        expect(Array.from(prog._sampleSection), name).toEqual(Array.from(prog._clusterC));
-      }
-    });
+  it('the trailer is the old "program-specific" body 90-91', () => {
+    for (const name of fixtures()) {
+      const file = load(name);
+      expect(decodeNe4(file).checksum, name).toBe(file[0x2c + 90] | (file[0x2c + 91] << 8));
+    }
   });
 });
