@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { NordTransport } from '../../lib/device/transport';
 import { WebUsbTransport } from '../../lib/device/webusb';
-import { CapacitorUsbTransport, nordUsbAvailable, usbAvailability } from '../../lib/device/capacitor-usb';
+import { CapacitorUsbTransport } from '../../lib/device/capacitor-usb';
+import { useUsbReach } from '../../lib/device/useUsbReach';
 import { ElectronUsbTransport } from '../../lib/device/electron-usb';
 import { NordSession } from '../../lib/device/session';
 import { NordStatus, SessionRefusedError } from '../../lib/device/protocol';
@@ -30,8 +31,6 @@ function errorShape(e: unknown): Record<string, unknown> {
 // Stage 4 transfer flows are validated; other models connect read-only unless the
 // read-only probe confirms where their programs live (resolveDeviceAccess).
 const NORD_FILTER: USBDeviceFilter = { vendorId: 0x0ffc };
-/** How often the iPad app looks again for a Nord that wasn't plugged in yet. */
-const IPAD_RECHECK_MS = 2000;
 
 type Status = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -95,26 +94,7 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
   const [message, setMessage] = useState('');
   const { diagnostics } = useCapabilities();
 
-  const reach = usbAvailability();
-  // null = probing; only meaningful on the iPad native path.
-  const [ipadReady, setIpadReady] = useState<boolean | null>(
-    reach === 'ipad-dext-pending' ? null : false,
-  );
-  // The driver only shows up once a Nord is plugged in (and the driver is switched
-  // on in Settings), and nothing announces that — so keep asking until it's there.
-  useEffect(() => {
-    if (reach !== 'ipad-dext-pending' || ipadReady === true) return;
-    let alive = true;
-    const check = () => nordUsbAvailable().then((ok) => {
-      if (alive) setIpadReady(ok);
-    });
-    void check();
-    const timer = setInterval(check, IPAD_RECHECK_MS);
-    return () => {
-      alive = false;
-      clearInterval(timer);
-    };
-  }, [reach, ipadReady]);
+  const { reach, reachable } = useUsbReach();
 
   // Desktop app, Windows only: without the UsbDk runtime, older Nords (e.g. the
   // Stage 2) still can't be reached — the app silently falls back to the same
@@ -132,10 +112,12 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     };
   }, [reach]);
 
-  // Info cards: a plain browser without WebUSB, or an iPad whose DEXT isn't ready.
-  if (reach === 'unsupported' || (reach === 'ipad-dext-pending' && ipadReady !== true)) {
+  // Info cards: a browser without WebUSB, the iPhone app, or an iPad whose DEXT isn't ready.
+  if (!reachable) {
     const ipad = reach === 'ipad-dext-pending';
-    const infoTitle = ipad ? 'Plug your Nord into this iPad' : 'Open this in Chrome or Edge to connect';
+    const infoTitle = ipad ? 'Plug your Nord into this iPad'
+      : reach === 'iphone' ? "USB transfer isn't available on iPhone"
+      : 'Open this in Chrome or Edge to connect';
     // Inline: the host page already frames the step, so no nested card or heading.
     if (inline) return <p className={cn(connectLead, 'mt-2')}>{infoTitle}.</p>;
     return (
@@ -146,6 +128,8 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
           <p className={connectLead}>
             {ipad
               ? "Connect your Nord with a USB cable and switch it on — this screen picks it up by itself. The first time, also open Settings → Apps → OpenNord → Drivers and switch the Nord driver on. This needs an iPad with an M1 chip or newer."
+              : reach === 'iphone'
+              ? 'An iPhone has no way to talk to the Nord over USB. Use the iPad app, or Chrome or Edge on a computer, to move programs; everything else — browsing, samples, sharing — works right here.'
               : "Talking to your Nord over USB needs Chrome or Edge on a computer. Everything else in OpenNord — browsing, samples, sharing — works in any browser; switch over when you're ready to move programs to and from the keyboard."}
           </p>
         </div>

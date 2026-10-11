@@ -6,7 +6,8 @@ import { readFileBytes } from '../file';
 
 export interface ImportedSamples {
   entries: SampleEntry[];
-  add: (file: File) => Promise<void>;
+  /** Store a sample and list it; resolves to its library id. */
+  add: (file: File) => Promise<string>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -28,6 +29,7 @@ export function useImportedSamples(): ImportedSamples {
     const rec: StoredSample = { id: `local:${crypto.randomUUID()}`, name: file.name, bytes };
     await saveSampleImport(rec).catch(() => { /* keep for the session even if persist fails */ });
     setEntries((prev) => [...prev, sampleEntryFromImport(rec)]);
+    return rec.id;
   }, []);
 
   const remove = useCallback(async (id: string) => {

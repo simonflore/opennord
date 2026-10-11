@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-let reach: 'webusb' | 'ipad-dext-pending' | 'unsupported' = 'webusb';
+let reach: 'webusb' | 'ipad-dext-pending' | 'iphone' | 'unsupported' = 'webusb';
 let ipadReady = false;
 
 vi.mock('../../lib/device/capacitor-usb', () => ({
@@ -52,6 +52,12 @@ describe('ConnectPanel render states', () => {
     reach = 'unsupported';
     render(<ConnectPanel onConnected={vi.fn()} />);
     expect(screen.getByRole('heading', { name: /chrome or edge/i })).toBeInTheDocument();
+  });
+
+  it('iPhone app: says USB is not available on iPhone (not "use Chrome")', () => {
+    reach = 'iphone';
+    render(<ConnectPanel onConnected={vi.fn()} />);
+    expect(screen.getByRole('heading', { name: /isn.t available on iphone/i })).toBeInTheDocument();
   });
 
   it('offers an offline "open a backup" action when onOpenBackup is provided', () => {

@@ -7,17 +7,18 @@
 import { decodeNla } from './decode';
 import type { DecodedProgram } from '../clavia/decoded';
 import { morphCountPart } from '../clavia/fw-present';
+import type { NlaSlot } from './types';
 
 export function nlaDecoded(bytes: Uint8Array): DecodedProgram {
   const p = decodeNla(bytes);
-  const morphed = Object.values(p.morphDeltas).filter((d) => d?.some((x) => x !== 0)).length;
+  const morphed = (deltas: NlaSlot['morphDeltas']) => Object.values(deltas).filter((d) => d?.some((x) => x !== 0)).length;
+  const sections = p.slots
+    ? p.slots.map((sl, k) => ({ id: 'ABCD'[k], label: `SLOT ${'ABCD'[k]}`, engines: [{ label: 'Morph', parts: [morphCountPart(morphed(sl.morphDeltas))] }] }))
+    : [{ id: 'V', label: 'SOUND', engines: [{ label: 'Morph', parts: [morphCountPart(morphed(p.morphDeltas))] }] }];
   return {
     title: p.performance ? 'Nord Lead A1 · Performance' : 'Nord Lead A1 · Program',
     header: [['Version', `v${p.version}`]],
-    sections: [{
-      id: 'V', label: p.performance ? 'SLOT A' : 'SOUND',
-      engines: [{ label: 'Morph', parts: [morphCountPart(morphed)] }],
-    }],
+    sections,
     note: 'Lead A1: layout from the instrument firmware (OS 1.36). All parameters and morph amounts are read; they are named by MIDI CC until the A1 controller chart is mapped.',
     warnings: p.warnings,
   };

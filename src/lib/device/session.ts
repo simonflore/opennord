@@ -188,9 +188,13 @@ export class NordSession {
    * Run `fn` inside a `begin(partition)` … `end()` session, always ending it.
    * The device only shows "synchronizing" while a session is open, so callers
    * should bracket each operation rather than hold a session open at idle.
+   * `wanted`, asked when the operation's turn comes, drops it (rejecting with an
+   * AbortError) if nobody wants it any more; one that has begun runs to its end,
+   * so the device isn't left mid-transfer.
    */
-  withSession<T>(partition: number, fn: () => Promise<T>): Promise<T> {
+  withSession<T>(partition: number, fn: () => Promise<T>, wanted?: () => boolean): Promise<T> {
     return this.exclusive(async () => {
+      if (wanted && !wanted()) throw new DOMException('Nobody wants this operation any more', 'AbortError');
       const begun = await this.begin(partition);
       if (begun.status !== 0) throw new SessionRefusedError(partition, begun.status);
       try {

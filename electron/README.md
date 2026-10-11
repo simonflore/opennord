@@ -24,75 +24,145 @@ renderer  ElectronUsbTransport (src/lib/device/electron-usb.ts)
 seam — decode, protocol, session, diagnostics, the partition probe — is reused
 untouched.
 
-## Setup (the parts that need a real machine)
+## Setup
 
-These weren't run in the headless dev environment; do them where you can plug in
-a Nord.
-
-1. **Install deps** (native module + shell):
-   ```bash
-   npm i -D electron electron-builder esbuild
-   npm i usb
-   ```
+1. **Install deps:** `npm ci`. The shell, the packer and node-usb are already in
+   `package.json`.
 2. **Do _not_ rebuild node-usb.** node-usb 2.x is **N-API** (`NAPI_VERSION=8`),
    whose ABI is stable across Node *and* Electron, and it ships **prebuildify**
    binaries for every target (`prebuilds/win32-x64/node.napi.node`, …). It works
    in Electron as installed. See "Never run electron-rebuild" below — this is a
    trap that has already shipped one broken Windows build.
-3. **Build main + preload** (they're outside the web `tsconfig`; bundle with esbuild):
-   ```bash
-   npx esbuild electron/main.ts electron/preload.ts \
-     --bundle --platform=node --format=cjs --external:electron --external:usb \
-     --outdir=electron/dist
-   ```
-4. **Dev run** (Vite + Electron):
-   ```bash
-   VITE_DEV_SERVER_URL=http://localhost:5173 npx electron electron/dist/main.js
-   ```
-   (start `npm run dev` first). For prod, `npm run build` then point main at `dist/index.html` (already the fallback).
+3. **Build main + preload** (they're outside the web `tsconfig`; esbuild bundles
+   them to `electron/dist/*.cjs`): `npm run electron:build`.
+4. **Dev run** (Vite + Electron together): `npm run electron:dev`.
 
 ## Packing
 
 ```bash
-npm run electron:pack       # macOS  → release/mac*/OpenNord.app
-npm run electron:pack:win   # Windows x64 → release/OpenNord-<version>-win.zip
+npm run electron:pack       # macOS  → release/OpenNord-mac.dmg + .zip (universal, signed)
+npm run electron:pack:win   # Windows x64 → release/OpenNord-win-x64.exe (NSIS, unsigned)
 ```
 
-Both targets bracket electron-builder with `scripts/usb-native-guard.mjs`: `clean`
-empties `node_modules/usb/build` and `release/` beforehand, `verify` then asserts
-the packed app carries the target's `prebuilds/` binary and no `build/`. A pack
-that would ship the broken binding fails instead of producing a zip. (`clean`
+Both bracket electron-builder with `scripts/usb-native-guard.mjs`: `clean` empties
+`node_modules/usb/build` and `release/` beforehand, `verify` then asserts the
+packed app carries the target's `prebuilds/` binary and no `build/`. A pack that
+would ship the broken binding fails instead of producing an installer. (`clean`
 wipes `release/` so `verify` can only see the run that just happened — which
 means packing one target discards the other target's output.)
+
+Both pass `--publish never`. The `publish` entry in `package.json` exists so
+electron-builder writes the `latest*.yml` update feeds; it must never upload by
+itself — on a tag build in CI it would try to.
+
+The macOS pack signs with the Developer ID certificate in the keychain. It is
+notarized only when `APPLE_KEYCHAIN_PROFILE` is set, which the release command
+does; a plain `electron:pack` gives a signed, un-notarized app that is fine for
+local testing.
 
 **Windows packs run in CI, on Windows — from the monorepo.** The pack workflow
 lives in the private `opennord-backend` monorepo, not in this repository: it
 packs on `windows-latest` from a clean `npm ci` tree and uploads
-`OpenNord-win-x64-<sha>`, on manual `workflow_dispatch` and on any PR touching an
-input the pack consumes. It is not mirrored here because the mirror's push token
-would need `Workflows: write` to deliver a workflow file, and a failed push there
-wedges every later core mirror update. Releases are therefore cut upstream and
-published to this repo's Releases page. This is the supported way to cut a
-Windows build —
-a local Mac pack cannot produce one at all: the app *directory* cross-builds fine
-(node-usb's `prebuilds/` carry every platform), but electron-builder shells out to
-**wine** to stamp the .exe metadata (rcedit), and its bundled wine 4.0.1 aborts on
-current macOS, so the run dies before the zip.
+`OpenNord-win-x64-<sha>` — on a `desktop-v*` tag, on manual `workflow_dispatch`,
+and on any PR touching an input the pack consumes. It is not mirrored here
+because the mirror's push token would need `Workflows: write` to deliver a
+workflow file, and a failed push there wedges every later core mirror update. A
+local Mac pack cannot produce the installer at all: the app *directory*
+cross-builds fine (node-usb's `prebuilds/` carry every platform), but
+electron-builder shells out to **wine** to stamp the .exe metadata (rcedit), and
+its bundled wine 4.0.1 aborts on current macOS.
 
 **Pin the Windows arch.** `electron-builder --win` defaults to the *host* arch, so
 on an Apple Silicon Mac it silently builds **win-arm64**, which won't launch on
 the x64 Windows nearly every tester runs. `electron:pack:win` therefore passes
 `--x64` explicitly; use `--arm64` only when you mean it.
 
-**Give a startup-fix build a fresh name.** The pack names its zip from `version`,
-which doesn't move between builds — so replacing `OpenNord-0.0.1-win.zip` in place
-leaves a tester who kept the old download hitting the old crash, indistinguishable
-from the fix. When a build fixes a startup failure, publish it under a **new dated
-tag + artifact name** (e.g. release `desktop-win-2026-09-02`, asset
-`OpenNord-win-x64-2026-09-02.zip`) and point the site there — never reuse the
-`v0.0.1` name, which is the known-broken build. The landing page's
-`components/home/DesktopApp.tsx` pins the current `RELEASE_TAG` + `WIN_ASSET`;
-update those when a newer build ships.
+## Releasing
+
+Versions come from `package.json` `version`; a release is the tag
+`desktop-v<version>`. Asset names carry no version, so the site can link to
+`releases/latest/download/<name>`. A fix — including a startup fix — is a version
+bump, never a replaced file: someone holding the old download must be able to
+tell it from the new one.
+
+1. Bump: `npm version <x.y.z> --no-git-tag-version`, commit, merge to `main`.
+2. Tag that commit and push the tag:
+   `git tag desktop-v<x.y.z> && git push origin desktop-v<x.y.z>`.
+   The tag push starts the Windows build.
+3. When it is green, on the release Mac, with the tag checked out:
+   ```bash
+   npm run release:desktop
+   ```
+   It checks the machine, packs + signs + notarizes macOS, verifies the result
+   (`codesign`, `stapler`, Gatekeeper), downloads the Windows installer CI built
+   for the same commit, and uploads everything to a **draft** release on
+   `simonflore/opennord`. The draft's tag is pinned to this commit as the public
+   mirror has it; if the mirror has not caught up yet, the command says so and
+   stops before packing.
+4. Install both builds on clean machines — including an Intel Mac — and connect
+   a Nord. Once a previous release exists, also confirm that it updates to this
+   one (see "Rehearsing an update") before publishing.
+5. Publish the draft.
+
+`-- --dry-run` does everything except upload; add `--mac-only` to rehearse the
+macOS half before a Windows build exists. There is no mac-only *release*: a
+published release without the Windows files becomes "latest" and breaks the
+Windows download link and update feed. A published version is never replaced —
+the command refuses; bump instead.
+
+### One-time setup of the release Mac
+
+- Xcode or the Command Line Tools (`notarytool` and `stapler` ship with either).
+- A **Developer ID Application** certificate in the login keychain (Xcode →
+  Settings → Accounts → Manage Certificates).
+- A notarization credential stored under the profile name the command expects,
+  using an app-specific password from account.apple.com:
+  ```bash
+  xcrun notarytool store-credentials opennord-notary --apple-id <id> --team-id <team>
+  ```
+- `gh auth login` with access to both repositories.
+
+## Updates
+
+The packaged app updates itself from the public repo's Releases
+(`electron/updater.ts`; decisions in `electron/update-policy.ts`; the menu item
+in `electron/menu.ts`, set from `main.ts`). It runs
+entirely in the main process, so a release whose web app fails to load can still
+be repaired by the next one.
+
+- Checks 10 s after launch and every 4 hours; downloads silently.
+- When a download is ready, a native dialog offers **Restart now** or **Later**.
+  Later installs on the next quit.
+- The dialog is held back while a Nord is open, and the app never restarts by
+  itself.
+- Automatic checks fail quietly. **Check for Updates…** (app menu on macOS, Help
+  elsewhere) always answers, including with the error.
+- Only published, non-pre-release versions with a plain `x.y.z` number are seen.
+- On macOS the app must run from Applications to update. Anywhere else it does
+  not check at all; it offers to move itself, at launch and from **Check for
+  Updates…**.
+- On macOS the prompt waits until the system has staged the update, so
+  **Restart now** always restarts at once.
+- Log: `updater.log` in the app's log folder (`~/Library/Logs/OpenNord/` on
+  macOS, `%APPDATA%\OpenNord\logs\` on Windows), started fresh each launch; the
+  previous launch's log is kept beside it as `updater.previous.log`.
+
+Windows updates are unsigned for now: their integrity rests on HTTPS to GitHub
+and the checksum in `latest.yml`.
+
+### Rehearsing an update
+
+`OPENNORD_UPDATE_FEED=<http url>` points the updater at a plain folder instead of
+GitHub. To watch one version update to the next on a Mac:
+
+1. Pack the current version and copy `release/mac-universal/OpenNord.app` into
+   an Applications folder.
+2. Pack again as a higher version without touching `package.json`:
+   `node scripts/usb-native-guard.mjs clean && npm run build:electron && npm run electron:build && npx electron-builder --mac --universal --publish never -c.extraMetadata.version=<higher>`
+3. Serve it: `python3 -m http.server 8765 --directory release`
+4. Launch the installed app from a terminal with
+   `OPENNORD_UPDATE_FEED=http://localhost:8765 /path/to/OpenNord.app/Contents/MacOS/OpenNord`,
+   wait for the prompt, choose Restart now, and check the version in About.
 
 ## Never run electron-rebuild
 

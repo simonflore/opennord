@@ -34,7 +34,7 @@ import { useFolder } from '../../lib/folder/FolderContext';
  * useDeleteFlow, useSamplesFlow); this component is the switch between them.
  */
 export function DeviceManager() {
-  const { session, entries, deviceName, capacity, setConnection, setEntries, setCapacity } = useDevice();
+  const { session, entries, deviceName, capacity, setConnection, setEntries, setCapacity, isCurrent } = useDevice();
   const folder = useFolder();
   // Program-open (pull-to-view) state stays local — it's this component's own concern.
   const [program, setProgram] = useState<NordProgram | null>(null);
@@ -46,9 +46,12 @@ export function DeviceManager() {
 
   async function refresh(s: NordSession) {
     await s.withSession(s.programPartition, async () => {
-      setEntries(await enumeratePrograms(s));
+      const programs = await enumeratePrograms(s);
       // Best-effort: a failed capacity read shouldn't break the program list.
-      setCapacity(await readPartitionCapacity(s, s.programPartition).catch(() => null));
+      const cap = await readPartitionCapacity(s, s.programPartition).catch(() => null);
+      if (!isCurrent(s)) return; // another Nord connected meanwhile
+      setEntries(programs);
+      setCapacity(cap);
     });
   }
 
@@ -57,12 +60,13 @@ export function DeviceManager() {
   const loadCapacity = useCallback(
     async (s: NordSession) => {
       try {
-        setCapacity(await s.withSession(s.programPartition, () => readPartitionCapacity(s, s.programPartition)));
+        const cap = await s.withSession(s.programPartition, () => readPartitionCapacity(s, s.programPartition));
+        if (isCurrent(s)) setCapacity(cap);
       } catch {
         /* ignore — the readout simply doesn't show */
       }
     },
-    [setCapacity],
+    [setCapacity, isCurrent],
   );
   useEffect(() => {
     if (session) void loadCapacity(session);

@@ -24,6 +24,20 @@ import type { NlaFieldKey, NlaPerfFieldKey } from './layout.generated';
 
 export type { NlaFieldKey, NlaPerfFieldKey };
 
+/** One slot of a `.nlap` performance. */
+export interface NlaSlot {
+  readonly values: Partial<Record<NlaFieldKey, number>>;
+  readonly morphDeltas: Partial<Record<NlaFieldKey, readonly number[]>>;
+  readonly outOfRange: readonly NlaFieldKey[];
+  /**
+   * The slot's entry in the per-slot performance set (2 descriptors at c02a59f4:
+   * a 9-bit value 0-399, then 15 reserved bits). 0-399 matches the 8 × 50
+   * program locations, so this is most likely the program the slot was loaded
+   * from (inferred from its range; real files seen so far hold 0).
+   */
+  readonly sourceProgram: number;
+}
+
 export interface NlaProgram {
   readonly parsed: true;
   /** CBIN version string — the u16 record version at 0x14 (7 → "0.07"). */
@@ -36,11 +50,12 @@ export interface NlaProgram {
   readonly morphDeltas: Partial<Record<NlaFieldKey, readonly number[]>>;
   /**
    * `.nlap` only: performance-common parameters (c02a58c0). For a performance,
-   * `values` / `morphDeltas` are slot A, read at data byte 19 (after the 7
-   * common bytes and 12 bytes not yet named; slots B-D are not read yet).
+   * `values` / `morphDeltas` are slot A (as in `slots[0]`).
    */
   readonly performance?: Partial<Record<NlaPerfFieldKey, number>>;
-  /** Parameters outside their descriptor range (the firmware resets these to default on load). */
+  /** `.nlap` only: the four slots A-D, each a full program record. */
+  readonly slots?: readonly NlaSlot[];
+  /** Parameters outside their descriptor range (the firmware resets these to default on load); for a performance, every slot's. */
   readonly outOfRange: readonly NlaFieldKey[];
   /**
    * File trailer checksum (last two bytes, little-endian): CRC-16/CCITT-FALSE
