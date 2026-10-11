@@ -207,18 +207,25 @@ export interface FwProgram<K extends string> {
 }
 
 /**
- * Decode a whole file (CBIN header + body) against a layout. Never throws.
- * The body is `bytes[bodyOffset, bodyEnd)`: by default from the NSM-era header's
- * 0x2C to EOF (a legacy Stage 3 file passes 0x18 and stops before its trailer).
+ * Where a file's body sits: from the NSM-era header's 0x2C to EOF, or behind a
+ * legacy (format type 0) header — 0x14 bytes shorter — from 0x18 up to the
+ * 2-byte CRC-16 trailer (clavia/crc16.ts; it holds on every legacy `.ns3f` in
+ * ns3-program-viewer's corpus).
  */
-export function decodeFwProgram<K extends string>(
-  bytes: Uint8Array, layout: FwLayout<K>, bodyOffset: number = CBIN_BODY_OFFSET, bodyEnd: number = bytes.length,
-): FwProgram<K> {
+export function fwBodyRange(bytes: Uint8Array): { start: number; end: number } {
+  return bytes[0x04] === 0
+    ? { start: CBIN_BODY_OFFSET - 0x14, end: bytes.length - 2 }
+    : { start: CBIN_BODY_OFFSET, end: bytes.length };
+}
+
+/** Decode a whole file (CBIN header + body, framed by {@link fwBodyRange}) against a layout. Never throws. */
+export function decodeFwProgram<K extends string>(bytes: Uint8Array, layout: FwLayout<K>): FwProgram<K> {
   const warnings: string[] = [];
-  if (bytes.length < bodyOffset) {
-    warnings.push(`File too short: ${bytes.length} bytes (a Nord file header alone is ${bodyOffset}).`);
+  const { start, end } = fwBodyRange(bytes);
+  if (bytes.length < start) {
+    warnings.push(`File too short: ${bytes.length} bytes (a Nord file header alone is ${start}).`);
   }
-  const body = bytes.slice(bodyOffset, Math.max(bodyOffset, bodyEnd));
+  const body = bytes.slice(start, Math.max(start, end));
   let decoded: FwBodyDecode<K>;
   try {
     decoded = decodeFwBody(body, layout);

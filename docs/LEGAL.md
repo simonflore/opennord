@@ -72,20 +72,23 @@ each stamped with the time and the browser's user-agent string:
 
 - **Keyboard connection** (`device.connect`, `device.error`, `device.partition-probe`) —
   always on in such a build: whether connecting worked, the model, the USB descriptor
-  layout, the error name/message, and the partition-probe map. No programs, sounds or
-  names.
+  layout (vendor/product id and name, interfaces, endpoints — not the serial number),
+  the error name/message, and the partition-probe map (how many files of each type
+  each memory partition holds). No programs, sounds or names.
 - **File support** (`file.read`) — **opt-in, off by default**, stored per device
   ("Help improve file support" on the About and Contribute pages). One report per
   distinct program file per visit, when it is opened: the file-type tag, model id,
-  size, the header's format byte (0x04) and version field (0x14), two 6-byte framing
-  windows as hex (0x14–0x19, and the first 6 bytes where the reader expects the
-  record/body: 0x18 after a legacy header, 0x2C after an NSM-era one — the version
-  word and block length, at most the leading bits of the first parameter block), the
+  size, the header's format byte (0x04) and version field (0x14), and two framing
+  windows as hex: header bytes 0x14–0x17 (stopping before the NSM-era checksum at
+  0x18), and the version word where the reader expects the record/body (0x18 after a
+  legacy header, 0x2C after an NSM-era one: a legacy record's 2-byte version, or a
+  block chain's 4-byte format version plus the first block's length byte); the
   reader's verdict (layout matched / header only, record version, its generic warning
   messages, the count of out-of-range values) and the app build. **Never** program
-  contents or values beyond those windows, program names, file names, or a hash of
-  the file. Program files carry no name in the binary (`clavia/cbin.ts`,
-  the maintainers’ notes); sample files do, so they are never reported. Implementation:
+  contents or parameter values, program names, file names, the file's checksum or
+  any hash of it. Program files carry no name in the binary (`clavia/cbin.ts`,
+  the maintainers’ notes); only program file types a reader claims are reported, so samples
+  (which embed a name), pianos and presets never are. Implementation:
   `src/lib/diagnostics/file-read.ts`.
 
 No account id or IP address is stored with an event. **Retention is not implemented

@@ -14,6 +14,9 @@
  * They refuse (throw {@link ProgramWriteError}) rather than guess:
  * - a file whose framing does not match the layout exactly (block chain, block
  *   sizes, record size), so a field could land on the wrong bits;
+ * - a file whose checksum does not hold as found, since the reseal could then
+ *   be the wrong algorithm for its model (the legacy trailer is unconfirmed on
+ *   the Electro, C2/C2D and Piano 2/3 files);
  * - a format/record version the firmware does not read natively — an older one
  *   it converts on load is refused rather than written with the newer layout;
  * - an unknown key, a non-integer, or a value outside the field's range (a raw
@@ -21,9 +24,10 @@
  *   what the file already holds is accepted and left alone, so a full read →
  *   edit one → write round-trips even where a stored value is out of range.
  *
- * Framing follows the readers: the body or record starts at 0x18 after a legacy
- * (format type 0) header and at 0x2C after an NSM-era one; a legacy file ends
- * with its 2-byte trailer.
+ * Framing is the readers' own (block-chain.ts `fwBodyRange`, legacy-record.ts
+ * `legacyDataOffset`): the body or record starts at 0x18 after a legacy (format
+ * type 0) header and at 0x2C after an NSM-era one; a legacy file ends with its
+ * 2-byte trailer.
  *
  * Legacy layouts: a second stored copy of a parameter (`copyOf`, the C2D's
  * repeated containers) is not written on its own — the firmware reads the last
@@ -35,12 +39,10 @@
  */
 import { hasCbinMagic } from './cbin';
 import { readBits, writeBits } from './bitstream';
-import { fieldRaw, fieldValue, walkBlockChain, type FwField, type FwLayout } from './block-chain';
-import { sealFileChecksum } from './checksum';
+import { fieldRaw, fieldValue, fwBodyRange, walkBlockChain, type FwField, type FwLayout } from './block-chain';
+import { sealFileChecksum, verifyFileChecksum } from './checksum';
 import {
-  LEGACY_RECORD_OFFSET, NSM_RECORD_OFFSET,
-  legacyDataOffset, legacyFileBytes, legacyLayoutVersion, legacyTrailerBytes,
-  type LegacyField, type LegacyLayout,
+  legacyDataOffset, legacyFileBytes, legacyLayoutVersion, type LegacyField, type LegacyLayout,
 } from './legacy-record';
 
 /** Why a program could not be written. */
@@ -79,13 +81,11 @@ function requireCbin(bytes: Uint8Array): void {
   }
 }
 
-const isLegacyHeader = (bytes: Uint8Array) => bytes[0x04] === 0;
-
-/** Where a firmware-layout body sits: from 0x18 to the trailer of a legacy file, from 0x2C to EOF of an NSM-era one. */
-export function fwBodyRange(bytes: Uint8Array): { start: number; end: number } {
-  return isLegacyHeader(bytes)
-    ? { start: LEGACY_RECORD_OFFSET, end: bytes.length - legacyTrailerBytes(bytes) }
-    : { start: NSM_RECORD_OFFSET, end: bytes.length };
+/** Reseal only a file whose own checksum holds: it shows `sealFileChecksum` writes the one its model uses. */
+function requireSealed(bytes: Uint8Array): void {
+  if (!verifyFileChecksum(bytes)) {
+    throw new ProgramWriteError('This program file’s checksum doesn’t match its contents, so OpenNord can’t tell how to reseal it');
+  }
 }
 
 const versionText = (v: number) => (v / 100).toFixed(2);
@@ -122,6 +122,7 @@ export function writeFwProgram<K extends string>(
       `${layout.model} program format ${versionText(v)}: OpenNord writes only formats ` +
       `${versionText(layout.versionRange[0])}–${versionText(layout.versionRange[1])}, the ones the instrument reads as they are`);
   }
+  requireSealed(bytes);
   const absent = new Set<string>(opts.absentIn?.(v) ?? []);
 
   const byKey = new Map<string, FwField<K>>(layout.fields.map((f) => [f.key, f]));
@@ -130,50 +131,41 @@ export function writeFwProgram<K extends string>(
     if (value === undefined) continue;
     const f = byKey.get(key);
     if (!f) throw new ProgramWriteError(`${key}: not a ${layout.model} program field`);
-    const at = (start + layout.blocks[f.block].offset + 1) * 8 + f.bit;
-    if (value === fieldValue(readBits(out, at, f.width), f)) continue;
     if (absent.has(key)) {
       // The instrument loads this field at its default (what the reader reports too): nothing to write.
       if (value === f.def) continue;
       throw new ProgramWriteError(`${key}: program format ${versionText(v)} does not store this setting yet`);
     }
-    writeBits(out, at, f.width, encodeField(f, value));
+    const at = (start + layout.blocks[f.block].offset + 1) * 8 + f.bit;
+    if (value !== fieldValue(readBits(out, at, f.width), f)) writeBits(out, at, f.width, encodeField(f, value));
   }
   return sealFileChecksum(out);
 }
 
-export interface LegacyWriteOptions {
-  /** Record versions the firmware reads natively. Default: the layout's `recordVersion` (none checked when it is null). */
-  readonly versions?: readonly number[];
-  /** Data byte where this layout's record starts, for a file holding several records (a Lead 4 performance's slots). Default 0. */
-  readonly byteOffset?: number;
-  /** The whole file size the record makes. Default: one record of `layout` (legacy-record.ts `legacyFileBytes`). */
-  readonly fileBytes?: number;
-}
-
 /**
- * Write `values` into a legacy formatType-0 record program (a whole file, either
- * header type) and return the new, resealed file. The input is not changed.
+ * Write `values` into a single-record legacy formatType-0 program (a whole
+ * file, either header type) and return the new, resealed file. The input is not changed.
  * Throws a {@link ProgramWriteError} when the file or a value can't be written
  * (see the module comment).
  */
 export function writeLegacyProgram<K extends string>(
-  bytes: Uint8Array, layout: LegacyLayout<K>, values: Partial<Record<K, number>>, opts: LegacyWriteOptions = {},
+  bytes: Uint8Array, layout: LegacyLayout<K>, values: Partial<Record<K, number>>,
 ): Uint8Array {
   requireCbin(bytes);
-  const expected = opts.fileBytes ?? legacyFileBytes(bytes, layout);
+  const expected = legacyFileBytes(bytes, layout);
   if (bytes.length !== expected) {
     throw new ProgramWriteError(`This ${layout.model} program file is ${bytes.length} bytes; the program record makes ${expected}`);
   }
-  const versions = opts.versions ?? (layout.recordVersion === null ? [] : [layout.recordVersion]);
   const recordVersion = legacyLayoutVersion(bytes, layout);
-  if (versions.length > 0 && !versions.includes(recordVersion)) {
+  if (layout.recordVersion !== null && recordVersion !== layout.recordVersion) {
     throw new ProgramWriteError(
-      `${layout.model} program format version ${recordVersion}: OpenNord writes only version ${versions.join(', ')}, ` +
+      `${layout.model} program format version ${recordVersion}: OpenNord writes only version ${layout.recordVersion}, ` +
       'the one the instrument reads as it is');
   }
 
-  const base = (legacyDataOffset(bytes, layout) + (opts.byteOffset ?? 0)) * 8;
+  requireSealed(bytes);
+
+  const base = legacyDataOffset(bytes, layout) * 8;
   const byKey = new Map<string, LegacyField<K>>(layout.fields.map((f) => [f.key, f]));
   const copies = new Map<string, LegacyField<K>[]>();
   for (const f of layout.fields) if (f.copyOf) copies.set(f.copyOf, [...(copies.get(f.copyOf) ?? []), f]);
