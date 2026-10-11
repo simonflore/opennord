@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import * as RD from '@radix-ui/react-dialog';
 import { useNavigate } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
-import { LIBRARY_CATEGORIES } from '../../lib/library/categories';
+import { READY_CATEGORIES } from '../../lib/library/categories';
 import { SOURCE_LABEL, type LibrarySource } from '../../lib/library/types';
 import { useLibraryState } from '../../lib/library/LibraryContext';
 import { usePresetsState } from '../../lib/library/PresetsContext';
@@ -25,7 +25,7 @@ function useCommands(): Command[] {
 
   return useMemo(() => {
     const pages: Command[] = [
-      ...LIBRARY_CATEGORIES.filter((c) => c.ready).map((c) => ({ to: c.path as NavTo, label: c.label })),
+      ...READY_CATEGORIES.map((c) => ({ to: c.path, label: c.label })),
       ...tools,
       ...(__RE__ ? DEV_DESTS : []),
       ABOUT,

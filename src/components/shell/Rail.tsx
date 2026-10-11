@@ -1,11 +1,11 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
-import { LIBRARY_CATEGORIES, type CategoryId } from '../../lib/library/categories';
+import { READY_CATEGORIES, type CategoryId } from '../../lib/library/categories';
 import type { LibrarySource } from '../../lib/library/types';
 import { BUILD, COMMIT, VERSION_FULL } from '../../lib/version';
 import { Led } from './Led';
 import { groupLabel, rowActive } from './styles';
-import { ABOUT, COMMUNITY_SUB, COMMUNITY_TO, DEVICE_DISABLED_HINT, DEV_DESTS, usbSupported, useTools, type NavTo } from './nav';
+import { ABOUT, COMMUNITY_SUB, COMMUNITY_TO, DEV_DESTS, useTools, type NavTo } from './nav';
 
 /** One program source in the Sources group: where the programs in the library come from. */
 export interface SourceItem {
@@ -13,21 +13,21 @@ export interface SourceItem {
   label: string;
   count: number;
   /** Lights the LED: the source is live (the Nord is connected). */
-  live?: boolean;
+  live: boolean;
 }
 
 interface Props {
-  /** Current pathname without its leading slash (e.g. "library", "library/abc", "dev/inspect"). */
-  active: string;
+  /** The current pathname, e.g. "/library/programs/abc". */
+  path: string;
   onNavigate: (to: NavTo) => void;
   /** How many entries each library category holds. */
-  counts?: Partial<Record<CategoryId, number>>;
+  counts: Record<CategoryId, number>;
   /** Program sources with entries; picking one filters the program list to it. */
-  sources?: SourceItem[];
+  sources: SourceItem[];
   /** The source the program list is filtered to, if any. */
-  activeSource?: LibrarySource | 'all';
+  activeSource: LibrarySource | 'all';
   /** Filter the program list to a source, or back to everything with 'all'. */
-  onPickSource?: (source: LibrarySource | 'all') => void;
+  onPickSource: (source: LibrarySource | 'all') => void;
 }
 
 /**
@@ -85,9 +85,8 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
  * foot. The wordmark and the Nord's connection live in the TopBar above; at
  * phone width the rail gives way to PhoneTabs.
  */
-export function Rail({ active, onNavigate, counts = {}, sources = [], activeSource = 'all', onPickSource }: Props) {
+export function Rail({ path, onNavigate, counts, sources, activeSource, onPickSource }: Props) {
   const tools = useTools();
-  const path = '/' + active;
   // An entry is active when the path equals it or sits beneath it (e.g.
   // /library/programs/$id keeps programs lit).
   const isActive = (to: string) => path === to || path.startsWith(to + '/');
@@ -106,16 +105,14 @@ export function Rail({ active, onNavigate, counts = {}, sources = [], activeSour
       )}
     >
       <Group label="Library">
-        {LIBRARY_CATEGORIES.map((c) => (
+        {READY_CATEGORIES.map((c) => (
           <Item
             key={c.id}
             label={c.label}
             count={counts[c.id]}
             // A source filter moves the highlight to Sources.
             active={isActive(c.path) && !(c.id === 'programs' && activeSource !== 'all')}
-            disabled={!c.ready}
-            title={c.ready ? undefined : 'Coming soon'}
-            onClick={() => { if (c.id === 'programs') onPickSource?.('all'); onNavigate(c.path as NavTo); }}
+            onClick={() => { if (c.id === 'programs') onPickSource('all'); onNavigate(c.path); }}
           />
         ))}
       </Group>
@@ -127,33 +124,30 @@ export function Rail({ active, onNavigate, counts = {}, sources = [], activeSour
               key={s.source}
               label={s.label}
               count={s.count}
-              led={!!s.live}
+              led={s.live}
               active={onPrograms && activeSource === s.source}
-              onClick={() => { onPickSource?.(s.source); onNavigate('/library/programs'); }}
+              onClick={() => { onPickSource(s.source); onNavigate('/library/programs'); }}
             />
           ))}
         </Group>
       )}
 
       <Group label="Tools">
-        {tools.map((d) => {
-          const disabled = d.to === '/device' && !usbSupported;
-          return (
-            <div key={d.to} className="flex flex-col">
-              <Item
-                label={d.label}
-                active={isActive(d.to)}
-                disabled={disabled}
-                title={disabled ? DEVICE_DISABLED_HINT : undefined}
-                onClick={() => onNavigate(d.to)}
-              />
-              {/* Community's own pages, while on it. */}
-              {d.to === COMMUNITY_TO && isActive(COMMUNITY_TO) && COMMUNITY_SUB.map((sub) => (
-                <Item key={sub.to} sub label={sub.label} active={path === sub.to} onClick={() => onNavigate(sub.to)} />
-              ))}
-            </div>
-          );
-        })}
+        {tools.map((d) => (
+          <Fragment key={d.to}>
+            <Item
+              label={d.label}
+              active={isActive(d.to)}
+              disabled={!!d.disabled}
+              title={d.disabled}
+              onClick={() => onNavigate(d.to)}
+            />
+            {/* Community's own pages, while on it. */}
+            {d.to === COMMUNITY_TO && isActive(COMMUNITY_TO) && COMMUNITY_SUB.map((sub) => (
+              <Item key={sub.to} sub label={sub.label} active={path === sub.to} onClick={() => onNavigate(sub.to)} />
+            ))}
+          </Fragment>
+        ))}
       </Group>
 
       <div className="flex-1" />

@@ -2,7 +2,9 @@ import { Link } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
 import { DeviceStatus } from './DeviceStatus';
 import { Wordmark } from './Wordmark';
-import { MOD_KEY } from './nav';
+
+/** The shortcut key's name on this platform, for the ⌘K hint. */
+const MOD_KEY = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl ';
 
 /**
  * The console's top bar: the wordmark, the ⌘K jump-to field (a button that
@@ -28,7 +30,6 @@ export function TopBar({ onSearch, onManageDevice }: { onSearch: () => void; onM
         className={cn(
           'flex h-[30px] min-w-0 max-w-[540px] flex-1 cursor-pointer items-center gap-2.5 rounded-sm border border-line fill-sink px-2.5 text-left',
           'font-mono text-xs text-muted transition-colors hover:border-muted',
-          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]',
           'max-[720px]:max-w-none',
         )}
       >

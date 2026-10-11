@@ -1,5 +1,5 @@
 import { cn } from '@/lib/cn';
-import { LIBRARY_CATEGORIES, categoryForPath } from '../../lib/library/categories';
+import { READY_CATEGORIES, categoryForPath } from '../../lib/library/categories';
 import { Led } from './Led';
 import type { NavTo } from './nav';
 
@@ -14,17 +14,17 @@ const tab = cn(
  * lists, each with an LED that lights on the open one, and More, which opens
  * the palette (its empty state lists every page).
  */
-export function PhoneTabs({ active, onNavigate, onMore }: { active: string; onNavigate: (to: NavTo) => void; onMore: () => void }) {
-  const current = categoryForPath('/' + active);
+export function PhoneTabs({ path, onNavigate, onMore }: { path: string; onNavigate: (to: NavTo) => void; onMore: () => void }) {
+  const current = categoryForPath(path);
   return (
     <nav
       aria-label="Sections"
       className="on-tabs fixed inset-x-0 bottom-0 z-30 hidden border-t border-line bg-surface max-[720px]:flex"
     >
-      {LIBRARY_CATEGORIES.filter((c) => c.ready).map((c) => {
+      {READY_CATEGORIES.map((c) => {
         const on = c === current;
         return (
-          <button key={c.id} className={cn(tab, on ? 'text-ink' : 'text-muted')} aria-current={on ? 'page' : undefined} onClick={() => onNavigate(c.path as NavTo)}>
+          <button key={c.id} className={cn(tab, on ? 'text-ink' : 'text-muted')} aria-current={on ? 'page' : undefined} onClick={() => onNavigate(c.path)}>
             <Led on={on} />
             {c.short}
           </button>

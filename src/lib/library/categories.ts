@@ -17,6 +17,11 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
   { id: 'pianos',   label: 'Piano Samples', short: 'Pianos',   path: '/library/pianos',   ready: true },
 ];
 
+/** The categories with a page, typed so their `path` is a route (no casts at call sites). */
+export const READY_CATEGORIES = LIBRARY_CATEGORIES.filter(
+  (c): c is Extract<LibraryCategory, { ready: true }> => c.ready,
+);
+
 /** Match a pathname (e.g. `/library/programs` or `/library/programs/$id`) to its category. */
 export function categoryForPath(path: string): LibraryCategory | undefined {
   return LIBRARY_CATEGORIES.find((c) => path === c.path || path.startsWith(c.path + '/'));

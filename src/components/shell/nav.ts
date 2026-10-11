@@ -1,12 +1,18 @@
 import { useMemo } from 'react';
 import { useCapabilities } from '../../lib/capabilities/CapabilitiesContext';
+import { usbAvailability } from '../../lib/device/capacitor-usb';
 
 /** Route paths the shell can navigate to — kept in sync with the route tree in router.tsx. */
 export type NavTo =
   | '/library' | '/library/programs' | '/library/pianos' | '/library/samples' | '/library/presets'
   | '/device' | '/compatibility' | '/contribute' | '/about' | '/dev/inspect' | '/dev/decode' | '/dev/kit';
 
-export interface Dest { to: NavTo; label: string }
+export interface Dest {
+  to: NavTo;
+  label: string;
+  /** Why the destination can't be used here, when it can't (shown as a tooltip). */
+  disabled?: string;
+}
 
 export const ABOUT: Dest = { to: '/about', label: 'About & legal' };
 
@@ -18,21 +24,17 @@ export const DEV_DESTS: Dest[] = [
 
 // Cloud and Community are build-injected routes (present only when a proprietary
 // build supplies them and the capability is available), so they sit outside the
-// base NavTo union — cast once.
+// base NavTo union and are cast where they're named.
 export const COMMUNITY_TO = '/community' as NavTo;
 export const COMMUNITY_SUB: Dest[] = [
-  { to: '/community' as NavTo, label: 'Browse' },
+  { to: COMMUNITY_TO, label: 'Browse' },
   { to: '/community/share' as NavTo, label: 'Share a patch' },
   { to: '/community/mine' as NavTo, label: 'My shares' },
 ];
 
-// Device transfer rides vendor-USB (WebUSB) — desktop Chrome/Edge or the iPad app
-// only. Where it's unavailable, Device stays visible but disabled with a reason.
-export const usbSupported = typeof navigator !== 'undefined' && 'usb' in navigator;
-export const DEVICE_DISABLED_HINT = 'Connecting to the Nord needs Chrome or Edge on a computer (or the iPad app).';
-
-/** The shortcut key's name on this platform, for the ⌘K hints. */
-export const MOD_KEY = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl ';
+// Device transfer rides vendor USB — desktop Chrome/Edge, the desktop app or the
+// iPad app. Where none is available, Device stays listed but disabled with why.
+const DEVICE_DISABLED = 'Connecting to the Nord needs Chrome or Edge on a computer, the desktop app or the iPad app.';
 
 /**
  * The tools beside the library, as this build and its capabilities allow: the
@@ -44,10 +46,10 @@ export function useTools(): Dest[] {
   const caps = useCapabilities();
   const cloud = caps.cloud.available, community = caps.community.available;
   return useMemo(() => [
-    { to: '/device', label: 'Device' },
+    { to: '/device', label: 'Device', disabled: usbAvailability() === 'unsupported' ? DEVICE_DISABLED : undefined },
     { to: '/compatibility', label: 'Compatibility' },
     ...(cloud ? [{ to: '/cloud' as NavTo, label: 'Cloud' }] : []),
     ...(community ? [{ to: COMMUNITY_TO, label: 'Community' }] : []),
-    ...(__RE__ ? [{ to: '/contribute' as NavTo, label: 'Contribute' }] : []),
+    ...(__RE__ ? [{ to: '/contribute' as const, label: 'Contribute' }] : []),
   ], [cloud, community]);
 }

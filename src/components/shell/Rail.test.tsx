@@ -8,15 +8,16 @@ import { DeviceProvider } from '../../lib/device/DeviceContext';
 import { CapabilitiesProvider } from '../../lib/capabilities/CapabilitiesContext';
 import type { Capabilities } from '../../lib/capabilities/types';
 
-function render(active: string, opts: { caps?: Partial<Capabilities>; sources?: SourceItem[]; activeSource?: 'all' | 'nord' } = {}) {
+function render(path: string, opts: { caps?: Partial<Capabilities>; sources?: SourceItem[]; activeSource?: 'all' | 'nord' } = {}) {
   return renderToStaticMarkup(
     <CapabilitiesProvider value={opts.caps}>
       <Rail
-        active={active}
+        path={path}
         onNavigate={() => {}}
         counts={{ programs: 384, presets: 12, samples: 41, pianos: 18 }}
-        sources={opts.sources}
-        activeSource={opts.activeSource}
+        sources={opts.sources ?? []}
+        activeSource={opts.activeSource ?? 'all'}
+        onPickSource={() => {}}
       />
     </CapabilitiesProvider>,
   );
@@ -30,7 +31,7 @@ function buttonFor(html: string, label: string): string {
 
 describe('Rail', () => {
   it('lists the library with counts, then the tools', () => {
-    const html = render('library/programs');
+    const html = render('/library/programs');
     for (const label of ['Programs', 'Presets', 'User Samples', 'Piano Samples', 'Device', 'Compatibility', 'Contribute']) {
       expect(html).toContain(`>${label}<`);
     }
@@ -43,28 +44,28 @@ describe('Rail', () => {
   });
 
   it('marks the open list, including below it', () => {
-    expect(buttonFor(render('library/samples'), 'User Samples')).toContain('aria-current="page"');
-    expect(buttonFor(render('library/programs/local:abc'), 'Programs')).toContain('aria-current="page"');
+    expect(buttonFor(render('/library/samples'), 'User Samples')).toContain('aria-current="page"');
+    expect(buttonFor(render('/library/programs/local:abc'), 'Programs')).toContain('aria-current="page"');
   });
 
   it('shows sources only when there are some, and moves the highlight to a picked one', () => {
-    expect(render('library/programs')).not.toContain('Sources');
-    const html = render('library/programs', { sources: [{ source: 'nord', label: 'On Nord', count: 512, live: true }], activeSource: 'nord' });
+    expect(render('/library/programs')).not.toContain('Sources');
+    const html = render('/library/programs', { sources: [{ source: 'nord', label: 'On Nord', count: 512, live: true }], activeSource: 'nord' });
     expect(html).toContain('Sources');
     expect(buttonFor(html, 'On Nord')).toContain('aria-current="page"');
     expect(buttonFor(html, 'Programs')).not.toContain('aria-current');
   });
 
   it('exposes the developer tools entry', () => {
-    expect(render('library')).toContain('Developer');
+    expect(render('/library')).toContain('Developer');
   });
 
   it('hides Community when the community capability is unavailable (open build)', () => {
-    expect(render('library')).not.toContain('Community');
+    expect(render('/library')).not.toContain('Community');
   });
 
   it('shows Community with its sub-items when the capability is available and active', () => {
-    const html = render('community', { caps: { community: { available: true } } });
+    const html = render('/community', { caps: { community: { available: true } } });
     for (const label of ['Community', 'Browse', 'Share a patch', 'My shares']) expect(html).toContain(`>${label}<`);
   });
 });
@@ -90,8 +91,8 @@ describe('TopBar', () => {
 
 describe('PhoneTabs', () => {
   it('lights the open list and falls back to More elsewhere', () => {
-    const tabs = (active: string) => renderToStaticMarkup(<PhoneTabs active={active} onNavigate={() => {}} onMore={() => {}} />);
-    expect(buttonFor(tabs('library/presets'), 'Presets')).toContain('aria-current="page"');
-    expect(tabs('device')).not.toContain('aria-current');
+    const tabs = (path: string) => renderToStaticMarkup(<PhoneTabs path={path} onNavigate={() => {}} onMore={() => {}} />);
+    expect(buttonFor(tabs('/library/presets'), 'Presets')).toContain('aria-current="page"');
+    expect(tabs('/device')).not.toContain('aria-current');
   });
 });
