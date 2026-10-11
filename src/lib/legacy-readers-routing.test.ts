@@ -15,6 +15,7 @@ import type { LegacyLayout } from './clavia/legacy-record';
 import { NE3_LAYOUT } from './ne3/layout.generated';
 import { NE3HP_LAYOUT } from './ne3/layout-hp.generated';
 import { NC2_LAYOUT } from './nc2/layout.generated';
+import { NW1_LAYOUT } from './nw1/layout.generated';
 import { DecodedProgramView } from '../components/program/DecodedProgramView';
 import { decodeForModel, getModelProgress } from './contribute/coverage';
 
@@ -31,6 +32,10 @@ const CASES: Case[] = [
   {
     tag: 'nc2p', layout: NC2_LAYOUT, model: 'nc2', registry: 'c2', coverage: ['c2d'],
     title: 'Nord C2D · Program', fileBytes: 373,
+  },
+  {
+    tag: 'nwp', layout: NW1_LAYOUT, model: 'nw1', registry: 'wave', coverage: ['wave'],
+    title: 'Nord Wave · Program', fileBytes: 350,
   },
 ];
 

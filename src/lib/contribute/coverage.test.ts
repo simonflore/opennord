@@ -124,4 +124,10 @@ describe('parameter counts of the legacy-record readers', () => {
     expect(decodeForModel('c2d')).toMatchObject({ status: 'partial', bodyBytes: 345, coveredBytes: 0 });
     expect(decodeForModel('c2').status).toBe('none'); // no C2 firmware read
   });
+
+  it('count each Wave parameter once across both slots, without the morph deltas', () => {
+    // global 8 · slot 56 · common 10
+    expect(decodeForModel('wave').paramCount).toBe(74);
+    expect(decodeForModel('wave')).toMatchObject({ status: 'partial', bodyBytes: 323, coveredBytes: 0 });
+  });
 });
