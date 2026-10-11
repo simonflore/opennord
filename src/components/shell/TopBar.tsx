@@ -1,0 +1,43 @@
+import { Link } from '@tanstack/react-router';
+import { cn } from '@/lib/cn';
+import { DeviceStatus } from './DeviceStatus';
+import { Wordmark } from './Wordmark';
+import { MOD_KEY } from './nav';
+
+/**
+ * The console's top bar: the wordmark, the ⌘K jump-to field (a button that
+ * opens the palette) and the Nord's connection on the right. Sticky, 44px, so
+ * the rail below it can size itself from the same number.
+ */
+export function TopBar({ onSearch, onManageDevice }: { onSearch: () => void; onManageDevice: () => void }) {
+  return (
+    <header
+      className={cn(
+        // `on-topbar`: hook for the native shell's safe-area inset (shell.css).
+        'on-topbar sticky top-0 z-30 flex h-11 flex-none items-center gap-4 border-b border-line bg-surface px-4',
+        'max-[720px]:gap-3 max-[720px]:px-3',
+      )}
+    >
+      <Link to="/" className="no-underline" aria-label="OpenNord home">
+        <Wordmark className="text-sm" />
+      </Link>
+      <button
+        type="button"
+        onClick={onSearch}
+        aria-keyshortcuts="Meta+K Control+K"
+        className={cn(
+          'flex h-[30px] min-w-0 max-w-[540px] flex-1 cursor-pointer items-center gap-2.5 rounded-sm border border-line fill-sink px-2.5 text-left',
+          'font-mono text-xs text-muted transition-colors hover:border-muted',
+          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]',
+          'max-[720px]:max-w-none',
+        )}
+      >
+        <kbd className="flex-none rounded-[3px] border border-line px-1.5 py-px font-mono text-[10px] text-dim max-[720px]:hidden">{MOD_KEY}K</kbd>
+        <span className="truncate">Go to a program, sample or page…</span>
+      </button>
+      <div className="ml-auto flex-none">
+        <DeviceStatus onManage={onManageDevice} />
+      </div>
+    </header>
+  );
+}

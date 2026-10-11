@@ -74,6 +74,7 @@ function useLibraryStateValue() {
   }
 
   return {
+    all: allEntries,
     shown, source, setSource, generation, setGeneration, generationsPresent,
     category, setCategory, categoriesPresent, query, setQuery,
     importFile, importError, clearImportError: () => setImportError(''), imported, prefs, folder, entryById,

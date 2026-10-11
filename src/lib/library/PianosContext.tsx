@@ -133,6 +133,7 @@ function usePianosStateValue() {
   }
 
   return {
+    all: allEntries,
     shown, source, setSource, query, setQuery, prefs, entryById, nordCount, localCount, showSourceFacet, folder, session,
     // Piano-usage cleanup (device-connected)
     canScanUsage: !!session, scanUsage, scanPct, unusedCount,
