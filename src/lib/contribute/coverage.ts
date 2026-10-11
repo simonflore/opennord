@@ -266,8 +266,8 @@ let _ns2Progress: ModelProgress | undefined;
  * Returns the decode progress for any model — synthesized from the NS4 offset
  * map (Stage 4), traced from the reader (Stage 2), synthesized from the
  * generated firmware layout (Stage 3, Grand, Grand 2, Piano 4/5/6, Electro 6/7,
- * Organ 3, Wave 2) or legacy record layout (Electro 4, Lead 4, Lead A1), or
- * curated from MODEL_PROGRESS (every other model).
+ * Organ 3, Wave 2) or legacy record layout (Electro 3 / 3 HP / 4, C2D, Wave,
+ * Lead 4, Lead A1), or curated from MODEL_PROGRESS (every other model).
  */
 export function getModelProgress(modelId: string): ModelProgress | undefined {
   if (modelId === 'stage-4') return getNs4Progress();
