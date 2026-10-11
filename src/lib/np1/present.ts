@@ -6,11 +6,12 @@
  */
 import { decodeNp1 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
-import { COLDFIRE_PIANO_TYPES, effectsSection, fwHeader, label, legacyHeaderOnly, parts } from '../clavia/fw-present';
+import { effectsSection, fwHeader, label, legacyHeaderOnly, parts } from '../clavia/fw-present';
+import { NP1_PIANO_TYPES } from './labels';
 import type { Np1FieldKey } from './layout.generated';
 
 export const NP1_NOTE =
-  'Nord Piano: layout from the instrument firmware (OS 1.50). Where the settings start in the file is assumed, not yet confirmed on a real file — treat these values as provisional. The piano-type names are inferred.';
+  'Nord Piano: layout from the instrument firmware (OS 1.50). Where the settings start in the file is assumed, not yet confirmed on a real file — treat these values as provisional. The piano-type names come from the firmware’s type table.';
 
 export function np1Decoded(bytes: Uint8Array): DecodedProgram {
   const p = decodeNp1(bytes);
@@ -22,7 +23,7 @@ export function np1Decoded(bytes: Uint8Array): DecodedProgram {
     id: 'P', label: 'PIANO',
     engines: [{
       label: 'Piano',
-      parts: parts(label(COLDFIRE_PIANO_TYPES, g('piano.pianoType')) ?? 'Piano',
+      parts: parts(label(NP1_PIANO_TYPES, g('piano.pianoType')) ?? 'Piano',
         g('piano.acoustics') ? 'Acoustics' : undefined, g('piano.pedalNoise') ? 'Pedal noise' : undefined),
     }],
   };

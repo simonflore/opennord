@@ -86,6 +86,8 @@ padding (`padBytes`). Their output is a LegacyLayout (src/lib/clavia/legacy-reco
              (not-stored rows have no stream_bit_offset; the Electro 3 / 3 HP, C2D,
              Wave and Stage 2 CSVs use the same columns)
 Reserved rows are dropped; the Lead 4 sparse morph lists become `morphLists`.
+A config's `names` (field key -> display name) names fields the CSV leaves as
+"param N", from the firmware's own display tables; keys don't change.
 
 The Stage 2 (`stage-2`) is a descriptor-container record in the electro-4 dialect,
 with two differences. Its data starts at file 0x2E behind the NSM-era header (0x1A
@@ -123,6 +125,28 @@ overwrites. `sets` names the parameter sets a record stores more than once
 import csv
 import re
 import sys
+
+# Display names from the firmware's own tables where the descriptor CSVs only number the
+# parameters (`names` in a config; keys stay the CSV's).
+# Wave OS 2.14 morph-display table 0x300b4b2a (slot, high) and FUN_30005b64 / FUN_30005bbe (common, medium-high).
+WAVE_SLOT_NAMES = [
+    'Octave Shift', 'Mono Mode', 'Glide', 'Vibrato Mode', 'LFO 1 Waveform', 'LFO 1 Dest',
+    'LFO 1 Polyphonic', 'LFO 1 Rate', 'LFO 1 Amount', 'LFO 2 Waveform', 'LFO 2 Dest', 'LFO 2 Single Mode',
+    'LFO 2 Rate', 'LFO 2 Amount', 'Mod Envelope Attack', 'Mod Envelope Decay', 'Mod Envelope Amount', 'Mod Envelope Dest',
+    'Mod Envelope Mode', 'Osc 1 Waveform', 'Osc 1 FM', 'Osc 1 Etc', 'Osc 1 Table', 'Osc 1 Shape',
+    'Osc 2 Waveform', 'Osc 2 FM', 'Osc 2 Etc', 'Osc 2 Smp', 'Osc 2 Skip Attack', 'Osc 2 Smp Decay',
+    'Osc 2 Semi Tones', 'Osc 2 Fine Tune', 'Osc 2 Shape', 'Osc 1 Sync Mode', 'Osc Mod Type', 'Osc Mod Amount',
+    'Osc Mix', 'Amp Env Attack', 'Amp Env Decay', 'Amp Env Sustain', 'Amp Env Release', 'Filter Env Attack',
+    'Filter Env Decay', 'Filter Env Sustain', 'Filter Env Release', 'Filter Type', 'Filter Kb Track', 'Filter Slope',
+    'Filter Velocity', 'Filter Freq', 'Filter Resonance', 'Filter Env Amount', 'Output Level', 'Treble',
+    'Bass', 'Chorus Mode',
+]
+WAVE_COMMON_NAMES = ['Tube Amp State', 'Tube Amp Drive', 'Delay Tempo', 'Delay Feedback', 'Delay Mode',
+                     'Delay Amount', 'Delay State', 'Reverb Model', 'Reverb Dry/Wet', 'Reverb State']
+# Electro 3: the per-instrument effect switches share their control ids with the named
+# Electro 5 / Piano 2 / Piano 3 enables (medium-high).
+E3_SWITCH_NAMES = {f'{b}.param{i}': n for b in ('effectsOrgan', 'effectsPiano')
+                   for i, n in enumerate(['EQ On', 'Effect 1 On', 'Effect 2 On', 'Amp/Comp On', 'Reverb On'])}
 
 MODELS = {
     'grand': {
@@ -305,6 +329,7 @@ MODELS = {
         'confidence': lambda row: 'medium',
         'sets': {'organPresetI': 'organPreset', 'organPresetII': 'organPreset',
                  'effectsOrgan': 'effectsSwitches', 'effectsPiano': 'effectsSwitches'},
+        'names': E3_SWITCH_NAMES,
         'records': [
             # One 108-byte record of 8 descriptor containers; no morphs.
             {'const': 'NE3_LAYOUT', 'type': 'Ne3FieldKey', 'version': 101, 'blocks': None},
@@ -317,6 +342,9 @@ MODELS = {
         'confidence': lambda row: 'medium',
         'sets': {'organPresetI': 'organPreset', 'organPresetII': 'organPreset',
                  'effectsOrgan': 'effectsSwitches', 'effectsPiano': 'effectsSwitches'},
+        # The HP's three added shared effects (medium-high, by control id).
+        'names': {**E3_SWITCH_NAMES, 'effectsShared.param15': 'Delay On', 'effectsShared.param16': 'Delay Ping Pong',
+                  'effectsShared.param17': 'Delay Tempo'},
         'records': [
             {'const': 'NE3HP_LAYOUT', 'type': 'Ne3HpFieldKey', 'version': 101, 'blocks': None},
         ],
@@ -329,6 +357,8 @@ MODELS = {
         'confidence': lambda row: 'medium',
         # Presets, manuals, stops and per-organ switch sets share their descriptors.
         'sets': lambda block: re.sub(r'\d+(_\d+)?(dup)?$', '', block),
+        # Control id 9, the C2's Organ Model (medium).
+        'names': {'common.param0': 'Organ Model'},
         'records': [
             {'const': 'NC2_LAYOUT', 'type': 'Nc2FieldKey', 'version': 100, 'blocks': None},
         ],
@@ -341,6 +371,8 @@ MODELS = {
         # A u8 record version at file 0x18, so the data starts at 0x19; 2 pad bytes close the 324-byte record.
         'versionBytes': 1, 'padBytes': 2,
         'sets': {'slotA': 'slot', 'slotB': 'slot'},
+        'names': {**{f'{slot}.param{i}': n for slot in ('slotA', 'slotB') for i, n in enumerate(WAVE_SLOT_NAMES)},
+                  **{f'common.param{i}': n for i, n in enumerate(WAVE_COMMON_NAMES)}},
         'records': [
             {'const': 'NW1_LAYOUT', 'type': 'Nw1FieldKey', 'version': 8, 'blocks': None},
         ],
@@ -384,6 +416,8 @@ MODELS = {
         'container': 'Piano 2 OS 1.22 program record: 24-byte descriptors, u16 version 2 + 42 bytes '
                      '(v1 converted: common param 4 remapped)',
         'confidence': lambda row: 'medium',
+        # Piano 2 OS 1.22 display table (Keyboard/Touch, Sustain pedal mode, Keyboard split; high).
+        'names': {'common.param4': 'Keyboard Touch', 'common.param5': 'Sustain Pedal Mode', 'common.keybSplit': 'Keyboard Split'},
         'records': [{'const': 'NP2_LAYOUT', 'type': 'Np2FieldKey', 'version': 2, 'blocks': None}],
     },
     'piano-1': {
@@ -753,9 +787,11 @@ def main_legacy():
             assert lo >= 0 or enc == 'twos', name
             cc = r['midi_cc'] if lead else r['ctl_id']
             label = re.match(r'label: ([^;(]+?)\s*(?:[(;]|$)', r['notes']) if cfg.get('labels') else None
+            key = f"{blocks[r['block']]}.{legacy_key(name)}" if blocks else name
             field = {
-                'key': f"{blocks[r['block']]}.{legacy_key(name)}" if blocks else name,
-                'name': label.group(1) if label else name, 'id': int(pid), 'block': r['block'],
+                'key': key,
+                'name': cfg.get('names', {}).get(key) or (label.group(1) if label else name),
+                'id': int(pid), 'block': r['block'],
                 'delta': (lead and r['morph'] == 'delta') or bool(cfg.get('morphRows') and re.search(r'\.morph\d$', name)),
                 'copy': not lead and 'second copy' in r['notes'],
                 'bit': bit_of(r), 'width': int(r['bit_width']), 'min': lo, 'max': hi,

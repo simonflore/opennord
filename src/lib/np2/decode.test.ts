@@ -48,11 +48,16 @@ describe('decodeNp2 (synthetic)', () => {
   });
 
   it('presents piano, synth and effects', () => {
-    const d = np2Decoded(np2p({ 'piano.pianoType': 2, 'effects.delayOn': 1, 'synth.synthOn': 1, 'synth.synthLevel': 80 }));
+    const d = np2Decoded(np2p({
+      'piano.pianoType': 2, 'effects.delayOn': 1, 'synth.synthOn': 1, 'synth.synthLevel': 80,
+      'effects.effects2On': 1, 'effects.effects2Type': 5, 'effects.reverbOn': 1, 'effects.reverbType': 3,
+      'common.param4': 2, 'common.param5': 1,
+    }));
     expect(d.title).toBe('Nord Piano 2 · Program');
-    expect(d.sections[0].engines[0].parts[0]).toBe('E-Piano 1');
+    expect(d.sections[0].engines[0].parts[0]).toBe('EPiano1');
     expect(d.sections[1].engines[0].parts).toContain('level 80');
     expect(d.sections[1].engines[0].parts).not.toContain('(off)');
-    expect(d.sections[2].engines[0].parts).toEqual(['Delay']);
+    expect(d.sections[2].engines[0].parts).toEqual(['Flanger 3', 'Delay', 'Reverb Stage 2']);
+    expect(d.header).toEqual(expect.arrayContaining([['Keyboard touch', '2'], ['Sustain pedal', 'Piano Off']]));
   });
 });

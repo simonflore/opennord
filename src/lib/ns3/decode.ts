@@ -80,12 +80,12 @@ function vibChorusLabel(model: number, mode: number): string {
   const names = VIB_NAMES[model];
   return names ? names[pos] ?? names[VIB_POSITION[mode + 1]] ?? pos : pos;
 }
-// Param_Effects_kAmpType 0-5 (firmware). Real-file confirmation of the
-// stored-value → label order is pending.
+// Param_Effects_kAmpType 0-5 (firmware: id 284's label table, registered in
+// FUN_c0088ec0 with a count of 6).
 const AMP_TYPE = ['Clean', 'Twin', 'JC', 'Small', 'LP24', 'HP24'];
-// Param_Effects_kLeslieSpeed 0-3 (2 bits, default 1): Stop / Slow / Fast (raw 3
-// has no label and falls back to `#3`).
-const ROTARY_SPEED = ['Stop', 'Slow', 'Fast'];
+// Param_Effects_kLeslieSpeed 0-3 (2 bits, default 1; firmware: id 260's table of 4,
+// where 3 also displays Fast).
+const ROTARY_SPEED = ['Stop', 'Slow', 'Fast', 'Fast'];
 
 // Param_Syn_kVoiceMode (firmware).
 const SYNTH_VOICE = ['Poly', 'Legato', 'Mono'];

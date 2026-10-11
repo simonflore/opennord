@@ -134,9 +134,17 @@ describe('nw1Decoded', () => {
   it('counts the morphed controls per slot and spots a repeated slot', () => {
     const d = nw1Decoded(nwp({ 'slotA.param7MorphDeltaSrc0': 5, 'slotA.param8MorphDeltaSrc6': -1 }));
     expect(d.title).toBe('Nord Wave · Program');
-    expect(d.sections.map((s) => [s.id, s.engines[0].parts[0]])).toEqual([['A', '2 controls'], ['B', 'none']]);
+    expect(d.sections.map((s) => [s.id, s.engines[0].parts[0]])).toEqual([['A', '2 controls'], ['B', 'none'], ['FX', 'None on']]);
     expect(d.sections[1].chips).toBeUndefined();
     expect(nw1Decoded(nwp()).sections[1].chips).toEqual(['Same as slot A']);
+  });
+
+  it('shows the program effects that are on, named from the firmware', () => {
+    const fx = (v: Partial<Record<Nw1FieldKey, number>>) => nw1Decoded(nwp(v)).sections.at(-1)!.engines[0].parts;
+    expect(fx({ 'common.param0': 1, 'common.param6': 1, 'common.param4': 1, 'common.param9': 1, 'common.param7': 3 }))
+      .toEqual(['Tube Amp', 'Delay Stereo', 'Reverb Hall Soft']);
+    expect(NW1_LAYOUT.fields.find((f) => f.key === 'slotA.param19')?.name).toBe('Osc 1 Waveform');
+    expect(NW1_LAYOUT.fields.find((f) => f.key === 'common.param7')?.name).toBe('Reverb Model');
   });
 });
 

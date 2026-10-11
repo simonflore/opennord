@@ -580,7 +580,7 @@ export const NC2_LAYOUT: LegacyLayout<Nc2FieldKey> = {
   recordVersion: 100,
   dataBytes: 345,
   fields: [
-    { key: 'common.param0', name: 'common.param0', id: 0, bit: 0, width: 3, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · common 0', cc: 9 },
+    { key: 'common.param0', name: 'Organ Model', id: 0, bit: 0, width: 3, min: 0, max: 3, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · common 0', cc: 9 },
     { key: 'common.param1', name: 'common.param1', id: 1, bit: 3, width: 1, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · common 1', cc: 110 },
     { key: 'common.param2', name: 'common.param2', id: 2, bit: 4, width: 2, min: 0, max: 1, def: 0, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · common 2', cc: 117 },
     { key: 'b3Common.param0', name: 'b3Common.param0', id: 0, bit: 64, width: 3, min: 0, max: 5, def: 5, enc: 'u', confidence: 'medium', src: 'C2D OS 1.12 parameter containers · b3Common 0', cc: 84 },

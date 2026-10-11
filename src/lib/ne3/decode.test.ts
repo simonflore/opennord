@@ -125,7 +125,7 @@ describe('ne3Decoded', () => {
     expect(d.sections[0].engines[0].parts).toEqual(['B3', '8 8 8 5 0 0 0 0 0']);
     expect(d.sections[0].drawbars).toHaveLength(9);
     expect(d.sections[2].engines[0].parts).toEqual(['Grand', 'model 1', '(not playing)']);
-    expect(d.sections[3].engines[0].parts).toEqual(['1 of 5 switches on']);
+    expect(d.sections[3].engines.map((e) => e.parts)).toEqual([['Effect 2'], ['None on']]);
     expect(d.warnings).toEqual([]);
   });
 
