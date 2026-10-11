@@ -73,7 +73,7 @@ Every model except the C1 runs the same FileTransfer family as the Stage 2/3/4: 
 | v10 | Stage 3/4, Electro 5/6/7, Piano 3/4/5/6, Grand, Grand 2, Organ 3, Wave 2 | 10 | 3..10 | yes |
 | none | C1 | — | — | — |
 
-A frame outside a device's accepted range is dropped with no reply. A Stage 4 default frame (version 10) therefore reaches nothing on a v4–v8 model, which is why the registry records each model's version and the connect path starts from it.
+A frame outside a device's accepted range is dropped with no reply. A Stage 4 default frame (version 10) therefore reaches nothing on a v3–v8 model, which is why the registry records each model's version and the connect path starts from it.
 
 **Evidence per model** (FileTransfer constructor → version; frame-range check; begin handler):
 

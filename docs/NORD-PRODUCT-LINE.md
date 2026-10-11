@@ -229,7 +229,7 @@ The parallel multi-model work (#22) already built the seam:
   — see *Partition order* below and
   `docs/FIRMWARE-LINE.md` §3. Still static until a hardware `CQryPartList` probe.
 - **Protocol-version deltas.** The FileTransfer version per model is now known
-  statically (4, 6, 7, 8 or 10 — `docs/PROTOCOL-RE.md`, "Accepted frame
+  statically (3, 4, 6, 7, 8 or 10 — `docs/PROTOCOL-RE.md`, "Accepted frame
   versions"), and the v4 group has no session lock. Whether an older version has
   identical opcode payloads, and whether the v4–v7 models answer the `0x07`
   version query, still need one read-only enumerate against real hardware.
