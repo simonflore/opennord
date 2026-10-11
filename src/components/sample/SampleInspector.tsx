@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import '../../styles/nord.css';
-import { readNsmp, decodeNsmp, readNsmpZones, readSampleUnison, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
+import { readNsmp, decodeNsmp, readNsmpZones, readSampleUnison, readNoteAlternates, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
 import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary, sampleUnisonView, truVibratoView, voicingView, noteName } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
 import { buildPlayableZones, strokeKeyboardOrder, type PlayableZone } from '../../lib/ns4/playable-zones';
 import { createSampler, DEFAULT_ENVELOPE, type Sampler, type AmpEnvelope } from './sampleEngine';
 import { EnvelopePanel } from './EnvelopePanel';
+import { UnisonPanel } from './UnisonPanel';
 import { useSampleTransport } from './useSampleTransport';
 import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
@@ -69,6 +70,10 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
   const [env, setEnv] = useState<AmpEnvelope>(DEFAULT_ENVELOPE);
   const envRef = useRef<AmpEnvelope | null>(null);
   useEffect(() => { envRef.current = envEnabled ? env : null; }, [envEnabled, env]);
+  // The Unison setting to audition (the program's switch, 0–3), read at each note-on.
+  const [unisonLevel, setUnisonLevel] = useState(0);
+  const unisonRef = useRef(0);
+  useEffect(() => { unisonRef.current = unisonLevel; }, [unisonLevel]);
 
   const transport = useSampleTransport(loaded?.sampler ?? null);
   // sounding is a state value (Map), not a function
@@ -125,12 +130,12 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     // the common default). Gain is deliberately NOT applied — the audio is peak-
     // normalized per stroke, so the stored level would fight that, not reproduce it.
     const detuneCents = gainDetuneView(bytes)?.detuneCents ?? 0;
-    // When the sample has unison engaged, audition it as a stacked/panned voice
-    // (approximate — see unisonVoices); off → a single voice, unchanged.
-    const unison = readSampleUnison(bytes);
-    const roundRobin = (unison?.randomStrokeMode ?? 0) !== 0;
+    // Unison and repeated-note variation play the way the instrument voices them: the
+    // sample's own values, and its neighbouring recordings per key (see sampleEngine).
     const sampler = decodable
-      ? createSampler(playableZones, strokesByGlobalID, () => envRef.current, { detuneCents, unison, roundRobin })
+      ? createSampler(playableZones, strokesByGlobalID, () => envRef.current, {
+        detuneCents, unison: readSampleUnison(bytes), unisonLevel: () => unisonRef.current, alternates: readNoteAlternates(bytes),
+      })
       : null;
     setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current, playableZones, order, strokesByGlobalID, sampler, factory });
   }
@@ -241,6 +246,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
           {loaded.decodable && (
             <EnvelopePanel enabled={envEnabled} env={env} onToggle={setEnvEnabled} onChange={setEnv} />
           )}
+          {loaded.decodable && <UnisonPanel level={unisonLevel} onChange={setUnisonLevel} />}
           {loaded.decodable && <SampleConvert bytes={loaded.bytes} file={loaded.file} name={loaded.name} />}
           <StrokeList
             strokes={loaded.strokes}

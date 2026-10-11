@@ -1,16 +1,20 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolveZone, playbackRate, detuneRatio, unisonVoices, velocityGain, envGainAt, scheduleAttackDecay, createSampler, loopSeconds, loopXfadeLen, crossfadeLoop, loopWindowDecayDb, sampleShouldLoop, type AmpEnvelope } from './sampleEngine';
+import { resolveZone, playbackRate, detuneRatio, unisonVoices, unisonDetuneCents, repeatSource, velocityGain, envGainAt, scheduleAttackDecay, createSampler, loopSeconds, loopDecay, loopDecayGainAt, MAX_VOICES, type AmpEnvelope } from './sampleEngine';
 import type { SampleUnison } from '../../lib/ns4/nsmp';
 import type { PlayableZone } from '../../lib/ns4/playable-zones';
 import type { DecodedStrokeResult } from '../../lib/ns4/nsmp';
 
 // Minimal Web-Audio fake so createSampler runs headless; records every source
 // node it creates so we can assert whether audition enabled looping.
-type FakeParam = { value: number; setValueAtTime: () => void; linearRampToValueAtTime: () => void; cancelScheduledValues: () => void };
+type FakeParam = { value: number; calls: unknown[][]; setValueAtTime: (...a: number[]) => void; setTargetAtTime: (...a: number[]) => void; linearRampToValueAtTime: () => void; cancelScheduledValues: () => void };
 type FakeSource = { buffer: unknown; loop: boolean; loopStart: number; loopEnd: number; playbackRate: FakeParam; onended: (() => void) | null; connect: (n: unknown) => unknown; start: () => void; stop: () => void };
 const audioMock = vi.hoisted(() => {
   const created: FakeSource[] = [];
-  const param = (): FakeParam => ({ value: 0, setValueAtTime: () => {}, linearRampToValueAtTime: () => {}, cancelScheduledValues: () => {} });
+  const gains: FakeParam[] = [];
+  const param = (): FakeParam => {
+    const calls: unknown[][] = [];
+    return { value: 0, calls, setValueAtTime: (...a) => { calls.push(['set', ...a]); }, setTargetAtTime: (...a) => { calls.push(['target', ...a]); }, linearRampToValueAtTime: () => {}, cancelScheduledValues: () => {} };
+  };
   const ctx = {
     currentTime: 0,
     destination: {},
@@ -23,22 +27,24 @@ const audioMock = vi.hoisted(() => {
       created.push(s);
       return s;
     },
-    createGain: () => ({ gain: param(), connect: (n: unknown) => n }),
-    createStereoPanner: () => ({ pan: param(), connect: (n: unknown) => n }),
+    createGain: () => { const gain = param(); gains.push(gain); return { gain, connect: (n: unknown) => n }; },
+    createChannelSplitter: () => ({ connect: (n: unknown) => n }),
+    createChannelMerger: () => ({ connect: (n: unknown) => n }),
   };
-  return { created, ctx };
+  return { created, gains, ctx };
 });
 vi.mock('./audioPlayer', () => ({ SAMPLE_RATE: 44100, getSharedCtx: () => audioMock.ctx }));
 
 const pz = (globalID: number, keyLow: number, keyHigh: number, velLow = 0, velTop = 127): PlayableZone =>
   ({ globalID, rootKey: 60, keyLow, keyHigh, velLow, velTop });
 
+// The voicing block of a factory 4.1 sample: its own values, detune 0 / 15 / 40, width 70.
 const unison = (over: Partial<SampleUnison> = {}): SampleUnison => ({
-  mode: 1, topKey: 108, detuneMax: 0, sameDetuneMin: 0, panMax: 0,
-  detuneMax2: 0, panMax2: 0, detuneMax3: 0, panMax3: 0,
-  numVoice1: 2, numVoice2: 2, numVoice3: 2, numVoiceSame: 2,
-  gainDb1: 0, gainDb2: 0, gainDb3: 0, gainDbSame: 0,
-  randomStrokeMode: 0, blockRandomSustPed: 0, active: true, ...over,
+  mode: 1, topKey: 108, detuneMax: 0, detuneMax2: 15, detuneMax3: 40, sameDetuneMin: 0,
+  panMax: 70, panMax2: 70, panMax3: 70,
+  numVoice1: 2, numVoice2: 2, numVoice3: 3, numVoiceSame: 2,
+  gainDb1: -6, gainDb2: -6, gainDb3: -6, gainDbSame: -6,
+  randomStrokeMode: 0, blockRandomSustPed: 0, custom: true, ...over,
 });
 
 describe('resolveZone', () => {
@@ -74,22 +80,69 @@ describe('detuneRatio', () => {
   });
 });
 
+describe('unisonDetuneCents', () => {
+  it('uses the sample\'s own value per setting: raw·25/65536 of a semitone', () => {
+    expect(unisonDetuneCents(1, 60, unison())).toBe(0);
+    expect(unisonDetuneCents(2, 60, unison())).toBeCloseTo(0.572, 3);
+    expect(unisonDetuneCents(3, 60, unison())).toBeCloseTo(1.526, 3);
+  });
+  it('falls back to the instrument\'s law: 0.78 cents a step at middle C, wider in the bass, capped', () => {
+    const builtIn = unison({ mode: 0, custom: false });
+    expect(unisonDetuneCents(1, 60, builtIn)).toBeCloseTo(0.781, 3);
+    expect(unisonDetuneCents(2, 60, builtIn)).toBeCloseTo(1.563, 3);
+    expect(unisonDetuneCents(2, 40, builtIn)).toBeCloseTo(3.125, 3); // 20 keys down: twice as wide
+    expect(unisonDetuneCents(3, 21, builtIn)).toBeCloseTo(3.906, 3); // the cap
+    expect(unisonDetuneCents(2, 60, null)).toBeCloseTo(1.563, 3);    // no block at all (codec 3)
+  });
+});
+
 describe('unisonVoices', () => {
-  it('returns a single centered voice when unison is off', () => {
-    expect(unisonVoices(null)).toEqual([{ detuneCents: 0, pan: 0, gain: 1 }]);
-    expect(unisonVoices(unison({ active: false }))).toEqual([{ detuneCents: 0, pan: 0, gain: 1 }]);
+  const own = { sourceKey: 60, detuneCents: 0, gainL: 1, gainR: 1 };
+  it('is the key\'s own recording, centred, when unison is off', () => {
+    expect(unisonVoices(0, 60, unison(), [57, 63])).toEqual([own]);
   });
-  it('stacks n symmetric voices, panned across the decoded width, with 1/√n gain', () => {
-    const v = unisonVoices(unison({ numVoiceSame: 2, panMax3: 100 }));
-    expect(v).toHaveLength(2);
-    expect(v[0].pan).toBeCloseTo(-1, 6);
-    expect(v[1].pan).toBeCloseTo(1, 6);
-    expect(v[0].detuneCents).toBeCloseTo(-v[1].detuneCents, 6); // symmetric detune
-    expect(v[0].gain).toBeCloseTo(1 / Math.SQRT2, 6);
+  it('pairs the key with its first neighbour, detuned apart and mirrored in the stereo field', () => {
+    const [a, b] = unisonVoices(2, 60, unison(), [57, 63]);
+    expect([a.sourceKey, b.sourceKey]).toEqual([60, 57]);
+    expect(a.detuneCents).toBeCloseTo(0.572, 3);
+    expect(b.detuneCents).toBeCloseTo(-0.572, 3);
+    expect([a.gainL, a.gainR]).toEqual([b.gainR, b.gainL]);
+    expect(a.gainL).toBeCloseTo(Math.sqrt(0.85), 6); // width 70 → 85 % / 15 %
+    expect(a.gainR).toBeCloseTo(Math.sqrt(0.15), 6);
   });
-  it('clamps the voice count to 2..4', () => {
-    expect(unisonVoices(unison({ numVoiceSame: 9 }))).toHaveLength(4);
-    expect(unisonVoices(unison({ numVoiceSame: 0 }))).toHaveLength(2);
+  it('adds a centre voice at Unison 3 when the key has two neighbours', () => {
+    const v = unisonVoices(3, 60, unison(), [57, 63]);
+    expect(v.map((x) => x.sourceKey)).toEqual([60, 57, 63]);
+    expect(v[0]).toMatchObject({ detuneCents: 0 });
+    expect(v[0].gainL).toBeCloseTo(0.501, 3); // the −6 dB tier gain
+    expect(v[0].gainL).toBe(v[0].gainR);
+    expect(v[1].detuneCents).toBeCloseTo(-v[2].detuneCents, 9);
+  });
+  it('stays at two voices at Unison 3 with fewer than two neighbours', () => {
+    expect(unisonVoices(3, 60, unison(), [57]).map((x) => x.sourceKey)).toEqual([60, 57]);
+  });
+  it('doubles the key\'s own recording above the top key or without neighbours', () => {
+    expect(unisonVoices(2, 110, unison(), [107, 104]).map((x) => x.sourceKey)).toEqual([110, 110]);
+    expect(unisonVoices(2, 60, unison(), []).map((x) => x.sourceKey)).toEqual([60, 60]);
+  });
+  it('uses the same-recording detune at Unison 1 when both voices share a recording', () => {
+    const [a] = unisonVoices(1, 60, unison({ sameDetuneMin: 40 }), []);
+    expect(a.detuneCents).toBeCloseTo(1.526, 3);
+  });
+});
+
+describe('repeatSource', () => {
+  const run = (alts: number[], n: number) => Array.from({ length: n }, (_, i) => repeatSource(i, 60, alts));
+  it('always plays the key\'s own recording without alternates', () => {
+    expect(run([], 3)).toEqual([60, 60, 60]);
+  });
+  it('alternates strictly with a single alternate', () => {
+    expect(run([57], 4)).toEqual([60, 57, 60, 57]);
+  });
+  it('cycles through own and both alternates, never the same recording twice in a row', () => {
+    const seq = run([57, 63], 24);
+    expect(new Set(seq)).toEqual(new Set([60, 57, 63]));
+    for (let i = 1; i < seq.length; i++) expect(seq[i]).not.toBe(seq[i - 1]);
   });
 });
 
@@ -179,110 +232,171 @@ describe('loopSeconds', () => {
   });
 });
 
-describe('loopXfadeLen', () => {
-  it('caps at ~40ms, a quarter of the loop window, and the pre-loop headroom', () => {
-    expect(loopXfadeLen(44100, 44100 + 44100, 44100)).toBe(Math.floor(0.04 * 44100)); // 40ms cap
-    expect(loopXfadeLen(44100, 44100 + 400)).toBe(100);                        // quarter-window
-    expect(loopXfadeLen(50, 50 + 44100)).toBe(50);                             // headroom
-  });
-});
+/** dB lost per second by a level that falls 1/e per second. */
+const NEPER_DB = 20 / Math.LN10;
 
-describe('crossfadeLoop', () => {
-  it('blends the loop tail toward the pre-loop audio, seamless at the wrap', () => {
-    const ch = new Float32Array(100);
-    const loopStart = 40, loopEnd = 80, xf = 10;
-    ch.fill(1, loopStart - xf, loopStart); // pre-loop [30,40) = 1
-    ch.fill(2, loopEnd - xf, loopEnd);     // tail     [70,80) = 2
-    crossfadeLoop(ch, loopStart, loopEnd, xf);
-    expect(ch[loopEnd - xf]).toBeCloseTo(2, 5); // window start: untouched tail
-    expect(ch[loopEnd - 1]).toBeCloseTo(1, 5);  // window end: equals pre-loop → smooth wrap
-    expect(ch[loopStart - 1]).toBe(1);          // pre-loop region left intact
-  });
-  it('is a no-op without enough headroom or window', () => {
-    const ch = new Float32Array([0, 1, 2, 3, 4, 5]);
-    const copy = Float32Array.from(ch);
-    crossfadeLoop(ch, 1, 5, 10);
-    expect(ch).toEqual(copy);
-  });
-});
+// A stroke that loops its last `loopFrames` frames, losing `decayDbPerSecond` inside the loop.
+const loopingStroke = (globalID: number, decayDbPerSecond: number, loopStart = 22050, frames = 44100): DecodedStrokeResult =>
+  ({ globalID, sampleRate: 44100, channels: [new Float32Array(frames).fill(0.5)], loop: { loopStart, loopEnd: frames, loops: true, altStart: 0, decayDbPerSecond } }) as unknown as DecodedStrokeResult;
 
-// Build a stroke whose loop window has a given start→end amplitude ratio.
-const strokeWithDecay = (globalID: number, startAmp: number, endAmp: number): DecodedStrokeResult => {
-  const ch = new Float32Array(1000);
-  const loopStart = 100, loopEnd = 400;
-  for (let i = loopStart; i < loopEnd; i++) {
-    const t = (i - loopStart) / (loopEnd - loopStart);
-    ch[i] = startAmp * (1 - t) + endAmp * t;
-  }
-  return { globalID, sampleRate: 44100, channels: [ch], loop: { loopStart, loopEnd, loops: true } } as unknown as DecodedStrokeResult;
-};
-
-describe('loopWindowDecayDb / sampleShouldLoop', () => {
-  it('is ~0 dB for a steady loop and positive for a decaying one', () => {
-    expect(loopWindowDecayDb(strokeWithDecay(1, 0.5, 0.5)) ?? NaN).toBeCloseTo(0, 1);
-    expect(loopWindowDecayDb(strokeWithDecay(1, 1.0, 0.25)) ?? NaN).toBeGreaterThan(3);
+describe('loopDecay', () => {
+  it('starts when playback reaches the loop, sooner the higher the note is pitched', () => {
+    expect(loopDecay(loopingStroke(1, NEPER_DB), 1)).toEqual({ at: 0.5, timeConstant: 1 });
+    expect(loopDecay(loopingStroke(1, NEPER_DB), 2)?.at).toBeCloseTo(0.25, 9);
   });
-  it('is null when the stroke does not loop', () => {
-    expect(loopWindowDecayDb({ loop: null, channels: [new Float32Array(10)] } as unknown as DecodedStrokeResult)).toBeNull();
+  it('falls at the stored rate whatever the pitch (the decay runs on the clock, not the sample)', () => {
+    const d = loopDecay(loopingStroke(1, 20), 2)!;
+    expect(20 * Math.log10(loopDecayGainAt(d, d.at + 1))).toBeCloseTo(-20, 6);
+    expect(loopDecayGainAt(d, d.at - 0.1)).toBe(1); // untouched before the loop
   });
-  it('sustains steady samples and rings out decaying ones (per-sample median)', () => {
-    expect(sampleShouldLoop([strokeWithDecay(1, 0.5, 0.5), strokeWithDecay(2, 0.5, 0.48)])).toBe(true);
-    expect(sampleShouldLoop([strokeWithDecay(1, 1.0, 0.3), strokeWithDecay(2, 1.0, 0.25)])).toBe(false);
-    expect(sampleShouldLoop([])).toBe(false);
+  it('is absent for a loop that holds its level, a one-shot and an unreadable region', () => {
+    expect(loopDecay(loopingStroke(1, 0), 1)).toBeNull();
+    expect(loopDecay({ sampleRate: 44100, loop: { loopStart: 10, loopEnd: 10, loops: false, altStart: 0, decayDbPerSecond: 9 } } as DecodedStrokeResult, 1)).toBeNull();
+    expect(loopDecay({ loop: null } as DecodedStrokeResult, 1)).toBeNull();
   });
 });
 
 describe('createSampler audition playback', () => {
   const zone = { globalID: 7, rootKey: 60, keyLow: 21, keyHigh: 108, velLow: 0, velTop: 127 };
-  const play = (stroke: DecodedStrokeResult): FakeSource => {
+  const play = (stroke: DecodedStrokeResult, midi = 60): FakeSource => {
     audioMock.created.length = 0;
-    createSampler([zone], new Map([[7, stroke]])).noteOn(60, 100);
+    audioMock.gains.length = 0;
+    createSampler([zone], new Map([[7, stroke]])).noteOn(midi, 100);
     expect(audioMock.created).toHaveLength(1);
     return audioMock.created[0];
   };
+  const decayCalls = () => audioMock.gains.flatMap((g) => g.calls).filter((c) => c[0] === 'target');
 
-  it('sustains a steady sample by looping the stored region', () => {
-    const src = play(strokeWithDecay(7, 0.5, 0.5)); // ~0 dB decay → loop
+  it('loops every looped stroke over its stored region, and leaves the audio as decoded', () => {
+    const stroke = loopingStroke(7, 0);
+    const src = play(stroke);
     expect(src.loop).toBe(true);
-    expect(src.loopStart).toBeCloseTo(100 / 44100, 6);
-    expect(src.loopEnd).toBeCloseTo(400 / 44100, 6);
+    expect(src.loopStart).toBeCloseTo(0.5, 6);
+    expect(src.loopEnd).toBeCloseTo(1, 6);
+    expect(decayCalls()).toHaveLength(0); // a loop that holds its level has no decay
   });
 
-  it('rings out a decaying sample — no loop even though loops=true (the CP80 case)', () => {
-    const src = play(strokeWithDecay(7, 1.0, 0.25)); // strong decay → play once
+  it('decays a looped stroke from the moment playback enters the loop (the CP80 case)', () => {
+    play(loopingStroke(7, NEPER_DB), 72); // an octave up: the loop is reached in half the time
+    expect(decayCalls()).toEqual([['target', 0, 0.25, 1]]);
+  });
+
+  it('plays a one-shot straight through', () => {
+    const src = play({ globalID: 7, sampleRate: 44100, channels: [new Float32Array(1000).fill(0.5)], loop: { loopStart: 1000, loopEnd: 1000, loops: false, altStart: 0, decayDbPerSecond: 0 } } as unknown as DecodedStrokeResult);
     expect(src.loop).toBe(false);
   });
 
   it('applies the sample global detune to the playback rate', () => {
     audioMock.created.length = 0;
-    createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined, { detuneCents: 1200 })
+    createSampler([zone], new Map([[7, loopingStroke(7, 0)]]), undefined, { detuneCents: 1200 })
       .noteOn(60, 100); // root note (rate 1) + one octave of detune → 2
     expect(audioMock.created[0].playbackRate.value).toBeCloseTo(2, 6);
   });
 
+  // Three zones a minor third apart, each with its own recording.
+  const zones3 = [57, 60, 63].map((root, i) => ({ globalID: i + 1, rootKey: root, keyLow: root - 1, keyHigh: root + 1, velLow: 0, velTop: 127 }));
+  // Each recording gets its own length, so a source's buffer tells which one it plays.
+  const strokes3 = new Map([1, 2, 3].map((id) => [id, loopingStroke(id, 0, 22050, 44100 + id)] as const));
+  const alternates = Array.from({ length: 128 }, (_, k) => (k === 60 ? { unison: [57, 63], random: [57, 63] } : { unison: [], random: [] }));
+  const sources = () => audioMock.created.map((x) => (x.buffer as { length: number }).length - 44100);
+
   it('plays a single source when unison is off, one per voice when engaged', () => {
     audioMock.created.length = 0;
-    createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined, {})
-      .noteOn(60, 100);
+    createSampler(zones3, strokes3, undefined, { unison: unison(), alternates }).noteOn(60, 100);
     expect(audioMock.created).toHaveLength(1);
 
     audioMock.created.length = 0;
-    createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined,
-      { unison: unison({ numVoiceSame: 3, panMax3: 80 }) }).noteOn(60, 100);
-    expect(audioMock.created).toHaveLength(3); // one source per unison voice
+    createSampler(zones3, strokes3, undefined, { unison: unison(), unisonLevel: 3, alternates }).noteOn(60, 100);
+    expect(audioMock.created).toHaveLength(3);
   });
 
-  it('round-robin jitters the rate per note; off plays every note identically', () => {
-    const s = createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined, { roundRobin: true });
+  it('plays the neighbours\' recordings in a unison stack, repitched to the played key', () => {
     audioMock.created.length = 0;
-    s.noteOn(60, 100); s.noteOff(60); s.noteOn(60, 100); s.noteOff(60); s.noteOn(60, 100);
+    createSampler(zones3, strokes3, undefined, { unison: unison({ detuneMax3: 0 }), unisonLevel: 3, alternates }).noteOn(60, 100);
+    expect(sources()).toEqual([2, 1, 3]); // own, then the recordings rooted at 57 and 63
     const rates = audioMock.created.map((x) => x.playbackRate.value);
-    expect(new Set(rates).size).toBeGreaterThan(1);       // repeats differ (jittered)
-    for (const r of rates) expect(r).toBeCloseTo(1, 1);   // …but only slightly (~±4¢)
+    expect(rates[0]).toBeCloseTo(1, 9);
+    expect(rates[1]).toBeCloseTo(2 ** (3 / 12), 9);  // the lower recording, pitched up to the key
+    expect(rates[2]).toBeCloseTo(2 ** (-3 / 12), 9); // the upper one, pitched down
+  });
 
-    const off = createSampler([zone], new Map([[7, strokeWithDecay(7, 1.0, 0.25)]]), undefined, {});
+  it('steps repeated notes through the neighbouring recordings when the sample asks for it', () => {
+    const s = createSampler(zones3, strokes3, undefined, { unison: unison({ randomStrokeMode: 3 }), alternates });
     audioMock.created.length = 0;
-    off.noteOn(60, 100); off.noteOff(60); off.noteOn(60, 100);
-    expect(new Set(audioMock.created.map((x) => x.playbackRate.value)).size).toBe(1); // identical
+    for (let i = 0; i < 4; i++) { s.noteOn(60, 100); s.noteOff(60); }
+    const seq = sources();
+    expect(new Set(seq).size).toBe(3);
+    for (let i = 1; i < seq.length; i++) expect(seq[i]).not.toBe(seq[i - 1]);
+    for (const x of audioMock.created) expect(x.playbackRate.value).not.toBe(0);
+
+    const plain = createSampler(zones3, strokes3, undefined, { unison: unison(), alternates });
+    audioMock.created.length = 0;
+    plain.noteOn(60, 100); plain.noteOff(60); plain.noteOn(60, 100);
+    expect(sources()).toEqual([2, 2]); // no flag: every repeat is the key's own recording
+  });
+
+  it('plays at most the DSP\'s 56 voices: a further note takes the oldest one', () => {
+    const wide = { ...zone, keyLow: 0, keyHigh: 127 };
+    const s = createSampler([wide], new Map([[7, loopingStroke(7, 0)]]));
+    for (let k = 0; k < MAX_VOICES; k++) s.noteOn(20 + k, 100);
+    expect(s.sounding().size).toBe(MAX_VOICES);
+    s.noteOn(100, 100);
+    expect(s.sounding().size).toBe(MAX_VOICES);
+    expect(s.sounding().has(20)).toBe(false); // the oldest gave way
+    expect(s.sounding().has(100)).toBe(true);
+  });
+
+  it('keeps a note releasable while any voice of its stack still sounds', () => {
+    const s = createSampler(zones3, strokes3, undefined, { unison: unison(), unisonLevel: 2, alternates });
+    audioMock.created.length = 0;
+    s.noteOn(60, 100);
+    const [first, second] = audioMock.created;
+    const stops = vi.spyOn(second, 'stop');
+    first.onended?.(); // the key's own voice has decayed away; the neighbour's plays on
+    expect(s.sounding().has(60)).toBe(true);
+    s.noteOff(60);
+    expect(stops).toHaveBeenCalled(); // key-up still reaches it
+    second.onended?.();
+    expect(s.sounding().has(60)).toBe(false);
+  });
+
+  it('forgets a note once its last voice has ended', () => {
+    const s = createSampler(zones3, strokes3, undefined, { unison: unison(), unisonLevel: 2, alternates });
+    audioMock.created.length = 0;
+    s.noteOn(60, 100);
+    for (const src of audioMock.created) src.onended?.();
+    expect(s.sounding().size).toBe(0);
+  });
+
+  it('keeps a unison stack within full scale, even with one recording doubled', () => {
+    audioMock.gains.length = 0;
+    createSampler(zones3, strokes3, undefined, { unison: unison({ mode: 0, custom: false }), unisonLevel: 1 }).noteOn(60, 100);
+    // Each voice ends in a left and a right gain; per channel they must not sum above 1.
+    const sides = audioMock.gains.filter((g) => g.calls.length === 0 && g.value > 0).map((g) => g.value);
+    expect(sides).toHaveLength(4);
+    expect(sides[0] + sides[2]).toBeCloseTo(1, 6); // left of voice 1 + left of voice 2
+    expect(sides[1] + sides[3]).toBeCloseTo(1, 6);
+  });
+
+  it('releases from the level the envelope has reached, not from the param\'s reported value', () => {
+    const s = createSampler([zone], new Map([[7, loopingStroke(7, 0)]]));
+    audioMock.gains.length = 0;
+    audioMock.ctx.currentTime = 0;
+    s.noteOn(60, 64);
+    audioMock.ctx.currentTime = 1; // long past the 1 ms start fade
+    s.noteOff(60);
+    const sets = audioMock.gains[0].calls.filter((c) => c[0] === 'set');
+    expect(sets[sets.length - 1]).toEqual(['set', 64 / 127, 1]);
+    audioMock.ctx.currentTime = 0;
+  });
+
+  it('counts voices still fading after key-up against the 56 slots', () => {
+    const wide = { ...zone, keyLow: 0, keyHigh: 127 };
+    const s = createSampler([wide], new Map([[7, loopingStroke(7, 0)]]));
+    audioMock.created.length = 0;
+    for (let k = 0; k < MAX_VOICES; k++) { s.noteOn(20 + k, 100); s.noteOff(20 + k); } // 56 voices releasing
+    const oldest = vi.spyOn(audioMock.created[0], 'stop');
+    s.noteOn(100, 100);
+    expect(oldest).toHaveBeenCalled(); // the oldest fading voice is cut to make room
   });
 });

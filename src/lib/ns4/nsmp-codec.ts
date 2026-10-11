@@ -44,6 +44,9 @@ export interface BlockHeader {
   isStop: boolean;
   /** Block-header bit 23 — set on segment-opening (loop-point) blocks + the stop. */
   linMode: boolean;
+  /** Block-header bit 18 — set on the block that opens the loop: the sample DSP switches
+   *  the stroke's loop decay on when it decodes this block. */
+  loopDecay: boolean;
 }
 
 /** Parse a block header from one big-endian u32. */
@@ -54,7 +57,7 @@ export function readBlockHeader(word: number): BlockHeader {
   // Stop sentinel: order 0 + bitWidth 1 (the editor never emits an order-0/bw-1
   // *data* block, so this is unambiguous; our encoder upholds the same invariant).
   const isStop = filterOrder === 0 && bitWidth === 1;
-  return { sampleCnt, filterOrder, bitWidth, isStop, linMode: !!((word >>> 23) & 1) };
+  return { sampleCnt, filterOrder, bitWidth, isStop, linMode: !!((word >>> 23) & 1), loopDecay: !!((word >>> 18) & 1) };
 }
 
 export interface DecodedStroke {
@@ -68,6 +71,23 @@ export interface DecodedStroke {
    * re-encoding; carried into a converted file to preserve loop structure.
    */
   segments: number[];
+  /**
+   * Every segment-opening (`linMode`) block, the stop block included: where it sits in
+   * the compressed stream and in the audio. The stroke header's region pointers are
+   * stream positions, so this is what turns them into audio frames (`strokeRegions`).
+   */
+  marks: StrokeMark[];
+}
+
+/** One segment-opening block of a stroke's stream. */
+export interface StrokeMark {
+  /** The block header's position in stream words from the stream start (24-bit words
+   *  for the OG layout, 32-bit otherwise) — the unit of the header's region pointers. */
+  word: number;
+  /** Interleaved sample position of the block's first sample. */
+  sample: number;
+  /** The block carries the loop-decay flag (header bit 18). */
+  loopDecay: boolean;
 }
 
 export interface DecodeStrokeOptions {
@@ -139,8 +159,12 @@ export function decodeStroke(
   let index = 0; // running interleaved sample index (sample mode)
   let cumIL = 0; // running interleaved position (word-interleaved mode)
   const segments: number[] = []; // interleaved positions of linMode (loop-point) blocks
+  const marks: StrokeMark[] = [];
   while (o + hdrBytes <= bytes.length) {
     const hdr = readBlockHeader(readHdr(o));
+    if (hdr.linMode) {
+      marks.push({ word: (o - byteOffset) / hdrBytes, sample: opts.wordInterleaved ? cumIL : index, loopDecay: hdr.loopDecay });
+    }
     o += hdrBytes;
 
     if (opts.wordInterleaved) {
@@ -204,5 +228,5 @@ export function decodeStroke(
     }
   }
 
-  return { channels: channels.map((c) => Int32Array.from(c.out)), endOffset: o, segments };
+  return { channels: channels.map((c) => Int32Array.from(c.out)), endOffset: o, segments, marks };
 }
