@@ -7,6 +7,7 @@ import { NP6_LAYOUT } from '../np6/layout.generated';
 import { NE6_LAYOUT } from '../ne6/layout.generated';
 import { NE7_LAYOUT } from '../ne7/layout.generated';
 import { NO3_LAYOUT } from '../no3/layout.generated';
+import { NW2_LAYOUT } from '../nw2/layout.generated';
 
 /** A tiny two-block layout for exercising the reader in isolation. */
 const TINY: FwLayout<'a.x' | 'a.s' | 'b.o' | 'b.h'> = {
@@ -100,7 +101,7 @@ describe('decodeFwBody', () => {
 });
 
 describe('decodeFwProgram — never throws on odd input', () => {
-  const layouts = [NG_LAYOUT, NP6_LAYOUT, NE6_LAYOUT, NE7_LAYOUT, NO3_LAYOUT] as FwLayout[];
+  const layouts = [NG_LAYOUT, NP6_LAYOUT, NE6_LAYOUT, NE7_LAYOUT, NO3_LAYOUT, NW2_LAYOUT] as FwLayout[];
 
   it('header-only for empty, header-only and truncated files', () => {
     for (const layout of layouts) {
@@ -136,11 +137,12 @@ describe('decodeFwProgram — never throws on odd input', () => {
 });
 
 describe('generated layouts', () => {
-  const layouts = [NG_LAYOUT, NP6_LAYOUT, NE6_LAYOUT, NE7_LAYOUT, NO3_LAYOUT] as FwLayout[];
+  const layouts = [NG_LAYOUT, NP6_LAYOUT, NE6_LAYOUT, NE7_LAYOUT, NO3_LAYOUT, NW2_LAYOUT] as FwLayout[];
 
   it('chain the blocks back to back to the firmware body size', () => {
     const expected: Record<string, number> = {
       'Nord Grand': 90, 'Nord Piano 6': 185, 'Nord Electro 6': 211, 'Nord Electro 7': 353, 'Nord Organ 3': 204,
+      'Nord Wave 2': 1044,
     };
     for (const l of layouts) {
       let pos = 4;
