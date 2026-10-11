@@ -6,7 +6,7 @@ import { LibrarySplit } from '@/components/library/LibrarySplit';
 import { useLibraryState } from '@/lib/library/LibraryContext';
 import { SOURCE_LABEL, type LibrarySource } from '@/lib/library/types';
 
-const isSource = (v: unknown): v is LibrarySource => typeof v === 'string' && v in SOURCE_LABEL;
+const isSource = (v: unknown): v is LibrarySource => typeof v === 'string' && Object.hasOwn(SOURCE_LABEL, v);
 
 // `/library` is a hub — send it to the default category.
 export const LibraryIndexRoute = createRoute({
@@ -46,8 +46,8 @@ function useSourceInUrl() {
   const { source: url } = useSearch({ from: ProgramsRoute.id });
   const { source, setSource } = useLibraryState();
   const navigate = useNavigate({ from: ProgramsRoute.fullPath });
-  // On arrival the URL's source is handed to the filter; until the filter shows
-  // it (the next render) the mirror waits, or it would write the old one back.
+  // On arrival the URL's source is handed to the filter; the mirror skips the
+  // render that still has the old filter, or it would write that one back.
   const arrival = useRef<{ done: boolean; applying?: LibrarySource }>({ done: false });
   useLayoutEffect(() => {
     if (arrival.current.done) return;
@@ -57,8 +57,8 @@ function useSourceInUrl() {
   useEffect(() => {
     const { applying } = arrival.current;
     if (applying) {
+      arrival.current.applying = undefined; // wait one render at most, even if the filter moved on meanwhile
       if (source !== applying) return;
-      arrival.current.applying = undefined;
     }
     if ((url ?? 'all') === source) return;
     void navigate({ search: source === 'all' ? {} : { source }, replace: true, resetScroll: false });

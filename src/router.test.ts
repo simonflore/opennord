@@ -42,3 +42,14 @@ describe('router', () => {
     expect(window.location.pathname).toBe('/');
   });
 });
+
+describe('program list ?source=', () => {
+  const validate = ProgramsRoute.options.validateSearch as (s: Record<string, unknown>) => { source?: string };
+  it('keeps a known source and drops anything else', () => {
+    expect(validate({ source: 'nord' })).toEqual({ source: 'nord' });
+    expect(validate({ source: 'local' })).toEqual({ source: 'local' });
+    expect(validate({ source: 'bogus' })).toEqual({});
+    expect(validate({ source: 'toString' })).toEqual({}); // not an inherited key
+    expect(validate({})).toEqual({});
+  });
+});
