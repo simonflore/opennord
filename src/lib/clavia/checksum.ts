@@ -14,6 +14,7 @@
  * Source: reverse-engineered by differential analysis, then checked on real
  * files of both header types — see docs/CHECKSUM.md and scripts/crack-checksum.py.
  */
+import { CBIN_FORMAT_LEGACY, cbinFraming } from './cbin';
 import { sealTrailerChecksum, verifyTrailerChecksum } from './crc16';
 
 const HEADER_SIZE = 44;
@@ -87,7 +88,7 @@ export function patchNs4Checksum(bytes: Uint8Array): Uint8Array {
 
 /** True for a legacy (format type 0) file, which closes with the CRC-16 trailer instead of the header CRC-32. */
 function isLegacyHeader(bytes: Uint8Array): boolean {
-  return bytes[0x04] === 0;
+  return cbinFraming(bytes).formatType === CBIN_FORMAT_LEGACY;
 }
 
 /**
