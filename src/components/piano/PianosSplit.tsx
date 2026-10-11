@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useFocusRequest } from '@/components/library/useFocusRequest';
 import { usePianosState } from '@/lib/library/PianosContext';
 import { PianosBrowse } from './PianosBrowse';
 import { PianoInspector } from './PianoInspector';
@@ -12,6 +13,7 @@ export function PianosSplit() {
   const s = usePianosState();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const entry = selectedId ? s.entryById(selectedId) : undefined;
+  useFocusRequest(s, (e) => setSelectedId(e.id));
 
   const list = (
     <div className="lib-master">

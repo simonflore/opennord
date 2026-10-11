@@ -30,6 +30,7 @@ function setCapacitor(value: unknown) {
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.restoreAllMocks(); // spies (navigator.platform) never leak into the next test
   setNavigatorUsb(false);
   delete (window as unknown as { Capacitor?: unknown }).Capacitor;
 });
@@ -47,9 +48,8 @@ describe('usbAvailability', () => {
   it('is iphone in the iOS app on an iPhone', () => {
     setNavigatorUsb(false);
     setCapacitor({ isNativePlatform: () => true, getPlatform: () => 'ios' });
-    const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)');
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue('iPhone');
     expect(usbAvailability()).toBe('iphone');
-    ua.mockRestore();
   });
   it('is unsupported on a plain browser without WebUSB', () => {
     setNavigatorUsb(false);

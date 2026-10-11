@@ -1,5 +1,5 @@
 import type { NordTransport } from './transport';
-import { getCapacitorPlatform, isCapacitorPlatform } from '@/lib/platform';
+import { getCapacitorPlatform, isCapacitorPlatform, isIphone } from '@/lib/platform';
 import { NordUsb } from 'capacitor-nord-usb';
 import { base64ToBytes, bytesToBase64 } from './base64';
 import { isElectronUsb } from './electron-usb';
@@ -22,7 +22,7 @@ export function usbAvailability(): UsbAvailability {
   if (isElectronUsb()) return 'electron';
   if (typeof navigator !== 'undefined' && 'usb' in navigator) return 'webusb';
   if (isCapacitorPlatform() && getCapacitorPlatform() === 'ios') {
-    return /iPhone|iPod/.test(globalThis.navigator?.userAgent ?? '') ? 'iphone' : 'ipad-dext-pending';
+    return isIphone() ? 'iphone' : 'ipad-dext-pending';
   }
   return 'unsupported';
 }

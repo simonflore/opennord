@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useFocusRequest } from '@/components/library/useFocusRequest';
 import { usePresetsState } from '@/lib/library/PresetsContext';
 import { PresetsBrowse } from './PresetsBrowse';
 import { PresetInspector } from './PresetInspector';
@@ -12,6 +13,7 @@ export function PresetsSplit() {
   const s = usePresetsState();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const entry = selectedId ? s.entryById(selectedId) : undefined;
+  useFocusRequest(s, (e) => setSelectedId(e.id));
 
   function importPreset() {
     const input = document.createElement('input');

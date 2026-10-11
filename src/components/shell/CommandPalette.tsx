@@ -13,24 +13,25 @@ import { rankCommands, type Command } from './commands';
 import { ABOUT, COMMUNITY_SUB, COMMUNITY_TO, DEV_DESTS, useTools } from './nav';
 import { groupLabel, rowActive } from './styles';
 
+// The hint shows the slot, or where the entry lives; only the slot is searched
+// (searching "Local" would match every local entry).
 const hint = (e: { slot?: string; source: LibrarySource }) => e.slot ?? SOURCE_LABEL[e.source];
 
 /** Everything the palette can jump to: the pages, then every program, preset, sample and piano. */
 function useCommands(): Command[] {
   const navigate = useNavigate();
   const tools = useTools();
-  const programs = useLibraryState().all;
+  const { all: programs, ensureListed } = useLibraryState();
   const presets = usePresetsState();
   const samples = useSamplesState();
   const pianos = usePianosState();
   // Only the (memoised) lists and their stable setters go into the memo, so a
   // provider update that doesn't touch the lists keeps the same commands.
   const lists = useMemo(() => [
-    { group: 'Presets' as const, to: '/library/presets' as const, all: presets.all, clearFilters: presets.clearFilters, setQuery: presets.setQuery },
-    { group: 'Samples' as const, to: '/library/samples' as const, all: samples.all, clearFilters: samples.clearFilters, setQuery: samples.setQuery },
-    { group: 'Pianos' as const, to: '/library/pianos' as const, all: pianos.all, clearFilters: pianos.clearFilters, setQuery: pianos.setQuery },
-  ], [presets.all, presets.clearFilters, presets.setQuery, samples.all, samples.clearFilters, samples.setQuery,
-    pianos.all, pianos.clearFilters, pianos.setQuery]);
+    { group: 'Presets' as const, to: '/library/presets' as const, all: presets.all, focus: presets.setFocusId },
+    { group: 'Samples' as const, to: '/library/samples' as const, all: samples.all, focus: samples.setFocusId },
+    { group: 'Pianos' as const, to: '/library/pianos' as const, all: pianos.all, focus: pianos.setFocusId },
+  ], [presets.all, presets.setFocusId, samples.all, samples.setFocusId, pianos.all, pianos.setFocusId]);
 
   return useMemo(() => {
     const pages: Command[] = [
@@ -43,19 +44,18 @@ function useCommands(): Command[] {
     ].map((d) => ({ id: `page:${d.to}`, group: 'Pages', label: d.label, run: () => navigate({ to: d.to }) }));
 
     const programCommands = programs.map((e): Command => ({
-      id: `program:${e.id}`, group: 'Programs', label: e.name, hint: hint(e),
-      run: () => openProgram(navigate, e),
+      id: `program:${e.id}`, group: 'Programs', label: e.name, hint: hint(e), keywords: e.slot,
+      run: () => { ensureListed(e.id); openProgram(navigate, e); },
     }));
 
-    // Presets, samples and pianos have no page of their own: jumping to one opens
-    // its list with every filter off, searched down to that name.
-    const entries = lists.flatMap(({ group, to, all, clearFilters, setQuery }) => all.map((e): Command => ({
-      id: `${group}:${e.id}`, group, label: e.name, hint: hint(e),
-      run: () => { clearFilters(); setQuery(e.name); navigate({ to }); },
+    // Presets, samples and pianos open in their list's page (useFocusRequest there).
+    const entries = lists.flatMap(({ group, to, all, focus }) => all.map((e): Command => ({
+      id: `${group}:${e.id}`, group, label: e.name, hint: hint(e), keywords: e.slot,
+      run: () => { focus(e.id); navigate({ to }); },
     })));
 
     return [...pages, ...programCommands, ...entries];
-  }, [navigate, tools, programs, lists]);
+  }, [navigate, tools, programs, ensureListed, lists]);
 }
 
 /**
@@ -86,6 +86,16 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const listRef = useRef<HTMLDivElement>(null);
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const results = useMemo(() => rankCommands(commands, query), [commands, query]);
+  // Consecutive results of one group, each with its flat index (↑/↓ walk the flat list).
+  const groups = useMemo(() => {
+    const out: { group: Command['group']; items: { c: Command; i: number }[] }[] = [];
+    results.forEach((c, i) => {
+      const last = out[out.length - 1];
+      if (last?.group === c.group) last.items.push({ c, i });
+      else out.push({ group: c.group, items: [{ c, i }] });
+    });
+    return out;
+  }, [results]);
   // The highlighted row, kept inside the results (they can shrink while open).
   const active = results.length === 0 ? -1 : Math.min(Math.max(index, 0), results.length - 1);
 
@@ -126,33 +136,35 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
       />
       <div ref={listRef} id="palette-results" role="listbox" aria-label="Results" className="overflow-y-auto py-1">
         {results.length === 0 && <div className="px-4 py-3 font-mono text-xs text-muted">Nothing matches “{query}”.</div>}
-        {results.map((c, i) => (
-          <div key={c.id}>
-            {(i === 0 || results[i - 1].group !== c.group) && (
-              <div className={cn(groupLabel, 'pt-2.5')}>{c.group}</div>
-            )}
-            <div
-              id={`palette-${i}`}
-              data-index={i}
-              role="option"
-              aria-selected={i === active}
-              onMouseMove={(e) => {
-                // Only a real pointer move picks a row: scrolling the list under a
-                // resting pointer (↑/↓) must not steal the keyboard's highlight.
-                const last = pointer.current;
-                pointer.current = { x: e.clientX, y: e.clientY };
-                if (last && last.x === e.clientX && last.y === e.clientY) return;
-                setIndex(i);
-              }}
-              onClick={() => run(c)}
-              className={cn(
-                'flex cursor-pointer items-center gap-3 px-4 py-1.5 font-mono text-xs',
-                i === active ? rowActive : 'text-dim',
-              )}
-            >
-              <span className="min-w-0 flex-1 truncate">{c.label}</span>
-              {c.hint && <span className="flex-none text-muted">{c.hint}</span>}
-            </div>
+        {/* One role=group per section (results arrive grouped), options as its children. */}
+        {groups.map(({ group, items }) => (
+          <div key={group} role="group" aria-label={group}>
+            <div className={cn(groupLabel, 'pt-2.5')} aria-hidden="true">{group}</div>
+            {items.map(({ c, i }) => (
+              <div
+                key={c.id}
+                id={`palette-${i}`}
+                data-index={i}
+                role="option"
+                aria-selected={i === active}
+                onMouseMove={(e) => {
+                  // Only a real pointer move picks a row: scrolling the list under a
+                  // resting pointer (↑/↓) must not steal the keyboard's highlight.
+                  const last = pointer.current;
+                  pointer.current = { x: e.clientX, y: e.clientY };
+                  if (last && last.x === e.clientX && last.y === e.clientY) return;
+                  setIndex(i);
+                }}
+                onClick={() => run(c)}
+                className={cn(
+                  'flex cursor-pointer items-center gap-3 px-4 py-1.5 font-mono text-xs',
+                  i === active ? rowActive : 'text-dim',
+                )}
+              >
+                <span className="min-w-0 flex-1 truncate">{c.label}</span>
+                {c.hint && <span className="flex-none text-muted">{c.hint}</span>}
+              </div>
+            ))}
           </div>
         ))}
       </div>

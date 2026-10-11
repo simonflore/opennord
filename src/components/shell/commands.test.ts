@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { rankCommands, type Command } from './commands';
 
-const cmd = (group: Command['group'], label: string, hint?: string): Command => ({ id: `${group}:${label}`, group, label, hint, run: () => {} });
+const cmd = (group: Command['group'], label: string, keywords?: string): Command => ({ id: `${group}:${label}`, group, label, keywords, run: () => {} });
 
 const ALL = [
   cmd('Pages', 'Programs'),
@@ -41,7 +41,7 @@ describe('rankCommands', () => {
     expect(rankCommands(many, 'pad', 3).map((c) => c.label)).toEqual(['Pad 0', 'Pad 1', 'Pad 2']);
   });
 
-  it('needs every word, and searches the hint too', () => {
+  it('needs every word, and searches the keywords (slot) too', () => {
     expect(labels('grand a:11')).toEqual(['Sunday Grand']);
     expect(labels('grand organ')).toEqual([]);
   });

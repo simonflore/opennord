@@ -132,10 +132,12 @@ function usePianosStateValue() {
     }
   }
 
+  /** An entry the ⌘K palette asked to open: its page opens it on arrival (useFocusRequest). */
+  const [focusId, setFocusId] = useState<string | null>(null);
   /** Every filter off and the search cleared (the list's "clear filters"). */
   const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setUnusedOnly(false); }, []);
   return {
-    all: allEntries, clearFilters,
+    all: allEntries, clearFilters, focusId, setFocusId,
     shown, source, setSource, query, setQuery, prefs, entryById, nordCount, localCount, showSourceFacet, folder, session,
     // Piano-usage cleanup (device-connected)
     canScanUsage: !!session, scanUsage, scanPct, unusedCount,

@@ -8,8 +8,10 @@ export interface Command {
   id: string;
   group: CommandGroup;
   label: string;
-  /** A short aside, e.g. the slot or source. */
+  /** A short aside shown on the right, e.g. the slot or source. */
   hint?: string;
+  /** Searched along with the label (e.g. the slot), unlike the hint. */
+  keywords?: string;
   run: () => void;
 }
 
@@ -32,12 +34,12 @@ function wordScore(text: string, word: string): number {
 const searchText = new WeakMap<Command, string>();
 function textOf(c: Command): string {
   let t = searchText.get(c);
-  if (t === undefined) searchText.set(c, (t = `${c.label} ${c.hint ?? ''}`.toLowerCase()));
+  if (t === undefined) searchText.set(c, (t = `${c.label} ${c.keywords ?? ''}`.toLowerCase()));
   return t;
 }
 
 /**
- * Every word of the query must appear in the label (or its hint). The best
+ * Every word of the query must appear in the label (or its keywords). The best
  * `limit` matches are kept (better match, then shorter label), then listed by
  * group — pages, programs, presets, samples, pianos — best first within each,
  * so every group heading appears once. With no query, only the pages: the
