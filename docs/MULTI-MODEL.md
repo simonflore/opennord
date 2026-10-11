@@ -181,7 +181,7 @@ Smallest useful unit first; each milestone independently shippable and testable.
    Most UI is model-shaped already; needs graceful handling of fields a given
    model lacks.
 
-Then **Stage 2 / 2EX** need their own map. The Stage 2 firmware writes a flat body, without the Stage 3's registry blocks, so it isn't a delta off NS3 (`docs/STAGE2-3-FIRMWARE.md` §3). The Stage 3 firmware's own parameter registry gave M2 its offset map: a block chain of length-prefixed sections that reproduces every offset the earlier hand-built decoder read (same doc). The Stage 3 now reads through that map, see "Firmware-layout readers" below.
+Then **Stage 2 / 2EX** need their own map. The Stage 2 firmware writes a flat body, without the Stage 3's registry blocks, so it isn't a delta off NS3 (`docs/STAGE2-3-FIRMWARE.md` §3); it now reads through its own firmware descriptor map (see "Legacy records" below). The Stage 3 firmware's own parameter registry gave M2 its offset map: a block chain of length-prefixed sections that reproduces every offset the earlier hand-built decoder read (same doc). The Stage 3 now reads through that map, see "Firmware-layout readers" below.
 
 ## File-type matrix (target)
 
@@ -193,7 +193,8 @@ Then **Stage 2 / 2EX** need their own map. The Stage 2 firmware writes a flat bo
 | `.npno` | piano | piano lib | Header/metadata in `nsp.ts`; **audio decoded** (`nsp-audio.ts`, reference `scripts/npno-decode.py`; codec from the Stage 4 piano DSP, `docs/NSP-FORMAT.md`) — local audition in the piano inspector |
 | `.ns3f` | ns3 | program | **Read-only, firmware layout** (`lib/ns3`) — Stage 3 OS 2.64 registry, 175 parameters + morph deltas; the panel view is built on it |
 | `.ns3l/.ns3y` | ns3 | live / synth preset | Recognized; `.ns3l` has the `.ns3f` body and `.ns3y` is one Synth block of it, neither routed to the reader yet |
-| `.ns2p/.ns2s` | ns2 | program | Recognized (header undecoded); decode = delta off NS3 |
+| `.ns2p` | ns2 | program | **Read-only, firmware layout** (`lib/ns2`) — Stage 2 OS 3.00 descriptor containers, 198 parameters + morph deltas; Stage 2 EX shares it; the slot view is built on it |
+| `.ns2s` | ns2 | synth preset | Recognized; not routed to the reader |
 | `.ngp/.ngl` | ng (Grand) | program | **Read-only, firmware layout** (`lib/ng`) — Piano 4 layout + `Com_kSplPos`; not yet checked on a real file |
 | `.np6p/.np6l` | np6 | program | **Read-only, firmware layout** (`lib/np6`) — Grand 2 layout + 3 deltas; not yet checked on a real file |
 | `.np4p/.np4l` | np4 | program | **Read-only, firmware layout** (`lib/np4`) — block lengths match the corpus |
@@ -283,7 +284,7 @@ It differs from the readers above in four ways:
 **Follow-ups.** The block-chain reader lives in `clavia/block-chain.ts`; it now
 runs every registry-family reader (Stage 3, Grand, Grand 2, Piano 4/5/6,
 Electro 6/7, Organ 3, Wave 2), and `clavia/legacy-record.ts` the Lead 4 / Lead A1
-/ Electro 3 / Electro 4 / C2D / Wave records. A real `.ngp`, `.np6p`, `.ne7p` or `.no3p` file is the next
+/ Electro 3 / Electro 4 / C2D / Wave / Stage 2 records. A real `.ngp`, `.np6p`, `.ne7p` or `.no3p` file is the next
 check for each (expected sizes 134, 229, 397 and 248 bytes); for the others, the
 gitignored corpus tests (`describe.skipIf` on `fixtures/<model>`) pin the
 firmware reading against the values the old decoders had confirmed. A real
@@ -322,6 +323,26 @@ their coverage byte maps are `candidate`. The Electro 3 and Electro 3 HP write
 the same record under the same tag: OpenNord reads both with the HP layout and
 calls a file an HP only when one of the five HP-only parameters is non-zero.
 The Lead A1 alignment is medium until a corpus check.
+
+**Stage 2 / 2 EX.** The `.ns2p` record is the same kind of descriptor bitstream
+(Stage 2 OS 3.00, `docs/STAGE2-3-FIRMWARE.md` §3): `stage-2` in the generator,
+`ns2/layout.generated.ts`, 519 bytes of data (21 global + 2 × 249 per slot).
+Two differences from the records above:
+
+- **Framing.** NSM writes it behind either header: the data starts at 0x2E
+  behind the NSM-era header and runs to the end of the file (565 bytes, no
+  trailer), and at 0x1A behind the legacy one, before the 2-byte trailer (547
+  bytes) — `legacyData(bytes, dataOffset, trailerBytes)`. Checked on
+  ns3-program-viewer's 489-file test corpus (kept local).
+- **Morph deltas.** Inline before each morphable parameter, one per source
+  (`<key>.morphWheel` / `.morphAfterTouch` / `.morphCtrlPedal`, two's complement,
+  one bit wider); `decodeNs2` groups them in `morphDeltas`.
+
+`decodeNs2` builds the typed slot shape (`Ns2Slot`) that the slot view, the
+presenter and the Stage 4 conversion use from the values. The layout reproduces
+every whole-field read of the earlier ns3-program-viewer-derived decoder; the
+fixes it brought are listed in the STAGE2-3 doc. The parameter count counts
+slot B and Preset II once and leaves the deltas out.
 
 ## Out of scope: device transfer for other instruments
 

@@ -23,6 +23,10 @@ describe('legacy formatType-0 record', () => {
     expect(LEGACY_DATA_OFFSET).toBe(0x1a);
     expect(Array.from(legacyData(file))).toEqual([0x1a, 0x1b, 0x1c, 0x1d, 0x1e]);
     expect(legacyData(new Uint8Array(4))).toHaveLength(0);
+    // A Stage 2 record behind the NSM-era header starts at 0x2E and has no trailer.
+    const nsm = new Uint8Array(0x2e + 3).map((_, i) => i);
+    expect(Array.from(legacyData(nsm, 0x2e, 0))).toEqual([0x2e, 0x2f, 0x30]);
+    expect(legacyData(new Uint8Array(0x20), 0x2e, 0)).toHaveLength(0);
     expect(legacyRecordVersion(file)).toBe(0x14 | (0x15 << 8));
   });
 
