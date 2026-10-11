@@ -32,11 +32,27 @@ describe('decodeForModel', () => {
     expect(decodeForModel('whatever')).toMatchObject({ status: 'none', controlCount: 0 });
   });
 
-  it('reports NE6 as started with controls mapped', () => {
-    const d = decodeForModel('electro-6');
+  it('reports a curated model with controls mapped as started', () => {
+    const d = decodeForModel('electro-5');
     expect(d.status).toBe('started');
     expect(d.controlCount).toBeGreaterThan(0);
     expect(d.pct).toBeGreaterThan(0);
+  });
+
+  it('reports NE6 as partly decoded, with its byte map from the firmware layout', () => {
+    const d = decodeForModel('electro-6');
+    expect(d).toMatchObject({ status: 'partial', bodyBytes: 211 });
+    expect(d.pct).toBeGreaterThan(0);
+  });
+
+  it('maps the legacy-record models over their record data (file 0x1A on)', () => {
+    expect(decodeForModel('lead-4')).toMatchObject({ status: 'partial', bodyBytes: 315 });
+    expect(decodeForModel('electro-4')).toMatchObject({ status: 'partial', bodyBytes: 108 });
+    // Lead A1: alignment unchecked on real files, so candidate bytes only.
+    expect(decodeForModel('lead-a1')).toMatchObject({ status: 'partial', bodyBytes: 95, coveredBytes: 0 });
+    expect(decodeForModel('lead-a1').candidateBytes).toBeGreaterThan(0);
+    const labels = getModelProgress('lead-4')!.regions!.map((r) => r.label);
+    expect(labels).toEqual(expect.arrayContaining(['slot', 'slot morph list', 'fx', 'fx morph list', 'Reserved']));
   });
 
   it('has a label for every status', () => {
@@ -94,5 +110,13 @@ describe('parameter counts of the firmware-layout readers', () => {
     const n = decodeForModel('electro-7').paramCount!;
     expect(n).toBe(new Set(NE7_LAYOUT.fields.filter((f) => f.key.split('.').length === 2).map((f) => f.name)).size);
     expect(n).toBeLessThan(NE7_LAYOUT.fields.length);
+  });
+});
+
+describe('parameter counts of the legacy-record readers', () => {
+  it('count the Electro 4 preset sets stored twice (Preset I/II) once, and leave out Lead A1 morph deltas', () => {
+    expect(decodeForModel('electro-4').paramCount).toBe(90);
+    expect(decodeForModel('lead-4').paramCount).toBe(86);
+    expect(decodeForModel('lead-a1').paramCount).toBe(52);
   });
 });

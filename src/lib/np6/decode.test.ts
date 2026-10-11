@@ -55,7 +55,7 @@ describe('np6Decoded', () => {
   it('shows the enabled layers with Piano 6 labels and per-layer effects', () => {
     const d = np6Decoded(file({
       'pianoCommon.layerEnable': 0b11, 'synthCommon.layerEnable': 0b01,
-      'pianoA.bank': 0, 'pianoA.layerLevel': 90, 'pianoB.bank': 3, 'pianoB.octaveShift': 1,
+      'pianoA.bank': 0, 'pianoA.layerLevel': 90, 'pianoB.bank': 3, 'pianoB.variation': 1, 'pianoB.octaveShift': 1,
       'pianoFxA.fx1Enable': 1, 'pianoFxA.fx1Type': 3, 'pianoFxA.ampEnable': 1, 'pianoFxA.ampType': 1,
       'pianoFxA.dlyEnable': 1, 'pianoFxA.dlyFltType': 2,
       'common.effectsRvbEnable': 1, 'common.effectsRvbType': 0, 'common.effectsRvbColor': 1,
@@ -63,7 +63,7 @@ describe('np6Decoded', () => {
     const [pa, pb, sa, sb, rv] = d.sections;
     expect(pa.engines[0].parts).toEqual(['Grand', 'level 90']);
     expect(pa.engines[1].parts).toEqual(['Spin', 'Delay HP', 'Amp Twin']);
-    expect(pb.engines[0].parts).toEqual(['Clavinet', 'level 127', 'Oct +1']);
+    expect(pb.engines[0].parts).toEqual(['Clavinet', 'variation 2', 'level 127', 'Oct +1']);
     expect(sa.engines[0].parts).not.toContain('(off)');
     expect(sb.engines[0].parts).toContain('(off)');
     expect(rv.engines[0].parts).toEqual(['Reverb Spring Dark']);

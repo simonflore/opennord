@@ -1,181 +1,115 @@
 /**
  * Nord Electro 4 (`.ne4p`) program model.
  *
- * Fields are decoded incrementally as the format is RE'd. Confirmed fields are
- * typed normally; unconfirmed sections carry their raw body bytes so the decode
- * inspector can still display them.
+ * Legacy (formatType 0) CBIN record: the parameter bitstream starts at **file
+ * 0x1A** (14 descriptor blocks, 864 bits = 108 bytes) and is followed by the
+ * 2-byte CRC-16 trailer: 26 + 108 + 2 = 136 bytes. Layout from Electro 4 OS
+ * 1.22 (serialiser FUN_3000C93A, container builder FUN_3000CB5C); block order:
+ * programCommon, B3/Vox/Farfisa Common, B3/Vox/Farfisa Preset I, B3/Vox/Farfisa
+ * Preset II, pianoSample, effects, blockX1, blockX2. See `layout.generated.ts`.
  *
- * Confirmed (corpus RE + cross-model Stage-oracle alignment, 2026-06-22, 16
- * fixtures × 136 bytes):
- *   - CBIN header: slot @0x0e, category @0x10, versionRaw @0x14 (=103 → 1.03, all files)
- *   - Body 92 bytes; very sparse — 33/92 bytes vary; long zero-padding runs between params
- *   - Three organ drawbar slots: body[4-8] (default 1), body[16-20] (active/edited),
- *     body[25-29] (default 2). Each is 9 nibble-packed values (0-8), high-nibble-first
- *     (identical scheme to NE6 at body[143-147]).
- *     Stage oracle: params 117-1..136-1 "drawbar 1..9" (group o).
+ * Reconciled with the corpus RE (16 fixtures, 2026-06-22), which read from
+ * file 0x2C ("body"): the factory-default drawbars at body 4-8 / 25-29 are the
+ * Vox Preset I / II drawbars; the "active" drawbars at body 16-20 are B3 Preset
+ * II; body 20 low nibble / 21 are the B3 Preset II vibrato type and percussion
+ * flags; body 0 ("sectionFlags") is B3 Preset I's percussion flags + 3-bit
+ * field; B3 Preset I's drawbars sit at file 0x27-0x2B, inside the bytes the
+ * NSM-era header layout would call header; body 90-91 is the CRC trailer.
  *
- * Source: 16-file corpus statistical analysis + Stage-line oracle field map (2026-06-22).
+ * `cc` notes cite the descriptor control id, which is probably the MIDI CC
+ * (low confidence). Field meanings beyond drawbars are named only as far as the
+ * firmware strings and cardinalities support. The record version is not
+ * recovered from the firmware; the corpus files carry 103 ("1.03") at 0x14.
  */
+import type { Ne4FieldKey } from './layout.generated';
 
-/** One set of 9 Hammond drawbar positions (16' … 1'). Each is 0-8. */
-export interface Ne4Drawbars {
-  /** [16', 8', 5⅓', 4', 2⅔', 2', 1⅗', 1⅓', 1'] — values 0-8. */
-  bars: readonly number[];
-  /** Trailing 4-bit nibble packed after the 9th drawbar — purpose not yet decoded. */
-  _trailing: number;
+export type { Ne4FieldKey };
+
+/** B3 preset (17 descriptors): drawbars, vibrato/chorus, percussion. */
+export interface Ne4B3Preset {
+  /** Descriptors 0-8: nine drawbars, 0-8, 16′ … 1′. */
+  readonly drawbars: readonly number[];
+  /** Descriptor 9 (3 bits, 0-5, control 84) — vibrato/chorus type (six B3 settings, medium). */
+  readonly vibratoType: number;
+  /** Descriptor 10 (1 bit, no control id). */
+  readonly flag10: number;
+  /** Descriptors 11-14 (1 bit each, controls 88, 89, 95, 87) — percussion switches (order unresolved). */
+  readonly percussion: readonly number[];
+  /** Descriptor 15 (3 bits, 0-4, default 2) — shared by every organ preset; meaning unresolved. */
+  readonly mode: number;
 }
 
-/**
- * Organ section for the NE4.
- *
- * The NE4 stores three drawbar slots — Electro's two organ presets plus the
- * live/edited registration. `presetDefault1` (body[4-8]) and `presetDefault2`
- * (body[25-29]) are byte-identical factory-default blocks across all 16 corpus
- * files; `active` (body[16-20]) tracks patch identity and is the block the user
- * actually edits.
- *
- * Stage oracle for all three: params 117-1..136-1 "drawbar 1..9" (group o).
- */
+/** Vox preset (12 descriptors). */
+export interface Ne4VoxPreset {
+  /** Descriptors 0-8: nine drawbars, 0-8. */
+  readonly drawbars: readonly number[];
+  /** Descriptor 9 (1 bit, control 85). */
+  readonly flag9: number;
+  /** Descriptor 10 (3 bits, 0-4, default 2). */
+  readonly mode: number;
+}
+
+/** Farfisa preset (13 descriptors). */
+export interface Ne4FarfisaPreset {
+  /** Descriptors 0-8: nine tab switches (0/1). */
+  readonly tabs: readonly number[];
+  /** Descriptor 9 (2 bits, 0-3, control 84) — vibrato setting (four values, medium). */
+  readonly vibrato: number;
+  /** Descriptor 10 (1 bit, control 85). */
+  readonly flag10: number;
+  /** Descriptor 11 (3 bits, 0-4, default 2). */
+  readonly mode: number;
+}
+
 export interface Ne4Organ {
-  /**
-   * Active / edited upper-manual drawbars — body[16-20].
-   * Confirmed by 16-fixture corpus differential RE; tracks patch identity.
-   * Stage oracle: 117-1..136-1 drawbar 1..9 (group o, layer-2 variant begBit 1176+).
-   */
-  active: Ne4Drawbars;
-  /**
-   * Default organ-preset slot 1 — body[4-8].
-   * Constant across all 16 corpus files (factory default = 8,8,0,0,0,0,0,8,8);
-   * a byte-for-byte twin of the body[25-29] block.
-   * Stage oracle: 117-1..136-1 drawbar 1..9 (group o).
-   */
-  presetDefault1: Ne4Drawbars;
-  /**
-   * Default organ-preset slot 2 — body[25-29].
-   * Constant across all 16 corpus files; identical to body[4-8].
-   * Stage oracle: 117-1..136-1 drawbar 1..9 (group o).
-   */
-  presetDefault2: Ne4Drawbars;
-  /**
-   * Vib/chorus + percussion flags candidate — body[20]lo + body[21].
-   * Stage oracle: 141-1 vib/chorus on/off, 141-2 percussion on/off, 141-3 perc
-   * harm 3rd, 141-4 perc decay fast, 141-5 perc vol soft (group o). In the Stage
-   * catalog these 5 single-bit flags fall immediately after drawbar 9, exactly
-   * where body[20]lo/body[21] sit. body[21]lo is constrained to 4/6 and body[20]lo
-   * to 0/10/11 — small ranges consistent with packed flags. 9 drawbar nibbles =
-   * 36 bits is NOT byte-aligned, so exact bit positions are unverified (candidate);
-   * raw nibbles are exposed for the inspector.
-   *   [0] = body[20]lo, [1] = body[21]hi, [2] = body[21]lo
-   */
-  _vibPercFlags: readonly [number, number, number];
-  /**
-   * @deprecated Alias of `active`. Kept so existing decode-inspector / test code
-   * referencing `upper` continues to resolve.
-   */
-  upper: Ne4Drawbars;
-  /**
-   * @deprecated Alias of `_vibPercFlags`. Kept for backward compatibility.
-   */
-  _extraNibs: readonly [number, number, number];
+  /** B3 Preset I — drawbars at file 0x27-0x2B. */
+  readonly b3PresetI: Ne4B3Preset;
+  /** B3 Preset II — drawbars at file 0x3C-0x40 (the corpus "active" set, body 16-20). */
+  readonly b3PresetII: Ne4B3Preset;
+  /** Vox Preset I — drawbars at file 0x30-0x34 (corpus body 4-8). */
+  readonly voxPresetI: Ne4VoxPreset;
+  /** Vox Preset II — drawbars at file 0x45-0x49 (corpus body 25-29). */
+  readonly voxPresetII: Ne4VoxPreset;
+  /** Farfisa Preset I — tabs at file 0x37-0x38. */
+  readonly farfPresetI: Ne4FarfisaPreset;
+  /** Farfisa Preset II — tabs at file 0x4C-0x4D. */
+  readonly farfPresetII: Ne4FarfisaPreset;
 }
 
-/**
- * Sample (Piano/Sample section) reference + voice params.
- *
- * The Electro sample section reuses the Stage piano model-ID encoding: a high-
- * entropy ID identifying the loaded factory sample set, followed by per-sound
- * voice parameters (touch/timbre/level).
- */
-export interface Ne4Sample {
+/** pianoSample block (21 descriptors) at file 0x51. */
+export interface Ne4PianoSample {
+  /** Descriptor 0 (3 bits, 0-5, control 12) — piano/sample type. */
+  readonly type: number;
+  /** Descriptor 1 (7 bits, 0-49, control 44) — model within the type. */
+  readonly model: number;
+  /** Descriptor 2 (3 bits, 0-7, control 45). */
+  readonly variation: number;
   /**
-   * Factory sample-set reference ID — body[37-41] (~40-bit raw ID), exposed as
-   * its 5 raw bytes. Programs built on the same sample set share these bytes;
-   * sibling sounds differ only in the low bytes. No name table to resolve the ID
-   * yet, so it stays a raw reference (candidate).
-   * Stage oracle: piano model ID/name [32b] (group p, e.g. 152-x model ID); the
-   * Electro sample section reuses the piano model-ID encoding.
+   * Descriptors 3-4 (two 15-bit fields) — the sound's reference id: programs on
+   * the same sample share them (electro-4 backup meta.xml, 2026-07-04).
    */
-  refId: Uint8Array;
-  /**
-   * Per-sound voice parameters — body[43-44] (level / timbre / zone).
-   * In the sq1-vs-sq2 differential (same sample set, two different sounds) these
-   * two bytes change while the refId stays fixed — i.e. sound-level edits layered
-   * on the same sample. Exact field split unverified (candidate).
-   * Stage oracle: piano touch/timbre/level family (group p, e.g. 159-x timbre,
-   * 095-7 volume).
-   */
-  voiceParams: Uint8Array;
+  readonly refIds: readonly [number, number];
 }
 
 export interface Ne4Program {
   readonly parsed: true;
-  /** Program version string derived from CBIN versionRaw, e.g. "1.03". */
+  /** CBIN version string — the u16 at 0x14 (=103 → "1.03" across the corpus). */
   readonly version: string;
-  /**
-   * Section enable / program-mode flags — body[0] (1-byte bitfield).
-   * Observed: 0x04 (default, 13/16 files), 0x38, 0xf6. 3 distinct values across
-   * corpus, consistent with a small section/mode bitfield; correlates loosely with
-   * sample-set/category (0x38/0xf6 only on 'Lead Samples' files). Exact bit map
-   * unverified (candidate).
-   * Stage oracle: 084-5 organ section on/off + 084-6 piano section on/off + 084-7
-   * synth section on/off (group m). Electro omits synth, so the precise layout
-   * differs from the Stage 3-bit section-enable field.
-   */
-  readonly sectionFlags: number;
-  /** Organ section: three drawbar slots + vib/perc flags candidate. */
   readonly organ: Ne4Organ;
-  /** Piano/Sample section: factory sample reference ID + voice params. */
-  readonly sample: Ne4Sample;
+  readonly pianoSample: Ne4PianoSample;
+  /** Every stored parameter by generated key `block.index`, e.g. `effects.12`. */
+  readonly values: Partial<Record<Ne4FieldKey, number>>;
+  /** Parameters above their descriptor max (the firmware resets these to default on load). */
+  readonly outOfRange: readonly Ne4FieldKey[];
   /**
-   * Sample/synth section parameters: body[37-45] (9 bytes).
-   * Superset of `sample.refId` (body[37-41]); kept as raw bytes for the inspector
-   * until the remaining fields (body[42], 45) are pinned by differential RE.
+   * The 2-byte LE trailer after the record (file bytes 134-135; corpus "body
+   * 90-91"), a CRC-16 per the E4 serialiser. Its exact coverage is unverified:
+   * the corpus RE found it is not the plain CRC over file[0:-2] that the Lead /
+   * Wave files carry, so it is exposed as stored, not checked.
    */
-  readonly _organSection: Uint8Array;
-  /**
-   * Secondary program parameters: body[51-63] (13 bytes).
-   * High variance; patches from the same sample set share a common prefix.
-   * Likely: zone params, voice-level settings. Kept as raw bytes.
-   */
-  readonly _sampleSection: Uint8Array;
-  /**
-   * Sparse parameter at body[68].
-   * Lo nibble = 0 or 8 (bit-3 flag); hi nibble = 1/2/3/9 (level or mode value).
-   * Candidate: Piano/Sample section level or transpose/octave setting.
-   */
-  readonly _tail0: number;
-  /**
-   * Sparse parameter at body[79].
-   * Same hi/lo nibble pattern as _tail0; hi nibble spans 0-13.
-   * Isolated between two 10-byte zero-padding blocks.
-   */
-  readonly _tail1: number;
-  /**
-   * Program-specific bytes at body[90-91].
-   * Unique per program (byte-identical copies share same values). Not a file checksum.
-   * Could be sample routing params, effect settings, or an intra-body identifier.
-   */
-  readonly _tail23: Uint8Array;
-  /**
-   * @deprecated Use `sectionFlags`.
-   */
-  readonly _byte0: number;
-  /**
-   * @deprecated Use organ, sample, _organSection, _sampleSection, _tail0, _tail1, _tail23.
-   * Kept for backward compatibility with existing cluster size tests.
-   */
-  readonly _clusterA: Uint8Array;
-  /** @deprecated Use _organSection instead. Kept for backward compatibility. */
-  readonly _clusterB: Uint8Array;
-  /** @deprecated Use _sampleSection instead. Kept for backward compatibility. */
-  readonly _clusterC: Uint8Array;
-  /**
-   * @deprecated Use _tail0, _tail1, _tail23 instead.
-   * Contains [body[68], body[79], body[90], body[91]].
-   */
-  readonly _tail: Uint8Array;
-  /** Full raw body for RE tooling. */
-  readonly _rawBody: Uint8Array;
+  readonly checksum: number;
+  /** Record data: file 0x1A up to the CRC trailer (108 bytes). */
+  readonly _data: Uint8Array;
   /** RE notes and decode anomalies. */
   readonly warnings: readonly string[];
   /**

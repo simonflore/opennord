@@ -11,7 +11,10 @@
  */
 import { decodeNg } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
-import { effectsSection, fwHeader, headerOnly, hexId, label, levelPart, octavePart, parts, transposeText } from '../clavia/fw-present';
+import {
+  ampPart, effectsSection, fwHeader, headerOnly, label, levelPart, octavePart, parts, pianoParts, reverbPart,
+  soundIdRow, transposeText, type PianoNameResolver,
+} from '../clavia/fw-present';
 
 /** Pno_kBank 0–5 (Grand OS 1.68 label table). */
 export const NG_PIANO_TYPE = ['Grand', 'Upright', 'Electric', 'Clav', 'Digital', 'Misc'] as const;
@@ -28,29 +31,25 @@ export const NG_REVERB = ['Room', 'Stage', 'Hall'] as const;
 
 const CLAV = 3;
 
-export function ngDecoded(
-  bytes: Uint8Array,
-  resolvePianoName?: (hash: number) => string | undefined,
-): DecodedProgram {
+export function ngDecoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolver): DecodedProgram {
   const p = decodeNg(bytes);
   const title = 'Nord Grand · Program';
   if (!p.layoutMatched) return headerOnly(title, p, 'Grand');
   const v = p.values;
-  const header = fwHeader(p, transposeText(v['common.transposeEnable'], v['common.transposeValue']));
-  if (v['piano.nameHash'] !== undefined) header.push(['Piano sound id', hexId(v['piano.nameHash'])]);
-  if (v['synth.smpNameHash'] !== undefined) header.push(['Sample sound id', hexId(v['synth.smpNameHash'])]);
+  const header = [
+    ...fwHeader(p, transposeText(v['common.transposeEnable'], v['common.transposeValue'])),
+    ...soundIdRow('Piano sound id', v['piano.nameHash']),
+    ...soundIdRow('Sample sound id', v['synth.smpNameHash']),
+  ];
 
   const bank = v['piano.bank'];
-  const type = label(NG_PIANO_TYPE, bank);
-  const pianoName = v['piano.nameHash'] !== undefined ? resolvePianoName?.(v['piano.nameHash']) : undefined;
   const timbre = bank !== CLAV ? label(NG_TIMBRE, v['piano.eq']) : undefined;
   const piano: DecodedSection = {
     id: 'P', label: 'PIANO',
     engines: [{
       label: 'Piano',
       parts: parts(
-        pianoName ?? type ?? 'Piano',
-        pianoName && type,
+        ...pianoParts(v['piano.nameHash'], label(NG_PIANO_TYPE, bank), v['piano.variation'], resolvePianoName),
         levelPart(v['piano.level']),
         octavePart(v['piano.octaveShift']),
         timbre && timbre !== 'None' ? `Timbre ${timbre}` : undefined,
@@ -67,14 +66,13 @@ export function ngDecoded(
     }],
   };
 
-  const reverb = label(NG_REVERB, v['effects.rvbType']);
   const fx = effectsSection(parts(
     v['effects.fx1Enable'] ? label(NG_FX1, v['effects.fx1Type']) ?? 'Effect 1' : undefined,
     v['effects.fx2Enable'] ? label(NG_FX2, v['effects.fx2Type']) ?? 'Effect 2' : undefined,
     v['effects.dlyEnable'] ? 'Delay' : undefined,
-    v['effects.spkEnable'] ? `Amp ${label(NG_SPEAKER, v['effects.spkType']) ?? ''}`.trim() : undefined,
+    v['effects.spkEnable'] ? ampPart(label(NG_SPEAKER, v['effects.spkType'])) : undefined,
     v['effects.eqlEnable'] ? 'EQ' : undefined,
-    v['effects.rvbEnable'] ? `Reverb ${reverb ?? ''}${v['effects.rvbBright'] ? ' Bright' : ''}`.trim() : undefined,
+    v['effects.rvbEnable'] ? reverbPart(label(NG_REVERB, v['effects.rvbType']), !!v['effects.rvbBright'] && 'Bright') : undefined,
   ));
 
   return {

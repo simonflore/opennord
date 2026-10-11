@@ -1,7 +1,8 @@
 /**
  * Small presentation helpers shared by the firmware-layout readers (Grand,
- * Piano 6, Electro 7, Organ 3 — see block-chain.ts). They turn decoded values
- * into the musician-facing fragments the shared DecodedProgramView shows.
+ * Grand 2, Piano 4/5/6, Electro 6/7, Organ 3, Wave 2 — see block-chain.ts). They
+ * turn decoded values into the musician-facing fragments the shared
+ * DecodedProgramView shows.
  * Pure; model → clavia.
  */
 import type { FwProgram } from './block-chain';
@@ -19,6 +20,11 @@ export function label(table: readonly string[], v: number | undefined): string |
 export function octavePart(v: number | undefined): string | undefined {
   if (!v) return undefined;
   return `Oct ${v > 0 ? '+' : '−'}${Math.abs(v)}`;
+}
+
+/** "variation 2"… for a non-zero piano `Variation` (the piano's sub-variant, 0–3), else undefined. */
+export function variationPart(v: number | undefined): string | undefined {
+  return v ? `variation ${v + 1}` : undefined;
 }
 
 /** "level 100", or undefined when unknown. */
@@ -40,6 +46,35 @@ export function parts(...xs: (string | undefined | false)[]): string[] {
 export function transposeText(enabled: number | undefined, value: number | undefined): string | undefined {
   if (!enabled || !value) return undefined;
   return `${value > 0 ? '+' : '−'}${Math.abs(value)} semitone${Math.abs(value) === 1 ? '' : 's'}`;
+}
+
+/** The family-wide piano-name lookup (32-bit `NameHash` → name), injected by presenters.ts. */
+export type PianoNameResolver = (hash: number) => string | undefined;
+
+/**
+ * A piano's identity: its name from the hash (else the type label, else "Piano"),
+ * the type after a resolved name, then a non-zero variation.
+ */
+export function pianoParts(
+  hash: number | undefined, type: string | undefined, variation: number | undefined, resolve?: PianoNameResolver,
+): string[] {
+  const name = hash === undefined ? undefined : resolve?.(hash);
+  return parts(name ?? type ?? 'Piano', name && type, variationPart(variation));
+}
+
+/** A header row with a 32-bit sound id in hex, or no row when the id wasn't read. */
+export function soundIdRow(title: string, hash: number | undefined): [string, string][] {
+  return hash === undefined ? [] : [[title, hexId(hash)]];
+}
+
+/** "Amp Twin", or "Amp" when the type has no label. */
+export function ampPart(type: string | undefined): string {
+  return parts('Amp', type).join(' ');
+}
+
+/** "Reverb Hall Bright": the type and a modifier when known, else just "Reverb". */
+export function reverbPart(type: string | undefined, modifier?: string | false): string {
+  return parts('Reverb', type, modifier).join(' ');
 }
 
 /** Header rows every firmware-layout reader shows: the version, then the transpose when it is on. */

@@ -1,30 +1,84 @@
 /**
- * Nord Piano 4 → DecodedProgram. NP4 (NW1-v3) confirms a coarser piano core than
- * the NW1-v4 models: family (EP/Grand) and the family-wide piano model id are
- * pinned (Ondre bundle meta.xml ground truth); FX are not.
+ * Nord Piano 4 → DecodedProgram. Shows the piano and sample-synth layers and the
+ * effect chain from the firmware-derived layout (Piano 4 OS 2.66 registry
+ * FUN_c004c648; the Grand layout minus its 4-bit split point).
  *
- * The piano NAME comes from the family-wide id table in ns4 — injected by the
- * composition root (presenters.ts) rather than imported here, keeping this
- * module's "Stage oracle is transcribe-only" rule intact.
+ * Display labels are the Piano 4's own panel tables from the same firmware image
+ * (c02889ac…); the label-to-parameter pairing is by value count (medium). Values
+ * without a known label are held back rather than shown as raw numbers. The piano
+ * NAME comes from the family-wide piano-hash table, injected by the composition
+ * root (presenters.ts) — this module never imports ns4.
  */
 import { decodeNp4 } from './decode';
-import type { DecodedProgram } from '../clavia/decoded';
+import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
+import {
+  ampPart, effectsSection, fwHeader, headerOnly, label, levelPart, octavePart, parts, pianoParts, reverbPart,
+  soundIdRow, transposeText, type PianoNameResolver,
+} from '../clavia/fw-present';
 
-export function np4Decoded(
-  bytes: Uint8Array,
-  resolvePianoName?: (modelId: number) => string | undefined,
-): DecodedProgram {
+/** Pno_kBank 0–5 (Piano 4 OS 2.66 label table). */
+export const NP4_PIANO_TYPE = ['Grand', 'Upright', 'Electric', 'Clav/Hps', 'Digital', 'Layer'] as const;
+/** Pno_kEq for non-Clav pianos (Piano 4 label table; Clav/Hps uses its own combinations). */
+export const NP4_TIMBRE = ['None', 'Soft', 'Mid', 'Bright', 'Dyno1', 'Dyno2'] as const;
+/** Effects_kFx1Type 0–7. */
+export const NP4_FX1 = ['Tremolo 1', 'Tremolo 2', 'Tremolo 3', 'Panning 1', 'Panning 2', 'Panning 3', 'Wah-Wah', 'Ring Mod'] as const;
+/** Effects_kFx2Type 0–5. */
+export const NP4_FX2 = ['Phaser 1', 'Phaser 2', 'Flanger', 'Chorus 1', 'Chorus 2', 'Vibe'] as const;
+/** Effects_kSpkType 0–4. */
+export const NP4_SPEAKER = ['Small', 'JC', 'Twin', 'Dist', 'Comp'] as const;
+/** Effects_kRvbType 0–2 (+ the Bright switch). */
+export const NP4_REVERB = ['Room', 'Stage', 'Hall'] as const;
+
+const CLAV = 3;
+
+export function np4Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolver): DecodedProgram {
   const p = decodeNp4(bytes);
-  const pianoName = resolvePianoName?.(p.pianoModelId);
-  const parts = [pianoName ?? 'Piano'];
+  const title = 'Nord Piano 4 · Program';
+  if (!p.layoutMatched) return headerOnly(title, p, 'Piano 4');
+  const v = p.values;
+  const header = [
+    ...fwHeader(p, transposeText(v['common.transposeEnable'], v['common.transposeValue'])),
+    ...soundIdRow('Piano sound id', v['piano.nameHash']),
+    ...soundIdRow('Sample sound id', v['synth.smpNameHash']),
+  ];
+
+  const bank = v['piano.bank'];
+  const timbre = bank !== CLAV ? label(NP4_TIMBRE, v['piano.eq']) : undefined;
+  const piano: DecodedSection = {
+    id: 'P', label: 'PIANO',
+    engines: [{
+      label: 'Piano',
+      parts: parts(
+        ...pianoParts(v['piano.nameHash'], label(NP4_PIANO_TYPE, bank), v['piano.variation'], resolvePianoName),
+        levelPart(v['piano.level']),
+        octavePart(v['piano.octaveShift']),
+        timbre && timbre !== 'None' ? `Timbre ${timbre}` : undefined,
+        !v['piano.enable'] && '(off)',
+      ),
+    }],
+    chips: parts(v['piano.pedalNoise'] ? 'Pedal Noise' : undefined),
+  };
+  const synth: DecodedSection = {
+    id: 'S', label: 'SAMPLE SYNTH',
+    engines: [{
+      label: 'Synth',
+      parts: parts('Sample', levelPart(v['synth.level']), octavePart(v['synth.octaveShift']), !v['synth.enable'] && '(off)'),
+    }],
+  };
+
+  const fx = effectsSection(parts(
+    v['effects.fx1Enable'] ? label(NP4_FX1, v['effects.fx1Type']) ?? 'Effect 1' : undefined,
+    v['effects.fx2Enable'] ? label(NP4_FX2, v['effects.fx2Type']) ?? 'Effect 2' : undefined,
+    v['effects.dlyEnable'] ? 'Delay' : undefined,
+    v['effects.spkEnable'] ? ampPart(label(NP4_SPEAKER, v['effects.spkType'])) : undefined,
+    v['effects.eqlEnable'] ? 'EQ' : undefined,
+    v['effects.rvbEnable'] ? reverbPart(label(NP4_REVERB, v['effects.rvbType']), !!v['effects.rvbBright'] && 'Bright') : undefined,
+  ));
 
   return {
-    title: 'Nord Piano 4 · Program',
-    header: [['Version', `v${p.version}`]],
-    sections: [{ id: 'A', label: 'PIANO', engines: [{ label: 'Piano', parts }] }],
-    note: pianoName
-      ? 'Piano 4: piano sound confirmed. The sample layer and FX are not yet decoded.'
-      : 'Piano 4: this piano id is not in the known-name table yet. Sample layer and FX not yet decoded.',
+    title, header,
+    sections: [piano, synth, fx],
+    note: 'Piano 4: piano, sample synth and effects read from the layout in the Piano 4 OS 2.66 firmware.',
     warnings: p.warnings,
   };
 }
