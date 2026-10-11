@@ -17,7 +17,6 @@ import { WriteBlockedError } from '@/lib/device/write-guard';
 import { buildOccupancy, type Addr } from '@/lib/device/reorg';
 import { PARTITION_PIANO } from '@/lib/device/opcodes';
 import { downloadBytes } from '@/lib/download';
-import { useEnsureListed } from '@/lib/library/useEnsureListed';
 import { useListFilters } from '@/lib/library/useListFilters';
 
 // pure helper, exported for tests
@@ -136,12 +135,11 @@ function usePianosStateValue() {
 
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.
-  const { filtered, clearFilters } = useListFilters([
+  const { filtered, clearFilters, ensureListed } = useListFilters(shown, [
     { active: query.trim() !== '', reset: () => setQuery('') },
     { active: source !== 'all', reset: () => setSource('all') },
     { active: unusedOnly, reset: () => setUnusedOnly(false) },
   ]);
-  const ensureListed = useEnsureListed(shown, clearFilters);
   return {
     all: allEntries, clearFilters, filtered, ensureListed,
     shown, source, setSource, query, setQuery, prefs, entryById, nordCount, localCount, showSourceFacet, folder, session,

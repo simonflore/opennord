@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { nordUsbAvailable } from './capacitor-usb';
+import { nordUsbAvailable, usbAvailability } from './capacitor-usb';
 
 // One probe for the whole app: the iPad's driver state, shared by every caller,
 // probed when the first one subscribes and again whenever the app returns to
@@ -27,11 +27,15 @@ function subscribe(listener: () => void) {
 const noop = () => () => {};
 
 /**
- * On an iPad (`ipad` true), whether its USB driver is installed and ready:
- * null while probing, then true/false. The Device page and the top bar's
- * Connect share one probe.
+ * How this host reaches a Nord (`reach`, see usbAvailability) and whether it can
+ * connect one now: Electron and WebUSB can, an iPad once its USB driver is
+ * approved (probed once for the whole app, and again on returning to the
+ * foreground), an iPhone or a browser without WebUSB can't. The Device page and
+ * the top bar's Connect read it here, so they can't disagree.
  */
-export function useIpadDriverReady(ipad: boolean): boolean | null {
-  const value = useSyncExternalStore(ipad ? subscribe : noop, () => ready, () => null);
-  return ipad ? value : false;
+export function useUsbReach() {
+  const reach = usbAvailability();
+  const ipad = reach === 'ipad-dext-pending';
+  const ipadReady = useSyncExternalStore(ipad ? subscribe : noop, () => ready, () => null);
+  return { reach, reachable: reach === 'webusb' || reach === 'electron' || (ipad && ipadReady === true) };
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
+import { useLeaveRemoved } from '@/components/library/useLeaveRemoved';
 import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSamplesState } from '@/lib/library/SamplesContext';
 import { useSplitLayout } from '@/lib/responsive';
@@ -39,6 +40,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const [attempt, setAttempt] = useState(0);
   const entry = selectedId ? s.entryById(selectedId) : undefined;
   const known = !!entry;
+  useLeaveRemoved(selectedId, known, '/library/samples');
   const io = useRef({ entryById: s.entryById, readSample: s.readSample });
   useEffect(() => { io.current = { entryById: s.entryById, readSample: s.readSample }; });
 

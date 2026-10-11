@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { useEnsureListed } from '@/lib/library/useEnsureListed';
 import { useListFilters } from '@/lib/library/useListFilters';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
@@ -47,13 +46,12 @@ function useLibraryStateValue() {
   const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.
-  const { filtered, clearFilters } = useListFilters([
+  const { filtered, clearFilters, ensureListed } = useListFilters(shown, [
     { active: query.trim() !== '', reset: () => setQuery('') },
     { active: source !== 'all', reset: () => setSource('all') },
     { active: generation !== 'all', reset: () => setGeneration('all') },
     { active: category !== 'all', reset: () => setCategory('all') },
   ]);
-  const ensureListed = useEnsureListed(shown, clearFilters);
 
   function importFile() {
     const input = document.createElement('input');

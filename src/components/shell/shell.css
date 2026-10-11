@@ -32,11 +32,20 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 /* Below 720px the fixed tab bar sits over the bottom of the page, so the
-   content keeps room for it (listed twice to win over the native rule above). */
+   content keeps room for it (listed twice to win over the native rule above).
+   The native side padding follows the components' narrower phone padding too
+   (these rules are unlayered, so they win over the Tailwind utilities). */
 /* `width < 720px` matches Tailwind's max-[720px]: that shows the tab bar. */
 @media (width < 720px) {
   .on-content,
   [data-native] .on-content {
     padding-bottom: calc(var(--tabs-h) + var(--s-6));
+  }
+  [data-native] .on-content {
+    padding-right: max(var(--s-4), env(safe-area-inset-right));
+  }
+  [data-native] .on-topbar {
+    padding-left: max(var(--s-3), env(safe-area-inset-left));
+    padding-right: max(var(--s-3), env(safe-area-inset-right));
   }
 }

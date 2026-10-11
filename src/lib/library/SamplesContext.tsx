@@ -19,7 +19,6 @@ import { WriteBlockedError } from '@/lib/device/write-guard';
 import { buildOccupancy, type Addr } from '@/lib/device/reorg';
 import { PARTITION_SAMP_LIB } from '@/lib/device/opcodes';
 import { downloadBytes } from '@/lib/download';
-import { useEnsureListed } from '@/lib/library/useEnsureListed';
 import { useListFilters } from '@/lib/library/useListFilters';
 import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 
@@ -177,14 +176,13 @@ function useSamplesStateValue() {
 
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.
-  const { filtered, clearFilters } = useListFilters([
+  const { filtered, clearFilters, ensureListed } = useListFilters(shown, [
     { active: query.trim() !== '', reset: () => setQuery('') },
     { active: source !== 'all', reset: () => setSource('all') },
     { active: generation !== 'all', reset: () => setGeneration('all') },
     { active: category !== 'all', reset: () => setCategory('all') },
     { active: unusedOnly, reset: () => setUnusedOnly(false) },
   ]);
-  const ensureListed = useEnsureListed(shown, clearFilters);
   return {
     all: allEntries, clearFilters, filtered, ensureListed, readSample,
     shown, source, setSource, generation, setGeneration,

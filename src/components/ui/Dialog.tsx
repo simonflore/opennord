@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import * as RD from '@radix-ui/react-dialog';
 import { cn } from '@/lib/cn';
 
@@ -17,6 +17,8 @@ export interface DialogProps {
   className?: string;
   /** Move focus into the dialog on open (default). Off keeps a phone's keyboard down. */
   autoFocus?: boolean;
+  /** Keys pressed anywhere in the dialog, the dialog itself included (the palette's ↑/↓/Enter). */
+  onKeyDown?: (e: KeyboardEvent<HTMLElement>) => void;
 }
 
 /**
@@ -37,7 +39,7 @@ export function anyDialogOpen(): boolean {
   return openDialogs > 0;
 }
 
-export function Dialog({ open, onClose, title, children, footer, bare, className, autoFocus = true }: DialogProps) {
+export function Dialog({ open, onClose, title, children, footer, bare, className, autoFocus = true, onKeyDown }: DialogProps) {
   const content = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -53,6 +55,7 @@ export function Dialog({ open, onClose, title, children, footer, bare, className
       <RD.Content
         aria-describedby={undefined}
         ref={content}
+        onKeyDown={onKeyDown}
         // Without autoFocus, focus still moves into the dialog — onto the dialog itself,
         // not its first field (so a phone's keyboard stays down).
         onOpenAutoFocus={autoFocus ? undefined : (e) => { e.preventDefault(); content.current?.focus(); }}
