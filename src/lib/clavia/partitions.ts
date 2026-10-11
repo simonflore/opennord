@@ -491,8 +491,8 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     // archive code FUN_c00a8088 knows the tag) are not on the wire.
     // Stage 4 registry generation (medium). PID 0x3B from NSM 9.22 `CElectro7`
     // (the firmware fills its descriptor PID at runtime). Pianos: CNSP v5/v6.
-    // Sample generation not located: a {8,11,30,40} version map exists
-    // (c04bfd24), so `codec4` is a guess (low).
+    // Samples: the Stage 4 generation 3–4 check at c007de44 (map c04bfd24), so
+    // `.nsmp3` and `.nsmp4` load; `codec4` is the newest.
     id: 'electro-7', name: 'Nord Electro 7', generation: 'NW1-v4', programTag: 'ne7p', sampleCodec: 'codec4',
     staticProductId: 0x003b, os: { min: 100, recommended: 100 }, fileTransferVersion: 10,
     partitions: firmwareOrder(

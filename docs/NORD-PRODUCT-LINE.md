@@ -70,7 +70,7 @@ else inferred.
 | Nord Electro 4 | `CElectro4`, `CPartitionProgramE4` | `ne4p` | `ne4b` | `nsmp` NWS v8/v11 | OG (ColdFire) |
 | Nord Electro 5 | `CElectro5` | `ne5p` | `ne5b` | `nsmp` NWS v8/v11 — refuses `nsmp3` | OG (ColdFire) |
 | Nord Electro 6 | `CElectro6` | `ne6p` | `ne6b` | `nsmp3` *(medium)* | NW1 v3 |
-| Nord Electro 7 | `CElectro7` | `ne7p` | `ne7b` | not located (`nsmp4`? low) | NW1 v4 |
+| Nord Electro 7 | `CElectro7` | `ne7p` | `ne7b` | `nsmp3` + `nsmp4` (firmware, `ELECTRO7-ENGINES.md` §6) | NW1 v4 |
 | Nord Piano (1) | `CPiano` | `nppg` | `npb` | — (no sample library) | OG (ColdFire) |
 | Nord Piano 2 / 3 | `CPiano2`/`CPiano3`, `CPartitionProgramNP2`/`NP3` | `np2p`/`np3p` | `np2b`/`np3b` | `nsmp` NWS v8/v11 | OG (ColdFire) |
 | Nord Piano 4 / 5 / 6 | `CPiano4`/`CPiano5`/`CPiano6`, `CPartitionPnoV5`/`V6` | `np4p`/`np5p`/`np6p` | `np4b`/`np5b`/`np6b` | P4 `nsmp3`; P5/P6 `nsmp3` + `nsmp4` | NW1 v3/v4 |
@@ -253,8 +253,9 @@ The parallel multi-model work (#22) already built the seam:
   version query, still need one read-only enumerate against real hardware.
 - **Codec-per-model beyond ns2/3/4** in the table above now comes from each
   model's firmware loader where it was found (`docs/FIRMWARE-LINE.md` §5); the
-  Electro 6, Electro 7 and Wave 2 rows are still medium/low and want a sample
-  file loaded on the instrument to confirm.
+  Electro 6 and Wave 2 rows are still medium/low and want a sample file loaded
+  on the instrument to confirm. The Electro 7 row is now read from its loader
+  (`docs/ELECTRO7-ENGINES.md` §6).
 
 ---
 
