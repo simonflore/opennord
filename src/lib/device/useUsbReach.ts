@@ -21,7 +21,9 @@ function subscribe(listener: () => void) {
   if (listeners.size === 1) { probe(); document.addEventListener('visibilitychange', onVisible); }
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0) document.removeEventListener('visibilitychange', onVisible);
+    if (listeners.size > 0) return;
+    document.removeEventListener('visibilitychange', onVisible);
+    ready = null; // the next subscriber probes afresh, not from a stale answer
   };
 }
 const noop = () => () => {};

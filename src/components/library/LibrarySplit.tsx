@@ -6,7 +6,7 @@ import { CategorySplit } from './CategorySplit';
 import { EmptyNote } from './EmptyNote';
 import { useLibraryState } from '@/lib/library/LibraryContext';
 import { useSplitLayout } from '@/lib/responsive';
-import { openProgram } from './openEntry';
+import { closeRemoved, openProgram } from './openEntry';
 
 /**
  * The Library as master/detail. `/library/programs/{-$programId}` renders
@@ -37,7 +37,7 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
       activeId={selectedId}
       onOpen={(e) => openProgram(navigate, e)}
       onImport={s.importFile}
-      onRemove={s.imported.remove}
+      onRemove={(id) => { s.imported.remove(id); closeRemoved(navigate, '/library/programs', selectedId, [id]); }}
       importError={s.importError}
       onDismissImportError={s.clearImportError}
       prefs={s.prefs}
@@ -71,7 +71,6 @@ export function LibrarySplit({ selectedId }: { selectedId?: string }) {
               : <EmptyNote>Pick a program to see its details.</EmptyNote>)}
           hasDetail={!!selectedId}
           list="/library/programs"
-          known={!!entry}
           backLabel="← Library"
           selectedId={selectedId}
         />

@@ -157,6 +157,8 @@ function useSamplesStateValue() {
   // so the next open reads afresh.
   type Read = { bytes: Promise<Uint8Array>; progress: (pct: number) => void; users: number };
   const reads = useRef(new Map<string, Read>());
+  // A new Nord session (a reconnect) starts afresh: a pull on the old one can't be joined.
+  useEffect(() => { reads.current.clear(); }, [session]);
   /**
    * The bytes of a sample, read from wherever it lives: in memory (imported), a
    * Nord pull, or a backup. Rejects with the reason when it can't be read from
