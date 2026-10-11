@@ -27,6 +27,9 @@ Usage (from packages/core):
     python3 scripts/gen-fw-program-maps.py piano-6  <piano-6-offsets.csv>      src/lib/np6/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py electro-7 <electro-7-offsets.csv>   src/lib/ne7/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py organ-3  <organ-3-offsets.csv>      src/lib/no3/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py piano-4  <piano-4-offsets.csv>      src/lib/np4/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py piano-5  <piano-5-offsets.csv>      src/lib/np5/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py grand-2  <grand-2-offsets.csv>      src/lib/ng2/layout.generated.ts
 """
 import csv
 import re
@@ -49,6 +52,37 @@ MODELS = {
         # The layout is high; two's-complement storage on Piano 6 is inferred from
         # the shared code and the Grand 2 corpus (medium).
         'confidence': lambda row: 'medium' if "two's complement" in row['notes'] else 'high',
+        'blocks': {
+            'MultiCom': 'common', 'PnoCom': 'pianoCommon', 'PnoA': 'pianoA', 'PnoB': 'pianoB',
+            'PnoFxA': 'pianoFxA', 'PnoFxB': 'pianoFxB', 'SynCom': 'synthCommon',
+            'SynA': 'synthA', 'SynB': 'synthB', 'SynFxA': 'synthFxA', 'SynFxB': 'synthFxB',
+        },
+    },
+    'piano-4': {
+        'const': 'NP4_LAYOUT', 'type': 'Np4FieldKey', 'model': 'Nord Piano 4',
+        'source': 'Piano 4 OS 2.66 registry FUN_c004c648',
+        'container': 'Piano 4 OS 2.66 program archive FUN_c004ed00 (reads 1.00–1.01)',
+        'versionRange': (100, 101),
+        'confidence': lambda row: 'high',
+        'blocks': {'MultiCommon': 'common', 'Piano': 'piano', 'Synth': 'synth', 'Effects': 'effects'},
+    },
+    'piano-5': {
+        'const': 'NP5_LAYOUT', 'type': 'Np5FieldKey', 'model': 'Nord Piano 5',
+        'source': 'Piano 5 OS 1.34 registry FUN_c00f8188',
+        'container': 'Piano 5 OS 1.34 program archive FUN_c00f6ccc (1.00–1.01, medium)',
+        'versionRange': (100, 101),
+        'confidence': lambda row: 'high',
+        'blocks': {
+            'MultiCommon': 'common', 'Effects': 'effects', 'PianoA': 'pianoA', 'PianoB': 'pianoB',
+            'SynthA': 'synthA', 'SynthB': 'synthB',
+        },
+    },
+    'grand-2': {
+        'const': 'NG2_LAYOUT', 'type': 'Ng2FieldKey', 'model': 'Nord Grand 2',
+        'source': 'Grand 2 OS 1.22 registry FUN_c01125f8',
+        'container': 'Grand 2 OS 1.22 program archive FUN_c010dac0 (version range in a RAM global, not recovered)',
+        'versionRange': None,
+        'confidence': lambda row: 'high',
         'blocks': {
             'MultiCom': 'common', 'PnoCom': 'pianoCommon', 'PnoA': 'pianoA', 'PnoB': 'pianoB',
             'PnoFxA': 'pianoFxA', 'PnoFxB': 'pianoFxB', 'SynCom': 'synthCommon',
@@ -99,6 +133,7 @@ def short_key(name):
     m = re.match(r'^[A-Za-z]*_k(.*)$', s) or re.match(r'^k(.*)$', s)
     s = m.group(1) if m else s
     s = re.sub(r'_(private|Private)$', '', s)
+    s = re.sub(r'_revB$', '', s)  # Piano 5 firmware-revision suffix, not part of the meaning
     s = s.replace('_EOL', 'Eol')
     s = re.sub(r'_(\d+)$', r'\1', s)
     # lowerCamel, keeping acronyms readable: FMAlgorithm -> fmAlgorithm, PStick -> pStick.

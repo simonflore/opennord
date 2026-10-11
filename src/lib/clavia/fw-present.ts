@@ -1,7 +1,8 @@
 /**
  * Small presentation helpers shared by the firmware-layout readers (Grand,
- * Piano 6, Electro 7, Organ 3 — see block-chain.ts). They turn decoded values
- * into the musician-facing fragments the shared DecodedProgramView shows.
+ * Grand 2, Piano 4/5/6, Electro 7, Organ 3 — see block-chain.ts). They turn
+ * decoded values into the musician-facing fragments the shared
+ * DecodedProgramView shows.
  * Pure; model → clavia.
  */
 import type { FwProgram } from './block-chain';
@@ -19,6 +20,11 @@ export function label(table: readonly string[], v: number | undefined): string |
 export function octavePart(v: number | undefined): string | undefined {
   if (!v) return undefined;
   return `Oct ${v > 0 ? '+' : '−'}${Math.abs(v)}`;
+}
+
+/** "variation 2"… for a non-zero piano `Variation` (the piano's sub-variant, 0–3), else undefined. */
+export function variationPart(v: number | undefined): string | undefined {
+  return v ? `variation ${v + 1}` : undefined;
 }
 
 /** "level 100", or undefined when unknown. */
