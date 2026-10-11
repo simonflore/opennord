@@ -12,6 +12,11 @@ import { buildParamMap } from '../ns4/maps';
 import { MODEL_PROGRESS, type ModelProgress, type BodyRegion } from './coverage-data';
 import { decodeNs3 } from '../ns3/decode';
 import { decodeNs2 } from '../ns2/decode';
+import type { FwLayout } from '../clavia/block-chain';
+import { NG_LAYOUT } from '../ng/layout.generated';
+import { NP6_LAYOUT } from '../np6/layout.generated';
+import { NE7_LAYOUT } from '../ne7/layout.generated';
+import { NO3_LAYOUT } from '../no3/layout.generated';
 
 /** The single canonical Stage 4 param map (ns4decode port + corpus-RE'd extras). */
 const NS4_PARAMS = buildParamMap();
@@ -42,6 +47,11 @@ const DECODER_BY_ID: Record<string, 'full' | 'partial'> = {
   'stage-4': 'full',
   'stage-3': 'partial',
   'stage-2': 'partial', // ns2/decode.ts: engines/levels/drawbars/FX via the ns2 oracle
+  // Firmware-layout readers (clavia/block-chain.ts), read-only, not yet checked on real files.
+  'grand': 'partial',
+  'piano-6': 'partial',
+  'electro-7': 'partial',
+  'organ-3': 'partial',
 };
 
 // ── Stage 4 coverage synthesized from the offset map ─────────────────────────
@@ -136,18 +146,59 @@ function tracedReaderProgress(
   return { bodyBytes, controls: [], regions };
 }
 
+// ── Firmware-layout models: byte map synthesized from the generated layout ──
+// Grand and Piano 6 come from a high-confidence firmware map → 'confirmed'.
+// Electro 7 and Organ 3 have a medium-confidence block order (not yet seen in a
+// real file) → 'candidate', so they don't inflate the headline percentage.
+const FW_LAYOUTS: Record<string, { layout: FwLayout; status: 'confirmed' | 'candidate' }> = {
+  'grand': { layout: NG_LAYOUT, status: 'confirmed' },
+  'piano-6': { layout: NP6_LAYOUT, status: 'confirmed' },
+  'electro-7': { layout: NE7_LAYOUT, status: 'candidate' },
+  'organ-3': { layout: NO3_LAYOUT, status: 'candidate' },
+};
+const _fwProgress: Record<string, ModelProgress> = {};
+
+/** Byte regions from a firmware layout: version + block-length bytes and reserved space are constant. */
+export function layoutProgress(layout: FwLayout, status: 'confirmed' | 'candidate'): ModelProgress {
+  const kind: string[] = new Array<string>(layout.bodyBytes).fill('Reserved');
+  for (let b = 0; b < 4; b++) kind[b] = 'Format version';
+  for (const blk of layout.blocks) kind[blk.offset] = 'Block length';
+  for (const f of layout.fields) {
+    const blk = layout.blocks[f.block];
+    const start = (blk.offset + 1) * 8 + f.bit;
+    for (let b = start >> 3; b <= (start + f.width - 1) >> 3; b++) kind[b] = `field:${blk.name}`;
+  }
+  const regions: BodyRegion[] = [];
+  let i = 0;
+  while (i < layout.bodyBytes) {
+    let j = i + 1;
+    while (j < layout.bodyBytes && kind[j] === kind[i]) j++;
+    const field = kind[i].startsWith('field:');
+    regions.push({
+      start: i, end: j - 1,
+      label: field ? kind[i].slice(6) : kind[i],
+      status: field ? status : 'constant',
+    });
+    i = j;
+  }
+  return { bodyBytes: layout.bodyBytes, controls: [], regions };
+}
+
 let _ns3Progress: ModelProgress | undefined;
 let _ns2Progress: ModelProgress | undefined;
 
 /**
  * Returns the decode progress for any model — synthesized from the NS4 offset
- * map (Stage 4), traced from the reader (Stage 2/3), or curated from
- * MODEL_PROGRESS (every other model).
+ * map (Stage 4), traced from the reader (Stage 2/3), synthesized from the
+ * generated firmware layout (Grand, Piano 6, Electro 7, Organ 3), or curated
+ * from MODEL_PROGRESS (every other model).
  */
 export function getModelProgress(modelId: string): ModelProgress | undefined {
   if (modelId === 'stage-4') return getNs4Progress();
   if (modelId === 'stage-3') return (_ns3Progress ??= tracedReaderProgress(decodeNs3, [0x31, 0x1d]));
   if (modelId === 'stage-2') return (_ns2Progress ??= tracedReaderProgress(decodeNs2, [0x2e, 0x1a]));
+  const fw = FW_LAYOUTS[modelId];
+  if (fw) return (_fwProgress[modelId] ??= layoutProgress(fw.layout, fw.status));
   return MODEL_PROGRESS[modelId];
 }
 

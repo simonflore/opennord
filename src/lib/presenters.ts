@@ -20,6 +20,13 @@ import { ne5Decoded } from './ne5/present';
 import { ne6Decoded } from './ne6/present';
 import { nw2Decoded } from './nw2/present';
 import { nlaDecoded } from './nla/present';
+import { ngDecoded } from './ng/present';
+import { np6Decoded } from './np6/present';
+import { ne7Decoded } from './ne7/present';
+import { no3Decoded } from './no3/present';
+
+/** Family-wide piano-name lookup (the 32-bit piano name hash → display name). */
+const pianoName = (hash: number): string | undefined => PIANO_NAMES[hash];
 
 interface PresenterEntry {
   match: (info: NordFileInfo) => boolean;
@@ -44,6 +51,12 @@ const PRESENTERS: readonly PresenterEntry[] = [
   { match: (i) => i.tag === 'ne6p', present: ne6Decoded },
   { match: (i) => i.tag === 'nw2p', present: nw2Decoded },
   { match: (i) => i.tag === 'nlas' || i.tag === 'nlap', present: nlaDecoded },
+  // Firmware-layout readers (clavia/block-chain.ts). Electro 7 / Organ 3 are
+  // provisional until a real file confirms the block order (their notes say so).
+  { match: (i) => i.tag === 'ngp' || i.tag === 'ngl', present: (bytes) => ngDecoded(bytes, pianoName) },
+  { match: (i) => i.tag === 'np6p' || i.tag === 'np6l', present: (bytes) => np6Decoded(bytes, pianoName) },
+  { match: (i) => i.tag === 'ne7p' || i.tag === 'ne7l', present: (bytes) => ne7Decoded(bytes, pianoName) },
+  { match: (i) => i.tag === 'no3p' || i.tag === 'no3l', present: no3Decoded },
 ];
 
 /** The shared decoded-program presentation for a file, or null if no model claims it. */

@@ -33,6 +33,14 @@ import { ne4Codec } from './ne4/codec';
 import type { Ne4Program } from './ne4/types';
 import { ne5Codec } from './ne5/codec';
 import type { Ne5Program } from './ne5/types';
+import { ngCodec } from './ng/codec';
+import type { NgProgram } from './ng/types';
+import { np6Codec } from './np6/codec';
+import type { Np6Program } from './np6/types';
+import { ne7Codec } from './ne7/codec';
+import type { Ne7Program } from './ne7/types';
+import { no3Codec } from './no3/codec';
+import type { No3Program } from './no3/types';
 import type { EngineSummary } from './clavia/engines';
 import { ns4Engines } from './ns4/engines';
 import { ns3Engines } from './ns3/engines';
@@ -46,7 +54,8 @@ export type NordProgram =
   | Np4Program | Np5Program | Ng2Program
   | Nw1Program | Nw2Program
   | Nl4Program | NlaProgram
-  | Ne4Program | Ne5Program;
+  | Ne4Program | Ne5Program
+  | NgProgram | Np6Program | Ne7Program | No3Program;
 
 /**
  * Every model OpenNord can decode. Add new codecs here as they land —
@@ -64,6 +73,11 @@ const CODECS: readonly ModelCodec<NordProgram>[] = [
   nlaCodec,
   ne4Codec,
   ne5Codec,
+  // Firmware-layout readers (clavia/block-chain.ts): read-only.
+  ngCodec,
+  np6Codec,
+  ne7Codec,
+  no3Codec,
 ];
 
 /** True when `program` is a fully-structured NS4 program (has `kind`). */

@@ -10,6 +10,8 @@
  * (file length − 44-byte CBIN header) the first time you touch a model.
  *
  * Stage 4 is NOT listed here — it's fully decoded from the offset map already.
+ * Nor are the firmware-layout models (Grand, Piano 6, Electro 7, Organ 3): their
+ * byte maps are synthesized from the generated layouts in coverage.ts.
  */
 
 export interface MappedControl {

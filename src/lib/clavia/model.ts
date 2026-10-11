@@ -13,16 +13,18 @@
 /**
  * Which Nord model a file belongs to.
  * Stage:   ns2 / ns3 / ns4
- * Electro: ne4 / ne5 / ne6
- * Piano:   np4 / np5 / ng2
+ * Electro: ne4 / ne5 / ne6 / ne7
+ * Piano:   np4 / np5 / np6 / ng (Grand) / ng2
+ * Organ:   no3
  * Wave:    nw1 / nw2
  * Lead:    nl4 / nla
  * New models added as corpus RE produces skeleton decoders.
  */
 export type ClaviaModel =
   | 'ns4' | 'ns3' | 'ns2'
-  | 'ne4' | 'ne5' | 'ne6'
-  | 'np4' | 'np5' | 'ng2'
+  | 'ne4' | 'ne5' | 'ne6' | 'ne7'
+  | 'np4' | 'np5' | 'np6' | 'ng' | 'ng2'
+  | 'no3'
   | 'nw1' | 'nw2'
   | 'nl4' | 'nla'
   | 'unknown';
