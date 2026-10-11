@@ -13,11 +13,10 @@
  * the maintainers’ tools (`<model>/layout.generated.ts`), so each
  * field carries its own firmware citation.
  *
- * Used today by the Grand (`ngp`), Piano 6 (`np6p`), Electro 6 (`ne6p`),
- * Electro 7 (`ne7p`), Organ 3 (`no3p`) and Wave 2 (`nw2p`) readers. The older
- * corpus-RE'd decoders (np4, np5, ng2) still use their own fixed offsets;
- * moving them onto this reader is a follow-up. The legacy formatType-0 records
- * (Lead 4, Lead A1, Electro 4) are not block chains — see legacy-record.ts.
+ * Used today by the Grand (`ngp`), Grand 2 (`ng2p`), Piano 4 (`np4p`), Piano 5
+ * (`np5p`), Piano 6 (`np6p`), Electro 6 (`ne6p`), Electro 7 (`ne7p`), Organ 3
+ * (`no3p`) and Wave 2 (`nw2p`) readers. The legacy formatType-0 records (Lead 4,
+ * Lead A1, Electro 4) are not block chains — see legacy-record.ts.
  * Pure; model → clavia.
  *
  * Never throws: an odd or truncated file yields a header-only result with a
@@ -175,7 +174,7 @@ export function decodeFwBody<K extends string>(body: Uint8Array, layout: FwLayou
   return { layoutMatched: true, formatVersion: v, values, warnings };
 }
 
-/** The decoded shape shared by the firmware-layout readers (Grand, Piano 6, Electro 6/7, Organ 3, Wave 2). */
+/** The decoded shape shared by the firmware-layout readers (see the list at the top of this file). */
 export interface FwProgram<K extends string> {
   readonly parsed: true;
   /** Program version from the CBIN header, e.g. "1.00". */
