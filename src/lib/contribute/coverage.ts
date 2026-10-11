@@ -159,7 +159,7 @@ const FW_LAYOUTS: Record<string, { layout: FwLayout; status: 'confirmed' | 'cand
 const _fwProgress: Record<string, ModelProgress> = {};
 
 /** Byte regions from a firmware layout: version + block-length bytes and reserved space are constant. */
-export function layoutProgress(layout: FwLayout, status: 'confirmed' | 'candidate'): ModelProgress {
+function layoutProgress(layout: FwLayout, status: 'confirmed' | 'candidate'): ModelProgress {
   const kind: string[] = new Array<string>(layout.bodyBytes).fill('Reserved');
   for (let b = 0; b < 4; b++) kind[b] = 'Format version';
   for (const blk of layout.blocks) kind[blk.offset] = 'Block length';
