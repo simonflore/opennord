@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
+import { cn } from '@/lib/cn';
 import { SEC } from './layout';
-import { roadmapTag } from './styles';
+import { indexedRow, listGrid, listHead, listIndex, listRule, roadmapTag } from './styles';
 import { SectionHead } from './SectionHead';
 
 interface Feature { title: string; body: string; to?: string }
@@ -38,17 +39,17 @@ export function Features() {
         title="One companion for your patches and your keyboard"
         sub="Understand and organize your sounds, and manage the instrument itself — neither is an afterthought."
       />
-      <div className="grid grid-cols-2 gap-x-10 max-[760px]:grid-cols-1 max-[760px]:gap-y-8">
+      <div className={listGrid}>
         {DOORS.map((d) => (
           <div key={d.label}>
-            <div className="flex items-baseline justify-between border-b border-line pb-2 font-mono text-[11px] uppercase tracking-[1px] text-dim">
+            <div className={listHead}>
               <span>{d.label}</span>
               <span className="text-muted">{d.items.length}</span>
             </div>
             <ol className="m-0 list-none p-0">
               {d.items.map((f, i) => (
-                <li key={f.title} className="grid grid-cols-[28px_1fr] gap-3 border-b border-[color-mix(in_srgb,var(--line)_55%,transparent)] py-4">
-                  <span className="pt-[3px] font-mono text-[11px] text-muted">{String(i + 1).padStart(2, '0')}</span>
+                <li key={f.title} className={cn(indexedRow, listRule)}>
+                  <span className={listIndex}>{String(i + 1).padStart(2, '0')}</span>
                   <div>
                     <div className="text-[15px] font-bold text-ink">
                       {f.to ? <Link to={f.to} className="text-ink no-underline hover:text-red-bright">{f.title} →</Link> : f.title}

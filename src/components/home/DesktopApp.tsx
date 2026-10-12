@@ -1,7 +1,7 @@
-import './home.css';
-import { SectionLabel } from '@/components/ui';
+import { cn } from '@/lib/cn';
 import { SEC } from './layout';
-import { heroBtn, roadmapTag, covLink } from './styles';
+import { SectionHead } from './SectionHead';
+import { heroBtn, listGrid, listHead, listRule, roadmapTag, covLink } from './styles';
 import { IconWindows } from './icons';
 
 /**
@@ -27,39 +27,59 @@ const RELEASE_BASE = 'https://github.com/simonflore/opennord/releases';
 const DOWNLOAD_WIN = `${RELEASE_BASE}/download/${RELEASE_TAG}/${WIN_ASSET}`;
 const RELEASE_PAGE = `${RELEASE_BASE}/tag/${RELEASE_TAG}`;
 
-const archLabel = 'text-[10px] font-semibold uppercase tracking-[0.4px] text-[color-mix(in_srgb,currentColor_65%,transparent)]';
+// What the desktop build adds over the web app, stated as rows like the
+// feature list rather than as marketing copy in a panel.
+const ADDS: { title: string; body: string }[] = [
+  { title: 'USB with no browser', body: 'Connect, read and write without Chrome or Edge.' },
+  { title: 'Older Nords', body: 'Reaches the pre-WinUSB models, like the Stage 2, that a browser can’t claim.' },
+  { title: 'The same app', body: 'Everything the web app does works here too.' },
+];
 
 export function DesktopApp() {
   return (
     <section id="download" className={SEC}>
-      {/* home-dl-glow: the one-off corner glow behind the panel — see home.css. */}
-      <div className="home-dl-glow rounded-lg border border-line p-[clamp(24px,4vw,44px)] edge-hi">
-        <div className="max-w-[60ch]">
-          <SectionLabel variant="eyebrow">Where USB actually works</SectionLabel>
-          <h2 className="m-0 mt-2 font-bold leading-[1.2] text-ink text-[clamp(20px,3vw,28px)]">
-            Talk to your Nord from the desktop
-          </h2>
-          <p className="mt-2 text-sm leading-[1.6] text-dim">
-            A native Windows build — connect over USB with no browser, and reach
-            older pre-WinUSB Nords a browser can’t. Everything the web app does
-            works here too.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <a className={heroBtn} href={DOWNLOAD_WIN} rel="noopener noreferrer">
-              <span className="inline-flex items-center" aria-hidden="true"><IconWindows /></span>
+      <SectionHead
+        overline="Where USB actually works"
+        title="Talk to your Nord from the desktop"
+        sub="A native Windows build of the same app, with a direct line to the keyboard."
+      />
+      <div className={listGrid}>
+        <div>
+          <div className={listHead}>
+            <span>Builds</span>
+          </div>
+          <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-3 py-4', listRule)}>
+            <span className="inline-flex items-center gap-2 text-[15px] font-bold text-ink">
+              <IconWindows />
               Windows
-              <span className={archLabel}>x64</span>
+              <span className="font-mono text-[11px] font-normal text-muted">x64</span>
+            </span>
+            <span className={roadmapTag}>Beta</span>
+            <a className={cn(heroBtn, 'ml-auto')} href={DOWNLOAD_WIN} aria-label="Download for Windows (x64)">
+              Download
             </a>
           </div>
-          <p className="mt-4 flex flex-wrap items-center gap-2 text-xs leading-[1.55] text-muted">
-            <span className={roadmapTag}>Beta</span>
-            First launch needs a quick step (the UsbDk driver, for reaching older
-            Nords) —{' '}
+          <p className="mt-3 text-xs leading-[1.55] text-muted">
+            First launch needs one setup step, the UsbDk driver, for reaching older
+            Nords.{' '}
             <a className={covLink} href={RELEASE_PAGE} target="_blank" rel="noopener noreferrer">
-              setup notes &amp; download
+              Setup notes
             </a>
-            .
           </p>
+        </div>
+        <div>
+          <div className={listHead}>
+            <span>What it adds</span>
+            <span className="text-muted">{ADDS.length}</span>
+          </div>
+          <ul className="m-0 list-none p-0">
+            {ADDS.map((a) => (
+              <li key={a.title} className={cn('py-3', listRule)}>
+                <div className="text-[13px] font-bold text-ink">{a.title}</div>
+                <p className="mt-0.5 text-[13px] leading-[1.55] text-dim">{a.body}</p>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </section>
