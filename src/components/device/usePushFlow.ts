@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { pushProgram } from '../../lib/device/transfer';
+import { focusFile, pushProgram } from '../../lib/device/transfer';
 import { programNameFromFilename } from '../../lib/clavia/name';
 import { formatSlot } from '../../lib/clavia/slot';
 import type { NordSession } from '../../lib/device/session';
@@ -13,19 +13,22 @@ export interface PushSource { bytes: Uint8Array; name: string; }
 
 /**
  * Push flow: choose a program (a picked .ns4p or an open program), pick a target
- * slot, name it, and write it to the Nord. Owns its own error/busy so the confirm
+ * slot, and write it to the Nord. Owns its own error/busy so the confirm
  * panel reflects exactly this flow.
  */
-export function usePushFlow(session: NordSession | null, refresh: (s: NordSession) => Promise<void>) {
+export function usePushFlow(
+  session: NordSession | null,
+  refresh: (s: NordSession) => Promise<void>,
+  /** Select the sent program on the Nord afterwards: only where the instrument is known to answer the request. */
+  focusAfter = false,
+) {
   const [pushSource, setPushSource] = useState<PushSource | null>(null);
-  const [pushName, setPushName] = useState('');
   const [picked, setPicked] = useState<SlotTarget | null>(null);
   const { busy, error, setError, run } = useAsyncAction();
 
   function startPush(source: PushSource) {
     setError('');
     setPushSource(source);
-    setPushName(source.name);
     setPicked(null);
   }
 
@@ -55,15 +58,18 @@ export function usePushFlow(session: NordSession | null, refresh: (s: NordSessio
     setPicked(null);
   }
 
-  async function confirmPush() {
+  /** Write under `name`: the source's own, unless the caller had to number it. */
+  async function confirmPush(name = pushSource?.name) {
     if (!session || !pushSource || !picked || busy) return;
     await run(async () => {
-      await session.withSession(session.programPartition, () =>
-        pushProgram(session, picked.bank, picked.slot, pushSource.bytes, pushName.trim() || pushSource.name));
+      await session.withSession(session.programPartition, async () => {
+        await pushProgram(session, picked.bank, picked.slot, pushSource.bytes, name ?? pushSource.name);
+        if (focusAfter) await focusFile(session, picked.bank, picked.slot); // the Nord jumps to what was just sent
+      });
       await refresh(session);
       cancel();
     }, (e) => `Could not write to ${formatSlot(picked.bank, picked.slot)}: ${getErrorMessage(e)}`);
   }
 
-  return { pushSource, pushName, setPushName, picked, pickSlot, unpick, error, busy, startPush, startSendFile, confirmPush, cancel };
+  return { pushSource, picked, pickSlot, unpick, error, busy, startPush, startSendFile, confirmPush, cancel };
 }

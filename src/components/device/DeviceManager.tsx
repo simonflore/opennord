@@ -8,6 +8,8 @@ import { useDevice } from '../../lib/device/DeviceContext';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import { parseClaviaFile, type NordProgram } from '../../lib/formats';
 import { slotLabel } from '../../lib/clavia/slot';
+import { freeName } from '../../lib/clavia/name';
+import { NS4_PRODUCT_ID } from '../../lib/device/negotiate';
 import { ProgramView } from '../program/ProgramView';
 import { ConnectPanel } from './ConnectPanel';
 import { BackupOrganizer } from './BackupOrganizer';
@@ -34,7 +36,7 @@ import { useFolder } from '../../lib/folder/FolderContext';
  * useDeleteFlow, useSamplesFlow); this component is the switch between them.
  */
 export function DeviceManager() {
-  const { session, entries, deviceName, capacity, setConnection, setEntries, setCapacity, isCurrent, lost } = useDevice();
+  const { session, entries, deviceName, productId, capacity, setConnection, setEntries, setCapacity, isCurrent, lost } = useDevice();
   const folder = useFolder();
   // Program-open (pull-to-view) state stays local — it's this component's own concern.
   const [program, setProgram] = useState<NordProgram | null>(null);
@@ -75,7 +77,7 @@ export function DeviceManager() {
   // Re-arm session-start backup whenever the session changes (reconnect).
   useEffect(() => { backedUp.current = false; }, [session]);
 
-  const push = usePushFlow(session, refresh);
+  const push = usePushFlow(session, refresh, productId === NS4_PRODUCT_ID); // seen to answer on a Stage 4 only
   const del = useDeleteFlow(session, refresh);
   const samples = useSamplesFlow(session);
 
@@ -155,6 +157,10 @@ export function DeviceManager() {
       return <TargetSlotPicker entries={entries} onPick={push.pickSlot} onCancel={push.cancel} />;
     }
     const where = slotLabel(push.picked.bank, push.picked.slot);
+    const { bank, slot } = push.picked;
+    // The Nord keeps one sound per name, so a name another slot holds is numbered, as the Nord does.
+    const elsewhere = entries.filter((e) => !(e.bank === bank && e.slot === slot)).map((e) => e.name);
+    const sendName = freeName(push.pushSource.name, elsewhere);
     return (
       <ConfirmPanel
         title="Send to the Nord?"
@@ -163,13 +169,10 @@ export function DeviceManager() {
           : `Write to ${where} (currently empty).`}
         confirmLabel="Write"
         busy={push.busy}
-        onConfirm={push.confirmPush}
+        onConfirm={() => push.confirmPush(sendName)}
         onCancel={push.unpick}
       >
-        <label className="ps-sub" style={{ display: 'block' }}>
-          Name on the Nord:&nbsp;
-          <input value={push.pushName} onChange={(ev) => push.setPushName(ev.target.value)} style={{ padding: 4 }} />
-        </label>
+        <p className="ps-sub">Name on the Nord: {sendName}</p>
         {push.error && <p className="ps-sub on-error">{push.error}</p>}
       </ConfirmPanel>
     );

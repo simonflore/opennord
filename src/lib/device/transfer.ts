@@ -1,7 +1,7 @@
 import type { NordSession } from './session';
 import {
   CQryFileInfo, CQryFileIterate, CReqFileOpen, CReqFileClose, CReqFileRead,
-  CReqFileCreate, CReqFileWrite, CReqFileDelete, type2Ext, ext2Type,
+  CReqFileCreate, CReqFileWrite, CReqFileDelete, CReqFileSetFocus, type2Ext, ext2Type,
 } from './opcodes';
 import { NordError, NordStatus } from './protocol';
 import { readAsciiFixed } from '../clavia/ascii';
@@ -239,13 +239,15 @@ async function createFile(
  * 2-byte trailer (clavia/cbin.ts framing), sent verbatim as NSM does. Category
  * and fourcc come from the file's own header.
  *
- * Destructive: replaces whatever is at {bank, slot}. The Nord does not overwrite
- * — FileCreate on an occupied slot answers "file exists" (status 4, seen on a
- * Stage 4 at A:13) — so the file that is there is read, deleted, and written
- * back if the new one then fails; the error says which of the two the slot ends
- * up with. Refused with `WriteBlockedError` (nothing sent) unless the open
- * partition is confirmed writable, and with a NordError when NSM would refuse
- * the file ({@link pushRefusal}).
+ * Destructive: replaces whatever is at {bank, slot}. The Nord does not
+ * overwrite, and it keeps one file per name; both refusals are status 4, "file
+ * exists" (seen on a Stage 4): FileCreate under a name another file holds, and
+ * FileClose — the commit — onto a slot that holds a file. So the slot is asked
+ * first, and a file found there is read, deleted, and written back if the new
+ * one then fails; the error says which of the two the slot ends up with.
+ * Refused with `WriteBlockedError` (nothing sent) unless the open partition is
+ * confirmed writable, and with a NordError when NSM would refuse the file
+ * ({@link pushRefusal}).
  */
 export async function pushFile(
   session: NordSession,
@@ -257,24 +259,29 @@ export async function pushFile(
   session.assertWritable(); // refuse before any frame: the open partition must be confirmed
   const refusal = pushRefusal(fileBytes);
   if (refusal) throw new NordError(refusal);
-
-  const status = await createFile(session, bank, slot, fileBytes, name);
-  if (status === 0) return;
   const where = formatSlot(bank, slot);
-  if (status !== NordStatus.fileExists) throw new NordError(`FileCreate failed (status ${status}) at ${where}`);
 
-  // Keep what is there before removing it; if it can't be read, leave the slot alone.
+  /** Create + write + commit, with a refused create as an error. */
+  const write = async () => {
+    const status = await createFile(session, bank, slot, fileBytes, name);
+    if (status === NordStatus.fileExists) {
+      throw new NordError(`The Nord already has a sound named "${name}", and it keeps one per name. Send this one under another name`);
+    }
+    if (status !== 0) throw new NordError(`FileCreate failed (status ${status}) at ${where}`);
+  };
+
   const info = await session.request(CQryFileInfo, [bank, slot]);
+  if (info.status === NordStatus.notFound) return write(); // empty slot
+  // Keep what is there before removing it; if it can't be read, leave the slot alone.
   if (info.status !== 0) throw new NordError(`Could not read what is at ${where} (status ${info.status}), so it was left as it is.`);
   const before = decodeFileInfo(info.payload, bank, slot);
   const beforeBytes = await pullFile(session, before);
   await deleteProgram(session, bank, slot);
 
   try {
-    const again = await createFile(session, bank, slot, fileBytes, name);
-    if (again !== 0) throw new NordError(`FileCreate failed (status ${again}) at ${where}`);
+    await write();
   } catch (e) {
-    const restored = await createFile(session, bank, slot, beforeBytes, before.name).then((s) => s === 0, () => false);
+    const restored = await createFile(session, bank, slot, beforeBytes, before.name).then((st) => st === 0, () => false);
     const reason = e instanceof Error ? e.message : String(e);
     throw new NordError(restored
       ? `${reason}. "${before.name}" is back in its slot.`
@@ -299,4 +306,20 @@ export async function deleteProgram(session: NordSession, bank: number, slot: nu
   session.assertWritable(); // refuse before any frame: the open partition must be confirmed
   const reply = await session.request(CReqFileDelete, [bank, slot]);
   if (reply.status !== 0) throw new NordError(`FileDelete failed (status ${reply.status})`);
+}
+
+/**
+ * Select the file at {bank, slot} on the instrument, so the panel shows it.
+ * Stores nothing. A Stage 4 answered status 0 on `0x30` for a program slot
+ * (and "not supported" to the matching GetFocus). Best-effort: false when the
+ * Nord refuses or answers something else — a convenience must not fail the
+ * transfer it follows.
+ */
+export async function focusFile(session: NordSession, bank: number, slot: number): Promise<boolean> {
+  try {
+    const reply = await session.requestRaw(CReqFileSetFocus, [bank, slot]);
+    return reply.msgId === CReqFileSetFocus + 1 && reply.status === 0;
+  } catch {
+    return false;
+  }
 }

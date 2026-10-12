@@ -41,3 +41,17 @@ export function pianoNameFromFilename(filename: string): string {
   const name = filename.replace(/^.*[\\/]/, '').replace(/\.npno$/i, '').trim();
   return name.length > 0 ? name : 'Unnamed';
 }
+
+/**
+ * `name`, or `name (1)`, `name (2)`, … — the first the instrument doesn't
+ * already hold. A Nord keeps one file per name within a partition (a second
+ * create under a taken name is refused, the maintainers’ notes), and numbers the
+ * copy this way itself.
+ */
+export function freeName(name: string, taken: Iterable<string>): string {
+  const used = new Set(taken);
+  if (!used.has(name)) return name;
+  let n = 1;
+  while (used.has(`${name} (${n})`)) n++;
+  return `${name} (${n})`;
+}

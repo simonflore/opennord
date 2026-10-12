@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pianoNameFromFilename, programNameFromFilename } from './name';
+import { freeName, pianoNameFromFilename, programNameFromFilename } from './name';
 
 describe('programNameFromFilename', () => {
   it('strips path and extension', () => {
@@ -33,5 +33,16 @@ describe('pianoNameFromFilename', () => {
 
   it('falls back to Unnamed for an extension-only name', () => {
     expect(pianoNameFromFilename('.npno')).toBe('Unnamed');
+  });
+});
+
+describe('freeName', () => {
+  it('keeps a name the Nord does not hold', () => {
+    expect(freeName('Pad', ['Bass'])).toBe('Pad');
+  });
+
+  it('numbers a taken name, past the numbers already used', () => {
+    expect(freeName('Pad', ['Pad'])).toBe('Pad (1)');
+    expect(freeName('Pad', ['Pad', 'Pad (1)', 'Pad (2)'])).toBe('Pad (3)');
   });
 });

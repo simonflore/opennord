@@ -25,6 +25,8 @@ const fixtureBytes = new Uint8Array(
   readFileSync(fileURLToPath(new URL('../ns4/__fixtures__/regressionTest.ns4p', import.meta.url))),
 );
 const ack = (op: number) => encodeMessage(op | 1, [0]);
+/** FileInfo's answer for a slot that holds nothing: what pushFile asks before it writes. */
+const emptySlot = encodeMessage(CQryFileInfo | 1, [1]);
 const iter = (code: number, bank: number, slot: number) => encodeMessage(CQryFileIterate | 1, [code, bank, slot]);
 function info(o: { size: number; version: number; category: number; name: string }) {
   const nb = new TextEncoder().encode(o.name);
@@ -146,7 +148,7 @@ describe('restore', () => {
     const replies = [
       ack(CReqBegin),               // begin(Program)
       ...preflight(),               // guard: empty partition, 64 free slots
-      ack(CReqFileCreate), ack(CReqFileWrite), ack(CReqFileClose),
+      emptySlot, ack(CReqFileCreate), ack(CReqFileWrite), ack(CReqFileClose),
       ack(CReqEnd),
       ack(CReqBegin),               // finally re-begin(Program)
     ];
@@ -174,7 +176,7 @@ describe('restore', () => {
     });
     const replies = [
       ack(CReqBegin), ...preflight(),
-      ack(CReqFileCreate), ack(CReqFileWrite), ack(CReqFileClose),
+      emptySlot, ack(CReqFileCreate), ack(CReqFileWrite), ack(CReqFileClose),
       ack(CReqEnd), ack(CReqBegin),
     ];
     const result = await restore(stage4Session(new MockTransport(replies)), blob);
@@ -196,6 +198,7 @@ describe('restore', () => {
     const replies = [
       ack(CReqBegin),
       ...preflight(),                         // guard open (64 free slots) → write is attempted
+      emptySlot,
       encodeMessage(CReqFileCreate | 1, [1]), // create fails (status 1) → pushFile throws, no close
       ack(CReqEnd),
       ack(CReqBegin),

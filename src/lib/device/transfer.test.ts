@@ -17,6 +17,9 @@ async function openWritable(replies: Uint8Array[], writable: number[] = [6]) {
   return { t, s };
 }
 
+/** FileInfo's answer for a slot that holds nothing. */
+const EMPTY_SLOT = encodeMessage(CQryFileInfo | 1, [1]);
+
 /** Build a FileIterate reply (0x21): code@word0, bank@word1, slot@word2. */
 function iterReply(code: number, bank: number, slot: number): Uint8Array {
   return encodeMessage(CQryFileIterate | 1, [code, bank, slot]);
@@ -145,11 +148,13 @@ describe('pushProgram', () => {
     const header = readHdr(fixtureBytes);
     const body = fixtureBytes.subarray(44);
     const { t, s } = await openWritable([
+      EMPTY_SLOT,
       encodeMessage(CReqFileCreate | 1, [0]),     // create ack
       encodeMessage(CReqFileWrite | 1, [0]),      // write ack
       encodeMessage(CReqFileClose | 1, [0]),      // close ack (commit)
     ]);
     await pushProgram(s, 2, 63, fixtureBytes, 'OPENNORD TEST');
+    t.sent.shift(); // the slot check
 
     const create = decodeReply(t.sent[0]);
     expect(create.msgId).toBe(CReqFileCreate);
@@ -167,18 +172,21 @@ describe('pushProgram', () => {
   });
 
   it('throws on FileCreate failure without writing a body', async () => {
-    const { t, s } = await openWritable([encodeMessage(CReqFileCreate | 1, [1])]); // status 1
+    const { t, s } = await openWritable([EMPTY_SLOT, encodeMessage(CReqFileCreate | 1, [1])]); // status 1
     await expect(pushProgram(s, 2, 63, fixtureBytes, 'x')).rejects.toThrow();
+    t.sent.shift(); // the slot check
     expect(t.sent).toHaveLength(1); // only the create attempt was sent
   });
 
   it('still closes the handle when a write fails mid-transfer', async () => {
     const { t, s } = await openWritable([
+      EMPTY_SLOT,
       encodeMessage(CReqFileCreate | 1, [0]), // create OK
       encodeMessage(CReqFileWrite | 1, [1]),  // write fails (status 1)
       encodeMessage(CReqFileClose | 1, [0]),  // best-effort close
     ]);
     await expect(pushProgram(s, 2, 63, fixtureBytes, 'x')).rejects.toThrow();
+    t.sent.shift(); // the slot check
     expect(t.sent).toHaveLength(3); // create + failed write + close all attempted
   });
 });
@@ -187,6 +195,7 @@ describe('write gate', () => {
   it('refuses a push to an unconfirmed partition before sending anything', async () => {
     const { t, s } = await openWritable([], []); // Program open, nothing confirmed
     await expect(pushProgram(s, 2, 63, fixtureBytes, 'x')).rejects.toBeInstanceOf(WriteBlockedError);
+    t.sent.shift(); // the slot check
     expect(t.sent).toHaveLength(0);
   });
 
@@ -254,11 +263,13 @@ describe('pushFile', () => {
     file.set(header, 0);
     file.set([1, 2, 3, 4], header.length);
     const { t, s } = await openWritable([
+      EMPTY_SLOT,
       encodeMessage(CReqFileCreate | 1, [0]),
       encodeMessage(CReqFileWrite | 1, [0]),
       encodeMessage(CReqFileClose | 1, [0]),
     ]);
     await pushFile(s, 1, 3, file, 'Champagne');
+    t.sent.shift(); // the slot check
     const create = decodeReply(t.sent[0]);
     expect(create.words[3]).toBe(ext2Type('ns4o')); // fourcc word
   });
@@ -276,11 +287,13 @@ describe('pushFile', () => {
   it('sends a legacy file\'s record alone — from 0x18, without the 2-byte trailer — as NSM does', async () => {
     const record = [0, 7, 10, 20, 30, 40, 50];
     const { t, s } = await openWritable([
+      EMPTY_SLOT,
       encodeMessage(CReqFileCreate | 1, [0]),
       encodeMessage(CReqFileWrite | 1, [0]),
       encodeMessage(CReqFileClose | 1, [0]),
     ]);
     await pushFile(s, 0, 5, legacyFile('ns2p', 7, record), 'Legacy');
+    t.sent.shift(); // the slot check
     const create = decodeReply(t.sent[0]);
     expect(create.words[2]).toBe(record.length); // size word: the record, no header, no trailer
     expect(create.words[5]).toBe(3); // category
@@ -295,11 +308,13 @@ describe('pushFile', () => {
     const sent: Uint8Array[] = [];
     for (const file of [legacy, nsm]) {
       const { t, s } = await openWritable([
+        EMPTY_SLOT,
         encodeMessage(CReqFileCreate | 1, [0]),
         encodeMessage(CReqFileWrite | 1, [0]),
         encodeMessage(CReqFileClose | 1, [0]),
       ]);
       await pushFile(s, 0, 5, file, 'Ballad');
+      t.sent.shift(); // the slot check
       expect(decodeReply(t.sent[0]).words[2], `${file.length}`).toBe(521); // the record: 2-byte version + data
       sent.push(decodeReply(t.sent[1]).payload.subarray(16));
     }
@@ -319,6 +334,7 @@ describe('pushFile', () => {
     for (const [file, message] of cases) {
       const { t, s } = await openWritable([]);
       await expect(pushFile(s, 0, 0, file, 'x')).rejects.toThrow(message);
+      t.sent.shift(); // the slot check
       expect(t.sent).toHaveLength(0);
     }
     expect(pushRefusal(legacyFile('ns2p', 6, [0, 6]))).toBeUndefined();
@@ -353,10 +369,9 @@ describe('pullFile progress', () => {
 
 describe('pushFile onto an occupied slot', () => {
   const old = new Uint8Array([9, 8, 7, 6]);
-  /** The Nord's answers up to the point the old file is gone: create refused
-   *  ("file exists"), then the old file read back, then its delete. */
+  /** The Nord's answers up to the point the old file is gone: the slot holds a
+   *  file, which is read back and then deleted. */
   const upToDelete = [
-    encodeMessage(CReqFileCreate | 1, [4]), // file exists
     infoReply({ size: old.length, version: 313, category: 7, name: 'The Look' }),
     encodeMessage(CReqFileOpen | 1, [0]),
     readReply(0, 12, 0, old),
@@ -374,10 +389,10 @@ describe('pushFile onto an occupied slot', () => {
     const { t, s } = await openWritable([...upToDelete, ...writeOk]);
     await pushFile(s, 0, 12, fixtureBytes, 'New');
     expect(ids(t)).toEqual([
-      CReqFileCreate, CQryFileInfo, CReqFileOpen, CReqFileRead, CReqFileClose, CReqFileDelete,
+      CQryFileInfo, CReqFileOpen, CReqFileRead, CReqFileClose, CReqFileDelete,
       CReqFileCreate, CReqFileWrite, CReqFileClose,
     ]);
-    expect(decodeReply(t.sent[5]).words.slice(0, 2)).toEqual([0, 12]);
+    expect(decodeReply(t.sent[4]).words.slice(0, 2)).toEqual([0, 12]);
   });
 
   it('puts the old file back when the new one cannot be written', async () => {
@@ -389,10 +404,21 @@ describe('pushFile onto an occupied slot', () => {
       ...writeOk, // the old one goes back
     ]);
     await expect(pushFile(s, 0, 12, fixtureBytes, 'New')).rejects.toThrow(/"The Look" is back in its slot/);
-    const restore = decodeReply(t.sent[9]);
+    const restore = decodeReply(t.sent[8]);
     expect(restore.msgId).toBe(CReqFileCreate);
     expect(restore.words.slice(0, 6)).toEqual([0, 12, old.length, ext2Type('ns4p'), 0xffffffff, 7]);
-    expect([...decodeReply(t.sent[10]).payload.subarray(16)]).toEqual([...old]);
+    expect([...decodeReply(t.sent[9]).payload.subarray(16)]).toEqual([...old]);
+  });
+
+  it('puts the old file back when the commit is refused', async () => {
+    const { s } = await openWritable([
+      ...upToDelete,
+      encodeMessage(CReqFileCreate | 1, [0]),
+      encodeMessage(CReqFileWrite | 1, [0]),
+      encodeMessage(CReqFileClose | 1, [4]),
+      ...writeOk,
+    ]);
+    await expect(pushFile(s, 0, 12, fixtureBytes, 'New')).rejects.toThrow(/"The Look" is back in its slot/);
   });
 
   it('says the slot is empty when the old file cannot be put back either', async () => {
@@ -404,12 +430,42 @@ describe('pushFile onto an occupied slot', () => {
     await expect(pushFile(s, 0, 12, fixtureBytes, 'New')).rejects.toThrow(/"The Look" could not be put back/);
   });
 
-  it('leaves the slot alone when the old file cannot be read first', async () => {
-    const { t, s } = await openWritable([
-      encodeMessage(CReqFileCreate | 1, [4]),
-      encodeMessage(CQryFileInfo | 1, [3]),
-    ]);
-    await expect(pushFile(s, 0, 12, fixtureBytes, 'New')).rejects.toThrow();
-    expect(ids(t)).not.toContain(CReqFileDelete);
+  it('says the name is taken when the Nord refuses the create on an empty slot', async () => {
+    const { t, s } = await openWritable([EMPTY_SLOT, encodeMessage(CReqFileCreate | 1, [4])]);
+    await expect(pushFile(s, 2, 28, fixtureBytes, 'Dont look back'))
+      .rejects.toThrow('already has a sound named "Dont look back"');
+    expect(ids(t)).toEqual([CQryFileInfo, CReqFileCreate]);
+  });
+
+  it('puts the old file back when the new name lives in another slot', async () => {
+    const { s } = await openWritable([...upToDelete, encodeMessage(CReqFileCreate | 1, [4]), ...writeOk]);
+    await expect(pushFile(s, 0, 12, fixtureBytes, 'Taken'))
+      .rejects.toThrow(/already has a sound named "Taken".*"The Look" is back in its slot/);
+  });
+
+  it('leaves the slot alone when what is there cannot be read first', async () => {
+    const { t, s } = await openWritable([encodeMessage(CQryFileInfo | 1, [3])]);
+    await expect(pushFile(s, 0, 12, fixtureBytes, 'New')).rejects.toThrow(/left as it is/);
+    expect(ids(t)).toEqual([CQryFileInfo]);
+  });
+});
+
+import { focusFile } from './transfer';
+import { CReqFileSetFocus } from './opcodes';
+
+describe('focusFile', () => {
+  it('asks the Nord to select the slot, and reads its answer on id + 1', async () => {
+    const { t, s } = await openWritable([encodeMessage(CReqFileSetFocus + 1, [0, 2, 20])]);
+    expect(await focusFile(s, 2, 20)).toBe(true);
+    const sent = decodeReply(t.sent[0]);
+    expect(sent.msgId).toBe(CReqFileSetFocus);
+    expect(sent.words.slice(0, 2)).toEqual([2, 20]);
+  });
+
+  it('is false, not an error, when the Nord refuses or does not answer', async () => {
+    const refused = await openWritable([encodeMessage(CReqFileSetFocus + 1, [21])]);
+    expect(await focusFile(refused.s, 2, 20)).toBe(false);
+    const silent = await openWritable([]);
+    expect(await focusFile(silent.s, 2, 20)).toBe(false);
   });
 });

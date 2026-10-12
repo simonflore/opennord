@@ -28,6 +28,7 @@ export const CReqFileDelete = 0x14;
 export const CQryFileInfo = 0x1e;
 export const CQryFileIterate = 0x20;
 export const CQryFileGetDependency = 0x28; // → 0x29 reply: a file's sample dependency list
+export const CReqFileSetFocus = 0x2f; // bank, slot → 0x30 (odd ids answer on id + 1): select that file on the instrument
 export const CQryFileGetFocus = 0x31; // → the program currently selected on the device
 
 /**
