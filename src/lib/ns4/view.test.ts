@@ -195,3 +195,31 @@ describe('engineZones / isSplit', () => {
     expect(isSplit(p)).toBe(false);
   });
 });
+
+describe('pianoCard — timbre and touch as LED keys', () => {
+  const card = (pianoType: string, timbre: string, touch = 'med') =>
+    pianoCard({ id: 'A', kind: 'piano', pianoType, timbre, touch } as unknown as Parameters<typeof pianoCard>[0]);
+  const lit = (keys?: { label: string; on: boolean }[]) => keys?.filter((k) => k.on).map((k) => k.label);
+
+  it('lights the timbre setting; an electric piano adds the Dyno keys', () => {
+    expect(card('Grand', 'MID').timbreKeys?.map((k) => k.label)).toEqual(['Soft', 'Mid', 'Bright']);
+    expect(lit(card('Grand', 'MID').timbreKeys)).toEqual(['Mid']);
+    expect(lit(card('Electric', 'DYNO2').timbreKeys)).toEqual(['Dyno 2']);
+    expect(card('Electric', 'off').timbreKeys).toHaveLength(5);
+  });
+
+  it('lights several keys for a clav combination, none for off', () => {
+    expect(lit(card('Clav', 'SOFT+BRIGHT').timbreKeys)).toEqual(['Soft', 'Bright']);
+    expect(lit(card('Grand', 'off').timbreKeys)).toEqual([]);
+  });
+
+  it('keeps a knob for a timbre it cannot place', () => {
+    expect(card('Misc', '1.4').timbreKeys).toBeUndefined();
+  });
+
+  it('shows keyboard touch as Light / Med / Heavy', () => {
+    expect(card('Grand', 'off', 'heavy').touchKeys).toEqual([
+      { label: 'Light', on: false }, { label: 'Med', on: false }, { label: 'Heavy', on: true },
+    ]);
+  });
+});
