@@ -201,12 +201,14 @@ describe('LibraryView', () => {
     expect(html).toContain('Read access was denied.');
   });
 
-  it('shows a remove control on local cards but not on nord cards', () => {
+  it('shows a remove control on imported rows only, not on nord or folder rows', () => {
+    const withFolder: LibraryEntry[] = [...entries, { id: 'folder:Pads/Warm.ns4p', name: 'Warm Pad', source: 'local' }];
     const html = renderToStaticMarkup(
-      <LibraryView entries={entries} source="all" query="" {...handlers} prefs={prefs()} folder={folder()} />,
+      <LibraryView entries={withFolder} source="all" query="" {...handlers} prefs={prefs()} folder={folder()} />,
     );
-    expect(html).toContain('aria-label="Remove Sunday Organ"'); // local
+    expect(html).toContain('aria-label="Remove Sunday Organ"'); // imported
     expect(html).not.toContain('aria-label="Remove Wurli Dream"'); // nord
+    expect(html).not.toContain('aria-label="Remove Warm Pad"'); // a folder file stays on disk
   });
 
   it('offers a Disconnect control on a connected folder chip', () => {

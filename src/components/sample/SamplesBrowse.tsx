@@ -10,7 +10,7 @@ import { SlotTag } from '../library/SlotTag';
 import { CardRemoveButton } from '../library/CardRemoveButton';
 import type { SampleEntry, SampleGeneration } from '../../lib/library/sample-entries';
 import type { SamplesPrefsApi, SampleSort } from '../../lib/library/prefs';
-import type { LibrarySource } from '../../lib/library/types';
+import { isImported, type LibrarySource } from '../../lib/library/types';
 
 /** Human-friendly byte size, e.g. 1900000 → "1.8 MB". */
 function fmtSize(n: number): string {
@@ -266,7 +266,7 @@ export function SamplesBrowse(
                     <FactoryPill factory={e.factory} />
                   )}
                   <SlotTag>{e.size != null ? fmtSize(e.size) : ''}</SlotTag>
-                  {e.id.startsWith('local:') && (
+                  {isImported(e.id) && (
                     <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
                   )}
                 </>
