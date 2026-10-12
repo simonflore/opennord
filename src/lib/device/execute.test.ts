@@ -135,24 +135,52 @@ describe('executePlan', () => {
     expect([...dev.snapshot()]).toEqual([...initial]); // both slots restored
   });
 
-  it('a move whose first write is refused leaves the source alone and reports the device unchanged', async () => {
+  it('a move whose write is refused puts the source back and reports the device unchanged', async () => {
     const { dev, occ, plan, initial } = setup();
-    // The Nord refuses every write: the source was never touched, so nothing needs putting back.
-    const pushes: string[] = [];
+    // The source has to be cleared before the copy (one file per name), so a refused copy is undone by writing it back.
+    dev.failNext('push', PART, { bank: 3, slot: 40 });
+    const res = await executePlan(dev, PART, plan, occ);
+    expect(res.ok).toBe(false);
+    expect(res.rolledBack).toBe(true);
+    expect(res.deviceUnchanged).toBe(true);
+    expect(res.unrestored).toBeUndefined();
+    expect(res.warnings).toHaveLength(1);
+    expect([...dev.snapshot()]).toEqual([...initial]);
+  });
+
+  it('when the Nord refuses every write, the cleared program is handed back, not lost', async () => {
+    const { dev, occ, plan } = setup();
     const io: DeviceIO = {
       pull: (p, e) => dev.pull(p, e),
-      push: (_p, at) => { pushes.push(`${at.bank}:${at.slot}`); return Promise.reject(new Error('FileCreate failed')); },
+      push: () => Promise.reject(new Error('FileCreate failed')),
       delete: (p, at) => dev.delete(p, at),
       info: (p, at) => dev.info(p, at),
     };
     const res = await executePlan(io, PART, plan, occ);
     expect(res.ok).toBe(false);
-    expect(pushes).toEqual(['3:40']); // the copy only: no write back over the untouched source
+    expect(res.rolledBack).toBe(false);
+    expect(res.unrestored?.map((u) => u.name)).toEqual(['Wurli Soft']);
+  });
+
+  it('a slot the plan never reached is not rewritten by the rollback', async () => {
+    const z = entry({ bank: 2, slot: 0, name: 'Zeta' });
+    const a = entry({ bank: 2, slot: 1, name: 'Alpha' });
+    const dev = new FakeDevice([
+      { partition: PART, file: file(4), entry: z },
+      { partition: PART, file: file(5), entry: a },
+    ]);
+    const writes: string[] = [];
+    const io: DeviceIO = {
+      pull: (p, e) => dev.pull(p, e),
+      push: (p, at, f, n) => { writes.push(n); return dev.push(p, at, f, n); },
+      delete: (p, at) => dev.delete(p, at),
+      info: (p, at) => dev.info(p, at),
+    };
+    dev.failNext('push', PART, { bank: 2, slot: 5 });
+    const occ = buildOccupancy([z, a]);
+    const res = await executePlan(io, PART, planMove(occ, { bank: 2, slot: 0 }, { bank: 2, slot: 5 }) as Plan, occ);
     expect(res.rolledBack).toBe(true);
-    expect(res.deviceUnchanged).toBe(true);
-    expect(res.unrestored).toBeUndefined();
-    expect(res.warnings).toEqual(['FileCreate failed']);
-    expect([...dev.snapshot()]).toEqual([...initial]);
+    expect(writes).toEqual(['Zeta', 'Zeta']); // the refused copy, then Zeta back in its slot; Alpha is never written
   });
 
   it('a rollback that fails too is not reported as rolled back, and hands over what it could not restore', async () => {
@@ -214,7 +242,7 @@ describe('executePlan', () => {
     const res = await executePlan(dev, PART, planArrange(occ, 2, 'name') as Plan, occ);
     expect(res.ok).toBe(false);
     expect(res.rolledBack).toBe(true);
-    expect([...dev.snapshot()]).toEqual([...initial]); // whole bank restored
+    expect([...dev.snapshot()].sort()).toEqual([...initial].sort()); // whole bank restored
   });
 
   it('executes an insert: the run ripples and lands in order', async () => {
@@ -250,7 +278,7 @@ describe('executePlan', () => {
     const res = await executePlan(dev, PART, planInsert(occ, { bank:2, slot:2 }, { bank:2, slot:0 }) as Plan, occ);
     expect(res.ok).toBe(false);
     expect(res.rolledBack).toBe(true);
-    expect([...dev.snapshot()]).toEqual([...initial]);
+    expect([...dev.snapshot()].sort()).toEqual([...initial].sort());
   });
 
   it('executes an offload: the targeted slots end empty', async () => {

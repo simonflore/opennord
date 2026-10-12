@@ -7,7 +7,9 @@ const k = (partition: number, a: Addr) => `${partition}:${addrKey(a)}`;
 
 interface Cell { file: Uint8Array; entry: ProgramEntry }
 
-/** In-memory DeviceIO for hardware-free executor tests. */
+/** In-memory DeviceIO for hardware-free executor tests. Refuses a second file
+ *  of a name, as the Nord does; replacing a slot's file is `pushFile`'s job, so
+ *  a push onto an occupied slot just lands. */
 export class FakeDevice implements DeviceIO {
   private cells = new Map<string, Cell>();
   private failures = new Set<string>();
@@ -46,6 +48,12 @@ export class FakeDevice implements DeviceIO {
 
   async push(partition: number, addr: Addr, file: Uint8Array, name: string): Promise<void> {
     this.trip('push', partition, addr);
+    // Like the instrument: one file per name in a partition.
+    for (const [key, cell] of this.cells) {
+      if (key !== k(partition, addr) && key.startsWith(`${partition}:`) && cell.entry.name === name) {
+        throw new Error(`fake push: "${name}" is already at ${key}`);
+      }
+    }
     let stored = this.truncate ? file.subarray(0, file.length - 1) : file;
     this.truncate = false;
     if (this.corrupt) {

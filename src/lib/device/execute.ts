@@ -57,11 +57,23 @@ export async function executePlan(
     return { ok: false, completedOps: 0, rolledBack: false, deviceUnchanged: true, warnings: [`Could not read the slots before moving: ${getErrorMessage(e)}`] };
   }
 
-  // 2. Run ops in order, copy-then-verify-then-delete. Any failure → rollback.
+  // 2. Run ops in order, each copy verified. Any failure → rollback.
+  //    The Nord keeps one file per name and never overwrites
+  //, so a program cannot be copied while its source
+  //    still exists: the slot holding that name, and whatever is in the target,
+  //    are cleared before the write. Between the two the program lives only in
+  //    the journal, which is why a failed rollback hands back `unrestored`.
   let completed = 0;
   // Slots a write was sent to (it may have landed even when it reported failure).
   // Only these are put back: a slot nothing wrote to is still as it was.
   const touched = new Set<string>();
+  // Journaled slots that still hold the file they started with.
+  const original = new Map(journal.filter((j) => j.before).map((j) => [addrKey(j.addr), j]));
+  const clear = async (addr: Addr) => {
+    touched.add(addrKey(addr));
+    await io.delete(partition, addr);
+    original.delete(addrKey(addr));
+  };
   try {
     for (let i = 0; i < plan.ops.length; i++) {
       if (signal?.aborted) throw new Error('cancelled');
@@ -71,6 +83,9 @@ export async function executePlan(
         const j = journal.find((x) => addrKey(x.addr) === addrKey(op.from));
         if (!j?.before) throw new Error('source bytes were not journaled');
         if (signal?.aborted) throw new Error('cancelled');
+        for (const [key, o] of [...original]) {
+          if (key === addrKey(op.to) || o.before?.name === j.before.name) await clear(o.addr);
+        }
         touched.add(addrKey(op.to));
         await io.push(partition, op.to, j.before.file, j.before.name);
         const landed = await io.info(partition, op.to);
@@ -87,8 +102,9 @@ export async function executePlan(
       } else {
         onProgress?.({ opIndex: i, opCount: plan.ops.length, phase: 'delete' });
         if (signal?.aborted) throw new Error('cancelled');
-        touched.add(addrKey(op.at));
-        await io.delete(partition, op.at);
+        // Already gone when it was the source of a copy above.
+        if (original.has(addrKey(op.at))) await clear(op.at);
+        else if (await io.info(partition, op.at)) { touched.add(addrKey(op.at)); await io.delete(partition, op.at); }
       }
       completed++;
     }
@@ -105,7 +121,9 @@ export async function executePlan(
 }
 
 /** Restore each given journaled slot to its captured state. Best-effort; returns residual
- *  warnings and the files it could not put back. */
+ *  warnings and the files it could not put back. Two passes, because the Nord
+ *  refuses a name another slot holds: first clear every slot that no longer
+ *  holds its own file, then write the files back. */
 async function rollback(
   io: DeviceIO,
   partition: number,
@@ -115,17 +133,28 @@ async function rollback(
   const warnings: string[] = [];
   const unrestored: UnrestoredFile[] = [];
   let ri = 0;
+  const toWrite: JournalEntry[] = [];
   for (const j of journal) {
-    onProgress?.({ opIndex: ri++, opCount: journal.length, phase: 'rollback' });
+    onProgress?.({ opIndex: ri++, opCount: journal.length * 2, phase: 'rollback' });
     try {
-      if (j.before) {
-        await io.push(partition, j.addr, j.before.file, j.before.name);
-      } else if (await io.info(partition, j.addr)) {
-        await io.delete(partition, j.addr);
-      }
+      const now = await io.info(partition, j.addr);
+      const intact = !!now && !!j.before && now.name === j.before.name
+        && bodiesEqual(await io.pull(partition, now), j.before.file);
+      if (intact) continue;
+      if (now) await io.delete(partition, j.addr);
+    } catch {
+      // the write below reports this slot if it really can't be restored
+    }
+    if (j.before) toWrite.push(j);
+  }
+  for (const j of toWrite) {
+    onProgress?.({ opIndex: ri++, opCount: journal.length * 2, phase: 'rollback' });
+    if (!j.before) continue;
+    try {
+      await io.push(partition, j.addr, j.before.file, j.before.name);
     } catch (e) {
       warnings.push(`Could not restore ${addrKey(j.addr)}: ${getErrorMessage(e)}`);
-      if (j.before) unrestored.push({ addr: j.addr, ...j.before });
+      unrestored.push({ addr: j.addr, ...j.before });
     }
   }
   return { warnings, unrestored };
