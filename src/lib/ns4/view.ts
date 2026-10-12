@@ -16,7 +16,7 @@ import { organModelSpec, ORGAN_MODELS } from './organ-models';
 import { ns4Engines } from './engines';
 import type {
   MorphMarkView, DrawbarView, OrganPanelModel, PianoCardModel, SynthCardModel,
-  EnvCurveView, Stat, FxChipModel, FxSlotModel, HeaderView, VolumeView, EngineCardModel, LfoView, ArpView, ArpStepView,
+  EnvCurveView, Stat, FxChipModel, FxSlotModel, HeaderView, VolumeView, EngineCardModel, LfoView, ArpView, ArpStepView, KeyItem,
 } from '../clavia/engine-view';
 import { volumeFill, envCurve } from '../clavia/engine-view';
 import { parseHz, waveShapeOf, type WaveShape } from '../clavia/curves';
@@ -278,6 +278,33 @@ export function organPanel(l: NS4Layer, organFx: Ns4OrganFx | undefined, isFirst
   };
 }
 
+const TIMBRE_LABEL: Record<string, string> = { SOFT: 'Soft', MID: 'Mid', BRIGHT: 'Bright', DYNO1: 'Dyno 1', DYNO2: 'Dyno 2' };
+// A clav's three EQ settings have their own names (the Stage 3 firmware's clav
+// timbre table, ns3/decode.ts TIMBRE_CLAV: Soft / Treble / Brilliant).
+const CLAV_LABEL: Record<string, string> = { SOFT: 'Soft', MID: 'Treble', BRIGHT: 'Brilliant' };
+
+/**
+ * The timbre as the panel's keys, by piano type: Soft / Mid / Bright, plus
+ * Dyno 1 and 2 on an electric piano, and Soft / Treble / Brilliant on a clav,
+ * whose combinations ("SOFT+BRIGHT") light several keys. "off" lights none. A
+ * setting the type's keys can't show keeps the knob.
+ */
+function timbreKeys(type: string | undefined, value: string | undefined): KeyItem[] | undefined {
+  if (!value) return undefined;
+  const names = type === 'Clav' ? CLAV_LABEL : TIMBRE_LABEL;
+  const keys = type === 'Electric' ? ['SOFT', 'MID', 'BRIGHT', 'DYNO1', 'DYNO2'] : ['SOFT', 'MID', 'BRIGHT'];
+  const lit = new Set(value === 'off' ? [] : value.split('+'));
+  if ([...lit].some((k) => !keys.includes(k))) return undefined;
+  return keys.map((k) => ({ label: names[k], on: lit.has(k) }));
+}
+
+/** Keyboard touch as its three settings, the one in use lit. */
+function touchKeys(value: string | undefined): KeyItem[] | undefined {
+  const settings = ['light', 'med', 'heavy'];
+  if (!value || !settings.includes(value)) return undefined;
+  return settings.map((t) => ({ label: t.charAt(0).toUpperCase() + t.slice(1), on: t === value }));
+}
+
 export function pianoCard(l: NS4Layer): PianoCardModel {
   return {
     id: l.id,
@@ -285,6 +312,8 @@ export function pianoCard(l: NS4Layer): PianoCardModel {
     model: l.pianoModelName ?? '—',
     timbre: l.timbre ?? '—',
     touch: l.touch ?? '—',
+    timbreKeys: timbreKeys(l.pianoType, l.timbre),
+    touchKeys: touchKeys(l.touch),
   };
 }
 

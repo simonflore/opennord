@@ -5,6 +5,7 @@ import { parseNs4Program } from './parse';
 import { programNameFromFilename } from '../clavia/name';
 import { activeLayers, headerView, drawbarLevels, volumeFill, organPanel, pianoCard, synthCard, fxChips, sampleRefViews, morphSummary } from './view';
 import { engineZones, isSplit, programZones } from './view';
+import type { KeyItem } from '../clavia/engine-view';
 import { zonedProgram } from '../../test-utils/ns4';
 
 const fixtureBytes = new Uint8Array(
@@ -193,5 +194,34 @@ describe('engineZones / isSplit', () => {
     const p = fixture();
     expect(programZones(p).hasSplit).toBe(true);
     expect(isSplit(p)).toBe(false);
+  });
+});
+
+describe('pianoCard — timbre and touch as LED keys', () => {
+  const card = (pianoType: string, timbre: string, touch = 'med') =>
+    pianoCard({ id: 'A', kind: 'piano', pianoType, timbre, touch } as unknown as Parameters<typeof pianoCard>[0]);
+  const lit = (keys?: KeyItem[]) => keys?.filter((k) => k.on).map((k) => k.label);
+
+  it('lights the timbre setting; an electric piano adds the Dyno keys', () => {
+    expect(card('Grand', 'MID').timbreKeys?.map((k) => k.label)).toEqual(['Soft', 'Mid', 'Bright']);
+    expect(lit(card('Grand', 'MID').timbreKeys)).toEqual(['Mid']);
+    expect(lit(card('Electric', 'DYNO2').timbreKeys)).toEqual(['Dyno 2']);
+    expect(card('Electric', 'off').timbreKeys).toHaveLength(5);
+  });
+
+  it('lights several keys for a clav combination, by the clav\'s names; none for off', () => {
+    expect(card('Clav', 'off').timbreKeys?.map((k) => k.label)).toEqual(['Soft', 'Treble', 'Brilliant']);
+    expect(lit(card('Clav', 'SOFT+BRIGHT').timbreKeys)).toEqual(['Soft', 'Brilliant']);
+    expect(lit(card('Grand', 'off').timbreKeys)).toEqual([]);
+  });
+
+  it('keeps a knob for a timbre the type\'s keys cannot show', () => {
+    expect(card('Grand', 'DYNO1').timbreKeys).toBeUndefined();
+  });
+
+  it('shows keyboard touch as Light / Med / Heavy', () => {
+    expect(card('Grand', 'off', 'heavy').touchKeys).toEqual([
+      { label: 'Light', on: false }, { label: 'Med', on: false }, { label: 'Heavy', on: true },
+    ]);
   });
 });

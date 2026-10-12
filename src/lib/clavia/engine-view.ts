@@ -52,7 +52,14 @@ export interface PianoCardModel {
   timbre?: string;
   /** Keyboard-touch knob — undefined on models without it (ns3, ns2). */
   touch?: string;
+  /** The timbre as the panel's LED keys, the setting lit; when set, drawn instead of the knob. */
+  timbreKeys?: KeyItem[];
+  /** The keyboard touch as LED keys, the setting lit; when set, drawn instead of the knob. */
+  touchKeys?: KeyItem[];
 }
+
+/** One LED key of a stepped control: its label, and whether it's lit. */
+export interface KeyItem { label: string; on: boolean }
 
 export interface SynthCardModel {
   id: string;
