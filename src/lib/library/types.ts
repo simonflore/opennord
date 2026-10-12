@@ -23,3 +23,9 @@ export interface LibraryEntry {
   program?: NordProgram; // parsed program when available (local: from file; nord: when pulled)
   bytes?: Uint8Array;    // raw bytes when available
 }
+
+/** Whether an entry was imported into the app's own store (`local:` ids), the
+ *  only kind the user can remove: a folder file (`folder:`) stays on disk. */
+export function isImported(id: string): boolean {
+  return id.startsWith('local:');
+}

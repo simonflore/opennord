@@ -9,7 +9,7 @@ import { CardRemoveButton } from './CardRemoveButton';
 import { activeEngineKinds, LIBRARY_ENGINES as ENGINES, type EngineSummary } from '../../lib/clavia/engines';
 import { isNs4Program, type NordProgram } from '../../lib/formats';
 import { activeLayers, fxChips } from '../../lib/ns4/view';
-import type { LibraryEntry } from '../../lib/library/types';
+import { isImported, type LibraryEntry } from '../../lib/library/types';
 
 // One row's columns: favourite, slot, name, category, the P/O/S engine LEDs,
 // zones, piano, effects, source. In a narrow container (the list beside an open
@@ -100,7 +100,7 @@ const ProgramRow = memo(function ProgramRow({ entry: e, selected, favorite, onOp
       <ProgramFacts program={e.program} />
       <span className="flex items-center gap-2">
         <span className={WIDE}><SourceBadge source={e.source} /></span>
-        {e.source === 'local' && (
+        {isImported(e.id) && (
           <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
         )}
       </span>
