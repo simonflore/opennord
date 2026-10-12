@@ -21,6 +21,7 @@ export function SiteFooter() {
         </div>
         <nav className="flex flex-wrap gap-4" aria-label="Footer">
           <Link to="/library/programs" className={footerLink}>Open the app</Link>
+          <Link to="/manifesto" className={footerLink}>Manifesto</Link>
           <Link to="/about" className={footerLink}>About &amp; legal</Link>
           <a
             className={footerLink}

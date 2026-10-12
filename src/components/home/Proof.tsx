@@ -3,15 +3,15 @@ import { SEC_TIGHT } from './layout';
 const PROOF: { lead: string; body: string }[] = [
   {
     lead: 'Matched, not guessed',
-    body: 'Stage 4 programs are validated field-for-field against real exports from the keyboard — nothing invented.',
+    body: 'Stage 4 programs are validated field for field against real exports from the keyboard. Nothing is invented.',
   },
   {
     lead: 'Proven on hardware',
-    body: 'Reading and writing over USB is tested live — enumerate, read and write, on a real Nord Stage 4.',
+    body: 'Reading and writing over USB is tested live on a real Nord Stage 4: list, read and write.',
   },
   {
-    lead: 'Stays on your device',
-    body: 'Your files are read locally in your browser. No upload, no account, no tracking, no server.',
+    lead: 'Read on your device',
+    body: 'The files you open are read in your browser. Nothing you open is uploaded unless you choose to send it, and there is no tracking.',
   },
 ];
 

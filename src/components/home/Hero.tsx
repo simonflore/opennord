@@ -2,8 +2,9 @@ import { Link } from '@tanstack/react-router';
 import { buttonVariants, SectionLabel } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { CONTENT } from './layout';
-import { heroBtn } from './styles';
+import { covLink, heroBtn } from './styles';
 import { HeroInstrument } from './HeroInstrument';
+import { READ_MODELS } from './line';
 
 /**
  * The hero: eyebrow, a full-bleed display title, then the supporting copy and
@@ -17,20 +18,20 @@ import { HeroInstrument } from './HeroInstrument';
 export function Hero() {
   return (
     <section className={cn(CONTENT, 'py-[clamp(48px,8vw,112px)]')}>
-      <SectionLabel variant="eyebrow">Open source · in your browser</SectionLabel>
+      <SectionLabel variant="eyebrow">Open source · for the whole Nord family</SectionLabel>
       {/* text-display-1 carries its own weight/leading/tracking — do not add
           font-*, leading-* or tracking-* here. Tailwind emits
           font-weight: var(--tw-font-weight, …), so any font-* on this element
           would silently override the scale. */}
       <h1 className="m-0 mt-6 text-display-1 text-ink">
-        Know your Nord — <span className="text-dim">without the keyboard.</span>
+        The companion <span className="text-dim">your Nord never got.</span>
       </h1>
       <div className="mt-10 grid grid-cols-[0.85fr_1.15fr] items-start gap-10 max-[860px]:grid-cols-1 max-[860px]:mt-8">
         <div>
           <p className="max-w-[34rem] text-[clamp(14px,1.6vw,17px)] leading-[1.6] text-dim max-[860px]:max-w-none">
-            OpenNord reads your Nord Stage program and preset files right in the
-            browser. Browse, understand and organize your patches — no keyboard, no
-            Sound Manager, nothing to install.
+            OpenNord opens your Nord’s programs, samples and pianos, shows what’s
+            inside them, and moves sounds to and from the keyboard over USB. Your
+            instrument works exactly as it always has. This sits beside it.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link to="/library/programs" className={heroBtn}>
@@ -46,7 +47,10 @@ export function Hero() {
             </a>
           </div>
           <p className="mt-4 text-[11px] font-medium tracking-[0.2px] text-muted">
-            Free &amp; open source · runs entirely on your device · works from a file alone
+            Free &amp; open source · reads {READ_MODELS.length} Nord models · your Nord never depends on it
+          </p>
+          <p className="mt-2 text-xs">
+            <Link to="/manifesto" className={covLink}>Why this exists: read the manifesto →</Link>
           </p>
         </div>
         <HeroInstrument />

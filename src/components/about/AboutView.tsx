@@ -26,7 +26,7 @@ export function AboutView() {
     <div className="max-w-[640px]">
       <div className="mb-4">
         <div className="text-[18px] font-extrabold text-ink">About OpenNord</div>
-        <div className="mt-0.5 text-[13px] text-dim">An open, AI-native companion for the Nord Stage 4.</div>
+        <div className="mt-0.5 text-[13px] text-dim">An open companion for Nord keyboards.</div>
       </div>
 
       <div className="flex flex-col gap-3">
