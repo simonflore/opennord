@@ -15,6 +15,13 @@ export interface ProgramRanker {
   rank(query: string, programs: NS4Program[]): Promise<NS4Program[]>;
 }
 
+type Fx = { on?: boolean; mode?: string; type?: string } | undefined;
+/** The effects switched on, by code and by name ("cathedral" finds CATH, "chorus" CHOR). */
+const effectText = (fx: Fx[]) => fx.filter((f) => f?.on).flatMap((f) => {
+  const code = f?.mode ?? f?.type;
+  return [code, fxTypeName(code)];
+});
+
 /** A searchable text blob for a program (expand as more fields are decoded). */
 function programText(p: NS4Program): string {
   const layerText = (p.layers ?? []).flatMap((l) => [
@@ -23,10 +30,11 @@ function programText(p: NS4Program): string {
     l.sample?.name,
     l.sample?.categoryName,
     l.filter?.type,
-    l.reverb?.type,
-    fxTypeName(l.reverb?.type), // "cathedral" finds CATH
+    ...effectText([l.fxMod1, l.fxMod2, l.ampSimEq, l.reverb]),
   ]);
-  return [p.name, p.category, ...layerText]
+  const o = p.organFx;
+  const organText = effectText([o?.mod1, o?.mod2, o?.ampSimEq, o?.reverb]);
+  return [p.name, p.category, ...layerText, ...organText]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();

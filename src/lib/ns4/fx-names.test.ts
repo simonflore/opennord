@@ -31,6 +31,7 @@ describe('noteValueName', () => {
   it('spells out dotted and triplet note values', () => {
     expect(noteValueName('1/8D')).toBe('1/8 dotted');
     expect(noteValueName('1/4T')).toBe('1/4 triplet');
+    expect(noteValueName('1/8S')).toBe('1/8 swing');
   });
 
   it('leaves straight values and times alone', () => {

@@ -25,9 +25,16 @@ export function fxTypeName(code: string | undefined): string | undefined {
   return variation ? `${name}, variation` : name;
 }
 
+const NOTE_KIND: Record<string, string> = {
+  D: 'dotted', T: 'triplet',
+  // A swing division: docs/EFFECTS-ENGINE.md (delay, MST CLK on) reads the 0.29
+  // family in the division table as probably swing.
+  S: 'swing',
+};
+
 /** A tempo-synced note value in words ("1/8D" → "1/8 dotted", "1/4T" → "1/4 triplet"); other values pass through. */
 export function noteValueName(v: string | undefined): string | undefined {
-  const m = v?.match(/^(\d+\/\d+)([DT])$/);
+  const m = v?.match(/^(\d+\/\d+)([DTS])$/);
   if (!m) return v;
-  return `${m[1]} ${m[2] === 'D' ? 'dotted' : 'triplet'}`;
+  return `${m[1]} ${NOTE_KIND[m[2]]}`;
 }
