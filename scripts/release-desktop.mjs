@@ -4,13 +4,14 @@
 // See the maintainers’ notes and electron/README.md.
 //
 //   npm run release:desktop                          both platforms
+//   npm run release:desktop -- --win-local           build the Windows installer here, not in CI
 //   npm run release:desktop -- --dry-run             everything except the upload
 //   npm run release:desktop -- --dry-run --mac-only  rehearse the mac half alone
 //
 // This file only runs things. Every decision is in release-desktop-rules.mjs,
 // which is what the tests import — so this one can run unconditionally.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,7 +49,7 @@ try {
 } catch (error) {
   fatal(error.message);
 }
-const { macOnly, dryRun } = flags;
+const { macOnly, dryRun, winLocal } = flags;
 
 const pkg = JSON.parse(readFileSync(join(core, 'package.json'), 'utf8'));
 const { version } = pkg;
@@ -67,13 +68,16 @@ const problems = preflightProblems({
   hasDeveloperId: (tryRun('security', ['find-identity', '-v', '-p', 'codesigning']) ?? '').includes('Developer ID Application:'),
   hasNotarytool: tryRun('xcrun', ['--find', 'notarytool']) !== null,
   hasNotaryProfile: tryRun('xcrun', ['notarytool', 'history', '--keychain-profile', NOTARY_PROFILE]) !== null,
+  winLocal,
+  canRunIntel: process.arch !== 'arm64' || tryRun('arch', ['-x86_64', '/usr/bin/true']) !== null,
 });
 if (problems.length > 0) fatal(`not ready:\n${problems.map((p) => `  • ${p}`).join('\n')}`);
 
 // 2. Find the Windows build BEFORE the slow mac pack, so a missing one fails fast.
+//    (With --win-local there is none to find: it is built here, in step 4b.)
 let windowsRun = null;
 let ciRepo = null;
-if (!macOnly) {
+if (!macOnly && !winLocal) {
   ciRepo = tryRun('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner']);
   if (!ciRepo) fatal('could not determine which GitHub repository this checkout belongs to.');
   const runsJson = tryRun('gh', [
@@ -82,7 +86,7 @@ if (!macOnly) {
   ]);
   if (runsJson === null) fatal('could not list the Windows CI runs (gh run list failed).');
   windowsRun = pickWindowsRun(JSON.parse(runsJson), headCommit);
-  if (!windowsRun.ok) fatal(windowsRun.reason);
+  if (!windowsRun.ok) fatal(`${windowsRun.reason}\n  (If Windows CI cannot run at all, --win-local builds the installer on this machine.)`);
 }
 
 // 3. Refuse early if this version is already out.
@@ -110,6 +114,17 @@ if (!dryRun) {
   }
 }
 
+// 4b. --win-local: pack the Windows installer here, and set its files aside —
+//     the mac pack that follows empties release/ before it starts.
+const assets = releaseAssets(pkg.build, { macOnly });
+const scratch = mkdtempSync(join(tmpdir(), 'opennord-release-'));
+process.on('exit', () => rmSync(scratch, { recursive: true, force: true }));
+if (winLocal) {
+  console.log('\nBuilding the Windows installer on this machine. It is packed from this commit and checked by the\npack guard, but unlike a CI build it is not made on Windows and has not run there.');
+  run('npm', ['run', 'electron:pack:win']);
+  for (const name of assets.win) copyFileSync(join(core, 'release', name), join(scratch, name));
+}
+
 // 5. Pack macOS. APPLE_KEYCHAIN_PROFILE is what makes electron-builder notarize.
 run('npm', ['run', 'electron:pack'], { APPLE_KEYCHAIN_PROFILE: NOTARY_PROFILE });
 
@@ -129,11 +144,9 @@ if (existsSync(macFeed)) {
 }
 
 // 7. Gather the files: the mac ones where the pack left them, the Windows ones
-//    from CI into a scratch folder that is removed again.
-const assets = releaseAssets(pkg.build, { macOnly });
-const scratch = mkdtempSync(join(tmpdir(), 'opennord-release-'));
-try {
-  if (!macOnly) {
+//    in the scratch folder — downloaded from CI now, or put there in step 4b.
+{
+  if (!macOnly && !winLocal) {
     run('gh', ['run', 'download', String(windowsRun.id), '--repo', ciRepo, '--name', `OpenNord-win-x64-${headCommit}`, '--dir', scratch]);
   }
   const files = [
@@ -156,6 +169,4 @@ try {
     run('gh', ['release', 'upload', tag, ...files, '--repo', publicRepo, '--clobber']);
     console.log(`\nDraft ready: https://github.com/${publicRepo}/releases — its tag will be cut from ${target}. Test the builds, then publish it.`);
   }
-} finally {
-  rmSync(scratch, { recursive: true, force: true });
 }

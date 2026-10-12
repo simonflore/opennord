@@ -50,6 +50,10 @@ export function preflightProblems(facts) {
   if (!facts.hasDeveloperId) problems.push('No "Developer ID Application" certificate in the keychain.');
   if (!facts.hasNotarytool) problems.push('xcrun notarytool not found — install Xcode or the Command Line Tools: xcode-select --install');
   if (!facts.hasNotaryProfile) problems.push(`No usable notarytool keychain profile "${NOTARY_PROFILE}" — see electron/README.md, "One-time setup".`);
+  // electron-builder's installer compiler (makensis) for macOS is an Intel binary.
+  if (facts.winLocal && facts.canRunIntel === false) {
+    problems.push('Building the Windows installer on this Mac needs Rosetta — run: softwareupdate --install-rosetta --agree-to-license');
+  }
   return problems;
 }
 
@@ -95,11 +99,14 @@ export function releaseAssets(build, { macOnly }) {
  * Command-line flags. Unknown flags are refused rather than ignored, and
  * --mac-only is rehearsal-only: a PUBLISHED release without the Windows files
  * becomes "latest", so releases/latest/download/OpenNord-win-x64.exe and the
- * Windows update feed would both 404. Every release tag gets a Windows build
- * from CI anyway.
+ * Windows update feed would both 404.
+ *
+ * --win-local builds the Windows installer on this machine instead of taking
+ * the one CI built for the commit. The default stays CI, because that one is
+ * packed on Windows from a clean install.
  */
 export function parseFlags(argv) {
-  const known = ['--mac-only', '--dry-run'];
+  const known = ['--mac-only', '--dry-run', '--win-local'];
   const unknown = argv.filter((flag) => !known.includes(flag));
   if (unknown.length > 0) throw new Error(`Unknown option ${unknown.join(', ')} — expected ${known.join(' or ')}.`);
   const macOnly = argv.includes('--mac-only');
@@ -107,7 +114,9 @@ export function parseFlags(argv) {
   if (macOnly && !dryRun) {
     throw new Error('--mac-only only works with --dry-run: a release without the Windows files would break the Windows download link and update feed.');
   }
-  return { macOnly, dryRun };
+  const winLocal = argv.includes('--win-local');
+  if (winLocal && macOnly) throw new Error('--win-local and --mac-only ask for opposite things: pick one.');
+  return { macOnly, dryRun, winLocal };
 }
 
 /**

@@ -35,6 +35,15 @@ describe('preflightProblems', () => {
     expect(problem).toContain('aaa111');
   });
 
+  it('needs Rosetta to build the Windows installer on an Apple Silicon Mac', () => {
+    // electron-builder's installer compiler for macOS is an Intel binary.
+    const [problem] = preflightProblems({ ...ready, winLocal: true, canRunIntel: false });
+    expect(problem).toMatch(/Rosetta/);
+    expect(problem).toContain('softwareupdate --install-rosetta');
+    expect(preflightProblems({ ...ready, winLocal: true, canRunIntel: true })).toEqual([]);
+    expect(preflightProblems({ ...ready, winLocal: false, canRunIntel: false })).toEqual([]);
+  });
+
   it('reports every missing prerequisite at once', () => {
     const problems = preflightProblems({
       ...ready, ghAuthed: false, hasDeveloperId: false, hasNotarytool: false, hasNotaryProfile: false,
@@ -131,13 +140,20 @@ describe('releaseAssets', () => {
 
 describe('parseFlags', () => {
   it('defaults to a full release', () => {
-    expect(parseFlags([])).toEqual({ macOnly: false, dryRun: false });
+    expect(parseFlags([])).toEqual({ macOnly: false, dryRun: false, winLocal: false });
   });
   it('allows a mac-only dry run', () => {
-    expect(parseFlags(['--mac-only', '--dry-run'])).toEqual({ macOnly: true, dryRun: true });
+    expect(parseFlags(['--mac-only', '--dry-run'])).toEqual({ macOnly: true, dryRun: true, winLocal: false });
   });
   it('refuses a real mac-only release: it would become "latest" with no Windows files', () => {
     expect(() => parseFlags(['--mac-only'])).toThrow(/Windows/);
+  });
+  it('can build the Windows installer on this machine instead of taking it from CI', () => {
+    expect(parseFlags(['--win-local'])).toEqual({ macOnly: false, dryRun: false, winLocal: true });
+    expect(parseFlags(['--win-local', '--dry-run']).winLocal).toBe(true);
+  });
+  it('refuses --win-local together with --mac-only: they ask for opposite things', () => {
+    expect(() => parseFlags(['--win-local', '--mac-only', '--dry-run'])).toThrow(/--win-local.*--mac-only|--mac-only.*--win-local/);
   });
   it('refuses a flag it does not know instead of ignoring it', () => {
     expect(() => parseFlags(['--dryrun'])).toThrow(/--dryrun/);

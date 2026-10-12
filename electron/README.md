@@ -169,6 +169,13 @@ tell it from the new one.
    one (see "Rehearsing an update") before publishing.
 5. Publish the draft.
 
+**When Windows CI cannot run**, add `-- --win-local`: the command packs the
+Windows installer on this Mac first (electron-builder 26 can; on Apple Silicon
+its installer compiler needs Rosetta, which the preflight checks), runs the same
+pack guard over it, and then carries on with the Mac build. It says so in its
+output, because an installer made this way has not run on Windows. CI stays the
+default: that build is made on Windows from a clean install.
+
 `-- --dry-run` does everything except upload; add `--mac-only` to rehearse the
 macOS half before a Windows build exists. There is no mac-only *release*: a
 published release without the Windows files becomes "latest" and breaks the
