@@ -5,9 +5,9 @@
  * of small converters over an older record when it loads it (one step per
  * version: move a field, remap a value, rescale a curve). OpenNord's readers
  * apply the same steps, reimplemented from the firmware's behaviour (no firmware
- * code or tables), so an older file shows the settings the instrument would
- * play. The writers never write a converted record (clavia/layout-write.ts
- * refuses any version but the native one).
+ * code; tables only as the exceptions docs/LEGAL.md records), so an older file
+ * shows the settings the instrument would play. The writers never write a
+ * converted record (clavia/layout-write.ts refuses any version but the native one).
  *
  * A converter edits the record data in place — the bytes after the record
  * version, as the layout's field bits count them — and returns musician-facing

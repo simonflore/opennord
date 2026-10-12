@@ -5,9 +5,10 @@ import { LibraryCard } from '../library/LibraryCard';
 import { LibraryEmpty } from '../library/LibraryEmpty';
 import { SlotTag } from '../library/SlotTag';
 import { CardRemoveButton } from '../library/CardRemoveButton';
+import { PresetGlance } from './PresetGlance';
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
-import type { LibrarySource } from '@/lib/library/types';
+import { isImported, type LibrarySource } from '@/lib/library/types';
 import type { PresetSort } from '@/lib/library/prefs';
 import { formatBytes } from '@/lib/format';
 
@@ -20,7 +21,7 @@ const parsePresetSort = (raw: string): PresetSort =>
   raw === 'name' || raw === 'size' ? raw : 'default';
 
 export function PresetsBrowse({
-  entries, source, setSource, kind, setKind, query, setQuery, clearFilters,
+  entries, source, setSource, kind, setKind, query, setQuery, clearFilters, filtered,
   kinds, showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect, onImport, onRemove, activeId,
 }: {
   entries: PresetEntry[];
@@ -29,6 +30,8 @@ export function PresetsBrowse({
   query: string; setQuery: (q: string) => void;
   /** Every filter off and the search cleared (from the list's context). */
   clearFilters: () => void;
+  /** Whether any filter or search is narrowing the list (from the list's context). */
+  filtered: boolean;
   kinds: PresetKind[];
   showSourceFacet: boolean;
   sort: PresetSort; setSort: (s: PresetSort) => void;
@@ -62,7 +65,6 @@ export function PresetsBrowse({
 
   const sortOptions = (Object.keys(SORT_LABEL) as PresetSort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }));
 
-  const filtered = query.trim() !== '' || (showSourceFacet && source !== 'all') || kind !== 'all';
 
   return (
     <CategoryPanel
@@ -89,10 +91,11 @@ export function PresetsBrowse({
                 onOpen={() => onSelect(e)}
                 selected={e.id === activeId}
                 badge={<SlotTag>{e.slot ?? KIND_LABEL[e.kind]}</SlotTag>}
+                engines={<PresetGlance entry={e} />}
                 footExtras={
                   <>
                     {e.size != null && <SlotTag>{formatBytes(e.size)}</SlotTag>}
-                    {e.id.startsWith('local:') && (
+                    {isImported(e.id) && (
                       <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
                     )}
                   </>

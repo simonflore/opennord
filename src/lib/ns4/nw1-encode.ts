@@ -58,7 +58,8 @@ export interface NW1Block {
   sampleCnt: number;
   /** Block-header bit 23 — set on segment-start blocks and the stop block. */
   linMode: boolean;
-  /** Block-header bit 18 — unused by the one-shot path (always false here). */
+  /** Block-header bit 18 — the loop-decay flag of the loop-begin block
+   *  (`docs/SAMPLE-ENGINE.md` §1.3); the one-shot path never sets it. */
   flag2: boolean;
 }
 

@@ -759,6 +759,9 @@ params before shipping `convertNsmp(x, 2)`. Until then, OG output stays behind a
 
 ### Region pointers — domain is internal, not decoded-PCM (RE update)
 
+> **Resolved 2026-10-11:** the "internal unit" is the compressed stream's word count; each
+> pointer lands on a segment-opening block ([`SAMPLE-ENGINE.md`](SAMPLE-ENGINE.md) §1.1).
+
 `EncodeStrokePhase0` (`@1002dbc38`) builds the four region values from the source
 `CSmpStream`'s `GetSecondStart`/`GetLoopBegin`/`GetEnd`/`GetChannelCnt`, with a
 `channels×5` guard between regions and a `kNomTgt`-derived alignment (the
@@ -788,6 +791,14 @@ open problem to region-recompute-for-new-length. Then calibrate the region/align
 constants against hardware (2–3 iterations) rather than a blind port.
 
 ## Loop / sustain playback model — VERIFIED (NSE binary, 2026-06-28)
+
+> **Corrected 2026-10-11 — read [`SAMPLE-ENGINE.md`](SAMPLE-ENGINE.md) §1 first.** The header's
+> region pointers are positions in the **compressed stream** (stream words), not audio samples,
+> and they are *start, second start, loop begin, end*: the loop runs from `+0x24` to the end,
+> and `+0x1b` is an alternate start point. The instrument's sample DSP hard-jumps the loop with
+> no crossfade and applies the stored loop decay (`+0x28`). The notes below are kept as the
+> record; where they say "loop-in / loop-out", read "second start / loop begin", and the
+> crossfade paragraph no longer describes the player.
 
 How a held key sustains. Reverse-engineered from the decompiled NSE
 (`nse_decomp/` + `nse/nse-arm64`), cross-checked against `.nsmpproj` editor
@@ -1333,7 +1344,7 @@ cracked the codec. The "scale unknown" / "velocity unknown" rows below are now
 | per-note gain/detune (`note_info`) | **present + scaled** | 128-row block; same `DSP2Level`/`DSP2Detune` per row (codec-4 +4 extra bytes are 4 distinct arrays, not a tag) |
 | velocity min/max (`map_stroke`) | **present** | zone record `velMin@+14` / `velMax@+15` (`SetVelocityMin`/`Max`, mapVer ≥ 0xe) — both codecs; decoded + writable |
 | zone mode / playback / one-shot | **present** | zone record `@+3/+4/+5` (`SetZoneMode`/`SetZonePlayback`/`SetZoneIsOneShot`) — read |
-| codec-4 SampleUnison block (mode, detune/pan spreads, voices, gains) | **decoded + surfaced (read-only)** | 31B `[mode u8][topKey u8][detuneMax u16][sameDetuneMin u16][panMax u8][detuneMax2 u16][panMax2 u8][detuneMax3 u16][panMax3 u8][numVoice1/2/3/Same u8×4][gainX3 1/2/3/Same u24×4 → DSP2Level][randomStrokeMode u8][blockRandomSustPed u8]` then the 1B zone count (`readSampleUnison`; `SetSampleUnison*`). Whole corpus is unison-**off** so detune/pan value scales aren't pinned; gains use the dB scale |
+| codec-4 SampleUnison block (mode, detune/pan spreads, voices, gains) | **decoded + played** (layout corrected 2026-10-11: see [`SAMPLE-ENGINE.md`](SAMPLE-ENGINE.md) §2.1; the bracketed order here is the old, wrong one) | 31B `[mode u8][topKey u8][detuneMax u16][sameDetuneMin u16][panMax u8][detuneMax2 u16][panMax2 u8][detuneMax3 u16][panMax3 u8][numVoice1/2/3/Same u8×4][gainX3 1/2/3/Same u24×4 → DSP2Level][randomStrokeMode u8][blockRandomSustPed u8]` then the 1B zone count (`readSampleUnison`; `SetSampleUnison*`). Whole corpus is unison-**off** so detune/pan value scales aren't pinned; gains use the dB scale |
 | per-zone EQ / imaging / fades / release / instrument envelope | **absent / editor-only?** | no structured non-audio gap large enough; likely baked/dropped on export |
 
 Remaining: editing the SampleUnison block + per-note gain/detune is gated on a

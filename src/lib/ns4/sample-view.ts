@@ -3,7 +3,7 @@
  * display data. No DOM, no audio. Reused by the Sample Inspector components.
  */
 import type { NsmpFile, DecodedStrokeResult } from './nsmp';
-import { readNsmpZones, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, readTruVibrato } from './nsmp';
+import { readNsmpZones, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, readTruVibrato, unisonDetuneRawToCents } from './nsmp';
 import { dsp2Level, dsp2Detune } from './nw1-dsp';
 import { peakAmplitude } from './nsmp-audio';
 
@@ -28,9 +28,7 @@ export interface SampleHeaderView {
   isFactory: boolean;
   /** Tru-Vibrato engaged (codec-4.2 samples only; undefined when not applicable). */
   truVibrato?: boolean;
-  /** Unison voicing summary (codec-4 only), e.g. "on · 2 voices · round-robin". */
-  unison?: string;
-  /** Round-robin engaged (RandomStrokeMode set) — surfaced independently of unison. */
+  /** Repeated notes step through neighbouring recordings (RandomStrokeMode set). */
   roundRobin?: boolean;
   /** Global + per-note level/detune, read-only. Computed by {@link gainDetuneView}
    *  (kept off {@link sampleHeaderView} so its callers/tests stay unchanged). */
@@ -89,28 +87,27 @@ export function truVibratoView(bytes: Uint8Array): boolean | undefined {
   return readTruVibrato(bytes)?.on;
 }
 
-/** At-a-glance voicing badges for the header: unison summary + round-robin flag.
- *  Codec-4 only ({} otherwise). Round-robin is reported independently of unison
- *  because the rompler applies it whenever RandomStrokeMode is set. */
-export function voicingView(bytes: Uint8Array): { unison?: string; roundRobin?: boolean } {
+/** At-a-glance voicing badge for the header: whether repeated notes vary. Codec-4 only
+ *  ({} otherwise). Unison has no badge: it is the program's setting, not the sample's. */
+export function voicingView(bytes: Uint8Array): { roundRobin?: boolean } {
   const u = readSampleUnison(bytes);
-  if (!u) return {};
-  return {
-    unison: u.active ? sampleUnisonView(bytes)?.summary : undefined,
-    roundRobin: u.randomStrokeMode !== 0,
-  };
+  return u ? { roundRobin: u.randomStrokeMode !== 0 } : {};
 }
 
-export function sampleUnisonView(bytes: Uint8Array): { active: boolean; summary: string } | null {
+const unisonCents = (raw: number): string => unisonDetuneRawToCents(raw).toFixed(1);
+
+/**
+ * What the sample brings to the program's Unison setting, in a few words. `custom` is
+ * false when it leaves detune and width to the instrument. Null without a voicing block.
+ */
+export function sampleUnisonView(bytes: Uint8Array): { custom: boolean; summary: string } | null {
   const u = readSampleUnison(bytes);
   if (!u) return null;
-  if (!u.active) return { active: false, summary: 'off' };
-  const parts = [`${u.numVoiceSame} voices`];
-  if (u.detuneMax) parts.push(`detune ${u.detuneMax}`);
-  if (u.panMax) parts.push(`pan ${u.panMax}`);
-  if (Math.abs(u.gainDbSame) >= 0.05) parts.push(`gain ${u.gainDbSame >= 0 ? '+' : '−'}${Math.abs(u.gainDbSame).toFixed(1)} dB`);
-  if (u.randomStrokeMode) parts.push('round-robin');
-  return { active: true, summary: `on · ${parts.join(' · ')}` };
+  const repeats = u.randomStrokeMode ? ' · repeated notes vary' : '';
+  if (!u.custom) return { custom: false, summary: `the instrument's own detune and width${repeats}` };
+  const detune = [u.detuneMax, u.detuneMax2, u.detuneMax3].map(unisonCents).join(' / ');
+  const width = [u.panMax, u.panMax2, u.panMax3].join(' / ');
+  return { custom: true, summary: `detune ±${detune} cents and width ${width} for Unison 1 / 2 / 3${repeats}` };
 }
 
 export interface ZoneRow {
@@ -156,9 +153,12 @@ export interface StrokeSummary {
   rootMidi?: number;
   /** Whether the stroke loops; undefined when the loop region wasn't decodable. */
   loops?: boolean;
-  /** Loop in/out, per-channel samples from stroke start (only when looping). */
+  /** Loop begin/end, per-channel frames from stroke start (only when looping). */
   loopStart?: number;
   loopEnd?: number;
+  /** dB the held note loses per second once it is in the loop (only when looping and
+   *  the loop doesn't hold its level). */
+  loopDecayDbPerSecond?: number;
 }
 
 export function strokeSummary(d: DecodedStrokeResult): StrokeSummary {
@@ -170,5 +170,6 @@ export function strokeSummary(d: DecodedStrokeResult): StrokeSummary {
     loops: d.loop ? d.loop.loops : undefined,
     loopStart: d.loop?.loops ? d.loop.loopStart : undefined,
     loopEnd: d.loop?.loops ? d.loop.loopEnd : undefined,
+    loopDecayDbPerSecond: d.loop?.loops && d.loop.decayDbPerSecond > 0 ? d.loop.decayDbPerSecond : undefined,
   };
 }

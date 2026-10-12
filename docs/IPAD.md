@@ -1,77 +1,114 @@
 # iPad — native shell & USB transfer (DriverKit)
 
-OpenNord on iPad is the same React app in a Capacitor shell (Phase A) plus a
-native USB runtime (Phase B). This doc is the Phase B blueprint; Phase A (the
-responsive split layout, `data-native` shell polish, platform detection, and the
-`CapacitorUsbTransport` stub) is already in the tree.
+OpenNord on iPad is the same React app in a Capacitor shell, plus a DriverKit
+driver that gives it the Nord's USB port. The Xcode project is committed under
+`ios/`; it builds the app and the driver, and embeds one in the other.
+
+**Status (2026-10-11): builds, never run.** `xcodebuild` (Xcode 27) compiles and
+links the driver, both Swift plugins and the app, unsigned. Nothing here has yet
+run on an iPad or talked to a Nord — see "What is still unproven".
 
 ## Why iPad is special
 
-The Stage 4 transfer protocol is vendor USB on interface 0 (`docs/PROTOCOL-RE.md`),
-**not** SysEx. Among Apple devices, only **iPad (M1+)** can reach vendor-class USB,
-via a DriverKit system extension. Not iPhone (no DriverKit on iOS), not any
-PWA/Safari (no WebUSB/Web MIDI). So: transfer = desktop (WebUSB/node-usb) or a
-native iPad app with a DEXT.
+The Nord transfer protocol is vendor USB on interface 0 (`docs/PROTOCOL-RE.md`),
+**not** SysEx. Among Apple devices, only **iPad (M1+, iPadOS 16+)** can reach
+vendor-class USB, via a DriverKit extension. Not iPhone (no DriverKit on iOS), not
+any PWA/Safari (no WebUSB/Web MIDI). So: transfer = desktop (WebUSB/node-usb) or
+this app. The app target is iPad-only for that reason.
 
-## Target topology
+## How it fits together
 
 ```
-CapacitorUsbTransport (TS, implements NordTransport)   ← Phase A stub, in tree
-   → custom Capacitor USB plugin (Swift app code)      ← Phase B
-      → IOKit IOUserClient
-         → DriverKit DEXT (claims vendor iface 0xFF; VID 0x0FFC / PID 0x002E;
-           bulk OUT endpoint 0x03, bulk IN endpoint 0x82)
-   gated on: com.apple.developer.driverkit entitlement (+ USB transport entitlement)
+CapacitorUsbTransport (TS, implements NordTransport)     src/lib/device/capacitor-usb.ts
+  → NordUsb plugin (Swift)                               plugins/capacitor-nord-usb/ios/Sources/NordUsbPlugin/
+     → IOKit user client (IOServiceOpen / IOConnectCallMethod)
+        → NordUsbUserClient → NordUsbDriver (DriverKit)  plugins/capacitor-nord-usb/ios/Dext/
+           → the Nord's vendor interface: bulk OUT + bulk IN
 ```
 
-The seam is four methods (`open / bulkOut / bulkIn / close`); the plugin marshals
-byte arrays across the JS↔Swift bridge. Everything above the transport
-(`session`, `transfer`, `backup`, CRC-16, opcodes) is reused unchanged.
+- **Matching.** The driver matches Clavia's vendor id (`0x0FFC`) plus the vendor
+  interface's subclass/protocol (`0xFF/0xFF`), not one product id, so every Nord
+  with that interface is picked up. It finds the bulk endpoints from the
+  interface's own descriptors and falls back to the Stage 4's (`0x03` / `0x82`).
+- **Which Nord.** The driver reads the USB product id; `open` hands it to the
+  app, which picks the model exactly as the desktop paths do
+  (`CapacitorUsbTransport.identify()` → `identifyDevice`).
+- **Calls.** Four external methods — open, bulk OUT, bulk IN, close. Their
+  selectors and argument shapes are listed once in `NordUsbUserClient.cpp` and
+  mirrored in `NordUsbConnection.swift`; change both together.
+- **Timeouts.** A read with a timeout comes back as `timedOut` and leaves nothing
+  pending (`TransportTimeoutError`, like the other transports). A read without
+  one is cut into 2-second slices on the Swift side, so closing the connection or
+  unplugging the keyboard ends it.
+- **IOKit from Swift.** The iOS SDK ships IOKit without a module map; the small
+  `NordIOKit` C target re-exports it.
+- **No driver, no problem.** `nordUsbAvailable()` is false until a Nord is plugged
+  in and the driver is switched on; the connect screen then asks the player to
+  plug in, and keeps checking. Everything else in the app works without it.
 
-## Phase B build order
+## Build
 
-The TS bridge + native source already live in `plugins/capacitor-nord-usb/`
-(committed, `UNVALIDATED` headers). What remains is gated on Apple + hardware:
+Needs Xcode (not just the Command Line Tools) and Node 22 or 24.
 
-1. **Apple Developer.** Request the `com.apple.developer.driverkit` distribution
-   entitlement (justification form; lead time). Enable the DriverKit capability on
-   the `org.opennord.app` App ID. Create provisioning profiles for the app and the
-   DEXT carrying the entitlement.
-2. **Generate the iOS app target (local, not committed).** `npm run build` then
-   `npx cap add ios`. Add `"capacitor-nord-usb": "file:plugins/capacitor-nord-usb"`
-   to the app `dependencies` and `npm install` so `cap sync` discovers the plugin.
-3. **Register the plugin.** Run `node scripts/register-capacitor-plugins.js` after
-   `npx cap sync` (it re-adds `NordUsbPlugin` to the regenerated
-   `ios/App/App/capacitor.config.json`).
-4. **Add the DEXT target + finish the IOUserClient.** In Xcode, add a DriverKit
-   extension target from `plugins/capacitor-nord-usb/ios/Dext/*`; embed it in the
-   app; set its entitlements + the match `Info.plist`. The committed DEXT source is
-   unvalidated and **incomplete by design**: implement `NewUserClient` and the
-   `IOUserClient` subclass with an `ExternalMethod` dispatch table mapping selectors
-   0–3 → `DoOpen/DoBulkOut/DoBulkIn/DoClose`, matching the Swift wrapper's call
-   shapes (note `bulkIn` is marshalled as a scalar input + struct output).
-5. **Sign + deploy.** Build with the entitlement-bearing profiles; install on an
-   M1+ iPad; approve the system extension in Settings.
-6. **StatusBar polish.** Add `@capacitor/status-bar`, style to Studio Dark
-   near-black behind `isCapacitorPlatform()`.
-7. **Hardware-validate.** Against a real Stage 4: enumerate (FileIterate) / read /
-   write, matching `scripts/re-archive/nordpull.c` / `scripts/nordcreate.c`. The DEXT cannot
-   run on the simulator.
+```bash
+npm run cap:sync                       # web bundle → ios/App/App/public, plugins → Swift package
+open ios/App/App.xcodeproj             # pick your team on the App and NordUsbDriver targets, run on an iPad
+```
 
-## Validation gates (cannot be verified without entitlement + hardware)
+Unsigned compile check, no team needed:
 
-- DEXT compile — best-effort via the DriverKit SDK once an `ios/` target exists.
-- Signing / installation — blocked on the `com.apple.developer.driverkit` entitlement.
-- On-device enumerate / read / write — blocked on an M1+ iPad + a Nord Stage 4.
+```bash
+cd ios/App && xcodebuild -project App.xcodeproj -scheme App \
+  -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+```
 
-## Constraints
+The driver target is not something `npx cap add ios` knows about. If the project
+is ever regenerated, `scripts/ios-add-dext.rb` puts it back (and sets the iPadOS
+16 floor, iPad-only, and the app's entitlements).
 
-- DEXT requires a physical M1+ iPad and a provisioning profile carrying the
-  DriverKit entitlement; no simulator path.
-- `NordTransport` must not change shape — keep the four-method seam.
-- "Hardware optional" holds: with no DEXT, the iPad app is still the full
-  Library/AI/samples app; the connect screen shows the Phase A "coming to iPad"
-  state (`usbAvailability() === 'ipad-dext-pending'`).
+## Signing and entitlements
+
+| Target | Entitlement | Who can sign with it |
+|---|---|---|
+| App | `com.apple.developer.driverkit.communicates-with-drivers` | development: any team; distribution: on request |
+| Driver | `com.apple.developer.driverkit` | development: any team; distribution: on request |
+| Driver | `com.apple.developer.driverkit.transport.usb` for vendor id 4092 (`0x0FFC`) | development: any team (any vendor id); distribution: **granted by Apple per vendor id** |
+
+- **On your own iPad:** a paid developer team and automatic signing are enough.
+  Xcode adds the development versions of these capabilities itself.
+- **TestFlight / App Store:** a distribution profile only carries them once Apple
+  has approved the team's DriverKit request
+  (<https://developer.apple.com/contact/request/system-extension/>). The USB
+  transport entitlement is granted per vendor id, and `0x0FFC` belongs to Clavia,
+  not to us. Whether Apple grants it to a third party is the open question for
+  distribution; nothing in the code can settle it.
+
+## First run on an iPad
+
+1. Run from Xcode onto an iPad with an M1 or newer.
+2. Settings → Apps → OpenNord → Drivers: switch the Nord driver on. (It is listed
+   once the app has been installed; the switch only appears on DriverKit-capable
+   iPads.)
+3. Plug the Nord in and switch it on. The Device screen changes from "Plug your
+   Nord into this iPad" to the connect card within a couple of seconds.
+4. Connect. Check, in this order: the model name is right; the program list
+   loads; reading one program works; then a write, on a slot you don't mind losing.
+
+If step 3 never happens, look at the driver's log (`log stream` in Console,
+filter on `NordUsbDriver`): "started (pid …)" means it matched and opened the
+interface; no line at all means it never matched.
+
+## What is still unproven
+
+- Whether iPadOS hands this driver the vendor interface with the personality in
+  `Dext/Info.plist` (vendor id + subclass + protocol).
+- The whole user-client round trip, including replies above 4096 bytes, which
+  travel as a mapped buffer instead of inline.
+- Whether cutting an unanswered read into 2-second slices is harmless to a Nord
+  mid-transfer. It only ever abandons a slice that received nothing.
+- Any model but the Stage 4. The others share the transport on paper
+  (`docs/NORD-PRODUCT-LINE.md`); on iPad, as on desktop, they stay read-only until
+  the probe finds their program files.
 
 ## MIDI input (play any MIDI keyboard on iPad)
 
@@ -119,33 +156,19 @@ WebMIDIAPIShim (Objective-C, `MIDIPacketList` only, no Capacitor 8 packaging,
 no Bluetooth pairing UI). The plugin here is ~300 lines of Swift with no
 third-party code, AGPL like the rest of core.
 
-### Status: UNVALIDATED (Swift)
+### Status: compiles, never run
 
-`plugins/capacitor-midi-input/ios/Sources/MidiInputPlugin.swift` has never been
-compiled — there's no Xcode here. Everything in TypeScript (seam selection, UMP
+`MidiInputPlugin.swift` builds with Xcode 27 as part of the app (see "Build"
+above) but has not run on an iPad. Everything in TypeScript (seam selection, UMP
 conversion, stream splitting, hot-plug bookkeeping, refcounted stop, the web
 fallback, the UI states) is covered by vitest.
-
-### Build
-
-1. `npm run build:native && npx cap add ios` (local, not committed), as above.
-2. Add `"capacitor-midi-input": "file:plugins/capacitor-midi-input"` to the app
-   `dependencies` and `npm install` so `cap sync` discovers the pod
-   (`CapacitorMidiInput.podspec` links `CoreMIDI` + `CoreAudioKit`).
-3. `npx cap sync ios`, then `node scripts/register-capacitor-plugins.js` — it
-   ensures both `NordUsbPlugin` and `MidiInputPlugin` are in
-   `ios/App/App/capacitor.config.json`'s `packageClassList`.
-4. Build in Xcode. Expect to fix small Swift API-shape issues on first compile
-   (the code targets the iOS 14+ CoreMIDI Swift overlay: `MIDIEventPacketNext`,
-   `MemoryLayout.offset(of:)` over `MIDIEventList`/`MIDIPacketList`).
 
 ### Permissions / entitlements
 
 - **CoreMIDI: none.** No entitlement, no usage string, no capability.
-- **Bluetooth MIDI:** add `NSBluetoothAlwaysUsageDescription` to
+- **Bluetooth MIDI:** `NSBluetoothAlwaysUsageDescription` is set in
   `ios/App/App/Info.plist` (iOS kills the app when the pairing sheet touches
-  Bluetooth without it). Suggested text: *"OpenNord uses Bluetooth to connect
-  wireless MIDI keyboards so you can play sounds on your iPad."*
+  Bluetooth without it).
 - No background modes: input only runs while the app is in front.
 
 ### Device test checklist

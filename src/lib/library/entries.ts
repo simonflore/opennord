@@ -2,11 +2,12 @@ import type { LibraryEntry, LibrarySource, LibrarySort } from './types';
 import type { ProgramEntry } from '../device/transfer';
 import type { ScannedProgram } from '../folder/scan';
 import { formatSlot } from '../clavia/slot';
-import { parseClaviaFile } from '../formats';
+import { isNs4Program, parseClaviaFile } from '../formats';
 import { identifyNordFile } from '../clavia/nord-file';
 import { programNameFromFilename } from '../clavia/name';
 import { programCategoryName, PROGRAM_CATEGORY } from '../clavia/categories';
-import { engineSearchText } from '../clavia/engines';
+import { activeEngineKinds, engineSearchText, type EngineKind } from '../clavia/engines';
+import { isSplit } from '../ns4/view';
 import { matchesAny, sortWithFavorites } from './browse';
 
 /** Category names in Nord's canonical id order, de-duplicated — for the facet. */
@@ -49,17 +50,34 @@ export function entryFromImport(rec: { id: string; name: string; bytes: Uint8Arr
   };
 }
 
-/** Filter by source tab + format generation + category + query (name/category/engine). */
+/**
+ * What a program plays, for the LED filter keys: every engine in `engines` must
+ * be active, and with `split` the keyboard must be split (a Stage 4 program).
+ */
+export interface EntryTraits { engines: ReadonlySet<EngineKind>; split: boolean }
+
+/** Filter by source tab + format generation + category + query (name/category/engine) + traits. */
 export function filterEntries(
   entries: LibraryEntry[], source: LibrarySource | 'all', query: string,
   generation: LibraryEntry['generation'] | 'all' = 'all',
   category: string | 'all' = 'all',
+  traits?: EntryTraits,
 ): LibraryEntry[] {
   return entries.filter((e) =>
     (source === 'all' || e.source === source) &&
     (generation === 'all' || e.generation === generation) &&
     (category === 'all' || e.category === category) &&
+    (!traits || hasTraits(e, traits)) &&
     matchesAny([e.name, e.category, e.engines && engineSearchText(e.engines)], query));
+}
+
+function hasTraits(e: LibraryEntry, { engines, split }: EntryTraits): boolean {
+  if (engines.size) {
+    if (!e.engines) return false;
+    const active = activeEngineKinds(e.engines);
+    for (const k of engines) if (!active.has(k)) return false;
+  }
+  return !split || (!!e.program && isNs4Program(e.program) && isSplit(e.program));
 }
 
 /** Distinct categories present in the entries, in Nord's canonical order — for the facet. */

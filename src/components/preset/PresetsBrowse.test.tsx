@@ -13,6 +13,7 @@ const baseProps = {
   query: '',
   setQuery: noop,
   clearFilters: noop,
+  filtered: false,
   showSourceFacet: false,
   sort: 'default' as const,
   setSort: noop,
@@ -120,6 +121,7 @@ describe('PresetsBrowse', () => {
       <PresetsBrowse
         {...baseProps}
         query="zzz"
+        filtered
         entries={[]}
         kinds={['organ-preset']}
       />,

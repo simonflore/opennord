@@ -21,6 +21,9 @@
 
 /** Playback rate of piano strokes (the CP80's A4 stroke measures 440.4 Hz at this rate). */
 export const NSP_SAMPLE_RATE = 44100;
+/** Envelope updates a second on the instrument (`docs/PIANO-ENGINE.md` §1.3); a stroke's
+ *  `loopDecay` applies once per update. */
+export const NSP_ENVELOPE_RATE = 22050;
 
 const DIR_OFFSET = 0x61c;
 /** u16[128] layers-per-root-note table, right after version/channels/count. */
@@ -60,6 +63,11 @@ export interface NspStroke {
   history: number[][];
   /** Sustain loop in frames (`end = start + length`); absent when the stroke doesn't loop. */
   loop?: { start: number; length: number };
+  /**
+   * Loop-sustain decay (record +0x2E, Q23 → a factor just below 1): inside the loop the
+   * level is multiplied by it 22,050 times a second (`docs/PIANO-ENGINE.md` §1.4).
+   */
+  loopDecay?: number;
 }
 
 export interface NspDirectory {
@@ -82,7 +90,8 @@ function readStroke(view: DataView, at: number, base: number, index: number, cha
   // Record layout (from the record's own start, CNSP+0x732+i*0x76; field use per the ARM
   // loader 0xC00AB028, see docs/NSP-FORMAT.md): +0x00 u32 first block offset, +0x04 u8 flags,
   // +0x05 u8 attenuation floor, +0x06 u32 frames, +0x0A u16 blocks, +0x0C/+0x14 4×i16 history
-  // per channel (oldest first), +0x1C u32 loop start, +0x20 u32 loop length.
+  // per channel (oldest first), +0x1C u32 loop start, +0x20 u32 loop length, +0x2E u32 Q23
+  // loop-sustain decay.
   const history = [0x0c, 0x14].slice(0, channels).map((h) => {
     const oldestFirst = [0, 2, 4, 6].map((k) => view.getInt16(at + h + k));
     return oldestFirst.reverse();
@@ -102,6 +111,7 @@ function readStroke(view: DataView, at: number, base: number, index: number, cha
     blocks: view.getUint16(at + 0x0a),
     history,
     loop: loopLength ? { start: loopStart, length: loopLength } : undefined,
+    loopDecay: loopLength ? view.getUint32(at + 0x2e) / 2 ** 23 : undefined,
   };
 }
 
@@ -120,6 +130,11 @@ function zoneOf(table: number[], raw: Omit<NspStroke, 'zone'>[]): number[] {
   }
   let zone = -1;
   return raw.map((s) => (s.velocityFrom === 0 && !s.release) || zone < 0 ? ++zone : zone);
+}
+
+/** How many key zones the directory's strokes make up. */
+export function nspZoneCount(dir: NspDirectory): number {
+  return dir.strokes.reduce((n, s) => Math.max(n, s.zone + 1), 0);
 }
 
 /** Read the stroke directory; `undefined` if the file has no readable CNSP directory. */

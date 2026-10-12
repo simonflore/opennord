@@ -5,18 +5,27 @@ import { join } from 'node:path';
 import { zipSync, strToU8 } from 'fflate';
 import { synthFwBody, synthFwFile, synthLegacyLayoutFile, writeBits } from '../clavia/block-chain.synth';
 import { sealFileChecksum } from '../clavia/checksum';
+import { buildCbinHeader } from '../clavia/cbin';
+import { makeNpno, tone } from '../ns4/nsp-synth.testing';
+import { writeNsmp } from '../ns4/nsmp-write';
 import { NP3_LAYOUT } from '../np3/layout.generated';
 import { NE7_LAYOUT } from '../ne7/layout.generated';
 import { NW1_LAYOUT } from '../nw1/layout.generated';
 import { LEGACY_DATA_OFFSET } from '../clavia/legacy-record';
 import {
-  checkProgram, validateBytes, validateArchive, summarizeRows, formatSummary, alignmentVerdict,
+  checkProgram, checkMedia, validateMediaBytes, validateBytes, validateArchive, summarizeRows, formatSummary, alignmentVerdict,
   redactWriteMessage, isNordFileName, isArchiveName, rowProblems,
 } from './fixture-validate';
 import { runFixtureScan, listFixtureInputs, resolveUserPath, validateInput } from './fixture-files';
 import { homedir } from 'node:os';
 
 /** A clean Piano 3 program (legacy record, firmware defaults, sealed CRC-16). */
+/** A Stage 4 organ preset: a real NSM-era header over a zeroed 183-byte body, sealed. */
+function ns4o(): Uint8Array {
+  const buf = new Uint8Array(183);
+  buf.set(buildCbinHeader({ formatType: 1, tag: 'ns4o', bank: 0, location: 0, category: 0, versionRaw: 205 }), 0);
+  return sealFileChecksum(buf);
+}
 const np3 = () => synthLegacyLayoutFile('np3p', NP3_LAYOUT);
 /** A clean Electro 7 program (NSM-era header, firmware-layout body, sealed CRC-32). */
 const ne7 = () => sealFileChecksum(synthFwFile('ne7p', synthFwBody(NE7_LAYOUT), 100));
@@ -151,6 +160,60 @@ describe('validateArchive', () => {
   });
 });
 
+describe('presets', () => {
+  it('checks a Stage 4 preset: checksum, read, voices and identity', () => {
+    const row = validateBytes('Organ.ns4o', ns4o(), null);
+    expect(row.check).toBeUndefined();
+    expect(row.preset).toEqual({ checksumOk: true, read: true, voices: 1, identified: true });
+    expect(rowProblems(row)).toEqual([]);
+    const [s] = summarizeRows([row]);
+    expect(s).toMatchObject({ model: 'stage-4', programs: 0, presets: 1, presetsRead: 1, presetChecksumOk: 1, presetsIdentified: 1 });
+    const text = formatSummary([row], 'r.json');
+    expect(text).toContain('0 program(s), 1 preset(s) checked');
+    expect(text).toContain('presets: read 1 · voice identified 1 · checksum OK 1 / fail 0');
+  });
+
+  it('flags a preset whose checksum does not hold', () => {
+    const bad = ns4o();
+    bad[bad.length - 1] ^= 0xff;
+    const row = validateBytes('Organ.ns4o', bad, null);
+    expect(row.preset?.checksumOk).toBe(false);
+    expect(rowProblems(row)).toContain('checksum does not hold');
+  });
+});
+
+describe('pianos and samples', () => {
+  const piano = () => makeNpno([0, 50].map((velocityFrom, i) => ({
+    pcm: [tone(4000, 0.02, 3000, i + 1)], velocityFrom, before: [[0, 0, 0, 0]],
+  })), 1, 0x2c);
+  const sample = () => writeNsmp({ name: 'My Sample', codec: 4, channels: [Array.from({ length: 4000 }, (_, i) => Math.round(4000 * Math.sin(i / 9)))] });
+
+  it('checks a piano: check value and every note decoded', async () => {
+    expect(await checkMedia(piano())).toEqual({ kind: 'piano', checksumOk: true, notes: 2, notesDecoded: 2 });
+  });
+
+  it('checks a sample: check value and every note decoded', async () => {
+    const m = await checkMedia(sample());
+    expect(m).toMatchObject({ kind: 'sample', checksumOk: true });
+    expect(m!.notes).toBeGreaterThan(0);
+    expect(m!.notesDecoded).toBe(m!.notes);
+  });
+
+  it('flags a damaged piano and sums notes in the summary', async () => {
+    const bad = piano();
+    bad[bad.length - 100] ^= 0xff;
+    const rows = [await validateMediaBytes('Grand.npno', piano(), null), await validateMediaBytes('Bad.npno', bad, null)];
+    expect(rowProblems(rows[1])).toContain('checksum does not hold');
+    const text = formatSummary(rows, 'r.json');
+    expect(text).toContain('2 piano(s)/sample(s) checked');
+    expect(text).toContain('pianos/samples: checksum OK 1 / fail 1');
+  });
+
+  it('returns null for a file that is neither', async () => {
+    expect(await checkMedia(np3())).toBeNull();
+  });
+});
+
 describe('summary', () => {
   it('says a candidate layout looks right when every real file reads cleanly', () => {
     const rows = [validateBytes('a.ne7p', ne7(), null), validateBytes('b.ne7p', ne7(), null)];
@@ -263,14 +326,19 @@ describe('runFixtureScan (files on disk)', () => {
     expect(JSON.stringify(row)).not.toContain(dir);
   });
 
-  it('takes fixtures/<model-id>/ folders recursively and notes unknown folder names', async () => {
+  it('takes fixtures/<model-id>/ folders recursively, plus the Nord files in other folders and at the top', async () => {
     dir = mkdtempSync(join(tmpdir(), 'fixtures-'));
     mkdirSync(join(dir, 'piano-3/sub'), { recursive: true });
-    mkdirSync(join(dir, 'not-a-model'));
+    mkdirSync(join(dir, 'pairs'));
     writeFileSync(join(dir, 'piano-3/sub/Soft.np3p'), np3());
+    writeFileSync(join(dir, 'pairs/Strings.nsmp4'), new Uint8Array(8));
+    writeFileSync(join(dir, 'pairs/notes.txt'), 'x');
+    writeFileSync(join(dir, 'Loose.np3p'), np3());
     writeFileSync(join(dir, 'README.md'), '#');
     const { inputs, notes } = listFixtureInputs(dir);
-    expect(inputs.map((i) => [i.label, i.model])).toEqual([['piano-3/sub/Soft.np3p', 'piano-3']]);
-    expect(notes).toEqual(['fixtures/not-a-model is not a known model id — skipped']);
+    expect(inputs.map((i) => [i.label, i.model])).toEqual([
+      ['Loose.np3p', null], ['pairs/Strings.nsmp4', null], ['piano-3/sub/Soft.np3p', 'piano-3'],
+    ]);
+    expect(notes).toEqual([]);
   });
 });

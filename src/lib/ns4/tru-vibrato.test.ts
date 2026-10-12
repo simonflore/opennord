@@ -54,9 +54,8 @@ describe('readTruVibrato — guards', () => {
 });
 
 describe.skipIf(!hasGt(BOWED[0]))('voicingView — header badges', () => {
-  it('surfaces unison + round-robin for a short-articulation library', () => {
+  it('surfaces varied repeats for a short-articulation library', () => {
     const v = voicingView(load(`${D}/Spitfire StrQuintPizzicato 4.2.nsmp4`));
-    expect(v.unison).toMatch(/on ·/);
     expect(v.roundRobin).toBe(true);
   });
   it('reports no voicing badges for a codec-2 (OG) sample', () => {

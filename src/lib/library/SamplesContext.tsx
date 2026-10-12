@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedSamples } from '@/lib/library/useImportedSamples';
@@ -19,6 +19,18 @@ import { WriteBlockedError } from '@/lib/device/write-guard';
 import { buildOccupancy, type Addr } from '@/lib/device/reorg';
 import { PARTITION_SAMP_LIB } from '@/lib/device/opcodes';
 import { downloadBytes } from '@/lib/download';
+import { useListFilters } from '@/lib/library/useListFilters';
+import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
+
+// Numbers each Nord session, so reads key by session without holding on to it.
+const sessionNos = new WeakMap<object, number>();
+let lastSessionNo = 0;
+function sessionNo(session: object): number {
+  let n = sessionNos.get(session);
+  if (n === undefined) sessionNos.set(session, (n = ++lastSessionNo));
+  return n;
+}
+const nordReadPrefix = (session: object) => `nord@${sessionNo(session)}:`;
 
 // pure helper, exported for tests
 export function selectedBytes(entries: SampleEntry[], selected: Set<string>): number {
@@ -31,7 +43,7 @@ const extForGeneration = (g: string) => SAMPLE_EXT[g] ?? 'nsmp4';
 /** Merges device + folder samples into one filtered/sorted list and owns the
  *  Samples-screen view state. Mirrors useLibraryStateValue for programs. */
 function useSamplesStateValue() {
-  const { session, sampleEntries, setSampleEntries } = useDevice();
+  const { session, sampleEntries, setSampleEntries, isCurrent } = useDevice();
   const folder = useFolder();
   const imported = useImportedSamples();
   const prefs = useSamplesPrefs();
@@ -53,17 +65,25 @@ function useSamplesStateValue() {
     setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const clearSelected = () => setSelected(new Set());
 
+  // The usage tags and the picked samples name this Nord's slots: a new
+  // connection starts without them, so nothing picked on one Nord is removed
+  // from the next.
+  useEffect(() => {
+    setUsage(null); setScanPct(null); setUnusedOnly(false); setSelected(new Set());
+  }, [session]);
+
   async function scanUsage() {
     if (!session) return;
     setScanPct(0);
     try {
-      const u = await findUnusedSamples(session, (done, total) =>
-        setScanPct(total ? Math.round((done / total) * 100) : 0));
-      setUsage(u);
+      const u = await findUnusedSamples(session, (done, total) => {
+        if (isCurrent(session)) setScanPct(total ? Math.round((done / total) * 100) : 0);
+      });
+      if (isCurrent(session)) setUsage(u); // not tags for another Nord connected meanwhile
     } catch {
-      setUsage(null); // scan failed (unsupported/disconnected) — leave the list untagged
+      if (isCurrent(session)) setUsage(null); // scan failed (unsupported/disconnected) — leave the list untagged
     } finally {
-      setScanPct(null);
+      if (isCurrent(session)) setScanPct(null); // a scan on another Nord's session doesn't touch this one's
     }
   }
 
@@ -101,7 +121,7 @@ function useSamplesStateValue() {
 
   const shown = sortSamples(
     filterSamples(allEntries, source, generation, query, unusedOnly, category), prefs.sort, prefs.favorites);
-  const entryById = (id: string) => allEntries.find((e) => e.id === id);
+  const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
 
   const removableUnused = allEntries.filter((e) => e.source === 'nord' && e.unused && e.device);
   const selectAllUnused = () => setSelected(new Set(removableUnused.map((e) => e.id)));
@@ -134,10 +154,11 @@ function useSamplesStateValue() {
       const addrs: Addr[] = toRemove.map((e) => ({ bank: e.device!.bank, slot: e.device!.slot }));
       const res = await session.withSession(PARTITION_SAMP_LIB, () =>
         executePlan(sessionDeviceIO(session), PARTITION_SAMP_LIB, planOffload(addrs), occ,
-          { onProgress: (p) => setRemovePct(Math.round((p.opIndex / p.opCount) * 100)) }));
+          { onProgress: (p) => { if (isCurrent(session)) setRemovePct(Math.round((p.opIndex / p.opCount) * 100)); } }));
       // 2. refresh the device sample list
-      try { setSampleEntries(await enumerateSampleLibrary(session)); } catch { /* leave as-is */ }
-      clearSelected();
+      // Unless the Nord changed meanwhile: then this list is the old one's.
+      try { const es = await enumerateSampleLibrary(session); if (isCurrent(session)) setSampleEntries(es); } catch { /* leave as-is */ }
+      if (isCurrent(session)) clearSelected(); // not another Nord's picks
       return res.ok
         ? { removed: toRemove.length, failed: copyFailed }
         : { removed: 0, failed: copyFailed + toRemove.length };
@@ -146,12 +167,71 @@ function useSamplesStateValue() {
     }
   }
 
-  /** Every filter off and the search cleared (the list's "clear filters"). */
-  const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setGeneration('all'); setCategory('all'); setUnusedOnly(false); }, []);
-  /** Show one entry by name: every filter off, the search set to it (the ⌘K palette's jump). */
-  const reveal = useCallback((name: string) => { clearFilters(); setQuery(name); }, [clearFilters]);
+  // Reads of sample bytes that are still running, by readKey. A second request
+  // for the same sample (StrictMode's second effect run, a quick re-open) joins
+  // the read in flight instead of reading it twice; progress goes to the latest
+  // requester. A Nord pull whose requesters have all gone (aborted their signal)
+  // by the time its turn on the session comes is dropped, so the sample opened
+  // next isn't stuck behind the ones clicked past. Settled reads are dropped,
+  // so the next open reads afresh.
+  type Read = { bytes: Promise<Uint8Array>; progress: (pct: number) => void; users: number };
+  const reads = useRef(new Map<string, Read>());
+  /**
+   * Which read a sample's bytes come from (a local sample's are in hand): its
+   * id and size, and for a Nord sample also the session and what the slot holds (its id names a slot, which may hold
+   * another sample after a reconnect or once the list is read again), so a read
+   * is never reused for different bytes.
+   */
+  const readKey = useCallback(
+    (e: SampleEntry) => (e.source === 'nord' && session
+      ? `${nordReadPrefix(session)}${e.id}:${e.name}:${e.device?.sizeBytes ?? ''}`
+      : `${e.id}:${e.size ?? ''}`), // a backup entry rewritten (a refresh) reads again
+    [session],
+  );
+  // A new session (or none) forgets the last one's reads, so none is joined; a
+  // pull still running there finishes or fails on its own.
+  useEffect(() => {
+    const live = session ? nordReadPrefix(session) : null;
+    for (const key of [...reads.current.keys()]) {
+      if (key.startsWith('nord@') && (!live || !key.startsWith(live))) reads.current.delete(key);
+    }
+  }, [session]);
+  const readSample = useCallback((e: SampleEntry, onProgress: (pct: number) => void, signal: AbortSignal): Promise<Uint8Array> => {
+    if (e.source === 'local' && e.bytes) return Promise.resolve(e.bytes);
+    const key = readKey(e);
+    let r = reads.current.get(key);
+    if (!r) {
+      const read: Read = { bytes: Promise.resolve(new Uint8Array()), progress: onProgress, users: 0 };
+      const raw = e.source === 'nord' && e.device && session
+        ? pullSample(session, e.device, (done, total) => read.progress(total ? Math.round((done / total) * 100) : 0), () => read.users > 0)
+        : e.source === 'backup' && e.backupRef ? extractBackupEntry(folder, e.backupRef) : null;
+      if (!raw) {
+        return Promise.reject(new Error(e.source === 'nord' ? 'connect your Nord to read it.' : 'its file isn’t available.'));
+      }
+      read.bytes = raw.finally(() => { if (reads.current.get(key) === read) reads.current.delete(key); });
+      reads.current.set(key, read);
+      r = read;
+    }
+    r.progress = onProgress;
+    if (!signal.aborted) {
+      const joined = r;
+      joined.users++;
+      signal.addEventListener('abort', () => { joined.users--; }, { once: true });
+    }
+    return r.bytes;
+  }, [session, folder, readKey]);
+
+  // The list's filters, once: `filtered` and the "clear filters" button both read
+  // this, and a filter counts while set even if its facet is hidden right now.
+  const { filtered, clearFilters, ensureListed } = useListFilters(shown, [
+    { active: query.trim() !== '', reset: () => setQuery('') },
+    { active: source !== 'all', reset: () => setSource('all') },
+    { active: generation !== 'all', reset: () => setGeneration('all') },
+    { active: category !== 'all', reset: () => setCategory('all') },
+    { active: unusedOnly, reset: () => setUnusedOnly(false) },
+  ]);
   return {
-    all: allEntries, clearFilters, reveal,
+    all: allEntries, clearFilters, filtered, ensureListed, readSample, readKey,
     shown, source, setSource, generation, setGeneration,
     category, setCategory, categoriesPresent, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, showUnknownGen, folder,

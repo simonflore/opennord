@@ -6,7 +6,7 @@ import { NSMP_SAMPLE_RATE, type DecodedStrokeResult } from '../../lib/ns4/nsmp';
 
 /** Normalized 0..1 playhead for a sounding voice. One-shots advance and clamp at
  *  1; looping strokes wrap within [loopStart, loopEnd] (matching the sampler's
- *  sustain loop). `now`/`startedAt` are AudioContext seconds; `rate` is the
+ *  hard-jump loop). `now`/`startedAt` are AudioContext seconds; `rate` is the
  *  voice's playbackRate. */
 export function playheadFraction(
   voice: Voice, stroke: DecodedStrokeResult, now: number, rate: number,

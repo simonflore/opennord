@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, openAsBlob } from 'node:fs';
 import { join } from 'node:path';
 import { patchNs4Checksum } from '../clavia/checksum';
-import { readNsmp, readNpnoName, parseNsmpSections, hdrFactoryFlag, nsmpHeadFactory, NSMP_FACTORY_HEAD_BYTES, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, NSMP_SAMPLE_RATE, parseCodec3V12ZoneRecords, type NsmpSection } from './nsmp';
+import { readNsmp, readNpnoName, parseNsmpSections, hdrFactoryFlag, nsmpHeadFactory, NSMP_FACTORY_HEAD_BYTES, decodeNsmp, readNsmpZones, parseLegacyZoneRecords, readGlobalLevelDetune, perNoteCustomCount, readSampleUnison, readNoteAlternates, NSMP_SAMPLE_RATE, parseCodec3V12ZoneRecords, type NsmpSection } from './nsmp';
 import { writeNsmp } from './nsmp-write';
 import { indexBackup } from '../clavia/backup/backup-index';
 import { extractZipEntry, extractZipEntryHead } from '../clavia/backup/zip-directory';
@@ -541,7 +541,7 @@ describe('readSampleUnison (codec-4 map block)', () => {
     const u = readSampleUnison(bytes)!;
     expect(u).not.toBeNull();
     expect(u.mode).toBe(0);
-    expect(u.active).toBe(false);
+    expect(u.custom).toBe(false);
     expect([u.numVoice1, u.numVoice2, u.numVoice3, u.numVoiceSame]).toEqual([2, 2, 2, 2]);
     expect(Math.abs(u.gainDbSame)).toBeLessThan(0.01); // unity 0x100000 → 0 dB
     expect(u.detuneMax).toBe(0);
@@ -560,8 +560,53 @@ describe('readSampleUnison (codec-4 map block)', () => {
     expect(u.mode).toBe(0);
     expect([u.numVoice1, u.numVoice2, u.numVoice3, u.numVoiceSame]).toEqual([2, 2, 2, 2]);
     expect(u.gainDb1).toBeCloseTo(0, 5);
-    expect(u.active).toBe(false);
+    expect(u.custom).toBe(false);
+  
+  /** A written `.nsmp4` with bytes patched into its `map` payload at `at`. */
+  const withMapBytes = (at: number, patch: number[]): Uint8Array => {
+    const bytes = writeNsmp({ name: 'U', channels: [new Int16Array(64)], codec: 4 });
+    const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'))!;
+    bytes.set(patch, map.payloadOffset + at);
+    return bytes;
+  };
+
+  it('reads a block as the instrument does: four detunes, then three pan widths', () => {
+    // The voicing block of a factory 4.1 sample: detune 0 / 15 / 40, widths 70, −6 dB tiers.
+    const block = [0x01, 0x6c, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x28, 0x00, 0x00, 0x46, 0x46, 0x46, 2, 2, 3, 2,
+      0x08, 0x04, 0xdd, 0x08, 0x04, 0xdd, 0x08, 0x04, 0xdd, 0x08, 0x04, 0xdd, 0x03, 0x00];
+    const u = readSampleUnison(withMapBytes(6 + 1280, block))!;
+    expect(u).toMatchObject({
+      mode: 1, custom: true, topKey: 108, detuneMax: 0, detuneMax2: 15, detuneMax3: 40, sameDetuneMin: 0,
+      panMax: 70, panMax2: 70, panMax3: 70, numVoice3: 3, randomStrokeMode: 3,
+    });
+    expect(u.gainDb3).toBeCloseTo(-6, 1);
   });
+});
+
+describe('readNoteAlternates (codec-4 per-note rows)', () => {
+  const row = (key: number, b: number[]): Uint8Array => {
+    const bytes = writeNsmp({ name: 'U', channels: [new Int16Array(64)], codec: 4 });
+    const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'))!;
+    bytes.set(b, map.payloadOffset + 6 + key * 10 + 6);
+    return bytes;
+  };
+
+  it('has no alternates where a row names only the key itself (what our writer emits)', () => {
+    const alts = readNoteAlternates(writeNsmp({ name: 'U', channels: [new Int16Array(64)], codec: 4 }))!;
+    expect(alts).toHaveLength(128);
+    expect(alts[60]).toEqual({ unison: [], random: [] });
+  });
+  it('reads two unison alternates, and the ones a repeated note may use', () => {
+    expect(readNoteAlternates(row(60, [57, 63, 57, 63]))![60]).toEqual({ unison: [57, 63], random: [57, 63] });
+    expect(readNoteAlternates(row(60, [57, 63, 57, 60]))![60]).toEqual({ unison: [57, 63], random: [57] });
+    expect(readNoteAlternates(row(60, [57, 63, 60, 63]))![60]).toEqual({ unison: [57, 63], random: [63] });
+    expect(readNoteAlternates(row(60, [57, 63, 60, 60]))![60]).toEqual({ unison: [57, 63], random: [] });
+  });
+  it('is null for codec 3 and when the file marks the table unused', () => {
+    expect(readNoteAlternates(writeNsmp({ name: 'U3', channels: [new Int16Array(64)], codec: 3 }))).toBeNull();
+    expect(readNoteAlternates(row(0, [0xff, 0xff, 0xff, 0xff]))).toBeNull();
+  });
+});
 });
 
 const n4 = join(process.cwd(), 'research/nsmp/Strings.nsmp4');

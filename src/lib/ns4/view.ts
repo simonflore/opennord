@@ -7,15 +7,21 @@
  */
 import type { NS4Program, NS4Layer, Morphable, Ns4OrganFx } from './types';
 import { decodeAllParams } from './coverage';
-import { collapseMorphs } from './params-view';
-import { buildParamMap } from './maps';
+import { collapseMorphs, type ParamRow } from './params-view';
+import { buildParamMap, type Param } from './maps';
+import { readFieldBytes } from './bits';
+import { interpretValue } from './interpret';
+import { LIBRARY_ENGINES, type EngineKind } from '../clavia/engines';
 import { organModelSpec, ORGAN_MODELS } from './organ-models';
 import { ns4Engines } from './engines';
 import type {
   MorphMarkView, DrawbarView, OrganPanelModel, PianoCardModel, SynthCardModel,
-  EnvCurveView, Stat, FxChipModel, HeaderView, VolumeView, EngineCardModel,
+  EnvCurveView, Stat, FxChipModel, FxSlotModel, HeaderView, VolumeView, EngineCardModel, LfoView, ArpView, ArpStepView, KeyItem,
 } from '../clavia/engine-view';
 import { volumeFill, envCurve } from '../clavia/engine-view';
+import { parseHz, waveShapeOf, type WaveShape } from '../clavia/curves';
+import { cutoffRaw } from './synth-scaling';
+import { fxTypeName, noteValueName } from './fx-names';
 
 export type {
   MorphMarkView, DrawbarView, OrganPanelModel, PianoCardModel, SynthCardModel,
@@ -52,7 +58,42 @@ export function drawbarLevels(layer: NS4Layer): number[] {
 
 /** True when Scene I and Scene II enable a different set of layers (a toggle helps). */
 export function scenesDiffer(p: NS4Program): boolean {
-  return (p.layers ?? []).some((l) => !!l.enabled !== !!l.enabledSceneII);
+  return (p.layers ?? []).some((l) => sceneIIChange(l) !== undefined);
+}
+
+/** What Scene II does to a layer, against Scene I: switches it on, mutes it, or nothing. */
+export function sceneIIChange(l: NS4Layer): 'on' | 'off' | undefined {
+  if (!!l.enabled === !!l.enabledSceneII) return undefined;
+  return l.enabledSceneII ? 'on' : 'off';
+}
+
+/** An engine's name as the Library prints it ("Synth"); "Layer" when the kind isn't decoded. */
+export function engineKindName(l: NS4Layer): string {
+  return LIBRARY_ENGINES.find((e) => e.kind === l.kind)?.name ?? 'Layer';
+}
+
+/**
+ * What Scene II changes, from Scene I: the layers it switches on and the ones it
+ * mutes ("Synth B"). A Layer Scene changes nothing else, so this is the whole
+ * difference.
+ */
+export function sceneIIChanges(p: NS4Program): { on: string[]; off: string[] } {
+  const layers = p.layers ?? [];
+  const named = (c: 'on' | 'off') => layers.filter((l) => sceneIIChange(l) === c).map((l) => `${engineKindName(l)} ${l.id}`);
+  return { on: named('on'), off: named('off') };
+}
+
+/**
+ * The mark on a layer's card when Scene II changes it: "off in II" on a layer it
+ * mutes (seen in the Scene I view), "only in II" on a layer only it plays (seen
+ * in the Scene II view). Undefined when both scenes play it.
+ */
+export function sceneTag(l: NS4Layer): { label: string; title: string } | undefined {
+  const change = sceneIIChange(l);
+  if (!change) return undefined;
+  return change === 'off'
+    ? { label: 'off in II', title: 'Scene II mutes this layer' }
+    : { label: 'only in II', title: 'Only Scene II plays this layer' };
 }
 
 export function headerView(p: NS4Program, scene?: 'I' | 'II'): HeaderView {
@@ -104,6 +145,44 @@ export function layerZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesView[
   }));
 }
 
+/** The program's Split switch, read from its one bit (no full parameter decode). */
+let _splitSwitch: Param | undefined;
+function splitOn(p: NS4Program): boolean {
+  const param = (_splitSwitch ??= paramMap().find((q) => q.name === 'split on/off')!);
+  const { begBit, endBit } = param.layers[0];
+  return interpretValue(param.id, param.name, readFieldBytes(p.bytes, begBit, endBit)) === 'on';
+}
+
+export type EngineZones = { kind: EngineKind; cells: boolean[] }[];
+
+/**
+ * Per engine, in the Library's piano/organ/synth order, which of the four zones
+ * it plays; an engine that plays nowhere is left out. A layer's zones only count
+ * with the Split switch on; off, every active engine plays the whole keyboard.
+ * Reads the zone flags and that one bit (no parameter decode), so it stays
+ * cheap enough for every row of a long list.
+ */
+export function engineZones(p: NS4Program): EngineZones {
+  if (!splitOn(p)) {
+    const kinds = new Set(activeLayers(p).map((l) => l.kind));
+    return LIBRARY_ENGINES.filter(({ kind }) => kinds.has(kind)).map(({ kind }) => ({ kind, cells: [true, true, true, true] }));
+  }
+  const zones = layerZones(p);
+  return LIBRARY_ENGINES
+    .map(({ kind }) => ({ kind, cells: zones.map((z) => z.layers.some((l) => l.kind === kind)) }))
+    .filter((r) => r.cells.some(Boolean));
+}
+
+/** Whether a zone grid splits the keyboard: some engine plays only part of it. */
+export function gridSplits(grid: EngineZones): boolean {
+  return grid.some((r) => !r.cells.every(Boolean));
+}
+
+/** Whether a program splits the keyboard (see gridSplits). */
+export function isSplit(p: NS4Program): boolean {
+  return gridSplits(engineZones(p));
+}
+
 /**
  * Keyboard split / zone layout: which active layers sound in each of the four
  * zones, the split-point note at each active boundary, and program transpose.
@@ -113,7 +192,7 @@ export function programZones(p: NS4Program, scene?: 'I' | 'II'): ProgramZonesVie
   const active = activeLayers(p, scene);
   const zones = layerZones(p, scene);
   const lut = paramLookup(p);
-  const hasSplit = lut.get('split on/off') === 'on';
+  const hasSplit = splitOn(p);
   const boundary = (i: number): string | null =>
     hasSplit && lut.get(`KB zones ${i}-${i + 1} split point on/off`) === 'on'
       ? (lut.get(`KB zones ${i}-${i + 1} split point`) ?? null)
@@ -199,6 +278,33 @@ export function organPanel(l: NS4Layer, organFx: Ns4OrganFx | undefined, isFirst
   };
 }
 
+const TIMBRE_LABEL: Record<string, string> = { SOFT: 'Soft', MID: 'Mid', BRIGHT: 'Bright', DYNO1: 'Dyno 1', DYNO2: 'Dyno 2' };
+// A clav's three EQ settings have their own names (the Stage 3 firmware's clav
+// timbre table, ns3/decode.ts TIMBRE_CLAV: Soft / Treble / Brilliant).
+const CLAV_LABEL: Record<string, string> = { SOFT: 'Soft', MID: 'Treble', BRIGHT: 'Brilliant' };
+
+/**
+ * The timbre as the panel's keys, by piano type: Soft / Mid / Bright, plus
+ * Dyno 1 and 2 on an electric piano, and Soft / Treble / Brilliant on a clav,
+ * whose combinations ("SOFT+BRIGHT") light several keys. "off" lights none. A
+ * setting the type's keys can't show keeps the knob.
+ */
+function timbreKeys(type: string | undefined, value: string | undefined): KeyItem[] | undefined {
+  if (!value) return undefined;
+  const names = type === 'Clav' ? CLAV_LABEL : TIMBRE_LABEL;
+  const keys = type === 'Electric' ? ['SOFT', 'MID', 'BRIGHT', 'DYNO1', 'DYNO2'] : ['SOFT', 'MID', 'BRIGHT'];
+  const lit = new Set(value === 'off' ? [] : value.split('+'));
+  if ([...lit].some((k) => !keys.includes(k))) return undefined;
+  return keys.map((k) => ({ label: names[k], on: lit.has(k) }));
+}
+
+/** Keyboard touch as its three settings, the one in use lit. */
+function touchKeys(value: string | undefined): KeyItem[] | undefined {
+  const settings = ['light', 'med', 'heavy'];
+  if (!value || !settings.includes(value)) return undefined;
+  return settings.map((t) => ({ label: t.charAt(0).toUpperCase() + t.slice(1), on: t === value }));
+}
+
 export function pianoCard(l: NS4Layer): PianoCardModel {
   return {
     id: l.id,
@@ -206,22 +312,85 @@ export function pianoCard(l: NS4Layer): PianoCardModel {
     model: l.pianoModelName ?? '—',
     timbre: l.timbre ?? '—',
     touch: l.touch ?? '—',
+    timbreKeys: timbreKeys(l.pianoType, l.timbre),
+    touchKeys: touchKeys(l.touch),
   };
 }
+
+const LFO_SHAPES: readonly WaveShape[] = ['triangle', 'square', 'S/H', 'saw', 'inv saw'];
+const defined = <T,>(v: T | undefined): v is T => v !== undefined;
+/** The values a control morphs to (wheel, aftertouch, pedal), as printed. */
+const morphTargets = (m?: Morphable<string>) => [m?.wheel, m?.aftertouch, m?.pedal].filter(defined);
+
+/** The LFO, when it is routed somewhere with a non-zero amount. */
+function lfoView(l: NS4Layer): LfoView | undefined {
+  const { shape, target, rate, amount } = l.lfo ?? {};
+  const wave = LFO_SHAPES.find((s) => s === shape);
+  // The amount prints in the target's unit ("0.0", "0 cent"): zero is zero in any of them.
+  if (!wave || !target || target === 'nothing' || !rate || !amount || parseFloat(amount.value) === 0) return undefined;
+  // Either control may be morphed; the mark names both (the amount's wins a shared source).
+  const a = morphMarks(amount), r = morphMarks(rate);
+  const morph = a && r ? { wheel: a.wheel ?? r.wheel, at: a.at ?? r.at, pedal: a.pedal ?? r.pedal } : a ?? r;
+  return { shape: wave, rate: noteValueName(rate.value), target, amount: amount.value, morph };
+}
+
+/** The arpeggiator, when it is running; the step pattern only when the pattern is on. */
+function arpView(l: NS4Layer): ArpView | undefined {
+  const a = l.arp;
+  if (!a?.run) return undefined;
+  // Step strings print in groups of four (".>.. ...."), up to 16 steps.
+  const accent = (a.accent ?? '').replace(/ /g, ''), pan = (a.pan ?? '').replace(/ /g, '');
+  const steps = a.pattern
+    ? Array.from({ length: Math.min(a.patternLength ?? 16, accent.length) }, (_, i): ArpStepView => ({
+        accent: accent[i] === '>',
+        pan: pan[i] === 'L' || pan[i] === 'R' ? pan[i] as 'L' | 'R' : 'C',
+      }))
+    : undefined;
+  // "N.A." is the decoder's placeholder for a rate that doesn't apply in this mode.
+  const rate = a.rate?.value === 'N.A.' ? undefined : noteValueName(a.rate?.value);
+  return { mode: a.mode, direction: a.direction, rate, range: a.range?.value, steps };
+}
+
+/** Where a printed cutoff frequency sits on its knob, 0–100. */
+const cutoffFill = (hz: number) => Math.round((cutoffRaw(hz) / 127) * 100);
 
 export function synthCard(l: NS4Layer): SynthCardModel {
   const osc = l.source === 'analog' ? (l.oscType ?? 'analog') : (l.sample?.name ?? 'sample');
   const oscDetail = l.oscWave ? `wave ${l.oscWave}` : (l.oscCategory ? `cat ${l.oscCategory}` : '');
+  const f = l.filter;
+  const cutoffHz = parseHz(f?.freq?.value);
+  // In LP+HP the second knob is the high-pass corner (a frequency), not resonance (0–10).
+  const lpHp = f?.type === 'LPHP';
+  const secondFill = (v: string | undefined): number | undefined => {
+    const n = lpHp ? parseHz(v) : parseFloat(v ?? '');
+    if (n === undefined || Number.isNaN(n)) return undefined;
+    return lpHp ? cutoffFill(n) : Math.round(n * 10);
+  };
+  const morphHz = morphTargets(f?.freq).map(parseHz).filter(defined);
   return {
     id: l.id,
     source: l.source ?? 'samples',
     osc,
     oscDetail,
-    filterType: l.filter?.type ?? '—',
-    cutoff: l.filter?.freq?.value ?? '—',
-    res: l.filter?.resonance?.value ?? '—',
-    cutoffMorph: morphMarks(l.filter?.freq),
-    resMorph: morphMarks(l.filter?.resonance),
+    filterType: f?.type ?? '—',
+    cutoff: f?.freq?.value ?? '—',
+    res: f?.resonance?.value ?? '—',
+    cutoffMorph: morphMarks(f?.freq),
+    resMorph: morphMarks(f?.resonance),
+    cutoffFill: cutoffHz !== undefined ? cutoffFill(cutoffHz) : undefined,
+    resFill: secondFill(f?.resonance?.value),
+    cutoffMorphFill: morphHz.map(cutoffFill),
+    resMorphFill: morphTargets(f?.resonance).map(secondFill).filter(defined),
+    resCaption: lpHp ? 'HP freq' : undefined,
+    filter: f?.on && f.type && cutoffHz !== undefined
+      ? {
+          type: f.type, cutoffHz, morphHz,
+          ...(lpHp ? { hpHz: parseHz(f.resonance?.value) } : { res: (secondFill(f.resonance?.value) ?? 0) / 100 }),
+        }
+      : undefined,
+    wave: l.source === 'analog' && l.oscType?.includes('ANALOG') ? waveShapeOf(l.oscWave) : undefined,
+    lfo: lfoView(l),
+    arp: arpView(l),
   };
 }
 
@@ -232,7 +401,7 @@ export function ampEnvCurve(l: NS4Layer): EnvCurveView | null {
 
 /** Assemble the neutral EngineCardModel for one NS4 layer. */
 export function engineCardModel(l: NS4Layer, organFx: Ns4OrganFx | undefined, isFirstOrgan: boolean): EngineCardModel {
-  const title = `${(l.kind ?? '?').toUpperCase()} · ${l.id}`;
+  const title = `${engineKindName(l).toUpperCase()} · ${l.id}`;
   const volume: VolumeView = {
     value: l.volume?.value ?? '—',
     fill: volumeFill(l.volume?.value),
@@ -240,7 +409,10 @@ export function engineCardModel(l: NS4Layer, organFx: Ns4OrganFx | undefined, is
   };
   if (l.kind === 'organ') return { kind: 'organ', title, volume, organ: organPanel(l, organFx, isFirstOrgan) };
   if (l.kind === 'piano') return { kind: 'piano', title, volume, piano: pianoCard(l), stats: pianoStats(l) };
-  return { kind: 'synth', title, volume, synth: synthCard(l), env: ampEnvCurve(l), stats: synthStats(l) };
+  return {
+    kind: 'synth', title, volume, synth: synthCard(l), env: ampEnvCurve(l),
+    filterEnv: envCurve(l.filter?.env) ?? undefined, stats: synthStats(l),
+  };
 }
 
 /**
@@ -262,12 +434,8 @@ export function synthStats(l: NS4Layer): { label: string; value: string }[] {
   add('flt env', l.filter?.envAmount?.value);
   add('keytrack', l.filter?.track);
   add('drive', l.filter?.drive);
-  const lfo = [l.lfo?.shape, l.lfo?.rate?.value].filter(Boolean).join(' · ');
-  if (lfo) add('LFO', lfo);
-  add('LFO amt', l.lfo?.amount?.value);
   add('unison', l.unison);
   add('glide', l.glide);
-  if (l.arp?.run) add('arp', [l.arp?.rate?.value, l.arp?.range?.value].filter(Boolean).join(' · ') || 'on');
   return out;
 }
 
@@ -294,6 +462,47 @@ export function pianoStats(l: NS4Layer): Stat[] {
   );
 }
 
+// Each chip's detail comes from the effect's real params, not just its name.
+const j = (...parts: (string | undefined | false)[]) => parts.filter(Boolean).join(' · ');
+const modD = (m: NS4Layer['fxMod1']) => j(fxTypeName(m?.mode), noteValueName(m?.rate?.value), m?.amount?.value && `amt ${m.amount.value}`) || 'on';
+// Amp model "off" leaves the slot as an EQ: say that instead of printing "off" on a lit effect.
+const ampD = (a: NS4Layer['ampSimEq']) => (a?.mode === 'off' ? 'EQ only' : j(fxTypeName(a?.mode), a?.drive?.value && `drv ${a.drive.value}`) || 'on');
+const compD = (c: NS4Layer['comp']) => j(c?.amount && `${c.amount}`, c?.response) || 'on';
+const delayD = (d: NS4Layer['delay']) => j(noteValueName(d?.tempo?.value), d?.mix?.value && `mix ${d.mix.value}`, d?.feedback?.value && `fb ${d.feedback.value}`) || 'on';
+const revD = (r: NS4Layer['reverb']) => j(fxTypeName(r?.type), r?.amount?.value && `amt ${r.amount.value}`) || 'on';
+
+const db = (s?: string) => parseFloat(s ?? '') || 0;
+
+/** A piano/synth layer's whole effect chain in signal order, on or off. */
+export function layerFxChain(l: NS4Layer): FxSlotModel[] {
+  const tag = `${l.kind ?? 'x'}${l.id}`;
+  const eq = l.ampSimEq;
+  const midHz = parseHz(eq?.freq?.value);
+  const slot = (key: string, label: string, on: boolean | undefined, detail: string): FxSlotModel =>
+    ({ key: `${tag}-${key}`, label, on: !!on, detail });
+  return [
+    slot('mod1', 'Mod 1', l.fxMod1?.on, modD(l.fxMod1)),
+    slot('mod2', 'Mod 2', l.fxMod2?.on, modD(l.fxMod2)),
+    {
+      ...slot('amp', 'Amp/EQ', eq?.on, ampD(eq)),
+      eq: eq && midHz !== undefined ? { bassDb: db(eq.bass), midDb: db(eq.mid), trebDb: db(eq.treb), midHz } : undefined,
+    },
+    slot('comp', 'Comp', l.comp?.on, compD(l.comp)),
+    slot('delay', 'Delay', l.delay?.on, delayD(l.delay)),
+    slot('reverb', 'Reverb', l.reverb?.on, revD(l.reverb)),
+  ];
+}
+
+/**
+ * The effects switched on for one piano/synth layer. `engine` prefixes each
+ * label ("Synth Reverb") where several engines share a row; omit it when the
+ * layer stands alone (a preset).
+ */
+export function layerFxChips(l: NS4Layer, engine?: string): FxChipModel[] {
+  return layerFxChain(l).filter((fx) => fx.on)
+    .map(({ key, label, detail }) => ({ key, label: engine ? `${engine} ${label}` : label, detail }));
+}
+
 /**
  * Compact list of effects that are switched on. Per-layer FX come from each
  * active piano/synth layer; organ FX is a single global set (Ns4OrganFx).
@@ -304,19 +513,6 @@ export function fxChips(p: NS4Program, scene?: 'I' | 'II'): FxChipModel[] {
     if (on) chips.push({ key, label, detail });
   };
 
-  // Build each chip's detail from the effect's real params, not just its name.
-  const j = (...parts: (string | undefined | false)[]) => parts.filter(Boolean).join(' · ');
-  type Mod = NS4Layer['fxMod1'];
-  type Delay = NS4Layer['delay'];
-  type Reverb = NS4Layer['reverb'];
-  type Amp = NS4Layer['ampSimEq'];
-  type Comp = NS4Layer['comp'];
-  const modD = (m: Mod) => j(m?.mode, m?.rate?.value, m?.amount?.value && `amt ${m.amount.value}`) || 'on';
-  const ampD = (a: Amp) => j(a?.mode, a?.drive?.value && `drv ${a.drive.value}`) || 'on';
-  const compD = (c: Comp) => j(c?.amount && `${c.amount}`, c?.response) || 'on';
-  const delayD = (d: Delay) => j(d?.tempo?.value, d?.mix?.value && `mix ${d.mix.value}`, d?.feedback?.value && `fb ${d.feedback.value}`) || 'on';
-  const revD = (r: Reverb) => j(r?.type, r?.amount?.value && `amt ${r.amount.value}`) || 'on';
-
   // Each NS4 engine has its own FX chain, so prefix every chip with the engine
   // it belongs to (e.g. "Piano Reverb" vs "Synth Reverb") — without this, two
   // reverbs from different engines are indistinguishable. When more than one
@@ -325,20 +521,10 @@ export function fxChips(p: NS4Program, scene?: 'I' | 'II'): FxChipModel[] {
   const kindCount = new Map<string, number>();
   for (const l of fxLayers) kindCount.set(l.kind ?? 'x', (kindCount.get(l.kind ?? 'x') ?? 0) + 1);
   const engineName = (l: NS4Layer): string => {
-    const kind = (l.kind ?? 'x').charAt(0).toUpperCase() + (l.kind ?? 'x').slice(1);
     const letter = (kindCount.get(l.kind ?? 'x') ?? 0) > 1 ? ` ${l.id}` : '';
-    return `${kind}${letter}`;
+    return `${engineKindName(l)}${letter}`;
   };
-  for (const l of fxLayers) {
-    const tag = `${l.kind ?? 'x'}${l.id}`;
-    const eng = engineName(l);
-    push(`${tag}-mod1`, `${eng} Mod 1`, l.fxMod1?.on, modD(l.fxMod1));
-    push(`${tag}-mod2`, `${eng} Mod 2`, l.fxMod2?.on, modD(l.fxMod2));
-    push(`${tag}-amp`, `${eng} Amp/EQ`, l.ampSimEq?.on, ampD(l.ampSimEq));
-    push(`${tag}-comp`, `${eng} Comp`, l.comp?.on, compD(l.comp));
-    push(`${tag}-delay`, `${eng} Delay`, l.delay?.on, delayD(l.delay));
-    push(`${tag}-reverb`, `${eng} Reverb`, l.reverb?.on, revD(l.reverb));
-  }
+  for (const l of fxLayers) chips.push(...layerFxChips(l, engineName(l)));
 
   const o = p.organFx;
   if (o) {
@@ -375,10 +561,15 @@ const MORPH_SECTION: Record<string, string> = { o: 'Organ', p: 'Piano', y: 'Synt
  * decoded params as the all-parameters drawer.
  */
 export function morphSummary(p: NS4Program): MorphSummaryRow[] {
-  return collapseMorphs(decodeAllParams(p.bytes, paramMap()))
+  return morphRows(collapseMorphs(decodeAllParams(p.bytes, paramMap())));
+}
+
+/** The morph-assigned rows out of any decoded parameter rows; `section` overrides the engine name. */
+export function morphRows(rows: ParamRow[], section?: string): MorphSummaryRow[] {
+  return rows
     .filter((r) => r.morphs.wheel || r.morphs.at || r.morphs.pedal)
     .map((r) => ({
-      section: MORPH_SECTION[r.group] ?? r.group,
+      section: section ?? MORPH_SECTION[r.group] ?? r.group,
       name: r.name,
       wheel: r.morphs.wheel,
       at: r.morphs.at,

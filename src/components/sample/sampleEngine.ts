@@ -3,23 +3,17 @@
  * pitch, and gain; createSampler wires them to Web Audio. Plays the SAMPLE only
  * — pitch + velocity, no program filters/FX.
  *
- * Audition looping is decided per-sample by stationarity, not by the stored loop
- * flag alone (RE session 2026-07-01). Every `.nsmp` stroke carries hardware loop
- * points (`stroke.loop`) so a held key can sustain past the recording — but
- * applying them blindly makes *decaying* instruments (piano, guitar, vibes)
- * flutter: their loop window is still decaying, so each ~0.3s wrap is an audible
- * repeat that no seam crossfade / phase-align / decay envelope removes (the
- * flutter *is* the repeat). *Sustaining* instruments (strings, organ, pad) sit
- * flat in their loop window and loop seamlessly. Window length can't tell them
- * apart (organ loops are as short as CP80's), but the loop-window RMS decay can:
- * see {@link sampleShouldLoop}. Decaying samples ring out on their natural decay;
- * steady samples sustain by looping. The loop metadata itself stays decoded,
- * shown, and editable elsewhere regardless — this only gates preview playback.
+ * A held key sustains the way the instrument's sample DSP does it
+ * (`docs/SAMPLE-ENGINE.md` §1): playback runs to the end of the stroke, jumps back
+ * to the loop begin with no crossfade (the stream is cut so the join is continuous),
+ * and from the moment it enters the loop the voice loses level at the stroke's stored
+ * decay rate. Sustaining instruments (strings, organ, pad) carry a loop of a second or
+ * more and no decay; decaying ones (piano, guitar, vibes) loop a few cycles and decay.
  */
 import type { PlayableZone } from '../../lib/ns4/playable-zones';
-import type { DecodedStrokeResult, SampleUnison } from '../../lib/ns4/nsmp';
+import type { DecodedStrokeResult, NoteAlternates, SampleUnison } from '../../lib/ns4/nsmp';
 import { normalizeChannels, toAudioBuffer } from '../../lib/ns4/nsmp-audio';
-import { NSMP_SAMPLE_RATE } from '../../lib/ns4/nsmp';
+import { NSMP_SAMPLE_RATE, unisonDetuneRawToCents } from '../../lib/ns4/nsmp';
 import { getSharedCtx } from './audioPlayer';
 
 /** Loop region of a stroke in seconds (for AudioBufferSourceNode loop points).
@@ -32,73 +26,39 @@ export function loopSeconds(stroke: DecodedStrokeResult): { loop: boolean; start
   return { loop: true, start: l.loopStart / sr, end: l.loopEnd / sr };
 }
 
-/** Crossfade length (per-channel samples) for a loop window. Capped at ~40 ms (at
- *  the stroke's replay rate), a quarter of the loop window, and the pre-loop
- *  headroom (`loopStart`) — so there is always real audio before the loop to blend
- *  the tail into. */
-export function loopXfadeLen(loopStart: number, loopEnd: number, sampleRate: number = NSMP_SAMPLE_RATE): number {
-  const win = loopEnd - loopStart;
-  return Math.max(0, Math.min(Math.floor(win / 4), Math.floor(0.04 * sampleRate), loopStart));
+/** When and how fast a voice decays inside its loop. */
+export interface LoopDecay {
+  /** Seconds after note-on at which playback enters the loop. */
+  at: number;
+  /** Time constant of the exponential fall, in seconds (level × 1/e per constant). */
+  timeConstant: number;
 }
+
+/** dB per neper: a level falling 1/e per time constant loses this many dB per constant. */
+const DB_PER_NEPER = 20 / Math.LN10;
 
 /**
- * Bake an equal-power crossfade into a channel's loop seam, in place. The loop
- * tail `[loopEnd-xf, loopEnd)` is faded from the original tail toward the pre-loop
- * audio `[loopStart-xf, loopStart)`, so when the native AudioBufferSource loop
- * wraps loopEnd→loopStart the join is continuous. No-op without headroom.
+ * The loop decay of a stroke played at `rate` (the resampling ratio), or null when the
+ * stroke holds its level or doesn't loop. The loop is reached sooner at a higher pitch,
+ * but the decay itself runs on the clock: the DSP multiplies the voice's gain once per
+ * envelope update, whatever the pitch.
  */
-export function crossfadeLoop(ch: Float32Array, loopStart: number, loopEnd: number, xfade: number): void {
-  if (xfade < 2 || loopStart < xfade || loopEnd - loopStart < xfade || loopEnd > ch.length) return;
-  for (let k = 0; k < xfade; k++) {
-    const t = k / (xfade - 1);
-    const wOut = Math.cos((t * Math.PI) / 2); // tail fades out 1→0
-    const wIn = Math.sin((t * Math.PI) / 2);  // pre-loop fades in 0→1
-    ch[loopEnd - xfade + k] = ch[loopEnd - xfade + k] * wOut + ch[loopStart - xfade + k] * wIn;
-  }
-}
-
-/** RMS decay in dB across a stroke's loop window (loud start → quieter end):
- *  positive = the loop region is still decaying, ~0 = steady/sustaining, negative
- *  = swelling. Null when the stroke has no loop. Uses up to a third of the window
- *  (capped 1024 samples) at each edge. Channel 0 is representative for the decay. */
-export function loopWindowDecayDb(stroke: DecodedStrokeResult): number | null {
+export function loopDecay(stroke: DecodedStrokeResult, rate: number): LoopDecay | null {
   const l = stroke.loop;
-  if (!l || !l.loops) return null;
-  const ch = stroke.channels[0];
-  if (!ch || ch.length === 0) return null;
-  const w = Math.min(1024, Math.floor((l.loopEnd - l.loopStart) / 3));
-  if (w < 1) return null;
-  const rms = (s: number, e: number): number => {
-    let x = 0, n = 0;
-    for (let i = s; i < e; i++) if (i >= 0 && i < ch.length) { x += ch[i] * ch[i]; n++; }
-    return Math.sqrt(x / Math.max(1, n));
-  };
-  const rStart = rms(l.loopStart, l.loopStart + w);
-  const rEnd = rms(l.loopEnd - w, l.loopEnd);
-  return 20 * Math.log10(rStart / Math.max(1e-9, rEnd));
+  if (!l || !l.loops || !(l.decayDbPerSecond > 0)) return null;
+  const sr = stroke.sampleRate || NSMP_SAMPLE_RATE;
+  return { at: l.loopStart / sr / rate, timeConstant: DB_PER_NEPER / l.decayDbPerSecond };
 }
 
-/** dB decay at or below which a sample's loops are considered steady enough to
- *  sustain seamlessly. Above it the loop region is still decaying and looping
- *  flutters, so the sample rings out instead. Tuned 2026-07-01 against the local
- *  corpus: strings/violins/pad/organ ≤0.7 dB (loop); CP80/vibes/12-string/rain-
- *  piano ≥2.0 dB (ring out). See docs/… / the [[audition-does-not-loop]] note. */
-export const LOOP_MAX_DECAY_DB = 1.2;
-
-/**
- * Whether a sample should apply its loops in audition, decided once per sample by
- * the median loop-window decay across its looping strokes (per-sample so a patch
- * is consistent — no mix of sustaining and ringing-out notes). False when nothing
- * loops. Steady instruments (low decay) sustain; decaying ones ring out.
- */
-export function sampleShouldLoop(strokes: Iterable<DecodedStrokeResult>, maxDecayDb = LOOP_MAX_DECAY_DB): boolean {
-  const decays: number[] = [];
-  for (const s of strokes) { const d = loopWindowDecayDb(s); if (d !== null) decays.push(d); }
-  if (decays.length === 0) return false;
-  decays.sort((a, b) => a - b);
-  const median = decays[Math.floor(decays.length / 2)];
-  return median <= maxDecayDb;
+/** Linear gain of a {@link LoopDecay} at `t` seconds after note-on — the unit-testable
+ *  mirror of the `setTargetAtTime` schedule in `noteOn`. */
+export function loopDecayGainAt(d: LoopDecay, t: number): number {
+  return t <= d.at ? 1 : Math.exp(-(t - d.at) / d.timeConstant);
 }
+
+/** A decayed voice is stopped once it has lost this much: far below audibility, and it
+ *  frees the source instead of looping silence for as long as the key is held. */
+const DECAY_STOP_DB = 100;
 
 /** The zone a note plays: the one covering `midi`; among overlaps, the one whose
  *  velocity range fits, else the first. Null when no zone covers the key. */
@@ -121,35 +81,85 @@ export function detuneRatio(cents: number): number {
   return 2 ** (cents / 1200);
 }
 
-/** One voice of a unison stack: its detune (cents), stereo pan (−1..+1) and gain. */
-export interface UnisonVoice { detuneCents: number; pan: number; gain: number }
+/** One voice of a note: whose recording it plays, its detune, and its left/right gains. */
+export interface UnisonVoice {
+  /** The key whose recording sounds (the played key, or a neighbour repitched to it). */
+  sourceKey: number;
+  detuneCents: number;
+  gainL: number;
+  gainR: number;
+}
 
-/** Outer-voice detune for the audition unison stack, in cents. The unison block's
- *  detune-spread SCALE isn't pinned yet (the known corpus stores detune 0), so the
- *  stack choruses with a small musical default rather than a raw value — swap this
- *  for the real scale once a min/max unison export pins it. */
-const UNISON_AUDITION_DETUNE = 8;
+/** Cents per unit of the instrument's pitch sum (1/65536 of a semitone). */
+const CENTS_PER_PITCH_UNIT = 100 / 65536;
 
-/** Max per-note detune jitter (± cents) for round-robin audition — small enough to
- *  read as human variation, not a tuning error. */
-const ROUND_ROBIN_JITTER = 4;
+/** Left/right gains of a unison voice when the sample has no values of its own. */
+const BUILT_IN_UNISON_PAN: readonly [number, number] = [0.9327, 0.3606];
 
 /**
- * Voice spreads for a unison stack, or a single centered voice when unison is off.
- * Voice count and pan% come from the decoded {@link SampleUnison}; the detune
- * spread is an audition approximation ({@link UNISON_AUDITION_DETUNE}) and gains are
- * 1/√n so the stack stays level. APPROXIMATE — an audition aid, not a faithful
- * reproduction of the Nord's unison engine (which we can't fully decode yet).
+ * Detune of the outer voices of a unison stack, in cents (one goes up, the other down).
+ * A sample with its own values stores one per Unison setting, raw·25 pitch units; without
+ * them the instrument uses 512 units per setting at middle C, doubling every 20 keys down
+ * and capped at 2560 (`docs/SAMPLE-ENGINE.md` §2).
  */
-export function unisonVoices(u: SampleUnison | null): UnisonVoice[] {
-  if (!u || !u.active) return [{ detuneCents: 0, pan: 0, gain: 1 }];
-  const n = Math.max(2, Math.min(4, u.numVoiceSame || 2));
-  const panW = Math.min(1, Math.max(0, u.panMax, u.panMax2, u.panMax3) / 100);
-  const g = 1 / Math.sqrt(n);
-  return Array.from({ length: n }, (_, i) => {
-    const t = (i / (n - 1)) * 2 - 1; // −1..+1 across the stack
-    return { detuneCents: t * UNISON_AUDITION_DETUNE, pan: t * panW, gain: g };
-  });
+export function unisonDetuneCents(level: number, key: number, u: SampleUnison | null): number {
+  if (level <= 0) return 0;
+  if (u?.custom) return unisonDetuneRawToCents([u.detuneMax, u.detuneMax2, u.detuneMax3][Math.min(level, 3) - 1]);
+  return Math.min(512 * level * 2 ** ((60 - key) / 20), 2560) * CENTS_PER_PITCH_UNIT;
+}
+
+/** Left/right gains of the first outer voice (the second mirrors them): equal-power,
+ *  from the sample's width for this Unison setting (0 = centred, 100 = hard left/right). */
+function unisonPan(level: number, u: SampleUnison | null): readonly [number, number] {
+  if (!u?.custom) return BUILT_IN_UNISON_PAN;
+  const p = 0.5 + Math.floor([u.panMax, u.panMax2, u.panMax3][Math.min(level, 3) - 1] / 2) / 100;
+  return [Math.sqrt(p), Math.sqrt(Math.max(0, 1 - p))];
+}
+
+/**
+ * The voices one note starts for a Unison setting (0–3, the program's switch — not stored
+ * in the sample). Off is the key's own recording. Unison 1 and 2 add a second voice;
+ * Unison 3 adds a centre voice where the key has two neighbours. The extra voices play
+ * the recordings of the key's `alternates` (neighbouring keys), repitched to the played
+ * key; above the sample's top key, or without alternates, the key's own recording is
+ * doubled. Levels are the instrument's own, relative to 1 for a single voice.
+ */
+export function unisonVoices(level: number, key: number, u: SampleUnison | null, alternates: readonly number[]): UnisonVoice[] {
+  if (level <= 0) return [{ sourceKey: key, detuneCents: 0, gainL: 1, gainR: 1 }];
+  const alts = u && key > u.topKey ? [] : alternates;
+  const [a, b] = unisonPan(level, u);
+  let d = unisonDetuneCents(level, key, u);
+  if (level >= 3 && alts.length >= 2) {
+    const centre = u ? 10 ** (u.gainDb3 / 20) : 1;
+    return [
+      { sourceKey: key, detuneCents: 0, gainL: centre, gainR: centre },
+      { sourceKey: alts[0], detuneCents: d, gainL: a, gainR: b },
+      { sourceKey: alts[1], detuneCents: -d, gainL: b, gainR: a },
+    ];
+  }
+  const partner = alts[0] ?? key;
+  // Two voices on one recording at Unison 1 take the sample's "same recording" detune.
+  if (partner === key && level === 1 && u?.custom) d = unisonDetuneRawToCents(u.sameDetuneMin);
+  return [
+    { sourceKey: key, detuneCents: d, gainL: a, gainR: b },
+    { sourceKey: partner, detuneCents: -d, gainL: b, gainR: a },
+  ];
+}
+
+/** Order in which repeats of a key with two alternates take their recording: own, first,
+ *  second, own, second, first — every recording equally often, never one twice running. */
+const REPEAT_ORDER = [0, 1, 2, 0, 2, 1];
+
+/**
+ * The key whose recording the `step`-th strike of `key` plays, for a sample that varies
+ * repeated notes. With one alternate it alternates strictly; with two it cycles through
+ * all three without playing one twice in a row. The instrument follows a longer fixed
+ * order with the same property (`docs/SAMPLE-ENGINE.md` §2); this is ours.
+ */
+export function repeatSource(step: number, key: number, alternates: readonly number[]): number {
+  const pool = [key, ...alternates.slice(0, 2)];
+  if (pool.length === 1) return key;
+  return pool.length === 2 ? pool[step % 2] : pool[REPEAT_ORDER[step % REPEAT_ORDER.length]];
 }
 
 /** MIDI velocity → linear gain, clamped to 0..1. */
@@ -227,6 +237,18 @@ export interface Sampler {
 
 const RELEASE = 0.015; // s — short fade so note-off doesn't click
 
+/** Voice slots of the instrument's sample DSP (`docs/SAMPLE-ENGINE.md` §3). Each voice of
+ *  a unison stack takes one. */
+export const MAX_VOICES = 56;
+
+/** Fade-in of a starting voice: the DSP ramps each new voice in over about 1 ms. */
+const START_FADE = 0.001;
+
+/** A stolen voice is multiplied by 0.96525 per envelope update (21,700 a second): a time
+ *  constant of 1.3 ms, 60 dB down in 9 ms. */
+const STEAL_TIME_CONSTANT = 0.0013;
+const STEAL_FADE = 0.009;
+
 export function createSampler(
   zones: PlayableZone[],
   strokesByGlobalID: Map<number, DecodedStrokeResult>,
@@ -234,35 +256,41 @@ export function createSampler(
    *  omitted) when the playground is off → flat gain + short anti-click release. */
   env?: () => AmpEnvelope | null,
   /** Sample-level voicing. `detuneCents` shifts pitch to the sample's stored global
-   *  detune; `unison` (when active) stacks detuned/panned voices ({@link unisonVoices});
-   *  `roundRobin` applies a subtle per-note detune jitter so repeated notes aren't
-   *  identical (these libraries are single-sample-per-key, so there are no recorded
-   *  takes to cycle — this is the audition analogue of the Nord's DSP-side variation). */
-  opts?: { detuneCents?: number; unison?: SampleUnison | null; roundRobin?: boolean },
+   *  detune. `unisonLevel` is the Unison setting to audition (0–3; a getter is read at
+   *  each note-on) and `unison` the sample's own voicing values for it. `alternates`
+   *  lists, per key, the neighbouring keys whose recordings a unison voice or a repeated
+   *  note may play ({@link unisonVoices}, {@link repeatSource}). */
+  opts?: {
+    detuneCents?: number;
+    unison?: SampleUnison | null;
+    unisonLevel?: number | (() => number);
+    alternates?: readonly NoteAlternates[] | null;
+  },
 ): Sampler {
   const detuneMul = detuneRatio(opts?.detuneCents ?? 0);
-  const stack = unisonVoices(opts?.unison ?? null); // 1 centered voice when unison is off
-  const roundRobin = opts?.roundRobin ?? false;
+  const unison = opts?.unison ?? null;
+  const unisonLevel = (): number => {
+    const l = opts?.unisonLevel ?? 0;
+    return typeof l === 'function' ? l() : l;
+  };
+  const alternates = opts?.alternates ?? null;
+  // Repeated notes vary only where the sample asks for it, up to its top key.
+  const variesRepeats = (unison?.randomStrokeMode ?? 0) !== 0;
+  const strikes = new Map<number, number>(); // key → note-ons so far (the repeat step)
   const buffers = new Map<number, AudioBuffer>(); // globalID → decoded audio (lazy)
-  const live = new Map<number, { srcs: { src: AudioBufferSourceNode; gain: GainNode }[]; voice: Voice; release: number }>();
-  // Decide once per sample: sustain steady loops, ring out decaying ones (see
-  // sampleShouldLoop). Gates both the seam crossfade and the source loop below.
-  const loopSample = sampleShouldLoop(strokesByGlobalID.values());
+  type Playing = { src: AudioBufferSourceNode; gain: GainNode };
+  /** A held note: its voices, and the level its envelope has reached at a given time
+   *  (computed from the schedule — an automated AudioParam's `.value` isn't reliable). */
+  const live = new Map<number, { srcs: Playing[]; voice: Voice; release: number; levelAt: (time: number) => number }>();
+  /** Voices fading out after key-up or a steal, oldest first; they still hold a slot. */
+  const fading: Playing[] = [];
 
   function bufferFor(ctx: AudioContext, globalID: number): AudioBuffer | null {
     const cached = buffers.get(globalID);
     if (cached) return cached;
     const stroke = strokesByGlobalID.get(globalID);
     if (!stroke || stroke.channels[0]?.length === 0) return null;
-    const norm = normalizeChannels(stroke.channels);
-    // Only crossfade the seam of loops we'll actually play (steady samples); a
-    // ringing-out sample plays straight through, so its buffer is left untouched.
-    if (loopSample && stroke.loop?.loops) {
-      const { loopStart, loopEnd } = stroke.loop;
-      const xf = loopXfadeLen(loopStart, loopEnd, stroke.sampleRate);
-      for (const ch of norm) crossfadeLoop(ch, loopStart, loopEnd, xf);
-    }
-    const buf = toAudioBuffer(ctx, norm, stroke.sampleRate);
+    const buf = toAudioBuffer(ctx, normalizeChannels(stroke.channels), stroke.sampleRate);
     buffers.set(globalID, buf);
     return buf;
   }
@@ -275,64 +303,150 @@ export function createSampler(
     const now = ctx.currentTime;
     // Linear release from the current level to silence, on every voice of the stack
     // — works for both the flat path (release = RELEASE) and a scheduled ADSR.
-    for (const { src, gain } of v.srcs) {
-      gain.gain.cancelScheduledValues(now);
-      gain.gain.setValueAtTime(gain.gain.value, now);
-      gain.gain.linearRampToValueAtTime(0, now + v.release);
-      try { src.stop(now + v.release); } catch { /* already stopped */ }
+    const level = v.levelAt(now);
+    for (const p of v.srcs) {
+      p.gain.gain.cancelScheduledValues(now);
+      p.gain.gain.setValueAtTime(level, now);
+      p.gain.gain.linearRampToValueAtTime(0, now + v.release);
+      try { p.src.stop(now + v.release); } catch { /* already stopped */ }
+      fading.push(p);
     }
+  }
+
+  /** Cut a voice short for a new one: the DSP's fast exponential fade. */
+  function cut(p: Playing, now: number): void {
+    p.gain.gain.cancelScheduledValues(now);
+    p.gain.gain.setTargetAtTime(0, now, STEAL_TIME_CONSTANT);
+    try { p.src.stop(now + STEAL_FADE); } catch { /* already stopped */ }
+  }
+
+  /** A voice ended (played out, decayed away, or finished fading): give its slot back,
+   *  and forget the note once its last voice is gone. */
+  function ended(midi: number, p: Playing): void {
+    const f = fading.indexOf(p);
+    if (f >= 0) fading.splice(f, 1);
+    const v = live.get(midi);
+    if (!v) return;
+    const i = v.srcs.indexOf(p);
+    if (i < 0) return;
+    v.srcs.splice(i, 1);
+    if (v.srcs.length === 0) live.delete(midi);
+  }
+
+  /** Free `needed` voice slots: voices already fading go first, then the oldest held
+   *  note (`live` keeps note-on order). A cut voice keeps its slot only for the 9 ms of
+   *  its fade, which the count ignores. */
+  function makeRoom(needed: number): void {
+    const now = getSharedCtx().currentTime;
+    let used = fading.length;
+    for (const v of live.values()) used += v.srcs.length;
+    while (used + needed > MAX_VOICES && fading.length > 0) {
+      cut(fading.shift()!, now);
+      used--;
+    }
+    for (const [midi, v] of [...live]) {
+      if (used + needed <= MAX_VOICES) return;
+      used -= v.srcs.length;
+      live.delete(midi);
+      for (const p of v.srcs) cut(p, now);
+    }
+  }
+
+  /** A voice's output: straight through when centred at unity (keeps a stereo recording
+   *  as it is), else its own left and right gains — the DSP scales a stereo voice's two
+   *  channels separately and sends a mono voice to both. */
+  function connectOut(ctx: AudioContext, gain: GainNode, gainL: number, gainR: number): void {
+    if (gainL === 1 && gainR === 1) { gain.connect(ctx.destination); return; }
+    gain.channelCount = 2;
+    gain.channelCountMode = 'explicit';
+    const split = ctx.createChannelSplitter(2);
+    const merge = ctx.createChannelMerger(2);
+    gain.connect(split);
+    [gainL, gainR].forEach((g, ch) => {
+      const side = ctx.createGain();
+      side.gain.value = g;
+      split.connect(side, ch);
+      side.connect(merge, 0, ch);
+    });
+    merge.connect(ctx.destination);
   }
 
   return {
     noteOn(midi, velocity) {
-      const zone = resolveZone(zones, midi, velocity);
-      if (!zone) return;
-      const stroke = strokesByGlobalID.get(zone.globalID);
-      if (!stroke) return;
+      const own = resolveZone(zones, midi, velocity);
+      if (!own) return;
       const ctx = getSharedCtx();
-      const buf = bufferFor(ctx, zone.globalID);
-      if (!buf) return;
+      // A voice plays the recording of its source key's zone, repitched to the played
+      // key; a source without a playable recording falls back to the key's own.
+      const sourceFor = (key: number) => {
+        const zone = (key === midi ? own : resolveZone(zones, key, velocity)) ?? own;
+        const stroke = strokesByGlobalID.get(zone.globalID);
+        const buf = stroke ? bufferFor(ctx, zone.globalID) : null;
+        return stroke && buf ? { zone, stroke, buf } : null;
+      };
+      const alts = alternates?.[midi];
+      const level = unisonLevel();
+      let stack = unisonVoices(level, midi, unison, alts?.unison ?? []);
+      // A repeated single voice steps through the neighbouring recordings. (On the
+      // instrument the voices of a unison stack rotate too; here the stack stays put.)
+      if (level <= 0 && variesRepeats && alts && unison && midi <= unison.topKey) {
+        const step = strikes.get(midi) ?? 0;
+        strikes.set(midi, step + 1);
+        stack = [{ ...stack[0], sourceKey: repeatSource(step, midi, alts.random) }];
+      }
+      const voices = stack.map((uv) => ({ uv, source: sourceFor(uv.sourceKey) ?? sourceFor(midi) }));
+      const first = voices[0].source;
+      if (!first) return;
       noteOff(midi); // retrigger: drop any voice already on this key
-      // Round-robin: nudge the whole note by a fresh random detune so repeats vary.
-      const rrCents = roundRobin ? (Math.random() * 2 - 1) * ROUND_ROBIN_JITTER : 0;
-      const baseRate = playbackRate(zone.rootKey, midi) * detuneMul * detuneRatio(rrCents);
+      makeRoom(voices.length);
       const peak = velocityGain(velocity);
       const e = env?.() ?? null;
       const t0 = ctx.currentTime;
       const release = e ? e.release : RELEASE;
-      const ls = loopSample ? loopSeconds(stroke) : null;
+      const baseRate = playbackRate(first.zone.rootKey, midi) * detuneMul;
+      // The instrument's unison gains leave no headroom over a single voice, and these
+      // buffers are normalised to full scale: scale the stack back so that even voices
+      // in phase (one recording doubled) stay within it.
+      const headroom = 1 / Math.max(1, ...[0, 1].map((ch) => voices.reduce((sum, { uv }) => sum + (ch ? uv.gainR : uv.gainL), 0)));
 
-      // Build the voice stack: one centered voice normally, or the unison spread
-      // (detuned + panned copies) when the sample has unison engaged.
-      const srcs = stack.map((uv) => {
+      const srcs: Playing[] = voices.flatMap(({ uv, source }) => {
+        if (!source) return [];
         const src = ctx.createBufferSource();
-        src.buffer = buf;
-        src.playbackRate.value = baseRate * detuneRatio(uv.detuneCents);
-        // Steady samples sustain by looping (the buffer carries a crossfaded seam);
-        // decaying samples leave loop false and ring out. See sampleShouldLoop.
-        if (ls?.loop) { src.loop = true; src.loopStart = ls.start; src.loopEnd = ls.end; }
+        src.buffer = source.buf;
+        const rate = playbackRate(source.zone.rootKey, midi) * detuneMul * detuneRatio(uv.detuneCents);
+        src.playbackRate.value = rate;
+        const ls = loopSeconds(source.stroke);
+        if (ls.loop) { src.loop = true; src.loopStart = ls.start; src.loopEnd = ls.end; }
         const gain = ctx.createGain();
-        const vpeak = peak * uv.gain;
-        if (e) scheduleAttackDecay(gain.gain, e, vpeak, t0);
-        else gain.gain.value = vpeak; // playground off → flat gain
-        src.connect(gain);
-        // Pan the copy only when the stack spreads; a single centered voice keeps
-        // the original gain→destination path (and mono/stereo passthrough) exactly.
-        if (uv.pan !== 0 && ctx.createStereoPanner) {
-          const panner = ctx.createStereoPanner();
-          panner.pan.value = uv.pan;
-          gain.connect(panner).connect(ctx.destination);
-        } else {
-          gain.connect(ctx.destination);
+        if (e) {
+          scheduleAttackDecay(gain.gain, e, peak, t0);
+        } else { // playground off → flat gain behind the DSP's start fade
+          gain.gain.setValueAtTime(0, t0);
+          gain.gain.linearRampToValueAtTime(peak, t0 + START_FADE);
         }
+        // The loop decay gets a gain stage of its own, so the key-up release (which
+        // reschedules `gain`) fades whatever level the decay has reached.
+        const decay = loopDecay(source.stroke, rate);
+        if (decay) {
+          const fall = ctx.createGain();
+          fall.gain.setValueAtTime(1, t0);
+          fall.gain.setTargetAtTime(0, t0 + decay.at, decay.timeConstant);
+          src.connect(fall).connect(gain);
+        } else {
+          src.connect(gain);
+        }
+        connectOut(ctx, gain, uv.gainL * headroom, uv.gainR * headroom);
         src.start();
-        return { src, gain };
+        if (decay) src.stop(t0 + decay.at + (DECAY_STOP_DB / DB_PER_NEPER) * decay.timeConstant);
+        const playing = { src, gain };
+        src.onended = () => ended(midi, playing);
+        return [playing];
       });
 
-      const voice: Voice = { midi, globalID: zone.globalID, startedAt: t0, rate: baseRate };
-      // Clean up the key when the primary (center) source ends, if it's still ours.
-      srcs[0].src.onended = () => { if (live.get(midi)?.srcs[0]?.src === srcs[0].src) live.delete(midi); };
-      live.set(midi, { srcs, voice, release });
+      const voice: Voice = { midi, globalID: first.zone.globalID, startedAt: t0, rate: baseRate };
+      const levelAt = (time: number): number =>
+        (e ? envGainAt(e, peak, time - t0, null) : peak * Math.min(1, Math.max(0, (time - t0) / START_FADE)));
+      live.set(midi, { srcs, voice, release, levelAt });
     },
     noteOff,
     stopAll() { for (const midi of [...live.keys()]) noteOff(midi); },

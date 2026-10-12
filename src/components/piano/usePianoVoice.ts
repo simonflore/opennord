@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getSharedCtx, playPcm } from '@/components/sample/audioPlayer';
-import { NSP_SAMPLE_RATE, decodeNspStroke, readNspDirectory, strokeFor } from '@/lib/ns4/nsp-audio';
+import { NSP_SAMPLE_RATE, decodeNspStroke, nspZoneCount, readNspDirectory, strokeFor } from '@/lib/ns4/nsp-audio';
 import { getErrorMessage } from '@/lib/errors';
 
 /**
@@ -47,7 +47,7 @@ export function usePianoVoice(bytes: Uint8Array | null) {
   }
 
   /** Key zones the directory holds. */
-  const zoneCount = dir ? dir.strokes.reduce((n, s) => Math.max(n, s.zone + 1), 0) : 0;
+  const zoneCount = dir ? nspZoneCount(dir) : 0;
 
   return { dir, zoneCount, playing, error, toggle };
 }

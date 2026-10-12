@@ -1,7 +1,7 @@
 import { createRouter, createHashHistory, type AnyRoute } from '@tanstack/react-router';
 import { rootRoute } from '@/routes/root';
 import { HomeRoute } from '@/routes/home';
-import { LibraryIndexRoute, ProgramsRoute, ProgramRoute } from '@/routes/library';
+import { LibraryIndexRoute, ProgramsRoute } from '@/routes/library';
 import { SamplesRoute, SamplesRedirectRoute } from '@/routes/samples';
 import { PresetsRoute } from '@/routes/presets';
 import { PianosRoute } from '@/routes/pianos';
@@ -15,7 +15,7 @@ import { RE_ROUTES } from '@/router-re';
 export function createAppRouter(extra: AnyRoute[] = []) {
   const routeTree = rootRoute.addChildren([
     HomeRoute,
-    LibraryIndexRoute, ProgramsRoute, ProgramRoute,
+    LibraryIndexRoute, ProgramsRoute,
     SamplesRedirectRoute, SamplesRoute,
     PresetsRoute, PianosRoute, DeviceRoute, CompatibilityRoute, AboutRoute,
     ...RE_ROUTES,
@@ -25,6 +25,14 @@ export function createAppRouter(extra: AnyRoute[] = []) {
     routeTree,
     history: createHashHistory(),
     defaultPreload: false,
+    // Each history entry keeps its scroll: Back from an entry to its list (the
+    // back button steps back when it can) returns to where the list was, on a
+    // phone too, while a newly opened page starts fresh and the split's list
+    // pane keeps its place.
+    scrollRestoration: true,
+    // The split's detail pane stays mounted between entries; a newly opened
+    // entry starts at its top instead of inheriting the last one's scroll.
+    scrollToTopSelectors: ['.on-split__detail'],
     defaultNotFoundComponent: () => {
       if (typeof window !== 'undefined') window.location.hash = '#/library/programs';
       return null;

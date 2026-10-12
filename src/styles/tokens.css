@@ -106,7 +106,8 @@
   /* The editorial content column. HomeView's CONTENT and the Blueprint frame
      both resolve to this, so they cannot drift apart. NOTE: the app shell's
      <main> (routes/root.tsx) is max-w-[1100px] and is deliberately NOT changed
-     here — it sits beside the rail and is a different column. */
+     here — it sits beside the rail and is a different column (and widens to
+     1680px for the programs console: ui.css, .on-content:has(.on-split--inspector)). */
   --container-content: 1080px;
 
   /* Tailwind's default spacing step is 4px (p-1=4px … p-4=16px, p-6=24px),
@@ -150,6 +151,8 @@
 @utility led-glow-connected { box-shadow: var(--led-connected-glow); }
 /* The selected row's accent bar on its left edge (rail entries, palette results). */
 @utility accent-bar   { box-shadow: inset 3px 0 0 var(--accent); }
+/* A row's hover tint: the faintest lift over whatever it sits on. */
+@utility tint-hover   { background: color-mix(in srgb, var(--lift) 3%, transparent); }
 
 :root,
 :root[data-theme='dark'] {
@@ -243,6 +246,16 @@
      kept in sync by hand; the JS hook is the runtime source of truth. */
   --bp-split: 900px;
 
+  /* app shell: the sticky top bar and the phone tab bar. The native shell adds
+     the safe-area insets on top (shell.css); --sticky-top is where content
+     that sticks while the page scrolls should pin (0 inside a split pane). */
+  --topbar-base: 44px;
+  --inset-top: 0px;
+  --topbar-h: var(--topbar-base);
+  --tabs-base: 56px;
+  --tabs-h: calc(var(--tabs-base) + env(safe-area-inset-bottom));
+  --sticky-top: var(--topbar-h);
+
   /* space scale 4·8·12·16·24 */
   --s-1: 4px;
   --s-2: 8px;
@@ -315,6 +328,13 @@
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-lcd: 'Share Tech Mono', 'IBM Plex Mono', ui-monospace, monospace;
 }
+
+/* The native shell's top bar grows by the status-bar inset (`--inset-top`) —
+   except in a Mac window, where that inset is only the title bar the page
+   already sits below. Same specificity as the theme block above and after it,
+   so it wins on <html data-native>. */
+:root[data-native] { --inset-top: env(safe-area-inset-top); --topbar-h: calc(var(--topbar-base) + var(--inset-top)); }
+:root[data-native='mac'] { --inset-top: 0px; }
 
 /* Global default so any unstyled text uses the UI font, not the browser serif. */
 html { background: var(--bg); color: var(--ink); font-family: var(--font); }

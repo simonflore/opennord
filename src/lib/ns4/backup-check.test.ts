@@ -175,6 +175,9 @@ describe('checkBackup', () => {
 describe('checkBackupItem', () => {
   it('flags files that are not what their extension says', () => {
     expect(checkBackupItem('program', cbin('ns4o', 183))).toMatch(/Stage 4 program/);
+    const damaged = cbin('ns4y', 541);
+    damaged[300] ^= 0x01;
+    expect(checkBackupItem('preset', damaged)).toMatch(/refuse to load this preset/);
     expect(checkBackupItem('preset', cbin('ns4p', 868))).toMatch(/Stage 4 preset/);
     expect(checkBackupItem('settings', cbin('ns4p', 868))).toMatch(/settings/);
     expect(checkBackupItem('sample', program())).toMatch(/Nord sample/);

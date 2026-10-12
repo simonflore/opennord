@@ -1,6 +1,5 @@
-// UNVALIDATED — written without an Xcode build: needs the generated ios/ target
-// built in Xcode and an iPad with a USB / Bluetooth MIDI keyboard to validate
-// (docs/IPAD.md, "MIDI input").
+// Compiles with Xcode 27 as part of ios/App; NOT yet run on an iPad (docs/IPAD.md,
+// "MIDI input").
 import Foundation
 import UIKit
 import CoreMIDI
