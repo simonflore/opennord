@@ -2,26 +2,25 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import '../../styles/nord.css';
 import { Button, FilterChip } from '../ui';
 import type { NordSession } from '../../lib/device/session';
-import { enumeratePrograms, pullProgram, type ProgramEntry } from '../../lib/device/transfer';
+import { pullProgram, type ProgramEntry } from '../../lib/device/transfer';
 import { readPartitionCapacity } from '../../lib/device/capacity';
 import { useDevice } from '../../lib/device/DeviceContext';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import { parseClaviaFile, type NordProgram } from '../../lib/formats';
 import { slotLabel } from '../../lib/clavia/slot';
-import { freeName } from '../../lib/clavia/name';
 import { NS4_PRODUCT_ID } from '../../lib/device/negotiate';
 import { ProgramView } from '../program/ProgramView';
 import { ConnectPanel } from './ConnectPanel';
 import { BackupOrganizer } from './BackupOrganizer';
 import { BundleChooser } from './BundleChooser';
 import { DeviceBrowser } from './DeviceBrowser';
-import { TargetSlotPicker } from './TargetSlotPicker';
+import { PushFlowPanel } from './PushFlowPanel';
 import { ConfirmPanel } from './ConfirmPanel';
-import { BackupPanel } from './BackupPanel';
 import { DeviceSampleBrowser } from './DeviceSampleBrowser';
 import { SampleInspector } from '../sample/SampleInspector';
 import { usePushFlow } from './usePushFlow';
 import { useDeleteFlow } from './useDeleteFlow';
+import { READ_ONLY_REASON } from '../../lib/device/write-guard';
 import { useSamplesFlow } from './useSamplesFlow';
 import { useReorg } from './useReorg';
 import { sessionDeviceIO } from '../../lib/device/device-io';
@@ -36,7 +35,7 @@ import { useFolder } from '../../lib/folder/FolderContext';
  * useDeleteFlow, useSamplesFlow); this component is the switch between them.
  */
 export function DeviceManager() {
-  const { session, entries, deviceName, productId, capacity, setConnection, setEntries, setCapacity, isCurrent, lost } = useDevice();
+  const { session, entries, deviceName, productId, capacity, setConnection, setCapacity, isCurrent, lost, refresh } = useDevice();
   const folder = useFolder();
   // Program-open (pull-to-view) state stays local — it's this component's own concern.
   const [program, setProgram] = useState<NordProgram | null>(null);
@@ -46,18 +45,7 @@ export function DeviceManager() {
   // When set, the Organizer opens this specific folder backup (picked on the landing).
   const [organizingBundlePath, setOrganizingBundlePath] = useState<string | undefined>(undefined);
 
-  async function refresh(s: NordSession) {
-    await s.withSession(s.programPartition, async () => {
-      const programs = await enumeratePrograms(s);
-      // Best-effort: a failed capacity read shouldn't break the program list.
-      const cap = await readPartitionCapacity(s, s.programPartition).catch(() => null);
-      if (!isCurrent(s)) return; // another Nord connected meanwhile
-      setEntries(programs);
-      setCapacity(cap);
-    });
-  }
-
-  // Load the storage readout once on connect (entries arrive from ConnectPanel,
+  // Load the storage readout once on connect (entries arrive with the connection,
   // but capacity needs its own query). Best-effort — leaves capacity null on failure.
   const loadCapacity = useCallback(
     async (s: NordSession) => {
@@ -151,40 +139,20 @@ export function DeviceManager() {
     );
   }
 
+  // A keyboard OpenNord can't safely write to: Organize and Send are greyed with
+  // the reason and Delete is hidden, instead of failing after a click.
+  const writable = session.canWrite(session.programPartition);
+
   // Push flow: pick a slot, then confirm.
-  if (push.pushSource) {
-    if (!push.picked) {
-      return <TargetSlotPicker entries={entries} onPick={push.pickSlot} onCancel={push.cancel} />;
-    }
-    const where = slotLabel(push.picked.bank, push.picked.slot);
-    const { bank, slot } = push.picked;
-    // The Nord keeps one sound per name, so a name another slot holds is numbered, as the Nord does.
-    const elsewhere = entries.filter((e) => !(e.bank === bank && e.slot === slot)).map((e) => e.name);
-    const sendName = freeName(push.pushSource.name, elsewhere);
-    return (
-      <ConfirmPanel
-        title="Send to the Nord?"
-        message={push.picked.occupiedBy
-          ? `This replaces "${push.picked.occupiedBy}" at ${where}.`
-          : `Write to ${where} (currently empty).`}
-        confirmLabel="Write"
-        busy={push.busy}
-        onConfirm={() => push.confirmPush(sendName)}
-        onCancel={push.unpick}
-      >
-        <p className="ps-sub">Name on the Nord: {sendName}</p>
-        {push.error && <p className="ps-sub on-error">{push.error}</p>}
-      </ConfirmPanel>
-    );
-  }
+  if (push.pushSource) return <PushFlowPanel push={push} entries={entries} />;
 
   // Delete confirm.
   if (del.pendingDelete) {
     return (
       <ConfirmPanel
-        title="Delete this program?"
-        message={`Permanently remove "${del.pendingDelete.name}" from ${slotLabel(del.pendingDelete.bank, del.pendingDelete.slot)}.`}
-        confirmLabel="Delete"
+        title="Delete from Nord?"
+        message={`Permanently deletes "${del.pendingDelete.name}" from ${slotLabel(del.pendingDelete.bank, del.pendingDelete.slot)}. Back up your Nord first if you may want it back.`}
+        confirmLabel="Delete from Nord"
         busy={del.busy}
         onConfirm={del.confirmDelete}
         onCancel={() => del.setPendingDelete(null)}
@@ -200,7 +168,14 @@ export function DeviceManager() {
       <div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <Button variant="ghost" onClick={() => setProgram(null)}>← Back to programs</Button>
-          <Button variant="primary" onClick={() => push.startPush({ bytes: program.bytes, name: program.name ?? 'Program' })}>Send to Nord</Button>
+          <Button
+            variant="primary"
+            disabled={!writable}
+            title={writable ? undefined : READ_ONLY_REASON}
+            onClick={() => push.startPush({ bytes: program.bytes, name: program.name ?? 'Program' })}
+          >
+            Send to Nord
+          </Button>
         </div>
         <ProgramView program={program} />
       </div>
@@ -233,7 +208,7 @@ export function DeviceManager() {
       {browserBusy && <p className="ps-sub">{samples.pullPct !== null ? `Pulling sample… ${samples.pullPct}%` : 'Working with the Nord…'}</p>}
       {samples.view === 'programs' ? (
         <>
-          {!session.canWrite(session.programPartition) && (
+          {!writable && (
             <div className="mb-3 rounded-md border border-line bg-surface-2 px-3 py-2.5" role="note">
               <p className="m-0 mb-1 text-xs font-bold text-ink">Browsing only on this keyboard</p>
               <p className="m-0 text-xs leading-[1.55] text-dim">
@@ -243,9 +218,9 @@ export function DeviceManager() {
               </p>
             </div>
           )}
-          <div style={{ marginBottom: 12 }}>
-            <BackupPanel session={session} deviceName={deviceName} onAfterRestore={() => { void refresh(session); }} />
-          </div>
+          {/* Back up and Restore act on the whole keyboard, so they live in the
+              Nord's menu in the top bar (DeviceStatus); this page arranges slots. */}
+          <p className="ps-sub mb-3">Back up or restore your Nord from its menu in the top bar.</p>
           <DeviceBrowser
             entries={entries}
             deviceName={deviceName}
@@ -253,6 +228,7 @@ export function DeviceManager() {
             onSelect={open}
             onDelete={del.setPendingDelete}
             onSendFile={push.startSendFile}
+            writable={writable}
             reorg={reorg}
             reorgConfirmExtra={reorgConfirmExtra}
           />

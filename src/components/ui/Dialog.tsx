@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import * as RD from '@radix-ui/react-dialog';
 import { cn } from '@/lib/cn';
 
@@ -19,6 +19,14 @@ export interface DialogProps {
   autoFocus?: boolean;
   /** Keys pressed anywhere in the dialog, the dialog itself included (the palette's ↑/↓/Enter). */
   onKeyDown?: (e: KeyboardEvent<HTMLElement>) => void;
+  /**
+   * Render at the end of <body> instead of in place. Needed when the dialog sits
+   * inside something that contains its fixed children — a list row with
+   * `content-visibility` or a `@container` clips and repositions an inline one.
+   */
+  portal?: boolean;
+  /** Where focus goes on close, when where it was on open is gone (a menu item that opened it). */
+  returnFocus?: RefObject<HTMLElement | null>;
 }
 
 /**
@@ -39,15 +47,23 @@ export function anyDialogOpen(): boolean {
   return openDialogs > 0;
 }
 
-export function Dialog({ open, onClose, title, children, footer, bare, className, autoFocus = true, onKeyDown }: DialogProps) {
+export function Dialog({ open, onClose, title, children, footer, bare, className, autoFocus = true, onKeyDown, portal = false, returnFocus }: DialogProps) {
   const content = useRef<HTMLDivElement>(null);
+  // Where focus was when the dialog opened, to put it back on close. Radix returns
+  // focus to its own Trigger, which no caller here uses, so focus fell to <body>
+  // and Tab restarted at the top of the page. A layout effect runs before Radix
+  // moves focus into the dialog.
+  const returnTo = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (open) returnTo.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     openDialogs++;
     return () => { openDialogs--; };
   }, [open]);
-  return (
-    <RD.Root open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+  const body = (
+    <>
       <RD.Overlay
         data-testid="dialog-backdrop"
         className="fixed inset-0 z-40 bg-[var(--scrim)]"
@@ -59,6 +75,10 @@ export function Dialog({ open, onClose, title, children, footer, bare, className
         // Without autoFocus, focus still moves into the dialog — onto the dialog itself,
         // not its first field (so a phone's keyboard stays down).
         onOpenAutoFocus={autoFocus ? undefined : (e) => { e.preventDefault(); content.current?.focus(); }}
+        onCloseAutoFocus={(e) => {
+          const el = returnTo.current?.isConnected ? returnTo.current : returnFocus?.current;
+          if (el?.isConnected) { e.preventDefault(); el.focus(); }
+        }}
         className={cn(
           'fixed z-50 rounded-lg border border-line bg-surface shadow-[var(--shadow-3)] focus:outline-none',
           !bare && 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(92vw,480px)] max-h-[85vh] overflow-auto p-4',
@@ -69,6 +89,11 @@ export function Dialog({ open, onClose, title, children, footer, bare, className
         {bare ? children : <div className="text-ink">{children}</div>}
         {!bare && footer && <div className="mt-4 flex justify-end gap-2">{footer}</div>}
       </RD.Content>
+    </>
+  );
+  return (
+    <RD.Root open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+      {portal ? <RD.Portal>{body}</RD.Portal> : body}
     </RD.Root>
   );
 }

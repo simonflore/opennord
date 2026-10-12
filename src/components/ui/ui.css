@@ -84,7 +84,7 @@
    The margin→padding swap keeps the divider's gap inside the opaque bg so
    scrolling content doesn't bleed through beneath it. */
 .on-split__detail .ps-hd {
-  position: sticky; top: var(--detail-bar, 0px); z-index: 3;
+  position: sticky; top: 0; z-index: 3;
   background: var(--bg);
   margin-bottom: 0; padding-bottom: 14px;
 }

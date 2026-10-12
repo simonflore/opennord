@@ -62,7 +62,7 @@ describe('SamplesBrowse', () => {
       />,
     );
     // Reclaim bar appears when selection is non-empty
-    expect(html).toMatch(/Remove from Nord/);
+    expect(html).toMatch(/Delete from Nord/);
     // Shows MB figure from selectedFreeBytes
     expect(html).toMatch(/48 MB/);
     // Checkbox is rendered for the unused nord sample

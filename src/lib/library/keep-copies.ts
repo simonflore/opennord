@@ -4,7 +4,7 @@ import { safeFilename } from '@/lib/ns4/bundle';
 /** Shown when a copy was asked for but this browser can't report that a file was saved. */
 export const NO_CONFIRMED_SAVE_MESSAGE =
   'OpenNord can’t confirm on this device that a copy was saved, so nothing was removed. ' +
-  'Untick “Download a copy first” to remove without keeping a copy.';
+  'Untick “Save a copy to a folder first” to delete without keeping a copy.';
 
 /** Shown when the folder picker was closed without a choice. */
 export const NO_FOLDER_CHOSEN_MESSAGE = 'No folder was chosen for the copies, so nothing was removed.';

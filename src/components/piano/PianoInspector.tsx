@@ -10,6 +10,7 @@ import { useFolder } from '@/lib/folder/FolderContext';
 import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 import { noteName } from '@/lib/ns4/sample-view';
 import { ListenCard, PianoListen } from './PianoListen';
+import { ItemActions } from '@/components/library/ItemActions';
 import { DetailColumns } from '@/components/library/DetailColumns';
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -53,12 +54,12 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
       } else if (!bytes && entry.device && entry.partition != null && session) {
         bytes = await pullPiano(session, entry.device, (done, total) => setPct(total ? Math.round((done / total) * 100) : 0));
       }
-      if (!bytes) throw new Error('Connect your Nord to download this piano.');
+      if (!bytes) throw new Error('Connect your Nord to save this piano.');
       downloadBytes(bytes, `${entry.name}.npno`);
       // What was pulled can be played here too (same guard as loadSounds).
       if (shownId.current === id) setListenBytes(bytes);
     } catch (e) {
-      setError(`Couldn't download ${entry.name}: ${msg(e)}`);
+      setError(`Couldn't save ${entry.name}: ${msg(e)}`);
     } finally {
       setBusy(false); setPct(null);
     }
@@ -91,7 +92,7 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
           ? <PianoListen bytes={listenBytes} />
           : (
             <ListenCard>
-              {entry.backupRef ? 'Load the sounds from the backup to play this piano here.' : 'Download this piano to play it here.'}
+              {entry.backupRef ? 'Load the sounds from the backup to play this piano here.' : 'Save this piano to your computer to play it here.'}
             </ListenCard>
           )}
         side={
@@ -107,9 +108,7 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
               </p>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
-              <Button variant="primary" onClick={() => void download()} disabled={busy}>
-                {busy ? (pct !== null ? `Pulling… ${pct}%` : 'Working…') : 'Download'}
-              </Button>
+              <ItemActions save={{ onSave: () => void download(), busy, busyLabel: pct !== null ? `Reading from Nord… ${pct}%` : undefined }} />
               {!listenBytes && entry.backupRef && (
                 <Button onClick={() => void loadSounds()} disabled={busy}>Load sounds</Button>
               )}

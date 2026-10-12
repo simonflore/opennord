@@ -5,6 +5,9 @@ import { NordError } from './protocol';
  * because OpenNord hasn't confirmed which part of the keyboard's memory it
  * would land in. Musician-facing: no partition numbers, no protocol words.
  */
+/** Why a write action is greyed on a keyboard OpenNord won't change (shown beside the action). */
+export const READ_ONLY_REASON = 'OpenNord only reads this keyboard: it couldn’t confirm where it keeps its programs.';
+
 export const WRITE_BLOCKED_MESSAGE =
   'To keep your sounds safe, OpenNord only changes what’s on a Nord once it has confirmed ' +
   'where this model keeps them — and it couldn’t confirm that on this keyboard. Nothing was ' +

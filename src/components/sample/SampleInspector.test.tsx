@@ -60,11 +60,20 @@ describe('SampleEditPanel', () => {
     };
     const html = renderToStaticMarkup(<SampleEditPanel initial={model} bytes={new Uint8Array(0)} codec={3} />);
     expect(html).toContain('My Strings');               // editable name
-    expect(html).toContain('Download edited .nsmp3');
+    expect(html).toContain('Save edited copy (.nsmp3)');
     expect(html).toContain('ps-kbd');                   // the keyboard map
     expect(html).toContain('>S1<');                     // a labeled band per sample
     expect(html).toContain('>S2<');
     expect(html).toContain('up to (split)');            // the synced all-zones table
     expect(html.split('<tr').length - 1).toBeGreaterThanOrEqual(3); // header + a row per zone
+  });
+});
+
+describe('sampleFilename', () => {
+  it('keeps the sample’s own kind of file', async () => {
+    const { sampleFilename } = await import('./SampleInspector');
+    expect(sampleFilename('Strings', 4, false)).toBe('Strings.nsmp4');
+    expect(sampleFilename('Pad', 3, false)).toBe('Pad.nsmp3');
+    expect(sampleFilename('Old Pad', undefined, true)).toMatch(/\.nsmp$/);
   });
 });

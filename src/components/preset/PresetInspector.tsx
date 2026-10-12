@@ -8,7 +8,7 @@ import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { parseNs4Preset, type Ns4Preset } from '@/lib/ns4/preset';
 import { presetVoices, presetParamSections } from '@/lib/ns4/preset-view';
 import { filterRows } from '@/lib/ns4/params-view';
-import { Button } from '@/components/ui';
+import { ItemActions } from '../library/ItemActions';
 import { EngineCard } from '@/components/program/EngineCard';
 import { MorphList } from '@/components/program/Morphs';
 import { FxChain, IdentityLcd } from '@/components/program/widgets';
@@ -39,9 +39,9 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
         ?? (entry.device && entry.partition != null && session
           ? await pullPreset(session, entry.device, entry.partition)
           : null);
-      if (!bytes) throw new Error('Connect your Nord to download this preset.');
+      if (!bytes) throw new Error('Connect your Nord to save this preset.');
       downloadBytes(bytes, `${entry.name}.${KIND_EXT[entry.kind]}`);
-    }, (e) => `Couldn't download ${entry.name}: ${getErrorMessage(e)}`);
+    }, (e) => `Couldn't save ${entry.name}: ${getErrorMessage(e)}`);
   }
 
   const where = entry.source === 'nord' ? `On Nord${entry.slot ? ` · ${entry.slot}` : ''}` : 'Local file';
@@ -55,9 +55,7 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
         <div className="ps-hd-id">
           <IdentityLcd name={entry.name} lines={[`${KIND_LABEL[entry.kind]} · ${where}`]} />
         </div>
-        <Button variant="primary" onClick={() => void download()} disabled={busy}>
-          {busy ? 'Working…' : 'Download'}
-        </Button>
+        <ItemActions save={{ onSave: () => void download(), busy }} />
       </div>
       {error && <p className="ps-sub on-error">{error}</p>}
 

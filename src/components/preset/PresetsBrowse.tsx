@@ -89,7 +89,7 @@ export function PresetsBrowse({
                   <>
                     {e.size != null && <SlotTag>{formatBytes(e.size)}</SlotTag>}
                     {isImported(e.id) && (
-                      <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemoveStable(e.id); }} />
+                      <CardRemoveButton name={e.name} onRemove={() => onRemoveStable(e.id)} />
                     )}
                   </>
                 }

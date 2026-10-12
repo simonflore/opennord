@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { NordSession } from '../../lib/device/session';
 import { backup, backsUpEverything, backupFilename, canRestore, restore, type RestoreResult } from '../../lib/device/backup';
 import { resolveFactory } from '../../lib/device/factory';
@@ -9,10 +9,14 @@ import { analyzeRestore, type RestoreImpact as Impact } from '../../lib/device/r
 import { RestoreImpact } from './RestoreImpact';
 
 /** Backup → download a .ns4b; Restore → confirm, write, summarize. */
-export function BackupPanel({ session, deviceName, onAfterRestore }: {
+export function BackupPanel({ session, deviceName, onAfterRestore, startBackup = false, onBusyChange }: {
   session: NordSession;
   deviceName: string;
   onAfterRestore: () => void;
+  /** Start backing up as soon as it shows (the device menu's "Back up Nord"). */
+  startBackup?: boolean;
+  /** Told when a backup or restore starts and ends, so a dialog around it can't close mid-way. */
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,6 +42,18 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
       setBusy(false);
     }
   }
+
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+
+  // Once per mount, even under StrictMode's double effects: two backups would read the Nord twice.
+  const started = useRef(false);
+  useEffect(() => {
+    if (!startBackup || started.current) return;
+    started.current = true;
+    void runBackup();
+    // runBackup reads the latest state itself; this only fires on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startBackup]);
 
   async function pickRestore(file: File) {
     setPendingZip(file);
@@ -84,7 +100,7 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
         {impact && impact !== 'loading' && impact !== 'error' && <RestoreImpact impact={impact} />}
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
           <Button variant="primary" onClick={confirmRestore} disabled={busy}>
-            {busy ? 'Restoring…' : 'Restore'}
+            {busy ? 'Restoring…' : 'Restore Nord'}
           </Button>
           <Button variant="secondary" onClick={() => { setPendingZip(null); setImpact(null); }} disabled={busy}>Cancel</Button>
         </div>
@@ -96,10 +112,10 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <Button variant="outline" onClick={runBackup} disabled={busy}>Back up</Button>
+        <Button variant="outline" onClick={runBackup} disabled={busy}>Back up Nord</Button>
         {canRestore(session) ? (
           <FileInput accept=".ns4b" disabled={busy} onFile={(f) => void pickRestore(f)} className="on-btn on-btn--outline">
-            Restore…
+            Restore Nord…
           </FileInput>
         ) : session.canWrite(session.programPartition) && (
           // (When even programs can't be written, the page's "Browsing only" note already says so.)

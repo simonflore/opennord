@@ -45,10 +45,10 @@ describe('PianoInspector', () => {
     expect(await screen.findByRole('button', { name: /^Play / })).toBeInTheDocument();
   });
 
-  it('can play a piano it downloaded', async () => {
+  it('can play a piano it saved to the computer', async () => {
     vi.mocked(extractBackupEntry).mockResolvedValueOnce(PIANO);
     render(<PianoInspector entry={backup('Piano A')} session={null} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save to computer' }));
     expect(await screen.findByRole('button', { name: /^Play / })).toBeInTheDocument();
   });
 });

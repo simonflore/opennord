@@ -38,12 +38,12 @@ describe('BackupOrganizer', () => {
     expect(html).toContain('disabled'); // download disabled until a backup is loaded
   });
 
-  it('renders the program grid and an enabled download once a backup is loaded', () => {
+  it('renders the program grid and an enabled save once a backup is loaded', () => {
     __bundles = [];
     const html = renderToStaticMarkup(<BackupOrganizer onBack={() => {}} initialModel={model()} />);
     expect(html).toContain('Lead');                 // the program is shown
     expect(html).toContain('data-slot=');           // SlotGrid rendered
-    expect(html).toMatch(/download/i);              // download action present
+    expect(html).toMatch(/Save reorganized backup/); // save action present
   });
 
   it('offers the folder bundles to organize when several exist', () => {

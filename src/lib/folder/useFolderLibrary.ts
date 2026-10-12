@@ -205,7 +205,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
         if (cancelled || op !== opRef.current) return;
         // A saved handle can go stale (folder deleted/renamed outside the
         // browser). Say why the linked folder vanished — the banner offers
-        // Re-pick — instead of leaving a silent empty state.
+        // Change folder — instead of leaving a silent empty state.
         console.error('Folder restore failed', err);
         setReconnectError(getErrorMessage(err));
       }
@@ -260,7 +260,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
         await runScan(folderName ?? pending.name, source, pending);
       } else {
         // Permission wasn't granted — say so rather than silently doing nothing.
-        setReconnectError(`Couldn't read “${folderName ?? 'the folder'}” — your browser blocked access. Click Reconnect and choose Allow, or Re-pick the folder.`);
+        setReconnectError(`Couldn't read “${folderName ?? 'the folder'}” — your browser blocked access. Click Reconnect folder and choose Allow, or Change folder.`);
       }
     } catch (err) {
       if (op !== opRef.current) return;

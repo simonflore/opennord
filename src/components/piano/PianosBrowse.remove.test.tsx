@@ -24,8 +24,8 @@ describe('PianosBrowse — remove with keep-a-copy', () => {
         _testConfirmOpen
       />,
     );
-    fireEvent.click(screen.getByRole('checkbox', { name: /download a copy first/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /save a copy to a folder first/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete from Nord' }));
     await Promise.resolve();
     expect(removeFromNord).toHaveBeenCalledWith({ keepCopyIds: new Set([hidden.id]) });
   });

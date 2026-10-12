@@ -161,7 +161,7 @@ export function SamplesBrowse(
     }] : []),
   ];
 
-  const confirmTitle = `Remove ${selected.size} ${selected.size === 1 ? 'sample' : 'samples'} · frees ~${fmtMB(selectedFreeBytes)}`;
+  const confirmTitle = `Delete ${selected.size} ${selected.size === 1 ? 'sample' : 'samples'} · frees ~${fmtMB(selectedFreeBytes)}`;
 
 
   const actions = (
@@ -200,7 +200,7 @@ export function SamplesBrowse(
             {selected.size} selected · frees ~{fmtMB(selectedFreeBytes)}
           </span>
           <Button variant="ghost" onClick={selectAllUnused}>Select all unused</Button>
-          <Button variant="primary" onClick={openConfirm}>Remove from Nord</Button>
+          <Button variant="outline" onClick={openConfirm}>Delete from Nord</Button>
           <Button variant="ghost" onClick={clearSelected}>Clear</Button>
         </div>
       )}
@@ -254,7 +254,7 @@ export function SamplesBrowse(
                   )}
                   <SlotTag>{e.size != null ? fmtSize(e.size) : ''}</SlotTag>
                   {isImported(e.id) && (
-                    <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemoveStable(e.id); }} />
+                    <CardRemoveButton name={e.name} onRemove={() => onRemoveStable(e.id)} />
                   )}
                 </>
               }
@@ -300,7 +300,7 @@ export function SamplesBrowse(
           <div className="on-dialog__footer-actions">
             <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={removing}>Cancel</Button>
             <Button variant="primary" onClick={() => void handleRemove()} disabled={removing}>
-              {removing && removePct !== null ? `Removing… ${removePct}%` : 'Remove'}
+              {removing && removePct !== null ? `Deleting… ${removePct}%` : 'Delete from Nord'}
             </Button>
           </div>
         }
@@ -316,7 +316,7 @@ export function SamplesBrowse(
             checked={keepCopy}
             onChange={(ev) => setKeepCopy(ev.currentTarget.checked)}
           />
-          {' '}Download a copy first
+          {' '}Save a copy to a folder first
         </label>
         {removeError && (
           <p className="mt-2 text-xs text-danger" role="alert">{removeError}</p>

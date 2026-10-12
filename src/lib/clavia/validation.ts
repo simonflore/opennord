@@ -31,7 +31,7 @@ export const MATRIX_COLUMNS: readonly Capability[] = ['samples', 'pull', 'push',
 
 export const CAPABILITY_LABEL: Record<Capability, string> = {
   'file-read': 'Open files', enumerate: 'List patches', pull: 'Copy from Nord',
-  push: 'Copy to Nord', delete: 'Delete on Nord', backup: 'Back up', samples: 'Samples',
+  push: 'Send to Nord', delete: 'Delete from Nord', backup: 'Back up', samples: 'Samples',
 };
 
 export type ValidationStatus = 'validated' | 're' | 'inferred' | 'unsupported' | 'unknown';

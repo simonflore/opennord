@@ -163,7 +163,7 @@ export function SampleEditPanel({ initial, bytes, codec, legacy, rootSplitOnly, 
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <Button variant="primary" onClick={download}>Download edited .{ext}</Button>
+        <Button variant="primary" onClick={download}>Save edited copy (.{ext})</Button>
         <span className="ps-sub" style={{ margin: 0 }}>
           {rootSplit
             ? 'Edits root / split; audio and all other settings — including per-zone levels — are preserved. Back up first.'

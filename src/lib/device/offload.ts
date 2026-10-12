@@ -11,8 +11,8 @@ export function planOffload(addrs: Addr[], whatLabel = 'samples'): Plan {
   return {
     ops,
     journalSlots: addrs.map((a) => ({ bank: a.bank, slot: a.slot })),
-    title: 'Remove from Nord',
-    summary: `Remove ${n} ${noun} from your Nord — frees space`,
+    title: 'Delete from Nord',
+    summary: `Delete ${n} ${noun} from your Nord — frees space`,
     bulk: true,
   };
 }

@@ -3,6 +3,8 @@ import type { NordSession } from './session';
 import type { ProgramEntry } from './transfer';
 import type { PartitionCapacity } from './capacity';
 import type { PresetGroup } from './presets';
+import { enumeratePrograms } from './transfer';
+import { readPartitionCapacity } from './capacity';
 
 interface DeviceState {
   session: NordSession | null;
@@ -27,10 +29,21 @@ interface DeviceState {
    *  reconnect or disconnect checks this before storing what it read. */
   isCurrent: (s: NordSession) => boolean;
   setEntries: (e: ProgramEntry[]) => void;
+  /** Read the program list (and storage) of `s` again, after something changed it (a restore, a send). */
+  refresh: (s: NordSession) => Promise<void>;
   disconnect: () => void;
   /** True after the Nord went away on its own (unplugged, switched off), until the next connect. */
   lost: boolean;
+  /** The connect under way or last tried, shared by every Connect button (useConnectNord). */
+  connectState: ConnectState;
+  /** Claim the one connect: false while another is under way (the top bar's and the
+   *  Device page's Connect must not open the same Nord twice). */
+  beginConnect: () => boolean;
+  /** Settle the claimed connect. */
+  endConnect: (state: ConnectState) => void;
 }
+
+export interface ConnectState { status: 'idle' | 'connecting' | 'connected' | 'error'; message: string }
 
 const Ctx = createContext<DeviceState | null>(null);
 
@@ -47,6 +60,19 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
   const current = useRef<NordSession | null>(null);
   const isCurrent = useCallback((s: NordSession) => current.current === s, []);
   const [lost, setLost] = useState(false);
+  const [connectState, setConnectState] = useState<ConnectState>({ status: 'idle', message: '' });
+  // Set synchronously, so two clicks in the same moment can't both start a connect.
+  const connecting = useRef(false);
+  const beginConnect = useCallback(() => {
+    if (connecting.current) return false;
+    connecting.current = true;
+    setConnectState({ status: 'connecting', message: '' });
+    return true;
+  }, []);
+  const endConnect = useCallback((state: ConnectState) => {
+    connecting.current = false;
+    setConnectState(state);
+  }, []);
 
   // Forget the connected Nord: its session and every list read from it.
   const forget = useCallback(() => {
@@ -56,6 +82,17 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     // held the device. Best-effort: the state reset must not hinge on it.
     void s?.close().catch(() => undefined);
     setSession(null); setEntries([]); setSampleEntries([]); setPresetEntries([]); setPianoEntries([]); setDeviceName(''); setProductId(0); setCapacity(null);
+  }, []);
+
+  const refresh = useCallback(async (s: NordSession) => {
+    await s.withSession(s.programPartition, async () => {
+      const programs = await enumeratePrograms(s);
+      // Best-effort: a failed capacity read shouldn't break the program list.
+      const cap = await readPartitionCapacity(s, s.programPartition).catch(() => null);
+      if (current.current !== s) return; // another Nord connected meanwhile
+      setEntries(programs);
+      setCapacity(cap);
+    });
   }, []);
 
   const value: DeviceState = {
@@ -77,8 +114,10 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
       setSampleEntries([]); setPresetEntries([]); setPianoEntries([]); setCapacity(null);
     },
     setEntries,
+    refresh,
     disconnect: forget,
     lost,
+    connectState, beginConnect, endConnect,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

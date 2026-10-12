@@ -56,7 +56,7 @@ function pickFolderInput(): Promise<FolderHandleResult> {
       if (!list || list.length === 0) {
         return reject(new Error(
           "That folder didn't return any files this browser could read. If it's in Google Drive or "
-          + 'another cloud app, try making the files available offline (or move them to on-device storage) and re-pick.',
+          + 'another cloud app, try making the files available offline (or move them to on-device storage) and change folder.',
         ));
       }
       const top = (list[0] as File & { webkitRelativePath?: string }).webkitRelativePath?.split('/')[0] ?? 'Folder';

@@ -122,12 +122,12 @@ export function LibraryView({
           📁 {folderName} · {folderCount} {folderCount === 1 ? 'file' : 'files'}
           {canPersist && !needsReconnect
             ? <Button variant="ghost" className="px-2 py-0.5" onClick={onRefresh} disabled={busy} aria-label="Refresh folder">⟳</Button>
-            : <Button variant="ghost" className="px-2 py-0.5" onClick={onChooseFolder} disabled={busy}>Re-pick</Button>}
-          {/* Disconnect only forgets the folder pointer — it never touches the user's files. */}
-          <Button variant="ghost" className="px-2 py-0.5" onClick={onForget} aria-label="Disconnect folder" title="Disconnect this folder">✕</Button>
+            : <Button variant="ghost" className="px-2 py-0.5" onClick={onChooseFolder} disabled={busy}>Change folder…</Button>}
+          {/* Forget only drops the folder pointer — it never touches the user's files. */}
+          <Button variant="ghost" className="px-2 py-0.5" onClick={onForget} aria-label="Forget folder" title="Forget this folder (your files stay where they are)">✕</Button>
         </span>
       ) : (
-        <Button variant="ghost" onClick={onChooseFolder} disabled={busy}>Choose folder</Button>
+        <Button variant="ghost" onClick={onChooseFolder} disabled={busy}>Choose folder…</Button>
       )}
       <Button variant="primary" onClick={onImport}>+ Import file</Button>
     </>
@@ -140,10 +140,10 @@ export function LibraryView({
           {reconnectError
             ? <span className="text-danger">{reconnectError}</span>
             : <span>Reconnect <strong>{folderName}</strong> to load your patches.</span>}
-          <Button variant="ghost" onClick={onReconnect} disabled={busy}>Reconnect</Button>
+          <Button variant="ghost" onClick={onReconnect} disabled={busy}>Reconnect folder</Button>
           {/* Never disabled: Forget only clears local state, so it stays the
               escape hatch when a pending browser dialog has wedged `busy`. */}
-          <Button variant="ghost" onClick={onForget}>Forget</Button>
+          <Button variant="ghost" onClick={onForget}>Forget folder</Button>
         </div>
       )}
       {folderScanErrors.map((e, i) => (
@@ -204,14 +204,14 @@ export function LibraryView({
               <p className="mt-2 text-[13px] text-dim [&_code]:text-ink">
                 Check that it actually holds <code>.ns4p</code>/<code>.ns4b</code> files. On Android, a folder backed
                 by Google Drive or another cloud app can look connected but hand over nothing readable — try making
-                those files available offline (or moving them to on-device storage) and re-pick.
+                those files available offline (or moving them to on-device storage) and change folder.
               </p>
-              <Button variant="ghost" onClick={onChooseFolder} disabled={busy}>Choose a different folder</Button>
+              <Button variant="ghost" onClick={onChooseFolder} disabled={busy}>Change folder…</Button>
             </>
           ) : (
             <>
               <p>Nothing here yet.</p>
-              <Button variant="primary" onClick={onChooseFolder} disabled={busy}>Choose a folder of Nord files</Button>
+              <Button variant="primary" onClick={onChooseFolder} disabled={busy}>Choose folder…</Button>
               <p className="mt-2 text-[13px] text-dim [&_code]:text-ink">Subfolders and <code>.ns4b</code> backups are included. Or import a single file, or connect your Nord.</p>
             </>
           )}

@@ -85,7 +85,7 @@ describe('PianosBrowse', () => {
         selectedFreeBytes={512 * 1024 * 1024}
       />,
     );
-    expect(html).toMatch(/Remove from Nord/);
+    expect(html).toMatch(/Delete from Nord/);
     expect(html).toMatch(/512 MB/);
     expect(html).toMatch(/1 selected/);
   });
@@ -100,7 +100,7 @@ describe('PianosBrowse', () => {
         selected={new Set()}
       />,
     );
-    expect(html).not.toMatch(/Remove from Nord/);
+    expect(html).not.toMatch(/Delete from Nord/);
   });
 
   it('remove confirm: shows the re-install-from-Nord note + deep-link, keep-copy defaults off', () => {
@@ -121,7 +121,7 @@ describe('PianosBrowse', () => {
     );
     expect(html).toContain('re-install these from Nord');   // helpful note (not a legal disclaimer)
     expect(html).toContain('https://nord/grand-xl');         // Nord deep-link to get it back
-    expect(html).toContain('Download a copy first');
+    expect(html).toContain('Save a copy to a folder first');
     // keep-copy defaults OFF (pianos are multi-GB) — the only checked box is the card's
     // select checkbox (the piano is selected), NOT the keep-copy one.
     expect((html.match(/checked/g) ?? []).length).toBe(1);

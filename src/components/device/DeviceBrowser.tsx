@@ -9,6 +9,7 @@ import { BankLabel } from './BankLabel';
 import { Button, FileInput } from '../ui';
 import { ALL_MODELS } from '../../lib/clavia/partitions';
 import type { ReorgApi } from './useReorg';
+import { READ_ONLY_REASON } from '../../lib/device/write-guard';
 
 /** Program file extensions across the whole Nord line (ns4p, ns3f, ns2p, …) — the
  *  push flow reads each file's own CBIN tag, so the picker accepts any of them
@@ -18,13 +19,15 @@ const PROGRAM_ACCEPT = [...new Set(ALL_MODELS.map((m) => m.programTag).filter(Bo
   .join(',');
 
 /** Programs grouped by bank A–H. Open, delete, or send a file to the Nord. */
-export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelete, onSendFile, reorg, reorgConfirmExtra }: {
+export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelete, onSendFile, writable = true, reorg, reorgConfirmExtra }: {
   entries: ProgramEntry[];
   deviceName: string;
   /** Program partition capacity for the storage readout, or null while it loads. */
   capacity: PartitionCapacity | null;
   onSelect: (entry: ProgramEntry) => void;
   onDelete: (entry: ProgramEntry) => void;
+  /** False on a keyboard OpenNord won't write to: Organize and Send are greyed with the reason, Delete is hidden. */
+  writable?: boolean;
   /** Hand the chosen file to the caller, which reads it (error handling lives there). */
   onSendFile: (file: File) => void;
   reorg: ReorgApi;
@@ -48,11 +51,11 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
           {capacity && <StorageMeter label="STORAGE" capacity={capacity} mode="slots" />}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Button variant="secondary" onClick={() => setOrganize((v) => !v)}>
+          <Button variant="secondary" onClick={() => setOrganize((v) => !v)} disabled={!writable} title={writable ? undefined : READ_ONLY_REASON}>
             {organize ? 'Done organizing' : 'Organize'}
           </Button>
-          <FileInput accept={PROGRAM_ACCEPT} onFile={onSendFile} className="on-btn on-btn--outline">
-            Send a file to the Nord
+          <FileInput accept={PROGRAM_ACCEPT} onFile={onSendFile} disabled={!writable} title={writable ? undefined : READ_ONLY_REASON} className="on-btn on-btn--outline">
+            Send a file to Nord…
           </FileInput>
         </div>
       </div>
@@ -75,9 +78,11 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
                         <span style={{ flex: 1, fontWeight: 600 }}>{v.name}</span>
                         <span className="ps-fact">{v.category} · {v.version}</span>
                       </button>
-                      <button className="ps-row-del" onClick={() => onDelete(e)} title={`Delete ${v.name}`}>
-                        Delete
-                      </button>
+                      {writable && (
+                        <button className="ps-row-del" onClick={() => onDelete(e)} aria-label={`Delete ${v.name} from Nord`} title="Delete from Nord">
+                          Delete
+                        </button>
+                      )}
                     </div>
                   );
                 })}

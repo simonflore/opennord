@@ -1,3 +1,5 @@
+/// <reference types="w3c-web-usb" />
+// WebUSB types for every package that compiles this file (frontend-pro too), not just core.
 /**
  * First already-authorized USB device matching a filter, or undefined.
  *

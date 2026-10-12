@@ -12,7 +12,7 @@ describe('planOffload', () => {
     ]);
     expect(p.journalSlots.map(addrKey)).toEqual(['1:3', '1:7']); // pulled before delete → rollback can restore
     expect(p.bulk).toBe(true);
-    expect(p.title).toBe('Remove from Nord');
+    expect(p.title).toBe('Delete from Nord');
   });
 
   it('summarizes the count and the label', () => {

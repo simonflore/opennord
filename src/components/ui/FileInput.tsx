@@ -9,8 +9,10 @@ import { cn } from '@/lib/cn';
  * sensible baseline (pointer cursor, disabled treatment) so it behaves like a
  * button out of the box even before a caller's own classes land.
  */
-export function FileInput({ accept, onFile, disabled, className, style, children }: {
+export function FileInput({ accept, onFile, disabled, title, className, style, children }: {
   accept?: string;
+  /** Tooltip; with `disabled`, why it's off. */
+  title?: string;
   onFile: (file: File) => void;
   disabled?: boolean;
   className?: string;
@@ -25,6 +27,7 @@ export function FileInput({ accept, onFile, disabled, className, style, children
         className,
       )}
       style={style}
+      title={title}
       aria-disabled={disabled || undefined}
     >
       {children}

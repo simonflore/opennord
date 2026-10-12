@@ -117,7 +117,7 @@ describe('LibraryView', () => {
     );
     expect(html).toContain('“Nord Backups” is connected, but no Nord files turned up in it.');
     expect(html).not.toContain('Choose a folder of Nord files'); // not the same CTA as never having picked one
-    expect(html).toContain('Choose a different folder');
+    expect(html).toContain('Change folder…');
   });
 
   it('does not show the connected-but-empty message while still scanning', () => {
@@ -178,17 +178,17 @@ describe('LibraryView', () => {
     expect(html).toContain('hover for details');
   });
 
-  it('keeps Forget enabled while busy so it is always an escape hatch', () => {
+  it('keeps Forget folder enabled while busy so it is always an escape hatch', () => {
     const html = renderToStaticMarkup(
       <LibraryView
         entries={[]} source="all" query="" {...handlers}
         prefs={prefs()} folder={folder({ folderName: 'TBM', needsReconnect: true, busy: true })}
       />,
     );
-    // A pending browser dialog flips `busy`; Reconnect rightly disables to avoid
-    // double-triggering, but Forget must stay clickable to break the deadlock.
-    expect(isDisabled(buttonFor(html, 'Reconnect'))).toBe(true);
-    expect(isDisabled(buttonFor(html, 'Forget'))).toBe(false);
+    // A pending browser dialog flips `busy`; Reconnect folder rightly disables to avoid
+    // double-triggering, but Forget folder must stay clickable to break the deadlock.
+    expect(isDisabled(buttonFor(html, 'Reconnect folder'))).toBe(true);
+    expect(isDisabled(buttonFor(html, 'Forget folder'))).toBe(false);
   });
 
   it('surfaces a reconnect error in the banner instead of failing silently', () => {
@@ -206,17 +206,17 @@ describe('LibraryView', () => {
     const html = renderToStaticMarkup(
       <LibraryView entries={withFolder} source="all" query="" {...handlers} prefs={prefs()} folder={folder()} />,
     );
-    expect(html).toContain('aria-label="Remove Sunday Organ"'); // imported
-    expect(html).not.toContain('aria-label="Remove Wurli Dream"'); // nord
-    expect(html).not.toContain('aria-label="Remove Warm Pad"'); // a folder file stays on disk
+    expect(html).toContain('aria-label="Remove Sunday Organ from library"'); // imported
+    expect(html).not.toContain('aria-label="Remove Wurli Dream from library"'); // nord
+    expect(html).not.toContain('aria-label="Remove Warm Pad from library"'); // a folder file stays on disk
   });
 
-  it('offers a Disconnect control on a connected folder chip', () => {
+  it('offers a Forget control on a connected folder chip', () => {
     const html = renderToStaticMarkup(
       <LibraryView entries={entries} source="all" query="" {...handlers}
         prefs={prefs()} folder={folder({ folderName: 'My Patches', canPersist: true })} />,
     );
-    expect(html).toContain('aria-label="Disconnect folder"');
+    expect(html).toContain('aria-label="Forget folder"');
   });
 
   it('renders a sort selector and a favorite toggle per card', () => {

@@ -1,6 +1,7 @@
 import type { ProgramEntry } from '../../lib/device/transfer';
 import { formatSlot } from '../../lib/clavia/slot';
 import { BankLabel } from './BankLabel';
+import { Button } from '../ui';
 
 /** A chosen write target. `occupiedBy` is the existing program name, if any. */
 export interface SlotTarget {
@@ -26,9 +27,7 @@ export function TargetSlotPicker({ entries, onPick, onCancel }: {
     <div className="ps">
       <div className="ps-hd">
         <div className="ps-nm">Choose a slot</div>
-        <button onClick={onCancel} style={{ padding: '6px 12px', borderRadius: 8, cursor: 'pointer', border: '1px solid var(--line)' }}>
-          Cancel
-        </button>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
       {Array.from({ length: 8 }, (_, bank) => (
         <div key={bank} style={{ marginBottom: 12 }}>

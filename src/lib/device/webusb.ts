@@ -1,3 +1,5 @@
+/// <reference types="w3c-web-usb" />
+// WebUSB types for every package that compiles this file (frontend-pro too), not just core.
 import { TransportLostError, TransportTimeoutError, type NordTransport } from './transport';
 import { findBulkInterface } from './usb-descriptors';
 

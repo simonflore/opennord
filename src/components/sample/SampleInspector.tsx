@@ -12,6 +12,9 @@ import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
 import { StrokeList, type InspectorStroke } from './StrokeList';
 import { DetailColumns } from '../library/DetailColumns';
+import { ItemActions } from '../library/ItemActions';
+import { downloadBytes } from '../../lib/download';
+import { safeFilename } from '../../lib/ns4/bundle';
 import { SampleEditPanel } from './SampleEditPanel';
 import { SampleKeyboard } from './SampleKeyboard';
 import { SampleConvert } from './SampleConvert';
@@ -207,6 +210,8 @@ export function SampleInspector({ initial, factory }: {
       {shown && (
         <div className="ps">
           <SampleHeader view={{ ...sampleHeaderView(shown.file, shown.bytes.length, shown.name), gainDetune: gainDetuneView(shown.bytes), truVibrato: truVibratoView(shown.bytes), ...voicingView(shown.bytes) }} />
+          {/* The sample as it is; edits are saved from the editor ("Save edited copy"). */}
+          <div className="mt-2"><ItemActions save={{ onSave: () => downloadBytes(shown.bytes, sampleFilename(shown.name, shown.file.codec, shown.file.legacy)) }} /></div>
 
           <DetailColumns
             /* Keyboard-map editor leads once we've decoded the key map; edits patch
@@ -293,4 +298,10 @@ export function SampleInspector({ initial, factory }: {
       )}
     </div>
   );
+}
+
+/** The file name a sample is saved under: its name and its own kind of file (.nsmp / .nsmp3 / .nsmp4). */
+export function sampleFilename(name: string, codec: number | undefined, legacy: boolean | undefined): string {
+  const ext = legacy || !codec || codec < 3 ? 'nsmp' : `nsmp${codec}`;
+  return `${safeFilename(name)}.${ext}`;
 }

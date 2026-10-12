@@ -2,10 +2,12 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 const navigate = vi.fn();
 let wide = true;
-const entry = { id: 'p1', program: { name: 'Grand' } };
+const stage4 = new Uint8Array(readFileSync('src/lib/ns4/__fixtures__/BreakFree_chords.ns4p'));
+const entry = { id: 'p1', name: 'Grand', bytes: stage4, program: { name: 'Grand', bytes: stage4 } };
 
 vi.mock('@/lib/responsive', () => ({ useSplitLayout: () => wide }));
 vi.mock('@tanstack/react-router', () => ({
@@ -22,11 +24,16 @@ vi.mock('@/lib/library/LibraryContext', () => ({
   }),
 }));
 vi.mock('./LibraryView', () => ({ LibraryView: () => <div>LIST</div> }));
+// No Nord connected unless a test says so.
+let session: unknown = null;
+vi.mock('@/lib/device/DeviceContext', () => ({
+  useDevice: () => ({ session, entries: [], productId: 0x002e, refresh: vi.fn() }),
+}));
 vi.mock('@/components/program/ProgramView', () => ({ ProgramView: () => <div>DETAIL</div> }));
 
 import { LibrarySplit } from './LibrarySplit';
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); wide = true; });
+afterEach(() => { cleanup(); vi.clearAllMocks(); wide = true; session = null; });
 
 describe('LibrarySplit', () => {
   it('wide: shows list and detail side by side', () => {
@@ -99,6 +106,34 @@ describe('LibrarySplit', () => {
       render(<LibrarySplit onFull={onFull} />);
       fireEvent.keyDown(window, { key: 'f' });
       expect(onFull).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('actions', () => {
+    it('offers Send to Nord greyed with the reason when no Nord is connected, and Save to computer', () => {
+      render(<LibrarySplit selectedId="p1" />);
+      expect(screen.getByRole('button', { name: 'Send to Nord' })).toBeDisabled();
+      expect(screen.getByText('Connect your Nord to send it.')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save to computer' })).toBeEnabled();
+    });
+
+    it('greys Send to Nord on a keyboard it only reads', () => {
+      session = { canWrite: () => false, programPartition: 3 };
+      render(<LibrarySplit selectedId="p1" />);
+      expect(screen.getByRole('button', { name: 'Send to Nord' })).toBeDisabled();
+      expect(screen.getByText(/only reads this keyboard/)).toBeInTheDocument();
+    });
+
+    it('sends through the slot picker, and a send ends when its Nord goes away', () => {
+      session = { canWrite: () => true, programPartition: 3 };
+      const { rerender } = render(<LibrarySplit selectedId="p1" />);
+      fireEvent.click(screen.getByRole('button', { name: 'Send to Nord' }));
+      expect(screen.getByRole('dialog')).toHaveTextContent('Choose a slot');
+      session = null; // unplugged
+      rerender(<LibrarySplit selectedId="p1" />);
+      session = { canWrite: () => true, programPartition: 3 }; // a Nord again, maybe another
+      rerender(<LibrarySplit selectedId="p1" />);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
   });
 });

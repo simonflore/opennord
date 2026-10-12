@@ -101,7 +101,7 @@ const ProgramRow = memo(function ProgramRow({ entry: e, selected, favorite, onOp
       <span className="flex items-center gap-2">
         <span className={WIDE}><SourceBadge source={e.source} /></span>
         {isImported(e.id) && (
-          <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
+          <CardRemoveButton name={e.name} onRemove={() => onRemove(e.id)} />
         )}
       </span>
     </LibraryRow>

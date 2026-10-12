@@ -41,3 +41,19 @@ describe('DeviceContext', () => {
     expect(result.current.session).toBe(next);
   });
 });
+
+describe('DeviceContext connect', () => {
+  it('lets one connect run at a time, for every Connect button', () => {
+    const { result } = renderHook(() => useDevice(), { wrapper: DeviceProvider });
+    let first = false, second = true;
+    act(() => { first = result.current.beginConnect(); second = result.current.beginConnect(); });
+    expect(first).toBe(true);
+    expect(second).toBe(false); // the other button's click is ignored while the first opens the Nord
+    expect(result.current.connectState.status).toBe('connecting');
+    act(() => result.current.endConnect({ status: 'error', message: 'No answer' }));
+    expect(result.current.connectState).toEqual({ status: 'error', message: 'No answer' });
+    let again = false;
+    act(() => { again = result.current.beginConnect(); });
+    expect(again).toBe(true);
+  });
+});

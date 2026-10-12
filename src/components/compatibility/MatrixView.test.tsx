@@ -68,7 +68,7 @@ describe('MatrixView', () => {
   });
   it('renders Fred’s six columns and drops Open files / List patches', () => {
     const html = render();
-    for (const label of ['Program Parameters', 'Samples', 'Copy from Nord', 'Copy to Nord', 'Delete on Nord', 'Back up']) {
+    for (const label of ['Program Parameters', 'Samples', 'Copy from Nord', 'Send to Nord', 'Delete from Nord', 'Back up']) {
       expect(html).toContain(label);
     }
     expect(html).not.toContain('Open files');

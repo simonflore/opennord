@@ -36,6 +36,7 @@
     "@fontsource/ibm-plex-sans-condensed": "^5.3.0",
     "@fontsource/share-tech-mono": "^5.3.0",
     "@radix-ui/react-dialog": "^1.1.19",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@tanstack/react-router": "^1.170.16",
     "ai": "^6.0.206",
     "class-variance-authority": "^0.7.1",

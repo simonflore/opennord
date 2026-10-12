@@ -1,5 +1,18 @@
-import { useCallback } from 'react';
-import { Blueprint, Button } from '@/components/ui';
+import { useCallback, useEffect, useState } from 'react';
+import { Blueprint, Button, Dialog } from '@/components/ui';
+import { ItemActions } from './ItemActions';
+import { RemoveFromLibraryDialog } from './CardRemoveButton';
+import { PushFlowPanel } from '@/components/device/PushFlowPanel';
+import { usePushFlow } from '@/components/device/usePushFlow';
+import { useDevice } from '@/lib/device/DeviceContext';
+import { identifyDevice } from '@/lib/device/connect-probe';
+import { NS4_PRODUCT_ID } from '@/lib/device/negotiate';
+import { sendRefusal } from '@/lib/device/send-check';
+import { READ_ONLY_REASON } from '@/lib/device/write-guard';
+import { hasCbinMagic, readCbinHeader } from '@/lib/clavia/cbin';
+import { safeFilename } from '@/lib/ns4/bundle';
+import { downloadBytes } from '@/lib/download';
+import { isImported, type LibraryEntry } from '@/lib/library/types';
 import { LibraryView } from './LibraryView';
 import { useStepKeys } from './useStepKeys';
 import { useFullViewKeys } from './useFullViewKeys';
@@ -77,6 +90,29 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
   const showFull = canFull && full;
   useFullViewKeys(canFull, showFull, onFull ?? noop);
 
+  // The open program's actions: Send to Nord · Save to computer · More.
+  const device = useDevice();
+  const push = usePushFlow(device.session, device.refresh, device.productId === NS4_PRODUCT_ID); // focus: seen to answer on a Stage 4 only
+  // A send belongs to the Nord it was started for: after an unplug and a reconnect
+  // (maybe to another Nord) the picked slot and what it held are stale, so it ends.
+  const [pushFor, setPushFor] = useState<typeof device.session>(null);
+  const { cancel: cancelPush } = push;
+  useEffect(() => { if (device.session !== pushFor) cancelPush(); }, [device.session, pushFor, cancelPush]);
+  const [removing, setRemoving] = useState<LibraryEntry | null>(null);
+  const bytes = entry?.bytes;
+  const actions = entry && bytes && (
+    <ItemActions
+      send={{
+        onSend: () => { setPushFor(device.session); push.startPush({ bytes, name: entry.name }); },
+        disabledReason: !device.session ? 'Connect your Nord to send it.'
+          : !device.session.canWrite(device.session.programPartition) ? READ_ONLY_REASON
+          : sendRefusal(bytes, identifyDevice(device.productId).model),
+      }}
+      save={{ onSave: () => downloadBytes(bytes, programFilename(entry, bytes)) }}
+      more={isImported(entry.id) ? [{ label: 'Remove from library', onSelect: () => setRemoving(entry) }] : []}
+    />
+  );
+
   // The blueprint frame is mounted HERE rather than on the shell's <main>
   // (routes/root.tsx) on purpose: <main> is shared by every app screen, and
   // mounting it there would silently ship the grid to device, samples,
@@ -90,18 +126,22 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
         <CategorySplit
           wide={wide}
           master={list}
-          detail={(canFull ? (
-            // --detail-bar: the bar's height, so the program header pins below it, not under it.
-            <div className="[--detail-bar:36px]">
-              <div className="sticky top-0 z-[4] flex h-[var(--detail-bar)] items-center bg-bg">
-                <Button variant="ghost" onClick={() => onFull(!showFull)} aria-keyshortcuts={showFull ? 'F Escape' : 'F'}>
-                  {showFull ? '← Programs' : 'Full view'}
-                  <kbd aria-hidden="true" className="font-mono text-[10px] text-muted">{showFull ? 'Esc' : 'F'}</kbd>
-                </Button>
+          detail={(program ? (
+            // The bar scrolls away with the page (it wraps on a phone, beside a reason
+            // to connect); the program's own header is what stays pinned.
+            <div>
+              <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 pb-1">
+                {canFull && (
+                  <Button variant="ghost" onClick={() => onFull(!showFull)} aria-keyshortcuts={showFull ? 'F Escape' : 'F'}>
+                    {showFull ? '← Programs' : 'Full view'}
+                    <kbd aria-hidden="true" className="font-mono text-[10px] text-muted">{showFull ? 'Esc' : 'F'}</kbd>
+                  </Button>
+                )}
+                <div className="ml-auto">{actions}</div>
               </div>
               {program}
             </div>
-          ) : program)
+          ) : null)
             ?? (entry ? <EmptyNote>This slot hasn’t been read from your Nord yet. Read it on the Device page.</EmptyNote>
               : selectedId ? <NotListedNote noun="program" /> : null)}
           hasDetail={!!selectedId}
@@ -115,6 +155,25 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
           selectedId={selectedId}
         />
       </div>
+      {push.pushSource && device.session && device.session === pushFor && (
+        // While it writes, it can't be dismissed: the write would go on unseen, and its error with it.
+        <Dialog open portal onClose={() => { if (!push.busy) push.cancel(); }} title="Send to Nord" className="w-[min(96vw,760px)]">
+          <PushFlowPanel push={push} entries={device.entries} />
+        </Dialog>
+      )}
+      {removing && (
+        <RemoveFromLibraryDialog
+          name={removing.name}
+          onCancel={() => setRemoving(null)}
+          onRemove={() => { const id = removing.id; setRemoving(null); onRemove(id); }}
+        />
+      )}
     </div>
   );
+}
+
+/** The file name a program is saved under: its name and its own kind of file. */
+function programFilename(entry: LibraryEntry, bytes: Uint8Array): string {
+  const ext = entry.typeLabel ?? (hasCbinMagic(bytes) ? `.${readCbinHeader(bytes).tag}` : '.ns4p');
+  return `${safeFilename(entry.name)}${ext}`;
 }

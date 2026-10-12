@@ -52,7 +52,7 @@ describe('SampleEditPanel legacy surface', () => {
     const html = renderToStaticMarkup(<SampleEditPanel initial={legacyModel} bytes={new Uint8Array(0)} codec="og" legacy rootSplitOnly />);
     expect(html).toMatch(/root/);
     expect(html).toMatch(/up to \(split\)/);
-    expect(html).toMatch(/Download edited \.nsmp<\/|Download edited \.nsmp"/); // extension has no digit
+    expect(html).toMatch(/Save edited copy \(\.nsmp\)/); // extension has no digit
   });
 
   // Strengthened per review: header-text assertions alone can't catch a
@@ -113,6 +113,6 @@ describe('SampleEditPanel legacy surface', () => {
     const html = renderToStaticMarkup(<SampleEditPanel initial={legacyModel} bytes={new Uint8Array(0)} codec={3} rootSplitOnly />);
     expect(html).not.toMatch(/vel ≥/);
     expect(html).toMatch(/Name:/);
-    expect(html).toMatch(/Download edited \.nsmp3/);
+    expect(html).toMatch(/Save edited copy \(\.nsmp3\)/);
   });
 });

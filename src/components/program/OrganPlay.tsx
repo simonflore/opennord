@@ -79,7 +79,7 @@ export function OrganPlay({ layer, organFx }: { layer: NS4Layer; organFx?: Ns4Or
         {voice ? (
           <Button onClick={stop} aria-label="Stop playing this organ">Stop</Button>
         ) : (
-          <Button variant="primary" onClick={() => void start()} disabled={status === 'starting'}>
+          <Button variant="secondary" onClick={() => void start()} disabled={status === 'starting'}>
             {status === 'starting' ? 'Warming up…' : 'Play this organ'}
           </Button>
         )}

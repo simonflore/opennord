@@ -157,7 +157,7 @@ export function BackupOrganizer({ onBack, initialModel, initialBundlePath }: { o
         <div style={{ display: 'flex', gap: 8 }}>
           <Button variant="secondary" onClick={onBack}>← Back</Button>
           <Button variant="outline" onClick={download} disabled={!model || folderWrite.saving}>
-            {folderWrite.saving ? 'Saving…' : 'Download reorganized backup'}
+            {folderWrite.saving ? 'Saving…' : 'Save reorganized backup'}
           </Button>
         </div>
       </div>

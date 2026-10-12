@@ -15,7 +15,12 @@ vi.mock('../../lib/device/capacitor-usb', () => ({
 vi.mock('../../lib/device/webusb', () => ({ WebUsbTransport: class {} }));
 vi.mock('../../lib/device/authorized', () => ({ findAuthorizedDevice: () => undefined }));
 
-import { ConnectPanel } from './ConnectPanel';
+import { ConnectPanel as Panel } from './ConnectPanel';
+import { DeviceProvider } from '../../lib/device/DeviceContext';
+import type { ComponentProps } from 'react';
+
+// The connect state is shared through the device context, so the panel renders inside it.
+const ConnectPanel = (props: ComponentProps<typeof Panel>) => <DeviceProvider><Panel {...props} /></DeviceProvider>;
 
 afterEach(() => {
   cleanup();
@@ -69,7 +74,7 @@ describe('ConnectPanel render states', () => {
 
 describe('describeError', () => {
   it('says a Nord still busy with another transfer is busy, in plain words', async () => {
-    const { describeError } = await import('./ConnectPanel');
+    const { describeError } = await import('./useConnectNord');
     const { SessionRefusedError } = await import('../../lib/device/protocol');
     const msg = describeError(new SessionRefusedError(7, 18), true);
     expect(msg).toMatch(/busy with another transfer/);
@@ -77,7 +82,7 @@ describe('describeError', () => {
   });
 
   it('turns any other refused session into plain words, without protocol jargon', async () => {
-    const { describeError } = await import('./ConnectPanel');
+    const { describeError } = await import('./useConnectNord');
     const { SessionRefusedError } = await import('../../lib/device/protocol');
     const msg = describeError(new SessionRefusedError(13, 2), true);
     expect(msg).toMatch(/wouldn’t let OpenNord open its memory/);
@@ -85,7 +90,7 @@ describe('describeError', () => {
   });
 
   it('says a silent Nord didn’t answer, without the timeout in milliseconds', async () => {
-    const { describeError } = await import('./ConnectPanel');
+    const { describeError } = await import('./useConnectNord');
     const { TransportTimeoutError } = await import('../../lib/device/transport');
     const msg = describeError(new TransportTimeoutError(10_000), false);
     expect(msg).toMatch(/didn’t answer/);
@@ -93,7 +98,7 @@ describe('describeError', () => {
   });
 
   it('reads a transfer that failed mid-connect as a dropped connection, not a driver problem', async () => {
-    const { describeError } = await import('./ConnectPanel');
+    const { describeError } = await import('./useConnectNord');
     const { TransportLostError } = await import('../../lib/device/transport');
     const msg = describeError(new TransportLostError(), false);
     expect(msg).toMatch(/connection to your Nord dropped/);
@@ -101,12 +106,12 @@ describe('describeError', () => {
   });
 
   it('still points a claim failure at the driver', async () => {
-    const { describeError } = await import('./ConnectPanel');
+    const { describeError } = await import('./useConnectNord');
     expect(describeError(new Error('Unable to claim interface.'), false)).toMatch(/couldn’t open your Nord’s USB port/);
   });
 
   it('shows the desktop USB bridge’s own player-facing messages as they are', async () => {
-    const { describeError } = await import('./ConnectPanel');
+    const { describeError } = await import('./useConnectNord');
     const m = 'The UsbDk driver couldn’t take over your Nord’s USB port. Quit Nord Sound Manager.';
     expect(describeError(new Error(m), true)).toBe(m);
     expect(describeError(new Error('LIBUSB_ERROR_OTHER'), true)).toBe('Could not connect: LIBUSB_ERROR_OTHER');
