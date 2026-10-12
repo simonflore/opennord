@@ -106,7 +106,7 @@ describe('ProgramHeader', () => {
   });
 });
 
-import { activeLayers, synthStats, pianoStats, ampEnvCurve, programZones, fxChips, externViews, scenesDiffer, morphMarks, engineCardModel, headerView } from '../../lib/ns4/view';
+import { activeLayers, synthStats, pianoStats, ampEnvCurve, programZones, fxChips, externViews, scenesDiffer, sceneIIChanges, sceneTag, morphMarks, engineCardModel, headerView } from '../../lib/ns4/view';
 import { EngineCard } from './EngineCard';
 import { ProgramZones } from './ProgramZones';
 import { ProgramExtern } from './ProgramExtern';
@@ -239,6 +239,27 @@ describe('layer scenes', () => {
       ],
     } as unknown as import('../../lib/ns4/types').NS4Program;
     expect(renderToStaticMarkup(<ProgramView program={diff} />)).toContain('aria-label="Layer scene"');
+  });
+
+  it('marks what Scene II changes: a summary by the switch, a tag on each changed card', () => {
+    const p = {
+      ...fixtureProgram(), parsed: true, activeScene: 'I' as const,
+      layers: [
+        { id: 'A', kind: 'piano', enabled: true, enabledSceneII: true },
+        { id: 'A', kind: 'synth', enabled: true, enabledSceneII: false },
+        { id: 'B', kind: 'synth', enabled: false, enabledSceneII: true },
+      ],
+    } as unknown as import('../../lib/ns4/types').NS4Program;
+    expect(sceneIIChanges(p)).toEqual({ on: ['Synth B'], off: ['Synth A'] });
+    // Scene I view: synth A is muted by Scene II; the piano plays in both, untagged.
+    expect(sceneTag(p.layers[1], 'I')?.label).toBe('II off');
+    expect(sceneTag(p.layers[2], 'II')?.label).toBe('II on');
+    expect(sceneTag(p.layers[0], 'I')).toBeUndefined();
+    const html = renderToStaticMarkup(<ProgramView program={p} />);
+    expect(html).toContain(' + Synth B');
+    expect(html).toContain(' − Synth A');
+    expect(html).toContain('Scene II mutes this layer');
+    expect(html.match(/Scene II mutes this layer/g)).toHaveLength(2); // the title and the screen-reader text, on synth A only
   });
 });
 

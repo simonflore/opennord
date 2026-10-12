@@ -60,6 +60,33 @@ export function scenesDiffer(p: NS4Program): boolean {
   return (p.layers ?? []).some((l) => !!l.enabled !== !!l.enabledSceneII);
 }
 
+/** A layer's name as the panel says it: "Synth B". */
+const layerName = (l: NS4Layer) => `${(l.kind ?? '?').charAt(0).toUpperCase()}${(l.kind ?? '?').slice(1)} ${l.id}`;
+
+/**
+ * What Scene II changes, from Scene I: the layers it switches on and the ones it
+ * mutes. A Layer Scene changes nothing else, so this is the whole difference.
+ */
+export function sceneIIChanges(p: NS4Program): { on: string[]; off: string[] } {
+  const layers = p.layers ?? [];
+  return {
+    on: layers.filter((l) => !l.enabled && l.enabledSceneII).map(layerName),
+    off: layers.filter((l) => l.enabled && !l.enabledSceneII).map(layerName),
+  };
+}
+
+/**
+ * The mark on a layer's card when Scene II changes it: in the Scene I view a
+ * layer Scene II mutes reads "II off"; in the Scene II view a layer only Scene II
+ * plays reads "II on". Undefined when both scenes play it.
+ */
+export function sceneTag(l: NS4Layer, scene: 'I' | 'II'): { label: string; title: string } | undefined {
+  if (!!l.enabled === !!l.enabledSceneII) return undefined;
+  return scene === 'I'
+    ? { label: 'II off', title: 'Scene II mutes this layer' }
+    : { label: 'II on', title: 'Only Scene II plays this layer' };
+}
+
 export function headerView(p: NS4Program, scene?: 'I' | 'II'): HeaderView {
   return {
     name: p.name ?? 'Unnamed',
