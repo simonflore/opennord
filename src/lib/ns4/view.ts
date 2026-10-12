@@ -57,32 +57,40 @@ export function drawbarLevels(layer: NS4Layer): number[] {
 
 /** True when Scene I and Scene II enable a different set of layers (a toggle helps). */
 export function scenesDiffer(p: NS4Program): boolean {
-  return (p.layers ?? []).some((l) => !!l.enabled !== !!l.enabledSceneII);
+  return (p.layers ?? []).some((l) => sceneIIChange(l) !== undefined);
 }
 
-/** A layer's name as the panel says it: "Synth B". */
-const layerName = (l: NS4Layer) => `${(l.kind ?? '?').charAt(0).toUpperCase()}${(l.kind ?? '?').slice(1)} ${l.id}`;
+/** What Scene II does to a layer, against Scene I: switches it on, mutes it, or nothing. */
+export function sceneIIChange(l: NS4Layer): 'on' | 'off' | undefined {
+  if (!!l.enabled === !!l.enabledSceneII) return undefined;
+  return l.enabledSceneII ? 'on' : 'off';
+}
+
+/** An engine's name as the panel prints it ("Synth"); "Layer" when the kind isn't decoded. */
+export function engineKindName(l: NS4Layer): string {
+  return l.kind ? l.kind.charAt(0).toUpperCase() + l.kind.slice(1) : 'Layer';
+}
 
 /**
  * What Scene II changes, from Scene I: the layers it switches on and the ones it
- * mutes. A Layer Scene changes nothing else, so this is the whole difference.
+ * mutes ("Synth B"). A Layer Scene changes nothing else, so this is the whole
+ * difference.
  */
 export function sceneIIChanges(p: NS4Program): { on: string[]; off: string[] } {
   const layers = p.layers ?? [];
-  return {
-    on: layers.filter((l) => !l.enabled && l.enabledSceneII).map(layerName),
-    off: layers.filter((l) => l.enabled && !l.enabledSceneII).map(layerName),
-  };
+  const named = (c: 'on' | 'off') => layers.filter((l) => sceneIIChange(l) === c).map((l) => `${engineKindName(l)} ${l.id}`);
+  return { on: named('on'), off: named('off') };
 }
 
 /**
- * The mark on a layer's card when Scene II changes it: in the Scene I view a
- * layer Scene II mutes reads "II off"; in the Scene II view a layer only Scene II
- * plays reads "II on". Undefined when both scenes play it.
+ * The mark on a layer's card when Scene II changes it: "II off" on a layer it
+ * mutes (seen in the Scene I view), "II on" on a layer only it plays (seen in the
+ * Scene II view). Undefined when both scenes play it.
  */
-export function sceneTag(l: NS4Layer, scene: 'I' | 'II'): { label: string; title: string } | undefined {
-  if (!!l.enabled === !!l.enabledSceneII) return undefined;
-  return scene === 'I'
+export function sceneTag(l: NS4Layer): { label: string; title: string } | undefined {
+  const change = sceneIIChange(l);
+  if (!change) return undefined;
+  return change === 'off'
     ? { label: 'II off', title: 'Scene II mutes this layer' }
     : { label: 'II on', title: 'Only Scene II plays this layer' };
 }
@@ -483,9 +491,8 @@ export function fxChips(p: NS4Program, scene?: 'I' | 'II'): FxChipModel[] {
   const kindCount = new Map<string, number>();
   for (const l of fxLayers) kindCount.set(l.kind ?? 'x', (kindCount.get(l.kind ?? 'x') ?? 0) + 1);
   const engineName = (l: NS4Layer): string => {
-    const kind = (l.kind ?? 'x').charAt(0).toUpperCase() + (l.kind ?? 'x').slice(1);
     const letter = (kindCount.get(l.kind ?? 'x') ?? 0) > 1 ? ` ${l.id}` : '';
-    return `${kind}${letter}`;
+    return `${engineKindName(l)}${letter}`;
   };
   for (const l of fxLayers) chips.push(...layerFxChips(l, engineName(l)));
 

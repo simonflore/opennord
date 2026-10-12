@@ -25,7 +25,7 @@ export function EngineCard({ card, tag, children }: {
         {card.title}
         {tag && (
           <span className="ml-auto rounded-sm border border-accent px-1 font-mono text-[10px] normal-case tracking-normal text-accent" title={tag.title}>
-            <span aria-hidden="true">{tag.label}</span><span className="sr-only">{tag.title}</span>
+            {tag.label}
           </span>
         )}
       </h4>
