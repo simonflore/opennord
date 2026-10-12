@@ -92,9 +92,10 @@ export function useReorg({ io, partition, entries, refresh, backupOnce, run, aut
     const plan = makePlan(occ);
     if (isPlanError(plan)) { setError(plan.error); return; }
     occRef.current = occ; // freeze the exact occupancy the plan was validated against
-    // A bulk rearrange (sort/compact) remaps many slot numbers — it ALWAYS confirms,
-    // even on the apply-on-drop backup path and even with "don't ask again" set.
-    if ((autoApply || dontAsk) && !plan.bulk) {
+    // A bulk rearrange (sort/compact) remaps many slot numbers, and a delete removes
+    // a program — both ALWAYS confirm, even on the apply-on-drop backup path and
+    // even with "don't ask again" set.
+    if ((autoApply || dontAsk) && !plan.bulk && !plan.destructive) {
       if (!busy) void apply(plan); // single move/swap — apply on drop, no confirm
     } else {
       setPendingPlan(plan); // show the confirm dialog

@@ -12,6 +12,9 @@ export interface Plan {
    *  numbers at once. These ALWAYS confirm (even on the apply-on-drop backup path)
    *  and carry the MIDI-Program-Change advisory — a single move/swap does not. */
   bulk?: boolean;
+  /** Removes a program for good (a delete, not a rearrangement). ALWAYS confirms,
+   *  like a bulk plan, and "don't ask again" never covers it. */
+  destructive?: boolean;
 }
 export interface PlanError { error: string }
 export type Occupancy = Map<string, ProgramEntry>;
@@ -44,6 +47,21 @@ export function planMove(occ: Occupancy, from: Addr, to: Addr): Plan | PlanError
     journalSlots: [from, to],
     title: 'Move program',
     summary: `Move "${src.name || formatSlot(from.bank, from.slot)}" from ${formatSlot(from.bank, from.slot)} to ${formatSlot(to.bank, to.slot)}`,
+  };
+}
+
+/** Delete the program at `at`. Journaled like any other plan, so the executor
+ *  reads its bytes first and can put it back if the delete goes wrong. */
+export function planDelete(occ: Occupancy, at: Addr): Plan | PlanError {
+  const src = occ.get(addrKey(at));
+  if (!src) return { error: 'There is no program in that slot.' };
+  const where = formatSlot(at.bank, at.slot);
+  return {
+    ops: [{ kind: 'delete', at }],
+    journalSlots: [at],
+    title: 'Delete program',
+    summary: `Delete "${src.name || where}" from ${where}`,
+    destructive: true,
   };
 }
 

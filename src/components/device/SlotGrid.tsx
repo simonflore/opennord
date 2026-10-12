@@ -9,6 +9,8 @@ interface Props {
   slotCount: number;
   entries: ProgramEntry[];
   onGesture(g: { kind: 'move'; from: Addr; to: Addr }): void;
+  /** Offer a delete button on each occupied slot; the caller confirms. */
+  onDelete?(at: Addr): void;
   mode?: 'swap' | 'insert';
 }
 
@@ -18,7 +20,7 @@ const DRAG_MIME = 'application/x-nord-slot';
 
 /** A grid of one bank's slots. Drag an occupied slot onto an empty one — in this or
  *  any other bank's grid — to move it. */
-export function SlotGrid({ bank, slotCount, entries, onGesture, mode = 'swap' }: Props) {
+export function SlotGrid({ bank, slotCount, entries, onGesture, onDelete, mode = 'swap' }: Props) {
   const bySlot = new Map(entries.filter((e) => e.bank === bank).map((e) => [e.slot, e]));
   const bankLabel = BANK_LETTERS[bank & 0x7] ?? String(bank);
   // Highlight-only: which empty cell a drag is currently over. Local to this grid
@@ -72,6 +74,18 @@ export function SlotGrid({ bank, slotCount, entries, onGesture, mode = 'swap' }:
           >
             <span className="slot-grid__label">{formatSlot(bank, slot)}</span>
             {occupied && <span className="slot-grid__name">{e!.name}</span>}
+            {occupied && onDelete && (
+              <button
+                type="button"
+                className="slot-grid__delete"
+                draggable={false}
+                aria-label={`Delete ${e!.name || 'program'} (${formatSlot(bank, slot)})`}
+                title={`Delete ${e!.name || 'this program'}`}
+                onClick={(ev) => { ev.stopPropagation(); onDelete({ bank, slot }); }}
+              >
+                ×
+              </button>
+            )}
           </div>
         );
       })}

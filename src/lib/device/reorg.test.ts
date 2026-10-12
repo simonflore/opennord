@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildOccupancy, planMove, planSwap, planReorg, isPlanError, addrKey, planArrange, planInsert, type Plan } from './reorg';
+import { buildOccupancy, planMove, planSwap, planReorg, isPlanError, addrKey, planArrange, planInsert, planDelete, type Plan } from './reorg';
 import type { ProgramEntry } from './transfer';
 
 const entry = (over: Partial<ProgramEntry>): ProgramEntry => ({
@@ -206,5 +206,22 @@ describe('planInsert', () => {
     expect(planInsert(occ, { bank:0, slot:0 }, { bank:1, slot:0 })).toEqual({ error: 'Insert works within one bank for now.' });
     expect(planInsert(occ, { bank:0, slot:0 }, { bank:0, slot:0 })).toEqual({ error: 'Dropped on the same slot.' });
     expect(planInsert(occ, { bank:0, slot:9 }, { bank:0, slot:0 })).toEqual({ error: 'There is no program in the source slot.' });
+  });
+});
+
+describe('planDelete', () => {
+  it('removes one program: a journaled delete that always confirms', () => {
+    const src = { bank: 2, slot: 27, name: 'Nirvana', categoryId: 0, version: 313, sizeBytes: 100, fourcc: 'ns4p' };
+    const p = planDelete(buildOccupancy([src]), { bank: 2, slot: 27 }) as Plan;
+    expect(p.ops).toEqual([{ kind: 'delete', at: { bank: 2, slot: 27 } }]);
+    expect(p.journalSlots).toEqual([{ bank: 2, slot: 27 }]); // its bytes are read first, so a failed delete can be undone
+    expect(p.destructive).toBe(true);
+    expect(p.bulk).toBeUndefined(); // no slot numbers shift
+    expect(p.title).toBe('Delete program');
+    expect(p.summary).toContain('"Nirvana"');
+    expect(p.summary).toContain('C:44');
+  });
+  it('refuses an empty slot', () => {
+    expect(planDelete(buildOccupancy([]), { bank: 0, slot: 0 })).toEqual({ error: 'There is no program in that slot.' });
   });
 });

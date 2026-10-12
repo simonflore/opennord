@@ -75,4 +75,23 @@ describe('SlotGrid drag-and-drop (repro)', () => {
     fireEvent.drop(a, { dataTransfer: shared2 });
     expect(onGesture).not.toHaveBeenCalled();
   });
+
+  it('the delete button on an occupied slot asks to delete that slot, and is not a drag', () => {
+    const onGesture = vi.fn();
+    const onDelete = vi.fn();
+    const { getByRole, queryAllByRole } = render(
+      <SlotGrid bank={2} slotCount={4} entries={[prog(2, 1, 'Nirvana')]} onGesture={onGesture} onDelete={onDelete} />,
+    );
+    expect(queryAllByRole('button')).toHaveLength(1); // none on the empty slots
+    fireEvent.click(getByRole('button', { name: 'Delete Nirvana (C:12)' }));
+    expect(onDelete).toHaveBeenCalledWith({ bank: 2, slot: 1 });
+    expect(onGesture).not.toHaveBeenCalled();
+  });
+
+  it('shows no delete button when deleting is not offered', () => {
+    const { queryAllByRole } = render(
+      <SlotGrid bank={2} slotCount={4} entries={[prog(2, 1, 'Nirvana')]} onGesture={vi.fn()} />,
+    );
+    expect(queryAllByRole('button')).toHaveLength(0);
+  });
 });

@@ -4,7 +4,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useReorg } from './useReorg';
 import type { DeviceIO } from '../../lib/device/device-io';
 import type { ProgramEntry } from '../../lib/device/transfer';
-import { type Occupancy, planArrange, planReorg } from '../../lib/device/reorg';
+import { type Occupancy, planArrange, planDelete, planReorg } from '../../lib/device/reorg';
 
 const prog = (bank: number, slot: number, name: string): ProgramEntry => ({
   bank, slot, name, categoryId: 0, version: 313, sizeBytes: 100, fourcc: 'ns4p',
@@ -135,5 +135,29 @@ describe('useReorg', () => {
     act(() => result.current.setDontAsk(true));
     act(() => result.current.propose((occ: Occupancy) => planArrange(occ, 0, 'name')));
     expect(result.current.pendingPlan?.bulk).toBe(true); // still confirms
+  });
+
+  it('a delete ALWAYS confirms — neither autoApply nor "don\'t ask again" skips it', () => {
+    const entries = [prog(0, 0, 'A')];
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useReorg({ io: ioFor(entries), partition: 6, entries, refresh, autoApply: true }));
+    act(() => result.current.setDontAsk(true));
+    act(() => result.current.propose((occ: Occupancy) => planDelete(occ, { bank: 0, slot: 0 })));
+    expect(result.current.pendingPlan?.title).toBe('Delete program');
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('a confirmed delete backs up first, removes the program and refreshes', async () => {
+    const entries = [prog(0, 0, 'A')];
+    const io = ioFor(entries);
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const backupOnce = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useReorg({ io, partition: 6, entries, refresh, backupOnce }));
+    act(() => result.current.propose((occ: Occupancy) => planDelete(occ, { bank: 0, slot: 0 })));
+    await act(async () => { await result.current.confirm(); });
+    expect(backupOnce).toHaveBeenCalled();
+    expect(await io.info(6, { bank: 0, slot: 0 })).toBeNull();
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(result.current.pendingPlan).toBeNull();
   });
 });

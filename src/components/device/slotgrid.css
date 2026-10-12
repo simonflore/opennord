@@ -8,6 +8,7 @@
 }
 
 .slot-grid__cell {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -68,3 +69,26 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Delete, in the cell's top-right corner. Quiet until the cell is hovered or the
+   button focused, so 64 of them don't crowd a bank; always there on touch. */
+.slot-grid__delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  font: 600 13px/1 var(--font);
+  cursor: pointer;
+  opacity: 0;
+}
+.slot-grid__cell:hover .slot-grid__delete,
+.slot-grid__delete:focus-visible { opacity: 1; }
+.slot-grid__delete:hover,
+.slot-grid__delete:focus-visible { color: var(--danger); border-color: var(--danger); }
+@media (hover: none) { .slot-grid__delete { opacity: 1; } }

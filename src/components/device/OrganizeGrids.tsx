@@ -9,7 +9,7 @@ import { Dialog, Button } from '../ui';
 import { LedSwitch } from '../program/widgets';
 import { GigmeisterSlotNote } from '../sibling/Gigmeister';
 import type { ReorgApi } from './useReorg';
-import { planArrange, planInsert, type ArrangeMode, type Addr } from '../../lib/device/reorg';
+import { planArrange, planDelete, planInsert, type ArrangeMode, type Addr } from '../../lib/device/reorg';
 
 /** The Organize view: per-bank grids + a Dialog confirm. Shared by the live-device
  *  Organize mode and the backup organizer (which supply the `reorg` flow). */
@@ -22,8 +22,9 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
   const [mode, setMode] = useState<'swap' | 'insert'>('swap');
   const routeGesture = (g: { kind: 'move'; from: Addr; to: Addr }) =>
     mode === 'insert' ? reorg.propose((occ) => planInsert(occ, g.from, g.to)) : reorg.onGesture(g);
+  const remove = (at: Addr) => reorg.propose((occ) => planDelete(occ, at));
   const plan = reorg.pendingPlan;
-  const verb = plan?.bulk
+  const verb = plan?.destructive ? 'Delete' : plan?.bulk
     ? plan.title.split(' ')[0]                       // 'Sort' / 'Compact'
     : plan?.title.startsWith('Swap') ? 'Swap' : 'Move';
   return (
@@ -32,6 +33,7 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
         {mode === 'insert'
           ? 'Drag a program onto another to insert it there — the programs after it shift down. Drop on an empty slot to just move it.'
           : 'Drag a program onto an empty slot to move it, or onto another program to swap them.'}
+        {' '}Use the × on a program to delete it.
       </p>
       <div style={{ display: 'flex', gap: 'var(--s-2)', alignItems: 'center', marginBottom: 10 }}>
         <span className="ps-sub" style={{ margin: 0 }}>Reorder:</span>
@@ -56,7 +58,7 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
                 </div>
               )}
             </div>
-            <SlotGrid bank={bank} slotCount={64} entries={entries} onGesture={routeGesture} mode={mode} />
+            <SlotGrid bank={bank} slotCount={64} entries={entries} onGesture={routeGesture} onDelete={reorg.busy ? undefined : remove} mode={mode} />
           </div>
         );
       })}
@@ -86,10 +88,12 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
           </p>
         )}
         {confirmExtra}
-        <label className="ps-sub" style={{ display: 'block', marginTop: 8 }}>
-          <input type="checkbox" checked={reorg.dontAsk} onChange={(e) => reorg.setDontAsk(e.target.checked)} />{' '}
-          Don’t ask again this session
-        </label>
+        {!plan?.destructive && (
+          <label className="ps-sub" style={{ display: 'block', marginTop: 8 }}>
+            <input type="checkbox" checked={reorg.dontAsk} onChange={(e) => reorg.setDontAsk(e.target.checked)} />{' '}
+            Don’t ask again this session
+          </label>
+        )}
         <PlanProgress progress={reorg.progress} />
       </Dialog>
     </>

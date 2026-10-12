@@ -64,4 +64,17 @@ describe('OrganizeGrids', () => {
     expect(html).toMatch(/Swap/);
     expect(html).toMatch(/Insert/);
   });
+  it('a pending delete confirms with a Delete button, and offers no "don\'t ask again"', () => {
+    const reorg = baseReorg({ pendingPlan: { ops: [], journalSlots: [], title: 'Delete program', summary: 'Delete "A" from A:01', destructive: true } });
+    const html = renderToStaticMarkup(<OrganizeGrids entries={[]} reorg={reorg} />);
+    expect(html).toContain('Delete &quot;A&quot; from A:01');
+    expect(html).toMatch(/<button[^>]*>Delete<\/button>/);
+    expect(html).not.toMatch(/don.t ask again/i);
+    expect(html).not.toMatch(/MIDI Program Change/);
+  });
+  it('gives every program a delete button in the grid', () => {
+    const html = renderToStaticMarkup(<OrganizeGrids entries={[prog(0, 0, 'A'), prog(1, 3, 'B')]} reorg={baseReorg()} />);
+    expect((html.match(/aria-label="Delete [^"]*"/g) ?? []).length).toBe(2);
+    expect(html).toMatch(/delete/i);
+  });
 });
