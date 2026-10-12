@@ -10,6 +10,8 @@ import { useLibraryState } from '@/lib/library/LibraryContext';
 import { useSplitLayout } from '@/lib/responsive';
 import { useCloseRemoved, useOpenEntry } from './openEntry';
 
+const noop = () => {};
+
 /**
  * The Library as master/detail. `/library/programs/{-$programId}` renders
  * this: at wide widths the list stays visible beside a detail pane; below the
@@ -73,7 +75,7 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
   // Only wide, where the list sits beside the program: narrow already shows it alone.
   const canFull = wide && !!program && !!onFull;
   const showFull = canFull && full;
-  useFullViewKeys(canFull, showFull, (on) => onFull?.(on));
+  useFullViewKeys(canFull, showFull, onFull ?? noop);
 
   // The blueprint frame is mounted HERE rather than on the shell's <main>
   // (routes/root.tsx) on purpose: <main> is shared by every app screen, and
@@ -88,13 +90,13 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
         <CategorySplit
           wide={wide}
           master={list}
-          detail={(program && canFull ? (
-            // --detail-bar: the program header pins below this bar, not under it.
+          detail={(canFull ? (
+            // --detail-bar: the bar's height, so the program header pins below it, not under it.
             <div className="[--detail-bar:36px]">
-              <div className="sticky top-0 z-[4] flex h-9 items-center bg-bg">
-                <Button variant="ghost" onClick={() => onFull?.(!showFull)} aria-keyshortcuts={showFull ? 'F Escape' : 'F'}>
+              <div className="sticky top-0 z-[4] flex h-[var(--detail-bar)] items-center bg-bg">
+                <Button variant="ghost" onClick={() => onFull(!showFull)} aria-keyshortcuts={showFull ? 'F Escape' : 'F'}>
                   {showFull ? '← Programs' : 'Full view'}
-                  <kbd className="ml-2 font-mono text-[10px] text-muted">{showFull ? 'Esc' : 'F'}</kbd>
+                  <kbd aria-hidden="true" className="font-mono text-[10px] text-muted">{showFull ? 'Esc' : 'F'}</kbd>
                 </Button>
               </div>
               {program}

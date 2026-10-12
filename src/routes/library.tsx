@@ -40,8 +40,10 @@ function ProgramsScreen() {
   const navigate = useNavigate({ from: ProgramsRoute.fullPath });
   useSourceInUrl();
   // In place, not a new history entry: Back still leaves the program, as before.
+  // `state: true` keeps the entry's fromList (useOpenEntry), which a navigate
+  // without it would reset, and leaving the program would then stack the list.
   const onFull = useCallback((on: boolean) => {
-    void navigate({ search: (prev: ProgramsSearch) => ({ ...prev, view: on ? 'full' as const : undefined }), replace: true, resetScroll: false });
+    void navigate({ search: (prev: ProgramsSearch) => ({ ...prev, view: on ? 'full' as const : undefined }), replace: true, resetScroll: false, state: true });
   }, [navigate]);
   return <LibrarySplit selectedId={programId} full={view === 'full'} onFull={onFull} />;
 }
@@ -72,6 +74,6 @@ function useSourceInUrl() {
       if (source !== applying) return;
     }
     if ((url ?? 'all') === source) return;
-    void navigate({ search: (prev: ProgramsSearch) => ({ ...prev, source: source === 'all' ? undefined : source }), replace: true, resetScroll: false });
+    void navigate({ search: (prev: ProgramsSearch) => ({ ...prev, source: source === 'all' ? undefined : source }), replace: true, resetScroll: false, state: true });
   }, [url, source, navigate]);
 }

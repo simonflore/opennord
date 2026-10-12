@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { anyDialogOpen } from '../ui';
+import { plainShortcut } from './plainShortcut';
 import { isLetterKey } from '../../lib/keys';
 import type { LibraryEntry } from '../../lib/library/types';
 
@@ -17,12 +17,8 @@ export function useStepKeys(entries: LibraryEntry[], activeId: string | null | u
   useEffect(() => { latest.current = { entries, activeId, onOpen }; });
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.defaultPrevented || ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey || ev.repeat || ev.isComposing) return;
       const step = isLetterKey(ev, 'j') ? 1 : isLetterKey(ev, 'k') ? -1 : 0;
-      if (!step) return;
-      const t = ev.target;
-      const typing = t instanceof HTMLElement && (t.isContentEditable || !!t.closest('input, textarea, select'));
-      if (typing || anyDialogOpen()) return;
+      if (!step || !plainShortcut(ev)) return;
       const { entries, activeId, onOpen } = latest.current;
       const at = entries.findIndex((e) => e.id === activeId);
       let i = at < 0 ? (step > 0 ? -1 : entries.length) : at;
