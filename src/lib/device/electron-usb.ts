@@ -12,9 +12,10 @@ import { TransportTimeoutError, type NordTransport } from './transport';
  * native transport.
  */
 export interface NordNativeUsb {
-  /** USB backend status — on Windows, `usbDkActive` false means UsbDk isn't
-   *  installed, so pre-WinUSB Nords (e.g. Stage 2) still can't be claimed. */
-  backend(): Promise<{ platform: string; usbDkActive: boolean }>;
+  /** USB backend status (Windows): whether the UsbDk runtime is installed, and
+   *  whether this session uses it. Without UsbDk, pre-WinUSB Nords (e.g. Stage 2)
+   *  can't be claimed; with it skipped (a newer Nord didn't need it), it's off. */
+  backend(): Promise<{ platform: string; usbDkActive: boolean; usbDkInstalled: boolean }>;
   /** List connected Nord devices (USB vendor 0x0FFC). */
   list(): Promise<Array<{ productId: number; productName?: string }>>;
   /** Open + (detach kernel driver) + claim the vendor bulk interface. */

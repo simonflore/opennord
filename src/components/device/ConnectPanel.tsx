@@ -4,6 +4,7 @@ import { WebUsbTransport } from '../../lib/device/webusb';
 import { CapacitorUsbTransport } from '../../lib/device/capacitor-usb';
 import { useUsbReach } from '../../lib/device/useUsbReach';
 import { ElectronUsbTransport } from '../../lib/device/electron-usb';
+import { isPlayerFacing } from '../../lib/device/player-message';
 import { NordSession } from '../../lib/device/session';
 import { NordStatus, SessionRefusedError } from '../../lib/device/protocol';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
@@ -49,6 +50,8 @@ export function describeError(e: unknown, isDesktop: boolean): string {
   }
   const m = getErrorMessage(e);
   if (/no device selected|cancel/i.test(m)) return '';
+  // The desktop app's USB bridge already words its own failures for a player (electron/usb-backend.ts).
+  if (isDesktop && isPlayerFacing(m)) return m;
   if (/unable to claim|claim.*interface|network/i.test(m)) {
     // "Unable to claim interface" = the OS has a driver bound to the Nord's USB
     // interface. On Windows this hits older models (e.g. Stage 2) whose firmware
@@ -104,8 +107,8 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
   useEffect(() => {
     if (reach !== 'electron') return;
     let alive = true;
-    window.nordNativeUsb!.backend().then(({ platform, usbDkActive }) => {
-      if (alive) setNeedsUsbDk(platform === 'win32' && !usbDkActive);
+    window.nordNativeUsb!.backend().then(({ platform, usbDkInstalled }) => {
+      if (alive) setNeedsUsbDk(platform === 'win32' && !usbDkInstalled);
     });
     return () => {
       alive = false;

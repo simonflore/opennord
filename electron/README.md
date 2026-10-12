@@ -279,7 +279,22 @@ that finally confirms the Stage 2 partition map. That's the acceptance test.
   `nord-usb.ts` switches libusb to the **UsbDk backend** on Windows
   (`useUsbDkBackend()`) when the UsbDk runtime is installed, which captures the
   device without replacing NSM's driver. Falls back to WinUSB otherwise (fine
-  for the already-WinUSB-bound Stage 3/4). If a device still resists, a one-time
+  for the already-WinUSB-bound Stage 3/4). **`usb` is pinned to 2.17.0**: from 2.18 node-usb builds
+  libusb with Windows hotplug, which lists devices once with WinUSB at load and
+  keeps serving that cache, so the UsbDk switch never reaches the device list
+  and every UsbDk open fails (`LIBUSB_ERROR_OTHER`). Don't bump it without
+  re-testing a Stage 2 on Windows. Whether UsbDk is installed is read
+  from `UsbDkHelper.dll` on disk: node-usb's `useUsbDkBackend()` never throws,
+  so it can't tell. UsbDk takes the whole device and fails to open it
+  (`LIBUSB_ERROR_OTHER`, "Redirector startup failed") when another program holds
+  the Nord, when UsbDk was installed without a restart, or when Memory Integrity
+  blocks it; `usb-backend.ts` words those failures for the player, and when it
+  happens on a Nord that doesn't need UsbDk (product id 0x0024+), it remembers
+  to start without UsbDk (`usb-backend.json` in userData) and asks for a restart. That
+  switch-off undoes itself: when an older Nord later fails without UsbDk, the
+  app switches UsbDk back on and asks for a restart again. Whether UsbDk's
+  service is running is read from `sc query` by its state code only, because the
+  label in front of it is translated on a non-English Windows. If a device still resists, a one-time
   WinUSB swap via Zadig is the fallback — not yet verified on real hardware
   (a Stage 2 test machine).
 - **HVCI / Core Isolation ("Memory Integrity") can block `ClaviaUSB64.sys` from

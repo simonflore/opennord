@@ -48,7 +48,7 @@
     "zod": "^4.4.3"
   },
   "optionalDependencies": {
-    "usb": "^2.15.0"
+    "usb": "2.17.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.3",

@@ -6,8 +6,12 @@
  * (The note on why node-usb must never be rebuilt is at the top of main.ts.)
  */
 import { ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { execFile } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { usb, findByIds, getDeviceList, useUsbDkBackend, type InEndpoint, type Interface, type OutEndpoint } from 'usb';
 import { DISCONNECTED_MESSAGE, isSameUsbDevice, notOpenMessage } from './shell-policy';
+import { openFailure, scReportsRunning, shouldUseUsbDk } from './usb-backend';
 
 const NORD_VENDOR = 0x0ffc;
 
@@ -16,18 +20,72 @@ const NORD_VENDOR = 0x0ffc;
  * foreign kernel driver — so a Nord bound to NSM's custom `ClaviaUSB64.sys`
  * (product id < 0x0024, e.g. Stage 2) fails to open, exactly like the browser.
  * The UsbDk backend CAN capture such a device without replacing its driver
- * (NSM keeps working). It needs the one-time UsbDk runtime installed; if it's
- * missing, `useUsbDkBackend()` throws and we fall back to WinUSB (works for the
- * WinUSB-bound Stage 3/4). `usbDkActive` lets the renderer prompt to install it.
+ * (NSM keeps working); it needs the one-time UsbDk runtime installed. The choice
+ * and its failure messages are in usb-backend.ts.
+ *
+ * Whether UsbDk is installed is read from its helper library on disk (the one
+ * libusb loads): node-usb's `useUsbDkBackend()` ignores libusb's answer and
+ * never throws, so it can't tell.
+ *
+ * `usb` is pinned to 2.17.0 (package.json): 2.18 builds libusb with its own
+ * Windows hotplug (LIBUSB_WINDOWS_HOTPLUG). That scans every device with the
+ * WinUSB backend when the module loads — before this switch — serves the
+ * device list from that cache, and its rescans treat every device as a WinUSB
+ * one, so UsbDk is handed WinUSB records and fails to open them
+ * (LIBUSB_ERROR_OTHER, "Redirector startup failed"; seen on a Stage 2). Up to
+ * 2.17 libusb asks the active backend for the list each time, and node-usb's
+ * own Windows device notifications drive attach/detach.
  */
+let usbDkInstalled = false;
 let usbDkActive = false;
-function initWindowsBackend(): void {
-  if (process.platform !== 'win32') return;
+/** UsbDk is installed, but this session started without it because of the remembered switch-off. */
+let usbDkSkipped = false;
+/** Set when UsbDk failed on a Nord that doesn't need it: the next start skips UsbDk. */
+const SKIP_USBDK_FILE = 'usb-backend.json';
+
+function readSkipUsbDk(settingsDir: string): boolean {
   try {
+    return (JSON.parse(readFileSync(join(settingsDir, SKIP_USBDK_FILE), 'utf8')) as { skipUsbDk?: unknown }).skipUsbDk === true;
+  } catch {
+    return false;
+  }
+}
+
+function writeSkipUsbDk(settingsDir: string, skipUsbDk: boolean): void {
+  try {
+    writeFileSync(join(settingsDir, SKIP_USBDK_FILE), JSON.stringify({ skipUsbDk }));
+  } catch {
+    /* not saved: the same message comes back next time */
+  }
+}
+
+/**
+ * Whether Windows reports UsbDk's driver service running; null when it can't be
+ * asked (not installed as a service, sc.exe unavailable, or no answer in time).
+ * Asynchronous: this runs in the main process, which must not stall for it.
+ */
+function usbDkServiceRunning(): Promise<boolean | null> {
+  return new Promise((resolve) => {
+    execFile('sc.exe', ['query', 'UsbDk'], { encoding: 'utf8', timeout: 3000, windowsHide: true }, (error, stdout) =>
+      resolve(error ? null : scReportsRunning(stdout)));
+  });
+}
+
+function initWindowsBackend(settingsDir: string): void {
+  if (process.platform !== 'win32') return;
+  // Guarded as a whole: this runs before the window exists, and a Nord that
+  // can't be reached must never become an app that doesn't open. On any
+  // failure libusb's default (WinUSB) backend stands.
+  try {
+    usbDkInstalled = existsSync(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'UsbDkHelper.dll'));
+    const skipUsbDk = readSkipUsbDk(settingsDir);
+    usbDkSkipped = usbDkInstalled && skipUsbDk;
+    if (!shouldUseUsbDk({ platform: process.platform, usbDkInstalled, skipUsbDk })) return;
     useUsbDkBackend();
     usbDkActive = true;
-  } catch {
-    usbDkActive = false; // UsbDk not installed → default WinUSB backend stands.
+  } catch (error) {
+    usbDkActive = false;
+    console.error('Could not set up the UsbDk backend; using the default one:', error);
   }
 }
 
@@ -56,6 +114,8 @@ function findBulk(device: usb.Device): { iface: Interface; inEp: InEndpoint; out
 export interface NordUsbHandle {
   /** True while the Nord's interface is claimed. */
   isOpen(): boolean;
+  /** Release the Nord if it is open (the window closed or reloaded). */
+  close(): Promise<void>;
 }
 
 export function initNordUsb(deps: {
@@ -63,8 +123,10 @@ export function initNordUsb(deps: {
   isTrustedSender: (event: IpcMainInvokeEvent) => boolean;
   /** Called whenever the device stops being open: closed by the app, or unplugged. */
   onClosed: () => void;
+  /** The app's settings folder (userData), where the UsbDk choice is remembered. */
+  settingsDir: string;
 }): NordUsbHandle {
-  initWindowsBackend(); // Windows: switch libusb to UsbDk if available (before any device access).
+  initWindowsBackend(deps.settingsDir); // Windows: switch libusb to UsbDk if needed (before any device access).
 
   let state: OpenState | null = null;
   /** True from an unplug until the next successful open — picks the error message. */
@@ -114,8 +176,8 @@ export function initNordUsb(deps: {
     return new Error(DISCONNECTED_MESSAGE);
   };
 
-  // Renderer can surface a "install UsbDk" hint on Windows when it isn't active.
-  handle('nord-usb:backend', () => ({ platform: process.platform, usbDkActive }));
+  // Renderer can surface a "install UsbDk" hint on Windows when it isn't installed.
+  handle('nord-usb:backend', () => ({ platform: process.platform, usbDkActive, usbDkInstalled }));
 
   handle('nord-usb:list', () =>
     nordDevices().map((d) => ({
@@ -125,20 +187,63 @@ export function initNordUsb(deps: {
     })),
   );
 
+  /**
+   * Release the open Nord, if any, and report it closed — unless `notify` is
+   * false, for a release that is only the first half of opening again. Resolves
+   * true when there was a Nord to release.
+   */
+  const release = (notify = true): Promise<boolean> =>
+    new Promise<boolean>((resolve) => {
+      if (!state) return resolve(false);
+      const { iface, device } = state;
+      state = null;
+      iface.release(true, () => {
+        try {
+          device.close();
+        } catch {
+          /* already closed */
+        }
+        resolve(true);
+        if (notify) deps.onClosed();
+      });
+    });
+
   handle('nord-usb:open', async (productId?: number) => {
+    // A reloaded page opens again while the main process still holds its earlier
+    // claim. Not reported as "closed": the Nord is about to be open again, and
+    // the updater must not take the gap as its cue to ask for a restart. If the
+    // reopen then fails, it IS closed, and that is reported below.
+    const wasOpen = await release(false);
     const device = productId ? findByIds(NORD_VENDOR, productId) : nordDevices()[0];
-    if (!device) throw new Error('No Nord found over USB.');
-    const { iface, inEp, outEp } = findBulk(device);
-    // On Linux/macOS, take the interface from its kernel driver — the move WebUSB
-    // can't make. Best-effort: unsupported on Windows (LIBUSB_ERROR_NOT_SUPPORTED),
-    // where the UsbDk backend (initWindowsBackend) does the capturing instead.
-    try {
-      if (iface.isKernelDriverActive()) iface.detachKernelDriver();
-    } catch {
-      /* not supported on this platform/backend — UsbDk or WinUSB handles access */
+    if (!device) {
+      if (wasOpen) deps.onClosed();
+      throw new Error('No Nord found over USB.');
     }
-    iface.claim();
-    state = { device, iface, inEndpoint: inEp, outEndpoint: outEp };
+    try {
+      const { iface, inEp, outEp } = findBulk(device);
+      // On Linux/macOS, take the interface from its kernel driver — the move WebUSB
+      // can't make. Best-effort: unsupported on Windows (LIBUSB_ERROR_NOT_SUPPORTED),
+      // where the UsbDk backend (initWindowsBackend) does the capturing instead.
+      try {
+        if (iface.isKernelDriverActive()) iface.detachKernelDriver();
+      } catch {
+        /* not supported on this platform/backend — UsbDk or WinUSB handles access */
+      }
+      iface.claim();
+      state = { device, iface, inEndpoint: inEp, outEndpoint: outEp };
+    } catch (err) {
+      try { device.close(); } catch { /* never opened */ }
+      if (wasOpen) deps.onClosed();
+      const failure = openFailure({
+        platform: process.platform, usingUsbDk: usbDkActive, usbDkSkipped,
+        productId: device.deviceDescriptor.idProduct, error: err instanceof Error ? err.message : String(err),
+        usbDkRunning: usbDkActive ? await usbDkServiceRunning() : null,
+      });
+      if (!failure) throw err;
+      if (failure.skipUsbDkNextTime) writeSkipUsbDk(deps.settingsDir, true);
+      if (failure.useUsbDkNextTime) writeSkipUsbDk(deps.settingsDir, false);
+      throw new Error(failure.message);
+    }
     unplugged = false;
   });
 
@@ -166,22 +271,14 @@ export function initNordUsb(deps: {
     }),
   );
 
-  handle('nord-usb:close', () =>
-    new Promise<void>((resolve) => {
-      if (!state) return resolve();
-      const { iface, device } = state;
-      state = null;
-      iface.release(true, () => {
-        try {
-          device.close();
-        } catch {
-          /* already closed */
-        }
-        resolve();
-        deps.onClosed();
-      });
-    }),
-  );
+  handle('nord-usb:close', async () => {
+    await release();
+  });
 
-  return { isOpen: () => state !== null };
+  return {
+    isOpen: () => state !== null,
+    close: async () => {
+      await release();
+    },
+  };
 }
