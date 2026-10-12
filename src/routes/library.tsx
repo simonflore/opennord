@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { createRoute, redirect, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { rootRoute } from '@/routes/root';
 import { LibrarySplit } from '@/components/library/LibrarySplit';
-import { useLibraryState } from '@/lib/library/LibraryContext';
+import { useLibraryData } from '@/lib/library/LibraryContext';
 import { SOURCE_LABEL, type LibrarySource } from '@/lib/library/types';
 
 const isSource = (v: unknown): v is LibrarySource => typeof v === 'string' && Object.hasOwn(SOURCE_LABEL, v);
@@ -44,7 +44,7 @@ function ProgramsScreen() {
  */
 function useSourceInUrl() {
   const { source: url } = useSearch({ from: ProgramsRoute.id });
-  const { source, setSource } = useLibraryState();
+  const { source, setSource } = useLibraryData();
   const navigate = useNavigate({ from: ProgramsRoute.fullPath });
   // On arrival the URL's source is handed to the filter; the mirror skips the
   // render that still has the old filter, or it would write that one back.

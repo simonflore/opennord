@@ -4,7 +4,7 @@ import { Dialog } from '../ui';
 import { cn } from '@/lib/cn';
 import { READY_CATEGORIES } from '../../lib/library/categories';
 import { SOURCE_LABEL, type LibrarySource } from '../../lib/library/types';
-import { useLibraryState } from '../../lib/library/LibraryContext';
+import { useLibraryData } from '../../lib/library/LibraryContext';
 import { usePresetsState } from '../../lib/library/PresetsContext';
 import { useSamplesState } from '../../lib/library/SamplesContext';
 import { usePianosState } from '../../lib/library/PianosContext';
@@ -22,7 +22,7 @@ function useCommands(): Command[] {
   const navigate = useNavigate();
   const tools = useTools();
   const open = useOpenEntry();
-  const { all: programs, ensureListed } = useLibraryState();
+  const { all: programs, ensureListed } = useLibraryData();
   const presets = usePresetsState();
   const samples = useSamplesState();
   const pianos = usePianosState();
