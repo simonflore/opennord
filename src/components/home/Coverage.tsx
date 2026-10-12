@@ -1,12 +1,15 @@
 import { cn } from '@/lib/cn';
 import { SEC } from './layout';
 import { SectionHead } from './SectionHead';
+import { listGrid, listHead, listRule } from './styles';
 
-const READS_TODAY = ['Nord Stage 4', 'Nord Stage 3', 'Nord Stage 2'];
-const MAPPED_NEXT = ['Nord Electro', 'Nord Piano', 'Nord Lead', 'Nord Wave'];
-
-const covChip = 'rounded-full border border-line fill-raised px-[13px] py-1.5 text-xs font-semibold text-text-tertiary edge-hi';
-const covChipOn = 'text-ink border-[color-mix(in_srgb,var(--red)_45%,var(--line))]';
+// Two lists, read like the feature list: what reads today in ink, what is
+// mapped and next in muted. No accent — the accent means selected or active,
+// and nothing on this page is either.
+const GROUPS: { label: string; state: string; models: string[]; cls: string }[] = [
+  { label: 'Reads today', state: 'reads', models: ['Nord Stage 4', 'Nord Stage 3', 'Nord Stage 2'], cls: 'text-ink' },
+  { label: 'Mapped & next', state: 'next', models: ['Nord Electro', 'Nord Piano', 'Nord Lead', 'Nord Wave'], cls: 'text-dim' },
+];
 
 export function Coverage() {
   return (
@@ -16,23 +19,23 @@ export function Coverage() {
         title="The Nord Stage series first — the rest of the family next"
         sub="Every Nord generation shares one file container, so OpenNord grows across the line one model at a time."
       />
-      <div className="flex flex-wrap gap-6">
-        <div className="flex-1 min-w-[240px] rounded-md border border-line fill-surface elev-1 p-4">
-          <div className="mb-3 text-[9px] font-bold uppercase tracking-[1.4px] text-muted">Reads today</div>
-          <div className="flex flex-wrap gap-2">
-            {READS_TODAY.map((m) => (
-              <span className={cn(covChip, covChipOn)} key={m}>{m}</span>
-            ))}
+      <div className={listGrid}>
+        {GROUPS.map((g) => (
+          <div key={g.label}>
+            <div className={listHead}>
+              <span>{g.label}</span>
+              <span className="text-muted">{g.models.length}</span>
+            </div>
+            <ul className="m-0 list-none p-0">
+              {g.models.map((m) => (
+                <li key={m} className={cn('flex items-baseline justify-between py-3', listRule)}>
+                  <span className={cn('text-[15px] font-bold', g.cls)}>{m}</span>
+                  <span className="font-mono text-[11px] uppercase tracking-[1px] text-muted">{g.state}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
-        <div className="flex-1 min-w-[240px] rounded-md border border-line fill-surface elev-1 p-4">
-          <div className="mb-3 text-[9px] font-bold uppercase tracking-[1.4px] text-muted">Mapped &amp; next</div>
-          <div className="flex flex-wrap gap-2">
-            {MAPPED_NEXT.map((m) => (
-              <span className={covChip} key={m}>{m}</span>
-            ))}
-          </div>
-        </div>
+        ))}
       </div>
     </section>
   );
