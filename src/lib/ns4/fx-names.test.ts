@@ -13,6 +13,7 @@ describe('fxTypeName', () => {
   it('passes through what it does not know', () => {
     expect(fxTypeName('off')).toBe('off');
     expect(fxTypeName(undefined)).toBeUndefined();
+    expect(fxTypeName('not decoded')).toBeUndefined(); // the decoder's placeholder: nothing to show
   });
 
   it('covers every effect type in the decoded tables', () => {

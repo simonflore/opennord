@@ -15,9 +15,13 @@ const NAMES: Record<string, string> = {
   SPRING: 'Spring', BOOTH: 'Booth', ROOM: 'Room', STAGE: 'Stage', HALL: 'Hall', CATH: 'Cathedral',
 };
 
-/** An effect type code in words ("CHOR variation" → "Chorus, variation"); an unknown value passes through. */
+/**
+ * An effect type code in words ("CHOR variation" → "Chorus, variation"). The
+ * decoder's "not decoded" placeholder gives undefined (nothing to show); any
+ * other unknown value passes through.
+ */
 export function fxTypeName(code: string | undefined): string | undefined {
-  if (!code) return code;
+  if (!code || code === 'not decoded') return undefined;
   const variation = code.endsWith(' variation');
   const base = variation ? code.slice(0, -' variation'.length) : code;
   const name = NAMES[base];
@@ -33,6 +37,8 @@ const NOTE_KIND: Record<string, string> = {
 };
 
 /** A tempo-synced note value in words ("1/8D" → "1/8 dotted", "1/4T" → "1/4 triplet"); other values pass through. */
+export function noteValueName(v: string): string;
+export function noteValueName(v: string | undefined): string | undefined;
 export function noteValueName(v: string | undefined): string | undefined {
   const m = v?.match(/^(\d+\/\d+)([DTS])$/);
   if (!m) return v;

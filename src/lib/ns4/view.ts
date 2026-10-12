@@ -267,7 +267,7 @@ function lfoView(l: NS4Layer): LfoView | undefined {
   // Either control may be morphed; the mark names both (the amount's wins a shared source).
   const a = morphMarks(amount), r = morphMarks(rate);
   const morph = a && r ? { wheel: a.wheel ?? r.wheel, at: a.at ?? r.at, pedal: a.pedal ?? r.pedal } : a ?? r;
-  return { shape: wave, rate: noteValueName(rate.value) ?? rate.value, target, amount: amount.value, morph };
+  return { shape: wave, rate: noteValueName(rate.value), target, amount: amount.value, morph };
 }
 
 /** The arpeggiator, when it is running; the step pattern only when the pattern is on. */
