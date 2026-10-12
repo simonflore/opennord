@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- OpenNord favicon: the app icon's knob on its own (electron/icon/icon.svg),
+       without the tick scale and legend, which do not survive 16 px.
+       `npm run icons` renders the PNG fallbacks from this file. -->
+  <rect width="64" height="64" rx="14" fill="#1c1d20"/>
+  <path d="M 18.565 46.435 A 19 19 0 1 1 45.435 46.435" fill="none" stroke="#0e0f10" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M 18.565 46.435 A 19 19 0 1 1 46.12 20.29" fill="none" stroke="#ff6a1a" stroke-width="5.5" stroke-linecap="round"/>
+  <circle cx="32" cy="33" r="12" fill="#3a3d43"/>
+  <path d="M 34.23 30.99 L 40.17 25.64" stroke="#ecebe6" stroke-width="3.4" stroke-linecap="round"/>
+</svg>
