@@ -59,6 +59,13 @@
    its columns) and the empty detail pane steps aside. */
 .on-split--solo { grid-template-columns: minmax(0, 1fr); }
 .on-split--solo .on-split__detail { display: none; }
+/* The program inspector (B×A): on a wide screen the table keeps its width (and
+   its columns) and the open program sits in a column on the right, its engine
+   modules stacked. Narrower, the list folds beside a wide detail instead. */
+@media (min-width: 1400px) {
+  .on-split--inspector { grid-template-columns: minmax(0, 1fr) clamp(440px, 34vw, 540px); }
+  .on-split--inspector .ps-grid { grid-template-columns: minmax(0, 1fr); }
+}
 /* The detail pane owns its own scroll; its header is pinned below. */
 .on-split__detail { min-width: 0; min-height: 0; overflow-y: auto; }
 /* Program header stays put while the body (engines, FX, samples…) scrolls.
