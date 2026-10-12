@@ -15,6 +15,8 @@ import { enumerateFiles, type ProgramEntry } from './transfer';
 import { CQryFileGetDependency, PARTITION_SAMP_LIB, PARTITION_PIANO, PROTOCOL_VERSION } from './opcodes';
 import { supportsDependencies } from './negotiate';
 import { NordError } from './protocol';
+import { TransportLostError } from './transport';
+import { addrKey } from './reorg';
 import { readAsciiFixed } from '../clavia/ascii';
 import { readU32BE } from './payload-io';
 
@@ -39,6 +41,8 @@ export interface FileDependencies {
   bank: number;
   slot: number;
   deps: SampleDep[];
+  /** False when the reply ended before all `count` entries could be read. */
+  complete: boolean;
 }
 
 /**
@@ -69,21 +73,45 @@ export function decodeDependencyReply(payload: Uint8Array, fileTransferVersion =
     deps.push({ present, id: id2, name });
     off = nameStart + nameLen + (fileTransferVersion >= 9 ? 12 : 0); // + 3×u32 trailing at version ≥ 9
   }
-  return { bank, slot, deps };
+  return { bank, slot, deps, complete: deps.length === count };
 }
 
 /** Query one program's sample dependency list. Session-independent (no begin
  *  needed) — but the exchange must still run inside `session.exclusive` (the
- *  gather/scan entry points above provide it). */
+ *  gather/scan entry points above provide it). Throws on a refused or cut-short
+ *  reply: a partial list would make sounds the program uses look unused. */
 export async function getDependencies(session: NordSession, bank: number, slot: number): Promise<FileDependencies> {
   const reply = await session.request(CQryFileGetDependency, [bank, slot]);
   if (reply.status !== 0) throw new NordError(`dependency query failed for ${bank}:${slot} (status ${reply.status})`);
-  return decodeDependencyReply(reply.payload, session.fileTransferVersion);
+  const result = decodeDependencyReply(reply.payload, session.fileTransferVersion);
+  if (!result.complete) throw new NordError(`dependency reply for ${bank}:${slot} was cut short`);
+  return result;
 }
 
 /** Shown when the connected Nord is too old to report which sounds its programs use. */
 export const NO_DEPENDENCIES_MESSAGE =
   'This Nord can’t report which sounds its programs use, so OpenNord can’t tell which ones are unused.';
+
+/** Shown when the scan could not read what every program uses. The scan then
+ *  reports nothing: a program it could not read would make its sounds look unused. */
+export const INCOMPLETE_SCAN_MESSAGE =
+  'OpenNord couldn’t read which sounds every program on this Nord uses, so it can’t tell ' +
+  'which ones are unused. Nothing was changed.';
+
+/** What a scan that could not finish rejects with. An unplugged Nord says so
+ *  itself; anything else is {@link INCOMPLETE_SCAN_MESSAGE}, with what the Nord
+ *  answered kept as the cause (for the console). */
+function scanFailure(cause: unknown): unknown {
+  if (cause instanceof TransportLostError) return cause;
+  return Object.assign(new NordError(INCOMPLETE_SCAN_MESSAGE), { cause });
+}
+
+/** List `partition`'s files in a session of its own. Throws when the Nord
+ *  refuses the partition or a listed file can't be read, instead of returning a
+ *  shorter list. Caller must hold `session.exclusive`. */
+function listPartition(session: NordSession, partition: number): Promise<ProgramEntry[]> {
+  return session.bracket(partition, () => enumerateFiles(session, Infinity, { strict: true }));
+}
 
 /** Normalize a sample name for matching program-dependency names to installed-sample names. */
 export function normalizeSampleName(name: string): string {
@@ -127,8 +155,10 @@ export function computeSampleUsage(allDeps: SampleDep[], installed: ProgramEntry
 }
 
 /** Gather every program's dependency list (samples AND pianos — the reply carries
- *  both). Shared by the sample and piano usage scans. One round-trip per program;
- *  an unreadable program is skipped, not fatal. */
+ *  both). Shared by the sample and piano usage scans. One round-trip per program.
+ *  Fails closed: if any program's list can't be read in full, the whole scan
+ *  rejects ({@link INCOMPLETE_SCAN_MESSAGE}), since what it returns decides
+ *  which sounds are offered for removal. */
 export function gatherProgramDeps(
   session: NordSession,
   onProgress?: (done: number, total: number) => void,
@@ -144,25 +174,38 @@ async function gatherProgramDepsUnlocked(
   // FileTransfer 5 and older (Stage Classic / EX, Electro 3, Nord Piano, C2, C2D,
   // Wave) has no dependency query: refuse before sending one it would not answer.
   if (!supportsDependencies(session.fileTransferVersion)) throw new NordError(NO_DEPENDENCIES_MESSAGE);
-  await session.begin(session.programPartition);
-  let programs: ProgramEntry[];
   try {
-    programs = await enumerateFiles(session);
-  } finally {
-    await session.end();
-  }
-  const allDeps: SampleDep[] = [];
-  for (let i = 0; i < programs.length; i++) {
-    const p = programs[i];
-    try {
-      const { deps } = await getDependencies(session, p.bank, p.slot);
+    const programs = await listPartition(session, session.programPartition);
+    const allDeps: SampleDep[] = [];
+    for (let i = 0; i < programs.length; i++) {
+      const { deps } = await getDependencies(session, programs[i].bank, programs[i].slot);
       allDeps.push(...deps);
-    } catch {
-      // A single unreadable program shouldn't abort the whole scan; skip it.
+      onProgress?.(i + 1, programs.length);
     }
-    onProgress?.(i + 1, programs.length);
+    return allDeps;
+  } catch (cause) {
+    throw scanFailure(cause);
   }
-  return allDeps;
+}
+
+/** The usage scan, reconciled against the files installed in `partition`. */
+function findUnused(
+  session: NordSession,
+  partition: number,
+  onProgress?: (done: number, total: number) => void,
+): Promise<SampleUsage> {
+  return session.exclusive(async () => {
+    const allDeps = await gatherProgramDepsUnlocked(session, onProgress);
+    const installed = await listPartition(session, partition).catch((cause) => { throw scanFailure(cause); });
+    return computeSampleUsage(allDeps, installed);
+  });
+}
+
+/** One installed file as a scan saw it: its slot and name. Removal checks its
+ *  targets against a fresh scan by this, so a slot that now holds another sound,
+ *  or a sound a program has started using, is left alone. */
+export function slotNameKey(file: { bank: number; slot: number; name: string }): string {
+  return `${addrKey(file)}:${normalizeSampleName(file.name)}`;
 }
 
 /**
@@ -175,17 +218,7 @@ export function findUnusedSamples(
   session: NordSession,
   onProgress?: (done: number, total: number) => void,
 ): Promise<SampleUsage> {
-  return session.exclusive(async () => {
-    const allDeps = await gatherProgramDepsUnlocked(session, onProgress);
-    await session.begin(PARTITION_SAMP_LIB);
-    let installed: ProgramEntry[];
-    try {
-      installed = await enumerateFiles(session);
-    } finally {
-      await session.end();
-    }
-    return computeSampleUsage(allDeps, installed);
-  });
+  return findUnused(session, PARTITION_SAMP_LIB, onProgress);
 }
 
 /** Installed pianos no program references — the dependency reply already carries
@@ -196,15 +229,5 @@ export function findUnusedPianos(
   session: NordSession,
   onProgress?: (done: number, total: number) => void,
 ): Promise<SampleUsage> {
-  return session.exclusive(async () => {
-    const allDeps = await gatherProgramDepsUnlocked(session, onProgress);
-    await session.begin(PARTITION_PIANO);
-    let installed: ProgramEntry[];
-    try {
-      installed = await enumerateFiles(session);
-    } finally {
-      await session.end();
-    }
-    return computeSampleUsage(allDeps, installed);
-  });
+  return findUnused(session, PARTITION_PIANO, onProgress);
 }

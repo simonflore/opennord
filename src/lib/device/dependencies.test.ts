@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   decodeDependencyReply, computeSampleUsage, normalizeSampleName, findUnusedPianos, findUnusedSamples,
-  NO_DEPENDENCIES_MESSAGE, type SampleDep,
+  NO_DEPENDENCIES_MESSAGE, INCOMPLETE_SCAN_MESSAGE, type SampleDep,
 } from './dependencies';
 import type { ProgramEntry } from './transfer';
-import { CQryFileIterate, CQryFileInfo, CQryFileGetDependency, PARTITION_PROGRAM } from './opcodes';
+import { SessionRefusedError } from './protocol';
+import { TransportLostError } from './transport';
+import { CQryFileIterate, CQryFileInfo, CQryFileGetDependency, PARTITION_PROGRAM, PARTITION_PIANO } from './opcodes';
 
 /** Build a synthetic CRpyFileGetDependency (0x29) payload (status word at offset 0). */
 function makeDepPayload(
@@ -128,6 +130,14 @@ function makeFakeSession(opts: {
   depPianoName: string;
   installedPianoNames: string[];
   fileTransferVersion?: number;
+  /** Faults: a refused begin on this partition, a refused FileInfo or dependency
+   *  query, or a dependency reply cut short. */
+  refuseBegin?: number;
+  infoStatus?: number;
+  depStatus?: number;
+  truncateDep?: boolean;
+  /** The code that ends each partition's walk (2, a bank past the last, when all is well). */
+  endCode?: number;
 }): object {
   const enc = new TextEncoder();
 
@@ -181,12 +191,14 @@ function makeFakeSession(opts: {
   const reply = (msgId: number, payload: Uint8Array, status = 0) =>
     ({ msgId, status, payload });
 
-  return {
+  const session = {
     fileTransferVersion: opts.fileTransferVersion ?? 10,
+    programPartition: PARTITION_PROGRAM,
     exclusive<T>(fn: () => Promise<T>) {
       return fn();
     },
     begin(partition: number) {
+      if (partition === opts.refuseBegin) return Promise.resolve(reply(0x05, new Uint8Array(), 2));
       currentPartition = partition;
       iterateCursors[partition] = 0;
       return Promise.resolve(reply(0x05, new Uint8Array()));
@@ -194,6 +206,11 @@ function makeFakeSession(opts: {
     end() {
       currentPartition = null;
       return Promise.resolve(reply(0x07, new Uint8Array()));
+    },
+    async bracket<T>(partition: number, fn: () => Promise<T>) {
+      const begun = await session.begin(partition);
+      if (begun.status !== 0) throw new SessionRefusedError(partition, begun.status);
+      try { return await fn(); } finally { await session.end(); }
     },
     request(msgId: number, words: number[]) {
       // FileIterate (0x20 → reply 0x21)
@@ -210,7 +227,7 @@ function makeFakeSession(opts: {
           return Promise.resolve(reply(CQryFileIterate | 1, makeIteratePayload(0, 0, cursor)));
         } else {
           // code=2 → terminal (no more entries)
-          return Promise.resolve(reply(CQryFileIterate | 1, makeIteratePayload(2, 0, 0)));
+          return Promise.resolve(reply(CQryFileIterate | 1, makeIteratePayload(opts.endCode ?? 2, 0, 0)));
         }
       }
       // FileInfo (0x1e → reply 0x1f)
@@ -221,15 +238,18 @@ function makeFakeSession(opts: {
           partition === PARTITION_PROGRAM
             ? [opts.programName]
             : opts.installedPianoNames;
-        return Promise.resolve(reply(CQryFileInfo | 1, makeInfoPayload(names[slot] ?? '')));
+        return Promise.resolve(reply(CQryFileInfo | 1, makeInfoPayload(names[slot] ?? ''), opts.infoStatus ?? 0));
       }
       // GetDependency (0x28 → reply 0x29)
       if (msgId === CQryFileGetDependency) {
-        return Promise.resolve(reply(CQryFileGetDependency | 1, makeDepPayload(opts.depPianoName)));
+        const full = makeDepPayload(opts.depPianoName);
+        return Promise.resolve(reply(
+          CQryFileGetDependency | 1, opts.truncateDep ? full.subarray(0, 16 + 17 + 2) : full, opts.depStatus ?? 0));
       }
       return Promise.resolve(reply(msgId | 1, new Uint8Array()));
     },
   };
+  return session;
 }
 
 describe('findUnusedPianos', () => {
@@ -259,6 +279,46 @@ describe('findUnusedPianos', () => {
 
     expect(result.unused.map((p) => p.name)).toEqual(['Piano A', 'Piano B']);
     expect(result.used).toHaveLength(0);
+  });
+});
+
+describe('a scan that cannot read everything', () => {
+  // Every fault here used to yield "this program uses nothing", which tagged
+  // the sounds it uses as unused and offered them for removal.
+  const board = {
+    programName: 'My Program',
+    depPianoName: 'Royal Grand 3D XL 6.1',
+    installedPianoNames: ['Royal Grand 3D XL 6.1', 'White Grand XL 6.3'],
+  };
+  it.each([
+    ['the Program partition is refused', { refuseBegin: PARTITION_PROGRAM }],
+    ['a program cannot be listed', { infoStatus: 2 }],
+    ['a dependency query is refused', { depStatus: 21 }],
+    ['a dependency reply is cut short', { truncateDep: true }],
+    ['the program listing stops on an error instead of its end', { endCode: 3 }],
+  ])('rejects instead of reporting unused sounds when %s', async (_what, fault) => {
+    await expect(findUnusedPianos(makeFakeSession({ ...board, ...fault }) as never)).rejects.toThrow(INCOMPLETE_SCAN_MESSAGE);
+    await expect(findUnusedSamples(makeFakeSession({ ...board, ...fault }) as never)).rejects.toThrow(INCOMPLETE_SCAN_MESSAGE);
+  });
+
+  it('rejects when the library partition itself is refused', async () => {
+    await expect(findUnusedPianos(makeFakeSession({ ...board, refuseBegin: PARTITION_PIANO }) as never))
+      .rejects.toThrow(INCOMPLETE_SCAN_MESSAGE); // in plain words, not "partition 1 (status 2)"
+  });
+
+  it('lets an unplugged Nord say so itself, and keeps what went wrong as the cause otherwise', async () => {
+    const unplugged = makeFakeSession(board) as { request: unknown };
+    unplugged.request = () => Promise.reject(new TransportLostError());
+    await expect(findUnusedPianos(unplugged as never)).rejects.toBeInstanceOf(TransportLostError);
+
+    const refused = await findUnusedPianos(makeFakeSession({ ...board, depStatus: 21 }) as never).catch((e: Error) => e);
+    expect(String((refused as Error).cause)).toMatch(/status 21/);
+  });
+
+  it('marks a cut-short reply as incomplete', () => {
+    const full = makeDepPayload(0, 0, [{ present: true, id: 1, name: 'Royal Grand' }]);
+    expect(decodeDependencyReply(full).complete).toBe(true);
+    expect(decodeDependencyReply(full.subarray(0, 16 + 17 + 1)).complete).toBe(false);
   });
 });
 

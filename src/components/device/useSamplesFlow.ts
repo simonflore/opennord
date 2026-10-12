@@ -41,8 +41,12 @@ export function useSamplesFlow(session: NordSession | null) {
       await run(async () => {
         if (sampleEntries.length === 0) setSampleEntries(await enumerateSampleLibrary(session));
         // Storage readouts — best-effort, so a failed query never blocks browsing.
-        if (!sampleCapacity) setSampleCapacity(await readPartitionCapacity(session, PARTITION_SAMP_LIB).catch(() => null));
-        if (!pianoCapacity) setPianoCapacity(await readPartitionCapacity(session, PARTITION_PIANO).catch(() => null));
+        // Inside the session's lock: they need no begin, but sent while a scan
+        // or pull is mid-exchange they would take each other's replies.
+        const capacityOf = (partition: number) =>
+          session.exclusive(() => readPartitionCapacity(session, partition)).catch(() => null);
+        if (!sampleCapacity) setSampleCapacity(await capacityOf(PARTITION_SAMP_LIB));
+        if (!pianoCapacity) setPianoCapacity(await capacityOf(PARTITION_PIANO));
       }, (e) => `Could not list samples: ${getErrorMessage(e)}`);
     }
   }

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { RemoveResult } from '@/lib/library/keep-copies';
 import '../library/library.css';
 import { BrowseToolbar, Button, Dialog, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
@@ -33,7 +34,7 @@ export function PianosBrowse({
   entries, source, setSource, query, setQuery, clearFilters, filtered,
   showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect, activeId,
   // Piano-usage cleanup (device-connected)
-  canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly,
+  canScanUsage, onScanUsage, scanPct, scanError, unusedCount, unusedOnly, onUnusedOnly,
   // Reclaim-space selection
   selected, selectedEntries, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
   removeFromNord, removing, removePct,
@@ -58,6 +59,7 @@ export function PianosBrowse({
   canScanUsage: boolean;
   onScanUsage: () => void;
   scanPct: number | null;
+  scanError?: string;
   unusedCount: number | null;
   unusedOnly: boolean;
   onUnusedOnly: (v: boolean) => void;
@@ -69,7 +71,7 @@ export function PianosBrowse({
   /** The selected entries from the whole list, filtered out or not (what removal deletes). */
   selectedEntries: PianoEntry[];
   selectedFreeBytes: number;
-  removeFromNord: (opts: { keepCopyIds: Set<string> }) => Promise<{ removed: number; failed: number }>;
+  removeFromNord: (opts: { keepCopyIds: Set<string> }) => Promise<RemoveResult>;
   removing: boolean;
   removePct: number | null;
   /** For tests only: force the confirm dialog open on first render. */
@@ -99,7 +101,7 @@ export function PianosBrowse({
   // are multi-GB and re-installable from Nord — an opt-in, not the common path.
   const [keepCopy, setKeepCopy] = useState(false);
   const [removeError, setRemoveError] = useState('');
-  const [removeResult, setRemoveResult] = useState<{ removed: number; failed: number } | null>(null);
+  const [removeResult, setRemoveResult] = useState<RemoveResult | null>(null);
 
   function openConfirm() {
     setKeepCopy(false);
@@ -144,6 +146,7 @@ export function PianosBrowse({
 
   const banners = (
     <>
+      {scanError && <p className="mb-3 text-xs text-danger" role="alert">{scanError}</p>}
       {/* Reclaim bar — shown when at least one piano is selected */}
       {selected.size > 0 && (
         <div
@@ -164,6 +167,7 @@ export function PianosBrowse({
         <p className="mb-3 text-xs text-dim" role="status">
           {removeResult.removed} {removeResult.removed === 1 ? 'piano' : 'pianos'} removed
           {removeResult.failed > 0 && ` · ${removeResult.failed} could not be removed`}
+          {removeResult.recovered ? ' · the removal failed part-way and could not be undone; what it had removed was downloaded as a zip' : ''}
         </p>
       )}
     </>

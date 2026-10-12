@@ -1,7 +1,7 @@
 import { zipSync, strToU8 } from 'fflate';
 import type { NordSession } from './session';
 import { readZipDirectory, extractZipEntry, type ZipEntry } from '../clavia/backup/zip-directory';
-import { NordError } from './protocol';
+import { NordError, SessionRefusedError } from './protocol';
 import { enumerateFiles, pullFile, pushFile, type ProgramEntry } from './transfer';
 import { readPartitionCapacity, type PartitionCapacity } from './capacity';
 import { readCbinHeader, hasCbinMagic } from '../clavia/cbin';
@@ -21,52 +21,92 @@ export interface RestoreResult {
 type Progress = (done: number, total: number) => void;
 
 /**
+ * What a backup of this keyboard holds. Everything on a Stage 4; on any other
+ * model only its programs, since {@link USER_PARTITIONS} are Stage 4 indices
+ * and name other things there.
+ */
+export function backupSpecs(session: NordSession): PartitionSpec[] {
+  if (session.stage4Layout) return USER_PARTITIONS;
+  return [{ ...USER_PARTITIONS[0], partition: session.programPartition }];
+}
+
+/** True when {@link backup} saves everything, not just the programs. */
+export function backsUpEverything(session: NordSession): boolean {
+  return backupSpecs(session) === USER_PARTITIONS;
+}
+
+/** File name for a {@link backup} of this keyboard. Only a full one is a `.ns4b`
+ *  (a Stage 4 backup, which Restore and Check backup read); a programs-only copy
+ *  from another model is a plain zip of its program files. */
+export function backupFilename(session: NordSession, title: string, date = new Date()): string {
+  const day = date.toISOString().slice(0, 10);
+  return backsUpEverything(session) ? `${title} ${day}.ns4b` : `${title} ${day} (programs).zip`;
+}
+
+/** Shown when the Nord won't open one of the memory areas a backup reads. */
+export const BACKUP_REFUSED_MESSAGE =
+  'Your Nord wouldn’t let OpenNord read part of its memory, so no backup was made. Unplug the ' +
+  'USB cable and plug it back in, then try again.';
+
+/**
  * Back up user content to a .ns4b (ZIP-store) — meta.xml + `<Folder>/Bank X/<name>.<ext>`.
  * Read-only on the device. Manages a begin/end session per partition, then
  * re-begins the Program partition so the caller's browser session is intact.
+ * Each file keeps the extension the Nord reports for it. A partition the Nord
+ * refuses fails the backup ({@link BACKUP_REFUSED_MESSAGE}): one that silently
+ * left it out would not be a backup. Without `specs`, what is read follows the
+ * keyboard ({@link backupSpecs}), and a programs-only copy carries no meta.xml,
+ * so nothing takes it for a Stage 4 backup.
  */
-export function backup(
+export async function backup(
   session: NordSession,
   onProgress?: Progress,
-  specs: PartitionSpec[] = USER_PARTITIONS,
+  specs?: PartitionSpec[],
+): Promise<Uint8Array> {
+  const ns4b = specs !== undefined || backsUpEverything(session);
+  try {
+    return await backupLocked(session, onProgress, specs ?? backupSpecs(session), ns4b);
+  } catch (cause) {
+    if (cause instanceof SessionRefusedError) throw Object.assign(new NordError(BACKUP_REFUSED_MESSAGE), { cause });
+    throw cause;
+  }
+}
+
+function backupLocked(
+  session: NordSession, onProgress: Progress | undefined, specs: PartitionSpec[], ns4b: boolean,
 ): Promise<Uint8Array> {
   // Exclusive: the manual begin/end brackets must not interleave with any
   // other flow's frames on the shared pipe.
-  return session.exclusive(() => backupUnlocked(session, onProgress, specs));
+  return session.exclusive(() => backupUnlocked(session, onProgress, specs, ns4b));
 }
 
 async function backupUnlocked(
   session: NordSession,
   onProgress: Progress | undefined,
   specs: PartitionSpec[],
+  ns4b: boolean,
 ): Promise<Uint8Array> {
-  const files: Record<string, Uint8Array> = { 'meta.xml': strToU8(buildMetaXml(0)) };
+  const files: Record<string, Uint8Array> = ns4b ? { 'meta.xml': strToU8(buildMetaXml(0)) } : {};
   // Pass 1: enumerate each partition (for the total + the work list). Each
   // partition is its own begin/end session so the device returns to idle.
   const items: { spec: PartitionSpec; entry: ProgramEntry }[] = [];
   for (const spec of specs) {
-    await session.begin(spec.partition);
-    try {
-      for (const entry of await enumerateFiles(session)) items.push({ spec, entry });
-    } finally {
-      await session.end();
-    }
+    const entries = await session.bracket(spec.partition, () => enumerateFiles(session));
+    for (const entry of entries) items.push({ spec, entry });
   }
   // Pass 2: pull each file, grouped by partition (one begin/end per partition).
   let done = 0;
   for (const spec of specs) {
     const group = items.filter((i) => i.spec.partition === spec.partition);
     if (group.length === 0) continue;
-    await session.begin(spec.partition);
-    try {
+    await session.bracket(spec.partition, async () => {
       for (const { entry } of group) {
-        const path = disambiguatePath(spec, entry.bank, entry.name, entry.slot, (p) => Boolean(files[p]));
+        const named = { ...spec, ext: /^[a-z0-9]{2,4}$/i.test(entry.fourcc) ? entry.fourcc : spec.ext };
+        const path = disambiguatePath(named, entry.bank, entry.name, entry.slot, (p) => Boolean(files[p]));
         files[path] = await pullFile(session, entry);
         onProgress?.(++done, items.length);
       }
-    } finally {
-      await session.end();
-    }
+    });
   }
   return zipSync(files, { level: 0 });
 }
@@ -126,9 +166,12 @@ async function restoreUnlocked(
     byPartition.set(partition, list);
   }
   const total = [...byPartition.values()].reduce((n, l) => n + l.length, 0);
-  // All or nothing: if any target partition isn't confirmed on this keyboard,
-  // refuse the whole restore up front rather than half-restoring it.
-  if ([...byPartition.keys()].some((p) => !session.canWrite(p))) throw new WriteBlockedError();
+  // All or nothing: a backup's files are addressed by Stage 4 partition, so
+  // unless every one of those is confirmed on this keyboard, refuse the whole
+  // restore up front. Checking only the partitions this archive uses is not
+  // enough: on a Stage 3, partition 7 is confirmed, as its Programs, and an
+  // archive of Stage 4 organ presets alone would be written over them.
+  if (!canRestore(session)) throw new WriteBlockedError();
 
   let done = 0;
   // One begin/end session per partition; the device returns to idle between them.
@@ -176,7 +219,9 @@ async function restoreUnlocked(
         onProgress?.(++done, total);
       }
     } finally {
-      await session.end();
+      // Quietly: an end the Nord doesn't answer (unplugged) must not replace
+      // the per-file result with its own error.
+      await session.end().catch(() => undefined);
     }
   }
   return result;

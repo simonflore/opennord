@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { RemoveResult } from '@/lib/library/keep-copies';
 import '../library/library.css';
 import { BrowseToolbar, Button, Dialog, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
@@ -42,7 +43,7 @@ export function SamplesBrowse(
     category = 'all', onCategory, categoriesPresent = [],
     onSource, onGeneration, onQuery, clearFilters, filtered, onOpen, onLoadNew, onImport, onRemove, activeId,
     storedCount, storedBytes, prefs,
-    canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly,
+    canScanUsage, onScanUsage, scanPct, scanError, unusedCount, unusedOnly, onUnusedOnly,
     selected, selectedEntries, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
     removeFromNord, removing, removePct }: {
     entries: SampleEntry[];
@@ -73,6 +74,7 @@ export function SamplesBrowse(
     canScanUsage: boolean;
     onScanUsage: () => void;
     scanPct: number | null;
+    scanError?: string;
     unusedCount: number | null;
     unusedOnly: boolean;
     onUnusedOnly: (v: boolean) => void;
@@ -84,7 +86,7 @@ export function SamplesBrowse(
     /** The selected entries from the whole list, filtered out or not (what removal deletes). */
     selectedEntries: SampleEntry[];
     selectedFreeBytes: number;
-    removeFromNord: (opts: { keepCopyIds: Set<string> }) => Promise<{ removed: number; failed: number }>;
+    removeFromNord: (opts: { keepCopyIds: Set<string> }) => Promise<RemoveResult>;
     removing: boolean;
     removePct: number | null;
   },
@@ -100,7 +102,7 @@ export function SamplesBrowse(
   const anyFactory = selectedEntries.some((e) => e.factory === true);
   const [keepCopy, setKeepCopy] = useState(anyNonFactory);
   const [removeError, setRemoveError] = useState('');
-  const [removeResult, setRemoveResult] = useState<{ removed: number; failed: number } | null>(null);
+  const [removeResult, setRemoveResult] = useState<RemoveResult | null>(null);
 
   // Re-sync keepCopy default when selection changes (derive from latest selectedEntries)
   // We do this imperatively only when the dialog opens; dialog re-renders each open.
@@ -186,6 +188,7 @@ export function SamplesBrowse(
 
   const banners = (
     <>
+      {scanError && <p className="mb-3 text-xs text-danger" role="alert">{scanError}</p>}
       {/* Reclaim bar — shown when at least one sample is selected */}
       {selected.size > 0 && (
         <div
@@ -206,6 +209,7 @@ export function SamplesBrowse(
         <p className="mb-3 text-xs text-dim" role="status">
           {removeResult.removed} {removeResult.removed === 1 ? 'sample' : 'samples'} removed
           {removeResult.failed > 0 && ` · ${removeResult.failed} could not be removed`}
+          {removeResult.recovered ? ' · the removal failed part-way and could not be undone; what it had removed was downloaded as a zip' : ''}
         </p>
       )}
     </>

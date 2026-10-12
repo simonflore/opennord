@@ -1,4 +1,4 @@
-import { TransportTimeoutError, type NordTransport } from './transport';
+import { TransportLostError, TransportTimeoutError, type NordTransport } from './transport';
 import { findBulkInterface } from './usb-descriptors';
 
 /**
@@ -12,12 +12,30 @@ import { findBulkInterface } from './usb-descriptors';
  * finds nothing. The USBDevice comes from navigator.usb.requestDevice (a user
  * gesture), performed by the UI.
  */
+/** A transfer WebUSB failed with NetworkError: the cable or the Nord went. */
+function asLost(e: unknown): never {
+  throw e instanceof DOMException && e.name === 'NetworkError' ? new TransportLostError() : e;
+}
+
 export class WebUsbTransport implements NordTransport {
   private interfaceNumber = 0;
   private outEndpoint = 3;
   private inEndpoint = 2;
 
+  private stopWatching: (() => void) | undefined;
+
   constructor(private readonly device: USBDevice) {}
+
+  onLost(cb: () => void): void {
+    this.stopWatching?.();
+    const onDisconnect = (e: USBConnectionEvent) => {
+      if (e.device !== this.device) return;
+      this.stopWatching?.();
+      cb();
+    };
+    navigator.usb.addEventListener('disconnect', onDisconnect);
+    this.stopWatching = () => navigator.usb.removeEventListener('disconnect', onDisconnect);
+  }
 
   async open(): Promise<void> {
     await this.device.open();
@@ -34,11 +52,11 @@ export class WebUsbTransport implements NordTransport {
   async bulkOut(data: Uint8Array): Promise<void> {
     // Copy into a fresh ArrayBuffer-backed view: WebUSB's BufferSource requires
     // an ArrayBuffer, while a generic Uint8Array may be backed by ArrayBufferLike.
-    await this.device.transferOut(this.outEndpoint, new Uint8Array(data));
+    await this.device.transferOut(this.outEndpoint, new Uint8Array(data)).catch(asLost);
   }
 
   async bulkIn(maxLength: number, timeoutMs?: number): Promise<Uint8Array> {
-    const transfer = this.device.transferIn(this.inEndpoint, maxLength);
+    const transfer = this.device.transferIn(this.inEndpoint, maxLength).catch(asLost);
     const result = timeoutMs === undefined ? await transfer : await this.withTimeout(transfer, timeoutMs);
     if (!result.data) return new Uint8Array(0);
     return new Uint8Array(result.data.buffer, result.data.byteOffset, result.data.byteLength);
@@ -65,6 +83,7 @@ export class WebUsbTransport implements NordTransport {
   }
 
   async close(): Promise<void> {
+    this.stopWatching?.();
     try {
       await this.device.releaseInterface(this.interfaceNumber);
     } finally {

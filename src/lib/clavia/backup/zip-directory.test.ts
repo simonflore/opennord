@@ -109,6 +109,17 @@ describe('zip-directory', () => {
     );
   });
 
+  it('reports a directory with fewer records than it counts as corrupt, not as a shorter backup', async () => {
+    const whole = new Uint8Array(await zipBlob({ 'a/one.bin': [stored, 0], 'a/two.bin': [stored, 0] }).arrayBuffer());
+    expect(await readZipDirectory(new Blob([whole]))).toHaveLength(2);
+    // Overwrite the second record's signature: the first still reads, the count still says 2.
+    const second = whole.length - 22 - (46 + 'a/two.bin'.length);
+    whole.set([0, 0, 0, 0], second);
+    await expect(readZipDirectory(new Blob([whole]))).rejects.toThrow(
+      'Corrupt or truncated zip central directory.',
+    );
+  });
+
   it('reports an out-of-range local-header offset as a bad header, not a RangeError', async () => {
     const entries = await readZipDirectory(blob);
     const e = { ...entries.find((x) => x.path === 'a/stored.bin')!, offset: blob.size + 1000 };

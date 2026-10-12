@@ -84,6 +84,27 @@ describe('describeError', () => {
     expect(msg).not.toMatch(/status|partition|13/i);
   });
 
+  it('says a silent Nord didn’t answer, without the timeout in milliseconds', async () => {
+    const { describeError } = await import('./ConnectPanel');
+    const { TransportTimeoutError } = await import('../../lib/device/transport');
+    const msg = describeError(new TransportTimeoutError(10_000), false);
+    expect(msg).toMatch(/didn’t answer/);
+    expect(msg).not.toMatch(/10000|ms/);
+  });
+
+  it('reads a transfer that failed mid-connect as a dropped connection, not a driver problem', async () => {
+    const { describeError } = await import('./ConnectPanel');
+    const { TransportLostError } = await import('../../lib/device/transport');
+    const msg = describeError(new TransportLostError(), false);
+    expect(msg).toMatch(/connection to your Nord dropped/);
+    expect(msg).not.toMatch(/Nord Sound Manager|desktop app/);
+  });
+
+  it('still points a claim failure at the driver', async () => {
+    const { describeError } = await import('./ConnectPanel');
+    expect(describeError(new Error('Unable to claim interface.'), false)).toMatch(/couldn’t open your Nord’s USB port/);
+  });
+
   it('shows the desktop USB bridge’s own player-facing messages as they are', async () => {
     const { describeError } = await import('./ConnectPanel');
     const m = 'The UsbDk driver couldn’t take over your Nord’s USB port. Quit Nord Sound Manager.';

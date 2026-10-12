@@ -28,7 +28,7 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
         onSelect={(e) => open.piano(e.id)}
         activeId={selectedId}
-        canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct}
+        canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct} scanError={s.scanError}
         unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
         selected={s.selected} selectedEntries={s.selectedEntries} toggleSelected={s.toggleSelected}
         selectAllUnused={s.selectAllUnused} clearSelected={s.clearSelected}

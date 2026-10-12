@@ -72,7 +72,9 @@ const EXT: Record<number, string> = { 2: '.nsmp', 3: '.nsmp3', 4: '.nsmp4' };
 
 /**
  * Convert a `.nsmp*` to the target codec generation (3 → `.nsmp3`, 4 → `.nsmp4`).
- * Audio is preserved exactly; zone mapping is carried over when the source map is
+ * The audio samples are written exactly, but loops, loop decay, level and tuning
+ * are not (the stroke headers are templated: see nsmp-write.ts). Zone mapping is
+ * carried over when the source map is
  * readable (codec-3 maps today), else each stroke spans the keyboard by default.
  */
 export function convertNsmp(bytes: Uint8Array, targetCodec: TargetCodec): ConvertResult {
@@ -138,7 +140,10 @@ export function convertNsmp(bytes: Uint8Array, targetCodec: TargetCodec): Conver
   });
 
   const out = writeNsmpMulti({ name, codec: targetCodec, zones: writeZones });
-  warnings.push('Audio is preserved exactly; keyboard acceptance of the written file is pending hardware validation (docs/NSMP-CODEC.md).');
+  warnings.push(
+    'The audio samples are written exactly, but loop points, loop decay, level and fine tuning are not ' +
+      'carried over yet: a looped sample will not loop. Not yet tested on a keyboard (docs/NSMP-CODEC.md).',
+  );
   return { bytes: out, extension: targetCodec === 4 ? '.nsmp4' : '.nsmp3', warnings };
 }
 

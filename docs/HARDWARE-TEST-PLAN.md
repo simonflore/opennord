@@ -507,7 +507,10 @@ Resonance, Unison, Dyn Comp and Soft Release off, Touch Medium.
 - **Steps:** T3 selected. Play A2, A3, A#3 and A4.
 - **Expected:** A3 = 220 Hz and A4 = 440 Hz from their own recordings (both clean); A#3 plays the
   440 Hz recording 11 semitones down; A2 plays the 220 Hz one an octave down.
-- **Write down:** right zone on each key yes/no.
+- **Also:** play A1 and A0, two and three octaves below the 220 Hz recording. Silence there means a
+  key 12 or more semitones below a zone's stored note gets no pre-loop level (PIANO-ENGINE.md 1.4),
+  and `planPianoZones` must split low stretches into zones of their own.
+- **Write down:** right zone on each key yes/no; A1 and A0 sound yes/no.
 
 ### B8. Piano name length *(optional, 4 min)* ✎
 

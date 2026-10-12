@@ -22,10 +22,10 @@ type Status =
  * from *any* generation to *any other* -- including the downconverts the official
  * editor refuses (`.nsmp4`/`.nsmp3` -> `.nsmp`).
  */
-const GENERATIONS: { code: TargetCodec; ext: string; label: string; experimental?: boolean }[] = [
+const GENERATIONS: { code: TargetCodec; ext: string; label: string }[] = [
   { code: 4, ext: '.nsmp4', label: 'NSMP 4 (.nsmp4)' },
   { code: 3, ext: '.nsmp3', label: 'NSMP 3 (.nsmp3)' },
-  { code: 2, ext: '.nsmp', label: 'NSMP 2 (.nsmp)', experimental: true },
+  { code: 2, ext: '.nsmp', label: 'NSMP 2 (.nsmp)' },
 ];
 
 /** The piano types a Nord files pianos under, as its panel names them. */
@@ -120,7 +120,7 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
     <div className="ps-card" style={{ marginTop: 12 }}>
       <h4>CONVERT</h4>
       <p className="ps-sub" style={{ marginTop: 0 }}>
-        Save this sample as any other generation -- audio is preserved exactly.
+        Save this sample as another generation. The audio is kept; loops and levels are not carried over yet.
       </p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {targets.map((g) => (
@@ -129,9 +129,9 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
             className="on-btn on-btn--secondary"
             onClick={() => void convert(g.code)}
             disabled={folderWrite.saving || building}
-            title={g.experimental ? 'Experimental -- not yet hardware-validated' : undefined}
+            title="Experimental -- not yet hardware-validated"
           >
-            Convert to {g.label}{g.experimental ? ' -- experimental' : ''}
+            Convert to {g.label} -- experimental
           </button>
         ))}
       </div>

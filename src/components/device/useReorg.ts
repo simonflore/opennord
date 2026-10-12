@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { DeviceIO } from '../../lib/device/device-io';
 import { executePlan, type ExecProgress, type ExecResult } from '../../lib/device/execute';
+import { saveUnrestored } from '../../lib/device/unrestored';
 import { WRITE_BLOCKED_MESSAGE } from '../../lib/device/write-guard';
 import { planReorg, buildOccupancy, isPlanError, type Addr, type Occupancy, type Plan, type PlanError } from '../../lib/device/reorg';
 import type { ProgramEntry } from '../../lib/device/transfer';
@@ -65,9 +66,20 @@ export function useReorg({ io, partition, entries, refresh, backupOnce, run, aut
         await refresh();
       } else {
         // A refused write already explains itself (and that nothing changed).
-        setError(res.warnings[0] === WRITE_BLOCKED_MESSAGE
-          ? WRITE_BLOCKED_MESSAGE
-          : `${plan.title} failed; nothing was changed.${res.warnings.length ? ` (${res.warnings.join('; ')})` : ''}`);
+        const details = res.warnings.length ? ` (${res.warnings.join('; ')})` : '';
+        if (res.warnings[0] === WRITE_BLOCKED_MESSAGE) {
+          setError(WRITE_BLOCKED_MESSAGE);
+        } else if (res.deviceUnchanged) {
+          setError(`${plan.title} failed; nothing was changed.${details}`);
+        } else {
+          // The undo failed too: the Nord is part-way through. Keep what was in
+          // those slots, and show what the Nord holds now.
+          if (res.unrestored) saveUnrestored(res.unrestored);
+          setError(`${plan.title} failed part-way, and OpenNord could not put everything back.`
+            + (res.unrestored ? ' What was in those places has been downloaded as a zip, so you can send it again.' : '')
+            + details);
+          await Promise.resolve(refresh()).catch(() => undefined);
+        }
       }
     }, (e) => `${plan.title} failed: ${getErrorMessage(e)}`);
     setProgress(null);

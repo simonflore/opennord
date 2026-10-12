@@ -24,10 +24,12 @@ function usePresetsStateValue() {
   const [kind, setKind] = useState<PresetKind | 'all'>('all');
   const [query, setQuery] = useState('');
 
-  // Lazily enumerate the device preset partitions on connect (Stage-4 validated).
-  // Best-effort; absent partitions are skipped inside enumeratePresets.
+  // Lazily enumerate the device preset partitions on connect. Stage 4 only: its
+  // preset indices (7/8/9) hold programs, Live or settings on other models, which
+  // would be listed here as presets. Best-effort; absent partitions are skipped
+  // inside enumeratePresets.
   useEffect(() => {
-    if (!session) return;
+    if (!session?.stage4Layout) return;
     let cancelled = false;
     enumeratePresets(session, modelById('stage-4')!)
       .then((g) => { if (!cancelled) setPresetEntries(g); })

@@ -3,7 +3,7 @@ import {
   CQryFileInfo, CQryFileIterate, CReqFileOpen, CReqFileClose, CReqFileRead,
   CReqFileCreate, CReqFileWrite, CReqFileDelete, type2Ext, ext2Type,
 } from './opcodes';
-import { NordError } from './protocol';
+import { NordError, NordStatus } from './protocol';
 import { readAsciiFixed } from '../clavia/ascii';
 import { buildCbinHeader, cbinFraming, cbinRecord, hasCbinMagic, readCbinHeader } from '../clavia/cbin';
 import { patchNs4Checksum } from '../clavia/checksum';
@@ -57,8 +57,16 @@ const MAX_BANKS = 64;
  * passes a small limit because it only needs the partition's file types
  * (fourccs), not every entry — keeping a connect-time probe fast on partitions
  * that hold hundreds of programs.
+ *
+ * A file whose FileInfo the Nord refuses is left out, and any other iterate code
+ * ends the walk. `strict`, for callers that act on a file being absent (the
+ * unused-sounds scan), throws on both instead: the walk must end on the code for
+ * a bank past the last (`NordStatus.partitionError`, the same number space as
+ * reply statuses), or the list may be short.
  */
-export async function enumerateFiles(session: NordSession, limit = Infinity): Promise<ProgramEntry[]> {
+export async function enumerateFiles(
+  session: NordSession, limit = Infinity, { strict = false }: { strict?: boolean } = {},
+): Promise<ProgramEntry[]> {
   const out: ProgramEntry[] = [];
   let bank = 0;
   let cursor = 0xffffffff;
@@ -67,14 +75,18 @@ export async function enumerateFiles(session: NordSession, limit = Infinity): Pr
     if (it.code === 0) {
       const info = await session.request(CQryFileInfo, [it.bank, it.slot]);
       if (info.status === 0) out.push(decodeFileInfo(info.payload, it.bank, it.slot));
+      else if (strict) throw new NordError(`could not read file ${it.bank}:${it.slot} (status ${info.status})`);
       cursor = it.slot;
     } else if (it.code === 1) {
       bank = it.bank + 1;
       cursor = 0xffffffff;
+    } else if (strict && it.code !== NordStatus.partitionError) {
+      throw new NordError(`listing stopped at bank ${bank} with code ${it.code}`);
     } else {
-      break; // terminal code — no more banks in this partition
+      return out; // terminal code — no more banks in this partition
     }
   }
+  if (strict && out.length < limit) throw new NordError(`listing did not end within ${MAX_BANKS} banks`);
   return out;
 }
 

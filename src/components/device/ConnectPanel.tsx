@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { NordTransport } from '../../lib/device/transport';
+import { TransportLostError, TransportTimeoutError, type NordTransport } from '../../lib/device/transport';
 import { WebUsbTransport } from '../../lib/device/webusb';
 import { CapacitorUsbTransport } from '../../lib/device/capacitor-usb';
 import { useUsbReach } from '../../lib/device/useUsbReach';
@@ -8,7 +8,7 @@ import { isPlayerFacing } from '../../lib/device/player-message';
 import { NordSession } from '../../lib/device/session';
 import { NordStatus, SessionRefusedError } from '../../lib/device/protocol';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
-import { identifyDevice, resolveDeviceAccess, PROBE_REPLY_TIMEOUT_MS, type DeviceIdentity } from '../../lib/device/connect-probe';
+import { hasTrustedLayout, identifyDevice, resolveDeviceAccess, PROBE_REPLY_TIMEOUT_MS, type DeviceIdentity } from '../../lib/device/connect-probe';
 import { modelById } from '../../lib/clavia/partitions';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
 import { initialFileTransferVersion, shouldNegotiateVersion } from '../../lib/device/negotiate';
@@ -33,6 +33,9 @@ function errorShape(e: unknown): Record<string, unknown> {
 // read-only probe confirms where their programs live (resolveDeviceAccess).
 const NORD_FILTER: USBDeviceFilter = { vendorId: 0x0ffc };
 
+/** How long each reply may take while listing the programs on connect. They are small and quick. */
+const CONNECT_REPLY_TIMEOUT_MS = 10_000;
+
 type Status = 'idle' | 'connecting' | 'connected' | 'error';
 
 /** Maps low-level errors to friendly guidance. Empty string = user cancelled (no error). */
@@ -48,11 +51,19 @@ export function describeError(e: unknown, isDesktop: boolean): string {
       'cable and plug it back in, then try again. If it keeps happening, OpenNord doesn’t know ' +
       'this model’s layout yet — let us know which Nord it is.';
   }
+  if (e instanceof TransportTimeoutError) {
+    return 'Your Nord didn’t answer. Unplug the USB cable and plug it back in, then try again. ' +
+      'If it keeps happening, switch the Nord off and on.';
+  }
+  // A transfer that failed after the port was open: the cable or the Nord, not a driver.
+  if (e instanceof TransportLostError) {
+    return 'The connection to your Nord dropped while connecting. Check the USB cable and try again.';
+  }
   const m = getErrorMessage(e);
   if (/no device selected|cancel/i.test(m)) return '';
   // The desktop app's USB bridge already words its own failures for a player (electron/usb-backend.ts).
   if (isDesktop && isPlayerFacing(m)) return m;
-  if (/unable to claim|claim.*interface|network/i.test(m)) {
+  if (/unable to claim|claim.*interface/i.test(m)) {
     // "Unable to claim interface" = the OS has a driver bound to the Nord's USB
     // interface. On Windows this hits older models (e.g. Stage 2) whose firmware
     // doesn't auto-request the browser-usable WinUSB driver — confirmed from real
@@ -166,8 +177,14 @@ export function ConnectPanel({ onConnected, onOpenBackup, title = DEFAULT_TITLE,
     const access = await resolveDeviceAccess(session, deviceIdentity, diagnostics);
     session.programPartition = access.programPartition;
     session.allowWrites(access.writable);
+    // Hardware-confirmed only: a product id merely recovered from NSM gets probed
+    // above, and may keep its programs elsewhere.
+    session.stage4Layout = hasTrustedLayout(deviceIdentity) && deviceIdentity.model?.id === 'stage-4';
     // Bracket enumerate in a begin/end session so the Nord returns to idle after.
-    const entries = await session.withSession(session.programPartition, () => enumeratePrograms(session));
+    // Each reply bounded: a Nord that stops answering here (a Stage 4 is asked
+    // nothing before this) would otherwise leave "Connecting…" up for good.
+    const entries = await session.withReplyTimeout(CONNECT_REPLY_TIMEOUT_MS, () =>
+      session.withSession(session.programPartition, () => enumeratePrograms(session)));
     setStatus('connected');
     onConnected(session, entries, deviceName, productId);
   }

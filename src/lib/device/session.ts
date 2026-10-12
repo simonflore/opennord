@@ -23,6 +23,12 @@ export class NordSession {
    *  the right partition on non-Stage-4 devices. See program-partition.ts. */
   programPartition = PARTITION_PROGRAM;
 
+  /** True when the device has the Stage 4 partition layout (programs, presets,
+   *  Live, Settings at partitions 6–11). Set by the connect flow. On any other
+   *  model those indices are different partitions, so a backup there holds the
+   *  programs only (see backup.ts) and its presets are not listed. */
+  stage4Layout = false;
+
   /** Partitions this session may write to. Empty by default, so a session that
    *  never had its layout confirmed refuses every write; the connect flow fills
    *  it from `resolveDeviceAccess` (connect-probe.ts). */
@@ -59,6 +65,12 @@ export class NordSession {
    */
   close(): Promise<void> {
     return this.exclusive(() => this.transport.close());
+  }
+
+  /** Call `cb` once the transport finds the Nord gone (unplugged, switched off).
+   *  Nothing is called on a transport that can't tell. */
+  onLost(cb: () => void): void {
+    this.transport.onLost?.(cb);
   }
 
   /**
@@ -195,15 +207,24 @@ export class NordSession {
   withSession<T>(partition: number, fn: () => Promise<T>, wanted?: () => boolean): Promise<T> {
     return this.exclusive(async () => {
       if (wanted && !wanted()) throw new DOMException('Nobody wants this operation any more', 'AbortError');
-      const begun = await this.begin(partition);
-      if (begun.status !== 0) throw new SessionRefusedError(partition, begun.status);
-      try {
-        return await fn();
-      } finally {
-        // don't let an end failure mask the operation's own error / result
-        await this.endQuietly();
-      }
+      return this.bracket(partition, fn);
     });
+  }
+
+  /**
+   * `begin(partition)` … `fn` … `end()`, for a caller already inside
+   * {@link exclusive} (the lock is not re-entrant; {@link withSession} is this
+   * plus the lock). A refused begin throws {@link SessionRefusedError}.
+   */
+  async bracket<T>(partition: number, fn: () => Promise<T>): Promise<T> {
+    const begun = await this.begin(partition);
+    if (begun.status !== 0) throw new SessionRefusedError(partition, begun.status);
+    try {
+      return await fn();
+    } finally {
+      // don't let an end failure mask the operation's own error / result
+      await this.endQuietly();
+    }
   }
 
   private async endQuietly(): Promise<void> {
