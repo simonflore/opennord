@@ -22,6 +22,21 @@ function parse(url: string): URL | null {
 }
 
 /**
+ * A file: URL's path in a form two spellings of the same file agree on. Node
+ * percent-encodes `~ [ ] | ^` where Chromium leaves them literal, and Windows
+ * drive letters arrive in either case — so decode, and fold case when the path
+ * starts with a drive letter. Null when the escapes are malformed.
+ */
+function filePathKey(u: URL): string | null {
+  try {
+    const path = decodeURIComponent(u.pathname);
+    return /^\/[A-Za-z]:\//.test(path) ? path.toLowerCase() : path;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * True when `url` is the app's own document. Exact, not prefix-based: for
  * file: the path must be the packed index.html (any hash route), for the dev
  * server the origin must match. Used for navigation and for IPC senders.
@@ -31,7 +46,9 @@ export function isAppUrl(url: string, app: AppLocation): boolean {
   if (!u) return false;
   if (u.protocol === 'file:') {
     const own = parse(app.fileUrl);
-    return own !== null && u.host === own.host && u.pathname === own.pathname;
+    if (!own || u.host !== own.host) return false;
+    const key = filePathKey(u);
+    return key !== null && key === filePathKey(own);
   }
   return app.devOrigin !== null && u.origin === parse(app.devOrigin)?.origin;
 }
@@ -83,6 +100,8 @@ export const DEFAULT_SIZE = { width: 1200, height: 820 };
 const MIN_SIZE = { width: 480, height: 360 };
 /** A window must overlap some display by at least this much to count as reachable. */
 const MIN_VISIBLE = 120;
+/** …and its title bar must be on that display, or there is nothing to drag it back by. */
+const TITLE_BAR = 32;
 
 /** Saved window bounds if they are still sane and on a connected display; otherwise null. */
 export function usableBounds(saved: unknown, displays: Bounds[]): Bounds | null {
@@ -94,7 +113,8 @@ export function usableBounds(saved: unknown, displays: Bounds[]): Bounds | null 
   const reachable = displays.some((d) => {
     const overlapX = Math.min(b.x + b.width, d.x + d.width) - Math.max(b.x, d.x);
     const overlapY = Math.min(b.y + b.height, d.y + d.height) - Math.max(b.y, d.y);
-    return overlapX >= MIN_VISIBLE && overlapY >= MIN_VISIBLE;
+    const titleBarOnDisplay = b.y >= d.y && b.y + TITLE_BAR <= d.y + d.height;
+    return overlapX >= MIN_VISIBLE && overlapY >= MIN_VISIBLE && titleBarOnDisplay;
   });
   return reachable ? b : null;
 }
@@ -104,4 +124,21 @@ export const DISCONNECTED_MESSAGE = 'Your Nord was disconnected.';
 /** Why a transfer call found no open device: unplugged mid-session, or never opened. */
 export function notOpenMessage(wasUnplugged: boolean): string {
   return wasUnplugged ? DISCONNECTED_MESSAGE : 'Device not open.';
+}
+
+/** Two libusb device records name the same physical connection. */
+export function isSameUsbDevice(
+  a: { busNumber: number; deviceAddress: number },
+  b: { busNumber: number; deviceAddress: number },
+): boolean {
+  return a.busNumber === b.busNumber && a.deviceAddress === b.deviceAddress;
+}
+
+/**
+ * An error thrown in the main process reaches the page wrapped as
+ * "Error invoking remote method '<channel>': Error: <message>". Give the page
+ * the message it was meant to show.
+ */
+export function cleanIpcError(message: string): string {
+  return message.replace(/^Error invoking remote method '[^']*': (?:Error: )?/, '');
 }

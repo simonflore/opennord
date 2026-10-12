@@ -34,7 +34,8 @@ import { loadWindowState, saveWindowState } from './window-state';
 // Packed layout: <app>/electron/dist/main.cjs + <app>/dist/index.html, so the
 // web build is two levels up from __dirname (electron/dist), at the app root.
 const INDEX_HTML = join(__dirname, '../../dist/index.html');
-const DEV_URL = process.env.VITE_DEV_SERVER_URL ?? null;
+// Development only: a packed app must never take its trust anchor from the environment.
+const DEV_URL = app.isPackaged ? null : (process.env.VITE_DEV_SERVER_URL ?? null);
 const APP: AppLocation = { fileUrl: pathToFileURL(INDEX_HTML).href, devOrigin: DEV_URL };
 
 // The web build's `/` route is the public marketing landing page (the website's
@@ -88,13 +89,19 @@ function confineWebContents(): void {
 function restrictPermissions(): void {
   // A refusal is logged: when a feature quietly stops working, this line is the
   // only clue that the allow-list in shell-policy.ts is why.
+  // (Once per permission — Chromium re-checks the same one many times.)
+  const reported = new Set<string>();
   const decide = (permission: string, requester: string): boolean => {
     const allowed = isPermissionAllowed(permission, requester, APP);
-    if (!allowed) console.warn(`Refused permission "${permission}" to ${requester || '(no origin)'}`);
+    if (!allowed && !reported.has(permission)) {
+      reported.add(permission);
+      console.warn(`Refused permission "${permission}" to ${requester || '(no origin)'}`);
+    }
     return allowed;
   };
-  session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => {
-    callback(decide(permission, contents.getURL()));
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
+    // The frame that asked, not the page it sits in.
+    callback(decide(permission, details.requestingUrl || contents.getURL()));
   });
   session.defaultSession.setPermissionCheckHandler((contents, permission, requestingOrigin) =>
     decide(permission, requestingOrigin || contents?.getURL() || ''));
@@ -118,7 +125,10 @@ async function createWindow(): Promise<void> {
   if (saved.maximized) win.maximize();
 
   let saveTimer: NodeJS.Timeout | null = null;
-  const save = (): void => saveWindowState(stateFile, { bounds: win.getNormalBounds(), maximized: win.isMaximized() });
+  const save = (): void => {
+    if (win.isDestroyed()) return;
+    saveWindowState(stateFile, { bounds: win.getNormalBounds(), maximized: win.isMaximized() });
+  };
   const saveSoon = (): void => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(save, 500);
@@ -130,11 +140,13 @@ async function createWindow(): Promise<void> {
     save();
   });
   win.on('closed', () => {
+    if (saveTimer) clearTimeout(saveTimer);
     if (mainWindow === win) mainWindow = null;
   });
 
-  if (DEV_URL) await win.loadURL(`${DEV_URL}#${APP_ENTRY_HASH}`);
-  else await win.loadFile(INDEX_HTML, { hash: APP_ENTRY_HASH });
+  // Load the very URL the policy compares against, so the two cannot disagree
+  // about how the install path is spelled.
+  await win.loadURL(`${DEV_URL ?? APP.fileUrl}#${APP_ENTRY_HASH}`);
 }
 
 // One OpenNord at a time: two copies would compete for the Nord and the updater.
@@ -142,7 +154,11 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (!mainWindow) return;
+    if (!mainWindow) {
+      // macOS keeps the app alive with no window; a second launch should bring one back.
+      if (app.isReady()) void createWindow();
+      return;
+    }
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();

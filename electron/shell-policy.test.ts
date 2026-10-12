@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ALLOWED_PERMISSIONS, DEFAULT_SIZE, externalUrlToOpen, isAppOrigin, isAppUrl, isPermissionAllowed,
-  notOpenMessage, usableBounds,
+  ALLOWED_PERMISSIONS, DEFAULT_SIZE, cleanIpcError, externalUrlToOpen, isAppOrigin, isAppUrl, isPermissionAllowed,
+  isSameUsbDevice, notOpenMessage, usableBounds,
 } from './shell-policy';
 
 const packed = { fileUrl: 'file:///Applications/OpenNord.app/Contents/Resources/app.asar/dist/index.html', devOrigin: null };
@@ -22,6 +22,20 @@ describe('isAppUrl', () => {
     expect(isAppUrl('http://localhost:5174/', dev)).toBe(false);
     expect(isAppUrl('https://localhost:5173/', dev)).toBe(false);
     expect(isAppUrl('http://localhost.evil.test:5173/', dev)).toBe(false);
+  });
+  it('recognises itself however the install path was percent-encoded', () => {
+    // Node's pathToFileURL encodes ~ [ ] and friends; Chromium reports them literally.
+    const odd = { fileUrl: 'file:///Users/a%7Eb/Apps%20%5Bmusic%5D/OpenNord.app/dist/index.html', devOrigin: null };
+    expect(isAppUrl('file:///Users/a~b/Apps%20[music]/OpenNord.app/dist/index.html#/device', odd)).toBe(true);
+    expect(isAppUrl('file:///Users/a~b/Apps%20[music]/OpenNord.app/dist/other.html', odd)).toBe(false);
+  });
+  it('recognises itself on Windows whatever the drive-letter case', () => {
+    const win = { fileUrl: 'file:///C:/Users/JOSMIT%7E1/AppData/Local/Programs/OpenNord/resources/app.asar/dist/index.html', devOrigin: null };
+    expect(isAppUrl('file:///c:/Users/JOSMIT~1/AppData/Local/Programs/OpenNord/resources/app.asar/dist/index.html#/library', win)).toBe(true);
+    expect(isAppUrl('file:///D:/Users/JOSMIT~1/AppData/Local/Programs/OpenNord/resources/app.asar/dist/index.html', win)).toBe(false);
+  });
+  it('rejects a path with a malformed escape instead of throwing', () => {
+    expect(isAppUrl('file:///Applications/%E0%A4%A/index.html', packed)).toBe(false);
   });
   it('rejects the web and garbage', () => {
     expect(isAppUrl('https://www.nordkeyboards.com/', packed)).toBe(false);
@@ -89,6 +103,9 @@ describe('usableBounds', () => {
   it('drops bounds that only peek onto a display by a sliver', () => {
     expect(usableBounds({ x: 1500, y: 0, width: 1400, height: 900 }, [laptop])).toBeNull();
   });
+  it('drops bounds whose title bar is off the top of every display', () => {
+    expect(usableBounds({ x: 100, y: -800, width: 1300, height: 1000 }, [laptop])).toBeNull();
+  });
   it('drops nonsense', () => {
     for (const saved of [null, undefined, 'x', {}, { x: 0, y: 0, width: 10, height: 10 }, { x: NaN, y: 0, width: 900, height: 700 }, { x: 0, y: 0, width: '900', height: 700 }]) {
       expect(usableBounds(saved, [laptop])).toBeNull();
@@ -105,5 +122,29 @@ describe('notOpenMessage', () => {
   });
   it('keeps the plain message when nothing was ever opened', () => {
     expect(notOpenMessage(false)).toBe('Device not open.');
+  });
+});
+
+describe('cleanIpcError', () => {
+  it('removes the wrapper Electron puts around an error from the main process', () => {
+    expect(cleanIpcError("Error invoking remote method 'nord-usb:bulkIn': Error: Your Nord was disconnected."))
+      .toBe('Your Nord was disconnected.');
+  });
+  it('keeps the error name when it is not a plain Error', () => {
+    expect(cleanIpcError("Error invoking remote method 'nord-usb:open': LibUSBException: LIBUSB_ERROR_ACCESS"))
+      .toBe('LibUSBException: LIBUSB_ERROR_ACCESS');
+  });
+  it('leaves any other message alone', () => {
+    expect(cleanIpcError('No Nord found over USB.')).toBe('No Nord found over USB.');
+  });
+});
+
+describe('isSameUsbDevice', () => {
+  it('matches on bus and address', () => {
+    expect(isSameUsbDevice({ busNumber: 1, deviceAddress: 7 }, { busNumber: 1, deviceAddress: 7 })).toBe(true);
+  });
+  it('tells apart another port or another device on the same bus', () => {
+    expect(isSameUsbDevice({ busNumber: 1, deviceAddress: 7 }, { busNumber: 2, deviceAddress: 7 })).toBe(false);
+    expect(isSameUsbDevice({ busNumber: 1, deviceAddress: 7 }, { busNumber: 1, deviceAddress: 8 })).toBe(false);
   });
 });
