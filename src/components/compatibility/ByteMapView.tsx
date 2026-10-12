@@ -50,8 +50,7 @@ export function ByteMapView({ progress }: { progress: ModelProgress }) {
       <div className="mb-2 flex items-center gap-1.5 text-xs text-dim">
         <span className="font-semibold text-ink">{coveredBytes} decoded</span>
         {candidateBytes > 0 && <><span className="text-muted">·</span><span>{candidateBytes} identified</span></>}
-        <span className="text-muted">·</span>
-        <span>{controlCount} controls</span>
+        {controlCount > 0 && <><span className="text-muted">·</span><span>{controlCount} controls</span></>}
         {pct != null && <><span className="text-muted">·</span><span>{pct}% decoded</span></>}
       </div>
 

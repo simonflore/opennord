@@ -13,7 +13,7 @@ function formatVersion(raw: number): string {
 /**
  * Parse a Nord Stage 4 program/preset file into the OpenNord model.
  *
- * Uses the full offset map (all 406 params) + the interpret layer to populate
+ * Uses the full parameter map (maps.ts buildParamMap) + the interpret layer to populate
  * NS4Program section by section. Fields are filled as far as the current
  * interpretation tables reach; gaps remain undefined rather than guessed.
  * See the maintainers’ notes and the maintainers’ notes.

@@ -15,6 +15,7 @@ import { MORPH_BASE, MORPH_NONE } from './morphs.generated';
 import { DEP_IDS, DEP_TABLES, DEP_MORPH, DEP_DEFAULT_DEPS } from './deps.generated';
 import { ANALOG_CAT_561_8, ANALOG_WAVE_562_4 } from './synth-analog.generated';
 import { diffBytes } from '../clavia/diff';
+import { CBIN_BODY_OFFSET } from '../clavia/cbin';
 import type { Param } from './maps';
 
 // deps.generated covers osc types FM-H/FM-I/WAVE for the synth knob 2/3 params
@@ -35,6 +36,8 @@ export interface DecodedParam {
   value: number;
   /** Human-readable value where a table applies, else the raw integer. */
   display: string;
+  /** Identified but not a player's setting (see `Param.internal`). */
+  internal?: boolean;
 }
 
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
@@ -85,8 +88,11 @@ function depDisplay(
 
   const baseLayer = (rawById[basePid]?.length ?? 0) > 1 ? layer : 0;
   const baseRaw = rawById[basePid]?.[baseLayer] ?? 0;
-  const morphed = clamp(baseRaw + rawValue - offset, 0, maxRaw);
+  return morphTargetDisplay(basePid, clamp(baseRaw + rawValue - offset, 0, maxRaw), layer, rawById);
+}
 
+/** What a morph's base parameter shows at the morphed raw value. */
+function morphTargetDisplay(basePid: string, morphed: number, layer: number, rawById: Record<string, number[]>): string {
   if (basePid in DEP_TABLES) {
     const baseDepIds = DEP_IDS[basePid] ?? [];
     const baseDepVals = baseDepIds.map((did) => rawById[did]?.[layer] ?? 0);
@@ -97,6 +103,27 @@ function depDisplay(
   if (genDisplay !== undefined) return genDisplay;
   // Passthrough base (extern CC morphs etc.)
   return String(morphed);
+}
+
+/**
+ * A morph row read at its full width (`Param.morphOf`): "none" only when the stored
+ * delta is zero, else the base parameter's value at the full-precision target.
+ */
+function wideMorphDisplay(
+  bits: string, morphOf: NonNullable<Param['morphOf']>, rawValue: number, layer: number, rawById: Record<string, number[]>,
+): string | null {
+  const delta = rawValue - morphOf.span;
+  if (delta === 0) return MORPH_NONE;
+  const base = morphOf.base[layer];
+  if (!base || base.begBit < 0) return null;
+  const target = clamp(readField(bits, base.begBit, base.endBit) + delta, 0, morphOf.span) >> morphOf.shift;
+  return morphTargetDisplay(morphOf.baseId, target, layer, rawById);
+}
+
+/** The body's format version (×100, e.g. 313), or null when the file is too short to hold one. */
+function bodyFormatVersion(bits: string): number | null {
+  const beg = CBIN_BODY_OFFSET * 8;
+  return bits.length >= beg + 32 ? readField(bits, beg, beg + 31) : null;
 }
 
 /**
@@ -116,18 +143,26 @@ function morphDisplay(paramId: string, rawValue: number, layer: number, rawById:
 /** Decode every known parameter (all layers) from a file's bits. */
 export function decodeAllParams(bytes: Uint8Array, map: Param[]): DecodedParam[] {
   const bits = bytesToBitString(bytes);
+  // A parameter a later format version introduced is not in an older file: its bits
+  // were reserved zeros then, which would read as a real "off" or "0".
+  const version = bodyFormatVersion(bits);
+  const present = map.filter((p) => !(p.since && version !== null && version < p.since));
   // Pass 1: raw value of every param/layer (morphs need their base's value).
   const rawById: Record<string, number[]> = {};
-  for (const p of map) {
+  for (const p of present) {
     rawById[p.id] = p.layers.map((l) => (l.begBit < 0 ? NaN : readField(bits, l.begBit, l.endBit)));
   }
   // Pass 2: interpret (direct table, then morph, then raw).
   const out: DecodedParam[] = [];
-  for (const p of map) {
+  for (const p of present) {
     p.layers.forEach((layer, k) => {
       if (layer.begBit < 0) return;
       const value = rawById[p.id][k];
-      let label = Number.isNaN(value) ? null : interpretValue(p.id, p.name, value);
+      // A full-width morph row has its own reading; without its base it shows a dash, never
+      // the 8-bit morph paths below (they would take its 15-bit value for an 8-bit one).
+      let label = Number.isNaN(value) ? null
+        : p.morphOf ? (wideMorphDisplay(bits, p.morphOf, value, k, rawById) ?? '—')
+        : (p.display?.(value) ?? interpretValue(p.id, p.name, value));
       if (label === null && !Number.isNaN(value)) label = morphDisplay(p.id, value, k, rawById);
       if (label === null && !Number.isNaN(value)) label = depDisplay(p.id, value, k, rawById);
       out.push({
@@ -138,6 +173,7 @@ export function decodeAllParams(bytes: Uint8Array, map: Param[]): DecodedParam[]
         endBit: layer.endBit,
         value,
         display: label ?? (Number.isNaN(value) ? '—' : String(value)),
+        ...(p.internal ? { internal: true } : {}),
       });
     });
   }

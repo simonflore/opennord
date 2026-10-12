@@ -19,7 +19,12 @@
  * MSB-first from file start (the 44-byte CBIN header is included), exactly like
  * bits.ts / offset-map.generated.ts. Do NOT add these to the generated file.
  *
- * ## Remaining undecoded tail (corpus retry, 2026-06-24 — verdict: BLOCKED)
+ * ## Historical corpus hunt (2026-06-24), superseded by the firmware layout
+ * The firmware layout (layout.generated.ts, 2026-10-12) names every byte listed
+ * below without a hardware differential: 55-82 are the
+ * preset positions and name hashes, 106 the rotary horn angle, 418/469/520 the
+ * Extern parameters, 300/355 the 15-bit delay-tempo morph deltas. The verdict at
+ * the time was BLOCKED; the notes are kept as the record of that hunt.
  * The other varying-unmapped bytes were retried against the 357-program corpus and
  * stay out — they need a hardware differential (export → move ONE control → diff):
  *   - bytes 55-82: an OPTIONAL packed 4-byte-record region (129/357 all-zero; some
@@ -50,6 +55,6 @@ export const NS4_EXTRA_PARAMS: Param[] = [
   // @1940/2036, synth 414-7 — all 7 layers). The real piano octave shift @1940 is
   // a signed 4-bit field centered on 0 ({0,±1,−2}); byte 238 is a DIFFERENT 3-bit
   // field centered on 2 ({0,1,2,3,4}, default 2) that matches octave shift in only
-  // 65/357 files. It's a real, varying, still-UNIDENTIFIED piano field — left out
-  // until it can be correctly named (needs hardware differential).
+  // 65/357 files. The firmware layout has since named it: the piano aux-keyboard
+  // control's low bit, the piano effects section mode and an editor-focus flag.
 ];
