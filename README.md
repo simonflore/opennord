@@ -12,6 +12,8 @@
 > **back up your keyboard first** and don't run it on data you can't afford to lose.
 > You are responsible for what you send to your instrument.
 
+Why this exists, and where it's going: [`MANIFESTO.md`](MANIFESTO.md).
+
 OpenNord is **free and open source** (AGPL-3.0). It exists because everything that makes it possible — the Nord file-format knowledge, the decoders — was built by the community, in the open. This gives that work a home that outlives any one person and a place for the next contributor to plug in.
 
 ## What it does today
