@@ -15,7 +15,7 @@ to `WebUsbTransport` and `CapacitorUsbTransport`:
 ```
 renderer  ElectronUsbTransport (src/lib/device/electron-usb.ts)
             └─ window.nordNativeUsb   (electron/preload.ts, contextBridge)
-                 └─ nord-usb:* IPC     (electron/main.ts)
+                 └─ nord-usb:* IPC     (electron/nord-usb.ts)
                       └─ node-usb → detachKernelDriver + claim + bulk
 ```
 
@@ -23,6 +23,67 @@ renderer  ElectronUsbTransport (src/lib/device/electron-usb.ts)
 `ConnectPanel` picks `ElectronUsbTransport`. Everything above the four-method
 seam — decode, protocol, session, diagnostics, the partition probe — is reused
 untouched.
+
+`electron/main.ts` is startup wiring only. The rules it applies are pure
+functions in `electron/shell-policy.ts`, tested without Electron.
+
+## What the shell enforces
+
+The page inside the window is the app and nothing else, with no more reach than
+it uses.
+
+- **Links leave the app.** A link that would open a new window is refused and,
+  if it is `https:`, handed to the system browser. Nothing else — `http:`,
+  `file:`, custom schemes — is opened at all.
+- **The window cannot navigate away.** Only the packed `dist/index.html` (any
+  hash route) or, in development, the Vite server counts as the app.
+- **The renderer is sandboxed** (`sandbox: true`, with `contextIsolation` on and
+  `nodeIntegration` off). The preload uses only `contextBridge` and
+  `ipcRenderer`.
+- **Permissions are refused unless listed** in `ALLOWED_PERMISSIONS`, and only
+  for the app itself (in a packed build that means any `file:` page — it is the
+  navigation rule above that keeps other files out): MIDI (live keyboard input), clipboard write (copy
+  buttons), file access (the folder picker and save dialog). Camera, microphone,
+  location, notifications and WebUSB are refused — the Nord goes through the
+  native bridge. A refusal is logged to the console, which is the first place to
+  look when a feature silently stops working. `midiSysex` is listed because
+  Chromium reports even a plain MIDI request under that name.
+- **The Nord bridge answers only the app window's top frame.**
+- **An unplugged Nord is noticed.** The dead handle is dropped, and the transfer
+  in flight and every later call fail with "Your Nord was disconnected.";
+  reconnecting needs no restart. The device list decides, not the error code or
+  the detach event alone: macOS reports a pulled cable as a plain transfer
+  error, and libusb's Windows hotplug together with the UsbDk backend is not
+  known to be reliable. **Untested on real hardware** — see the checklist below.
+- **One instance.** A second launch focuses the first.
+- **Window size and position are remembered** in `window-state.json` under the
+  app's data folder (`~/Library/Application Support/OpenNord/` on macOS), and
+  ignored if that display is gone.
+
+**Requires macOS 13 or newer** (Electron 44's own floor; declared in
+`build.mac.minimumSystemVersion`) and Windows 10 or newer.
+
+### Hardware checklist (not automatable)
+
+- Connect, start a backup or transfer, pull the cable: the operation fails with
+  "Your Nord was disconnected."; plug back in and Connect works with no restart.
+- Windows with UsbDk installed and a Stage 2: connect, then plug or unplug some
+  *other* USB device. The Nord must stay connected. If it drops, or will not
+  open at all, pin `usb` to 2.17.x (its own polling, no libusb hotplug).
+- Quit the app while a Nord is connected: it exits promptly.
+
+Not done, on purpose: a **content security policy** (a wrong one silently breaks
+workers, fonts or the AI calls — it needs its own tested pass) and **Electron
+fuses** (they need the newer packer or a pre-signing hook).
+
+### Icon
+
+`electron/icon/icon.svg` is the source. `npm run icons` renders it to
+`icon.png` with Electron itself; electron-builder makes the `.icns` and `.ico`
+from that at pack time. The same command renders the website's favicon
+fallbacks from `public/favicon.svg` — the knob on its own, since the tick scale
+and legend do not survive 16 px. Re-run it only when an SVG changes, and commit
+the PNGs.
 
 ## Setup
 
@@ -55,7 +116,11 @@ Both pass `--publish never`. The `publish` entry in `package.json` exists so
 electron-builder writes the `latest*.yml` update feeds; it must never upload by
 itself — on a tag build in CI it would try to.
 
-The macOS pack signs with the Developer ID certificate in the keychain. It is
+The macOS pack signs with the Developer ID certificate in the keychain, through
+`electron/sign-mac.cjs`. That hook exists because electron-builder 26 names the
+certificate to `codesign` by its name, and `codesign` cannot find one whose name
+has a non-ASCII character ("Simon Floré … no identity found"); the hook names it
+by fingerprint instead, read from the keychain at pack time. It is
 notarized only when `APPLE_KEYCHAIN_PROFILE` is set, which the release command
 does; a plain `electron:pack` gives a signed, un-notarized app that is fine for
 local testing.
@@ -138,9 +203,9 @@ be repaired by the next one.
 - Automatic checks fail quietly. **Check for Updates…** (app menu on macOS, Help
   elsewhere) always answers, including with the error.
 - Only published, non-pre-release versions with a plain `x.y.z` number are seen.
-- The app needs macOS 12 or later (Electron 41; `build.mac.minimumSystemVersion`).
+- The app needs macOS 13 or later (Electron 44; `build.mac.minimumSystemVersion`).
   `npm run release:desktop` writes that minimum into `latest-mac.yml` as the
-  Darwin version electron-updater compares (`21.0.0`), so an older Mac skips the
+  Darwin version electron-updater compares (`22.0.0`), so an older Mac skips the
   update instead of installing an app it can't open.
 - On macOS the app must run from Applications to update. Anywhere else it does
   not check at all; it offers to move itself, at launch and from **Check for
@@ -211,7 +276,7 @@ that finally confirms the Stage 2 partition map. That's the acceptance test.
 - **Windows**: libusb's default WinUSB backend **cannot** take a device off a
   foreign kernel driver (`ClaviaUSB64.sys`, bound to pre-0x0024 PIDs like the
   Stage 2) — `detachKernelDriver` is a no-op there, same wall as the browser.
-  `main.ts` switches libusb to the **UsbDk backend** on Windows
+  `nord-usb.ts` switches libusb to the **UsbDk backend** on Windows
   (`useUsbDkBackend()`) when the UsbDk runtime is installed, which captures the
   device without replacing NSM's driver. Falls back to WinUSB otherwise (fine
   for the already-WinUSB-bound Stage 3/4). If a device still resists, a one-time
@@ -248,5 +313,5 @@ that finally confirms the Stage 2 partition map. That's the acceptance test.
     still needs a real Secured-core machine to confirm.
 - **Endpoints** are discovered from the descriptors (`findBulk`), mirroring the
   web transport — not hardcoded to the Stage 4 layout.
-- Keep `contextIsolation: true` / `nodeIntegration: false`; the renderer only
+- Keep `sandbox: true` / `contextIsolation: true` / `nodeIntegration: false`; the renderer only
   sees the narrow `nordNativeUsb` surface.

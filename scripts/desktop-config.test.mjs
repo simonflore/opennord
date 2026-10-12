@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -45,5 +45,24 @@ describe('desktop build config', () => {
     expect(build.mac.identity).toBeUndefined();
     const plist = readFileSync(new URL('../electron/entitlements.mac.plist', import.meta.url), 'utf8');
     expect(plist).toContain('com.apple.security.cs.allow-jit');
+  });
+
+  it('declares the oldest macOS that Electron itself supports', () => {
+    // Electron 44 needs macOS 13. Declaring it makes the Finder refuse to launch
+    // on older systems with a clear message, instead of the app crashing.
+    expect(build.mac.minimumSystemVersion).toBe('13.0');
+  });
+
+  it('signs macOS through the fingerprint hook', () => {
+    // electron-builder 26 passes the certificate to codesign by name, which
+    // fails for a name with a non-ASCII character. See electron/sign-mac.cjs.
+    expect(build.mac.sign).toBe('electron/sign-mac.cjs');
+    expect(existsSync(new URL('../electron/sign-mac.cjs', import.meta.url))).toBe(true);
+  });
+
+  it('ships its own icon, not the default Electron one', () => {
+    expect(build.mac.icon).toBe('electron/icon/icon.png');
+    expect(build.win.icon).toBe('electron/icon/icon.png');
+    expect(existsSync(new URL('../electron/icon/icon.png', import.meta.url))).toBe(true);
   });
 });

@@ -9,139 +9,34 @@
  * (see memory: windows-webusb-driver-cutoff).
  *
  * The renderer is the unchanged Vite SPA. All Nord USB access goes through the
- * `nord-usb:*` IPC channels below, which the preload re-exposes as
+ * `nord-usb:*` IPC channels in nord-usb.ts, which the preload re-exposes as
  * `window.nordNativeUsb` — the ElectronUsbTransport's four-method seam.
  *
  * NOTE: node-usb is native but N-API (ABI-stable across Node and Electron) and
  * ships prebuilds for every target, so it must NOT be rebuilt: a local
  * `electron-rebuild` writes a host-platform `build/Release/usb_bindings.node`,
  * which node-gyp-build then prefers over the correct `prebuilds/` binary and
- * which breaks a cross-platform pack. The `import` below is therefore fenced on
- * three sides: `PREBUILDS_ONLY=1` (an esbuild banner, so it is set before this
+ * which breaks a cross-platform pack. The `usb` import (in nord-usb.ts) is
+ * therefore fenced on three sides: `PREBUILDS_ONLY=1` (an esbuild banner, so it is set before this
  * file's first `require`) makes node-gyp-build skip `build/` outright,
  * `build.files` drops it from the archive, and `usb-native-guard.mjs` fails the
  * pack if either slips. See electron/README.md.
  */
-import { app, BrowserWindow, ipcMain, Menu, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, Menu, screen, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { join } from 'node:path';
-import { usb, findByIds, getDeviceList, useUsbDkBackend, type InEndpoint, type Interface, type OutEndpoint } from 'usb';
+import { pathToFileURL } from 'node:url';
 import { buildMenuTemplate } from './menu';
+import { initNordUsb, type NordUsbHandle } from './nord-usb';
+import { DEFAULT_SIZE, externalUrlToOpen, isAppUrl, isPermissionAllowed, type AppLocation } from './shell-policy';
 import { startUpdater, type UpdaterHandle } from './updater';
+import { loadWindowState, saveWindowState } from './window-state';
 
-const NORD_VENDOR = 0x0ffc;
-
-/**
- * Windows only: libusb's default (WinUSB) backend can't take a device from a
- * foreign kernel driver — so a Nord bound to NSM's custom `ClaviaUSB64.sys`
- * (product id < 0x0024, e.g. Stage 2) fails to open, exactly like the browser.
- * The UsbDk backend CAN capture such a device without replacing its driver
- * (NSM keeps working). It needs the one-time UsbDk runtime installed; if it's
- * missing, `useUsbDkBackend()` throws and we fall back to WinUSB (works for the
- * WinUSB-bound Stage 3/4). `usbDkActive` lets the renderer prompt to install it.
- */
-let usbDkActive = false;
-function initWindowsBackend(): void {
-  if (process.platform !== 'win32') return;
-  try {
-    useUsbDkBackend();
-    usbDkActive = true;
-  } catch {
-    usbDkActive = false; // UsbDk not installed → default WinUSB backend stands.
-  }
-}
-
-interface OpenState {
-  device: usb.Device;
-  iface: Interface;
-  inEndpoint: InEndpoint;
-  outEndpoint: OutEndpoint;
-}
-let state: OpenState | null = null;
-let updater: UpdaterHandle | null = null;
-
-function nordDevices(): usb.Device[] {
-  return getDeviceList().filter((d) => d.deviceDescriptor.idVendor === NORD_VENDOR);
-}
-
-/** Find the vendor bulk interface + its bulk IN/OUT endpoints (mirrors the web transport). */
-function findBulk(device: usb.Device): { iface: Interface; inEp: InEndpoint; outEp: OutEndpoint } {
-  device.open();
-  for (const iface of device.interfaces ?? []) {
-    const inEp = iface.endpoints.find((e) => e.direction === 'in' && e.transferType === usb.LIBUSB_TRANSFER_TYPE_BULK) as InEndpoint | undefined;
-    const outEp = iface.endpoints.find((e) => e.direction === 'out' && e.transferType === usb.LIBUSB_TRANSFER_TYPE_BULK) as OutEndpoint | undefined;
-    if (inEp && outEp) return { iface, inEp, outEp };
-  }
-  throw new Error('No bulk interface found on the Nord.');
-}
-
-function registerUsbIpc(): void {
-  // Renderer can surface a "install UsbDk" hint on Windows when it isn't active.
-  ipcMain.handle('nord-usb:backend', () => ({ platform: process.platform, usbDkActive }));
-
-  ipcMain.handle('nord-usb:list', () =>
-    nordDevices().map((d) => ({
-      productId: d.deviceDescriptor.idProduct,
-      // productName needs a string-descriptor read (async); left undefined for now.
-      productName: undefined as string | undefined,
-    })),
-  );
-
-  ipcMain.handle('nord-usb:open', async (_e, productId?: number) => {
-    const device = productId ? findByIds(NORD_VENDOR, productId) : nordDevices()[0];
-    if (!device) throw new Error('No Nord found over USB.');
-    const { iface, inEp, outEp } = findBulk(device);
-    // On Linux/macOS, take the interface from its kernel driver — the move WebUSB
-    // can't make. Best-effort: unsupported on Windows (LIBUSB_ERROR_NOT_SUPPORTED),
-    // where the UsbDk backend (initWindowsBackend) does the capturing instead.
-    try {
-      if (iface.isKernelDriverActive()) iface.detachKernelDriver();
-    } catch {
-      /* not supported on this platform/backend — UsbDk or WinUSB handles access */
-    }
-    iface.claim();
-    state = { device, iface, inEndpoint: inEp, outEndpoint: outEp };
-  });
-
-  ipcMain.handle('nord-usb:bulkOut', (_e, dataB64: string) =>
-    new Promise<void>((resolve, reject) => {
-      if (!state) return reject(new Error('Device not open.'));
-      state.outEndpoint.transfer(Buffer.from(dataB64, 'base64'), (err) => (err ? reject(err) : resolve()));
-    }),
-  );
-
-  // `timeoutMs` (0/absent = wait forever) is libusb's own transfer timeout: it
-  // cancels the read, so a silent device can't strand one. A timeout resolves
-  // null (an Error loses its errno crossing IPC); the renderer maps it.
-  ipcMain.handle('nord-usb:bulkIn', (_e, maxLength: number, timeoutMs?: number) =>
-    new Promise<string | null>((resolve, reject) => {
-      if (!state) return reject(new Error('Device not open.'));
-      state.inEndpoint.timeout = timeoutMs ?? 0;
-      state.inEndpoint.transfer(maxLength, (err, data) => {
-        if (err?.errno === usb.LIBUSB_TRANSFER_TIMED_OUT) return resolve(null);
-        if (err) return reject(err);
-        resolve(Buffer.from(data ?? Buffer.alloc(0)).toString('base64'));
-      });
-    }),
-  );
-
-  ipcMain.handle('nord-usb:close', () =>
-    new Promise<void>((resolve) => {
-      if (!state) return resolve();
-      const { iface, device } = state;
-      state = null;
-      iface.release(true, () => {
-        try {
-          device.close();
-        } catch {
-          /* already closed */
-        }
-        resolve();
-        // A restart prompt held back during the session can show now.
-        updater?.deviceClosed();
-      });
-    }),
-  );
-}
+// Packed layout: <app>/electron/dist/main.cjs + <app>/dist/index.html, so the
+// web build is two levels up from __dirname (electron/dist), at the app root.
+const INDEX_HTML = join(__dirname, '../../dist/index.html');
+// Development only: a packed app must never take its trust anchor from the environment.
+const DEV_URL = app.isPackaged ? null : (process.env.VITE_DEV_SERVER_URL ?? null);
+const APP: AppLocation = { fileUrl: pathToFileURL(INDEX_HTML).href, devOrigin: DEV_URL };
 
 // The web build's `/` route is the public marketing landing page (the website's
 // front door). A downloaded desktop app has already "arrived", so it should open
@@ -149,40 +44,150 @@ function registerUsbIpc(): void {
 // routing, so we point the initial load at the Library route's hash.
 const APP_ENTRY_HASH = '/library/programs';
 
-async function createWindow(): Promise<void> {
-  const win = new BrowserWindow({
-    width: 1200,
-    height: 820,
-    webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false },
-  });
-  const devUrl = process.env.VITE_DEV_SERVER_URL;
-  if (devUrl) await win.loadURL(`${devUrl}#${APP_ENTRY_HASH}`);
-  // Packed layout: <app>/electron/dist/main.cjs + <app>/dist/index.html, so the
-  // web build is two levels up from __dirname (electron/dist), at the app root.
-  else await win.loadFile(join(__dirname, '../../dist/index.html'), { hash: APP_ENTRY_HASH });
+let mainWindow: BrowserWindow | null = null;
+let nordUsb: NordUsbHandle | null = null;
+let updater: UpdaterHandle | null = null;
+
+/** Hand an https link to the system browser; anything else goes nowhere. */
+function openExternally(url: string): void {
+  const safe = externalUrlToOpen(url);
+  if (safe) void shell.openExternal(safe);
+  else console.warn(`Refused to open ${url}`);
 }
 
-app.whenReady().then(() => {
-  initWindowsBackend(); // Windows: switch libusb to UsbDk if available (before any device access).
-  registerUsbIpc();
-  Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate({
-    mac: process.platform === 'darwin',
-    appName: app.name,
-    onCheckForUpdates: () => updater?.checkNow(),
-  }) as MenuItemConstructorOptions[]));
-  void createWindow();
-  // After the window, and guarded: the updater exists to repair a broken
-  // release, so nothing in it may ever stop the app from opening.
-  try {
-    updater = startUpdater({ isDeviceOpen: () => state !== null });
-  } catch (error) {
-    console.error('The updater failed to start:', error);
-  }
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) void createWindow();
-  });
-});
+/** The Nord bridge answers only the top frame of the app window, showing the app itself. */
+function isTrustedSender(event: IpcMainInvokeEvent): boolean {
+  const frame = event.senderFrame;
+  return mainWindow !== null
+    && event.sender === mainWindow.webContents
+    && frame !== null
+    && frame === event.sender.mainFrame
+    && isAppUrl(frame.url, APP);
+}
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+/**
+ * Confine every page the app ever shows — this window and any created later:
+ * no new app windows (links open in the browser), no navigating away.
+ */
+function confineWebContents(): void {
+  app.on('web-contents-created', (_event, contents) => {
+    contents.setWindowOpenHandler(({ url }) => {
+      openExternally(url);
+      return { action: 'deny' };
+    });
+    const stayInApp = (event: { preventDefault(): void; url: string }): void => {
+      if (isAppUrl(event.url, APP)) return;
+      event.preventDefault();
+      openExternally(event.url);
+    };
+    contents.on('will-navigate', stayInApp);
+    contents.on('will-redirect', stayInApp);
+  });
+}
+
+/** Deny every browser permission except the few the app uses, and only to the app. */
+function restrictPermissions(): void {
+  // A refusal is logged: when a feature quietly stops working, this line is the
+  // only clue that the allow-list in shell-policy.ts is why.
+  // (Once per permission — Chromium re-checks the same one many times.)
+  const reported = new Set<string>();
+  const decide = (permission: string, requester: string): boolean => {
+    const allowed = isPermissionAllowed(permission, requester, APP);
+    if (!allowed && !reported.has(permission)) {
+      reported.add(permission);
+      console.warn(`Refused permission "${permission}" to ${requester || '(no origin)'}`);
+    }
+    return allowed;
+  };
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
+    // The frame that asked, not the page it sits in.
+    callback(decide(permission, details.requestingUrl || contents.getURL()));
+  });
+  session.defaultSession.setPermissionCheckHandler((contents, permission, requestingOrigin) =>
+    decide(permission, requestingOrigin || contents?.getURL() || ''));
+}
+
+async function createWindow(): Promise<void> {
+  const stateFile = join(app.getPath('userData'), 'window-state.json');
+  const saved = loadWindowState(stateFile, screen.getAllDisplays().map((d) => d.workArea));
+
+  const win = new BrowserWindow({
+    ...DEFAULT_SIZE,
+    ...(saved.bounds ?? {}),
+    webPreferences: {
+      preload: join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  mainWindow = win;
+  if (saved.maximized) win.maximize();
+
+  let saveTimer: NodeJS.Timeout | null = null;
+  const save = (): void => {
+    if (win.isDestroyed()) return;
+    saveWindowState(stateFile, { bounds: win.getNormalBounds(), maximized: win.isMaximized() });
+  };
+  const saveSoon = (): void => {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 500);
+  };
+  win.on('resize', saveSoon);
+  win.on('move', saveSoon);
+  win.on('close', () => {
+    if (saveTimer) clearTimeout(saveTimer);
+    save();
+  });
+  win.on('closed', () => {
+    if (saveTimer) clearTimeout(saveTimer);
+    if (mainWindow === win) mainWindow = null;
+  });
+
+  // Load the very URL the policy compares against, so the two cannot disagree
+  // about how the install path is spelled.
+  await win.loadURL(`${DEV_URL ?? APP.fileUrl}#${APP_ENTRY_HASH}`);
+}
+
+// One OpenNord at a time: two copies would compete for the Nord and the updater.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) {
+      // macOS keeps the app alive with no window; a second launch should bring one back.
+      if (app.isReady()) void createWindow();
+      return;
+    }
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+
+  confineWebContents();
+
+  app.whenReady().then(() => {
+    restrictPermissions();
+    nordUsb = initNordUsb({ isTrustedSender, onClosed: () => updater?.deviceClosed() });
+    Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate({
+      mac: process.platform === 'darwin',
+      appName: app.name,
+      onCheckForUpdates: () => updater?.checkNow(),
+    }) as MenuItemConstructorOptions[]));
+    void createWindow();
+    // After the window, and guarded: the updater exists to repair a broken
+    // release, so nothing in it may ever stop the app from opening.
+    try {
+      updater = startUpdater({ isDeviceOpen: () => nordUsb?.isOpen() ?? false });
+    } catch (error) {
+      console.error('The updater failed to start:', error);
+    }
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) void createWindow();
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
+}

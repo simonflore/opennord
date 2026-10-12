@@ -98,9 +98,9 @@ describe('the mac update feed minimum', () => {
     expect(feedMinimumSystemVersion('26')).toBe('25.0.0');
     expect(() => feedMinimumSystemVersion('10.15')).toThrow(/No Darwin version/);
   });
-  it('is set for the real config (Electron 38+ needs macOS 12)', () => {
-    expect(build.mac.minimumSystemVersion).toBe('12.0');
-    expect(feedMinimumSystemVersion(build.mac.minimumSystemVersion)).toBe('21.0.0');
+  it('is set for the real config (Electron 44 needs macOS 13)', () => {
+    expect(build.mac.minimumSystemVersion).toBe('13.0');
+    expect(feedMinimumSystemVersion(build.mac.minimumSystemVersion)).toBe('22.0.0');
   });
   it('adds the field to latest-mac.yml, or replaces it', () => {
     const yml = "version: 0.2.0\nfiles:\n  - url: OpenNord-mac.zip\nreleaseDate: '2026-10-12'\n";

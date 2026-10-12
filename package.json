@@ -26,7 +26,8 @@
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron electron/dist/main.cjs\"",
     "electron:pack": "node scripts/usb-native-guard.mjs clean && npm run build:electron && npm run electron:build && electron-builder --mac --universal --publish never && node scripts/usb-native-guard.mjs verify --target darwin-x64+arm64",
     "electron:pack:win": "node scripts/usb-native-guard.mjs clean && npm run build:electron && npm run electron:build && electron-builder --win --x64 --publish never && node scripts/usb-native-guard.mjs verify --target win32-x64",
-    "release:desktop": "node scripts/release-desktop.mjs"
+    "release:desktop": "node scripts/release-desktop.mjs",
+    "icons": "electron scripts/make-icons.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.84",
@@ -64,7 +65,7 @@
     "capacitor-nord-usb": "file:plugins/capacitor-nord-usb",
     "concurrently": "^9.2.5",
     "cross-env": "^10.0.0",
-    "electron": "^41.10.7",
+    "electron": "^44.7.0",
     "electron-builder": "^26.17.0",
     "electron-updater": "^6.8.9",
     "esbuild": "^0.28.0",
@@ -107,14 +108,17 @@
         "zip"
       ],
       "category": "public.app-category.music",
-      "minimumSystemVersion": "12.0",
+      "minimumSystemVersion": "13.0",
       "artifactName": "OpenNord-mac.${ext}",
       "hardenedRuntime": true,
       "entitlements": "electron/entitlements.mac.plist",
-      "entitlementsInherit": "electron/entitlements.mac.plist"
+      "entitlementsInherit": "electron/entitlements.mac.plist",
+      "icon": "electron/icon/icon.png",
+      "sign": "electron/sign-mac.cjs"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "electron/icon/icon.png"
     },
     "nsis": {
       "perMachine": false,

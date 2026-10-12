@@ -14,7 +14,7 @@ const DARWIN_FOR_MACOS = { 11: 20, 12: 21, 13: 22, 14: 23, 15: 24, 26: 25 };
 
 /**
  * The update feed's minimum OS, from the app's own minimum (build.mac.
- * minimumSystemVersion, e.g. "12.0", the oldest macOS the bundled Electron
+ * minimumSystemVersion, e.g. "13.0", the oldest macOS the bundled Electron
  * runs on). electron-builder writes that into Info.plist only, not into
  * latest-mac.yml, so without this an older Mac would download an update it
  * can't open.
