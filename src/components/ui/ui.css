@@ -74,9 +74,10 @@
   .on-split--inspector:not(.on-split--solo):not(.on-split--full) { grid-template-columns: minmax(0, 1fr) clamp(440px, 34vw, 540px); }
   .on-split--inspector:not(.on-split--full) .ps-grid { grid-template-columns: minmax(0, 1fr); }
 }
-/* The console uses the window's width: the shell's <main> drops its 1100px
-   reading column while it holds the inspector split (every other page keeps it). */
-.on-content:has(.on-split--inspector) { max-width: 1680px; }
+/* The Library uses the window's width: the shell's <main> drops its 1100px
+   reading column while it holds a master/detail split (the program console,
+   and a sample or piano beside its list); every other page keeps it. */
+.on-content:has(.on-split) { max-width: 1680px; }
 /* The detail pane owns its own scroll; its header is pinned below. */
 .on-split__detail { min-width: 0; min-height: 0; overflow-y: auto; }
 /* Program header stays put while the body (engines, FX, samples…) scrolls.

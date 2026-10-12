@@ -107,7 +107,7 @@
      both resolve to this, so they cannot drift apart. NOTE: the app shell's
      <main> (routes/root.tsx) is max-w-[1100px] and is deliberately NOT changed
      here — it sits beside the rail and is a different column (and widens to
-     1680px for the programs console: ui.css, .on-content:has(.on-split--inspector)). */
+     1680px for the Library's master/detail pages: ui.css, .on-content:has(.on-split)). */
   --container-content: 1080px;
 
   /* Tailwind's default spacing step is 4px (p-1=4px … p-4=16px, p-6=24px),

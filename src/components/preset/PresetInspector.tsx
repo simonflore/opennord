@@ -48,7 +48,9 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
   const stacked = voices.length > 1;
 
   return (
-    <div className="ps">
+    // The Library page now uses the window's width (ui.css); a preset is one
+    // or two cards and a parameter table, which read best at the old width.
+    <div className="ps max-w-[960px]">
       <div className="ps-hd">
         <div className="ps-hd-id">
           <IdentityLcd name={entry.name} lines={[`${KIND_LABEL[entry.kind]} · ${where}`]} />

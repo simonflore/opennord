@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Button, SectionLabel } from '@/components/ui';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Button } from '@/components/ui';
 import { KeyboardZoneMap } from '@/components/sample/KeyboardZoneMap';
 import { MidiConnect } from '@/components/sample/MidiConnect';
 import { useOptionalMidi } from '@/lib/midi/MidiContext';
@@ -57,11 +57,11 @@ export function PianoListen({ bytes }: { bytes: Uint8Array }) {
     return () => clearSink(sink);
   }, [engine, setSink, clearSink]);
 
-  if (!dir) return <p className="ps-sub">This piano's sounds can't be played here.</p>;
+  if (!dir) return <ListenCard>This piano's sounds can't be played here.</ListenCard>;
 
   return (
-    <div style={{ marginTop: 14 }}>
-      <SectionLabel>Listen</SectionLabel>
+    <div className="ps-card" style={{ marginTop: 12 }}>
+      <h4>LISTEN · KEYBOARD</h4>
       <label style={{ display: 'grid', gridTemplateColumns: '5.5rem 1fr 2.5rem', alignItems: 'center', gap: 10, marginTop: 8 }}>
         <span className="ps-sub" style={{ margin: 0 }}>Velocity</span>
         <input
@@ -114,5 +114,15 @@ function RecordingButtons({ bytes, velocity }: { bytes: Uint8Array; velocity: nu
       </div>
       {error && <p className="ps-sub on-error" style={{ marginTop: 8 }}>{error}</p>}
     </>
+  );
+}
+
+/** The Listen card with only a note in it: nothing to play yet, or nothing playable here. */
+export function ListenCard({ children }: { children: ReactNode }) {
+  return (
+    <div className="ps-card" style={{ marginTop: 12 }}>
+      <h4>LISTEN · KEYBOARD</h4>
+      <p className="ps-sub" style={{ margin: 0 }}>{children}</p>
+    </div>
   );
 }

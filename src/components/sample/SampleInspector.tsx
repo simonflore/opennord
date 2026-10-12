@@ -11,6 +11,7 @@ import { useSampleTransport } from './useSampleTransport';
 import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
 import { StrokeList, type InspectorStroke } from './StrokeList';
+import { DetailColumns } from '../library/DetailColumns';
 import { SampleEditPanel } from './SampleEditPanel';
 import { SampleKeyboard } from './SampleKeyboard';
 import { SampleConvert } from './SampleConvert';
@@ -170,21 +171,31 @@ export function SampleInspector({ initial, factory }: {
   const v12 = loaded?.file.codec === 3 && mapVersion === 12;
   const rootSplitOnly = !!loaded?.file.legacy || v12;
 
+  const editable = ((loaded?.file.codec === 3 || loaded?.file.codec === 4) && (loaded?.zones.length ?? 0) > 0) || legacyEditable;
+  const shown = loaded && loaded.file.recognized ? loaded : null;
+  const unisonSummary = shown ? sampleUnisonView(shown.bytes)?.summary ?? null : null;
+
+  // Open a file for a quick look. Alone above the empty pane; beside a sample
+  // it moves into the side column, out of the instrument's way.
+  const dropZone = (
+    <label
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) onFile(f); }}
+      style={{ display: 'block', padding: shown ? 16 : 28, borderRadius: 'var(--r-lg)', marginTop: shown ? 12 : 0, marginBottom: shown ? 0 : 16, cursor: 'pointer',
+        background: dragOver ? 'var(--surface)' : 'transparent',
+        border: `2px dashed ${dragOver ? 'var(--red)' : 'var(--line)'}`, textAlign: 'center', color: 'var(--dim)' }}
+    >
+      <div style={{ color: 'var(--ink)', fontWeight: 600 }}>Preview a sample</div>
+      <div style={{ fontSize: 12, marginTop: 4 }}>Drop or click to open one for a quick look — <code>.nsmp</code>, <code>.nsmp3</code>, <code>.nsmp4</code>. Use <strong>+ Import sample</strong> to save it to your library.</div>
+      <input type="file" accept=".nsmp,.nsmp3,.nsmp4" style={{ display: 'none' }}
+        onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+    </label>
+  );
+
   return (
     <div>
-      <label
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) onFile(f); }}
-        style={{ display: 'block', padding: 28, borderRadius: 'var(--r-lg)', marginBottom: 16, cursor: 'pointer',
-          background: dragOver ? 'var(--surface)' : 'transparent',
-          border: `2px dashed ${dragOver ? 'var(--red)' : 'var(--line)'}`, textAlign: 'center', color: 'var(--dim)' }}
-      >
-        <div style={{ color: 'var(--ink)', fontWeight: 600 }}>Preview a sample</div>
-        <div style={{ fontSize: 12, marginTop: 4 }}>Drop or click to open one for a quick look — <code>.nsmp</code>, <code>.nsmp3</code>, <code>.nsmp4</code>. Use <strong>+ Import sample</strong> to save it to your library.</div>
-        <input type="file" accept=".nsmp,.nsmp3,.nsmp4" style={{ display: 'none' }}
-          onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
-      </label>
+      {!shown && dropZone}
 
       {loaded && !loaded.file.recognized && (
         <div className="ps">
@@ -193,83 +204,91 @@ export function SampleInspector({ initial, factory }: {
         </div>
       )}
 
-      {loaded && loaded.file.recognized && (
+      {shown && (
         <div className="ps">
-          <SampleHeader view={{ ...sampleHeaderView(loaded.file, loaded.bytes.length, loaded.name), gainDetune: gainDetuneView(loaded.bytes), truVibrato: truVibratoView(loaded.bytes), ...voicingView(loaded.bytes) }} />
+          <SampleHeader view={{ ...sampleHeaderView(shown.file, shown.bytes.length, shown.name), gainDetune: gainDetuneView(shown.bytes), truVibrato: truVibratoView(shown.bytes), ...voicingView(shown.bytes) }} />
 
-          {/* Keyboard-map editor leads once we've decoded the key map; edits patch
-              back into the file in place (audio preserved). Legacy (NWS-container,
-              OG) files edit in place too when legacyEditable (v9/v10 map with
-              zones) — see patchLegacyNsmp. Otherwise a friendly note + the
-              read-only key map. */}
-          {((loaded.file.codec === 3 || loaded.file.codec === 4) && loaded.zones.length > 0) || legacyEditable
-            ? <SampleEditPanel
-                key={loaded.loadId}
-                initial={editModel(loaded.file, loaded.zones)}
-                bytes={loaded.bytes}
-                codec={loaded.file.codec === 4 ? 4 : loaded.file.legacy ? 'og' : 3}
-                legacy={loaded.file.legacy}
-                rootSplitOnly={rootSplitOnly}
-                // Factory content drives the editor's "edit it for your own use" disclaimer.
-                factory={loaded.fromInitial && !!factory}
-                unison={sampleUnisonView(loaded.bytes)?.summary ?? null}
-                onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
-                onNoteOn={(midi) => { loaded.sampler?.noteOn(midi, 100); transport.refresh(); }}
-                onNoteOff={(midi) => loaded.sampler?.noteOff(midi)}
-                soundingMidis={soundingMidis}
-                playableZones={loaded.playableZones}
-              />
-            : loaded.file.legacy && loaded.zones.length > 0
-              ? (
-                // Legacy .nsmp we can't patch (unrecognized map version): decoded
-                // but not editable in place — show the map read-only (click a
-                // band to audition), and point to conversion.
-                <>
-                  <SampleKeyboard
-                    zones={editModel(loaded.file, loaded.zones).zones}
-                    onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
-                    onNoteOn={(midi) => { loaded.sampler?.noteOn(midi, 100); transport.refresh(); }}
-                    onNoteOff={(midi) => loaded.sampler?.noteOff(midi)}
-                    soundingMidis={soundingMidis}
-                    playableZones={loaded.playableZones}
-                  />
+          <DetailColumns
+            /* Keyboard-map editor leads once we've decoded the key map; edits patch
+               back into the file in place (audio preserved). Legacy (NWS-container,
+               OG) files edit in place too when legacyEditable (v9/v10 map with
+               zones) — see patchLegacyNsmp. Otherwise a friendly note + the
+               read-only key map. */
+            top={editable
+              ? <SampleEditPanel
+                  key={shown.loadId}
+                  initial={editModel(shown.file, shown.zones)}
+                  bytes={shown.bytes}
+                  codec={shown.file.codec === 4 ? 4 : shown.file.legacy ? 'og' : 3}
+                  legacy={shown.file.legacy}
+                  rootSplitOnly={rootSplitOnly}
+                  // Factory content drives the editor's "edit it for your own use" disclaimer.
+                  factory={shown.fromInitial && !!factory}
+                  unison={unisonSummary}
+                  onPlayZone={shown.decodable ? (i) => playZone(shown, i) : undefined}
+                  onNoteOn={(midi) => { shown.sampler?.noteOn(midi, 100); transport.refresh(); }}
+                  onNoteOff={(midi) => shown.sampler?.noteOff(midi)}
+                  soundingMidis={soundingMidis}
+                  playableZones={shown.playableZones}
+                />
+              : shown.file.legacy && shown.zones.length > 0
+                ? (
+                  // Legacy .nsmp we can't patch (unrecognized map version): decoded
+                  // but not editable in place — show the map read-only (click a
+                  // band to audition), and point to conversion.
+                  <>
+                    <SampleKeyboard
+                      zones={editModel(shown.file, shown.zones).zones}
+                      onPlayZone={shown.decodable ? (i) => playZone(shown, i) : undefined}
+                      onNoteOn={(midi) => { shown.sampler?.noteOn(midi, 100); transport.refresh(); }}
+                      onNoteOff={(midi) => shown.sampler?.noteOff(midi)}
+                      soundingMidis={soundingMidis}
+                      playableZones={shown.playableZones}
+                    />
+                    <div className="ps-card" style={{ marginTop: 12 }}>
+                      <p className="ps-sub" style={{ margin: 0 }}>
+                        Read-only — to edit the splits, convert to .nsmp3 / .nsmp4 below, then edit the result.
+                      </p>
+                    </div>
+                  </>
+                )
+                : (
                   <div className="ps-card" style={{ marginTop: 12 }}>
                     <p className="ps-sub" style={{ margin: 0 }}>
-                      Read-only — to edit the splits, convert to .nsmp3 / .nsmp4 below, then edit the result.
+                      Editing isn't available yet — we couldn't read this sample's key map.
                     </p>
                   </div>
-                </>
-              )
-              : (
-                <div className="ps-card" style={{ marginTop: 12 }}>
-                  <p className="ps-sub" style={{ margin: 0 }}>
-                    Editing isn't available yet — we couldn't read this sample's key map.
-                  </p>
-                </div>
-              )}
-
-          {loaded.decodable && <MidiConnect />}
-          {loaded.decodable && (
-            <EnvelopePanel enabled={envEnabled} env={env} onToggle={setEnvEnabled} onChange={setEnv} />
-          )}
-          {loaded.decodable && <UnisonPanel level={unisonLevel} onChange={setUnisonLevel} />}
-          {loaded.decodable && <SampleConvert bytes={loaded.bytes} file={loaded.file} name={loaded.name} />}
-          <StrokeList
-            strokes={loaded.strokes}
-            playable={loaded.decodable}
-            name={loaded.file.name?.trim() || loaded.name}
-            order={loaded.order}
-            globalIDOf={(i) => loaded.decoded[i]?.globalID}
-            soundingGlobalIDs={soundingGlobalIDs}
-            playheadOf={(i) => {
-              const st = loaded.decoded[i];
-              return st ? transport.playheadFor(st.globalID, st) : null;
-            }}
+                )}
+            side={
+              <>
+                {shown.decodable && <MidiConnect />}
+                {shown.decodable && (
+                  <EnvelopePanel enabled={envEnabled} env={env} onToggle={setEnvEnabled} onChange={setEnv} />
+                )}
+                {shown.decodable && <UnisonPanel level={unisonLevel} onChange={setUnisonLevel} />}
+                {shown.decodable && <SampleConvert bytes={shown.bytes} file={shown.file} name={shown.name} />}
+                {dropZone}
+              </>
+            }
+            rest={
+              <>
+                <StrokeList
+                  strokes={shown.strokes}
+                  playable={shown.decodable}
+                  name={shown.file.name?.trim() || shown.name}
+                  order={shown.order}
+                  globalIDOf={(i) => shown.decoded[i]?.globalID}
+                  soundingGlobalIDs={soundingGlobalIDs}
+                  playheadOf={(i) => {
+                    const st = shown.decoded[i];
+                    return st ? transport.playheadFor(st.globalID, st) : null;
+                  }}
+                />
+                {/* Raw key/velocity table — only when we couldn't build the editor. */}
+                {!editable && <ZoneMap rows={zoneMapRows(shown.bytes)} unison={unisonSummary} />}
+              </>
+            }
           />
-
-          {/* Raw key/velocity table — only when we couldn't build the editor. */}
-          {!(((loaded.file.codec === 3 || loaded.file.codec === 4) && loaded.zones.length > 0) || legacyEditable)
-            && <ZoneMap rows={zoneMapRows(loaded.bytes)} unison={sampleUnisonView(loaded.bytes)?.summary ?? null} />}
         </div>
       )}
     </div>

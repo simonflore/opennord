@@ -62,7 +62,7 @@ function AppShell({ path }: { path: string }) {
         <ShellRail path={path} onNavigate={go} />
         {/* Plain "on-content" class kept as a hook: `[data-native] .on-content` in
             shell.css layers Capacitor safe-area insets on top of the utilities below. */}
-        {/* 1100px reading column; the programs console widens it (ui.css, .on-content:has(.on-split--inspector)). */}
+        {/* 1100px reading column; the Library's master/detail pages widen it (ui.css, .on-content:has(.on-split)). */}
         <main className="on-content min-w-0 flex-1 max-w-[1100px] px-6 py-4 max-[720px]:px-4 max-[720px]:pt-3">
           {/* resetKey: navigating clears a caught error, so one bad program
               view doesn't dead-end the content pane for the whole session. */}

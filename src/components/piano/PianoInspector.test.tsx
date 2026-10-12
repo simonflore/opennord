@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/folder/FolderContext', () => ({ useFolder: () => ({}) }));
 vi.mock('@/lib/clavia/backup/extract-entry', () => ({ extractBackupEntry: vi.fn() }));
+vi.mock('@/lib/download', () => ({ downloadBytes: vi.fn() }));
 vi.mock('@/components/sample/audioPlayer', () => ({ playPcm: vi.fn(() => () => {}), getSharedCtx: vi.fn() }));
 
 import { PianoInspector } from './PianoInspector';
@@ -41,6 +42,13 @@ describe('PianoInspector', () => {
     vi.mocked(extractBackupEntry).mockResolvedValueOnce(PIANO);
     render(<PianoInspector entry={backup('Piano A')} session={null} />);
     fireEvent.click(screen.getByRole('button', { name: 'Load sounds' }));
+    expect(await screen.findByRole('button', { name: /^Play / })).toBeInTheDocument();
+  });
+
+  it('can play a piano it downloaded', async () => {
+    vi.mocked(extractBackupEntry).mockResolvedValueOnce(PIANO);
+    render(<PianoInspector entry={backup('Piano A')} session={null} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
     expect(await screen.findByRole('button', { name: /^Play / })).toBeInTheDocument();
   });
 });
