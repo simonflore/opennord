@@ -1,6 +1,7 @@
 import { Blueprint } from '@/components/ui';
 import { SiteHeader } from './SiteHeader';
 import { Hero } from './Hero';
+import { Showcase } from './Showcase';
 import { Features } from './Features';
 import { DesktopApp } from './DesktopApp';
 import { Proof } from './Proof';
@@ -40,6 +41,7 @@ export function HomeView() {
         <SiteHeader />
         <main>
           <Hero />
+          <Showcase />
           <Features />
           <DesktopApp />
           <Proof />
