@@ -15,7 +15,7 @@ import { ProgramPianoAudition } from './ProgramPianoAudition';
  */
 export function EngineCard({ card, tag, children }: {
   card: EngineCardModel;
-  /** A change mark beside the title, in the accent ("II off": Scene II mutes this layer). */
+  /** A change mark beside the title, in the accent ("off in II": Scene II mutes this layer). */
   tag?: { label: string; title: string };
   children?: ReactNode;
 }) {
