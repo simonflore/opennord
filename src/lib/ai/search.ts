@@ -1,4 +1,5 @@
 import type { NS4Program } from '../ns4/types';
+import { fxTypeName } from '../ns4/fx-names';
 
 /**
  * AI-native search over a set of parsed programs.
@@ -23,6 +24,7 @@ function programText(p: NS4Program): string {
     l.sample?.categoryName,
     l.filter?.type,
     l.reverb?.type,
+    fxTypeName(l.reverb?.type), // "cathedral" finds CATH
   ]);
   return [p.name, p.category, ...layerText]
     .filter(Boolean)
