@@ -252,14 +252,13 @@ describe('layer scenes', () => {
     } as unknown as import('../../lib/ns4/types').NS4Program;
     expect(sceneIIChanges(p)).toEqual({ on: ['Synth B'], off: ['Synth A'] });
     // Scene I view: synth A is muted by Scene II; the piano plays in both, untagged.
-    expect(sceneTag(p.layers[1], 'I')?.label).toBe('II off');
-    expect(sceneTag(p.layers[2], 'II')?.label).toBe('II on');
-    expect(sceneTag(p.layers[0], 'I')).toBeUndefined();
+    expect(sceneTag(p.layers![1])?.label).toBe('II off');
+    expect(sceneTag(p.layers![2])?.label).toBe('II on');
+    expect(sceneTag(p.layers![0])).toBeUndefined();
     const html = renderToStaticMarkup(<ProgramView program={p} />);
     expect(html).toContain(' + Synth B');
     expect(html).toContain(' − Synth A');
-    expect(html).toContain('Scene II mutes this layer');
-    expect(html.match(/Scene II mutes this layer/g)).toHaveLength(2); // the title and the screen-reader text, on synth A only
+    expect(html.match(/title="Scene II mutes this layer"/g)).toHaveLength(1); // synth A only; the piano plays in both
   });
 });
 

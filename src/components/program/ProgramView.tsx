@@ -108,8 +108,8 @@ export function ProgramView({ program }: { program: NordProgram }) {
       {changes && (
         <p className="m-0 mt-2 font-mono text-[10px] text-muted">
           <span className="text-accent"><span className="sr-only">Scene </span>II</span>
-          {changes.on.map((n) => <span key={`+${n}`}> + {n}</span>)}
-          {changes.off.map((n) => <span key={`-${n}`}> − {n}</span>)}
+          {changes.on.map((n, i) => <span key={`on${i}`}> + {n}</span>)}
+          {changes.off.map((n, i) => <span key={`off${i}`}> − {n}</span>)}
         </p>
       )}
     </div>
@@ -125,7 +125,7 @@ export function ProgramView({ program }: { program: NordProgram }) {
           <EngineCard
             key={`${l.kind ?? 'x'}${l.id}`}
             card={engineCardModel(l, program.organFx, l.kind === 'organ' && l.id === firstOrganId)}
-            tag={canToggle ? sceneTag(l, scene) : undefined}
+            tag={sceneTag(l)}
           >
             {l.kind === 'organ' && <OrganPlay layer={l} organFx={program.organFx} />}
           </EngineCard>
