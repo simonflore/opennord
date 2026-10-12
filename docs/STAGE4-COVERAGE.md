@@ -39,7 +39,7 @@ kind is unknown.
 
 | Content | Recognize | Decode | Show (musician terms) | Back up / restore | Write / push | On hardware |
 |---|---|---|---|---|---|---|
-| **Program** `.ns4p` | ✅ `clavia/nord-file.ts`, `ns4/codec.ts` | ✅ `ns4/parse.ts` + generated maps. 0-mismatch vs ns4decode on the fixture (`ns4/parse.test.ts`). Gaps below | ✅ `components/program/` (engine cards, FX, morphs, zones, sample refs) | ✅ backup `device/backup.ts` (partition 6). Restore with capacity guard. Offline organizer `device/backup-io.ts`. **New:** "Check backup" `ns4/backup-check.ts` | ✅ `device/transfer.ts:pushFile` via `components/device/usePushFlow.ts`. Delete, move, swap, arrange `device/reorg.ts` + `execute.ts`. Writer `ns4/writer.ts`. Stage 2/3 → 4 conversion `lib/migrate/` | **HW**: enumerate 356, read, write to C:88 |
+| **Program** `.ns4p` | ✅ `clavia/nord-file.ts`, `ns4/codec.ts` | ✅ `ns4/parse.ts` + generated maps. 0-mismatch vs ns4decode on the fixture (`ns4/parse.test.ts`). Every body byte is accounted for (below): 90% hold parameters, the rest are block lengths, the format version and reserved bits | ✅ `components/program/` (engine cards, FX, morphs, zones, sample refs) | ✅ backup `device/backup.ts` (partition 6). Restore with capacity guard. Offline organizer `device/backup-io.ts`. **New:** "Check backup" `ns4/backup-check.ts` | ✅ `device/transfer.ts:pushFile` via `components/device/usePushFlow.ts`. Delete, move, swap, arrange `device/reorg.ts` + `execute.ts`. Writer `ns4/writer.ts`. Stage 2/3 → 4 conversion `lib/migrate/` | **HW**: enumerate 356, read, write to C:88 |
 | **Live** `.ns4l` | ✅ same codec (`ns4/codec.ts` tags) | ✅ as a program | 🟡 in the Library as a program (`folder/classify.ts`). Not labelled as Live, no Live view on the device screen | 🟡 in backup/restore (`device/ns4b.ts` partition 10) | ❌ no UI. `pushFile` could, untested | ❌ partition 10 not exercised |
 | **Organ / Piano / Synth preset** `.ns4o/.ns4n/.ns4y` | ✅ `clavia/preset-kind.ts` | ✅ `ns4/preset.ts`: the program engine block relocated to byte 49. Validated against local factory presets (gitignored) | 🟡 `components/preset/PresetInspector.tsx`: headline + per-layer rows. Row names are ns4decode's (e.g. "analog wave/partial (knob 3)"), not panel words | 🟡 backup/restore by extension → partition 7/8/9 (`device/ns4b.ts`). **Order disputed** | ❌ no push UI | 🟡 enumerate + pull via registry indices (`device/presets.ts`). Which kind sits at 7/8/9 is unconfirmed |
 | **Settings** `.ns4t` | 🟡 by extension in backups (`device/ns4b.ts`, **new** `backup-check.ts`). `identifyNordFile` returns kind `unknown`. Folder scan ignores it | ❌ no parameter map | ❌ | 🟡 backed up (partition 11) **and restored** | 🟡 restore writes it via `pushFile`. Never confirmed on hardware | 🟡 **HW read** only (`scripts/re-archive/nordsettings.c`) |
@@ -50,29 +50,136 @@ kind is unknown.
 | **Sample dependencies** (which samples a program needs) | ✅ `device/dependencies.ts` (`CQryFileGetDependency`) | ✅ | ✅ "you need these" + official downloads (`device/factory.ts`) | — | — | **HW** |
 | **Live control** (CC/NRPN) | — | — | ✅ `lib/midi/` | — | ✅ | proven (standard MIDI) |
 
-## Program decode gaps (measured)
+## Program body: fully accounted for (2026-10-12)
 
-Measured on the three committed fixtures (`src/lib/ns4/__fixtures__/*.ns4p`, 868 bytes each)
-with `buildParamMap()` + `coverage.ts`:
+The body is now laid out from the firmware's own parameter registry (Stage 4 OS 1.66,
+`FUN_c01a44c4`: 422 parameters in 21 buffers, 11 of them program buffers), generated into
+`src/lib/ns4/layout.generated.ts` by `scripts/gen-fw-program-maps.py stage-4`. The body is
+the same block chain as the other ARM models: a u32 format version (3.13 as written by
+OS 1.66; 3.07–3.13 in real files), then 24 blocks, each a length byte and MSB-first fields
+in registration order plus reserved bits.
 
-- **406 parameters**, claiming **700 of 868 bytes (80.6%)**. The CBIN header is 44 bytes, 11
-  of them claimed (tag, bank, slot, category, version, checksum). The body is **689 of 824
-  bytes (83.6%)**, leaving **135 unclaimed body bytes** in 45 ranges.
-- The largest unclaimed run is **bytes 55–82**, an optional packed 4-byte-record region.
-  The others are mostly 1–4-byte tails between bit-packed fields: 85–86, 88–93, 106, per-layer
-  pairs at 138/141/145/169/172, 226–228, 238–241, 251–253, 263–265, the synth-layer tails
-  401–406, 454–457, 505–508, 556–559, 604–607, 652–655, 700–703, … 866–867.
-  `ns4/extra-params.ts` records the corpus retry (357 programs): 55–82, 106, 401, 418/469/520
-  (synth Extern, active in 0/357) and 300/355 are **blocked on a hardware differential**.
-  Export a program, move one control, re-export, then `diffBytes`.
-- **Parameters that render as plain numbers: 21–22 per fixture**, matching the roadmap's
-  "~21". Every one is **correct as a number** (ns4decode's CSVs show the same integers):
-  checksum, octave shift (organ/piano/synth, at 0), drawbars 1–9, unison level (piano,
-  synth), dyn comp, extern program / CC VAL1 / VAL2 (+ morphs), amp env velocity, filter
-  drive, and the FM partial number on knob 3. **No parameter is wrongly left raw on these
-  fixtures.** The remaining program work is the unclaimed bytes, not interpretation.
-- Program category (CBIN 0x10): ids 47+ are unnamed in the firmware table and surface as raw
-  ids (`clavia/categories.ts`).
+| Blocks | Buffer | Payload bytes |
+|---|---|---|
+| Common | `Buffer_kMultiCom` | 44 |
+| Organ | `Buffer_kOrgCom` | 17 |
+| Organ A, B: layer · drawbars · vib/perc | `Buffer_kOrg` · `Buffer_kOrgDrawbar` · `Buffer_kOrgVibPerc` | 3 · 23 · 2 |
+| Organ effects | `Buffer_kFx` | 54 |
+| Piano | `Buffer_kPnoCom` | 12 |
+| Piano A, B | `Buffer_kPno` | 11 |
+| Piano A, B effects | `Buffer_kFx` | 54 |
+| Synth | `Buffer_kSynCom` | 30 |
+| Synth A, B, C (with the layer's Extern parameters) | `Buffer_kSynLay` | 50 |
+| Synth A, B, C sound | `Buffer_kSynSnd` | 47 |
+| Synth A, B, C effects | `Buffer_kFx` | 54 |
+
+Of the 824 body bytes: **745 hold parameters**, 24 are block lengths, 4 the format version
+and 51 hold only reserved bits. No byte is unidentified.
+
+**Checked on 365 real files** (357 programs + 8 Live, local corpus): every block length
+matches, every reserved and padding bit is zero, and every value is inside its firmware
+range. Negative-minimum fields are two's complement (13 of them fall out of range read as
+`value − min`); a morphable parameter is followed by its Wheel, After Touch and Ctrl Pedal
+deltas, each one bit wider and stored as `delta + (max − min)`. Against the ns4decode-derived
+map (`offset-map.generated.ts`): 807 of its 877 body fields sit at the same bit with the same
+width, and the other 70 are parts of one firmware parameter (`src/lib/ns4/layout.test.ts`).
+
+What the older map left unclaimed, now named:
+
+- **File bytes 55–82** (the "optional 4-byte records"): the program's preset links —
+  organ / piano / synth preset position (10 bits each) and a 32-bit name hash per preset
+  (organ, piano A/B, synth A/B/C), then the layer counts.
+- **52–54, 84–87:** master clock rate and keyboard sync, aux keyboard, audio routing per
+  layer, pedal tap / layer-scene enables.
+- **105–109:** rotary rotor and horn angle, stop preset, mic distance, the rotary speed morphs.
+- **417–423 (and per synth layer):** Extern — velocity curve, wheel / aftertouch / pedal
+  enables, both CC numbers, bank LSB/MSB, send on load.
+- **400–401:** multi-layer filter and LFO, synth aux keyboard control.
+- The "saturated tails" at 300/355: the delay tempo is one 14-bit parameter with three
+  15-bit morph deltas.
+
+**The program view reads from both** (`src/lib/ns4/maps.ts:buildParamMap`). The
+ns4decode-derived map stays the base, because every value table is keyed on its ids; the
+firmware layout corrects and extends it (`src/lib/ns4/firmware-params.ts`):
+
+1. **Corrected: the delay tempo's morphs.** The port read 8 bits at +14, +22 and +30 from
+   the tempo. The firmware stores three 15-bit deltas at +14, +29 and +44, so the After Touch
+   and Ctrl Pedal rows read across delta boundaries and showed "20 ms (750 x4 bpm)" on every
+   program without such a morph. All three rows now read their whole delta (`Param.morphOf`):
+   "none" only when the delta is zero, else the tempo at the full-precision target.
+   ns4decode's reference CSVs in `__fixtures__/expected/` still carry the old values on
+   those rows.
+2. **Added: 62 parameters the port never claimed.** 31 are settings a player has, shown
+   under "All parameters" (437 in all): master clock tempo and keyboard sync, aux keyboard
+   (on/off, curve, and the layers it plays per engine), pedal tap tempo and layer scene, the
+   per-program output bus of every layer and the rotary, rotary type, polyphonic percussion, multi-layer
+   filter and LFO, and each synth layer's Extern settings. The other 31 are marked
+   `internal`: identified and listed in the decode inspector, but kept out of the product
+   rows because they are editor state (panel focus, effects section mode), links the
+   instrument resolves (preset positions, name hashes, layer counts), or saved state and an
+   unused flag (the rotary rotor and horn angles, `Edt_Syn_kLibName`; see below). Which is which is one table,
+   `SETTINGS` in `firmware-params.ts`.
+
+   **Value labels are the firmware's own**, read from OS 1.66. The menu builders
+   (`FUN_c0154278`: system and sound menus; `FUN_c01956c8`: organ menu) construct each item
+   with its label, its parameter id and an array of value strings (`FUN_c00dde4c`), which
+   ties a value to its text without guessing. The Extern pages draw their own text.
+
+   | Parameter (id) | Menu label | Values |
+   |---|---|---|
+   | `Edt_Com_kMasterClockKbdSync` (151) | KBS | Off · Soft · Hard |
+   | `Edt_Com_kAuxKbdVelCurve` (229) | Keyboard Curve | Soft · Medium · Hard |
+   | `Edt_OrgCom_kAuxKbdControl` (357), `Edt_PnoCom_kAuxKbdControl` (337) | Aux Keyboard Layers | -- · A- · -B · AB |
+   | `Edt_SynCom_kAuxKbdControl` (249) | Aux Keyboard Layers | --- · A-- · -B- · --C · AB- · A-C · -BC · ABC |
+   | `Edt_Com_kAudioRoutingBusOrg` / `PnoA` / `SynA` (88, 90, 92) | (output routing) | Main · Sub I · Sub II · Sub III |
+   | `Edt_Com_kAudioRoutingBusPnoB` / `SynB` / `SynC` (91, 93, 94) | (output routing) | Main · Sub I · Sub II · Sub III · same as piano A / synth A / synth B |
+   | `Edt_Com_kAudioRoutingBusLeslie` (89) | (output routing) | Main · Sub I · Sub II · Sub III · same as organ · Auto |
+   | `Edt_OrgCom_kLeslieMicDistance_revB` (224) | Rotary Type | Ambient · Close |
+   | `Edt_OrgCom_kPolyPercEnable_revB` (225) | Polyphonic Percussion | on / off |
+   | `Edt_Ext_kVelCurve` (384) | Keyboard Velocity | Soft · Medium · Hard (`FUN_c0123df8`) |
+   | `Edt_Ext_kBCValue_MSB` / `_LSB` (389, 388) | Program Change MSB / LSB | "--" for 0, else the value minus one (`FUN_c0123f24`) |
+
+   Two of those values are font glyphs, read from the 13-pixel menu font's bitmaps (font
+   header `0xc029e0ac`, one u32 per pixel column): 0xB0–0xB2 draw the Roman numerals I, II
+   and III, and 0x85 draws a left-pointing arrow. What the arrow means is in the routing
+   code (the function at `0xc010b124`, which Ghidra's analysis had not marked as a
+   function): it resolves the seven outputs in the order organ, rotary, piano A, piano B,
+   synth A, synth B, synth C, and for the arrow value it keeps the output it resolved for
+   the previous one. So the rotary follows the organ, piano B follows piano A, synth B
+   follows synth A, and synth C follows synth B. The same holds for the global
+   (`Edt_Sys_kAudioRoutingDst…`) settings, where the arrow is value 7. The per-program
+   values apply when Output Routing Mode (`Edt_Sys_kAudioRoutingMode`, 76) is Per Program.
+   **Traced and left internal on purpose:**
+   - *Rotary rotor and horn angle* (`Edt_OrgCom_kLeslieRotorAngle` / `HornAngle`, 221 / 222)
+     are saved state, not settings. When a program is stored, the firmware copies the
+     running rotary's rotor and horn position into them (the function at `0xc010127c`). On
+     load it hands them back to the rotary only while the rotary is stopped
+     (`0xc010e214` → `FUN_c02098a4`, which shifts the 7-bit value into a 32-bit phase, so
+     128 steps make one turn). The stop position a player chooses is a different parameter
+     (`Edt_OrgCom_kLeslieStopPreset`), already in the port as "rotary spkr stop position";
+     the firmware's own labels for it (Free, Front Center, Front Left, Front Right, Back
+     Left, Back Right, Back Center, from the ROTOR STOP ANGLE page) match the port's table.
+   - *`Edt_Syn_kLibName`* (251) is registered and stored, but no instruction in OS 1.66
+     loads its id outside the registry, and it is 0 in all 365 real files. Unused.
+
+3. **Format versions.** A parameter a later version introduced reads as reserved zeros in
+   an older file, so it is left out there (`Param.since`). The corpus gives two: Aux
+   keyboard is never set through 3.09 (0 of 210 files) and set in 47 of 155 at 3.13; Layer
+   Scene on the pedal is never set through 3.08. Parameters of the port are not gated.
+4. **Left as it is: "organ vib/chorus type".** One 7-bit value in the port, three parameters
+   in the firmware (B3 3 bits, Vox 2, Farfisa 2). The port's table spells out all three, so
+   the value shown is right.
+
+Not yet done from the layout: the 70 port fields that are a narrower window on a firmware
+parameter (synth pan reads 6 of 7 bits, sample id 12 of 16) keep the port's width, and the
+single-engine preset reader (`ns4/preset.ts`) does not take the added parameters.
+
+The layout drops the parameters the firmware marks `_obsolete` (the generator's rule), so
+their bits show as reserved on the byte map although older files still carry values there.
+
+Other program facts, unchanged: 21–22 parameters per fixture render as plain numbers and are
+correct as numbers; program category ids 47+ are unnamed in the firmware table
+(`clavia/categories.ts`).
 
 ## What this branch closed
 
@@ -122,7 +229,6 @@ with `buildParamMap()` + `coverage.ts`:
 | **Settings / Live / preset restore on hardware** | `restore()` writes partitions 10/11/7–9 with the program write sequence. Only partition 6 writes were confirmed | A restore to a spare Stage 4 (or a backed-up one) of a backup holding one Live program, one preset per kind and Settings, then re-read and compare bytes |
 | **CBIN checksum on Live / preset / settings files** | Not confirmed on NSM-written files (OpenNord's own pulls patch it) | A real NSM backup: `NS4B_FILE` test above, plus `verifyNs4Checksum` over its `.ns4l/.ns4o/.ns4n/.ns4y/.ns4t` entries |
 | **Preset value regression fixture** | Committed preset tests use zeroed bodies. Value correctness was checked only against gitignored factory presets | A **user-made** preset of each kind (organ/piano/synth) exported by a Stage 4 owner, plus a description of its panel settings. User presets are shareable (`LEGAL.md`) |
-| **Program body: 135 unclaimed bytes** (55–82 etc.) | Corpus statistics are exhausted (`extra-params.ts`) | Hardware differentials, one control at a time, for the controls the manual lists without a mapped field |
 | **Pedal partitions** (2/3) | File type never observed. No code enumerates them | The same read-only probe (file types at 2/3), then one pedal file |
 | **Sample / piano push to the device** | Large writes need erase-block handling (`CReqEraseBlock`, `PROTOCOL-RE.md`). Untested | Hardware session: write a small user sample to a backed-up Stage 4, re-read and compare, then a piano |
 | **User samples in OpenNord's own backup / restore** | `USER_PARTITIONS` excludes partition 5. Restore skips every sample and labels them "factory" | Follows from sample push. Telling user from factory can use the hdr factory flag (`ns4/nsmp.ts:hdrFactoryFlag`) |

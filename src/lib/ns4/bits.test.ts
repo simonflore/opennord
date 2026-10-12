@@ -6,6 +6,7 @@ import { fileTypeTag, hasCbinMagic, buildCbinHeader, readCbinHeader, type CbinHe
 import { buildParamMap } from './maps';
 import { NS4_OFFSET_MAP } from './offset-map.generated';
 import { NS4_EXTRA_PARAMS } from './extra-params';
+import { ns4FirmwareParams } from './firmware-params';
 import { decodeAllParams } from './coverage';
 
 // The real ns4decode regression fixture (a genuine Nord Stage 4 program) — our
@@ -42,10 +43,13 @@ describe('complete param map decodes the fixture', () => {
   const decoded = decodeAllParams(bytes, map);
   const valueOf = (name: string) => decoded.find((d) => d.name === name)?.value;
 
-  it('covers all four engines (ns4decode port + corpus-RE extras)', () => {
-    // The canonical map = the 406-param ns4decode port + our corpus-RE'd extras.
+  it('covers all four engines (ns4decode port + corpus-RE extras + firmware-layout parameters)', () => {
+    // The canonical map = the 406-param ns4decode port + our corpus-RE'd extras + what
+    // only the firmware layout names.
     expect(NS4_OFFSET_MAP.length).toBe(406); // the port stays pinned at 406
-    expect(map.length).toBe(NS4_OFFSET_MAP.length + NS4_EXTRA_PARAMS.length);
+    expect(ns4FirmwareParams().length).toBeGreaterThan(0);
+    expect(map.length).toBe(NS4_OFFSET_MAP.length + NS4_EXTRA_PARAMS.length + ns4FirmwareParams().length);
+    expect(new Set(map.map((p) => p.id)).size).toBe(map.length); // ids stay unique
     const groups = new Set(map.map((p) => p.group));
     expect(groups).toEqual(new Set(['m', 'o', 'p', 'y']));
   });

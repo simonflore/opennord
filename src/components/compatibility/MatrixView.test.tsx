@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DeviceProvider } from '../../lib/device/DeviceContext';
 import { MatrixView } from './MatrixView';
+import { ns4ParamCount } from '../../lib/contribute/coverage';
 
 // MatrixView embeds ProbePanel (uses DeviceContext), so render inside the provider.
 const render = () => renderToStaticMarkup(<DeviceProvider><MatrixView /></DeviceProvider>);
@@ -47,7 +48,7 @@ describe('MatrixView', () => {
   });
   it('shows the parameter count as a bare number', () => {
     const html = render();
-    expect(row(html, 'Nord Stage 4')).toContain('406 parameters');
+    expect(row(html, 'Nord Stage 4')).toContain(`${ns4ParamCount()} parameters`);
     expect(row(html, 'Nord Grand')).toMatch(/\d+ parameters/);
     expect(row(html, 'Nord Electro 3')).toContain('82 parameters');
     expect(row(html, 'Nord Electro 5')).toContain('129 parameters');

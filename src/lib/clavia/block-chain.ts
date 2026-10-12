@@ -144,6 +144,11 @@ export interface FwBodyDecode<K extends string> {
   warnings: string[];
 }
 
+/** Body bit of a field's first bit, by the layout's own block offsets. */
+export function fieldBodyBit(layout: FwLayout, field: Pick<FwField, 'block' | 'bit'>): number {
+  return (layout.blocks[field.block].offset + 1) * 8 + field.bit;
+}
+
 /** Decode a program body (bytes after the CBIN header) against a layout. Never throws. */
 export function decodeFwBody<K extends string>(body: Uint8Array, layout: FwLayout<K>): FwBodyDecode<K> {
   const warnings: string[] = [];

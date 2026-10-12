@@ -3,16 +3,17 @@
  * still need work instead of re-deriving what's already decoded.
  *
  * Stage 4 has a complete parameter map (the ns4decode-derived offset map, our
- * oracle). Stage 2 / 2 EX, Stage 3 and the other firmware-layout readers map
- * their body from the firmware's own parameter registry or descriptors. Every
- * other model's progress
- * comes from `coverage-data.ts` — the curated state maintained by hand as fields
- * are mapped. We always know a model's body *size*, so even undecoded models
- * have a concrete target to fill.
+ * oracle) and a byte map from its firmware layout. Stage 2 / 2 EX, Stage 3 and the
+ * other firmware-layout readers map their body from the firmware's own parameter
+ * registry or descriptors. Every other model's progress comes from
+ * `coverage-data.ts` — the curated state maintained by hand as fields are mapped.
+ * We always know a model's body *size*, so even undecoded models have a concrete
+ * target to fill.
  */
 import { buildParamMap } from '../ns4/maps';
 import { MODEL_PROGRESS, type ModelProgress, type BodyRegion } from './coverage-data';
-import type { FwLayout } from '../clavia/block-chain';
+import { fieldBodyBit, type FwLayout } from '../clavia/block-chain';
+import { NS4_LAYOUT } from '../ns4/layout.generated';
 import { NS3_LAYOUT } from '../ns3/layout.generated';
 import { NG_LAYOUT } from '../ng/layout.generated';
 import { NG2_LAYOUT } from '../ng2/layout.generated';
@@ -39,8 +40,7 @@ import { NS1_LAYOUT } from '../ns1/layout.generated';
 import { NP1_LAYOUT } from '../np1/layout.generated';
 import { NP2_LAYOUT } from '../np2/layout.generated';
 
-/** The single canonical Stage 4 param map (ns4decode port + corpus-RE'd extras). */
-const NS4_PARAMS = buildParamMap();
+/** The single canonical Stage 4 param map (ns4decode port + corpus-RE'd extras + firmware-layout parameters). */
 
 export type DecodeStatus = 'full' | 'partial' | 'started' | 'none';
 
@@ -62,8 +62,11 @@ export interface ModelDecode {
   fullMap: boolean;
 }
 
-/** Distinct parameters in the Stage 4 map (each id may span multiple layers). */
-export const NS4_PARAM_COUNT = new Set(NS4_PARAMS.map((p) => p.id)).size;
+/** Distinct parameters a player sets in the Stage 4 map (each id may span multiple layers). Counted on first use. */
+export function ns4ParamCount(): number {
+  return (_ns4ParamCount ??= new Set(buildParamMap().filter((p) => !p.internal).map((p) => p.id)).size);
+}
+let _ns4ParamCount: number | undefined;
 
 // Models with a (full/partial) decoder independent of contributions.
 const DECODER_BY_ID: Record<string, 'full' | 'partial'> = {
@@ -100,57 +103,6 @@ const DECODER_BY_ID: Record<string, 'full' | 'partial'> = {
   'piano-1': 'partial',
   'piano-2': 'partial',
 };
-
-// ── Stage 4 coverage synthesized from the offset map ─────────────────────────
-const NS4_BODY_BYTES = 824;
-const NS4_CBIN_BITS = 44 * 8; // header is 44 bytes; bit offsets in the map are absolute
-
-const GROUP_LABEL: Record<string, string> = {
-  m: 'Master section', o: 'Organ engine', p: 'Piano engine', y: 'Synth engine',
-};
-
-/**
- * Run-length encode a covered-byte set into BodyRegions. `labelFor(b)` returns a
- * group label for a covered byte (regions break where the label changes); covered
- * runs become 'confirmed', gaps become 'constant'.
- */
-function coveredToRegions(
-  covered: Set<number>, bodyBytes: number, labelFor: (b: number) => string,
-): BodyRegion[] {
-  const regions: BodyRegion[] = [];
-  let i = 0;
-  while (i < bodyBytes) {
-    const isCovered = covered.has(i);
-    const label = isCovered ? labelFor(i) : '';
-    let j = i + 1;
-    while (j < bodyBytes && covered.has(j) === isCovered && (!isCovered || labelFor(j) === label)) j++;
-    regions.push({ start: i, end: j - 1, label, status: isCovered ? 'confirmed' : 'constant' });
-    i = j;
-  }
-  return regions;
-}
-
-let _ns4Progress: ModelProgress | undefined;
-
-function getNs4Progress(): ModelProgress {
-  if (_ns4Progress) return _ns4Progress;
-  const groupFor: Record<number, string> = {};
-  const covered = new Set<number>();
-  for (const param of NS4_PARAMS) {
-    for (const layer of param.layers) {
-      const bs = Math.floor((layer.begBit - NS4_CBIN_BITS) / 8);
-      const be = Math.floor((layer.endBit - NS4_CBIN_BITS) / 8);
-      if (bs < 0) continue;
-      for (let b = bs; b <= Math.min(NS4_BODY_BYTES - 1, be); b++) {
-        covered.add(b);
-        if (!groupFor[b]) groupFor[b] = param.group;
-      }
-    }
-  }
-  const regions = coveredToRegions(covered, NS4_BODY_BYTES, (b) => GROUP_LABEL[groupFor[b]] ?? groupFor[b]);
-  _ns4Progress = { bodyBytes: NS4_BODY_BYTES, controls: [], regions };
-  return _ns4Progress;
-}
 
 // ── Firmware-layout models: byte map synthesized from the generated layout ──
 // Stage 3, Grand, Grand 2, Piano 4/5/6, Electro 6 and Wave 2 come from a
@@ -267,8 +219,7 @@ function layoutProgress(layout: FwLayout, status: 'confirmed' | 'candidate'): Mo
   for (let b = 0; b < 4; b++) kind[b] = 'Format version';
   for (const blk of layout.blocks) kind[blk.offset] = 'Block length';
   for (const f of layout.fields) {
-    const blk = layout.blocks[f.block];
-    mark(kind, (blk.offset + 1) * 8 + f.bit, f.width, `field:${blk.name}`);
+    mark(kind, fieldBodyBit(layout, f), f.width, `field:${layout.blocks[f.block].name}`);
   }
   return { bodyBytes: layout.bodyBytes, controls: [], regions: kindsToRegions(kind, status) };
 }
@@ -285,14 +236,17 @@ function legacyLayoutProgress(layout: LegacyLayout, status: 'confirmed' | 'candi
 }
 
 /**
- * Returns the decode progress for any model — synthesized from the NS4 offset
- * map (Stage 4), from the generated firmware layout (Stage 3, Grand, Grand 2,
+ * Returns the decode progress for any model — synthesized from the generated
+ * firmware layout (Stage 4, Stage 3, Grand, Grand 2,
  * Piano 4/5/6, Electro 6/7, Organ 3, Wave 2) or legacy record layout (Stage 2 /
  * 2 EX, Electro 3 / 3 HP / 4, C2D, Wave, Lead 4, Lead A1), or curated from
  * MODEL_PROGRESS (every other model).
  */
 export function getModelProgress(modelId: string): ModelProgress | undefined {
-  if (modelId === 'stage-4') return getNs4Progress();
+  // Stage 4: the parameter count is the decoder's (ns4/maps.ts); the byte map comes from
+  // the firmware layout, which shows the block-length and reserved bytes for what they
+  // are. It stays out of FW_LAYOUTS, which also drives the checks on real files.
+  if (modelId === 'stage-4') return (_fwProgress[modelId] ??= layoutProgress(NS4_LAYOUT, 'confirmed'));
   const fw = FW_LAYOUTS[modelId];
   if (fw) return (_fwProgress[modelId] ??= layoutProgress(fw.layout, fw.status));
   const legacy = LEGACY_LAYOUTS[modelId];
@@ -343,7 +297,7 @@ export function summarizeProgress(
 }
 
 /**
- * Parameters a firmware layout reads, counted like the Stage 4's {@link NS4_PARAM_COUNT}:
+ * Parameters a firmware layout reads, counted like the Stage 4's {@link ns4ParamCount}:
  * each firmware parameter once, however many layers, slots or sections repeat it
  * (Wave 2 stores its parameters once per slot, Grand 2 per layer). Sub-fields (the
  * Electro 7's `<knob>.pedalAssign` / `.wheelAssign` flags) belong to their knob, an
@@ -365,11 +319,12 @@ function distinctParams(layout: FwLayout | LegacyLayout): number {
 
 export function decodeForModel(modelId: string): ModelDecode {
   const decoder = DECODER_BY_ID[modelId];
-  if (decoder === 'full') {
-    return { status: 'full', paramCount: NS4_PARAM_COUNT, bodyBytes: NS4_BODY_BYTES, coveredBytes: 0, candidateBytes: 0, controlCount: NS4_PARAM_COUNT, pct: 100, fullMap: true };
-  }
   const prog = getModelProgress(modelId);
   const summary = prog ? summarizeProgress(prog) : { coveredBytes: 0, candidateBytes: 0, controlCount: 0, pct: null };
+  if (decoder === 'full') {
+    // The byte figures are the byte map's own, so the row and the map under it agree.
+    return { status: 'full', paramCount: ns4ParamCount(), bodyBytes: prog?.bodyBytes ?? null, ...summary, controlCount: ns4ParamCount(), fullMap: true };
+  }
   if (decoder === 'partial') {
     const layout = (FW_LAYOUTS[modelId] ?? LEGACY_LAYOUTS[modelId])?.layout;
     const paramCount = layout ? distinctParams(layout) : null;

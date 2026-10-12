@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MODEL_PROGRESS } from './coverage-data';
-import { decodeForModel, getModelProgress, summarizeProgress, NS4_PARAM_COUNT, DECODE_LABEL } from './coverage';
+import { decodeForModel, getModelProgress, summarizeProgress, ns4ParamCount, DECODE_LABEL } from './coverage';
 import { NS4_OFFSET_MAP } from '../ns4/offset-map.generated';
 import { NE7_LAYOUT } from '../ne7/layout.generated';
 import { NS2_LAYOUT } from '../ns2/layout.generated';
@@ -10,11 +10,20 @@ describe('decodeForModel', () => {
   it('reports Stage 4 fully decoded with its real parameter count', () => {
     const d = decodeForModel('stage-4');
     expect(d.status).toBe('full');
-    // Param count = the ported ns4decode map + the corpus-hunted extra params.
-    expect(d.paramCount).toBe(NS4_PARAM_COUNT);
-    expect(NS4_PARAM_COUNT).toBeGreaterThanOrEqual(new Set(NS4_OFFSET_MAP.map((p) => p.id)).size);
-    expect(d.pct).toBe(100);
-    expect(NS4_PARAM_COUNT).toBeGreaterThan(100);
+    // Param count = the ported ns4decode map + the corpus-hunted extra params + the
+    // settings the firmware layout adds.
+    expect(d.paramCount).toBe(ns4ParamCount());
+    expect(ns4ParamCount()).toBeGreaterThanOrEqual(new Set(NS4_OFFSET_MAP.map((p) => p.id)).size);
+    expect(ns4ParamCount()).toBeGreaterThan(100);
+  });
+
+  it('gives the Stage 4 row the byte figures of its own byte map', () => {
+    const d = decodeForModel('stage-4');
+    const map = summarizeProgress(getModelProgress('stage-4')!);
+    expect(d).toMatchObject({ bodyBytes: 824, coveredBytes: map.coveredBytes, candidateBytes: map.candidateBytes, pct: map.pct });
+    // 824 bytes: fields, 24 block lengths, 4 version bytes, reserved bits.
+    expect(d.pct).toBeGreaterThan(85);
+    expect(d.pct).toBeLessThan(100);
   });
 
   it('reports Stage 3 with the firmware layout\'s parameter count and a confirmed byte map', () => {

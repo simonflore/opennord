@@ -56,6 +56,8 @@ Usage (from packages/core):
     python3 scripts/gen-fw-program-maps.py wave     <wave-offsets.csv>         src/lib/nw1/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py stage-3  <ns3-offsets.csv>          src/lib/ns3/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py stage-2  <stage-2-offsets.csv>      src/lib/ns2/layout.generated.ts
+    python3 scripts/gen-fw-program-maps.py stage-4  <stage-4-offsets.csv>      src/lib/ns4/layout.generated.ts
+        (the e7 dialect with "@Wheel" / "@AfterTouch" / "@CtrlPedal" morph rows)
     python3 scripts/gen-fw-program-maps.py electro-5 <electro-5-offsets.csv>   src/lib/ne5/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py piano-3  <piano-3-offsets.csv>      src/lib/np3/layout.generated.ts
     python3 scripts/gen-fw-program-maps.py piano-2  <piano-2-offsets.csv>      src/lib/np2/layout.generated.ts
@@ -472,6 +474,35 @@ MODELS = {
         'sets': lambda block: re.sub(r'(Upper|Lower)$', 'Manual', re.sub(r'(Upper|Lower)(?=.)', '', re.sub(
             r'\d+$', '', re.sub(r'^effects(B3|Vox|Farf|Pipe)$', 'effectsOrgan', block)))),
         'records': [{'const': 'NCP_LAYOUT', 'type': 'NcpFieldKey', 'version': 100, 'blocks': None}],
+    },
+    'stage-4': {
+        'const': 'NS4_LAYOUT', 'type': 'Ns4FieldKey', 'model': 'Nord Stage 4',
+        'source': 'Stage 4 OS 1.66 registry FUN_c01a44c4',
+        'container': 'Stage 4 OS 1.66 program archive FUN_c00fb85c (writes 3.13; 3.07–3.13 files '
+                     'carry the same 24 blocks)',
+        'versionRange': (307, 313),
+        # Value-range check on 365 real programs: every negative-min field is in range as
+        # two's complement and 13 of them are out of range as value - min. The morph deltas
+        # ("@Wheel" / "@AfterTouch" / "@CtrlPedal", one bit wider) are delta + (max - min).
+        'negatives': 'twos',
+        'morphs': True,
+        # A synth layer's block also holds that layer's Extern parameters.
+        'categoryPrefix': {'Ext': 'extern'},
+        # Layout high: the block lengths hold in every real file, the reserved bits are
+        # zero in all of them, and 807 of the 877 fields of the earlier ns4decode-derived
+        # map sit at the same bit with the same width (the other 70 are parts of one
+        # firmware parameter).
+        'confidence': lambda row: 'high',
+        'blocks': {
+            'Common': 'common', 'Organ': 'organ',
+            **{f'Organ {l}{s}': f'organ{l}{k}' for l in 'AB'
+               for s, k in (('', ''), (' Drawbars', 'Drawbars'), (' Vib/Perc', 'VibPerc'))},
+            'Organ Effects': 'organFx', 'Piano': 'piano',
+            **{f'Piano {l}{s}': f'piano{l}{k}' for l in 'AB' for s, k in (('', ''), (' Effects', 'Fx'))},
+            'Synth': 'synth',
+            **{f'Synth {l}{s}': f'synth{l}{k}' for l in 'ABC'
+               for s, k in (('', ''), (' Sound', 'Sound'), (' Effects', 'Fx'))},
+        },
     },
     'stage-3': {
         'const': 'NS3_LAYOUT', 'type': 'Ns3FieldKey', 'model': 'Nord Stage 3',

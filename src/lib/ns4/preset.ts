@@ -5,7 +5,7 @@
  * A Stage 4 preset is a single engine voice: a 49-byte CBIN preamble followed by
  * that engine's **layer-A parameter block, byte-for-byte identical to the layout
  * inside a full `.ns4p` program** — just relocated to a lower base. So we decode
- * a preset by reusing the program parameter map ({@link buildParamMap}), keeping
+ * a preset by reusing the program parameter map ({@link buildPortParamMap}), keeping
  * only the target engine group's params, shifting each param's layer-A bit
  * location down by the engine's fixed offset, and running the same
  * decode+interpret pipeline the Program view uses.
@@ -16,7 +16,7 @@
  * model (B3), piano model names (Amber Upright XL, Wurlitzer 1…), and synth
  * oscillator/filter (Pure Saw, LP12…). See docs/FORMAT.md and preset.test.ts.
  */
-import { buildParamMap, type Param } from './maps';
+import { buildPortParamMap, type Param, type ParamLayer } from './maps';
 import { decodeAllParams } from './coverage';
 import { collapseMorphs, type ParamRow } from './params-view';
 import { identifyNordFile } from '../clavia/nord-file';
@@ -94,13 +94,16 @@ export function parseNs4Preset(bytes: Uint8Array): Ns4Preset | null {
   const maxBit = bytes.length * 8;
   // Relocate the engine block, every layer at once. A layer that falls outside
   // the file is marked absent (begBit -1) rather than dropped, so the remaining
-  // ones keep their letters.
-  const relocated: Param[] = buildParamMap().filter((p) => p.group === spec.group).map((p) => ({
+  // ones keep their letters. The firmware-layout parameters are left out: the single
+  // shift per engine was validated for the ported map only.
+  const move = (a: ParamLayer): ParamLayer => {
+    const begBit = a.begBit - db, endBit = a.endBit - db;
+    return begBit >= 0 && endBit < maxBit ? { ...a, begBit, endBit } : { ...a, begBit: -1 };
+  };
+  const relocated: Param[] = buildPortParamMap().filter((p) => p.group === spec.group).map((p) => ({
     ...p,
-    layers: p.layers.map((a) => {
-      const begBit = a.begBit - db, endBit = a.endBit - db;
-      return begBit >= 0 && endBit < maxBit ? { ...a, begBit, endBit } : { ...a, begBit: -1 };
-    }),
+    layers: p.layers.map(move),
+    ...(p.morphOf ? { morphOf: { ...p.morphOf, base: p.morphOf.base.map(move) } } : {}),
   }));
   const layerCount = relocated.reduce((n, p) => Math.max(n, p.layers.length), 1);
   const decoded = decodeAllParams(bytes, relocated);

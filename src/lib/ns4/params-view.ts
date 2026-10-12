@@ -2,7 +2,8 @@
  * Reorganizes the flat decoded-parameter dump into a navigable reference:
  * collapses the "X with wheel/A.T./ctrlped" morph rows into their base row (the
  * thing that makes the 883 count so large), groups by section, and supports
- * search. Pure derivations from DecodedParam[] — unit-tested against the fixture.
+ * search. Parameters marked `internal` (identified, but not a player's setting) are
+ * left out. Pure derivations from DecodedParam[] — unit-tested against the fixture.
  */
 import type { DecodedParam } from './coverage';
 
@@ -28,7 +29,7 @@ const key = (name: string, layer: number, group: string) => `${group}:${layer}:$
 export function collapseMorphs(params: DecodedParam[]): ParamRow[] {
   const base = new Map<string, ParamRow>();
   for (const p of params) {
-    if (isMorph(p.name)) continue;
+    if (isMorph(p.name) || p.internal) continue;
     base.set(key(p.name, p.layer, p.group), {
       name: p.name, display: p.display, group: p.group, layer: p.layer, morphs: {},
     });
