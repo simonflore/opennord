@@ -84,8 +84,13 @@ one it has open:
 - the handle is dropped (`state = null`) without trying to release an interface
   that no longer exists;
 - the updater is told the device is closed, so a held restart prompt can show;
-- later `bulkOut` / `bulkIn` calls reject with *"Your Nord was disconnected."*
-  rather than a libusb error or "Device not open."
+- the transfer in flight and later `bulkOut` / `bulkIn` calls reject with
+  *"Your Nord was disconnected."* rather than a libusb error or "Device not
+  open." A failed transfer is judged by whether the Nord is still on the bus,
+  not by its error code: macOS reports a pulled cable as a plain transfer error.
+  The same check gates the detach event, so a spurious one is ignored;
+- the preload strips Electron's "Error invoking remote method…" wrapper, so the
+  page receives the message itself
 
 The renderer is not sent an event. The web app has no unplug handling in the
 browser either; a proper "disconnected" state in the UI is a product change and
@@ -116,12 +121,15 @@ used, centred. A corrupt or missing file means defaults. No new dependency.
   Dark language — graphite ground, the single signal-orange accent, no Nord
   trademark or keyboard likeness (`docs/LEGAL.md`). **The drawing is shown to
   the owner for approval before it is wired in.**
-- `scripts/make-icons.mjs` renders it to `electron/icon/icon.png` (1024 px),
-  `icon.icns` and `icon.ico`. The generated files are committed, so a pack does
-  not need the rendering toolchain; the script is re-run only when the SVG
-  changes.
-- `build.icon` points electron-builder at them. The pack must no longer log
+- `scripts/make-icons.mjs` renders it to `electron/icon/icon.png` (1024 px)
+  with Electron itself. The PNG is committed, so a pack does not need to render
+  anything; the script is re-run only when the SVG changes.
+- `build.mac.icon` and `build.win.icon` point electron-builder at the PNG, and
+  it makes the `.icns` and `.ico` at pack time. The pack must no longer log
   "default Electron icon is used".
+- As built: a panel knob with its value ring and tick scale, and the wordmark as
+  its printed legend — chosen by the owner over a ring-and-dot, a monogram and
+  an LCD.
 
 How the SVG is rasterised (a dev dependency, or macOS's own `sips`/`iconutil`
 plus a small ICO writer) is decided in the plan, preferring no new dependency.
@@ -133,7 +141,8 @@ plus a small ICO writer) is decided in the plan, preferring no new dependency.
 | `electron/shell-policy.ts` | Pure decisions: is this URL the app, should this URL open externally, is this permission allowed, are these saved bounds usable |
 | `electron/shell-policy.test.ts` | Their tests |
 | `electron/window-state.ts` | Read and write the bounds file; uses `shell-policy` to validate |
-| `electron/main.ts` | Wiring: single-instance lock, window creation with the hardened options, the handlers above, the detach listener |
+| `electron/nord-usb.ts` | The USB IPC, the open device, unplug detection |
+| `electron/main.ts` | Wiring: single-instance lock, window creation with the hardened options, the handlers above |
 | `scripts/make-icons.mjs`, `electron/icon/*` | Icon source and generated files |
 
 `main.ts` is 190 lines today and gains several concerns. The USB IPC moves to
@@ -169,7 +178,20 @@ spec describes.
 - **`electron-builder` 26.**
 - A designed menu; an in-app "disconnected" state; Windows code signing; Linux.
 
+## Platform floor
+
+Electron 44 requires **macOS 13**; Electron 33 ran on macOS 11. This upgrade
+therefore drops macOS 11 and 12. `build.mac.minimumSystemVersion` declares it,
+so the Finder refuses with a clear message instead of the app crashing. Windows
+stays at Windows 10 or newer.
+
 ## Risks
+
+- **node-usb 2.18's libusb hotplug on Windows with the UsbDk backend** may emit
+  false detach events or fail to open a Stage 2 (found by source reading in
+  review; not run). The device-list check guards against the false detach; the
+  rest needs the Windows hardware test, with pinning `usb` to 2.17.x as the
+  fallback.
 
 - **The Electron jump is large.** Mitigated by doing it first and re-running the
   pack and the update rehearsal before anything else changes. If 44 breaks

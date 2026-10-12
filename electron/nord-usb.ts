@@ -7,7 +7,7 @@
  */
 import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { usb, findByIds, getDeviceList, useUsbDkBackend, type InEndpoint, type Interface, type OutEndpoint } from 'usb';
-import { DISCONNECTED_MESSAGE, notOpenMessage } from './shell-policy';
+import { DISCONNECTED_MESSAGE, isSameUsbDevice, notOpenMessage } from './shell-policy';
 
 const NORD_VENDOR = 0x0ffc;
 
@@ -53,15 +53,6 @@ function findBulk(device: usb.Device): { iface: Interface; inEp: InEndpoint; out
   throw new Error('No bulk interface found on the Nord.');
 }
 
-/**
- * A transfer that died because the cable was pulled reports "no device" — often
- * before the detach event arrives. Say what happened instead of a libusb code.
- */
-function transferError(err: { errno?: number; message: string }): Error {
-  const gone = err.errno === usb.LIBUSB_TRANSFER_NO_DEVICE || err.errno === usb.LIBUSB_ERROR_NO_DEVICE;
-  return gone ? new Error(DISCONNECTED_MESSAGE) : (err as Error);
-}
-
 export interface NordUsbHandle {
   /** True while the Nord's interface is claimed. */
   isOpen(): boolean;
@@ -87,16 +78,41 @@ export function initNordUsb(deps: {
     });
   };
 
+  /** True when the open Nord is no longer on the bus. */
+  const isGone = (open: OpenState): boolean => !getDeviceList().some((d) => isSameUsbDevice(d, open.device));
+
   // An unplugged device leaves a dead handle behind. Drop it — there is no
   // interface left to release — so the next connect starts clean, and remember
   // why, so the next call can say so.
-  usb.on('detach', (device) => {
-    if (!state) return;
-    if (device.busNumber !== state.device.busNumber || device.deviceAddress !== state.device.deviceAddress) return;
+  const dropUnplugged = (open: OpenState): void => {
+    if (state !== open) return; // already dropped, or a newer session has started
     state = null;
     unplugged = true;
+    try {
+      open.device.close();
+    } catch {
+      /* a transfer may still be unwinding; the handle goes when it does */
+    }
     deps.onClosed();
+  };
+
+  // The device list is the authority, not the event alone: the event is acted
+  // on only if the Nord has really gone. (libusb's Windows hotplug together
+  // with the UsbDk backend is not known to be reliable — see electron/README.md.)
+  usb.on('detach', (device) => {
+    if (state && isSameUsbDevice(device, state.device) && isGone(state)) dropUnplugged(state);
   });
+
+  /**
+   * A transfer that failed because the cable was pulled. The error code is no
+   * guide — macOS reports a plain transfer error, and it often arrives before
+   * the detach event — so ask the bus whether the Nord is still there.
+   */
+  const transferError = (open: OpenState, err: Error): Error => {
+    if (!unplugged && !isGone(open)) return err;
+    dropUnplugged(open);
+    return new Error(DISCONNECTED_MESSAGE);
+  };
 
   // Renderer can surface a "install UsbDk" hint on Windows when it isn't active.
   handle('nord-usb:backend', () => ({ platform: process.platform, usbDkActive }));
@@ -128,8 +144,9 @@ export function initNordUsb(deps: {
 
   handle('nord-usb:bulkOut', (dataB64: string) =>
     new Promise<void>((resolve, reject) => {
-      if (!state) return reject(new Error(notOpenMessage(unplugged)));
-      state.outEndpoint.transfer(Buffer.from(dataB64, 'base64'), (err) => (err ? reject(transferError(err)) : resolve()));
+      const open = state;
+      if (!open) return reject(new Error(notOpenMessage(unplugged)));
+      open.outEndpoint.transfer(Buffer.from(dataB64, 'base64'), (err) => (err ? reject(transferError(open, err)) : resolve()));
     }),
   );
 
@@ -138,11 +155,12 @@ export function initNordUsb(deps: {
   // null (an Error loses its errno crossing IPC); the renderer maps it.
   handle('nord-usb:bulkIn', (maxLength: number, timeoutMs?: number) =>
     new Promise<string | null>((resolve, reject) => {
-      if (!state) return reject(new Error(notOpenMessage(unplugged)));
-      state.inEndpoint.timeout = timeoutMs ?? 0;
-      state.inEndpoint.transfer(maxLength, (err, data) => {
+      const open = state;
+      if (!open) return reject(new Error(notOpenMessage(unplugged)));
+      open.inEndpoint.timeout = timeoutMs ?? 0;
+      open.inEndpoint.transfer(maxLength, (err, data) => {
         if (err?.errno === usb.LIBUSB_TRANSFER_TIMED_OUT) return resolve(null);
-        if (err) return reject(transferError(err));
+        if (err) return reject(transferError(open, err));
         resolve(Buffer.from(data ?? Buffer.alloc(0)).toString('base64'));
       });
     }),

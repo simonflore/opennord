@@ -41,19 +41,36 @@ it uses.
   `nodeIntegration` off). The preload uses only `contextBridge` and
   `ipcRenderer`.
 - **Permissions are refused unless listed** in `ALLOWED_PERMISSIONS`, and only
-  for the app's own origin: MIDI (live keyboard input), clipboard write (copy
+  for the app itself (in a packed build that means any `file:` page — it is the
+  navigation rule above that keeps other files out): MIDI (live keyboard input), clipboard write (copy
   buttons), file access (the folder picker and save dialog). Camera, microphone,
   location, notifications and WebUSB are refused — the Nord goes through the
   native bridge. A refusal is logged to the console, which is the first place to
   look when a feature silently stops working. `midiSysex` is listed because
   Chromium reports even a plain MIDI request under that name.
 - **The Nord bridge answers only the app window's top frame.**
-- **An unplugged Nord is noticed.** The dead handle is dropped and the next call
-  fails with "Your Nord was disconnected."; reconnecting needs no restart.
+- **An unplugged Nord is noticed.** The dead handle is dropped, and the transfer
+  in flight and every later call fail with "Your Nord was disconnected.";
+  reconnecting needs no restart. The device list decides, not the error code or
+  the detach event alone: macOS reports a pulled cable as a plain transfer
+  error, and libusb's Windows hotplug together with the UsbDk backend is not
+  known to be reliable. **Untested on real hardware** — see the checklist below.
 - **One instance.** A second launch focuses the first.
 - **Window size and position are remembered** in `window-state.json` under the
   app's data folder (`~/Library/Application Support/OpenNord/` on macOS), and
   ignored if that display is gone.
+
+**Requires macOS 13 or newer** (Electron 44's own floor; declared in
+`build.mac.minimumSystemVersion`) and Windows 10 or newer.
+
+### Hardware checklist (not automatable)
+
+- Connect, start a backup or transfer, pull the cable: the operation fails with
+  "Your Nord was disconnected."; plug back in and Connect works with no restart.
+- Windows with UsbDk installed and a Stage 2: connect, then plug or unplug some
+  *other* USB device. The Nord must stay connected. If it drops, or will not
+  open at all, pin `usb` to 2.17.x (its own polling, no libusb hotplug).
+- Quit the app while a Nord is connected: it exits promptly.
 
 Not done, on purpose: a **content security policy** (a wrong one silently breaks
 workers, fonts or the AI calls — it needs its own tested pass) and **Electron
@@ -248,7 +265,7 @@ that finally confirms the Stage 2 partition map. That's the acceptance test.
 - **Windows**: libusb's default WinUSB backend **cannot** take a device off a
   foreign kernel driver (`ClaviaUSB64.sys`, bound to pre-0x0024 PIDs like the
   Stage 2) — `detachKernelDriver` is a no-op there, same wall as the browser.
-  `main.ts` switches libusb to the **UsbDk backend** on Windows
+  `nord-usb.ts` switches libusb to the **UsbDk backend** on Windows
   (`useUsbDkBackend()`) when the UsbDk runtime is installed, which captures the
   device without replacing NSM's driver. Falls back to WinUSB otherwise (fine
   for the already-WinUSB-bound Stage 3/4). If a device still resists, a one-time
