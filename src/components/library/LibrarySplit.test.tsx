@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const navigate = vi.fn();
@@ -56,5 +56,49 @@ describe('LibrarySplit', () => {
     render(<LibrarySplit />);
     expect(screen.getByText('LIST')).toBeInTheDocument();
     expect(screen.queryByText('DETAIL')).not.toBeInTheDocument();
+  });
+
+  describe('full view', () => {
+    it('wide inspector: offers the full view, by button and by F', () => {
+      const onFull = vi.fn();
+      render(<LibrarySplit selectedId="p1" onFull={onFull} />);
+      fireEvent.click(screen.getByRole('button', { name: /full view/i }));
+      expect(onFull).toHaveBeenLastCalledWith(true);
+      fireEvent.keyDown(window, { key: 'f' });
+      expect(onFull).toHaveBeenLastCalledWith(true);
+    });
+
+    it('full: hides the list (still mounted) and goes back by button and by Esc', () => {
+      const onFull = vi.fn();
+      const { container } = render(<LibrarySplit selectedId="p1" full onFull={onFull} />);
+      expect(container.querySelector('.on-split--full')).not.toBeNull();
+      expect(screen.getByText('LIST')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /programs/i }));
+      expect(onFull).toHaveBeenLastCalledWith(false);
+      onFull.mockClear();
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(onFull).toHaveBeenLastCalledWith(false);
+    });
+
+    it('leaves F alone while typing, and Esc alone outside the full view', () => {
+      const onFull = vi.fn();
+      render(<><input aria-label="search" /><LibrarySplit selectedId="p1" onFull={onFull} /></>);
+      fireEvent.keyDown(screen.getByLabelText('search'), { key: 'f' });
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(onFull).not.toHaveBeenCalled();
+    });
+
+    it('narrow, or nothing open: no full view', () => {
+      const onFull = vi.fn();
+      wide = false;
+      render(<LibrarySplit selectedId="p1" full onFull={onFull} />);
+      expect(screen.queryByRole('button', { name: /full view/i })).not.toBeInTheDocument();
+      fireEvent.keyDown(window, { key: 'f' });
+      cleanup();
+      wide = true;
+      render(<LibrarySplit onFull={onFull} />);
+      fireEvent.keyDown(window, { key: 'f' });
+      expect(onFull).not.toHaveBeenCalled();
+    });
   });
 });
