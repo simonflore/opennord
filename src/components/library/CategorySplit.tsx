@@ -14,7 +14,7 @@ import { useLeaveEntry } from './openEntry';
  * selection (from the route).
  */
 export function CategorySplit({
-  wide, master, detail, hasDetail, list, onBack, backLabel, selectedId, solo,
+  wide, master, detail, hasDetail, list, onBack, backLabel, selectedId, solo, inspector,
 }: {
   /** True when there's room for both panes (from `useSplitLayout`). */
   wide: boolean;
@@ -32,6 +32,8 @@ export function CategorySplit({
   selectedId?: string;
   /** Wide: the master alone across the full width (the program table, nothing open). */
   solo?: boolean;
+  /** Wide: the detail as an inspector column, the master keeping its width (the program table). */
+  inspector?: boolean;
 }) {
   const backToList = useLeaveEntry(list);
 
@@ -67,6 +69,7 @@ export function CategorySplit({
       master={<div ref={masterBox} className="contents">{master}</div>}
       detail={detail}
       solo={solo}
+      inspector={inspector}
     />
   );
 }
