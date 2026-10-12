@@ -59,6 +59,9 @@ export async function executePlan(
 
   // 2. Run ops in order, copy-then-verify-then-delete. Any failure → rollback.
   let completed = 0;
+  // Slots a write was sent to (it may have landed even when it reported failure).
+  // Only these are put back: a slot nothing wrote to is still as it was.
+  const touched = new Set<string>();
   try {
     for (let i = 0; i < plan.ops.length; i++) {
       if (signal?.aborted) throw new Error('cancelled');
@@ -68,6 +71,7 @@ export async function executePlan(
         const j = journal.find((x) => addrKey(x.addr) === addrKey(op.from));
         if (!j?.before) throw new Error('source bytes were not journaled');
         if (signal?.aborted) throw new Error('cancelled');
+        touched.add(addrKey(op.to));
         await io.push(partition, op.to, j.before.file, j.before.name);
         const landed = await io.info(partition, op.to);
         if (!landed || landed.sizeBytes !== j.before.file.length - 44) {
@@ -83,13 +87,14 @@ export async function executePlan(
       } else {
         onProgress?.({ opIndex: i, opCount: plan.ops.length, phase: 'delete' });
         if (signal?.aborted) throw new Error('cancelled');
+        touched.add(addrKey(op.at));
         await io.delete(partition, op.at);
       }
       completed++;
     }
     return { ok: true, completedOps: completed, rolledBack: false, warnings: [] };
   } catch (e) {
-    const { warnings, unrestored } = await rollback(io, partition, journal, onProgress);
+    const { warnings, unrestored } = await rollback(io, partition, journal.filter((j) => touched.has(addrKey(j.addr))), onProgress);
     const rolledBack = warnings.length === 0;
     return {
       ok: false, completedOps: completed, rolledBack, deviceUnchanged: rolledBack,
@@ -99,7 +104,7 @@ export async function executePlan(
   }
 }
 
-/** Restore every journaled slot to its captured state. Best-effort; returns residual
+/** Restore each given journaled slot to its captured state. Best-effort; returns residual
  *  warnings and the files it could not put back. */
 async function rollback(
   io: DeviceIO,

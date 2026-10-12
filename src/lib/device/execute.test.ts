@@ -135,6 +135,26 @@ describe('executePlan', () => {
     expect([...dev.snapshot()]).toEqual([...initial]); // both slots restored
   });
 
+  it('a move whose first write is refused leaves the source alone and reports the device unchanged', async () => {
+    const { dev, occ, plan, initial } = setup();
+    // The Nord refuses every write: the source was never touched, so nothing needs putting back.
+    const pushes: string[] = [];
+    const io: DeviceIO = {
+      pull: (p, e) => dev.pull(p, e),
+      push: (_p, at) => { pushes.push(`${at.bank}:${at.slot}`); return Promise.reject(new Error('FileCreate failed')); },
+      delete: (p, at) => dev.delete(p, at),
+      info: (p, at) => dev.info(p, at),
+    };
+    const res = await executePlan(io, PART, plan, occ);
+    expect(res.ok).toBe(false);
+    expect(pushes).toEqual(['3:40']); // the copy only: no write back over the untouched source
+    expect(res.rolledBack).toBe(true);
+    expect(res.deviceUnchanged).toBe(true);
+    expect(res.unrestored).toBeUndefined();
+    expect(res.warnings).toEqual(['FileCreate failed']);
+    expect([...dev.snapshot()]).toEqual([...initial]);
+  });
+
   it('a rollback that fails too is not reported as rolled back, and hands over what it could not restore', async () => {
     const a = entry({ bank: 2, slot: 12, name: 'A' });
     const b = entry({ bank: 2, slot: 20, name: 'B' });
