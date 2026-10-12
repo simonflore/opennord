@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { decodeNs3, type Ns3Panel } from './decode';
-import { ns3EngineCards, ns3FxChips, ns3HeaderView, ns3SampleKey } from './view';
+import { decodeNs3, TIMBRE_CLAV, TIMBRE_ELECTRIC, TIMBRE_GRAND, type Ns3Panel } from './decode';
+import { ns3EngineCards, ns3FxChips, ns3HeaderView, ns3SampleKey, timbreKeysNs3 } from './view';
 import { ns3ZeroFile } from './file.synth';
 
 /** A synthetic Panel A: B3 organ + grand piano + a Wave synth, no FX. */
@@ -72,6 +72,38 @@ describe('ns3EngineCards', () => {
     expect(card.piano.timbre).toBe('Soft');
     expect(card.piano.touch).toBeUndefined();
     expect(card.piano.model).toBe('Grand'); // falls back to type when no name resolved
+  });
+
+  it('draws the timbre as the piano type\'s LED keys, the setting lit', () => {
+    const keys = (type: string, timbre: string) => {
+      const p = panel();
+      p.piano.type = type;
+      p.piano.timbre = timbre;
+      const card = ns3EngineCards(p)[1];
+      if (card.kind !== 'piano') throw new Error('expected piano');
+      return card.piano.timbreKeys;
+    };
+    const lit = (k?: { label: string; on: boolean }[]) => k?.filter((x) => x.on).map((x) => x.label);
+    expect(keys('Grand', 'Soft')?.map((k) => k.label)).toEqual(['Soft', 'Mid', 'Bright']);
+    expect(lit(keys('Grand', 'Soft'))).toEqual(['Soft']);
+    expect(lit(keys('Electric', 'Dyno2'))).toEqual(['Dyno 2']);
+    expect(keys('Clav', 'None')?.map((k) => k.label)).toEqual(['Soft', 'Treble', 'Brilliant']);
+    expect(lit(keys('Clav', 'None'))).toEqual([]);
+    expect(lit(keys('Clav', 'Soft+Treb'))).toEqual(['Soft', 'Treble']);
+    expect(lit(keys('Clav', 'Soft+Brill'))).toEqual(['Soft', 'Brilliant']);
+    expect(lit(keys('Electric', 'Dyno1'))).toEqual(['Dyno 1']);
+    expect(lit(keys('Clav', 'Soft+Trb+Brill'))).toEqual(['Soft', 'Treble', 'Brilliant']);
+    expect(lit(keys('Clav', 'Treb+Brill'))).toEqual(['Treble', 'Brilliant']);
+    expect(keys('Grand', '#9')).toBeUndefined(); // a value past the tables keeps the knob
+    expect(keys('#6', 'Soft')).toBeUndefined(); // so does a piano type that isn't decoded
+  });
+
+  it('has keys for every label in the firmware timbre tables', () => {
+    // A renamed label in decode.ts would otherwise bring the knob back silently.
+    const tables: [string, readonly string[]][] = [['Grand', TIMBRE_GRAND], ['Clav', TIMBRE_CLAV], ['Electric', TIMBRE_ELECTRIC]];
+    for (const [type, labels] of tables) {
+      for (const label of labels) expect(timbreKeysNs3(type, label), `${type} ${label}`).toBeDefined();
+    }
   });
 
   it('uses a resolved sample name for the piano model when provided', () => {

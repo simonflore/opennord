@@ -238,9 +238,9 @@ const lin10 = (midi: number): string => (midi / 12.7).toFixed(1);
  * hold e.g. a Grand at 4; values 4-7 past a group read as None, as
  * ns3-program-viewer's ns3PianoTimbreMap reads them. Values past 7 fall back to `#n`.
  */
-const TIMBRE_GRAND = ['None', 'Soft', 'Mid', 'Bright', 'None', 'None', 'None', 'None'];
-const TIMBRE_CLAV = ['None', 'Soft', 'Treble', 'Soft+Treb', 'Brilliant', 'Soft+Brill', 'Treb+Brill', 'Soft+Trb+Brill'];
-const TIMBRE_ELECTRIC = ['None', 'Soft', 'Mid', 'Bright', 'Dyno1', 'Dyno2', 'None', 'None'];
+export const TIMBRE_GRAND = ['None', 'Soft', 'Mid', 'Bright', 'None', 'None', 'None', 'None'];
+export const TIMBRE_CLAV = ['None', 'Soft', 'Treble', 'Soft+Treb', 'Brilliant', 'Soft+Brill', 'Treb+Brill', 'Soft+Trb+Brill'];
+export const TIMBRE_ELECTRIC = ['None', 'Soft', 'Mid', 'Bright', 'Dyno1', 'Dyno2', 'None', 'None'];
 const PIANO_ELECTRIC = 2;
 const PIANO_CLAV = 3;
 
