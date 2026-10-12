@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { cn } from '@/lib/cn';
 import { createRootRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { ErrorBoundary } from '@/components/shell/ErrorBoundary';
 import { Rail } from '@/components/shell/Rail';
@@ -63,12 +62,8 @@ function AppShell({ path }: { path: string }) {
         <ShellRail path={path} onNavigate={go} />
         {/* Plain "on-content" class kept as a hook: `[data-native] .on-content` in
             shell.css layers Capacitor safe-area insets on top of the utilities below. */}
-        {/* The program console (table + inspector, B×A) uses the window's width;
-            every other page keeps the 1100px reading column. */}
-        <main className={cn(
-          'on-content min-w-0 flex-1 px-6 py-4 max-[720px]:px-4 max-[720px]:pt-3',
-          path.startsWith('/library/programs') ? 'max-w-[1680px]' : 'max-w-[1100px]',
-        )}>
+        {/* 1100px reading column; the programs console widens it (ui.css, .on-content:has(.on-split--inspector)). */}
+        <main className="on-content min-w-0 flex-1 max-w-[1100px] px-6 py-4 max-[720px]:px-4 max-[720px]:pt-3">
           {/* resetKey: navigating clears a caught error, so one bad program
               view doesn't dead-end the content pane for the whole session. */}
           <ErrorBoundary resetKey={path}>

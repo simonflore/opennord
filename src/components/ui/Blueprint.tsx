@@ -16,7 +16,7 @@ import { cn } from '@/lib/cn';
  * Mount as the first child of a `relative` container that IS the column you want
  * framed — the frame fills its container rather than assuming a viewport
  * geometry, because HomeView centres a 1080px column while the app shell's
- * <main> is 1100px sitting beside the rail.
+ * <main> is 1100px (1680px for the programs console) sitting beside the rail.
  *
  * Pair with a `relative z-10` wrapper around the real content. The frame sits at
  * z-0 deliberately: the parent typically carries the `stage-backdrop`
