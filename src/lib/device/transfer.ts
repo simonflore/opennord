@@ -194,28 +194,15 @@ export function pushRefusal(fileBytes: Uint8Array): string | undefined {
 const WRITE_WINDOW = 4096;
 
 /**
- * Write a complete CBIN file (header + record) to a slot — any type (program,
- * preset, Live, Settings). Uses the validated FileCreate → FileWrite(…) →
- * FileClose sequence; FileClose is what commits the file. The device stores the
- * instrument's record alone: what follows the 44-byte NSM-era header, or the
- * 24-byte legacy one up to its 2-byte trailer (clavia/cbin.ts framing), sent
- * verbatim as NSM does. Category and fourcc come from the file's own header.
- * The handle is always closed (even on a mid-write failure), preserving the
- * original error. Destructive: overwrites whatever is at {bank, slot}. Refused
- * with `WriteBlockedError` (nothing sent) unless the open partition is
- * confirmed writable, and with a NordError when NSM would refuse the file
- * ({@link pushRefusal}).
+ * Create a file at an empty slot and write its record: FileCreate →
+ * FileWrite(…) → FileClose (the close is what commits). Returns the FileCreate
+ * status when the Nord refuses the create — nothing was written then — and 0
+ * once the file is committed. The handle is always closed (even on a mid-write
+ * failure), preserving the original error.
  */
-export async function pushFile(
-  session: NordSession,
-  bank: number,
-  slot: number,
-  fileBytes: Uint8Array,
-  name: string,
-): Promise<void> {
-  session.assertWritable(); // refuse before any frame: the open partition must be confirmed
-  const refusal = pushRefusal(fileBytes);
-  if (refusal) throw new NordError(refusal);
+async function createFile(
+  session: NordSession, bank: number, slot: number, fileBytes: Uint8Array, name: string,
+): Promise<number> {
   const body = cbinRecord(fileBytes); // the device stores the record only, without the CBIN header
   const header = readCbinHeader(fileBytes); // for the file's category and type tag
   const nameBytes = new TextEncoder().encode(name);
@@ -225,9 +212,7 @@ export async function pushFile(
     [bank, slot, body.length, ext2Type(header.tag), 0xffffffff, header.category, nameBytes.length],
     nameBytes,
   );
-  if (create.status !== 0) {
-    throw new NordError(`FileCreate failed (status ${create.status}) at ${formatSlot(bank, slot)}`);
-  }
+  if (create.status !== 0) return create.status;
 
   try {
     let offset = 0;
@@ -244,6 +229,57 @@ export async function pushFile(
 
   const close = await session.request(CReqFileClose, [bank, slot]);
   if (close.status !== 0) throw new NordError(`FileClose failed (status ${close.status}) — file not committed`);
+  return 0;
+}
+
+/**
+ * Write a complete CBIN file (header + record) to a slot — any type (program,
+ * preset, Live, Settings). The device stores the instrument's record alone:
+ * what follows the 44-byte NSM-era header, or the 24-byte legacy one up to its
+ * 2-byte trailer (clavia/cbin.ts framing), sent verbatim as NSM does. Category
+ * and fourcc come from the file's own header.
+ *
+ * Destructive: replaces whatever is at {bank, slot}. The Nord does not overwrite
+ * — FileCreate on an occupied slot answers "file exists" (status 4, seen on a
+ * Stage 4 at A:13) — so the file that is there is read, deleted, and written
+ * back if the new one then fails; the error says which of the two the slot ends
+ * up with. Refused with `WriteBlockedError` (nothing sent) unless the open
+ * partition is confirmed writable, and with a NordError when NSM would refuse
+ * the file ({@link pushRefusal}).
+ */
+export async function pushFile(
+  session: NordSession,
+  bank: number,
+  slot: number,
+  fileBytes: Uint8Array,
+  name: string,
+): Promise<void> {
+  session.assertWritable(); // refuse before any frame: the open partition must be confirmed
+  const refusal = pushRefusal(fileBytes);
+  if (refusal) throw new NordError(refusal);
+
+  const status = await createFile(session, bank, slot, fileBytes, name);
+  if (status === 0) return;
+  const where = formatSlot(bank, slot);
+  if (status !== NordStatus.fileExists) throw new NordError(`FileCreate failed (status ${status}) at ${where}`);
+
+  // Keep what is there before removing it; if it can't be read, leave the slot alone.
+  const info = await session.request(CQryFileInfo, [bank, slot]);
+  if (info.status !== 0) throw new NordError(`Could not read what is at ${where} (status ${info.status}), so it was left as it is.`);
+  const before = decodeFileInfo(info.payload, bank, slot);
+  const beforeBytes = await pullFile(session, before);
+  await deleteProgram(session, bank, slot);
+
+  try {
+    const again = await createFile(session, bank, slot, fileBytes, name);
+    if (again !== 0) throw new NordError(`FileCreate failed (status ${again}) at ${where}`);
+  } catch (e) {
+    const restored = await createFile(session, bank, slot, beforeBytes, before.name).then((s) => s === 0, () => false);
+    const reason = e instanceof Error ? e.message : String(e);
+    throw new NordError(restored
+      ? `${reason}. "${before.name}" is back in its slot.`
+      : `${reason}. "${before.name}" could not be put back, so ${where} is now empty.`);
+  }
 }
 
 /** Back-compat alias (Program slot push). */

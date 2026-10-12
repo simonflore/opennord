@@ -350,3 +350,66 @@ describe('pullFile progress', () => {
     expect(progress).toEqual([[4096, 5000], [5000, 5000]]);
   });
 });
+
+describe('pushFile onto an occupied slot', () => {
+  const old = new Uint8Array([9, 8, 7, 6]);
+  /** The Nord's answers up to the point the old file is gone: create refused
+   *  ("file exists"), then the old file read back, then its delete. */
+  const upToDelete = [
+    encodeMessage(CReqFileCreate | 1, [4]), // file exists
+    infoReply({ size: old.length, version: 313, category: 7, name: 'The Look' }),
+    encodeMessage(CReqFileOpen | 1, [0]),
+    readReply(0, 12, 0, old),
+    encodeMessage(CReqFileClose | 1, [0]),
+    encodeMessage(CReqFileDelete | 1, [0]),
+  ];
+  const writeOk = [
+    encodeMessage(CReqFileCreate | 1, [0]),
+    encodeMessage(CReqFileWrite | 1, [0]),
+    encodeMessage(CReqFileClose | 1, [0]),
+  ];
+  const ids = (t: MockTransport) => t.sent.map((frame) => decodeReply(frame).msgId);
+
+  it('removes the file that is there, then writes the new one', async () => {
+    const { t, s } = await openWritable([...upToDelete, ...writeOk]);
+    await pushFile(s, 0, 12, fixtureBytes, 'New');
+    expect(ids(t)).toEqual([
+      CReqFileCreate, CQryFileInfo, CReqFileOpen, CReqFileRead, CReqFileClose, CReqFileDelete,
+      CReqFileCreate, CReqFileWrite, CReqFileClose,
+    ]);
+    expect(decodeReply(t.sent[5]).words.slice(0, 2)).toEqual([0, 12]);
+  });
+
+  it('puts the old file back when the new one cannot be written', async () => {
+    const { t, s } = await openWritable([
+      ...upToDelete,
+      encodeMessage(CReqFileCreate | 1, [0]),
+      encodeMessage(CReqFileWrite | 1, [3]), // the new file fails
+      encodeMessage(CReqFileClose | 1, [0]),
+      ...writeOk, // the old one goes back
+    ]);
+    await expect(pushFile(s, 0, 12, fixtureBytes, 'New')).rejects.toThrow(/"The Look" is back in its slot/);
+    const restore = decodeReply(t.sent[9]);
+    expect(restore.msgId).toBe(CReqFileCreate);
+    expect(restore.words.slice(0, 6)).toEqual([0, 12, old.length, ext2Type('ns4p'), 0xffffffff, 7]);
+    expect([...decodeReply(t.sent[10]).payload.subarray(16)]).toEqual([...old]);
+  });
+
+  it('says the slot is empty when the old file cannot be put back either', async () => {
+    const { s } = await openWritable([
+      ...upToDelete,
+      encodeMessage(CReqFileCreate | 1, [25]), // no room for the new file
+      encodeMessage(CReqFileCreate | 1, [25]), // nor for the old one
+    ]);
+    await expect(pushFile(s, 0, 12, fixtureBytes, 'New')).rejects.toThrow(/"The Look" could not be put back/);
+  });
+
+  it('leaves the slot alone when the old file cannot be read first', async () => {
+    const { t, s } = await openWritable([
+      encodeMessage(CReqFileCreate | 1, [4]),
+      encodeMessage(CQryFileInfo | 1, [3]),
+    ]);
+    await expect(pushFile(s, 0, 12, fixtureBytes, 'New')).rejects.toThrow();
+    expect(ids(t)).not.toContain(CReqFileDelete);
+  });
+});
