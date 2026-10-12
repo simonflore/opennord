@@ -58,7 +58,42 @@ export function drawbarLevels(layer: NS4Layer): number[] {
 
 /** True when Scene I and Scene II enable a different set of layers (a toggle helps). */
 export function scenesDiffer(p: NS4Program): boolean {
-  return (p.layers ?? []).some((l) => !!l.enabled !== !!l.enabledSceneII);
+  return (p.layers ?? []).some((l) => sceneIIChange(l) !== undefined);
+}
+
+/** What Scene II does to a layer, against Scene I: switches it on, mutes it, or nothing. */
+export function sceneIIChange(l: NS4Layer): 'on' | 'off' | undefined {
+  if (!!l.enabled === !!l.enabledSceneII) return undefined;
+  return l.enabledSceneII ? 'on' : 'off';
+}
+
+/** An engine's name as the Library prints it ("Synth"); "Layer" when the kind isn't decoded. */
+export function engineKindName(l: NS4Layer): string {
+  return LIBRARY_ENGINES.find((e) => e.kind === l.kind)?.name ?? 'Layer';
+}
+
+/**
+ * What Scene II changes, from Scene I: the layers it switches on and the ones it
+ * mutes ("Synth B"). A Layer Scene changes nothing else, so this is the whole
+ * difference.
+ */
+export function sceneIIChanges(p: NS4Program): { on: string[]; off: string[] } {
+  const layers = p.layers ?? [];
+  const named = (c: 'on' | 'off') => layers.filter((l) => sceneIIChange(l) === c).map((l) => `${engineKindName(l)} ${l.id}`);
+  return { on: named('on'), off: named('off') };
+}
+
+/**
+ * The mark on a layer's card when Scene II changes it: "off in II" on a layer it
+ * mutes (seen in the Scene I view), "only in II" on a layer only it plays (seen
+ * in the Scene II view). Undefined when both scenes play it.
+ */
+export function sceneTag(l: NS4Layer): { label: string; title: string } | undefined {
+  const change = sceneIIChange(l);
+  if (!change) return undefined;
+  return change === 'off'
+    ? { label: 'off in II', title: 'Scene II mutes this layer' }
+    : { label: 'only in II', title: 'Only Scene II plays this layer' };
 }
 
 export function headerView(p: NS4Program, scene?: 'I' | 'II'): HeaderView {
@@ -337,7 +372,7 @@ export function ampEnvCurve(l: NS4Layer): EnvCurveView | null {
 
 /** Assemble the neutral EngineCardModel for one NS4 layer. */
 export function engineCardModel(l: NS4Layer, organFx: Ns4OrganFx | undefined, isFirstOrgan: boolean): EngineCardModel {
-  const title = `${(l.kind ?? '?').toUpperCase()} · ${l.id}`;
+  const title = `${engineKindName(l).toUpperCase()} · ${l.id}`;
   const volume: VolumeView = {
     value: l.volume?.value ?? '—',
     fill: volumeFill(l.volume?.value),
@@ -457,9 +492,8 @@ export function fxChips(p: NS4Program, scene?: 'I' | 'II'): FxChipModel[] {
   const kindCount = new Map<string, number>();
   for (const l of fxLayers) kindCount.set(l.kind ?? 'x', (kindCount.get(l.kind ?? 'x') ?? 0) + 1);
   const engineName = (l: NS4Layer): string => {
-    const kind = (l.kind ?? 'x').charAt(0).toUpperCase() + (l.kind ?? 'x').slice(1);
     const letter = (kindCount.get(l.kind ?? 'x') ?? 0) > 1 ? ` ${l.id}` : '';
-    return `${kind}${letter}`;
+    return `${engineKindName(l)}${letter}`;
   };
   for (const l of fxLayers) chips.push(...layerFxChips(l, engineName(l)));
 

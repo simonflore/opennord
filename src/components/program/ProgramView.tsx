@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import '../../styles/nord.css';
 import { isNs4Program, programTagFor, type NordProgram } from '../../lib/formats';
-import { activeLayers, scenesDiffer, engineCardModel, headerView, fxChips } from '../../lib/ns4/view';
+import { activeLayers, sceneIIChanges, sceneTag, engineCardModel, headerView, fxChips } from '../../lib/ns4/view';
 import { ProgramHeader } from './ProgramHeader';
 import { ProgramZones } from './ProgramZones';
 import { EngineCard } from './EngineCard';
@@ -87,21 +87,31 @@ export function ProgramView({ program }: { program: NordProgram }) {
   }
 
   const layers = activeLayers(program, scene);
-  const canToggle = scenesDiffer(program);
+  // What Scene II changes; the switch shows only when it changes something.
+  const changes = sceneIIChanges(program);
+  const canToggle = changes.on.length + changes.off.length > 0;
   const firstOrganId = layers.find((l) => l.kind === 'organ')?.id;
 
   // The two Layer Scenes, as the panel's scene buttons: lit = the one shown here;
   // "saved" marks the scene the program was stored with.
+  // Under it, what Scene II changes: a layer it adds isn't on screen in Scene I.
   const sceneSwitch = canToggle && (
-    <LedSwitch
-      className="ps-scene"
-      label="Layer scene"
-      value={scene}
-      onChange={setScene}
-      options={(['I', 'II'] as const).map((s) => ({
-        value: s, label: `Scene ${s}`, note: program.activeScene === s ? 'saved' : undefined,
-      }))}
-    />
+    <div>
+      <LedSwitch
+        className="ps-scene"
+        label="Layer scene"
+        value={scene}
+        onChange={setScene}
+        options={(['I', 'II'] as const).map((s) => ({
+          value: s, label: `Scene ${s}`, note: program.activeScene === s ? 'saved' : undefined,
+        }))}
+      />
+      <p className="ps-key-note m-0 mt-2">
+        <span className="text-accent"><span className="sr-only">Scene </span>II</span>
+        {changes.on.map((n, i) => <span key={`on${i}`}> + {n}</span>)}
+        {changes.off.map((n, i) => <span key={`off${i}`}> − {n}</span>)}
+      </p>
+    </div>
   );
 
   return (
@@ -114,6 +124,7 @@ export function ProgramView({ program }: { program: NordProgram }) {
           <EngineCard
             key={`${l.kind ?? 'x'}${l.id}`}
             card={engineCardModel(l, program.organFx, l.kind === 'organ' && l.id === firstOrganId)}
+            tag={sceneTag(l)}
           >
             {l.kind === 'organ' && <OrganPlay layer={l} organFx={program.organFx} />}
           </EngineCard>

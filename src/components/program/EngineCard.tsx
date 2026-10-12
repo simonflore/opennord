@@ -13,10 +13,22 @@ import { ProgramPianoAudition } from './ProgramPianoAudition';
  * the per-model view-models (ns4/view.ts, ns3/view.ts) build the model; this file
  * only renders it. `children` is an optional footer slot (e.g. the organ's Play panel).
  */
-export function EngineCard({ card, children }: { card: EngineCardModel; children?: ReactNode }) {
+export function EngineCard({ card, tag, children }: {
+  card: EngineCardModel;
+  /** A change mark beside the title, in the accent ("off in II": Scene II mutes this layer). */
+  tag?: { label: string; title: string };
+  children?: ReactNode;
+}) {
   return (
     <div className="ps-card">
-      <h4>{card.title}</h4>
+      <h4>
+        {card.title}
+        {tag && (
+          <span className="ml-auto rounded-sm border border-accent px-1 font-mono text-[10px] normal-case tracking-normal text-accent" title={tag.title}>
+            {tag.label}
+          </span>
+        )}
+      </h4>
       {card.kind === 'organ' && <OrganPanel m={card.organ} />}
       {card.kind === 'piano' && <PianoBody m={card.piano} stats={card.stats} />}
       {card.kind === 'synth' && <SynthBody m={card.synth} env={card.env} modEnv={card.modEnv} filterEnv={card.filterEnv} stats={card.stats} />}
