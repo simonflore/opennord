@@ -16,6 +16,9 @@ import { ORGAN_MODELS } from '../../lib/ns4/organ-models';
 import { Card } from '../ui';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import { SlotGrid } from '../device/SlotGrid';
+import { EngineCard } from '../program/EngineCard';
+import { engineCardModel, sceneTag } from '../../lib/ns4/view';
+import type { NS4Layer } from '../../lib/ns4/types';
 import { BankLabel } from '../device/BankLabel';
 import {
   ArpRow, Chip, DrawbarStack, EnvCurve, FilterCurve, FxChain, Knob, Lcd, LfoRow, Meter, ModelSelector, StatGrid, ToggleGroup, WaveGlyph,
@@ -50,6 +53,17 @@ const VOX = drawbarViews([8, 6, 4, 0, 2, 0, 5]);
 // data cells render without a Nord connected.
 const BANK: ProgramEntry[] = ['Royal Grand Bright', 'Soul Split', 'Grand + Strings', 'Gospel B3', 'Wurly Stage', 'Clav Funk Wah', '', 'Vox Continental', 'Brass Stab Split', 'Upright Dark']
   .flatMap((name, slot) => (name ? [{ bank: 0, slot, name, categoryId: 0, version: 313, sizeBytes: 0, fourcc: 'ns4p' }] : []));
+
+// Engine modules, built by the real view-model (engineCardModel) from minimal
+// layers: an electric piano Scene II mutes (its tag, the Dyno keys, the touch
+// keys), a clav (its own key names, a combination lit) and a synth.
+const layer = (l: Partial<NS4Layer>) => ({ enabled: true, enabledSceneII: true, ...l }) as NS4Layer;
+const MODULES: NS4Layer[] = [
+  layer({ id: 'A', kind: 'piano', pianoType: 'Electric', pianoModelName: 'EP1 Wurlitzer 200A', timbre: 'DYNO1', touch: 'heavy', volume: { value: '-3.0 dB' }, enabledSceneII: false }),
+  layer({ id: 'B', kind: 'piano', pianoType: 'Clav', pianoModelName: 'Clavinet D6', timbre: 'SOFT+BRIGHT', touch: 'med', volume: { value: '0.0 dB' } }),
+  layer({ id: 'A', kind: 'synth', source: 'analog', oscType: 'Classic', oscWave: 'Saw', volume: { value: '-6.0 dB' },
+    filter: { on: true, type: 'LP24', freq: { value: '1.2 kHz' }, resonance: { value: '3.0' } } }),
+] as NS4Layer[];
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -166,6 +180,14 @@ export function InstrumentKit() {
           ]} />
         </Section>
       </div>
+
+      <Section title="Engine modules · one per playing layer, a tag where Scene II changes it">
+        <div className="ps-grid">
+          {MODULES.map((l) => (
+            <EngineCard key={`${l.kind}${l.id}`} card={engineCardModel(l, undefined, false)} tag={sceneTag(l)} />
+          ))}
+        </div>
+      </Section>
 
       <Section title="Device bank · data cells">
         <div>
