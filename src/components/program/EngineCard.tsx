@@ -68,9 +68,11 @@ function OrganPanel({ m }: { m: OrganPanelModel }) {
 
 function PianoBody({ m, stats }: { m: PianoCardModel; stats: Stat[] }) {
   const match = resolveFactory(m.model, 'npno');
+  // Timbre and touch are stepped settings, drawn as the panel's LED keys where
+  // the model can name them; a knob only for a value it can't place.
   const knobs = [
-    m.timbre !== undefined && <Knob key="timbre" value={m.timbre} caption="timbre" />,
-    m.touch !== undefined && <Knob key="touch" value={m.touch} caption="KB touch" />,
+    m.timbre !== undefined && !m.timbreKeys && <Knob key="timbre" value={m.timbre} caption="timbre" />,
+    m.touch !== undefined && !m.touchKeys && <Knob key="touch" value={m.touch} caption="KB touch" />,
   ].filter(Boolean);
   return (
     <>
@@ -81,6 +83,8 @@ function PianoBody({ m, stats }: { m: PianoCardModel; stats: Stat[] }) {
           : m.model}
       </div>
       <ProgramPianoAudition model={m.model} />
+      {m.timbreKeys && <ToggleGroup label="Timbre" items={m.timbreKeys} />}
+      {m.touchKeys && <ToggleGroup label="KB touch" items={m.touchKeys} />}
       {knobs.length > 0 && <div className="ps-knobs">{knobs}</div>}
       <StatGrid stats={stats} />
     </>

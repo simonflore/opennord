@@ -16,7 +16,7 @@ import { organModelSpec, ORGAN_MODELS } from './organ-models';
 import { ns4Engines } from './engines';
 import type {
   MorphMarkView, DrawbarView, OrganPanelModel, PianoCardModel, SynthCardModel,
-  EnvCurveView, Stat, FxChipModel, FxSlotModel, HeaderView, VolumeView, EngineCardModel, LfoView, ArpView, ArpStepView,
+  EnvCurveView, Stat, FxChipModel, FxSlotModel, HeaderView, VolumeView, EngineCardModel, LfoView, ArpView, ArpStepView, KeyItem,
 } from '../clavia/engine-view';
 import { volumeFill, envCurve } from '../clavia/engine-view';
 import { parseHz, waveShapeOf, type WaveShape } from '../clavia/curves';
@@ -242,6 +242,30 @@ export function organPanel(l: NS4Layer, organFx: Ns4OrganFx | undefined, isFirst
   };
 }
 
+const TIMBRE_LABEL: Record<string, string> = { SOFT: 'Soft', MID: 'Mid', BRIGHT: 'Bright', DYNO1: 'Dyno 1', DYNO2: 'Dyno 2' };
+
+/**
+ * The timbre as the panel's keys: Soft, Mid and Bright, plus Dyno 1 and 2 on an
+ * electric piano. A clav's combinations ("SOFT+MID") light several keys and
+ * "off" lights none. A numeric timbre (an amount on some types) stays a knob.
+ */
+function timbreKeys(type: string | undefined, value: string | undefined): KeyItem[] | undefined {
+  if (!value || /^\d/.test(value)) return undefined;
+  const lit = new Set(value === 'off' ? [] : value.split('+'));
+  if ([...lit].some((k) => !TIMBRE_LABEL[k])) return undefined; // a setting this table doesn't know: keep the knob
+  const keys = type === 'Electric' || value.startsWith('DYNO')
+    ? ['SOFT', 'MID', 'BRIGHT', 'DYNO1', 'DYNO2']
+    : ['SOFT', 'MID', 'BRIGHT'];
+  return keys.map((k) => ({ label: TIMBRE_LABEL[k], on: lit.has(k) }));
+}
+
+/** Keyboard touch as its three settings, the one in use lit. */
+function touchKeys(value: string | undefined): KeyItem[] | undefined {
+  const settings = ['light', 'med', 'heavy'];
+  if (!value || !settings.includes(value)) return undefined;
+  return settings.map((t) => ({ label: t.charAt(0).toUpperCase() + t.slice(1), on: t === value }));
+}
+
 export function pianoCard(l: NS4Layer): PianoCardModel {
   return {
     id: l.id,
@@ -249,6 +273,8 @@ export function pianoCard(l: NS4Layer): PianoCardModel {
     model: l.pianoModelName ?? '—',
     timbre: l.timbre ?? '—',
     touch: l.touch ?? '—',
+    timbreKeys: timbreKeys(l.pianoType, l.timbre),
+    touchKeys: touchKeys(l.touch),
   };
 }
 
