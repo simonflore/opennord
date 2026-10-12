@@ -142,6 +142,7 @@ async function createWindow(): Promise<void> {
   win.on('closed', () => {
     if (saveTimer) clearTimeout(saveTimer);
     if (mainWindow === win) mainWindow = null;
+    void nordUsb?.close(); // don't keep the Nord claimed for a window that's gone
   });
 
   // Load the very URL the policy compares against, so the two cannot disagree
@@ -168,7 +169,13 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     restrictPermissions();
-    nordUsb = initNordUsb({ isTrustedSender, onClosed: () => updater?.deviceClosed() });
+    // Guarded like the updater below: without the bridge the app can still read
+    // files, and a window that explains itself beats a process with no window.
+    try {
+      nordUsb = initNordUsb({ isTrustedSender, onClosed: () => updater?.deviceClosed(), settingsDir: app.getPath('userData') });
+    } catch (error) {
+      console.error('The Nord USB bridge failed to start:', error);
+    }
     Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate({
       mac: process.platform === 'darwin',
       appName: app.name,

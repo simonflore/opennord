@@ -83,4 +83,13 @@ describe('describeError', () => {
     expect(msg).toMatch(/wouldn’t let OpenNord open its memory/);
     expect(msg).not.toMatch(/status|partition|13/i);
   });
+
+  it('shows the desktop USB bridge’s own player-facing messages as they are', async () => {
+    const { describeError } = await import('./ConnectPanel');
+    const m = 'The UsbDk driver couldn’t take over your Nord’s USB port. Quit Nord Sound Manager.';
+    expect(describeError(new Error(m), true)).toBe(m);
+    expect(describeError(new Error('LIBUSB_ERROR_OTHER'), true)).toBe('Could not connect: LIBUSB_ERROR_OTHER');
+    // In the browser the same sentence is not the bridge's, so it is not passed through untouched.
+    expect(describeError(new Error(m), false)).not.toBe(m);
+  });
 });
