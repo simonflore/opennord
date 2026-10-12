@@ -15,16 +15,18 @@ import { cn } from '@/lib/cn';
  * utilities here would be inert. Left wired to `ui.css`'s `.on-split*` rules
  * until that cross-file coupling is untangled.
  */
-export function SplitView({ master, detail, solo, inspector }: {
+export function SplitView({ master, detail, solo, inspector, full }: {
   master: ReactNode;
   detail: ReactNode;
   /** Only the master, across the full width (nothing open yet); the same tree, so it stays mounted. */
   solo?: boolean;
   /** The detail as an inspector column on the right, the master keeping its width (wide screens). */
   inspector?: boolean;
+  /** Only the detail, across the full width (the open program, expanded); the master stays mounted, hidden. */
+  full?: boolean;
 }) {
   return (
-    <div className={cn('on-split', solo && 'on-split--solo', inspector && 'on-split--inspector')}>
+    <div className={cn('on-split', solo && 'on-split--solo', inspector && 'on-split--inspector', full && 'on-split--full')}>
       <div className="on-split__master">{master}</div>
       <div className="on-split__detail">{detail}</div>
     </div>

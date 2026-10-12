@@ -60,6 +60,10 @@
    its columns) and the empty detail pane steps aside. */
 .on-split--solo { grid-template-columns: minmax(0, 1fr); }
 .on-split--solo .on-split__detail { display: none; }
+/* The open program expanded: the detail takes the whole width and the list
+   steps aside, still mounted so its state survives the way back. */
+.on-split--full { grid-template-columns: minmax(0, 1fr); }
+.on-split--full .on-split__master { display: none; }
 /* The program inspector (B×A): on a wide screen the table keeps its width (and
    its columns) and the open program sits in a column on the right, its engine
    modules stacked. Narrower, the list folds beside a wide detail instead.
@@ -67,8 +71,8 @@
    its own 600px fold (ProgramTable's container query) with the rail and the
    page padding taken off. Nothing open (solo), the table keeps the whole width. */
 @media (min-width: 1400px) {
-  .on-split--inspector:not(.on-split--solo) { grid-template-columns: minmax(0, 1fr) clamp(440px, 34vw, 540px); }
-  .on-split--inspector .ps-grid { grid-template-columns: minmax(0, 1fr); }
+  .on-split--inspector:not(.on-split--solo):not(.on-split--full) { grid-template-columns: minmax(0, 1fr) clamp(440px, 34vw, 540px); }
+  .on-split--inspector:not(.on-split--full) .ps-grid { grid-template-columns: minmax(0, 1fr); }
 }
 /* The console uses the window's width: the shell's <main> drops its 1100px
    reading column while it holds the inspector split (every other page keeps it). */
@@ -79,7 +83,7 @@
    The margin→padding swap keeps the divider's gap inside the opaque bg so
    scrolling content doesn't bleed through beneath it. */
 .on-split__detail .ps-hd {
-  position: sticky; top: 0; z-index: 3;
+  position: sticky; top: var(--detail-bar, 0px); z-index: 3;
   background: var(--bg);
   margin-bottom: 0; padding-bottom: 14px;
 }

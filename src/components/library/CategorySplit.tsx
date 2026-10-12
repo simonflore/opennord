@@ -14,7 +14,7 @@ import { useLeaveEntry } from './openEntry';
  * selection (from the route).
  */
 export function CategorySplit({
-  wide, master, detail, hasDetail, list, onBack, backLabel, selectedId, solo, inspector,
+  wide, master, detail, hasDetail, list, onBack, backLabel, selectedId, solo, inspector, full,
 }: {
   /** True when there's room for both panes (from `useSplitLayout`). */
   wide: boolean;
@@ -34,6 +34,8 @@ export function CategorySplit({
   solo?: boolean;
   /** Wide: the detail as an inspector column, the master keeping its width (the program table). */
   inspector?: boolean;
+  /** Wide: the detail alone across the full width, the master hidden but mounted. */
+  full?: boolean;
 }) {
   const backToList = useLeaveEntry(list);
 
@@ -42,8 +44,9 @@ export function CategorySplit({
   // after the selection (a folder scan, the Nord's list, narrow → wide), so this
   // checks after every render but scrolls only the first time it finds the row.
   const revealed = useRef<string | null>(null);
-  // The wide list is a fresh mount after narrow → wide, so it needs revealing again.
-  useEffect(() => { revealed.current = null; }, [wide]);
+  // The wide list is a fresh mount after narrow → wide, and a hidden one after
+  // the full view (J/K may have moved on meanwhile), so it needs revealing again.
+  useEffect(() => { revealed.current = null; }, [wide, full]);
   useEffect(() => {
     if (!selectedId) { revealed.current = null; return; }
     if (revealed.current === selectedId) return;
@@ -70,6 +73,7 @@ export function CategorySplit({
       detail={detail}
       solo={solo}
       inspector={inspector}
+      full={full}
     />
   );
 }

@@ -1,10 +1,12 @@
 // src/routes/library.tsx
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { createRoute, redirect, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { rootRoute } from '@/routes/root';
 import { LibrarySplit } from '@/components/library/LibrarySplit';
 import { useLibraryData } from '@/lib/library/LibraryContext';
 import { SOURCE_LABEL, type LibrarySource } from '@/lib/library/types';
+
+type ProgramsSearch = { source?: LibrarySource; view?: 'full' };
 
 const isSource = (v: unknown): v is LibrarySource => typeof v === 'string' && Object.hasOwn(SOURCE_LABEL, v);
 
@@ -24,15 +26,24 @@ export const ProgramsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/programs/{-$programId}',
   // `?source=nord`: the list shows one source's programs (see useSourceInUrl).
-  validateSearch: (search: Record<string, unknown>): { source?: LibrarySource } =>
-    (isSource(search.source) ? { source: search.source } : {}),
+  // `?view=full`: the open program across the whole width, the list hidden.
+  validateSearch: (search: Record<string, unknown>): ProgramsSearch => ({
+    ...(isSource(search.source) ? { source: search.source } : {}),
+    ...(search.view === 'full' ? { view: 'full' as const } : {}),
+  }),
   component: ProgramsScreen,
 });
 
 function ProgramsScreen() {
   const { programId } = useParams({ from: ProgramsRoute.id });
+  const { view } = useSearch({ from: ProgramsRoute.id });
+  const navigate = useNavigate({ from: ProgramsRoute.fullPath });
   useSourceInUrl();
-  return <LibrarySplit selectedId={programId} />;
+  // In place, not a new history entry: Back still leaves the program, as before.
+  const onFull = useCallback((on: boolean) => {
+    void navigate({ search: (prev: ProgramsSearch) => ({ ...prev, view: on ? 'full' as const : undefined }), replace: true, resetScroll: false });
+  }, [navigate]);
+  return <LibrarySplit selectedId={programId} full={view === 'full'} onFull={onFull} />;
 }
 
 /**
@@ -61,6 +72,6 @@ function useSourceInUrl() {
       if (source !== applying) return;
     }
     if ((url ?? 'all') === source) return;
-    void navigate({ search: source === 'all' ? {} : { source }, replace: true, resetScroll: false });
+    void navigate({ search: (prev: ProgramsSearch) => ({ ...prev, source: source === 'all' ? undefined : source }), replace: true, resetScroll: false });
   }, [url, source, navigate]);
 }
