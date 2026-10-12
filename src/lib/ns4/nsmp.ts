@@ -482,58 +482,104 @@ export function perNoteCustomCount(bytes: Uint8Array): number {
 
 /**
  * The codec-4 `map`'s **SampleUnison / voicing** block — the 31-byte structure
- * between the per-note level/detune table and the zone count, read by
- * the `map` reader. Codec 3 has no such block. Gains are the
- * `DSP2Level` dB scale; `detune*`/`pan*` are stored raw (u16/u8) and their value
- * scale isn't pinned (the whole corpus is unison-off). `mode`/`blockMode` are the
- * unison-mode / unison-block-mode enums (0 = off).
+ * between the per-note table and the zone count. Codec 3 has no such block.
+ *
+ * It does not switch unison on: that is the program's Unison setting (0–3). It holds
+ * what each setting does for this sample. Layout as the instrument reads it (Stage 4
+ * ARM loader; the maintainers’ notes), which real files confirm (their
+ * values come out as round numbers only this way): `mode, topKey`, four u16 BE, three
+ * pan bytes, four voice counts, four u24 gains, two flags.
  */
 export interface SampleUnison {
-  mode: number; topKey: number;
-  detuneMax: number; sameDetuneMin: number; panMax: number;
-  detuneMax2: number; panMax2: number; detuneMax3: number; panMax3: number;
+  /** 0 = the instrument's built-in detune and pan; 1 = the values below. */
+  mode: number;
+  /** Highest key that uses neighbouring recordings; above it one recording is doubled. */
+  topKey: number;
+  /** Detune of Unison 1 / 2 / 3, raw: ± raw·25/65536 semitone (40 ≈ ±1.5 cents). */
+  detuneMax: number; detuneMax2: number; detuneMax3: number;
+  /** Detune (same scale) used at Unison 1 when both voices play the same recording. */
+  sameDetuneMin: number;
+  /** Stereo width of Unison 1 / 2 / 3: 0 = both voices centred, 100 = hard left/right. */
+  panMax: number; panMax2: number; panMax3: number;
   numVoice1: number; numVoice2: number; numVoice3: number; numVoiceSame: number;
   /** Per-tier voice gains in dB (`DSP2Level`). */
   gainDb1: number; gainDb2: number; gainDb3: number; gainDbSame: number;
+  /** Non-zero: repeated notes step through neighbouring recordings. */
   randomStrokeMode: number; blockRandomSustPed: number;
-  /** True when unison is engaged (`mode !== 0`). */
-  active: boolean;
+  /** True when the sample carries its own unison values (`mode !== 0`). */
+  custom: boolean;
 }
 
-/** Default (unison-off) block as real `.nsmp4` stores it: 2 voices per tier, unity gain. */
+/** Default block as our writer stores it: built-in voicing, 2 voices per tier, unity gain. */
 export const DEFAULT_SAMPLE_UNISON: Readonly<SampleUnison> = {
-  mode: 0, topKey: 0, detuneMax: 0, sameDetuneMin: 0, panMax: 0,
-  detuneMax2: 0, panMax2: 0, detuneMax3: 0, panMax3: 0,
+  mode: 0, topKey: 0, detuneMax: 0, detuneMax2: 0, detuneMax3: 0, sameDetuneMin: 0,
+  panMax: 0, panMax2: 0, panMax3: 0,
   numVoice1: 2, numVoice2: 2, numVoice3: 2, numVoiceSame: 2,
   gainDb1: 0, gainDb2: 0, gainDb3: 0, gainDbSame: 0,
-  randomStrokeMode: 0, blockRandomSustPed: 0, active: false,
+  randomStrokeMode: 0, blockRandomSustPed: 0, custom: false,
 };
+
+/** Offset of the codec-4 `map`'s per-note table (128 rows of 10 bytes), or null. */
+function codec4PerNoteOffset(bytes: Uint8Array): { rows: number; end: number } | null {
+  if ((readNsmp(bytes).codec ?? 0) < 4) return null;
+  const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'));
+  return map ? { rows: map.payloadOffset + 6, end: map.endOffset } : null;
+}
 
 /**
  * Read the codec-4 `map` SampleUnison block. Returns null for codec 3 / no map /
- * a block that runs past the section. Field order + sizes are the exact
- * read sequence (mode, topKey, then interleaved detune(u16)/
- * pan(u8) spreads, four voice counts, four u24 gains, two random flags).
+ * a block that runs past the section.
  */
 export function readSampleUnison(bytes: Uint8Array): SampleUnison | null {
-  const codec = readNsmp(bytes).codec ?? 0;
-  if (codec < 4) return null;
-  const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'));
-  if (!map) return null;
-  const o = map.payloadOffset + 6 + 128 * 10; // after global + per-note (10B rows)
-  if (o + 31 > map.endOffset) return null;
+  const at = codec4PerNoteOffset(bytes);
+  if (!at) return null;
+  const o = at.rows + 128 * 10; // after the per-note rows
+  if (o + 31 > at.end) return null;
   const mode = bytes[o];
   return {
     mode, topKey: bytes[o + 1],
-    detuneMax: u16be(bytes, o + 2), sameDetuneMin: u16be(bytes, o + 4), panMax: bytes[o + 6],
-    detuneMax2: u16be(bytes, o + 7), panMax2: bytes[o + 9],
-    detuneMax3: u16be(bytes, o + 10), panMax3: bytes[o + 12],
+    detuneMax: u16be(bytes, o + 2), detuneMax2: u16be(bytes, o + 4), detuneMax3: u16be(bytes, o + 6),
+    sameDetuneMin: u16be(bytes, o + 8),
+    panMax: bytes[o + 10], panMax2: bytes[o + 11], panMax3: bytes[o + 12],
     numVoice1: bytes[o + 13], numVoice2: bytes[o + 14], numVoice3: bytes[o + 15], numVoiceSame: bytes[o + 16],
     gainDb1: dsp2Level(u24be(bytes, o + 17)), gainDb2: dsp2Level(u24be(bytes, o + 20)),
     gainDb3: dsp2Level(u24be(bytes, o + 23)), gainDbSame: dsp2Level(u24be(bytes, o + 26)),
     randomStrokeMode: bytes[o + 29], blockRandomSustPed: bytes[o + 30],
-    active: mode !== 0,
+    custom: mode !== 0,
   };
+}
+
+/** The neighbouring keys whose recordings a key may borrow. */
+export interface NoteAlternates {
+  /** For unison: up to two other keys whose recordings sound alongside this key's own. */
+  unison: number[];
+  /** For repeated notes: the subset of {@link unison} a repeat may play instead. */
+  random: number[];
+}
+
+/** A raw unison detune value in cents: raw·25 pitch units, a unit being 1/65536 of a
+ *  semitone. */
+export function unisonDetuneRawToCents(raw: number): number {
+  return (raw * 25 * 100) / 65536;
+}
+
+/**
+ * Per-key alternate recordings from the codec-4 per-note rows: each row ends in four
+ * key bytes `b0..b3`. `b0`/`b1` name the alternates (a byte equal to the key itself
+ * means none); `b2`/`b3` repeat the ones that repeated notes may also use — both, the
+ * first only, or neither (Stage 4 loader; the maintainers’ notes).
+ * Null for codec 3, and when the file marks the table unused (`0xFF` on key 0).
+ */
+export function readNoteAlternates(bytes: Uint8Array): NoteAlternates[] | null {
+  const at = codec4PerNoteOffset(bytes);
+  if (!at || at.rows + 128 * 10 > at.end || bytes[at.rows + 6] === 0xff) return null;
+  return Array.from({ length: 128 }, (_, key) => {
+    const [b0, b1, b2, b3] = bytes.subarray(at.rows + key * 10 + 6, at.rows + key * 10 + 10);
+    const unison = [b0, b1].filter((k) => k !== key && k < 128);
+    const first = b2 === b0, second = b3 === b1;
+    const random = first && second ? unison : (first || second) && unison.length === 2 ? [first ? b0 : b1] : [];
+    return { unison, random };
+  });
 }
 
 /** Tru-Vibrato state from the codec-4 `.sty` (style) section. */
@@ -815,39 +861,114 @@ export function parseCodec3V12ZoneRecords(
   });
 }
 
-export interface StrokeLoop {
-  /** Loop start, per-channel samples from the stroke start. */
-  loopStart: number;
-  /** Loop end, per-channel samples from the stroke start. */
-  loopEnd: number;
-  /** True when the stroke loops (loop-out before the sample end); false = one-shot. */
+/**
+ * A stroke's region pointers as the `stk` header stores them: positions in the stroke's
+ * **compressed stream**, in stream words (24-bit for the OG layout, 32-bit otherwise),
+ * relative to the stroke's start pointer. They are not audio sample positions — the
+ * sample DSP jumps its stream reader to them; use
+ * {@link strokeLoop} for audio frames.
+ */
+export interface StrokeRegions {
+  /** Alternate start point (the editor's `SecondStart`): where a note starts when the
+   *  layer skips the attack. */
+  secondStart: number;
+  /** Where the loop begins (the editor's `LoopBegin`). */
+  loopBegin: number;
+  /** End of the stream, and the loop's end. */
+  end: number;
+  /** True when the stroke loops (`loopBegin` before `end`); false = one-shot. */
   loops: boolean;
+  /** Loop-decay field (signed 24-bit at +0x28): −gain·2²³ per envelope update, so
+   *  `0x800000` is −1.0 = hold. */
+  decayRaw: number;
 }
 
 /**
- * Per-stroke loop region from the `stk` header's four region pointers
- * (start @+0x12, loop-in @+0x1b, loop-out @+0x24, end @+0x2d; u32 BE, per-channel
- * samples, cumulative across strokes). Returns the loop
- * window relative to the stroke start and the one-shot flag (`loop-out == end`).
- * Validated on OG codec-1 (TAKE ON ME stk1/2/3/8 read one-shot, matching the RE).
- * Returns null when the pointers aren't monotonic — a guard for any generation
- * whose header offsets we haven't independently pinned, so we never show garbage.
+ * The four region pointers of a `stk` header (start @+0x12, second start @+0x1b, loop
+ * begin @+0x24, end @+0x2d; u32 BE, cumulative across strokes) and its loop-decay field.
+ * The editor writes them from `GetSecondStart`/`GetLoopBegin`/`GetEnd`
+ * (`EncodeStrokePhase0`) and forces loop begin = end on a one-shot. Returns null when the
+ * pointers aren't monotonic — a guard for any generation whose header offsets we haven't
+ * independently pinned, so we never show garbage.
  */
-export function readStrokeLoop(bytes: Uint8Array, payloadOffset: number): StrokeLoop | null {
+export function readStrokeRegions(bytes: Uint8Array, payloadOffset: number): StrokeRegions | null {
   const u1 = u32be(bytes, payloadOffset + 0x12); // start
-  const u2 = u32be(bytes, payloadOffset + 0x1b); // loop-in
-  const u3 = u32be(bytes, payloadOffset + 0x24); // loop-out
+  const u2 = u32be(bytes, payloadOffset + 0x1b); // second start
+  const u3 = u32be(bytes, payloadOffset + 0x24); // loop begin
   const u4 = u32be(bytes, payloadOffset + 0x2d); // end
   if (!(u1 <= u2 && u2 <= u3 && u3 <= u4)) return null;
   const span = u4 - u1;
   if (span <= 0 || span > (1 << 27)) return null; // implausible → unknown
-  return { loopStart: u2 - u1, loopEnd: u3 - u1, loops: u3 !== u4 };
+  const decayRaw = (bytes[payloadOffset + 0x28] << 16) | (bytes[payloadOffset + 0x29] << 8) | bytes[payloadOffset + 0x2a];
+  return { secondStart: u2 - u1, loopBegin: u3 - u1, end: span, loops: u3 !== u4, decayRaw };
 }
 
-/** Write loop-in (@+0x1b) and loop-out (@+0x24) u32 BE into a `stk` header in
- *  place. Pointers are absolute, cumulative across strokes — the same frame
- *  {@link readStrokeLoop} reads. Start (@+0x12) and end (@+0x2d) are left
- *  untouched, so the sample window is preserved. Caller re-checksums. */
+/** Updates per second of the sample DSP's gain envelope — the rate the loop decay is
+ *  defined against (the editor's `SMetric::kEnvelopeUpdateRate`). */
+export const NSMP_ENVELOPE_RATE = 21700;
+
+/**
+ * Loop decay as a rate: dB lost per second inside the loop, 0 = hold. The stored field
+ * is −c·2²³ with c the gain multiplier per envelope update (where
+ * c = 0.01^(1/(seconds·rate)), i.e. the editor's Decay time is the time to fall 40 dB).
+ */
+export function loopDecayDbPerSecond(decayRaw: number): number {
+  const c = Math.abs(decayRaw >= 0x800000 ? decayRaw - 0x1000000 : decayRaw) / 0x800000;
+  if (!(c > 0) || c >= 1) return 0;
+  return -20 * Math.log10(c) * NSMP_ENVELOPE_RATE;
+}
+
+export interface StrokeLoop {
+  /** Loop begin, per-channel frames from the stroke start. */
+  loopStart: number;
+  /** Loop end, per-channel frames from the stroke start — the end of the stroke's audio. */
+  loopEnd: number;
+  /** True when the stroke loops; false = one-shot. */
+  loops: boolean;
+  /** Alternate start point, per-channel frames (0 when it is the normal start). */
+  altStart: number;
+  /** dB lost per second while playback is inside the loop; 0 = the loop holds its level. */
+  decayDbPerSecond: number;
+}
+
+/**
+ * A stroke's loop in **audio frames**: the header's stream-word regions
+ * ({@link readStrokeRegions}) looked up in the decoded stream's segment-opening blocks
+ * (`DecodedStroke.marks`). Every region pointer lands on one — the loop-begin block is
+ * the one carrying the loop-decay flag. The decoder may enter the stream a few words
+ * from the header's start pointer, so positions are anchored on the stream end (the
+ * `end` pointer is the stop block). Null when the header is unreadable or a pointer
+ * doesn't land on a block (never a guessed position).
+ */
+export function strokeLoop(regions: StrokeRegions | null, decoded: DecodedStroke, channelCount: number): StrokeLoop | null {
+  const last = decoded.marks[decoded.marks.length - 1];
+  if (!regions || !last) return null;
+  const frames = decoded.channels[0]?.length ?? 0;
+  const frameAt = (word: number, shift: number): number | null => {
+    const m = decoded.marks.find((x) => x.word === word + shift);
+    return m ? Math.floor(m.sample / Math.max(1, channelCount)) : null;
+  };
+  // One offset for the whole stroke: anchored on the stream end, or failing that the
+  // pointers as written (a stream whose last segment-opening block isn't its end).
+  const shift = [last.word - regions.end, 0].find((x) => !regions.loops || frameAt(regions.loopBegin, x) !== null);
+  if (shift === undefined) return null;
+  const loopStart = regions.loops ? frameAt(regions.loopBegin, shift)! : frames;
+  // Nothing plays from the alternate start yet, so one that lands on no block is
+  // reported as the normal start rather than costing the stroke its loop.
+  const altStart = frameAt(regions.secondStart, shift) ?? 0;
+  return {
+    loopStart, loopEnd: frames, loops: regions.loops && loopStart < frames, altStart,
+    decayDbPerSecond: regions.loops ? loopDecayDbPerSecond(regions.decayRaw) : 0,
+  };
+}
+
+/** Write the second-start (@+0x1b) and loop-begin (@+0x24) pointers, u32 BE, into a
+ *  `stk` header in place. Pointers are absolute stream-word positions, cumulative across
+ *  strokes — the same frame {@link readStrokeRegions} reads, and each must sit on a
+ *  segment-opening block of the stream, so this only moves a region between existing
+ *  blocks; it cannot place a loop at an arbitrary audio position. Start (@+0x12) and
+ *  end (@+0x2d) are left untouched, so the sample window is preserved. Caller
+ *  re-checksums. */
 export function patchStrokeLoopBytes(out: Uint8Array, stkPayloadOffset: number, loopInAbs: number, loopOutAbs: number): void {
   const put = (o: number, v: number) => {
     out[o] = (v >>> 24) & 0xff; out[o + 1] = (v >>> 16) & 0xff; out[o + 2] = (v >>> 8) & 0xff; out[o + 3] = v & 0xff;
@@ -895,7 +1016,7 @@ export interface DecodedStrokeResult extends DecodedStroke {
   channelCount: number;
   /** The stroke's global id (`stk` header byte +3) — what a zone's `globalID` references. */
   globalID: number;
-  /** Loop window from the stroke header, or null when not decodable. */
+  /** Loop window in audio frames, or null when not decodable. */
   loop: StrokeLoop | null;
   /** Replay sample rate in Hz — the stroke-header pitch base ({@link strokeSampleRate}).
    *  Feed this to playback/WAV export so the sample sounds at its stored pitch. */
@@ -1046,7 +1167,7 @@ export function decodeNsmp(bytes: Uint8Array): DecodedStrokeResult[] {
     if (decoded) out.push({
       ...decoded.result, index, channelCount: decoded.channelCount,
       globalID: gidIsU32 ? u32be(bytes, section.payloadOffset) : bytes[section.payloadOffset + 3],
-      loop: readStrokeLoop(bytes, section.payloadOffset),
+      loop: strokeLoop(readStrokeRegions(bytes, section.payloadOffset), decoded.result, decoded.channelCount),
       sampleRate: strokeSampleRate(bytes, section.payloadOffset),
     });
     index++;

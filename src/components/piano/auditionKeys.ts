@@ -1,5 +1,6 @@
-import { NSP_ROOT_OFFSET, type NspZone } from '@/lib/ns4/nsp';
+import type { NspZone } from '@/lib/ns4/nsp';
 import { noteName } from '@/lib/ns4/sample-view';
+import { pianoKey } from './pianoEngine';
 
 /** One key of a quick audition: which recording to play and how far to re-pitch it. */
 export interface AuditionKey {
@@ -26,8 +27,8 @@ export function auditionKeys(zones: readonly NspZone[], zoneCount: number): Audi
   if (zones.length === zoneCount) {
     const keys: AuditionKey[] = [];
     for (const note of TARGETS) {
-      const zone = zones.findIndex((k) => k.lowNote <= note && note <= k.highNote);
-      if (zone >= 0) keys.push({ id: `note-${note}`, label: noteName(note), zone, semitones: note - zones[zone].rootNote - NSP_ROOT_OFFSET });
+      const key = pianoKey(zones, note);
+      if (key) keys.push({ id: `note-${note}`, label: noteName(note), ...key });
     }
     if (keys.length > 0) return keys;
   }

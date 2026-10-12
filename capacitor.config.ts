@@ -1,9 +1,9 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
-// Capacitor wraps the web build into a native iOS app (target: iPad, M1+).
-// Device transfer is VENDOR USB, not SysEx/CoreMIDI: on iPad it rides a native
-// DriverKit DEXT via a custom Capacitor plugin.
-// Desktop uses WebUSB (src/lib/device/webusb.ts). The old SysEx framing is dead.
+// Capacitor wraps the web build into the native iPad app under ios/ (M1+).
+// Device transfer is VENDOR USB, not SysEx/CoreMIDI: on iPad it rides a DriverKit
+// DEXT via the capacitor-nord-usb plugin.
+// Desktop uses WebUSB (src/lib/device/webusb.ts) or node-usb (electron/).
 const config: CapacitorConfig = {
   appId: 'org.opennord.app',
   appName: 'OpenNord',

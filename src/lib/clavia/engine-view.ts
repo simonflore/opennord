@@ -6,6 +6,7 @@
  * <model>/view.ts and return these types.
  */
 import type { EngineSummary } from './engines';
+import type { EqShape, FilterShape, WaveShape } from './curves';
 
 export type DrawbarColor = 'brown' | 'white' | 'black';
 
@@ -51,7 +52,14 @@ export interface PianoCardModel {
   timbre?: string;
   /** Keyboard-touch knob — undefined on models without it (ns3, ns2). */
   touch?: string;
+  /** The timbre as the panel's LED keys, the setting lit; when set, drawn instead of the knob. */
+  timbreKeys?: KeyItem[];
+  /** The keyboard touch as LED keys, the setting lit; when set, drawn instead of the knob. */
+  touchKeys?: KeyItem[];
 }
+
+/** One LED key of a stepped control: its label, and whether it's lit. */
+export interface KeyItem { label: string; on: boolean }
 
 export interface SynthCardModel {
   id: string;
@@ -63,7 +71,41 @@ export interface SynthCardModel {
   res: string;
   cutoffMorph?: MorphMarkView;
   resMorph?: MorphMarkView;
+  /** Where the cutoff / resonance knobs sit, 0–100; undefined draws a neutral dial. */
+  cutoffFill?: number;
+  resFill?: number;
+  /** Knob positions the morph sources sweep each knob to. */
+  cutoffMorphFill?: number[];
+  resMorphFill?: number[];
+  /** Caption of the second filter knob when it isn't resonance (LP+HP: the HP corner). */
+  resCaption?: string;
+  /** The filter drawn as a response curve (absent when the filter is off). */
+  filter?: FilterCurveView;
+  /** The oscillator's basic wave shape, when it is one of the classic ones. */
+  wave?: { shape: WaveShape; width?: number };
+  lfo?: LfoView;
+  arp?: ArpView;
 }
+
+/** A filter to draw: its shape, plus the cutoffs a morph sweeps to. */
+export type FilterCurveView = FilterShape & { morphHz?: number[] };
+
+/** An LFO that is doing something: its shape, speed and what it moves. */
+export interface LfoView { shape: WaveShape; rate: string; target: string; amount?: string; morph?: MorphMarkView }
+
+/** One step of an arpeggiator pattern. */
+export interface ArpStepView { accent: boolean; pan: 'L' | 'C' | 'R' }
+export interface ArpView {
+  mode?: string;
+  direction?: string;
+  rate?: string;
+  range?: string;
+  /** The step pattern, when the pattern is switched on. */
+  steps?: ArpStepView[];
+}
+
+/** One effect in a layer's fixed chain, on or off. */
+export interface FxSlotModel { key: string; label: string; on: boolean; detail: string; eq?: EqShape }
 
 export interface EnvCurveView { a: number; d: number; s: number; r: number; }
 
@@ -89,7 +131,7 @@ export type EngineCardModel =
   | { kind: 'piano'; title: string; volume: VolumeView; piano: PianoCardModel; stats: Stat[] }
   | {
       kind: 'synth'; title: string; volume: VolumeView; synth: SynthCardModel;
-      env: EnvCurveView | null; modEnv?: EnvCurveView; stats: Stat[];
+      env: EnvCurveView | null; modEnv?: EnvCurveView; filterEnv?: EnvCurveView; stats: Stat[];
     };
 
 /** Map a "-4.7 dB" style volume to a 0–100 meter fill, clamped to a -40..+6 dB window. */

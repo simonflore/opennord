@@ -13,6 +13,13 @@
  */
 export type EngineKind = 'organ' | 'piano' | 'synth';
 
+/** The Library's engine order (piano, organ, synth) with each one's LED letter and name. */
+export const LIBRARY_ENGINES: readonly { kind: EngineKind; letter: string; name: string }[] = [
+  { kind: 'piano', letter: 'P', name: 'Piano' },
+  { kind: 'organ', letter: 'O', name: 'Organ' },
+  { kind: 'synth', letter: 'S', name: 'Synth' },
+];
+
 export type EngineSummary =
   /** Stage 2/3 — the container leads. `id` is the bare letter ('A'); `term` is the instrument's word. */
   | { axis: 'container'; term: 'Slot' | 'Panel'; groups: { id: string; engines: EngineKind[] }[] }
@@ -24,4 +31,9 @@ export function engineSearchText(s: EngineSummary): string {
   return s.axis === 'container'
     ? s.groups.map((g) => `${s.term} ${g.id}: ${g.engines.join(' + ')}`).join(' · ')
     : s.engines.map((e) => `${e.kind} ${e.layers.join(' ')}`).join(' + ');
+}
+
+/** The engines a program plays, on either axis — for a glance (the Library's P/O/S LEDs). */
+export function activeEngineKinds(s: EngineSummary): Set<EngineKind> {
+  return new Set(s.axis === 'engine' ? s.engines.map((e) => e.kind) : s.groups.flatMap((g) => g.engines));
 }

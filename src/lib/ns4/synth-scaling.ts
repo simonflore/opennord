@@ -22,6 +22,13 @@ export function cutoffHz(raw: number): number {
   return 277.1826 * Math.pow(2, cutoffSemitones(raw) / 12);
 }
 
+/** Inverse of {@link cutoffHz}: the raw cutoff step (0–127, fractional) a frequency sits at. */
+export function cutoffRaw(hz: number): number {
+  const semis = 12 * Math.log2(hz / 277.1826);
+  const v = semis > 65 ? 117 + (semis - 65) / 1.7 : semis + 52;
+  return Math.min(127, Math.max(0, v));
+}
+
 /** Keyboard tracking factor for the 2-bit "filter track" value (off, 1/3, 2/3, 3/3). */
 export function keyTrackFactor(raw: number): number {
   return [0, 1 / 3, 2 / 3, 1][Math.min(3, Math.max(0, raw | 0))];

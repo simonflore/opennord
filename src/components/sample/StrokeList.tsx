@@ -17,6 +17,15 @@ function safeStem(name: string): string {
   return cleaned.length > 0 ? cleaned : 'sample';
 }
 
+/** A loop in words: its span in seconds, or its length when it is too short for that to
+ *  read (decaying instruments loop a few milliseconds at the very end). */
+export function loopLabel(start: number, end: number, sampleRate: number): string {
+  const seconds = (end - start) / sampleRate;
+  return seconds < 0.1
+    ? `${(seconds * 1000).toFixed(seconds < 0.01 ? 1 : 0)} ms loop at ${(start / sampleRate).toFixed(2)}s`
+    : `loop ${(start / sampleRate).toFixed(2)}–${(end / sampleRate).toFixed(2)}s`;
+}
+
 /** WAV bytes + filename for one decoded stroke.
  *  Encodes the root note into the name (e.g. `Pad_S3_C4.wav`) so the pitch is
  *  recoverable from the file alone when rebuilding a sample project in NSE.
@@ -27,7 +36,7 @@ function strokeWav(stroke: InspectorStroke, baseName: string): { bytes: Uint8Arr
   // Preserve loop points as a `smpl` chunk so the loop survives round-tripping
   // back into a Nord Sample Editor project (the community "looping hack").
   const loop = s.loops && s.loopStart != null && s.loopEnd != null
-    ? { start: s.loopStart, end: s.loopEnd, unityNote: s.rootMidi }
+    ? { start: s.loopStart, end: s.loopEnd - 1, unityNote: s.rootMidi } // `smpl` ends on the last looped frame
     : undefined;
   const { bytes } = encodeStrokeWav(stroke.channels, s.sampleRate, loop);
   const root = s.rootNote ? `_${safeStem(s.rootNote)}` : '';
@@ -144,7 +153,10 @@ function StrokeRow({ stroke, playable, name, sNumber, sounding, playhead }: {
             <span title={s.loops ? 'Sample loops' : 'Plays once (no loop)'}> · {s.loops ? '↻ loops' : 'one-shot'}</span>
           )}
           {s.loops && s.loopStart != null && s.loopEnd != null && (
-            <span> · loop {(s.loopStart / s.sampleRate).toFixed(2)}–{(s.loopEnd / s.sampleRate).toFixed(2)}s</span>
+            <span> · {loopLabel(s.loopStart, s.loopEnd, s.sampleRate)}</span>
+          )}
+          {s.loopDecayDbPerSecond != null && (
+            <span title="How fast a held note fades once it is looping"> · fades {s.loopDecayDbPerSecond.toFixed(0)} dB/s</span>
           )}
         </span>
       </div>

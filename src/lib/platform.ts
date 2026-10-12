@@ -25,9 +25,24 @@ export function getCapacitorPlatform(): 'web' | 'ios' | 'android' {
     | 'android';
 }
 
+/**
+ * True when the iPad app is running on a Mac ("Designed for iPad"). There it
+ * sits in a normal window under a title bar: no status bar to clear, though the
+ * web view still reports a top safe-area inset the height of that title bar.
+ * A Mac has no touch points; every iPad reports five.
+ */
+export function isIpadAppOnMac(): boolean {
+  return isCapacitorPlatform() && typeof navigator !== 'undefined' && navigator.maxTouchPoints === 0;
+}
+
 export function isWebPlatform(): boolean {
   return !isCapacitorPlatform();
 }
 
 /** Apple keyboards: ⌘ is the shortcut modifier, and Ctrl+letter edits text. */
 export const isApple = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+
+/** An iPhone (or iPod): the iOS app there has no USB route to the Nord (DriverKit is iPad-only). */
+export function isIphone(): boolean {
+  return typeof navigator !== 'undefined' && /iPhone|iPod/.test(navigator.platform);
+}

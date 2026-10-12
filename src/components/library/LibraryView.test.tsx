@@ -4,6 +4,7 @@ import { LibraryView } from './LibraryView';
 import type { LibraryEntry } from '../../lib/library/types';
 import type { LibraryPrefsApi } from '../../lib/library/prefs';
 import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
+import { buttonFor } from '../../test-utils/markup';
 
 const entries: LibraryEntry[] = [
   { id: 'nord:A:14', name: 'Wurli Dream', source: 'nord', slot: 'A:14',
@@ -40,27 +41,16 @@ const folder = (over: Partial<FolderLibrary> = {}): FolderLibrary => ({
 });
 
 // Props common to every render; entries/source vary per test.
-const handlers = { onSource: () => {}, onQuery: () => {}, clearFilters: () => {}, onOpen: () => {}, onImport: () => {}, onRemove: () => {} };
-
-/** Pull the `<button>…</button>` whose text content is exactly `label`. */
-function buttonFor(html: string, label: string): string {
-  const m = html.match(new RegExp(`<button[^>]*>${label}</button>`));
-  if (!m) throw new Error(`no <button>${label}</button> in markup`);
-  return m[0];
-}
+const handlers = {
+  onSource: () => {}, onQuery: () => {}, clearFilters: () => {}, filtered: false, onOpen: () => {}, onImport: () => {}, onRemove: () => {},
+  engines: new Set<never>(), onToggleEngine: () => {}, splitOnly: false, onSplitOnly: () => {},
+};
 
 /** True when a rendered tag carries the actual `disabled` DOM attribute —
  * distinct from the always-present `disabled:…` Tailwind variant classes the
  * shared `Button` component's className carries whether or not it's disabled. */
 function isDisabled(tagHtml: string): boolean {
   return /\sdisabled(=|>|\/)/.test(tagHtml);
-}
-
-/** Pull the `<span>…</span>` whose text content is exactly `label`. */
-function spanFor(html: string, label: string): string {
-  const m = html.match(new RegExp(`<span[^>]*>${label}</span>`));
-  if (!m) throw new Error(`no <span>${label}</span> in markup`);
-  return m[0];
 }
 
 describe('LibraryView', () => {
@@ -76,11 +66,9 @@ describe('LibraryView', () => {
     expect(html).toContain('On Nord');
     expect(html).toContain('Local');
     expect(html).toContain('Import file');
-    // engine glimpse chips from the EngineSummary (piano+synth, organ) —
-    // each color-codes by kind so a multi-engine patch reads apart at a glance
-    expect(spanFor(html, 'piano')).toContain('text-engine-piano');
-    expect(spanFor(html, 'synth')).toContain('text-engine-synth');
-    expect(spanFor(html, 'organ')).toContain('text-engine-organ');
+    // the P/O/S engine LEDs from the EngineSummary (piano+synth, organ), named for screen readers
+    expect(html).toContain('aria-label="Piano on, Organ off, Synth on"');
+    expect(html).toContain('aria-label="Piano off, Organ on, Synth off"');
   });
 
   it('renders the category facet only when more than one category is present', () => {
@@ -213,12 +201,14 @@ describe('LibraryView', () => {
     expect(html).toContain('Read access was denied.');
   });
 
-  it('shows a remove control on local cards but not on nord cards', () => {
+  it('shows a remove control on imported rows only, not on nord or folder rows', () => {
+    const withFolder: LibraryEntry[] = [...entries, { id: 'folder:Pads/Warm.ns4p', name: 'Warm Pad', source: 'local' }];
     const html = renderToStaticMarkup(
-      <LibraryView entries={entries} source="all" query="" {...handlers} prefs={prefs()} folder={folder()} />,
+      <LibraryView entries={withFolder} source="all" query="" {...handlers} prefs={prefs()} folder={folder()} />,
     );
-    expect(html).toContain('aria-label="Remove Sunday Organ"'); // local
+    expect(html).toContain('aria-label="Remove Sunday Organ"'); // imported
     expect(html).not.toContain('aria-label="Remove Wurli Dream"'); // nord
+    expect(html).not.toContain('aria-label="Remove Warm Pad"'); // a folder file stays on disk
   });
 
   it('offers a Disconnect control on a connected folder chip', () => {

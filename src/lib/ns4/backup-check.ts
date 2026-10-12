@@ -9,9 +9,10 @@
  *  2. **The file's own check value.** The CBIN CRC-32 is
  *     verified where it is known to hold: programs (`.ns4p`, validated across real
  *     programs + the device corpus), pianos (the v6 CRC-32, or the v5 CRC-16 trailer) and format-1 samples (the header
- *     carries the field — `nspChecksumKind` / `readNsmp`). Live, preset and settings files
- *     are not CRC-checked here: their CBIN CRC hasn't been confirmed on files NSM
- *     wrote, so a mismatch would not be evidence of damage.
+ *     carries the field — `nspChecksumKind` / `readNsmp`), and presets (all 496 real
+ *     `.ns4o`/`.ns4n`/`.ns4y` in the local corpus hold it, fixtures:scan 2026-10). Live
+ *     and settings files are not CRC-checked here: their CBIN CRC hasn't been confirmed
+ *     on files NSM wrote, so a mismatch would not be evidence of damage.
  *  3. **The content reads.** Programs and Live programs decode through
  *     `parseNs4Program`, presets through `parseNs4Preset`, pianos through the piano
  *     stroke decoder (`nsp-audio.ts` — every note of every velocity layer is
@@ -175,7 +176,8 @@ async function slicedCrc(data: Uint8Array, step: (slice: Uint8Array, crc: number
  * The piano's own checksum holds — the kind its CBIN header names (`nspChecksumKind`): v6
  * CRC-32 of `bytes[0x2C:]` at 0x18, v5 CRC-16 trailer. False when the header is inconsistent.
  */
-async function pianoChecksumHolds(bytes: Uint8Array, pace: Pace): Promise<boolean> {
+/** Whether a piano's own check value holds (CRC-32 in v6, CRC-16 trailer in v5 — the CBIN header says which). */
+export async function pianoChecksumHolds(bytes: Uint8Array, pace: Pace): Promise<boolean> {
   const kind = nspChecksumKind(bytes);
   if (kind === 'crc32') return (await slicedCrc(bytes.subarray(0x2c), crc32, 0, pace)) === storedNs4Checksum(bytes);
   if (kind === 'crc16') return (await slicedCrc(bytes.subarray(0, bytes.length - 2), crc16ccitt, 0xffff, pace)) === storedTrailerChecksum(bytes);
@@ -202,7 +204,12 @@ export function checkBackupItem(kind: Exclude<BackupItemKind, 'piano'>, bytes: U
       return MSG.program;
     }
   }
-  if (kind === 'preset') return parseNs4Preset(bytes) ? null : MSG.preset;
+  if (kind === 'preset') {
+    if (!['ns4o', 'ns4n', 'ns4y'].includes(tag)) return MSG.preset;
+    // The CBIN CRC holds on every real preset checked (496 files), as on programs.
+    if (!verifyNs4Checksum(bytes)) return MSG.rejected('preset');
+    return parseNs4Preset(bytes) ? null : MSG.preset;
+  }
   return tag === 'ns4t' ? null : MSG.settings; // settings: recognized only (no parameter map yet)
 }
 

@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { parseNs4Program } from './parse';
 import { programNameFromFilename } from '../clavia/name';
 import { activeLayers, headerView, drawbarLevels, volumeFill, organPanel, pianoCard, synthCard, fxChips, sampleRefViews, morphSummary } from './view';
+import { engineZones, isSplit, programZones } from './view';
+import type { KeyItem } from '../clavia/engine-view';
+import { zonedProgram } from '../../test-utils/ns4';
 
 const fixtureBytes = new Uint8Array(
   readFileSync(fileURLToPath(new URL('./__fixtures__/regressionTest.ns4p', import.meta.url))),
@@ -165,5 +168,60 @@ describe('morphSummary', () => {
   it('maps the param group to a human section label', () => {
     // fixture morphs are all global organ-FX params (group "m" → "Global")
     expect(rows.every((r) => ['Organ', 'Piano', 'Synth', 'Global'].includes(r.section))).toBe(true);
+  });
+});
+
+describe('engineZones / isSplit', () => {
+  it('reads the zone flags with the Split switch on', () => {
+    const p = zonedProgram([{ kind: 'organ', kbZones: '1100' }, { kind: 'piano', kbZones: '0011' }]);
+    expect(engineZones(p)).toEqual([
+      { kind: 'piano', cells: [false, false, true, true] },
+      { kind: 'organ', cells: [true, true, false, false] },
+    ]);
+    expect(isSplit(p)).toBe(true);
+  });
+
+  it('with the switch off, every active engine plays the whole keyboard, stale flags or not', () => {
+    const p = zonedProgram([{ kind: 'organ', kbZones: '0000' }, { kind: 'piano', kbZones: '0011' }], false);
+    expect(engineZones(p)).toEqual([
+      { kind: 'piano', cells: [true, true, true, true] },
+      { kind: 'organ', cells: [true, true, true, true] },
+    ]);
+    expect(isSplit(p)).toBe(false);
+  });
+
+  it('a real program: Split on, but each engine still covers the keyboard (organ A + B)', () => {
+    const p = fixture();
+    expect(programZones(p).hasSplit).toBe(true);
+    expect(isSplit(p)).toBe(false);
+  });
+});
+
+describe('pianoCard — timbre and touch as LED keys', () => {
+  const card = (pianoType: string, timbre: string, touch = 'med') =>
+    pianoCard({ id: 'A', kind: 'piano', pianoType, timbre, touch } as unknown as Parameters<typeof pianoCard>[0]);
+  const lit = (keys?: KeyItem[]) => keys?.filter((k) => k.on).map((k) => k.label);
+
+  it('lights the timbre setting; an electric piano adds the Dyno keys', () => {
+    expect(card('Grand', 'MID').timbreKeys?.map((k) => k.label)).toEqual(['Soft', 'Mid', 'Bright']);
+    expect(lit(card('Grand', 'MID').timbreKeys)).toEqual(['Mid']);
+    expect(lit(card('Electric', 'DYNO2').timbreKeys)).toEqual(['Dyno 2']);
+    expect(card('Electric', 'off').timbreKeys).toHaveLength(5);
+  });
+
+  it('lights several keys for a clav combination, by the clav\'s names; none for off', () => {
+    expect(card('Clav', 'off').timbreKeys?.map((k) => k.label)).toEqual(['Soft', 'Treble', 'Brilliant']);
+    expect(lit(card('Clav', 'SOFT+BRIGHT').timbreKeys)).toEqual(['Soft', 'Brilliant']);
+    expect(lit(card('Grand', 'off').timbreKeys)).toEqual([]);
+  });
+
+  it('keeps a knob for a timbre the type\'s keys cannot show', () => {
+    expect(card('Grand', 'DYNO1').timbreKeys).toBeUndefined();
+  });
+
+  it('shows keyboard touch as Light / Med / Heavy', () => {
+    expect(card('Grand', 'off', 'heavy').touchKeys).toEqual([
+      { label: 'Light', on: false }, { label: 'Med', on: false }, { label: 'Heavy', on: true },
+    ]);
   });
 });

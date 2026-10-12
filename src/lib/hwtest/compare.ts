@@ -20,7 +20,7 @@ import { DEFAULT_ORGAN_PARAMS, ORGAN_ENGINE_MODELS, type OrganModel, type OrganP
 import { parseVibChorus } from '../engine/organ/params';
 import { renderSynthPreview, type SynthPreviewParams } from '../ns4/synth-preview';
 import {
-  decodeNspStroke, findCnsp, NSP_SAMPLE_RATE, readLayerTable, readNspDirectory, strokeFor, touchAttenuation,
+  decodeNspStroke, findCnsp, NSP_ENVELOPE_RATE, NSP_SAMPLE_RATE, readLayerTable, readNspDirectory, strokeFor, touchAttenuation,
 } from '../ns4/nsp-audio';
 import { NSP_ROOT_OFFSET } from '../ns4/nsp';
 
@@ -239,7 +239,7 @@ export function pianoReference(npno: Uint8Array, o: PianoOptions): PianoReferenc
   const step = (ratio * NSP_SAMPLE_RATE) / sr;
   const gain = 10 ** (predictedGainDb / 20);
   const loopEnd = stroke.loop ? stroke.loop.start + stroke.loop.length : Infinity;
-  const loopDecay = decayCoef ** (22050 / sr);
+  const loopDecay = decayCoef ** (NSP_ENVELOPE_RATE / sr);
   const t60 = damperT60(damperIndex);
   const damp = 10 ** (-3 / (t60 * sr));
   const cutoff = 0.001 * 2 ** (damperIndex / 4); // mode 3: silent after t0 ≈ 1 ms·2^(p/4)
@@ -272,7 +272,7 @@ export function pianoReference(npno: Uint8Array, o: PianoOptions): PianoReferenc
   const info: PianoStrokeInfo = {
     zone, layer: pick, layers: layers.length, storedRoot: root, recordedHz: f0?.hz, att,
     floorDb: stroke.velocityFrom / 5, levelWord: level, predictedGainDb,
-    loopDecayDbPerS: stroke.loop ? 20 * Math.log10(decayCoef) * 22050 : undefined,
+    loopDecayDbPerS: stroke.loop ? 20 * Math.log10(decayCoef) * NSP_ENVELOPE_RATE : undefined,
     damperIndex, damperT60S: t60, releaseMode,
   };
   return {

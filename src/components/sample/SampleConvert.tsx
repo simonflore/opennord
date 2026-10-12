@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react';
 import type { NsmpFile } from '../../lib/ns4/nsmp';
 import { convertNsmp, type TargetCodec } from '../../lib/ns4/nsmp-convert';
+import { nsmpToNpno, pianoNameFrom } from '../../lib/ns4/nsmp-to-npno';
+import { NPNO_PIANO_TYPE } from '../../lib/ns4/nsp-write';
 import { downloadBytes } from '../../lib/download';
 import { getErrorMessage } from '../../lib/errors';
 import { useFolder } from '../../lib/folder/FolderContext';
 import { useFolderWrite } from '../../lib/folder/useFolderWrite';
-import { WriteTargetDialog } from '../ui';
+import { selectClass, WriteTargetDialog } from '../ui';
 
 type Status =
   | { kind: 'idle' }
@@ -26,6 +28,9 @@ const GENERATIONS: { code: TargetCodec; ext: string; label: string; experimental
   { code: 2, ext: '.nsmp', label: 'NSMP 2 (.nsmp)', experimental: true },
 ];
 
+/** The piano types a Nord files pianos under, as its panel names them. */
+const PIANO_TYPES = Object.entries(NPNO_PIANO_TYPE).map(([key, value]) => ({ value, label: key[0].toUpperCase() + key.slice(1) }));
+
 /** Which generation a loaded file is, as a {@link GENERATIONS} code (`.nsmp` -> 2). */
 function sourceGeneration(file: NsmpFile): TargetCodec | 0 {
   if (file.legacy) return 2;
@@ -39,23 +44,28 @@ function sourceGeneration(file: NsmpFile): TargetCodec | 0 {
  * the source -- the original `.nsmp` (OG), `.nsmp3` and `.nsmp4` -- so a sample can
  * be converted between *any* two generations in either direction. Audio is preserved
  * exactly (`convertNsmp`).
+ *
+ * It can also be made into a piano (`.npno`), to play from the Nord's piano section
+ * (`nsmpToNpno`): re-pitched and resampled, so not bit-for-bit, and not yet tried on hardware.
  */
 export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: NsmpFile; name?: string }) {
   const folder = useFolder();
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  const [pianoType, setPianoType] = useState<number>(NPNO_PIANO_TYPE.electric);
+  const [building, setBuilding] = useState(false);
 
-  // Keep a ref to the latest pending output so onFallback can always access it.
-  const pendingRef = useRef<{ out: Uint8Array; filename: string } | null>(null);
+  // The conversion being saved, for whichever way the save ends: into the folder or as a download.
+  const pendingRef = useRef<{ out: Uint8Array; filename: string; warnings: string[] } | null>(null);
 
   const folderWrite = useFolderWrite({
     prefScope: 'sample',
     onSaved: (path, folderName) =>
-      setStatus({ kind: 'done', msg: `Saved to ${folderName}/${path}`, warnings: [] }),
+      setStatus({ kind: 'done', msg: `Saved to ${folderName}/${path}`, warnings: pendingRef.current?.warnings ?? [] }),
     onFallback: () => {
       const p = pendingRef.current;
       if (p) {
         downloadBytes(p.out, p.filename);
-        setStatus({ kind: 'done', msg: `Saved ${p.filename}`, warnings: [] });
+        setStatus({ kind: 'done', msg: `Saved ${p.filename}`, warnings: p.warnings });
       }
     },
   });
@@ -64,26 +74,35 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
   const targets = GENERATIONS.filter((g) => g.code !== source);
   if (targets.length === 0) return null;
 
+  /** Save a converted file: into the linked folder when there is one, else as a download. */
+  async function save(out: Uint8Array, filename: string, existing: boolean, warnings: string[]) {
+    pendingRef.current = { out, filename, warnings };
+    await folderWrite.save({ name: filename, existing, write: async (w) => {
+      await w.write(out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer);
+    } });
+  }
+
   async function convert(target: TargetCodec) {
     try {
       const { bytes: out, extension, warnings } = convertNsmp(bytes, target);
       const filename = `${file.name?.trim() || name?.trim() || 'sample'}${extension}`;
-
-      // Capture output so onFallback can access it when writeBack returns 'download'
-      // or when there is no folder linked.
-      pendingRef.current = { out, filename };
-
-      const existing = folder.result.samples.some((s) => s.name === filename);
-      await folderWrite.save({ name: filename, existing, write: async (w) => {
-        await w.write(out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer);
-      } });
-
-      // If we fell back via onFallback (no folder), warnings came from convertNsmp; surface them.
-      if (!folder.folderName) {
-        setStatus((s) => s.kind === 'done' ? { ...s, warnings } : s);
-      }
+      await save(out, filename, folder.result.samples.some((s) => s.name === filename), warnings);
     } catch (e) {
       setStatus({ kind: 'error', msg: getErrorMessage(e) });
+    }
+  }
+
+  async function convertToPiano() {
+    setBuilding(true);
+    await new Promise((r) => setTimeout(r)); // let "Building…" paint: the conversion takes a second or two
+    try {
+      // The file's own name: a converted sample's stored name is often a placeholder.
+      const { bytes: out, fileName, warnings } = nsmpToNpno(bytes, { name: pianoNameFrom(name?.trim() || file.name?.trim() || 'Piano'), pianoType });
+      await save(out, fileName, folder.result.pianos.some((p) => `${p.name}.npno` === fileName), warnings);
+    } catch (e) {
+      setStatus({ kind: 'error', msg: getErrorMessage(e) });
+    } finally {
+      setBuilding(false);
     }
   }
 
@@ -109,12 +128,32 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
             key={g.code}
             className="on-btn on-btn--secondary"
             onClick={() => void convert(g.code)}
-            disabled={folderWrite.saving}
+            disabled={folderWrite.saving || building}
             title={g.experimental ? 'Experimental -- not yet hardware-validated' : undefined}
           >
             Convert to {g.label}{g.experimental ? ' -- experimental' : ''}
           </button>
         ))}
+      </div>
+      <p className="ps-sub" style={{ margin: '12px 0 6px' }}>
+        Or make it a piano, to play from your Nord's piano section. Each note is re-pitched so the piano
+        section can play it.
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <label className="ps-sub" style={{ margin: 0, display: 'flex', gap: 6, alignItems: 'center' }}>
+          Piano type
+          <select className={selectClass} value={pianoType} onChange={(e) => setPianoType(Number(e.target.value))}>
+            {PIANO_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </label>
+        <button
+          className="on-btn on-btn--secondary"
+          onClick={() => void convertToPiano()}
+          disabled={folderWrite.saving || building}
+          title="Experimental -- not yet tried on a Nord"
+        >
+          {building ? 'Building the piano…' : 'Convert to Piano (.npno) -- experimental'}
+        </button>
       </div>
       {status.kind === 'done' && (
         <>

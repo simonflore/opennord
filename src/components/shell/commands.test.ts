@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { rankCommands, type Command } from './commands';
 
-const cmd = (group: Command['group'], label: string, hint?: string): Command => ({ id: `${group}:${label}`, group, label, hint, run: () => {} });
+const cmd = (group: Command['group'], label: string, keywords?: string): Command => ({ id: `${group}:${label}`, group, label, keywords, run: () => {} });
 
 const ALL = [
   cmd('Pages', 'Programs'),
@@ -24,9 +24,15 @@ describe('rankCommands', () => {
   });
 
   it('scores a word by its best place in the label, not its first', () => {
-    const ranked = rankCommands([cmd('Programs', 'Big Grain Pad'), cmd('Programs', 'Program Grand')], 'gra');
-    // Both have a word starting with "gra"; the shorter label wins the tie.
-    expect(ranked.map((c) => c.label)).toEqual(['Big Grain Pad', 'Program Grand']);
+    // "Program Grand" has "gra" inside "Program" first, but also at the start of "Grand";
+    // it must tie with "Big Grain Pad" (word start) and beat "Telegraph" (inside a word only).
+    const ranked = rankCommands([cmd('Programs', 'Telegraph'), cmd('Programs', 'Big Grain Pad'), cmd('Programs', 'Program Grand')], 'gra');
+    expect(ranked.map((c) => c.label)).toEqual(['Big Grain Pad', 'Program Grand', 'Telegraph']);
+  });
+
+  it('breaks a tie by the shorter label, then alphabetically', () => {
+    const ranked = rankCommands([cmd('Programs', 'Grand Strings'), cmd('Programs', 'Grand'), cmd('Programs', 'Grand Piano')], 'grand');
+    expect(ranked.map((c) => c.label)).toEqual(['Grand', 'Grand Piano', 'Grand Strings']);
   });
 
   it('keeps only the best matches before grouping them', () => {
@@ -35,7 +41,7 @@ describe('rankCommands', () => {
     expect(rankCommands(many, 'pad', 3).map((c) => c.label)).toEqual(['Pad 0', 'Pad 1', 'Pad 2']);
   });
 
-  it('needs every word, and searches the hint too', () => {
+  it('needs every word, and searches the keywords (slot) too', () => {
     expect(labels('grand a:11')).toEqual(['Sunday Grand']);
     expect(labels('grand organ')).toEqual([]);
   });

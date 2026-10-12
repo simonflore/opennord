@@ -1,14 +1,12 @@
 import './library.css';
 import { Button, BrowseToolbar, type FacetGroup } from '../ui';
 import { CategoryPanel } from './CategoryPanel';
-import { LibraryCard } from './LibraryCard';
+import { ProgramTable } from './ProgramTable';
+import { TraitKeys } from './TraitKeys';
+import type { EngineKind } from '../../lib/clavia/engines';
 import { LibraryEmpty } from './LibraryEmpty';
 import { BundlePicker } from './BundlePicker';
 import { NewBackupsBanner } from './NewBackupsBanner';
-import { EngineTags } from './EngineTags';
-import { ZoneStrip } from './ZoneStrip';
-import { SlotTag, genTone } from './SlotTag';
-import { CardRemoveButton } from './CardRemoveButton';
 import { SOURCE_LABEL, type LibraryEntry, type LibrarySource, type LibrarySort } from '../../lib/library/types';
 import type { LibraryPrefsApi } from '../../lib/library/prefs';
 import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
@@ -29,6 +27,8 @@ interface Props {
   onQuery: (q: string) => void;
   /** Every filter off and the search cleared (from the list's context). */
   clearFilters: () => void;
+  /** Whether any filter or search is narrowing the list (from the list's context). */
+  filtered: boolean;
   onOpen: (e: LibraryEntry) => void;
   /** The entry open in the detail pane, highlighted in the list. */
   activeId?: string | null;
@@ -42,6 +42,11 @@ interface Props {
   prefs: LibraryPrefsApi;
   /** The connected folder source (name, scan results, connect/refresh/forget). */
   folder: FolderLibrary;
+  /** The LED filter keys: engines a program must play, and split programs only. */
+  engines: ReadonlySet<EngineKind>;
+  onToggleEngine: (k: EngineKind) => void;
+  splitOnly: boolean;
+  onSplitOnly: (on: boolean) => void;
 }
 
 const TABS: Array<LibrarySource | 'all'> = ['all', 'nord', 'local', 'backup', 'cloud'];
@@ -50,10 +55,11 @@ const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', ...SOURCE
 const SORT_LABEL: Record<LibrarySort, string> = { default: 'Default', name: 'Name (A–Z)', source: 'Source' };
 
 export function LibraryView({
-  entries, source, query, onSource, onQuery, clearFilters, onOpen, onImport, onRemove, activeId,
+  entries, source, query, onSource, onQuery, clearFilters, filtered, onOpen, onImport, onRemove, activeId,
   generation = 'all', onGeneration, generationsPresent = [],
   category = 'all', onCategory, categoriesPresent = [],
   importError, onDismissImportError, prefs, folder,
+  engines, onToggleEngine, splitOnly, onSplitOnly,
 }: Props) {
   // Unpack the grouped props so the JSX below reads the same as before.
   const { sort, setSort: onSort, favorites, toggleFavorite: onToggleFavorite } = prefs;
@@ -74,9 +80,6 @@ export function LibraryView({
 
   // When a search/facet is hiding everything, show the shared "no match" state
   // rather than the first-run onboarding (which would wrongly read as "empty").
-  const filtered = query.trim() !== '' || source !== 'all'
-    || (generationsPresent.length > 1 && (generation ?? 'all') !== 'all')
-    || (categoriesPresent.length > 1 && (category ?? 'all') !== 'all');
 
   // A folder is connected but turned up nothing at all — distinct from never
   // having picked one, and distinct from "found presets/pianos/samples/backups
@@ -178,6 +181,7 @@ export function LibraryView({
       actions={actions}
       headExtra={headExtra}
       toolbar={
+        <>
         <BrowseToolbar
           query={query}
           onQuery={onQuery}
@@ -188,6 +192,8 @@ export function LibraryView({
           onSort={(k) => onSort(k as LibrarySort)}
           sortAriaLabel="Sort patches"
         />
+        <TraitKeys engines={engines} onToggleEngine={onToggleEngine} splitOnly={splitOnly} onSplitOnly={onSplitOnly} />
+        </>
       }
       isEmpty={entries.length === 0}
       emptyState={
@@ -212,25 +218,14 @@ export function LibraryView({
         </LibraryEmpty>
       }
     >
-          {entries.map((e) => (
-            <LibraryCard
-              key={e.id}
-              name={e.name}
-              source={e.source}
-              favorite={favorites.has(e.id)}
-              onToggleFavorite={() => onToggleFavorite(e.id)}
-              onOpen={() => onOpen(e)}
-              selected={e.id === activeId}
-              badge={<SlotTag tone={e.slot ? undefined : genTone(e.generation)}>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>}
-              engines={e.engines
-                ? <EngineTags summary={e.engines} />
-                : <span className="text-[11px] text-muted">—</span>}
-              strip={<ZoneStrip program={e.program} />}
-              footExtras={e.source === 'local' && (
-                <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
-              )}
-            />
-          ))}
+      <ProgramTable
+        entries={entries}
+        activeId={activeId}
+        favorites={favorites}
+        onToggleFavorite={onToggleFavorite}
+        onOpen={onOpen}
+        onRemove={onRemove}
+      />
     </CategoryPanel>
   );
 }

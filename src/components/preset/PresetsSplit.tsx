@@ -1,16 +1,21 @@
-import { useState } from 'react';
+import { useCloseRemoved, useOpenEntry } from '@/components/library/openEntry';
 import { usePresetsState } from '@/lib/library/PresetsContext';
 import { PresetsBrowse } from './PresetsBrowse';
 import { PresetInspector } from './PresetInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
-import { EmptyNote } from '@/components/library/EmptyNote';
+import { EmptyNote, NotListedNote } from '@/components/library/EmptyNote';
 import { useSplitLayout } from '@/lib/responsive';
 
-/** Presets master/detail: the browse list + a thin recognized-preset inspector. */
-export function PresetsSplit() {
+/**
+ * Presets master/detail: the browse list + a thin recognized-preset inspector.
+ * `/library/presets/{-$presetId}` renders this, with or without a preset; the
+ * open preset comes from the route.
+ */
+export function PresetsSplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = usePresetsState();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const closeRemoved = useCloseRemoved('/library/presets');
+  const open = useOpenEntry();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
 
   function importPreset() {
@@ -34,21 +39,22 @@ export function PresetsSplit() {
       <PresetsBrowse
         entries={s.shown}
         source={s.source} setSource={s.setSource}
-        kind={s.kind} setKind={s.setKind} clearFilters={s.clearFilters}
+        kind={s.kind} setKind={s.setKind} clearFilters={s.clearFilters} filtered={s.filtered}
         query={s.query} setQuery={s.setQuery}
         kinds={s.kinds} showSourceFacet={s.showSourceFacet}
         sort={s.prefs.sort} setSort={s.prefs.setSort}
         isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
-        onSelect={(e) => setSelectedId(e.id)}
+        onSelect={(e) => open.preset(e.id)}
         activeId={selectedId}
         onImport={importPreset}
-        onRemove={(id) => void s.removePreset(id)}
+        onRemove={(id) => void s.removePreset(id).then(() => closeRemoved(id))}
       />
     </div>
   );
 
   const detail = entry
-    ? <PresetInspector entry={entry} session={s.session} />
+    ? <PresetInspector key={entry.id} entry={entry} session={s.session} />
+    : selectedId ? <NotListedNote noun="preset" className="p-4" />
     : <EmptyNote className="p-4">Pick a preset to see its details.</EmptyNote>;
 
   return (
@@ -56,9 +62,10 @@ export function PresetsSplit() {
       wide={wide}
       master={list}
       detail={detail}
-      hasDetail={!!entry}
-      onBack={() => setSelectedId(null)}
+      hasDetail={!!selectedId}
+      list="/library/presets"
       backLabel="← Presets"
+      selectedId={selectedId}
     />
   );
 }

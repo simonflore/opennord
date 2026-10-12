@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import '../../styles/nord.css';
-import { readNsmp, decodeNsmp, readNsmpZones, readSampleUnison, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
+import { readNsmp, decodeNsmp, readNsmpZones, readSampleUnison, readNoteAlternates, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
 import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary, sampleUnisonView, truVibratoView, voicingView, noteName } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
 import { buildPlayableZones, strokeKeyboardOrder, type PlayableZone } from '../../lib/ns4/playable-zones';
 import { createSampler, DEFAULT_ENVELOPE, type Sampler, type AmpEnvelope } from './sampleEngine';
 import { EnvelopePanel } from './EnvelopePanel';
+import { UnisonPanel } from './UnisonPanel';
 import { useSampleTransport } from './useSampleTransport';
 import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
@@ -39,12 +40,13 @@ interface Loaded {
   strokesByGlobalID: Map<number, DecodedStrokeResult>;
   /** Polyphonic player, null when audio isn't decodable. */
   sampler: Sampler | null;
-  /** Nord factory content — drives the editor's "edit it for your own use" disclaimer. */
-  factory: boolean;
+  /** Loaded from `initial` (the library's sample), not dropped or picked here
+   *  (the user's own file, never factory content). */
+  fromInitial: boolean;
 }
 
 /** What the inspector shows; `id` is the list entry it came from (none for a previewed file). */
-export interface InspectorInput { id?: string; bytes: Uint8Array; name: string; factory?: boolean; }
+export interface InspectorInput { id?: string; bytes: Uint8Array; name: string; }
 
 /**
  * Audition the sample mapped to zone `index`. A zone references its stroke by
@@ -58,7 +60,11 @@ function playZone(loaded: Loaded, index: number): void {
   if (stroke) playPcm(stroke.channels, undefined, stroke.sampleRate);
 }
 
-export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) {
+export function SampleInspector({ initial, factory }: {
+  initial?: InspectorInput;
+  /** Whether `initial` is Nord factory content (never a file dropped or picked here). */
+  factory?: boolean;
+} = {}) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const loadCount = useRef(0);
@@ -69,6 +75,10 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
   const [env, setEnv] = useState<AmpEnvelope>(DEFAULT_ENVELOPE);
   const envRef = useRef<AmpEnvelope | null>(null);
   useEffect(() => { envRef.current = envEnabled ? env : null; }, [envEnabled, env]);
+  // The Unison setting to audition (the program's switch, 0–3), read at each note-on.
+  const [unisonLevel, setUnisonLevel] = useState(0);
+  const unisonRef = useRef(0);
+  useEffect(() => { unisonRef.current = unisonLevel; }, [unisonLevel]);
 
   const transport = useSampleTransport(loaded?.sampler ?? null);
   // sounding is a state value (Map), not a function
@@ -99,7 +109,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded?.sampler, loaded?.decodable, setSink, clearSink, transport.refresh]);
 
-  function loadBytes(bytes: Uint8Array, name: string, factory = false) {
+  function loadBytes(bytes: Uint8Array, name: string, fromInitial: boolean) {
     const file = readNsmp(bytes);
     const decodable = file.codec === 3 || file.codec === 4 || file.legacy;
     let decoded: DecodedStrokeResult[] = [];
@@ -125,14 +135,14 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     // the common default). Gain is deliberately NOT applied — the audio is peak-
     // normalized per stroke, so the stored level would fight that, not reproduce it.
     const detuneCents = gainDetuneView(bytes)?.detuneCents ?? 0;
-    // When the sample has unison engaged, audition it as a stacked/panned voice
-    // (approximate — see unisonVoices); off → a single voice, unchanged.
-    const unison = readSampleUnison(bytes);
-    const roundRobin = (unison?.randomStrokeMode ?? 0) !== 0;
+    // Unison and repeated-note variation play the way the instrument voices them: the
+    // sample's own values, and its neighbouring recordings per key (see sampleEngine).
     const sampler = decodable
-      ? createSampler(playableZones, strokesByGlobalID, () => envRef.current, { detuneCents, unison, roundRobin })
+      ? createSampler(playableZones, strokesByGlobalID, () => envRef.current, {
+        detuneCents, unison: readSampleUnison(bytes), unisonLevel: () => unisonRef.current, alternates: readNoteAlternates(bytes),
+      })
       : null;
-    setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current, playableZones, order, strokesByGlobalID, sampler, factory });
+    setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current, playableZones, order, strokesByGlobalID, sampler, fromInitial });
   }
 
   async function onFile(f: File) {
@@ -142,11 +152,11 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
     const gen = ++loadCount.current;
     const bytes = await readFileBytes(f);
     if (gen !== loadCount.current) return; // superseded while reading
-    loadBytes(bytes, f.name); // a dropped/picked file is the user's own — not factory
+    loadBytes(bytes, f.name, false); // a dropped/picked file is the user's own — not factory
   }
 
   useEffect(() => {
-    if (initial) { ++loadCount.current; loadBytes(initial.bytes, initial.name, !!initial.factory); }
+    if (initial) { ++loadCount.current; loadBytes(initial.bytes, initial.name, true); }
   }, [initial]);
 
   // Legacy (NWS-container, OG) files edit in place too, but only when the map is
@@ -200,7 +210,8 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
                 codec={loaded.file.codec === 4 ? 4 : loaded.file.legacy ? 'og' : 3}
                 legacy={loaded.file.legacy}
                 rootSplitOnly={rootSplitOnly}
-                factory={loaded.factory}
+                // Factory content drives the editor's "edit it for your own use" disclaimer.
+                factory={loaded.fromInitial && !!factory}
                 unison={sampleUnisonView(loaded.bytes)?.summary ?? null}
                 onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
                 onNoteOn={(midi) => { loaded.sampler?.noteOn(midi, 100); transport.refresh(); }}
@@ -241,6 +252,7 @@ export function SampleInspector({ initial }: { initial?: InspectorInput } = {}) 
           {loaded.decodable && (
             <EnvelopePanel enabled={envEnabled} env={env} onToggle={setEnvEnabled} onChange={setEnv} />
           )}
+          {loaded.decodable && <UnisonPanel level={unisonLevel} onChange={setUnisonLevel} />}
           {loaded.decodable && <SampleConvert bytes={loaded.bytes} file={loaded.file} name={loaded.name} />}
           <StrokeList
             strokes={loaded.strokes}

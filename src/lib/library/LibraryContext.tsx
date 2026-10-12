@@ -1,4 +1,6 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useDeferredValue, useMemo, useState, type ReactNode } from 'react';
+import { useListFilters } from '@/lib/library/useListFilters';
+import type { EngineKind } from '@/lib/clavia/engines';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedLibrary } from '@/lib/library/useImportedLibrary';
@@ -22,6 +24,14 @@ function useLibraryStateValue() {
   const [generation, setGeneration] = useState<LibraryEntry['generation'] | 'all'>('all');
   const [category, setCategory] = useState<string | 'all'>('all');
   const [query, setQuery] = useState('');
+  // The LED filter keys: programs that play every lit engine, and only split ones.
+  const [engines, setEngines] = useState<ReadonlySet<EngineKind>>(new Set());
+  const [splitOnly, setSplitOnly] = useState(false);
+  const toggleEngine = useCallback((k: EngineKind) => setEngines((on) => {
+    const next = new Set(on);
+    if (!next.delete(k)) next.add(k);
+    return next;
+  }), []);
   const [importError, setImportError] = useState('');
   const folder = useFolder();
   const imported = useImportedLibrary();
@@ -29,22 +39,45 @@ function useLibraryStateValue() {
 
   // Memoised so the list keeps its identity across renders that don't change it
   // (the ⌘K palette's command list is built from it).
-  const allEntries: LibraryEntry[] = useMemo(() => [
-    ...nordEntriesFromDevice(deviceEntries),
-    ...entriesFromScannedPrograms(folder.result.programs),
-    ...imported.entries,
-  ], [deviceEntries, folder.result.programs, imported.entries]);
-  /** Every filter off and the search cleared (the list's "clear filters"). */
-  const clearFilters = useCallback(() => { setQuery(''); setSource('all'); setGeneration('all'); setCategory('all'); }, []);
+  // Each source's entries are built on their own, so a Nord read, a folder
+  // rescan or an import keeps the other sources' entry objects (and their
+  // memoised table rows).
+  const nordEntries = useMemo(() => nordEntriesFromDevice(deviceEntries), [deviceEntries]);
+  const folderEntries = useMemo(() => entriesFromScannedPrograms(folder.result.programs), [folder.result.programs]);
+  const allEntries: LibraryEntry[] = useMemo(
+    () => [...nordEntries, ...folderEntries, ...imported.entries],
+    [nordEntries, folderEntries, imported.entries],
+  );
   // Generations present across the *unfiltered* list — drives whether the format
   // facet is worth showing (only when there's more than one). Stage 4 → 2 order.
-  const generationsPresent = (['Stage 4', 'Stage 3', 'Stage 2'] as const)
-    .filter((g) => allEntries.some((e) => e.generation === g));
+  const generationsPresent = useMemo(() => (['Stage 4', 'Stage 3', 'Stage 2'] as const)
+    .filter((g) => allEntries.some((e) => e.generation === g)), [allEntries]);
   // Categories present across the *unfiltered* list — drives whether the
   // category facet is worth showing (only when there's more than one).
-  const categoriesPresent = presentCategories(allEntries);
-  const shown = sortEntries(filterEntries(allEntries, source, query, generation, category), prefs.sort, prefs.favorites);
-  const entryById = (id: string) => allEntries.find((e) => e.id === id);
+  const categoriesPresent = useMemo(() => presentCategories(allEntries), [allEntries]);
+  // The list follows the search a beat behind (an interruptible render), so the
+  // field keeps up with typing in a library of thousands.
+  const listQuery = useDeferredValue(query);
+  // Memoised: the Split key reads each program's zones, which other renders
+  // (an open program, a device poll) shouldn't redo.
+  const shown = useMemo(() => sortEntries(
+    filterEntries(allEntries, source, listQuery, generation, category, { engines, split: splitOnly }),
+    prefs.sort, prefs.favorites,
+  ), [allEntries, source, listQuery, generation, category, engines, splitOnly, prefs.sort, prefs.favorites]);
+  const byId = useMemo(() => new Map(allEntries.map((e) => [e.id, e])), [allEntries]);
+  const entryById = useCallback((id: string) => byId.get(id), [byId]);
+  // The list's filters, once: `filtered` and the "clear filters" button both read
+  // this, and a filter counts while set even if its facet is hidden right now.
+  const { filtered, clearFilters, ensureListed } = useListFilters(shown, [
+    // The search counts once the list has caught up with it (listQuery), so the
+    // empty state never reads a still-empty list as an empty library.
+    { active: listQuery.trim() !== '', reset: () => setQuery('') },
+    { active: source !== 'all', reset: () => setSource('all') },
+    { active: generation !== 'all', reset: () => setGeneration('all') },
+    { active: category !== 'all', reset: () => setCategory('all') },
+    { active: engines.size > 0, reset: () => setEngines(new Set()) },
+    { active: splitOnly, reset: () => setSplitOnly(false) },
+  ]);
 
   function importFile() {
     const input = document.createElement('input');
@@ -78,9 +111,10 @@ function useLibraryStateValue() {
   }
 
   return {
-    all: allEntries, clearFilters,
+    all: allEntries, clearFilters, filtered, ensureListed,
     shown, source, setSource, generation, setGeneration, generationsPresent,
     category, setCategory, categoriesPresent, query, setQuery,
+    engines, toggleEngine, splitOnly, setSplitOnly,
     importFile, importError, clearImportError: () => setImportError(''), imported, prefs, folder, entryById,
   };
 }
