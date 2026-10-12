@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { cn } from '@/lib/cn';
 
 /**
  * Master/detail two-pane container. Purely presentational — the parent decides
@@ -22,9 +23,8 @@ export function SplitView({ master, detail, solo, inspector }: {
   /** The detail as an inspector column on the right, the master keeping its width (wide screens). */
   inspector?: boolean;
 }) {
-  const cls = ['on-split', solo && 'on-split--solo', inspector && 'on-split--inspector'].filter(Boolean).join(' ');
   return (
-    <div className={cls}>
+    <div className={cn('on-split', solo && 'on-split--solo', inspector && 'on-split--inspector')}>
       <div className="on-split__master">{master}</div>
       <div className="on-split__detail">{detail}</div>
     </div>

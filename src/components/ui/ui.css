@@ -41,7 +41,8 @@
 .on-error { color: var(--warn); font: 11px var(--font); }
 
 /* Master/detail split — used by the Library at wide widths. The parent only
-   renders this when useSplitLayout() is true, so no media query is needed here. */
+   renders this when useSplitLayout() is true; the one media query below is the
+   programs page's inspector variant. */
 .on-split {
   display: grid;
   grid-template-columns: minmax(280px, 360px) 1fr;
@@ -61,11 +62,17 @@
 .on-split--solo .on-split__detail { display: none; }
 /* The program inspector (B×A): on a wide screen the table keeps its width (and
    its columns) and the open program sits in a column on the right, its engine
-   modules stacked. Narrower, the list folds beside a wide detail instead. */
+   modules stacked. Narrower, the list folds beside a wide detail instead.
+   1400px: the viewport where the table, beside a 34vw inspector, still clears
+   its own 600px fold (ProgramTable's container query) with the rail and the
+   page padding taken off. Nothing open (solo), the table keeps the whole width. */
 @media (min-width: 1400px) {
-  .on-split--inspector { grid-template-columns: minmax(0, 1fr) clamp(440px, 34vw, 540px); }
+  .on-split--inspector:not(.on-split--solo) { grid-template-columns: minmax(0, 1fr) clamp(440px, 34vw, 540px); }
   .on-split--inspector .ps-grid { grid-template-columns: minmax(0, 1fr); }
 }
+/* The console uses the window's width: the shell's <main> drops its 1100px
+   reading column while it holds the inspector split (every other page keeps it). */
+.on-content:has(.on-split--inspector) { max-width: 1680px; }
 /* The detail pane owns its own scroll; its header is pinned below. */
 .on-split__detail { min-width: 0; min-height: 0; overflow-y: auto; }
 /* Program header stays put while the body (engines, FX, samples…) scrolls.
