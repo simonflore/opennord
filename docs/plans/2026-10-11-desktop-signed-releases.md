@@ -6,7 +6,7 @@
 
 **Architecture:** electron-builder stays the packer; its `build` block in `package.json` gains signing, installer targets, stable asset names and a GitHub `publish` entry (used only to emit `latest*.yml`). A new `scripts/release-desktop.mjs` orchestrates preflight → mac pack → verification → Windows artifact fetch → draft upload; its decisions are pure functions with injected inputs so they are unit-tested without git, `gh` or the network. The Windows CI job keeps building the installer because it cannot be built on macOS.
 
-**Tech Stack:** Electron 41 (macOS 12+), electron-builder 26, node-usb 2 (prebuilds), vitest, GitHub CLI (`gh`), Xcode `notarytool`/`stapler`.
+**Tech Stack:** Electron 44 (macOS 13+), electron-builder 26, node-usb 2 (prebuilds), vitest, GitHub CLI (`gh`), Xcode `notarytool`/`stapler`.
 
 **Spec:** `docs/specs/2026-10-11-desktop-signed-releases-design.md` (paths are relative to `packages/core` unless they start with `.github/`).
 

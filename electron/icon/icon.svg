@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- OpenNord app icon. Source of truth: `npm run icons` renders this to icon.png,
+       which electron-builder turns into the .icns / .ico.
+
+       A control from the app's own panel language: a knob with its value ring,
+       tick scale and printed legend — the wordmark, ink "open" + accent "nord".
+       Studio Dark: graphite ground, the one signal accent. Deliberately not a
+       keyboard and not anything of Nord's (docs/LEGAL.md).
+
+       The legend is set in IBM Plex Mono Bold, which the render script supplies
+       from @fontsource; opened on its own, this file falls back to another
+       monospace face. Geometry: knob centred at (512, 424), ring sweeps 270°
+       from 135° to 405°, value at 318°. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26282c"/>
+      <stop offset="1" stop-color="#18191b"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.03"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.3"/>
+    </linearGradient>
+    <linearGradient id="cap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#43464d"/>
+      <stop offset="1" stop-color="#1d1e21"/>
+    </linearGradient>
+    <filter id="drop" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- macOS icon grid: an 824 px body centred on a 1024 px canvas. -->
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#body)"/>
+  <rect x="102" y="102" width="820" height="820" rx="184" fill="none" stroke="url(#edge)" stroke-width="4"/>
+
+  <!-- Scale, ring track, value. -->
+  <path d="M 335.22 600.78 L 315.42 620.58 M 274.24 501.25 L 247.61 509.91 M 265.08 384.89 L 237.42 380.51 M 309.75 277.05 L 287.09 260.60 M 398.50 201.25 L 385.79 176.30 M 512.00 174.00 L 512.00 146.00 M 625.50 201.25 L 638.21 176.30 M 714.25 277.05 L 736.91 260.60 M 758.92 384.89 L 786.58 380.51 M 749.76 501.25 L 776.39 509.91 M 688.78 600.78 L 708.58 620.58" stroke="#5b5f67" stroke-width="10" stroke-linecap="round"/>
+  <path d="M 362.09 573.91 A 212 212 0 1 1 661.91 573.91" fill="none" stroke="#0e0f10" stroke-width="36" stroke-linecap="round"/>
+  <path d="M 362.09 573.91 A 212 212 0 1 1 669.55 282.14" fill="none" stroke="#ff6a1a" stroke-width="36" stroke-linecap="round"/>
+
+  <!-- Fluted skirt, cap, pointer. -->
+  <g filter="url(#drop)">
+    <circle cx="512" cy="424" r="162" fill="#2a2c30"/>
+  </g>
+  <g fill="#141516">
+    <circle cx="674.00" cy="424.00" r="14"/>
+    <circle cx="666.07" cy="474.06" r="14"/>
+    <circle cx="643.06" cy="519.22" r="14"/>
+    <circle cx="607.22" cy="555.06" r="14"/>
+    <circle cx="562.06" cy="578.07" r="14"/>
+    <circle cx="512.00" cy="586.00" r="14"/>
+    <circle cx="461.94" cy="578.07" r="14"/>
+    <circle cx="416.78" cy="555.06" r="14"/>
+    <circle cx="380.94" cy="519.22" r="14"/>
+    <circle cx="357.93" cy="474.06" r="14"/>
+    <circle cx="350.00" cy="424.00" r="14"/>
+    <circle cx="357.93" cy="373.94" r="14"/>
+    <circle cx="380.94" cy="328.78" r="14"/>
+    <circle cx="416.78" cy="292.94" r="14"/>
+    <circle cx="461.94" cy="269.93" r="14"/>
+    <circle cx="512.00" cy="262.00" r="14"/>
+    <circle cx="562.06" cy="269.93" r="14"/>
+    <circle cx="607.22" cy="292.94" r="14"/>
+    <circle cx="643.06" cy="328.78" r="14"/>
+    <circle cx="666.07" cy="373.94" r="14"/>
+  </g>
+  <circle cx="512" cy="424" r="132" fill="url(#cap)"/>
+  <circle cx="512" cy="424" r="130" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="4"/>
+  <path d="M 534.29 403.93 L 621.99 324.97" stroke="#ecebe6" stroke-width="26" stroke-linecap="round"/>
+
+  <!-- The legend. Sized to stay clear of the body's rounded lower corners. -->
+  <text x="512" y="826" text-anchor="middle" font-family="'IBM Plex Mono', ui-monospace, Menlo, monospace" font-weight="700" font-size="104" letter-spacing="8"><tspan fill="#ecebe6">open</tspan><tspan fill="#ff6a1a">nord</tspan></text>
+</svg>
