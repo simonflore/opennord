@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  parseFlags, pickWindowsRun, preflightProblems, releaseAction, releaseAssets, releaseCreateArgs, releaseTag,
+  feedMinimumSystemVersion, parseFlags, pickWindowsRun, preflightProblems, releaseAction, releaseAssets,
+  releaseCreateArgs, releaseTag, withMinimumSystemVersion,
 } from './release-desktop-rules.mjs';
 
 // The real config: asset names are derived from it, so this is also the check
@@ -88,6 +89,24 @@ describe('releaseAction', () => {
   });
   it('refuses to touch a published release', () => {
     expect(() => releaseAction({ isDraft: false })).toThrow(/already published/);
+  });
+});
+
+describe('the mac update feed minimum', () => {
+  it('turns the app\'s macOS minimum into the Darwin version electron-updater compares', () => {
+    expect(feedMinimumSystemVersion('12.0')).toBe('21.0.0');
+    expect(feedMinimumSystemVersion('26')).toBe('25.0.0');
+    expect(() => feedMinimumSystemVersion('10.15')).toThrow(/No Darwin version/);
+  });
+  it('is set for the real config (Electron 38+ needs macOS 12)', () => {
+    expect(build.mac.minimumSystemVersion).toBe('12.0');
+    expect(feedMinimumSystemVersion(build.mac.minimumSystemVersion)).toBe('21.0.0');
+  });
+  it('adds the field to latest-mac.yml, or replaces it', () => {
+    const yml = "version: 0.2.0\nfiles:\n  - url: OpenNord-mac.zip\nreleaseDate: '2026-10-12'\n";
+    expect(withMinimumSystemVersion(yml, '21.0.0')).toBe(`${yml}minimumSystemVersion: '21.0.0'\n`);
+    expect(withMinimumSystemVersion(`${yml}minimumSystemVersion: '20.0.0'\n`, '21.0.0'))
+      .toBe(`${yml}minimumSystemVersion: '21.0.0'\n`);
   });
 });
 

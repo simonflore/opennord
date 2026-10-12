@@ -10,13 +10,13 @@
 // This file only runs things. Every decision is in release-desktop-rules.mjs,
 // which is what the tests import — so this one can run unconditionally.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  NOTARY_PROFILE, parseFlags, pickWindowsRun, preflightProblems, releaseAction, releaseAssets,
-  releaseCreateArgs, releaseTag,
+  NOTARY_PROFILE, feedMinimumSystemVersion, parseFlags, pickWindowsRun, preflightProblems, releaseAction,
+  releaseAssets, releaseCreateArgs, releaseTag, withMinimumSystemVersion,
 } from './release-desktop-rules.mjs';
 
 const core = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -118,6 +118,15 @@ run('npm', ['run', 'electron:pack'], { APPLE_KEYCHAIN_PROFILE: NOTARY_PROFILE })
 run('codesign', ['--verify', '--deep', '--strict', APP]);
 run('xcrun', ['stapler', 'validate', APP]);
 run('spctl', ['--assess', '--type', 'execute', '--verbose', APP]);
+
+// 6b. Tell the mac update feed the oldest macOS this build runs on, so an older
+//     Mac's updater skips it instead of installing an app that won't open.
+const macFeed = join(core, 'release', 'latest-mac.yml');
+if (existsSync(macFeed)) {
+  const minimum = feedMinimumSystemVersion(pkg.build.mac.minimumSystemVersion);
+  writeFileSync(macFeed, withMinimumSystemVersion(readFileSync(macFeed, 'utf8'), minimum));
+  console.log(`\nlatest-mac.yml: minimumSystemVersion ${minimum} (macOS ${pkg.build.mac.minimumSystemVersion})`);
+}
 
 // 7. Gather the files: the mac ones where the pack left them, the Windows ones
 //    from CI into a scratch folder that is removed again.

@@ -6,7 +6,7 @@
 
 **Architecture:** Everything lives in the Electron main process so a release with a broken web app can still be repaired. Decisions are pure functions in `electron/update-policy.ts` (unit-tested, no Electron import); `electron/menu.ts` builds the menu template as plain data; `electron/updater.ts` wires `electron-updater`, dialogs and timers to those decisions; `electron/main.ts` starts it and reports USB closes.
 
-**Tech Stack:** Electron 33, electron-updater 6, esbuild (bundles main), vitest.
+**Tech Stack:** Electron 41 (macOS 12+), electron-updater 6, esbuild (bundles main), vitest.
 
 **Spec:** `docs/specs/2026-10-11-desktop-auto-update-design.md` (paths relative to `packages/core`).
 
