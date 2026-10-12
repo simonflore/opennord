@@ -110,20 +110,46 @@ function useLibraryStateValue() {
     input.click();
   }
 
-  return {
-    all: allEntries, clearFilters, filtered, ensureListed,
-    shown, source, setSource, generation, setGeneration, generationsPresent,
+  // What the always-mounted shell reads (the rail's counts and source, the ⌘K
+  // palette's programs): none of it changes as the search is typed, so it is
+  // its own context and those consumers skip every keystroke.
+  const data = useMemo(
+    () => ({ all: allEntries, entryById, ensureListed, clearFilters, source, setSource }),
+    [allEntries, entryById, ensureListed, clearFilters, source],
+  );
+  const clearImportError = useCallback(() => setImportError(''), []);
+  const state = {
+    ...data, filtered,
+    shown, generation, setGeneration, generationsPresent,
     category, setCategory, categoriesPresent, query, setQuery,
     engines, toggleEngine, splitOnly, setSplitOnly,
-    importFile, importError, clearImportError: () => setImportError(''), imported, prefs, folder, entryById,
+    importFile, importError, clearImportError, imported, prefs, folder,
   };
+  return { data, state };
 }
 
-type LibraryState = ReturnType<typeof useLibraryStateValue>;
+type LibraryState = ReturnType<typeof useLibraryStateValue>['state'];
+type LibraryData = ReturnType<typeof useLibraryStateValue>['data'];
 const Ctx = createContext<LibraryState | null>(null);
+const DataCtx = createContext<LibraryData | null>(null);
 
 export function LibraryProvider({ children }: { children: ReactNode }) {
-  return <Ctx.Provider value={useLibraryStateValue()}>{children}</Ctx.Provider>;
+  const { data, state } = useLibraryStateValue();
+  return (
+    <DataCtx.Provider value={data}>
+      <Ctx.Provider value={state}>{children}</Ctx.Provider>
+    </DataCtx.Provider>
+  );
+}
+
+/**
+ * The library's entries and its source filter, without the search and facet
+ * state: for consumers that should not re-render as the search is typed.
+ */
+export function useLibraryData(): LibraryData {
+  const v = useContext(DataCtx);
+  if (!v) throw new Error('useLibraryData must be used within LibraryProvider');
+  return v;
 }
 
 export function useLibraryState(): LibraryState {

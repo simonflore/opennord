@@ -79,8 +79,9 @@ function AppShell({ path }: { path: string }) {
 
 /**
  * The rail with its library data. Reading the lists here, not in AppShell,
- * keeps a list change (a search keystroke, a scan tick) from re-rendering the
- * whole shell.
+ * keeps a list change (a scan tick) from re-rendering the whole shell; the
+ * programs come from useLibraryData, which the search doesn't touch, so a
+ * search keystroke doesn't re-render the rail either.
  */
 function ShellRail({ path, onNavigate }: { path: string; onNavigate: (to: NavTo) => void }) {
   return <Rail path={path} onNavigate={onNavigate} {...useRailData()} />;

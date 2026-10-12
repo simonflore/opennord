@@ -3,7 +3,7 @@ import type { CategoryId } from '../../lib/library/categories';
 import { SOURCE_LABEL, type LibrarySource } from '../../lib/library/types';
 import { countBySource } from '../../lib/library/browse';
 import { useDevice } from '../../lib/device/DeviceContext';
-import { useLibraryState } from '../../lib/library/LibraryContext';
+import { useLibraryData } from '../../lib/library/LibraryContext';
 import { usePresetsState } from '../../lib/library/PresetsContext';
 import { useSamplesState } from '../../lib/library/SamplesContext';
 import { usePianosState } from '../../lib/library/PianosContext';
@@ -16,7 +16,7 @@ import type { SourceItem } from './Rail';
  */
 export function useRailData() {
   const live = !!useDevice().session;
-  const { all: programs, source: activeSource, clearFilters, setSource } = useLibraryState();
+  const { all: programs, source: activeSource, clearFilters, setSource } = useLibraryData();
   const presets = usePresetsState().all.length;
   const samples = useSamplesState().all.length;
   const pianos = usePianosState().all.length;
