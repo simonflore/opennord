@@ -13,7 +13,7 @@ import { decodeNp4 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import {
   ampPart, effectsSection, fwHeader, headerOnly, label, levelPart, octavePart, parts, pianoParts, reverbPart,
-  soundIdRow, transposeText, type PianoNameResolver,
+  pianoSynthSides, singleSplit, soundIdRow, splitText, SPLIT_SIDES, SPLIT_NOTES_FROM_C3, transposeText, type PianoNameResolver,
 } from '../clavia/fw-present';
 
 /** Pno_kBank 0–5 (Piano 4 OS 2.66 label table). */
@@ -36,8 +36,12 @@ export function np4Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolv
   const title = 'Nord Piano 4 · Program';
   if (!p.layoutMatched) return headerOnly(title, p, 'Piano 4');
   const v = p.values;
+  // Spl Select 0–2 is Off, Pno/Syn, Syn/Pno (the instrument’s own texts): which sound is below the split point.
+  const sides = v['common.splSelect'] ?? 0;
+  const splitNote = label(SPLIT_NOTES_FROM_C3, v['common.splPos']);
   const header = [
     ...fwHeader(p, transposeText(v['common.transposeEnable'], v['common.transposeValue'])),
+    ['Split', splitText(sides !== 0, splitNote, v['common.splWidth'], SPLIT_SIDES[sides])] as [string, string],
     ...soundIdRow('Piano sound id', v['piano.nameHash']),
     ...soundIdRow('Sample sound id', v['synth.smpNameHash']),
   ];
@@ -77,6 +81,8 @@ export function np4Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolv
 
   return {
     title, header,
+    keyboard: singleSplit(sides !== 0, splitNote, v['common.splWidth'],
+      pianoSynthSides(sides, v['piano.enable'] === 1, v['synth.enable'] === 1)),
     sections: [piano, synth, fx],
     note: 'Piano 4: piano, sample synth and effects read with OpenNord’s map of Piano 4 OS 2.66 programs.',
     warnings: p.warnings,

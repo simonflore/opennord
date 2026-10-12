@@ -22,12 +22,14 @@ import type {
   CommonPiano,
   CommonSynth,
   CommonFxUnit,
+  CommonSplit,
   MigrationNote,
   MigrationReport,
 } from './common';
 import { findParam, type RawEdit } from '../ns4/writer';
 import { buildParamMap, type Ns4Group, type Param } from '../ns4/maps';
 import { interpretValue } from '../ns4/interpret';
+import { DEP_TABLES } from '../ns4/deps.generated';
 import {
   invertEnum,
   paramWidthBits,
@@ -146,6 +148,12 @@ export const EMITTER_PARAMS: ReadonlyArray<readonly [Ns4Group, string]> = [
   ['p', 'FX reverb amount'], // 312-5
   ['p', 'FX amp sim/EQ on/off'], // 283-8 (ampsim carry — on/off only)
   // organ FX (master-scoped, single-layer — see emitFx/ORGAN_FX_PARAM)
+  // keyboard split (emitSplit): 050-1 … 052-5, and each engine's zones
+  ['m', 'split on/off'],
+  ['m', 'KB zones 1-2 split point on/off'], ['m', 'KB zones 2-3 split point on/off'], ['m', 'KB zones 3-4 split point on/off'],
+  ['m', 'KB zones 1-2 split point'], ['m', 'KB zones 2-3 split point'], ['m', 'KB zones 3-4 split point'],
+  ['m', 'KB zones 1-2 split point Xfade'], ['m', 'KB zones 2-3 split point Xfade'], ['m', 'KB zones 3-4 split point Xfade'],
+  ['o', 'KB zones'], ['p', 'KB zones'], ['y', 'KB zones'],
   ['m', 'organ FX mod 1 on/off'],
   ['m', 'organ FX mod 1 mode'],
   ['m', 'organ FX mod 2 on/off'],
@@ -810,6 +818,94 @@ function emitFxAmount(
   }
 }
 
+// ─── keyboard split ──────────────────────────────────────────────────────────
+
+/**
+ * The stretches of keyboard the split points that are on divide it into, as
+ * groups of the four zones: a point that is off joins the zones either side.
+ */
+function stretches(pointsOn: boolean[]): number[][] {
+  const out: number[][] = [[0]];
+  pointsOn.forEach((on, i) => { if (on) out.push([i + 1]); else out[out.length - 1].push(i + 1); });
+  return out;
+}
+/** Which stretches an engine plays: one it plays any zone of. */
+const coverage = (zones: boolean[], groups: number[][]): boolean[] => groups.map((g) => g.some((z) => zones[z]));
+
+/**
+ * The Stage 4 zone value that plays the given stretches. On the Stage 4 a zone
+ * value has no fixed meaning: what it plays depends on which split points are on
+ * (DEP_TABLES, keyed "low:mid:high:value"), so the value is looked up for this
+ * program's points. Null when no value plays exactly those stretches.
+ */
+function zoneValue(table: Record<string, string>, pointsOn: boolean[], want: boolean[]): number | null {
+  const groups = stretches(pointsOn);
+  const key = pointsOn.map((on) => (on ? 1 : 0)).join(':');
+  for (let raw = 0; raw <= 10; raw++) {
+    const pattern = table[`${key}:${raw}`];
+    if (!pattern) continue;
+    const plays = coverage([...pattern].map((c) => c === '1'), groups);
+    if (plays.every((p, i) => p === want[i])) return raw;
+  }
+  return null;
+}
+
+const ENGINE_GROUP = { organ: 'o', piano: 'p', synth: 'y' } as const;
+const ENGINE_LABEL = { organ: 'Organ', piano: 'Piano', synth: 'Synth' } as const;
+
+/** The zone value that plays the whole keyboard, whichever split points are on (DEP_TABLES: "1111" in every row). */
+const WHOLE_KEYBOARD = 5;
+
+/**
+ * Always writes the whole split state, also for a program without one: the
+ * donor template carries a split of its own, which would otherwise show up in
+ * every converted program.
+ */
+function emitSplit(common: CommonProgram, out: SectionOut): void {
+  const split: CommonSplit | undefined = common.split;
+  // 050-1 split on/off; 050-2…4 each point's switch; 050-5/051-1/051-5 its position; 052-1/3/5 its crossfade.
+  out.edits.push({ group: 'm', name: 'split on/off', layer: 0, value: split ? 1 : 0 });
+  const moved: string[] = [];
+  const pointsOn = [0, 1, 2].map((i) => {
+    const pt = split?.points[i];
+    const name = `KB zones ${i + 1}-${i + 2} split point`;
+    const pos = param('m', name);
+    const raw = pos && pt?.on ? invertByInterpret(pos, pt.note) : null;
+    const on = raw != null;
+    if (pt?.on && !on) moved.push(pt.note);
+    out.edits.push({ group: 'm', name: `${name} on/off`, layer: 0, value: on ? 1 : 0 });
+    if (on) out.edits.push({ group: 'm', name, layer: 0, value: raw });
+    const xfade = on && pt ? (pt.xfadeSemitones === 12 ? 2 : pt.xfadeSemitones === 6 ? 1 : 0) : 0;
+    out.edits.push({ group: 'm', name: `${name} Xfade`, layer: 0, value: xfade });
+    return on;
+  });
+  if (split) {
+    const at = split.points.filter((_, i) => pointsOn[i]).map((pt) => pt.note).join(', ');
+    out.notes.push(moved.length
+      ? { field: 'Keyboard split', status: 'approximated', note: `Stage 4 has no split position at ${moved.join(', ')}; that split point was left out. Check the split on your Stage 4.` }
+      : { field: 'Keyboard split', status: 'mapped', note: `Keyboard split carried over (at ${at}).` });
+  }
+
+  const groups = stretches(pointsOn);
+  for (const kind of ['organ', 'piano', 'synth'] as const) {
+    const group = ENGINE_GROUP[kind];
+    const zoneParam = param(group, 'KB zones'); // 113-1 organ, 243-1 piano, 414-3 synth
+    const zones = split?.zones[kind];
+    const want = zones && coverage(zones, groups);
+    let raw: number | null = WHOLE_KEYBOARD;
+    if (want && zoneParam && common[kind]?.on) {
+      raw = want.some(Boolean) ? zoneValue(DEP_TABLES[zoneParam.id] ?? {}, pointsOn, want) : null;
+      if (raw == null) {
+        out.notes.push({
+          field: `${ENGINE_LABEL[kind]} keyboard zone`, status: 'defaulted',
+          note: `${ENGINE_LABEL[kind]} plays the whole keyboard on the Stage 4: its part of the split couldn’t be matched. Set it on the instrument.`,
+        });
+      }
+    }
+    out.edits.push({ group, name: 'KB zones', layer: 0, value: raw ?? WHOLE_KEYBOARD });
+  }
+}
+
 // ─── top-level ───────────────────────────────────────────────────────────────
 
 const UNMAPPED_DISCLAIMER =
@@ -834,6 +930,9 @@ export async function emitNs4(
   const fxOut = mkOut();
   emitFx(common, fxOut);
   sections.push(fxOut);
+  const splitOut = mkOut();
+  emitSplit(common, splitOut);
+  sections.push(splitOut);
 
   // Batch ALL judgment calls into ONE advisor.choose(), validate, finalize.
   const allCalls = sections.flatMap((s) => s.calls);

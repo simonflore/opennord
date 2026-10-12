@@ -8,7 +8,7 @@
  * Pure; model → clavia.
  */
 import type { FwProgram } from './block-chain';
-import type { DecodedProgram, DecodedSection } from './decoded';
+import type { DecodedProgram, DecodedSection, KeyboardZonesView } from './decoded';
 
 /** Drawbar numbers 1–9, for reading a set of `drawbarValue1…9` fields. */
 export const DRAWBAR_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -108,11 +108,108 @@ export function refId(ids: readonly [number, number]): string {
   return `0x${((ids[0] * 0x8000 + ids[1]) >>> 0).toString(16).padStart(8, '0')}`;
 }
 
-/** Header rows of the Electro 5 and the ColdFire Piano 2 / 3: the split, then the piano and sample fingerprints. */
+/**
+ * Header rows of the Electro 5 and the ColdFire Piano 2 / 3: the split (on/off,
+ * or the text a model that knows its split point passes), then the piano and
+ * sample fingerprints.
+ */
 export function soundRefRows(
-  split: number, pianoIds: readonly [number, number], sampleIds: readonly [number, number],
+  split: number | string, pianoIds: readonly [number, number], sampleIds: readonly [number, number],
 ): [string, string][] {
-  return [['Split', split ? 'on' : 'off'], ['Piano sound id', refId(pianoIds)], ['Sample sound id', refId(sampleIds)]];
+  const text = typeof split === 'string' ? split : split ? 'on' : 'off';
+  return [['Split', text], ['Piano sound id', refId(pianoIds)], ['Sample sound id', refId(sampleIds)]];
+}
+
+// ── Keyboard split (models with one split point) ─────────────────────────────
+//
+// A Nord split point is not a free note: it is one of a few fixed places on the
+// keyboard, the ones with an LED above the keys. The file stores which one.
+
+/**
+ * Split positions, as each model's firmware names them (its table of display
+ * texts for the split point):
+ *  - F2 C3 F3 C4 F4 C5 F5 C6 F6 C7: Stage 3 OS 2.64, Grand 2 OS 1.22;
+ *  - the first nine of those, to F6: Electro 7 OS 1.30, Piano 6 OS 1.20, Grand OS 1.68;
+ *  - C3 F3 C4 F4 C5 F5 C6: Piano 3 OS 2.04, Piano 4 OS 2.66, Piano 5 OS 1.34;
+ *  - the first six of those, to F5: Electro 5 OS 2.04, Electro 6 OS 2.66.
+ * (The Stage 4's eleven, C2 to C7, are in ns4/values.generated.ts.)
+ */
+export const SPLIT_NOTES_FROM_F2 = ['F2', 'C3', 'F3', 'C4', 'F4', 'C5', 'F5', 'C6', 'F6', 'C7'] as const;
+/** The nine positions of the Electro 7, Piano 6 and Grand: F2 to F6. */
+export const SPLIT_NOTES_F2_TO_F6 = SPLIT_NOTES_FROM_F2.slice(0, 9);
+export const SPLIT_NOTES_FROM_C3 = ['C3', 'F3', 'C4', 'F4', 'C5', 'F5', 'C6'] as const;
+/** The six positions of the Electro 5 and 6: C3 to F5. */
+export const SPLIT_NOTES_C3_TO_F5 = SPLIT_NOTES_FROM_C3.slice(0, 6);
+/**
+ * Which sound is on which side, where the instrument has one setting for it
+ * (Piano 3, Piano 4, Grand): Off, piano below and synth above, or the reverse.
+ * Their firmware's texts are "Off", "Pno/Syn" ("Piano/Synth") and "Syn/Pno".
+ */
+export const SPLIT_SIDES = ['Off', 'Piano / Synth', 'Synth / Piano'] as const;
+/** `Edt_Com_kSplitWidth` 0–2: X-Fade Off, 1 and 2 on the panel, worded as the Stage 4's are. */
+const SPLIT_XFADE = ['none', '+/- 6 semitones', '+/- 12 semitones'] as const;
+
+/** Which side of the split point a sound plays. */
+export type SplitSide = 'lower' | 'upper' | 'both';
+/**
+ * `Edt_*_kKbdZone` 0–2. The registry default is 1, a sound on the whole keyboard,
+ * so 0 and 2 are the two sides; lower first, as the Stage 2's zone table runs
+ * (LO, LO UP, UP). Medium: not confirmed on a real file.
+ */
+export const KBD_ZONE: readonly SplitSide[] = ['lower', 'both', 'upper'];
+
+/** The side a stored zone value names; undefined (the whole keyboard) when it isn't one of the three. */
+export const splitSide = (v: number | undefined): SplitSide | undefined => (v === undefined ? undefined : KBD_ZONE[v]);
+
+export interface SplitLayer { kind: 'organ' | 'piano' | 'synth'; id: string; on: boolean; side: SplitSide | undefined }
+
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
+/** The name of a key counted from the lowest of an 88-key keyboard (0 = A0, 39 = C4). */
+export function keyName(key: number): string {
+  const midi = key + 21;
+  return `${NOTE_NAMES[midi % 12]}${Math.floor(midi / 12) - 1}`;
+}
+
+/** The header's "Split" text: off, or where it is and how wide its crossfade. */
+export function splitText(on: boolean, note: string | undefined, width?: number, sides?: string): string {
+  if (!on) return 'off';
+  const xfade = width === 1 ? ' · crossfade ±6' : width === 2 ? ' · crossfade ±12' : '';
+  const where = note ? `at ${note}${xfade}` : 'on';
+  return sides ? `${sides} · ${where}` : where;
+}
+
+/** The two sounds of a model whose one setting puts them either side (see {@link SPLIT_SIDES}): 1 = piano below. */
+export function pianoSynthSides(sides: number, pianoOn: boolean, synthOn: boolean): SplitLayer[] {
+  const pianoLower = sides !== 2;
+  return [
+    { kind: 'piano', id: '', on: pianoOn, side: pianoLower ? 'lower' : 'upper' },
+    { kind: 'synth', id: '', on: synthOn, side: pianoLower ? 'upper' : 'lower' },
+  ];
+}
+
+/**
+ * The keyboard map of a program with one split point: the sounds that are on,
+ * each on its side of the point. Undefined with the split off (every sound then
+ * plays the whole keyboard) or when the position isn't known.
+ */
+export function singleSplit(
+  on: boolean, note: string | undefined, width: number | undefined, layers: SplitLayer[],
+): KeyboardZonesView | undefined {
+  if (!on || !note) return undefined;
+  const playing = (side: SplitSide) => layers
+    .filter((l) => l.on && (l.side === undefined || l.side === 'both' || l.side === side))
+    .map(({ kind, id }) => ({ kind, id }));
+  const lower = { layers: playing('lower') };
+  const upper = { layers: playing('upper') };
+  const xfade = SPLIT_XFADE[width ?? 0] ?? 'none';
+  return {
+    hasSplit: true,
+    zones: [lower, lower, upper, upper],
+    boundaries: [null, note, null],
+    xfade: [null, xfade === 'none' ? null : xfade, null],
+    transpose: null,
+    performance: { sustain: false, kbHold: false },
+  };
 }
 
 /**

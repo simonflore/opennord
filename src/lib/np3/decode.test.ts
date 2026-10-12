@@ -64,3 +64,17 @@ describe('decodeNp3 (synthetic)', () => {
     expect(d.note).toMatch(/not yet checked on a real file/);
   });
 });
+
+describe('np3Decoded: keyboard split', () => {
+  const split = (values: Partial<Record<Np3FieldKey, number>>) => np3Decoded(np3p(values)).header.find(([k]) => k === 'Split')?.[1];
+  it('names the key the split point is stored as', () => {
+    expect(split({ 'common.keyboardSplitKeybSplit': 0 })).toBe('off');
+    expect(split({ 'common.keyboardSplitKeybSplit': 1, 'common.splitPoint': 44 })).toBe('Piano / Synth · at F4'); // the registry default
+    expect(split({ 'common.keyboardSplitKeybSplit': 2, 'common.splitPoint': 27 })).toBe('Synth / Piano · at C3');
+  });
+  it('draws piano and synth on the sides the setting gives them', () => {
+    const d = np3Decoded(np3p({ 'common.keyboardSplitKeybSplit': 2, 'common.splitPoint': 39, 'common.pianoOn': 1, 'common.synthOn': 1 }));
+    expect(d.keyboard!.boundaries).toEqual([null, 'C4', null]);
+    expect([d.keyboard!.zones[0].layers[0].kind, d.keyboard!.zones[3].layers[0].kind]).toEqual(['synth', 'piano']);
+  });
+});

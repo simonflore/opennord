@@ -171,3 +171,16 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNg2 — fixtures', () => {
     }
   });
 });
+
+describe('ng2Decoded: keyboard split', () => {
+  it('shows the split point (ten positions, F2 to C7) and each layer’s side', () => {
+    const d = ng2Decoded(file({
+      'common.splitEnable': 1, 'common.splitPosition': 9, 'common.splitWidth': 2,
+      'pianoCommon.layerEnable': 1, 'pianoA.kbdZone': 0,
+      'synthCommon.layerEnable': 3, 'synthA.kbdZone': 2, 'synthB.kbdZone': 1,
+    }));
+    expect(d.header.find(([k]) => k === 'Split')?.[1]).toBe('at C7 · crossfade ±12');
+    const ids = (i: number) => d.keyboard!.zones[i].layers.map((l) => `${l.kind}${l.id}`);
+    expect([ids(0), ids(3)]).toEqual([['pianoA', 'synthB'], ['synthA', 'synthB']]);
+  });
+});

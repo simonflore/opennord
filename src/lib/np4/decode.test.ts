@@ -178,3 +178,17 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNp4 — fixtures', () => {
     }
   });
 });
+
+describe('np4Decoded: keyboard split', () => {
+  const split = (values: Parameters<typeof file>[0]) => np4Decoded(file(values)).header.find(([k]) => k === 'Split')?.[1];
+  it('says which sound is below, where the split is (seven places from C3) and its crossfade', () => {
+    expect(split({ 'common.splSelect': 0, 'common.splPos': 2 })).toBe('off');
+    expect(split({ 'common.splSelect': 1, 'common.splPos': 0 })).toBe('Piano / Synth · at C3');
+    expect(split({ 'common.splSelect': 2, 'common.splPos': 6, 'common.splWidth': 2 })).toBe('Synth / Piano · at C6 · crossfade ±12');
+  });
+  it('draws the two sounds on their sides', () => {
+    const d = np4Decoded(file({ 'common.splSelect': 1, 'common.splPos': 3, 'piano.enable': 1, 'synth.enable': 1 }));
+    expect(d.keyboard!.boundaries).toEqual([null, 'F4', null]);
+    expect([d.keyboard!.zones[0].layers[0].kind, d.keyboard!.zones[3].layers[0].kind]).toEqual(['piano', 'synth']);
+  });
+});

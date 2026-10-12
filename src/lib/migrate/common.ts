@@ -80,6 +80,18 @@ export interface CommonFxUnit {
   rateMidi?: number;
 }
 
+/**
+ * A keyboard split, the Nord way: up to three split points at fixed places on
+ * the keyboard, each with its own switch and crossfade, and for each engine the
+ * zones it plays (four zones lie between and around the three points).
+ */
+export interface CommonSplit {
+  /** Low, Mid, High, left to right. `note` is a Nord split position such as "C4". */
+  points: { on: boolean; note: string; xfadeSemitones: 0 | 6 | 12 }[];
+  /** The four zones each engine plays, left to right. Absent: the whole keyboard. */
+  zones: { organ?: boolean[]; piano?: boolean[]; synth?: boolean[] };
+}
+
 export interface CommonProgram {
   sourceModel: 'ns2' | 'ns3';
   name?: string;
@@ -90,6 +102,8 @@ export interface CommonProgram {
   synth?: CommonSynth;
   fx?: CommonFxUnit[];
   transpose?: number;
+  /** Set only when the source's split is switched on. */
+  split?: CommonSplit;
 }
 
 // ---- report ----

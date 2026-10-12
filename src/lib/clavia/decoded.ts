@@ -32,12 +32,33 @@ export interface DecodedSection {
   chips?: string[];
 }
 
+/**
+ * A keyboard split as the keyboard map draws it. Nord split points sit at fixed
+ * places on the keyboard; up to three of them make four zones, and each sound
+ * plays some of those. A model with one split point uses the middle one.
+ */
+export interface KeyboardZonesView {
+  hasSplit: boolean;
+  /** Four keyboard zones, left→right; each lists the active layers that sound there. */
+  zones: { layers: { kind: string; id: string }[] }[];
+  /** Split-point note at each of the three boundaries, or null when that split is off. */
+  boundaries: (string | null)[];
+  /** Split-point crossfade at each boundary, or null when none / not split. */
+  xfade: (string | null)[];
+  /** Program transpose amount, or null when off. */
+  transpose: string | null;
+  /** Program-wide keyboard/performance flags, aggregated over active layers. */
+  performance: { pitchStick?: string; sustain: boolean; kbHold: boolean };
+}
+
 export interface DecodedProgram {
   /** Card title, e.g. 'Stage 3 · Program'. */
   title: string;
   /** Header key/value rows (Slot, Category, Version…). */
   header: [string, string][];
   sections: DecodedSection[];
+  /** The keyboard split map, when the program splits the keyboard. */
+  keyboard?: KeyboardZonesView;
   /** Footer status note describing what's decoded. */
   note: string;
   /** Decoder anomalies (truncated file, family mismatch, …). Rendered prominently

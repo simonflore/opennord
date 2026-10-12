@@ -78,3 +78,17 @@ describe('ngDecoded', () => {
     expect(d.warnings?.length).toBeGreaterThan(0);
   });
 });
+
+describe('ngDecoded: keyboard split', () => {
+  const split = (values: Parameters<typeof file>[0]) => ngDecoded(file(values)).header.find(([k]) => k === 'Split')?.[1];
+  const v101 = (values: Parameters<typeof file>[0]) =>
+    ngDecoded(synthFwFile('ngp', synthFwBody(NG_LAYOUT, values, 101), 101)).header.find(([k]) => k === 'Split')?.[1];
+  it('format 1.01 reads the nine-place split point (F2 to F6)', () => {
+    expect(v101({ 'common.splSelect': 0 })).toBe('off');
+    expect(v101({ 'common.splSelect': 1, 'common.splPos': 0 })).toBe('Piano / Synth · at F2');
+    expect(v101({ 'common.splSelect': 2, 'common.splPos': 8, 'common.splWidth': 1 })).toBe('Synth / Piano · at F6 · crossfade ±6');
+  });
+  it('format 1.00 reads the earlier seven-place field (from C3)', () => {
+    expect(split({ 'common.splSelect': 1, 'common.splPosEol': 0, 'common.splPos': 8 })).toBe('Piano / Synth · at C3');
+  });
+});

@@ -75,3 +75,22 @@ describe('np6Decoded', () => {
     expect(d.sections[0].engines[0].parts.slice(0, 2)).toEqual(['Baby Upright XL', 'Upright']);
   });
 });
+
+describe('np6Decoded: keyboard split', () => {
+  const split = (pos: number) => np6Decoded(file({ 'common.splitEnable': 1, 'common.splitPosition': pos, 'pianoCommon.layerEnable': 1 }))
+    .header.find(([k]) => k === 'Split')?.[1];
+  it('has the nine places its firmware names, F2 to F6; a tenth value is out of range', () => {
+    expect([split(0), split(3), split(8)]).toEqual(['at F2', 'at C4', 'at F6']);
+    const ten = np6Decoded(file({ 'common.splitEnable': 1, 'common.splitPosition': 9 }));
+    expect(ten.header.find(([k]) => k === 'Split')?.[1]).toBe('on');
+    expect(ten.warnings?.join(' ')).toMatch(/outside the instrument’s range/);
+  });
+  it('draws each layer on its side', () => {
+    const d = np6Decoded(file({
+      'common.splitEnable': 1, 'common.splitPosition': 3,
+      'pianoCommon.layerEnable': 3, 'pianoA.kbdZone': 0, 'pianoB.kbdZone': 2,
+    }));
+    const ids = (i: number) => d.keyboard!.zones[i].layers.map((l) => `${l.kind}${l.id}`);
+    expect([ids(0), ids(3)]).toEqual([['pianoA'], ['pianoB']]);
+  });
+});

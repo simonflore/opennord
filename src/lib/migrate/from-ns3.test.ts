@@ -5,21 +5,22 @@ import { ns3ZeroFile } from '../ns3/file.synth';
 
 const prog: Ns3Program = {
   name: 'Boston Organ',
+  split: null,
   panels: [
     {
       id: 'A',
       organ: {
-        on: true, type: 'B3', volume: '0.0 dB',
+        on: true, type: 'B3', kbZones: '1111', volume: '0.0 dB',
         drawbars: [8, 8, 8, 0, 0, 0, 0, 0, 0], octaveShift: 1,
         vibChorus: { on: true, mode: 'C3' },
         percussion: { on: true, third: false, fast: true, soft: false },
       },
       piano: {
-        on: false, type: 'Grand', volume: 'Off',
+        on: false, type: 'Grand', kbZones: '1111', volume: 'Off',
         sampleId: 12345, sampleVariation: 0, timbre: 'None', octaveShift: 0,
       },
       synth: {
-        on: true, volume: '-6.2 dB', voice: 'Poly', glide: '0.0', unison: 'Off',
+        on: true, kbZones: '1111', volume: '-6.2 dB', voice: 'Poly', glide: '0.0', unison: 'Off',
         vibrato: 'Off',
         oscillator: { type: 'Sample', waveform: '', config: 'None', pitch: '0 semi' },
         filter: { type: 'LP24', cutoff: '1 kHz', resonance: '2.0', kbTrack: 'Off', drive: 'Off' },
@@ -41,6 +42,7 @@ const prog: Ns3Program = {
 /** Same shape as `prog` but with the arp switched on, for the drop-reporting test. */
 const progWithArpOn: Ns3Program = {
   ...prog,
+  split: null,
   panels: [{ ...prog.panels[0], synth: { ...prog.panels[0].synth, arp: { ...prog.panels[0].synth.arp, on: true } } }],
 };
 
@@ -104,21 +106,22 @@ describe('fromNs3 — LP+HP filter mode', () => {
   it('leaves resonance01 undefined when filter type is LP+HP', () => {
     const progLpHp: Ns3Program = {
       name: 'LP+HP Test',
+      split: null,
       panels: [
         {
           id: 'A',
           organ: {
-            on: false, type: 'B3', volume: 'Off',
+            on: false, type: 'B3', kbZones: '1111', volume: 'Off',
             drawbars: [0, 0, 0, 0, 0, 0, 0, 0, 0], octaveShift: 0,
             vibChorus: { on: false, mode: 'C1' },
             percussion: { on: false, third: false, fast: false, soft: false },
           },
           piano: {
-            on: false, type: 'Grand', volume: 'Off',
+            on: false, type: 'Grand', kbZones: '1111', volume: 'Off',
             sampleId: 0, sampleVariation: 0, timbre: 'None', octaveShift: 0,
           },
           synth: {
-            on: true, volume: '-6.2 dB', voice: 'Poly', glide: '0.0', unison: 'Off',
+            on: true, kbZones: '1111', volume: '-6.2 dB', voice: 'Poly', glide: '0.0', unison: 'Off',
             vibrato: 'Off',
             oscillator: { type: 'Classic', waveform: 'Saw', config: 'None', pitch: '0 semi' },
             filter: { type: 'LP+HP', cutoff: '1 kHz', resonance: '14 Hz', kbTrack: 'Off', drive: 'Off' },

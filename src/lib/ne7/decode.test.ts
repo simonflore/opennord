@@ -116,3 +116,33 @@ describe('ne7Decoded', () => {
     expect(d.note).toMatch(/not yet confirmed/);
   });
 });
+
+describe('ne7Decoded: keyboard split', () => {
+  const header = (d: { header: [string, string][] }, key: string) => d.header.find(([k]) => k === key)?.[1];
+  const kinds = (z: { layers: { kind: string }[] }) => z.layers.map((l) => l.kind);
+
+  it('shows where the split is and which sounds play either side', () => {
+    const d = ne7Decoded(file({
+      'common.splitEnable': 1, 'common.splitPosition': 3, 'common.splitWidth': 1,
+      'organ.isEnabled': 1, 'organ.kbdZone': 0, // lower
+      'piano.isEnabled': 1, 'piano.kbdZone': 2, // upper
+      'synth.isEnabled': 1, 'synth.kbdZone': 1, // both
+    }));
+    expect(header(d, 'Split')).toBe('at C4 · crossfade ±6');
+    expect(d.keyboard!.boundaries).toEqual([null, 'C4', null]);
+    expect(d.keyboard!.zones.map(kinds)).toEqual([['organ', 'synth'], ['organ', 'synth'], ['piano', 'synth'], ['piano', 'synth']]);
+  });
+
+  it('has nine positions, F2 to F6', () => {
+    const at = (pos: number) => header(ne7Decoded(file({ 'common.splitEnable': 1, 'common.splitPosition': pos })), 'Split');
+    expect([at(0), at(8)]).toEqual(['at F2', 'at F6']);
+  });
+
+  it('draws no split, and leaves sounds that are off out, when the split is off', () => {
+    const d = ne7Decoded(file({ 'common.splitEnable': 0, 'piano.isEnabled': 1, 'piano.kbdZone': 0 }));
+    expect(header(d, 'Split')).toBe('off');
+    expect(d.keyboard).toBeUndefined();
+    const split = ne7Decoded(file({ 'common.splitEnable': 1, 'piano.isEnabled': 1, 'piano.kbdZone': 0, 'organ.isEnabled': 0, 'organ.kbdZone': 0 }));
+    expect(split.keyboard!.zones.map(kinds)).toEqual([['piano'], ['piano'], [], []]);
+  });
+});

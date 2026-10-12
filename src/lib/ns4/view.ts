@@ -6,6 +6,7 @@
  * unit-testable against the regression fixture.
  */
 import type { NS4Program, NS4Layer, Morphable, Ns4OrganFx } from './types';
+import type { KeyboardZonesView } from '../clavia/decoded';
 import { decodeAllParams } from './coverage';
 import { collapseMorphs, type ParamRow } from './params-view';
 import { buildParamMap, type Param } from './maps';
@@ -107,19 +108,8 @@ export function headerView(p: NS4Program, scene?: 'I' | 'II'): HeaderView {
   };
 }
 
-export interface ProgramZonesView {
-  hasSplit: boolean;
-  /** Four keyboard zones, left→right; each lists the active layers that sound there. */
-  zones: { layers: { kind: string; id: string }[] }[];
-  /** Split-point note at each of the three boundaries, or null when that split is off. */
-  boundaries: (string | null)[];
-  /** Split-point crossfade at each boundary, or null when none / not split. */
-  xfade: (string | null)[];
-  /** Program transpose amount, or null when off. */
-  transpose: string | null;
-  /** Program-wide keyboard/performance flags, aggregated over active layers. */
-  performance: { pitchStick?: string; sustain: boolean; kbHold: boolean };
-}
+/** The keyboard split map (shared with the other models' views: clavia/decoded.ts). */
+export type ProgramZonesView = KeyboardZonesView;
 
 let _paramMap: ReturnType<typeof buildParamMap> | null = null;
 function paramMap() { return (_paramMap ??= buildParamMap()); }

@@ -213,3 +213,11 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNe6 (fixtures)', () => {
     });
   });
 });
+
+describe('ne6Decoded: keyboard split', () => {
+  const split = (values: Parameters<typeof file>[0]) => ne6Decoded(file(values)).header.find(([k]) => k === 'Split')?.[1];
+  it('says where the split is (six places, C3 to F5) and its crossfade', () => {
+    expect(split({ 'common.splMode': 0, 'common.splPos': 2 })).toBe('off');
+    expect(split({ 'common.splMode': 1, 'common.splPos': 5, 'common.splWidth': 2 })).toBe('at F5 · crossfade ±12');
+  });
+});

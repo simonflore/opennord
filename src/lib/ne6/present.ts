@@ -10,7 +10,8 @@ import { decodeNe6 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
 import {
-  DRAWBAR_NUMBERS, effectsSection, fwHeader, headerOnly, hexId, label, levelPart, octavePart, parts, transposeText,
+  DRAWBAR_NUMBERS, effectsSection, fwHeader, headerOnly, hexId, label, levelPart, octavePart, parts, splitText,
+  SPLIT_NOTES_C3_TO_F5, transposeText,
 } from '../clavia/fw-present';
 import type { Ne6FieldKey } from './layout.generated';
 import {
@@ -50,6 +51,8 @@ export function ne6Decoded(bytes: Uint8Array): DecodedProgram {
   const g: Get = (k) => p.values[k];
 
   const header = fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue')));
+  // Spl Mode 0 is no split; what its other values (1–7) select is not read yet, so no sides are shown.
+  header.push(['Split', splitText(g('common.splMode') !== 0, label(SPLIT_NOTES_C3_TO_F5, g('common.splPos')), g('common.splWidth'))]);
   const pianoHash = g('piano.nameHash');
   if (pianoHash !== undefined) header.push(['Piano sound id', hexId(pianoHash)]);
   const sampleHash = g('synth.smpNameHash');

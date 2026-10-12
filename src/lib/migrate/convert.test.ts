@@ -5,7 +5,8 @@ import { migrateToNs4 } from './convert';
 import { buildMigrationTemplateFromDisk } from './template-node';
 import { parseNs4Program } from '../ns4/parse';
 import { fileTypeTag, readCbinHeader } from '../clavia/cbin';
-import { NS3_FILE_BYTES, frameNs3Body } from '../ns3/file.synth';
+import { NS3_FILE_BYTES, frameNs3Body, ns3SynthFile } from '../ns3/file.synth';
+import { programZones } from '../ns4/view';
 
 /** Donor template bytes, loaded off disk (browser passes its own via `?url`). */
 const templateBytes = buildMigrationTemplateFromDisk();
@@ -59,6 +60,47 @@ describe('migrateToNs4', () => {
     expect(suggestedFilename).toBe('Boston.ns4p');
     expect(report.source).toBe('ns3');
     expect(report.globalNotes.length).toBeGreaterThan(0);
+  });
+
+  it('carries a Stage 3 split into the Stage 4 program: same points, same engines either side', async () => {
+    // Piano below C4, synth above it; the Low and High points are off.
+    const src = ns3SynthFile({
+      'common.splitEnable': 1,
+      'common.splitLowEnable': 0, 'common.splitMidEnable': 1, 'common.splitHighEnable': 0,
+      'common.splitMidPos': 3, 'common.splitMidWidth': 2, // C4, large crossfade
+      'pianoA.enable': 1, 'pianoA.kbZone': 4, // zones 1-2
+      'synthCommonA.enable': 1, 'synthCommonA.kbZone': 6, // zones 3-4
+    });
+    const { bytes, report } = await migrateToNs4(src, { sourceName: 'Split', templateBytes });
+    const z = programZones(parseNs4Program(bytes));
+    expect(z.hasSplit).toBe(true);
+    expect(z.boundaries).toEqual([null, 'C4', null]);
+    expect(z.xfade).toEqual([null, '+/- 12 semitones', null]);
+    const kinds = z.zones.map((zone) => zone.layers.map((l) => l.kind));
+    expect(kinds).toEqual([['piano'], ['piano'], ['synth'], ['synth']]);
+    expect(report.notes.find((n) => n.field === 'Keyboard split')).toMatchObject({ status: 'mapped' });
+  });
+
+  it('carries three split points with an engine in the middle', async () => {
+    const src = ns3SynthFile({
+      'common.splitEnable': 1,
+      'common.splitLowEnable': 1, 'common.splitMidEnable': 1, 'common.splitHighEnable': 1,
+      'common.splitLowPos': 0, 'common.splitMidPos': 4, 'common.splitHighPos': 9, // F2, F4, C7
+      'organA.enable': 1, 'organA.kbZone': 0, // zone 1
+      'pianoA.enable': 1, 'pianoA.kbZone': 5, // zones 2-3
+      'synthCommonA.enable': 1, 'synthCommonA.kbZone': 3, // zone 4
+    });
+    const { bytes } = await migrateToNs4(src, { sourceName: 'Three', templateBytes });
+    const z = programZones(parseNs4Program(bytes));
+    expect(z.boundaries).toEqual(['F2', 'F4', 'C7']);
+    expect(z.zones.map((zone) => zone.layers.map((l) => l.kind))).toEqual([['organ'], ['piano'], ['piano'], ['synth']]);
+  });
+
+  it('leaves the Stage 4 unsplit when the Stage 3 split is off, whatever its zones say', async () => {
+    const src = ns3SynthFile({ 'common.splitEnable': 0, 'common.splitMidEnable': 1, 'pianoA.enable': 1, 'pianoA.kbZone': 0 });
+    const { bytes, report } = await migrateToNs4(src, { sourceName: 'Whole', templateBytes });
+    expect(programZones(parseNs4Program(bytes)).hasSplit).toBe(false);
+    expect(report.notes.some((n) => n.field === 'Keyboard split')).toBe(false);
   });
 
   it('converts an ns2 program end-to-end', async () => {

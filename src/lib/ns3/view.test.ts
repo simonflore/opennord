@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { decodeNs3, TIMBRE_CLAV, TIMBRE_ELECTRIC, TIMBRE_GRAND, type Ns3Panel } from './decode';
-import { ns3EngineCards, ns3FxChips, ns3HeaderView, ns3SampleKey, timbreKeysNs3 } from './view';
+import { ns3EngineCards, ns3FxChips, ns3HeaderView, ns3SampleKey, ns3Zones, timbreKeysNs3 } from './view';
 import { ns3ZeroFile } from './file.synth';
 
 /** A synthetic Panel A: B3 organ + grand piano + a Wave synth, no FX. */
@@ -8,17 +8,17 @@ function panel(over: Partial<Ns3Panel> = {}): Ns3Panel {
   return {
     id: 'A',
     organ: {
-      on: true, type: 'B3', volume: '-2.0 dB', drawbars: [8, 0, 8, 0, 0, 0, 0, 0, 3],
+      on: true, type: 'B3', kbZones: '1111', volume: '-2.0 dB', drawbars: [8, 0, 8, 0, 0, 0, 0, 0, 3],
       octaveShift: 0,
       vibChorus: { on: true, mode: 'C1' },
       percussion: { on: true, third: true, fast: true, soft: false },
     },
     piano: {
-      on: true, type: 'Grand', volume: '0.0 dB',
+      on: true, type: 'Grand', kbZones: '1111', volume: '0.0 dB',
       sampleId: 123, sampleVariation: 0, timbre: 'Soft', octaveShift: 0,
     },
     synth: {
-      on: true, volume: '1.4 dB', voice: 'Poly', glide: '0.0', unison: 'Off', vibrato: 'Off',
+      on: true, kbZones: '1111', volume: '1.4 dB', voice: 'Poly', glide: '0.0', unison: 'Off', vibrato: 'Off',
       oscillator: { type: 'Wave', waveform: 'Wave Bell', config: 'None', pitch: '0 semi' },
       filter: { type: 'LP24', cutoff: '6.3 kHz', resonance: '2.0', kbTrack: 'Off', drive: 'Off' },
       lfo: { wave: 'Triangle', rate: '1.0 Hz', masterClock: false },
@@ -176,5 +176,42 @@ describe('ns3HeaderView', () => {
       groups: [{ id: 'A', engines: ['organ', 'piano', 'synth'] }, { id: 'B', engines: ['piano'] }],
     });
     expect(h.sizeBytes).toBe(64);
+  });
+});
+
+describe('ns3Zones', () => {
+  const point = (on: boolean, note: string, xfade = 'none') => ({ on, note, xfade });
+  const kinds = (z: { layers: { kind: string; id: string }[] }) => z.layers.map((l) => `${l.kind}${l.id}`);
+  const a = panel();
+  a.piano.kbZones = '11oo';
+  a.synth.kbZones = 'oo11';
+  a.organ.on = false;
+
+  it('puts each engine in the zones it plays, and marks the split points that are on', () => {
+    const z = ns3Zones([a], { on: true, points: [point(false, 'C3'), point(true, 'C4', '+/- 6 semitones'), point(false, 'C6')] })!;
+    expect(z.hasSplit).toBe(true);
+    expect(z.zones.map(kinds)).toEqual([['pianoA'], ['pianoA'], ['synthA'], ['synthA']]);
+    expect(z.boundaries).toEqual([null, 'C4', null]);
+    expect(z.xfade).toEqual([null, '+/- 6 semitones', null]);
+  });
+
+  it('with the split off, every engine plays the whole keyboard whatever its zones say', () => {
+    const z = ns3Zones([a], { on: false, points: [point(true, 'C3'), point(true, 'C4'), point(true, 'C6')] })!;
+    expect(z.hasSplit).toBe(false);
+    expect(z.zones.map(kinds)).toEqual(Array(4).fill(['pianoA', 'synthA']));
+    expect(z.boundaries).toEqual([null, null, null]);
+  });
+
+  it('keeps the two panels apart', () => {
+    const b = { ...panel(), id: 'B' as const };
+    b.organ = { ...b.organ, on: true, kbZones: 'ooo1' };
+    b.piano = { ...b.piano, on: false };
+    b.synth = { ...b.synth, on: false };
+    const z = ns3Zones([a, b], { on: true, points: [point(true, 'C3'), point(true, 'C4'), point(true, 'C6')] })!;
+    expect(kinds(z.zones[3])).toEqual(['synthA', 'organB']);
+  });
+
+  it('is nothing for a file whose layout was not read', () => {
+    expect(ns3Zones([], null)).toBeNull();
   });
 });

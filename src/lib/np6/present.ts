@@ -15,7 +15,7 @@ import { decodeNp6 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import {
   ampPart, effectsSection, fwHeader, headerOnly, label, levelPart, noneOn, octavePart, parts, pianoParts, reverbPart,
-  soundIdRow, transposeText, type PianoNameResolver,
+  singleSplit, soundIdRow, splitSide, splitText, SPLIT_NOTES_F2_TO_F6, transposeText, type PianoNameResolver,
 } from '../clavia/fw-present';
 import type { Np6FieldKey } from './layout.generated';
 
@@ -85,18 +85,25 @@ export function np6Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolv
   if (!p.layoutMatched) return headerOnly(title, p, 'Piano 6');
   const g: Get = (k) => p.values[k];
 
+  const splitOn = g('common.splitEnable') === 1;
+  const splitNote = label(SPLIT_NOTES_F2_TO_F6, g('common.splitPosition'));
   const header = [
     ...fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue'))),
+    ['Split', splitText(splitOn, splitNote, g('common.splitWidth'))] as [string, string],
     ...soundIdRow('Piano A sound id', g('pianoA.nameHash')),
     ...soundIdRow('Piano B sound id', g('pianoB.nameHash')),
   ];
 
   const pianoOn = g('pianoCommon.layerEnable') ?? 0;
   const synthOn = g('synthCommon.layerEnable') ?? 0;
+  const keyboard = singleSplit(splitOn, splitNote, g('common.splitWidth'), (['A', 'B'] as const).flatMap((id, i) => [
+    { kind: 'piano' as const, id, on: (pianoOn & (1 << i)) !== 0, side: splitSide(g(`piano${id}.kbdZone`)) },
+    { kind: 'synth' as const, id, on: (synthOn & (1 << i)) !== 0, side: splitSide(g(`synth${id}.kbdZone`)) },
+  ]));
   const color = label(NP6_REVERB_COLOR, g('common.effectsRvbColor'));
 
   return {
-    title, header,
+    title, header, keyboard,
     sections: [
       pianoLayer(g, 'A', (pianoOn & 1) !== 0, resolvePianoName),
       pianoLayer(g, 'B', (pianoOn & 2) !== 0, resolvePianoName),

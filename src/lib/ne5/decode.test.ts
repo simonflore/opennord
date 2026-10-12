@@ -216,3 +216,15 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNe5 (corpus)', () => {
     expect(decodeNe5(load(LEAD1)).sampleSynth).toEqual(naked);
   });
 });
+
+describe('ne5Decoded: keyboard split', () => {
+  const split = (values: Partial<Record<Ne5FieldKey, number>>) => ne5Decoded(ne5p(values)).header.find(([k]) => k === 'Split')?.[1];
+  it('says where the split is: one of six places, C3 to F5', () => {
+    expect(split({ 'common.keyboardSplitKeybSplit': 0, 'common.keyboardSplitSplitPoint': 2 })).toBe('off');
+    expect(split({ 'common.keyboardSplitKeybSplit': 1, 'common.keyboardSplitSplitPoint': 0 })).toBe('at C3');
+    expect(split({ 'common.keyboardSplitKeybSplit': 1, 'common.keyboardSplitSplitPoint': 5 })).toBe('at F5');
+  });
+  it('names the seventh value as the firmware does: not a place, the upper part from MIDI', () => {
+    expect(split({ 'common.keyboardSplitKeybSplit': 1, 'common.keyboardSplitSplitPoint': 6 })).toBe('MIDI Upper Receive');
+  });
+});

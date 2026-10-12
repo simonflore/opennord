@@ -16,7 +16,7 @@ import { decodeNp5 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import {
   ampPart, effectsSection, fwHeader, headerOnly, label, levelPart, octavePart, parts, pianoParts, reverbPart,
-  soundIdRow, transposeText, type PianoNameResolver,
+  soundIdRow, splitText, SPLIT_NOTES_FROM_C3, transposeText, type PianoNameResolver,
 } from '../clavia/fw-present';
 import type { Np5FieldKey } from './layout.generated';
 
@@ -68,6 +68,8 @@ export function np5Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolv
 
   const header = [
     ...fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue'))),
+    // Spl Mode 0 is no split; what its other values (1–7) select is not read yet, so no sides are shown.
+    ['Split', splitText(g('common.splMode') !== 0, label(SPLIT_NOTES_FROM_C3, g('common.splPos')), g('common.splWidth'))] as [string, string],
     ...soundIdRow('Piano A sound id', g('pianoA.nameHash')),
     ...soundIdRow('Piano B sound id', g('pianoB.nameHash')),
   ];

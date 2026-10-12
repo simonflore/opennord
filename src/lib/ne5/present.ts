@@ -10,7 +10,7 @@ import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
 import {
   ampCompPart, coldfirePianoSection, effectsSection, fwHeader, label, legacyHeaderOnly, parts, reverbPart,
-  sampleSynthSection, soundRefRows,
+  sampleSynthSection, soundRefRows, splitText, SPLIT_NOTES_C3_TO_F5,
 } from '../clavia/fw-present';
 import {
   NE5_AMP_TYPES, NE5_EFFECT1_TYPES, NE5_EFFECT2_TYPES, NE5_ORGAN_MODELS, NE5_ORGAN_SET, NE5_PIANO_TYPES, NE5_REVERB_TYPES,
@@ -42,7 +42,11 @@ export function ne5Decoded(bytes: Uint8Array): DecodedProgram {
   if (!p.layoutMatched) return legacyHeaderOnly(title, p, 'Electro 5');
   const g = (k: keyof typeof p.values) => p.values[k] ?? 0;
 
-  const header = [...fwHeader(p), ...soundRefRows(g('common.keyboardSplitKeybSplit'), p.piano.ids, p.sampleSynth.ids)];
+  // Six places (0–5), then the firmware's seventh text: the upper part comes from MIDI, not from a split point.
+  const split = splitText(g('common.keyboardSplitKeybSplit') !== 0,
+    label([...SPLIT_NOTES_C3_TO_F5, 'MIDI Upper Receive'], g('common.keyboardSplitSplitPoint')))
+    .replace('at MIDI Upper Receive', 'MIDI Upper Receive');
+  const header = [...fwHeader(p), ...soundRefRows(split, p.piano.ids, p.sampleSynth.ids)];
   const piano = coldfirePianoSection(NE5_PIANO_TYPES, p.piano.type, p.piano.model);
   const synth = sampleSynthSection('SAMPLE SYNTH', {
     sample: p.sampleSynth.sample, attack: g('sampleSynth.sampleSynthAttack'), dcyRel: g('sampleSynth.sampleSynthDcyRel'),

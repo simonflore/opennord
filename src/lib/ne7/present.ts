@@ -17,7 +17,7 @@ import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
 import {
   DRAWBAR_NUMBERS, effectsSection, fwHeader, headerOnly, label, levelPart, noneOn, octavePart, parts, pianoParts,
-  soundIdRow, transposeText, type PianoNameResolver,
+  singleSplit, soundIdRow, splitSide, splitText, SPLIT_NOTES_F2_TO_F6, transposeText, type PianoNameResolver,
 } from '../clavia/fw-present';
 import type { Ne7FieldKey } from './layout.generated';
 
@@ -85,12 +85,20 @@ export function ne7Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolv
   const title = 'Nord Electro 7 · Program';
   if (!p.layoutMatched) return headerOnly(title, p, 'Electro 7', NE7_PROVISIONAL_NOTE);
   const g: Get = (k) => p.values[k];
+  const splitOn = g('common.splitEnable') === 1;
+  const splitNote = label(SPLIT_NOTES_F2_TO_F6, g('common.splitPosition'));
 
   const header = [
     ...fwHeader(p, transposeText(g('common.transposeEnable'), g('common.transposeValue'))),
+    ['Split', splitText(splitOn, splitNote, g('common.splitWidth'))] as [string, string],
     ...soundIdRow('Piano sound id', g('piano.nameHash')),
     ...(g('synthPreset.mode') === 0 ? soundIdRow('Synth sample id', g('synthPreset.smpNameHash')) : []),
   ];
+  const keyboard = singleSplit(splitOn, splitNote, g('common.splitWidth'), [
+    { kind: 'organ', id: '', on: g('organ.isEnabled') === 1, side: splitSide(g('organ.kbdZone')) },
+    { kind: 'piano', id: '', on: g('piano.isEnabled') === 1, side: splitSide(g('piano.kbdZone')) },
+    { kind: 'synth', id: '', on: g('synth.isEnabled') === 1, side: splitSide(g('synth.kbdZone')) },
+  ]);
 
   const model = g('organ.organModel');
   const organ: DecodedSection = {
@@ -133,7 +141,7 @@ export function ne7Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolv
   };
 
   return {
-    title, header,
+    title, header, keyboard,
     sections: [
       organ, drawbarSet(g, 1, b3), drawbarSet(g, 2, b3), drawbarSet(g, 3, b3),
       piano, synth,

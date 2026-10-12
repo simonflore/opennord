@@ -3,7 +3,7 @@
  * program layout) into CommonProgram. Pure model→model; every mapping cites its source field.
  */
 import type { Ns3Program, Ns3Panel } from '../ns3/decode';
-import type { CommonProgram, CommonFxUnit, CommonFxSlot, LiftResult } from './common';
+import type { CommonProgram, CommonFxUnit, CommonFxSlot, CommonSplit, LiftResult } from './common';
 import { dbStringToMidi, timeStringToMs, freqStringToHz } from './units';
 
 export type { LiftResult } from './common';
@@ -49,6 +49,24 @@ function liftFx(fx: Ns3Panel['fx'], dropped: string[]): CommonFxUnit[] {
     });
   }
   return out;
+}
+
+/** Ns3Split's crossfade labels (ns3/decode.ts SPLIT_XFADE) → semitones either side. */
+const XFADE_SEMITONES: Record<string, 0 | 6 | 12> = { '+/- 6 semitones': 6, '+/- 12 semitones': 12 };
+const zoneFlags = (kbZones: string): boolean[] => [...kbZones].map((c) => c === '1');
+
+/** The program's split, when it is switched on and at least one point is. */
+function liftSplit(program: Ns3Program, panel: Ns3Panel): CommonSplit | undefined {
+  const s = program.split;
+  if (!s?.on || !s.points.some((pt) => pt.on)) return undefined;
+  return {
+    points: s.points.map((pt) => ({ on: pt.on, note: pt.note, xfadeSemitones: XFADE_SEMITONES[pt.xfade] ?? 0 })),
+    zones: {
+      organ: zoneFlags(panel.organ.kbZones),
+      piano: zoneFlags(panel.piano.kbZones),
+      synth: zoneFlags(panel.synth.kbZones),
+    },
+  };
 }
 
 export function fromNs3(
@@ -110,6 +128,7 @@ export function fromNs3(
       volumeMidi: dbStringToMidi(y.volume) ?? undefined,
     },
     fx: liftFx(panel.fx, dropped),
+    split: liftSplit(program, panel),
   };
 
   // Cutoff: keep the display string's Hz for the emitter's nearest-match.

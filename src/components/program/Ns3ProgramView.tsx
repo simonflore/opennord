@@ -1,15 +1,16 @@
 import { useMemo } from 'react';
 import { decodeNs3, type Ns3Panel } from '../../lib/ns3/decode';
-import { ns3EngineCards, ns3FxChips, ns3HeaderView, ns3SampleKey, ns3SampleRefs } from '../../lib/ns3/view';
+import { ns3EngineCards, ns3FxChips, ns3HeaderView, ns3SampleKey, ns3SampleRefs, ns3Zones } from '../../lib/ns3/view';
 import { BandedProgramView, useResolvedSampleNames, type ProgramBand } from './BandedProgramView';
 
 /**
  * Stage 3 program view — full per-engine cards (parity with Stage 4) via the shared
  * BandedProgramView. ns3's structure is two independent panels (A/B), each its own
- * labelled band. No layer scenes, morphs, zones, or program-global FX.
+ * labelled band, with the keyboard split map above them. No layer scenes, morphs,
+ * or program-global FX.
  */
 export function Ns3ProgramView({ bytes, name }: { bytes: Uint8Array; name?: string }) {
-  const { panels, name: decodedName, warnings } = useMemo(() => decodeNs3(bytes), [bytes]);
+  const { panels, split, name: decodedName, warnings } = useMemo(() => decodeNs3(bytes), [bytes]);
   const names = useResolvedSampleNames(() => resolveNs3Names(panels), [panels]);
 
   const bands: ProgramBand[] = panels.map((panel) => ({
@@ -27,6 +28,7 @@ export function Ns3ProgramView({ bytes, name }: { bytes: Uint8Array; name?: stri
       bands={bands}
       sampleRefs={ns3SampleRefs(panels, names)}
       warnings={warnings}
+      zones={ns3Zones(panels, split)}
     />
   );
 }

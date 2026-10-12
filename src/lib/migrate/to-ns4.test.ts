@@ -318,7 +318,11 @@ describe('emitNs4 off-engines and dropped features', () => {
       { advisor: naiveAdvisor, sounds: [] },
     );
     const pianoEdits = edits.filter((e) => e.group === 'p');
-    expect(pianoEdits).toEqual([{ group: 'p', name: 'layer on/off', layer: 0, value: 0 }]);
+    // Switched off, and its zone put back to the whole keyboard (the template has a split of its own).
+    expect(pianoEdits).toEqual([
+      { group: 'p', name: 'layer on/off', layer: 0, value: 0 },
+      { group: 'p', name: 'KB zones', layer: 0, value: 5 },
+    ]);
   });
 
   it('adds a mapped "left off" note for an off engine', async () => {
@@ -342,5 +346,52 @@ describe('emitNs4 off-engines and dropped features', () => {
     const { report } = await emitNs4({ sourceModel: 'ns2' }, [], { advisor: naiveAdvisor, sounds: [] });
     expect(report.globalNotes.some((g) => /no equivalent in this file/i.test(g))).toBe(true);
     expect(report.notes.some((n) => n.status === 'not-migratable' && /Morph/i.test(n.note))).toBe(true);
+  });
+});
+
+describe('emitNs4 keyboard split', () => {
+  const engines = {
+    piano: { on: true, typeName: 'Grand' },
+    synth: { on: true, mode: 'analog' as const },
+  };
+  const point = (on: boolean, note: string, xfadeSemitones: 0 | 6 | 12 = 0) => ({ on, note, xfadeSemitones });
+  const raw = (edits: { group: string; name: string; value: number }[], group: string, name: string) =>
+    edits.find((e) => e.group === group && e.name === name)?.value;
+  const emit = (common: CommonProgram) => emitNs4(common, [], { advisor: naiveAdvisor, sounds: [] });
+
+  it('switches the split off, with every engine on the whole keyboard, for a program without one', async () => {
+    const { edits, report } = await emit({ sourceModel: 'ns3', ...engines });
+    expect(raw(edits, 'm', 'split on/off')).toBe(0);
+    for (const i of ['1-2', '2-3', '3-4']) expect(raw(edits, 'm', `KB zones ${i} split point on/off`)).toBe(0);
+    expect([raw(edits, 'p', 'KB zones'), raw(edits, 'y', 'KB zones'), raw(edits, 'o', 'KB zones')]).toEqual([5, 5, 5]);
+    expect(report.notes.some((n) => /split/i.test(n.field))).toBe(false);
+  });
+
+  it('picks the zone value for the points that are on: the same halves need other values with one point than with three', async () => {
+    const zones = { piano: [true, true, false, false], synth: [false, false, true, true] };
+    const one = await emit({ sourceModel: 'ns3', ...engines, split: { points: [point(false, 'C3'), point(true, 'C4'), point(false, 'C6')], zones } });
+    const three = await emit({ sourceModel: 'ns3', ...engines, split: { points: [point(true, 'C3'), point(true, 'C4'), point(true, 'C6')], zones } });
+    // One point (Mid): values 0-4 are the lower half, 6-10 the upper. Three points: 2 is zones 1-2, 8 is zones 3-4.
+    expect([raw(one.edits, 'p', 'KB zones'), raw(one.edits, 'y', 'KB zones')]).toEqual([0, 6]);
+    expect([raw(three.edits, 'p', 'KB zones'), raw(three.edits, 'y', 'KB zones')]).toEqual([2, 8]);
+  });
+
+  it('says so when an engine’s part of the split has no Stage 4 setting, and plays it everywhere', async () => {
+    // Zones 1 and 3 but not 2: no Stage 4 zone setting has a gap.
+    const { edits, report } = await emit({
+      sourceModel: 'ns3', ...engines,
+      split: { points: [point(true, 'C3'), point(true, 'C4'), point(true, 'C6')], zones: { piano: [true, false, true, false] } },
+    });
+    expect(raw(edits, 'p', 'KB zones')).toBe(5);
+    expect(report.notes.find((n) => n.field === 'Piano keyboard zone')).toMatchObject({ status: 'defaulted' });
+  });
+
+  it('leaves out a split point the Stage 4 has no position for, and says which', async () => {
+    const { edits, report } = await emit({
+      sourceModel: 'ns3', ...engines,
+      split: { points: [point(false, 'C3'), point(true, 'B3'), point(false, 'C6')], zones: {} },
+    });
+    expect(raw(edits, 'm', 'KB zones 2-3 split point on/off')).toBe(0);
+    expect(report.notes.find((n) => n.field === 'Keyboard split')).toMatchObject({ status: 'approximated', note: expect.stringContaining('B3') });
   });
 });

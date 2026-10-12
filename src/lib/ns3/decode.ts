@@ -337,6 +337,8 @@ export interface Ns3SynthArp {
 export interface Ns3Synth {
   on: boolean;
   volume: string;
+  /** Which of the four keyboard zones it plays (Param_Syn_kKbZone). */
+  kbZones: string;
   /** Poly / Legato / Mono (Param_Syn_kVoiceMode). */
   voice: string;
   /** Glide 0-10 (Param_Syn_kGlideRate). */
@@ -359,10 +361,25 @@ export interface Ns3Synth {
   filter_type: string;
 }
 
+/**
+ * The keyboard split. A Nord split point is not a free note: it is one of ten
+ * fixed places on the keyboard (the ones with an LED above the keys), each point
+ * with its own switch and crossfade. Which side of a point a sound plays on is
+ * not stored here but with each engine ({@link Ns3Panel} `kbZones`).
+ */
+export interface Ns3Split {
+  /** The split as a whole (Param_Spl_kEnable). Off: every engine plays the whole keyboard. */
+  on: boolean;
+  /** The Low, Mid and High split points, left to right; between them lie the four zones. */
+  points: { on: boolean; note: string; xfade: string }[];
+}
+
 export interface Ns3Panel {
   id: 'A' | 'B';
   organ: {
     on: boolean; type: string; volume: string; drawbars: number[];
+    /** Which of the four keyboard zones it plays, left to right: "1ooo" … "1111" (Param_Org_kKbZone). */
+    kbZones: string;
     /** Octave shift (Param_Org_kOctaveShift). */
     octaveShift: number;
     /** Vibrato/Chorus: the active preset's switch + the program-wide mode, labelled per organ model. */
@@ -372,6 +389,8 @@ export interface Ns3Panel {
   };
   piano: {
     on: boolean; type: string; volume: string;
+    /** Which of the four keyboard zones it plays (Param_Pno_kKbZone). */
+    kbZones: string;
     /** Factory sample reference: 32-bit name hash + variation. Resolve via library/service. */
     sampleId: number; sampleVariation: number;
     /** Piano timbre (Param_Pno_kEq, 4 bits). */
@@ -387,6 +406,8 @@ export interface Ns3Panel {
 export interface Ns3Program {
   /** The active panels (A and/or B), per the program-wide slot enable. */
   panels: Ns3Panel[];
+  /** The keyboard split, shared by both panels; null when the file's layout wasn't read. */
+  split: Ns3Split | null;
   /** Program name — not stored in the file; injected from the filename. */
   name?: string;
 }
@@ -421,6 +442,31 @@ type Get = ReturnType<typeof reader>;
 /** Engine level 0-127 → the Nord dB display. */
 const db = (level: number): string => NORD_DB[level] ?? '?';
 
+/**
+ * Split point positions, Param_Spl_k{Low,Mid,High}Pos 0–9: every C and F from F2
+ * to C7. The manual gives "10 keyboard split positions … ranging from F2 to C7";
+ * ns3-program-viewer's notes give 0 = F2, 1 = C3, 9 = C7.
+ */
+const SPLIT_NOTE = ['F2', 'C3', 'F3', 'C4', 'F4', 'C5', 'F5', 'C6', 'F6', 'C7'];
+/** Param_Spl_k*Width 0–2: Off, Sml, Lrg on the panel (1, 6 and 12 semitones), worded as the Stage 4's are. */
+const SPLIT_XFADE = ['none', '+/- 6 semitones', '+/- 12 semitones'];
+/**
+ * Param_*_kKbZone 0–9 → the zones played, left to right (ns3-program-viewer's
+ * table; 9, all four, is the registry default). Unlike the Stage 4's, the value
+ * means the same whichever split points are on.
+ */
+const KB_ZONES = ['1ooo', 'o1oo', 'oo1o', 'ooo1', '11oo', 'o11o', 'oo11', '111o', 'o111', '1111'];
+const kbZones = (v: number): string => KB_ZONES[v] ?? '1111';
+
+function split(get: Get): Ns3Split {
+  const point = (p: 'Low' | 'Mid' | 'High') => ({
+    on: get(`common.split${p}Enable`) === 1,
+    note: lut(SPLIT_NOTE, get(`common.split${p}Pos`)),
+    xfade: lut(SPLIT_XFADE, get(`common.split${p}Width`)),
+  });
+  return { on: get('common.splitEnable') === 1, points: [point('Low'), point('Mid'), point('High')] };
+}
+
 function organ(get: Get, s: Slot): Ns3Panel['organ'] {
   const model = get(`organ${s}.model`);
   // Org_kPresetFocus is 2 bits (0-3); its low bit selects Preset II, as the
@@ -428,6 +474,7 @@ function organ(get: Get, s: Slot): Ns3Panel['organ'] {
   const preset = (get(`organ${s}.presetFocus`) & 1) === 1 ? `organPresetII${s}` as const : `organPresetI${s}` as const;
   return {
     on: get(`organ${s}.enable`) === 1,
+    kbZones: kbZones(get(`organ${s}.kbZone`)),
     type: lut(ORGAN_TYPE, model),
     volume: db(get(`organ${s}.level`)),
     drawbars: DRAWBAR_NUMBERS.map((n) => get(`${preset}.db${n}`)),
@@ -447,6 +494,7 @@ function piano(get: Get, s: Slot): Ns3Panel['piano'] {
   const bank = get(`piano${s}.bank`);
   return {
     on: get(`piano${s}.enable`) === 1,
+    kbZones: kbZones(get(`piano${s}.kbZone`)),
     type: lut(PIANO_TYPE, bank),
     volume: db(get(`piano${s}.level`)),
     sampleId: get(`piano${s}.nameHash`),
@@ -476,6 +524,7 @@ function synth(get: Get, s: Slot): Ns3Synth {
 
   return {
     on: get(`synthCommon${s}.enable`) === 1,
+    kbZones: kbZones(get(`synthCommon${s}.kbZone`)),
     volume: db(get(`synthCommon${s}.level`)),
     voice: lut(SYNTH_VOICE, y('voiceMode')),
     glide: lin10(y('glideRate')),
@@ -622,8 +671,10 @@ export function decodeNs3(bytes: Uint8Array): Ns3File {
   }
 
   const panels: Ns3Panel[] = [];
+  let keyboardSplit: Ns3Split | null = null;
   if (layoutMatched) {
     const get = reader(values);
+    keyboardSplit = split(get);
     // Param_Com_kSlotEnable 1-3: bit 0 = slot A, bit 1 = slot B.
     const slots = get('common.slotEnable');
     if (slots === 1 || slots === 3) panels.push(panel(get, 'A', os300DelayRate));
@@ -631,6 +682,7 @@ export function decodeNs3(bytes: Uint8Array): Ns3File {
   }
   return {
     ...fw, format: 'ns3f', layoutMatched, values, outOfRange: layoutMatched ? fw.outOfRange : [], warnings, panels,
+    split: keyboardSplit,
     ...(os300DelayRate.length > 0 && { os300DelayRate }),
   };
 }

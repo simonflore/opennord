@@ -183,3 +183,11 @@ describe.skipIf(!existsSync(FIXTURE_DIR))('decodeNp5 — fixtures', () => {
     }
   });
 });
+
+describe('np5Decoded: keyboard split', () => {
+  const split = (values: Parameters<typeof file>[0]) => np5Decoded(file(values)).header.find(([k]) => k === 'Split')?.[1];
+  it('says where the split is (seven places from C3) and its crossfade', () => {
+    expect(split({ 'common.splMode': 0, 'common.splPos': 2 })).toBe('off');
+    expect(split({ 'common.splMode': 3, 'common.splPos': 6, 'common.splWidth': 1 })).toBe('at C6 · crossfade ±6');
+  });
+});

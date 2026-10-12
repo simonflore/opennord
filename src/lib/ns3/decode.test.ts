@@ -728,3 +728,53 @@ describe('decodeNs3 — firmware layout (Stage 3 OS 2.64 registry)', () => {
     expect(p.warnings.join(' ')).toMatch(/outside the instrument’s range \(pianoA\.bank\)/);
   });
 });
+
+describe('decodeNs3: keyboard split', () => {
+  it('reads the three split points: switch, fixed position and crossfade each', () => {
+    const { split } = decodeNs3(ns3File({
+      'common.splitEnable': 1,
+      'common.splitLowEnable': 1, 'common.splitLowPos': 0, 'common.splitLowWidth': 0,
+      'common.splitMidEnable': 0, 'common.splitMidPos': 3, 'common.splitMidWidth': 1,
+      'common.splitHighEnable': 1, 'common.splitHighPos': 9, 'common.splitHighWidth': 2,
+    }));
+    expect(split).toEqual({
+      on: true,
+      points: [
+        { on: true, note: 'F2', xfade: 'none' },
+        { on: false, note: 'C4', xfade: '+/- 6 semitones' },
+        { on: true, note: 'C7', xfade: '+/- 12 semitones' },
+      ],
+    });
+  });
+
+  it('reads the registry defaults: split off as a whole, only the Mid point enabled', () => {
+    // Registry defaults: split off, only Mid enabled, positions 1/4/7, every engine in all four zones (9).
+    const f = decodeNs3(ns3File());
+    expect(f.split).toMatchObject({ on: false, points: [{ on: false, note: 'C3' }, { on: true, note: 'F4' }, { on: false, note: 'C6' }] });
+    expect(f.panels[0].piano.kbZones).toBe('1111');
+  });
+
+  it('reads each engine’s zones per panel', () => {
+    const f = decodeNs3(ns3File({
+      'common.slotEnable': 3,
+      'pianoA.kbZone': 0, 'synthCommonA.kbZone': 6, 'organA.kbZone': 5, 'pianoB.kbZone': 7, 'organB.kbZone': 3,
+    }));
+    const [a, b] = f.panels;
+    expect([a.piano.kbZones, a.synth.kbZones, a.organ.kbZones]).toEqual(['1ooo', 'oo11', 'o11o']);
+    expect([b.piano.kbZones, b.organ.kbZones, b.synth.kbZones]).toEqual(['111o', 'ooo1', '1111']);
+  });
+
+  it('reads them at the file offsets ns3-program-viewer documents', () => {
+    // Split on = 0x31 bit 4; Low/Mid/High enable = bits 3/2/1; piano zone = 0x43 bits 6–3.
+    const b = ns3buf();
+    b[0x31] = 0b0001_1010; // split on, Low and High on (panel A only)
+    b[0x43] = 0x80 | (4 << 3); // piano on, zone value 4
+    const f = decodeNs3(b);
+    expect(f.split).toMatchObject({ on: true, points: [{ on: true }, { on: false }, { on: true }] });
+    expect(f.panels[0].piano.kbZones).toBe('11oo');
+  });
+
+  it('has no split when the layout was not read', () => {
+    expect(decodeNs3(ns3File({}, 200)).split).toBeNull();
+  });
+});

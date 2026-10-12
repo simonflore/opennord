@@ -11,7 +11,8 @@ import type {
 import { volumeFill, envCurve } from '../clavia/engine-view';
 import { drawbarViews, b3DrawbarViews } from '../clavia/drawbars';
 import { identifyNordFile } from '../clavia/nord-file';
-import { ORGAN_TYPE, type Ns3Panel, type Ns3Fx } from './decode';
+import { ORGAN_TYPE, type Ns3Panel, type Ns3Fx, type Ns3Split } from './decode';
+import type { KeyboardZonesView } from '../clavia/decoded';
 import { ns3Engines } from './engines';
 
 // The model-selector options ARE the decoder's organ-type table — sourced from it
@@ -199,5 +200,29 @@ export function ns3HeaderView(bytes: Uint8Array, name: string | undefined, panel
     version: info.version ? `v${info.version}` : '—',
     sizeBytes: bytes.length,
     engines: ns3Engines(panels),
+  };
+}
+
+/**
+ * The keyboard split map: which engines of which panel sound in each of the four
+ * zones, and the split points that are on. Built for the same panel the Stage 4
+ * view draws ({@link KeyboardZonesView}). With the split off every engine plays
+ * the whole keyboard, whatever its own zones say.
+ */
+export function ns3Zones(panels: Ns3Panel[], split: Ns3Split | null): KeyboardZonesView | null {
+  if (!split) return null;
+  const layers = panels.flatMap((p) => (['organ', 'piano', 'synth'] as const)
+    .filter((kind) => p[kind].on)
+    .map((kind) => ({ kind, id: p.id, zones: split.on ? p[kind].kbZones : '1111' })));
+  const live = (i: number) => split.on && split.points[i].on;
+  return {
+    hasSplit: split.on && split.points.some((pt) => pt.on),
+    zones: [0, 1, 2, 3].map((z) => ({
+      layers: layers.filter((l) => l.zones[z] === '1').map(({ kind, id }) => ({ kind, id })),
+    })),
+    boundaries: split.points.map((pt, i) => (live(i) ? pt.note : null)),
+    xfade: split.points.map((pt, i) => (live(i) && pt.xfade !== 'none' ? pt.xfade : null)),
+    transpose: null,
+    performance: { sustain: false, kbHold: false },
   };
 }

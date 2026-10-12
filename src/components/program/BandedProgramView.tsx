@@ -5,6 +5,8 @@ import { ProgramHeader } from './ProgramHeader';
 import { EngineCard } from './EngineCard';
 import { FxRow } from './FxRow';
 import { ReadoutWarnings } from './widgets';
+import { ZonesPanel } from './ProgramZones';
+import type { ProgramZonesView } from '../../lib/ns4/view';
 
 const SAMPLE_LIBRARY = 'https://www.nordkeyboards.com/sounds/sample-library/';
 
@@ -17,18 +19,21 @@ export interface SampleRef { key: string; label: string; }
  * program-global FX row → referenced-samples strip. Each model builds the data via
  * its own view.ts and renders this.
  */
-export function BandedProgramView({ header, bands, globalFxChips, sampleRefs, warnings }: {
+export function BandedProgramView({ header, bands, globalFxChips, sampleRefs, warnings, zones }: {
   header: HeaderView;
   bands: ProgramBand[];
   globalFxChips?: FxChipModel[];
   sampleRefs: SampleRef[];
   /** Reader anomalies (a file the layout doesn't match, out-of-range values, …). */
   warnings?: readonly string[];
+  /** The keyboard split map, for a model whose programs split the keyboard. */
+  zones?: ProgramZonesView | null;
 }) {
   return (
     <div className="ps">
       <ProgramHeader header={header} />
       <ReadoutWarnings warnings={warnings} />
+      {zones && <ZonesPanel view={zones} />}
       {bands.map((band) => (
         <section className="ps-panel" key={band.id}>
           <div className="ps-panel-lbl">{band.label}</div>
