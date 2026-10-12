@@ -1,20 +1,22 @@
+import { Link } from '@tanstack/react-router';
+import { cn } from '@/lib/cn';
 import { SEC } from './layout';
 import { SectionHead } from './SectionHead';
-import { indexedRow, listIndex } from './styles';
-import { cn } from '@/lib/cn';
+import { covLink, indexedRow, listIndex } from './styles';
 
+// The manifesto's principles, in short (MANIFESTO.md, "What I believe").
 const WHY: { title: string; body: string }[] = [
   {
-    title: 'Traceable, not guessed',
-    body: 'Every setting OpenNord shows is derived from real files and validated against actual hardware — accurate today and re-derivable tomorrow.',
-  },
-  {
-    title: 'Works from a file alone',
-    body: 'Reading, organizing and playing your patches all work without a keyboard connected. Device transfer is a bonus, never a requirement.',
+    title: 'The instrument stays sovereign',
+    body: 'No app, account or internet connection stands between you and your Nord. OpenNord reads your files and talks to the keyboard when you ask it to. Unplug it and nothing is missing.',
   },
   {
     title: 'Your work stays yours',
-    body: 'Programs describe your own settings and point to samples by name — OpenNord never copies Nord’s factory sounds. Your creative work stays yours.',
+    body: 'A program describes your own settings and points to samples by name. OpenNord shares what you made and never copies Nord’s factory sounds.',
+  },
+  {
+    title: 'The knowledge stays open',
+    body: 'The file formats and the USB protocol are documented in public, and the code is free software. Every setting OpenNord shows traces back to real files or the instrument’s own software.',
   },
 ];
 
@@ -22,9 +24,9 @@ export function Why() {
   return (
     <section className={SEC}>
       <SectionHead
-        overline="Knowledge that outlives us"
-        title="Community knowledge, given a lasting home"
-        sub="Everything that makes OpenNord possible was figured out by the community, in the open. This gives that work a place that outlives any one person."
+        overline="A companion, never a dependency"
+        title="Built beside the instrument, not in front of it"
+        sub="Your Nord works with nothing plugged into it, and nothing here changes that. OpenNord adds what the instrument can’t do alone."
       />
       {/* Ruled columns with a mono index, like Proof and the feature list. The
           numbers are muted: the accent means selected or active, not "first". */}
@@ -39,6 +41,9 @@ export function Why() {
           </li>
         ))}
       </ol>
+      <p className="mt-6 text-xs">
+        <Link to="/manifesto" className={covLink}>Read the manifesto →</Link>
+      </p>
     </section>
   );
 }

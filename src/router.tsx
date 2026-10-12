@@ -7,6 +7,7 @@ import { PresetsRoute } from '@/routes/presets';
 import { PianosRoute } from '@/routes/pianos';
 import { DeviceRoute } from '@/routes/device';
 import { AboutRoute } from '@/routes/about';
+import { ManifestoRoute } from '@/routes/manifesto';
 import { CompatibilityRoute } from '@/routes/compatibility';
 import { RE_ROUTES } from '@/router-re';
 
@@ -17,7 +18,7 @@ export function createAppRouter(extra: AnyRoute[] = []) {
     HomeRoute,
     LibraryIndexRoute, ProgramsRoute,
     SamplesRedirectRoute, SamplesRoute,
-    PresetsRoute, PianosRoute, DeviceRoute, CompatibilityRoute, AboutRoute,
+    PresetsRoute, PianosRoute, DeviceRoute, CompatibilityRoute, AboutRoute, ManifestoRoute,
     ...RE_ROUTES,
     ...extra,
   ]);
