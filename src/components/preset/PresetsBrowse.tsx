@@ -8,7 +8,7 @@ import { CardRemoveButton } from '../library/CardRemoveButton';
 import { PresetGlance } from './PresetGlance';
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
-import type { LibrarySource } from '@/lib/library/types';
+import { isImported, type LibrarySource } from '@/lib/library/types';
 import type { PresetSort } from '@/lib/library/prefs';
 import { formatBytes } from '@/lib/format';
 
@@ -95,7 +95,7 @@ export function PresetsBrowse({
                 footExtras={
                   <>
                     {e.size != null && <SlotTag>{formatBytes(e.size)}</SlotTag>}
-                    {e.id.startsWith('local:') && (
+                    {isImported(e.id) && (
                       <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
                     )}
                   </>
