@@ -138,6 +138,10 @@ be repaired by the next one.
 - Automatic checks fail quietly. **Check for Updates…** (app menu on macOS, Help
   elsewhere) always answers, including with the error.
 - Only published, non-pre-release versions with a plain `x.y.z` number are seen.
+- The app needs macOS 12 or later (Electron 41; `build.mac.minimumSystemVersion`).
+  `npm run release:desktop` writes that minimum into `latest-mac.yml` as the
+  Darwin version electron-updater compares (`21.0.0`), so an older Mac skips the
+  update instead of installing an app it can't open.
 - On macOS the app must run from Applications to update. Anywhere else it does
   not check at all; it offers to move itself, at launch and from **Check for
   Updates…**.

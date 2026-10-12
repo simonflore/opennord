@@ -52,7 +52,6 @@
   "devDependencies": {
     "@capacitor/cli": "^8.5.3",
     "@capacitor/ios": "^8.5.3",
-    "@electron/rebuild": "^4.0.1",
     "@tailwindcss/vite": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -67,7 +66,6 @@
     "cross-env": "^10.0.0",
     "electron": "^41.10.7",
     "electron-builder": "^26.17.0",
-    "electron-builder-squirrel-windows": "^26.17.0",
     "electron-updater": "^6.8.9",
     "esbuild": "^0.28.0",
     "eslint": "^10.5.0",
@@ -109,6 +107,7 @@
         "zip"
       ],
       "category": "public.app-category.music",
+      "minimumSystemVersion": "12.0",
       "artifactName": "OpenNord-mac.${ext}",
       "hardenedRuntime": true,
       "entitlements": "electron/entitlements.mac.plist",

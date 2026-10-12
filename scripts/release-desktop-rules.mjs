@@ -5,6 +5,33 @@
 /** The `xcrun notarytool store-credentials` profile name (electron/README.md). */
 export const NOTARY_PROFILE = 'opennord-notary';
 
+/**
+ * macOS major → Darwin (kernel) major, which is what electron-updater compares
+ * a feed's minimumSystemVersion against (os.release(), AppUpdater
+ * checkIfUpdateSupported). macOS 11–15 are Darwin 20–24; macOS 26 is Darwin 25.
+ */
+const DARWIN_FOR_MACOS = { 11: 20, 12: 21, 13: 22, 14: 23, 15: 24, 26: 25 };
+
+/**
+ * The update feed's minimum OS, from the app's own minimum (build.mac.
+ * minimumSystemVersion, e.g. "12.0", the oldest macOS the bundled Electron
+ * runs on). electron-builder writes that into Info.plist only, not into
+ * latest-mac.yml, so without this an older Mac would download an update it
+ * can't open.
+ */
+export function feedMinimumSystemVersion(macMinimum) {
+  const darwin = DARWIN_FOR_MACOS[parseInt(String(macMinimum), 10)];
+  if (!darwin) throw new Error(`No Darwin version known for macOS ${macMinimum} — add it to DARWIN_FOR_MACOS.`);
+  return `${darwin}.0.0`;
+}
+
+/** latest-mac.yml with its top-level minimumSystemVersion set (replaced if present). */
+export function withMinimumSystemVersion(yml, minimum) {
+  const line = `minimumSystemVersion: '${minimum}'`;
+  if (/^minimumSystemVersion:.*$/m.test(yml)) return yml.replace(/^minimumSystemVersion:.*$/m, line);
+  return `${yml.replace(/\n*$/, '')}\n${line}\n`;
+}
+
 export function releaseTag(version) {
   return `desktop-v${version}`;
 }
