@@ -4,9 +4,9 @@ import { SOURCE_LABEL, type LibrarySource } from '../../lib/library/types';
 import { countBySource } from '../../lib/library/browse';
 import { useDevice } from '../../lib/device/DeviceContext';
 import { useLibraryData } from '../../lib/library/LibraryContext';
-import { usePresetsState } from '../../lib/library/PresetsContext';
-import { useSamplesState } from '../../lib/library/SamplesContext';
-import { usePianosState } from '../../lib/library/PianosContext';
+import { usePresetsData } from '../../lib/library/PresetsContext';
+import { useSamplesData } from '../../lib/library/SamplesContext';
+import { usePianosData } from '../../lib/library/PianosContext';
 import type { SourceItem } from './Rail';
 
 /**
@@ -17,9 +17,9 @@ import type { SourceItem } from './Rail';
 export function useRailData() {
   const live = !!useDevice().session;
   const { all: programs, source: activeSource, clearFilters, setSource } = useLibraryData();
-  const presets = usePresetsState().all.length;
-  const samples = useSamplesState().all.length;
-  const pianos = usePianosState().all.length;
+  const presets = usePresetsData().all.length;
+  const samples = useSamplesData().all.length;
+  const pianos = usePianosData().all.length;
 
   const counts: Record<CategoryId, number> = useMemo(
     () => ({ programs: programs.length, presets, samples, pianos }),

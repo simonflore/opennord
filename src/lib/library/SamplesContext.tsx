@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedSamples } from '@/lib/library/useImportedSamples';
@@ -119,13 +119,21 @@ function useSamplesStateValue() {
   // category facet is worth showing (only when there's more than one).
   const categoriesPresent = presentSampleCategories(allEntries);
 
-  const shown = sortSamples(
-    filterSamples(allEntries, source, generation, query, unusedOnly, category), prefs.sort, prefs.favorites);
+  // The list follows the search a beat behind (an interruptible render), so the
+  // field keeps up with typing in a big folder.
+  const listQuery = useDeferredValue(query);
+  const shown = useMemo(() => sortSamples(
+    filterSamples(allEntries, source, generation, listQuery, unusedOnly, category), prefs.sort, prefs.favorites),
+  [allEntries, source, generation, listQuery, unusedOnly, category, prefs.sort, prefs.favorites]);
   const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
 
   const removableUnused = allEntries.filter((e) => e.source === 'nord' && e.unused && e.device);
   const selectAllUnused = () => setSelected(new Set(removableUnused.map((e) => e.id)));
   const selectedFreeBytes = selectedBytes(allEntries, selected);
+  // The selection from the whole list, not the filtered one: removal deletes
+  // every selected entry, so the confirm dialog (keep-a-copy, re-install links)
+  // must see the ones a search or facet is hiding too.
+  const selectedEntries = useMemo(() => allEntries.filter((e) => selected.has(e.id)), [allEntries, selected]);
 
   async function removeFromNord({ keepCopyIds }: { keepCopyIds: Set<string> }): Promise<{ removed: number; failed: number }> {
     if (!session) return { removed: 0, failed: 0 };
@@ -224,7 +232,8 @@ function useSamplesStateValue() {
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.
   const { filtered, clearFilters, ensureListed } = useListFilters(shown, [
-    { active: query.trim() !== '', reset: () => setQuery('') },
+    // Counts once the list has caught up with the search (listQuery).
+    { active: listQuery.trim() !== '', reset: () => setQuery('') },
     { active: source !== 'all', reset: () => setSource('all') },
     { active: generation !== 'all', reset: () => setGeneration('all') },
     { active: category !== 'all', reset: () => setCategory('all') },
@@ -240,16 +249,34 @@ function useSamplesStateValue() {
     unusedOnly, setUnusedOnly, missingCount: usage ? usage.missing.length : null,
     importSample: imported.add, removeSample: imported.remove, storedCount, storedBytes,
     // Selection + removal
-    selected, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
+    selected, selectedEntries, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
     removeFromNord, removing, removePct,
   };
 }
 
 type SamplesState = ReturnType<typeof useSamplesStateValue>;
+type SamplesData = Pick<SamplesState, 'all' | 'ensureListed'>;
 const Ctx = createContext<SamplesState | null>(null);
+const DataCtx = createContext<SamplesData | null>(null);
 
 export function SamplesProvider({ children }: { children: ReactNode }) {
-  return <Ctx.Provider value={useSamplesStateValue()}>{children}</Ctx.Provider>;
+  const state = useSamplesStateValue();
+  // What the always-mounted shell reads (the rail's count, the ⌘K palette):
+  // its own context, so a search keystroke here doesn't re-render the shell.
+  const { all, ensureListed } = state;
+  const data = useMemo(() => ({ all, ensureListed }), [all, ensureListed]);
+  return (
+    <DataCtx.Provider value={data}>
+      <Ctx.Provider value={state}>{children}</Ctx.Provider>
+    </DataCtx.Provider>
+  );
+}
+
+/** The entries and the jump-to helper, without the search state (see SamplesProvider). */
+export function useSamplesData(): SamplesData {
+  const v = useContext(DataCtx);
+  if (!v) throw new Error('useSamplesData must be used within SamplesProvider');
+  return v;
 }
 
 export function useSamplesState(): SamplesState {

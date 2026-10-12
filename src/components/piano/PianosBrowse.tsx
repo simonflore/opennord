@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import '../library/library.css';
 import { BrowseToolbar, Button, Dialog, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
 import { LibraryCard } from '../library/LibraryCard';
+import { useStableCallback } from '@/lib/useStableCallback';
 import { LibraryEmpty } from '../library/LibraryEmpty';
 import { FactoryPill } from '../library/FactoryPill';
 import { SlotTag } from '../library/SlotTag';
@@ -34,7 +35,7 @@ export function PianosBrowse({
   // Piano-usage cleanup (device-connected)
   canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly,
   // Reclaim-space selection
-  selected, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
+  selected, selectedEntries, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
   removeFromNord, removing, removePct,
   // Test escape hatch: open the confirm dialog without a click event
   _testConfirmOpen,
@@ -65,6 +66,8 @@ export function PianosBrowse({
   toggleSelected: (id: string) => void;
   selectAllUnused: () => void;
   clearSelected: () => void;
+  /** The selected entries from the whole list, filtered out or not (what removal deletes). */
+  selectedEntries: PianoEntry[];
   selectedFreeBytes: number;
   removeFromNord: (opts: { keepCopyIds: Set<string> }) => Promise<{ removed: number; failed: number }>;
   removing: boolean;
@@ -86,8 +89,8 @@ export function PianosBrowse({
   const sortOptions = (Object.keys(SORT_LABEL) as PianoSort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }));
 
 
-  // Confirm-remove dialog state
-  const selectedEntries = entries.filter((e) => selected.has(e.id));
+  // Confirm-remove dialog state: selectedEntries is the whole selection (a
+  // search may hide some of it), which is what removal deletes.
 
   const [confirmOpen, setConfirmOpen] = useState(_testConfirmOpen ?? false);
   // Every Nord piano is factory content (there are no user/custom pianos), and
@@ -106,7 +109,7 @@ export function PianosBrowse({
   }
 
   async function handleRemove() {
-    const keepCopyIds = keepCopyIdsFor(entries, selected, keepCopy);
+    const keepCopyIds = keepCopyIdsFor(selectedEntries, selected, keepCopy);
     setRemoveError('');
     try {
       const result = await removeFromNord({ keepCopyIds });
@@ -166,6 +169,37 @@ export function PianosBrowse({
     </>
   );
 
+  // Stable handlers and a memoised row list: a search keystroke (or any
+  // parent render) with the same entries reuses the rows instead of rebuilding
+  // every card, which a folder of a thousand samples feels.
+  const onSelectStable = useStableCallback(onSelect);
+  const toggleFavoriteStable = useStableCallback(toggleFavorite);
+  const toggleSelectedStable = useStableCallback(toggleSelected);
+  const rows = useMemo(() => entries.map((entry) => (
+              <LibraryCard
+                key={entry.id}
+                name={entry.name}
+                source={entry.source}
+                favorite={isFavorite(entry.id)}
+                onToggleFavorite={() => toggleFavoriteStable(entry.id)}
+                onOpen={() => onSelectStable(entry)}
+                selected={entry.id === activeId}
+                unused={entry.unused}
+                select={unusedOnly && entry.source === 'nord' && entry.unused
+                  ? { checked: selected.has(entry.id), onToggle: () => toggleSelectedStable(entry.id) }
+                  : undefined}
+                badge={entry.slot && <SlotTag>{entry.slot}</SlotTag>}
+                footExtras={
+                  <>
+                    {entry.source === 'backup' && entry.isFactory !== undefined && (
+                      <FactoryPill factory={entry.isFactory} />
+                    )}
+                    {entry.size != null && <SlotTag>{formatBytes(entry.size)}</SlotTag>}
+                  </>
+                }
+              />
+            )), [entries, activeId, isFavorite, unusedOnly, selected, onSelectStable, toggleFavoriteStable, toggleSelectedStable]);
+
   return (
     <>
       <CategoryPanel
@@ -183,30 +217,7 @@ export function PianosBrowse({
         isEmpty={entries.length === 0}
         emptyState={<LibraryEmpty noun="piano" filtered={filtered} onClear={clearFilters} />}
       >
-            {entries.map((entry) => (
-              <LibraryCard
-                key={entry.id}
-                name={entry.name}
-                source={entry.source}
-                favorite={isFavorite(entry.id)}
-                onToggleFavorite={() => toggleFavorite(entry.id)}
-                onOpen={() => onSelect(entry)}
-                selected={entry.id === activeId}
-                unused={entry.unused}
-                select={unusedOnly && entry.source === 'nord' && entry.unused
-                  ? { checked: selected.has(entry.id), onToggle: () => toggleSelected(entry.id) }
-                  : undefined}
-                badge={entry.slot && <SlotTag>{entry.slot}</SlotTag>}
-                footExtras={
-                  <>
-                    {entry.source === 'backup' && entry.isFactory !== undefined && (
-                      <FactoryPill factory={entry.isFactory} />
-                    )}
-                    {entry.size != null && <SlotTag>{formatBytes(entry.size)}</SlotTag>}
-                  </>
-                }
-              />
-            ))}
+            {rows}
       </CategoryPanel>
 
       {/* Confirm-remove dialog */}

@@ -5,9 +5,9 @@ import { cn } from '@/lib/cn';
 import { READY_CATEGORIES } from '../../lib/library/categories';
 import { SOURCE_LABEL, type LibrarySource } from '../../lib/library/types';
 import { useLibraryData } from '../../lib/library/LibraryContext';
-import { usePresetsState } from '../../lib/library/PresetsContext';
-import { useSamplesState } from '../../lib/library/SamplesContext';
-import { usePianosState } from '../../lib/library/PianosContext';
+import { usePresetsData } from '../../lib/library/PresetsContext';
+import { useSamplesData } from '../../lib/library/SamplesContext';
+import { usePianosData } from '../../lib/library/PianosContext';
 import { useOpenEntry } from '../library/openEntry';
 import { rankCommands, type Command } from './commands';
 import { ABOUT, COMMUNITY_SUB, COMMUNITY_TO, DEV_DESTS, useTools } from './nav';
@@ -23,9 +23,9 @@ function useCommands(): Command[] {
   const tools = useTools();
   const open = useOpenEntry();
   const { all: programs, ensureListed } = useLibraryData();
-  const presets = usePresetsState();
-  const samples = useSamplesState();
-  const pianos = usePianosState();
+  const presets = usePresetsData();
+  const samples = useSamplesData();
+  const pianos = usePianosData();
   // Only the (memoised) lists and their stable callbacks go into the memo, so a
   // provider update that doesn't touch the lists keeps the same commands.
   const lists = useMemo(() => [

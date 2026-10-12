@@ -30,7 +30,7 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
         activeId={selectedId}
         canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct}
         unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
-        selected={s.selected} toggleSelected={s.toggleSelected}
+        selected={s.selected} selectedEntries={s.selectedEntries} toggleSelected={s.toggleSelected}
         selectAllUnused={s.selectAllUnused} clearSelected={s.clearSelected}
         selectedFreeBytes={s.selectedFreeBytes}
         removeFromNord={s.removeFromNord}

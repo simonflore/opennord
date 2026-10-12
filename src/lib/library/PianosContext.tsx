@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { usePianosPrefs } from '@/lib/library/prefs';
@@ -91,16 +91,23 @@ function usePianosStateValue() {
   const showSourceFacet = nordCount > 0 && localCount > 0;
   const unusedCount = usage ? usage.unused.length : null;
 
-  const shown = sortPianos(
+  // The list follows the search a beat behind (an interruptible render), so the
+  // field keeps up with typing in a big folder.
+  const listQuery = useDeferredValue(query);
+  const shown = useMemo(() => sortPianos(
     unusedOnly
-      ? filterPianos(allEntries, source, query).filter((e) => e.unused)
-      : filterPianos(allEntries, source, query),
-    prefs.sort, prefs.favorites);
+      ? filterPianos(allEntries, source, listQuery).filter((e) => e.unused)
+      : filterPianos(allEntries, source, listQuery),
+    prefs.sort, prefs.favorites), [allEntries, source, listQuery, unusedOnly, prefs.sort, prefs.favorites]);
   const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
 
   const removableUnused = allEntries.filter((e) => e.source === 'nord' && e.unused && e.device);
   const selectAllUnused = () => setSelected(new Set(removableUnused.map((e) => e.id)));
   const selectedFreeBytes = selectedPianoBytes(allEntries, selected);
+  // The selection from the whole list, not the filtered one: removal deletes
+  // every selected entry, so the confirm dialog (keep-a-copy, re-install links)
+  // must see the ones a search or facet is hiding too.
+  const selectedEntries = useMemo(() => allEntries.filter((e) => selected.has(e.id)), [allEntries, selected]);
 
   async function removeFromNord({ keepCopyIds }: { keepCopyIds: Set<string> }): Promise<{ removed: number; failed: number }> {
     if (!session) return { removed: 0, failed: 0 };
@@ -145,7 +152,8 @@ function usePianosStateValue() {
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.
   const { filtered, clearFilters, ensureListed } = useListFilters(shown, [
-    { active: query.trim() !== '', reset: () => setQuery('') },
+    // Counts once the list has caught up with the search (listQuery).
+    { active: listQuery.trim() !== '', reset: () => setQuery('') },
     { active: source !== 'all', reset: () => setSource('all') },
     { active: unusedOnly, reset: () => setUnusedOnly(false) },
   ]);
@@ -156,16 +164,34 @@ function usePianosStateValue() {
     canScanUsage: !!session, scanUsage, scanPct, unusedCount,
     unusedOnly, setUnusedOnly,
     // Selection + removal
-    selected, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
+    selected, selectedEntries, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
     removeFromNord, removing, removePct,
   };
 }
 
 type PianosState = ReturnType<typeof usePianosStateValue>;
+type PianosData = Pick<PianosState, 'all' | 'ensureListed'>;
 const Ctx = createContext<PianosState | null>(null);
+const DataCtx = createContext<PianosData | null>(null);
 
 export function PianosProvider({ children }: { children: ReactNode }) {
-  return <Ctx.Provider value={usePianosStateValue()}>{children}</Ctx.Provider>;
+  const state = usePianosStateValue();
+  // What the always-mounted shell reads (the rail's count, the ⌘K palette):
+  // its own context, so a search keystroke here doesn't re-render the shell.
+  const { all, ensureListed } = state;
+  const data = useMemo(() => ({ all, ensureListed }), [all, ensureListed]);
+  return (
+    <DataCtx.Provider value={data}>
+      <Ctx.Provider value={state}>{children}</Ctx.Provider>
+    </DataCtx.Provider>
+  );
+}
+
+/** The entries and the jump-to helper, without the search state (see PianosProvider). */
+export function usePianosData(): PianosData {
+  const v = useContext(DataCtx);
+  if (!v) throw new Error('usePianosData must be used within PianosProvider');
+  return v;
 }
 
 export function usePianosState(): PianosState {
