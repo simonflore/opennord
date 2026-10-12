@@ -42,7 +42,7 @@ describe('executePlan', () => {
       canWrite: (p) => p !== PART,
     };
     const res = await executePlan(io, PART, plan, occ);
-    expect(res).toEqual({ ok: false, completedOps: 0, rolledBack: false, warnings: [WRITE_BLOCKED_MESSAGE] });
+    expect(res).toEqual({ ok: false, completedOps: 0, rolledBack: false, deviceUnchanged: true, warnings: [WRITE_BLOCKED_MESSAGE] });
     expect(calls).toEqual([]);
     expect([...dev.snapshot()]).toEqual([...initial]);
   });
@@ -133,6 +133,32 @@ describe('executePlan', () => {
     const res = await executePlan(dev, PART, planSwap(occ, { bank: 2, slot: 12 }, { bank: 2, slot: 20 }) as Plan, occ);
     expect(res.ok).toBe(false);
     expect([...dev.snapshot()]).toEqual([...initial]); // both slots restored
+  });
+
+  it('a rollback that fails too is not reported as rolled back, and hands over what it could not restore', async () => {
+    const a = entry({ bank: 2, slot: 12, name: 'A' });
+    const b = entry({ bank: 2, slot: 20, name: 'B' });
+    const dev = new FakeDevice([
+      { partition: PART, file: file(5), entry: a },
+      { partition: PART, file: file(6), entry: b },
+    ]);
+    // The cable goes after the first copy (A over B's place): every later write fails.
+    let pushes = 0;
+    const io: DeviceIO = {
+      pull: (p, e) => dev.pull(p, e),
+      push: (p, at, f, n) => (++pushes > 1 ? Promise.reject(new Error('unplugged')) : dev.push(p, at, f, n)),
+      delete: (p, at) => dev.delete(p, at),
+      info: (p, at) => dev.info(p, at),
+    };
+    const occ = buildOccupancy([a, b]);
+    const res = await executePlan(io, PART, planSwap(occ, { bank: 2, slot: 12 }, { bank: 2, slot: 20 }) as Plan, occ);
+    expect(res.ok).toBe(false);
+    expect(res.rolledBack).toBe(false);
+    expect(res.deviceUnchanged).toBe(false);
+    // B now exists nowhere on the device: its bytes must come back to the caller.
+    const lostB = res.unrestored?.find((u) => u.name === 'B');
+    expect(lostB).toMatchObject({ addr: { bank: 2, slot: 20 }, ext: 'ns4p' });
+    expect(lostB!.file.length).toBe(44 + 6);
   });
 
   it('executes a batch sort: programs end alphabetized at the top, tail cleared', async () => {

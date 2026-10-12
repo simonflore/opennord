@@ -1,4 +1,4 @@
-import { TransportTimeoutError, type NordTransport } from './transport';
+import { TransportLostError, TransportTimeoutError, type NordTransport } from './transport';
 
 /**
  * The USB bridge the Electron preload exposes on `window.nordNativeUsb`
@@ -61,7 +61,28 @@ function bytesToB64(bytes: Uint8Array): string {
  * above this seam is reused unchanged, exactly like the iPad transport.
  */
 export class ElectronUsbTransport implements NordTransport {
+  private lost: (() => void) | undefined;
+
   constructor(private readonly productId?: number) {}
+
+  /** The main process reports an unplug on the next transfer, not as an event,
+   *  and only as text: an error's type doesn't cross IPC. This is the one place
+   *  that reads it (DISCONNECTED_MESSAGE, electron/shell-policy.ts). */
+  onLost(cb: () => void): void {
+    this.lost = cb;
+  }
+
+  private async watched<T>(call: Promise<T>): Promise<T> {
+    try {
+      return await call;
+    } catch (e) {
+      if (!(e instanceof Error && e.message.includes('Your Nord was disconnected.'))) throw e;
+      const lost = this.lost;
+      this.lost = undefined;
+      lost?.();
+      throw new TransportLostError();
+    }
+  }
 
   private get bridge(): NordNativeUsb {
     const b = typeof window !== 'undefined' ? window.nordNativeUsb : undefined;
@@ -73,10 +94,10 @@ export class ElectronUsbTransport implements NordTransport {
     await this.bridge.open(this.productId);
   }
   async bulkOut(data: Uint8Array): Promise<void> {
-    await this.bridge.bulkOut(bytesToB64(data));
+    await this.watched(this.bridge.bulkOut(bytesToB64(data)));
   }
   async bulkIn(maxLength: number, timeoutMs?: number): Promise<Uint8Array> {
-    const b64 = await this.bridge.bulkIn(maxLength, timeoutMs);
+    const b64 = await this.watched(this.bridge.bulkIn(maxLength, timeoutMs));
     if (b64 === null) throw new TransportTimeoutError(timeoutMs ?? 0);
     return b64ToBytes(b64);
   }

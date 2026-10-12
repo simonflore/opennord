@@ -4,9 +4,22 @@ import { getErrorMessage } from '../errors';
 import { WRITE_BLOCKED_MESSAGE } from './write-guard';
 
 export interface ExecProgress { opIndex: number; opCount: number; phase: 'copy' | 'delete' | 'rollback' }
-export interface ExecResult { ok: boolean; completedOps: number; rolledBack: boolean; warnings: string[] }
+/** A file a failed plan displaced and the rollback could not put back on the device. */
+export interface UnrestoredFile { addr: Addr; name: string; ext: string; file: Uint8Array }
+export interface ExecResult {
+  ok: boolean;
+  completedOps: number;
+  /** True only when every journaled slot is back as it was. */
+  rolledBack: boolean;
+  /** True when a failed plan left the device as it found it: refused or stopped
+   *  before the first write, or rolled back in full. */
+  deviceUnchanged?: boolean;
+  warnings: string[];
+  /** Set when the rollback itself failed: what was in those slots, for the caller to save. */
+  unrestored?: UnrestoredFile[];
+}
 
-interface JournalEntry { addr: Addr; before: { file: Uint8Array; name: string } | null }
+interface JournalEntry { addr: Addr; before: { file: Uint8Array; name: string; ext: string } | null }
 
 const CBIN_HEADER = 44;
 
@@ -30,7 +43,7 @@ export async function executePlan(
   // 0. Refuse up front on an unconfirmed partition — before journaling, so there
   //    is nothing to roll back (the writes themselves are also gated in pushFile).
   if (io.canWrite?.(partition) === false) {
-    return { ok: false, completedOps: 0, rolledBack: false, warnings: [WRITE_BLOCKED_MESSAGE] };
+    return { ok: false, completedOps: 0, rolledBack: false, deviceUnchanged: true, warnings: [WRITE_BLOCKED_MESSAGE] };
   }
 
   // 1. Journal the affected slots up front (before any mutation).
@@ -38,10 +51,10 @@ export async function executePlan(
   try {
     for (const addr of plan.journalSlots) {
       const src = occ.get(addrKey(addr));
-      journal.push(src ? { addr, before: { file: await io.pull(partition, src), name: src.name } } : { addr, before: null });
+      journal.push(src ? { addr, before: { file: await io.pull(partition, src), name: src.name, ext: src.fourcc } } : { addr, before: null });
     }
   } catch (e) {
-    return { ok: false, completedOps: 0, rolledBack: false, warnings: [`Could not read the slots before moving: ${getErrorMessage(e)}`] };
+    return { ok: false, completedOps: 0, rolledBack: false, deviceUnchanged: true, warnings: [`Could not read the slots before moving: ${getErrorMessage(e)}`] };
   }
 
   // 2. Run ops in order, copy-then-verify-then-delete. Any failure → rollback.
@@ -76,19 +89,26 @@ export async function executePlan(
     }
     return { ok: true, completedOps: completed, rolledBack: false, warnings: [] };
   } catch (e) {
-    const warnings = await rollback(io, partition, journal, onProgress);
-    return { ok: false, completedOps: completed, rolledBack: true, warnings: [getErrorMessage(e), ...warnings] };
+    const { warnings, unrestored } = await rollback(io, partition, journal, onProgress);
+    const rolledBack = warnings.length === 0;
+    return {
+      ok: false, completedOps: completed, rolledBack, deviceUnchanged: rolledBack,
+      warnings: [getErrorMessage(e), ...warnings],
+      ...(unrestored.length ? { unrestored } : {}),
+    };
   }
 }
 
-/** Restore every journaled slot to its captured state. Best-effort; returns residual warnings. */
+/** Restore every journaled slot to its captured state. Best-effort; returns residual
+ *  warnings and the files it could not put back. */
 async function rollback(
   io: DeviceIO,
   partition: number,
   journal: JournalEntry[],
   onProgress?: (p: ExecProgress) => void,
-): Promise<string[]> {
+): Promise<{ warnings: string[]; unrestored: UnrestoredFile[] }> {
   const warnings: string[] = [];
+  const unrestored: UnrestoredFile[] = [];
   let ri = 0;
   for (const j of journal) {
     onProgress?.({ opIndex: ri++, opCount: journal.length, phase: 'rollback' });
@@ -100,7 +120,8 @@ async function rollback(
       }
     } catch (e) {
       warnings.push(`Could not restore ${addrKey(j.addr)}: ${getErrorMessage(e)}`);
+      if (j.before) unrestored.push({ addr: j.addr, ...j.before });
     }
   }
-  return warnings;
+  return { warnings, unrestored };
 }

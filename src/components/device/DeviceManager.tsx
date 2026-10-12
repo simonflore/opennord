@@ -23,7 +23,7 @@ import { useDeleteFlow } from './useDeleteFlow';
 import { useSamplesFlow } from './useSamplesFlow';
 import { useReorg } from './useReorg';
 import { sessionDeviceIO } from '../../lib/device/device-io';
-import { backup } from '../../lib/device/backup';
+import { backup, backupFilename } from '../../lib/device/backup';
 import { downloadBytes } from '../../lib/download';
 import { getErrorMessage } from '../../lib/errors';
 import { useFolder } from '../../lib/folder/FolderContext';
@@ -34,7 +34,7 @@ import { useFolder } from '../../lib/folder/FolderContext';
  * useDeleteFlow, useSamplesFlow); this component is the switch between them.
  */
 export function DeviceManager() {
-  const { session, entries, deviceName, capacity, setConnection, setEntries, setCapacity, isCurrent } = useDevice();
+  const { session, entries, deviceName, capacity, setConnection, setEntries, setCapacity, isCurrent, lost } = useDevice();
   const folder = useFolder();
   // Program-open (pull-to-view) state stays local — it's this component's own concern.
   const [program, setProgram] = useState<NordProgram | null>(null);
@@ -84,7 +84,7 @@ export function DeviceManager() {
   const backupOnce = useCallback(async () => {
     if (!session || !backupWanted || backedUp.current) return;
     const bytes = await backup(session);
-    downloadBytes(bytes, `OpenNord Safety Backup ${new Date().toISOString().slice(0, 10)}.ns4b`);
+    downloadBytes(bytes, backupFilename(session, 'OpenNord Safety Backup'));
     backedUp.current = true;
   }, [session, backupWanted]);
   const reorg = useReorg({
@@ -140,6 +140,7 @@ export function DeviceManager() {
             onPick={openBundle}
           />
         )}
+        {lost && <p className="on-error" role="status">Your Nord was disconnected. Connect it again to carry on.</p>}
         <ConnectPanel
           onConnected={(s, e, name, pid) => setConnection(s, e, name, pid)}
           onOpenBackup={() => { setOrganizingBundlePath(undefined); setOrganizingBackup(true); }}

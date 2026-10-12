@@ -52,3 +52,40 @@ describe('WebUsbTransport.bulkIn with a timeout', () => {
     expect(calls).toEqual([]);
   });
 });
+
+describe('WebUsbTransport.onLost', () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('reports this device being unplugged, once, and no other device', () => {
+    const listeners = new Set<(e: USBConnectionEvent) => void>();
+    vi.stubGlobal('navigator', { usb: {
+      addEventListener: (_: string, l: (e: USBConnectionEvent) => void) => listeners.add(l),
+      removeEventListener: (_: string, l: (e: USBConnectionEvent) => void) => listeners.delete(l),
+    } });
+    const unplug = (device: USBDevice) => [...listeners].forEach((l) => l({ device } as USBConnectionEvent));
+    const { device } = fakeDevice();
+    const lost = vi.fn();
+    new WebUsbTransport(device).onLost(lost);
+
+    unplug(fakeDevice().device); // some other USB device
+    expect(lost).not.toHaveBeenCalled();
+    unplug(device);
+    unplug(device);
+    expect(lost).toHaveBeenCalledTimes(1);
+    expect(listeners.size).toBe(0);
+  });
+});
+
+describe('WebUsbTransport transfers that fail', () => {
+  it('reports a NetworkError as the Nord being gone, and passes any other error on', async () => {
+    const { TransportLostError } = await import('./transport');
+    const failing = (error: Error) => new WebUsbTransport({
+      transferOut: vi.fn().mockRejectedValue(error),
+      transferIn: vi.fn().mockRejectedValue(error),
+    } as unknown as USBDevice);
+    const gone = failing(new DOMException('A transfer error has occurred.', 'NetworkError'));
+    await expect(gone.bulkOut(new Uint8Array(1))).rejects.toBeInstanceOf(TransportLostError);
+    await expect(gone.bulkIn(64)).rejects.toBeInstanceOf(TransportLostError);
+    await expect(failing(new DOMException('stalled', 'InvalidStateError')).bulkIn(64)).rejects.toThrow('stalled');
+  });
+});

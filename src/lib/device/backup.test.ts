@@ -10,7 +10,7 @@ import {
   CReqFileCreate, CReqFileWrite,
 } from './opcodes';
 import { readCbinHeader } from '../clavia/cbin';
-import { backup, restore } from './backup';
+import { backup, backupFilename, backupSpecs, restore, BACKUP_REFUSED_MESSAGE } from './backup';
 import { USER_PARTITIONS, buildMetaXml } from './ns4b';
 import { WriteBlockedError } from './write-guard';
 
@@ -71,6 +71,41 @@ describe('backup', () => {
     expect(Object.keys(files)).toContain('Program/Bank H/regressionTest.ns4p');
     // the stored file is a full CBIN file (header + body)
     expect(files['Program/Bank H/regressionTest.ns4p'].length).toBe(fixtureBytes.length);
+  });
+
+  it('fails when the Nord refuses a partition, instead of leaving it out', async () => {
+    const programSpec = USER_PARTITIONS.find((p) => p.partition === 6)!;
+    const refused = encodeMessage(CReqBegin | 1, [2]);
+    const session = new NordSession(new MockTransport([refused, ack(CReqEnd)]));
+    await expect(backup(session, undefined, [programSpec])).rejects.toThrow(BACKUP_REFUSED_MESSAGE);
+  });
+
+  it('on a model without the Stage 4 layout, backs up its programs only, under their own extension', async () => {
+    const header = readCbinHeader(fixtureBytes);
+    const body = fixtureBytes.subarray(44);
+    const ns3Info = (() => {
+      const nb = new TextEncoder().encode('Stage 3 Program');
+      return encodeMessage(CQryFileInfo | 1, [0, 0, 0, body.length, ext2Type('ns3f'), header.versionRaw, 0, header.category, nb.length], nb);
+    })();
+    const transport = new MockTransport([
+      ack(CReqBegin), iter(0, header.bank, header.location), ns3Info, iter(2, header.bank, 0), ack(CReqEnd),
+      ack(CReqBegin), ack(CReqFileOpen), readReply(body), ack(CReqFileClose), ack(CReqEnd),
+    ]);
+    const session = new NordSession(transport);
+    session.programPartition = 7; // where a Stage 3 keeps its programs
+    expect(backupSpecs(session).map((s) => s.partition)).toEqual([7]);
+
+    const files = unzipSync(await backup(session));
+    // No meta.xml: nothing must take this for a Stage 4 backup.
+    expect(Object.keys(files)).toEqual(['Program/Bank H/Stage 3 Program.ns3f']);
+    expect(backupFilename(session, 'OpenNord Backup', new Date('2026-10-12'))).toBe('OpenNord Backup 2026-10-12 (programs).zip');
+  });
+
+  it('on a Stage 4, backs up every user partition', () => {
+    const session = new NordSession(new MockTransport([]));
+    session.stage4Layout = true;
+    expect(backupSpecs(session)).toEqual(USER_PARTITIONS);
+    expect(backupFilename(session, 'OpenNord Backup', new Date('2026-10-12'))).toBe('OpenNord Backup 2026-10-12.ns4b');
   });
 
   it('excludes concurrent session use while a backup runs', async () => {
@@ -181,6 +216,20 @@ describe('restore', () => {
     session.allowWrites([6]); // e.g. a probe-confirmed Program partition only
     await expect(restore(session, zip)).rejects.toBeInstanceOf(WriteBlockedError);
     expect(t.sent).toHaveLength(0); // never touched the device
+  });
+
+  it('refuses an archive whose only partition is writable here for another reason', async () => {
+    // A Stage 3: partition 7 is confirmed, as its Programs. A backup holding only
+    // Stage 4 organ presets (also 7) must not be written over them.
+    const zip = zipSync({
+      'meta.xml': strToU8(buildMetaXml(0)),
+      'Organ Preset/Bank 1/B3.ns4o': fixtureBytes,
+    }, { level: 0 });
+    const t = new MockTransport([]);
+    const session = new NordSession(t);
+    session.allowWrites([7]);
+    await expect(restore(session, zip)).rejects.toBeInstanceOf(WriteBlockedError);
+    expect(t.sent).toHaveLength(0);
   });
 
   it('reports a partition the Nord refuses to open, without trying to write to it', async () => {

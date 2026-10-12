@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { NordSession } from '../../lib/device/session';
-import { backup, canRestore, restore, type RestoreResult } from '../../lib/device/backup';
+import { backup, backsUpEverything, backupFilename, canRestore, restore, type RestoreResult } from '../../lib/device/backup';
 import { resolveFactory } from '../../lib/device/factory';
 import { downloadBytes } from '../../lib/download';
 import { getErrorMessage } from '../../lib/errors';
@@ -28,8 +28,10 @@ export function BackupPanel({ session, deviceName, onAfterRestore }: {
     setStatus('Backing up…');
     try {
       const bytes = await backup(session, (done, total) => setStatus(`Backing up ${done} of ${total}…`));
-      downloadBytes(bytes, `OpenNord Backup ${new Date().toISOString().slice(0, 10)}.ns4b`);
-      setStatus('Backup downloaded.');
+      downloadBytes(bytes, backupFilename(session, 'OpenNord Backup'));
+      setStatus(backsUpEverything(session)
+        ? 'Backup downloaded.'
+        : 'Backup downloaded: programs only. OpenNord doesn’t yet know where this model keeps its other settings and presets.');
     } catch (e) {
       setStatus(`Backup failed: ${getErrorMessage(e)}`);
     } finally {

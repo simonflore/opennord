@@ -14,11 +14,15 @@ import { findUnusedSamples, normalizeSampleName, type SampleUsage } from '@/lib/
 import { useBackupOrigins } from './useBackupOrigins';
 import { planOffload } from '@/lib/device/offload';
 import { executePlan } from '@/lib/device/execute';
+import { saveUnrestored } from '@/lib/device/unrestored';
+import type { RemoveResult } from '@/lib/library/keep-copies';
 import { sessionDeviceIO } from '@/lib/device/device-io';
 import { WriteBlockedError } from '@/lib/device/write-guard';
 import { buildOccupancy, type Addr } from '@/lib/device/reorg';
 import { PARTITION_SAMP_LIB } from '@/lib/device/opcodes';
-import { downloadBytes } from '@/lib/download';
+import { pickCopyFolder } from '@/lib/library/keep-copies';
+import { removeUnused } from '@/lib/library/remove-unused';
+import { getErrorMessage } from '@/lib/errors';
 import { useListFilters } from '@/lib/library/useListFilters';
 import { extractBackupEntry } from '@/lib/clavia/backup/extract-entry';
 
@@ -57,6 +61,7 @@ function useSamplesStateValue() {
   // On-demand — it's one device round-trip per program — so a button triggers it.
   const [usage, setUsage] = useState<SampleUsage | null>(null);
   const [scanPct, setScanPct] = useState<number | null>(null);
+  const [scanError, setScanError] = useState('');
   const [unusedOnly, setUnusedOnly] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [removing, setRemoving] = useState(false);
@@ -69,19 +74,22 @@ function useSamplesStateValue() {
   // connection starts without them, so nothing picked on one Nord is removed
   // from the next.
   useEffect(() => {
-    setUsage(null); setScanPct(null); setUnusedOnly(false); setSelected(new Set());
+    setUsage(null); setScanPct(null); setScanError(''); setUnusedOnly(false); setSelected(new Set());
   }, [session]);
 
   async function scanUsage() {
     if (!session) return;
     setScanPct(0);
+    setScanError('');
     try {
       const u = await findUnusedSamples(session, (done, total) => {
         if (isCurrent(session)) setScanPct(total ? Math.round((done / total) * 100) : 0);
       });
       if (isCurrent(session)) setUsage(u); // not tags for another Nord connected meanwhile
-    } catch {
-      if (isCurrent(session)) setUsage(null); // scan failed (unsupported/disconnected) — leave the list untagged
+    } catch (e) {
+      // Scan failed (unsupported, disconnected, or a program it couldn't read):
+      // leave the list untagged and say why.
+      if (isCurrent(session)) { setUsage(null); setScanError(getErrorMessage(e)); }
     } finally {
       if (isCurrent(session)) setScanPct(null); // a scan on another Nord's session doesn't touch this one's
     }
@@ -127,49 +135,50 @@ function useSamplesStateValue() {
   [allEntries, source, generation, listQuery, unusedOnly, category, prefs.sort, prefs.favorites]);
   const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
 
-  const removableUnused = allEntries.filter((e) => e.source === 'nord' && e.unused && e.device);
-  const selectAllUnused = () => setSelected(new Set(removableUnused.map((e) => e.id)));
+  const isRemovable = (e: SampleEntry) => e.source === 'nord' && e.unused && e.device;
+  const removableUnused = allEntries.filter(isRemovable);
+  // Of the rows listed: a search or facet in force must not pick, for removal,
+  // unused entries it is hiding.
+  const selectAllUnused = () => setSelected(new Set(shown.filter(isRemovable).map((e) => e.id)));
   const selectedFreeBytes = selectedBytes(allEntries, selected);
   // The selection from the whole list, not the filtered one: removal deletes
   // every selected entry, so the confirm dialog (keep-a-copy, re-install links)
   // must see the ones a search or facet is hiding too.
   const selectedEntries = useMemo(() => allEntries.filter((e) => selected.has(e.id)), [allEntries, selected]);
 
-  async function removeFromNord({ keepCopyIds }: { keepCopyIds: Set<string> }): Promise<{ removed: number; failed: number }> {
+  async function removeFromNord({ keepCopyIds }: { keepCopyIds: Set<string> }): Promise<RemoveResult> {
     if (!session) return { removed: 0, failed: 0 };
     const targets = removableUnused.filter((e) => selected.has(e.id));
     if (targets.length === 0) return { removed: 0, failed: 0 };
     // Unconfirmed layout on this keyboard: refuse up front with the calm message.
     if (!session.canWrite(PARTITION_SAMP_LIB)) throw new WriteBlockedError();
+    // Where the copies go, asked first: the folder picker needs the click that
+    // started this. A browser download won't do: it never says whether the
+    // file was saved, and the sample is deleted next.
+    const saveCopy = targets.some((e) => keepCopyIds.has(e.id)) ? await pickCopyFolder() : null;
     setRemoving(true);
     setRemovePct(0);
-    let copyFailed = 0;
-    const skip = new Set<string>(); // copy requested but failed → don't delete
+    const onThisNord = <A extends unknown[]>(fn: (...args: A) => void) =>
+      (...args: A) => { if (isCurrent(session)) fn(...args); }; // not another Nord connected meanwhile
     try {
-      // 1. keep-a-copy (download) for the requested user samples, BEFORE deleting
-      for (const e of targets) {
-        if (!keepCopyIds.has(e.id)) continue;
-        try {
-          const bytes = await pullSample(session, e.device!, () => {});
-          downloadBytes(bytes, `${e.name}.${extForGeneration(e.generation)}`);
-        } catch {
-          copyFailed++; skip.add(e.id); // couldn't copy → keep it on the device
-        }
-      }
-      const toRemove = targets.filter((e) => !skip.has(e.id));
-      if (toRemove.length === 0) return { removed: 0, failed: copyFailed };
-      const occ = buildOccupancy(toRemove.map((e) => e.device!));
-      const addrs: Addr[] = toRemove.map((e) => ({ bank: e.device!.bank, slot: e.device!.slot }));
-      const res = await session.withSession(PARTITION_SAMP_LIB, () =>
-        executePlan(sessionDeviceIO(session), PARTITION_SAMP_LIB, planOffload(addrs), occ,
-          { onProgress: (p) => { if (isCurrent(session)) setRemovePct(Math.round((p.opIndex / p.opCount) * 100)); } }));
-      // 2. refresh the device sample list
-      // Unless the Nord changed meanwhile: then this list is the old one's.
-      try { const es = await enumerateSampleLibrary(session); if (isCurrent(session)) setSampleEntries(es); } catch { /* leave as-is */ }
-      if (isCurrent(session)) clearSelected(); // not another Nord's picks
-      return res.ok
-        ? { removed: toRemove.length, failed: copyFailed }
-        : { removed: 0, failed: copyFailed + toRemove.length };
+      return await removeUnused({
+        targets, keepCopyIds, saveCopy,
+        rescan: (onProgress) => findUnusedSamples(session, onProgress),
+        pull: (e) => pullSample(session, e.device!, () => {}),
+        filenameOf: (e) => `${e.name}.${extForGeneration(e.generation)}`,
+        remove: (entries, onProgress) => {
+          const addrs: Addr[] = entries.map((e) => ({ bank: e.device!.bank, slot: e.device!.slot }));
+          return session.withSession(PARTITION_SAMP_LIB, () =>
+            executePlan(sessionDeviceIO(session), PARTITION_SAMP_LIB, planOffload(addrs), buildOccupancy(entries.map((e) => e.device!)),
+              { onProgress: (p) => onProgress(p.opIndex, p.opCount) }));
+        },
+        relist: () => enumerateSampleLibrary(session),
+        keepUnrestored: saveUnrestored,
+        onUsage: onThisNord(setUsage),
+        onListed: onThisNord(setSampleEntries),
+        onProgress: onThisNord(setRemovePct),
+        afterRemoval: onThisNord(clearSelected),
+      });
     } finally {
       setRemoving(false); setRemovePct(null);
     }
@@ -245,7 +254,7 @@ function useSamplesStateValue() {
     category, setCategory, categoriesPresent, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, showUnknownGen, folder,
     // Sample-usage cleanup (device-connected)
-    canScanUsage: !!session, scanUsage, scanPct, unusedCount,
+    canScanUsage: !!session, scanUsage, scanPct, scanError, unusedCount,
     unusedOnly, setUnusedOnly, missingCount: usage ? usage.missing.length : null,
     importSample: imported.add, removeSample: imported.remove, storedCount, storedBytes,
     // Selection + removal

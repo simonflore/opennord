@@ -28,6 +28,8 @@ interface DeviceState {
   isCurrent: (s: NordSession) => boolean;
   setEntries: (e: ProgramEntry[]) => void;
   disconnect: () => void;
+  /** True after the Nord went away on its own (unplugged, switched off), until the next connect. */
+  lost: boolean;
 }
 
 const Ctx = createContext<DeviceState | null>(null);
@@ -44,6 +46,17 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
   // The connected session right now (set with it, not after a render), for isCurrent.
   const current = useRef<NordSession | null>(null);
   const isCurrent = useCallback((s: NordSession) => current.current === s, []);
+  const [lost, setLost] = useState(false);
+
+  // Forget the connected Nord: its session and every list read from it.
+  const forget = useCallback(() => {
+    const s = current.current;
+    current.current = null;
+    // Release the USB interface, or the next connect fails "busy" as if NSM
+    // held the device. Best-effort: the state reset must not hinge on it.
+    void s?.close().catch(() => undefined);
+    setSession(null); setEntries([]); setSampleEntries([]); setPresetEntries([]); setPianoEntries([]); setDeviceName(''); setProductId(0); setCapacity(null);
+  }, []);
 
   const value: DeviceState = {
     session, entries, deviceName, productId,
@@ -57,17 +70,15 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     isCurrent,
     setConnection: (s, e, name, pid) => {
       current.current = s;
+      setLost(false);
+      // An unplugged Nord: without this the lists stay up as if it were still there.
+      s.onLost(() => { if (current.current === s) { forget(); setLost(true); } });
       setSession(s); setEntries(e); setDeviceName(name); setProductId(pid);
       setSampleEntries([]); setPresetEntries([]); setPianoEntries([]); setCapacity(null);
     },
     setEntries,
-    disconnect: () => {
-      // Release the USB interface, or the next connect fails "busy" as if NSM
-      // held the device. Best-effort: the state reset must not hinge on it.
-      void session?.close().catch(() => undefined);
-      current.current = null;
-      setSession(null); setEntries([]); setSampleEntries([]); setPresetEntries([]); setPianoEntries([]); setDeviceName(''); setProductId(0); setCapacity(null);
-    },
+    disconnect: forget,
+    lost,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

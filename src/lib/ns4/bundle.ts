@@ -83,7 +83,7 @@ export function readNs4Bundle(zipData: Uint8Array): Ns4BundleEntry[] {
 }
 
 /** Filesystem-safe version of a name for use as a zip entry filename. */
-function safeFilename(name: string): string {
+export function safeFilename(name: string): string {
   const cleaned = name.replace(/[\\/:*?"<>|]/g, '_').trim();
   return cleaned.length > 0 ? cleaned : 'Unnamed';
 }

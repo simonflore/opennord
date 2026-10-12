@@ -64,7 +64,9 @@ export async function readZipDirectory(file: Blob): Promise<ZipEntry[]> {
     // must fit — cdCount and the length fields come from the (possibly clipped
     // or corrupted) file, so never trust them past the directory's end.
     if (p + 46 > cd.length) throw truncated;
-    if (c.getUint32(p, true) !== CD_SIG) break;
+    // Fewer records than the end record counts is damage too: stopping here
+    // would pass a shorter list off as the whole backup.
+    if (c.getUint32(p, true) !== CD_SIG) throw truncated;
     const method = c.getUint16(p + 10, true);
     const crc32 = c.getUint32(p + 16, true);
     let compressedSize = c.getUint32(p + 20, true);
