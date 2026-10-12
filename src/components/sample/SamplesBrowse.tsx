@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import '../library/library.css';
 import { BrowseToolbar, Button, Dialog, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
 import { LibraryCard } from '../library/LibraryCard';
+import { useStableCallback } from '@/lib/useStableCallback';
 import { LibraryEmpty } from '../library/LibraryEmpty';
 import { FactoryPill } from '../library/FactoryPill';
 import { EngineTag } from '../library/EngineTag';
@@ -42,7 +43,7 @@ export function SamplesBrowse(
     onSource, onGeneration, onQuery, clearFilters, filtered, onOpen, onLoadNew, onImport, onRemove, activeId,
     storedCount, storedBytes, prefs,
     canScanUsage, onScanUsage, scanPct, unusedCount, unusedOnly, onUnusedOnly,
-    selected, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
+    selected, selectedEntries, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
     removeFromNord, removing, removePct }: {
     entries: SampleEntry[];
     source: LibrarySource | 'all'; generation: SampleGeneration | 'all'; query: string;
@@ -80,6 +81,8 @@ export function SamplesBrowse(
     toggleSelected: (id: string) => void;
     selectAllUnused: () => void;
     clearSelected: () => void;
+    /** The selected entries from the whole list, filtered out or not (what removal deletes). */
+    selectedEntries: SampleEntry[];
     selectedFreeBytes: number;
     removeFromNord: (opts: { keepCopyIds: Set<string> }) => Promise<{ removed: number; failed: number }>;
     removing: boolean;
@@ -91,8 +94,8 @@ export function SamplesBrowse(
 
   // Confirm-remove dialog state
   const [confirmOpen, setConfirmOpen] = useState(false);
-  // Default keepCopy = true if any selected sample is non-factory
-  const selectedEntries = entries.filter((e) => selected.has(e.id));
+  // Default keepCopy = true if any selected sample is non-factory. selectedEntries
+  // is the whole selection (a search may hide some of it): what removal deletes.
   const anyNonFactory = selectedEntries.some((e) => e.factory !== true);
   const anyFactory = selectedEntries.some((e) => e.factory === true);
   const [keepCopy, setKeepCopy] = useState(anyNonFactory);
@@ -104,7 +107,7 @@ export function SamplesBrowse(
 
   function openConfirm() {
     // Recompute default on open
-    const nonFactory = entries.filter((e) => selected.has(e.id)).some((e) => e.factory !== true);
+    const nonFactory = selectedEntries.some((e) => e.factory !== true);
     setKeepCopy(nonFactory);
     setRemoveError('');
     setRemoveResult(null);
@@ -113,7 +116,7 @@ export function SamplesBrowse(
 
   async function handleRemove() {
     const keepCopyIds = keepCopy
-      ? new Set(entries.filter((e) => selected.has(e.id) && e.factory !== true).map((e) => e.id))
+      ? new Set(selectedEntries.filter((e) => e.factory !== true).map((e) => e.id))
       : new Set<string>();
     setRemoveError('');
     try {
@@ -208,6 +211,52 @@ export function SamplesBrowse(
     </>
   );
 
+  // Stable handlers and a memoised row list: a search keystroke (or any
+  // parent render) with the same entries reuses the rows instead of rebuilding
+  // every card, which a folder of a thousand samples feels.
+  const onOpenStable = useStableCallback(onOpen);
+  const onRemoveStable = useStableCallback(onRemove);
+  const onToggleFavoriteStable = useStableCallback(onToggleFavorite);
+  const toggleSelectedStable = useStableCallback(toggleSelected);
+  const rows = useMemo(() => entries.map((e) => (
+            <LibraryCard
+              key={e.id}
+              name={e.name}
+              source={e.source}
+              favorite={favorites.has(e.id)}
+              onToggleFavorite={() => onToggleFavoriteStable(e.id)}
+              onOpen={() => onOpenStable(e)}
+              selected={e.id === activeId}
+              unused={e.unused}
+              select={unusedOnly && e.source === 'nord' && e.unused
+                ? { checked: selected.has(e.id), onToggle: () => toggleSelectedStable(e.id) }
+                : undefined}
+              badge={<SlotTag tone={e.slot ? undefined : GEN_TONE[e.generation]}>{e.slot ?? GEN_LABEL[e.generation]}</SlotTag>}
+              engines={
+                <div className="flex flex-wrap gap-[5px]">
+                  <EngineTag>
+                    {e.generation === 'npno'
+                      ? 'piano library'
+                      : e.strokeCount != null
+                      ? `${e.strokeCount} ${e.strokeCount === 1 ? 'sample' : 'samples'}`
+                      : (e.source === 'nord' ? 'on Nord' : 'unrecognized')}
+                  </EngineTag>
+                </div>
+              }
+              footExtras={
+                <>
+                  {e.source === 'backup' && e.factory !== undefined && (
+                    <FactoryPill factory={e.factory} />
+                  )}
+                  <SlotTag>{e.size != null ? fmtSize(e.size) : ''}</SlotTag>
+                  {isImported(e.id) && (
+                    <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemoveStable(e.id); }} />
+                  )}
+                </>
+              }
+            />
+          )), [entries, activeId, favorites, unusedOnly, selected, onOpenStable, onRemoveStable, onToggleFavoriteStable, toggleSelectedStable]);
+
   return (
     <>
       <CategoryPanel
@@ -235,44 +284,7 @@ export function SamplesBrowse(
         isEmpty={entries.length === 0}
         emptyState={<LibraryEmpty noun="sample" filtered={filtered} onClear={clearFilters} />}
       >
-          {entries.map((e) => (
-            <LibraryCard
-              key={e.id}
-              name={e.name}
-              source={e.source}
-              favorite={favorites.has(e.id)}
-              onToggleFavorite={() => onToggleFavorite(e.id)}
-              onOpen={() => onOpen(e)}
-              selected={e.id === activeId}
-              unused={e.unused}
-              select={unusedOnly && e.source === 'nord' && e.unused
-                ? { checked: selected.has(e.id), onToggle: () => toggleSelected(e.id) }
-                : undefined}
-              badge={<SlotTag tone={e.slot ? undefined : GEN_TONE[e.generation]}>{e.slot ?? GEN_LABEL[e.generation]}</SlotTag>}
-              engines={
-                <div className="flex flex-wrap gap-[5px]">
-                  <EngineTag>
-                    {e.generation === 'npno'
-                      ? 'piano library'
-                      : e.strokeCount != null
-                      ? `${e.strokeCount} ${e.strokeCount === 1 ? 'sample' : 'samples'}`
-                      : (e.source === 'nord' ? 'on Nord' : 'unrecognized')}
-                  </EngineTag>
-                </div>
-              }
-              footExtras={
-                <>
-                  {e.source === 'backup' && e.factory !== undefined && (
-                    <FactoryPill factory={e.factory} />
-                  )}
-                  <SlotTag>{e.size != null ? fmtSize(e.size) : ''}</SlotTag>
-                  {isImported(e.id) && (
-                    <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
-                  )}
-                </>
-              }
-            />
-          ))}
+          {rows}
       </CategoryPanel>
 
       {/* Confirm-remove dialog */}

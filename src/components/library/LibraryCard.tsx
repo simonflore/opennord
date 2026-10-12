@@ -88,8 +88,14 @@ export function LibraryCard({
   return (
     // A dense two-line row (B×A: data stays flat): favourite + name + badge on
     // top, engines / source underneath.
+    // content-visibility as in ProgramTable: a row off screen skips layout and
+    // paint (a folder can hold a thousand samples); 62px, a row's height, stands
+    // in until it's shown; only where the clip margin keeps focus rings whole.
     <LibraryRow
-      className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-1 py-2 pr-3 pl-1"
+      className={cn(
+        'grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-1 py-2 pr-3 pl-1',
+        'supports-[overflow-clip-margin:8px]:[content-visibility:auto] [contain-intrinsic-block-size:auto_62px] [overflow-clip-margin:8px]',
+      )}
       selected={selected}
       onOpen={onOpen}
     >

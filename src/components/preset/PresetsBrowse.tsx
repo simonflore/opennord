@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import '../library/library.css';
 import { BrowseToolbar, Button, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
 import { LibraryCard } from '../library/LibraryCard';
+import { useStableCallback } from '@/lib/useStableCallback';
 import { LibraryEmpty } from '../library/LibraryEmpty';
 import { SlotTag } from '../library/SlotTag';
 import { CardRemoveButton } from '../library/CardRemoveButton';
@@ -66,6 +68,34 @@ export function PresetsBrowse({
   const sortOptions = (Object.keys(SORT_LABEL) as PresetSort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }));
 
 
+  // Stable handlers and a memoised row list: a search keystroke (or any
+  // parent render) with the same entries reuses the rows instead of rebuilding
+  // every card, which a folder of a thousand samples feels.
+  const onSelectStable = useStableCallback(onSelect);
+  const onRemoveStable = useStableCallback(onRemove);
+  const toggleFavoriteStable = useStableCallback(toggleFavorite);
+  const rows = useMemo(() => entries.map((e) => (
+              <LibraryCard
+                key={e.id}
+                name={e.name}
+                source={e.source}
+                favorite={isFavorite(e.id)}
+                onToggleFavorite={() => toggleFavoriteStable(e.id)}
+                onOpen={() => onSelectStable(e)}
+                selected={e.id === activeId}
+                badge={<SlotTag>{e.slot ?? KIND_LABEL[e.kind]}</SlotTag>}
+                engines={<PresetGlance entry={e} />}
+                footExtras={
+                  <>
+                    {e.size != null && <SlotTag>{formatBytes(e.size)}</SlotTag>}
+                    {isImported(e.id) && (
+                      <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemoveStable(e.id); }} />
+                    )}
+                  </>
+                }
+              />
+            )), [entries, activeId, isFavorite, onSelectStable, onRemoveStable, toggleFavoriteStable]);
+
   return (
     <CategoryPanel
       title="Presets"
@@ -81,27 +111,7 @@ export function PresetsBrowse({
       isEmpty={entries.length === 0}
       emptyState={<LibraryEmpty noun="preset" filtered={filtered} onClear={clearFilters} />}
     >
-            {entries.map((e) => (
-              <LibraryCard
-                key={e.id}
-                name={e.name}
-                source={e.source}
-                favorite={isFavorite(e.id)}
-                onToggleFavorite={() => toggleFavorite(e.id)}
-                onOpen={() => onSelect(e)}
-                selected={e.id === activeId}
-                badge={<SlotTag>{e.slot ?? KIND_LABEL[e.kind]}</SlotTag>}
-                engines={<PresetGlance entry={e} />}
-                footExtras={
-                  <>
-                    {e.size != null && <SlotTag>{formatBytes(e.size)}</SlotTag>}
-                    {isImported(e.id) && (
-                      <CardRemoveButton name={e.name} onRemove={(ev) => { ev.stopPropagation(); onRemove(e.id); }} />
-                    )}
-                  </>
-                }
-              />
-            ))}
+            {rows}
     </CategoryPanel>
   );
 }

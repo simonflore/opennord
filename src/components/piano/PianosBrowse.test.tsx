@@ -16,6 +16,7 @@ const reclaimBase = {
   unusedOnly: false,
   onUnusedOnly: noop,
   selected: new Set<string>(),
+  selectedEntries: [],
   toggleSelected: noop,
   selectAllUnused: noop,
   clearSelected: noop,
@@ -113,6 +114,7 @@ describe('PianosBrowse', () => {
         entries={[piano]}
         unusedOnly={true}
         selected={new Set([unusedId])}
+        selectedEntries={[piano]}
         selectedFreeBytes={1024 * 1024 * 1024}
         _testConfirmOpen={true}
       />,

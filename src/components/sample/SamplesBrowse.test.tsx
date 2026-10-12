@@ -25,6 +25,7 @@ const handlers = {
 const noop = () => {};
 const reclaimHandlers = {
   selected: new Set<string>(),
+  selectedEntries: [],
   toggleSelected: noop,
   selectAllUnused: noop,
   clearSelected: noop,
@@ -50,6 +51,7 @@ describe('SamplesBrowse', () => {
         prefs={prefs()} {...handlers}
         unusedOnly={true}
         selected={new Set([unusedNordId])}
+        selectedEntries={[unusedNordEntry]}
         toggleSelected={noop}
         selectAllUnused={noop}
         clearSelected={noop}
