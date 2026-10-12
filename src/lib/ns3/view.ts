@@ -6,7 +6,7 @@
  */
 import type {
   EngineCardModel, OrganPanelModel, PianoCardModel, SynthCardModel,
-  FxChipModel, HeaderView, Stat, VolumeView,
+  FxChipModel, HeaderView, KeyItem, Stat, VolumeView,
 } from '../clavia/engine-view';
 import { volumeFill, envCurve } from '../clavia/engine-view';
 import { drawbarViews, b3DrawbarViews } from '../clavia/drawbars';
@@ -60,6 +60,31 @@ function organCard(panel: Ns3Panel): OrganPanelModel {
   };
 }
 
+// The timbre labels of decode.ts's firmware tables (TIMBRE_GRAND / _CLAV /
+// _ELECTRIC), by the key each one lights; a clav's combinations shorten them
+// ("Soft+Trb+Brill").
+const TIMBRE_KEY = new Map(Object.entries({
+  Soft: 'Soft', Mid: 'Mid', Bright: 'Bright', Dyno1: 'Dyno 1', Dyno2: 'Dyno 2',
+  Treble: 'Treble', Treb: 'Treble', Trb: 'Treble', Brilliant: 'Brilliant', Brill: 'Brilliant',
+}));
+
+/**
+ * The timbre as the panel's keys for the piano type, the setting lit: Soft /
+ * Mid / Bright, plus Dyno 1 and 2 on an electric piano; Soft / Treble /
+ * Brilliant on a clav, whose combinations light several. "None" lights none.
+ * A label the tables don't hold (`#n`), or a piano type that isn't decoded,
+ * keeps the knob.
+ */
+export function timbreKeysNs3(type: string, timbre: string): KeyItem[] | undefined {
+  if (type.startsWith('#')) return undefined;
+  const keys = type === 'Clav' ? ['Soft', 'Treble', 'Brilliant']
+    : type === 'Electric' ? ['Soft', 'Mid', 'Bright', 'Dyno 1', 'Dyno 2']
+    : ['Soft', 'Mid', 'Bright'];
+  const lit = timbre === 'None' ? [] : timbre.split('+').map((t) => TIMBRE_KEY.get(t));
+  if (lit.some((k) => !k || !keys.includes(k))) return undefined;
+  return keys.map((k) => ({ label: k, on: lit.includes(k) }));
+}
+
 function pianoCardNs3(panel: Ns3Panel, names?: Record<string, string>): PianoCardModel {
   const p = panel.piano;
   return {
@@ -67,6 +92,7 @@ function pianoCardNs3(panel: Ns3Panel, names?: Record<string, string>): PianoCar
     type: p.type,
     model: names?.[ns3SampleKey(panel.id, 'Piano')] ?? p.type,
     timbre: p.timbre,
+    timbreKeys: timbreKeysNs3(p.type, p.timbre),
     // touch omitted: ns3 piano has no keyboard-touch knob.
   };
 }
