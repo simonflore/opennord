@@ -243,20 +243,23 @@ export function organPanel(l: NS4Layer, organFx: Ns4OrganFx | undefined, isFirst
 }
 
 const TIMBRE_LABEL: Record<string, string> = { SOFT: 'Soft', MID: 'Mid', BRIGHT: 'Bright', DYNO1: 'Dyno 1', DYNO2: 'Dyno 2' };
+// A clav's three EQ settings have their own names (the Stage 3 firmware's clav
+// timbre table, ns3/decode.ts TIMBRE_CLAV: Soft / Treble / Brilliant).
+const CLAV_LABEL: Record<string, string> = { SOFT: 'Soft', MID: 'Treble', BRIGHT: 'Brilliant' };
 
 /**
- * The timbre as the panel's keys: Soft, Mid and Bright, plus Dyno 1 and 2 on an
- * electric piano. A clav's combinations ("SOFT+MID") light several keys and
- * "off" lights none. A numeric timbre (an amount on some types) stays a knob.
+ * The timbre as the panel's keys, by piano type: Soft / Mid / Bright, plus
+ * Dyno 1 and 2 on an electric piano, and Soft / Treble / Brilliant on a clav,
+ * whose combinations ("SOFT+BRIGHT") light several keys. "off" lights none. A
+ * setting the type's keys can't show keeps the knob.
  */
 function timbreKeys(type: string | undefined, value: string | undefined): KeyItem[] | undefined {
-  if (!value || /^\d/.test(value)) return undefined;
+  if (!value) return undefined;
+  const names = type === 'Clav' ? CLAV_LABEL : TIMBRE_LABEL;
+  const keys = type === 'Electric' ? ['SOFT', 'MID', 'BRIGHT', 'DYNO1', 'DYNO2'] : ['SOFT', 'MID', 'BRIGHT'];
   const lit = new Set(value === 'off' ? [] : value.split('+'));
-  if ([...lit].some((k) => !TIMBRE_LABEL[k])) return undefined; // a setting this table doesn't know: keep the knob
-  const keys = type === 'Electric' || value.startsWith('DYNO')
-    ? ['SOFT', 'MID', 'BRIGHT', 'DYNO1', 'DYNO2']
-    : ['SOFT', 'MID', 'BRIGHT'];
-  return keys.map((k) => ({ label: TIMBRE_LABEL[k], on: lit.has(k) }));
+  if ([...lit].some((k) => !keys.includes(k))) return undefined;
+  return keys.map((k) => ({ label: names[k], on: lit.has(k) }));
 }
 
 /** Keyboard touch as its three settings, the one in use lit. */

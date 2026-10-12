@@ -5,7 +5,7 @@
  */
 
 import type { ReactNode } from 'react';
-import type { ArpView, DrawbarView, FilterCurveView, FxSlotModel, LfoView } from '../../lib/clavia/engine-view';
+import type { ArpView, DrawbarView, FilterCurveView, FxSlotModel, KeyItem, LfoView } from '../../lib/clavia/engine-view';
 import {
   eqResponse, filterResponse, freqX, wavePoints, FILTER_ZERO_Y,
   type CurvePoint, type EqShape, type WaveShape,
@@ -106,7 +106,7 @@ export function ModelSelector({ models, active }: { models: readonly string[]; a
   );
 }
 
-export interface ToggleItem { label: string; on: boolean; }
+export type ToggleItem = KeyItem;
 
 /**
  * A labeled panel section with a row of read-only LED buttons. `on` items light
