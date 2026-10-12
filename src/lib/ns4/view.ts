@@ -267,7 +267,7 @@ function lfoView(l: NS4Layer): LfoView | undefined {
   // Either control may be morphed; the mark names both (the amount's wins a shared source).
   const a = morphMarks(amount), r = morphMarks(rate);
   const morph = a && r ? { wheel: a.wheel ?? r.wheel, at: a.at ?? r.at, pedal: a.pedal ?? r.pedal } : a ?? r;
-  return { shape: wave, rate: rate.value, target, amount: amount.value, morph };
+  return { shape: wave, rate: noteValueName(rate.value) ?? rate.value, target, amount: amount.value, morph };
 }
 
 /** The arpeggiator, when it is running; the step pattern only when the pattern is on. */
@@ -400,7 +400,7 @@ export function pianoStats(l: NS4Layer): Stat[] {
 
 // Each chip's detail comes from the effect's real params, not just its name.
 const j = (...parts: (string | undefined | false)[]) => parts.filter(Boolean).join(' · ');
-const modD = (m: NS4Layer['fxMod1']) => j(fxTypeName(m?.mode), m?.rate?.value, m?.amount?.value && `amt ${m.amount.value}`) || 'on';
+const modD = (m: NS4Layer['fxMod1']) => j(fxTypeName(m?.mode), noteValueName(m?.rate?.value), m?.amount?.value && `amt ${m.amount.value}`) || 'on';
 // Amp model "off" leaves the slot as an EQ: say that instead of printing "off" on a lit effect.
 const ampD = (a: NS4Layer['ampSimEq']) => (a?.mode === 'off' ? 'EQ only' : j(fxTypeName(a?.mode), a?.drive?.value && `drv ${a.drive.value}`) || 'on');
 const compD = (c: NS4Layer['comp']) => j(c?.amount && `${c.amount}`, c?.response) || 'on';
