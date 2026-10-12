@@ -21,6 +21,7 @@ import type {
 import { volumeFill, envCurve } from '../clavia/engine-view';
 import { parseHz, waveShapeOf, type WaveShape } from '../clavia/curves';
 import { cutoffRaw } from './synth-scaling';
+import { fxTypeName, noteValueName } from './fx-names';
 
 export type {
   MorphMarkView, DrawbarView, OrganPanelModel, PianoCardModel, SynthCardModel,
@@ -266,7 +267,7 @@ function lfoView(l: NS4Layer): LfoView | undefined {
   // Either control may be morphed; the mark names both (the amount's wins a shared source).
   const a = morphMarks(amount), r = morphMarks(rate);
   const morph = a && r ? { wheel: a.wheel ?? r.wheel, at: a.at ?? r.at, pedal: a.pedal ?? r.pedal } : a ?? r;
-  return { shape: wave, rate: rate.value, target, amount: amount.value, morph };
+  return { shape: wave, rate: noteValueName(rate.value), target, amount: amount.value, morph };
 }
 
 /** The arpeggiator, when it is running; the step pattern only when the pattern is on. */
@@ -282,7 +283,7 @@ function arpView(l: NS4Layer): ArpView | undefined {
       }))
     : undefined;
   // "N.A." is the decoder's placeholder for a rate that doesn't apply in this mode.
-  const rate = a.rate?.value === 'N.A.' ? undefined : a.rate?.value;
+  const rate = a.rate?.value === 'N.A.' ? undefined : noteValueName(a.rate?.value);
   return { mode: a.mode, direction: a.direction, rate, range: a.range?.value, steps };
 }
 
@@ -399,12 +400,12 @@ export function pianoStats(l: NS4Layer): Stat[] {
 
 // Each chip's detail comes from the effect's real params, not just its name.
 const j = (...parts: (string | undefined | false)[]) => parts.filter(Boolean).join(' · ');
-const modD = (m: NS4Layer['fxMod1']) => j(m?.mode, m?.rate?.value, m?.amount?.value && `amt ${m.amount.value}`) || 'on';
+const modD = (m: NS4Layer['fxMod1']) => j(fxTypeName(m?.mode), noteValueName(m?.rate?.value), m?.amount?.value && `amt ${m.amount.value}`) || 'on';
 // Amp model "off" leaves the slot as an EQ: say that instead of printing "off" on a lit effect.
-const ampD = (a: NS4Layer['ampSimEq']) => (a?.mode === 'off' ? 'EQ only' : j(a?.mode, a?.drive?.value && `drv ${a.drive.value}`) || 'on');
+const ampD = (a: NS4Layer['ampSimEq']) => (a?.mode === 'off' ? 'EQ only' : j(fxTypeName(a?.mode), a?.drive?.value && `drv ${a.drive.value}`) || 'on');
 const compD = (c: NS4Layer['comp']) => j(c?.amount && `${c.amount}`, c?.response) || 'on';
-const delayD = (d: NS4Layer['delay']) => j(d?.tempo?.value, d?.mix?.value && `mix ${d.mix.value}`, d?.feedback?.value && `fb ${d.feedback.value}`) || 'on';
-const revD = (r: NS4Layer['reverb']) => j(r?.type, r?.amount?.value && `amt ${r.amount.value}`) || 'on';
+const delayD = (d: NS4Layer['delay']) => j(noteValueName(d?.tempo?.value), d?.mix?.value && `mix ${d.mix.value}`, d?.feedback?.value && `fb ${d.feedback.value}`) || 'on';
+const revD = (r: NS4Layer['reverb']) => j(fxTypeName(r?.type), r?.amount?.value && `amt ${r.amount.value}`) || 'on';
 
 const db = (s?: string) => parseFloat(s ?? '') || 0;
 
