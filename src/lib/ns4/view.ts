@@ -66,9 +66,9 @@ export function sceneIIChange(l: NS4Layer): 'on' | 'off' | undefined {
   return l.enabledSceneII ? 'on' : 'off';
 }
 
-/** An engine's name as the panel prints it ("Synth"); "Layer" when the kind isn't decoded. */
+/** An engine's name as the Library prints it ("Synth"); "Layer" when the kind isn't decoded. */
 export function engineKindName(l: NS4Layer): string {
-  return l.kind ? l.kind.charAt(0).toUpperCase() + l.kind.slice(1) : 'Layer';
+  return LIBRARY_ENGINES.find((e) => e.kind === l.kind)?.name ?? 'Layer';
 }
 
 /**
@@ -83,16 +83,16 @@ export function sceneIIChanges(p: NS4Program): { on: string[]; off: string[] } {
 }
 
 /**
- * The mark on a layer's card when Scene II changes it: "II off" on a layer it
- * mutes (seen in the Scene I view), "II on" on a layer only it plays (seen in the
- * Scene II view). Undefined when both scenes play it.
+ * The mark on a layer's card when Scene II changes it: "off in II" on a layer it
+ * mutes (seen in the Scene I view), "only in II" on a layer only it plays (seen
+ * in the Scene II view). Undefined when both scenes play it.
  */
 export function sceneTag(l: NS4Layer): { label: string; title: string } | undefined {
   const change = sceneIIChange(l);
   if (!change) return undefined;
   return change === 'off'
-    ? { label: 'II off', title: 'Scene II mutes this layer' }
-    : { label: 'II on', title: 'Only Scene II plays this layer' };
+    ? { label: 'off in II', title: 'Scene II mutes this layer' }
+    : { label: 'only in II', title: 'Only Scene II plays this layer' };
 }
 
 export function headerView(p: NS4Program, scene?: 'I' | 'II'): HeaderView {
@@ -371,7 +371,7 @@ export function ampEnvCurve(l: NS4Layer): EnvCurveView | null {
 
 /** Assemble the neutral EngineCardModel for one NS4 layer. */
 export function engineCardModel(l: NS4Layer, organFx: Ns4OrganFx | undefined, isFirstOrgan: boolean): EngineCardModel {
-  const title = `${(l.kind ?? '?').toUpperCase()} · ${l.id}`;
+  const title = `${engineKindName(l).toUpperCase()} · ${l.id}`;
   const volume: VolumeView = {
     value: l.volume?.value ?? '—',
     fill: volumeFill(l.volume?.value),

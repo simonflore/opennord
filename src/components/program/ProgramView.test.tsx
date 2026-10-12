@@ -252,13 +252,17 @@ describe('layer scenes', () => {
     } as unknown as import('../../lib/ns4/types').NS4Program;
     expect(sceneIIChanges(p)).toEqual({ on: ['Synth B'], off: ['Synth A'] });
     // Scene I view: synth A is muted by Scene II; the piano plays in both, untagged.
-    expect(sceneTag(p.layers![1])?.label).toBe('II off');
-    expect(sceneTag(p.layers![2])?.label).toBe('II on');
+    expect(sceneTag(p.layers![1])?.label).toBe('off in II');
+    expect(sceneTag(p.layers![2])?.label).toBe('only in II');
     expect(sceneTag(p.layers![0])).toBeUndefined();
     const html = renderToStaticMarkup(<ProgramView program={p} />);
     expect(html).toContain(' + Synth B');
     expect(html).toContain(' − Synth A');
     expect(html.match(/title="Scene II mutes this layer"/g)).toHaveLength(1); // synth A only; the piano plays in both
+    // Saved on Scene II, the view opens there: synth B is the layer only Scene II plays.
+    const inII = renderToStaticMarkup(<ProgramView program={{ ...p, activeScene: 'II' }} />);
+    expect(inII.match(/title="Only Scene II plays this layer"/g)).toHaveLength(1);
+    expect(inII).not.toContain('title="Scene II mutes this layer"');
   });
 });
 
