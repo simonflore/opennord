@@ -65,7 +65,7 @@ describe('LibraryView', () => {
     expect(html).toContain('Sunday Organ');
     expect(html).toContain('On Nord');
     expect(html).toContain('Local');
-    expect(html).toContain('Import file');
+    expect(html).toContain('+ Add');
     // the P/O/S engine LEDs from the EngineSummary (piano+synth, organ), named for screen readers
     expect(html).toContain('aria-label="Piano on, Organ off, Synth on"');
     expect(html).toContain('aria-label="Piano off, Organ on, Synth off"');
@@ -211,12 +211,13 @@ describe('LibraryView', () => {
     expect(html).not.toContain('aria-label="Remove Warm Pad from library"'); // a folder file stays on disk
   });
 
-  it('offers a Forget control on a connected folder chip', () => {
+  it('shows a connected folder as a menu in the toolbar for phones (the rail has it on wider screens)', () => {
     const html = renderToStaticMarkup(
       <LibraryView entries={entries} source="all" query="" {...handlers}
         prefs={prefs()} folder={folder({ folderName: 'My Patches', canPersist: true })} />,
     );
-    expect(html).toContain('aria-label="Forget folder"');
+    expect(html).toMatch(/<button[^>]*min-\[720px\]:hidden[^>]*aria-haspopup="menu"|<button[^>]*aria-haspopup="menu"[^>]*min-\[720px\]:hidden/);
+    expect(html).toContain('My Patches');
   });
 
   it('renders a sort selector and a favorite toggle per card', () => {

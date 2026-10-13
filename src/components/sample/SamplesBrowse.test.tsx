@@ -117,7 +117,7 @@ describe('SamplesBrowse', () => {
     expect(html).toContain('★');
   });
 
-  it('offers Import + Preview actions and a storage readout', () => {
+  it('offers one Add menu and a storage readout', () => {
     const html = renderToStaticMarkup(
       <SamplesBrowse
         entries={entries} source="all" generation="all" query=""
@@ -126,9 +126,10 @@ describe('SamplesBrowse', () => {
         prefs={prefs()} {...handlers} {...reclaimHandlers}
       />,
     );
-    expect(html).toContain('Import sample');
-    expect(html).toContain('Preview a file'); // renamed from "Load sample"
-    expect(html).not.toContain('Load sample');
+    // Import and Preview are inside it (AddMenu.test opens it).
+    expect(html).toContain('+ Add');
+    expect(html).toContain('aria-haspopup="menu"');
+    expect(html).not.toContain('Import sample');
     expect(html).toContain('stored');         // "1 stored · 1.0 MB"
   });
 

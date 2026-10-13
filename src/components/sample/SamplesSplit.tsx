@@ -12,8 +12,8 @@ import { useCloseRemoved, useLeaveEntry, useOpenEntry } from '@/components/libra
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
  * (bytes in hand); device samples are pulled off the board with progress, then
- * opened in the same inspector — staying on the Samples screen. "+ Import sample"
- * persists a file and opens it; "Preview a file" opens the inspector's own
+ * opened in the same inspector — staying on the Samples screen. "Import a file…"
+ * (in "+ Add") persists a file and opens it; "Preview a file…" opens the inspector's own
  * drag/drop/pick zone for a throwaway look (not stored).
  */
 export function SamplesSplit({ selectedId }: { selectedId?: string }) {
@@ -21,7 +21,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const s = useSamplesState();
   // The sample the route names, read by useOpenSample.
   const open = useOpenSample(selectedId);
-  // "Preview a file": the inspector's own drop/pick zone, off the route.
+  // "Preview a file…": the inspector's own drop/pick zone, off the route.
   const [loadNew, setLoadNew] = useState(false);
   // An import that wasn't a sample file: shown above the list, apart from the open sample.
   const [importError, setImportError] = useState('');

@@ -190,7 +190,7 @@ export function SampleInspector({ initial, factory }: {
         border: `2px dashed ${dragOver ? 'var(--red)' : 'var(--line)'}`, textAlign: 'center', color: 'var(--dim)' }}
     >
       <div style={{ color: 'var(--ink)', fontWeight: 600 }}>Preview a sample</div>
-      <div style={{ fontSize: 12, marginTop: 4 }}>Drop or click to open one for a quick look — <code>.nsmp</code>, <code>.nsmp3</code>, <code>.nsmp4</code>. Use <strong>+ Import sample</strong> to save it to your library.</div>
+      <div style={{ fontSize: 12, marginTop: 4 }}>Drop or click to open one for a quick look — <code>.nsmp</code>, <code>.nsmp3</code>, <code>.nsmp4</code>. To keep it in your library, use <strong>+ Add → Import a file…</strong>.</div>
       <input type="file" accept=".nsmp,.nsmp3,.nsmp4" style={{ display: 'none' }}
         onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
     </label>

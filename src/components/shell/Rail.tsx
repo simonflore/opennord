@@ -6,6 +6,8 @@ import { BetaBadge } from './BetaBadge';
 import { Led } from './Led';
 import { groupLabel, rowActive } from './styles';
 import { ABOUT, COMMUNITY_SUB, COMMUNITY_TO, DEV_DESTS, useTools, type NavTo } from './nav';
+import { FolderMenu } from '../library/FolderMenu';
+import { useFolderOptional } from '../../lib/folder/FolderContext';
 
 /** One program source in the Sources group: where the programs in the library come from. */
 export interface SourceItem {
@@ -28,6 +30,8 @@ interface Props {
   activeSource: LibrarySource | 'all';
   /** Show only the programs from one source, or every source again with 'all'. */
   onPickSource: (source: LibrarySource | 'all') => void;
+  /** A folder is connected: it's listed under Sources with its menu. */
+  hasFolder?: boolean;
 }
 
 /**
@@ -68,6 +72,11 @@ function Item({ label, active, onClick, count, led, sub, toggle }: {
   );
 }
 
+/** The connected folder: its own reader of the folder, so a scan tick re-renders it alone, not the rail. */
+function RailFolder() {
+  return <FolderMenu folder={useFolderOptional()} place="rail" />;
+}
+
 function Group({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col">
@@ -84,7 +93,7 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
  * count (a search keystroke, a scan tick) doesn't re-render it. The wordmark and the Nord's connection live in the TopBar above; at
  * phone width the rail gives way to PhoneTabs.
  */
-export const Rail = memo(function Rail({ path, onNavigate, counts, sources, activeSource, onPickSource }: Props) {
+export const Rail = memo(function Rail({ path, onNavigate, counts, sources, activeSource, onPickSource, hasFolder = false }: Props) {
   const tools = useTools();
   // An entry is active on its page and the pages beneath it (/library/programs/$id keeps programs lit).
   const isActive = (to: string) => isUnder(path, to);
@@ -114,7 +123,7 @@ export const Rail = memo(function Rail({ path, onNavigate, counts, sources, acti
         ))}
       </Group>
 
-      {sources.length > 0 && (
+      {(sources.length > 0 || hasFolder) && (
         <Group label="Sources">
           {sources.map((s) => (
             <Item
@@ -133,6 +142,7 @@ export const Rail = memo(function Rail({ path, onNavigate, counts, sources, acti
               }}
             />
           ))}
+          {hasFolder && <RailFolder />}
         </Group>
       )}
 

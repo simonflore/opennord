@@ -9,7 +9,7 @@ import { DeviceProvider } from '../../lib/device/DeviceContext';
 import { CapabilitiesProvider } from '../../lib/capabilities/CapabilitiesContext';
 import type { Capabilities } from '../../lib/capabilities/types';
 
-function render(path: string, opts: { caps?: Partial<Capabilities>; sources?: SourceItem[]; activeSource?: 'all' | 'nord' } = {}) {
+function render(path: string, opts: { caps?: Partial<Capabilities>; sources?: SourceItem[]; activeSource?: 'all' | 'nord'; hasFolder?: boolean } = {}) {
   return renderToStaticMarkup(
     <CapabilitiesProvider value={opts.caps}>
       <Rail
@@ -19,6 +19,7 @@ function render(path: string, opts: { caps?: Partial<Capabilities>; sources?: So
         sources={opts.sources ?? []}
         activeSource={opts.activeSource ?? 'all'}
         onPickSource={() => {}}
+        hasFolder={opts.hasFolder}
       />
     </CapabilitiesProvider>,
   );
@@ -46,6 +47,11 @@ describe('Rail', () => {
     expect(buttonFor(html, 'On Nord')).toContain('aria-pressed="true"');
     // Programs is still the open page; the source shows what it's filtered to.
     expect(buttonFor(html, 'Programs')).toContain('aria-current="page"');
+  });
+
+  it('shows Sources for a connected folder even with no programs from it', () => {
+    expect(render('/library/programs')).not.toContain('>Sources<');
+    expect(render('/library/programs', { hasFolder: true })).toContain('>Sources<');
   });
 
   it('exposes the developer tools entry', () => {

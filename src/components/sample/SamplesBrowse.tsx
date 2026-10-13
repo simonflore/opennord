@@ -13,6 +13,9 @@ import { CardRemoveButton } from '../library/CardRemoveButton';
 import type { SampleEntry, SampleGeneration } from '../../lib/library/sample-entries';
 import type { SamplesPrefsApi, SampleSort } from '../../lib/library/prefs';
 import { isImported, type LibrarySource } from '../../lib/library/types';
+import { AddMenu } from '../library/AddMenu';
+import { FolderMenu } from '../library/FolderMenu';
+import { useFolderOptional } from '@/lib/folder/FolderContext';
 
 /** Human-friendly byte size, e.g. 1900000 → "1.8 MB". */
 function fmtSize(n: number): string {
@@ -91,6 +94,8 @@ export function SamplesBrowse(
     removePct: number | null;
   },
 ) {
+  // Adding a folder is the same from every list.
+  const folder = useFolderOptional();
   const { favorites, toggleFavorite: onToggleFavorite } = prefs;
   const total = nordCount + localCount;
 
@@ -181,8 +186,9 @@ export function SamplesBrowse(
           {unusedCount === 0 ? 'No unused samples' : `${unusedOnly ? 'Show all' : `Unused only (${unusedCount})`}`}
         </Button>
       )}
-      <Button variant="secondary" onClick={onLoadNew}>Preview a file</Button>
-      <Button variant="primary" onClick={onImport}>+ Import sample</Button>
+      {/* At phone width the rail, and the folder in it, is hidden. */}
+      <FolderMenu folder={folder} place="toolbar" className="min-[720px]:hidden" />
+      <AddMenu folder={folder} noun="a sample file" onImport={onImport} preview={onLoadNew} />
     </>
   );
 

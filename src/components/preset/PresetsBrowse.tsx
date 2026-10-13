@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import '../library/library.css';
-import { BrowseToolbar, Button, type FacetGroup } from '../ui';
+import { BrowseToolbar, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
 import { LibraryCard } from '../library/LibraryCard';
 import { useStableCallback } from '@/lib/useStableCallback';
@@ -13,6 +13,9 @@ import type { PresetKind } from '@/lib/clavia/preset-kind';
 import { isImported, type LibrarySource } from '@/lib/library/types';
 import type { PresetSort } from '@/lib/library/prefs';
 import { formatBytes } from '@/lib/format';
+import { AddMenu } from '../library/AddMenu';
+import { FolderMenu } from '../library/FolderMenu';
+import { useFolderOptional } from '@/lib/folder/FolderContext';
 
 export const KIND_LABEL: Record<PresetKind, string> = {
   'organ-preset': 'Organ', 'piano-preset': 'Piano', 'synth-preset': 'Synth',
@@ -45,6 +48,8 @@ export function PresetsBrowse({
   onImport: () => void;
   onRemove: (id: string) => void;
 }) {
+  // Adding a folder is the same from every list.
+  const folder = useFolderOptional();
   const facets: FacetGroup[] = [
     ...(showSourceFacet ? [{
       ariaLabel: 'Filter by source',
@@ -100,7 +105,11 @@ export function PresetsBrowse({
     <CategoryPanel
       title="Presets"
       counts={`${entries.length} preset${entries.length !== 1 ? 's' : ''}`}
-      actions={<Button variant="primary" onClick={onImport}>+ Import preset</Button>}
+      actions={<>
+        {/* At phone width the rail, and the folder in it, is hidden. */}
+        <FolderMenu folder={folder} place="toolbar" className="min-[720px]:hidden" />
+        <AddMenu folder={folder} noun="a preset file" onImport={onImport} />
+      </>}
       toolbar={
         <BrowseToolbar
           query={query} onQuery={setQuery} placeholder="Search presets…"

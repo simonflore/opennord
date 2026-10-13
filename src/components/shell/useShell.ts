@@ -7,11 +7,13 @@ import { useLibraryData } from '../../lib/library/LibraryContext';
 import { usePresetsData } from '../../lib/library/PresetsContext';
 import { useSamplesData } from '../../lib/library/SamplesContext';
 import { usePianosData } from '../../lib/library/PianosContext';
+import { useFolderOptional } from '../../lib/folder/FolderContext';
 import type { SourceItem } from './Rail';
 
 /**
  * What the rail shows beside its entries: each library list's size, and the
- * program sources that hold anything (with the Nord's LED lit while connected).
+ * program sources that hold anything (with the Nord's LED lit while connected),
+ * and whether a folder is connected.
  * Built from the memoised lists, so it only recomputes when a list changes.
  */
 export function useRailData() {
@@ -20,6 +22,7 @@ export function useRailData() {
   const presets = usePresetsData().all.length;
   const samples = useSamplesData().all.length;
   const pianos = usePianosData().all.length;
+  const hasFolder = !!useFolderOptional()?.folderName;
 
   const counts: Record<CategoryId, number> = useMemo(
     () => ({ programs: programs.length, presets, samples, pianos }),
@@ -40,5 +43,5 @@ export function useRailData() {
     setSource(source);
   }, [clearFilters, setSource]);
 
-  return { counts, sources, activeSource, onPickSource };
+  return { counts, sources, activeSource, onPickSource, hasFolder };
 }

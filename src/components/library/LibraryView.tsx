@@ -7,6 +7,8 @@ import type { EngineKind } from '../../lib/clavia/engines';
 import { LibraryEmpty } from './LibraryEmpty';
 import { BundlePicker } from './BundlePicker';
 import { NewBackupsBanner } from './NewBackupsBanner';
+import { FolderMenu } from './FolderMenu';
+import { AddMenu } from './AddMenu';
 import { SOURCE_LABEL, type LibraryEntry, type LibrarySource, type LibrarySort } from '../../lib/library/types';
 import type { LibraryPrefsApi } from '../../lib/library/prefs';
 import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
@@ -63,9 +65,8 @@ export function LibraryView({
 }: Props) {
   // Unpack the grouped props so the JSX below reads the same as before.
   const { sort, setSort: onSort, favorites, toggleFavorite: onToggleFavorite } = prefs;
-  const { folderName, canPersist, needsReconnect, busy, reconnectError } = folder;
-  const onChooseFolder = folder.choose, onReconnect = folder.reconnect, onRefresh = folder.refresh, onForget = folder.forget;
-  const folderCount = folder.result.programs.length + folder.result.samples.length;
+  const { folderName, needsReconnect, busy, reconnectError } = folder;
+  const onChooseFolder = folder.choose, onReconnect = folder.reconnect, onForget = folder.forget;
   const scanErrors = folder.result.errors;
   // Folder-level failures (a failed pick itself, not one unreadable file
   // inside it — the Android/Google-Drive empty-selection case is exactly
@@ -115,21 +116,11 @@ export function LibraryView({
     }] : []),
   ];
 
+  // The folder lives in the rail; at phone width, where the rail is hidden, here.
   const actions = (
     <>
-      {folderName ? (
-        <span className="inline-flex items-center gap-2 text-[13px] text-dim" title={folderName}>
-          📁 {folderName} · {folderCount} {folderCount === 1 ? 'file' : 'files'}
-          {canPersist && !needsReconnect
-            ? <Button variant="ghost" className="px-2 py-0.5" onClick={onRefresh} disabled={busy} aria-label="Refresh folder">⟳</Button>
-            : <Button variant="ghost" className="px-2 py-0.5" onClick={onChooseFolder} disabled={busy}>Change folder…</Button>}
-          {/* Forget only drops the folder pointer — it never touches the user's files. */}
-          <Button variant="ghost" className="px-2 py-0.5" onClick={onForget} aria-label="Forget folder" title="Forget this folder (your files stay where they are)">✕</Button>
-        </span>
-      ) : (
-        <Button variant="ghost" onClick={onChooseFolder} disabled={busy}>Choose folder…</Button>
-      )}
-      <Button variant="primary" onClick={onImport}>+ Import file</Button>
+      <FolderMenu folder={folder} place="toolbar" className="min-[720px]:hidden" />
+      <AddMenu folder={folder} noun="a program file" onImport={onImport} />
     </>
   );
 
@@ -211,7 +202,7 @@ export function LibraryView({
           ) : (
             <>
               <p>Nothing here yet.</p>
-              <Button variant="primary" onClick={onChooseFolder} disabled={busy}>Choose folder…</Button>
+              <Button variant="primary" onClick={onChooseFolder} disabled={busy}>Choose a folder…</Button>
               <p className="mt-2 text-[13px] text-dim [&_code]:text-ink">Subfolders and <code>.ns4b</code> backups are included. Or import a single file, or connect your Nord.</p>
             </>
           )}
