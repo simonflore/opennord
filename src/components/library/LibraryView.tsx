@@ -107,6 +107,7 @@ export function LibraryView({
       value: generation ?? 'all',
       options: [{ key: 'all', label: 'All' }, ...generationsPresent.map((g) => ({ key: g, label: g }))],
       onChange: (k: string) => onGeneration?.(k as LibraryEntry['generation'] | 'all'),
+      select: { allLabel: 'All formats' },
     }] : []),
     ...(categoriesPresent.length > 1 ? [{
       ariaLabel: 'Filter by category',

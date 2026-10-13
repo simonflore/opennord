@@ -86,6 +86,17 @@ describe('LibraryView', () => {
     expect(html).toContain('EPiano');
   });
 
+  it('offers the format filter as a dropdown when more than one format is present', () => {
+    const html = renderToStaticMarkup(
+      <LibraryView entries={entries} source="all" query="" {...handlers}
+        generation="all" onGeneration={() => {}} generationsPresent={['Stage 4', 'Stage 3']}
+        prefs={prefs()} folder={folder()} />,
+    );
+    expect(html).toMatch(/<select[^>]*aria-label="Filter by format"/);
+    expect(html).toContain('>All formats</option>');
+    expect(html).toContain('>Stage 3</option>');
+  });
+
   it('hides the category facet when only one category is present', () => {
     const html = renderToStaticMarkup(
       <LibraryView entries={entries} source="all" query="" {...handlers}
