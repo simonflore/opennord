@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import '../../styles/nord.css';
-import { readNsmp, decodeNsmp, readNsmpZones, readSampleUnison, readNoteAlternates, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
-import { sampleHeaderView, gainDetuneView, zoneMapRows, strokeSummary, sampleUnisonView, truVibratoView, voicingView, noteName } from '../../lib/ns4/sample-view';
+import { sampleHeaderView, gainDetuneView, zoneMapRows, sampleUnisonView, truVibratoView, voicingView } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
-import { buildPlayableZones, strokeKeyboardOrder, type PlayableZone } from '../../lib/ns4/playable-zones';
-import { createSampler, DEFAULT_ENVELOPE, type Sampler, type AmpEnvelope } from './sampleEngine';
+import { DEFAULT_ENVELOPE, type AmpEnvelope } from './sampleEngine';
+import { loadSample, playZone, type LoadedSample } from './loadSample';
 import { EnvelopePanel } from './EnvelopePanel';
 import { UnisonPanel } from './UnisonPanel';
 import { useSampleTransport } from './useSampleTransport';
 import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
-import { StrokeList, type InspectorStroke } from './StrokeList';
+import { StrokeList } from './StrokeList';
 import { DetailColumns } from '../library/DetailColumns';
 import { ItemActions } from '../library/ItemActions';
 import { downloadBytes } from '../../lib/download';
@@ -20,49 +19,19 @@ import { SampleKeyboard } from './SampleKeyboard';
 import { SampleConvert } from './SampleConvert';
 import { MidiConnect } from './MidiConnect';
 import { useMidi } from '../../lib/midi/MidiContext';
-import { playPcm } from './audioPlayer';
 import { readFileBytes } from '../../lib/file';
 
-interface Loaded {
-  bytes: Uint8Array;
-  file: NsmpFile;
-  /** Source filename stem — display fallback when the file carries no name (OG). */
-  name: string;
-  decoded: DecodedStrokeResult[];
-  /** Zone map parsed once at load (consumed by the editor's initial model). */
-  zones: NsmpZone[];
-  strokes: InspectorStroke[];
-  /** Codec we can decode audio for — OG (legacy), 3 or 4. */
-  decodable: boolean;
+/** A loaded sample plus the inspector's own bookkeeping. */
+type Loaded = LoadedSample & {
   /** Monotonic load id — keys the editor so it remounts per file (drops stale edits). */
   loadId: number;
-  /** Gapless playable zone layout for the sampler + keyboard highlight. */
-  playableZones: PlayableZone[];
-  /** globalID → keyboard position (0-based) for StrokeList ordering. */
-  order: Map<number, number>;
-  /** globalID → decoded stroke (sampler needs audio + loop info). */
-  strokesByGlobalID: Map<number, DecodedStrokeResult>;
-  /** Polyphonic player, null when audio isn't decodable. */
-  sampler: Sampler | null;
   /** Loaded from `initial` (the library's sample), not dropped or picked here
    *  (the user's own file, never factory content). */
   fromInitial: boolean;
-}
+};
 
 /** What the inspector shows; `id` is the list entry it came from (none for a previewed file). */
 export interface InspectorInput { id?: string; bytes: Uint8Array; name: string; }
-
-/**
- * Audition the sample mapped to zone `index`. A zone references its stroke by
- * `globalID` (not position), so we join the parsed zone to the decoded stroke on
- * that id (see nsmp.ts). No-op if the zone has no decoded audio.
- */
-function playZone(loaded: Loaded, index: number): void {
-  const zone = loaded.zones[index];
-  if (!zone) return;
-  const stroke = loaded.decoded.find((s) => s.globalID === zone.globalID);
-  if (stroke) playPcm(stroke.channels, undefined, stroke.sampleRate);
-}
 
 export function SampleInspector({ initial, factory }: {
   initial?: InspectorInput;
@@ -114,39 +83,10 @@ export function SampleInspector({ initial, factory }: {
   }, [loaded?.sampler, loaded?.decodable, setSink, clearSink, transport.refresh]);
 
   function loadBytes(bytes: Uint8Array, name: string, fromInitial: boolean) {
-    const file = readNsmp(bytes);
-    const decodable = file.codec === 3 || file.codec === 4 || file.legacy;
-    let decoded: DecodedStrokeResult[] = [];
-    if (decodable) {
-      try { decoded = decodeNsmp(bytes); } catch { decoded = []; }
-    }
-    const zones: NsmpZone[] = file.recognized ? readNsmpZones(bytes) : [];
-    // A zone references its stroke by globalID; the zone's rootKey is that
-    // stroke's recorded pitch. Join here (both in scope) so each stroke row can
-    // show its root note. First match wins if a stroke is shared across zones.
-    const rootByGlobalID = new Map<number, number>();
-    for (const z of zones) if (!rootByGlobalID.has(z.globalID)) rootByGlobalID.set(z.globalID, z.rootKey);
-    const strokes: InspectorStroke[] = decoded.map((d) => {
-      const root = rootByGlobalID.get(d.globalID);
-      const summary = root != null ? { ...strokeSummary(d), rootNote: noteName(root), rootMidi: root } : strokeSummary(d);
-      return { summary, channels: d.channels };
+    setLoaded({
+      ...loadSample(bytes, name, { env: () => envRef.current, unisonLevel: () => unisonRef.current }),
+      loadId: ++loadCount.current, fromInitial,
     });
-    const stem = name.replace(/\.[^./]+$/, '');
-    const playableZones = buildPlayableZones(zones);
-    const order = strokeKeyboardOrder(zones);
-    const strokesByGlobalID = new Map(decoded.map((d) => [d.globalID, d]));
-    // Play at the sample's authored pitch: apply its stored global detune (0 for
-    // the common default). Gain is deliberately NOT applied — the audio is peak-
-    // normalized per stroke, so the stored level would fight that, not reproduce it.
-    const detuneCents = gainDetuneView(bytes)?.detuneCents ?? 0;
-    // Unison and repeated-note variation play the way the instrument voices them: the
-    // sample's own values, and its neighbouring recordings per key (see sampleEngine).
-    const sampler = decodable
-      ? createSampler(playableZones, strokesByGlobalID, () => envRef.current, {
-        detuneCents, unison: readSampleUnison(bytes), unisonLevel: () => unisonRef.current, alternates: readNoteAlternates(bytes),
-      })
-      : null;
-    setLoaded({ bytes, file, name: stem, decoded, zones, strokes, decodable, loadId: ++loadCount.current, playableZones, order, strokesByGlobalID, sampler, fromInitial });
   }
 
   async function onFile(f: File) {
