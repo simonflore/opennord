@@ -7,9 +7,8 @@ import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { ItemActions } from '../library/ItemActions';
 import { IdentityLcd } from '@/components/program/widgets';
 import { PresetPanel } from './PresetPanel';
-import { useNavigate } from '@tanstack/react-router';
 import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
-import { COMMUNITY_SHARE_TO } from '@/components/shell/nav';
+import { useShareToCommunity } from '@/components/shell/useShareToCommunity';
 
 const KIND_LABEL: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'Organ preset', 'piano-preset': 'Piano preset', 'synth-preset': 'Synth preset',
@@ -27,7 +26,7 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
   // Sharing is a build-injected route: offered where the community is there, for
   // a preset that's a file of yours (one still on the Nord has no bytes here).
   const canShare = useCapabilities().community.available && !!entry.bytes && entry.source !== 'nord';
-  const navigate = useNavigate();
+  const share = useShareToCommunity();
 
   async function download() {
     if (busy) return;
@@ -53,7 +52,7 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
         </div>
         <ItemActions
           save={{ onSave: () => void download(), busy }}
-          more={canShare ? [{ label: 'Share to community', onSelect: () => void navigate({ to: COMMUNITY_SHARE_TO, search: { item: entry.id } as never }) }] : []}
+          more={canShare ? [{ label: 'Share to community', onSelect: () => share(entry.id) }] : []}
         />
       </div>
       {error && <p className="ps-sub on-error">{error}</p>}

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import '../../styles/nord.css';
-import { sampleHeaderView, gainDetuneView, zoneMapRows, sampleUnisonView, truVibratoView, voicingView } from '../../lib/ns4/sample-view';
+import { zoneMapRows, sampleUnisonView } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
 import { DEFAULT_ENVELOPE, type AmpEnvelope } from './sampleEngine';
-import { loadSample, playZone, type LoadedSample } from './loadSample';
+import { fullHeaderView, loadSample, playZone, type LoadedSample } from './loadSample';
+import { useSamplerMidiSink } from './useSamplerMidiSink';
 import { EnvelopePanel } from './EnvelopePanel';
 import { UnisonPanel } from './UnisonPanel';
 import { useSampleTransport } from './useSampleTransport';
@@ -18,7 +19,6 @@ import { SampleEditPanel } from './SampleEditPanel';
 import { SampleKeyboard } from './SampleKeyboard';
 import { SampleConvert } from './SampleConvert';
 import { MidiConnect } from './MidiConnect';
-import { useMidi } from '../../lib/midi/MidiContext';
 import { readFileBytes } from '../../lib/file';
 
 /** A loaded sample plus the inspector's own bookkeeping. */
@@ -63,26 +63,7 @@ export function SampleInspector({ initial, factory, onShare }: {
   // Stop any held voices when the file changes or the component unmounts.
   useEffect(() => () => { loaded?.sampler?.stopAll(); }, [loaded?.sampler]);
 
-  const { setSink, clearSink } = useMidi();
-  // Route MIDI notes into the loaded sampler (same path as the on-screen keyboard,
-  // so playing the controller lights the now-playing zones + waveform playhead).
-  // Depends on the provider's stable setSink/clearSink, not the whole MIDI context
-  // (a new object on every hot-plug, which would re-run this and cut held notes), and
-  // clears the sink only if it is still ours, so it never unhooks another instrument.
-  useEffect(() => {
-    const sampler = loaded?.sampler;
-    if (!sampler || !loaded?.decodable) return;
-    const sink = {
-      noteOn: (n: number, v: number) => { sampler.noteOn(n, v); transport.refresh(); },
-      noteOff: (n: number) => sampler.noteOff(n),
-    };
-    setSink(sink);
-    return () => clearSink(sink);
-    // Depend on transport.refresh (stable per sampler), NOT the whole transport
-    // object — it's a fresh literal each render, and re-running this effect mid-note
-    // calls setSink → gate.allNotesOff(), releasing the held MIDI note after ~1 frame.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded?.sampler, loaded?.decodable, setSink, clearSink, transport.refresh]);
+  useSamplerMidiSink(loaded?.sampler, loaded?.decodable, transport.refresh);
 
   function loadBytes(bytes: Uint8Array, name: string, fromInitial: boolean) {
     setLoaded({
@@ -151,7 +132,7 @@ export function SampleInspector({ initial, factory, onShare }: {
 
       {shown && (
         <div className="ps">
-          <SampleHeader view={{ ...sampleHeaderView(shown.file, shown.bytes.length, shown.name), gainDetune: gainDetuneView(shown.bytes), truVibrato: truVibratoView(shown.bytes), ...voicingView(shown.bytes) }} />
+          <SampleHeader view={fullHeaderView(shown)} />
           {/* The sample as it is; edits are saved from the editor ("Save edited copy"). */}
           <div className="mt-2"><ItemActions save={{ onSave: () => downloadBytes(shown.bytes, sampleFilename(shown.name, shown.file.codec, shown.file.legacy)) }} more={onShare ? [{ label: 'Share to community', onSelect: onShare }] : []} /></div>
 

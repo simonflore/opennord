@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import { Blueprint, Button, Dialog } from '@/components/ui';
 import { ItemActions } from './ItemActions';
 import { RemoveFromLibraryDialog } from './CardRemoveButton';
@@ -24,7 +23,7 @@ import { useLibraryState } from '@/lib/library/LibraryContext';
 import { useSplitLayout } from '@/lib/responsive';
 import { useCloseRemoved, useOpenEntry } from './openEntry';
 import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
-import { COMMUNITY_SHARE_TO } from '@/components/shell/nav';
+import { useShareToCommunity } from '@/components/shell/useShareToCommunity';
 
 const noop = () => {};
 
@@ -112,7 +111,7 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
   // Sharing is a build-injected route: offered only where the community is there,
   // and for a program that's a file of yours (a Nord slot is shared once it's kept).
   const canShare = useCapabilities().community.available;
-  const navigate = useNavigate();
+  const share = useShareToCommunity();
   const bytes = entry?.bytes;
   const actions = entry && bytes && (
     <ItemActions
@@ -125,7 +124,7 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
       save={{ onSave: () => downloadBytes(bytes, programFilename(entry, bytes)) }}
       more={[
         ...(canShare && entry.source !== 'nord'
-          ? [{ label: 'Share to community', onSelect: () => void navigate({ to: COMMUNITY_SHARE_TO, search: { item: entry.id } as never }) }]
+          ? [{ label: 'Share to community', onSelect: () => share(entry.id) }]
           : []),
         ...(isImported(entry.id) ? [{ label: 'Remove from library', onSelect: () => setRemoving(entry) }] : []),
       ]}

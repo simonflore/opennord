@@ -1,9 +1,8 @@
 import { useEffect, useMemo } from 'react';
 import '../../styles/nord.css';
-import { sampleHeaderView, gainDetuneView, truVibratoView, voicingView } from '../../lib/ns4/sample-view';
 import { editModel } from '../../lib/ns4/sample-edit';
-import { useMidi } from '../../lib/midi/MidiContext';
-import { loadSample, playZone } from './loadSample';
+import { fullHeaderView, loadSample, playZone } from './loadSample';
+import { useSamplerMidiSink } from './useSamplerMidiSink';
 import { useSampleTransport } from './useSampleTransport';
 import { SampleHeader } from './SampleHeader';
 import { SampleKeyboard } from './SampleKeyboard';
@@ -23,30 +22,20 @@ export function SampleListen({ bytes, name }: { bytes: Uint8Array; name: string 
   const transport = useSampleTransport(loaded.sampler);
   useEffect(() => () => { loaded.sampler?.stopAll(); }, [loaded.sampler]);
 
-  const { setSink, clearSink } = useMidi();
-  // Route MIDI notes into the sampler, the same path as the on-screen keyboard.
-  useEffect(() => {
-    const sampler = loaded.sampler;
-    if (!sampler || !loaded.decodable) return;
-    const sink = {
-      noteOn: (n: number, v: number) => { sampler.noteOn(n, v); transport.refresh(); },
-      noteOff: (n: number) => sampler.noteOff(n),
-    };
-    setSink(sink);
-    return () => clearSink(sink);
-    // transport.refresh is stable per sampler; the transport object is not (see SampleInspector).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded.sampler, loaded.decodable, setSink, clearSink, transport.refresh]);
+  useSamplerMidiSink(loaded.sampler, loaded.decodable, transport.refresh);
+  // Derived once per file: the transport re-renders this on every frame while a note sounds.
+  const header = useMemo(() => fullHeaderView(loaded), [loaded]);
+  const keyboardZones = useMemo(() => editModel(loaded.file, loaded.zones).zones, [loaded]);
 
   if (!loaded.file.recognized) return <div className="ps"><p>Not a recognized Nord sample.</p></div>;
   const soundingMidis = new Set(transport.sounding.keys());
   const soundingGlobalIDs = new Set(transport.sounding.values());
   return (
     <div className="ps">
-      <SampleHeader view={{ ...sampleHeaderView(loaded.file, bytes.length, loaded.name), gainDetune: gainDetuneView(bytes), truVibrato: truVibratoView(bytes), ...voicingView(bytes) }} />
+      <SampleHeader view={header} />
       {loaded.zones.length > 0 && (
         <SampleKeyboard
-          zones={editModel(loaded.file, loaded.zones).zones}
+          zones={keyboardZones}
           onPlayZone={loaded.decodable ? (i) => playZone(loaded, i) : undefined}
           onNoteOn={(midi) => { loaded.sampler?.noteOn(midi, 100); transport.refresh(); }}
           onNoteOff={(midi) => loaded.sampler?.noteOff(midi)}

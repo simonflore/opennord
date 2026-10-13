@@ -1,5 +1,5 @@
 import { readNsmp, decodeNsmp, readNsmpZones, readSampleUnison, readNoteAlternates, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
-import { gainDetuneView, strokeSummary, noteName } from '../../lib/ns4/sample-view';
+import { gainDetuneView, strokeSummary, noteName, sampleHeaderView, truVibratoView, voicingView, type SampleHeaderView } from '../../lib/ns4/sample-view';
 import { buildPlayableZones, strokeKeyboardOrder, type PlayableZone } from '../../lib/ns4/playable-zones';
 import { createSampler, type Sampler, type AmpEnvelope } from './sampleEngine';
 import type { InspectorStroke } from './StrokeList';
@@ -80,4 +80,10 @@ export function playZone(loaded: LoadedSample, index: number): void {
   if (!zone) return;
   const stroke = loaded.decoded.find((s) => s.globalID === zone.globalID);
   if (stroke) playPcm(stroke.channels, undefined, stroke.sampleRate);
+}
+
+/** Everything the sample header shows: the file's identity plus its gain/detune, Tru-Vibrato and voicing. */
+export function fullHeaderView(loaded: Pick<LoadedSample, 'file' | 'bytes' | 'name'>): SampleHeaderView {
+  const { file, bytes, name } = loaded;
+  return { ...sampleHeaderView(file, bytes.length, name), gainDetune: gainDetuneView(bytes), truVibrato: truVibratoView(bytes), ...voicingView(bytes) };
 }

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
 import { Button } from '@/components/ui';
@@ -9,7 +8,7 @@ import { useSamplesState } from '@/lib/library/SamplesContext';
 import { useOpenSample } from '@/lib/library/useOpenSample';
 import { useSplitLayout } from '@/lib/responsive';
 import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
-import { COMMUNITY_SHARE_TO } from '@/components/shell/nav';
+import { useShareToCommunity } from '@/components/shell/useShareToCommunity';
 import { canShareAudio } from '@/lib/library/share-audio';
 import { useCloseRemoved, useLeaveEntry, useOpenEntry } from '@/components/library/openEntry';
 
@@ -32,8 +31,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const closeRemoved = useCloseRemoved('/library/samples');
   const openEntry = useOpenEntry();
   const community = useCapabilities().community;
-  const navigate = useNavigate();
-  const share = (id: string) => () => void navigate({ to: COMMUNITY_SHARE_TO, search: { item: id } as never });
+  const share = useShareToCommunity();
 
   // Opening a sample from the route closes a preview.
   useEffect(() => {
@@ -114,7 +112,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const hasDetail = !!selectedId || loadNew;
   // Offered for a library file of your own; not for a pull off the Nord, a backup's factory entry or a preview.
   const openEntryNow = selectedId ? s.entryById(selectedId) : undefined;
-  const shareOpen = openEntryNow && canShareAudio(community, openEntryNow) ? share(openEntryNow.id) : undefined;
+  const shareOpen = openEntryNow && canShareAudio(community, openEntryNow) ? () => share(openEntryNow.id) : undefined;
   const detail = selectedId ? (
     open.state === 'missing' ? <NotListedNote noun="sample" />
     : open.state === 'failed' ? (
