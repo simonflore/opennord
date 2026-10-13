@@ -73,6 +73,14 @@ describe('StrokeList export controls', () => {
     expect(html).not.toContain('Export all');
   });
 
+  it('offers neither a WAV button nor "Export all" when it is not saveable, but still plays', () => {
+    const html = renderToStaticMarkup(<StrokeList strokes={[stroke(0), stroke(1)]} playable name="Pad" saveable={false} />);
+    expect(count(html, '>WAV<')).toBe(0);
+    expect(html).not.toContain('Export all');
+    expect(html).not.toContain('Download this sample');
+    expect(count(html, '>Play<')).toBe(2);
+  });
+
   it('disables export when the file is not decodable (not playable)', () => {
     const html = renderToStaticMarkup(<StrokeList strokes={[stroke(0), stroke(1)]} playable={false} name="Pad" />);
     expect(html).not.toContain('Export all'); // bulk export hidden when nothing can be decoded

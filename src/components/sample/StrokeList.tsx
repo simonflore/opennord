@@ -43,8 +43,10 @@ function strokeWav(stroke: InspectorStroke, baseName: string): { bytes: Uint8Arr
   return { bytes, filename: `${safeStem(baseName)}_S${s.index + 1}${root}.wav` };
 }
 
-export function StrokeList({ strokes, playable, name = 'sample', order, globalIDOf, soundingGlobalIDs, playheadOf }: {
+export function StrokeList({ strokes, playable, name = 'sample', order, globalIDOf, soundingGlobalIDs, playheadOf, saveable = true }: {
   strokes: InspectorStroke[]; playable: boolean; name?: string;
+  /** Offer the WAV downloads (each recording, and all as a zip). Off for a sample that isn't the viewer's own file. */
+  saveable?: boolean;
   order?: Map<number, number>; globalIDOf?: (strokeIndex: number) => number | undefined;
   soundingGlobalIDs?: ReadonlySet<number>;
   /** Normalized 0..1 playhead for a stroke by its index, or null when silent. */
@@ -84,7 +86,7 @@ export function StrokeList({ strokes, playable, name = 'sample', order, globalID
     <div className="ps-card" style={{ marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <h4 style={{ margin: 0 }}>STROKES</h4>
-        {playable && exportable.length > 1 && (
+        {saveable && playable && exportable.length > 1 && (
           <button className="on-btn on-btn--secondary" onClick={exportZip} style={{ fontSize: 11 }}>
             Export all (.zip)
           </button>
@@ -96,7 +98,7 @@ export function StrokeList({ strokes, playable, name = 'sample', order, globalID
           const sNumber = order && gid != null ? (order.get(gid) ?? null) : null;
           const sounding = !!soundingGlobalIDs && globalIDOf != null && gid != null && soundingGlobalIDs.has(gid);
           return (
-            <StrokeRow key={s.summary.index} stroke={s} playable={playable} name={name}
+            <StrokeRow key={s.summary.index} stroke={s} playable={playable} name={name} saveable={saveable}
               sNumber={sNumber} sounding={sounding}
               playhead={playheadOf ? playheadOf(s.summary.index) : undefined} />
           );
@@ -106,8 +108,8 @@ export function StrokeList({ strokes, playable, name = 'sample', order, globalID
   );
 }
 
-function StrokeRow({ stroke, playable, name, sNumber, sounding, playhead }: {
-  stroke: InspectorStroke; playable: boolean; name: string;
+function StrokeRow({ stroke, playable, name, saveable, sNumber, sounding, playhead }: {
+  stroke: InspectorStroke; playable: boolean; name: string; saveable: boolean;
   sNumber?: number | null; sounding?: boolean;
   /** Normalized 0..1 playhead position from the sampler, or null/undefined when silent. */
   playhead?: number | null;
@@ -139,14 +141,16 @@ function StrokeRow({ stroke, playable, name, sNumber, sounding, playhead }: {
         >
           {playing ? 'Stop' : 'Play'}
         </button>
-        <button
-          onClick={() => { const { bytes, filename } = strokeWav(stroke, name); downloadBytes(bytes, filename); }}
-          disabled={!playable || !s.ok}
-          title="Download this sample as a WAV file"
-          style={{ padding: '4px 10px', borderRadius: 6, cursor: playable && s.ok ? 'pointer' : 'not-allowed', border: '1px solid var(--line)', background: 'transparent', color: 'var(--ink)', fontSize: 11 }}
-        >
-          WAV
-        </button>
+        {saveable && (
+          <button
+            onClick={() => { const { bytes, filename } = strokeWav(stroke, name); downloadBytes(bytes, filename); }}
+            disabled={!playable || !s.ok}
+            title="Download this sample as a WAV file"
+            style={{ padding: '4px 10px', borderRadius: 6, cursor: playable && s.ok ? 'pointer' : 'not-allowed', border: '1px solid var(--line)', background: 'transparent', color: 'var(--ink)', fontSize: 11 }}
+          >
+            WAV
+          </button>
+        )}
         <span className="ps-sub" style={{ margin: 0 }}>
           Sample {sNumber != null ? sNumber + 1 : s.index + 1}{s.rootNote ? ` · ${s.rootNote}` : ''} · {s.channels === 2 ? 'stereo' : 'mono'} · {(s.sampleCount / s.sampleRate).toFixed(1)}s
           {s.loops !== undefined && (
