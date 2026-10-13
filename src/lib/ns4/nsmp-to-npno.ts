@@ -14,6 +14,10 @@
  *  - **Loops.** A piano loop is a whole number of frames. A short loop is repeated until the
  *    rounding is under a third of a cent, then cut where it meets itself.
  *  - **Touch.** Zones that share their keys become the piano's dynamic layers.
+ *  - **Fade.** A piano note held in its loop fades at the layer's loop decay; one that
+ *    doesn't fade rings for as long as the key or the pedal is held. A sample's loop often
+ *    holds (its release does the work on the sample section), so such a loop gets a
+ *    piano-like fade unless asked otherwise ({@link NsmpToNpnoOptions.loopFade}).
  *
  * ⚠ The piano writer is hardware-untested, so the result is too.
  * ⚠ SCOPE (`docs/LEGAL.md`): local conversion of a file the user has; nothing is uploaded.
@@ -188,6 +192,27 @@ export interface NsmpToNpnoOptions {
   name: string;
   /** Which piano type the file says it is ({@link NPNO_PIANO_TYPE}). Default: electric piano. */
   pianoType?: number;
+  /**
+   * How a held note fades once it is in its loop: `'auto'` (default) takes the sample's own
+   * loop decay where it sets one and a piano-like fade where it doesn't; `'piano'` gives every
+   * loop the piano-like fade (faster up the keys, as factory pianos do); a number is a fade
+   * in dB a second for every loop, 0 holding the note for as long as it is held.
+   */
+  loopFade?: LoopFade;
+}
+
+/** See {@link NsmpToNpnoOptions.loopFade}. */
+export type LoopFade = 'auto' | 'piano' | number;
+
+/**
+ * A loop's fade for {@link buildNpno} (dB a second; undefined is its piano-like default), and
+ * whether that fade is the sample's own, the piano's in place of a sample loop that holds, or
+ * a hold.
+ */
+function loopFadeFor(fade: LoopFade, sampleDbPerSecond: number): { db?: number; kind: 'set' | 'piano-for-hold' | 'hold' } {
+  if (fade === 'piano') return { kind: 'set' };
+  if (fade === 'auto') return sampleDbPerSecond > 0 ? { db: sampleDbPerSecond, kind: 'set' } : { kind: 'piano-for-hold' };
+  return fade > 0 ? { db: fade, kind: 'set' } : { db: 0, kind: 'hold' };
 }
 
 export interface NsmpToNpnoResult extends NpnoBuildResult {
@@ -232,6 +257,7 @@ export function sampleToPiano(source: SampleSource, opts: NsmpToNpnoOptions): Ns
   let peak = 0;
   const faded = new Set<number>(); // recordings that end while still sounding
   let fadedSeconds = 0;
+  const loopFades = new Map<number, ReturnType<typeof loopFadeFor>['kind']>(); // looped recordings
   const input: NpnoZoneInput[] = plan.map((z) => ({
     rootNote: z.rootNote, lowNote: z.lowNote, highNote: z.highNote,
     layers: z.layers.map((l) => {
@@ -242,9 +268,15 @@ export function sampleToPiano(source: SampleSource, opts: NsmpToNpnoOptions): Ns
         faded.add(l.globalID);
         fadedSeconds = Math.max(fadedSeconds, r.pcm[0].length / NSP_SAMPLE_RATE);
       }
+      let decayDbPerSecond: number | undefined;
+      if (r.loop) {
+        const f = loopFadeFor(opts.loopFade ?? 'auto', loop!.decayDbPerSecond);
+        decayDbPerSecond = f.db;
+        loopFades.set(l.globalID, f.kind);
+      }
       peak = Math.max(peak, peakAmplitude(r.pcm));
       const pcm = channels === 2 && r.pcm.length === 1 ? [r.pcm[0], r.pcm[0]] : r.pcm;
-      return { pcm, floorDb: l.floorDb, loop: r.loop, decayDbPerSecond: r.loop ? loop!.decayDbPerSecond : undefined };
+      return { pcm, floorDb: l.floorDb, loop: r.loop, decayDbPerSecond };
     }),
   }));
   // `buildNpno` keeps each recording's level in its level word, which has no room above 16
@@ -287,6 +319,15 @@ export function sampleToPiano(source: SampleSource, opts: NsmpToNpnoOptions): Ns
     const which = faded.size === used.size ? 'This sample has' : `${faded.size} of this sample's recordings have`;
     warnings.push(`${which} no sustain loop, so a held note fades out when its recording ends `
       + `(they last up to ${Math.round(fadedSeconds)} seconds, longer on keys below the recorded note).`);
+  }
+  const pianoForHold = [...loopFades.values()].filter((k) => k === 'piano-for-hold').length;
+  if (pianoForHold) {
+    const which = pianoForHold === loopFades.size ? "This sample's loops don't" : `${pianoForHold} of this sample's ${loopFades.size} loops don't`;
+    warnings.push(`${which} fade, so held notes on them now fade like a piano's. `
+      + 'Pick another fade if you want them to hold.');
+  }
+  if ([...loopFades.values()].includes('hold')) {
+    warnings.push('Held notes never fade: with the sustain pedal down, a note rings until you let go.');
   }
   warnings.push(UNTESTED);
   const result = buildNpno({ name: opts.name, pianoType: opts.pianoType ?? NPNO_PIANO_TYPE.electric, channels, zones: input });

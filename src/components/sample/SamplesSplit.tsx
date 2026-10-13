@@ -12,6 +12,8 @@ import { useCanShareToCommunity, useShareToCommunity } from '@/components/shell/
 import { canShareAudio } from '@/lib/library/share-audio';
 import { useLeaveEntry, useOpenEntry, useRemoveCopy } from '@/components/library/openEntry';
 import { copyHere, localMember } from '@/lib/library/found-on';
+import { pickFile } from '@/lib/pick-file';
+import { isNsmpFileName, NSMP_EXTENSIONS } from '@/lib/ns4/nsmp';
 
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
@@ -46,28 +48,17 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const startLoadNew = () => { toList(); setLoadNew(true); setImportError(''); };
   const back = () => { toList(); setLoadNew(false); };
 
-  function importSample() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.nsmp,.nsmp3,.nsmp4'; // D3: no .npno (Pianos category)
-    input.style.display = 'none';
-    document.body.appendChild(input);
-    const cleanup = () => input.remove();
-    input.onchange = async () => {
-      const f = input.files?.[0];
-      cleanup();
-      if (!f) return;
-      if (!['.nsmp', '.nsmp3', '.nsmp4'].some((e) => f.name.toLowerCase().endsWith(e))) {
-        setImportError(`“${f.name}” isn’t a Nord sample (.nsmp, .nsmp3 or .nsmp4). Programs belong on the Library page.`);
-        return;
-      }
-      setImportError('');
-      const id = await s.importSample(f);      // persist + add to the list
-      setLoadNew(false);
-      openEntry.sample(id);                     // and open it, like any library sample
-    };
-    input.oncancel = cleanup;
-    input.click();
+  async function importSample() {
+    const f = await pickFile(NSMP_EXTENSIONS.join(',')); // D3: no .npno (Pianos category)
+    if (!f) return;
+    if (!isNsmpFileName(f.name)) {
+      setImportError(`“${f.name}” isn’t a Nord sample (.nsmp, .nsmp3 or .nsmp4). Programs belong on the Library page.`);
+      return;
+    }
+    setImportError('');
+    const id = await s.importSample(f);      // persist + add to the list
+    setLoadNew(false);
+    openEntry.sample(id);                     // and open it, like any library sample
   }
 
   const onRemove = useRemoveCopy('/library/samples', s.removeSample, s.entryById, openEntry.sample);
@@ -91,7 +82,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         onLoadNew={startLoadNew}
         // selectedId may name any entry of the open row.
         activeId={openEntryNow?.id ?? selectedId ?? null}
-        onImport={importSample}
+        onImport={() => void importSample()}
         onRemove={onRemove}
         storedCount={s.storedCount} storedBytes={s.storedBytes}
         prefs={s.prefs}

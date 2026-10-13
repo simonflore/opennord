@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { layerFloors, nsmpToNpno, pianoNameFrom, planPianoZones, resampleForPiano, sampleToPiano } from './nsmp-to-npno';
+import { layerFloors, nsmpToNpno, pianoNameFrom, planPianoZones, resampleForPiano, sampleToPiano, type LoopFade } from './nsmp-to-npno';
 import { writeNsmpMulti } from './nsmp-write';
 import { NSMP_SAMPLE_RATE, readNsmp } from './nsmp';
 import { gainDetuneView } from './sample-view';
@@ -218,6 +218,42 @@ describe('nsmpToNpno', () => {
     let step = 0;
     for (let n = stroke.loop!.start + 1; n < end; n++) step = Math.max(step, Math.abs(x[n] - x[n - 1]));
     expect(Math.abs(x[stroke.loop!.start] - x[end - 1])).toBeLessThanOrEqual(step * 1.05);
+  });
+
+  describe('a held note in its loop', () => {
+    const loopStart = 20000;
+    const loopEnd = loopStart + 531;
+    const looped = (decayDbPerSecond: number, loopFade?: LoopFade) => sampleToPiano({
+      zones: [zone(60, 60, 1)],
+      strokes: [{
+        globalID: 1, channelCount: 1, sampleRate: NSMP_SAMPLE_RATE,
+        channels: [sine(loopEnd, NSMP_SAMPLE_RATE / 53.1, NSMP_SAMPLE_RATE)],
+        loop: { loopStart, loopEnd, loops: true, altStart: 0, decayDbPerSecond },
+      }],
+    }, { name: 'Looped', loopFade });
+    const storedFade = (bytes: Uint8Array) => -20 * Math.log10(readNspDirectory(bytes)!.strokes[0].loopDecay!) * 22050;
+
+    it('fades like a piano when the sample\'s loop holds, and says so', () => {
+      const { bytes, warnings } = looped(0);
+      expect(storedFade(bytes)).toBeGreaterThan(1); // no longer rings for as long as the pedal is down
+      expect(warnings.join(' ')).toMatch(/loops don't fade, so held notes on them now fade like a piano's/);
+    });
+
+    it('keeps the sample\'s own fade by default', () => {
+      expect(storedFade(looped(6).bytes)).toBeCloseTo(6, 1);
+      expect(looped(6).warnings.join(' ')).not.toMatch(/fade like a piano/);
+    });
+
+    it('fades at the rate asked for, or holds when asked to', () => {
+      expect(storedFade(looped(6, 4).bytes)).toBeCloseTo(4, 1);
+      const held = looped(6, 0);
+      expect(storedFade(held.bytes)).toBeCloseTo(0, 6);
+      expect(held.warnings.join(' ')).toMatch(/never fade/);
+    });
+
+    it('can fade every loop like a piano', () => {
+      expect(storedFade(looped(40, 'piano').bytes)).toBeLessThan(40);
+    });
   });
 
   it('does not call a zone below the playable keys an alternate take', () => {

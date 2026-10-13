@@ -132,9 +132,26 @@ describe('SampleConvert -- to a piano', () => {
 
     // The conversion starts a tick later, once "Building…" has painted.
     expect(await screen.findByText(/not been tried on a nord/i)).toBeInTheDocument();
-    expect(nsmpToNpno).toHaveBeenCalledWith(bytes, { name: 'Take On Me', pianoType: NPNO_PIANO_TYPE.digital });
+    expect(nsmpToNpno).toHaveBeenCalledWith(bytes, { name: 'Take On Me', pianoType: NPNO_PIANO_TYPE.digital, loopFade: 'auto' });
     expect(downloadBytes).toHaveBeenCalledWith(expect.any(Uint8Array), 'TakeOnMe_6.0.npno');
     expect(screen.getByText(/saved takeonme_6\.0\.npno/i)).toBeInTheDocument();
+  });
+
+  it('fades held notes as asked', async () => {
+    (useFolder as ReturnType<typeof vi.fn>).mockReturnValue(mockFolder({ folderName: null }));
+    (useWriteBackPref as ReturnType<typeof vi.fn>).mockReturnValue({ mode: 'ask', setMode: vi.fn() });
+    (nsmpToNpno as ReturnType<typeof vi.fn>).mockClear();
+
+    render(<SampleConvert bytes={bytes} file={file} name="TakeOnMe" />);
+    fireEvent.change(screen.getByLabelText(/held notes/i), { target: { value: '3' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /convert to piano/i })); });
+    await screen.findByText(/not been tried on a nord/i);
+    expect(nsmpToNpno).toHaveBeenCalledWith(bytes, expect.objectContaining({ loopFade: 40 / 6 }));
+
+    fireEvent.change(screen.getByLabelText(/held notes/i), { target: { value: '6' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /convert to piano/i })); });
+    await act(async () => { await new Promise((r) => setTimeout(r)); });
+    expect(nsmpToNpno).toHaveBeenLastCalledWith(bytes, expect.objectContaining({ loopFade: 0 }));
   });
 
   it('shows what the conversion warns about when the piano goes into the linked folder too', async () => {

@@ -1,4 +1,4 @@
-import { readNsmp, decodeNsmp, readNsmpZones, readSampleUnison, readNoteAlternates, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
+import { readNsmp, decodeNsmp, isDecodableNsmp, readNsmpZones, readSampleUnison, readNoteAlternates, type NsmpFile, type DecodedStrokeResult, type NsmpZone } from '../../lib/ns4/nsmp';
 import { gainDetuneView, strokeSummary, noteName, sampleHeaderView, truVibratoView, voicingView, type SampleHeaderView } from '../../lib/ns4/sample-view';
 import { buildPlayableZones, strokeKeyboardOrder, type PlayableZone } from '../../lib/ns4/playable-zones';
 import { createSampler, type Sampler, type AmpEnvelope } from './sampleEngine';
@@ -36,7 +36,7 @@ export function loadSample(
   live: { env: () => AmpEnvelope | null; unisonLevel: () => number },
 ): LoadedSample {
   const file = readNsmp(bytes);
-  const decodable = file.codec === 3 || file.codec === 4 || file.legacy;
+  const decodable = isDecodableNsmp(file);
   let decoded: DecodedStrokeResult[] = [];
   if (decodable) {
     try { decoded = decodeNsmp(bytes); } catch { decoded = []; }

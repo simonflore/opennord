@@ -204,6 +204,16 @@ export function nsmpHeadFactory(head: Uint8Array): boolean | undefined {
   return hdr ? hdrFactoryFlag(head, hdr) : undefined;
 }
 
+/** The file extensions of a Nord Sample, every generation. */
+export const NSMP_EXTENSIONS = ['.nsmp', '.nsmp3', '.nsmp4'] as const;
+
+/** Whether a file name is a Nord Sample's ({@link NSMP_EXTENSIONS}). */
+export const isNsmpFileName = (name: string) => NSMP_EXTENSIONS.some((e) => name.toLowerCase().endsWith(e));
+
+/** Whether OpenNord can decode a sample's audio: the original `.nsmp`, `.nsmp3` and `.nsmp4`. */
+export const isDecodableNsmp = (file: Pick<NsmpFile, 'codec' | 'legacy'>) =>
+  file.legacy || file.codec === 3 || file.codec === 4;
+
 export function readNsmp(bytes: Uint8Array): NsmpFile {
   const warnings: string[] = [];
   const id = identifyNsmp(bytes);

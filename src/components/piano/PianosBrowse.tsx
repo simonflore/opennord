@@ -12,6 +12,7 @@ import type { PianoEntry } from '@/lib/library/piano-entries';
 import type { LibrarySource } from '@/lib/library/types';
 import type { PianoSort } from '@/lib/library/prefs';
 import { formatBytes } from '@/lib/format';
+import { PianoAddMenu } from './PianoAddMenu';
 
 const SORT_LABEL: Record<PianoSort, string> = { default: 'Default', name: 'Name (A–Z)', size: 'Size' };
 
@@ -125,7 +126,7 @@ export function PianosBrowse({
 
   const confirmTitle = `Delete ${selected.size} ${selected.size === 1 ? 'piano' : 'pianos'} · frees ~${fmtMB(selectedFreeBytes)}`;
 
-  const actions = (canScanUsage || (unusedCount !== null && scanPct === null)) ? (
+  const actions = (
     <>
       {canScanUsage && (
         <Button variant="secondary" onClick={onScanUsage} disabled={scanPct !== null}>
@@ -142,8 +143,9 @@ export function PianosBrowse({
           {unusedCount === 0 ? 'No unused pianos' : `${unusedOnly ? 'Show all' : `Unused only (${unusedCount})`}`}
         </Button>
       )}
+      <PianoAddMenu />
     </>
-  ) : undefined;
+  );
 
   const banners = (
     <>
