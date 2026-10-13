@@ -8,6 +8,12 @@ import { PhoneTabs } from './PhoneTabs';
 import { DeviceProvider } from '../../lib/device/DeviceContext';
 import { CapabilitiesProvider } from '../../lib/capabilities/CapabilitiesContext';
 import type { Capabilities } from '../../lib/capabilities/types';
+import { localAuth } from '../../lib/capabilities/defaults';
+
+/** The website: the community is there and people can sign in. */
+const website: Partial<Capabilities> = { community: { available: true }, auth: { ...localAuth, available: true } };
+/** The desktop app: the community has a switch, and there is no way to sign in. */
+const desktop = (on: boolean): Partial<Capabilities> => ({ community: { available: on, optIn: { on, set: () => {} } } });
 
 function render(path: string, opts: { caps?: Partial<Capabilities>; sources?: SourceItem[]; activeSource?: 'all' | 'nord'; hasFolder?: boolean } = {}) {
   return renderToStaticMarkup(
@@ -63,8 +69,21 @@ describe('Rail', () => {
   });
 
   it('shows Community with its sub-items when the capability is available and active', () => {
-    const html = render('/community', { caps: { community: { available: true } } });
+    const html = render('/community', { caps: website });
     for (const label of ['Community', 'Browse', 'Share a patch', 'My shares']) expect(html).toContain(`>${label}<`);
+  });
+
+  it('shows Community where it can be turned on, before it is', () => {
+    expect(render('/library', { caps: desktop(false) })).toContain('>Community<');
+  });
+
+  it('lists no account-only pages where there is no way to sign in', () => {
+    for (const on of [false, true]) {
+      const html = render('/community', { caps: desktop(on) });
+      expect(html).toContain('>Community<');
+      // With sharing gone, "Browse" would be the only sub-item, naming the page it sits under.
+      for (const label of ['Browse', 'Share a patch', 'My shares']) expect(html).not.toContain(`>${label}<`);
+    }
   });
 });
 

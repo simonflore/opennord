@@ -7,6 +7,27 @@ it connects the **pre-WinUSB Nords** (USB product id `< 0x0024`, e.g. the Stage
 Sound Manager binds those to a custom kernel driver (`ClaviaUSB64.sys`), not
 WinUSB. See the `windows-webusb-driver-cutoff` note.
 
+## What the installer contains
+
+The installers on the Releases page are this shell around a page that is **this
+repository's app plus OpenNord's community client**: browsing and previewing
+sounds other players have shared. That client is not part of the AGPL source in
+this repository. It is the same code the OpenNord website serves to every
+visitor, and holds no secrets and no server code.
+
+- It is **off on a fresh install.** The Community page offers to turn it on, and
+  until someone does, the app makes no request to OpenNord's server. It can be
+  turned off again from the same page.
+- When on, it only **reads public pages**: the list of shared sounds, a sound,
+  its author, a demo. The desktop app has no sign-in, so nothing that needs an
+  account works there yet (saving a shared sound, favourites, sharing, cloud
+  backup); the app says so and links to the website.
+- Nothing from your Nord or your library is sent.
+
+**Building from this repository gives the app without it**: `npm run
+electron:pack` packs this package's own page, the open app, with no community
+code in it at all.
+
 ## Architecture
 
 The renderer is the **unchanged Vite SPA**. Nord USB is a third transport next
@@ -105,7 +126,22 @@ npm run electron:pack       # macOS  → release/OpenNord-mac.dmg + .zip (univer
 npm run electron:pack:win   # Windows x64 → release/OpenNord-win-x64.exe (NSIS, unsigned)
 ```
 
-Both bracket electron-builder with `scripts/usb-native-guard.mjs`: `clean` empties
+Both take their page through `scripts/desktop-page.mjs`. With nothing else said,
+that builds this package's own page (`npm run build:electron`) — the open app.
+A release hands in a different one, built outside this repository, through two
+environment variables:
+
+| Variable | What it is |
+|---|---|
+| `OPENNORD_DESKTOP_PAGE` | Directory of a built page to pack instead of this package's own. |
+| `OPENNORD_DESKTOP_API_URL` | The server address that page must carry. Required with the first. |
+
+A handed-in page is checked before it is packed, and the packed app is checked
+again afterwards: it must carry that address, and no sign-in setting
+(`VITE_ZITADEL_*`), diagnostics setting or sign-in code. A page that fails is
+not packed. `npm run release:desktop` does all of this itself.
+
+Both also bracket electron-builder with `scripts/usb-native-guard.mjs`: `clean` empties
 `node_modules/usb/build` and `release/` beforehand, `verify` then asserts the
 packed app carries the target's `prebuilds/` binary and no `build/`. A pack that
 would ship the broken binding fails instead of producing an installer. (`clean`
@@ -127,7 +163,8 @@ local testing.
 
 **Windows packs run in CI, on Windows — from the monorepo.** The pack workflow
 lives in the private `opennord-backend` monorepo, not in this repository: it
-packs on `windows-latest` from a clean `npm ci` tree and uploads
+builds the same release page, packs it on `windows-latest` from a clean `npm ci`
+tree and uploads
 `OpenNord-win-x64-<sha>` — on a `desktop-v*` tag, on manual `workflow_dispatch`,
 and on any PR touching an input the pack consumes. It is not mirrored here
 because the mirror's push token would need `Workflows: write` to deliver a
@@ -158,7 +195,9 @@ tell it from the new one.
    ```bash
    npm run release:desktop
    ```
-   It checks the machine, packs + signs + notarizes macOS, verifies the result
+   It checks the machine, builds the release page (the monorepo's web app in
+   desktop mode: community browsing, off until turned on), packs it + signs +
+   notarizes macOS, verifies the result
    (`codesign`, `stapler`, Gatekeeper), downloads the Windows installer CI built
    for the same commit, and uploads everything to a **draft** release on
    `simonflore/opennord`. The draft's tag is pinned to this commit as the public

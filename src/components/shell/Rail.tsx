@@ -5,7 +5,7 @@ import type { LibrarySource } from '../../lib/library/types';
 import { BetaBadge } from './BetaBadge';
 import { Led } from './Led';
 import { groupLabel, rowActive } from './styles';
-import { ABOUT, COMMUNITY_SUB, COMMUNITY_TO, DEV_DESTS, useTools, type NavTo } from './nav';
+import { ABOUT, COMMUNITY_TO, DEV_DESTS, useCommunityPages, useTools, type NavTo } from './nav';
 import { FolderMenu } from '../library/FolderMenu';
 import { useFolderOptional } from '../../lib/folder/FolderContext';
 
@@ -95,6 +95,7 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
  */
 export const Rail = memo(function Rail({ path, onNavigate, counts, sources, activeSource, onPickSource, hasFolder = false }: Props) {
   const tools = useTools();
+  const communityPages = useCommunityPages();
   // An entry is active on its page and the pages beneath it (/library/programs/$id keeps programs lit).
   const isActive = (to: string) => isUnder(path, to);
   const onPrograms = isActive('/library/programs');
@@ -155,7 +156,7 @@ export const Rail = memo(function Rail({ path, onNavigate, counts, sources, acti
               onClick={() => onNavigate(d.to)}
             />
             {/* Community's own pages, while on it. */}
-            {d.to === COMMUNITY_TO && isActive(COMMUNITY_TO) && COMMUNITY_SUB.map((sub) => (
+            {d.to === COMMUNITY_TO && isActive(COMMUNITY_TO) && communityPages.map((sub) => (
               <Item key={sub.to} sub label={sub.label} active={path === sub.to} onClick={() => onNavigate(sub.to)} />
             ))}
           </Fragment>

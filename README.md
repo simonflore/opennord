@@ -25,6 +25,21 @@ OpenNord is **free and open source** (AGPL-3.0). It exists because everything th
 
 Community patch sharing and AI (explain a patch, or generate one from a description) are designed but not built yet.
 
+## Desktop app
+
+There is a desktop app for macOS and Windows on the
+[Releases page](https://github.com/simonflore/opennord/releases). It exists to
+reach the older Nords a browser cannot connect to
+([`electron/README.md`](electron/README.md)).
+
+**What the installers contain.** They are built from this repository, plus
+OpenNord's community client: browsing and previewing sounds other players have
+shared. That client is not part of the AGPL source here. It is off until you
+turn it on from the Community page, and until then the app contacts no server
+for it; turned on, it only reads public pages, and nothing from your Nord or
+your library is sent. Building from this repository (`npm run electron:pack`)
+gives the app without it.
+
 ## Why it can exist
 
 A lot was already done — see [`ATTRIBUTION.md`](ATTRIBUTION.md). The Stage 2/3 format is openly documented (ns3-program-viewer) and the Stage 4 format was *partially* decoded (ns4decode). OpenNord builds on that and adds what didn't exist: **Stage 4 transfer to a current Nord** (the USB protocol, reverse-engineered here), combined with open parsing, a mobile-first library, and sample playback in one tool.

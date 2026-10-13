@@ -45,6 +45,7 @@ vi.mock('@/components/program/ProgramView', () => ({ ProgramView: () => <div>DET
 
 import { LibrarySplit } from './LibrarySplit';
 import { CapabilitiesProvider } from '@/lib/capabilities/CapabilitiesContext';
+import { localAuth } from '@/lib/capabilities/defaults';
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); wide = true; session = null; resetNord(); resetCloud(); entries.clear(); });
 
@@ -131,7 +132,7 @@ describe('LibrarySplit', () => {
     });
 
     it('offers Share to community where the community is there, opening the share form on this program', () => {
-      render(<CapabilitiesProvider value={{ community: { available: true } }}><LibrarySplit selectedId="p1" /></CapabilitiesProvider>);
+      render(<CapabilitiesProvider value={{ community: { available: true }, auth: { ...localAuth, available: true } }}><LibrarySplit selectedId="p1" /></CapabilitiesProvider>);
       fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), { key: 'Enter' });
       fireEvent.click(screen.getByRole('menuitem', { name: 'Share to community' }));
       expect(navigate).toHaveBeenCalledWith({ to: '/community/share', search: { item: 'p1' } });
@@ -139,6 +140,11 @@ describe('LibrarySplit', () => {
 
     it('offers no sharing in a build without the community', () => {
       render(<LibrarySplit selectedId="p1" />);
+      expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument();
+    });
+
+    it('offers no sharing where the community is on but there is no way to sign in', () => {
+      render(<CapabilitiesProvider value={{ community: { available: true, optIn: { on: true, set: () => {} } } }}><LibrarySplit selectedId="p1" /></CapabilitiesProvider>);
       expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument();
     });
 
@@ -245,7 +251,7 @@ describe('LibrarySplit', () => {
     });
     it('removes the imported copy by its own id, shares the local copy, and offers no Keep a copy', () => {
       entries.set('cloud:x1', merged);
-      render(<CapabilitiesProvider value={{ community: { available: true } }}><LibrarySplit selectedId="cloud:x1" /></CapabilitiesProvider>);
+      render(<CapabilitiesProvider value={{ community: { available: true }, auth: { ...localAuth, available: true } }}><LibrarySplit selectedId="cloud:x1" /></CapabilitiesProvider>);
       fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), { key: 'Enter' });
       expect(screen.queryByRole('menuitem', { name: 'Keep a copy' })).not.toBeInTheDocument();
       expect(screen.getByRole('menuitem', { name: 'Remove from library' })).toBeInTheDocument();
@@ -254,7 +260,7 @@ describe('LibrarySplit', () => {
     });
     it('offers no Share for a row with no copy on this computer', () => {
       entries.set('nord:A:11', { id: 'nord:A:11', name: 'Wurli', source: 'nord', bytes: stage4, program: { name: 'Wurli', bytes: stage4 }, sources: ['nord', 'cloud'], members: [{ id: 'nord:A:11', source: 'nord', name: 'Wurli' }, { id: 'cloud:x5', source: 'cloud', name: 'Wurli' }] });
-      render(<CapabilitiesProvider value={{ community: { available: true } }}><LibrarySplit selectedId="nord:A:11" /></CapabilitiesProvider>);
+      render(<CapabilitiesProvider value={{ community: { available: true }, auth: { ...localAuth, available: true } }}><LibrarySplit selectedId="nord:A:11" /></CapabilitiesProvider>);
       fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), { key: 'Enter' });
       expect(screen.queryByRole('menuitem', { name: 'Share to community' })).not.toBeInTheDocument();
       expect(screen.getByRole('menuitem', { name: 'Keep a copy' })).toBeInTheDocument();

@@ -12,6 +12,12 @@ export interface UserIdentity {
 /** Identity capability. The local build ships a logged-out stub; the product
  *  build supplies a Zitadel OIDC/PKCE implementation. */
 export interface AuthProvider {
+  /**
+   * Whether this build has a way to sign in at all. False in the local build
+   * and in the desktop app (no sign-in there yet): screens then say an account
+   * is needed and where to go, instead of starting a sign-in that cannot work.
+   */
+  readonly available: boolean;
   /** Current user, or null when logged out. */
   getUser(): UserIdentity | null;
   /** Begin sign-in; resolves once authenticated. */
@@ -49,6 +55,14 @@ export interface CommunityClient {
   readonly available: boolean;
   /** Whether samples and pianos can be shared in this build (off: programs and presets only). */
   readonly samples?: boolean;
+  /**
+   * The player's own on/off switch for the community, in builds where it is off
+   * until they turn it on (the desktop app). Present in both states there, with
+   * `available` following `on`; absent means this build has no switch — the
+   * website, where the community is simply there, and the open build, where it
+   * is simply not.
+   */
+  readonly optIn?: { readonly on: boolean; set(on: boolean): void };
 }
 
 /**

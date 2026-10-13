@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CapabilitiesProvider } from '@/lib/capabilities/CapabilitiesContext';
+import { localAuth } from '@/lib/capabilities/defaults';
 import { buildCbinHeader } from '@/lib/clavia/cbin';
 import type { PresetEntry } from '@/lib/library/preset-entries';
 
@@ -17,7 +18,9 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const bytes = buildCbinHeader({ formatType: 1, tag: 'ns3y', bank: 0, location: 0, category: 0, versionRaw: 300 });
 const file: PresetEntry = { id: 'folder:Lead.ns3y', name: 'Lead', source: 'local', kind: 'synth-preset', bytes };
 const onNord: PresetEntry = { id: 'nord-preset:2:A:1', name: 'Lead', source: 'nord', kind: 'synth-preset', slot: 'A:1' };
-const community = { community: { available: true } };
+const community = { community: { available: true }, auth: { ...localAuth, available: true } };
+/** The desktop app with the community turned on: browsing, but no way to sign in. */
+const browseOnly = { community: { available: true, optIn: { on: true, set: () => {} } } };
 
 describe('PresetInspector', () => {
   it('shares a preset file to the community, opening the share form on it', () => {
@@ -32,6 +35,11 @@ describe('PresetInspector', () => {
     expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument();
     cleanup();
     render(<PresetInspector entry={file} session={null} />);
+    expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument();
+  });
+
+  it('offers no sharing where there is no way to sign in', () => {
+    render(<CapabilitiesProvider value={browseOnly}><PresetInspector entry={file} session={null} /></CapabilitiesProvider>);
     expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument();
   });
 

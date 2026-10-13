@@ -38,6 +38,26 @@ describe('desktop build config', () => {
     expect(scripts['electron:pack:win']).toContain('--x64');
   });
 
+  it('takes its page through the page step on both platforms, and checks the packed result', () => {
+    // The page step packs this package's own page unless a release hands one in
+    // (scripts/desktop-page.mjs). A pack script that builds the page itself
+    // would silently ship the open app in a release.
+    for (const name of ['electron:pack', 'electron:pack:win']) {
+      const steps = scripts[name].split('&&').map((step) => step.trim());
+      const at = (text) => steps.findIndex((step) => step.includes(text));
+      expect(at('scripts/desktop-page.mjs stage'), name).toBeGreaterThan(at('usb-native-guard.mjs clean'));
+      expect(at('scripts/desktop-page.mjs stage'), name).toBeLessThan(at('electron-builder'));
+      expect(at('scripts/desktop-page.mjs verify'), name).toBeGreaterThan(at('electron-builder'));
+      expect(steps.some((step) => step === 'npm run build:electron'), name).toBe(false);
+    }
+  });
+
+  it('still builds its own page from this package alone', () => {
+    // The open app: no other package is involved, so the public repository can build it.
+    expect(scripts['build:electron']).toBe('cross-env OPENNORD_ELECTRON=1 tsc -b && cross-env OPENNORD_ELECTRON=1 vite build');
+    expect(build.files).toContain('dist/**/*');
+  });
+
   it('signs macOS with the hardened runtime and the minimal entitlements', () => {
     expect(build.mac.hardenedRuntime).toBe(true);
     expect(build.mac.entitlements).toBe('electron/entitlements.mac.plist');

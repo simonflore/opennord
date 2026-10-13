@@ -1,6 +1,12 @@
 import { useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { COMMUNITY_SHARE_TO } from './nav';
+import { useCapabilities } from '../../lib/capabilities/CapabilitiesContext';
+import { canShareToCommunity, COMMUNITY_SHARE_TO } from './nav';
+
+/** Whether this build offers sharing at all (see `canShareToCommunity`). */
+export function useCanShareToCommunity(): boolean {
+  return canShareToCommunity(useCapabilities());
+}
 
 /**
  * Open the community share form on a library item. The form is a build-injected

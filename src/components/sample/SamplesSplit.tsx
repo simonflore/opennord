@@ -8,7 +8,7 @@ import { useSamplesState } from '@/lib/library/SamplesContext';
 import { useOpenSample } from '@/lib/library/useOpenSample';
 import { useSplitLayout } from '@/lib/responsive';
 import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
-import { useShareToCommunity } from '@/components/shell/useShareToCommunity';
+import { useCanShareToCommunity, useShareToCommunity } from '@/components/shell/useShareToCommunity';
 import { canShareAudio } from '@/lib/library/share-audio';
 import { useLeaveEntry, useOpenEntry, useRemoveCopy } from '@/components/library/openEntry';
 import { copyHere, localMember } from '@/lib/library/found-on';
@@ -31,6 +31,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const [importError, setImportError] = useState('');
   const openEntry = useOpenEntry();
   const community = useCapabilities().community;
+  const canShare = useCanShareToCommunity();
   const share = useShareToCommunity();
 
   // Opening a sample from the route closes a preview.
@@ -115,7 +116,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   // resolve after its bytes do).
   const hasDetail = !!selectedId || loadNew;
   // Offered for a library file of your own; not for a pull off the Nord, a backup's factory entry or a preview.
-  const shareOpen = openEntryNow && canShareAudio(community, openEntryNow) ? () => share(localMember(openEntryNow)?.id ?? openEntryNow.id) : undefined;
+  const shareOpen = openEntryNow && canShare && canShareAudio(community, openEntryNow) ? () => share(localMember(openEntryNow)?.id ?? openEntryNow.id) : undefined;
   // A sample with no copy on this computer (from the cloud, or pulled off the Nord) can be kept, once its bytes are here.
   const openBytes = open.state === 'open' ? open.sample.bytes : undefined;
   const keepOpen = openEntryNow && openBytes && !copyHere(openEntryNow)

@@ -12,6 +12,13 @@ describe('localCapabilities', () => {
     expect(localCapabilities.cloud.available).toBe(false);
     expect(localCapabilities.community.available).toBe(false);
   });
+  it('says it has no way to sign in', () => {
+    // Screens read this fact instead of starting a sign-in that can only fail.
+    expect(localCapabilities.auth.available).toBe(false);
+  });
+  it('has no community switch: nothing to turn on in the open build', () => {
+    expect(localCapabilities.community.optIn).toBeUndefined();
+  });
   it('ships a ranker', () => {
     expect(typeof localCapabilities.ranker.rank).toBe('function');
   });

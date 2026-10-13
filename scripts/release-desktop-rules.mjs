@@ -2,6 +2,8 @@
 // as pure functions: tested without git, gh or the network
 // (release-desktop-rules.test.mjs).
 
+import { PAGE_API_ENV, PAGE_DIR_ENV } from './desktop-page-rules.mjs';
+
 /** The `xcrun notarytool store-credentials` profile name (electron/README.md). */
 export const NOTARY_PROFILE = 'opennord-notary';
 
@@ -46,6 +48,13 @@ export function preflightProblems(facts) {
   } else if (facts.tagCommit !== facts.headCommit) {
     problems.push(`Tag ${tag} points at ${facts.tagCommit} but HEAD is ${facts.headCommit} — check out the tag, or bump the version and re-tag.`);
   }
+  // The page a release packs is built from the web app, which only the monorepo has.
+  if (facts.hasWebApp === false) {
+    problems.push('This checkout has no apps/web, which the release page is built from — cut releases from the monorepo. (npm run electron:pack still builds the open app from here.)');
+  }
+  if (facts.hasPnpm === false) {
+    problems.push('pnpm not found — the release page is built with it (pnpm --filter @opennord/web build:desktop). Install pnpm and run pnpm install at the repository root.');
+  }
   if (!facts.ghAuthed) problems.push('GitHub CLI is not signed in — run: gh auth login');
   if (!facts.hasDeveloperId) problems.push('No "Developer ID Application" certificate in the keychain.');
   if (!facts.hasNotarytool) problems.push('xcrun notarytool not found — install Xcode or the Command Line Tools: xcode-select --install');
@@ -55,6 +64,17 @@ export function preflightProblems(facts) {
     problems.push('Building the Windows installer on this Mac needs Rosetta — run: softwareupdate --install-rosetta --agree-to-license');
   }
   return problems;
+}
+
+/**
+ * The environment that makes a pack carry the release page instead of this
+ * package's own (scripts/desktop-page.mjs): where the built page is, and the
+ * server address it must carry, from the web app's desktop.config.json. Both
+ * packs get the same one, so macOS and Windows ship the same page.
+ */
+export function desktopPageEnv({ pageDir, config }) {
+  if (!config?.apiUrl) throw new Error('desktop.config.json has no apiUrl — the release page would have no server to reach.');
+  return { [PAGE_DIR_ENV]: pageDir, [PAGE_API_ENV]: config.apiUrl };
 }
 
 /**
@@ -120,11 +140,23 @@ export function parseFlags(argv) {
 }
 
 /**
+ * What every draft's notes start with: what the installers contain that this
+ * repository does not. The rest of the notes are written by hand before
+ * publishing; this paragraph stays.
+ */
+export const RELEASE_NOTES = [
+  '**What these installers contain.** The desktop app is built from this repository (AGPL-3.0-or-later),',
+  "plus OpenNord's community client, which lets you browse and preview sounds other players have shared.",
+  'The community client is not part of the AGPL source. It is off until you turn it on from the Community',
+  'page, and until then the app contacts no server for it. Building from this repository gives the app without it.',
+].join(' ');
+
+/**
  * `gh` arguments that create the draft. `target` is the commit on the PUBLIC
  * repo the tag is cut from when the draft is published; without it GitHub uses
  * whatever the mirror's default branch is at that moment, which may be later
  * than the commit these binaries were built from.
  */
 export function releaseCreateArgs({ tag, version, publicRepo, target }) {
-  return ['release', 'create', tag, '--repo', publicRepo, '--draft', '--target', target, '--title', `OpenNord ${version}`, '--notes', ''];
+  return ['release', 'create', tag, '--repo', publicRepo, '--draft', '--target', target, '--title', `OpenNord ${version}`, '--notes', RELEASE_NOTES];
 }

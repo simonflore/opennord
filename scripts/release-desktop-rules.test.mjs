@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  feedMinimumSystemVersion, parseFlags, pickWindowsRun, preflightProblems, releaseAction, releaseAssets,
+  RELEASE_NOTES, desktopPageEnv, feedMinimumSystemVersion, parseFlags, pickWindowsRun, preflightProblems, releaseAction, releaseAssets,
   releaseCreateArgs, releaseTag, withMinimumSystemVersion,
 } from './release-desktop-rules.mjs';
 
@@ -42,6 +42,20 @@ describe('preflightProblems', () => {
     expect(problem).toContain('softwareupdate --install-rosetta');
     expect(preflightProblems({ ...ready, winLocal: true, canRunIntel: true })).toEqual([]);
     expect(preflightProblems({ ...ready, winLocal: false, canRunIntel: false })).toEqual([]);
+  });
+
+  it('refuses to release from a checkout without the web app: the page a release packs is built from it', () => {
+    const [problem] = preflightProblems({ ...ready, hasWebApp: false });
+    expect(problem).toMatch(/apps\/web/);
+    // …and says what does work from here.
+    expect(problem).toContain('npm run electron:pack');
+    expect(preflightProblems({ ...ready, hasWebApp: true })).toEqual([]);
+  });
+
+  it('says so up front when pnpm, which builds the release page, is missing', () => {
+    const [problem] = preflightProblems({ ...ready, hasPnpm: false });
+    expect(problem).toMatch(/pnpm not found/);
+    expect(preflightProblems({ ...ready, hasPnpm: true })).toEqual([]);
   });
 
   it('reports every missing prerequisite at once', () => {
@@ -160,6 +174,17 @@ describe('parseFlags', () => {
   });
 });
 
+describe('desktopPageEnv', () => {
+  it('hands both packs the built page and the address it must carry', () => {
+    expect(desktopPageEnv({ pageDir: '/repo/apps/web/dist-desktop', config: { apiUrl: 'https://api.opennord.test', siteUrl: 'https://opennord.test' } }))
+      .toEqual({ OPENNORD_DESKTOP_PAGE: '/repo/apps/web/dist-desktop', OPENNORD_DESKTOP_API_URL: 'https://api.opennord.test' });
+  });
+
+  it('refuses a config with no server address rather than packing the open app by accident', () => {
+    expect(() => desktopPageEnv({ pageDir: '/x', config: {} })).toThrow(/apiUrl/);
+  });
+});
+
 describe('releaseCreateArgs', () => {
   it('creates a draft whose tag will be cut from the mirrored release commit', () => {
     const args = releaseCreateArgs({ tag: 'desktop-v0.1.0', version: '0.1.0', publicRepo: 'o/r', target: 'abc123' });
@@ -167,5 +192,17 @@ describe('releaseCreateArgs', () => {
     expect(args).toContain('--draft');
     expect(args[args.indexOf('--target') + 1]).toBe('abc123');
     expect(args[args.indexOf('--repo') + 1]).toBe('o/r');
+  });
+
+  it('starts the draft with what the installers contain beyond this repository', () => {
+    const args = releaseCreateArgs({ tag: 'desktop-v0.1.0', version: '0.1.0', publicRepo: 'o/r', target: 'abc123' });
+    const notes = args[args.indexOf('--notes') + 1];
+    expect(notes).toBe(RELEASE_NOTES);
+    // Said plainly: the community client is in the installers, is not AGPL
+    // source, is off until turned on, and a build from the repository has none of it.
+    expect(notes).toMatch(/community client/i);
+    expect(notes).toMatch(/not part of the AGPL source/i);
+    expect(notes).toMatch(/off until you turn it on/i);
+    expect(notes).toMatch(/building from this repository gives the app without it/i);
   });
 });

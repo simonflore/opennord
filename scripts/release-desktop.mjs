@@ -16,12 +16,18 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  NOTARY_PROFILE, feedMinimumSystemVersion, parseFlags, pickWindowsRun, preflightProblems, releaseAction,
+  NOTARY_PROFILE, desktopPageEnv, feedMinimumSystemVersion, parseFlags, pickWindowsRun, preflightProblems, releaseAction,
   releaseAssets, releaseCreateArgs, releaseTag, withMinimumSystemVersion,
 } from './release-desktop-rules.mjs';
 
 const core = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const APP = join(core, 'release', 'mac-universal', 'OpenNord.app');
+// A release packs the page built from the web app (community browsing, off
+// until turned on), not this package's own. That app lives beside this package
+// in the monorepo; the public repository does not have it.
+const monorepo = resolve(core, '..', '..');
+const web = join(monorepo, 'apps', 'web');
+const webConfig = join(web, 'desktop.config.json');
 
 /** Run a command, returning trimmed stdout; null when it exits non-zero. */
 function tryRun(cmd, args) {
@@ -33,9 +39,9 @@ function tryRun(cmd, args) {
 }
 
 /** Run a command with its output shown; a non-zero exit aborts the release. */
-function run(cmd, args, env = {}) {
+function run(cmd, args, env = {}, cwd = core) {
   console.log(`\n$ ${cmd} ${args.join(' ')}`);
-  execFileSync(cmd, args, { cwd: core, stdio: 'inherit', env: { ...process.env, ...env } });
+  execFileSync(cmd, args, { cwd, stdio: 'inherit', env: { ...process.env, ...env } });
 }
 
 function fatal(message) {
@@ -70,8 +76,19 @@ const problems = preflightProblems({
   hasNotaryProfile: tryRun('xcrun', ['notarytool', 'history', '--keychain-profile', NOTARY_PROFILE]) !== null,
   winLocal,
   canRunIntel: process.arch !== 'arm64' || tryRun('arch', ['-x86_64', '/usr/bin/true']) !== null,
+  hasWebApp: existsSync(webConfig),
+  hasPnpm: tryRun('pnpm', ['--version']) !== null,
 });
 if (problems.length > 0) fatal(`not ready:\n${problems.map((p) => `  • ${p}`).join('\n')}`);
+
+// What the packs are told about the page (step 4a builds it). Worked out here,
+// so a config without a server address stops the release before the slow steps.
+let pageEnv;
+try {
+  pageEnv = desktopPageEnv({ pageDir: join(web, 'dist-desktop'), config: JSON.parse(readFileSync(webConfig, 'utf8')) });
+} catch (error) {
+  fatal(error.message);
+}
 
 // 2. Find the Windows build BEFORE the slow mac pack, so a missing one fails fast.
 //    (With --win-local there is none to find: it is built here, in step 4b.)
@@ -114,6 +131,11 @@ if (!dryRun) {
   }
 }
 
+// 4a. Build the page both installers carry, from the web app in desktop mode.
+//     A dry run does the same, so a rehearsal packs what a release would. The
+//     pack checks the page before and after packing (scripts/desktop-page.mjs).
+run('pnpm', ['--filter', '@opennord/web', 'build:desktop'], {}, monorepo);
+
 // 4b. --win-local: pack the Windows installer here, and set its files aside —
 //     the mac pack that follows empties release/ before it starts.
 const assets = releaseAssets(pkg.build, { macOnly });
@@ -121,12 +143,12 @@ const scratch = mkdtempSync(join(tmpdir(), 'opennord-release-'));
 process.on('exit', () => rmSync(scratch, { recursive: true, force: true }));
 if (winLocal) {
   console.log('\nBuilding the Windows installer on this machine. It is packed from this commit and checked by the\npack guard, but unlike a CI build it is not made on Windows and has not run there.');
-  run('npm', ['run', 'electron:pack:win']);
+  run('npm', ['run', 'electron:pack:win'], pageEnv);
   for (const name of assets.win) copyFileSync(join(core, 'release', name), join(scratch, name));
 }
 
 // 5. Pack macOS. APPLE_KEYCHAIN_PROFILE is what makes electron-builder notarize.
-run('npm', ['run', 'electron:pack'], { APPLE_KEYCHAIN_PROFILE: NOTARY_PROFILE });
+run('npm', ['run', 'electron:pack'], { ...pageEnv, APPLE_KEYCHAIN_PROFILE: NOTARY_PROFILE });
 
 // 6. Verify. stapler is the check that notarization really happened:
 //    electron-builder only warns when it skips it.

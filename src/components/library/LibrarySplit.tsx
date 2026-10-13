@@ -25,7 +25,7 @@ import { useLibraryState } from '@/lib/library/LibraryContext';
 import { useSplitLayout } from '@/lib/responsive';
 import { useOpenEntry, useRemoveCopy } from './openEntry';
 import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
-import { useShareToCommunity } from '@/components/shell/useShareToCommunity';
+import { useCanShareToCommunity, useShareToCommunity } from '@/components/shell/useShareToCommunity';
 
 const noop = () => {};
 
@@ -125,7 +125,7 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
   const [removing, setRemoving] = useState<LibraryEntry | null>(null);
   // Sharing is a build-injected route: offered only where the community is there,
   // and for a program that's a file of yours (a Nord slot is shared once it's kept).
-  const canShare = caps.community.available;
+  const canShare = useCanShareToCommunity();
   const share = useShareToCommunity();
   const bytes = entry?.bytes;
   // The copy of this sound on this computer (a file inside a backup is one too), and the imported one, if any.

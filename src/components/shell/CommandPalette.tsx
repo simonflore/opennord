@@ -11,7 +11,7 @@ import { useSamplesData } from '../../lib/library/SamplesContext';
 import { usePianosData } from '../../lib/library/PianosContext';
 import { useOpenEntry } from '../library/openEntry';
 import { rankCommands, type Command } from './commands';
-import { ABOUT, COMMUNITY_SUB, COMMUNITY_TO, DEV_DESTS, useTools } from './nav';
+import { ABOUT, COMMUNITY_TO, DEV_DESTS, useCommunityPages, useTools } from './nav';
 import { groupLabel, rowActive } from './styles';
 
 // The hint shows the slot, or everywhere the entry is found; only the slot is
@@ -23,6 +23,7 @@ const hint = (e: { slot?: string; source: LibrarySource; sources?: LibrarySource
 function useCommands(): Command[] {
   const navigate = useNavigate();
   const tools = useTools();
+  const communityPages = useCommunityPages();
   const open = useOpenEntry();
   const { rows: programs, ensureListed } = useLibraryData();
   const presets = usePresetsData();
@@ -41,7 +42,7 @@ function useCommands(): Command[] {
       ...READY_CATEGORIES.map((c) => ({ to: c.path, label: c.label })),
       ...tools,
       // Community's own pages, reachable from here too (the phone has no rail).
-      ...(tools.some((d) => d.to === COMMUNITY_TO) ? COMMUNITY_SUB.filter((d) => d.to !== COMMUNITY_TO) : []),
+      ...communityPages.filter((d) => d.to !== COMMUNITY_TO),
       ...(__RE__ ? DEV_DESTS : []),
       ABOUT,
     ].map((d) => ({ id: `page:${d.to}`, group: 'Pages', label: d.label, run: () => navigate({ to: d.to }) }));
@@ -62,7 +63,7 @@ function useCommands(): Command[] {
     })));
 
     return [...pages, ...programCommands, ...entries];
-  }, [navigate, open, tools, programs, ensureListed, lists]);
+  }, [navigate, open, tools, communityPages, programs, ensureListed, lists]);
 }
 
 /**

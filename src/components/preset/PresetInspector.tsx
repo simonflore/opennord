@@ -11,8 +11,7 @@ import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { ItemActions } from '../library/ItemActions';
 import { IdentityLcd } from '@/components/program/widgets';
 import { PresetPanel } from './PresetPanel';
-import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
-import { useShareToCommunity } from '@/components/shell/useShareToCommunity';
+import { useCanShareToCommunity, useShareToCommunity } from '@/components/shell/useShareToCommunity';
 
 const KIND_LABEL: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'Organ preset', 'piano-preset': 'Piano preset', 'synth-preset': 'Synth preset',
@@ -33,7 +32,7 @@ export function PresetInspector({ entry, session, cloud, onKeepCopy }: {
   // Sharing is a build-injected route: offered where the community is there, for
   // a preset that's a file of yours (one still on the Nord or in the cloud isn't, until it's kept).
   const here = copyHere(entry);
-  const shareable = useCapabilities().community.available && entry.bytes ? here : undefined;
+  const shareable = useCanShareToCommunity() && entry.bytes ? here : undefined;
   const share = useShareToCommunity();
   // A cloud-only preset is fetched when it's shown; a fetch that failed waits for Try again.
   const cloudRead = useCloudRead(entry, cloud);

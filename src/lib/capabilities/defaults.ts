@@ -10,6 +10,7 @@ import type {
 
 /** Logged-out, no-network identity. Sign-in is only possible in the cloud build. */
 export const localAuth: AuthProvider = {
+  available: false,
   getUser: () => null,
   async signIn() {
     throw new Error('Sign-in requires the OpenNord cloud, which is not part of the local build.');
