@@ -38,6 +38,7 @@ vi.mock('@/lib/device/DeviceContext', () => ({
 vi.mock('@/components/program/ProgramView', () => ({ ProgramView: () => <div>DETAIL</div> }));
 
 import { LibrarySplit } from './LibrarySplit';
+import { CapabilitiesProvider } from '@/lib/capabilities/CapabilitiesContext';
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); wide = true; session = null; resetNord(); });
 
@@ -121,6 +122,18 @@ describe('LibrarySplit', () => {
       expect(screen.getByRole('button', { name: 'Send to Nord' })).toBeDisabled();
       expect(screen.getByText('Connect your Nord to send it.')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Save to computer' })).toBeEnabled();
+    });
+
+    it('offers Share to community where the community is there, opening the share form on this program', () => {
+      render(<CapabilitiesProvider value={{ community: { available: true } }}><LibrarySplit selectedId="p1" /></CapabilitiesProvider>);
+      fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), { key: 'Enter' });
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Share to community' }));
+      expect(navigate).toHaveBeenCalledWith({ to: '/community/share', search: { program: 'p1' } });
+    });
+
+    it('offers no sharing in a build without the community', () => {
+      render(<LibrarySplit selectedId="p1" />);
+      expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument();
     });
 
     it('greys Send to Nord on a keyboard it only reads', () => {

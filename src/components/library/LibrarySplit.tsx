@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { Blueprint, Button, Dialog } from '@/components/ui';
 import { ItemActions } from './ItemActions';
 import { RemoveFromLibraryDialog } from './CardRemoveButton';
@@ -22,6 +23,8 @@ import { EmptyNote, NotListedNote } from './EmptyNote';
 import { useLibraryState } from '@/lib/library/LibraryContext';
 import { useSplitLayout } from '@/lib/responsive';
 import { useCloseRemoved, useOpenEntry } from './openEntry';
+import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
+import { COMMUNITY_SHARE_TO } from '@/components/shell/nav';
 
 const noop = () => {};
 
@@ -106,6 +109,10 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
   const { cancel: cancelPush } = push;
   useEffect(() => { if (device.session !== pushFor) cancelPush(); }, [device.session, pushFor, cancelPush]);
   const [removing, setRemoving] = useState<LibraryEntry | null>(null);
+  // Sharing is a build-injected route: offered only where the community is there,
+  // and for a program that's a file of yours (a Nord slot is shared once it's kept).
+  const canShare = useCapabilities().community.available;
+  const navigate = useNavigate();
   const bytes = entry?.bytes;
   const actions = entry && bytes && (
     <ItemActions
@@ -116,7 +123,12 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
           : sendRefusal(bytes, identifyDevice(device.productId).model),
       }}
       save={{ onSave: () => downloadBytes(bytes, programFilename(entry, bytes)) }}
-      more={isImported(entry.id) ? [{ label: 'Remove from library', onSelect: () => setRemoving(entry) }] : []}
+      more={[
+        ...(canShare && entry.source !== 'nord'
+          ? [{ label: 'Share to community', onSelect: () => void navigate({ to: COMMUNITY_SHARE_TO, search: { program: entry.id } as never }) }]
+          : []),
+        ...(isImported(entry.id) ? [{ label: 'Remove from library', onSelect: () => setRemoving(entry) }] : []),
+      ]}
     />
   );
 
