@@ -1,18 +1,20 @@
 /**
  * Stage 2 view-model — pure derivations from a decoded Ns2Slot (+ program globalFx)
- * to the shared EngineCardModel / FxChipModel contract. No React, no I/O. Mirrors
+ * to the shared EngineCardModel / FxPanelView contract. No React, no I/O. Mirrors
  * ns3/view.ts. Sample names are injected (resolved lazily by the shell) via the
  * optional `names` map keyed by ns2SampleKey().
  */
 import type {
   EngineCardModel, OrganPanelModel, PianoCardModel, SynthCardModel,
-  FxChipModel, HeaderView, Stat, VolumeView,
+  HeaderView, Stat, VolumeView,
 } from '../clavia/engine-view';
 import { volumeFill, envCurve } from '../clavia/engine-view';
 import { drawbarViews, b3DrawbarViews } from '../clavia/drawbars';
 import { identifyNordFile } from '../clavia/nord-file';
 import { ORGAN_TYPE, type Ns2Slot, type Ns2Fx } from './decode';
 import { ns2Engines } from './engines';
+import { fxUnitOf } from '../clavia/fx-block';
+import type { FxPanelView } from '../clavia/fx-view';
 
 export function ns2SampleKey(slotId: string, kind: 'Piano' | 'Synth'): string {
   return `${slotId}-${kind}`;
@@ -134,24 +136,21 @@ export function ns2EngineCards(slot: Ns2Slot, names?: Record<string, string>): E
   return cards;
 }
 
-/** Chip detail: type first, then any present amount/rate/mix/feedback param. */
-function fxDetail(fx: Ns2Fx): string {
-  const parts: string[] = [];
-  if (fx.type) parts.push(fx.type);
-  const p = fx.params ?? {};
-  if (p.amount !== undefined) parts.push(`amt ${p.amount}`);
-  if (p.rate !== undefined) parts.push(`rate ${p.rate}`);
-  if (p.mix !== undefined) parts.push(`mix ${p.mix}`);
-  if (p.feedback !== undefined) parts.push(`fb ${p.feedback}`);
-  return parts.join(' · ') || 'on';
-}
-
-export function ns2SlotFxChips(slot: Ns2Slot): FxChipModel[] {
-  return slot.fx.map((fx) => ({ key: `${slot.id}-${fx.name}`, label: fx.name, detail: fxDetail(fx) }));
-}
-
-export function ns2GlobalFxChips(globalFx: Ns2Fx[]): FxChipModel[] {
-  return globalFx.map((fx) => ({ key: `g-${fx.name}`, label: fx.name, detail: fxDetail(fx) }));
+/**
+ * The program's effects for the panel: one row per slot (Effect 1, Effect 2,
+ * Delay, Amp/EQ), then the program's own row (Rotary, Comp, Reverb), every
+ * block on or off.
+ */
+export function ns2FxPanel(slots: Ns2Slot[], globalFx: Ns2Fx[]): FxPanelView {
+  const groups = slots.map((slot) => ({
+    key: `slot${slot.id}`,
+    label: `Slot ${slot.id}`,
+    units: slot.fx.map((fx) => fxUnitOf(fx, `${slot.id}-${fx.name}`)),
+  }));
+  if (globalFx.length > 0) {
+    groups.push({ key: 'global', label: 'Global', units: globalFx.map((fx) => fxUnitOf(fx, `g-${fx.name}`)) });
+  }
+  return { groups };
 }
 
 export function ns2SampleRefs(slots: Ns2Slot[], names: Record<string, string>): { key: string; label: string }[] {

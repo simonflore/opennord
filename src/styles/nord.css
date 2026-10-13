@@ -64,8 +64,8 @@
 .ps-dial-flat { --v: 0; }
 .ps-dial-flat i::after { display: none; }
 .ps-knob b { display: block; font: 500 11px var(--mono); margin-top: 4px; color: var(--ink); }
-/* The panel label: the small caps caption under a knob, over a meter, stat or chip. */
-.ps-knob span, .ps-meter-label, .ps-chip .t, .ps-stat-l, .ps-env-cap {
+/* The panel label: the small caps caption under a knob, over a meter or stat. */
+.ps-knob span, .ps-meter-label, .ps-stat-l, .ps-env-cap {
   font: 600 10px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 
 /* ── Organ panel (faithful Stage 4 replica) ───────────────────────────────── */
@@ -80,10 +80,10 @@
   font: 600 11px var(--font); letter-spacing: .05em; text-transform: uppercase; color: var(--dim); }
 .ps-key.on { color: var(--ink); }
 button.ps-key { cursor: pointer; }
-.ps-key::before, .ps-card h4::before, .ps-chip .t::before {
+.ps-key::before, .ps-card h4::before {
   content: ''; width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--led-off);
   box-shadow: inset 0 1px 1px rgb(0 0 0 / 60%); }
-.ps-key.on::before, .ps-card h4::before, .ps-chip .t::before { background: var(--accent); box-shadow: var(--led-on-glow); }
+.ps-key.on::before, .ps-card h4::before { background: var(--accent); box-shadow: var(--led-on-glow); }
 
 /* Drawbars, as on the instrument: a chrome rod pulled out of a dark slot, ending
    in a coloured cap. --lvl (0–8) is set on the track; the cap shows even at 0
@@ -145,11 +145,6 @@ button.ps-key { cursor: pointer; }
 .ps-meter-fill { height: 100%; background: var(--text-tertiary); }
 
 .ps-fx { border-left-color: var(--fx-border); margin-top: 12px; }
-.ps-chips { display: flex; gap: 8px; flex-wrap: wrap; }
-/* An effect that's on: a key cap with its LED lit, name above, settings in mono. */
-.ps-chip { background: var(--key-face); box-shadow: var(--key-edge); border-radius: var(--r-sm); padding: 8px 10px;
-  font: 500 12px var(--mono); flex: 1 1 150px; min-width: 0; }
-.ps-chip .t { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; color: var(--ink); }
 
 /* The program's identity on the LCD; the scene switch stands beside it. */
 .ps-hd-id { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -232,12 +227,46 @@ button.ps-key { cursor: pointer; }
   font: 500 8px/10px var(--mono); color: var(--bg); text-align: center; }
 .ps-step.accent { height: 20px; background: var(--ink); }
 .ps-step:nth-child(4n + 1):not(:first-child) { margin-left: 4px; }
-/* The effect chain: every slot in signal order, lit when on. */
-.ps-chain { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
-/* A slot that is off: the same key cap, LED dark, text stepped back. */
-.ps-chip.off { color: var(--muted); }
-.ps-chip.off .t { color: var(--dim); }
-.ps-chip.off .t::before { background: var(--led-off); box-shadow: inset 0 1px 1px rgb(0 0 0 / 60%); }
+/* The effects panel: one row per group (a layer's chain, or the one rack) on a
+   shared grid, so each effect keeps its own column down the whole panel, like
+   the sections of the instrument. --fx-cols is the widest row's unit count. */
+.ps-fxgroup { margin-top: 14px; padding-left: 10px; border-left: 2px solid var(--line); }
+.ps-fxgroup[data-kind="organ"] { border-left-color: var(--engine-organ); }
+.ps-fxgroup[data-kind="piano"] { border-left-color: var(--engine-piano); }
+.ps-fxgroup[data-kind="synth"] { border-left-color: var(--engine-synth); }
+.ps-fxgroup-lbl { font: 600 10px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); margin: 0 0 6px; }
+.ps-fxunits { display: grid; grid-template-columns: repeat(var(--fx-cols, 6), minmax(0, 1fr)); gap: 6px; align-items: start;
+  margin: 0; padding: 0; list-style: none; }
+/* A block: a key-cap face holding one effect's controls. */
+.ps-fxunit { display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 8px;
+  border-radius: var(--r-sm); background: var(--key-face); box-shadow: var(--key-edge); }
+/* An effect that is off: its slot stays, as an outline with a dark LED. */
+.ps-fxunit.off { background: none; box-shadow: inset 0 0 0 1px var(--line); }
+.ps-fxname { display: flex; align-items: center; gap: 7px; min-width: 0;
+  font: 600 10px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
+.ps-fxunit.off .ps-fxname { color: var(--dim); }
+.ps-fxname::before, .ps-fxled::before { content: ''; width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: var(--led-off); box-shadow: inset 0 1px 1px rgb(0 0 0 / 60%); }
+.ps-fxunit:not(.off) .ps-fxname::before, .ps-fxled.on::before { background: var(--accent); box-shadow: var(--led-on-glow); }
+.ps-fxtype { font: 500 12px var(--mono); color: var(--ink); overflow-wrap: anywhere; }
+.ps-fxunit .ps-eq { margin-top: 0; }
+/* Settings: a small knob beside its number, or a plain readout when the value
+   has no position. They sit two across where the block is wide enough. */
+.ps-fxparams { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px 8px; }
+.ps-fxparam { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.ps-fxdial { width: 26px; height: 26px; padding: 3px; margin: 0; flex: none; }
+.ps-fxval { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ps-fxval b { font: 600 11px var(--mono); color: var(--ink); overflow-wrap: anywhere; }
+.ps-fxval span { font: 600 9px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+/* The block's switches and its source selector: small LEDs with their names. */
+.ps-fxleds { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.ps-fxled { display: inline-flex; align-items: center; gap: 5px;
+  font: 600 9px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.ps-fxled.on { color: var(--ink); }
+.ps-fxsrc { padding-top: 7px; border-top: 1px solid var(--line); }
+/* Narrower cards fold each row: three across, then two on a phone. */
+@container (max-width: 720px) { .ps-fxunits { grid-template-columns: repeat(min(var(--fx-cols, 6), 3), minmax(0, 1fr)); } }
+@container (max-width: 380px) { .ps-fxunits { grid-template-columns: repeat(min(var(--fx-cols, 6), 2), minmax(0, 1fr)); } }
 .ps-eq { display: block; width: 100%; height: 24px; margin-top: 6px; }
 
 /* Envelopes sit side by side while the card has room. */

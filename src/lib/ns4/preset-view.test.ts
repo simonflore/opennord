@@ -48,10 +48,11 @@ describe.skipIf(!hasGt(`${DIR}/${PAD}`, `${DIR}/${B3}`, `${DIR}/${UPRIGHT}`))('p
     expect(v.card.synth.cutoff).toBe('4.2 kHz');
     expect(v.card.env).not.toBeNull();
     expect(v.card.filterEnv).toBeDefined();
-    expect(v.fx.map((fx) => fx.label)).toEqual(['Mod 1', 'Mod 2', 'Amp/EQ', 'Comp', 'Delay', 'Reverb']);
-    expect(v.fx.filter((fx) => fx.on).map((fx) => fx.label)).toEqual(['Amp/EQ', 'Reverb']);
-    expect(v.fx[5].detail).toContain('HALL');
-    expect(v.fx[2].eq).toEqual({ bassDb: -5, midDb: 0, trebDb: 0, midHz: 999 });
+    const units = v.fx.groups[0].units;
+    expect(units.map((fx) => fx.label)).toEqual(['Mod 1', 'Mod 2', 'Amp/EQ', 'Comp', 'Delay', 'Reverb']);
+    expect(units.filter((fx) => fx.on).map((fx) => fx.label)).toEqual(['Amp/EQ', 'Reverb']);
+    expect(units[5].type).toBe('Hall');
+    expect(units[2].eq).toEqual({ bassDb: -5, midDb: 0, trebDb: 0, midHz: 999 });
     // The knob sits where the printed frequency is on the Stage's semitone scale (4.2 kHz = step 99 of 127).
     expect(v.card.synth.cutoffFill).toBe(78);
     expect(v.card.synth.filter).toMatchObject({ type: 'LP24', cutoffHz: 4200, res: 0 });
@@ -68,7 +69,7 @@ describe.skipIf(!hasGt(`${DIR}/${PAD}`, `${DIR}/${B3}`, `${DIR}/${UPRIGHT}`))('p
     expect(v.card.organ.model).toBe('B3');
     const row = (n: number) => preset.layers[0].rows.find((r) => r.name === `drawbar ${n}`)!.display;
     expect(v.card.organ.drawbars.map((d) => d.label)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9].map(row));
-    expect(v.fx).toEqual([]);
+    expect(v.fx.groups).toEqual([]);
   });
 
   it('piano: the model by name', () => {

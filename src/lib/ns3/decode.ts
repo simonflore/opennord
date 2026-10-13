@@ -37,6 +37,9 @@
 import { decodeFwProgram, type FwProgram } from '../clavia/block-chain';
 import { DRAWBAR_NUMBERS } from '../clavia/fw-present';
 import { NORD_DB } from '../clavia/volume';
+import { setting, type FxBlock } from '../clavia/fx-block';
+import { morphTargets } from '../clavia/fx-morph';
+import { EFFECT_SRC, EQ_MID_FREQ } from '../clavia/fx-tables';
 import { NS3_FILTER_FREQ } from './filter-freq';
 import { NS3_LAYOUT, type Ns3FieldKey } from './layout.generated';
 import { convertNs3Values } from './convert';
@@ -82,10 +85,30 @@ function vibChorusLabel(model: number, mode: number): string {
 }
 // Param_Effects_kAmpType 0-5 (firmware: id 284's label table, registered in
 // with a count of 6).
-const AMP_TYPE = ['Clean', 'Twin', 'JC', 'Small', 'LP24', 'HP24'];
+export const AMP_TYPE = ['Clean', 'Twin', 'JC', 'Small', 'LP24', 'HP24'];
 // Param_Effects_kLeslieSpeed 0-3 (2 bits, default 1; firmware: id 260's table of 4,
 // where 3 also displays Fast).
 const ROTARY_SPEED = ['Stop', 'Slow', 'Fast', 'Fast'];
+
+// The effect tables below are facts from Chris55's nord-documentation (BSD-3-Clause,
+// https://chris55.github.io/nord-documentation/), section "Nord Stage 3 Program File Structure".
+/** Param_Effects_kDlyFltType ("NS3 Delay Filter"). */
+const DELAY_FILTER = ['Bypass', 'LP', 'HP', 'BP'];
+/** Effect 1 synced to the master clock: 0–127 in 15 equal steps ("NS3 Effect 1 Rate"). */
+const FX1_CLK_DIV = ['4/1', '4/1T', '2/1', '2/1T', '1/1', '1/1T', '1/2', '1/2T', '1/4', '1/4T', '1/8', '1/8T', '1/16', '1/16T', '1/32'];
+/** Delay synced to the master clock: 0–127 in 17 equal steps ("NS3 Delay Tempo"). */
+const DELAY_CLK_DIV = ['1/2', '1/4D', '1/2T', '1/4S', '1/4', '1/8D', '1/4T', '1/8S', '1/8', '1/16D', '1/8T', '1/16S', '1/16', '1/16T', '1/32', '1/32T', '1/64'];
+/** Free-running delay time in ms at each of the knob's 128 positions ("NS3 Delay Tempo", same as MIDI CC 94). */
+const DELAY_MS = [
+  1500,1420,1360,1300,1250,1200,1150,1100,1070,1030,1000,952,909,870,833,789,
+  750,732,714,698,682,667,652,638,625,612,600,588,577,566,556,545,
+  541,536,531,526,522,517,513,508,504,500,496,492,488,484,480,476,
+  472,469,465,462,458,455,451,448,444,441,438,435,432,429,423,417,
+  411,405,400,395,390,385,380,375,366,357,349,341,333,326,319,313,
+  306,300,288,278,268,259,250,238,227,217,197,188,179,170,163,156,
+  150,144,139,134,129,125,119,114,109,104,99,94,83,75,68,63,
+  58,54,50,47,44,42,39,38,34,31,30,28,26,24,22,20,
+];
 
 // Param_Syn_kVoiceMode (firmware).
 const SYNTH_VOICE = ['Poly', 'Legato', 'Mono'];
@@ -277,7 +300,8 @@ const OSC_WAVE_WAVE = [
   'Wave Bar 1','Wave Bar 2','Wave Tines','Wave Marimba','Wave Tubular Bells',
 ];
 
-export interface Ns3Fx { name: string; type?: string; params?: Record<string, string | number> }
+/** One block of a panel's effect section. Comp and Reverb have no source: they take the whole panel. */
+export type Ns3Fx = FxBlock;
 
 export interface Ns3SynthOscillator {
   /** Oscillator bank: Classic / Wave / Formant / Super / Sample (Edt_Syn_kOscBank). */
@@ -399,7 +423,7 @@ export interface Ns3Panel {
     octaveShift: number;
   };
   synth: Ns3Synth;
-  /** Effects switched on in this panel, in signal order. */
+  /** Every block of this panel's effect section in panel order, on or off. */
   fx: Ns3Fx[];
 }
 
@@ -574,30 +598,110 @@ function synth(get: Get, s: Slot): Ns3Synth {
   };
 }
 
-/** The effects this panel has switched on, in signal order, with type and parameters. */
+/** A 0–127 position on one of `steps` equal divisions of the knob. */
+const clkDiv = (table: readonly string[], v: number): string => lut(table, Math.floor((v * table.length) / 128));
+
+/**
+ * The free-running delay time from the 14-bit rate: the upper 7 bits are the
+ * knob position, the lower 7 a tapped tempo's fraction of the way to the next.
+ */
+function delayTime(rate: number): string {
+  const i = rate >> 7;
+  const a = DELAY_MS[i] ?? 0;
+  const ms = a + (((DELAY_MS[Math.min(127, i + 1)] ?? a) - a) * (rate & 0x7f)) / 128;
+  return ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${Math.round(ms)} ms`;
+}
+
+/** An EQ band, stored in quarter dB from −60 to +60: −15.0 … +15.0 dB as the display prints it. */
+function eqDb(v: number): string {
+  const q = Math.abs(v);
+  return `${v > 0 ? '+' : v < 0 ? '-' : ''}${Math.floor(q / 4)}.${[0, 2, 5, 8][q % 4]} dB`;
+}
+
+/** Amp types that turn the Amp/EQ block into a filter (its mid band is then resonance, its bass band dry/wet). */
+const AMP_FILTERS = new Set(['LP24', 'HP24']);
+
+/** Every block of this panel's effect section in panel order, on or off, with type and settings. */
 function effects(get: Get, s: Slot, os300DelayRate = false): Ns3Fx[] {
-  const e = (k: FieldOf<'effects'>) => get(`effects${s}.${k}`);
-  const fx: Ns3Fx[] = [];
-  // Rotary speed is program-wide (MultiCommon Param_Effects_kLeslieSpeed, 2 bits).
-  if (e('leslieEnable')) fx.push({ name: 'Rotary', params: { speed: lut(ROTARY_SPEED, get('common.leslieSpeed')) } });
-  if (e('fx1Enable')) {
-    fx.push({ name: 'Effect 1', type: lut(EFFECT1_TYPE, e('fx1Type')), params: { rate: e('fx1RateClkDiv'), amount: lin10(e('fx1Amt')) } });
-  }
-  if (e('fx2Enable')) {
-    fx.push({ name: 'Effect 2', type: lut(EFFECT2_TYPE, e('fx2Type')), params: { rate: e('fx2Rate'), amount: lin10(e('fx2Amt')) } });
-  }
+  const key = (k: FieldOf<'effects'>) => `effects${s}.${k}` as const;
+  const e = (k: FieldOf<'effects'>) => get(key(k));
+  const on = (k: FieldOf<'effects'>) => e(k) === 1;
+  const src = (k: FieldOf<'effects'>) => lut(EFFECT_SRC, e(k));
+  const read = get as (key: string) => number;
+  const m10 = (k: FieldOf<'effects'>) => morphTargets(read, key(k), 127, lin10);
+
+  // Rotary speed and drive are program-wide (MultiCommon Param_Effects_kLeslieSpeed, 2 bits; kLeslieDrv).
+  const rotary: Ns3Fx = {
+    name: 'Rotary', on: on('leslieEnable'), source: src('leslieSrc'),
+    settings: [
+      setting('speed', lut(ROTARY_SPEED, get('common.leslieSpeed')), undefined,
+        morphTargets(read, 'common.leslieSpeed', 3, (v) => lut(ROTARY_SPEED, v))),
+      setting('drive', lin10(get('common.leslieDrv')), get('common.leslieDrv')),
+    ],
+  };
+
+  const fx1Clk = on('fx1ClkEnable');
+  const fx1Rate = (v: number) => (fx1Clk ? clkDiv(FX1_CLK_DIV, v) : lin10(v));
+  const fx1: Ns3Fx = {
+    name: 'Effect 1', on: on('fx1Enable'), type: lut(EFFECT1_TYPE, e('fx1Type')), source: src('fx1Src'),
+    settings: [
+      setting('rate', fx1Rate(e('fx1RateClkDiv')), e('fx1RateClkDiv'), morphTargets(read, key('fx1RateClkDiv'), 127, fx1Rate)),
+      setting('amount', lin10(e('fx1Amt')), e('fx1Amt'), m10('fx1Amt')),
+    ],
+    switches: { masterClock: fx1Clk },
+  };
+
+  const fx2: Ns3Fx = {
+    name: 'Effect 2', on: on('fx2Enable'), type: lut(EFFECT2_TYPE, e('fx2Type')), source: src('fx2Src'),
+    settings: [
+      setting('rate', lin10(e('fx2Rate')), e('fx2Rate')),
+      setting('amount', lin10(e('fx2Amt')), e('fx2Amt'), m10('fx2Amt')),
+    ],
+  };
+
+  const dlyClk = on('dlyClkEnable');
+  const dlyRate = (v: number) => (dlyClk ? clkDiv(DELAY_CLK_DIV, v >> 7) : delayTime(v));
+  const delay: Ns3Fx = {
+    name: 'Delay', on: on('dlyEnable'), source: src('dlySrc'),
+    settings: [
+      // A 3.00 file's free-running rate is shown as stored, on that OS's 0–127 scale (convert.ts), with no morph.
+      os300DelayRate
+        ? setting('rate', `${e('dlyRateClkDiv')} of 127 (OS 3.00 scale)`)
+        : setting('rate', dlyRate(e('dlyRateClkDiv')), undefined, morphTargets(read, key('dlyRateClkDiv'), 16383, dlyRate)),
+      setting('feedback', lin10(e('dlyFeedback')), e('dlyFeedback'), m10('dlyFeedback')),
+      setting('mix', lin10(e('dlyMix')), e('dlyMix'), m10('dlyMix')),
+      setting('filter', lut(DELAY_FILTER, e('dlyFltType'))),
+    ],
+    switches: { masterClock: dlyClk, pingPong: on('dlyPingPong'), analog: on('dlyMode') },
+  };
+
   // Amp EQ bands are −60…+60 (stored value − min, already applied by the layout).
-  if (e('ampEnable')) {
-    fx.push({ name: 'Amp/EQ', type: lut(AMP_TYPE, e('ampType')), params: { treble: e('ampTreble'), mid: e('ampMid'), bass: e('ampBass') } });
-  }
-  if (e('cmpEnable')) fx.push({ name: 'Comp', params: { amount: lin10(e('cmpAmt')) } });
-  if (e('dlyEnable')) {
-    // A 3.00 file's free-running rate is shown as stored, on that OS's 0–127 scale (convert.ts).
-    const params: Record<string, string> = { feedback: lin10(e('dlyFeedback')), mix: lin10(e('dlyMix')) };
-    fx.push({ name: 'Delay', params: os300DelayRate ? { rate: `${e('dlyRateClkDiv')} of 127 (OS 3.00 scale)`, ...params } : params });
-  }
-  if (e('rvbEnable')) fx.push({ name: 'Reverb', type: lut(REVERB_TYPE, e('rvbType')), params: { amount: lin10(e('rvbAmt')) } });
-  return fx;
+  const ampType = lut(AMP_TYPE, e('ampType'));
+  const midFreq = (v: number) => lut(EQ_MID_FREQ, v);
+  const drive = setting('drive', lin10(e('ampDrive')), e('ampDrive'), m10('ampDrive'));
+  // The swept frequency: the EQ's mid band, or the filter's cutoff. One knob either way.
+  const freq = (id: string) =>
+    setting(id, midFreq(e('ampMidFreq')), e('ampMidFreq'), morphTargets(read, key('ampMidFreq'), 127, midFreq));
+  const amp: Ns3Fx = {
+    name: 'Amp/EQ', on: on('ampEnable'), type: ampType, source: src('ampSrc'),
+    settings: AMP_FILTERS.has(ampType)
+      ? [drive, setting('resonance', lin10(e('ampMid') + 60)), setting('dryWet', lin10(e('ampBass') + 60)), freq('frequency')]
+      : [drive, setting('treble', eqDb(e('ampTreble'))), setting('mid', eqDb(e('ampMid'))), setting('bass', eqDb(e('ampBass'))), freq('midFreq')],
+  };
+
+  const comp: Ns3Fx = {
+    name: 'Comp', on: on('cmpEnable'),
+    settings: [setting('amount', lin10(e('cmpAmt')), e('cmpAmt'))],
+    switches: { fast: on('cmpResponse') },
+  };
+
+  const reverb: Ns3Fx = {
+    name: 'Reverb', on: on('rvbEnable'), type: lut(REVERB_TYPE, e('rvbType')),
+    settings: [setting('amount', lin10(e('rvbAmt')), e('rvbAmt'), m10('rvbAmt'))],
+    switches: { bright: on('rvbBright') },
+  };
+
+  return [rotary, fx1, fx2, delay, amp, comp, reverb];
 }
 
 function panel(get: Get, id: Slot, os300DelayRate: readonly Slot[] = []): Ns3Panel {

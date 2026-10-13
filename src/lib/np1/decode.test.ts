@@ -35,7 +35,11 @@ describe('decodeNp1 (synthetic)', () => {
     const d = np1Decoded(nppg({ 'piano.pianoType': 1, 'piano.acoustics': 1, 'effects.eqOn': 1, 'effects.reverbOn': 1 }));
     expect(d.title).toBe('Nord Piano · Program');
     expect(d.sections[0].engines[0].parts).toEqual(['Upright', 'Acoustics']);
-    expect(d.sections[1].engines[0].parts).toEqual(['EQ', 'Reverb']);
+        const fx = d.sections[1].fx!.groups[0].units;
+        expect(fx.map((u) => [u.label, u.on])).toEqual([['Effect 1', false], ['Effect 2', false], ['Amp/Comp', false], ['EQ', true], ['Reverb', true]]);
+        // The Nord Piano has no name tables for its effect types: they show as stored.
+        expect(fx[4].type).toBe('0');
+        expect(fx[3].params.map((p) => p.label)).toEqual(['Bass', 'Mid', 'Mid Freq', 'Treble']);
     expect(d.note).toMatch(/assumed/);
   });
 

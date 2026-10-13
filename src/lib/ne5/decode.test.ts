@@ -138,6 +138,29 @@ describe('decodeNe5 (synthetic, firmware layout)', () => {
     expect(decodeNe5(long).warnings[0]).toMatch(/151 bytes.*147/);
   });
 
+    it('effect blocks carry their knob positions and switches', () => {
+      const fx = ne5Decoded(ne5p({
+        'effects.effects1Enable': 1, 'effects.effects1Rate': 127, 'effects.effects1PedCtrl': 1, 'effects.effects1Source': 1,
+        'effects.delayEnable': 1, 'effects.delayTempo': 64, 'effects.delayDryWet': 127, 'effects.delayFeedback': 3, 'effects.delayPingPong': 1,
+        'effects.equalizerBass': 0, 'effects.equalizerMid': 64, 'effects.equalizerTreble': 127, 'effects.equalizerMidFreq': 64, 'effects.equalizerSource': 2,
+        'effects.ampCompDrive': 64, 'effects.reverbDryWet': 32,
+      })).sections.find((s) => s.id === 'FX')!.fx!.groups[0].units;
+      expect(fx[0].params).toEqual([{ label: 'Rate', value: '127', fill: 100 }]);
+      expect(fx[0].switches).toEqual([{ label: 'Ped Ctrl', on: true }]);
+      expect(fx[0].source?.find((k) => k.on)?.label).toBe('Part U');
+      expect(fx[2].params).toEqual([
+        { label: 'Tempo', value: '64', fill: 50 }, { label: 'Mix', value: '127', fill: 100 }, { label: 'Feedback', value: '3', fill: 100 },
+      ]);
+      expect(fx[2].switches).toEqual([{ label: 'Ping Pong', on: true }]);
+      expect(fx[3].params).toEqual([{ label: 'Drive', value: '64', fill: 50 }]);
+      expect(fx[4].params).toEqual([
+        { label: 'Bass', value: '0', fill: 0 }, { label: 'Mid', value: '64', fill: 50 },
+        { label: 'Mid Freq', value: '64', fill: 50 }, { label: 'Treble', value: '127', fill: 100 },
+      ]);
+      expect(fx[4].source?.find((k) => k.on)?.label).toBe('Part L+U');
+      expect(fx[5].params).toEqual([{ label: 'Amount', value: '32', fill: 25 }]);
+    });
+
   it('presents the piano, sample synth, organ parts with B3 footage and the effects', () => {
     const d = ne5Decoded(ne5p({
       'common.organModel': 0, 'b3Upper.presetSelect': 1, 'b3PresetII.drawbar2': 5, 'b3PresetII.percussionOn': 1,
@@ -153,7 +176,15 @@ describe('decodeNe5 (synthetic, firmware layout)', () => {
     expect(upper.chips).toContain('Percussion');
     expect(d.sections.find((s) => s.id === 'OL')!.engines[0].parts).toEqual(['B3', 'Preset I']);
     expect(d.sections.find((s) => s.id === 'P')!.engines[0].parts[0]).toBe('EPiano2');
-    expect(d.sections.find((s) => s.id === 'FX')!.engines[0].parts).toEqual(['Mu-Tron', 'Delay', 'Rotary', 'Reverb Hall Soft']);
+        const fx = d.sections.find((s) => s.id === 'FX')!.fx!.groups[0].units;
+        expect(fx.map((u) => u.label)).toEqual(['Effect 1', 'Effect 2', 'Delay', 'Amp/Comp', 'EQ', 'Reverb']);
+        expect(fx.filter((u) => u.on).map((u) => [u.label, u.type])).toEqual([
+          ['Effect 2', 'Mu-Tron'], ['Delay', undefined], ['Amp/Comp', 'Rotary'], ['Reverb', 'Hall Soft'],
+        ]);
+        // Each block acts on the lower or the upper part; the EQ can take both.
+        expect(fx[0].source?.map((k) => k.label)).toEqual(['Part L', 'Part U']);
+        expect(fx[4].source?.map((k) => k.label)).toEqual(['Part L', 'Part U', 'Part L+U']);
+        expect(fx[5].source).toBeUndefined();
     // Organ models as the Electro 5 displays them: B3, B3+Bass, Pipe, Vx, Farf.
     const organ = (m: number) => ne5Decoded(ne5p({ 'common.organModel': m })).sections.find((s) => s.id === 'OU')!;
     expect([0, 1, 2, 3, 4].map((m) => organ(m).engines[0].parts[0])).toEqual(['B3', 'B3+Bass', 'Pipe', 'Vx', 'Farf']);

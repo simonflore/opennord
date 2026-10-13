@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fromNs2 } from './from-ns2';
 import type { Ns2Program, Ns2Slot } from '../ns2/decode';
+import { setting } from '../clavia/fx-block';
 
 /** Slot A: organ Vox + drawbars, piano Electric, synth analog saw. */
 const slotA: Ns2Slot = {
@@ -104,7 +105,8 @@ const slotA: Ns2Slot = {
     lfoMasterClock: false,
   },
   fx: [
-    { name: 'Delay', source: 'Synth', params: { amount: '5.0', feedback: '2.0' } },
+    { name: 'Delay', on: true, source: 'Synth', settings: [setting('amount', '5.0', 64), setting('feedback', '2.0', 25)] },
+    { name: 'Effect 1', on: false, type: 'Panning', source: 'Piano', settings: [setting('amount', '7.9', 100), setting('rate', '2.4', 30)] },
   ],
 };
 
@@ -193,6 +195,11 @@ describe('fromNs2', () => {
     expect(delay?.on).toBe(true);
   });
 
+  it('carries an effect amount as its stored 0–127 position, and leaves out a block that is off', () => {
+    expect(common.fx?.find((f) => f.slot === 'delay')?.amountMidi).toBe(64);
+    expect(common.fx?.find((f) => f.slot === 'mod1')).toBeUndefined();
+  });
+
   it('carries the ns2 per-effect source select as CommonFxUnit.host', () => {
     // The fixture's Delay has source: 'Synth' (from-ns2.test.ts fixture).
     const delay = common.fx?.find((f) => f.slot === 'delay');
@@ -250,7 +257,7 @@ describe('fromNs2 — dropped-feature reporting', () => {
     expect(fromNs2({ ...prog, rotary }).dropped.filter((d) => d === 'rotary speaker')).toHaveLength(1);
     expect(fromNs2({ ...prog, rotary: { ...rotary, on: false } }).dropped).not.toContain('rotary speaker');
     // An older shape that still lists it as a slot effect is not reported twice.
-    const withSlotRotary = { ...prog, rotary, slots: [{ ...slotA, fx: [...slotA.fx, { name: 'Rotary' }] }, slotB] };
+    const withSlotRotary = { ...prog, rotary, slots: [{ ...slotA, fx: [...slotA.fx, { name: 'Rotary', on: true, settings: [] }] }, slotB] };
     expect(fromNs2(withSlotRotary).dropped.filter((d) => d === 'rotary speaker')).toHaveLength(1);
   });
 });

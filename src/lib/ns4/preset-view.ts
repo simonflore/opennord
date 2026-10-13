@@ -1,19 +1,21 @@
 /**
  * Preset → Program-view models. A Stage 4 preset is one engine's block out of a
- * program (see preset.ts), so it renders with the same cards and FX chips the
+ * program (see preset.ts), so it renders with the same cards and effects panel the
  * Program view uses — this file only adapts a decoded preset to those shapes.
  */
-import type { EngineCardModel, FxSlotModel } from '../clavia/engine-view';
+import type { EngineCardModel } from '../clavia/engine-view';
+import type { FxPanelView } from '../clavia/fx-view';
 import type { Ns4Preset } from './preset';
 import type { ParamGroup, ParamRow } from './params-view';
-import { engineCardModel, layerFxChain, morphRows, type MorphSummaryRow } from './view';
+import { layerFxUnits } from './fx-panel';
+import { engineCardModel, morphRows, type MorphSummaryRow } from './view';
 
 export interface PresetVoiceView {
   letter: 'A' | 'B' | 'C';
   card: EngineCardModel;
-  /** This voice's effect chain, on and off. Empty for an organ preset: the
+  /** This voice's effect chain, on and off. No groups for an organ preset: the
    *  organ's effects are program-wide, outside the preset's block. */
-  fx: FxSlotModel[];
+  fx: FxPanelView;
   /** Controls the wheel, aftertouch or pedal moves, with where each one lands. */
   morphs: MorphSummaryRow[];
 }
@@ -33,7 +35,7 @@ export function presetVoices(preset: Ns4Preset): PresetVoiceView[] {
     return [{
       letter: layer.letter,
       card,
-      fx: l.kind === 'organ' ? [] : layerFxChain(l),
+      fx: { groups: l.kind === 'organ' ? [] : [{ key: `${l.kind ?? 'x'}${l.id}`, label: '', units: layerFxUnits(l) }] },
       morphs: morphRows(layer.rows, single ? undefined : `Layer ${layer.letter}`),
     }];
   });

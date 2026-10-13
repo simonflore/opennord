@@ -2,18 +2,18 @@
  * Nord Electro 5 → DecodedProgram. Every value comes from the Electro 5 OS 2.04
  * containers (see decode.ts): the piano and Sample Synth sections, the organ's
  * upper and lower parts (the preset each plays, its drawbars, vibrato and
- * percussion) and which effects are on, named with the instrument's own
+ * percussion) and the effect rack with its settings, named with the instrument's own
  * display texts (labels.ts); sample references are shown as fingerprints.
  */
 import { decodeNe5 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
 import {
-  ampCompPart, coldfirePianoSection, effectsSection, fwHeader, label, legacyHeaderOnly, parts, reverbPart,
+  coldfirePianoSection, fxKnobs, fxParam, fxSection, fxType, sourceLeds, fwHeader, label, legacyHeaderOnly, parts,
   sampleSynthSection, soundRefRows, splitText, SPLIT_NOTES_C3_TO_F5,
 } from '../clavia/fw-present';
 import {
-  NE5_AMP_TYPES, NE5_EFFECT1_TYPES, NE5_EFFECT2_TYPES, NE5_ORGAN_MODELS, NE5_ORGAN_SET, NE5_PIANO_TYPES, NE5_REVERB_TYPES,
+  NE5_AMP_TYPES, NE5_EFFECT1_TYPES, NE5_EFFECT2_TYPES, NE5_EFFECT_SOURCES, NE5_EQ_SOURCES, NE5_ORGAN_MODELS, NE5_ORGAN_SET, NE5_PIANO_TYPES, NE5_REVERB_TYPES,
 } from './labels';
 import type { Ne5Program } from './types';
 
@@ -51,14 +51,47 @@ export function ne5Decoded(bytes: Uint8Array): DecodedProgram {
   const synth = sampleSynthSection('SAMPLE SYNTH', {
     sample: p.sampleSynth.sample, attack: g('sampleSynth.sampleSynthAttack'), dcyRel: g('sampleSynth.sampleSynthDcyRel'),
   });
-  const effects = effectsSection(parts(
-    g('effects.effects1Enable') ? label(NE5_EFFECT1_TYPES, g('effects.effects1Type')) ?? 'Effect 1' : undefined,
-    g('effects.effects2Enable') ? label(NE5_EFFECT2_TYPES, g('effects.effects2Type')) ?? 'Effect 2' : undefined,
-    g('effects.delayEnable') ? 'Delay' : undefined,
-    g('effects.ampCompEnable') ? ampCompPart(label(NE5_AMP_TYPES, g('effects.ampCompType'))) : undefined,
-    g('effects.equalizerEnable') ? 'EQ' : undefined,
-    g('effects.reverbEnable') ? reverbPart(label(NE5_REVERB_TYPES, g('effects.reverbType'))) : undefined,
-  ));
+  // The rack in panel order. Knob fields are 0–127 (delay feedback 0–3), shown as stored.
+  const effects = fxSection([
+    {
+      key: 'fx1', label: 'Effect 1', on: g('effects.effects1Enable') === 1, type: fxType(NE5_EFFECT1_TYPES, g('effects.effects1Type')),
+      params: fxKnobs(fxParam('Rate', g('effects.effects1Rate'), 0, 127)),
+      switches: [{ label: 'Ped Ctrl', on: g('effects.effects1PedCtrl') === 1 }],
+      source: sourceLeds(NE5_EFFECT_SOURCES, g('effects.effects1Source')),
+    },
+    {
+      key: 'fx2', label: 'Effect 2', on: g('effects.effects2Enable') === 1, type: fxType(NE5_EFFECT2_TYPES, g('effects.effects2Type')),
+      params: fxKnobs(fxParam('Rate', g('effects.effects2Rate'), 0, 127)),
+      switches: [{ label: 'Deep', on: g('effects.effects2Deep') === 1 }],
+      source: sourceLeds(NE5_EFFECT_SOURCES, g('effects.effects2Source')),
+    },
+    {
+      key: 'dly', label: 'Delay', on: g('effects.delayEnable') === 1,
+      params: fxKnobs(
+        fxParam('Tempo', g('effects.delayTempo'), 0, 127), fxParam('Mix', g('effects.delayDryWet'), 0, 127),
+        fxParam('Feedback', g('effects.delayFeedback'), 0, 3),
+      ),
+      switches: [{ label: 'Ping Pong', on: g('effects.delayPingPong') === 1 }],
+      source: sourceLeds(NE5_EFFECT_SOURCES, g('effects.delaySource')),
+    },
+    {
+      key: 'amp', label: 'Amp/Comp', on: g('effects.ampCompEnable') === 1, type: fxType(NE5_AMP_TYPES, g('effects.ampCompType')),
+      params: fxKnobs(fxParam('Drive', g('effects.ampCompDrive'), 0, 127)),
+      source: sourceLeds(NE5_EFFECT_SOURCES, g('effects.ampCompSource')),
+    },
+    {
+      key: 'eq', label: 'EQ', on: g('effects.equalizerEnable') === 1,
+      params: fxKnobs(
+        fxParam('Bass', g('effects.equalizerBass'), 0, 127), fxParam('Mid', g('effects.equalizerMid'), 0, 127),
+        fxParam('Mid Freq', g('effects.equalizerMidFreq'), 0, 127), fxParam('Treble', g('effects.equalizerTreble'), 0, 127),
+      ),
+      source: sourceLeds(NE5_EQ_SOURCES, g('effects.equalizerSource')),
+    },
+    {
+      key: 'rvb', label: 'Reverb', on: g('effects.reverbEnable') === 1, type: fxType(NE5_REVERB_TYPES, g('effects.reverbType')),
+      params: fxKnobs(fxParam('Amount', g('effects.reverbDryWet'), 0, 127)),
+    },
+  ]);
 
   return {
     title, header,

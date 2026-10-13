@@ -1,28 +1,30 @@
 import { useEffect, useState } from 'react';
 import '../../styles/nord.css';
-import type { EngineCardModel, FxChipModel, HeaderView } from '../../lib/clavia/engine-view';
+import type { EngineCardModel, HeaderView } from '../../lib/clavia/engine-view';
+import type { FxPanelView } from '../../lib/clavia/fx-view';
 import { ProgramHeader } from './ProgramHeader';
 import { EngineCard } from './EngineCard';
-import { FxRow } from './FxRow';
+import { FxPanel } from './FxPanel';
 import { ReadoutWarnings } from './widgets';
 import { ZonesPanel } from './ProgramZones';
 import type { ProgramZonesView } from '../../lib/ns4/view';
 
 const SAMPLE_LIBRARY = 'https://www.nordkeyboards.com/sounds/sample-library/';
 
-export interface ProgramBand { id: string; label: string; cards: EngineCardModel[]; fxChips: FxChipModel[]; }
+export interface ProgramBand { id: string; label: string; cards: EngineCardModel[]; }
 export interface SampleRef { key: string; label: string; }
 
 /**
  * Shared page shell for banded models (ns3 panels A/B, ns2 slots A/B). Pure layout:
- * header → one labelled band per slot/panel (cards + per-band FX) → optional
- * program-global FX row → referenced-samples strip. Each model builds the data via
+ * header → one labelled band per slot/panel (its engine cards) → the program's
+ * effects panel → referenced-samples strip. Each model builds the data via
  * its own view.ts and renders this.
  */
-export function BandedProgramView({ header, bands, globalFxChips, sampleRefs, warnings, zones }: {
+export function BandedProgramView({ header, bands, fx, sampleRefs, warnings, zones }: {
   header: HeaderView;
   bands: ProgramBand[];
-  globalFxChips?: FxChipModel[];
+  /** The program's effects, one row per slot/panel plus any program-wide row. */
+  fx?: FxPanelView;
   sampleRefs: SampleRef[];
   /** Reader anomalies (a file the layout doesn't match, out-of-range values, …). */
   warnings?: readonly string[];
@@ -40,10 +42,9 @@ export function BandedProgramView({ header, bands, globalFxChips, sampleRefs, wa
           <div className="ps-grid">
             {band.cards.map((card) => <EngineCard key={`${band.id}-${card.kind}`} card={card} />)}
           </div>
-          <FxRow chips={band.fxChips} title="FX" />
         </section>
       ))}
-      {globalFxChips && globalFxChips.length > 0 && <FxRow chips={globalFxChips} title="GLOBAL FX" />}
+      {fx && <FxPanel view={fx} title="EFFECTS" />}
       <SampleStrip refs={sampleRefs} />
     </div>
   );

@@ -5,7 +5,7 @@
  */
 
 import type { ReactNode } from 'react';
-import type { ArpView, DrawbarView, FilterCurveView, FxSlotModel, KeyItem, LfoView } from '../../lib/clavia/engine-view';
+import type { ArpView, DrawbarView, FilterCurveView, KeyItem, LfoView } from '../../lib/clavia/engine-view';
 import {
   eqResponse, filterResponse, freqX, wavePoints, FILTER_ZERO_Y,
   type CurvePoint, type EqShape, type WaveShape,
@@ -179,16 +179,6 @@ export function LedSwitch<T extends string>({ label, options, value, onChange, c
   );
 }
 
-/** Compact FX chip: small label over a detail line. */
-export function Chip({ label, detail }: { label: string; detail: string }) {
-  return (
-    <div className="ps-chip">
-      <div className="t">{label}</div>
-      {detail}
-    </div>
-  );
-}
-
 /** A reader's warnings about the file (a layout mismatch, out-of-range values, …); nothing when there are none. */
 export function ReadoutWarnings({ warnings }: { warnings?: readonly string[] }) {
   if (!warnings || warnings.length === 0) return null;
@@ -336,24 +326,3 @@ export function EqCurve({ eq }: { eq: EqShape }) {
   );
 }
 
-/**
- * A layer's effect chain in signal order: every slot is drawn, lit when on and
- * dimmed when off, so the chain reads at a glance. Amp/EQ draws its EQ curve.
- */
-export function FxChain({ slots }: { slots: FxSlotModel[] }) {
-  if (slots.length === 0) return null;
-  return (
-    <div className="ps-card ps-fx">
-      <h4>FX</h4>
-      <ol className="ps-chain">
-        {slots.map((fx) => (
-          <li key={fx.key} className={fx.on ? 'ps-chip' : 'ps-chip off'} aria-label={`${fx.label} ${fx.on ? 'on' : 'off'}`}>
-            <div className="t">{fx.label}</div>
-            {fx.on ? fx.detail : 'off'}
-            {fx.on && fx.eq && <EqCurve eq={fx.eq} />}
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}

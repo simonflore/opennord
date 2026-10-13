@@ -36,7 +36,7 @@ function toSection(slot: Ns2Slot, globalChips: string[]): DecodedSection {
   // a different visual — exclude from the shared fader view.
   const hasDrawbars = slot.organ.on && (slot.organ.type === 'B3' || slot.organ.type === 'Vox');
   // B3 character chips (vib/chorus + percussion), then per-slot FX, then global FX.
-  const chips = [...organChips(slot), ...slot.fx.map(fxChip), ...globalChips];
+  const chips = [...organChips(slot), ...slot.fx.filter((fx) => fx.on).map(fxChip), ...globalChips];
   return {
     id: slot.id,
     label: `SLOT ${slot.id}`,
@@ -49,7 +49,7 @@ function toSection(slot: Ns2Slot, globalChips: string[]): DecodedSection {
 export function ns2Decoded(bytes: Uint8Array): DecodedProgram {
   const info = identifyNordFile(bytes);
   const { slots, globalFx, warnings } = decodeNs2(bytes);
-  const globalChips = globalFx.map(fxChip);
+  const globalChips = globalFx.filter((fx) => fx.on).map(fxChip);
 
   const header: [string, string][] = [];
   if (info.slot) header.push(['Slot', info.slot]);

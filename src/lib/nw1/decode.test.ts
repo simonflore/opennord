@@ -136,18 +136,36 @@ describe('decodeNw1 (synthetic, firmware layout)', () => {
 });
 
 describe('nw1Decoded', () => {
+    it('shows its three named effects as panel blocks, lit when on', () => {
+      const fx = (v: Partial<Record<Nw1FieldKey, number>>) => nw1Decoded(nwp(v)).sections.find((s) => s.id === 'FX')!.fx!.groups[0].units;
+      expect(fx({}).map((u) => [u.label, u.on])).toEqual([['Tube Amp', false], ['Delay', false], ['Reverb', false]]);
+      const on = fx({ 'common.param0': 1, 'common.param6': 1, 'common.param4': 1, 'common.param9': 1, 'common.param7': 2 });
+      expect(on.map((u) => [u.label, u.on, u.type])).toEqual([['Tube Amp', true, undefined], ['Delay', true, 'Stereo'], ['Reverb', true, 'Stage']]);
+      });
+
+  it('effect blocks carry the settings the layout names, at their stored positions', () => {
+    const fx = nw1Decoded(nwp({
+      'common.param1': 127, 'common.param2': 65535, 'common.param3': 3, 'common.param5': 64, 'common.param8': 32,
+    })).sections.find((s) => s.id === 'FX')!.fx!.groups[0].units;
+    expect(fx[0].params).toEqual([{ label: 'Drive', value: '127', fill: 100 }]);
+    expect(fx[1].params).toEqual([
+      { label: 'Tempo', value: '65535', fill: 100 }, { label: 'Feedback', value: '3', fill: 100 }, { label: 'Amount', value: '64', fill: 50 },
+    ]);
+    expect(fx[2].params).toEqual([{ label: 'Amount', value: '32', fill: 25 }]);
+  });
+
   it('counts the morphed controls per slot and spots a repeated slot', () => {
     const d = nw1Decoded(nwp({ 'slotA.param7MorphDeltaSrc0': 5, 'slotA.param8MorphDeltaSrc6': -1 }));
     expect(d.title).toBe('Nord Wave · Program');
-    expect(d.sections.map((s) => [s.id, s.engines[0].parts[0]])).toEqual([['A', '2 controls'], ['B', 'none'], ['FX', 'None on']]);
+    expect(d.sections.map((s) => [s.id, s.engines[0]?.parts[0]])).toEqual([['A', '2 controls'], ['B', 'none'], ['FX', undefined]]);
     expect(d.sections[1].chips).toBeUndefined();
     expect(nw1Decoded(nwp()).sections[1].chips).toEqual(['Same as slot A']);
   });
 
   it('shows the program effects that are on, named as the instrument shows them', () => {
-    const fx = (v: Partial<Record<Nw1FieldKey, number>>) => nw1Decoded(nwp(v)).sections.at(-1)!.engines[0].parts;
-    expect(fx({ 'common.param0': 1, 'common.param6': 1, 'common.param4': 1, 'common.param9': 1, 'common.param7': 3 }))
-      .toEqual(['Tube Amp', 'Delay Stereo', 'Reverb Hall Soft']);
+    const fx = (v: Partial<Record<Nw1FieldKey, number>>) => nw1Decoded(nwp(v)).sections.at(-1)!.fx!.groups[0].units;
+    expect(fx({ 'common.param0': 1, 'common.param6': 1, 'common.param4': 1, 'common.param9': 1, 'common.param7': 3 })
+      .map((u) => [u.label, u.on, u.type])).toEqual([['Tube Amp', true, undefined], ['Delay', true, 'Stereo'], ['Reverb', true, 'Hall Soft']]);
     expect(NW1_LAYOUT.fields.find((f) => f.key === 'slotA.param19')?.name).toBe('Osc 1 Waveform');
     expect(NW1_LAYOUT.fields.find((f) => f.key === 'common.param7')?.name).toBe('Reverb Model');
   });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Ns2Slot } from './decode';
-import { ns2EngineCards, ns2SlotFxChips, ns2GlobalFxChips, ns2HeaderView, ns2SampleKey } from './view';
+import { ns2EngineCards, ns2FxPanel, ns2HeaderView, ns2SampleKey } from './view';
 
 function env() { return { attackMidi: 0, attack: '0.5 ms', decayMidi: 0, decay: '120 ms', releaseMidi: 0, release: '200 ms', velocity: false }; }
 
@@ -98,16 +98,38 @@ describe('ns2EngineCards', () => {
   });
 });
 
-describe('ns2 FX chips', () => {
-  it('per-slot chips carry decoded params', () => {
-    const s = slot({ fx: [{ name: 'Delay', params: { amount: '6.0' } }] });
-    const chips = ns2SlotFxChips(s);
-    expect(chips[0]).toMatchObject({ key: 'A-Delay', label: 'Delay', detail: 'amt 6.0' });
+describe('ns2FxPanel', () => {
+  const four = ['Effect 1', 'Effect 2', 'Delay', 'Amp/EQ'].map((name) => ({ name, on: name === 'Delay', settings: [] }));
+  const global = ['Rotary', 'Comp', 'Reverb'].map((name) => ({ name, on: name === 'Reverb', settings: [] }));
+
+  it('gives each slot a row of its four blocks, then one Global row', () => {
+    const view = ns2FxPanel([slot({ id: 'A', fx: four }), slot({ id: 'B', fx: four })], global);
+    expect(view.groups.map((g) => [g.label, g.units.map((u) => u.label)])).toEqual([
+      ['Slot A', ['Effect 1', 'Effect 2', 'Delay', 'Amp/EQ']],
+      ['Slot B', ['Effect 1', 'Effect 2', 'Delay', 'Amp/EQ']],
+      ['Global', ['Rotary', 'Comp', 'Reverb']],
+    ]);
   });
 
-  it('global chips are keyed separately', () => {
-    const chips = ns2GlobalFxChips([{ name: 'Reverb', type: 'Hall 1', params: { amount: '5.0' } }]);
-    expect(chips[0]).toMatchObject({ key: 'g-Reverb', label: 'Reverb', detail: 'Hall 1 · amt 5.0' });
+  it('a program with one slot has that slot\'s row and the Global row', () => {
+    expect(ns2FxPanel([slot({ id: 'B', fx: four })], global).groups.map((g) => g.label)).toEqual(['Slot B', 'Global']);
+  });
+
+  it('keys slot units by slot and global units apart from both', () => {
+    const keys = ns2FxPanel([slot({ id: 'A', fx: four }), slot({ id: 'B', fx: four })], global).groups.flatMap((g) => g.units.map((u) => u.key));
+    expect(new Set(keys).size).toBe(11);
+    expect(keys).toContain('A-Delay');
+    expect(keys).toContain('g-Reverb');
+  });
+
+  it('keeps off blocks, dimmed, and lights the ones that are on', () => {
+    const view = ns2FxPanel([slot({ id: 'A', fx: four })], global);
+    expect(view.groups[0].units.filter((u) => u.on).map((u) => u.label)).toEqual(['Delay']);
+    expect(view.groups[1].units.filter((u) => u.on).map((u) => u.label)).toEqual(['Reverb']);
+  });
+
+  it('has no Global row when the program reports no global effects', () => {
+    expect(ns2FxPanel([slot({ id: 'A', fx: four })], []).groups.map((g) => g.label)).toEqual(['Slot A']);
   });
 });
 

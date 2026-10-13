@@ -131,9 +131,79 @@ describe('decodeNe6 (synthetic, firmware layout)', () => {
     expect(byId.OA.chips).toEqual(['Vibrato C3']);
     expect(byId.OB.engines[0].parts).toContain('Preset II');
     expect(byId.OB.chips).toEqual(['Percussion']);
-    expect(byId.FX.engines[0].parts).toEqual(['Wah-Wah', 'Hall Bright']);
+        const units = byId.FX.fx!.groups[0].units;
+        expect(units.map((u) => [u.label, u.on])).toEqual([
+          ['Effect 1', true], ['Effect 2', false], ['Delay', false], ['Speaker/Comp', false], ['EQ', false], ['Reverb', true],
+        ]);
+        expect(units[0].type).toBe('Wah-Wah');
+        expect(units[5].type).toBe('Hall');
+        expect(units[5].switches).toEqual([{ label: 'Bright', on: true }]);
+        expect(byId.FX.engines).toEqual([]);
     expect(d.header).toContainEqual(['Transpose', '−2 semitones']);
   });
+
+    it('effect units carry every decoded setting, with knob positions from the field ranges', () => {
+      const units = ne6Decoded(file({
+        'effects.fx1Enable': 1, 'effects.fx1Type': 0, 'effects.fx1Rate': 127, 'effects.fx1PedCtrl': 1,
+        'effects.fx2Enable': 1, 'effects.fx2Type': 3, 'effects.fx2Rate': 0, 'effects.fx2Deep': 1,
+        'effects.dlyEnable': 1, 'effects.dlyRate': 16383, 'effects.dlyMix': 64, 'effects.dlyFeedback': 3, 'effects.dlyPingPong': 1,
+        'effects.spkEnable': 1, 'effects.spkType': 1, 'effects.spkAmt': 127,
+        'effects.eqlEnable': 1, 'effects.eqlBass': -60, 'effects.eqlMid': 0, 'effects.eqlTreble': 60, 'effects.eqlMidFreq': 64,
+        'effects.rvbEnable': 1, 'effects.rvbType': 0, 'effects.rvbAmt': 32,
+      })).sections.find((s) => s.id === 'FX')!.fx!.groups[0].units;
+      const [fx1, fx2, dly, spk, eq, rvb] = units;
+
+      expect(fx1.type).toBe('Tremolo 1');
+      expect(fx1.params).toEqual([{ label: 'Rate', value: '127', fill: 100 }]);
+      expect(fx1.switches).toEqual([{ label: 'Ped Ctrl', on: true }]);
+
+      expect(fx2.type).toBe('Chorus 1');
+      expect(fx2.params).toEqual([{ label: 'Rate', value: '0', fill: 0 }]);
+      expect(fx2.switches).toEqual([{ label: 'Deep', on: true }]);
+
+      expect(dly.params).toEqual([
+        { label: 'Rate', value: '16383', fill: 100 }, { label: 'Mix', value: '64', fill: 50 }, { label: 'Feedback', value: '3', fill: 100 },
+      ]);
+      expect(dly.switches).toEqual([{ label: 'Ping Pong', on: true }]);
+
+      expect(spk.type).toBe('Small');
+      expect(spk.params).toEqual([{ label: 'Amount', value: '127', fill: 100 }]);
+
+      expect(eq.params).toEqual([
+        { label: 'Bass', value: '-60', fill: 0 }, { label: 'Mid', value: '0', fill: 50 },
+        { label: 'Mid Freq', value: '64', fill: 50 }, { label: 'Treble', value: '60', fill: 100 },
+      ]);
+      expect(eq.eq).toBeUndefined();
+
+      expect(rvb.type).toBe('Room');
+      expect(rvb.params).toEqual([{ label: 'Amount', value: '32', fill: 25 }]);
+      expect(rvb.switches).toEqual([{ label: 'Bright', on: false }]);
+    });
+
+    it('each effect with a source selector lights the engine it acts on', () => {
+    const units = ne6Decoded(file({ 'effects.fx1Enable': 1, 'effects.fx1Src': 0, 'effects.dlyEnable': 1, 'effects.dlySrc': 2 }))
+      .sections.find((s) => s.id === 'FX')!.fx!.groups[0].units;
+    expect(units[0].source).toEqual([{ label: 'Organ', on: true }, { label: 'Piano', on: false }, { label: 'Synth', on: false }]);
+    expect(units[2].source).toEqual([{ label: 'Organ', on: false }, { label: 'Piano', on: false }, { label: 'Synth', on: true }]);
+    // Effect 2, Speaker/Comp and EQ keep the file default (Piano); the reverb is global and has no selector.
+    expect(units[1].source?.find((k) => k.on)?.label).toBe('Piano');
+    expect(units[3].source?.find((k) => k.on)?.label).toBe('Piano');
+    expect(units[4].source?.find((k) => k.on)?.label).toBe('Piano');
+    expect(units[5].source).toBeUndefined();
+  });
+
+  it('a type index the label table does not cover shows as its number', () => {
+      // fx1Type is 3 bits (0–7) and the table has 8 names; spkType is 3 bits with 6 names, so 7 is out of range.
+      const spk = ne6Decoded(file({ 'effects.spkEnable': 1, 'effects.spkType': 7 }))
+        .sections.find((s) => s.id === 'FX')!.fx!.groups[0].units[3];
+      expect(spk.type).toBe('7');
+    });
+
+    it('every unit is drawn dimmed when no effect is on', () => {
+      const units = ne6Decoded(file({})).sections.find((s) => s.id === 'FX')!.fx!.groups[0].units;
+      expect(units).toHaveLength(6);
+      expect(units.every((u) => !u.on)).toBe(true);
+    });
 });
 
 const FIXTURE_DIR = join(__dirname, '../../../fixtures/electro-6');

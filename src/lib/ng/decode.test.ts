@@ -66,7 +66,10 @@ describe('ngDecoded', () => {
     expect(d.title).toBe('Nord Grand · Program');
     expect(d.header).toContainEqual(['Transpose', '−3 semitones']);
     expect(d.sections[0].engines[0].parts).toEqual(['EP5 BrightTines XL', 'Electric', 'level 100', 'Timbre Bright']);
-    expect(d.sections[2].engines[0].parts).toEqual(['Vibe', 'Reverb Stage Bright']);
+        const fx = d.sections[2].fx!.groups[0].units;
+        expect(fx.filter((u) => u.on).map((u) => [u.label, u.type])).toEqual([['Effect 2', 'Vibe'], ['Reverb', 'Stage']]);
+        expect(fx[5].switches).toEqual([{ label: 'Bright', on: true }]);
+        expect(fx[2].source?.map((k) => k.label)).toEqual(['Piano', 'Synth']);
     expect(d.note).toMatch(/map of Grand OS 1\.68 programs/);
     expect(d.warnings).toEqual([]);
   });

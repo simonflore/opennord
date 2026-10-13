@@ -17,16 +17,16 @@ import { organModelSpec, ORGAN_MODELS } from './organ-models';
 import { ns4Engines } from './engines';
 import type {
   MorphMarkView, DrawbarView, OrganPanelModel, PianoCardModel, SynthCardModel,
-  EnvCurveView, Stat, FxChipModel, FxSlotModel, HeaderView, VolumeView, EngineCardModel, LfoView, ArpView, ArpStepView, KeyItem,
+  EnvCurveView, Stat, HeaderView, VolumeView, EngineCardModel, LfoView, ArpView, ArpStepView, KeyItem,
 } from '../clavia/engine-view';
 import { volumeFill, envCurve } from '../clavia/engine-view';
 import { parseHz, waveShapeOf, type WaveShape } from '../clavia/curves';
 import { cutoffRaw } from './synth-scaling';
-import { fxTypeName, noteValueName } from './fx-names';
+import { noteValueName } from './fx-names';
 
 export type {
   MorphMarkView, DrawbarView, OrganPanelModel, PianoCardModel, SynthCardModel,
-  EnvCurveView, Stat, FxChipModel, HeaderView, VolumeView, EngineCardModel,
+  EnvCurveView, Stat, HeaderView, VolumeView, EngineCardModel,
 } from '../clavia/engine-view';
 export { volumeFill, envCurve } from '../clavia/engine-view';
 
@@ -450,84 +450,6 @@ export function pianoStats(l: NS4Layer): Stat[] {
     stat('octave', l.octaveShift),
     stat('variation', l.pianoModelVariation),
   );
-}
-
-// Each chip's detail comes from the effect's real params, not just its name.
-const j = (...parts: (string | undefined | false)[]) => parts.filter(Boolean).join(' · ');
-const modD = (m: NS4Layer['fxMod1']) => j(fxTypeName(m?.mode), noteValueName(m?.rate?.value), m?.amount?.value && `amt ${m.amount.value}`) || 'on';
-// Amp model "off" leaves the slot as an EQ: say that instead of printing "off" on a lit effect.
-const ampD = (a: NS4Layer['ampSimEq']) => (a?.mode === 'off' ? 'EQ only' : j(fxTypeName(a?.mode), a?.drive?.value && `drv ${a.drive.value}`) || 'on');
-const compD = (c: NS4Layer['comp']) => j(c?.amount && `${c.amount}`, c?.response) || 'on';
-const delayD = (d: NS4Layer['delay']) => j(noteValueName(d?.tempo?.value), d?.mix?.value && `mix ${d.mix.value}`, d?.feedback?.value && `fb ${d.feedback.value}`) || 'on';
-const revD = (r: NS4Layer['reverb']) => j(fxTypeName(r?.type), r?.amount?.value && `amt ${r.amount.value}`) || 'on';
-
-const db = (s?: string) => parseFloat(s ?? '') || 0;
-
-/** A piano/synth layer's whole effect chain in signal order, on or off. */
-export function layerFxChain(l: NS4Layer): FxSlotModel[] {
-  const tag = `${l.kind ?? 'x'}${l.id}`;
-  const eq = l.ampSimEq;
-  const midHz = parseHz(eq?.freq?.value);
-  const slot = (key: string, label: string, on: boolean | undefined, detail: string): FxSlotModel =>
-    ({ key: `${tag}-${key}`, label, on: !!on, detail });
-  return [
-    slot('mod1', 'Mod 1', l.fxMod1?.on, modD(l.fxMod1)),
-    slot('mod2', 'Mod 2', l.fxMod2?.on, modD(l.fxMod2)),
-    {
-      ...slot('amp', 'Amp/EQ', eq?.on, ampD(eq)),
-      eq: eq && midHz !== undefined ? { bassDb: db(eq.bass), midDb: db(eq.mid), trebDb: db(eq.treb), midHz } : undefined,
-    },
-    slot('comp', 'Comp', l.comp?.on, compD(l.comp)),
-    slot('delay', 'Delay', l.delay?.on, delayD(l.delay)),
-    slot('reverb', 'Reverb', l.reverb?.on, revD(l.reverb)),
-  ];
-}
-
-/**
- * The effects switched on for one piano/synth layer. `engine` prefixes each
- * label ("Synth Reverb") where several engines share a row; omit it when the
- * layer stands alone (a preset).
- */
-export function layerFxChips(l: NS4Layer, engine?: string): FxChipModel[] {
-  return layerFxChain(l).filter((fx) => fx.on)
-    .map(({ key, label, detail }) => ({ key, label: engine ? `${engine} ${label}` : label, detail }));
-}
-
-/**
- * Compact list of effects that are switched on. Per-layer FX come from each
- * active piano/synth layer; organ FX is a single global set (Ns4OrganFx).
- */
-export function fxChips(p: NS4Program, scene?: 'I' | 'II'): FxChipModel[] {
-  const chips: FxChipModel[] = [];
-  const push = (key: string, label: string, on: boolean | undefined, detail: string) => {
-    if (on) chips.push({ key, label, detail });
-  };
-
-  // Each NS4 engine has its own FX chain, so prefix every chip with the engine
-  // it belongs to (e.g. "Piano Reverb" vs "Synth Reverb") — without this, two
-  // reverbs from different engines are indistinguishable. When more than one
-  // layer of the same engine is active, also tag the layer letter (A/B/C).
-  const fxLayers = activeLayers(p, scene).filter((l) => l.kind !== 'organ');
-  const kindCount = new Map<string, number>();
-  for (const l of fxLayers) kindCount.set(l.kind ?? 'x', (kindCount.get(l.kind ?? 'x') ?? 0) + 1);
-  const engineName = (l: NS4Layer): string => {
-    const letter = (kindCount.get(l.kind ?? 'x') ?? 0) > 1 ? ` ${l.id}` : '';
-    return `${engineKindName(l)}${letter}`;
-  };
-  for (const l of fxLayers) chips.push(...layerFxChips(l, engineName(l)));
-
-  const o = p.organFx;
-  if (o) {
-    push('org-mod1', 'Organ Mod 1', o.mod1?.on, modD(o.mod1));
-    push('org-mod2', 'Organ Mod 2', o.mod2?.on, modD(o.mod2));
-    push('org-amp', 'Organ Amp/EQ', o.ampSimEq?.on, ampD(o.ampSimEq));
-    push('org-comp', 'Organ Comp', o.comp?.on, compD(o.comp));
-    push('org-delay', 'Organ Delay', o.delay?.on, delayD(o.delay));
-    push('org-reverb', 'Organ Reverb', o.reverb?.on, revD(o.reverb));
-    push('org-rotary', 'Rotary', o.rotary?.on, j(o.rotary?.fast ? 'fast' : 'slow', o.rotary?.drive && `drv ${o.rotary.drive}`) || 'on');
-  }
-
-  return chips;
 }
 
 export interface MorphSummaryRow {

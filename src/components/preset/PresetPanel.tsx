@@ -4,7 +4,7 @@ import { presetVoices, presetParamSections } from '@/lib/ns4/preset-view';
 import { filterRows } from '@/lib/ns4/params-view';
 import { EngineCard } from '@/components/program/EngineCard';
 import { MorphList } from '@/components/program/Morphs';
-import { FxChain } from '@/components/program/widgets';
+import { FxPanel } from '@/components/program/FxPanel';
 import { ParamsDrawer, type ParamsDrawerGroup } from '@/components/program/AllParamsDrawer';
 
 /**
@@ -27,7 +27,7 @@ export function PresetPanel({ bytes }: { bytes?: Uint8Array }) {
           {stacked && <div className="ps-panel-lbl">Layer {v.letter}</div>}
           <div className="ps-preset-grid">
             <EngineCard card={v.card} />
-            <FxChain slots={v.fx} />
+            <FxPanel view={v.fx} title="FX" />
           </div>
           <MorphList rows={v.morphs} />
         </section>

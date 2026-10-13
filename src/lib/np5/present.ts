@@ -15,9 +15,10 @@
 import { decodeNp5 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import {
-  ampPart, effectsSection, fwHeader, headerOnly, label, levelPart, octavePart, parts, pianoParts, reverbPart,
+  fwHeader, fxSection, headerOnly, label, levelPart, octavePart, parts, pianoParts,
   soundIdRow, splitText, SPLIT_NOTES_FROM_C3, transposeText, type PianoNameResolver,
 } from '../clavia/fw-present';
+import { rackUnits, type FieldGet } from '../clavia/fx-lean';
 import type { Np5FieldKey } from './layout.generated';
 
 /** Pno_kBank 0–5. */
@@ -76,7 +77,6 @@ export function np5Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolv
 
   const pianoOn = g('common.slotPnoEnable') ?? 0;
   const synthOn = g('common.slotSynEnable') ?? 0;
-  const color = label(NP5_REVERB_COLOR, g('effects.rvbColor'));
 
   return {
     title, header,
@@ -85,15 +85,10 @@ export function np5Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolv
       pianoLayer(g, 'B', (pianoOn & 2) !== 0, resolvePianoName),
       synthLayer(g, 'A', (synthOn & 1) !== 0),
       synthLayer(g, 'B', (synthOn & 2) !== 0),
-      effectsSection(parts(
-        g('effects.fx1Enable') ? label(NP5_FX1, g('effects.fx1Type')) ?? 'Effect 1' : undefined,
-        g('effects.fx2Enable') ? label(NP5_FX2, g('effects.fx2Type')) ?? 'Effect 2' : undefined,
-        g('effects.dlyEnable') ? 'Delay' : undefined,
-        g('effects.spkEnable') ? ampPart(label(NP5_SPEAKER, g('effects.spkType'))) : undefined,
-        g('effects.eqlEnable') ? 'EQ' : undefined,
-        g('effects.rvbEnable')
-          ? reverbPart(label(NP5_REVERB, g('effects.rvbType')), color !== 'Normal' && color) : undefined,
-      )),
+      // The source fields (0–5, 0–6: which layer or layers) are not named, so they show as stored.
+      fxSection(rackUnits(g as FieldGet, {
+        fx1: NP5_FX1, fx2: NP5_FX2, speaker: NP5_SPEAKER, reverb: NP5_REVERB, reverbColor: NP5_REVERB_COLOR,
+      })),
     ],
     note: 'Piano 5: piano and sample-synth layers and the effects read with OpenNord’s map of Piano 5 OS 1.34 programs.',
     warnings: p.warnings,

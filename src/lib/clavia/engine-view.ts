@@ -1,12 +1,12 @@
 /**
  * Model-agnostic Program-view contract. These are the plain display shapes every
- * Nord model's view-model produces and the shared EngineCard / FxRow / ProgramHeader
+ * Nord model's view-model produces and the shared EngineCard / FxPanel / ProgramHeader
  * components render. Dependency direction is model → clavia: nothing here imports
  * from ns4/ or ns3/. Producers (organPanel, synthCard, …) live per-model in
  * <model>/view.ts and return these types.
  */
 import type { EngineSummary } from './engines';
-import type { EqShape, FilterShape, WaveShape } from './curves';
+import type { FilterShape, WaveShape } from './curves';
 
 export type DrawbarColor = 'brown' | 'white' | 'black';
 
@@ -104,14 +104,9 @@ export interface ArpView {
   steps?: ArpStepView[];
 }
 
-/** One effect in a layer's fixed chain, on or off. */
-export interface FxSlotModel { key: string; label: string; on: boolean; detail: string; eq?: EqShape }
-
 export interface EnvCurveView { a: number; d: number; s: number; r: number; }
 
 export interface Stat { label: string; value: string; }
-
-export interface FxChipModel { key: string; label: string; detail: string; }
 
 export interface HeaderView {
   name: string;

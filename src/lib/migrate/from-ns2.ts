@@ -6,14 +6,15 @@
 import type { Ns2Program, Ns2Slot, Ns2Fx } from '../ns2/decode';
 import type { CommonProgram, CommonFxUnit, LiftResult } from './common';
 import { freqStringToHz, timeStringToMs } from './units';
+import { settingOf } from '../clavia/fx-block';
 
 export type { LiftResult } from './common';
 
 // Ns2Fx.name values of a slot's `fx`, per ns2/decode.ts `slotFx`: 'Effect 1',
-// 'Effect 2', 'Amp/EQ', 'Delay' ('Rotary' is still handled for older shapes;
-// the decoder now reports the program-wide rotary on `program.rotary`). Unlike
-// ns3, reverb/comp are never pushed into a slot's `fx` array — they live on
-// `program.reverb` / `program.compressor` and are lifted separately below.
+// 'Effect 2', 'Delay', 'Amp/EQ', each listed on or off ('Rotary' is still handled
+// for older shapes). Reverb, comp and the rotary are program-wide: they are in
+// `program.globalFx` and, as plain values, on `program.reverb` / `.compressor` /
+// `.rotary`, which is what is lifted below.
 // ns2 per-effect source select (Ns2Fx.source, EFFECT_SRC = ['Organ','Piano',
 // 'Synth'], ns2/decode.ts) tells us which engine the effect was routed through.
 // Carry it as CommonFxUnit.host so the ns4 emitter can host the FX on that
@@ -30,11 +31,11 @@ function fxHost(source: string | undefined): CommonFxUnit['host'] {
 function liftSlotFx(fx: Ns2Fx[], dropped: string[]): CommonFxUnit[] {
   const out: CommonFxUnit[] = [];
   for (const f of fx) {
+    if (!f.on) continue; // a slot lists every block; only the ones switched on carry over
     const name = f.name.toLowerCase();
-    const amount = f.params?.amount;
-    const rate = f.params?.rate;
-    const amountMidi = typeof amount === 'number' ? amount : undefined;
-    const rateMidi = typeof rate === 'number' ? rate : undefined;
+    // A setting's midi is the stored 0–127 knob position; a clocked rate has none.
+    const amountMidi = settingOf(f, 'amount')?.midi;
+    const rateMidi = settingOf(f, 'rate')?.midi;
     const host = fxHost(f.source);
     if (name === 'delay') {
       out.push({ slot: 'delay', on: true, type: f.type, host, amountMidi, rateMidi });

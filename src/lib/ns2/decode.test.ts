@@ -16,6 +16,7 @@ import { decodeNs2, NS2_NSM_DATA_OFFSET } from './decode';
 import { NS2_LAYOUT, type Ns2FieldKey } from './layout.generated';
 import { synthFwFile, synthLegacyLayoutFile, writeLegacyRecord } from '../clavia/block-chain.synth';
 import { LEGACY_DATA_OFFSET } from '../clavia/legacy-record';
+import { flat } from '../../test-utils/fx';
 
 // Header-type-1 buffers (versionOffset 0) keep the offsets direct for tests; record version 7 at 0x2C.
 const t1 = () => { const b = new Uint8Array(600); b[0x04] = 1; b[0x2d] = 7; return b; };
@@ -76,8 +77,8 @@ describe('decodeNs2', () => {
     const b = t1();
     b[0x11a] = 0x24;   // effect 2 on (0x20) + type 4 → Chorus 1
     b[0x125] = 0x20;   // delay on
-    const fx = decodeNs2(b).slots[0].fx;
-    expect(fx.map((f) => f.name)).toEqual(['Effect 2', 'Delay']); // signal order
+    const fx = decodeNs2(b).slots[0].fx.map(flat);
+    expect(fx.filter((f) => f.on).map((f) => f.name)).toEqual(['Effect 2', 'Delay']); // panel order
     expect(fx.find((f) => f.name === 'Effect 2')?.type).toBe('Chorus 1');
   });
 
@@ -85,7 +86,7 @@ describe('decodeNs2', () => {
     const types = [0, 1, 2, 3].map((t) => {
       const b = t1();
       b[0x133] = 0x10 | t;      // amp/EQ on (b4) + type b1-0
-      return decodeNs2(b).slots[0].fx.find((f) => f.name === 'Amp/EQ')?.type;
+      return decodeNs2(b).slots[0].fx.map(flat).find((f) => f.name === 'Amp/EQ')?.type;
     });
     expect(types).toEqual(['Clean', 'Small', 'JC', 'Twin']);
   });
@@ -103,9 +104,9 @@ describe('decodeNs2', () => {
     const b = t1();
     b[0x3d] = 0xc0;   // reverb on (0x8000) + type 4 → Hall 1
     b[0x3e] = 0x10;   // compressor on (0x1000)
-    const g = decodeNs2(b).globalFx;
-    expect(g.map((x) => x.name)).toEqual(['Reverb', 'Comp']);
-    expect(g[0].type).toBe('Hall 1');
+    const g = decodeNs2(b).globalFx.map(flat);
+    expect(g.filter((x) => x.on).map((x) => x.name)).toEqual(['Comp', 'Reverb']);
+    expect(g.find((x) => x.name === 'Reverb')?.type).toBe('Hall 1');
   });
 
   it('reads B3 organ drawbars from preset 2 when active (0x5C.b7)', () => {
@@ -233,7 +234,7 @@ describe('decodeNs2 (synthetic, firmware layout)', () => {
     expect(legacy.warnings).toEqual([]);
     expect(nsm.outOfRange).toEqual([]);
     expect(nsm.slots[0].synth).toMatchObject({ on: true, osc: 'SAW', filter: { freqMidi: 90 } });
-    expect(nsm.globalFx.map((f) => f.name)).toEqual(['Reverb']);
+    expect(nsm.globalFx.map(flat).filter((f) => f.on).map((f) => f.name)).toEqual(['Reverb']);
   });
 
   it('decodes the descriptor defaults: slot A, piano on at full level, B3 888000000', () => {
@@ -318,9 +319,9 @@ describe('decodeNs2 — fixes against the earlier decoder', () => {
       'globalFx.reverbEnable': 1,
     }));
     expect(p.rotary).toEqual({ on: true, source: 'Organ', driveMidi: 127, stopMode: false, speed: 'Fast' });
-    expect(p.globalFx.map((f) => f.name)).toEqual(['Rotary', 'Reverb']);
-    expect(p.globalFx[0]).toMatchObject({ source: 'Organ', params: { drive: '10.0', speed: 'Fast' } });
-    for (const s of p.slots) expect(s.fx.map((f) => f.name)).not.toContain('Rotary');
+    expect(p.globalFx.map(flat).filter((f) => f.on).map((f) => f.name)).toEqual(['Rotary', 'Reverb']);
+    expect(p.globalFx.map(flat)[0]).toMatchObject({ source: 'Organ', params: { drive: '10.0', speed: 'Fast' } });
+    for (const s of p.slots) expect(s.fx.map(flat).map((f) => f.name)).not.toContain('Rotary');
   });
 
   it('reads whole fields: outputs (3 bits), Vox/Farfisa vibrato type (3), arp rate (8), Clavinet model (7)', () => {
@@ -398,5 +399,92 @@ describe.skipIf(ns2Files().length === 0)('decodeNs2 (fixtures)', () => {
       expect(p.recordVersion, path).toBeGreaterThan(0);
       expect(p.recordVersion, path).toBeLessThanOrEqual(7);
     }
+  });
+});
+
+describe('decodeNs2 effects: every block, with all its settings', () => {
+  const slotFx = (v: Values) => decodeNs2(nsmFile(v)).slots[0].fx.map(flat);
+  const unit = (v: Values, name: string) => slotFx(v).find((f) => f.name === name)!;
+  const global = (v: Values, name: string) => decodeNs2(nsmFile(v)).globalFx.map(flat).find((f) => f.name === name)!;
+
+  it('lists the slot chain and the program effects in panel order, on or off', () => {
+    const p = decodeNs2(nsmFile({ 'slotA_effects.delayEnable': 1, 'globalFx.compressorEnable': 1 }));
+    expect(p.slots[0].fx.map(flat).map((f) => [f.name, f.on])).toEqual([['Effect 1', false], ['Effect 2', false], ['Delay', true], ['Amp/EQ', false]]);
+    expect(p.globalFx.map(flat).map((f) => [f.name, f.on])).toEqual([['Rotary', false], ['Comp', true], ['Reverb', false]]);
+  });
+
+  it('lists each block\'s settings in panel order', () => {
+    expect(unit({}, 'Effect 1').settings.map((s) => s.id)).toEqual(['amount', 'rate']);
+    expect(unit({}, 'Delay').settings.map((s) => s.id)).toEqual(['tempo', 'feedback', 'amount']);
+    expect(unit({}, 'Amp/EQ').settings.map((s) => s.id)).toEqual(['drive', 'treble', 'mid', 'bass', 'midFreq']);
+    expect(global({}, 'Rotary').settings.map((s) => s.id)).toEqual(['drive', 'speed']);
+    expect(global({}, 'Comp').settings.map((s) => s.id)).toEqual(['amount']);
+    expect(global({}, 'Reverb').settings.map((s) => s.id)).toEqual(['amount']);
+  });
+
+  it('a free-running delay time reads as a position out of 127, not as a bare number', () => {
+    // The ms scale is not confirmed, so the text says what the number is.
+    const d = unit({ 'slotA_effects.delayRate': 64, 'slotA_effects.delayRate.morphWheel': 63 }, 'Delay');
+    expect(d.params.tempo).toBe('64 of 127');
+    expect(d.midi).not.toHaveProperty('tempo');
+    expect(d.morphs).toMatchObject({ tempo: { wheel: '127 of 127' } });
+  });
+
+  it('keeps the settings and source of a block that is switched off', () => {
+    expect(unit({ 'slotA_effects.effect1Type': 1, 'slotA_effects.effect1Source': 2, 'slotA_effects.effect1Amount': 127 }, 'Effect 1'))
+      .toMatchObject({ on: false, type: 'Tremolo', source: 'Synth', params: { amount: '10.0' }, midi: { amount: 127 } });
+  });
+
+  it('Effect 1/2: a free rate keeps its stored position, a clocked one reads its division', () => {
+    const free = unit({ 'slotA_effects.effect2Rate': 127 }, 'Effect 2');
+    expect(free).toMatchObject({ params: { rate: '10.0' }, midi: { rate: 127 }, switches: { masterClock: false } });
+    const clocked = unit({ 'slotA_effects.effect1MstClk': 1, 'slotA_effects.effect1MstClkDiv': 8, 'slotA_effects.effect1Rate': 99 }, 'Effect 1');
+    expect(clocked.params?.rate).toBe('1/4');
+    expect(clocked.midi).not.toHaveProperty('rate');
+    expect(clocked.switches).toEqual({ masterClock: true });
+  });
+
+  it('Delay: its switches, a clocked time as a division, amount and feedback positions', () => {
+    const d = unit({
+      'slotA_effects.delayMode': 1, 'slotA_effects.delayMstClk': 1, 'slotA_effects.delayMstClkDiv': 4,
+      'slotA_effects.delayAmount': 127, 'slotA_effects.delayFeedback': 0,
+    }, 'Delay');
+    expect(d.switches).toEqual({ masterClock: true, pingPong: true });
+    expect(d.params).toMatchObject({ tempo: '1/4', amount: '10.0', feedback: '0.0' });
+    expect(d.midi).toEqual({ amount: 127, feedback: 0 });
+  });
+
+  it('Amp/EQ: drive, the three bands in dB and the mid frequency', () => {
+    const amp = unit({
+      'slotA_effects.ampSimEqDrive': 127, 'slotA_effects.ampSimEqTreble': 127, 'slotA_effects.ampSimEqMid': 64,
+      'slotA_effects.ampSimEqBass': 0, 'slotA_effects.ampSimEqMidFreq': 65,
+    }, 'Amp/EQ');
+    expect(amp.params).toEqual({ drive: '10.0', treble: '+15.0 dB', mid: '+0.0 dB', bass: '-15.0 dB', midFreq: '1.0 kHz' });
+    expect(amp.midi).toEqual({ drive: 127, midFreq: 65 });
+    // The published table's two half-way positions.
+    const treble = (v: number) => unit({ 'slotA_effects.ampSimEqTreble': v }, 'Amp/EQ').params?.treble;
+    expect([16, 63, 65, 125].map(treble)).toEqual(['-11.2 dB', '-0.2 dB', '+0.2 dB', '+14.5 dB']);
+  });
+
+  it('gives each morphed setting the value every source takes it to', () => {
+    expect(unit({ 'slotA_effects.effect1Amount': 0, 'slotA_effects.effect1Amount.morphWheel': 127 }, 'Effect 1').morphs)
+      .toEqual({ amount: { wheel: '10.0' } });
+    expect(unit({
+      'slotA_effects.delayMstClk': 1, 'slotA_effects.delayMstClkDiv': 4, 'slotA_effects.delayMstClkDiv.morphCtrlPedal': 4,
+    }, 'Delay').morphs).toEqual({ tempo: { pedal: '1/8' } });
+    expect(unit({}, 'Amp/EQ').morphs).toBeUndefined();
+  });
+
+  it('Rotary: which sources switch its speed', () => {
+    const rot = global({ 'globalFx.rotarySpeakerEnable': 1, 'globalFx.rotarySpeakerWheelMorph': 1, 'globalFx.rotarySpeakerStopMode': 1 }, 'Rotary');
+    expect(rot.switches).toEqual({ stopMode: true });
+    // Speed is a switch: a source that morphs it takes Slow/Stop to Fast.
+    expect(rot.morphs).toEqual({ speed: { wheel: 'Fast' } });
+  });
+
+  it('Comp and Reverb keep their stored amount', () => {
+    expect(global({ 'globalFx.compressorAmount': 127 }, 'Comp')).toMatchObject({ on: false, params: { amount: '10.0' }, midi: { amount: 127 } });
+    expect(global({ 'globalFx.reverbEnable': 1, 'globalFx.reverbType': 4, 'globalFx.reverbDryWet': 0 }, 'Reverb'))
+      .toMatchObject({ on: true, type: 'Hall 1', params: { amount: '0.0' }, midi: { amount: 0 } });
   });
 });

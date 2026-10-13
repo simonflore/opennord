@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { fromNs3 } from './from-ns3';
 import { decodeNs3, type Ns3Program } from '../ns3/decode';
-import { ns3ZeroFile } from '../ns3/file.synth';
+import { ns3SynthFile, ns3ZeroFile } from '../ns3/file.synth';
+import { emitNs4 } from './to-ns4';
+import { naiveAdvisor } from './advisor';
+import { setting } from '../clavia/fx-block';
 
 const prog: Ns3Program = {
   name: 'Boston Organ',
@@ -32,8 +35,9 @@ const prog: Ns3Program = {
         osc: '', cutoff: '', filter_type: '',
       },
       fx: [
-        { name: 'Reverb', type: 'Hall 1', params: { amount: '5.0' } },
-        { name: 'Delay', params: { mix: '3.0', feedback: '2.0' } },
+        { name: 'Reverb', on: true, type: 'Hall 1', settings: [setting('amount', '5.0', 64)] },
+        { name: 'Delay', on: true, settings: [setting('mix', '3.0'), setting('feedback', '2.0')] },
+        { name: 'Comp', on: false, settings: [setting('amount', '9.0', 114)] },
       ],
     },
   ],
@@ -82,6 +86,14 @@ describe('fromNs3', () => {
     expect(reverb?.type).toBe('Hall 1');
     const delay = common.fx?.find((f) => f.slot === 'delay');
     expect(delay?.on).toBe(true);
+  });
+
+  it('carries an effect amount as its stored 0–127 position', () => {
+    expect(common.fx?.find((f) => f.slot === 'reverb')?.amountMidi).toBe(64);
+  });
+
+  it('leaves out a block that is switched off', () => {
+    expect(common.fx?.find((f) => f.slot === 'comp')).toBeUndefined();
   });
 
   it('does not report the arpeggiator as dropped when it was off in the source', () => {
@@ -156,5 +168,25 @@ describe('fromNs3 on a decoded buffer (firmware-registry field fixes)', () => {
     expect(common.fx?.find((f) => f.slot === 'mod2')?.rateMidi).toBe(127);
     expect(common.fx?.find((f) => f.slot === 'ampsim')?.type).toBe('Twin');
     expect(dropped).toContain('rotary speaker');
+  });
+});
+
+describe('Stage 3 → Stage 4: effect amounts carry over', () => {
+  it('writes a decoded file\'s reverb and Effect 1 amounts into the Stage 4 program', async () => {
+    const file = ns3SynthFile({
+      'synthCommonA.enable': 1,
+      'effectsA.rvbEnable': 1, 'effectsA.rvbAmt': 100,
+      'effectsA.fx1Enable': 1, 'effectsA.fx1Amt': 42,
+      'effectsA.cmpAmt': 90, // the compressor is off: its amount must not be written
+    });
+    const { common } = fromNs3(decodeNs3(file));
+    expect(common.fx?.find((f) => f.slot === 'reverb')?.amountMidi).toBe(100);
+    expect(common.fx?.find((f) => f.slot === 'mod1')?.amountMidi).toBe(42);
+    const { edits, report } = await emitNs4(common, [], { advisor: naiveAdvisor, sounds: [] });
+    const value = (name: string) => edits.find((e) => e.name === name)?.value;
+    expect(value('FX reverb amount')).toBe(100);
+    expect(value('FX mod 1 amount')).toBe(42);
+    expect(value('FX comp amount')).toBeUndefined();
+    expect(report.notes.map((n) => n.note).join(' ')).not.toMatch(/depth left at a sensible default/);
   });
 });

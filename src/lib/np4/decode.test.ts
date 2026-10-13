@@ -86,7 +86,12 @@ describe('np4Decoded', () => {
     expect(d.sections.map((s) => s.label)).toEqual(['PIANO', 'SAMPLE SYNTH', 'EFFECTS']);
     expect(d.sections[0].engines[0].parts).toEqual(['EP6 Sparkletop XL', 'Electric', 'level 100', 'Timbre Bright']);
     expect(d.sections[1].engines[0].parts).toContain('(off)');
-    expect(d.sections[2].engines[0].parts).toEqual(['Phaser 1', 'Amp Twin', 'Reverb Stage']);
+        const fx = d.sections[2].fx!.groups[0].units;
+        expect(fx.map((u) => u.label)).toEqual(['Effect 1', 'Effect 2', 'Delay', 'Speaker/Comp', 'EQ', 'Reverb']);
+        expect(fx.filter((u) => u.on).map((u) => [u.label, u.type])).toEqual([['Effect 2', 'Phaser 1'], ['Speaker/Comp', 'Twin'], ['Reverb', 'Stage']]);
+        // The source selector has Piano and Synth; the file default (1) is Piano.
+        expect(fx[0].source).toEqual([{ label: 'Piano', on: true }, { label: 'Synth', on: false }]);
+        expect(fx[5].switches).toEqual([{ label: 'Bright', on: false }]);
     expect(d.warnings).toEqual([]);
   });
 

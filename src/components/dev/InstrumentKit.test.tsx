@@ -15,7 +15,7 @@ describe('InstrumentKit', () => {
     expect(html).toContain('ps-meter');
     expect(html).toContain('ps-stats');
     expect(html).toContain('ps-env');
-    expect(html).toContain('ps-chip');
+    expect(html).toContain('ps-fxunit');
   });
 
   it('shows a pushed-in drawbar with its cap (level 0 still renders a tab)', () => {

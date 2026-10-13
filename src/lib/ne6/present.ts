@@ -10,12 +10,13 @@ import { decodeNe6 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
 import {
-  DRAWBAR_NUMBERS, effectsSection, fwHeader, headerOnly, hexId, label, levelPart, octavePart, parts, splitText,
+  DRAWBAR_NUMBERS, fwHeader, fxSection, headerOnly, hexId, label, levelPart, octavePart, parts, splitText,
   SPLIT_NOTES_C3_TO_F5, transposeText,
 } from '../clavia/fw-present';
+import { rackUnits, type FieldGet } from '../clavia/fx-lean';
 import type { Ne6FieldKey } from './layout.generated';
 import {
-  NE6_AMP_TYPES, NE6_FX1_TYPES, NE6_FX2_TYPES, NE6_ORGAN_MODELS, NE6_PIANO_TYPES, NE6_REVERB_TYPES, ne6VibratoLabel,
+  NE6_AMP_TYPES, NE6_FX1_TYPES, NE6_FX2_TYPES, NE6_FX_SOURCES, NE6_ORGAN_MODELS, NE6_PIANO_TYPES, NE6_REVERB_TYPES, ne6VibratoLabel,
 } from './labels';
 
 /** Organ models that use Hammond drawbar footage (B3, B3 Bass). */
@@ -74,16 +75,10 @@ export function ne6Decoded(bytes: Uint8Array): DecodedProgram {
     }],
   };
 
-  const fxType = (table: readonly string[], key: Ne6FieldKey, fallback: string) => label(table, g(key)) ?? fallback;
-  const reverb = `${fxType(NE6_REVERB_TYPES, 'effects.rvbType', 'Reverb')}${g('effects.rvbBright') ? ' Bright' : ''}`;
-  const effects = effectsSection(parts(
-    g('effects.fx1Enable') ? fxType(NE6_FX1_TYPES, 'effects.fx1Type', 'Effect 1') : undefined,
-    g('effects.fx2Enable') ? fxType(NE6_FX2_TYPES, 'effects.fx2Type', 'Effect 2') : undefined,
-    g('effects.dlyEnable') ? 'Delay' : undefined,
-    g('effects.spkEnable') ? fxType(NE6_AMP_TYPES, 'effects.spkType', 'Amp') : undefined,
-    g('effects.eqlEnable') ? 'EQ' : undefined,
-    g('effects.rvbEnable') ? reverb : undefined,
-  ));
+  // The rack is the family the Piano 4, Piano 5 and Grand share (clavia/fx-lean.ts).
+  const effects = fxSection(rackUnits(g as FieldGet, {
+    fx1: NE6_FX1_TYPES, fx2: NE6_FX2_TYPES, speaker: NE6_AMP_TYPES, reverb: NE6_REVERB_TYPES, sources: NE6_FX_SOURCES,
+  }));
 
   return {
     title, header,

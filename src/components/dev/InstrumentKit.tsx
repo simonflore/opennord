@@ -21,8 +21,9 @@ import { engineCardModel, sceneTag } from '../../lib/ns4/view';
 import type { NS4Layer } from '../../lib/ns4/types';
 import { BankLabel } from '../device/BankLabel';
 import {
-  ArpRow, Chip, DrawbarStack, EnvCurve, FilterCurve, FxChain, Knob, Lcd, LfoRow, Meter, ModelSelector, StatGrid, ToggleGroup, WaveGlyph,
+  ArpRow, DrawbarStack, EnvCurve, FilterCurve, Knob, Lcd, LfoRow, Meter, ModelSelector, StatGrid, ToggleGroup, WaveGlyph,
 } from '../program/widgets';
+import { FxPanel } from '../program/FxPanel';
 
 /** The palette, by role. Each swatch is a token, so this list can't drift from tokens.css. */
 const SWATCHES: Array<{ token: string; role: string }> = [
@@ -151,10 +152,6 @@ export function InstrumentKit() {
           <Meter label="Volume" value="-6.0 dB" fill={72} />
           <StatGrid stats={[{ label: 'Attack', value: '0 ms' }, { label: 'Decay', value: '410 ms' }, { label: 'Sustain', value: '8' }, { label: 'Release', value: '120 ms' }]} />
           <EnvCurve a={0.05} d={0.55} s={0.3} r={0.4} caption="Amp envelope" />
-          <div className="ps-chips">
-            <Chip label="Reverb" detail="Hall · 3.1 s" />
-            <Chip label="Rotary" detail="Slow" />
-          </div>
         </Section>
 
         <Section title="Curves · schematic, the printed value is the truth">
@@ -173,11 +170,15 @@ export function InstrumentKit() {
         </Section>
 
         <Section title="Effect chain · every slot, lit when on">
-          <FxChain slots={[
-            { key: 'mod1', label: 'Mod 1', on: false, detail: '' },
-            { key: 'amp', label: 'Amp/EQ', on: true, detail: 'JC · drv 2.0', eq: { bassDb: -5, midDb: 3, trebDb: 6, midHz: 900 } },
-            { key: 'reverb', label: 'Reverb', on: true, detail: 'HALL · amt 4.7' },
-          ]} />
+          <FxPanel title="FX" view={{ groups: [{ key: 'kit', label: 'Synth A·B', kind: 'synth', units: [
+            { key: 'mod1', label: 'Mod 1', on: false, params: [] },
+            { key: 'amp', label: 'Amp/EQ', on: true, type: 'JC', params: [{ label: 'Drive', value: '2.0', fill: 20 }],
+              eq: { bassDb: -5, midDb: 3, trebDb: 6, midHz: 900 } },
+            { key: 'delay', label: 'Delay', on: true, params: [{ label: 'Tempo', value: '1/8 dotted' }, { label: 'Mix', value: '1.2', fill: 12, morph: { wheel: '6.0' } }],
+              switches: [{ label: 'Ping Pong', on: true }, { label: 'Analog', on: false }] },
+            { key: 'reverb', label: 'Reverb', on: true, type: 'Hall', params: [{ label: 'Amount', value: '4.7', fill: 47 }],
+              source: [{ label: 'Organ', on: false }, { label: 'Piano', on: true }, { label: 'Synth', on: false }] },
+          ] }] }} />
         </Section>
       </div>
 

@@ -10,6 +10,7 @@
  * Dependency direction stays model → clavia: this file is pure types, no model deps.
  */
 import type { DrawbarView } from './engine-view';
+import type { FxPanelView } from './fx-view';
 
 export interface DecodedEngine {
   /** Row label, e.g. 'Organ' | 'Piano' | 'Synth' (unique within a section). */
@@ -30,6 +31,8 @@ export interface DecodedSection {
   drawbars?: DrawbarView[];
   /** Extra pills shown under the engines (FX, B3 character, …). */
   chips?: string[];
+  /** This section's effects as panel blocks; drawn in place of the engine rows. */
+  fx?: FxPanelView;
 }
 
 /**

@@ -11,6 +11,9 @@ import { ne5Decoded } from '../../lib/ne5/present';
 import { ne6Decoded } from '../../lib/ne6/present';
 import { nw2Decoded } from '../../lib/nw2/present';
 import { nlaDecoded } from '../../lib/nla/present';
+import { fxFill, fxParam, fxSection, fxType, sourceLeds } from '../../lib/clavia/fw-present';
+import type { DecodedProgram } from '../../lib/clavia/decoded';
+import * as fwPresent from '../../lib/clavia/fw-present';
 
 /** Minimal CBIN `ns3f` (NSM-era) with a panel-A piano-on/Grand body. */
 function ns3f(): Uint8Array {
@@ -78,3 +81,57 @@ describe('DecodedProgramView', () => {
     }
   });
 });
+
+describe('lean effects helpers', () => {
+  it('fxFill maps a value onto 0–100 across its range, signed ranges included', () => {
+    expect(fxFill(0, 0, 127)).toBe(0);
+    expect(fxFill(127, 0, 127)).toBe(100);
+    expect(fxFill(0, -60, 60)).toBe(50);
+    expect(fxFill(undefined, 0, 127)).toBeUndefined();
+    expect(fxFill(5, 3, 3)).toBeUndefined();
+  });
+
+  it('fxParam prints the raw number, or the given text, and drops an undecoded field', () => {
+    expect(fxParam('Rate', 64, 0, 127)).toEqual({ label: 'Rate', value: '64', fill: 50 });
+    expect(fxParam('Rate', 64, 0, 127, '1/8')).toEqual({ label: 'Rate', value: '1/8', fill: 50 });
+    expect(fxParam('Rate', undefined, 0, 127)).toBeUndefined();
+  });
+
+  it('fxType falls back to the number, and to nothing when the field is not decoded', () => {
+    expect(fxType(['Room', 'Stage'], 1)).toBe('Stage');
+    expect(fxType(['Room', 'Stage'], 5)).toBe('5');
+    expect(fxType(['Room', 'Stage'], undefined)).toBeUndefined();
+  });
+
+  it('sourceLeds lights the selected engine', () => {
+    expect(sourceLeds(['Organ', 'Piano'], 1)).toEqual([{ label: 'Organ', on: false }, { label: 'Piano', on: true }]);
+    expect(sourceLeds(['Organ', 'Piano'], undefined)).toBeUndefined();
+  });
+});
+
+describe('DecodedProgramView with an effects section', () => {
+  const program: DecodedProgram = {
+    title: 'Test · Program', header: [], note: 'note',
+    sections: [fxSection([
+      { key: 'rvb', label: 'Reverb', on: true, type: 'Hall', params: [{ label: 'Amount', value: '64', fill: 50 }] },
+      { key: 'dly', label: 'Delay', on: false, params: [] },
+    ])],
+  };
+
+  it('draws the panel in place of the engine rows', () => {
+    const html = renderToStaticMarkup(<DecodedProgramView program={program} />);
+    expect(html).toContain('EFFECTS');
+    expect(html).toContain('ps-fxunit');
+    expect(html).toContain('aria-label="Reverb on"');
+    expect(html).toContain('aria-label="Delay off"');
+    expect(html).not.toContain('No engines active.');
+  });
+});
+
+describe('the effects text row', () => {
+  it('is gone: no shared helper builds a line of effect names any more', () => {
+    expect(Object.keys(fwPresent)).not.toContain('effectsSection');
+    expect(Object.keys(fwPresent)).toContain('fxSection');
+  });
+});
+

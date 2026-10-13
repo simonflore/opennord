@@ -31,6 +31,18 @@ export const NE6_AMP_TYPES = ['Clean', 'Small', 'JC', 'Twin', 'Rotary', 'Comp'] 
 /** Edt_Effects_kRvbType (0–2); Edt_Effects_kRvbBright adds the Bright switch. */
 export const NE6_REVERB_TYPES = ['Room', 'Stage', 'Hall'] as const;
 
+/**
+ * Edt_Effects_kFx1Src / kFx2Src / kDlySrc / kEqlSrc / kSpkSrc (0–2): the engine
+ * an effect acts on. The firmware has no text table for it; the order is from a
+ * survey of 364 real Electro 6 programs, counting every switched-on effect in a
+ * program that has exactly one engine on: value 0 sits with the organ in 91 of
+ * 93 such effects, value 1 with the piano in 212 of 214, value 2 with the sample
+ * synth in 81 of 81. 1 is also the stored default, so the piano figure alone
+ * would prove little; 0 and 2 are never defaults and settle the order. Not
+ * checked on an instrument.
+ */
+export const NE6_FX_SOURCES = ['Organ', 'Piano', 'Synth'] as const;
+
 /** The vibrato/chorus label for an organ model, or undefined when that model's table doesn't cover it. */
 export function ne6VibratoLabel(model: number | undefined, vibratoType: number | undefined): string | undefined {
   if (vibratoType === undefined) return undefined;

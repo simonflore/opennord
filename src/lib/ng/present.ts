@@ -5,16 +5,17 @@
  *
  * Display labels are the Grand's own panel labels for the same OS
  * (Piano 4 labels, with "Clav" and "Misc" for the Grand); the label-to-parameter
- * pairing is by value count (medium). Values without a known label are held back
- * rather than shown as raw numbers. The piano NAME comes from the family-wide
+ * pairing is by value count (medium). Effect settings without a known label show
+ * as their stored number on the effects panel. The piano NAME comes from the family-wide
  * piano-hash table, injected by the composition root (presenters.ts).
  */
 import { decodeNg } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import {
-  ampPart, effectsSection, fwHeader, headerOnly, label, levelPart, octavePart, parts, pianoParts, reverbPart,
+  fwHeader, fxSection, headerOnly, label, levelPart, octavePart, parts, pianoParts,
   pianoSynthSides, singleSplit, soundIdRow, splitText, SPLIT_SIDES, SPLIT_NOTES_F2_TO_F6, SPLIT_NOTES_FROM_C3, transposeText, type PianoNameResolver,
 } from '../clavia/fw-present';
+import { rackUnits } from '../clavia/fx-lean';
 
 /** Pno_kBank 0–5 (Grand OS 1.68 label table). */
 export const NG_PIANO_TYPE = ['Grand', 'Upright', 'Electric', 'Clav', 'Digital', 'Misc'] as const;
@@ -73,14 +74,11 @@ export function ngDecoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolve
     }],
   };
 
-  const fx = effectsSection(parts(
-    v['effects.fx1Enable'] ? label(NG_FX1, v['effects.fx1Type']) ?? 'Effect 1' : undefined,
-    v['effects.fx2Enable'] ? label(NG_FX2, v['effects.fx2Type']) ?? 'Effect 2' : undefined,
-    v['effects.dlyEnable'] ? 'Delay' : undefined,
-    v['effects.spkEnable'] ? ampPart(label(NG_SPEAKER, v['effects.spkType'])) : undefined,
-    v['effects.eqlEnable'] ? 'EQ' : undefined,
-    v['effects.rvbEnable'] ? reverbPart(label(NG_REVERB, v['effects.rvbType']), !!v['effects.rvbBright'] && 'Bright') : undefined,
-  ));
+  // Sources 1 and 2 read as Piano and Synth by the Electro 6's enumeration of the same field
+  // (0 Organ, 1 Piano, 2 Synth; ne6/labels.ts). The Piano 4, whose layout the Grand shares, confirms it on real files (np4/present.ts); not checked on Grand files.
+  const fx = fxSection(rackUnits((k) => v[k as keyof typeof v], {
+    fx1: NG_FX1, fx2: NG_FX2, speaker: NG_SPEAKER, reverb: NG_REVERB, sources: [undefined, 'Piano', 'Synth'],
+  }));
 
   return {
     title, header,

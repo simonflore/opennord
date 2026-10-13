@@ -83,7 +83,13 @@ describe('np5Decoded', () => {
     expect(pb.engines[0].parts).toEqual(['Clavinet', 'variation 3', 'level 127', 'Oct +1']);
     expect(sa.engines[0].parts).toContain('(off)');
     expect(sb.engines[0].parts).toEqual(['Sample', 'level 70']);
-    expect(fx.engines[0].parts).toEqual(['Wah-Wah', 'Amp Dist', 'Reverb Booth Dark']);
+        const units = fx.fx!.groups[0].units;
+        expect(units.filter((u) => u.on).map((u) => [u.label, u.type])).toEqual([['Effect 1', 'Wah-Wah'], ['Speaker/Comp', 'Dist'], ['Reverb', 'Booth']]);
+        expect(units[5].params.find((p) => p.label === 'Color')?.value).toBe('Dark');
+        expect(units[5].switches?.map((k) => k.label)).toEqual(['Chorale']);
+        // Which layers an effect acts on is stored as a number nothing names yet.
+        expect(units[0].source).toBeUndefined();
+        expect(units[0].params.at(-1)?.label).toBe('Source');
     expect(d.note).toMatch(/map of Piano 5 OS 1\.34 programs/);
   });
 

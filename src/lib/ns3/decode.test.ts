@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { buildCbinHeader } from '../clavia/cbin';
 import { readBits } from '../clavia/bitstream';
 import { synthFwBody, synthFwFile, writeBits } from '../clavia/block-chain.synth';
-import { decodeNs3 } from './decode';
+import { AMP_TYPE, decodeNs3 } from './decode';
 import { frameNs3Body, ns3SynthFile as ns3File, ns3ZeroFile as ns3buf } from './file.synth';
 import { NS3_LAYOUT, type Ns3FieldKey } from './layout.generated';
+import { flat } from '../../test-utils/fx';
+import { settingOf } from '../clavia/fx-block';
 
 /** A 3.00 body's delay as OS 3.00 stored it: rate 64 on the 0–127 scale, zero deltas (stored 127 = decoded −16256). */
 const OS300_DELAY: Partial<Record<Ns3FieldKey, number>> = Object.fromEntries((['A', 'B'] as const).flatMap((s) => [
@@ -120,8 +122,8 @@ describe('decodeNs3', () => {
     const b = ns3buf();
     b[0x134] = 0x02;   // reverb enable; type (u16 & 0x01c0)>>>6 = 0 → Room 1
     b[0x119] = 0x08;   // delay enable
-    const fx = decodeNs3(b).panels[0].fx;
-    expect(fx.map((f) => f.name)).toEqual(['Delay', 'Reverb']); // signal order
+    const fx = decodeNs3(b).panels[0].fx.map(flat);
+    expect(fx.filter((f) => f.on).map((f) => f.name)).toEqual(['Delay', 'Reverb']); // panel order
     expect(fx.find((f) => f.name === 'Reverb')?.type).toBe('Room 1');
   });
 
@@ -291,7 +293,7 @@ describe('decodeNs3', () => {
     // compressor enable: 0x139(b5) = 0x20; amount: (0x139 & 0x1f)<<2 | (0x13A & 0xc0)>>>6
     b[0x139] = 0x3f; // enable (0x20) + amount bits 4-0 = 0x1f
     b[0x13a] = 0xc0; // amount bits 7-6 = 3 → total = (0x1f<<2)|(3) = 0x7f = 127 → '10.0'
-    const fx = decodeNs3(b).panels[0].fx;
+    const fx = decodeNs3(b).panels[0].fx.map(flat);
     const comp = fx.find((f) => f.name === 'Comp');
     expect(comp).toBeDefined();
     expect(comp?.params?.amount).toBe('10.0');
@@ -301,7 +303,7 @@ describe('decodeNs3', () => {
     const b = ns3buf();
     b[0x134] = 0x02;   // reverb enable; type 0 → Room 1
     b[0x135] = 0x1f; b[0x136] = 0xc0; // amount = (0x1f<<2)|3 = 0x7f = 127 → '10.0'
-    const rev = decodeNs3(b).panels[0].fx.find((f) => f.name === 'Reverb');
+    const rev = decodeNs3(b).panels[0].fx.map(flat).find((f) => f.name === 'Reverb');
     expect(rev?.params?.amount).toBe('10.0');
   });
 
@@ -309,7 +311,7 @@ describe('decodeNs3', () => {
     const b = ns3buf();
     b[0x10b] = 0x80;  // rotary enable (b7)
     b[0x35] = 0x80;   // speed raw = (0x34.b0 << 1) | 0x35.b7 = 1 → Slow (firmware default)
-    const rot = decodeNs3(b).panels[0].fx.find((f) => f.name === 'Rotary');
+    const rot = decodeNs3(b).panels[0].fx.map(flat).find((f) => f.name === 'Rotary');
     expect(rot).toBeDefined();
     expect(rot?.params?.speed).toBe('Slow');
   });
@@ -322,7 +324,7 @@ describe('decodeNs3', () => {
       const b = ns3buf();
       b[0x10b] = 0x80;          // rotary on
       b[0x34] = b34; b[0x35] = b35;
-      return decodeNs3(b).panels[0].fx.find((f) => f.name === 'Rotary')?.params?.speed;
+      return decodeNs3(b).panels[0].fx.map(flat).find((f) => f.name === 'Rotary')?.params?.speed;
     };
     expect(speed(0x00, 0x00)).toBe('Stop');  // pre-fix: 'Slow'
     expect(speed(0x00, 0x80)).toBe('Slow');
@@ -339,9 +341,10 @@ describe('decodeNs3', () => {
     // 0x10C b6 set, which must not leak into the rate.
     b[0x10c] = 0x40 | 0x32;
     b[0x10d] = 0x80;
-    const fx1 = decodeNs3(b).panels[0].fx.find((f) => f.name === 'Effect 1');
+    const fx1 = decodeNs3(b).panels[0].fx.map(flat).find((f) => f.name === 'Effect 1');
     expect(fx1?.type).toBe('Panning');
-    expect(fx1?.params?.rate).toBe(101);  // pre-fix mask 0x1fc0 >>> 6 gave 74
+    expect(fx1?.midi?.rate).toBe(101);  // pre-fix mask 0x1fc0 >>> 6 gave 74
+    expect(fx1?.params?.rate).toBe('1/8T'); // clocked: 101 sits in the 1/8T step
   });
 
   it('decodes Effect 2 rate as 7 bits from 0x114(b1-0)+0x115(b7-3)', () => {
@@ -349,12 +352,13 @@ describe('decodeNs3', () => {
       const b = ns3buf();
       b[0x114] = 0x80 | b114;   // enable b7, type 0 (Phaser 1), rate high bits b1-0
       b[0x115] = b115;          // rate low bits b7-3; amount bits b2-0
-      return decodeNs3(b).panels[0].fx.find((f) => f.name === 'Effect 2');
+      return decodeNs3(b).panels[0].fx.map(flat).find((f) => f.name === 'Effect 2');
     };
     // rate 64 = 0b10_00000 → 0x114 b1-0 = 0b10, 0x115 b7-3 = 0
-    expect(fx2(0x02, 0x00)?.params?.rate).toBe(64);   // pre-fix: 0
+    expect(fx2(0x02, 0x00)?.midi?.rate).toBe(64);   // pre-fix: 0
     // rate 127 = 0b11_11111
-    expect(fx2(0x03, 0xf8)?.params?.rate).toBe(127);  // pre-fix: 192|31 = 223
+    expect(fx2(0x03, 0xf8)?.midi?.rate).toBe(127);  // pre-fix: 192|31 = 223
+    expect(fx2(0x03, 0xf8)?.params?.rate).toBe('10.0');
     expect(fx2(0x03, 0xf8)?.type).toBe('Phaser 1');
     expect(fx2(0x03, 0xf8)?.params?.amount).toBe('0.0');
   });
@@ -370,7 +374,7 @@ describe('decodeNs3', () => {
     const pb = decodeNs3(b).panels[0];
     expect(pb.id).toBe('B');
     expect(pb.organ.vibChorus).toEqual({ on: true, mode: 'V2' });
-    expect(pb.fx.find((f) => f.name === 'Rotary')?.params?.speed).toBe('Fast');
+    expect(pb.fx.map(flat).find((f) => f.name === 'Rotary')?.params?.speed).toBe('Fast');
   });
 
   it('both panels share the MultiCommon vib/chorus mode', () => {
@@ -437,12 +441,12 @@ describe('decodeNs3', () => {
     b[0x12a] = (0 << 5) | (120 >>> 2);
     b[0x12b] = (120 & 0x03) << 6;
     b[0x12c] = 60;
-    const amp = decodeNs3(b).panels[0].fx.find((f) => f.name === 'Amp/EQ');
+    const amp = decodeNs3(b).panels[0].fx.map(flat).find((f) => f.name === 'Amp/EQ');
     expect(amp?.type).toBe('Clean');     // pre-fix: 'JC'
-    expect(amp?.params).toEqual({ treble: 60, mid: -60, bass: 0 });
+    expect(amp?.params).toMatchObject({ treble: '+15.0 dB', mid: '-15.0 dB', bass: '0.0 dB' });
     const types = [0, 1, 2, 3, 4, 5, 6].map((t) => {
       const c = ns3buf(); c[0x129] = 0x04; c[0x12a] = t << 5;
-      return decodeNs3(c).panels[0].fx.find((f) => f.name === 'Amp/EQ')?.type;
+      return decodeNs3(c).panels[0].fx.map(flat).find((f) => f.name === 'Amp/EQ')?.type;
     });
     expect(types).toEqual(['Clean', 'Twin', 'JC', 'Small', 'LP24', 'HP24', '#6']);
   });
@@ -593,7 +597,8 @@ describe('decodeNs3 — firmware layout (Stage 3 OS 2.64 registry)', () => {
     expect(b.organ.drawbars[2]).toBe(5);
     expect(b.piano).toMatchObject({ on: true, type: 'Electric', timbre: 'Dyno1', sampleId: 0x12345678, sampleVariation: 2 });
     expect(b.synth).toMatchObject({ on: true, osc: 'Sample', sampleId: 0xfedcba98 });
-    expect(b.fx).toEqual([{ name: 'Delay', params: { feedback: '5.0', mix: '10.0' } }]);
+    expect(b.fx.map(flat).filter((f) => f.on)).toMatchObject([{ name: 'Delay', params: { feedback: '5.0', mix: '10.0' } }]);
+    expect(b.fx.map(flat).filter((f) => f.on)).toHaveLength(1);
     expect(p.panels[0].piano.on).toBe(false);
   });
 
@@ -693,9 +698,11 @@ describe('decodeNs3 — firmware layout (Stage 3 OS 2.64 registry)', () => {
     expect(p.values).toMatchObject({ 'effectsA.dlyRateClkDiv': 64, 'effectsA.dlyRateClkDiv.morphWheel': -20 });
     expect(p.os300DelayRate).toEqual(['A', 'B']);
     expect(p.warnings).toEqual([expect.stringMatching(/OS 3\.00.*original 0–127 scale/)]);
-    expect(p.panels[0].fx.find((f) => f.name === 'Delay')?.params).toMatchObject({ rate: '64 of 127 (OS 3.00 scale)' });
-    // A 3.04 file shows no rate there.
-    expect(decodeNs3(ns3File({ 'effectsA.dlyEnable': 1 }, 304)).panels[0].fx.find((f) => f.name === 'Delay')?.params?.rate).toBeUndefined();
+    expect(p.panels[0].fx.map(flat).find((f) => f.name === 'Delay')?.params).toMatchObject({ rate: '64 of 127 (OS 3.00 scale)' });
+    // As stored, with no knob position and no morph.
+    expect(settingOf(p.panels[0].fx.find((f) => f.name === 'Delay')!, 'rate')).toEqual({ id: 'rate', text: '64 of 127 (OS 3.00 scale)' });
+    // A 3.04 file's rate is a time: the knob's centre position, 8192 → 411 ms.
+    expect(decodeNs3(ns3File({ 'effectsA.dlyEnable': 1 }, 304)).panels[0].fx.map(flat).find((f) => f.name === 'Delay')?.params?.rate).toBe('411 ms');
     // A rate above 127, or a target in 128–16383, makes the instrument refuse the program.
     for (const v of [{ 'effectsA.dlyRateClkDiv': 128 }, { 'effectsA.dlyRateClkDiv.morphWheel': 100 - 16256 }]) {
       const r = decodeNs3(ns3File({ ...OS300_DELAY, ...v }, 300));
@@ -776,5 +783,129 @@ describe('decodeNs3: keyboard split', () => {
 
   it('has no split when the layout was not read', () => {
     expect(decodeNs3(ns3File({}, 200)).split).toBeNull();
+  });
+});
+
+describe('decodeNs3 effects: every block of the panel, with all its settings', () => {
+  type Fields = Partial<Record<Ns3FieldKey, number>>;
+  const fxOf = (v: Fields) => decodeNs3(ns3File(v)).panels[0].fx.map(flat);
+  const unit = (v: Fields, name: string) => fxOf(v).find((f) => f.name === name)!;
+
+  it('lists each block\'s settings in panel order', () => {
+    const order = (name: string) => unit({}, name).settings.map((s) => s.id);
+    expect(order('Rotary')).toEqual(['speed', 'drive']);
+    expect(order('Effect 1')).toEqual(['rate', 'amount']);
+    expect(order('Effect 2')).toEqual(['rate', 'amount']);
+    expect(order('Delay')).toEqual(['rate', 'feedback', 'mix', 'filter']);
+    expect(order('Amp/EQ')).toEqual(['drive', 'treble', 'mid', 'bass', 'midFreq']);
+    expect(order('Comp')).toEqual(['amount']);
+    expect(order('Reverb')).toEqual(['amount']);
+  });
+
+  it('a filter-type Amp/EQ lists drive, resonance, dry/wet and frequency, the frequency with its position', () => {
+    // AMP_TYPE index of LP24: read it from the table rather than hard-coding it.
+    const lp24 = AMP_TYPE.indexOf('LP24');
+    const amp = unit({ 'effectsA.ampType': lp24, 'effectsA.ampMidFreq': 65 }, 'Amp/EQ');
+    expect(amp.settings.map((s) => s.id)).toEqual(['drive', 'resonance', 'dryWet', 'frequency']);
+    expect(amp.midi).toMatchObject({ frequency: 65 });
+  });
+
+  it('lists the whole chain in panel order, on or off', () => {
+    const fx = fxOf({ 'effectsA.rvbEnable': 1 });
+    expect(fx.map((f) => f.name)).toEqual(['Rotary', 'Effect 1', 'Effect 2', 'Delay', 'Amp/EQ', 'Comp', 'Reverb']);
+    expect(fx.map((f) => f.on)).toEqual([false, false, false, false, false, false, true]);
+  });
+
+  it('keeps the settings of a block that is switched off', () => {
+    const fx1 = unit({ 'effectsA.fx1Type': 1, 'effectsA.fx1Amt': 127 }, 'Effect 1');
+    expect(fx1).toMatchObject({ on: false, type: 'Tremolo', params: { amount: '10.0' } });
+  });
+
+  it('reads the source of each block that has a source selector', () => {
+    const fx = fxOf({
+      'effectsA.leslieSrc': 0, 'effectsA.fx1Src': 1, 'effectsA.fx2Src': 2, 'effectsA.dlySrc': 0, 'effectsA.ampSrc': 2,
+    });
+    expect(Object.fromEntries(fx.map((f) => [f.name, f.source]))).toEqual({
+      Rotary: 'Organ', 'Effect 1': 'Piano', 'Effect 2': 'Synth', Delay: 'Organ', 'Amp/EQ': 'Synth',
+      Comp: undefined, Reverb: undefined,
+    });
+  });
+
+  it('Effect 1: a free rate reads 0–10, a clocked rate reads its division; both keep the stored position', () => {
+    const free = unit({ 'effectsA.fx1RateClkDiv': 127, 'effectsA.fx1Amt': 64 }, 'Effect 1');
+    expect(free).toMatchObject({ params: { rate: '10.0', amount: '5.0' }, midi: { rate: 127, amount: 64 }, switches: { masterClock: false } });
+    const clocked = (rate: number) => unit({ 'effectsA.fx1ClkEnable': 1, 'effectsA.fx1RateClkDiv': rate }, 'Effect 1').params?.rate;
+    expect([0, 8, 9, 69, 119, 120, 127].map(clocked)).toEqual(['4/1', '4/1', '4/1T', '1/4', '1/16T', '1/32', '1/32']);
+    expect(unit({ 'effectsA.fx1ClkEnable': 1 }, 'Effect 1').switches).toEqual({ masterClock: true });
+  });
+
+  it('Effect 2: rate and amount read 0–10', () => {
+    expect(unit({ 'effectsA.fx2Rate': 127, 'effectsA.fx2Amt': 0 }, 'Effect 2'))
+      .toMatchObject({ params: { rate: '10.0', amount: '0.0' }, midi: { rate: 127, amount: 0 } });
+  });
+
+  it('Delay: free time in ms from the 14-bit rate, clocked time as a division, and its switches', () => {
+    const time = (rate: number, clk = 0) =>
+      unit({ 'effectsA.dlyRateClkDiv': rate, 'effectsA.dlyClkEnable': clk }, 'Delay').params?.rate;
+    expect(time(0)).toBe('1.50 s');
+    expect(time(45 << 7)).toBe('484 ms');
+    expect(time(127 << 7)).toBe('20 ms');
+    // A tapped tempo sits between two knob positions: 750 ms and 732 ms, half way.
+    expect(time((16 << 7) | 64)).toBe('741 ms');
+    expect([0, 7, 8, 31, 120, 121, 127].map((x) => time(x << 7, 1))).toEqual(['1/2', '1/2', '1/4D', '1/4', '1/32T', '1/64', '1/64']);
+    const d = unit({
+      'effectsA.dlyPingPong': 1, 'effectsA.dlyMode': 1, 'effectsA.dlyFltType': 2, 'effectsA.dlyMix': 127, 'effectsA.dlyFeedback': 64,
+    }, 'Delay');
+    expect(d.switches).toEqual({ masterClock: false, pingPong: true, analog: true });
+    expect(d.params).toMatchObject({ mix: '10.0', feedback: '5.0', filter: 'HP' });
+    expect(d.midi).toEqual({ mix: 127, feedback: 64 });
+  });
+
+  it('Amp/EQ: drive, the three bands in dB and the mid frequency', () => {
+    const amp = unit({
+      'effectsA.ampType': 1, 'effectsA.ampDrive': 127, 'effectsA.ampTreble': 60, 'effectsA.ampMid': -59,
+      'effectsA.ampBass': 0, 'effectsA.ampMidFreq': 65,
+    }, 'Amp/EQ');
+    expect(amp.type).toBe('Twin');
+    expect(amp.params).toEqual({ drive: '10.0', treble: '+15.0 dB', mid: '-14.8 dB', bass: '0.0 dB', midFreq: '1.0 kHz' });
+    expect(amp.midi).toEqual({ drive: 127, midFreq: 65 });
+  });
+
+  it('Amp/EQ set to a filter: the mid band is its resonance and the bass band its dry/wet mix', () => {
+    const amp = unit({ 'effectsA.ampType': 4, 'effectsA.ampMid': 67, 'effectsA.ampBass': -60, 'effectsA.ampMidFreq': 0 }, 'Amp/EQ');
+    expect(amp.type).toBe('LP24');
+    expect(amp.params).toMatchObject({ frequency: '200 Hz', resonance: '10.0', dryWet: '0.0' });
+    expect(amp.params).not.toHaveProperty('mid');
+  });
+
+  it('Comp: amount and the fast switch; Reverb: amount and the bright switch', () => {
+    expect(unit({ 'effectsA.cmpAmt': 127, 'effectsA.cmpResponse': 1 }, 'Comp'))
+      .toMatchObject({ params: { amount: '10.0' }, midi: { amount: 127 }, switches: { fast: true } });
+    expect(unit({ 'effectsA.rvbType': 4, 'effectsA.rvbBright': 1, 'effectsA.rvbAmt': 64 }, 'Reverb'))
+      .toMatchObject({ type: 'Hall 1', params: { amount: '5.0' }, midi: { amount: 64 }, switches: { bright: true } });
+  });
+
+  it('Rotary: the program-wide speed and drive', () => {
+    expect(unit({ 'effectsA.leslieEnable': 1, 'common.leslieSpeed': 2, 'common.leslieDrv': 127 }, 'Rotary'))
+      .toMatchObject({ on: true, params: { speed: 'Fast', drive: '10.0' }, midi: { drive: 127 } });
+  });
+
+  it('gives each morphed setting the value every source takes it to', () => {
+    const fx1 = unit({
+      'effectsA.fx1Amt': 64, 'effectsA.fx1Amt.morphWheel': 63, 'effectsA.fx1Amt.morphCtrlPedal': -200,
+    }, 'Effect 1');
+    expect(fx1.morphs).toEqual({ amount: { wheel: '10.0', pedal: '0.0' } });
+    expect(unit({ 'effectsA.rvbAmt': 0, 'effectsA.rvbAmt.morphAfterTouch': 127 }, 'Reverb').morphs).toEqual({ amount: { at: '10.0' } });
+    expect(unit({ 'common.leslieSpeed': 1, 'common.leslieSpeed.morphWheel': 1 }, 'Rotary').morphs).toEqual({ speed: { wheel: 'Fast' } });
+    expect(unit({}, 'Delay').morphs).toBeUndefined();
+  });
+
+  it('reads the full chain of a real program', () => {
+    const FIX = new URL('../../../fixtures/stage-3/s50428_Money_Wurly.ns3f', import.meta.url).pathname;
+    if (!existsSync(FIX)) return; // fixture absent
+    for (const p of decodeNs3(new Uint8Array(readFileSync(FIX))).panels) {
+      expect(p.fx.map(flat).map((f) => f.name)).toEqual(['Rotary', 'Effect 1', 'Effect 2', 'Delay', 'Amp/EQ', 'Comp', 'Reverb']);
+      for (const f of p.fx.map(flat)) for (const v of Object.values(f.params ?? {})) expect(String(v)).not.toMatch(/^#|undefined|NaN/);
+    }
   });
 });

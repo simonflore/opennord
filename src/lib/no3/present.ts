@@ -10,7 +10,7 @@
 import { decodeNo3 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
-import { DRAWBAR_NUMBERS, effectsSection, fwHeader, headerOnly, label, parts, transposeText } from '../clavia/fw-present';
+import { DRAWBAR_NUMBERS, fwHeader, fxKnobs, fxParam, fxSection, fxType, headerOnly, label, parts, transposeText } from '../clavia/fw-present';
 import type { No3FieldKey } from './layout.generated';
 
 /** kOrganModel 0–4. */
@@ -67,23 +67,46 @@ export function no3Decoded(bytes: Uint8Array): DecodedProgram {
     drawbars: drawbarViews(bassBars),
   };
 
-  const speaker = label(NO3_SPEAKER, g('common.speakerModel'));
-  const modFx = label(NO3_MODFX, g('common.modFxType'));
-  const reverb = label(NO3_REVERB, g('common.reverbType'));
   const color = label(NO3_REVERB_COLOR, g('common.reverbColor'));
 
   return {
     title, header,
     sections: [
       organ, manual(g, 'A', b3), manual(g, 'B', b3), bass,
-      effectsSection(parts(
-        g('common.speakerEnable') ? `Speaker ${speaker ?? ''}`.trim() : undefined,
-        g('common.modFxEnable') ? modFx ?? 'Mod FX' : undefined,
-        g('common.delayEnable') ? 'Delay' : undefined,
-        g('common.eqEnable') ? 'EQ' : undefined,
-        g('common.reverbEnable')
-          ? `Reverb ${reverb ?? ''}${color && color !== 'Normal' ? ` ${color}` : ''}`.trim() : undefined,
-      )),
+      // One rack for the whole organ. Ranges are the registry's; values with no name show as stored.
+      fxSection([
+        {
+          key: 'spk', label: 'Speaker', on: g('common.speakerEnable') === 1, type: fxType(NO3_SPEAKER, g('common.speakerModel')),
+          params: fxKnobs(fxParam('Drive', g('common.speakerDriveAmount'), 0, 127)),
+        },
+        {
+          key: 'mod', label: 'Mod FX', on: g('common.modFxEnable') === 1, type: fxType(NO3_MODFX, g('common.modFxType')),
+          params: fxKnobs(fxParam('Rate', g('common.modFxRate'), 0, 127), fxParam('Amount', g('common.modFxAmount'), 0, 127)),
+        },
+        {
+          key: 'dly', label: 'Delay', on: g('common.delayEnable') === 1,
+          params: fxKnobs(
+            fxParam('Rate', g('common.delayRate'), 0, 16383), fxParam('Amount', g('common.delayAmount'), 0, 127),
+            fxParam('Feedback', g('common.delayFeedback'), 0, 127),
+          ),
+          switches: [{ label: 'Upper Only', on: g('common.delayUpperOnly') === 1 }],
+        },
+        {
+          key: 'eq', label: 'EQ', on: g('common.eqEnable') === 1,
+          params: fxKnobs(
+            fxParam('Bass', g('common.eqBass'), -60, 60), fxParam('Mid', g('common.eqMid'), -60, 60),
+            fxParam('Mid Freq', g('common.eqMidFreq'), 0, 127), fxParam('Treble', g('common.eqTreble'), -60, 60),
+          ),
+        },
+        {
+          key: 'rvb', label: 'Reverb', on: g('common.reverbEnable') === 1, type: fxType(NO3_REVERB, g('common.reverbType')),
+          params: fxKnobs(
+            fxParam('Amount', g('common.reverbAmount'), 0, 127),
+            color === undefined ? undefined : { label: 'Color', value: color },
+          ),
+          switches: [{ label: 'Chorale', on: g('common.reverbChorale') === 1 }],
+        },
+      ]),
     ],
     note: NO3_PROVISIONAL_NOTE,
     warnings: p.warnings,

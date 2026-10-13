@@ -75,17 +75,23 @@ describe('ng2Decoded', () => {
       'common.effectsRvbEnable': 1, 'common.effectsRvbType': 4, 'common.effectsRvbColor': 2,
     }));
     expect(d.title).toBe('Nord Grand 2 · Program');
-    expect(d.sections.map((s) => s.label)).toEqual(['PIANO A', 'PIANO B', 'SYNTH A', 'SYNTH B', 'REVERB']);
-    const [pa, pb, sa, sb, rv] = d.sections;
+    expect(d.sections.map((s) => s.label)).toEqual(['PIANO A', 'PIANO B', 'SYNTH A', 'SYNTH B', 'EFFECTS']);
+    const [pa, pb, sa, sb] = d.sections;
     expect(pa.engines[0].parts).toEqual(['Grand', 'level 90']);
-    expect(pa.engines[1].parts).toEqual(['Vibe', 'Delay LP', 'Comp']);
     expect(pa.chips).toEqual(['Pedal Noise']); // firmware default: pedal noise on
     expect(pb.engines[0].parts).toEqual(['Electric', 'variation 2', 'level 127', 'Oct −1']);
-    expect(pb.engines[1].parts).toEqual(['None on']);
     expect(sa.engines[0].parts).not.toContain('(off)');
     expect(sb.engines[0].parts).toContain('(off)');
-    expect(sb.engines[1].parts).toEqual(['—']);
-    expect(rv.engines[0].parts).toEqual(['Reverb Hall Bright']);
+    const fxCard = d.sections.find((s) => s.id === 'FX')!;
+    expect(fxCard.fx!.groups.map((g) => g.label)).toEqual(['Piano A', 'Piano B', 'Synth A']);
+    const row = (label: string) => fxCard.fx!.groups.find((g) => g.label === label)!.units;
+    const lit = (label: string) => row(label).filter((u) => u.on).map((u) => [u.label, u.type]);
+    expect(lit('Piano A')).toEqual([['Effect 2', 'Vibe'], ['Delay', undefined], ['Comp', undefined], ['Reverb', 'Hall']]);
+    expect(row('Piano A')[2].params.find((p) => p.label === 'Filter')?.value).toBe('LP');
+    // Piano B has nothing of its own on; only the program's reverb is lit on its row.
+    expect(lit('Piano B')).toEqual([['Reverb', 'Hall']]);
+    expect(row('Piano B')[6].params.find((p) => p.label === 'Color')?.value).toBe('Bright');
+    expect(d.sections.find((s) => s.id === 'RV')).toBeUndefined();
     expect(d.note).toMatch(/map of Grand 2 OS 1\.22 programs/);
   });
 

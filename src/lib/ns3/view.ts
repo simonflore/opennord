@@ -1,19 +1,21 @@
 /**
  * Stage 3 view-model — pure derivations from a decoded Ns3Panel to the shared
- * EngineCardModel / FxChipModel contract (clavia/engine-view.ts). No React, no I/O.
+ * EngineCardModel / FxPanelView contract (clavia/engine-view.ts, clavia/fx-view.ts). No React, no I/O.
  * Mirrors ns4/view.ts for Stage 4. Sample names are injected (resolved lazily by
  * the shell) via the optional `names` map keyed by ns3SampleKey().
  */
 import type {
   EngineCardModel, OrganPanelModel, PianoCardModel, SynthCardModel,
-  FxChipModel, HeaderView, KeyItem, Stat, VolumeView,
+  HeaderView, KeyItem, Stat, VolumeView,
 } from '../clavia/engine-view';
 import { volumeFill, envCurve } from '../clavia/engine-view';
 import { drawbarViews, b3DrawbarViews } from '../clavia/drawbars';
 import { identifyNordFile } from '../clavia/nord-file';
-import { ORGAN_TYPE, type Ns3Panel, type Ns3Fx, type Ns3Split } from './decode';
+import { ORGAN_TYPE, type Ns3Panel, type Ns3Split } from './decode';
 import type { KeyboardZonesView } from '../clavia/decoded';
 import { ns3Engines } from './engines';
+import { fxUnitOf } from '../clavia/fx-block';
+import type { FxPanelView } from '../clavia/fx-view';
 
 // The model-selector options ARE the decoder's organ-type table — sourced from it
 // so a future decoder relabel can't silently desync the selector.
@@ -160,22 +162,19 @@ export function ns3EngineCards(panel: Ns3Panel, names?: Record<string, string>):
   return cards;
 }
 
-/** Build the chip detail from an FX's decoded params (type first, then named params). */
-function fxDetail(fx: Ns3Fx): string {
-  const parts: string[] = [];
-  if (fx.type) parts.push(fx.type);
-  const p = fx.params ?? {};
-  if (p.speed !== undefined) parts.push(String(p.speed));
-  if (p.rate !== undefined) parts.push(`rate ${p.rate}`);
-  if (p.amount !== undefined) parts.push(`amt ${p.amount}`);
-  if (p.mix !== undefined) parts.push(`mix ${p.mix}`);
-  if (p.feedback !== undefined) parts.push(`fb ${p.feedback}`);
-  return parts.join(' · ') || 'on';
-}
-
-/** Chips for the FX switched on in this panel. */
-export function ns3FxChips(panel: Ns3Panel): FxChipModel[] {
-  return panel.fx.map((fx) => ({ key: `${panel.id}-${fx.name}`, label: fx.name, detail: fxDetail(fx) }));
+/**
+ * The program's effects for the panel: one row per panel, its seven blocks in
+ * panel order (Rotary, Effect 1, Effect 2, Delay, Amp/EQ, Comp, Reverb), on or
+ * off. Two panels are two sounds, so their rows never merge.
+ */
+export function ns3FxPanel(panels: Ns3Panel[]): FxPanelView {
+  return {
+    groups: panels.map((panel) => ({
+      key: `panel${panel.id}`,
+      label: `Panel ${panel.id}`,
+      units: panel.fx.map((fx) => fxUnitOf(fx, `${panel.id}-${fx.name}`)),
+    })),
+  };
 }
 
 /** Referenced factory samples (resolved names) for the sample strip — piano + Sample-osc synth. */

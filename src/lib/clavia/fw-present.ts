@@ -9,6 +9,8 @@
  */
 import type { FwProgram } from './block-chain';
 import type { DecodedProgram, DecodedSection, KeyboardZonesView } from './decoded';
+import type { KeyItem } from './engine-view';
+import type { FxGroupView, FxParamView, FxUnitView } from './fx-view';
 
 /** Drawbar numbers 1–9, for reading a set of `drawbarValue1…9` fields. */
 export const DRAWBAR_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -67,16 +69,6 @@ export function pianoParts(
 /** A header row with a 32-bit sound id in hex, or no row when the id wasn't read. */
 export function soundIdRow(title: string, hash: number | undefined): [string, string][] {
   return hash === undefined ? [] : [[title, hexId(hash)]];
-}
-
-/** "Amp Twin", or "Amp" when the type has no label. */
-export function ampPart(type: string | undefined): string {
-  return parts('Amp', type).join(' ');
-}
-
-/** "Reverb Hall Bright": the type and a modifier when known, else just "Reverb". */
-export function reverbPart(type: string | undefined, modifier?: string | false): string {
-  return parts('Reverb', type, modifier).join(' ');
 }
 
 /** Header rows every firmware-layout reader shows: the version, then the transpose when it is on. */
@@ -228,11 +220,6 @@ export function coldfirePianoSection(
   };
 }
 
-/** An Amp/Comp selector's setting: "Compressor" / "Rotary" as such, else "Amp <type>". */
-export function ampCompPart(type: string | undefined): string {
-  return type === 'Compressor' || type === 'Rotary' ? type : ampPart(type);
-}
-
 /** Their sample synth card, titled as on the panel ("SAMPLE SYNTH" / "SYNTH"). */
 export function sampleSynthSection(
   title: string, s: { sample: number; attack: number; dcyRel: number; level?: number; on?: number },
@@ -272,7 +259,49 @@ export function noneOn(on: string[]): string[] {
   return on.length > 0 ? on : ['None on'];
 }
 
-/** An effects card: one "Effects" row listing what is switched on. */
-export function effectsSection(on: string[], id = 'FX', title = 'EFFECTS'): DecodedSection {
-  return { id, label: title, engines: [{ label: 'Effects', parts: noneOn(on) }] };
+/** A value's knob position (0–100) across the field's range; undefined when not decoded or the range is empty. */
+export function fxFill(v: number | undefined, min: number, max: number): number | undefined {
+  if (v === undefined || max <= min) return undefined;
+  return Math.max(0, Math.min(100, Math.round(((v - min) / (max - min)) * 100)));
+}
+
+/** One knob of an effect unit: the raw number (or `text`, when the model has a label for it) at its position. */
+export function fxParam(label: string, v: number | undefined, min: number, max: number, text?: string): FxParamView | undefined {
+  if (v === undefined) return undefined;
+  return { label, value: text ?? String(v), fill: fxFill(v, min, max) };
+}
+
+/** An effect's selected type: its display text, or the stored number when the table does not cover it. */
+export function fxType(table: readonly string[], v: number | undefined): string | undefined {
+  return label(table, v) ?? (v === undefined ? undefined : String(v));
+}
+
+/** A source selector: one LED per engine, the selected one lit. A gap in the table is a stored value the model does not use. */
+export function sourceLeds(table: readonly (string | undefined)[], v: number | undefined): KeyItem[] | undefined {
+  return v === undefined ? undefined : table.flatMap((label, i) => (label === undefined ? [] : [{ label, on: i === v }]));
+}
+
+/** A setting nothing names yet: its stored number as a readout; undefined when the file does not have it. */
+export function fxStored(label: string, v: number | undefined): FxParamView | undefined {
+  return v === undefined ? undefined : { label, value: String(v) };
+}
+
+/** One switch of an effect unit, lit when its 1-bit field is set. */
+export function fxSwitch(label: string, v: number | undefined): KeyItem {
+  return { label, on: v === 1 };
+}
+
+/** An effects card drawn as panel blocks: the instrument's one rack, in panel order. */
+export function fxSection(units: FxUnitView[], id = 'FX', title = 'EFFECTS'): DecodedSection {
+  return { id, label: title, engines: [], fx: { groups: [{ key: id, label: '', units }] } };
+}
+
+/** The settings a file has: drops the ones whose field is not decoded. */
+export function fxKnobs(...ps: (FxParamView | undefined)[]): FxParamView[] {
+  return ps.filter((p): p is FxParamView => p !== undefined);
+}
+
+/** An effects card with several rows: one per engine or layer, plus any shared row. */
+export function fxGroupsSection(groups: FxGroupView[], id = 'FX', title = 'EFFECTS'): DecodedSection {
+  return { id, label: title, engines: [], fx: { groups } };
 }

@@ -60,13 +60,22 @@ describe('np6Decoded', () => {
       'pianoFxA.dlyEnable': 1, 'pianoFxA.dlyFltType': 2,
       'common.effectsRvbEnable': 1, 'common.effectsRvbType': 0, 'common.effectsRvbColor': 1,
     }));
-    const [pa, pb, sa, sb, rv] = d.sections;
+    const [pa, pb, sa, sb] = d.sections;
     expect(pa.engines[0].parts).toEqual(['Grand', 'level 90']);
-    expect(pa.engines[1].parts).toEqual(['Spin', 'Delay HP', 'Amp Twin']);
     expect(pb.engines[0].parts).toEqual(['Clavinet', 'variation 2', 'level 127', 'Oct +1']);
     expect(sa.engines[0].parts).not.toContain('(off)');
     expect(sb.engines[0].parts).toContain('(off)');
-    expect(rv.engines[0].parts).toEqual(['Reverb Spring Dark']);
+    const fxCard = d.sections.find((s) => s.id === 'FX')!;
+    expect(fxCard.fx!.groups.map((g) => g.label)).toEqual(['Piano A', 'Piano B', 'Synth A']);
+    const row = (label: string) => fxCard.fx!.groups.find((g) => g.label === label)!.units;
+    const lit = (label: string) => row(label).filter((u) => u.on).map((u) => [u.label, u.type]);
+    // Reverb is the program's; it is lit on every layer row.
+    expect(lit('Piano A')).toEqual([['Effect 1', 'Spin'], ['Delay', undefined], ['Amp', 'Twin'], ['Reverb', 'Spring']]);
+    expect(row('Piano A')[2].params.find((p) => p.label === 'Filter')?.value).toBe('HP');
+    expect(row('Piano A')[6].params.find((p) => p.label === 'Color')?.value).toBe('Dark');
+    // The layer cards no longer carry an Effects line, and there is no separate reverb card.
+    expect(d.sections.find((s) => s.id === 'RV')).toBeUndefined();
+    expect(d.sections.flatMap((s) => s.engines.map((e) => e.label))).not.toContain('Effects');
     expect(d.note).toMatch(/map of Piano 6 OS 1\.20 programs/);
   });
 

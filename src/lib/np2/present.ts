@@ -1,14 +1,14 @@
 /**
  * Nord Piano 2 → DecodedProgram. Every value comes from the Piano 2 OS 1.22
  * descriptors (see decode.ts): the piano and synth sections with their on/off
- * switches and levels, the keyboard settings and which effects are on, named
+ * switches and levels, the keyboard settings and the effect rack with its settings, named
  * with the instrument's own display texts (labels.ts); sound references are
  * shown as fingerprints.
  */
 import { decodeNp2 } from './decode';
 import type { DecodedProgram } from '../clavia/decoded';
 import {
-  ampCompPart, coldfirePianoSection, effectsSection, fwHeader, label, legacyHeaderOnly, parts, reverbPart,
+  coldfirePianoSection, fxKnobs, fxParam, fxSection, fxStored, fxType, fwHeader, label, legacyHeaderOnly,
   sampleSynthSection, soundRefRows,
 } from '../clavia/fw-present';
 import {
@@ -33,14 +33,41 @@ export function np2Decoded(bytes: Uint8Array): DecodedProgram {
     sample: g('synth.sampleSelect'), attack: g('synth.attack'), dcyRel: g('synth.dcyRel'),
     level: g('synth.synthLevel'), on: g('synth.synthOn'),
   });
-  const effects = effectsSection(parts(
-    g('effects.effects1On') ? label(NP2_EFFECT1_TYPES, g('effects.effects1Type')) ?? 'Effect 1' : undefined,
-    g('effects.effects2On') ? label(NP2_EFFECT2_TYPES, g('effects.effects2Type')) ?? 'Effect 2' : undefined,
-    g('effects.delayOn') ? 'Delay' : undefined,
-    g('effects.ampCompOn') ? ampCompPart(label(NP2_AMP_TYPES, g('effects.ampCompType'))) : undefined,
-    g('effects.eqOn') ? 'EQ' : undefined,
-    g('effects.reverbOn') ? reverbPart(label(NP2_REVERB_TYPES, g('effects.reverbType'))) : undefined,
-  ));
+  // The rack in panel order. Knob fields are 0–127 (delay feedback 0–3), shown as stored.
+  // The source values (0–1) have no names in this model's tables, so they show as stored too.
+  const effects = fxSection([
+    {
+      key: 'fx1', label: 'Effect 1', on: g('effects.effects1On') === 1, type: fxType(NP2_EFFECT1_TYPES, g('effects.effects1Type')),
+      params: fxKnobs(fxParam('Rate', g('effects.effects1Rate'), 0, 127), fxStored('Source', g('effects.effects1Source'))),
+    },
+    {
+      key: 'fx2', label: 'Effect 2', on: g('effects.effects2On') === 1, type: fxType(NP2_EFFECT2_TYPES, g('effects.effects2Type')),
+      params: fxKnobs(fxParam('Rate', g('effects.effects2Rate'), 0, 127), fxStored('Source', g('effects.effects2Source'))),
+    },
+    {
+      key: 'dly', label: 'Delay', on: g('effects.delayOn') === 1,
+      params: fxKnobs(
+        fxParam('Tempo', g('effects.delayTempo'), 0, 127), fxParam('Mix', g('effects.delayDryWet'), 0, 127),
+        fxParam('Feedback', g('effects.delayFeedback'), 0, 3), fxStored('Source', g('effects.delaySource')),
+      ),
+    },
+    {
+      key: 'amp', label: 'Amp/Comp', on: g('effects.ampCompOn') === 1, type: fxType(NP2_AMP_TYPES, g('effects.ampCompType')),
+      params: fxKnobs(fxParam('Drive', g('effects.ampCompDrive'), 0, 127), fxStored('Source', g('effects.ampCompSource'))),
+    },
+    {
+      key: 'eq', label: 'EQ', on: g('effects.eqOn') === 1,
+      params: fxKnobs(
+        fxParam('Bass', g('effects.eqBass'), 0, 127), fxParam('Mid', g('effects.eqMid'), 0, 127),
+        fxParam('Mid Freq', g('effects.eqMidFreq'), 0, 127), fxParam('Treble', g('effects.eqTreble'), 0, 127),
+        fxStored('Source', g('effects.eqSource')),
+      ),
+    },
+    {
+      key: 'rvb', label: 'Reverb', on: g('effects.reverbOn') === 1, type: fxType(NP2_REVERB_TYPES, g('effects.reverbType')),
+      params: fxKnobs(fxParam('Amount', g('effects.reverbDryWet'), 0, 127)),
+    },
+  ]);
   header.push(
     ['Keyboard touch', label(NP2_KEYBOARD_TOUCH, g('common.param4')) ?? `#${g('common.param4')}`],
     ['Sustain pedal', label(NP2_SUSTAIN_PEDAL_MODES, g('common.param5')) ?? `#${g('common.param5')}`],

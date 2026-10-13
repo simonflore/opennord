@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import '../../styles/nord.css';
 import { isNs4Program, programTagFor, type NordProgram } from '../../lib/formats';
-import { activeLayers, sceneIIChanges, sceneTag, engineCardModel, headerView, fxChips } from '../../lib/ns4/view';
+import { activeLayers, sceneIIChanges, sceneTag, engineCardModel, headerView } from '../../lib/ns4/view';
 import { ProgramHeader } from './ProgramHeader';
 import { ProgramZones } from './ProgramZones';
 import { EngineCard } from './EngineCard';
 import { LedSwitch } from './widgets';
 import { OrganPlay } from './OrganPlay';
-import { FxRow } from './FxRow';
+import { FxPanel } from './FxPanel';
+import { fxPanel } from '../../lib/ns4/fx-panel';
 import { Morphs } from './Morphs';
 import { NordFileCard } from './NordFileCard';
 import { DecodedProgramView } from './DecodedProgramView';
@@ -130,7 +131,7 @@ export function ProgramView({ program }: { program: NordProgram }) {
           </EngineCard>
         ))}
       </div>
-      <FxRow chips={fxChips(program, scene)} />
+      <FxPanel view={fxPanel(program, scene)} title="LAYER & GLOBAL FX" />
       <Morphs program={program} />
       <ProgramExtern program={program} scene={scene} />
       <SampleRefs program={program} scene={scene} />

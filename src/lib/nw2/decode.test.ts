@@ -144,15 +144,22 @@ describe('decodeNw2 (synthetic, firmware layout)', () => {
       'slotBCommon.oscBank': 4, 'slotBFx.fxEnable': 1, 'slotBFx.fxType': 2, 'slotBReverb.rvbEnable': 1,
       'slotBFilter.fltFreq.morphWheel': 20, 'slotBAmpEnv.ampEnvRls.morphImpulse': 3, 'common.slotLevelB.morphVelocity': -9,
     }));
-    expect(d.sections.map((s) => s.label)).toEqual(['SLOT A', 'SLOT B', 'SLOT C', 'SLOT D']);
+    expect(d.sections.map((s) => s.label)).toEqual(['SLOT A', 'SLOT B', 'SLOT C', 'SLOT D', 'EFFECTS']);
     const [, b, c] = d.sections;
     expect(b.engines.map((e) => [e.label, e.parts])).toEqual([
-      ['Voice', ['Sample', 'level 100']], ['Filter', ['LP24']], ['Effects', ['Phaser', 'Stage']],
+      ['Voice', ['Sample', 'level 100']], ['Filter', ['LP24']],
       ['Morph', ['3 controls', 'Impulse', 'Wheel', 'Velocity']],
     ]);
+    // The effects card has a row for each slot that is on (A and B here), in panel order.
+    const fxCard = d.sections.find((s) => s.id === 'FX')!;
+    expect(fxCard.fx!.groups.map((g) => g.label)).toEqual(['Slot A', 'Slot B']);
+    const slotB = fxCard.fx!.groups[1].units;
+    expect(slotB.map((u) => u.label)).toEqual(['Effect', 'EQ', 'Delay', 'Reverb']);
+    expect(slotB.filter((u) => u.on).map((u) => [u.label, u.type])).toEqual([['Effect', 'Phaser'], ['Reverb', 'Stage']]);
     expect(c.engines[0].parts).toEqual(['Oscillator', 'level 127', '(off)']);
     expect(c.engines.at(-1)).toEqual({ label: 'Morph', parts: ['none'] });
-    expect(c.engines.at(-2)?.parts).toEqual(['None on']);
+    // No slot card carries an Effects line any more; slot C is off, so it has no effects row either.
+    expect(c.engines.map((e) => e.label)).toEqual(['Voice', 'Filter', 'Morph']);
   });
 });
 

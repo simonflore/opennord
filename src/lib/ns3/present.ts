@@ -8,6 +8,7 @@ import type { DecodedProgram, DecodedSection, DecodedEngine } from '../clavia/de
 import { B3_FOOTAGE, drawbarViews } from '../clavia/drawbars';
 import { transposeText } from '../clavia/fw-present';
 import { decodeNs3, type Ns3Panel } from './decode';
+import { settingOf } from '../clavia/fx-block';
 
 function organDrawbars(panel: Ns3Panel) {
   return drawbarViews(panel.organ.drawbars, panel.organ.type === 'B3' ? B3_FOOTAGE : undefined);
@@ -23,8 +24,10 @@ function sectionChips(panel: Ns3Panel): string[] {
     chips.push(`Percussion${f.length ? ` · ${f.join(' / ')}` : ''}`);
   }
   for (const fx of panel.fx) {
-    // A type, else a rate the chip must show (a 3.00 delay time kept on its old scale).
-    const detail = fx.type ?? (fx.params?.rate !== undefined ? `rate ${fx.params.rate}` : undefined);
+    if (!fx.on) continue;
+    // A type, else a rate: the delay is the one typeless block that has one.
+    const rate = settingOf(fx, 'rate')?.text;
+    const detail = fx.type ?? (rate !== undefined ? `rate ${rate}` : undefined);
     chips.push(detail ? `${fx.name}: ${detail}` : fx.name);
   }
   return chips;

@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import type { DecodedProgram, DecodedSection } from '../../lib/clavia/decoded';
 import { DrawbarStack, ReadoutWarnings } from './widgets';
 import { ZonesPanel } from './ProgramZones';
+import { FxPanel } from './FxPanel';
 
 /** One section card: engine rows + optional drawbar stack + optional chips. */
 function SectionCard({ section, names }: { section: DecodedSection; names: Record<string, string> }) {
+  if (section.fx) return <FxPanel view={section.fx} title={section.label} />;
   return (
     <div className="ps-card" style={{ marginTop: 12 }}>
       <h4>{section.label}</h4>

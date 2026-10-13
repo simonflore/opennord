@@ -5,6 +5,7 @@
 import type { Ns3Program, Ns3Panel } from '../ns3/decode';
 import type { CommonProgram, CommonFxUnit, CommonFxSlot, CommonSplit, LiftResult } from './common';
 import { dbStringToMidi, timeStringToMs, freqStringToHz } from './units';
+import { settingOf } from '../clavia/fx-block';
 
 export type { LiftResult } from './common';
 
@@ -31,6 +32,7 @@ function env(e: { attack: string; decay: string; release: string }, velocity?: b
 function liftFx(fx: Ns3Panel['fx'], dropped: string[]): CommonFxUnit[] {
   const out: CommonFxUnit[] = [];
   for (const f of fx) {
+    if (!f.on) continue; // a panel lists every block; only the ones switched on carry over
     const slot = FX_SLOT_BY_NAME[f.name.toLowerCase()];
     if (!slot) {
       dropped.push(
@@ -38,15 +40,8 @@ function liftFx(fx: Ns3Panel['fx'], dropped: string[]): CommonFxUnit[] {
       );
       continue;
     }
-    const amount = f.params?.amount;
-    const rate = f.params?.rate;
-    out.push({
-      slot,
-      on: true, // decodeNs3's `effects` lists only the units switched on
-      type: f.type,
-      amountMidi: typeof amount === 'number' ? amount : undefined,
-      rateMidi: typeof rate === 'number' ? rate : undefined,
-    });
+    // A setting's midi is the stored 0–127 knob position (Param_Effects_k…Amt / …Rate).
+    out.push({ slot, on: true, type: f.type, amountMidi: settingOf(f, 'amount')?.midi, rateMidi: settingOf(f, 'rate')?.midi });
   }
   return out;
 }

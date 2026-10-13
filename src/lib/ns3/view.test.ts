@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { decodeNs3, TIMBRE_CLAV, TIMBRE_ELECTRIC, TIMBRE_GRAND, type Ns3Panel } from './decode';
-import { ns3EngineCards, ns3FxChips, ns3HeaderView, ns3SampleKey, ns3Zones, timbreKeysNs3 } from './view';
+import { ns3EngineCards, ns3FxPanel, ns3HeaderView, ns3SampleKey, ns3Zones, timbreKeysNs3 } from './view';
 import { ns3ZeroFile } from './file.synth';
+import { setting } from '../clavia/fx-block';
 
 /** A synthetic Panel A: B3 organ + grand piano + a Wave synth, no FX. */
 function panel(over: Partial<Ns3Panel> = {}): Ns3Panel {
@@ -134,33 +135,62 @@ describe('ns3EngineCards', () => {
   });
 });
 
-describe('ns3FxChips', () => {
-  it('emits one chip per active FX with decoded params in the detail', () => {
-    const p = panel({ fx: [
-      { name: 'Reverb', type: 'Hall 1', params: { amount: '6.0' } },
-      { name: 'Comp', params: { amount: '4.0' } },
-    ] });
-    const chips = ns3FxChips(p);
-    expect(chips.map((c) => c.label)).toEqual(['Reverb', 'Comp']);
-    expect(chips[0]).toMatchObject({ key: 'A-Reverb', label: 'Reverb', detail: 'Hall 1 · amt 6.0' });
-    expect(chips[1].detail).toBe('amt 4.0');
+describe('ns3FxPanel', () => {
+  const block = (name: string, on = false) => ({ name, on, settings: [] });
+  const seven = ['Rotary', 'Effect 1', 'Effect 2', 'Delay', 'Amp/EQ', 'Comp', 'Reverb'];
+
+  it('gives each panel a row with its seven blocks in panel order, on or off', () => {
+    const fx = seven.map((n) => block(n, n === 'Reverb'));
+    const view = ns3FxPanel([panel({ id: 'A', fx }), panel({ id: 'B', fx })]);
+    expect(view.groups.map((g) => g.label)).toEqual(['Panel A', 'Panel B']);
+    expect(view.groups[0].units.map((u) => [u.label, u.on])).toEqual([
+      ['Rotary', false], ['Effect 1', false], ['Effect 2', false], ['Delay', false], ['Amp/EQ', false], ['Comp', false], ['Reverb', true],
+    ]);
+    expect(view.groups[0].kind).toBeUndefined();
   });
 
-  it('returns an empty list when no FX are on', () => {
-    expect(ns3FxChips(panel())).toEqual([]);
+  it('keys units by panel so two panels never collide', () => {
+    const fx = seven.map((n) => block(n));
+    const keys = ns3FxPanel([panel({ id: 'A', fx }), panel({ id: 'B', fx })]).groups.flatMap((g) => g.units.map((u) => u.key));
+    expect(new Set(keys).size).toBe(14);
+    expect(keys[0]).toBe('A-Rotary');
   });
 
-  it('shows the program-wide rotary speed + firmware amp label on a decoded Panel B', () => {
+  it('does not merge two panels even when their effects match: each panel is its own sound', () => {
+    const fx = seven.map((n) => block(n));
+    expect(ns3FxPanel([panel({ id: 'A', fx }), panel({ id: 'B', fx })]).groups).toHaveLength(2);
+  });
+
+  it('carries a block\'s settings, switches and source through to its unit', () => {
+    const delay = {
+      name: 'Delay', on: true, source: 'Synth',
+      settings: [setting('rate', '484 ms'), setting('mix', '5.0', 64, { wheel: '10.0' })],
+      switches: { pingPong: true },
+    };
+    const u = ns3FxPanel([panel({ id: 'A', fx: [delay] })]).groups[0].units[0];
+    expect(u.params).toEqual([{ label: 'Rate', value: '484 ms' }, { label: 'Mix', value: '5.0', fill: 50, morph: { wheel: '10.0' } }]);
+    expect(u.switches).toEqual([{ label: 'Ping Pong', on: true }]);
+    expect(u.source?.find((k) => k.on)?.label).toBe('Synth');
+  });
+
+  it('is empty for a program with no panels', () => {
+    expect(ns3FxPanel([]).groups).toEqual([]);
+  });
+
+  it('reads a decoded Panel B: seven units, the program-wide rotary speed and the firmware amp label', () => {
     const b = ns3ZeroFile();    // NSM-era file, every field zero
     b[0x31] = 1 << 5;           // panel B only
     b[0x34] = 0x00; b[0x35] = 0x00; // MultiCommon rotary speed raw 0 → Stop
     b[0x10b + 263] = 0x80;      // panel B rotary on
     b[0x129 + 263] = 0x04;      // panel B amp on, type 0 → Clean
-    const chips = ns3FxChips(decodeNs3(b).panels[0]);
-    expect(chips.find((c) => c.label === 'Rotary')?.detail).toBe('Stop');
-    expect(chips.find((c) => c.label === 'Amp/EQ')?.detail).toBe('Clean');
+    const units = (bytes: Uint8Array) => ns3FxPanel(decodeNs3(bytes).panels).groups[0].units;
+    expect(ns3FxPanel(decodeNs3(b).panels).groups.map((g) => g.label)).toEqual(['Panel B']);
+    expect(units(b).map((u) => u.label)).toEqual(seven);
+    expect(units(b).filter((u) => u.on).map((u) => u.label)).toEqual(['Rotary', 'Amp/EQ']);
+    expect(units(b)[0].params.find((p) => p.label === 'Speed')?.value).toBe('Stop');
+    expect(units(b)[4].type).toBe('Clean');
     b[0x34] = 0x01;             // raw 2 → Fast, read from the shared block for Panel B
-    expect(ns3FxChips(decodeNs3(b).panels[0]).find((c) => c.label === 'Rotary')?.detail).toBe('Fast');
+    expect(units(b)[0].params.find((p) => p.label === 'Speed')?.value).toBe('Fast');
   });
 });
 

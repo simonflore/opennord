@@ -8,7 +8,9 @@ import { SlotTag, genTone } from './SlotTag';
 import { CardRemoveButton } from './CardRemoveButton';
 import { activeEngineKinds, LIBRARY_ENGINES as ENGINES, type EngineSummary } from '../../lib/clavia/engines';
 import { isNs4Program, type NordProgram } from '../../lib/formats';
-import { activeLayers, fxChips } from '../../lib/ns4/view';
+import { activeLayers } from '../../lib/ns4/view';
+import { fxGroups } from '../../lib/ns4/fx-panel';
+import { unitsOn } from '../../lib/clavia/fx-view';
 import { isImported, type LibraryEntry } from '../../lib/library/types';
 
 // One row's columns: favourite, slot, name, category, the P/O/S engine LEDs,
@@ -54,7 +56,7 @@ const ProgramFacts = memo(function ProgramFacts({ program }: { program?: NordPro
   return (
     <>
       <span className={cn(WIDE, 'truncate')}>{piano ?? dash}</span>
-      <span className={WIDE}>{ns4 ? fxChips(ns4).length : dash}</span>
+      <span className={WIDE}>{ns4 ? unitsOn(fxGroups(ns4)) : dash}</span>
     </>
   );
 });

@@ -79,6 +79,9 @@ describe('no3Decoded', () => {
     expect(byId.MA.chips).toEqual(['Vibrato']);
     expect(byId.MB.drawbars?.[0].level).toBe(0);
     expect(byId.BS.engines[0].parts).toEqual(['Trk 1']);
-    expect(byId.FX.engines[0].parts).toEqual(['Speaker Rotary', 'Ring Modulator', 'Reverb Cathedral Bright']);
+        const fx = byId.FX.fx!.groups[0].units;
+        expect(fx.map((u) => u.label)).toEqual(['Speaker', 'Mod FX', 'Delay', 'EQ', 'Reverb']);
+        expect(fx.filter((u) => u.on).map((u) => [u.label, u.type])).toEqual([['Speaker', 'Rotary'], ['Mod FX', 'Ring Modulator'], ['Reverb', 'Cathedral']]);
+        expect(fx[4].params.find((p) => p.label === 'Color')?.value).toBe('Bright');
   });
 });

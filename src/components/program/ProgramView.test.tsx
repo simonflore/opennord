@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseNs4Program } from '../../lib/ns4/parse';
 import { programNameFromFilename } from '../../lib/clavia/name';
-import { Knob, DrawbarStack, ModelSelector, ToggleGroup, Lcd, Chip, Meter } from './widgets';
+import { Knob, DrawbarStack, ModelSelector, ToggleGroup, Lcd, Meter } from './widgets';
 
 describe('widgets', () => {
   it('Knob renders value + caption', () => {
@@ -49,12 +49,6 @@ describe('widgets', () => {
     const html = renderToStaticMarkup(<Lcd primary="Saw" secondary="LP12 · 84" />);
     expect(html).toContain('Saw');
     expect(html).toContain('LP12 · 84');
-  });
-
-  it('Chip renders label + detail', () => {
-    const html = renderToStaticMarkup(<Chip label="REVERB" detail="Hall" />);
-    expect(html).toContain('REVERB');
-    expect(html).toContain('Hall');
   });
 
   it('Meter renders label, value, and a clamped fill width', () => {
@@ -106,7 +100,8 @@ describe('ProgramHeader', () => {
   });
 });
 
-import { activeLayers, synthStats, pianoStats, ampEnvCurve, programZones, fxChips, externViews, scenesDiffer, sceneIIChanges, sceneTag, morphMarks, engineCardModel, headerView } from '../../lib/ns4/view';
+import { activeLayers, synthStats, pianoStats, ampEnvCurve, programZones, externViews, scenesDiffer, sceneIIChanges, sceneTag, morphMarks, engineCardModel, headerView } from '../../lib/ns4/view';
+import { fxPanel } from '../../lib/ns4/fx-panel';
 import { EngineCard } from './EngineCard';
 import { ProgramZones } from './ProgramZones';
 import { ProgramExtern } from './ProgramExtern';
@@ -266,11 +261,11 @@ describe('layer scenes', () => {
   });
 });
 
-describe('fx chips carry effect params', () => {
-  it('every enabled chip has a non-empty detail', () => {
-    const chips = fxChips(fixtureProgram());
-    expect(chips.length).toBeGreaterThan(0);
-    expect(chips.every((c) => c.detail.length > 0)).toBe(true);
+describe('effects panel carries effect params', () => {
+  it('every switched-on unit has a type, a knob or a switch', () => {
+    const on = fxPanel(fixtureProgram()).groups.flatMap((g) => g.units).filter((u) => u.on);
+    expect(on.length).toBeGreaterThan(0);
+    expect(on.every((u) => !!u.type || u.params.length > 0 || (u.switches?.length ?? 0) > 0)).toBe(true);
   });
 });
 
@@ -340,19 +335,21 @@ describe('program zones (split map)', () => {
   });
 });
 
-import { FxRow } from './FxRow';
+import { FxPanel } from './FxPanel';
 
-describe('FxRow', () => {
-  it('renders FX chips for the fixture (incl. Reverb and Delay)', () => {
-    const html = renderToStaticMarkup(<FxRow chips={fxChips(fixtureProgram())} />);
-    expect(html).toContain('ps-chip');
+describe('FxPanel on the fixture', () => {
+  it('draws Reverb and Delay units for the fixture', () => {
+    const html = renderToStaticMarkup(<FxPanel view={fxPanel(fixtureProgram())} title="LAYER & GLOBAL FX" />);
+    expect(html).toContain('ps-fxunit');
     expect(html).toContain('Reverb');
     expect(html).toContain('Delay');
+    expect(html).toContain('LAYER &amp; GLOBAL FX');
   });
 
-  it('renders nothing when there are no active effects', () => {
-    const html = renderToStaticMarkup(<FxRow chips={[]} />);
-    expect(html).toBe('');
+  it('the program view draws the panel, not chips', () => {
+    const html = renderToStaticMarkup(<ProgramView program={fixtureProgram()} />);
+    expect(html).toContain('ps-fxgroup');
+    expect(html).not.toContain('ps-chips');
   });
 });
 
@@ -442,6 +439,10 @@ describe('ProgramView (integration)', () => {
     const html = renderToStaticMarkup(<ProgramView program={parseNs4Program(ns3f)} />);
     expect(html).toContain('PANEL A'); // the Stage 3 panel band (rich per-engine view)
     expect(html).toContain('v3.04');   // header still surfaces the decoded version
+    // Its effects are on the shared panel: a row for the panel, no chip row.
+    expect(html).toContain('ps-fxgroup');
+    expect(html).toContain('Panel A effects');
+    expect(html).not.toContain('ps-chips');
   });
 
   it('routes a Stage 2 program file to the rich Ns2 program view', () => {
@@ -456,5 +457,11 @@ describe('ProgramView (integration)', () => {
     const html = renderToStaticMarkup(<ProgramView program={parseNs4Program(ns2p)} />);
     expect(html).toContain('SLOT A'); // the Stage 2 slot band (rich per-engine view)
     expect(html).not.toContain('SLOT B'); // slot flag selects A only
+    // Its effects are on the shared panel: the slot's row and the program's own.
+    expect(html).toContain('ps-fxgroup');
+    expect(html).toContain('Slot A effects');
+    expect(html).toContain('Global effects');
+    expect(html).not.toContain('Slot B effects');
+    expect(html).not.toContain('ps-chips');
   });
 });

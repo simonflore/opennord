@@ -6,7 +6,7 @@
  * Display labels are the Grand 2 panel labels for the same OS
  * (…, shared with the Piano 6); the label-to-parameter pairing is by
  * value count (medium). Values without a known label (the 16-step EQ, touch)
- * are held back. The layer-enable reading — bit 0 = layer A, bit 1 = layer B of
+ * are held back; effect settings show as their stored number on the effects panel. The layer-enable reading — bit 0 = layer A, bit 1 = layer B of
  * PnoCom/SynCom LayerEnable — follows the firmware defaults (piano 1 = A on,
  * synth 0 = off) and is medium confidence. The piano NAME comes from the
  * family-wide piano-hash table, injected by the composition root (presenters.ts).
@@ -14,9 +14,10 @@
 import { decodeNg2 } from './decode';
 import type { DecodedProgram, DecodedSection } from '../clavia/decoded';
 import {
-  ampPart, effectsSection, fwHeader, headerOnly, label, levelPart, noneOn, octavePart, parts, pianoParts, reverbPart,
+  fwHeader, fxGroupsSection, headerOnly, label, levelPart, octavePart, parts, pianoParts,
   singleSplit, soundIdRow, splitSide, splitText, SPLIT_NOTES_FROM_F2, transposeText, type PianoNameResolver,
 } from '../clavia/fw-present';
+import { layerChainGroups, type FieldGet } from '../clavia/fx-lean';
 import type { Ng2FieldKey } from './layout.generated';
 
 /** Pno_kBank 0–5. */
@@ -36,18 +37,6 @@ export const NG2_DELAY_FILTER = ['Bypass', 'LP', 'HP', 'BP'] as const;
 
 type Get = (key: Ng2FieldKey) => number | undefined;
 
-function layerFx(g: Get, blk: `${'piano' | 'synth'}Fx${'A' | 'B'}`): string[] {
-  const filter = label(NG2_DELAY_FILTER, g(`${blk}.dlyFltType`));
-  return parts(
-    g(`${blk}.fx1Enable`) ? label(NG2_FX1, g(`${blk}.fx1Type`)) ?? 'Effect 1' : undefined,
-    g(`${blk}.fx2Enable`) ? label(NG2_FX2, g(`${blk}.fx2Type`)) ?? 'Effect 2' : undefined,
-    g(`${blk}.dlyEnable`) ? `Delay${filter && filter !== 'Bypass' ? ` ${filter}` : ''}` : undefined,
-    g(`${blk}.ampEnable`) ? ampPart(label(NG2_AMP, g(`${blk}.ampType`))) : undefined,
-    g(`${blk}.cmpEnable`) ? 'Comp' : undefined,
-    g(`${blk}.eqEnable`) ? 'EQ' : undefined,
-  );
-}
-
 function pianoLayer(g: Get, id: 'A' | 'B', on: boolean, resolve?: PianoNameResolver): DecodedSection {
   const blk = `piano${id}` as const;
   return {
@@ -59,7 +48,6 @@ function pianoLayer(g: Get, id: 'A' | 'B', on: boolean, resolve?: PianoNameResol
           ...pianoParts(g(`${blk}.nameHash`), label(NG2_PIANO_TYPE, g(`${blk}.bank`)), g(`${blk}.variation`), resolve),
           levelPart(g(`${blk}.layerLevel`)), octavePart(g(`${blk}.octaveShift`)), !on && '(off)'),
       },
-      { label: 'Effects', parts: on ? noneOn(layerFx(g, `pianoFx${id}`)) : ['—'] },
     ],
     chips: parts(g(`${blk}.pedalNoise`) ? 'Pedal Noise' : undefined),
   };
@@ -74,7 +62,6 @@ function synthLayer(g: Get, id: 'A' | 'B', on: boolean): DecodedSection {
         label: 'Synth',
         parts: parts('Sample', levelPart(g(`${blk}.layerLevel`)), octavePart(g(`${blk}.octaveShift`)), !on && '(off)'),
       },
-      { label: 'Effects', parts: on ? noneOn(layerFx(g, `synthFx${id}`)) : ['—'] },
     ],
   };
 }
@@ -100,7 +87,6 @@ export function ng2Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolv
     { kind: 'piano' as const, id, on: (pianoOn & (1 << i)) !== 0, side: splitSide(g(`piano${id}.kbdZone`)) },
     { kind: 'synth' as const, id, on: (synthOn & (1 << i)) !== 0, side: splitSide(g(`synth${id}.kbdZone`)) },
   ]));
-  const color = label(NG2_REVERB_COLOR, g('common.effectsRvbColor'));
 
   return {
     title, header, keyboard,
@@ -109,10 +95,12 @@ export function ng2Decoded(bytes: Uint8Array, resolvePianoName?: PianoNameResolv
       pianoLayer(g, 'B', (pianoOn & 2) !== 0, resolvePianoName),
       synthLayer(g, 'A', (synthOn & 1) !== 0),
       synthLayer(g, 'B', (synthOn & 2) !== 0),
-      effectsSection(parts(
-        g('common.effectsRvbEnable')
-          ? reverbPart(label(NG2_REVERB, g('common.effectsRvbType')), color !== 'Normal' && color) : undefined,
-      ), 'RV', 'REVERB'),
+      fxGroupsSection(layerChainGroups(g as FieldGet, [
+        { blk: 'pianoFxA', label: 'Piano A', kind: 'piano', on: (pianoOn & 1) !== 0 },
+        { blk: 'pianoFxB', label: 'Piano B', kind: 'piano', on: (pianoOn & 2) !== 0 },
+        { blk: 'synthFxA', label: 'Synth A', kind: 'synth', on: (synthOn & 1) !== 0 },
+        { blk: 'synthFxB', label: 'Synth B', kind: 'synth', on: (synthOn & 2) !== 0 },
+      ], { fx1: NG2_FX1, fx2: NG2_FX2, amp: NG2_AMP, delayFilter: NG2_DELAY_FILTER, reverb: NG2_REVERB, reverbColor: NG2_REVERB_COLOR })),
     ],
     note: 'Grand 2: piano and sample-synth layers and their effects read with OpenNord’s map of Grand 2 OS 1.22 programs.',
     warnings: p.warnings,

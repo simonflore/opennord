@@ -1,14 +1,14 @@
 import { useMemo } from 'react';
 import { decodeNs2, type Ns2Slot } from '../../lib/ns2/decode';
 import {
-  ns2EngineCards, ns2SlotFxChips, ns2GlobalFxChips, ns2HeaderView, ns2SampleRefs, ns2SampleKey,
+  ns2EngineCards, ns2FxPanel, ns2HeaderView, ns2SampleRefs, ns2SampleKey,
 } from '../../lib/ns2/view';
 import { BandedProgramView, useResolvedSampleNames, type ProgramBand } from './BandedProgramView';
 
 /**
  * Stage 2 program view — full per-engine cards via the shared BandedProgramView.
  * ns2's structure is two slots (A/B), each a complete sound with its own engines +
- * FX, plus program-global FX (rotary, reverb, compressor) shown in a single global row.
+ * FX, plus the program's own effects (rotary, comp, reverb), all on the shared effects panel.
  */
 export function Ns2ProgramView({ bytes }: { bytes: Uint8Array }) {
   const { slots, globalFx } = useMemo(() => decodeNs2(bytes), [bytes]);
@@ -19,14 +19,13 @@ export function Ns2ProgramView({ bytes }: { bytes: Uint8Array }) {
     id: slot.id,
     label: `SLOT ${slot.id}`,
     cards: ns2EngineCards(slot, names),
-    fxChips: ns2SlotFxChips(slot),
   }));
 
   return (
     <BandedProgramView
       header={ns2HeaderView(bytes, active)}
       bands={bands}
-      globalFxChips={ns2GlobalFxChips(globalFx)}
+      fx={ns2FxPanel(active, globalFx)}
       sampleRefs={ns2SampleRefs(active, names)}
     />
   );

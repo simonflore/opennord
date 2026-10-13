@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseNs4Program } from './parse';
 import { programNameFromFilename } from '../clavia/name';
-import { activeLayers, headerView, drawbarLevels, volumeFill, organPanel, pianoCard, synthCard, fxChips, sampleRefViews, morphSummary } from './view';
+import { activeLayers, headerView, drawbarLevels, volumeFill, organPanel, pianoCard, synthCard, sampleRefViews, morphSummary } from './view';
 import { engineZones, isSplit, programZones } from './view';
 import type { KeyItem } from '../clavia/engine-view';
 import { zonedProgram } from '../../test-utils/ns4';
@@ -91,42 +91,6 @@ describe('engine card models', () => {
     expect(c.oscDetail).toBe('wave 0.5');
     expect(c.filterType).toBe('BP');
     expect(c.cutoff).toBe('3.7 kHz');
-  });
-});
-
-describe('fxChips', () => {
-  const chips = fxChips(fixture());
-
-  it('collects on-effects across active layers + global organ FX', () => {
-    // fixture: piano A reverb(1) + piano B mod1/mod2/delay(3) +
-    // synth B mod1/mod2/amp/comp(4) + synth C delay/reverb(2) + organ mod1/amp/delay(3) = 13
-    expect(chips.length).toBe(13);
-  });
-
-  it('each chip has a non-empty label and string detail', () => {
-    for (const c of chips) {
-      expect(typeof c.label).toBe('string');
-      expect(c.label.length).toBeGreaterThan(0);
-      expect(typeof c.detail).toBe('string');
-    }
-  });
-
-  it('keys are unique', () => {
-    const keys = chips.map((c) => c.key);
-    expect(new Set(keys).size).toBe(keys.length);
-  });
-
-  it('includes a Reverb and a Delay chip (present in the fixture)', () => {
-    expect(chips.some((c) => c.label.endsWith('Reverb'))).toBe(true);
-    expect(chips.some((c) => c.label.endsWith('Delay'))).toBe(true);
-  });
-
-  it('prefixes per-layer FX with the engine, and the layer letter when a kind has 2+ active layers', () => {
-    // fixture: piano A + piano B both active → letters; synth B + synth C both active → letters
-    expect(chips.some((c) => c.label === 'Piano A Reverb')).toBe(true);
-    expect(chips.some((c) => c.label === 'Synth C Reverb')).toBe(true);
-    // organ FX keeps its global "Organ" prefix
-    expect(chips.some((c) => c.label.startsWith('Organ'))).toBe(true);
   });
 });
 

@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
 import { decodeNs3, type Ns3Panel } from '../../lib/ns3/decode';
-import { ns3EngineCards, ns3FxChips, ns3HeaderView, ns3SampleKey, ns3SampleRefs, ns3Zones } from '../../lib/ns3/view';
+import { ns3EngineCards, ns3FxPanel, ns3HeaderView, ns3SampleKey, ns3SampleRefs, ns3Zones } from '../../lib/ns3/view';
 import { BandedProgramView, useResolvedSampleNames, type ProgramBand } from './BandedProgramView';
 
 /**
  * Stage 3 program view — full per-engine cards (parity with Stage 4) via the shared
  * BandedProgramView. ns3's structure is two independent panels (A/B), each its own
- * labelled band, with the keyboard split map above them. No layer scenes, morphs,
- * or program-global FX.
+ * labelled band, with the keyboard split map above them. No layer scenes. Effects
+ * are per panel, drawn on the shared effects panel.
  */
 export function Ns3ProgramView({ bytes, name }: { bytes: Uint8Array; name?: string }) {
   const { panels, split, name: decodedName, warnings } = useMemo(() => decodeNs3(bytes), [bytes]);
@@ -17,7 +17,6 @@ export function Ns3ProgramView({ bytes, name }: { bytes: Uint8Array; name?: stri
     id: panel.id,
     label: `PANEL ${panel.id}`,
     cards: ns3EngineCards(panel, names),
-    fxChips: ns3FxChips(panel),
   }));
 
   return (
@@ -26,6 +25,7 @@ export function Ns3ProgramView({ bytes, name }: { bytes: Uint8Array; name?: stri
       // returns undefined — prefer the filename-derived name the caller passes.
       header={ns3HeaderView(bytes, name ?? decodedName, panels)}
       bands={bands}
+      fx={ns3FxPanel(panels)}
       sampleRefs={ns3SampleRefs(panels, names)}
       warnings={warnings}
       zones={ns3Zones(panels, split)}

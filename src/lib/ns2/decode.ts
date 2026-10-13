@@ -44,6 +44,9 @@
  *
  * Never throws.
  */
+import { setting, type FxBlock } from '../clavia/fx-block';
+import { morphTargets, switchedBy } from '../clavia/fx-morph';
+import { EFFECT_SRC, EQ_MID_FREQ } from '../clavia/fx-tables';
 import { NORD_DB } from '../clavia/volume';
 import {
   NSM_RECORD_OFFSET, legacyData, legacyDataOffset, legacyLayoutVersion, legacyMorphDeltas, legacyRecordVersion,
@@ -82,7 +85,6 @@ const REVERB_TYPE = ['Room 1', 'Room 2', 'Stage 1', 'Stage 2', 'Hall 1', 'Hall 2
 const AMP_TYPE = ['Clean', 'Small', 'JC', 'Twin'];
 const EFFECT1_TYPE = ['Panning', 'Tremolo', 'Ring Mod', 'Wah-Wah', 'Auto-Wah 1', 'Auto-Wah 2'];
 const EFFECT2_TYPE = ['Phaser 1', 'Phaser 2', 'Flanger', 'Vibe', 'Chorus 1', 'Chorus 2'];
-const EFFECT_SRC = ['Organ', 'Piano', 'Synth'];
 const ROTARY_SPEED = ['Slow/Stop', 'Fast'];
 const ARP_RANGE = ['1 Octave', '2 Octaves', '3 Octaves', '4 Octaves'];
 const ARP_PATTERN = ['UP', 'DN', 'UP/DN', 'RANDOM'];
@@ -771,16 +773,8 @@ export interface Ns2SynthSlot {
   lfoMasterClock: boolean;
 }
 
-export interface Ns2FxParam {
-  [key: string]: string | number | boolean | undefined;
-}
-
-export interface Ns2Fx {
-  name: string;
-  type?: string;
-  source?: string;
-  params?: Ns2FxParam;
-}
+/** One block of the effect section: a slot effect, or a program effect. */
+export type Ns2Fx = FxBlock;
 
 export interface Ns2Slot {
   id: 'A' | 'B';
@@ -804,7 +798,7 @@ export interface Ns2Rotary {
 
 export interface Ns2Program {
   slots: Ns2Slot[];
-  /** Program-wide effects that are switched on: Rotary, Reverb, Comp. */
+  /** The program-wide effects in panel order, on or off: Rotary, Comp, Reverb. */
   globalFx: Ns2Fx[];
   reverb: { on: boolean; type: string; amountMidi: number };
   compressor: { on: boolean; amountMidi: number };
@@ -1016,53 +1010,80 @@ function synth(s: SlotGet): Ns2SynthSlot {
 
 // ── Effects ─────────────────────────────────────────────────────────────────
 
-/** The slot's effects container: Effect 1, Effect 2, Amp/EQ and Delay, when switched on. */
+// The effect tables and scales below are facts from Chris55's nord-documentation (BSD-3-Clause,
+// https://chris55.github.io/nord-documentation/), section "Nord Stage 2 Program File Structure".
+/** Delay synced to the master clock ("NS2 Delay Tempo Master Clock Divisor"). */
+const DELAY_MC: readonly string[] = [
+  '1/2', '1/4D', '1/4T', '1/4S', '1/4', '1/8D', '1/8T', '1/8S', '1/8', '1/16D', '1/16T', '1/16S', '1/16', '1/32T', '1/32',
+];
+
+/**
+ * An EQ band, stored 0–127 around 64: −15.0 … +15.0 dB, 64 steps down and 63 up
+ * ("NS2 Eq Treble / Mid / Bass"). A half-way value rounds toward zero, as the table does.
+ */
+function eqDb(v: number): string {
+  const d = ((v - 64) / (v < 64 ? 64 : 63)) * 15;
+  const tenths = Math.ceil(Math.abs(d) * 10 - 0.5);
+  return `${d < 0 && tenths > 0 ? '-' : '+'}${(tenths / 10).toFixed(1)} dB`;
+}
+
+/** The slot's effects container in panel order, on or off: Effect 1, Effect 2, Delay and Amp/EQ. */
 function slotFx(s: SlotGet): Ns2Fx[] {
-  const fx: Ns2Fx[] = [];
-  for (const n of [1, 2] as const) {
-    if (s(`effects.effect${n}Enable`) !== 1) continue;
+  const read = s as (key: string) => number;
+  const modFx = (n: 1 | 2): Ns2Fx => {
     const masterClock = s(`effects.effect${n}MstClk`) === 1;
-    const rate = masterClock ? s(`effects.effect${n}MstClkDiv`) : s(`effects.effect${n}Rate`);
-    fx.push({
+    const div = (v: number) => LFO_RATE_MC[v] ?? `#${v}`;
+    return {
       name: `Effect ${n}`,
+      on: s(`effects.effect${n}Enable`) === 1,
       type: lutStr(n === 1 ? EFFECT1_TYPE : EFFECT2_TYPE, s(`effects.effect${n}Type`)),
       source: lutStr(EFFECT_SRC, s(`effects.effect${n}Source`)),
-      params: {
-        amount: lin10(s(`effects.effect${n}Amount`)),
-        rate: masterClock ? (LFO_RATE_MC[rate] ?? `#${rate}`) : lin10(rate),
-        masterClock,
-      },
-    });
-  }
-  if (s('effects.ampSimEqEnable') === 1) {
-    fx.push({
-      name: 'Amp/EQ',
-      type: lutStr(AMP_TYPE, s('effects.ampSimEqType')),
-      source: lutStr(EFFECT_SRC, s('effects.ampSimEqSource')),
-      params: {
-        drive: lin10(s('effects.ampSimEqDrive')),
-        treble: String(s('effects.ampSimEqTreble')),
-        mid: String(s('effects.ampSimEqMid')),
-        bass: String(s('effects.ampSimEqBass')),
-        midFreq: String(s('effects.ampSimEqMidFreq')),
-      },
-    });
-  }
-  if (s('effects.delayEnable') === 1) {
-    const masterClock = s('effects.delayMstClk') === 1;
-    fx.push({
-      name: 'Delay',
-      source: lutStr(EFFECT_SRC, s('effects.delaySource')),
-      params: {
-        masterClock,
-        pingPong: s('effects.delayMode') === 1,
-        tempo: masterClock ? `mc:${s('effects.delayMstClkDiv')}` : String(s('effects.delayRate')),
-        feedback: lin10(s('effects.delayFeedback')),
-        amount: lin10(s('effects.delayAmount')),
-      },
-    });
-  }
-  return fx;
+      settings: [
+        setting('amount', lin10(s(`effects.effect${n}Amount`)), s(`effects.effect${n}Amount`),
+          morphTargets(read, `effects.effect${n}Amount`, 127, lin10)),
+        // A clocked rate is a division with no knob position of its own.
+        masterClock
+          ? setting('rate', div(s(`effects.effect${n}MstClkDiv`)), undefined, morphTargets(read, `effects.effect${n}MstClkDiv`, 14, div))
+          : setting('rate', lin10(s(`effects.effect${n}Rate`)), s(`effects.effect${n}Rate`), morphTargets(read, `effects.effect${n}Rate`, 127, lin10)),
+      ],
+      switches: { masterClock },
+    };
+  };
+
+  const delayClk = s('effects.delayMstClk') === 1;
+  const delayDiv = (v: number) => lutStr(DELAY_MC, v);
+  const knobPos = (v: number) => `${v} of 127`;
+  const delay: Ns2Fx = {
+    name: 'Delay',
+    on: s('effects.delayEnable') === 1,
+    source: lutStr(EFFECT_SRC, s('effects.delaySource')),
+    settings: [
+      // The free-running time stays the stored knob position, said as such ("64 of 127"):
+      // its ms table is not confirmed, and a bare number would read as a tempo.
+      delayClk
+        ? setting('tempo', delayDiv(s('effects.delayMstClkDiv')), undefined, morphTargets(read, 'effects.delayMstClkDiv', 14, delayDiv))
+        : setting('tempo', knobPos(s('effects.delayRate')), undefined, morphTargets(read, 'effects.delayRate', 127, knobPos)),
+      setting('feedback', lin10(s('effects.delayFeedback')), s('effects.delayFeedback')),
+      setting('amount', lin10(s('effects.delayAmount')), s('effects.delayAmount'), morphTargets(read, 'effects.delayAmount', 127, lin10)),
+    ],
+    switches: { masterClock: delayClk, pingPong: s('effects.delayMode') === 1 },
+  };
+
+  const amp: Ns2Fx = {
+    name: 'Amp/EQ',
+    on: s('effects.ampSimEqEnable') === 1,
+    type: lutStr(AMP_TYPE, s('effects.ampSimEqType')),
+    source: lutStr(EFFECT_SRC, s('effects.ampSimEqSource')),
+    settings: [
+      setting('drive', lin10(s('effects.ampSimEqDrive')), s('effects.ampSimEqDrive')),
+      setting('treble', eqDb(s('effects.ampSimEqTreble'))),
+      setting('mid', eqDb(s('effects.ampSimEqMid'))),
+      setting('bass', eqDb(s('effects.ampSimEqBass'))),
+      setting('midFreq', lutStr(EQ_MID_FREQ, s('effects.ampSimEqMidFreq')), s('effects.ampSimEqMidFreq')),
+    ],
+  };
+
+  return [modFx(1), modFx(2), delay, amp];
 }
 
 function rotary(get: Get): Ns2Rotary {
@@ -1129,16 +1150,21 @@ export function decodeNs2(bytes: Uint8Array): Ns2File {
   };
   const compressor = { on: get('globalFx.compressorEnable') === 1, amountMidi: get('globalFx.compressorAmount') };
   const rot = rotary(get);
-  const globalFx: Ns2Fx[] = [];
-  if (rot.on) {
-    globalFx.push({
-      name: 'Rotary',
-      source: rot.source,
-      params: { drive: lin10(rot.driveMidi), stopMode: rot.stopMode, speed: rot.speed },
-    });
-  }
-  if (reverb.on) globalFx.push({ name: 'Reverb', type: reverb.type, params: { amount: lin10(reverb.amountMidi) } });
-  if (compressor.on) globalFx.push({ name: 'Comp', params: { amount: lin10(compressor.amountMidi) } });
+  // Speed is a switch (Slow/Stop ↔ Fast); each morph source is a flag saying it switches it.
+  const speedMorph = switchedBy({
+    wheel: get('globalFx.rotarySpeakerWheelMorph'),
+    at: get('globalFx.rotarySpeakerATouchMorph'),
+    pedal: get('globalFx.rotarySpeakerCtrlPedMorph'),
+  }, 'Fast');
+  const globalFx: Ns2Fx[] = [
+    {
+      name: 'Rotary', on: rot.on, source: rot.source,
+      settings: [setting('drive', lin10(rot.driveMidi), rot.driveMidi), setting('speed', rot.speed, undefined, speedMorph)],
+      switches: { stopMode: rot.stopMode },
+    },
+    { name: 'Comp', on: compressor.on, settings: [setting('amount', lin10(compressor.amountMidi), compressor.amountMidi)] },
+    { name: 'Reverb', on: reverb.on, type: reverb.type, settings: [setting('amount', lin10(reverb.amountMidi), reverb.amountMidi)] },
+  ];
 
   return {
     format: 'ns2p',

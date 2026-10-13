@@ -94,10 +94,40 @@ describe('ne7Decoded', () => {
     expect(byId.P.engines[0].parts[0]).toBe('Clavinet');
     expect(byId.S.engines[0].parts).toContain('(off)');
     // Default mode 1: Analog (likely), showing only that mode's sound, not the FM algorithm.
-    expect(byId.S.engines.map((e) => e.label)).toEqual(['Synth', 'Preset', 'Effects']);
+    expect(byId.S.engines.map((e) => e.label)).toEqual(['Synth', 'Preset']);
     expect(byId.S.engines[1].parts).toEqual(['Analog (likely)', 'SuperSaw']);
-    expect(byId.G.engines[0].parts).toEqual(['Rotary']);
+    // A chain for each engine that is on (the synth is off here), then the rotary.
+    const six = ['Effect 1', 'Effect 2', 'Delay', 'Amp/EQ', 'Comp', 'Reverb'];
+    expect(byId.FX.fx!.groups.map((g) => [g.label, g.kind, g.units.map((u) => u.label)])).toEqual([
+      ['Organ', 'organ', six], ['Piano', 'piano', six], ['Rotary', 'organ', ['Rotary']],
+    ]);
+    expect(byId.FX.fx!.groups[2].units[0].on).toBe(true);
+    expect(byId.G).toBeUndefined();
   });
+
+    it('an engine\'s chain carries its settings; types show as stored', () => {
+      const units = ne7Decoded(file({
+      'piano.isEnabled': 1,
+        'pianoFx.fx1Enable': 1, 'pianoFx.fx1Type': 3, 'pianoFx.fx1Rate': 127, 'pianoFx.fx1Amt': 64,
+        'pianoFx.fx2Mono': 1, 'pianoFx.dlyEnable': 1, 'pianoFx.dlyRate': 16383, 'pianoFx.dlyMix': 0, 'pianoFx.dlyFeedback': 127,
+        'pianoFx.ampEnable': 1, 'pianoFx.ampType': 2, 'pianoFx.ampDrive': 64, 'pianoFx.ampBass': -60, 'pianoFx.ampMid': 0, 'pianoFx.ampTreble': 60, 'pianoFx.ampMidFreq': 0,
+        'pianoFx.cmpEnable': 1, 'pianoFx.cmpAmt': 127, 'pianoFx.rvbAmt': 32, 'common.rvbEnable': 1, 'common.rvbType': 4, 'common.rvbChorale': 1,
+      })).sections.find((s) => s.id === 'FX')!.fx!.groups.find((g) => g.label === 'Piano')!.units;
+      const [fx1, fx2, dly, amp, cmp, rvb] = units;
+      expect(fx1).toMatchObject({ on: true, type: '3', params: [{ label: 'Rate', value: '127', fill: 100 }, { label: 'Amount', value: '64', fill: 50 }] });
+      expect(fx2.switches).toEqual([{ label: 'Mono', on: true }]);
+      expect(dly.params.slice(0, 3)).toEqual([
+        { label: 'Rate', value: '16383', fill: 100 }, { label: 'Mix', value: '0', fill: 0 }, { label: 'Feedback', value: '127', fill: 100 },
+      ]);
+      expect(amp).toMatchObject({ on: true, type: '2' });
+      expect(amp.params).toEqual([
+        { label: 'Drive', value: '64', fill: 50 }, { label: 'Bass', value: '-60', fill: 0 }, { label: 'Mid', value: '0', fill: 50 },
+        { label: 'Mid Freq', value: '0', fill: 0 }, { label: 'Treble', value: '60', fill: 100 },
+      ]);
+      expect(cmp.params).toEqual([{ label: 'Amount', value: '127', fill: 100 }]);
+      expect(rvb).toMatchObject({ on: true, type: '4', switches: [{ label: 'Chorale', on: true }] });
+      expect(rvb.params[0]).toEqual({ label: 'Amount', value: '32', fill: 25 });
+    });
 
   it('shows the synth preset for its mode: Sample (confirmed), FM (likely)', () => {
     const synth = (values: Partial<Record<Ne7FieldKey, number>>) =>

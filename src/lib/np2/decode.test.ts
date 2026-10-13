@@ -57,7 +57,12 @@ describe('decodeNp2 (synthetic)', () => {
     expect(d.sections[0].engines[0].parts[0]).toBe('EPiano1');
     expect(d.sections[1].engines[0].parts).toContain('level 80');
     expect(d.sections[1].engines[0].parts).not.toContain('(off)');
-    expect(d.sections[2].engines[0].parts).toEqual(['Flanger 3', 'Delay', 'Reverb Stage 2']);
+        const fx = d.sections[2].fx!.groups[0].units;
+        expect(fx.map((u) => u.label)).toEqual(['Effect 1', 'Effect 2', 'Delay', 'Amp/Comp', 'EQ', 'Reverb']);
+        expect(fx.filter((u) => u.on).map((u) => [u.label, u.type])).toEqual([['Effect 2', 'Flanger 3'], ['Delay', undefined], ['Reverb', 'Stage 2']]);
+        // The source values (0–1) have no names in this model's tables: shown as stored.
+        expect(fx[0].source).toBeUndefined();
+        expect(fx[0].params.at(-1)).toEqual({ label: 'Source', value: '0' });
     expect(d.header).toEqual(expect.arrayContaining([['Keyboard touch', '2'], ['Sustain pedal', 'Piano Off']]));
   });
 });

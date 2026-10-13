@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { NS4Layer } from './types';
-import { synthCard, synthStats, layerFxChain, layerFxChips } from './view';
+import { synthCard, synthStats } from './view';
 
 /** A synth layer as the decoder prints it — hand-built, so these run without any fixture. */
 const layer = (over: Partial<NS4Layer> = {}): NS4Layer => ({
@@ -75,29 +75,5 @@ describe('synthCard — oscillator, LFO, arpeggiator', () => {
     const labels = synthStats(layer({ arp: { run: true } })).map((s) => s.label);
     expect(labels).not.toContain('LFO');
     expect(labels).not.toContain('arp');
-  });
-});
-
-describe('layerFxChain', () => {
-  const fx = layer({
-    ampSimEq: { on: true, mode: 'off', bass: '-5.0 dB', mid: '+0.0 dB', treb: '+3.0 dB', freq: { value: '999 Hz' }, drive: { value: '0.0' } },
-    reverb: { on: true, type: 'HALL', amount: { value: '4.7' } },
-  });
-
-  it('lists every slot in signal order, on or off', () => {
-    expect(layerFxChain(fx).map((s) => [s.label, s.on])).toEqual([
-      ['Mod 1', false], ['Mod 2', false], ['Amp/EQ', true], ['Comp', false], ['Delay', false], ['Reverb', true],
-    ]);
-  });
-
-  it('says "EQ only" for a lit Amp/EQ whose amp model is off, and carries its EQ', () => {
-    const amp = layerFxChain(fx)[2];
-    expect(amp.detail).toBe('EQ only');
-    expect(amp.eq).toEqual({ bassDb: -5, midDb: 0, trebDb: 3, midHz: 999 });
-  });
-
-  it('chips are the slots that are on, prefixed with the engine when asked', () => {
-    expect(layerFxChips(fx).map((c) => c.label)).toEqual(['Amp/EQ', 'Reverb']);
-    expect(layerFxChips(fx, 'Synth').map((c) => c.label)).toEqual(['Synth Amp/EQ', 'Synth Reverb']);
   });
 });
