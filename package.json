@@ -1,6 +1,6 @@
 {
   "name": "opennord",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": false,
   "license": "AGPL-3.0-or-later",
   "description": "Open, AI-native companion for the Nord Stage 4 — browse, share and visualize programs, and (experimental) talk to your Nord directly.",

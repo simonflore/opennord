@@ -44,8 +44,14 @@ function addressProblem(apiUrl) {
   return null;
 }
 
-/** What is wrong with what a page (or a packed app) contains. `contains(needle)` answers for the whole of it. */
-function contentProblems(contains, apiUrl, what) {
+/**
+ * What is wrong with what a page (or a packed app) contains. `contains(needle)`
+ * answers for the whole of it. `signInCode`: also look for the sign-in library
+ * — for the page only. A packed app's archive holds the app's node_modules as
+ * well, and one of them (@vercel/oidc) names the same discovery path, so there
+ * the string says nothing about the page.
+ */
+function contentProblems(contains, apiUrl, what, { signInCode = false } = {}) {
   const problems = [];
   if (!contains(apiUrl)) {
     problems.push(`${what} does not carry the server address ${apiUrl} — it is not the page that was built for it.`);
@@ -53,7 +59,7 @@ function contentProblems(contains, apiUrl, what) {
   for (const setting of WEBSITE_ONLY_SETTINGS) {
     if (contains(setting)) problems.push(`${what} carries the website's ${setting} setting — the desktop app must be built without it.`);
   }
-  if (contains(SIGN_IN_CODE)) problems.push(`${what} carries sign-in code — the desktop app has no sign-in.`);
+  if (signInCode && contains(SIGN_IN_CODE)) problems.push(`${what} carries sign-in code — the desktop app has no sign-in.`);
   return problems;
 }
 
@@ -66,11 +72,12 @@ export function pageProblems({ files, apiUrl }) {
   if (address) return [address];
   const problems = [];
   if (!files.some((file) => file.name === 'index.html')) problems.push('The page directory has no index.html — it is not a built page.');
-  return [...problems, ...contentProblems((needle) => files.some((file) => file.text.includes(needle)), apiUrl, 'The page')];
+  return [...problems, ...contentProblems((needle) => files.some((file) => file.text.includes(needle)), apiUrl, 'The page', { signInCode: true })];
 }
 
 /**
- * The same check on what was actually packed. `apps` is one entry per packed
+ * What was actually packed: that it is this page (it carries the address) and
+ * none of the website's settings came with it. `apps` is one entry per packed
  * app, `{ dir, archives: [{ contains(needle) }] }` — a universal macOS
  * app can split its archive per processor, so the page may be in any of them.
  */

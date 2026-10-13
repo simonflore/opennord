@@ -88,7 +88,7 @@ function verify(plan) {
   }));
   const problems = packedProblems({ apps, apiUrl: plan.apiUrl });
   if (problems.length > 0) refuse(problems);
-  for (const app of apps) console.log(`desktop page: ${app.dir} carries ${plan.apiUrl} and no sign-in — OK`);
+  for (const app of apps) console.log(`desktop page: ${app.dir} carries ${plan.apiUrl} and none of the website's settings — OK`);
 }
 
 const plan = pagePlan(process.env);

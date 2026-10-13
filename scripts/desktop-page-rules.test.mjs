@@ -103,8 +103,14 @@ describe('packedProblems', () => {
     expect(problems[0]).toContain('win-unpacked');
   });
 
-  it('refuses a packed app that carries a sign-in setting or sign-in code', () => {
+  it('refuses a packed app that carries a website sign-in setting', () => {
     expect(packedProblems({ apps: [app(archive(`${API} VITE_ZITADEL_CLIENT_ID`))], apiUrl: API })[0]).toContain('VITE_ZITADEL_CLIENT_ID');
-    expect(packedProblems({ apps: [app(archive(`${API} /.well-known/openid-configuration`))], apiUrl: API })[0]).toMatch(/sign-in/);
+  });
+
+  it('does not mistake a packed library for sign-in code', () => {
+    // Seen on the first real pack: the archive also holds the app's node_modules, and one of
+    // them (@vercel/oidc, with the AI SDK) names the same discovery path the sign-in library
+    // does. The page is searched for that before it is packed; the archive is not.
+    expect(packedProblems({ apps: [app(archive(`${API} /.well-known/openid-configuration`))], apiUrl: API })).toEqual([]);
   });
 });
