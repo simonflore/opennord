@@ -22,12 +22,25 @@ function fileMetaFor(bytes: Uint8Array): Pick<LibraryEntry, 'typeLabel' | 'gener
   return { typeLabel: info.tag ? `.${info.tag}` : undefined, generation, category: info.categoryName };
 }
 
+/** The Library id of the program in a Nord slot, e.g. "nord:A:26". */
+export function nordEntryId(e: Pick<ProgramEntry, 'bank' | 'slot'>): string {
+  return `nord:${formatSlot(e.bank, e.slot)}`;
+}
+
 /** Map the device's enumerated programs into Library entries. */
 export function nordEntriesFromDevice(entries: ProgramEntry[]): LibraryEntry[] {
-  return entries.map((e) => {
-    const slot = formatSlot(e.bank, e.slot);
-    return { id: `nord:${slot}`, name: e.name, source: 'nord', slot, category: programCategoryName(e.categoryId) };
-  });
+  return entries.map((e) => ({
+    id: nordEntryId(e), name: e.name, source: 'nord', slot: formatSlot(e.bank, e.slot), category: programCategoryName(e.categoryId),
+  }));
+}
+
+/** A Nord entry once its program has been read from the keyboard: it plays,
+ *  shows and sends like a file (one OpenNord can't decode shows as such, as an
+ *  imported file does). */
+export function nordEntryWithProgram(entry: LibraryEntry, bytes: Uint8Array): LibraryEntry {
+  const file = parseClaviaFile(bytes);
+  file.program.name = entry.name;
+  return { ...entry, engines: file.engines, program: file.program, bytes };
 }
 
 /**

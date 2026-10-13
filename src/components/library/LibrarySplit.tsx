@@ -42,6 +42,13 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
   const closeRemoved = useCloseRemoved('/library/programs');
   const open = useOpenEntry();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
+  // A Nord slot opens like any program: it's read from the keyboard on the way.
+  // A read that failed waits for Try again rather than repeating on its own.
+  const { reading, failed, read } = s.nord;
+  const unread = entry?.source === 'nord' && !entry.program ? entry.id : undefined;
+  useEffect(() => {
+    if (unread && !reading && failed?.id !== unread) read(unread);
+  }, [unread, reading, failed, read]);
   // J/K step through the programs, here so they keep working with the list folded away (narrow).
   useStepKeys(s.shown, selectedId, open.program);
   // Stable, so the program table's memoised rows skip renders that don't touch them.
@@ -142,8 +149,8 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
               {program}
             </div>
           ) : null)
-            ?? (entry ? <EmptyNote>This slot hasn’t been read from your Nord yet. Read it on the Device page.</EmptyNote>
-              : selectedId ? <NotListedNote noun="program" /> : null)}
+            ?? (unread ? <NordReadNote name={entry!.name} failed={failed?.id === unread ? failed.message : undefined} onRetry={() => read(unread)} />
+              : selectedId && !entry ? <NotListedNote noun="program" /> : null)}
           hasDetail={!!selectedId}
           // Nothing open: the table spans the page, every column showing. Open,
           // on a wide screen, the program sits in an inspector column beside it.
@@ -169,6 +176,17 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
         />
       )}
     </div>
+  );
+}
+
+/** The detail while a Nord slot is read from the keyboard, or why it couldn't be. */
+function NordReadNote({ name, failed, onRetry }: { name: string; failed?: string; onRetry: () => void }) {
+  if (!failed) return <EmptyNote><span role="status">Reading “{name}” from your Nord…</span></EmptyNote>;
+  return (
+    <EmptyNote>
+      <p role="alert" className="m-0 mb-2">Couldn’t read “{name}” from your Nord: {failed}</p>
+      <Button variant="secondary" onClick={onRetry}>Try again</Button>
+    </EmptyNote>
   );
 }
 

@@ -7,6 +7,7 @@ import { useImportedLibrary } from '@/lib/library/useImportedLibrary';
 import { useLibraryPrefs } from '@/lib/library/prefs';
 import { nordEntriesFromDevice, entriesFromScannedPrograms, filterEntries, sortEntries, presentCategories } from '@/lib/library/entries';
 import type { LibraryEntry, LibrarySource } from '@/lib/library/types';
+import { useNordReads } from '@/lib/library/useNordReads';
 
 /** Extensions the Programs importer accepts — programs/performances only.
  *  Presets (.ns4o/.ns4n/.ns4y) go to the Presets page and samples (.nsmp*) to
@@ -19,7 +20,7 @@ const SAMPLE_EXTS = ['.nsmp', '.nsmp3', '.nsmp4'];
  *  owns the library-screen view state. Lifted out of the old Shell so both the
  *  list route and the program-detail route read the same data. */
 function useLibraryStateValue() {
-  const { entries: deviceEntries } = useDevice();
+  const { session, entries: deviceEntries } = useDevice();
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
   const [generation, setGeneration] = useState<LibraryEntry['generation'] | 'all'>('all');
   const [category, setCategory] = useState<string | 'all'>('all');
@@ -42,7 +43,10 @@ function useLibraryStateValue() {
   // Each source's entries are built on their own, so a Nord read, a folder
   // rescan or an import keeps the other sources' entry objects (and their
   // memoised table rows).
-  const nordEntries = useMemo(() => nordEntriesFromDevice(deviceEntries), [deviceEntries]);
+  const nordSlots = useMemo(() => nordEntriesFromDevice(deviceEntries), [deviceEntries]);
+  // A Nord program is read from the keyboard when it's opened (LibrarySplit).
+  const nord = useNordReads(session, deviceEntries, nordSlots);
+  const nordEntries = nord.entries;
   const folderEntries = useMemo(() => entriesFromScannedPrograms(folder.result.programs), [folder.result.programs]);
   const allEntries: LibraryEntry[] = useMemo(
     () => [...nordEntries, ...folderEntries, ...imported.entries],
@@ -123,7 +127,7 @@ function useLibraryStateValue() {
     shown, generation, setGeneration, generationsPresent,
     category, setCategory, categoriesPresent, query, setQuery,
     engines, toggleEngine, splitOnly, setSplitOnly,
-    importFile, importError, clearImportError, imported, prefs, folder,
+    importFile, importError, clearImportError, imported, prefs, folder, nord,
   };
   return { data, state };
 }

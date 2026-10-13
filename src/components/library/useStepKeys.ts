@@ -5,8 +5,7 @@ import type { LibraryEntry } from '../../lib/library/types';
 
 /**
  * J and K open the next and previous program in the list, counted from the open
- * one (from the top with none open). Nord slots not read yet (no program) are
- * stepped over, since opening one leaves for the Device page. Left alone while
+ * one (from the top with none open); a Nord slot is read as it opens. Left alone while
  * typing or composing, over a dialog, with a modifier held, on key repeat, or
  * when something else already handled the key;
  * a non-Latin layout uses the keys in J's and K's places. One listener for the
@@ -21,9 +20,7 @@ export function useStepKeys(entries: LibraryEntry[], activeId: string | null | u
       if (!step || !plainShortcut(ev)) return;
       const { entries, activeId, onOpen } = latest.current;
       const at = entries.findIndex((e) => e.id === activeId);
-      let i = at < 0 ? (step > 0 ? -1 : entries.length) : at;
-      do i += step; while (i >= 0 && i < entries.length && !entries[i].program);
-      const next = entries[i];
+      const next = entries[at < 0 ? (step > 0 ? 0 : entries.length - 1) : at + step];
       if (!next) return;
       ev.preventDefault();
       onOpen(next);

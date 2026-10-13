@@ -25,20 +25,24 @@ describe('useStepKeys (J/K)', () => {
     expect(onOpen).toHaveBeenCalledWith(entries[0]);
   });
 
-  it('steps over a Nord slot that has not been read', () => {
-    const onOpen = keysFrom('a');
+  it('steps onto a Nord slot that has not been read (it is read as it opens)', () => {
+    const down = keysFrom('a');
     fireEvent.keyDown(window, { key: 'j' });
-    expect(onOpen).toHaveBeenCalledWith(entries[2]);
+    expect(down).toHaveBeenCalledWith(entries[1]);
+    cleanup();
+    const up = keysFrom('b');
+    fireEvent.keyDown(window, { key: 'k' });
+    expect(up).toHaveBeenCalledWith(entries[1]);
   });
 
-  it('steps from an open unread slot, not from the top', () => {
-    const down = keysFrom('unread');
-    fireEvent.keyDown(window, { key: 'j' });
-    expect(down).toHaveBeenCalledWith(entries[2]);
-    cleanup();
-    const up = keysFrom('unread');
+  it('K opens the last program when none is open, and J stays put at the bottom', () => {
+    const up = keysFrom(null);
     fireEvent.keyDown(window, { key: 'k' });
-    expect(up).toHaveBeenCalledWith(entries[0]);
+    expect(up).toHaveBeenCalledWith(entries[2]);
+    cleanup();
+    const down = keysFrom('b');
+    fireEvent.keyDown(window, { key: 'j' });
+    expect(down).not.toHaveBeenCalled();
   });
 
   it('K stays put at the top', () => {

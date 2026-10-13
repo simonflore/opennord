@@ -73,7 +73,7 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
                   const v = programEntryView(e);
                   return (
                     <div key={`${e.bank}-${e.slot}`} className="ps-row">
-                      <button className="ps-row-open" onClick={() => onSelect(e)}>
+                      <button className="ps-row-open" onClick={() => onSelect(e)} title="Open in the Library">
                         <span className="ps-row-slot">{v.slot}</span>
                         <span style={{ flex: 1, fontWeight: 600 }}>{v.name}</span>
                         <span className="ps-fact">{v.category} · {v.version}</span>

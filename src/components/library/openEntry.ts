@@ -20,7 +20,6 @@ declare module '@tanstack/react-router' {
  * and remember that (Back then steps back to the list, see useBackToList); from
  * another entry of the same list, replace it, so history holds one entry per
  * visit and Back still knows where it came from; from anywhere else, push.
- * A program that hasn't been read (a Nord slot) opens the Device page instead.
  */
 export function useOpenEntry() {
   const navigate = useNavigate();
@@ -34,10 +33,8 @@ export function useOpenEntry() {
       return { replace: false, state: { fromList: false } };
     };
     return {
-      program: (e: LibraryEntry) => (e.program
-        // `search: true` keeps the list's ?source= filter as the program opens.
-        ? navigate({ to: '/library/programs/{-$programId}', params: { programId: e.id }, search: true, ...how('/library/programs') })
-        : navigate({ to: '/device' })),
+      // `search: true` keeps the list's ?source= filter as the program opens.
+      program: (e: LibraryEntry) => navigate({ to: '/library/programs/{-$programId}', params: { programId: e.id }, search: true, ...how('/library/programs') }),
       preset: (id: string) => navigate({ to: '/library/presets/{-$presetId}', params: { presetId: id }, ...how('/library/presets') }),
       sample: (id: string) => navigate({ to: '/library/samples/{-$sampleId}', params: { sampleId: id }, ...how('/library/samples') }),
       piano: (id: string) => navigate({ to: '/library/pianos/{-$pianoId}', params: { pianoId: id }, ...how('/library/pianos') }),

@@ -46,9 +46,7 @@ function useCommands(): Command[] {
 
     const programCommands = programs.map((e): Command => ({
       id: `program:${e.id}`, group: 'Programs', label: e.name, hint: hint(e), keywords: e.slot,
-      // Only a program that opens beside the list needs its row shown (an unread
-      // Nord slot goes to the Device page instead, leaving the list's filters alone).
-      run: () => { if (e.program) ensureListed(e.id); open.program(e); },
+      run: () => { ensureListed(e.id); open.program(e); },
     }));
 
     // Every entry opens on its own route, with its list showing its row.

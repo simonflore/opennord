@@ -2,14 +2,12 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import '../../styles/nord.css';
 import { Button, FilterChip } from '../ui';
 import type { NordSession } from '../../lib/device/session';
-import { pullProgram, type ProgramEntry } from '../../lib/device/transfer';
+import type { ProgramEntry } from '../../lib/device/transfer';
 import { readPartitionCapacity } from '../../lib/device/capacity';
 import { useDevice } from '../../lib/device/DeviceContext';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
-import { parseClaviaFile, type NordProgram } from '../../lib/formats';
 import { slotLabel } from '../../lib/clavia/slot';
 import { NS4_PRODUCT_ID } from '../../lib/device/negotiate';
-import { ProgramView } from '../program/ProgramView';
 import { ConnectPanel } from './ConnectPanel';
 import { BackupOrganizer } from './BackupOrganizer';
 import { BundleChooser } from './BundleChooser';
@@ -20,27 +18,28 @@ import { DeviceSampleBrowser } from './DeviceSampleBrowser';
 import { SampleInspector } from '../sample/SampleInspector';
 import { usePushFlow } from './usePushFlow';
 import { useDeleteFlow } from './useDeleteFlow';
-import { READ_ONLY_REASON } from '../../lib/device/write-guard';
 import { useSamplesFlow } from './useSamplesFlow';
 import { useReorg } from './useReorg';
 import { sessionDeviceIO } from '../../lib/device/device-io';
 import { backup, backupFilename } from '../../lib/device/backup';
 import { downloadBytes } from '../../lib/download';
-import { getErrorMessage } from '../../lib/errors';
 import { useFolder } from '../../lib/folder/FolderContext';
+import { useOpenEntry } from '../library/openEntry';
+import { useLibraryData } from '../../lib/library/LibraryContext';
+import { nordEntryId } from '../../lib/library/entries';
 
 /**
- * Orchestrates the device screen: connect, browse, and view a pulled program.
- * The push / delete / samples flows live in their own hooks (usePushFlow,
- * useDeleteFlow, useSamplesFlow); this component is the switch between them.
+ * Orchestrates the device screen: connect, then manage the Nord's slots
+ * (arrange, send a file in, delete) and browse its samples. A program opens in
+ * the Library, read from the keyboard there. The push / delete / samples flows
+ * live in their own hooks (usePushFlow, useDeleteFlow, useSamplesFlow); this
+ * component is the switch between them.
  */
 export function DeviceManager() {
   const { session, entries, deviceName, productId, capacity, setConnection, setCapacity, isCurrent, lost, refresh } = useDevice();
   const folder = useFolder();
-  // Program-open (pull-to-view) state stays local — it's this component's own concern.
-  const [program, setProgram] = useState<NordProgram | null>(null);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const openEntry = useOpenEntry();
+  const { ensureListed } = useLibraryData();
   const [organizingBackup, setOrganizingBackup] = useState(false);
   // When set, the Organizer opens this specific folder backup (picked on the landing).
   const [organizingBundlePath, setOrganizingBundlePath] = useState<string | undefined>(undefined);
@@ -91,25 +90,15 @@ export function DeviceManager() {
     </label>
   );
 
-  async function open(entry: ProgramEntry) {
-    if (!session || busy) return;
-    setError(''); setBusy(true);
-    try {
-      const bytes = await session.withSession(session.programPartition, () => pullProgram(session, entry));
-      const prog = parseClaviaFile(bytes).program;
-      prog.name = entry.name;
-      setProgram(prog);
-    } catch (e) {
-      setError(`Could not read ${entry.name}: ${getErrorMessage(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
+  // A program opens in the Library, which reads it from the Nord (useNordReads),
+  // with its row showing in the list beside it.
+  const open = (entry: ProgramEntry) => {
+    const id = nordEntryId(entry);
+    ensureListed(id);
+    void openEntry.program({ id, name: entry.name, source: 'nord' });
+  };
 
-  function toggleView(next: 'programs' | 'samples') {
-    setProgram(null);
-    void samples.switchView(next);
-  }
+  const toggleView = (next: 'programs' | 'samples') => void samples.switchView(next);
 
   if (!session) {
     if (organizingBackup) {
@@ -162,26 +151,6 @@ export function DeviceManager() {
     );
   }
 
-  // Viewing a pulled program — offer "Send to Nord".
-  if (program) {
-    return (
-      <div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <Button variant="ghost" onClick={() => setProgram(null)}>← Back to programs</Button>
-          <Button
-            variant="primary"
-            disabled={!writable}
-            title={writable ? undefined : READ_ONLY_REASON}
-            onClick={() => push.startPush({ bytes: program.bytes, name: program.name ?? 'Program' })}
-          >
-            Send to Nord
-          </Button>
-        </div>
-        <ProgramView program={program} />
-      </div>
-    );
-  }
-
   // Viewing a pulled sample (read-only — edit + download live in the inspector; no write-back yet).
   if (samples.sampleInput) {
     return (
@@ -194,10 +163,8 @@ export function DeviceManager() {
     );
   }
 
-  // Default browser. error/busy here come from the program-open action or the
-  // samples flow — only one is ever active at a time in this branch.
-  const browserError = error || samples.error || reorg.error;
-  const browserBusy = busy || samples.busy;
+  const browserError = samples.error || reorg.error;
+  const browserBusy = samples.busy;
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>

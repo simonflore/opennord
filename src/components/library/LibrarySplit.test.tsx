@@ -15,12 +15,18 @@ vi.mock('@tanstack/react-router', () => ({
   useRouter: () => ({ state: { location: { pathname: '/library/programs', state: {} } }, history: { back: vi.fn() } }),
   useLocation: () => false,
 }));
+// A Nord slot not read yet; tests set how its read is going.
+const slot = { id: 'nord:A:11', name: 'Wurli', source: 'nord', slot: 'A:11' };
+let nord: { reading: string | null; failed: { id: string; message: string } | null; read: ReturnType<typeof vi.fn> };
+const resetNord = () => { nord = { reading: null, failed: null, read: vi.fn() }; };
+resetNord();
 vi.mock('@/lib/library/LibraryContext', () => ({
   useLibraryState: () => ({
     shown: [], source: 'all', query: '',
     setSource: vi.fn(), setQuery: vi.fn(), importFile: vi.fn(),
     imported: { remove: vi.fn() }, prefs: {}, folder: null,
-    entryById: (id: string) => (id === 'p1' ? entry : undefined),
+    entryById: (id: string) => (id === 'p1' ? entry : id === slot.id ? slot : undefined),
+    nord,
   }),
 }));
 vi.mock('./LibraryView', () => ({ LibraryView: () => <div>LIST</div> }));
@@ -33,7 +39,7 @@ vi.mock('@/components/program/ProgramView', () => ({ ProgramView: () => <div>DET
 
 import { LibrarySplit } from './LibrarySplit';
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); wide = true; session = null; });
+afterEach(() => { cleanup(); vi.clearAllMocks(); wide = true; session = null; resetNord(); });
 
 describe('LibrarySplit', () => {
   it('wide: shows list and detail side by side', () => {
@@ -134,6 +140,34 @@ describe('LibrarySplit', () => {
       session = { canWrite: () => true, programPartition: 3 }; // a Nord again, maybe another
       rerender(<LibrarySplit selectedId="p1" />);
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('a Nord slot', () => {
+    it('is read from the Nord when it opens, once', () => {
+      const { rerender } = render(<LibrarySplit selectedId="nord:A:11" />);
+      expect(nord.read).toHaveBeenCalledTimes(1);
+      expect(nord.read).toHaveBeenCalledWith('nord:A:11');
+      nord.reading = 'nord:A:11';
+      rerender(<LibrarySplit selectedId="nord:A:11" />);
+      expect(screen.getByRole('status')).toHaveTextContent('Reading “Wurli” from your Nord…');
+      expect(nord.read).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText(/Device page/)).not.toBeInTheDocument();
+    });
+
+    it('says why a read failed and reads again only on Try again', () => {
+      nord.failed = { id: 'nord:A:11', message: 'The Nord didn’t answer.' };
+      render(<LibrarySplit selectedId="nord:A:11" />);
+      expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t read “Wurli” from your Nord: The Nord didn’t answer.');
+      expect(nord.read).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(nord.read).toHaveBeenCalledWith('nord:A:11');
+    });
+
+    it('is not read again while another slot reads', () => {
+      nord.reading = 'nord:A:12';
+      render(<LibrarySplit selectedId="nord:A:11" />);
+      expect(nord.read).not.toHaveBeenCalled();
     });
   });
 });
