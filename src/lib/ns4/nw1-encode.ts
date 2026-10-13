@@ -75,6 +75,12 @@ export interface EncodeNW1Options {
   u24?: boolean;
   /** `SMetric[8]` block size per channel: 32 (codec 3/4, default) or 24 (OG). */
   blockPerCh?: number;
+  /**
+   * Interleaved sample position where the loop begins. The segment that starts there opens
+   * with the loop-decay flag set (block-header bit 18), as the loop-begin block of every
+   * looped stroke in real files does. It must be one of `segmentsInterleaved`.
+   */
+  loopBeginInterleaved?: number;
 }
 
 /** Smallest signed bit width (≥1) holding every value in [min, max]. */
@@ -219,7 +225,8 @@ export function planBlocks(channels: ArrayLike<number>[], opts: EncodeNW1Options
         open.sampleCnt += chunk;
       } else {
         const sel = forced ? { order: 0, bw: widthForOrder(channels, st, 0, counts) } : selectOrder(channels, st, counts);
-        open = { order: sel.order, bw: sel.bw, sampleCnt: chunk, linMode: forced, flag2: false };
+        const opensLoop = forced && remaining === seg.len && seg.start > 0 && seg.start === opts.loopBeginInterleaved;
+        open = { order: sel.order, bw: sel.bw, sampleCnt: chunk, linMode: forced, flag2: opensLoop };
         blocks.push(open);
         if (forced) open = null; // forced blocks never absorb followers
       }
@@ -249,9 +256,22 @@ export function blockHeaderWord(b: { order: number; bw: number; sampleCnt: numbe
  * codec-4 per-channel word-interleaving.
  */
 export function encodeStrokeNW1(channels: ArrayLike<number>[], opts: EncodeNW1Options = {}): Uint8Array {
+  return encodeStrokeNW1Marked(channels, opts).bytes;
+}
+
+/**
+ * {@link encodeStrokeNW1}, also saying where each segment-opening block (and the stop block)
+ * landed: its header's position in stream words and its first interleaved sample. These are
+ * the positions a stroke header's region pointers name, the same `marks` the decoder reports.
+ */
+export function encodeStrokeNW1Marked(
+  channels: ArrayLike<number>[], opts: EncodeNW1Options = {},
+): { bytes: Uint8Array; marks: { word: number; sample: number }[] } {
   const nCh = channels.length;
-  if (nCh === 0) return new Uint8Array(0);
+  if (nCh === 0) return { bytes: new Uint8Array(0), marks: [] };
   const blocks = planBlocks(channels, opts);
+  const marks: { word: number; sample: number }[] = [];
+  let sample = 0;
 
   const u24 = opts.u24 === true;
   const wordBits = u24 ? 24 : 32;
@@ -282,6 +302,8 @@ export function encodeStrokeNW1(channels: ArrayLike<number>[], opts: EncodeNW1Op
   };
 
   for (const b of blocks) {
+    if (b.linMode) marks.push({ word: out.length / (u24 ? 3 : 4), sample });
+    sample += b.sampleCnt;
     pushWord(blockHeaderWord(b));
     const counts = perChannelCounts(b.sampleCnt, nCh);
     const coeff = PREDICTOR_COEFF[b.order];
@@ -326,6 +348,7 @@ export function encodeStrokeNW1(channels: ArrayLike<number>[], opts: EncodeNW1Op
   }
 
   // Stop block: linMode, bw=1, order=0, sampleCnt = blockSize (interleaved). 1 word.
+  marks.push({ word: out.length / (u24 ? 3 : 4), sample });
   pushWord(blockHeaderWord({ order: 0, bw: 1, sampleCnt: (opts.blockPerCh ?? BLOCK_PER_CH) * nCh, linMode: true, flag2: false }));
-  return Uint8Array.from(out);
+  return { bytes: Uint8Array.from(out), marks };
 }

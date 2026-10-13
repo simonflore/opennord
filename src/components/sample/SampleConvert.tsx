@@ -133,7 +133,7 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
     <div className="ps-card" style={{ marginTop: 12 }}>
       <h4>CONVERT</h4>
       <p className="ps-sub" style={{ marginTop: 0 }}>
-        Save this sample as another generation. The audio is kept; loops and levels are not carried over yet.
+        Save this sample as another generation. The audio, loops, levels and tuning are kept.
       </p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {targets.map((g) => (

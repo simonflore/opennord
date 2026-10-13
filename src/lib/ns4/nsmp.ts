@@ -464,20 +464,51 @@ export function readGlobalLevelDetune(bytes: Uint8Array): GlobalLevelDetune | nu
   return { level, detune, isDefault: level === 0x100000 && detune === 0 };
 }
 
-/** Count per-note rows that differ from unity (`10 00 00 00 00 00`). The block
- *  follows the global 6 bytes: codec-3 128×6B, codec-4 128×10B. */
-export function perNoteCustomCount(bytes: Uint8Array): number {
+/**
+ * Where a legacy `map` (v9, v10) keeps its 128 per-key rows: after the global 6 bytes and 9
+ * zero bytes. The zone table follows the rows: a u24 count, then that many records (12
+ * bytes in v9, 15 in v10), ending exactly at the section's end in all 29 local legacy
+ * samples.
+ */
+export const LEGACY_MAP_ROWS = 15;
+const LEGACY_MAP_TABLE = LEGACY_MAP_ROWS + 128 * 6;
+
+/** The first 6 bytes of the `map`: global level + detune, the same place in every generation. */
+export function readGlobalLevelDetuneBytes(bytes: Uint8Array): Uint8Array | null {
   const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'));
-  if (!map) return 0;
-  const codec = readNsmp(bytes).codec ?? 0;
-  const rowLen = codec >= 4 ? 10 : 6;
-  let o = map.payloadOffset + 6, custom = 0;
-  for (let i = 0; i < 128 && o + rowLen <= map.endOffset; i++, o += rowLen) {
-    const unity = bytes[o] === 0x10 && bytes[o + 1] === 0 && bytes[o + 2] === 0 &&
-      bytes[o + 3] === 0 && bytes[o + 4] === 0 && bytes[o + 5] === 0;
-    if (!unity) custom++;
+  return map && map.payloadOffset + 6 <= map.endOffset ? bytes.slice(map.payloadOffset, map.payloadOffset + 6) : null;
+}
+
+/**
+ * The 128 per-key level + detune rows of the `map` (6 bytes each; unity is
+ * `10 00 00 00 00 00`). They follow the global 6 bytes: codec 3 has 128 × 6 bytes, codec 4
+ * 128 × 10 (the row, then 4 more bytes). A legacy `.nsmp` (`map` v9 and v10) has 9 zero
+ * bytes before its rows ({@link LEGACY_MAP_ROWS}).
+ */
+export function readPerNoteRows(bytes: Uint8Array): Uint8Array[] | null {
+  const map = parseNsmpSections(bytes).find((s) => s.tag.endsWith('map'));
+  if (!map) return null;
+  const file = readNsmp(bytes);
+  const rowLen = !file.legacy && (file.codec ?? 0) >= 4 ? 10 : 6;
+  let first = map.payloadOffset + 6;
+  if (file.legacy) {
+    // The real layout frames its zone table with a count; a `.nsmp` an older OpenNord wrote
+    // has the rows straight after the global bytes and 15-byte records to the end.
+    const table = map.payloadOffset + LEGACY_MAP_TABLE;
+    const count = table + 3 <= map.endOffset ? u24be(bytes, table) : -1;
+    const rec = map.version === 10 ? 15 : 12;
+    const len = map.endOffset - map.payloadOffset;
+    if (count >= 0 && table + 3 + count * rec === map.endOffset) first = map.payloadOffset + LEGACY_MAP_ROWS;
+    else if (!(len >= 6 + 768 && (len - 6 - 768) % 15 === 0)) return null;
   }
-  return custom;
+  if (first + 128 * rowLen > map.endOffset) return null;
+  return Array.from({ length: 128 }, (_, i) => bytes.slice(first + i * rowLen, first + i * rowLen + 6));
+}
+
+/** Count per-note rows that differ from unity (`10 00 00 00 00 00`); see {@link readPerNoteRows}. */
+export function perNoteCustomCount(bytes: Uint8Array): number {
+  const rows = readPerNoteRows(bytes) ?? [];
+  return rows.filter((r) => !(r[0] === 0x10 && r[1] === 0 && r[2] === 0 && r[3] === 0 && r[4] === 0 && r[5] === 0)).length;
 }
 
 /**
@@ -811,6 +842,13 @@ function parseStrokeRefZoneRecords(
     const o = best.start + i * rec;
     raw.push({ globalID: bytes[o + gidOff], keyHigh: bytes[o + keyHighOff], recordOffset: o });
   }
+  return zonesFromStrokeRefs(raw, rootByGid);
+}
+
+/** Zones from `{stroke id, top key}` records: sorted top-down, each reaching down to the next. */
+function zonesFromStrokeRefs(
+  raw: { globalID: number; keyHigh: number; recordOffset: number }[], rootByGid: Map<number, number>,
+): NsmpZone[] {
   raw.sort((a, b) => b.keyHigh - a.keyHigh); // top-down, defensive
   return raw.map((r, i) => ({
     velTop: 127, velLow: 0,
@@ -826,6 +864,20 @@ function parseStrokeRefZoneRecords(
 export function parseCodec2ZoneRecords(
   bytes: Uint8Array, map: NsmpSection, rootByGid: Map<number, number>,
 ): NsmpZone[] {
+  // The table as real files have it: a u24 count after the per-key rows, then 15-byte
+  // records `[gid:u24][level:u24][detune:s24][keyHigh:u8][strokes:u16][0 0 0]` to the end
+  // of the section. Reading it by its count finds every record; the scan below (kept for
+  // maps without that frame, such as those an older OpenNord wrote) takes the id from two
+  // bytes further on and so lost the last record of every real file.
+  const table = map.payloadOffset + LEGACY_MAP_TABLE;
+  const count = table + 3 <= map.endOffset ? u24be(bytes, table) : 0;
+  if (count > 0 && table + 3 + count * 15 === map.endOffset) {
+    const raw = Array.from({ length: count }, (_, i) => {
+      const o = table + 3 + i * 15;
+      return { globalID: bytes[o + 2], keyHigh: bytes[o + 9], recordOffset: o };
+    });
+    if (raw.every((r) => r.keyHigh <= 127)) return zonesFromStrokeRefs(raw, rootByGid);
+  }
   // gid@+0, keyHigh@+7. The "strength" marker varies between codec-2 revisions —
   // most write `00 01` at +8/+9. The Spitfire-era libraries instead carry a per-zone
   // value (detune/gain) at +1..+3: `10 00 00` (unity) OR a real value like `0c db 3e`.

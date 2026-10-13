@@ -17,7 +17,9 @@ const NORD_FILES = process.env.NORD_FILES?.trim() || undefined;
 
 describe.runIf(process.env.npm_lifecycle_event === 'fixtures:scan')('fixtures corpus scan', () => {
   it('checks any present fixtures or NORD_FILES folder, or notes there are none', async () => {
-    const { rows, notes } = await runFixtureScan({ fixturesRoot: ROOT, nordFiles: NORD_FILES });
+    // NORD_CHECK_CONVERSIONS=1 also converts every sample to the other generations (slow).
+    const checkConversions = process.env.NORD_CHECK_CONVERSIONS === '1';
+    const { rows, notes } = await runFixtureScan({ fixturesRoot: ROOT, nordFiles: NORD_FILES, checkConversions });
     for (const n of notes) console.warn(`[fixtures] ${n}`);
     if (rows.length === 0) {
       console.log('[fixtures] no files — drop files in fixtures/<model>/ or run with NORD_FILES=/path/to/your/Nord/files');

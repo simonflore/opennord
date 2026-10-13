@@ -29,6 +29,7 @@
  * byte offsets — no parameter values (a writer's refusal message has its value
  * redacted) and no names other than the file's own path.
  */
+import { checkSampleConversions, type ConversionCheck } from '../ns4/nsmp-convert-check';
 import { cbinFraming, CBIN_FORMAT_LEGACY, CBIN_FORMAT_NSM } from '../clavia/cbin';
 import { verifyFileChecksum } from '../clavia/checksum';
 import { identifyNordFile } from '../clavia/nord-file';
@@ -106,6 +107,14 @@ export interface MediaCheck {
   /** Notes (strokes) the file holds, and how many of them decode. */
   notes: number;
   notesDecoded: number;
+  /** A sample converted to the other generations and read back (only when asked for). */
+  conversions?: ConversionCheck[];
+}
+
+/** What the media check does besides the default. */
+export interface MediaCheckOptions {
+  /** Also convert every sample to the other generations and compare (slow: minutes for a library). */
+  conversions?: boolean;
 }
 
 export interface ValidationRow extends FixtureFinding {
@@ -246,7 +255,7 @@ const noPace = async () => {};
  * The checks on a piano or a sample: check value, then every note decoded (in
  * memory, then dropped). Null for any other file. Never throws.
  */
-export async function checkMedia(bytes: Uint8Array): Promise<MediaCheck | null> {
+export async function checkMedia(bytes: Uint8Array, opts: MediaCheckOptions = {}): Promise<MediaCheck | null> {
   try {
     if (readNspIdentity(bytes)) {
       const checksumOk = await pianoChecksumHolds(bytes, noPace);
@@ -261,19 +270,28 @@ export async function checkMedia(bytes: Uint8Array): Promise<MediaCheck | null> 
     if (!s.recognized || s.pianoLibrary) return null;
     let notesDecoded = 0;
     try { notesDecoded = decodeNsmp(bytes).length; } catch { /* none decoded */ }
-    return { kind: 'sample', checksumOk: s.checksumValid, notes: s.strokeCount, notesDecoded };
+    const media: MediaCheck = { kind: 'sample', checksumOk: s.checksumValid, notes: s.strokeCount, notesDecoded };
+    if (opts.conversions && notesDecoded > 0) {
+      // Its own failure is a finding about the conversion, not a reason to lose the rest.
+      try { media.conversions = checkSampleConversions(bytes); } catch (e) {
+        media.conversions = [{ target: s.legacy ? 3 : 2, lost: [`could not be checked (${(e as Error).message})`] }];
+      }
+    }
+    return media;
   } catch {
     return null;
   }
 }
 
 /** A piano or sample file: identified, then {@link checkMedia}. Never throws. */
-export async function validateMediaBytes(path: string, bytes: Uint8Array, model: NordModelId | null): Promise<ValidationRow> {
+export async function validateMediaBytes(path: string, bytes: Uint8Array, model: NordModelId | null, opts: MediaCheckOptions = {}): Promise<ValidationRow> {
   const row = validateBytes(path, bytes, model, bytes.length, true);
-  const media = await checkMedia(bytes);
+  const media = await checkMedia(bytes, opts);
   if (media) row.media = media;
   return row;
 }
+
+const CONVERSION_EXT: Record<number, string> = { 2: '.nsmp', 3: '.nsmp3', 4: '.nsmp4' };
 
 /** Whether a file name is a piano or sample (checked with {@link validateMediaBytes}). */
 export function isMediaFileName(name: string): boolean {
@@ -397,6 +415,9 @@ export interface ModelSummary {
   mediaChecksumOk: number;
   notes: number;
   notesDecoded: number;
+  /** Sample conversions tried, and how many kept audio, loops, level and tuning. */
+  conversions: number;
+  conversionsKept: number;
   writeBack: Record<WriteOutcome, number>;
   /** Rows the scan could not read or check, plus registry cross-check findings. */
   problems: number;
@@ -432,6 +453,9 @@ export function rowProblems(row: ValidationRow): string[] {
   if (m && !m.checksumOk) out.push('checksum does not hold');
   if (m && m.notes === 0) out.push('holds no notes');
   if (m && m.notesDecoded < m.notes) out.push(`${m.notes - m.notesDecoded} of ${m.notes} notes did not decode`);
+  for (const v of m?.conversions ?? []) {
+    if (v.lost.length) out.push(`converted to ${CONVERSION_EXT[v.target]}: loses ${v.lost.join(', ')}`);
+  }
   const c = row.check;
   if (!c) return out;
   if (c.reader.headerOnly) out.push('header only');
@@ -463,7 +487,7 @@ export function summarizeRows(rows: readonly ValidationRow[]): ModelSummary[] {
       files: 0, archives: 0, programs: 0, readOk: 0, headerOnly: 0, noLayoutCheck: 0, outOfRangeFiles: 0, warned: 0, converted: 0,
       checksumOk: 0, checksumFail: 0, lengthOff: 0, cleanReads: 0, noOp: emptyOutcomes(), writeBack: emptyOutcomes(),
       presets: 0, presetsRead: 0, presetChecksumOk: 0, presetsIdentified: 0,
-      pianos: 0, samples: 0, mediaChecksumOk: 0, notes: 0, notesDecoded: 0,
+      pianos: 0, samples: 0, mediaChecksumOk: 0, notes: 0, notesDecoded: 0, conversions: 0, conversionsKept: 0,
       problems: 0, topWarnings: [], topRefusals: [],
     };
     const warnings = new Map<string, number>();
@@ -482,6 +506,10 @@ export function summarizeRows(rows: readonly ValidationRow[]): ModelSummary[] {
         if (r.media.checksumOk) s.mediaChecksumOk++;
         s.notes += r.media.notes;
         s.notesDecoded += r.media.notesDecoded;
+        for (const v of r.media.conversions ?? []) {
+          s.conversions++;
+          if (v.lost.length === 0) s.conversionsKept++;
+        }
       }
       const c = r.check;
       if (!c) continue;
@@ -566,6 +594,7 @@ export function formatSummary(rows: readonly ValidationRow[], reportPath: string
     }
     if (s.pianos + s.samples > 0) {
       lines.push(`  pianos/samples: checksum OK ${s.mediaChecksumOk} / fail ${s.pianos + s.samples - s.mediaChecksumOk} · notes decoded ${s.notesDecoded} of ${s.notes}`);
+      if (s.conversions > 0) lines.push(`  sample conversions: ${s.conversions} tried · ${s.conversionsKept} keep audio, loops, level and tuning`);
     }
     const flagged = rows.filter((r) => r.model === s.model).map((r) => [r.path, rowProblems(r)] as const).filter(([, p]) => p.length > 0);
     for (const [path, p] of flagged.slice(0, maxProblemsPerModel)) lines.push(`  ! ${clip(path, 70)}: ${clip(p.join('; '))}`);

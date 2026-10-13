@@ -8,16 +8,18 @@
  * section carries a stroke header + the {@link encodeStroke} block stream.
  *
  * Validated by **round-trip through our own reader** (`nsmp-write.test.ts`):
- * `decodeNsmp(writeNsmp(pcm))` returns the input PCM. Acceptance *on a real
- * keyboard* additionally needs the exact stroke-header fields (loop points, norm
- * gain, sample length — still being decoded) and the per-zone `map` content;
- * those are templated here and flagged as the remaining work + a hardware test.
+ * `decodeNsmp(writeNsmp(pcm))` returns the input PCM. A stroke written from PCM alone
+ * gets a templated header (no loop, no gain values). A stroke converted from another
+ * sample ({@link WriteStrokeMeta}) gets the header a real one has: the source's pitch
+ * and gain bytes, and region pointers for its loop. Nothing here has been loaded on a
+ * keyboard yet.
  *
  * ⚠️ SCOPE (docs/LEGAL.md): the user's own audio only — local sample creation,
  * never factory content.
  */
 
 import { encodeStroke, type EncodeOptions } from './nsmp-encode';
+import { encodeCarriedStream, putRegionPointers } from './nsmp-stroke-carry';
 import { patchNs4Checksum } from '../clavia/checksum';
 
 const CBIN_HEADER_SIZE = 0x2c;
@@ -63,6 +65,40 @@ export interface WriteZone {
   velTop?: number;
   /** Bottom velocity of this zone (velMin). Default 0. */
   velLow?: number;
+  /** Zone record bytes +3…+5: zone mode, playback and one-shot. Default: the codec's usual mode, 0, 0. */
+  zoneMode?: number;
+  zonePlayback?: number;
+  zoneIsOneShot?: number;
+  /** What a converted stroke carries over from its source besides the audio. */
+  stroke?: WriteStrokeMeta;
+}
+
+/**
+ * The parts of a stroke that are not audio, carried from a source sample. The stroke header
+ * has one layout in every generation: bytes
+ * +0x04…+0x11 hold the root key, pitch base, channel count and gain values, and the four
+ * region pointers at +0x12/+0x1b/+0x24/+0x2d are positions in the compressed stream.
+ */
+export interface WriteStrokeMeta {
+  /** Source header bytes +0x04…+0x11 (14 bytes), written as they are. The channel count
+   *  (+0x08) always comes from the audio. Only for a source of the same header family
+   *  (codec 3 ↔ 4): the gain bytes in there are not understood, and a legacy header is
+   *  documented to hold other things in them (`nsmp-og.ts`). */
+  headerFields?: Uint8Array;
+  /** The stroke's pitch base (header +0x06, u16): its tuning. Overrides `headerFields`. */
+  pitchBase?: number;
+  /** The root key the zone gives this stroke (header +0x05). Overrides `headerFields`. */
+  rootKey?: number;
+  /** Source header bytes +0x34…+0x5f of a codec-3/4 stroke (editor values, meaning unknown),
+   *  written as they are. A legacy source has none. */
+  headerTail?: Uint8Array;
+  /** Segment boundaries of the source stream (interleaved sample positions): the encoder
+   *  opens a segment at each, as the source did. */
+  segmentsInterleaved?: number[];
+  /** Loop and alternate start, in frames per channel. */
+  loop?: { loopStart: number; altStart: number; loops: boolean };
+  /** Loop-decay field (header +0x28, 24 bits) as the source has it. */
+  decayRaw?: number;
 }
 
 export interface WriteNsmpOptions extends EncodeOptions {
@@ -80,7 +116,14 @@ export interface WriteNsmpMultiOptions extends EncodeOptions {
   zones: WriteZone[];
   /** Format generation: 3 → `.nsmp3`, 4 → `.nsmp4` (word-interleaved). Default 3. */
   codec?: 3 | 4;
+  /** The `map`'s global level and detune (its first 6 bytes) as the source has them. Default unity. */
+  globalLevelDetune?: Uint8Array;
+  /** Per-key level and detune: 128 rows of 6 bytes, as the source has them. Default unity. */
+  perNote?: Uint8Array[];
 }
+
+/** The level/detune values a `map` opens with. */
+interface MapLevels { global?: Uint8Array; perNote?: Uint8Array[] }
 
 const UNITY = [0x10, 0, 0, 0, 0, 0]; // per-note level 0x100000, detune 0
 
@@ -98,7 +141,9 @@ function zoneEntry(z: WriteZone, globalID: number, zoneMode: number): Uint8Array
   e[0] = z.rootKey & 0x7f; // root key (pitched note)
   e[1] = z.keyHigh & 0x7f; // top key (split)
   e[2] = (z.keyLow ?? z.rootKey) & 0x7f; // bottom key — default to root
-  e[3] = zoneMode & 0xff; // per-zone playback mode
+  e[3] = (z.zoneMode ?? zoneMode) & 0xff; // per-zone playback mode
+  e[4] = (z.zonePlayback ?? 0) & 0xff;
+  e[5] = (z.zoneIsOneShot ?? 0) & 0xff;
   e[7] = 1; // u16 strokeCount @+6 = 1
   e[11] = globalID & 0xff; // u32 globalID @+8 (low byte)
   e[13] = 1; // u16 strength @+12 = 1
@@ -113,9 +158,9 @@ function zoneEntry(z: WriteZone, globalID: number, zoneMode: number): Uint8Array
  * pad trails them — matching real `.nsmp3` files and the `readNsmpZones` codec-3
  * path. (Codec-3 `map`, section version 14.)
  */
-function buildMapPayloadC3(zones: WriteZone[]): Uint8Array {
-  const parts: Uint8Array[] = [Uint8Array.from(UNITY)]; // global
-  for (let i = 0; i < 128; i++) parts.push(Uint8Array.from(UNITY)); // per-note
+function buildMapPayloadC3(zones: WriteZone[], levels: MapLevels): Uint8Array {
+  const parts: Uint8Array[] = [levelRow(levels.global)]; // global
+  for (let i = 0; i < 128; i++) parts.push(levelRow(levels.perNote?.[i])); // per-note
   parts.push(Uint8Array.from([zones.length & 0xff])); // zone count
   zones.forEach((z, i) => parts.push(zoneEntry(z, i + 1, 0)));
   parts.push(Uint8Array.from([0])); // trailing pad
@@ -133,9 +178,9 @@ function buildMapPayloadC3(zones: WriteZone[]): Uint8Array {
  * (The codec-3 form mis-tagged version 21 read back as zero zones — the bug that
  * made `.nsmp4` conversion lose its splits/layers and become path-dependent.)
  */
-function buildMapPayloadC4(zones: WriteZone[]): Uint8Array {
-  const parts: Uint8Array[] = [Uint8Array.from(UNITY)]; // global
-  for (let n = 0; n < 128; n++) parts.push(Uint8Array.from([...UNITY, n, n, n, n])); // per-note + note tag
+function buildMapPayloadC4(zones: WriteZone[], levels: MapLevels): Uint8Array {
+  const parts: Uint8Array[] = [levelRow(levels.global)]; // global
+  for (let n = 0; n < 128; n++) parts.push(Uint8Array.from([...levelRow(levels.perNote?.[n]), n, n, n, n])); // per-note + note tag
   parts.push(defaultUnisonHeader(zones.length)); // 31B SampleUnison block + 1B zone count
   zones.forEach((z, i) => parts.push(zoneEntry(z, i + 1, 1)));
   parts.push(Uint8Array.from([0x00, 0x00, 0x00, 0x01, 0x00, 0x00])); // trailer
@@ -156,9 +201,14 @@ function defaultUnisonHeader(count: number): Uint8Array {
   return h;
 }
 
+/** A 6-byte level + detune row: the given bytes, or unity. */
+function levelRow(row: Uint8Array | undefined): Uint8Array {
+  return row && row.length >= 6 ? row.slice(0, 6) : Uint8Array.from(UNITY);
+}
+
 /** Build the `map` payload in the target generation's verified layout. */
-function buildMapPayload(zones: WriteZone[], codec: 3 | 4): Uint8Array {
-  return codec === 4 ? buildMapPayloadC4(zones) : buildMapPayloadC3(zones);
+function buildMapPayload(zones: WriteZone[], codec: 3 | 4, levels: MapLevels = {}): Uint8Array {
+  return codec === 4 ? buildMapPayloadC4(zones, levels) : buildMapPayloadC3(zones, levels);
 }
 
 /**
@@ -169,7 +219,8 @@ function buildMapPayload(zones: WriteZone[], codec: 3 | 4): Uint8Array {
 export function writeNsmpMulti(opts: WriteNsmpMultiOptions): Uint8Array {
   const { name, zones } = opts;
   const codec = opts.codec ?? 3;
-  return assembleNsmp(name, zones.map((z) => z.channels), buildMapPayload(zones, codec), opts.blockSize, codec);
+  const levels = { global: opts.globalLevelDetune, perNote: opts.perNote };
+  return assembleNsmp(name, zones.map((z) => z.channels), buildMapPayload(zones, codec, levels), opts.blockSize, codec, zones.map((z) => z.stroke));
 }
 
 /**
@@ -191,6 +242,7 @@ function assembleNsmp(
   mapPayload: Uint8Array,
   blockSize: number | undefined,
   codec: 3 | 4,
+  metas: (WriteStrokeMeta | undefined)[] = [],
 ): Uint8Array {
   // Section versions differ by codec generation (observed in real .nsmp3/.nsmp4).
   const v = codec === 4
@@ -223,12 +275,23 @@ function assembleNsmp(
   // One `stk` per stroke: a templated header then the encoded block stream. Byte 8
   // of the stroke header is the channel count (the count the decoder
   // de-interleaves by), so our reader recovers it without guessing.
+  // A carried stroke's region pointers are absolute stream positions, so each `stk` is built
+  // knowing where it lands in the file.
+  let at = header.length + nsmp.length + hdr.length + cat.length + map.length;
   const stks = strokes.map((channels, i) => {
+    const meta = metas[i];
+    if (meta) {
+      const stk = section('\0stk', v.stk, carriedStroke(channels, i + 1, meta, wordInterleaved, at + 12));
+      at += stk.length;
+      return stk;
+    }
     const header = new Uint8Array(STROKE_HEADER_SIZE);
     header[3] = (i + 1) & 0xff; // global id — matches each zone's globalID (map +12)
     header[6] = 0x88; header[7] = 0xba; // pitch/rate base (PITCH_BASE @ 0 cents) — read back as the replay sampleRate; 44100 would detune +4 semitones
     header[8] = channels.length; // 1 = mono, 2 = stereo
-    return section('\0stk', v.stk, concat([header, encodeStroke(channels, { blockSize, wordInterleaved })]));
+    const stk = section('\0stk', v.stk, concat([header, encodeStroke(channels, { blockSize, wordInterleaved })]));
+    at += stk.length;
+    return stk;
   });
 
   const sty = section('\0sty', v.sty, Uint8Array.from(
@@ -238,4 +301,44 @@ function assembleNsmp(
 
   const file = concat([header, nsmp, hdr, cat, map, ...stks, sty, meta]);
   return patchNs4Checksum(file); // CRC-32 over bytes[0x2C:] → 0x18
+}
+
+/** Fixed part of a codec-3/4 stroke header; zero padding follows up to the block stream. */
+const STROKE_HEADER_FIXED = 0x60;
+/** A stroke's stop block sits on a multiple of this many stream words from the file body. */
+const STROKE_END_ALIGN = 32;
+
+const put32 = (b: Uint8Array, o: number, v: number) => {
+  b[o] = (v >>> 24) & 0xff; b[o + 1] = (v >>> 16) & 0xff; b[o + 2] = (v >>> 8) & 0xff; b[o + 3] = v & 0xff;
+};
+
+/**
+ * A `stk` payload for a stroke converted from another sample: the header a real codec-3/4
+ * stroke has, then the block stream cut into the source's segments.
+ *
+ * Read off real files: the four region pointers are
+ * the positions of segment-opening blocks, counted in 32-bit words from the file body
+ * (file offset 0x2C): start = the first block, second start, loop begin, end = the stop
+ * block. Loop begin equals end on a one-shot. The loop-begin block carries the loop-decay
+ * flag. The header is 0x60 bytes plus zero padding chosen so the stop block lands on a
+ * multiple of 32 words.
+ */
+function carriedStroke(channels: ArrayLike<number>[], globalID: number, meta: WriteStrokeMeta, wordInterleaved: boolean, payloadOffset: number): Uint8Array {
+  const carried = encodeCarriedStream(channels, meta, { wordInterleaved });
+
+  // Pad the header so the stop block is aligned (payloadOffset − 0x2C is a multiple of 4).
+  const base = (payloadOffset - CBIN_HEADER_SIZE + STROKE_HEADER_FIXED) / 4;
+  const pad = (STROKE_END_ALIGN - ((base + carried.stopWord) % STROKE_END_ALIGN)) % STROKE_END_ALIGN;
+  const header = new Uint8Array(STROKE_HEADER_FIXED + pad * 4);
+
+  put32(header, 0, globalID);
+  if (meta.headerFields) header.set(meta.headerFields.subarray(0, 14), 0x04);
+  const pitchBase = meta.pitchBase ?? (meta.headerFields ? undefined : 0x88ba);
+  if (pitchBase !== undefined) { header[6] = (pitchBase >>> 8) & 0xff; header[7] = pitchBase & 0xff; }
+  if (meta.rootKey !== undefined) header[5] = meta.rootKey & 0xff;
+  header[8] = channels.length;
+  putRegionPointers(header, base + pad, carried, meta.decayRaw);
+  if (meta.headerTail) header.set(meta.headerTail.subarray(0, STROKE_HEADER_FIXED - 0x34), 0x34);
+  else { header[0x3e] = 0x41; header[0x3f] = 0xa0; } // 20.0 as a float: the value every real codec-3/4 stroke has here
+  return concat([header, carried.stream]);
 }

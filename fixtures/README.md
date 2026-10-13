@@ -25,6 +25,9 @@ single file.
   comes out with its identity (organ model, piano model, synth oscillator and filter).
 - Pianos (`.npno`) and samples (`.nsmp`, `.nsmp3`, `.nsmp4`) are checked by their checksum and
   by decoding every note they hold. The sound is decoded in memory and dropped.
+- With `NORD_CHECK_CONVERSIONS=1` in front of the command, every sample is also converted to
+  the other two sample formats (in memory) and read back, to see that its audio, loops, level
+  and tuning are all still there. This takes a few seconds a sample, so it is off by default.
 - Backups and bundles (`.ns3b`, `.ns4b`, `.ne5b`, `.np3b`, `…pbundle`, …) are opened and every
   program inside is checked too, shown as `Backup.ns3b › Program/Bank A/Name.ns3f`. Samples and
   pianos inside a backup are skipped.

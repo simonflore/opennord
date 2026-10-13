@@ -12,7 +12,7 @@ import { basename, join, relative, resolve } from 'node:path';
 import { MODELS, type NordModelId } from '../clavia/partitions';
 import {
   errorRow, isArchiveName, isMediaFileName, isNordFileName, validateArchive, validateBytes, validateMediaBytes,
-  MAX_PROGRAM_ENTRY_BYTES, type ValidationRow,
+  MAX_PROGRAM_ENTRY_BYTES, type MediaCheckOptions, type ValidationRow,
 } from './fixture-validate';
 
 /** Bytes read from a file too large to be a program: enough for any header the identifiers read. */
@@ -114,11 +114,11 @@ function readHead(abs: string, n: number): Uint8Array {
 }
 
 /** Check one input file (or every program entry in a backup). Never throws. */
-export async function validateInput(input: InputFile): Promise<ValidationRow[]> {
+export async function validateInput(input: InputFile, opts: MediaCheckOptions = {}): Promise<ValidationRow[]> {
   try {
     // A Blob over the file on disk: the archive is read slice by slice, never loaded whole.
     if (isArchiveName(input.abs)) return await validateArchive(input.label, await fs.openAsBlob(input.abs), input.model);
-    if (isMediaFileName(input.abs)) return [await validateMediaBytes(input.label, new Uint8Array(fs.readFileSync(input.abs)), input.model)];
+    if (isMediaFileName(input.abs)) return [await validateMediaBytes(input.label, new Uint8Array(fs.readFileSync(input.abs)), input.model, opts)];
     if (input.size > MAX_PROGRAM_ENTRY_BYTES) {
       return [validateBytes(input.label, readHead(input.abs, HEAD_BYTES), input.model, input.size, true)];
     }
@@ -137,10 +137,10 @@ export interface ScanResult {
  * Collect the inputs (fixtures/<model-id>/ under `fixturesRoot`, plus the
  * `nordFiles` folder when given) and check them all, one at a time.
  */
-export async function runFixtureScan(opts: { fixturesRoot: string; nordFiles?: string }): Promise<ScanResult> {
+export async function runFixtureScan(opts: { fixturesRoot: string; nordFiles?: string; checkConversions?: boolean }): Promise<ScanResult> {
   const fixtures = listFixtureInputs(opts.fixturesRoot);
   const nord = opts.nordFiles ? listNordFilesInputs(opts.nordFiles) : { inputs: [], notes: [] };
   const rows: ValidationRow[] = [];
-  for (const input of [...fixtures.inputs, ...nord.inputs]) rows.push(...await validateInput(input));
+  for (const input of [...fixtures.inputs, ...nord.inputs]) rows.push(...await validateInput(input, { conversions: opts.checkConversions }));
   return { rows, notes: [...fixtures.notes, ...nord.notes] };
 }

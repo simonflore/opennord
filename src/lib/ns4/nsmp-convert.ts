@@ -11,8 +11,8 @@
  * ⚠️ SCOPE (docs/LEGAL.md): the user's own samples only.
  */
 
-import { readNsmp, decodeNsmp, readNsmpZones } from './nsmp';
-import { writeNsmpMulti, type WriteZone } from './nsmp-write';
+import { readNsmp, decodeNsmp, readNsmpZones, readStrokeRegions, readGlobalLevelDetuneBytes, readPerNoteRows } from './nsmp';
+import { writeNsmpMulti, type WriteStrokeMeta, type WriteZone } from './nsmp-write';
 import { writeCodec2Nsmp, type Codec2WriteZone } from './nsmp-codec2-write';
 import { parseWav } from './wav';
 import { resampleNW1 } from './nw1-resample';
@@ -71,11 +71,13 @@ export interface ImportWavOptions {
 const EXT: Record<number, string> = { 2: '.nsmp', 3: '.nsmp3', 4: '.nsmp4' };
 
 /**
- * Convert a `.nsmp*` to the target codec generation (3 → `.nsmp3`, 4 → `.nsmp4`).
- * The audio samples are written exactly, but loops, loop decay, level and tuning
- * are not (the stroke headers are templated: see nsmp-write.ts). Zone mapping is
- * carried over when the source map is
- * readable (codec-3 maps today), else each stroke spans the keyboard by default.
+ * Convert a `.nsmp*` to the target generation (2 → `.nsmp`, 3 → `.nsmp3`, 4 → `.nsmp4`).
+ * The audio is written exactly, and with it what each stroke and the key map hold
+ * besides audio: loop points, alternate start and loop decay, each stroke's pitch base and
+ * gain bytes, the overall level and detune and the per-key ones (the maintainers’ notes,
+ * "What conversion carries"). Key ranges are carried over when the source map is readable,
+ * else each stroke gets an even share of the keyboard. Not carried: velocity layers into
+ * `.nsmp` (it has none), and a recording that several key ranges share (it gets one).
  */
 export function convertNsmp(bytes: Uint8Array, targetCodec: TargetCodec): ConvertResult {
   const file = readNsmp(bytes);
@@ -104,24 +106,51 @@ export function convertNsmp(bytes: Uint8Array, targetCodec: TargetCodec): Conver
   // emit the **codec-2 / Library-2.0 (`NWS` v11)** variant: the newest `.nsmp`,
   // which (unlike v8) preserves the sample name + zone map. Needs Library-2.0-capable
   // firmware (the assumption: keyboards are updated). See the maintainers’ notes.
+  const stks = file.sections.filter((x) => x.tag.endsWith('stk'));
+  // The stroke header has one layout in every generation, so what isn't audio is carried
+  // as the source has it: root, pitch base and gain bytes, the loop and its decay.
+  // The gain bytes (+0x09…+0x11) are copied only between the two newer formats: they are
+  // not understood, and a legacy header is documented to hold a peak where a codec-3/4 one
+  // holds something signed, so across that line the target keeps its own defaults.
+  const sameFamily = !file.legacy && targetCodec !== 2;
+  const strokeMeta = (s: (typeof strokes)[number], rootKey: number): WriteStrokeMeta | undefined => {
+    const p = stks[s.index]?.payloadOffset;
+    if (p === undefined) return undefined;
+    return {
+      headerFields: sameFamily ? bytes.slice(p + 0x04, p + 0x12) : undefined,
+      pitchBase: s.sampleRate,
+      rootKey,
+      headerTail: sameFamily ? bytes.slice(p + 0x34, p + 0x60) : undefined,
+      segmentsInterleaved: s.segments,
+      loop: s.loop ?? undefined,
+      decayRaw: readStrokeRegions(bytes, p)?.decayRaw,
+    };
+  };
+  const perNote = readPerNoteRows(bytes) ?? undefined;
+  const global = readGlobalLevelDetuneBytes(bytes) ?? undefined;
+  if (!perNote) warnings.push("This sample's per-key level and tuning could not be read, so they are not carried over.");
+
   if (targetCodec === 2) {
+    // A legacy id is one byte and names one stroke. Sources whose ids repeat once read as a
+    // byte (some `.nsmp4`) get new ones, so no two strokes share a map record's id.
+    const idsUnique = new Set(strokes.map((s) => s.globalID)).size === strokes.length && strokes.every((s) => s.globalID > 0 && s.globalID <= 0xff);
     const c2Zones: Codec2WriteZone[] = strokes.map((s, i) => {
       const z = zones.find((z) => z.globalID === s.globalID) ?? zones[i];
       const d = spread?.[i];
+      const rootKey = z?.rootKey ?? d?.rootKey ?? 60;
       return {
         channels: s.channels,
-        globalID: s.globalID || i + 1,
-        rootKey: z?.rootKey ?? d?.rootKey ?? 60,
+        globalID: idsUnique ? s.globalID : i + 1,
+        rootKey,
         keyHigh: z?.keyHigh ?? d?.keyHigh ?? 127, // ascending tops = contiguous splits
-        segmentsInterleaved: s.segments, // carry loop/region structure from the source
+        stroke: strokeMeta(s, rootKey),
       };
     });
-    const out = writeCodec2Nsmp({ name, zones: c2Zones });
+    const out = writeCodec2Nsmp({ name, zones: c2Zones, levels: { global, perNote } });
     warnings.push(
-      'NSMP 2 (.nsmp, Library 2.0) output is EXPERIMENTAL: audio, name + zones are ' +
-        'preserved and the file round-trips, but the stroke-header loop pointers / ' +
-        'normalize gain are best-effort and not hardware-validated. Requires updated ' +
-        '(Library-2.0-capable) keyboard firmware.',
+      'This older format (.nsmp, Library 2.0) holds one sample per key range: velocity layers and ' +
+        'key ranges that overlap are not carried over. Not yet tested on a keyboard, and it needs ' +
+        'a keyboard OS that reads Library 2.0 samples.',
     );
     return { bytes: out, extension: '.nsmp', warnings };
   }
@@ -130,20 +159,23 @@ export function convertNsmp(bytes: Uint8Array, targetCodec: TargetCodec): Conver
     // Zones reference strokes by global id (not position); fall back to index order.
     const z = zones.find((z) => z.globalID === s.globalID) ?? zones[i];
     const d = spread?.[i];
+    const rootKey = z?.rootKey ?? d?.rootKey ?? 60;
     return {
       channels: s.channels,
-      keyLow: d?.keyLow, // only set for the spread fallback; existing zones keep prior behavior
+      keyLow: z?.keyLow ?? d?.keyLow,
       keyHigh: z?.keyHigh ?? d?.keyHigh ?? 127,
-      rootKey: z?.rootKey ?? d?.rootKey ?? 60,
+      rootKey,
       velTop: z?.velTop ?? 127,
+      velLow: z?.velLow,
+      zoneMode: z?.zoneMode,
+      zonePlayback: z?.zonePlayback,
+      zoneIsOneShot: z?.zoneIsOneShot,
+      stroke: strokeMeta(s, rootKey),
     };
   });
 
-  const out = writeNsmpMulti({ name, codec: targetCodec, zones: writeZones });
-  warnings.push(
-    'The audio samples are written exactly, but loop points, loop decay, level and fine tuning are not ' +
-      'carried over yet: a looped sample will not loop. Not yet tested on a keyboard.',
-  );
+  const out = writeNsmpMulti({ name, codec: targetCodec, zones: writeZones, globalLevelDetune: global, perNote });
+  warnings.push('Not yet tested on a keyboard.');
   return { bytes: out, extension: targetCodec === 4 ? '.nsmp4' : '.nsmp3', warnings };
 }
 

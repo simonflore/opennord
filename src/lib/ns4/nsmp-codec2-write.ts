@@ -17,8 +17,11 @@
  * against. **Audio, name, zones, container + CRC are exact and round-trip through
  * `readNsmp`/`decodeNsmp`/`readNsmpZones`.**
  */
-import { encodeStrokeNW1, BLOCK_PER_CH_OG } from './nw1-encode';
+import { BLOCK_PER_CH_OG } from './nw1-encode';
 import { assembleOgNsmp, type OgSection } from './nsmp-og';
+import { encodeCarriedStream, putRegionPointers } from './nsmp-stroke-carry';
+import { LEGACY_MAP_ROWS } from './nsmp';
+import type { WriteStrokeMeta } from './nsmp-write';
 
 /** `GetStrokeBinOffset` for codec 2 (vs codec-1's 0x60) — block stream start. */
 const CODEC2_BIN_OFFSET = 0x3c; // 60 bytes
@@ -47,7 +50,12 @@ export interface Codec2WriteZone {
   keyHigh: number;
   /** Segment boundaries (interleaved positions) from the source's loop blocks. */
   segmentsInterleaved?: number[];
+  /** What a converted stroke carries over from its source besides the audio. */
+  stroke?: WriteStrokeMeta;
 }
+
+/** The level/detune values the `map` opens with (6-byte rows as the source has them). */
+export interface Codec2MapLevels { global?: Uint8Array; perNote?: Uint8Array[] }
 
 /** `hdr` (v9): a 12-byte constant prefix (RE'd from the corpus) + NUL-padded name. */
 const HDR_PREFIX = [0x00, 0x00, 0xdb, 0x00, 0x01, 0x54, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00];
@@ -64,27 +72,31 @@ function writeCodec2Hdr(name: string): Uint8Array {
 }
 
 /**
- * `map` (v10): `[6B global level/detune][128 × 6B per-note level/detune]` then the
- * **15-byte** zone records (`globalID@0, 0x10@1, detune-s24@4, keyHigh@7,
- * 0x0001@8`). Global + per-note are written unity; records are generated from the
- * zones. `readNsmpZones`/`parseCodec2ZoneRecords` round-trips this exactly.
+ * `map` (v10), laid out as real Library-2.0 samples have it (29 local files, every one
+ * ending exactly on its last record): `[6B global level/detune][9 zero bytes]
+ * [128 × 6B per-key level/detune][count:u24]` then one 15-byte record a zone:
+ * `[gid:u24][level:u24][detune:s24][keyHigh:u8][strokes:u16 = 1][0 0 0]`.
+ *
+ * Until 2026-10-13 this wrote the rows straight after the global bytes and no count, which
+ * our reader's record scan accepted but which puts every per-key row 9 bytes early for
+ * anything that reads the real layout.
  */
-function writeCodec2Map(zones: Codec2WriteZone[]): Uint8Array {
-  const GLOBAL = 6;
-  const PERNOTE = 128 * 6;
+function writeCodec2Map(zones: Codec2WriteZone[], levels: Codec2MapLevels = {}): Uint8Array {
   const REC = 15;
-  const out = new Uint8Array(GLOBAL + PERNOTE + zones.length * REC);
-  putU24(out, 0, UNITY_LEVEL); // global level (unity), detune 0
-  for (let i = 0; i < 128; i++) putU24(out, GLOBAL + i * 6, UNITY_LEVEL); // per-note unity
-  let o = GLOBAL + PERNOTE;
+  const table = LEGACY_MAP_ROWS + 128 * 6;
+  const out = new Uint8Array(table + 3 + zones.length * REC);
+  const row = (o: number, r: Uint8Array | undefined) => { if (r && r.length >= 6) out.set(r.subarray(0, 6), o); else putU24(out, o, UNITY_LEVEL); };
+  row(0, levels.global); // global level (unity), detune 0
+  for (let i = 0; i < 128; i++) row(LEGACY_MAP_ROWS + i * 6, levels.perNote?.[i]);
+  putU24(out, table, zones.length);
+  let o = table + 3;
   // Records, ordered top-down by keyHigh (matches the factory layout + the reader).
   const sorted = [...zones].sort((a, b) => b.keyHigh - a.keyHigh);
   for (const z of sorted) {
-    out[o] = z.globalID & 0xff;
-    out[o + 1] = 0x10;
-    // +4..6 detune s24 = 0; +7 keyHigh; +8..9 = 0x0001 (strokeCount)
-    out[o + 7] = z.keyHigh & 0xff;
-    out[o + 9] = 0x01;
+    putU24(out, o, z.globalID & 0xff);
+    putU24(out, o + 3, UNITY_LEVEL); // zone level; detune (+6) 0
+    out[o + 9] = z.keyHigh & 0xff;
+    out[o + 11] = 0x01; // stroke count
     o += REC;
   }
   return out;
@@ -100,45 +112,48 @@ function pcmPeak(channels: ArrayLike<number>[]): number {
 /** Unity normGain (0 dB, no global normalize). */
 const UNITY_NORMGAIN = 524288;
 
-/**
- * The codec-2 60-byte (`0x3c`) stroke header. Same field layout as the OG/codec-1
- * header (globalID, key, pitch, channels, normGain, peak, region pointers U1–U4
- * with `0x80` markers) but binOffset `0x3c` and **no** keyHigh trailer (keyHigh
- * lives in the v10 map). Region pointers are best-effort (content-adaptive).
- */
-function writeCodec2StrokeHeader(z: Codec2WriteZone): Uint8Array {
-  const ch = z.channels.length;
-  const lenPerCh = z.channels[0]?.length ?? 0;
-  const segs = (z.segmentsInterleaved ?? []).map((s) => Math.floor(s / Math.max(1, ch)));
-  const b = new Uint8Array(CODEC2_BIN_OFFSET);
-  putU32(b, 0x00, z.globalID >>> 0);
-  b[0x05] = z.rootKey & 0xff;
-  putU16(b, 0x06, PITCH_BASE); // cents 0
-  b[0x08] = ch & 0xff;
-  putU24(b, 0x09, UNITY_NORMGAIN & 0xffffff);
-  b[0x0c] = 0x0a;
-  putU24(b, 0x0d, pcmPeak(z.channels));
-  // Region pointers (per-channel positions): start, secondStart, loopOut, end.
-  putU32(b, 0x12, 0); // U1 start
-  putU24(b, 0x16, 0x800000); // decay marker
-  putU32(b, 0x1b, segs[0] ?? 0); // U2 second-start
-  b[0x1f] = 0x80;
-  putU32(b, 0x24, segs[1] ?? lenPerCh); // U3 loop-out
-  putU24(b, 0x28, 0x800000); // decay marker
-  putU32(b, 0x2d, lenPerCh); // U4 end
-  // 0x31..0x3b: zero padding to binOffset.
-  return b;
-}
+/** A legacy file's body starts after the 0x18-byte envelope; region pointers count from there. */
+const LEGACY_BODY = 0x18;
 
-/** One `stk` payload: 60-byte codec-2 header + the 24-bit NW1 block stream. */
-export function writeCodec2StrokePayload(z: Codec2WriteZone): Uint8Array {
-  const stream = encodeStrokeNW1(z.channels, {
-    u24: true, blockPerCh: BLOCK_PER_CH_OG, segmentsInterleaved: z.segmentsInterleaved,
-  });
-  const header = writeCodec2StrokeHeader(z);
-  const out = new Uint8Array(header.length + stream.length);
-  out.set(header, 0);
-  out.set(stream, header.length);
+/**
+ * One `stk` payload: the stroke header, then the 24-bit NW1 block stream.
+ *
+ * The header has the layout every generation shares (globalID, key, pitch base, channels,
+ * gain bytes, then the four region pointers with their `0x80` markers). The pointers are
+ * the positions of segment-opening blocks in 24-bit words from the file body (offset
+ * 0x18 here), read off real files: start = first block, second start, loop begin (equal to
+ * end on a one-shot), end = the stop block. The loop-begin block carries the loop-decay
+ * flag. The stream starts 0x3c bytes in (`GetStrokeBinOffset`), plus up to 2 zero bytes
+ * so that it sits on a whole word from the body.
+ *
+ * `payloadOffset` is where this payload lands in the file.
+ */
+export function writeCodec2StrokePayload(z: Codec2WriteZone, payloadOffset = LEGACY_BODY): Uint8Array {
+  const nCh = z.channels.length;
+  const meta = z.stroke ?? {};
+  const carried = encodeCarriedStream(
+    z.channels, { segmentsInterleaved: meta.segmentsInterleaved ?? z.segmentsInterleaved, loop: meta.loop },
+    { u24: true, blockPerCh: BLOCK_PER_CH_OG },
+  );
+
+  const pad = (3 - ((payloadOffset - LEGACY_BODY + CODEC2_BIN_OFFSET) % 3)) % 3;
+  const b = new Uint8Array(CODEC2_BIN_OFFSET + pad);
+  putU32(b, 0x00, z.globalID >>> 0);
+  if (meta.headerFields) {
+    b.set(meta.headerFields.subarray(0, 14), 0x04);
+  } else {
+    putU24(b, 0x09, UNITY_NORMGAIN & 0xffffff);
+    b[0x0c] = 0x0a;
+    putU24(b, 0x0d, pcmPeak(z.channels));
+  }
+  const pitchBase = meta.pitchBase ?? (meta.headerFields ? undefined : PITCH_BASE); // cents 0
+  if (pitchBase !== undefined) putU16(b, 0x06, pitchBase);
+  b[0x05] = z.rootKey & 0xff;
+  b[0x08] = nCh & 0xff;
+  putRegionPointers(b, (payloadOffset - LEGACY_BODY + b.length) / 3, carried, meta.decayRaw);
+  const out = new Uint8Array(b.length + carried.stream.length);
+  out.set(b, 0);
+  out.set(carried.stream, b.length);
   return out;
 }
 
@@ -148,14 +163,21 @@ export function writeCodec2StrokePayload(z: Codec2WriteZone): Uint8Array {
  * CRC-16, assembled by {@link assembleOgNsmp} with envelope version 200. See the
  * module header for the experimental caveat.
  */
-export function writeCodec2Nsmp(opts: { name?: string; zones: Codec2WriteZone[] }): Uint8Array {
+export function writeCodec2Nsmp(opts: { name?: string; zones: Codec2WriteZone[]; levels?: Codec2MapLevels }): Uint8Array {
+  const SECTION_HEADER = 9; // [tag:u24][version:u16][size:u32]
   const sections: OgSection[] = [
     { tag: 'NWS', version: 11, payload: new Uint8Array(0) },
     { tag: 'hdr', version: 9, payload: writeCodec2Hdr(opts.name ?? '') },
     { tag: 'cat', version: 5, payload: new Uint8Array([0, 0, 0, 0, 1, 0, 0, 0, 0]) },
-    { tag: 'map', version: 10, payload: writeCodec2Map(opts.zones) },
-    ...opts.zones.map((z) => ({ tag: 'stk', version: 9, payload: writeCodec2StrokePayload(z) })),
-    { tag: 'sty', version: 5, payload: new Uint8Array([0, 0, 0, 1, 1, 1, 0, 0, 0]) },
+    { tag: 'map', version: 10, payload: writeCodec2Map(opts.zones, opts.levels) },
   ];
+  // Each stroke's region pointers are absolute, so it is built knowing where it lands.
+  let at = LEGACY_BODY + sections.reduce((n, x) => n + SECTION_HEADER + x.payload.length, 0);
+  for (const z of opts.zones) {
+    const payload = writeCodec2StrokePayload(z, at + SECTION_HEADER);
+    sections.push({ tag: 'stk', version: 9, payload });
+    at += SECTION_HEADER + payload.length;
+  }
+  sections.push({ tag: 'sty', version: 5, payload: new Uint8Array([0, 0, 0, 1, 1, 1, 0, 0, 0]) });
   return assembleOgNsmp(sections, 200);
 }

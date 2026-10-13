@@ -199,6 +199,19 @@ describe('pianos and samples', () => {
     expect(m!.notesDecoded).toBe(m!.notes);
   });
 
+  it('converts a sample to the other generations only when asked, and counts what was kept', async () => {
+    expect((await checkMedia(sample()))!.conversions).toBeUndefined();
+    const m = await checkMedia(sample(), { conversions: true });
+    expect(m!.conversions).toEqual([{ target: 2, lost: [] }, { target: 3, lost: [] }]);
+    const row = await validateMediaBytes('My Sample.nsmp4', sample(), null, { conversions: true });
+    expect(formatSummary([row], 'r.json')).toContain('sample conversions: 2 tried · 2 keep audio, loops, level and tuning');
+    // A conversion that lost something is named on the file's line.
+    row.media!.conversions![0].lost = ['loop points'];
+    const text = formatSummary([row], 'r.json');
+    expect(text).toContain('2 tried · 1 keep');
+    expect(text).toContain('converted to .nsmp: loses loop points');
+  });
+
   it('flags a damaged piano and sums notes in the summary', async () => {
     const bad = piano();
     bad[bad.length - 100] ^= 0xff;

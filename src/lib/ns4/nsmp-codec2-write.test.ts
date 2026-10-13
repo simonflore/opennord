@@ -82,7 +82,7 @@ describe('writeCodec2Nsmp — codec-2 / Library-2.0 writer', () => {
     });
     const { bytes, extension, warnings } = convertNsmp(src, 2);
     expect(extension).toBe('.nsmp');
-    expect(warnings.some((w) => /experimental/i.test(w))).toBe(true);
+    expect(warnings.some((w) => /not yet tested on a keyboard/i.test(w))).toBe(true);
 
     const f = readNsmp(bytes);
     expect(f.codec).toBe(2);
