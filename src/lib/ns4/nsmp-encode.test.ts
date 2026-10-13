@@ -117,4 +117,11 @@ describe.skipIf(!existsSync(realFile))('encodeStroke round-trip on real Strings.
       expect(Array.from(reDecoded[c])).toEqual(Array.from(original[c]));
     }
   });
+
+  it('refuses channels of different lengths, saying so', () => {
+    const a = Int32Array.from({ length: 300 }, (_, n) => n % 50);
+    expect(() => encodeStroke([a, a.subarray(1)])).toThrow(/channels have different lengths \(300 \/ 299 frames\)/);
+    expect(() => encodeStroke([a, a.subarray(1)], { wordInterleaved: true })).toThrow(/different lengths/);
+  });
 });
+

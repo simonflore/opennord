@@ -77,6 +77,10 @@ function packResiduals(residuals: number[], width: number): number[] {
 export function encodeStroke(channels: ArrayLike<number>[], opts: EncodeOptions = {}): Uint8Array {
   const nCh = channels.length;
   if (nCh === 0) return new Uint8Array(0);
+  // A missing sample would reach the packer as NaN and fail far from its cause.
+  if (channels.some((c) => c.length !== channels[0].length)) {
+    throw new Error(`encodeStroke: the channels have different lengths (${channels.map((c) => c.length).join(' / ')} frames)`);
+  }
   if (opts.wordInterleaved) return encodeStrokeWordInterleaved(channels, opts.blockSize ?? 2048);
   // OG/legacy packs the stream in 24-bit units (3-byte headers + 24-bit words);
   // codec 3 uses 32-bit. Same MSB-first residual packing either way.

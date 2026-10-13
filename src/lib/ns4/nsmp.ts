@@ -1043,13 +1043,22 @@ function channelOrder(hint: number, dflt: number[]): number[] {
   return hint === 1 ? [1, 2] : hint === 2 ? [2, 1] : dflt;
 }
 
+/** Blocks a header chain must have before an arbitrary offset is believed to start a stroke. */
+const MIN_CHAIN_BLOCKS = 21;
+/**
+ * The same for an offset that opens with a forced block ({@link opensStroke}): a short
+ * stroke whose blocks merge into long runs has few of them (a 13,664-frame note has
+ * under 21), and such an opening that also ends on the section's stop is not chance.
+ */
+const MIN_OPENING_CHAIN_BLOCKS = 3;
+
 /**
  * Cheap structural pre-filter: from `start`, does a contiguous run of valid NW1
  * block headers (3-byte u24 for OG, 4-byte u32 for codec 3) end on a stop sentinel
  * at/near `end`? Shortlists candidate block-stream starts before the costlier full
  * decode + min-peak pick. Wrong byte alignments bail almost immediately.
  */
-function streamReachesEnd(bytes: Uint8Array, start: number, end: number, u24: boolean): boolean {
+function streamReachesEnd(bytes: Uint8Array, start: number, end: number, u24: boolean, minBlocks = MIN_CHAIN_BLOCKS): boolean {
   const hb = u24 ? 3 : 4;
   const wb = u24 ? 24 : 32;
   const tol = u24 ? 3 : 4;
@@ -1060,7 +1069,7 @@ function streamReachesEnd(bytes: Uint8Array, start: number, end: number, u24: bo
     const sc = w & 0x3fff;
     const fo = (w >>> 14) & 0xf;
     const bw = ((w >>> 19) & 0xf) + 1;
-    if (fo === 0 && bw === 1) return blocks > 20 && Math.abs(o + hb - end) <= tol;
+    if (fo === 0 && bw === 1) return blocks >= minBlocks && Math.abs(o + hb - end) <= tol;
     if (fo > 7 || sc === 0) return false;
     o += hb + Math.ceil((sc * bw) / wb) * hb;
     blocks++;
@@ -1075,8 +1084,37 @@ function streamReachesEnd(bytes: Uint8Array, start: number, end: number, u24: bo
  * sentinel, then pick the one decoding to the **smallest peak** (stereo or mono).
  * Wrong byte alignments may still reach the end structurally but diverge in
  * amplitude, so min-peak robustly selects the true alignment + channel count.
+ *
+ * A stroke opens with a forced block: order 0 with the linear-mode bit set (the encoder's
+ * segment-opening block, `planBlocks`). Offsets whose first header is such a block are
+ * tried first. Without that, header bytes that happen to parse as a block running into
+ * the stream were taken as the start whenever they came first and decoded quietly
+ * enough: the bytes at +3 (global id, 0, root key) did so for about one stroke in a
+ * hundred of the files `writeCodec2Nsmp` writes, which then decoded to noise, and 7 of
+ * 1,558 strokes in real legacy samples got a block of invented frames before their
+ * attack. Offsets with any other first header are only tried when no such start is
+ * found, and the fixed header fields are never tried ({@link STROKE_FIXED_HEADER}).
  */
 function findStrokeStop(bytes: Uint8Array, section: NsmpSection, u24: boolean): { result: DecodedStroke; channelCount: number } | null {
+  return findStrokeStopAt(bytes, section, u24, true) ?? findStrokeStopAt(bytes, section, u24, false);
+}
+
+/**
+ * Bytes of a legacy stroke header that are always header: the fields up to the end
+ * pointer at +0x2d (`readStrokeRegions`). The block stream starts after them (+0x33 at
+ * the earliest in 1,558 local strokes), so nothing before is tried as its start.
+ */
+const STROKE_FIXED_HEADER = 0x31;
+
+/** True when the header word at `o` is a forced opening block: order 0, linear mode. */
+function opensStroke(bytes: Uint8Array, o: number, u24: boolean): boolean {
+  const w = u24 ? u24be(bytes, o) : u32be(bytes, o);
+  return ((w >>> 14) & 0xf) === 0 && ((w >>> 23) & 1) === 1;
+}
+
+function findStrokeStopAt(
+  bytes: Uint8Array, section: NsmpSection, u24: boolean, openingOnly: boolean,
+): { result: DecodedStroke; channelCount: number } | null {
   const bounded = bytes.subarray(0, section.endOffset);
   const end = section.endOffset;
   // Use the stroke-header channel count when present (resolves near-silent strokes,
@@ -1084,8 +1122,9 @@ function findStrokeStop(bytes: Uint8Array, section: NsmpSection, u24: boolean): 
   const hint = strokeChannelHint(bytes, section.payloadOffset);
   const channels = hint ? [hint] : [2, 1];
   let best: { result: DecodedStroke; channelCount: number; peak: number } | null = null;
-  for (let start = section.payloadOffset; start < section.payloadOffset + 0x260 && start < end; start++) {
-    if (!streamReachesEnd(bytes, start, end, u24)) continue;
+  for (let start = section.payloadOffset + STROKE_FIXED_HEADER; start < section.payloadOffset + 0x260 && start < end; start++) {
+    if (openingOnly && !opensStroke(bytes, start, u24)) continue;
+    if (!streamReachesEnd(bytes, start, end, u24, openingOnly ? MIN_OPENING_CHAIN_BLOCKS : MIN_CHAIN_BLOCKS)) continue;
     for (const channelCount of channels) {
       let result: DecodedStroke;
       try {

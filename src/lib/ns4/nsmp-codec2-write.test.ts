@@ -44,6 +44,27 @@ describe('writeCodec2Nsmp — codec-2 / Library-2.0 writer', () => {
     expect(eq(dec[1].channels[0], zones[1].channels[0])).toBe(true);
   });
 
+  it('decodes a stroke whose header bytes look like a block running into the stream', () => {
+    // Header bytes +3…+5 are the global id, 0 and the root key. Read as a block header, id 56
+    // and root 53 give 53 samples of 8 bits: 18 words, ending exactly where the stream starts
+    // (+0x3c). The reader must not take that for the stroke's first block.
+    const pcm = sine(12000, 6000, 7);
+    const bytes = writeCodec2Nsmp({ name: 'False Start', zones: [{ channels: [pcm], globalID: 56, rootKey: 53, keyHigh: 127 }] });
+    const dec = decodeNsmp(bytes);
+    expect(dec).toHaveLength(1);
+    expect(eq(dec[0].channels[0], pcm)).toBe(true);
+  });
+
+  it('decodes a short stroke that takes only a few blocks', () => {
+    // A steady tone merges into long runs: far fewer blocks than an arbitrary offset needs
+    // before it is believed, but it opens with a forced block and ends on the stop.
+    const pcm = sine(1000, 3000, 9); // 16 chunks of 64 at most
+    const bytes = writeCodec2Nsmp({ name: 'Short', zones: [{ channels: [pcm], globalID: 3, rootKey: 60, keyHigh: 127 }] });
+    const dec = decodeNsmp(bytes);
+    expect(dec).toHaveLength(1);
+    expect(eq(dec[0].channels[0], pcm)).toBe(true);
+  });
+
   it('emits a v11 container (CBIN ver 200, NWS body v11, map v10) with a valid CRC', () => {
     const bytes = writeCodec2Nsmp({ name: 'X', zones: [{ channels: [sine(8000, 1500, 5)], globalID: 1, rootKey: 60, keyHigh: 127 }] });
     expect((bytes[0x14] | (bytes[0x15] << 8))).toBe(200); // CBIN version
