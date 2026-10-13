@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
 import { Button } from '@/components/ui';
@@ -7,6 +8,9 @@ import { EmptyNote, NotListedNote } from '@/components/library/EmptyNote';
 import { useSamplesState } from '@/lib/library/SamplesContext';
 import { useOpenSample } from '@/lib/library/useOpenSample';
 import { useSplitLayout } from '@/lib/responsive';
+import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
+import { COMMUNITY_SHARE_TO } from '@/components/shell/nav';
+import { canShareAudio } from '@/lib/library/share-audio';
 import { useCloseRemoved, useLeaveEntry, useOpenEntry } from '@/components/library/openEntry';
 
 /**
@@ -27,6 +31,9 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const [importError, setImportError] = useState('');
   const closeRemoved = useCloseRemoved('/library/samples');
   const openEntry = useOpenEntry();
+  const community = useCapabilities().community;
+  const navigate = useNavigate();
+  const share = (id: string) => () => void navigate({ to: COMMUNITY_SHARE_TO, search: { item: id } as never });
 
   // Opening a sample from the route closes a preview.
   useEffect(() => {
@@ -97,14 +104,17 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   );
 
   // Remount the inspector per sample (key on name+size) so its load effect re-runs.
-  const inspector = (initial?: InspectorInput, factory?: boolean) => (
-    <SampleInspector key={initial ? `${initial.name}-${initial.bytes.length}` : 'new'} initial={initial} factory={factory} />
+  const inspector = (initial?: InspectorInput, factory?: boolean, onShare?: () => void) => (
+    <SampleInspector key={initial ? `${initial.name}-${initial.bytes.length}` : 'new'} initial={initial} factory={factory} onShare={onShare} />
   );
   // A sample named by the route is the detail even before its bytes arrive, so a
   // phone shows its progress, error or "not found" instead of the bare list.
   // Its factory tag comes from the entry as it is now (a backup's origin can
   // resolve after its bytes do).
   const hasDetail = !!selectedId || loadNew;
+  // Offered for a library file of your own; not for a pull off the Nord, a backup's factory entry or a preview.
+  const openEntryNow = selectedId ? s.entryById(selectedId) : undefined;
+  const shareOpen = openEntryNow && canShareAudio(community, openEntryNow) ? share(openEntryNow.id) : undefined;
   const detail = selectedId ? (
     open.state === 'missing' ? <NotListedNote noun="sample" />
     : open.state === 'failed' ? (
@@ -116,7 +126,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     : open.state === 'open' ? (
       <>
         {!open.listed && <EmptyNote>This sample isn’t in your library right now.</EmptyNote>}
-        {inspector(open.sample, open.factory)}
+        {inspector(open.sample, open.factory, open.factory ? undefined : shareOpen)}
       </>
     )
     : <EmptyNote>Reading the sample…{open.state === 'reading' && open.pct !== null && ` ${open.pct}%`}</EmptyNote>

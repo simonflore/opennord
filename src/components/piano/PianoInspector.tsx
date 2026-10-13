@@ -16,7 +16,12 @@ import { DetailColumns } from '@/components/library/DetailColumns';
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Detail for a recognized piano: metadata, factory deep-link, local audition, download (with progress). */
-export function PianoInspector({ entry, session }: { entry: PianoEntry; session: NordSession | null }) {
+export function PianoInspector({ entry, session, onShare }: {
+  entry: PianoEntry;
+  session: NordSession | null;
+  /** Open the share form on this one; absent where it can't be shared. */
+  onShare?: () => void;
+}) {
   const folder = useFolder();
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState<number | null>(null);
@@ -108,7 +113,7 @@ export function PianoInspector({ entry, session }: { entry: PianoEntry; session:
               </p>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
-              <ItemActions save={{ onSave: () => void download(), busy, busyLabel: pct !== null ? `Reading from Nord… ${pct}%` : undefined }} />
+              <ItemActions save={{ onSave: () => void download(), busy, busyLabel: pct !== null ? `Reading from Nord… ${pct}%` : undefined }} more={onShare ? [{ label: 'Share to community', onSelect: onShare }] : []} />
               {!listenBytes && entry.backupRef && (
                 <Button onClick={() => void loadSounds()} disabled={busy}>Load sounds</Button>
               )}

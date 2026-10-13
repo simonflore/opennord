@@ -33,8 +33,10 @@ type Loaded = LoadedSample & {
 /** What the inspector shows; `id` is the list entry it came from (none for a previewed file). */
 export interface InspectorInput { id?: string; bytes: Uint8Array; name: string; }
 
-export function SampleInspector({ initial, factory }: {
+export function SampleInspector({ initial, factory, onShare }: {
   initial?: InspectorInput;
+  /** Open the share form on this one; absent where it can't be shared. */
+  onShare?: () => void;
   /** Whether `initial` is Nord factory content (never a file dropped or picked here). */
   factory?: boolean;
 } = {}) {
@@ -151,7 +153,7 @@ export function SampleInspector({ initial, factory }: {
         <div className="ps">
           <SampleHeader view={{ ...sampleHeaderView(shown.file, shown.bytes.length, shown.name), gainDetune: gainDetuneView(shown.bytes), truVibrato: truVibratoView(shown.bytes), ...voicingView(shown.bytes) }} />
           {/* The sample as it is; edits are saved from the editor ("Save edited copy"). */}
-          <div className="mt-2"><ItemActions save={{ onSave: () => downloadBytes(shown.bytes, sampleFilename(shown.name, shown.file.codec, shown.file.legacy)) }} /></div>
+          <div className="mt-2"><ItemActions save={{ onSave: () => downloadBytes(shown.bytes, sampleFilename(shown.name, shown.file.codec, shown.file.legacy)) }} more={onShare ? [{ label: 'Share to community', onSelect: onShare }] : []} /></div>
 
           <DetailColumns
             /* Keyboard-map editor leads once we've decoded the key map; edits patch

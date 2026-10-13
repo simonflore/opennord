@@ -30,6 +30,8 @@ export interface CloudSync {
 /** Community browse/publish/download. Minimal here for the same reason. */
 export interface CommunityClient {
   readonly available: boolean;
+  /** Whether samples and pianos can be shared in this build (off: programs and presets only). */
+  readonly samples?: boolean;
 }
 
 /**

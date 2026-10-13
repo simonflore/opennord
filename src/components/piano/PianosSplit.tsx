@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router';
 import { useOpenEntry } from '@/components/library/openEntry';
 import { usePianosState } from '@/lib/library/PianosContext';
 import { PianosBrowse } from './PianosBrowse';
@@ -5,6 +6,9 @@ import { PianoInspector } from './PianoInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
 import { EmptyNote, NotListedNote } from '@/components/library/EmptyNote';
 import { useSplitLayout } from '@/lib/responsive';
+import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
+import { COMMUNITY_SHARE_TO } from '@/components/shell/nav';
+import { canShareAudio } from '@/lib/library/share-audio';
 
 /**
  * Pianos master/detail: the browse list + a thin piano inspector.
@@ -15,6 +19,9 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = usePianosState();
   const open = useOpenEntry();
+  const community = useCapabilities().community;
+  const navigate = useNavigate();
+  const share = (id: string) => () => void navigate({ to: COMMUNITY_SHARE_TO, search: { item: id } as never });
   const entry = selectedId ? s.entryById(selectedId) : undefined;
 
   const list = (
@@ -40,7 +47,7 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
   );
 
   const detail = entry
-    ? <PianoInspector key={entry.id} entry={entry} session={s.session} />
+    ? <PianoInspector key={entry.id} entry={entry} session={s.session} onShare={canShareAudio(community, entry) ? share(entry.id) : undefined} />
     : selectedId ? <NotListedNote noun="piano" className="p-4" />
     : <EmptyNote className="p-4">Pick a piano to see its details.</EmptyNote>;
 

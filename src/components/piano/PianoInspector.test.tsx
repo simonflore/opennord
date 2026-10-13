@@ -51,4 +51,16 @@ describe('PianoInspector', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save to computer' }));
     expect(await screen.findByRole('button', { name: /^Play / })).toBeInTheDocument();
   });
+
+  it('offers Share to community when given onShare, and not otherwise', () => {
+    const entry: PianoEntry = { id: 'folder:Mine.npno', name: 'Mine', source: 'local', factory: null, bytes: PIANO };
+    const onShare = vi.fn();
+    render(<PianoInspector entry={entry} session={null} onShare={onShare} />);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Share to community' }));
+    expect(onShare).toHaveBeenCalledTimes(1);
+    cleanup();
+    render(<PianoInspector entry={entry} session={null} />);
+    expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument();
+  });
 });
