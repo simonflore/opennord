@@ -77,3 +77,46 @@ export function editNs4Program(original: Uint8Array, edits: RawEdit[] = []): Uin
   }
   return patchNs4Checksum(out);
 }
+
+/**
+ * Every mapped setting of a program (each layer it has) as an edit that holds the value the
+ * file has now. Applying them all must give the same file back: the write-back the corpus
+ * scan runs on real programs. Settings that lie beyond the end of a short file are left out.
+ */
+export function currentRawEdits(bytes: Uint8Array, map: Param[] = buildParamMap()): RawEdit[] {
+  const edits: RawEdit[] = [];
+  for (const p of map) {
+    p.layers.forEach((l, layer) => {
+      if (l.begBit < 0 || (l.endBit >>> 3) >= bytes.length) return;
+      edits.push({ group: p.group, name: p.name, layer, value: readFieldBytes(bytes, l.begBit, l.endBit) });
+    });
+  }
+  return edits;
+}
+
+/**
+ * Write a changed value into each mapped setting in turn and read it back. Each write must
+ * read back as written, touch no byte outside the setting's own, and leave the file as it
+ * was once the old value is restored. Returns what went wrong for the first setting that
+ * fails, or null. The input is not changed.
+ */
+export function checkFieldWrites(bytes: Uint8Array, map: Param[] = buildParamMap()): string | null {
+  const work = bytes.slice();
+  for (const p of map) {
+    for (const [layer, l] of p.layers.entries()) {
+      if (l.begBit < 0 || (l.endBit >>> 3) >= bytes.length) continue;
+      const was = readFieldBytes(work, l.begBit, l.endBit);
+      const changed = (was ^ 1) >>> 0; // the lowest bit flipped: always inside the field's width
+      writeField(work, l.begBit, l.endBit, changed);
+      const where = `${p.group}:${p.name}${p.layers.length > 1 ? ` layer ${layer}` : ''}`;
+      if (readFieldBytes(work, l.begBit, l.endBit) !== changed) return `${where}: a written value does not read back`;
+      for (let i = 0; i < bytes.length; i++) {
+        if (work[i] !== bytes[i] && (i < l.begBit >>> 3 || i > l.endBit >>> 3)) return `${where}: writing it changed byte ${i}, outside the setting`;
+      }
+      writeField(work, l.begBit, l.endBit, was);
+    }
+  }
+  for (let i = 0; i < bytes.length; i++) if (work[i] !== bytes[i]) return `byte ${i} did not come back after every setting was restored`;
+  return null;
+}
+

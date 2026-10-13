@@ -29,6 +29,7 @@
  * byte offsets — no parameter values (a writer's refusal message has its value
  * redacted) and no names other than the file's own path.
  */
+import { checkFieldWrites, currentRawEdits, editNs4Program } from '../ns4/writer';
 import { checkSampleConversions, type ConversionCheck } from '../ns4/nsmp-convert-check';
 import { cbinFraming, CBIN_FORMAT_LEGACY, CBIN_FORMAT_NSM } from '../clavia/cbin';
 import { verifyFileChecksum } from '../clavia/checksum';
@@ -164,6 +165,25 @@ function diffOf(a: Uint8Array, b: Uint8Array): Pick<WriteCheck, 'diffBytes' | 'f
 }
 
 /** Write `values` into a copy of the file with OpenNord's writer and compare the result with the file. */
+/**
+ * The Stage 4 writer edits settings in place (`ns4/writer.ts`) and is not one of
+ * {@link PROGRAM_WRITERS}. Its two checks: saved with no edits, and saved with every mapped
+ * setting written back (each also written changed, read back and restored). Both must give
+ * the same file.
+ */
+function ns4WriteCheck(bytes: Uint8Array, writeBack: boolean): WriteCheck {
+  try {
+    if (writeBack) {
+      const problem = checkFieldWrites(bytes);
+      if (problem) return { outcome: 'differs', reason: problem };
+    }
+    const diff = diffOf(bytes, editNs4Program(bytes, writeBack ? currentRawEdits(bytes) : []));
+    return diff ? { outcome: 'differs', ...diff } : { outcome: 'identical' };
+  } catch (e) {
+    return { outcome: 'refused', reason: redactWriteMessage(getErrorMessage(e)) };
+  }
+}
+
 export function writeCheck(model: ClaviaModel, bytes: Uint8Array, values: ProgramValues): WriteCheck {
   if (!PROGRAM_WRITERS[model]) return { outcome: 'not-writable', reason: NOT_WRITABLE[model] ?? 'no writer for this model' };
   let out: Uint8Array;
@@ -221,8 +241,11 @@ export function checkProgram(bytes: Uint8Array, model: NordModelId | null): Prog
   try { codecModel = parseClaviaFile(bytes).model; } catch { /* the reader verdict below reports the throw */ }
   const { program, verdict } = readerResult(bytes, programTag);
   const values = readerValues(program);
-  const writeBack: WriteCheck = verdict.layoutMatched !== true
-    ? { outcome: 'skipped', reason: 'the reader did not read the body' }
+  // A Stage 4 program (not a Live or a preset, which the writer isn't mapped for) goes
+  // through its own writer.
+  const ns4 = codecModel === 'ns4' && programTag === 'ns4p' && verdict.layoutMatched === true;
+  const writeBack: WriteCheck = ns4 ? ns4WriteCheck(bytes, true)
+    : verdict.layoutMatched !== true ? { outcome: 'skipped', reason: 'the reader did not read the body' }
     : !values ? { outcome: 'skipped', reason: 'the reader returns no values to write back' }
     : writeCheck(codecModel, bytes, values);
   return {
@@ -230,7 +253,7 @@ export function checkProgram(bytes: Uint8Array, model: NordModelId | null): Prog
     framing: framingOf(bytes, programTag, model),
     checksumOk: verifyFileChecksum(bytes),
     reader: { ...verdict, convertedFrom: convertedFromOf(verdict, codecModel, model) },
-    noOpWrite: writeCheck(codecModel, bytes, {}),
+    noOpWrite: ns4 ? ns4WriteCheck(bytes, false) : writeCheck(codecModel, bytes, {}),
     writeBack,
   };
 }

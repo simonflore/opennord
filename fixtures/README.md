@@ -73,6 +73,9 @@ Nord Piano 3 (piano-3) — layout candidate
   byte-for-byte identical. **write-back** saves every setting the reader read back into the file;
   that must come out identical too. *refused* means OpenNord declined to save that file (the
   reason is shown); *not writable* means OpenNord doesn't save that model at all.
+  A Stage 4 program goes through the Stage 4 writer, which changes settings in place: on top
+  of the two saves, every setting it knows is written with a changed value, read back and
+  restored, and must touch nothing outside its own bytes.
 - **layout candidate** — a model whose layout is mapped but has not been checked
   against a real file yet. The `→` line says what your files showed: *alignment looks right*
   when every file read cleanly (read with the layout, no warning, no out-of-range value, its

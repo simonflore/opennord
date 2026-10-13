@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import { fileURLToPath } from 'node:url';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -98,9 +99,17 @@ describe('checkProgram', () => {
     expect(c.framing.expectedRecordBytes).toEqual([2 + NP3_LAYOUT.dataBytes + (NP3_LAYOUT.padBytes ?? 0)]);
   });
 
+  it('checks a real Stage 4 program through the Stage 4 writer: saved as is, and with every setting written back', () => {
+    const real = new Uint8Array(readFileSync(fileURLToPath(new URL('../ns4/__fixtures__/regressionTest.ns4p', import.meta.url))));
+    const c = checkProgram(real, 'stage-4')!;
+    expect(c.reader.layoutMatched).toBe(true);
+    expect(c.noOpWrite).toEqual({ outcome: 'identical' });
+    expect(c.writeBack).toEqual({ outcome: 'identical' });
+  });
+
   it('marks a model OpenNord does not write as not writable', () => {
-    // A Stage 4 tag on a body nothing reads: the check still runs, the writer is the Stage 4 one.
-    const c = checkProgram(synthFwFile('ns4p', new Uint8Array(64)), 'stage-4');
+    // The first Nord Piano: read on a guess, so never written.
+    const c = checkProgram(synthFwFile('nppg', new Uint8Array(64)), 'piano-1');
     expect(c?.noOpWrite.outcome).toBe('not-writable');
   });
 

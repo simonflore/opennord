@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { bytesToBitString, readField, readFieldBytes, writeField } from './bits';
 import { buildParamMap } from './maps';
-import { editNs4Program, getRawParam, setRawParam } from './writer';
+import { checkFieldWrites, currentRawEdits, editNs4Program, getRawParam, setRawParam } from './writer';
 import { verifyNs4Checksum } from '../clavia/checksum';
 import { parseNs4Program } from './parse';
 
@@ -112,3 +112,38 @@ describe('editNs4Program', () => {
     expect(out).toEqual(fixture);
   });
 });
+
+describe('writing every mapped setting', () => {
+  const map = buildParamMap();
+
+  it('the map lets each setting be written on its own: unique names, no shared bits', () => {
+    // An edit names its setting by group and name, and writes only that setting's bits.
+    const names = map.map((p) => `${p.group}:${p.name}`);
+    expect(new Set(names).size).toBe(names.length);
+    const fields = map.flatMap((p) => p.layers.filter((l) => l.begBit >= 0)).sort((a, b) => a.begBit - b.begBit);
+    for (let i = 1; i < fields.length; i++) expect(fields[i].begBit).toBeGreaterThan(fields[i - 1].endBit);
+  });
+
+  it('gives the same file back when every setting is written with the value it has', () => {
+    const edits = currentRawEdits(fixture, map);
+    expect(edits.length).toBe(map.reduce((n, p) => n + p.layers.filter((l) => l.begBit >= 0).length, 0));
+    expect(editNs4Program(fixture, edits)).toEqual(fixture);
+  });
+
+  it('each setting takes a changed value, keeps it to its own bytes, and restores', () => {
+    const before = fixture.slice();
+    expect(checkFieldWrites(fixture, map)).toBeNull();
+    expect(fixture).toEqual(before); // the input is not changed
+  });
+
+  it('leaves out settings a short file does not reach, and refuses a bad bit range', () => {
+    const short = fixture.subarray(0, 200);
+    expect(currentRawEdits(short, map).every((e) => typeof e.value === 'number')).toBe(true);
+    expect(currentRawEdits(short, map).length).toBeLessThan(currentRawEdits(fixture, map).length);
+    expect(checkFieldWrites(short, map)).toBeNull();
+    // A setting whose bits run backwards is refused by the bit writer.
+    const broken = [{ ...map[0], layers: [{ ...map[0].layers[0], begBit: 400, endBit: 399 }] }];
+    expect(() => checkFieldWrites(fixture, broken)).toThrow(/bad bit range/);
+  });
+});
+
