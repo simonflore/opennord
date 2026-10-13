@@ -90,7 +90,7 @@ describe('piano reference', () => {
     expect(r.stroke.levelWord).toBe(125);
     expect(r.stroke.predictedGainDb).toBeCloseTo(-14.55, 1);
     expect(r.stroke.loopDecayDbPerS).toBeCloseTo(20 * Math.log10(defaultDecayCoefficient(68) / 2 ** 23) * 22050, 6);
-    expect(r.stroke.damperIndex).toBe(13);
+    expect(r.stroke.damperIndex).toBe(44); // a grand's damper at stored root 68 (about 240 ms)
     expect(r.notes.join('\n')).toMatch(/zone 1, layer 1 of 1/);
   });
 

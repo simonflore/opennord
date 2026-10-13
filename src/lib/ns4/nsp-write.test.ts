@@ -7,7 +7,7 @@ import { checkNpnoAcceptance, voiceTableEntries, type NpnoModel } from './nsp-ch
 import { tone } from './nsp-synth.testing';
 import {
   blockLevel, buildNpno, defaultDecayCoefficient, encodeNpnoStroke, NPNO_HEADER_SIZE, NPNO_PEAK,
-  NPNO_PIANO_TYPE, NPNO_RECORD_SIZE, readNpnoImage, writeNpnoImage, type NpnoInput,
+  defaultDamper, NPNO_PIANO_TYPE, NPNO_RECORD_SIZE, readNpnoImage, writeNpnoImage, type NpnoInput,
 } from './nsp-write';
 import { identifyNsmp } from '../clavia/sample-identify';
 import { auditionKeys } from '@/components/piano/auditionKeys';
@@ -227,6 +227,26 @@ describe('buildNpno', () => {
     const bad = checkNpnoAcceptance(writeNpnoImage(img).bytes).checks.find((c) => c.id === 'key-reach')!;
     expect(bad.ok).toBe(false);
     expect(bad.detail).toMatch(/Key 60 plays a recording stored for note 58/);
+  });
+
+  it('sets the damper by piano type and pitch, in the records and the per-key table', () => {
+    // Factory grands run from 50 in the bass to 35 at the top; the Clavinet is 13 throughout.
+    expect(defaultDamper(NPNO_PIANO_TYPE.grand, 21)).toEqual([51, 56]);
+    expect(defaultDamper(NPNO_PIANO_TYPE.grand, 107)).toEqual([39, 44]);
+    expect(defaultDamper(NPNO_PIANO_TYPE.electric, 60)).toEqual([24, 31]);
+    expect(defaultDamper(NPNO_PIANO_TYPE.clav, 60)).toEqual([13, 33]);
+    const p = piano(1); // an upright: zones stored at 58 and 107
+    const { bytes } = buildNpno(p);
+    const h = bytes.subarray(0x2c);
+    const rec = (i: number) => bytes.subarray(0x2c + NPNO_HEADER_SIZE + i * NPNO_RECORD_SIZE);
+    expect([rec(0)[0x72], rec(0)[0x73]]).toEqual(defaultDamper(NPNO_PIANO_TYPE.upright, 58));
+    expect([rec(2)[0x72], rec(2)[0x73]]).toEqual(defaultDamper(NPNO_PIANO_TYPE.upright, 107));
+    // Each key takes its zone's value; keys outside every zone hold what unmapped keys do.
+    expect([h[0x20c + 21], h[0x20c + 59], h[0x20c + 60], h[0x20c + 108]]).toEqual([46, 46, 39, 39]);
+    expect([h[0x20c + 20], h[0x20c + 109], h[0x49d + 20], h[0x49d + 109]]).toEqual([0x39, 0x39, 0x1e, 0x1e]);
+    expect([h[0x49d + 21], h[0x49d + 108]]).toEqual([54, 20]);
+    const clav = buildNpno({ ...p, pianoType: NPNO_PIANO_TYPE.clav }).bytes.subarray(0x2c);
+    expect([clav[0x20c + 30], clav[0x49d + 30]]).toEqual([13, 0x1e]);
   });
 
   it('sets the release mode and the model name by piano type', () => {

@@ -4,9 +4,8 @@
  * the corpus scan (`npm run fixtures:scan` with `NORD_CHECK_CONVERSIONS=1`) to hold
  * {@link convertNsmp} to every sample on hand, not just the ones in the tests.
  *
- * Key ranges and velocity layers are left out: the oldest format can't hold layers, and a
- * few samples share one recording between several key ranges, which the converter doesn't
- * write yet.
+ * Key ranges and velocity layers are left out: the oldest format can't hold layers or
+ * explicit low keys, so a conversion to it never keeps them all.
  */
 import { decodeNsmp, readGlobalLevelDetuneBytes, readNsmp, readPerNoteRows, type DecodedStrokeResult } from './nsmp';
 import { convertNsmp, type TargetCodec } from './nsmp-convert';

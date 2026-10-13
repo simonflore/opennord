@@ -277,7 +277,7 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: NpnoCheckOptions = 
   add('key-map', keyRoots.length > 0 && keyRoots.join() === tableRoots.join(),
     `key-map zones (${keyRoots.length}) match the notes' roots (${tableRoots.length}), with roots rising with the keys`);
   // No key more than one above its zone's root: the loader's pre-loop table index is
-  // `root − key + 1`, and a key two above its root froze a Nord Electro 7 (NSP_MAX_KEYS_ABOVE_ROOT).
+  // `root − key + 1`, and a key two above its root froze an instrument in an independent test (NSP_MAX_KEYS_ABOVE_ROOT).
   const high = zones.find((z) => z.highNote > z.rootNote + NSP_MAX_KEYS_ABOVE_ROOT);
   add('key-reach', !high, high
     ? `Key ${high.highNote} plays a recording stored for note ${high.rootNote}: a Nord plays a recording at most `

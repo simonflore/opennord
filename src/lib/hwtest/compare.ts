@@ -219,9 +219,12 @@ export function pianoReference(npno: Uint8Array, o: PianoOptions): PianoReferenc
   const pcm = decodeNspStroke(npno, dir, stroke).map((c) => Float32Array.from(c, (v) => v / 32768));
   const native = pickChannel({ sampleRate: NSP_SAMPLE_RATE, channels: pcm });
   const f0 = estimateF0(native.subarray(Math.min(native.length, 4410), Math.min(native.length, 22050)), NSP_SAMPLE_RATE);
-  // §2.3: plus the header's per-key stretch tuning (+0x18C, signed cents) and minus the
-  // stroke's fine tune (+0x32, cents). Both 0 in the test pianos; the CP80 runs −23…+21 c.
-  const stretchCents = int8(npno[cnsp + 0x18c + o.key]) - npno[rec + 0x32];
+  // §2.3: plus the header's per-key tuning correction (+0x18C, signed cents) and minus the
+  // stroke's fine tune (+0x32, cents). Both 0 in the test pianos. The table cancels the
+  // recording's own deviation: added in a v6 file it brings every zone into tune. In a v5
+  // file it is taken with the opposite sign (measured on the CP80 5.3, and found the same
+  // way in an independent measurement; the v5 loader path itself is not traced).
+  const stretchCents = (v6 ? 1 : -1) * int8(npno[cnsp + 0x18c + o.key]) - npno[rec + 0x32];
   const c0 = 100 * (o.key - root - NSP_ROOT_OFFSET) + stretchCents;
   const ratioFor = (cents: number) => Math.min(2 ** (cents / 1200), 1);
   const pitch: PitchHypothesis[] = f0 ? [

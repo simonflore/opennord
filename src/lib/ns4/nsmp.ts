@@ -325,6 +325,16 @@ export function zoneRecordLayout(): ZoneRecordLayout {
   return ZONE_LAYOUT;
 }
 
+/**
+ * A stroke's global id: the u32 that opens its `stk` header, in every generation. A zone
+ * names its stroke by this number. It was read as its low byte alone until 2026-10-13; 13 of
+ * 50 local `.nsmp4` samples have ids above 255, and in two of them two strokes share a low
+ * byte, so one of the pair could never be reached and the other looked shared.
+ */
+export function strokeGlobalId(bytes: Uint8Array, payloadOffset: number): number {
+  return u32be(bytes, payloadOffset);
+}
+
 /** Read one 16-byte zone record at byte offset `e` using the given field layout. */
 function readZoneRecord(bytes: Uint8Array, e: number, L: ZoneRecordLayout): NsmpZone {
   return {
@@ -336,7 +346,7 @@ function readZoneRecord(bytes: Uint8Array, e: number, L: ZoneRecordLayout): Nsmp
     zoneMode: bytes[e + L.zoneMode],
     zonePlayback: bytes[e + L.zonePlayback],
     zoneIsOneShot: bytes[e + L.zoneIsOneShot],
-    globalID: bytes[e + L.globalID],
+    globalID: u32be(bytes, e + L.globalID - 3), // the u32 at +8; `L.globalID` is its low byte
     recordOffset: e,
   };
 }
@@ -373,9 +383,16 @@ export function parseCodec4ZoneRecords(
   // All the fields we read are identical across both; only the marker offset differs.
   const marker = (o: number) =>
     (bytes[o + 12] === 0 && bytes[o + 13] === 1 && bytes[o + 14] === 0) || bytes[o + 7] === 1;
+  // The id is the u32 at +8. A file from an early OpenNord has other bytes ahead of its low
+  // byte there; when the u32 names no stroke and the low byte does, the low byte is the id.
+  const idAt = (o: number) => {
+    const full = u32be(bytes, o + 8);
+    return !gidSet || gidSet.has(full) || !gidSet.has(bytes[o + 11]) ? full : bytes[o + 11];
+  };
+  const record = (o: number): NsmpZone => ({ ...readZoneRecord(bytes, o, ZONE_LAYOUT_C4), globalID: idAt(o) });
   const valid = (o: number) =>
     o + REC <= map.endOffset && bytes[o] <= 127 && bytes[o + 1] <= 127 && bytes[o + 2] <= 127 &&
-    (gidSet ? gidSet.has(bytes[o + 11]) : bytes[o + 11] >= 1) && marker(o);
+    (gidSet ? gidSet.has(idAt(o)) : idAt(o) >= 1) && marker(o);
 
   // Preferred path: the table sits at the fixed header offset. Its **trailer length
   // varies** (both 6 B and 2 B observed) — it tracks the `SampleUnison`/random-stroke
@@ -386,7 +403,7 @@ export function parseCodec4ZoneRecords(
   const trailer = map.endOffset - (recStart + count * REC);
   if (count >= 1 && trailer >= 0 && trailer <= 8 && valid(recStart)) {
     const zones: NsmpZone[] = [];
-    for (let i = 0; i < count; i++) zones.push(readZoneRecord(bytes, recStart + i * REC, ZONE_LAYOUT_C4));
+    for (let i = 0; i < count; i++) zones.push(record(recStart + i * REC));
     return zones;
   }
 
@@ -408,7 +425,7 @@ export function parseCodec4ZoneRecords(
   }
   if (best.start < 0) return [];
   const zones: NsmpZone[] = [];
-  for (let i = 0; i < best.n; i++) zones.push(readZoneRecord(bytes, best.start + i * REC, ZONE_LAYOUT_C4));
+  for (let i = 0; i < best.n; i++) zones.push(record(best.start + i * REC));
   return zones;
 }
 
@@ -423,7 +440,7 @@ function strokeRootByGlobalId(bytes: Uint8Array, sections: NsmpSection[]): Map<n
   for (const s of sections) {
     if (!s.tag.endsWith('stk')) continue;
     const root = bytes[s.payloadOffset + 5];
-    if (root <= 127) roots.set(bytes[s.payloadOffset + 3], root);
+    if (root <= 127) roots.set(strokeGlobalId(bytes, s.payloadOffset), root);
   }
   return roots;
 }
@@ -677,7 +694,7 @@ export function readNsmpZones(bytes: Uint8Array): NsmpZone[] {
   // garbage zones. Parse it with the dedicated codec-4 reader.
   if (map.version >= 21) {
     const stk = sections.filter((s) => s.tag.endsWith('stk'));
-    const gidSet = new Set(stk.map((s) => bytes[s.payloadOffset + 3]));
+    const gidSet = new Set(stk.map((s) => strokeGlobalId(bytes, s.payloadOffset)));
     return parseCodec4ZoneRecords(bytes, map, stk.length, gidSet);
   }
 
@@ -802,6 +819,8 @@ export function parseLegacyZoneRecords(
 interface StrokeRefRecSpec {
   rec: number;
   gidOff: number;
+  /** Bytes of the id at `gidOff`: 1 (default) or 4. */
+  gidBytes?: 1 | 4;
   keyHighOff: number;
   ok: (bytes: Uint8Array, o: number, gidSet: Set<number>) => boolean;
 }
@@ -840,7 +859,8 @@ function parseStrokeRefZoneRecords(
   const raw: { globalID: number; keyHigh: number; recordOffset: number }[] = [];
   for (let i = 0; i < best.n; i++) {
     const o = best.start + i * rec;
-    raw.push({ globalID: bytes[o + gidOff], keyHigh: bytes[o + keyHighOff], recordOffset: o });
+    const globalID = spec.gidBytes === 4 ? u32be(bytes, o + gidOff) : bytes[o + gidOff];
+    raw.push({ globalID, keyHigh: bytes[o + keyHighOff], recordOffset: o });
   }
   return zonesFromStrokeRefs(raw, rootByGid);
 }
@@ -874,7 +894,7 @@ export function parseCodec2ZoneRecords(
   if (count > 0 && table + 3 + count * 15 === map.endOffset) {
     const raw = Array.from({ length: count }, (_, i) => {
       const o = table + 3 + i * 15;
-      return { globalID: bytes[o + 2], keyHigh: bytes[o + 9], recordOffset: o };
+      return { globalID: u24be(bytes, o), keyHigh: bytes[o + 9], recordOffset: o };
     });
     if (raw.every((r) => r.keyHigh <= 127)) return zonesFromStrokeRefs(raw, rootByGid);
   }
@@ -908,8 +928,8 @@ export function parseCodec3V12ZoneRecords(
   // also required @+1===1, but that byte isn't stable across v12 exports (Spitfire-
   // era libraries leave it 0/varying) — @+6 is the reliable marker, so drop @+1.
   return parseStrokeRefZoneRecords(bytes, map, rootByGid, {
-    rec: 11, gidOff: 10, keyHighOff: 3,
-    ok: (b, o, g) => b[o] === 0 && b[o + 6] === 1 && b[o + 3] <= 127 && b[o + 3] >= 1 && g.has(b[o + 10]),
+    rec: 11, gidOff: 7, gidBytes: 4, keyHighOff: 3,
+    ok: (b, o, g) => b[o] === 0 && b[o + 6] === 1 && b[o + 3] <= 127 && b[o + 3] >= 1 && g.has(u32be(b, o + 7)),
   });
 }
 
@@ -1241,15 +1261,6 @@ function decodeStrokeSection(
 export function decodeNsmp(bytes: Uint8Array): DecodedStrokeResult[] {
   const file = readNsmp(bytes);
   const opts = { wordInterleaved: file.codec === 4, u24: file.legacy };
-  // Which byte carries the stroke's global id depends on the container. Codec 3/4
-  // and codec-2 (`map` v10) store it as a u8 at +3, but the OG `NWS` container
-  // (`map` v9 — legacy `.nsmp` v8) stores the full id as a u32 BE at +0, exactly as
-  // `legacyStrokeRootByGlobalId`/`parseLegacyZoneRecords` key it. Reading +3 there
-  // truncated ids > 255 to their low byte (e.g. 673 → 161), so no decoded stroke's
-  // id matched its zone — breaking the keyboard-map → sample pairing (wrong sample
-  // numbers, and key-clicks that found no stroke to sound).
-  const map = file.sections.find((s) => s.tag.endsWith('map'));
-  const gidIsU32 = file.legacy && map?.version !== 10;
   const out: DecodedStrokeResult[] = [];
   let index = 0;
   for (const section of file.sections) {
@@ -1257,7 +1268,7 @@ export function decodeNsmp(bytes: Uint8Array): DecodedStrokeResult[] {
     const decoded = decodeStrokeSection(bytes, section, opts);
     if (decoded) out.push({
       ...decoded.result, index, channelCount: decoded.channelCount,
-      globalID: gidIsU32 ? u32be(bytes, section.payloadOffset) : bytes[section.payloadOffset + 3],
+      globalID: strokeGlobalId(bytes, section.payloadOffset),
       loop: strokeLoop(readStrokeRegions(bytes, section.payloadOffset), decoded.result, decoded.channelCount),
       sampleRate: strokeSampleRate(bytes, section.payloadOffset),
     });

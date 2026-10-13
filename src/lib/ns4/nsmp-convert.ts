@@ -77,7 +77,7 @@ const EXT: Record<number, string> = { 2: '.nsmp', 3: '.nsmp3', 4: '.nsmp4' };
  * gain bytes, the overall level and detune and the per-key ones (the maintainers’ notes,
  * "What conversion carries"). Key ranges are carried over when the source map is readable,
  * else each stroke gets an even share of the keyboard. Not carried: velocity layers into
- * `.nsmp` (it has none), and a recording that several key ranges share (it gets one).
+ * `.nsmp` (it has none).
  */
 export function convertNsmp(bytes: Uint8Array, targetCodec: TargetCodec): ConvertResult {
   const file = readNsmp(bytes);
@@ -109,15 +109,28 @@ export function convertNsmp(bytes: Uint8Array, targetCodec: TargetCodec): Conver
   const stks = file.sections.filter((x) => x.tag.endsWith('stk'));
   // The stroke header has one layout in every generation, so what isn't audio is carried
   // as the source has it: root, pitch base and gain bytes, the loop and its decay.
-  // The gain bytes (+0x09…+0x11) are copied only between the two newer formats: they are
-  // not understood, and a legacy header is documented to hold a peak where a codec-3/4 one
-  // holds something signed, so across that line the target keeps its own defaults.
+  // The gain bytes (+0x09…+0x11: a u24 gain, an exponent byte, a 24-bit peak value) mean
+  // the same in every generation: the same sound released as `.nsmp` and `.nsmp3` carries
+  // the same gain and exponent and the same peak magnitude (388 strokes of 10 local pairs).
+  // Only the peak's sign differs: `.nsmp` stores the magnitude, `.nsmp3`/`.nsmp4` give it the
+  // sign of the stroke's loudest sample (1,042 of 1,062 strokes). the maintainers’ notes.
   const sameFamily = !file.legacy && targetCodec !== 2;
+  const headerFieldsFor = (s: (typeof strokes)[number], p: number): Uint8Array => {
+    const f = bytes.slice(p + 0x04, p + 0x12);
+    if (sameFamily) return f;
+    const raw = (f[9] << 16) | (f[10] << 8) | f[11];
+    const magnitude = Math.abs(raw >= 0x800000 ? raw - 0x1000000 : raw);
+    let loudest = 0;
+    for (const ch of s.channels) for (let n = 0; n < ch.length; n++) if (Math.abs(ch[n]) > Math.abs(loudest)) loudest = ch[n];
+    const peak = (targetCodec !== 2 && loudest < 0 ? -magnitude : magnitude) & 0xffffff;
+    f[9] = (peak >>> 16) & 0xff; f[10] = (peak >>> 8) & 0xff; f[11] = peak & 0xff;
+    return f;
+  };
   const strokeMeta = (s: (typeof strokes)[number], rootKey: number): WriteStrokeMeta | undefined => {
     const p = stks[s.index]?.payloadOffset;
     if (p === undefined) return undefined;
     return {
-      headerFields: sameFamily ? bytes.slice(p + 0x04, p + 0x12) : undefined,
+      headerFields: headerFieldsFor(s, p),
       pitchBase: s.sampleRate,
       rootKey,
       headerTail: sameFamily ? bytes.slice(p + 0x34, p + 0x60) : undefined,

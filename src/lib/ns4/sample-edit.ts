@@ -132,17 +132,14 @@ export function patchLegacyNsmp(original: Uint8Array, model: EditModel): Uint8Ar
   }
   const out = original.slice();
 
-  // stk sections indexed by the reader's own key: v9's `NsmpZone.globalID` is the full
-  // u24 gid and legacyStrokeRootByGlobalId (nsmp.ts) keys stk headers by the full u32 BE
-  // at +0, so index v9 stk sections the same way — a low-byte-only key (as codec 3/4 use)
-  // collides whenever two strokes share a low gid byte (e.g. 673 = 0x2A1 and 417 = 0x1A1),
-  // landing the write on the wrong physical `stk`. v10's `NsmpZone.globalID` is the u8 low
-  // byte and strokeRootByGlobalId keys by `bytes[payloadOffset + 3]`, so keep that keying
-  // there — it already matches the reader.
+  // stk sections indexed by the reader's own key: a zone's `globalID` is the stroke's full
+  // id, the u32 BE that opens its `stk` header (`strokeGlobalId`). A low-byte-only key
+  // collides whenever two strokes share a low id byte (e.g. 673 = 0x2A1 and 417 = 0x1A1),
+  // landing the write on the wrong physical `stk`.
   const stkByGid = new Map<number, NsmpSection>();
   for (const s of sections) {
     if (!s.tag.endsWith('stk')) continue;
-    stkByGid.set(map.version === 9 ? rU32(original, s.payloadOffset) : original[s.payloadOffset + 3], s);
+    stkByGid.set(rU32(original, s.payloadOffset), s);
   }
 
   for (const z of model.zones) {
@@ -161,7 +158,7 @@ export function patchLegacyNsmp(original: Uint8Array, model: EditModel): Uint8Ar
   const crc = crc16Ccitt(out.subarray(0, n));
   out[n] = crc & 0xff; out[n + 1] = (crc >>> 8) & 0xff;
 
-  verifyLegacyPatch(original, out, model, map.version);
+  verifyLegacyPatch(original, out, model);
   return out;
 }
 
@@ -172,7 +169,7 @@ export function patchLegacyNsmp(original: Uint8Array, model: EditModel): Uint8Ar
  * ZONE_LAYOUT misapplication (zones read back wrong) and the CRC-over-magic
  * (`recognized` false).
  */
-function verifyLegacyPatch(original: Uint8Array, out: Uint8Array, model: EditModel, mapVersion: number): void {
+function verifyLegacyPatch(original: Uint8Array, out: Uint8Array, model: EditModel): void {
   const f = readNsmp(out);
   if (!f.recognized || !f.legacy) throw new Error('Legacy patch left the file unrecognizable — refusing to save.');
   const before = parseNsmpSections(original), after = parseNsmpSections(out);
@@ -190,9 +187,8 @@ function verifyLegacyPatch(original: Uint8Array, out: Uint8Array, model: EditMod
       throw new Error('Legacy patch did not round-trip — refusing to save a file that may be corrupt.');
     }
     // stk +0x33 mirror must match the map keyHigh (the reader takes keyHigh from the map).
-    // Same version-appropriate key as the write side: v9 full u32 @+0, v10 u8 low byte @+3.
-    const stk = after.find((s) => s.tag.endsWith('stk')
-      && (mapVersion === 9 ? rU32(out, s.payloadOffset) === z.globalID! : out[s.payloadOffset + 3] === z.globalID!));
+    // Same key as the write side: the header's full u32.
+    const stk = after.find((s) => s.tag.endsWith('stk') && rU32(out, s.payloadOffset) === z.globalID!);
     if (stk && out[stk.payloadOffset + 0x33] !== want.high) throw new Error('Legacy patch left the split mirror out of sync — refusing to save.');
   }
 }
@@ -215,11 +211,11 @@ function verifyLegacyPatch(original: Uint8Array, out: Uint8Array, model: EditMod
 export function patchV12Nsmp(original: Uint8Array, model: EditModel): Uint8Array {
   const sections = parseNsmpSections(original);
   const out = original.slice();
-  // stk sections keyed by gid (u8 @ payload +3), matching the v12 reader's keying.
+  // stk sections keyed by the full id (u32 @ payload +0), matching the v12 reader's keying.
   const stkByGid = new Map<number, NsmpSection>();
   for (const s of sections) {
     if (!s.tag.endsWith('stk')) continue;
-    stkByGid.set(original[s.payloadOffset + 3], s);
+    stkByGid.set(rU32(original, s.payloadOffset), s);
   }
   for (const z of model.zones) {
     if (z.recordOffset == null) continue;

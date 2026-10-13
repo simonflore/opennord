@@ -80,10 +80,9 @@ export interface WriteZone {
  * region pointers at +0x12/+0x1b/+0x24/+0x2d are positions in the compressed stream.
  */
 export interface WriteStrokeMeta {
-  /** Source header bytes +0x04…+0x11 (14 bytes), written as they are. The channel count
-   *  (+0x08) always comes from the audio. Only for a source of the same header family
-   *  (codec 3 ↔ 4): the gain bytes in there are not understood, and a legacy header is
-   *  documented to hold other things in them (`nsmp-og.ts`). */
+  /** Source header bytes +0x04…+0x11 (14 bytes), written as they are: root key, pitch base
+   *  and the gain bytes, which every generation reads alike (the maintainers’ notes, "Gain
+   *  bytes"). The channel count (+0x08) always comes from the audio. */
   headerFields?: Uint8Array;
   /** The stroke's pitch base (header +0x06, u16): its tuning. Overrides `headerFields`. */
   pitchBase?: number;
@@ -145,7 +144,7 @@ function zoneEntry(z: WriteZone, globalID: number, zoneMode: number): Uint8Array
   e[4] = (z.zonePlayback ?? 0) & 0xff;
   e[5] = (z.zoneIsOneShot ?? 0) & 0xff;
   e[7] = 1; // u16 strokeCount @+6 = 1
-  e[11] = globalID & 0xff; // u32 globalID @+8 (low byte)
+  e[8] = (globalID >>> 24) & 0xff; e[9] = (globalID >>> 16) & 0xff; e[10] = (globalID >>> 8) & 0xff; e[11] = globalID & 0xff; // u32 globalID @+8
   e[13] = 1; // u16 strength @+12 = 1
   e[14] = z.velLow ?? 0; // velMin
   e[15] = z.velTop ?? 127; // velMax (top velocity of the layer)
@@ -286,7 +285,7 @@ function assembleNsmp(
       return stk;
     }
     const header = new Uint8Array(STROKE_HEADER_SIZE);
-    header[3] = (i + 1) & 0xff; // global id — matches each zone's globalID (map +12)
+    new DataView(header.buffer).setUint32(0, i + 1, false); // global id — the u32 each zone names (map record +8)
     header[6] = 0x88; header[7] = 0xba; // pitch/rate base (PITCH_BASE @ 0 cents) — read back as the replay sampleRate; 44100 would detune +4 semitones
     header[8] = channels.length; // 1 = mono, 2 = stereo
     const stk = section('\0stk', v.stk, concat([header, encodeStroke(channels, { blockSize, wordInterleaved })]));

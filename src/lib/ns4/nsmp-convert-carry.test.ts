@@ -107,12 +107,18 @@ describe('convertNsmp — what a sample holds besides audio', () => {
     }
   });
 
-  it('copies the gain bytes only between the two newer formats', () => {
-    const src = source(3);
+  it('copies the gain bytes into every format, with the peak signed only in the newer ones', () => {
+    const src = source(3); // gain 0b 82 fd, exponent 0a, peak ff f4 0f (−3057)
     const stk = (b: Uint8Array) => readNsmp(b).sections.filter((x) => x.tag.endsWith('stk'))[0].payloadOffset;
-    const gain = (b: Uint8Array) => Array.from(b.subarray(stk(b) + 0x09, stk(b) + 0x10));
-    expect(gain(convertNsmp(src, 4).bytes)).toEqual(gain(src));
-    expect(gain(convertNsmp(src, 2).bytes)).not.toEqual(gain(src)); // the legacy writer's own values
+    const at = (b: Uint8Array, from: number, to: number) => Array.from(b.subarray(stk(b) + from, stk(b) + to));
+    expect(at(convertNsmp(src, 4).bytes, 0x09, 0x12)).toEqual(at(src, 0x09, 0x12));
+    const legacy = convertNsmp(src, 2).bytes;
+    expect(at(legacy, 0x09, 0x0d)).toEqual(at(src, 0x09, 0x0d)); // gain and exponent as they are
+    expect(at(legacy, 0x0d, 0x10)).toEqual([0x00, 0x0b, 0xf1]); // the peak's magnitude, 3057
+    // Back in a newer format the peak takes the sign of the loudest sample: this tone
+    // (a sine from 0) reaches its positive peak first, so it stays positive.
+    expect(at(convertNsmp(legacy, 3).bytes, 0x0d, 0x10)).toEqual([0x00, 0x0b, 0xf1]);
+    expect(at(convertNsmp(legacy, 4).bytes, 0x09, 0x0d)).toEqual(at(src, 0x09, 0x0d));
     // The pitch base and the zone's root key go across either way.
     for (const to of [2, 4] as const) {
       const out = convertNsmp(src, to).bytes;
@@ -149,5 +155,26 @@ describe('convertNsmp — what a sample holds besides audio', () => {
     const ids = decodeNsmp(convertNsmp(twin, 2).bytes).map((s) => s.globalID);
     expect(new Set(ids).size).toBe(2);
   });
+
+  it('tells two strokes apart whose ids share a low byte, and keeps both key ranges', () => {
+    // Ids 0x101 and 0x001: read as one byte they are the same stroke.
+    const src = writeNsmpMulti({ name: 'Ids', codec: 4, zones: [
+      { channels: [tone(3000, 2000, 9)], rootKey: 72, keyHigh: 96, keyLow: 70 },
+      { channels: [tone(5000, 2000, 7)], rootKey: 60, keyHigh: 69, keyLow: 40 },
+    ] });
+    const stks = readNsmp(src).sections.filter((x) => x.tag.endsWith('stk'));
+    const top = readNsmpZones(src).find((z) => z.rootKey === 60)!; // the zone of stroke 2
+    src[stks[1].payloadOffset + 2] = 1; src[stks[1].payloadOffset + 3] = 1; // stroke 2 → id 0x101
+    src[top.recordOffset + 10] = 1; src[top.recordOffset + 11] = 1;
+    expect(decodeNsmp(src).map((s) => s.globalID)).toEqual([1, 0x101]);
+    expect(readNsmpZones(src).map((z) => [z.rootKey, z.globalID])).toEqual([[72, 1], [60, 0x101]]);
+    // Converted, each key range still plays its own recording (they differ in length).
+    for (const to of [2, 3] as const) {
+      const out = convertNsmp(src, to).bytes;
+      const frames = new Map(decodeNsmp(out).map((s) => [s.globalID, s.channels[0].length]));
+      expect(readNsmpZones(out).map((z) => [z.rootKey, frames.get(z.globalID)])).toEqual([[72, 3000], [60, 5000]]);
+    }
+  });
 });
+
 

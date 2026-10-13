@@ -560,8 +560,8 @@ export function readNpnoImage(bytes: Uint8Array): NpnoImage {
 
 /**
  * Piano type byte (CNSP+0x18; NSM `SetBank`/`S_GetMainType`). Values as the factory pianos
- * carry them: 1–6, 14 and 15 seen on 36 local files; 7 and 16 from outside format
- * notes (155 files), not seen here.
+ * carry them: 1–6, 14 and 15 seen on 36 local files; 7 and 16 from an independent survey of
+ * 155 files, not seen here.
  */
 export const NPNO_PIANO_TYPE = {
   /** 1 — electric grands (Electric Grand 1 CP80, EGrand 3). */
@@ -593,6 +593,51 @@ export const NPNO_PIANO_TYPE = {
  * electric-grand files have 1 at +0x49C, which the writer doesn't reproduce.
  */
 const CUT_OFF_RELEASE_TYPES: readonly number[] = [NPNO_PIANO_TYPE.electric, NPNO_PIANO_TYPE.wurlitzer, NPNO_PIANO_TYPE.clav];
+
+/**
+ * How fast a note dies when its key is let go, as the factory pianos of each type set it:
+ * the damper index at the zone's stored root (record +0x72, and header +0x20C per key), and
+ * how much slower Soft Release is (+0x73 − +0x72). The index is on the damper scale of
+ * the maintainers’ notes (T60 ≈ 1.5 ms · 10^(i/20): 13 is 7 ms, 44 is 240 ms).
+ *
+ * Fitted to the note records of 36 factory pianos, a line per type (the maintainers’ notes,
+ * "Damper defaults", has the fits and their spread). The Clavinet's 13, which every type got
+ * before, cuts a piano note dead.
+ */
+interface DamperFit { at0: number; perKey: number; min: number; max: number; soft: number }
+const CLAV_DAMPER: DamperFit = { at0: 13, perKey: 0, min: 13, max: 13, soft: 20 };
+const PIANO_DAMPER: DamperFit = { at0: 54.5, perKey: -0.149, min: 35, max: 51, soft: 5 };
+const DAMPER_BY_TYPE: Record<number, DamperFit> = {
+  [NPNO_PIANO_TYPE.grand]: PIANO_DAMPER,
+  [NPNO_PIANO_TYPE.upright]: { ...PIANO_DAMPER, soft: 6 },
+  [NPNO_PIANO_TYPE.misc]: { ...PIANO_DAMPER, soft: 6 },
+  [NPNO_PIANO_TYPE.electricGrand]: { at0: 38.9, perKey: -0.054, min: 31, max: 43, soft: 12 },
+  [NPNO_PIANO_TYPE.electric]: { at0: 32.0, perKey: -0.127, min: 19, max: 34, soft: 7 },
+  [NPNO_PIANO_TYPE.wurlitzer]: { at0: 33.2, perKey: -0.165, min: 19, max: 28, soft: 11 },
+  [NPNO_PIANO_TYPE.digital]: { at0: 38.6, perKey: -0.121, min: 19, max: 49, soft: 11 },
+  [NPNO_PIANO_TYPE.clav]: CLAV_DAMPER,
+  // No factory file of these two was at hand: they keep what every type had before.
+  [NPNO_PIANO_TYPE.harpsichord]: CLAV_DAMPER,
+  [NPNO_PIANO_TYPE.mallets]: CLAV_DAMPER,
+};
+
+/** Damper index for a zone of piano type `type` stored at `root`: `[normal, soft release]`. */
+export function defaultDamper(type: number, root: number): [number, number] {
+  const f = DAMPER_BY_TYPE[type] ?? CLAV_DAMPER;
+  const normal = Math.max(f.min, Math.min(f.max, Math.round(f.at0 + f.perKey * root)));
+  return [normal, normal + f.soft];
+}
+
+/**
+ * Header table +0x49D per key. Its use is not known. Acoustic and digital pianos carry one
+ * curve, falling from 80 in the bass to 20 at the top (fit residual under 1 for grands);
+ * electric pianos and the Clavinet mostly carry a flat 30, which is also what unmapped keys
+ * hold in every file.
+ */
+const CURVED_49D_TYPES: readonly number[] = [NPNO_PIANO_TYPE.grand, NPNO_PIANO_TYPE.upright, NPNO_PIANO_TYPE.digital, NPNO_PIANO_TYPE.misc];
+function table49d(type: number, root: number): number {
+  return CURVED_49D_TYPES.includes(type) ? Math.max(20, Math.min(80, Math.round(95.6 - 0.72 * root))) : 0x1e;
+}
 
 export interface NpnoLayerInput {
   /** PCM per channel, int16 range. The stroke should start at the attack (no lead-in silence needed). */
@@ -695,10 +740,18 @@ function defaultHeader(input: NpnoInput): Uint8Array {
   for (const z of input.zones) for (let n = z.lowNote; n <= z.highNote; n++) h[0x8c + n] = storedRoot(z);
   // Per-note tables read by the ARM loader (meaning unknown). Zero where a factory file is
   // zero; the constants below are identical in all three factory files unless noted.
-  for (let n = 0; n < 128; n++) h[0x20c + n] = n <= 108 ? 0x0d : 0x39; // 0x0d: Clavinet value; 0x39 above key 108 in all
+  // +0x20C damper index and +0x49D per key, each key taking its zone's value; unmapped keys
+  // hold 0x39 and 0x1e, as in every factory file.
+  h.fill(0x39, 0x20c, 0x28c);
+  h.fill(0x1e, 0x49d, 0x51d);
+  for (const z of input.zones) {
+    for (let n = z.lowNote; n <= z.highNote; n++) {
+      h[0x20c + n] = defaultDamper(type, storedRoot(z))[0];
+      h[0x49d + n] = table49d(type, storedRoot(z));
+    }
+  }
   h.fill(0x80, 0x41c, 0x49c);
   h[0x49c] = release; // release mode, as +0x8B
-  h.fill(0x1e, 0x49d, 0x51d);
   h[0x51d] = 2; // Clavinet 2 (not read by the loader)
   // +0x40C…+0x410: Clavinet 28 (6d) 0d 6c 01; +0x40D is overwritten at load, +0x40F/+0x410 = 0x6c/1 in all.
   h[0x40c] = 0x28; h[0x40e] = 0x0d; h[0x40f] = 0x6c; h[0x410] = 0x01;
@@ -713,7 +766,7 @@ export function decayCoefficient(dbPerSecond: number): number {
   return Math.max(1, Math.round(0x800000 * 10 ** (-Math.max(0, dbPerSecond) / (20 * NSP_ENVELOPE_RATE))));
 }
 
-function defaultRecord(opts: { floor: number; prevFloor: number | undefined; level: number; root: number; id: number; decayDbPerSecond?: number }): Uint8Array {
+function defaultRecord(opts: { floor: number; prevFloor: number | undefined; level: number; root: number; id: number; type: number; decayDbPerSecond?: number }): Uint8Array {
   const r = new Uint8Array(NPNO_RECORD_SIZE);
   r[0x04] = 0; // flags: normal stroke
   r[0x05] = opts.floor; // attenuation floor, 0.2 dB steps
@@ -730,8 +783,7 @@ function defaultRecord(opts: { floor: number; prevFloor: number | undefined; lev
   // +0x6E: u32 whose low 14 bits the loader keeps (the take number in factory files) — we
   // write a unique id.
   be32(r, 0x6e, opts.id & 0x3fff);
-  r[0x72] = 0x0d; // unknown; equals the +0x20C table value in the Clavinet
-  r[0x73] = 33; // unknown; Clavinet 36 → 28 with pitch
+  [r[0x72], r[0x73]] = defaultDamper(opts.type, opts.root); // damper index: normal, Soft Release
   // Layer switch point, halfway from the previous (louder) layer's floor, rounded up; the
   // first layer counts from 0 (exact for 18,937 factory v6 records). The loader computes the
   // same for v5 files.
@@ -896,7 +948,7 @@ export function buildNpno(input: NpnoInput): NpnoBuildResult {
         record: defaultRecord({
           floor: floorUnits(l),
           prevFloor: k > 0 ? floorUnits(z.layers[k - 1]) : undefined,
-          level, root, id: strokes.length + 1, decayDbPerSecond: l.decayDbPerSecond,
+          level, root, id: strokes.length + 1, type: input.pianoType ?? NPNO_PIANO_TYPE.grand, decayDbPerSecond: l.decayDbPerSecond,
         }),
       });
     });

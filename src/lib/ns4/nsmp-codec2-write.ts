@@ -93,7 +93,7 @@ function writeCodec2Map(zones: Codec2WriteZone[], levels: Codec2MapLevels = {}):
   // Records, ordered top-down by keyHigh (matches the factory layout + the reader).
   const sorted = [...zones].sort((a, b) => b.keyHigh - a.keyHigh);
   for (const z of sorted) {
-    putU24(out, o, z.globalID & 0xff);
+    putU24(out, o, z.globalID & 0xffffff);
     putU24(out, o + 3, UNITY_LEVEL); // zone level; detune (+6) 0
     out[o + 9] = z.keyHigh & 0xff;
     out[o + 11] = 0x01; // stroke count
