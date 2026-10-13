@@ -125,7 +125,7 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
       save={{ onSave: () => downloadBytes(bytes, programFilename(entry, bytes)) }}
       more={[
         ...(canShare && entry.source !== 'nord'
-          ? [{ label: 'Share to community', onSelect: () => void navigate({ to: COMMUNITY_SHARE_TO, search: { program: entry.id } as never }) }]
+          ? [{ label: 'Share to community', onSelect: () => void navigate({ to: COMMUNITY_SHARE_TO, search: { item: entry.id } as never }) }]
           : []),
         ...(isImported(entry.id) ? [{ label: 'Remove from library', onSelect: () => setRemoving(entry) }] : []),
       ]}

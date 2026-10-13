@@ -128,7 +128,7 @@ describe('LibrarySplit', () => {
       render(<CapabilitiesProvider value={{ community: { available: true } }}><LibrarySplit selectedId="p1" /></CapabilitiesProvider>);
       fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), { key: 'Enter' });
       fireEvent.click(screen.getByRole('menuitem', { name: 'Share to community' }));
-      expect(navigate).toHaveBeenCalledWith({ to: '/community/share', search: { program: 'p1' } });
+      expect(navigate).toHaveBeenCalledWith({ to: '/community/share', search: { item: 'p1' } });
     });
 
     it('offers no sharing in a build without the community', () => {

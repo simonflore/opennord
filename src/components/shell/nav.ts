@@ -20,7 +20,7 @@ export const DEV_DESTS: Dest[] = [
 // build supplies them and the capability is available), so they sit outside the
 // base NavTo union and are cast where they're named.
 export const COMMUNITY_TO = '/community' as NavTo;
-/** The share form; `?program=<library entry id>` opens it on that program. */
+/** The share form; `?item=<library entry id>` opens it on that program or preset. */
 export const COMMUNITY_SHARE_TO = '/community/share' as NavTo;
 export const COMMUNITY_SUB: Dest[] = [
   { to: COMMUNITY_TO, label: 'Browse' },

@@ -1,18 +1,15 @@
-import { useMemo, useState } from 'react';
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import { pullPreset } from '@/lib/device/presets';
 import { downloadBytes } from '@/lib/download';
 import type { NordSession } from '@/lib/device/session';
 import { getErrorMessage } from '../../lib/errors';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
-import { parseNs4Preset, type Ns4Preset } from '@/lib/ns4/preset';
-import { presetVoices, presetParamSections } from '@/lib/ns4/preset-view';
-import { filterRows } from '@/lib/ns4/params-view';
 import { ItemActions } from '../library/ItemActions';
-import { EngineCard } from '@/components/program/EngineCard';
-import { MorphList } from '@/components/program/Morphs';
-import { FxChain, IdentityLcd } from '@/components/program/widgets';
-import { ParamsDrawer, type ParamsDrawerGroup } from '@/components/program/AllParamsDrawer';
+import { IdentityLcd } from '@/components/program/widgets';
+import { PresetPanel } from './PresetPanel';
+import { useNavigate } from '@tanstack/react-router';
+import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
+import { COMMUNITY_SHARE_TO } from '@/components/shell/nav';
 
 const KIND_LABEL: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'Organ preset', 'piano-preset': 'Piano preset', 'synth-preset': 'Synth preset',
@@ -27,10 +24,10 @@ const KIND_EXT: Record<PresetEntry['kind'], string> = {
  *  parameter list behind a drawer; otherwise metadata + download. */
 export function PresetInspector({ entry, session }: { entry: PresetEntry; session: NordSession | null }) {
   const { busy, error, run } = useAsyncAction();
-  // Decode when we already hold the bytes (folder/local files); device presets
-  // stay metadata-only until pulled. parseNs4Preset returns null for ns3y/ns2s.
-  const decoded = useMemo(() => (entry.bytes ? parseNs4Preset(entry.bytes) : null), [entry.bytes]);
-  const voices = useMemo(() => (decoded ? presetVoices(decoded) : []), [decoded]);
+  // Sharing is a build-injected route: offered where the community is there, for
+  // a preset that's a file of yours (one still on the Nord has no bytes here).
+  const canShare = useCapabilities().community.available && !!entry.bytes && entry.source !== 'nord';
+  const navigate = useNavigate();
 
   async function download() {
     if (busy) return;
@@ -45,7 +42,6 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
   }
 
   const where = entry.source === 'nord' ? `On Nord${entry.slot ? ` · ${entry.slot}` : ''}` : 'Local file';
-  const stacked = voices.length > 1;
 
   return (
     // The Library page now uses the window's width (ui.css); a preset is one
@@ -55,45 +51,14 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
         <div className="ps-hd-id">
           <IdentityLcd name={entry.name} lines={[`${KIND_LABEL[entry.kind]} · ${where}`]} />
         </div>
-        <ItemActions save={{ onSave: () => void download(), busy }} />
+        <ItemActions
+          save={{ onSave: () => void download(), busy }}
+          more={canShare ? [{ label: 'Share to community', onSelect: () => void navigate({ to: COMMUNITY_SHARE_TO, search: { item: entry.id } as never }) }] : []}
+        />
       </div>
       {error && <p className="ps-sub on-error">{error}</p>}
 
-      {decoded ? (
-        <>
-          {voices.map((v) => (
-            <section className="ps-panel" key={v.letter}>
-              {stacked && <div className="ps-panel-lbl">Layer {v.letter}</div>}
-              <div className="ps-preset-grid">
-                <EngineCard card={v.card} />
-                <FxChain slots={v.fx} />
-              </div>
-              <MorphList rows={v.morphs} />
-            </section>
-          ))}
-          <PresetParams preset={decoded} />
-        </>
-      ) : (
-        <p className="ps-sub">This preset is recognized but not opened in detail — OpenNord lists and moves presets without decoding them.</p>
-      )}
+      <PresetPanel bytes={entry.bytes} />
     </div>
   );
-}
-
-/** Every parameter of the preset, for reference: the Program view's drawer,
- *  sectioned the way the panel reads. Stacked voices tag each section's layer. */
-function PresetParams({ preset }: { preset: Ns4Preset }) {
-  const [query, setQuery] = useState('');
-  const sections = useMemo(() => {
-    const stacked = preset.layers.length > 1;
-    return preset.layers.flatMap((l) => presetParamSections(l.rows).map((g): ParamsDrawerGroup => ({
-      ...g, key: `${l.letter}-${g.key}`, tag: stacked ? l.letter : undefined,
-    })));
-  }, [preset]);
-  const total = useMemo(() => sections.reduce((n, g) => n + g.rows.length, 0), [sections]);
-  const groups = useMemo(
-    () => sections.map((g) => ({ ...g, rows: filterRows(g.rows, query) })).filter((g) => g.rows.length > 0),
-    [sections, query],
-  );
-  return <ParamsDrawer total={total} query={query} onQuery={setQuery} groups={groups} />;
 }
