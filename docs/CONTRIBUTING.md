@@ -4,7 +4,7 @@ Thanks for helping build a commons for Nord Stage 4 players. The hard reverse-en
 
 ## Highest-impact contributions
 
-1. **Product & UI.** The program views, the unified Library, the sample workshop, sharing (programs only — `docs/LEGAL.md`), and the local AI search behind its `ProgramRanker` interface. This is where most value is now.
+1. **Product & UI.** The program views, the unified Library, the sample workshop, sharing (programs, and samples and pianos you made — `docs/LEGAL.md`), and the local AI search behind its `ProgramRanker` interface. This is where most value is now.
 2. **Transfer runtimes & UI.** The proven USB protocol is already wrapped as a **WebUSB** client (`src/lib/device/`, the maintainers’ notes); help build out the transfer/backup **UI** and additional runtimes — an Electron/**node-usb** wrapper for non-Chromium desktops, and a native iPad (M1+) **DriverKit** path.
 3. **Validate the decoder at scale.** Run the parser over more real programs and file a fixture + test for any mismatch against ns4decode.
 4. **A native iPad transfer client** — transfer runs over vendor USB (not SysEx). A native iPad app (M1+) with a `USBDriverKit` DEXT can drive it on-device (Apple allows vendor-class access; needs a DriverKit distribution entitlement). Desktop (WebUSB/node-usb) is the easier first target. (iPhone and PWAs can't reach vendor USB.)

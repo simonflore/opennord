@@ -98,7 +98,7 @@ command for.
 The community library: publish your own programs, browse everyone else's, follow
 authors you trust, hear a demo before you download. This is the part of the 2020 email
 that never got built by anyone — the place where software, hardware and players
-actually meet. Programs only, user-created only, ownership stays with you.
+actually meet. User-created only, ownership stays with you.
 
 **Phase 4 — Ideas, not files.**
 Ask for "punchy clav" and get it. Open a patch and have it explained — what it does,

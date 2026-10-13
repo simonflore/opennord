@@ -24,14 +24,18 @@ The absolute line above is about factory **audio** — the actual sample/library
 - These are **facts and links, not the works** — publicly-available metadata plus references to Nord's own hosted files. OpenNord **links** to those endpoints; it never mirrors, re-hosts, or bundles the audio they serve.
 - The factory **content** itself remains off-limits per the bright line above. Nothing here lets OpenNord redistribute Clavia's sample/library audio.
 
-> **Recognizing vs. sharing.** For the **community library / sharing** features, OpenNord uses only a `.nsmp4`'s small metadata header (name, version, checksum) — it never publishes, transmits, or hosts the compressed audio payload. Local features — the Sample Inspector, the sample editor, and pulling a sample off your own board — *do* read and decode the full audio, but only on your own machine for your own use (see *Local device access vs. community sharing* below). Distinguishing user-created from factory samples is an open problem; until it's reliable, sample *audio* is never part of any sharing/library feature.
+> **Sharing samples and pianos.** A sample or piano you made yourself may be shared in the community library, on two conditions: you confirm, per share, that it is your own work and contains no Nord or third-party library audio; and it passes an automatic check. The check refuses a file whose checksum is one of Nord's factory files (a list of those checksums, built from the 44-byte header of each file Nord publishes), whose embedded name is a factory sound's name, which carries the factory flag Nord's own tools set, or whose checksum doesn't match its contents. Older sample formats that carry no checksum cannot be checked and are refused. Files are at most 20 MB.
+>
+> **What the check cannot do.** It stops accidents and casual copying. It does not catch a factory sound that was deliberately altered and re-saved, and it cannot tell where the audio in a piano converted from a sample came from. For those the confirmation is the only gate before publication. Factory and third-party library audio is never knowingly hosted: every share has a Report button, and reported content is hidden by an admin and the account can be banned.
+>
+> Local features (the Sample Inspector, the sample editor, pulling a sample off your own board) still read and decode any audio, on your own machine for your own use.
 
 ## Local device access vs. community sharing
 
 OpenNord distinguishes two different things:
 
 - **Local device access (any content, personal use).** Reading files — programs, presets, *and samples, factory ones included* — from your own Nord to your own computer, and inspecting or editing them locally, is personal access to your own device. It is the same thing Nord Sound Manager does when it backs the sample library up to your computer. OpenNord neither hosts nor redistributes this content; it stays on your machine.
-- **Community sharing (user-created only).** Anything OpenNord ever publishes or shares carries **user-created content only** — never Nord's factory sample/library audio. This line is absolute, independent of the local-access capability above.
+- **Community sharing (user-created only).** Anything OpenNord publishes or shares carries **user-created content only**: programs, presets, and samples and pianos the sharer made, never Nord's factory sample/library audio. This line is absolute, independent of the local-access capability above.
 
 Device sample browsing (read a sample off the board, edit, download) is local access; it has no sharing surface, so the community-sharing guardrail is untouched.
 
