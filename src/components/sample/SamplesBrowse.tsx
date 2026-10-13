@@ -157,6 +157,7 @@ export function SamplesBrowse(
       value: generation,
       options: genOptions.map((o) => ({ key: o.key, label: o.label })),
       onChange: (k: string) => onGeneration(k as SampleGeneration | 'all'),
+      select: { allLabel: 'All formats' },
     },
     ...(categoriesPresent.length > 1 ? [{
       ariaLabel: 'Filter by category',

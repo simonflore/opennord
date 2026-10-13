@@ -18,6 +18,9 @@ export interface FacetGroup {
   value: string;
   options: FacetOption[];
   onChange: (key: string) => void;
+  /** Show as a dropdown rather than chips (a format, where the options are file
+   *  types); the first option ("All") reads as `allLabel` there. */
+  select?: { allLabel: string };
 }
 export interface SortOption { key: string; label: string }
 
@@ -73,6 +76,22 @@ function FacetChips({ group }: { group: FacetGroup }) {
   );
 }
 
+/** A facet as a dropdown: one compact control however many file types there are. */
+function FacetSelect({ group }: { group: FacetGroup }) {
+  return (
+    <select
+      className={selectClass}
+      value={group.value}
+      aria-label={group.ariaLabel}
+      onChange={(e) => group.onChange(e.target.value)}
+    >
+      {group.options.map((o, i) => (
+        <option key={o.key} value={o.key}>{i === 0 && group.select ? group.select.allLabel : o.label}</option>
+      ))}
+    </select>
+  );
+}
+
 /**
  * Shared browse toolbar: a search field, one or more filter-chip groups, and a
  * sort select. Data-driven so the Library (one facet group) and Samples (two)
@@ -88,7 +107,7 @@ export function BrowseToolbar(
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2">
       <SearchField value={query} onChange={onQuery} placeholder={placeholder} />
-      {facets.map((g) => <FacetChips key={g.ariaLabel} group={g} />)}
+      {facets.map((g) => (g.select ? <FacetSelect key={g.ariaLabel} group={g} /> : <FacetChips key={g.ariaLabel} group={g} />))}
       <select
         className={cn('ml-auto', selectClass)}
         value={sort}

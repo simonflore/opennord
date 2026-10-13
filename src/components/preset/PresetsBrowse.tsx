@@ -67,6 +67,7 @@ export function PresetsBrowse({
         ...kinds.map((k) => ({ key: k, label: KIND_LABEL[k] })),
       ],
       onChange: (k: string) => setKind(k as PresetKind | 'all'),
+      select: { allLabel: 'All types' },
     },
   ];
 

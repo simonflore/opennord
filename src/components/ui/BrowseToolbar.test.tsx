@@ -36,3 +36,15 @@ describe('BrowseToolbar facet collapse', () => {
     expect(html).not.toContain('Cat 3');
   });
 });
+
+describe('BrowseToolbar facet as a dropdown', () => {
+  it('renders a select with every option, "All" named by the facet, and no chips', () => {
+    const formats = { ...facet([{ key: 'all', label: 'All' }, { key: 'og', label: '.nsmp' }, { key: '4', label: '.nsmp4' }], '4'),
+      ariaLabel: 'Filter by format', select: { allLabel: 'All formats' } };
+    const html = renderToStaticMarkup(<BrowseToolbar {...base} facets={[formats]} />);
+    expect(html).toMatch(/<select[^>]*aria-label="Filter by format"/);
+    expect(html).toContain('>All formats</option>');
+    expect(html).toContain('<option value="4" selected="">.nsmp4</option>');
+    expect(html).not.toContain('role="group"');
+  });
+});
