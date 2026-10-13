@@ -21,10 +21,27 @@ export interface AuthProvider {
   subscribe(listener: (user: UserIdentity | null) => void): () => void;
 }
 
+export type CloudItemKind = 'program' | 'preset' | 'sample' | 'piano';
+/** One stored file of a cloud snapshot. */
+export interface CloudItem {
+  /** SHA-256 of the file's bytes, lower-case hex. */
+  fingerprint: string;
+  kind: CloudItemKind;
+  filename: string;
+  slot?: string;
+}
+export interface CloudSnapshot { takenAt: string; items: CloudItem[] }
+
 /** Cloud backup/sync of the user layer. Minimal here; the full surface lives in
- *  the opennord-contracts package and the product implementation. */
+ *  the opennord-contracts package and the product implementation. The two reads
+ *  are optional: the open build has neither, and the Library then has no cloud
+ *  source. */
 export interface CloudSync {
   readonly available: boolean;
+  /** The user's latest snapshot, or null when there is none. Rejects when signed out or offline. */
+  latestSnapshot?(): Promise<CloudSnapshot | null>;
+  /** One item's bytes. */
+  fetchItem?(fingerprint: string): Promise<Uint8Array>;
 }
 
 /** Community browse/publish/download. Minimal here for the same reason. */

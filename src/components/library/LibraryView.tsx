@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import './library.css';
 import { Button, BrowseToolbar, type FacetGroup } from '../ui';
 import { CategoryPanel } from './CategoryPanel';
@@ -11,6 +12,9 @@ import { FolderMenu } from './FolderMenu';
 import { AddMenu } from './AddMenu';
 import { SOURCE_LABEL, type LibraryEntry, type LibrarySource, type LibrarySort } from '../../lib/library/types';
 import type { LibraryPrefsApi } from '../../lib/library/prefs';
+import { sourceFacets } from '../../lib/library/found-on';
+import type { CloudSnapshotState } from '../../lib/library/CloudSnapshotContext';
+import { EmptyNote } from './EmptyNote';
 import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
 
 interface Props {
@@ -49,6 +53,9 @@ interface Props {
   onToggleEngine: (k: EngineKind) => void;
   splitOnly: boolean;
   onSplitOnly: (on: boolean) => void;
+  /** The cloud source: whether there is one, and why it might be empty. Absent: no Cloud filter. */
+  cloud?: Pick<CloudSnapshotState, 'status' | 'refresh'>;
+  onSignIn?: () => void;
 }
 
 const TABS: Array<LibrarySource | 'all'> = ['all', 'nord', 'local', 'backup', 'cloud'];
@@ -61,10 +68,10 @@ export function LibraryView({
   generation = 'all', onGeneration, generationsPresent = [],
   category = 'all', onCategory, categoriesPresent = [],
   importError, onDismissImportError, prefs, folder,
-  engines, onToggleEngine, splitOnly, onSplitOnly,
+  engines, onToggleEngine, splitOnly, onSplitOnly, cloud, onSignIn,
 }: Props) {
   // Unpack the grouped props so the JSX below reads the same as before.
-  const { sort, setSort: onSort, favorites, toggleFavorite: onToggleFavorite } = prefs;
+  const { sort, setSort: onSort, favorites, toggleFavoriteRow: onToggleFavoriteRow } = prefs;
   const { folderName, needsReconnect, busy, reconnectError } = folder;
   const onChooseFolder = folder.choose, onReconnect = folder.reconnect, onForget = folder.forget;
   const scanErrors = folder.result.errors;
@@ -76,8 +83,9 @@ export function LibraryView({
   const folderScanErrors = scanErrors.filter((e) => e.path === '(folder)');
   const fileScanErrors = scanErrors.filter((e) => e.path !== '(folder)');
 
-  const nord = entries.filter((e) => e.source === 'nord').length;
-  const local = entries.length - nord;
+  // Counted by where each sound is found: one on the Nord and here counts under both.
+  const { nordCount: nord, localCount: local } = useMemo(() => sourceFacets(entries), [entries]);
+  const hasCloud = !!cloud && cloud.status !== 'absent';
 
   // When a search/facet is hiding everything, show the shared "no match" state
   // rather than the first-run onboarding (which would wrongly read as "empty").
@@ -99,7 +107,7 @@ export function LibraryView({
     {
       ariaLabel: 'Filter by source',
       value: source,
-      options: TABS.map((t) => ({ key: t, label: TAB_LABEL[t] })),
+      options: TABS.filter((t) => t !== 'cloud' || hasCloud).map((t) => ({ key: t, label: TAB_LABEL[t] })),
       onChange: (k) => onSource(k as LibrarySource | 'all'),
     },
     ...(generationsPresent.length > 1 ? [{
@@ -188,7 +196,7 @@ export function LibraryView({
         </>
       }
       isEmpty={entries.length === 0}
-      emptyState={
+      emptyState={(source === 'cloud' && cloud && cloudEmptyNote(cloud, onSignIn)) || (
         <LibraryEmpty noun="program" filtered={filtered} onClear={clearFilters}>
           {connectedButEmpty ? (
             <>
@@ -208,16 +216,39 @@ export function LibraryView({
             </>
           )}
         </LibraryEmpty>
-      }
+      )}
     >
       <ProgramTable
         entries={entries}
         activeId={activeId}
         favorites={favorites}
-        onToggleFavorite={onToggleFavorite}
+        onToggleFavorite={onToggleFavoriteRow}
         onOpen={onOpen}
         onRemove={onRemove}
       />
     </CategoryPanel>
   );
+}
+
+/** Why the Cloud filter shows nothing, when the cloud itself is the reason; null otherwise. */
+function cloudEmptyNote(cloud: Pick<CloudSnapshotState, 'status' | 'refresh'>, onSignIn?: () => void) {
+  if (cloud.status === 'signed-out') {
+    return (
+      <EmptyNote>
+        <p>Sign in to see your cloud snapshot.</p>
+        {onSignIn && <Button variant="primary" onClick={onSignIn}>Sign in</Button>}
+      </EmptyNote>
+    );
+  }
+  if (cloud.status === 'loading') return <EmptyNote><p role="status">Loading your cloud snapshot…</p></EmptyNote>;
+  if (cloud.status === 'empty') return <EmptyNote><p>No snapshot yet. Save your library to the cloud and it shows here.</p></EmptyNote>;
+  if (cloud.status === 'failed') {
+    return (
+      <EmptyNote>
+        <p>Couldn’t reach the cloud.</p>
+        <Button variant="secondary" onClick={cloud.refresh}>Try again</Button>
+      </EmptyNote>
+    );
+  }
+  return null;
 }

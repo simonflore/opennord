@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { cn } from '@/lib/cn';
-import { SourceBadge } from '../ui';
+import { SourceBadges } from '../ui';
 import { Led } from '../shell/Led';
 import { LibraryRow, FavoriteStar } from './LibraryCard';
 import { ZoneStrip } from './ZoneStrip';
@@ -11,7 +11,8 @@ import { isNs4Program, type NordProgram } from '../../lib/formats';
 import { activeLayers } from '../../lib/ns4/view';
 import { fxGroups } from '../../lib/ns4/fx-panel';
 import { unitsOn } from '../../lib/clavia/fx-view';
-import { isImported, type LibraryEntry } from '../../lib/library/types';
+import type { LibraryEntry } from '../../lib/library/types';
+import { importedMember, isFavoriteRow, nordSlotOf } from '../../lib/library/found-on';
 
 // One row's columns: favourite, slot, name, category, the P/O/S engine LEDs,
 // zones, piano, effects, source. In a narrow container (the list beside an open
@@ -63,7 +64,8 @@ const ProgramFacts = memo(function ProgramFacts({ program }: { program?: NordPro
 
 type RowActions = {
   onOpen: (e: LibraryEntry) => void;
-  onToggleFavorite: (id: string) => void;
+  onToggleFavorite: (entry: LibraryEntry) => void;
+  /** Remove an imported program, by the id of the imported copy (a row may be found elsewhere too). */
   onRemove: (id: string) => void;
 };
 
@@ -77,6 +79,10 @@ const ProgramRow = memo(function ProgramRow({ entry: e, selected, favorite, onOp
   selected: boolean;
   favorite: boolean;
 }) {
+  const importedId = importedMember(e);
+  // A sound on the Nord shows its slot even when the row is shown as a file here;
+  // the file's format still tints it, so the column says both.
+  const onNord = nordSlotOf(e);
   return (
     <LibraryRow
       // content-visibility: a row off screen skips layout and paint (a folder
@@ -91,9 +97,9 @@ const ProgramRow = memo(function ProgramRow({ entry: e, selected, favorite, onOp
       selected={selected}
       onOpen={() => onOpen(e)}
     >
-      <FavoriteStar name={e.name} favorite={favorite} onToggle={() => onToggleFavorite(e.id)} />
-      <span>
-        <SlotTag tone={e.slot ? undefined : genTone(e.generation)}>{e.slot ?? e.typeLabel ?? 'file'}</SlotTag>
+      <FavoriteStar name={e.name} favorite={favorite} onToggle={() => onToggleFavorite(e)} />
+      <span title={onNord && e.source !== 'nord' && e.typeLabel ? `${onNord} on your Nord · ${e.typeLabel} file` : undefined}>
+        <SlotTag tone={e.source === 'nord' ? undefined : genTone(e.generation)}>{onNord ?? e.slot ?? e.typeLabel ?? 'file'}</SlotTag>
       </span>
       <span className="min-w-0 truncate font-sans text-[14px] font-semibold text-ink">{e.name}</span>
       <span className={cn(WIDE, 'truncate font-sans text-[12px]')}><Col>Category</Col>{e.category ?? dash}</span>
@@ -101,9 +107,9 @@ const ProgramRow = memo(function ProgramRow({ entry: e, selected, favorite, onOp
       <span className={WIDE}><ZoneStrip program={e.program} fallback={dash} /></span>
       <ProgramFacts program={e.program} />
       <span className="flex items-center gap-2">
-        <span className={WIDE}><SourceBadge source={e.source} /></span>
-        {isImported(e.id) && (
-          <CardRemoveButton name={e.name} onRemove={() => onRemove(e.id)} />
+        <span className={WIDE}><SourceBadges entry={e} /></span>
+        {importedId && (
+          <CardRemoveButton name={e.name} onRemove={() => onRemove(importedId)} />
         )}
       </span>
     </LibraryRow>
@@ -147,7 +153,7 @@ export const ProgramTable = memo(function ProgramTable({
         <span className={WIDE}>Source</span>
       </div>
       {entries.map((e) => (
-        <ProgramRow key={e.id} entry={e} selected={e.id === activeId} favorite={favorites.has(e.id)} {...actions} />
+        <ProgramRow key={e.id} entry={e} selected={e.id === activeId} favorite={isFavoriteRow(favorites, e)} {...actions} />
       ))}
       <p className="m-0 px-3 py-2 font-mono text-[10px] text-muted max-[720px]:hidden">
         <kbd>J</kbd> <kbd>K</kbd> next / previous · <kbd>↵</kbd> open

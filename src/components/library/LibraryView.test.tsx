@@ -15,6 +15,7 @@ const entries: LibraryEntry[] = [
 
 const prefs = (over: Partial<LibraryPrefsApi> = {}): LibraryPrefsApi => ({
   sort: 'default', setSort: () => {}, favorites: new Set<string>(), isFavorite: () => false, toggleFavorite: () => {},
+  isFavoriteRow: () => false, toggleFavoriteRow: () => {},
   ...over,
 });
 
@@ -247,5 +248,15 @@ describe('LibraryView', () => {
     );
     expect(html).toContain('aria-label="Unfavorite Sunday Organ"');
     expect(html).toContain('aria-pressed="true"');
+  });
+
+  it('shows the Nord slot of a sound found on the Nord and here, tinted by its file type', () => {
+    const merged: LibraryEntry = {
+      id: 'folder:Pad.ns4p', name: 'Pad', source: 'local', typeLabel: '.ns4p', generation: 'Stage 4', fingerprint: 'x1', sources: ['nord', 'local'],
+      members: [{ id: 'folder:Pad.ns4p', source: 'local', name: 'Pad' }, { id: 'nord:A:26', source: 'nord', name: 'Pad', slot: 'A:26' }],
+    };
+    const html = renderToStaticMarkup(<LibraryView entries={[merged]} source="all" query="" {...handlers} prefs={prefs()} folder={folder()} />);
+    expect(html).toMatch(/text-red[^>]*>A:26</);   // the Stage 4 tone, with the slot
+    expect(html).toContain('title="A:26 on your Nord · .ns4p file"');
   });
 });

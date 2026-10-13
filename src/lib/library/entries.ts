@@ -9,6 +9,9 @@ import { programCategoryName, PROGRAM_CATEGORY } from '../clavia/categories';
 import { activeEngineKinds, engineSearchText, type EngineKind } from '../clavia/engines';
 import { isSplit } from '../ns4/view';
 import { matchesAny, sortWithFavorites } from './browse';
+import { foundOn } from './found-on';
+import { cloudEntryBase, cloudItemsOf, extensionOf } from './cloud-entries';
+import type { CloudItem } from '../capabilities/types';
 
 /** Category names in Nord's canonical id order, de-duplicated — for the facet. */
 const CATEGORY_ORDER: string[] = [...new Set(Object.values(PROGRAM_CATEGORY))];
@@ -31,6 +34,8 @@ export function nordEntryId(e: Pick<ProgramEntry, 'bank' | 'slot'>): string {
 export function nordEntriesFromDevice(entries: ProgramEntry[]): LibraryEntry[] {
   return entries.map((e) => ({
     id: nordEntryId(e), name: e.name, source: 'nord', slot: formatSlot(e.bank, e.slot), category: programCategoryName(e.categoryId),
+    // The type, so a file with this slot's name is hinted only when it is the same kind of file.
+    typeLabel: `.${e.fourcc}`,
   }));
 }
 
@@ -77,7 +82,7 @@ export function filterEntries(
   traits?: EntryTraits,
 ): LibraryEntry[] {
   return entries.filter((e) =>
-    (source === 'all' || e.source === source) &&
+    (source === 'all' || foundOn(e).includes(source)) &&
     (generation === 'all' || e.generation === generation) &&
     (category === 'all' || e.category === category) &&
     (!traits || hasTraits(e, traits)) &&
@@ -108,7 +113,7 @@ export function sortEntries(
 ): LibraryEntry[] {
   const byKey = (a: LibraryEntry, b: LibraryEntry): number => {
     if (sort === 'name') return a.name.localeCompare(b.name);
-    if (sort === 'source') return a.source.localeCompare(b.source) || a.name.localeCompare(b.name);
+    if (sort === 'source') return foundOn(a)[0].localeCompare(foundOn(b)[0]) || a.name.localeCompare(b.name);
     return 0; // default → fall through to input order
   };
   return sortWithFavorites(entries, favorites, byKey);
@@ -128,3 +133,40 @@ export function entriesFromScannedPrograms(programs: ScannedProgram[]): LibraryE
     bytes: p.bytes,
   }));
 }
+
+/** Cloud items as Library entries: like an unread Nord slot until the file has been fetched, like a file after. */
+export function cloudProgramEntries(items: CloudItem[], files: ReadonlyMap<string, Uint8Array>): LibraryEntry[] {
+  return cloudItemsOf(items, 'program').map((item) => {
+    const ext = extensionOf(item.filename);
+    const bare: LibraryEntry = {
+      ...cloudEntryBase(item), ...(ext ? { typeLabel: `.${ext}` } : {}),
+    };
+    const bytes = files.get(item.fingerprint);
+    return bytes ? withProgram(bare, bytes) : bare;
+  });
+}
+
+// Parsed once per fetched file: the list is rebuilt on every snapshot or read, the parse is not.
+const parsed = new WeakMap<Uint8Array, Pick<LibraryEntry, 'program' | 'engines' | 'generation' | 'category'>>();
+function withProgram(entry: LibraryEntry, bytes: Uint8Array): LibraryEntry {
+  let p = parsed.get(bytes);
+  if (!p) {
+    // parseClaviaFile hands back a placeholder for bytes it doesn't recognise, rather
+    // than throwing: such a file stays listed without a program, and says so when opened.
+    if (identifyNordFile(bytes).recognized) {
+      const file = parseClaviaFile(bytes);
+      const meta = fileMetaFor(bytes);
+      p = { program: file.program, engines: file.engines, generation: meta.generation, category: meta.category };
+    } else {
+      p = {};
+    }
+    parsed.set(bytes, p);
+  }
+  // The finished entry too, so a rebuilt list keeps this row's identity (and its memoised table row).
+  const done = finished.get(bytes);
+  if (done && done.id === entry.id && done.name === entry.name && done.slot === entry.slot && done.typeLabel === entry.typeLabel) return done;
+  const next = { ...entry, ...p, ...(p.program ? { program: { ...p.program, name: entry.name } } : {}), bytes };
+  finished.set(bytes, next);
+  return next;
+}
+const finished = new WeakMap<Uint8Array, LibraryEntry>();

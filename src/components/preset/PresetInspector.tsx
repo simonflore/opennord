@@ -1,4 +1,8 @@
-import type { PresetEntry } from '@/lib/library/preset-entries';
+import { PRESET_EXT, type PresetEntry } from '@/lib/library/preset-entries';
+import { copyHere, foundOn } from '@/lib/library/found-on';
+import { SOURCE_LABEL } from '@/lib/library/types';
+import { useCloudRead, type CloudSnapshotState } from '@/lib/library/CloudSnapshotContext';
+import { Button } from '@/components/ui';
 import { pullPreset } from '@/lib/device/presets';
 import { downloadBytes } from '@/lib/download';
 import type { NordSession } from '@/lib/device/session';
@@ -13,20 +17,26 @@ import { useShareToCommunity } from '@/components/shell/useShareToCommunity';
 const KIND_LABEL: Record<PresetEntry['kind'], string> = {
   'organ-preset': 'Organ preset', 'piano-preset': 'Piano preset', 'synth-preset': 'Synth preset',
 };
-// Download filename extension by kind. Device presets are Stage-4-only (ns4o/n/y); a folder-sourced ns3y/ns2s synth preset downloads as .ns4y — its bytes are unchanged, only the filename ext.
-const KIND_EXT: Record<PresetEntry['kind'], string> = {
-  'organ-preset': 'ns4o', 'piano-preset': 'ns4n', 'synth-preset': 'ns4y',
-};
 
 /** Preset detail: for Stage 4 organ/piano/synth presets we have the bytes for,
  *  the sound drawn as its engine panel (the Program view's cards) with the full
  *  parameter list behind a drawer; otherwise metadata + download. */
-export function PresetInspector({ entry, session }: { entry: PresetEntry; session: NordSession | null }) {
+export function PresetInspector({ entry, session, cloud, onKeepCopy }: {
+  entry: PresetEntry;
+  session: NordSession | null;
+  /** The cloud source, to fetch a preset found only there. */
+  cloud?: Pick<CloudSnapshotState, 'read' | 'failed'>;
+  /** Keep a copy in OpenNord's own storage; given for a preset with no copy on this computer. */
+  onKeepCopy?: () => void;
+}) {
   const { busy, error, run } = useAsyncAction();
   // Sharing is a build-injected route: offered where the community is there, for
-  // a preset that's a file of yours (one still on the Nord has no bytes here).
-  const canShare = useCapabilities().community.available && !!entry.bytes && entry.source !== 'nord';
+  // a preset that's a file of yours (one still on the Nord or in the cloud isn't, until it's kept).
+  const here = copyHere(entry);
+  const shareable = useCapabilities().community.available && entry.bytes ? here : undefined;
   const share = useShareToCommunity();
+  // A cloud-only preset is fetched when it's shown; a fetch that failed waits for Try again.
+  const cloudRead = useCloudRead(entry, cloud);
 
   async function download() {
     if (busy) return;
@@ -35,12 +45,15 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
         ?? (entry.device && entry.partition != null && session
           ? await pullPreset(session, entry.device, entry.partition)
           : null);
-      if (!bytes) throw new Error('Connect your Nord to save this preset.');
-      downloadBytes(bytes, `${entry.name}.${KIND_EXT[entry.kind]}`);
+      if (!bytes) throw new Error(entry.source === 'cloud' ? 'it hasn’t arrived from the cloud yet.' : 'Connect your Nord to save this preset.');
+      downloadBytes(bytes, `${entry.name}.${PRESET_EXT[entry.kind]}`);
     }, (e) => `Couldn't save ${entry.name}: ${getErrorMessage(e)}`);
   }
 
-  const where = entry.source === 'nord' ? `On Nord${entry.slot ? ` · ${entry.slot}` : ''}` : 'Local file';
+  // Everywhere it is found, the slot after "On Nord"; a plain local preset still reads as a file.
+  const sources = foundOn(entry);
+  const where = sources.length === 1 && sources[0] === 'local' ? 'Local file'
+    : sources.map((s) => (s === 'nord' && entry.slot ? `${SOURCE_LABEL[s]} · ${entry.slot}` : SOURCE_LABEL[s])).join(' · ');
 
   return (
     // The Library page now uses the window's width (ui.css); a preset is one
@@ -52,12 +65,22 @@ export function PresetInspector({ entry, session }: { entry: PresetEntry; sessio
         </div>
         <ItemActions
           save={{ onSave: () => void download(), busy }}
-          more={canShare ? [{ label: 'Share to community', onSelect: () => share(entry.id) }] : []}
+          more={[
+            ...(shareable ? [{ label: 'Share to community', onSelect: () => share(shareable.id) }] : []),
+            ...(onKeepCopy ? [{ label: 'Keep a copy', onSelect: onKeepCopy }] : []),
+          ]}
         />
       </div>
       {error && <p className="ps-sub on-error">{error}</p>}
 
-      <PresetPanel bytes={entry.bytes} />
+      {cloudRead.fingerprint ? (
+        cloudRead.failed !== undefined ? (
+          <div className="ps-sub">
+            <p role="alert" className="m-0 mb-2">Couldn’t fetch it from the cloud: {cloudRead.failed}</p>
+            <Button variant="secondary" onClick={cloudRead.retry}>Try again</Button>
+          </div>
+        ) : <p role="status" className="ps-sub">Fetching from the cloud…</p>
+      ) : <PresetPanel bytes={entry.bytes} />}
     </div>
   );
 }

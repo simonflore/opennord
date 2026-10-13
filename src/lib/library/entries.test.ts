@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms, entryFromImport, sortEntries, presentCategories } from './entries';
+import { nordEntriesFromDevice, filterEntries, entriesFromScannedPrograms, entryFromImport, sortEntries, presentCategories, cloudProgramEntries } from './entries';
 import type { LibraryEntry } from './types';
 import type { ScannedProgram } from '../folder/scan';
 import type { EngineSummary } from '../clavia/engines';
@@ -31,6 +31,7 @@ describe('nordEntriesFromDevice', () => {
     expect(out[0].name).toBe('Wurli Dream');
     expect(out[0].slot).toBe('A:26');   // formatSlot(0,13) → 'A:26' (page 2, position 6)
     expect(out[0].id).toBe('nord:A:26');
+    expect(out[0].typeLabel).toBe('.ns4p'); // the file type, so a same-name hint compares like with like
   });
   it('resolves the Nord category name from the enumerated categoryId', () => {
     const out = nordEntriesFromDevice([{ bank: 0, slot: 0, name: 'Lyle Lead', categoryId: 6, version: 313, sizeBytes: 0, fourcc: 'ns4p' }]);
@@ -179,5 +180,36 @@ describe('filterEntries — LED filter keys', () => {
 
   it('with no key lit, nothing is filtered (an unread slot included)', () => {
     expect(ids([])).toEqual(['split', 'layered', 'switchOff', 'synth', 'unread']);
+  });
+});
+
+describe('rows in the program list', () => {
+  const stage4 = new Uint8Array(readFileSync(fileURLToPath(new URL('../ns4/__fixtures__/BreakFree_chords.ns4p', import.meta.url))));
+  it('builds a cloud entry like an unread slot, and a readable one once its file is here', () => {
+    const items = [{ fingerprint: 'x1', kind: 'program' as const, filename: 'Bank 1/Break Free.ns4p', slot: 'A:11' }];
+    const [bare] = cloudProgramEntries(items, new Map());
+    expect(bare).toEqual({ id: 'cloud:x1', name: 'Break Free', source: 'cloud', fingerprint: 'x1', slot: 'A:11', typeLabel: '.ns4p' });
+    const [read] = cloudProgramEntries(items, new Map([['x1', stage4]]));
+    expect(read.bytes).toBe(stage4);
+    expect(read.program?.name).toBe('Break Free');
+    expect(read.engines).toBeDefined();
+    expect(read.generation).toBe('Stage 4');
+  });
+  it('keeps a cloud entry whose file does not parse, without a program', () => {
+    const [bad] = cloudProgramEntries([{ fingerprint: 'x1', kind: 'program' as const, filename: 'Broken.ns4p' }], new Map([['x1', new Uint8Array(8)]]));
+    expect(bad).toMatchObject({ id: 'cloud:x1', name: 'Broken' });
+    expect(bad.program).toBeUndefined();
+  });
+  it('filters by "found on": a row on two sources passes either filter', () => {
+    const row = { id: 'folder:a', name: 'Pad', source: 'local' as const, sources: ['local' as const, 'cloud' as const] };
+    expect(filterEntries([row], 'cloud', '')).toHaveLength(1);
+    expect(filterEntries([row], 'local', '')).toHaveLength(1);
+    expect(filterEntries([row], 'nord', '')).toHaveLength(0);
+  });
+  it('floats a row to the top when any of its members, or its fingerprint, is a favourite', () => {
+    const a = { id: 'folder:a', name: 'A', source: 'local' as const };
+    const row = { id: 'folder:b', name: 'B', source: 'local' as const, fingerprint: 'x1', members: [{ id: 'folder:b', source: 'local' as const, name: 'B' }, { id: 'cloud:x1', source: 'cloud' as const, name: 'B' }] };
+    expect(sortEntries([a, row], 'default', new Set(['cloud:x1'])).map((e) => e.id)).toEqual(['folder:b', 'folder:a']);
+    expect(sortEntries([a, row], 'default', new Set(['x1'])).map((e) => e.id)).toEqual(['folder:b', 'folder:a']);
   });
 });

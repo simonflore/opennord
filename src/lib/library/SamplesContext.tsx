@@ -5,9 +5,14 @@ import { useImportedSamples } from '@/lib/library/useImportedSamples';
 import { useSamplesPrefs } from '@/lib/library/prefs';
 import {
   sampleEntriesFromScanned, nordSampleEntriesFromDevice, sampleEntriesFromBackupRefs,
-  filterSamples, sortSamples, presentSampleCategories,
+  filterSamples, sortSamples, presentSampleCategories, cloudSampleEntries, sampleFilename,
   type SampleEntry, type SampleGeneration,
 } from '@/lib/library/sample-entries';
+import { useCloudSnapshot } from '@/lib/library/CloudSnapshotContext';
+import { sameSizeOnly, useSoundRows } from '@/lib/library/useSoundRows';
+import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
+import { readNsmp } from '@/lib/ns4/nsmp';
+import { safeFilename } from '@/lib/ns4/bundle';
 import type { LibrarySource } from '@/lib/library/types';
 import { enumerateSampleLibrary, pullSample } from '@/lib/device/samples';
 import { findUnusedSamples, normalizeSampleName, type SampleUsage } from '@/lib/device/dependencies';
@@ -43,6 +48,7 @@ export function selectedBytes(entries: SampleEntry[], selected: Set<string>): nu
 
 const SAMPLE_EXT: Record<string, string> = { og: 'nsmp', '3': 'nsmp3', '4': 'nsmp4', npno: 'npno' };
 const extForGeneration = (g: string) => SAMPLE_EXT[g] ?? 'nsmp4';
+const SAMPLE_ROWS_HERE_ONLY = { fingerprint: sameSizeOnly<SampleEntry> };
 
 /** Merges device + folder samples into one filtered/sorted list and owns the
  *  Samples-screen view state. Mirrors useLibraryStateValue for programs. */
@@ -116,24 +122,33 @@ function useSamplesStateValue() {
     ...sampleEntriesFromBackupRefs(folder.result.backupSamples).map((e) => ({ ...e, factory: origins.get(e.id) })),
     ...imported.entries,
   ], [sampleEntries, unusedNames, folder.result.samples, folder.result.backupSamples, origins, imported.entries]);
-  const nordCount = allEntries.filter((e) => e.source === 'nord').length;
-  const localCount = allEntries.length - nordCount;
+  // One row per sample, as in the program list: `allEntries` stays what is here
+  // and on the Nord (what backup, the share picker and the Nord cleanup read);
+  // rows add the cloud. An entry whose bytes aren't here (on the Nord, inside a
+  // backup) is never fingerprinted, so it never merges: it only hints.
+  const cloud = useCloudSnapshot();
+  const cloudEntries = useMemo(() => cloudSampleEntries(cloud.items), [cloud.items]);
+  // No type for the hint: a device sample's listing says no generation, and every
+  // entry here is a sample. A sample can be tens of megabytes: with no cloud
+  // samples to match, only files of the same length are hashed.
+  const sampleRows = cloudEntries.length ? undefined : SAMPLE_ROWS_HERE_ONLY;
+  const { rows, byId, nordCount, localCount, showCloud, showSourceFacet } = useSoundRows(allEntries, cloudEntries, sampleRows);
   const storedCount = imported.entries.length;
   const storedBytes = imported.entries.reduce((n, e) => n + (e.size ?? 0), 0);
-  const showSourceFacet = nordCount > 0 && localCount > 0;
   const showUnknownGen = allEntries.some((e) => e.generation === 'unknown' && e.source === 'local');
   const unusedCount = usage ? usage.unused.length : null;
   // Categories present across the *unfiltered* list — drives whether the
   // category facet is worth showing (only when there's more than one).
-  const categoriesPresent = presentSampleCategories(allEntries);
+  const categoriesPresent = presentSampleCategories(rows);
 
   // The list follows the search a beat behind (an interruptible render), so the
   // field keeps up with typing in a big folder.
   const listQuery = useDeferredValue(query);
   const shown = useMemo(() => sortSamples(
-    filterSamples(allEntries, source, generation, listQuery, unusedOnly, category), prefs.sort, prefs.favorites),
-  [allEntries, source, generation, listQuery, unusedOnly, category, prefs.sort, prefs.favorites]);
-  const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
+    filterSamples(rows, source, generation, listQuery, unusedOnly, category), prefs.sort, prefs.favorites),
+  [rows, source, generation, listQuery, unusedOnly, category, prefs.sort, prefs.favorites]);
+  const entryById = useCallback((id: string) => byId.get(id), [byId]);
+  const fetchItem = useCapabilities().cloud.fetchItem;
 
   const isRemovable = (e: SampleEntry) => e.source === 'nord' && e.unused && e.device;
   const removableUnused = allEntries.filter(isRemovable);
@@ -219,11 +234,14 @@ function useSamplesStateValue() {
     let r = reads.current.get(key);
     if (!r) {
       const read: Read = { bytes: Promise.resolve(new Uint8Array()), progress: onProgress, users: 0 };
-      const raw = e.source === 'nord' && e.device && session
+      // A cloud-only sample is fetched each time it is opened and not kept: one can be tens of megabytes.
+      const fromCloud = e.source === 'cloud' && e.fingerprint && fetchItem ? fetchItem(e.fingerprint) : null;
+      const raw = fromCloud ?? (e.source === 'nord' && e.device && session
         ? pullSample(session, e.device, (done, total) => read.progress(total ? Math.round((done / total) * 100) : 0), () => read.users > 0)
-        : e.source === 'backup' && e.backupRef ? extractBackupEntry(folder, e.backupRef) : null;
+        : e.source === 'backup' && e.backupRef ? extractBackupEntry(folder, e.backupRef) : null);
       if (!raw) {
-        return Promise.reject(new Error(e.source === 'nord' ? 'connect your Nord to read it.' : 'its file isn’t available.'));
+        return Promise.reject(new Error(e.source === 'nord' ? 'connect your Nord to read it.'
+          : e.source === 'cloud' ? 'sign in to fetch it from the cloud.' : 'its file isn’t available.'));
       }
       read.bytes = raw.finally(() => { if (reads.current.get(key) === read) reads.current.delete(key); });
       reads.current.set(key, read);
@@ -236,7 +254,16 @@ function useSamplesStateValue() {
       signal.addEventListener('abort', () => { joined.users--; }, { once: true });
     }
     return r.bytes;
-  }, [session, folder, readKey]);
+  }, [session, folder, readKey, fetchItem]);
+
+  // A copy of a sample (fetched from the cloud, or pulled off the Nord) in
+  // OpenNord's own storage, named as Save names it.
+  const { add } = imported;
+  const keepCopy = useCallback((e: SampleEntry, bytes: Uint8Array) => {
+    const file = readNsmp(bytes);
+    const name = file.recognized ? sampleFilename(e.name, file.codec, file.legacy) : `${safeFilename(e.name)}.${extForGeneration(e.generation)}`;
+    return add(new File([bytes as BlobPart], name));
+  }, [add]);
 
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.
@@ -249,7 +276,7 @@ function useSamplesStateValue() {
     { active: unusedOnly, reset: () => setUnusedOnly(false) },
   ]);
   return {
-    all: allEntries, clearFilters, filtered, ensureListed, readSample, readKey,
+    all: allEntries, rows, total: rows.length, showCloud, keepCopy, clearFilters, filtered, ensureListed, readSample, readKey,
     shown, source, setSource, generation, setGeneration,
     category, setCategory, categoriesPresent, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, showUnknownGen, folder,
@@ -264,7 +291,7 @@ function useSamplesStateValue() {
 }
 
 type SamplesState = ReturnType<typeof useSamplesStateValue>;
-type SamplesData = Pick<SamplesState, 'all' | 'ensureListed'>;
+type SamplesData = Pick<SamplesState, 'all' | 'rows' | 'ensureListed'>;
 const Ctx = createContext<SamplesState | null>(null);
 const DataCtx = createContext<SamplesData | null>(null);
 
@@ -272,8 +299,8 @@ export function SamplesProvider({ children }: { children: ReactNode }) {
   const state = useSamplesStateValue();
   // What the always-mounted shell reads (the rail's count, the ⌘K palette):
   // its own context, so a search keystroke here doesn't re-render the shell.
-  const { all, ensureListed } = state;
-  const data = useMemo(() => ({ all, ensureListed }), [all, ensureListed]);
+  const { all, rows, ensureListed } = state;
+  const data = useMemo(() => ({ all, rows, ensureListed }), [all, rows, ensureListed]);
   return (
     <DataCtx.Provider value={data}>
       <Ctx.Provider value={state}>{children}</Ctx.Provider>

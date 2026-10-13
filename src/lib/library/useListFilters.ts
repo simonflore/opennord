@@ -15,13 +15,14 @@ export interface ListFilter {
  * filter the clear button misses, or a "no matches" that misreads as an empty
  * library). Both functions are stable across renders.
  */
-export function useListFilters(shown: { id: string }[], filters: ListFilter[]) {
+export function useListFilters(shown: { id: string; members?: { id: string }[] }[], filters: ListFilter[]) {
   const resets = useRef(filters.map((f) => f.reset)).current;
   const clearFilters = useCallback(() => { for (const reset of resets) reset(); }, [resets]);
   const shownRef = useRef(shown);
   useEffect(() => { shownRef.current = shown; });
   const ensureListed = useCallback((id: string) => {
-    if (!shownRef.current.some((e) => e.id === id)) clearFilters();
+    // A merged row is listed for every id it goes by.
+    if (!shownRef.current.some((e) => e.id === id || e.members?.some((m) => m.id === id))) clearFilters();
   }, [clearFilters]);
   return { filtered: filters.some((f) => f.active), clearFilters, ensureListed };
 }

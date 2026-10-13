@@ -30,9 +30,10 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
         query={s.query} setQuery={s.setQuery} clearFilters={s.clearFilters} filtered={s.filtered}
         showSourceFacet={s.showSourceFacet}
         sort={s.prefs.sort} setSort={s.prefs.setSort}
-        isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
+        isFavorite={s.prefs.isFavoriteRow} toggleFavorite={s.prefs.toggleFavoriteRow}
         onSelect={(e) => open.piano(e.id)}
-        activeId={selectedId}
+        // selectedId may name any entry of the open row.
+        activeId={entry?.id ?? selectedId}
         canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct} scanError={s.scanError}
         unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
         selected={s.selected} selectedEntries={s.selectedEntries} toggleSelected={s.toggleSelected}

@@ -3,15 +3,21 @@ import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { usePresetsPrefs } from '@/lib/library/prefs';
 import {
-  presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds,
+  presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, cloudPresetEntries, PRESET_EXT,
   type PresetEntry,
 } from '@/lib/library/preset-entries';
+import { useCloudSnapshot } from '@/lib/library/CloudSnapshotContext';
+import { useSoundRows } from '@/lib/library/useSoundRows';
+import { safeFilename } from '@/lib/ns4/bundle';
 import { useImportedPresets } from '@/lib/library/useImportedPresets';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
 import { enumeratePresets } from '@/lib/device/presets';
 import { modelById } from '@/lib/clavia/partitions';
 import { useListFilters } from '@/lib/library/useListFilters';
+
+// A device preset has its kind but no file tag; organ and synth presets of one name are not the same sound.
+const PRESET_ROWS = { typeOf: (e: PresetEntry) => e.kind };
 
 /** Merges device + folder presets into one filtered/sorted list and owns the
  *  Presets-screen view state. Mirrors useSamplesStateValue, recognition-only. */
@@ -42,19 +48,25 @@ function usePresetsStateValue() {
     ...presetEntriesFromScanned(folder.result.presets),
     ...imported.entries,
   ], [presetEntries, folder.result.presets, imported.entries]);
-  const nordCount = allEntries.filter((e) => e.source === 'nord').length;
-  const localCount = allEntries.length - nordCount;
-  const showSourceFacet = nordCount > 0 && localCount > 0;
-  const kinds = presentKinds(allEntries);
+  // One row per preset, as in the program list: `allEntries` stays what is here
+  // and on the Nord (what backup and the share picker read); rows add the cloud.
+  const cloud = useCloudSnapshot();
+  const cloudEntries = useMemo(() => cloudPresetEntries(cloud.items, cloud.files), [cloud.items, cloud.files]);
+  const { rows, byId, nordCount, localCount, showCloud, showSourceFacet } = useSoundRows(allEntries, cloudEntries, PRESET_ROWS);
+  const kinds = presentKinds(rows);
 
   // The list follows the search a beat behind (an interruptible render), so the
   // field keeps up with typing in a big folder.
   const listQuery = useDeferredValue(query);
   const shown = useMemo(
-    () => sortPresets(filterPresets(allEntries, source, kind, listQuery), prefs.sort, prefs.favorites),
-    [allEntries, source, kind, listQuery, prefs.sort, prefs.favorites],
+    () => sortPresets(filterPresets(rows, source, kind, listQuery), prefs.sort, prefs.favorites),
+    [rows, source, kind, listQuery, prefs.sort, prefs.favorites],
   );
-  const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
+  const entryById = useCallback((id: string) => byId.get(id), [byId]);
+  // A copy of a cloud preset in OpenNord's own storage.
+  const { add } = imported;
+  const keepCopy = useCallback((e: PresetEntry, bytes: Uint8Array) =>
+    add(new File([bytes as BlobPart], `${safeFilename(e.name)}.${PRESET_EXT[e.kind]}`)), [add]);
 
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.
@@ -65,15 +77,15 @@ function usePresetsStateValue() {
     { active: kind !== 'all', reset: () => setKind('all') },
   ]);
   return {
-    all: allEntries, clearFilters, filtered, ensureListed,
+    all: allEntries, rows, clearFilters, filtered, ensureListed,
     shown, source, setSource, kind, setKind, query, setQuery,
-    prefs, entryById, nordCount, localCount, showSourceFacet, kinds, folder, session,
-    importPreset: imported.add, removePreset: imported.remove,
+    prefs, entryById, nordCount, localCount, showSourceFacet, showCloud, kinds, folder, session,
+    importPreset: imported.add, removePreset: imported.remove, cloud, keepCopy,
   };
 }
 
 type PresetsState = ReturnType<typeof usePresetsStateValue>;
-type PresetsData = Pick<PresetsState, 'all' | 'ensureListed'>;
+type PresetsData = Pick<PresetsState, 'all' | 'rows' | 'ensureListed'>;
 const Ctx = createContext<PresetsState | null>(null);
 const DataCtx = createContext<PresetsData | null>(null);
 
@@ -81,8 +93,8 @@ export function PresetsProvider({ children }: { children: ReactNode }) {
   const state = usePresetsStateValue();
   // What the always-mounted shell reads (the rail's count, the ⌘K palette):
   // its own context, so a search keystroke here doesn't re-render the shell.
-  const { all, ensureListed } = state;
-  const data = useMemo(() => ({ all, ensureListed }), [all, ensureListed]);
+  const { all, rows, ensureListed } = state;
+  const data = useMemo(() => ({ all, rows, ensureListed }), [all, rows, ensureListed]);
   return (
     <DataCtx.Provider value={data}>
       <Ctx.Provider value={state}>{children}</Ctx.Provider>

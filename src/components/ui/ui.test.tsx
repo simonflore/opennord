@@ -5,6 +5,7 @@ import { Card } from './Card';
 import { Tag } from './Tag';
 import { FilterChip } from './FilterChip';
 import { SourceBadge } from './SourceBadge';
+import { SourceBadges } from './SourceBadges';
 import { SearchField } from './SearchField';
 import { SectionLabel } from './SectionLabel';
 import { Blueprint } from './Blueprint';
@@ -133,5 +134,20 @@ describe('Blueprint', () => {
   it('drops back on dense tool surfaces via the quiet variant', () => {
     const html = renderToStaticMarkup(<Blueprint variant="quiet" />);
     expect(html).toContain('opacity-40');
+  });
+});
+
+describe('SourceBadges', () => {
+  it('shows one badge per source the sound is found on', () => {
+    const html = renderToStaticMarkup(<SourceBadges entry={{ source: 'local', sources: ['nord', 'local', 'cloud'] }} />);
+    expect(html).toContain('On Nord'); expect(html).toContain('Local'); expect(html).toContain('Cloud');
+  });
+  it('shows a plain entry’s own source', () => {
+    expect(renderToStaticMarkup(<SourceBadges entry={{ source: 'backup' }} />)).toContain('Backup');
+  });
+  it('shows the Nord hint as a hint, not as an On Nord badge', () => {
+    const html = renderToStaticMarkup(<SourceBadges entry={{ source: 'local', sameNameOnNord: 'A:26' }} />);
+    expect(html).toContain('same name on Nord · A:26');
+    expect(html).not.toContain('>On Nord<');
   });
 });

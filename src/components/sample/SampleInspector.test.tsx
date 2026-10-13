@@ -71,7 +71,7 @@ describe('SampleEditPanel', () => {
 
 describe('sampleFilename', () => {
   it('keeps the sample’s own kind of file', async () => {
-    const { sampleFilename } = await import('./SampleInspector');
+    const { sampleFilename } = await import('@/lib/library/sample-entries');
     expect(sampleFilename('Strings', 4, false)).toBe('Strings.nsmp4');
     expect(sampleFilename('Pad', 3, false)).toBe('Pad.nsmp3');
     expect(sampleFilename('Old Pad', undefined, true)).toMatch(/\.nsmp$/);

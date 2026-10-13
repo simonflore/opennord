@@ -110,7 +110,7 @@ describe('PresetsBrowse', () => {
         {...baseProps}
         entries={[entry]}
         kinds={['organ-preset']}
-        isFavorite={(id) => id === '1'}
+        isFavorite={(e) => e.id === '1'}
       />,
     );
     expect(html).toContain('★');
@@ -140,5 +140,23 @@ describe('PresetsBrowse', () => {
     );
     expect(html).toContain('Nothing here yet.');
     expect(html).not.toContain('No presets match your filter.');
+  });
+
+  it('shows every source a preset is found on, and the Cloud filter when one is', () => {
+    const entry: PresetEntry = { id: 'folder:Lead.ns4y', name: 'Lead', kind: 'synth-preset', source: 'local', sources: ['local', 'cloud'] };
+    const html = renderToStaticMarkup(
+      <PresetsBrowse {...baseProps} entries={[entry]} kinds={['synth-preset']} showSourceFacet showCloud />,
+    );
+    expect(html).toContain('Local');
+    expect(html).toContain('>Cloud<');
+    expect(html).toContain('aria-label="Filter by source"');
+    const without = renderToStaticMarkup(<PresetsBrowse {...baseProps} entries={[]} kinds={['synth-preset']} showSourceFacet />);
+    expect(without).not.toContain('Cloud');
+  });
+
+  it('hints a preset whose name an unread preset on the Nord has', () => {
+    const entry: PresetEntry = { id: 'folder:Lead.ns4y', name: 'Lead', kind: 'synth-preset', source: 'local', sameNameOnNord: 'A:1' };
+    const html = renderToStaticMarkup(<PresetsBrowse {...baseProps} entries={[entry]} kinds={['synth-preset']} />);
+    expect(html).toContain('same name on Nord · A:1');
   });
 });

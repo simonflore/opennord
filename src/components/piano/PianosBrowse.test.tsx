@@ -160,4 +160,10 @@ describe('PianosBrowse', () => {
     expect(html).toContain('Unused only');
     expect(html).toContain('3');
   });
+
+  it('shows the Nord hint on a piano whose name a piano on the Nord has, beside its own source', () => {
+    const html = renderToStaticMarkup(<PianosBrowse {...base} {...reclaimBase} entries={[e({ id: 'folder:Mine.npno', name: 'Mine', sameNameOnNord: 'A:11' })]} />);
+    expect(html).toContain('same name on Nord · A:11');
+    expect(html).toContain('Local');
+  });
 });

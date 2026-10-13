@@ -5,9 +5,11 @@ import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedLibrary } from '@/lib/library/useImportedLibrary';
 import { useLibraryPrefs } from '@/lib/library/prefs';
-import { nordEntriesFromDevice, entriesFromScannedPrograms, filterEntries, sortEntries, presentCategories } from '@/lib/library/entries';
+import { nordEntriesFromDevice, entriesFromScannedPrograms, filterEntries, sortEntries, presentCategories, cloudProgramEntries } from '@/lib/library/entries';
 import type { LibraryEntry, LibrarySource } from '@/lib/library/types';
 import { useNordReads } from '@/lib/library/useNordReads';
+import { useCloudSnapshot } from '@/lib/library/CloudSnapshotContext';
+import { useSoundRows } from '@/lib/library/useSoundRows';
 
 /** Extensions the Programs importer accepts — programs/performances only.
  *  Presets (.ns4o/.ns4n/.ns4y) go to the Presets page and samples (.nsmp*) to
@@ -15,6 +17,8 @@ import { useNordReads } from '@/lib/library/useNordReads';
 const PROGRAM_IMPORT_EXTS = ['.ns4p', '.ns3p', '.ns3f', '.ns2p'];
 const PRESET_EXTS = ['.ns4o', '.ns4n', '.ns4y', '.ns3y', '.ns2s'];
 const SAMPLE_EXTS = ['.nsmp', '.nsmp3', '.nsmp4'];
+// A program hints a same-name Nord slot only when it is the same type of file.
+const PROGRAM_ROWS = { typeOf: (e: LibraryEntry) => e.typeLabel?.slice(1) };
 
 /** Merges the three program sources (device, folder, imports) into one list and
  *  owns the library-screen view state. Lifted out of the old Shell so both the
@@ -52,23 +56,27 @@ function useLibraryStateValue() {
     () => [...nordEntries, ...folderEntries, ...imported.entries],
     [nordEntries, folderEntries, imported.entries],
   );
+  // One row per sound. `allEntries` stays the files here and on the Nord (what
+  // backup and the share picker read); rows add the cloud and merge what is the same.
+  const cloud = useCloudSnapshot();
+  const cloudEntries = useMemo(() => cloudProgramEntries(cloud.items, cloud.files), [cloud.items, cloud.files]);
+  const { rows, byId } = useSoundRows(allEntries, cloudEntries, PROGRAM_ROWS);
   // Generations present across the *unfiltered* list — drives whether the format
   // facet is worth showing (only when there's more than one). Stage 4 → 2 order.
   const generationsPresent = useMemo(() => (['Stage 4', 'Stage 3', 'Stage 2'] as const)
-    .filter((g) => allEntries.some((e) => e.generation === g)), [allEntries]);
+    .filter((g) => rows.some((e) => e.generation === g)), [rows]);
   // Categories present across the *unfiltered* list — drives whether the
   // category facet is worth showing (only when there's more than one).
-  const categoriesPresent = useMemo(() => presentCategories(allEntries), [allEntries]);
+  const categoriesPresent = useMemo(() => presentCategories(rows), [rows]);
   // The list follows the search a beat behind (an interruptible render), so the
   // field keeps up with typing in a library of thousands.
   const listQuery = useDeferredValue(query);
   // Memoised: the Split key reads each program's zones, which other renders
   // (an open program, a device poll) shouldn't redo.
   const shown = useMemo(() => sortEntries(
-    filterEntries(allEntries, source, listQuery, generation, category, { engines, split: splitOnly }),
+    filterEntries(rows, source, listQuery, generation, category, { engines, split: splitOnly }),
     prefs.sort, prefs.favorites,
-  ), [allEntries, source, listQuery, generation, category, engines, splitOnly, prefs.sort, prefs.favorites]);
-  const byId = useMemo(() => new Map(allEntries.map((e) => [e.id, e])), [allEntries]);
+  ), [rows, source, listQuery, generation, category, engines, splitOnly, prefs.sort, prefs.favorites]);
   const entryById = useCallback((id: string) => byId.get(id), [byId]);
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.
@@ -118,8 +126,8 @@ function useLibraryStateValue() {
   // palette's programs): none of it changes as the search is typed, so it is
   // its own context and those consumers skip every keystroke.
   const data = useMemo(
-    () => ({ all: allEntries, entryById, ensureListed, clearFilters, source, setSource }),
-    [allEntries, entryById, ensureListed, clearFilters, source],
+    () => ({ all: allEntries, rows, entryById, ensureListed, clearFilters, source, setSource }),
+    [allEntries, rows, entryById, ensureListed, clearFilters, source],
   );
   const clearImportError = useCallback(() => setImportError(''), []);
   const state = {
@@ -127,7 +135,7 @@ function useLibraryStateValue() {
     shown, generation, setGeneration, generationsPresent,
     category, setCategory, categoriesPresent, query, setQuery,
     engines, toggleEngine, splitOnly, setSplitOnly,
-    importFile, importError, clearImportError, imported, prefs, folder, nord,
+    importFile, importError, clearImportError, imported, prefs, folder, nord, cloud,
   };
   return { data, state };
 }

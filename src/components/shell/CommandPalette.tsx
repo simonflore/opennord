@@ -5,6 +5,7 @@ import { cn } from '@/lib/cn';
 import { READY_CATEGORIES } from '../../lib/library/categories';
 import { SOURCE_LABEL, type LibrarySource } from '../../lib/library/types';
 import { useLibraryData } from '../../lib/library/LibraryContext';
+import { foundOn, nordSlotOf } from '../../lib/library/found-on';
 import { usePresetsData } from '../../lib/library/PresetsContext';
 import { useSamplesData } from '../../lib/library/SamplesContext';
 import { usePianosData } from '../../lib/library/PianosContext';
@@ -13,26 +14,27 @@ import { rankCommands, type Command } from './commands';
 import { ABOUT, COMMUNITY_SUB, COMMUNITY_TO, DEV_DESTS, useTools } from './nav';
 import { groupLabel, rowActive } from './styles';
 
-// The hint shows the slot, or where the entry lives; only the slot is searched
-// (searching "Local" would match every local entry).
-const hint = (e: { slot?: string; source: LibrarySource }) => e.slot ?? SOURCE_LABEL[e.source];
+// The hint shows the slot, or everywhere the entry is found; only the slot is
+// searched (searching "Local" would match every local entry).
+const hint = (e: { slot?: string; source: LibrarySource; sources?: LibrarySource[] }) =>
+  e.slot ?? foundOn(e).map((s) => SOURCE_LABEL[s]).join(' · ');
 
 /** Everything the palette can jump to: the pages, then every program, preset, sample and piano. */
 function useCommands(): Command[] {
   const navigate = useNavigate();
   const tools = useTools();
   const open = useOpenEntry();
-  const { all: programs, ensureListed } = useLibraryData();
+  const { rows: programs, ensureListed } = useLibraryData();
   const presets = usePresetsData();
   const samples = useSamplesData();
   const pianos = usePianosData();
   // Only the (memoised) lists and their stable callbacks go into the memo, so a
   // provider update that doesn't touch the lists keeps the same commands.
   const lists = useMemo(() => [
-    { group: 'Presets' as const, all: presets.all, ensureListed: presets.ensureListed, open: open.preset },
-    { group: 'Samples' as const, all: samples.all, ensureListed: samples.ensureListed, open: open.sample },
-    { group: 'Pianos' as const, all: pianos.all, ensureListed: pianos.ensureListed, open: open.piano },
-  ], [open, presets.all, presets.ensureListed, samples.all, samples.ensureListed, pianos.all, pianos.ensureListed]);
+    { group: 'Presets' as const, all: presets.rows, ensureListed: presets.ensureListed, open: open.preset },
+    { group: 'Samples' as const, all: samples.rows, ensureListed: samples.ensureListed, open: open.sample },
+    { group: 'Pianos' as const, all: pianos.rows, ensureListed: pianos.ensureListed, open: open.piano },
+  ], [open, presets.rows, presets.ensureListed, samples.rows, samples.ensureListed, pianos.rows, pianos.ensureListed]);
 
   return useMemo(() => {
     const pages: Command[] = [
@@ -44,10 +46,14 @@ function useCommands(): Command[] {
       ABOUT,
     ].map((d) => ({ id: `page:${d.to}`, group: 'Pages', label: d.label, run: () => navigate({ to: d.to }) }));
 
-    const programCommands = programs.map((e): Command => ({
-      id: `program:${e.id}`, group: 'Programs', label: e.name, hint: hint(e), keywords: e.slot,
-      run: () => { ensureListed(e.id); open.program(e); },
-    }));
+    // A program on the Nord is found by its slot there, whichever entry its row is shown as.
+    const programCommands = programs.map((e): Command => {
+      const slot = nordSlotOf(e) ?? e.slot;
+      return {
+        id: `program:${e.id}`, group: 'Programs', label: e.name, hint: hint({ ...e, slot }), keywords: slot,
+        run: () => { ensureListed(e.id); open.program(e); },
+      };
+    });
 
     // Every entry opens on its own route, with its list showing its row.
     const entries = lists.flatMap(({ group, all, ensureListed: listed, open }) => all.map((e): Command => ({

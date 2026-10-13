@@ -14,7 +14,7 @@ import { StrokeList } from './StrokeList';
 import { DetailColumns } from '../library/DetailColumns';
 import { ItemActions } from '../library/ItemActions';
 import { downloadBytes } from '../../lib/download';
-import { safeFilename } from '../../lib/ns4/bundle';
+import { sampleFilename } from '../../lib/library/sample-entries';
 import { SampleEditPanel } from './SampleEditPanel';
 import { SampleKeyboard } from './SampleKeyboard';
 import { SampleConvert } from './SampleConvert';
@@ -33,10 +33,12 @@ type Loaded = LoadedSample & {
 /** What the inspector shows; `id` is the list entry it came from (none for a previewed file). */
 export interface InspectorInput { id?: string; bytes: Uint8Array; name: string; }
 
-export function SampleInspector({ initial, factory, onShare }: {
+export function SampleInspector({ initial, factory, onShare, onKeepCopy }: {
   initial?: InspectorInput;
   /** Open the share form on this one; absent where it can't be shared. */
   onShare?: () => void;
+  /** Keep a copy in OpenNord's own storage; given for a sample with no copy on this computer. */
+  onKeepCopy?: () => void;
   /** Whether `initial` is Nord factory content (never a file dropped or picked here). */
   factory?: boolean;
 } = {}) {
@@ -134,7 +136,10 @@ export function SampleInspector({ initial, factory, onShare }: {
         <div className="ps">
           <SampleHeader view={fullHeaderView(shown)} />
           {/* The sample as it is; edits are saved from the editor ("Save edited copy"). */}
-          <div className="mt-2"><ItemActions save={{ onSave: () => downloadBytes(shown.bytes, sampleFilename(shown.name, shown.file.codec, shown.file.legacy)) }} more={onShare ? [{ label: 'Share to community', onSelect: onShare }] : []} /></div>
+          <div className="mt-2"><ItemActions save={{ onSave: () => downloadBytes(shown.bytes, sampleFilename(shown.name, shown.file.codec, shown.file.legacy)) }} more={[
+            ...(onShare ? [{ label: 'Share to community', onSelect: onShare }] : []),
+            ...(onKeepCopy ? [{ label: 'Keep a copy', onSelect: onKeepCopy }] : []),
+          ]} /></div>
 
           <DetailColumns
             /* Keyboard-map editor leads once we've decoded the key map; edits patch
@@ -221,10 +226,4 @@ export function SampleInspector({ initial, factory, onShare }: {
       )}
     </div>
   );
-}
-
-/** The file name a sample is saved under: its name and its own kind of file (.nsmp / .nsmp3 / .nsmp4). */
-export function sampleFilename(name: string, codec: number | undefined, legacy: boolean | undefined): string {
-  const ext = legacy || !codec || codec < 3 ? 'nsmp' : `nsmp${codec}`;
-  return `${safeFilename(name)}.${ext}`;
 }

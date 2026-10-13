@@ -9,9 +9,11 @@ import { PARTITION_PIANO } from '../device/opcodes';
 import { matchesQuery, sortWithFavorites } from './browse';
 import type { BackupRef } from '../clavia/backup/backup-index';
 import { backupPianoId, backupPianoName } from './backup-piano';
+import { foundOn, type FoundOn } from './found-on';
 
-/** One row in the Pianos browser — a folder piano-library file or a device-listed one. */
-export interface PianoEntry {
+/** One piano in the Pianos browser — a folder piano-library file, a backup's or a device-listed one.
+ *  A row of the list is one of these carrying what it was merged from (`FoundOn`). */
+export interface PianoEntry extends FoundOn {
   id: string;            // "folder:<path>" | "nord-piano:<slot>" | "backup:<bundlePath>!<entryPath>"
   name: string;
   source: LibrarySource;
@@ -88,7 +90,7 @@ export function pianoEntriesFromDevice(entries: ProgramEntry[]): PianoEntry[] {
 
 /** Filter by source + case-insensitive name query. */
 export function filterPianos(entries: PianoEntry[], source: LibrarySource | 'all', query: string): PianoEntry[] {
-  return entries.filter((e) => (source === 'all' || e.source === source) && matchesQuery(e.name, query));
+  return entries.filter((e) => (source === 'all' || foundOn(e).includes(source)) && matchesQuery(e.name, query));
 }
 
 /** Order pianos: favorites first, then the chosen sort. Pure, non-mutating. */

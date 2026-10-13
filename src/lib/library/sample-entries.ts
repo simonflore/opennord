@@ -7,6 +7,10 @@ import { formatSlot } from '../clavia/slot';
 import { sampleCategoryLabel, SAMPLE_CATEGORY_LABELS } from '../clavia/sample-categories';
 import { matchesAny, sortWithFavorites } from './browse';
 import type { BackupRef } from '../clavia/backup/backup-index';
+import { foundOn, type FoundOn } from './found-on';
+import { cloudEntryBase, cloudItemsOf } from './cloud-entries';
+import type { CloudItem } from '../capabilities/types';
+import { safeFilename } from '../ns4/bundle';
 
 /** Full category labels (main + sub) in canonical order — for the facet. */
 const SAMPLE_CATEGORY_ORDER = SAMPLE_CATEGORY_LABELS;
@@ -20,9 +24,10 @@ function categoryFor(bytes: Uint8Array): string | undefined {
 /** Sample codec generation, in musician-facing buckets. `npno` = piano library. */
 export type SampleGeneration = 'og' | '3' | '4' | 'npno' | 'unknown';
 
-/** One row in the Samples browser — a folder sample or a device-listed sample. */
-export interface SampleEntry {
-  id: string;                 // "folder:<path>" | "nord-sample:<slot>" | "backup:<bundlePath>!<entryPath>"
+/** One sample in the Samples browser — a folder, device-listed, backup or cloud sample.
+ *  A row of the list is one of these carrying what it was merged from (`FoundOn`). */
+export interface SampleEntry extends FoundOn {
+  id: string;                 // "folder:<path>" | "nord-sample:<slot>" | "backup:<bundlePath>!<entryPath>" | "cloud:<fingerprint>"
   name: string;
   source: LibrarySource;
   generation: SampleGeneration;
@@ -133,7 +138,7 @@ export function filterSamples(
   category: string | 'all' = 'all',
 ): SampleEntry[] {
   return entries.filter((e) =>
-    (source === 'all' || e.source === source) &&
+    (source === 'all' || foundOn(e).includes(source)) &&
     (generation === 'all' || e.generation === generation) &&
     (category === 'all' || e.category === category) &&
     (!unusedOnly || e.unused === true) &&
@@ -159,4 +164,19 @@ export function sortSamples(
     return 0; // default → input order (nord, then folder)
   };
   return sortWithFavorites(entries, favorites, byKey);
+}
+
+/** Cloud samples as entries: a name and the generation its extension says. Nothing
+ *  else (strokes, category, size) can be known without the file, which is fetched
+ *  each time the sample is opened. */
+export function cloudSampleEntries(items: CloudItem[]): SampleEntry[] {
+  return cloudItemsOf(items, 'sample').map((item) => ({
+    ...cloudEntryBase(item), generation: generationFromExtension(item.filename),
+  }));
+}
+
+/** The file name a sample is saved or kept under: its name and its codec's extension. */
+export function sampleFilename(name: string, codec: number | undefined, legacy: boolean | undefined): string {
+  const ext = legacy || !codec || codec < 3 ? 'nsmp' : `nsmp${codec}`;
+  return `${safeFilename(name)}.${ext}`;
 }

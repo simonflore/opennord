@@ -12,6 +12,7 @@ const entries: SampleEntry[] = [
 
 const prefs = (over: Partial<SamplesPrefsApi> = {}): SamplesPrefsApi => ({
   sort: 'default', setSort: () => {}, favorites: new Set<string>(), isFavorite: () => false, toggleFavorite: () => {},
+  isFavoriteRow: () => false, toggleFavoriteRow: () => {},
   ...over,
 });
 
@@ -144,5 +145,25 @@ describe('SamplesBrowse', () => {
     );
     expect(html).toContain('Remove My Loop');        // imported → removable
     expect(html).not.toContain('Remove Bell');       // folder sample → not
+  });
+
+  it('shows every source a sample is found on, the Nord hint, and the Cloud filter when a sample is there', () => {
+    const rows: SampleEntry[] = [
+      { id: 'folder:Bell.nsmp4', name: 'Bell', source: 'local', generation: '4', sources: ['local', 'cloud'], sameNameOnNord: 'A:02' },
+      { id: 'cloud:s2', name: 'Choir', source: 'cloud', generation: '4' },
+    ];
+    const html = renderToStaticMarkup(
+      <SamplesBrowse
+        entries={rows} source="all" generation="all" query=""
+        nordCount={0} localCount={1} total={2} showSourceFacet showCloud showUnknownGen={false}
+        storedCount={0} storedBytes={0}
+        prefs={prefs()} {...handlers} {...reclaimHandlers}
+      />,
+    );
+    expect(html).toContain('2 samples');
+    expect(html).toContain('Local');
+    expect(html).toContain('>Cloud<');
+    expect(html).toContain('same name on Nord · A:02');
+    expect(html).toContain('in the cloud');
   });
 });

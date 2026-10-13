@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { LibrarySort } from './types';
+import { favoriteKeysFor, isFavoriteRow, type Mergeable } from './found-on';
 
 export type SampleSort = 'default' | 'name' | 'name-desc' | 'size' | 'size-asc' | 'strokes';
 
@@ -45,6 +46,9 @@ export interface PrefsApi<S extends string> {
   favorites: ReadonlySet<string>;
   isFavorite: (id: string) => boolean;
   toggleFavorite: (id: string) => void;
+  /** Whether a row is a favourite: through its id, any member's id, or its fingerprint. */
+  isFavoriteRow: (row: Mergeable) => boolean;
+  toggleFavoriteRow: (row: Mergeable) => void;
 }
 
 /** Reactive, persisted prefs for one browse screen. */
@@ -60,7 +64,16 @@ function usePrefs<S extends string>(key: string, parseSort: (raw: unknown) => S)
   })), []);
 
   const isFavorite = useCallback((id: string) => favorites.has(id), [favorites]);
-  return { sort: prefs.sort, setSort, favorites, isFavorite, toggleFavorite };
+  const isFavoriteRowCb = useCallback((row: Mergeable) => isFavoriteRow(favorites, row), [favorites]);
+  // A row is marked by its fingerprint and every entry's id, so it stays marked
+  // whichever entry it is shown as and whether or not its bytes are here; unmarking
+  // clears every key it could have been marked by, old per-entry favourites included.
+  const toggleFavoriteRow = useCallback((row: Mergeable) => setPrefs((p) => {
+    const keys = favoriteKeysFor(row);
+    const on = keys.some((k) => p.favorites.includes(k));
+    return { ...p, favorites: on ? p.favorites.filter((k) => !keys.includes(k)) : [...p.favorites, ...keys.filter((k) => !p.favorites.includes(k))] };
+  }), []);
+  return { sort: prefs.sort, setSort, favorites, isFavorite, toggleFavorite, isFavoriteRow: isFavoriteRowCb, toggleFavoriteRow };
 }
 
 const parseLibrarySort = (raw: unknown): LibrarySort =>

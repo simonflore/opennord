@@ -24,6 +24,7 @@ const noop = () => {};
 
 const samplePrefs = (): SamplesPrefsApi => ({
   sort: 'default', setSort: noop, favorites: new Set<string>(), isFavorite: () => false, toggleFavorite: noop,
+  isFavoriteRow: () => false, toggleFavoriteRow: noop,
 });
 
 const sampleHandlers = {

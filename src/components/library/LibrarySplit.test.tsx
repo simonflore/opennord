@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 const navigate = vi.fn();
 let wide = true;
 const stage4 = new Uint8Array(readFileSync('src/lib/ns4/__fixtures__/BreakFree_chords.ns4p'));
-const entry = { id: 'p1', name: 'Grand', bytes: stage4, program: { name: 'Grand', bytes: stage4 } };
+const entry = { id: 'p1', name: 'Grand', source: 'local', bytes: stage4, program: { name: 'Grand', bytes: stage4 } };
 
 vi.mock('@/lib/responsive', () => ({ useSplitLayout: () => wide }));
 vi.mock('@tanstack/react-router', () => ({
@@ -20,13 +20,19 @@ const slot = { id: 'nord:A:11', name: 'Wurli', source: 'nord', slot: 'A:11' };
 let nord: { reading: string | null; failed: { id: string; message: string } | null; read: ReturnType<typeof vi.fn> };
 const resetNord = () => { nord = { reading: null, failed: null, read: vi.fn() }; };
 resetNord();
+// Rows a test lists, by any id they answer to; the cloud source and the imports as a test sets them.
+const entries = new Map<string, object>();
+let cloud: { status: string; read: ReturnType<typeof vi.fn>; refresh: ReturnType<typeof vi.fn>; reading: Set<string>; failed: Map<string, string> };
+const resetCloud = () => { cloud = { status: 'ready', read: vi.fn(), refresh: vi.fn(), reading: new Set(), failed: new Map() }; };
+resetCloud();
+const importedAdd = vi.fn(async (_file: File) => {});
 vi.mock('@/lib/library/LibraryContext', () => ({
   useLibraryState: () => ({
     shown: [], source: 'all', query: '',
     setSource: vi.fn(), setQuery: vi.fn(), importFile: vi.fn(),
-    imported: { remove: vi.fn() }, prefs: {}, folder: null,
-    entryById: (id: string) => (id === 'p1' ? entry : id === slot.id ? slot : undefined),
-    nord,
+    imported: { remove: vi.fn(), add: importedAdd }, prefs: {}, folder: null,
+    entryById: (id: string) => entries.get(id) ?? (id === 'p1' ? entry : id === slot.id ? slot : undefined),
+    nord, cloud,
   }),
 }));
 vi.mock('./LibraryView', () => ({ LibraryView: () => <div>LIST</div> }));
@@ -40,7 +46,7 @@ vi.mock('@/components/program/ProgramView', () => ({ ProgramView: () => <div>DET
 import { LibrarySplit } from './LibrarySplit';
 import { CapabilitiesProvider } from '@/lib/capabilities/CapabilitiesContext';
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); wide = true; session = null; resetNord(); });
+afterEach(() => { cleanup(); vi.clearAllMocks(); wide = true; session = null; resetNord(); resetCloud(); entries.clear(); });
 
 describe('LibrarySplit', () => {
   it('wide: shows list and detail side by side', () => {
@@ -181,6 +187,77 @@ describe('LibrarySplit', () => {
       nord.reading = 'nord:A:12';
       render(<LibrarySplit selectedId="nord:A:11" />);
       expect(nord.read).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a row from the cloud', () => {
+    const cloudOnly = { id: 'cloud:x2', name: 'Lead', source: 'cloud', fingerprint: 'x2', sources: ['cloud'], members: [{ id: 'cloud:x2', source: 'cloud', name: 'Lead' }] };
+    it('is fetched when it opens, once, and says so meanwhile', () => {
+      entries.set('cloud:x2', cloudOnly);
+      const { rerender } = render(<LibrarySplit selectedId="cloud:x2" />);
+      expect(cloud.read).toHaveBeenCalledWith('x2');
+      expect(screen.getByText(/fetching “Lead” from the cloud/i)).toBeInTheDocument();
+      cloud.reading = new Set(['x2']);
+      rerender(<LibrarySplit selectedId="cloud:x2" />);
+      expect(cloud.read).toHaveBeenCalledTimes(1);
+    });
+    it('says why a fetch failed and fetches again only on Try again', () => {
+      entries.set('cloud:x2', cloudOnly);
+      cloud.failed = new Map([['x2', 'timeout']]);
+      render(<LibrarySplit selectedId="cloud:x2" />);
+      expect(cloud.read).not.toHaveBeenCalled();
+      expect(screen.getByText(/timeout/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(cloud.read).toHaveBeenCalledWith('x2');
+    });
+    it('says so when the fetched file is one OpenNord can’t read', () => {
+      entries.set('cloud:x2', { ...cloudOnly, bytes: new Uint8Array(8) });
+      render(<LibrarySplit selectedId="cloud:x2" />);
+      expect(cloud.read).not.toHaveBeenCalled();
+      expect(screen.getByText(/can’t read “Lead”/i)).toBeInTheDocument();
+    });
+    it('offers Keep a copy for a fetched cloud-only row, which imports it under its name and type', async () => {
+      entries.set('cloud:x2', { ...cloudOnly, bytes: stage4, program: { name: 'Lead', bytes: stage4 }, typeLabel: '.ns4p' });
+      render(<LibrarySplit selectedId="cloud:x2" />);
+      fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), { key: 'Enter' });
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Keep a copy' }));
+      await waitFor(() => expect(importedAdd).toHaveBeenCalledTimes(1));
+      const file: File = importedAdd.mock.calls[0][0];
+      expect(file.name).toBe('Lead.ns4p');
+      expect(new Uint8Array(await file.arrayBuffer())).toEqual(stage4);
+    });
+  });
+
+  describe('a merged row', () => {
+    const merged = {
+      id: 'local:3', name: 'Pad', source: 'local', bytes: stage4, program: { name: 'Pad', bytes: stage4 }, fingerprint: 'x1',
+      sources: ['local', 'cloud'], members: [{ id: 'local:3', source: 'local', name: 'Pad' }, { id: 'cloud:x1', source: 'cloud', name: 'Pad v2' }],
+    };
+    it('opens through any member id', () => {
+      entries.set('cloud:x1', merged);
+      render(<LibrarySplit selectedId="cloud:x1" />);
+      expect(screen.getByText('DETAIL')).toBeInTheDocument();
+    });
+    it('lists the other names it goes by', () => {
+      entries.set('local:3', merged);
+      render(<LibrarySplit selectedId="local:3" />);
+      expect(screen.getByText(/also: “Pad v2” in the cloud/i)).toBeInTheDocument();
+    });
+    it('removes the imported copy by its own id, shares the local copy, and offers no Keep a copy', () => {
+      entries.set('cloud:x1', merged);
+      render(<CapabilitiesProvider value={{ community: { available: true } }}><LibrarySplit selectedId="cloud:x1" /></CapabilitiesProvider>);
+      fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), { key: 'Enter' });
+      expect(screen.queryByRole('menuitem', { name: 'Keep a copy' })).not.toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Remove from library' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Share to community' }));
+      expect(navigate).toHaveBeenCalledWith({ to: '/community/share', search: { item: 'local:3' } });
+    });
+    it('offers no Share for a row with no copy on this computer', () => {
+      entries.set('nord:A:11', { id: 'nord:A:11', name: 'Wurli', source: 'nord', bytes: stage4, program: { name: 'Wurli', bytes: stage4 }, sources: ['nord', 'cloud'], members: [{ id: 'nord:A:11', source: 'nord', name: 'Wurli' }, { id: 'cloud:x5', source: 'cloud', name: 'Wurli' }] });
+      render(<CapabilitiesProvider value={{ community: { available: true } }}><LibrarySplit selectedId="nord:A:11" /></CapabilitiesProvider>);
+      fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), { key: 'Enter' });
+      expect(screen.queryByRole('menuitem', { name: 'Share to community' })).not.toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Keep a copy' })).toBeInTheDocument();
     });
   });
 });

@@ -22,11 +22,16 @@ import { pickCopyFolder } from '@/lib/library/keep-copies';
 import { removeUnused } from '@/lib/library/remove-unused';
 import { getErrorMessage } from '@/lib/errors';
 import { useListFilters } from '@/lib/library/useListFilters';
+import { sameSizeOnly, useSoundRows } from '@/lib/library/useSoundRows';
 
 // pure helper, exported for tests
 export function selectedPianoBytes(entries: PianoEntry[], selected: Set<string>): number {
   return entries.filter((e) => selected.has(e.id)).reduce((n, e) => n + (e.device?.sizeBytes ?? e.size ?? 0), 0);
 }
+
+// With no cloud pianos to match, a hash only matters between two files of the
+// same length; a piano can be hundreds of megabytes, so the rest aren't hashed.
+const PIANO_ROWS = { fingerprint: sameSizeOnly<PianoEntry> };
 
 /** Merges device + folder pianos into one filtered/sorted list and owns the
  *  Pianos-screen view state. Mirrors SamplesContext with piano-specific deltas. */
@@ -94,9 +99,12 @@ function usePianosStateValue() {
     ...pianoEntriesFromScanned(folder.result.pianos),
     ...pianoEntriesFromBackupRefs(folder.result.backupPianos),
   ], [pianoEntries, unusedNames, folder.result.pianos, folder.result.backupPianos]);
-  const nordCount = allEntries.filter((e) => e.source === 'nord').length;
-  const localCount = allEntries.length - nordCount;
-  const showSourceFacet = nordCount > 0 && localCount > 0;
+  // One row per piano: the same file twice in a folder is one row, and a folder
+  // piano named like one on the Nord carries the hint. No cloud entries: backup
+  // never stores a piano. No type for the hint: every entry is a .npno. The
+  // hint compares names as they are, so it appears for an exact match only (a
+  // device piano is "<panel name> <version>", a file may spell it out).
+  const { rows, byId, nordCount, localCount, showSourceFacet } = useSoundRows(allEntries, undefined, PIANO_ROWS);
   const unusedCount = usage ? usage.unused.length : null;
 
   // The list follows the search a beat behind (an interruptible render), so the
@@ -104,10 +112,10 @@ function usePianosStateValue() {
   const listQuery = useDeferredValue(query);
   const shown = useMemo(() => sortPianos(
     unusedOnly
-      ? filterPianos(allEntries, source, listQuery).filter((e) => e.unused)
-      : filterPianos(allEntries, source, listQuery),
-    prefs.sort, prefs.favorites), [allEntries, source, listQuery, unusedOnly, prefs.sort, prefs.favorites]);
-  const entryById = useCallback((id: string) => allEntries.find((e) => e.id === id), [allEntries]);
+      ? filterPianos(rows, source, listQuery).filter((e) => e.unused)
+      : filterPianos(rows, source, listQuery),
+    prefs.sort, prefs.favorites), [rows, source, listQuery, unusedOnly, prefs.sort, prefs.favorites]);
+  const entryById = useCallback((id: string) => byId.get(id), [byId]);
 
   const isRemovable = (e: PianoEntry) => e.source === 'nord' && e.unused && e.device;
   const removableUnused = allEntries.filter(isRemovable);
@@ -167,7 +175,7 @@ function usePianosStateValue() {
     { active: unusedOnly, reset: () => setUnusedOnly(false) },
   ]);
   return {
-    all: allEntries, clearFilters, filtered, ensureListed,
+    all: allEntries, rows, clearFilters, filtered, ensureListed,
     shown, source, setSource, query, setQuery, prefs, entryById, nordCount, localCount, showSourceFacet, folder, session,
     // Piano-usage cleanup (device-connected)
     canScanUsage: !!session, scanUsage, scanPct, scanError, unusedCount,
@@ -179,7 +187,7 @@ function usePianosStateValue() {
 }
 
 type PianosState = ReturnType<typeof usePianosStateValue>;
-type PianosData = Pick<PianosState, 'all' | 'ensureListed'>;
+type PianosData = Pick<PianosState, 'all' | 'rows' | 'ensureListed'>;
 const Ctx = createContext<PianosState | null>(null);
 const DataCtx = createContext<PianosData | null>(null);
 
@@ -187,8 +195,8 @@ export function PianosProvider({ children }: { children: ReactNode }) {
   const state = usePianosStateValue();
   // What the always-mounted shell reads (the rail's count, the ⌘K palette):
   // its own context, so a search keystroke here doesn't re-render the shell.
-  const { all, ensureListed } = state;
-  const data = useMemo(() => ({ all, ensureListed }), [all, ensureListed]);
+  const { all, rows, ensureListed } = state;
+  const data = useMemo(() => ({ all, rows, ensureListed }), [all, rows, ensureListed]);
   return (
     <DataCtx.Provider value={data}>
       <Ctx.Provider value={state}>{children}</Ctx.Provider>

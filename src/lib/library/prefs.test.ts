@@ -35,4 +35,16 @@ describe('useLibraryPrefs still works', () => {
     act(() => result.current.setSort('name'));
     expect(localStorage.getItem('opennord.library.prefs')).toContain('name');
   });
+
+  it('marks a row by its fingerprint and every entry id, and unmarks every key it was ever marked by', () => {
+    localStorage.setItem('opennord.library.prefs', JSON.stringify({ sort: 'default', favorites: ['cloud:x1'] }));
+    const row = { id: 'folder:a', name: 'A', source: 'local' as const, fingerprint: 'x1', members: [{ id: 'folder:a', source: 'local' as const, name: 'A' }, { id: 'cloud:x1', source: 'cloud' as const, name: 'A' }] };
+    const { result } = renderHook(() => useLibraryPrefs());
+    expect(result.current.isFavoriteRow(row)).toBe(true);     // an old per-entry favourite still marks it
+    act(() => result.current.toggleFavoriteRow(row));
+    expect(result.current.isFavoriteRow(row)).toBe(false);
+    expect([...result.current.favorites]).toEqual([]);
+    act(() => result.current.toggleFavoriteRow(row));
+    expect([...result.current.favorites]).toEqual(['x1', 'folder:a', 'cloud:x1']);
+  });
 });

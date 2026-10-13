@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   sampleGeneration, sampleEntriesFromScanned, nordSampleEntriesFromDevice,
   sampleEntriesFromBackupRefs,
-  filterSamples, sortSamples, sampleEntryFromImport, presentSampleCategories, type SampleEntry,
+  filterSamples, sortSamples, sampleEntryFromImport, presentSampleCategories, cloudSampleEntries, type SampleEntry,
 } from './sample-entries';
 import { writeNsmp } from '../ns4/nsmp-write';
 import type { NsmpFile } from '../ns4/nsmp';
@@ -151,5 +151,27 @@ describe('sampleEntriesFromBackupRefs', () => {
     expect(sampleEntriesFromBackupRefs([ref('Samp Lib/X.nsmp', 1, true)])[0].generation).toBe('og');
     expect(sampleEntriesFromBackupRefs([ref('Piano/X.npno', 1, true)])[0].generation).toBe('npno');
     expect(sampleEntriesFromBackupRefs([ref('Other/X.wav', 1, false)])[0].generation).toBe('unknown');
+  });
+});
+
+describe('cloud samples', () => {
+  it('lists a cloud sample by its filename, with the generation its extension says', () => {
+    const items = [
+      { fingerprint: 's1', kind: 'sample' as const, filename: 'Flute.nsmp4' },
+      { fingerprint: 's2', kind: 'sample' as const, filename: 'Strings.nsmp3' },
+      { fingerprint: 's3', kind: 'sample' as const, filename: 'Old.nsmp' },
+      { fingerprint: 'p1', kind: 'program' as const, filename: 'Pad.ns4p' },
+    ];
+    expect(cloudSampleEntries(items)).toEqual([
+      { id: 'cloud:s1', name: 'Flute', source: 'cloud', fingerprint: 's1', generation: '4' },
+      { id: 'cloud:s2', name: 'Strings', source: 'cloud', fingerprint: 's2', generation: '3' },
+      { id: 'cloud:s3', name: 'Old', source: 'cloud', fingerprint: 's3', generation: 'og' },
+    ]);
+  });
+  it('filters samples by "found on", and floats a row favourited through any of its keys', () => {
+    const a: SampleEntry = { id: 'folder:a', name: 'A', source: 'local', generation: '4' };
+    const row: SampleEntry = { id: 'folder:b', name: 'B', source: 'local', generation: '4', fingerprint: 's1', sources: ['local', 'cloud'], members: [{ id: 'folder:b', source: 'local', name: 'B' }, { id: 'cloud:s1', source: 'cloud', name: 'B' }] };
+    expect(filterSamples([a, row], 'cloud', 'all', '').map((e) => e.id)).toEqual(['folder:b']);
+    expect(sortSamples([a, row], 'default', new Set(['s1'])).map((e) => e.id)).toEqual(['folder:b', 'folder:a']);
   });
 });

@@ -1,14 +1,8 @@
 /** Generic, model-agnostic browse helpers shared by the Library and Samples
  *  screens. Pure — no React, no DOM. */
 
-import type { LibrarySource } from './types';
+import { isFavoriteRow } from './found-on';
 
-/** How many entries come from each source, in one pass. */
-export function countBySource(entries: { source: LibrarySource }[]): Record<LibrarySource, number> {
-  const n: Record<LibrarySource, number> = { nord: 0, local: 0, backup: 0, cloud: 0 };
-  for (const e of entries) n[e.source]++;
-  return n;
-}
 
 /** Case-insensitive trimmed substring match; an empty query matches anything. */
 export function matchesQuery(name: string, query: string): boolean {
@@ -30,15 +24,16 @@ export function matchesAny(fields: Array<string | undefined>, query: string): bo
 /**
  * Order entries for display: favorites always float to the top, then `byKey`
  * within each group. Stable — equal keys keep input order. Non-mutating.
+ * A merged row is a favourite through any of its keys (isFavoriteRow).
  */
-export function sortWithFavorites<T extends { id: string }>(
+export function sortWithFavorites<T extends { id: string; fingerprint?: string; members?: { id: string }[] }>(
   entries: T[], favorites: ReadonlySet<string>, byKey: (a: T, b: T) => number,
 ): T[] {
   return entries
-    .map((e, i) => ({ e, i }))
+    .map((e, i) => ({ e, i, fav: isFavoriteRow(favorites, e) }))
     .sort((x, y) => {
-      const fx = favorites.has(x.e.id) ? 0 : 1;
-      const fy = favorites.has(y.e.id) ? 0 : 1;
+      const fx = x.fav ? 0 : 1;
+      const fy = y.fav ? 0 : 1;
       if (fx !== fy) return fx - fy;          // favorites first
       return byKey(x.e, y.e) || x.i - y.i;     // then key, stable
     })

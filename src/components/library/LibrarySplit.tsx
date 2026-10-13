@@ -12,7 +12,9 @@ import { READ_ONLY_REASON } from '@/lib/device/write-guard';
 import { hasCbinMagic, readCbinHeader } from '@/lib/clavia/cbin';
 import { safeFilename } from '@/lib/ns4/bundle';
 import { downloadBytes } from '@/lib/download';
-import { isImported, type LibraryEntry } from '@/lib/library/types';
+import type { LibraryEntry, LibrarySource } from '@/lib/library/types';
+import { copyHere, importedMember } from '@/lib/library/found-on';
+import { useCloudRead } from '@/lib/library/CloudSnapshotContext';
 import { LibraryView } from './LibraryView';
 import { useStepKeys } from './useStepKeys';
 import { useFullViewKeys } from './useFullViewKeys';
@@ -21,7 +23,7 @@ import { CategorySplit } from './CategorySplit';
 import { EmptyNote, NotListedNote } from './EmptyNote';
 import { useLibraryState } from '@/lib/library/LibraryContext';
 import { useSplitLayout } from '@/lib/responsive';
-import { useCloseRemoved, useOpenEntry } from './openEntry';
+import { useOpenEntry, useRemoveCopy } from './openEntry';
 import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
 import { useShareToCommunity } from '@/components/shell/useShareToCommunity';
 
@@ -41,7 +43,6 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
 }) {
   const wide = useSplitLayout();
   const s = useLibraryState();
-  const closeRemoved = useCloseRemoved('/library/programs');
   const open = useOpenEntry();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
   // A Nord slot opens like any program: it's read from the keyboard on the way.
@@ -51,11 +52,23 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
   useEffect(() => {
     if (unread && !reading && failed?.id !== unread) read(unread);
   }, [unread, reading, failed, read]);
+  // A cloud-only row is fetched when it's opened, as a Nord slot is read.
+  const cloudRead = useCloudRead(entry, s.cloud);
+  // The row open now: selectedId may name any of its entries.
+  const activeId = entry?.id ?? selectedId;
   // J/K step through the programs, here so they keep working with the list folded away (narrow).
-  useStepKeys(s.shown, selectedId, open.program);
+  useStepKeys(s.shown, activeId, open.program);
   // Stable, so the program table's memoised rows skip renders that don't touch them.
-  const { remove } = s.imported;
-  const onRemove = useCallback((id: string) => void remove(id).then(() => closeRemoved(id)), [remove, closeRemoved]);
+  const { remove, add } = s.imported;
+  const { entryById } = s;
+  const reopen = useCallback((id: string) => { const row = entryById(id); if (row) open.program({ ...row, id }); }, [entryById, open]);
+  const onRemove = useRemoveCopy('/library/programs', remove, entryById, reopen);
+  // A copy in OpenNord's own storage: the row is then also found on this computer.
+  const keepCopy = useCallback((e: LibraryEntry, b: Uint8Array) =>
+    add(new File([b as BlobPart], programFilename(e, b))), [add]);
+  const caps = useCapabilities();
+  const { auth } = caps;
+  const onSignIn = useCallback(() => void auth.signIn(), [auth]);
 
   const list = (
     <LibraryView
@@ -72,7 +85,7 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
       onQuery={s.setQuery}
       clearFilters={s.clearFilters}
       filtered={s.filtered}
-      activeId={selectedId}
+      activeId={activeId}
       onOpen={open.program}
       onImport={s.importFile}
       onRemove={onRemove}
@@ -84,6 +97,8 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
       onToggleEngine={s.toggleEngine}
       splitOnly={s.splitOnly}
       onSplitOnly={s.setSplitOnly}
+      cloud={s.cloud}
+      onSignIn={onSignIn}
     />
   );
 
@@ -110,9 +125,14 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
   const [removing, setRemoving] = useState<LibraryEntry | null>(null);
   // Sharing is a build-injected route: offered only where the community is there,
   // and for a program that's a file of yours (a Nord slot is shared once it's kept).
-  const canShare = useCapabilities().community.available;
+  const canShare = caps.community.available;
   const share = useShareToCommunity();
   const bytes = entry?.bytes;
+  // The copy of this sound on this computer (a file inside a backup is one too), and the imported one, if any.
+  const here = entry && copyHere(entry);
+  const importedId = entry && importedMember(entry);
+  // The names this sound goes by elsewhere, when they differ from the one shown.
+  const others = entry?.members?.filter((m) => m.id !== entry.id && m.name !== entry.name) ?? [];
   const actions = entry && bytes && (
     <ItemActions
       send={{
@@ -123,10 +143,9 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
       }}
       save={{ onSave: () => downloadBytes(bytes, programFilename(entry, bytes)) }}
       more={[
-        ...(canShare && entry.source !== 'nord'
-          ? [{ label: 'Share to community', onSelect: () => share(entry.id) }]
-          : []),
-        ...(isImported(entry.id) ? [{ label: 'Remove from library', onSelect: () => setRemoving(entry) }] : []),
+        ...(canShare && here ? [{ label: 'Share to community', onSelect: () => share(here.id) }] : []),
+        ...(!here ? [{ label: 'Keep a copy', onSelect: () => void keepCopy(entry, bytes) }] : []),
+        ...(importedId ? [{ label: 'Remove from library', onSelect: () => setRemoving({ ...entry, id: importedId }) }] : []),
       ]}
     />
   );
@@ -157,10 +176,17 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
                 )}
                 <div className="ml-auto">{actions}</div>
               </div>
+              {others.length > 0 && (
+                <p className="m-0 pb-1 text-[11px] text-muted">
+                  Also: {others.map((m) => `“${m.name}” ${WHERE[m.source]}`).join(', ')}
+                </p>
+              )}
               {program}
             </div>
           ) : null)
-            ?? (unread ? <NordReadNote name={entry!.name} failed={failed?.id === unread ? failed.message : undefined} onRetry={() => read(unread)} />
+            ?? (unread ? <ReadNote name={entry!.name} from="Nord" failed={failed?.id === unread ? failed.message : undefined} onRetry={() => read(unread)} />
+              : cloudRead.fingerprint ? <ReadNote name={entry!.name} from="the cloud" failed={cloudRead.failed} onRetry={cloudRead.retry} />
+              : entry?.bytes ? <EmptyNote><p className="m-0">OpenNord can’t read “{entry.name}”.</p></EmptyNote>
               : selectedId && !entry ? <NotListedNote noun="program" /> : null)}
           hasDetail={!!selectedId}
           // Nothing open: the table spans the page, every column showing. Open,
@@ -190,12 +216,17 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
   );
 }
 
-/** The detail while a Nord slot is read from the keyboard, or why it couldn't be. */
-function NordReadNote({ name, failed, onRetry }: { name: string; failed?: string; onRetry: () => void }) {
-  if (!failed) return <EmptyNote><span role="status">Reading “{name}” from your Nord…</span></EmptyNote>;
+const WHERE: Record<LibrarySource, string> = { nord: 'on your Nord', local: 'on this computer', backup: 'in a backup', cloud: 'in the cloud' };
+
+/** The detail while a program is read from the keyboard or fetched from the cloud, or why it couldn't be. */
+function ReadNote({ name, from, failed, onRetry }: { name: string; from: 'Nord' | 'the cloud'; failed?: string; onRetry: () => void }) {
+  const nord = from === 'Nord';
+  if (!failed) {
+    return <EmptyNote><span role="status">{nord ? `Reading “${name}” from your Nord…` : `Fetching “${name}” from the cloud…`}</span></EmptyNote>;
+  }
   return (
     <EmptyNote>
-      <p role="alert" className="m-0 mb-2">Couldn’t read “{name}” from your Nord: {failed}</p>
+      <p role="alert" className="m-0 mb-2">{nord ? `Couldn’t read “${name}” from your Nord: ` : `Couldn’t fetch “${name}” from the cloud: `}{failed}</p>
       <Button variant="secondary" onClick={onRetry}>Try again</Button>
     </EmptyNote>
   );
@@ -203,6 +234,7 @@ function NordReadNote({ name, failed, onRetry }: { name: string; failed?: string
 
 /** The file name a program is saved under: its name and its own kind of file. */
 function programFilename(entry: LibraryEntry, bytes: Uint8Array): string {
-  const ext = entry.typeLabel ?? (hasCbinMagic(bytes) ? `.${readCbinHeader(bytes).tag}` : '.ns4p');
+  // The bytes' own tag first: a Nord slot's type is what the keyboard listed, which isn't always a clean one.
+  const ext = hasCbinMagic(bytes) ? `.${readCbinHeader(bytes).tag}` : entry.typeLabel ?? '.ns4p';
   return `${safeFilename(entry.name)}${ext}`;
 }

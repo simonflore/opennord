@@ -1,10 +1,11 @@
-import { useCloseRemoved, useOpenEntry } from '@/components/library/openEntry';
+import { useOpenEntry, useRemoveCopy } from '@/components/library/openEntry';
 import { usePresetsState } from '@/lib/library/PresetsContext';
 import { PresetsBrowse } from './PresetsBrowse';
 import { PresetInspector } from './PresetInspector';
 import { CategorySplit } from '@/components/library/CategorySplit';
 import { EmptyNote, NotListedNote } from '@/components/library/EmptyNote';
 import { useSplitLayout } from '@/lib/responsive';
+import { copyHere } from '@/lib/library/found-on';
 
 /**
  * Presets master/detail: the browse list + a thin recognized-preset inspector.
@@ -14,9 +15,9 @@ import { useSplitLayout } from '@/lib/responsive';
 export function PresetsSplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = usePresetsState();
-  const closeRemoved = useCloseRemoved('/library/presets');
   const open = useOpenEntry();
   const entry = selectedId ? s.entryById(selectedId) : undefined;
+  const onRemove = useRemoveCopy('/library/presets', s.removePreset, s.entryById, open.preset);
 
   function importPreset() {
     const input = document.createElement('input');
@@ -43,17 +44,24 @@ export function PresetsSplit({ selectedId }: { selectedId?: string }) {
         query={s.query} setQuery={s.setQuery}
         kinds={s.kinds} showSourceFacet={s.showSourceFacet}
         sort={s.prefs.sort} setSort={s.prefs.setSort}
-        isFavorite={s.prefs.isFavorite} toggleFavorite={s.prefs.toggleFavorite}
+        showCloud={s.showCloud}
+        isFavorite={s.prefs.isFavoriteRow} toggleFavorite={s.prefs.toggleFavoriteRow}
         onSelect={(e) => open.preset(e.id)}
-        activeId={selectedId}
+        // selectedId may name any entry of the open row.
+        activeId={entry?.id ?? selectedId}
         onImport={importPreset}
-        onRemove={(id) => void s.removePreset(id).then(() => closeRemoved(id))}
+        onRemove={onRemove}
       />
     </div>
   );
 
+  // A preset with no copy on this computer can be kept once its bytes are here.
+  const keepBytes = entry && !copyHere(entry) ? entry.bytes : undefined;
   const detail = entry
-    ? <PresetInspector key={entry.id} entry={entry} session={s.session} />
+    ? <PresetInspector
+        key={entry.id} entry={entry} session={s.session} cloud={s.cloud}
+        onKeepCopy={keepBytes ? () => void s.keepCopy(entry, keepBytes) : undefined}
+      />
     : selectedId ? <NotListedNote noun="preset" className="p-4" />
     : <EmptyNote className="p-4">Pick a preset to see its details.</EmptyNote>;
 

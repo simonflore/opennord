@@ -110,4 +110,20 @@ describe('useOpenSample', () => {
     rerender({ id: undefined });
     expect(signal.aborted).toBe(true);
   });
+
+  it('opens a cloud-only sample through its read, without a percentage, and says why a fetch failed', async () => {
+    ctx.entries.set('cloud:s2', entry('cloud:s2', 'cloud'));
+    let finish: (b: Uint8Array) => void = () => {};
+    ctx.readSample.mockReturnValueOnce(new Promise<Uint8Array>((r) => { finish = r; }));
+    const { result } = renderHook(() => useOpenSample('cloud:s2'));
+    expect(result.current).toEqual({ state: 'reading', pct: null });
+    await act(async () => finish(bytes));
+    expect(result.current).toMatchObject({ state: 'open', sample: { id: 'cloud:s2', bytes, name: 'cloud:s2' } });
+
+    ctx.entries.set('cloud:s3', entry('cloud:s3', 'cloud'));
+    ctx.readSample.mockRejectedValueOnce(new Error('offline'));
+    const failed = renderHook(() => useOpenSample('cloud:s3'));
+    await act(async () => {});
+    expect(failed.result.current).toMatchObject({ state: 'failed', error: 'Could not read cloud:s3: offline' });
+  });
 });

@@ -7,9 +7,13 @@ import { formatSlot } from '../clavia/slot';
 import { identifyNordFile } from '../clavia/nord-file';
 import { programNameFromFilename } from '../clavia/name';
 import { matchesQuery, sortWithFavorites } from './browse';
+import { foundOn, type FoundOn } from './found-on';
+import { cloudEntryBase, cloudItemsOf, extensionOf } from './cloud-entries';
+import type { CloudItem } from '../capabilities/types';
 
-/** One row in the Presets browser — a folder preset or a device-listed preset. */
-export interface PresetEntry {
+/** One preset in the Presets browser — a folder, device-listed or cloud preset.
+ *  A row of the list is one of these carrying what it was merged from (`FoundOn`). */
+export interface PresetEntry extends FoundOn {
   id: string;            // "folder:<path>" | "nord-preset:<partition>:<slot>"
   name: string;
   source: LibrarySource;
@@ -22,6 +26,11 @@ export interface PresetEntry {
 }
 
 const KIND_ORDER: PresetKind[] = ['organ-preset', 'piano-preset', 'synth-preset'];
+
+/** The file extension a preset of each kind is saved and kept under. Device presets are Stage-4-only (ns4o/n/y); a folder-sourced ns3y/ns2s synth preset saves as .ns4y — its bytes are unchanged, only the filename ext. */
+export const PRESET_EXT: Record<PresetKind, string> = {
+  'organ-preset': 'ns4o', 'piano-preset': 'ns4n', 'synth-preset': 'ns4y',
+};
 
 /** Map folder-scanned presets into local or backup entries.
  * Bundle-sourced presets (id contains `!`) are tagged `source:'backup'`;
@@ -57,7 +66,7 @@ export function filterPresets(
   entries: PresetEntry[], source: LibrarySource | 'all', kind: PresetKind | 'all', query: string,
 ): PresetEntry[] {
   return entries.filter((e) =>
-    (source === 'all' || e.source === source) &&
+    (source === 'all' || foundOn(e).includes(source)) &&
     (kind === 'all' || e.kind === kind) &&
     matchesQuery(e.name, query));
 }
@@ -76,4 +85,16 @@ export function sortPresets(entries: PresetEntry[], sort: PresetSort, favorites:
 export function presentKinds(entries: PresetEntry[]): PresetKind[] {
   const have = new Set(entries.map((e) => e.kind));
   return KIND_ORDER.filter((k) => have.has(k));
+}
+
+/** Cloud presets as entries. The kind comes from the file's type (its extension is its tag); anything else is not a preset. */
+export function cloudPresetEntries(items: CloudItem[], files: ReadonlyMap<string, Uint8Array>): PresetEntry[] {
+  return cloudItemsOf(items, 'preset').flatMap((item) => {
+    const kind = presetKindForTag(extensionOf(item.filename) ?? '');
+    if (!kind) return [];
+    const bytes = files.get(item.fingerprint);
+    return [{
+      ...cloudEntryBase(item), kind, ...(bytes ? { bytes, size: bytes.length } : {}),
+    }];
+  });
 }

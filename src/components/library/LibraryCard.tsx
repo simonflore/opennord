@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { SourceBadge, type LibrarySource } from '../ui';
+import { SourceBadges, type LibrarySource } from '../ui';
 import { cn } from '@/lib/cn';
 
 /**
@@ -64,11 +64,15 @@ export function FavoriteStar({ name, favorite, onToggle }: { name: string; favor
  * `engines` and `footExtras`.
  */
 export function LibraryCard({
-  name, source, favorite, onToggleFavorite, onOpen,
+  name, source, sources, sameNameOnNord, favorite, onToggleFavorite, onOpen,
   badge, unused, select, engines, footExtras, selected,
 }: {
   name: string;
   source: LibrarySource;
+  /** Every source a merged row is found on (absent: just `source`). */
+  sources?: LibrarySource[];
+  /** The slot of an unread Nord entry with this row's name, shown as a hint. */
+  sameNameOnNord?: string;
   favorite: boolean;
   onToggleFavorite: () => void;
   onOpen: () => void;
@@ -127,7 +131,7 @@ export function LibraryCard({
       <div className="col-span-2 col-start-2 flex min-w-0 items-center gap-3">
         <div className="min-w-0 overflow-hidden">{engines}</div>
         <span className="ml-auto flex flex-none items-center gap-2 font-mono text-[11px] text-dim">
-          <SourceBadge source={source} />
+          <SourceBadges entry={{ source, sources, sameNameOnNord }} />
           {footExtras}
         </span>
       </div>

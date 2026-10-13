@@ -12,7 +12,8 @@ import { SlotTag } from '../library/SlotTag';
 import { CardRemoveButton } from '../library/CardRemoveButton';
 import type { SampleEntry, SampleGeneration } from '../../lib/library/sample-entries';
 import type { SamplesPrefsApi, SampleSort } from '../../lib/library/prefs';
-import { isImported, type LibrarySource } from '../../lib/library/types';
+import type { LibrarySource } from '../../lib/library/types';
+import { importedMember, isFavoriteRow } from '../../lib/library/found-on';
 import { AddMenu } from '../library/AddMenu';
 import { FolderMenu } from '../library/FolderMenu';
 import { useFolderOptional } from '@/lib/folder/FolderContext';
@@ -42,7 +43,7 @@ const SORT_LABEL: Record<SampleSort, string> = {
 };
 
 export function SamplesBrowse(
-  { entries, source, generation, query, nordCount, localCount, showSourceFacet, showUnknownGen,
+  { entries, source, generation, query, nordCount, localCount, total = nordCount + localCount, showSourceFacet, showCloud = false, showUnknownGen,
     category = 'all', onCategory, categoriesPresent = [],
     onSource, onGeneration, onQuery, clearFilters, filtered, onOpen, onLoadNew, onImport, onRemove, activeId,
     storedCount, storedBytes, prefs,
@@ -52,7 +53,11 @@ export function SamplesBrowse(
     entries: SampleEntry[];
     source: LibrarySource | 'all'; generation: SampleGeneration | 'all'; query: string;
     nordCount: number; localCount: number;
+    /** How many samples the list holds; a sample found on two sources counts once here, under both above. */
+    total?: number;
     showSourceFacet: boolean; showUnknownGen: boolean;
+    /** Whether any sample is found on the cloud: the source facet then offers it. */
+    showCloud?: boolean;
     /** Sample-category facet (Drums, Brass…). Shown only when >1 category is present. */
     category?: string | 'all';
     onCategory?: (c: string | 'all') => void;
@@ -96,8 +101,7 @@ export function SamplesBrowse(
 ) {
   // Adding a folder is the same from every list.
   const folder = useFolderOptional();
-  const { favorites, toggleFavorite: onToggleFavorite } = prefs;
-  const total = nordCount + localCount;
+  const { favorites, toggleFavoriteRow: onToggleFavorite } = prefs;
 
   // Confirm-remove dialog state
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -149,6 +153,7 @@ export function SamplesBrowse(
       value: source,
       options: [
         { key: 'all', label: 'All' }, { key: 'nord', label: 'On Nord' }, { key: 'local', label: 'Local' },
+        ...(showCloud ? [{ key: 'cloud', label: 'Cloud' }] : []),
       ],
       onChange: (k: string) => onSource(k as LibrarySource | 'all'),
     }] : []),
@@ -229,13 +234,17 @@ export function SamplesBrowse(
   const onRemoveStable = useStableCallback(onRemove);
   const onToggleFavoriteStable = useStableCallback(onToggleFavorite);
   const toggleSelectedStable = useStableCallback(toggleSelected);
-  const rows = useMemo(() => entries.map((e) => (
+  const rows = useMemo(() => entries.map((e) => {
+    const importedId = importedMember(e);
+    return (
             <LibraryCard
               key={e.id}
               name={e.name}
               source={e.source}
-              favorite={favorites.has(e.id)}
-              onToggleFavorite={() => onToggleFavoriteStable(e.id)}
+              sources={e.sources}
+              sameNameOnNord={e.sameNameOnNord}
+              favorite={isFavoriteRow(favorites, e)}
+              onToggleFavorite={() => onToggleFavoriteStable(e)}
               onOpen={() => onOpenStable(e)}
               selected={e.id === activeId}
               unused={e.unused}
@@ -250,7 +259,7 @@ export function SamplesBrowse(
                       ? 'piano library'
                       : e.strokeCount != null
                       ? `${e.strokeCount} ${e.strokeCount === 1 ? 'sample' : 'samples'}`
-                      : (e.source === 'nord' ? 'on Nord' : 'unrecognized')}
+                      : (e.source === 'nord' ? 'on Nord' : e.source === 'cloud' ? 'in the cloud' : 'unrecognized')}
                   </EngineTag>
                 </div>
               }
@@ -260,13 +269,14 @@ export function SamplesBrowse(
                     <FactoryPill factory={e.factory} />
                   )}
                   <SlotTag>{e.size != null ? fmtSize(e.size) : ''}</SlotTag>
-                  {isImported(e.id) && (
-                    <CardRemoveButton name={e.name} onRemove={() => onRemoveStable(e.id)} />
+                  {importedId && (
+                    <CardRemoveButton name={e.name} onRemove={() => onRemoveStable(importedId)} />
                   )}
                 </>
               }
             />
-          )), [entries, activeId, favorites, unusedOnly, selected, onOpenStable, onRemoveStable, onToggleFavoriteStable, toggleSelectedStable]);
+    );
+  }), [entries, activeId, favorites, unusedOnly, selected, onOpenStable, onRemoveStable, onToggleFavoriteStable, toggleSelectedStable]);
 
   return (
     <>

@@ -2,6 +2,8 @@ import { useCallback, useMemo } from 'react';
 import { useNavigate, useRouter } from '@tanstack/react-router';
 import { isUnder, trimSlash } from '../../lib/library/categories';
 import type { LibraryEntry } from '../../lib/library/types';
+import { memberIds, type Mergeable } from '../../lib/library/found-on';
+import { useStableCallback } from '../../lib/useStableCallback';
 import type { NavTo } from '../shell/nav';
 
 
@@ -75,4 +77,27 @@ export function useCloseRemoved(list: NavTo): (id: string) => void {
     const params: Record<string, unknown> = router.state.matches.at(-1)?.params ?? {};
     if (Object.values(params).includes(id)) leave();
   }, [router, leave]);
+}
+
+/**
+ * Remove an imported copy from `list`. When the sound is found elsewhere too
+ * its row stays, and stays open (through another of its entries, via `reopen`)
+ * if it was open through this one; otherwise the open entry closes as
+ * useCloseRemoved does. The callback keeps its identity (the rows change with
+ * every hash and fetch), so memoised list rows don't re-render for it.
+ */
+export function useRemoveCopy(
+  list: NavTo, remove: (id: string) => Promise<void>, entryById: (id: string) => Mergeable | undefined, reopen: (id: string) => void,
+): (id: string) => void {
+  const router = useRouter();
+  const closeRemoved = useCloseRemoved(list);
+  return useStableCallback((id: string) => {
+    const row = entryById(id);
+    const stays = row && memberIds(row).find((m) => m !== id);
+    void remove(id).then(() => {
+      if (!stays) return closeRemoved(id);
+      const params: Record<string, unknown> = router.state.matches.at(-1)?.params ?? {};
+      if (Object.values(params).includes(id)) reopen(stays);
+    });
+  });
 }

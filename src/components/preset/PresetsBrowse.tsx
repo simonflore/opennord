@@ -10,7 +10,8 @@ import { CardRemoveButton } from '../library/CardRemoveButton';
 import { PresetGlance } from './PresetGlance';
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
-import { isImported, type LibrarySource } from '@/lib/library/types';
+import type { LibrarySource } from '@/lib/library/types';
+import { importedMember } from '@/lib/library/found-on';
 import type { PresetSort } from '@/lib/library/prefs';
 import { formatBytes } from '@/lib/format';
 import { AddMenu } from '../library/AddMenu';
@@ -27,7 +28,7 @@ const parsePresetSort = (raw: string): PresetSort =>
 
 export function PresetsBrowse({
   entries, source, setSource, kind, setKind, query, setQuery, clearFilters, filtered,
-  kinds, showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect, onImport, onRemove, activeId,
+  kinds, showSourceFacet, showCloud = false, sort, setSort, isFavorite, toggleFavorite, onSelect, onImport, onRemove, activeId,
 }: {
   entries: PresetEntry[];
   source: LibrarySource | 'all'; setSource: (s: LibrarySource | 'all') => void;
@@ -39,9 +40,12 @@ export function PresetsBrowse({
   filtered: boolean;
   kinds: PresetKind[];
   showSourceFacet: boolean;
+  /** Whether any preset is found on the cloud: the source facet then offers it. */
+  showCloud?: boolean;
   sort: PresetSort; setSort: (s: PresetSort) => void;
-  isFavorite: (id: string) => boolean;
-  toggleFavorite: (id: string) => void;
+  /** A row is a favourite through any of its entries (prefs' isFavoriteRow). */
+  isFavorite: (e: PresetEntry) => boolean;
+  toggleFavorite: (e: PresetEntry) => void;
   onSelect: (e: PresetEntry) => void;
   /** The entry open in the detail pane, highlighted in the list. */
   activeId?: string | null;
@@ -56,6 +60,7 @@ export function PresetsBrowse({
       value: source,
       options: [
         { key: 'all', label: 'All' }, { key: 'nord', label: 'On Nord' }, { key: 'local', label: 'Local' },
+        ...(showCloud ? [{ key: 'cloud', label: 'Cloud' }] : []),
       ],
       onChange: (k: string) => setSource(k as LibrarySource | 'all'),
     }] : []),
@@ -80,13 +85,17 @@ export function PresetsBrowse({
   const onSelectStable = useStableCallback(onSelect);
   const onRemoveStable = useStableCallback(onRemove);
   const toggleFavoriteStable = useStableCallback(toggleFavorite);
-  const rows = useMemo(() => entries.map((e) => (
+  const rows = useMemo(() => entries.map((e) => {
+    const importedId = importedMember(e);
+    return (
               <LibraryCard
                 key={e.id}
                 name={e.name}
                 source={e.source}
-                favorite={isFavorite(e.id)}
-                onToggleFavorite={() => toggleFavoriteStable(e.id)}
+                sources={e.sources}
+                sameNameOnNord={e.sameNameOnNord}
+                favorite={isFavorite(e)}
+                onToggleFavorite={() => toggleFavoriteStable(e)}
                 onOpen={() => onSelectStable(e)}
                 selected={e.id === activeId}
                 badge={<SlotTag>{e.slot ?? KIND_LABEL[e.kind]}</SlotTag>}
@@ -94,13 +103,14 @@ export function PresetsBrowse({
                 footExtras={
                   <>
                     {e.size != null && <SlotTag>{formatBytes(e.size)}</SlotTag>}
-                    {isImported(e.id) && (
-                      <CardRemoveButton name={e.name} onRemove={() => onRemoveStable(e.id)} />
+                    {importedId && (
+                      <CardRemoveButton name={e.name} onRemove={() => onRemoveStable(importedId)} />
                     )}
                   </>
                 }
               />
-            )), [entries, activeId, isFavorite, onSelectStable, onRemoveStable, toggleFavoriteStable]);
+    );
+  }), [entries, activeId, isFavorite, onSelectStable, onRemoveStable, toggleFavoriteStable]);
 
   return (
     <CategoryPanel

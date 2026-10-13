@@ -4,6 +4,7 @@ export { Card } from './Card';
 export { Tag } from './Tag';
 export { FilterChip } from './FilterChip';
 export { SourceBadge } from './SourceBadge';
+export { SourceBadges } from './SourceBadges';
 export type { LibrarySource } from '@/lib/library/types';
 export { SearchField } from './SearchField';
 export { BrowseToolbar, selectClass, type FacetGroup, type FacetOption, type SortOption } from './BrowseToolbar';

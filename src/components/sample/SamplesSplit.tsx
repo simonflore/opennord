@@ -10,7 +10,8 @@ import { useSplitLayout } from '@/lib/responsive';
 import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
 import { useShareToCommunity } from '@/components/shell/useShareToCommunity';
 import { canShareAudio } from '@/lib/library/share-audio';
-import { useCloseRemoved, useLeaveEntry, useOpenEntry } from '@/components/library/openEntry';
+import { useLeaveEntry, useOpenEntry, useRemoveCopy } from '@/components/library/openEntry';
+import { copyHere, localMember } from '@/lib/library/found-on';
 
 /**
  * The Samples screen as master/detail. Folder samples open in the inspector
@@ -28,7 +29,6 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const [loadNew, setLoadNew] = useState(false);
   // An import that wasn't a sample file: shown above the list, apart from the open sample.
   const [importError, setImportError] = useState('');
-  const closeRemoved = useCloseRemoved('/library/samples');
   const openEntry = useOpenEntry();
   const community = useCapabilities().community;
   const share = useShareToCommunity();
@@ -69,25 +69,29 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     input.click();
   }
 
+  const onRemove = useRemoveCopy('/library/samples', s.removeSample, s.entryById, openEntry.sample);
+
   // The open sample's progress and errors show in the detail; only an import
   // problem shows above the list.
   const status = importError ? <p className="ps-sub" role="alert">{importError}</p> : null;
 
+  const openEntryNow = selectedId ? s.entryById(selectedId) : undefined;
   const list = (
     <div className="lib-master">
       {status}
       <SamplesBrowse
         entries={s.shown}
         source={s.source} generation={s.generation} query={s.query}
-        nordCount={s.nordCount} localCount={s.localCount}
-        showSourceFacet={s.showSourceFacet} showUnknownGen={s.showUnknownGen}
+        nordCount={s.nordCount} localCount={s.localCount} total={s.total}
+        showSourceFacet={s.showSourceFacet} showCloud={s.showCloud} showUnknownGen={s.showUnknownGen}
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters} filtered={s.filtered}
         onOpen={(e) => openEntry.sample(e.id)}
         onLoadNew={startLoadNew}
-        activeId={selectedId ?? null}
+        // selectedId may name any entry of the open row.
+        activeId={openEntryNow?.id ?? selectedId ?? null}
         onImport={importSample}
-        onRemove={(id) => void s.removeSample(id).then(() => closeRemoved(id))}
+        onRemove={onRemove}
         storedCount={s.storedCount} storedBytes={s.storedBytes}
         prefs={s.prefs}
         canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct} scanError={s.scanError}
@@ -102,8 +106,8 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   );
 
   // Remount the inspector per sample (key on name+size) so its load effect re-runs.
-  const inspector = (initial?: InspectorInput, factory?: boolean, onShare?: () => void) => (
-    <SampleInspector key={initial ? `${initial.name}-${initial.bytes.length}` : 'new'} initial={initial} factory={factory} onShare={onShare} />
+  const inspector = (initial?: InspectorInput, factory?: boolean, onShare?: () => void, onKeepCopy?: () => void) => (
+    <SampleInspector key={initial ? `${initial.name}-${initial.bytes.length}` : 'new'} initial={initial} factory={factory} onShare={onShare} onKeepCopy={onKeepCopy} />
   );
   // A sample named by the route is the detail even before its bytes arrive, so a
   // phone shows its progress, error or "not found" instead of the bare list.
@@ -111,8 +115,11 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   // resolve after its bytes do).
   const hasDetail = !!selectedId || loadNew;
   // Offered for a library file of your own; not for a pull off the Nord, a backup's factory entry or a preview.
-  const openEntryNow = selectedId ? s.entryById(selectedId) : undefined;
-  const shareOpen = openEntryNow && canShareAudio(community, openEntryNow) ? () => share(openEntryNow.id) : undefined;
+  const shareOpen = openEntryNow && canShareAudio(community, openEntryNow) ? () => share(localMember(openEntryNow)?.id ?? openEntryNow.id) : undefined;
+  // A sample with no copy on this computer (from the cloud, or pulled off the Nord) can be kept, once its bytes are here.
+  const openBytes = open.state === 'open' ? open.sample.bytes : undefined;
+  const keepOpen = openEntryNow && openBytes && !copyHere(openEntryNow)
+    ? () => void s.keepCopy(openEntryNow, openBytes) : undefined;
   const detail = selectedId ? (
     open.state === 'missing' ? <NotListedNote noun="sample" />
     : open.state === 'failed' ? (
@@ -124,7 +131,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     : open.state === 'open' ? (
       <>
         {!open.listed && <EmptyNote>This sample isn’t in your library right now.</EmptyNote>}
-        {inspector(open.sample, open.factory, open.factory ? undefined : shareOpen)}
+        {inspector(open.sample, open.factory, open.factory ? undefined : shareOpen, keepOpen)}
       </>
     )
     : <EmptyNote>Reading the sample…{open.state === 'reading' && open.pct !== null && ` ${open.pct}%`}</EmptyNote>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, type PresetEntry } from './preset-entries';
+import { presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, cloudPresetEntries, type PresetEntry } from './preset-entries';
 import type { ProgramEntry } from '../device/transfer';
 
 const dev = (over: Partial<ProgramEntry>): ProgramEntry => ({
@@ -65,5 +65,32 @@ describe('preset-entries', () => {
     ];
     expect(sortPresets(es, 'name', new Set()).map((e) => e.name)).toEqual(['A', 'B']);
     expect(sortPresets(es, 'name', new Set(['1'])).map((e) => e.name)).toEqual(['B', 'A']); // fav floats up
+  });
+});
+
+describe('cloud presets', () => {
+  it('lists a cloud preset by its file type’s kind, without bytes until fetched', () => {
+    const items = [
+      { fingerprint: 'y1', kind: 'preset' as const, filename: 'Fat Lead.ns4y' },
+      { fingerprint: 'y2', kind: 'preset' as const, filename: 'Gospel.ns4o' },
+      { fingerprint: 'y3', kind: 'preset' as const, filename: 'Mystery.xyz' },      // not a preset type: left out
+      { fingerprint: 'p1', kind: 'program' as const, filename: 'Pad.ns4p' },
+    ];
+    expect(cloudPresetEntries(items, new Map())).toEqual([
+      { id: 'cloud:y1', name: 'Fat Lead', source: 'cloud', fingerprint: 'y1', kind: 'synth-preset' },
+      { id: 'cloud:y2', name: 'Gospel', source: 'cloud', fingerprint: 'y2', kind: 'organ-preset' },
+    ]);
+    const bytes = new Uint8Array([1]);
+    expect(cloudPresetEntries(items, new Map([['y1', bytes]]))[0]).toMatchObject({ bytes, size: 1 });
+  });
+  it('filters presets by "found on"', () => {
+    const row = { id: 'folder:a', name: 'A', source: 'local' as const, kind: 'synth-preset' as const, sources: ['local' as const, 'cloud' as const] };
+    expect(filterPresets([row], 'cloud', 'all', '')).toHaveLength(1);
+    expect(filterPresets([row], 'nord', 'all', '')).toHaveLength(0);
+  });
+  it('floats a row to the top when any of its members, or its fingerprint, is a favourite', () => {
+    const a = { id: 'folder:a', name: 'A', source: 'local' as const, kind: 'synth-preset' as const };
+    const row = { id: 'folder:b', name: 'B', source: 'local' as const, kind: 'synth-preset' as const, fingerprint: 'y1', members: [{ id: 'folder:b', source: 'local' as const, name: 'B' }, { id: 'cloud:y1', source: 'cloud' as const, name: 'B' }] };
+    expect(sortPresets([a, row], 'default', new Set(['cloud:y1'])).map((e) => e.id)).toEqual(['folder:b', 'folder:a']);
   });
 });

@@ -50,8 +50,9 @@ export function PianosBrowse({
   filtered: boolean;
   showSourceFacet: boolean;
   sort: PianoSort; setSort: (s: PianoSort) => void;
-  isFavorite: (id: string) => boolean;
-  toggleFavorite: (id: string) => void;
+  /** A row is a favourite through any of its entries (prefs' isFavoriteRow). */
+  isFavorite: (e: PianoEntry) => boolean;
+  toggleFavorite: (e: PianoEntry) => void;
   onSelect: (e: PianoEntry) => void;
   /** The entry open in the detail pane, highlighted in the list. */
   activeId?: string | null;
@@ -184,8 +185,10 @@ export function PianosBrowse({
                 key={entry.id}
                 name={entry.name}
                 source={entry.source}
-                favorite={isFavorite(entry.id)}
-                onToggleFavorite={() => toggleFavoriteStable(entry.id)}
+                sources={entry.sources}
+                sameNameOnNord={entry.sameNameOnNord}
+                favorite={isFavorite(entry)}
+                onToggleFavorite={() => toggleFavoriteStable(entry)}
                 onOpen={() => onSelectStable(entry)}
                 selected={entry.id === activeId}
                 unused={entry.unused}
