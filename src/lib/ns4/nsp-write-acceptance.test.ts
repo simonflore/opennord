@@ -13,7 +13,7 @@ describe('buildNpno — acceptance checks', () => {
   it("refuses to hand over a file that fails them, and says it's OpenNord's bug", () => {
     expect(() => buildNpno({
       name: 'Checked', channels: 1,
-      zones: [{ rootNote: 60, lowNote: 0, highNote: 127, layers: [{ pcm: [Int32Array.from(tone(3000, 0.02, 3000, 1))], floorDb: 0 }] }],
+      zones: [{ rootNote: 130, lowNote: 0, highNote: 127, layers: [{ pcm: [Int32Array.from(tone(3000, 0.02, 3000, 1))], floorDb: 0 }] }],
     })).toThrow(/wouldn't load on a Nord \(failed check: cnsp-checksum\)\. This is a bug in OpenNord, not in your recordings/);
   });
 });

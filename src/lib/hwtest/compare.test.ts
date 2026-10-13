@@ -59,14 +59,15 @@ describe('piano reference', () => {
     expect(() => pianoReference(t2, { key: 70, holdS: 0.5, totalS: 0.6, sampleRate: SR })).toThrow(/plays nothing/);
   });
 
-  it('predicts the three pitch hypotheses on key A4 (the recorded note) and G#4', () => {
+  it('predicts the three pitch hypotheses on key A4 (the top key) and G#4', () => {
     const at = (key: number) => Object.fromEntries(
       pianoReference(t1, { key, holdS: 0.5, totalS: 0.6, sampleRate: SR }).pitch.map((h) => [h.id, h.hz]),
     );
     const a4 = at(69);
     expect(a4.A).toBeCloseTo(440, 1);
-    expect(a4.B).toBeCloseTo(440, 1); // +27 c is clamped: a stroke never plays above its recording
-    expect(a4.C).toBeCloseTo((440 * CLOCK_43K) / 44100, 1); // ≈ 433.0 Hz
+    // The top key plays 3 semitones below the recording, so the +27 c is not clamped there.
+    expect(centsBetween(a4.B, 440)).toBeCloseTo(27, 1);
+    expect(centsBetween(a4.C, 440)).toBeCloseTo(27 - 1200 * Math.log2(44100 / CLOCK_43K), 1);
     const gs4 = at(68);
     expect(centsBetween(gs4.A, noteToHz(68))).toBeCloseTo(0, 1);
     expect(centsBetween(gs4.B, noteToHz(68))).toBeCloseTo(27, 1);
@@ -88,7 +89,7 @@ describe('piano reference', () => {
     // level word 125, attenuation 0, +0x40C trim 40 (0.1 dB): lvl 145 → −14.6 dB
     expect(r.stroke.levelWord).toBe(125);
     expect(r.stroke.predictedGainDb).toBeCloseTo(-14.55, 1);
-    expect(r.stroke.loopDecayDbPerS).toBeCloseTo(20 * Math.log10(defaultDecayCoefficient(65) / 2 ** 23) * 22050, 6);
+    expect(r.stroke.loopDecayDbPerS).toBeCloseTo(20 * Math.log10(defaultDecayCoefficient(68) / 2 ** 23) * 22050, 6);
     expect(r.stroke.damperIndex).toBe(13);
     expect(r.notes.join('\n')).toMatch(/zone 1, layer 1 of 1/);
   });

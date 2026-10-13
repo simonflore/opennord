@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { decodeNspStroke, findCnsp, readNspDirectory, strokeFor } from './nsp-audio';
 import { NSP_ROOT_OFFSET, readNsp, readNspIdentity } from './nsp';
@@ -7,24 +7,25 @@ import { checkNpnoAcceptance, voiceTableEntries, type NpnoModel } from './nsp-ch
 import { tone } from './nsp-synth.testing';
 import {
   blockLevel, buildNpno, defaultDecayCoefficient, encodeNpnoStroke, NPNO_HEADER_SIZE, NPNO_PEAK,
-  NPNO_RECORD_SIZE, readNpnoImage, writeNpnoImage, type NpnoInput,
+  NPNO_PIANO_TYPE, NPNO_RECORD_SIZE, readNpnoImage, writeNpnoImage, type NpnoInput,
 } from './nsp-write';
 import { identifyNsmp } from '../clavia/sample-identify';
 import { auditionKeys } from '@/components/piano/auditionKeys';
 
 const toneI = (frames: number, f: number, amp: number, seed: number) => Int32Array.from(tone(frames, f, amp, seed));
 
-/** A small two-zone, two-layer piano (loudest layer first); the upper zone's soft layer loops. */
+/** A small two-zone, two-layer piano (loudest layer first); the upper zone's soft layer loops.
+ *  Each recording sounds 3 semitones above its zone's top key, the least a Nord takes. */
 function piano(channels: 1 | 2): NpnoInput {
   const ch = (f: number, a: number, s: number, n = 24000) => Array.from({ length: channels }, (_, c) => toneI(n, f, a * (1 - 0.2 * c), s + c));
   return {
-    name: 'Test Upright', variant: 'Home', minor: 1, pianoType: 2, channels,
+    name: 'Test Upright', variant: 'Home', minor: 1, pianoType: NPNO_PIANO_TYPE.upright, channels,
     zones: [
-      { rootNote: 48, lowNote: 21, highNote: 59, layers: [
+      { rootNote: 62, lowNote: 21, highNote: 59, layers: [
         { pcm: ch(0.01, 3000, 1), floorDb: 0 },
         { pcm: ch(0.01, 12000, 2), floorDb: 12.8 },
       ] },
-      { rootNote: 72, lowNote: 60, highNote: 108, layers: [
+      { rootNote: 111, lowNote: 60, highNote: 108, layers: [
         { pcm: ch(0.02, 2000, 3), floorDb: 0 },
         { pcm: ch(0.02, 20000, 4, 30000), floorDb: 16, loop: { start: 12000, length: 9000 } },
       ] },
@@ -58,8 +59,8 @@ describe('buildNpno', () => {
       expect(f.version).toBe('6.10');
       // The key map stores each recorded note 4 semitones lower (NSP_ROOT_OFFSET).
       expect(f.zones).toEqual([
-        { rootNote: 44, lowNote: 21, highNote: 59 },
-        { rootNote: 68, lowNote: 60, highNote: 108 },
+        { rootNote: 58, lowNote: 21, highNote: 59 },
+        { rootNote: 107, lowNote: 60, highNote: 108 },
       ]);
       expect(readNspIdentity(bytes)).toMatchObject({ name: 'Test Upright', variant: 'Home' });
       expect(identifyNsmp(bytes)).toMatchObject({ recognized: true, pianoLibrary: true });
@@ -110,18 +111,20 @@ describe('buildNpno', () => {
     const u16 = (b: Uint8Array, o: number) => (b[o] << 8) | b[o + 1];
     const u32 = (b: Uint8Array, o: number) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
     // layers-per-root table, at the stored roots (recorded note − 4)
-    expect(u16(bytes, base + 0x622 + 44 * 2)).toBe(2);
-    expect(u16(bytes, base + 0x622 + 68 * 2)).toBe(2);
-    expect(u16(bytes, base + 0x622 + 48 * 2)).toBe(0);
-    expect(u16(bytes, base + 0x622 + 72 * 2)).toBe(0);
+    expect(u16(bytes, base + 0x622 + 58 * 2)).toBe(2);
+    expect(u16(bytes, base + 0x622 + 107 * 2)).toBe(2);
+    expect(u16(bytes, base + 0x622 + 62 * 2)).toBe(0);
+    expect(u16(bytes, base + 0x622 + 111 * 2)).toBe(0);
     const r3 = rec(3);
     expect(r3[0x05]).toBe(80);
     expect(r3[0x33]).toBe(80);
     expect(r3[0x74]).toBe(80 - 40); // midway from the louder layer's floor (0)
     expect(rec(1)[0x74]).toBe(64 - 32);
     expect(rec(0)[0x74]).toBe(0);
-    expect(u32(r3, 0x2e)).toBe(defaultDecayCoefficient(68));
-    for (let k = 0; k < 13; k++) expect(u32(r3, 0x36 + k * 4)).toBe(0x800000);
+    expect(u32(r3, 0x2e)).toBe(defaultDecayCoefficient(107));
+    // all 14 pre-loop factors are 1.0: a 0 would silence the keys an octave below the root
+    for (let k = 0; k < 14; k++) expect(u32(r3, 0x36 + k * 4)).toBe(0x800000);
+    expect(u32(r3, 0x6e)).toBe(4);
     // loop-start block: it contains the loop start, and the next block starts after it
     const lbFirst = u32(r3, 0x24); const lbNext = u32(r3, 0x28);
     expect(lbFirst).toBeLessThanOrEqual(12000);
@@ -139,9 +142,9 @@ describe('buildNpno', () => {
 
   it('rejects zones whose recorded notes fall as their keys rise', () => {
     const p = piano(1);
-    // Keys 21–59 recorded at C5 and 60–108 at C3: the notes (stored by root) and the key map
-    // (stored by key) would disagree, and a key would play the other zone's recording.
-    const swapped = [{ ...p.zones[0], rootNote: 72 }, { ...p.zones[1], rootNote: 48 }];
+    // Keys 21–59 recorded above the recording for 60–108: the notes (stored by root) and the
+    // key map (stored by key) would disagree, and a key would play the other zone's recording.
+    const swapped = [{ ...p.zones[0], rootNote: 120 }, p.zones[1]];
     expect(() => buildNpno({ ...p, zones: swapped })).toThrow(/Zones 0 and 1: the higher keys \(60–108\) need the higher recorded note/);
     // The same zones given in any order are fine as long as roots rise with the keys.
     expect(() => buildNpno({ ...p, zones: [p.zones[1], p.zones[0]] })).not.toThrow();
@@ -150,7 +153,7 @@ describe('buildNpno', () => {
   it('rejects a version, piano type or key range the file cannot hold', () => {
     const p = piano(1);
     for (const minor of [10, -1, 1.5]) expect(() => buildNpno({ ...p, minor })).toThrow(/version must be 6\.0 to 6\.9/);
-    for (const pianoType of [0, 7, 2.5]) expect(() => buildNpno({ ...p, pianoType })).toThrow(/Unknown piano type/);
+    for (const pianoType of [0, 8, 2.5]) expect(() => buildNpno({ ...p, pianoType })).toThrow(/Unknown piano type/);
     expect(() => buildNpno({ ...p, minor: 9, pianoType: 6 })).not.toThrow();
     expect(() => buildNpno({ ...p, zones: [{ ...p.zones[0], highNote: 59.5 }, p.zones[1]] })).toThrow(/Zone 0: key range 21–59\.5 is invalid/);
     expect(() => buildNpno({ ...p, zones: [p.zones[0], { ...p.zones[1], lowNote: 59.5 }] })).toThrow(/Zone 1: key range/);
@@ -162,7 +165,7 @@ describe('buildNpno', () => {
     const layer = p.zones[0].layers[0];
     // 96 one-key zones × 55 layers (0, 0.2, 0.4 … dB) = 5,280 recordings, one over 0x149F.
     const zones = Array.from({ length: 96 }, (_, z) => ({
-      rootNote: 20 + z, lowNote: 20 + z, highNote: 20 + z,
+      rootNote: 23 + z, lowNote: 20 + z, highNote: 20 + z,
       layers: Array.from({ length: 55 }, (_, k) => ({ ...layer, floorDb: k / 5 })),
     }));
     expect(() => buildNpno({ ...p, zones })).toThrow(/This piano has more notes than a Nord can load \(5,280 recordings; 5,279 at most\)/);
@@ -196,24 +199,54 @@ describe('buildNpno', () => {
     expect(() => buildNpno({ ...p, zones })).toThrow(/Zone 1 layer 1: the recording is too long for one note \(it needs 65536 blocks; a note holds at most 65535\)/);
   });
 
-  it('plays a zone recorded at C4 at its recorded pitch', () => {
+  it('plays a key the right distance below its recording', () => {
     const p = piano(1);
-    const zones = [p.zones[0], { ...p.zones[1], rootNote: 60 }]; // recorded at C3 and C4
+    // Recorded at D#3 and D#4 (at 44.1 kHz), for zones that end on C3 and C4.
+    const zones = [{ ...p.zones[0], rootNote: 51, highNote: 48 }, { ...p.zones[1], rootNote: 63, lowNote: 49, highNote: 60 }];
     const { bytes } = buildNpno({ ...p, zones });
     const f = readNsp(bytes);
-    expect(f.zones!.map((z) => z.rootNote)).toEqual([48 - NSP_ROOT_OFFSET, 60 - NSP_ROOT_OFFSET]);
+    expect(f.zones!.map((z) => z.rootNote)).toEqual([51 - NSP_ROOT_OFFSET, 63 - NSP_ROOT_OFFSET]);
     const keys = auditionKeys(f.zones!, readNspDirectory(bytes)!.strokes.at(-1)!.zone + 1);
-    expect(keys.find((k) => k.label === 'C4')).toMatchObject({ zone: 1, semitones: 0 });
-    expect(keys.find((k) => k.label === 'C3')).toMatchObject({ zone: 0, semitones: 0 });
-    expect(keys.find((k) => k.label === 'C5')).toMatchObject({ zone: 1, semitones: 12 });
+    expect(keys.find((k) => k.label === 'C4')).toMatchObject({ zone: 1, semitones: -3 });
+    expect(keys.find((k) => k.label === 'C3')).toMatchObject({ zone: 0, semitones: -3 });
+    expect(keys.find((k) => k.label === 'C2')).toMatchObject({ zone: 0, semitones: -15 });
+  });
+
+  it('refuses a key more than one above the stored root, which can freeze a Nord', () => {
+    const p = piano(1);
+    const top = (rootNote: number, highNote: number) => buildNpno({ ...p, zones: [{ ...p.zones[0], rootNote, highNote }, p.zones[1]] });
+    // Recorded at D4 (62): stored as A#3 (58), so B3 (59) is the highest key it can play.
+    expect(() => top(62, 60)).toThrow(/Zone 0: its top key \(60\) is too high for its recording \(note 62\).*note 63 or higher.*end the zone at key 59/);
+    expect(() => top(60, 59)).toThrow(/too high for its recording/);
+    expect(() => top(62, 59)).not.toThrow();
+    // The checker says the same of a file that has such a key, however it was made.
+    const { bytes } = top(62, 59);
+    expect(checkNpnoAcceptance(bytes).checks.find((c) => c.id === 'key-reach')).toMatchObject({ ok: true });
+    const img = readNpnoImage(bytes);
+    img.header[0x8c + 60] = 58; // key C4 moved into the lower zone: two above its root
+    const bad = checkNpnoAcceptance(writeNpnoImage(img).bytes).checks.find((c) => c.id === 'key-reach')!;
+    expect(bad.ok).toBe(false);
+    expect(bad.detail).toMatch(/Key 60 plays a recording stored for note 58/);
+  });
+
+  it('sets the release mode and the model name by piano type', () => {
+    const p = piano(1);
+    const header = (pianoType: number) => buildNpno({ ...p, pianoType }).bytes.subarray(0x2c);
+    for (const type of [NPNO_PIANO_TYPE.grand, NPNO_PIANO_TYPE.upright, NPNO_PIANO_TYPE.digital]) {
+      expect([header(type)[0x18], header(type)[0x8b], header(type)[0x49c]]).toEqual([type, 0, 0]);
+    }
+    for (const type of [NPNO_PIANO_TYPE.electric, NPNO_PIANO_TYPE.wurlitzer, NPNO_PIANO_TYPE.clav]) {
+      expect([header(type)[0x18], header(type)[0x8b], header(type)[0x49c]]).toEqual([type, 2, 2]);
+    }
+    expect(String.fromCharCode(...header(NPNO_PIANO_TYPE.grand).subarray(0x5c, 0x60))).toBe('Home');
   });
 
   it('rejects recorded notes the key map cannot store', () => {
     const p = piano(1);
-    const at = (rootNote: number) => buildNpno({ ...p, zones: [{ ...p.zones[0], rootNote }, p.zones[1]] });
-    expect(() => at(NSP_ROOT_OFFSET)).toThrow(/recorded note must be a MIDI note from 5 to 127/);
-    expect(() => at(128)).toThrow(/recorded note/);
-    expect(() => at(47.5)).toThrow(/recorded note/);
+    const at = (rootNote: number) => buildNpno({ ...p, zones: [{ ...p.zones[0], rootNote, lowNote: 0, highNote: 2 }, p.zones[1]] });
+    expect(() => at(NSP_ROOT_OFFSET)).toThrow(/recorded note must be a whole note number from 5 to 131/);
+    expect(() => at(132)).toThrow(/recorded note must be/);
+    expect(() => at(47.5)).toThrow(/recorded note must be/);
     expect(() => at(NSP_ROOT_OFFSET + 1)).not.toThrow();
   });
 
@@ -249,6 +282,45 @@ describe('writeNpnoImage / readNpnoImage', () => {
     const img = readNpnoImage(first);
     const again = writeNpnoImage(img).bytes;
     expect(again).toEqual(first);
+  });
+
+  it('keeps what a file had and the encoder would choose differently: block layout, length, CBIN bytes', () => {
+    const built = buildNpno(piano(1));
+    const first = built.bytes;
+    // The encoder's own layout searches every predictor order, not just the first that fits.
+    expect(built.stats.some((st) => st.orders.some((o) => o > 0))).toBe(true);
+    const dir = readNspDirectory(first)!;
+    const pcm0 = decodeNspStroke(first, dir, dir.strokes[0]);
+
+    // A layout wider than the narrowest that fits, as the factory encoder often writes.
+    const wide = readNpnoImage(first);
+    wide.strokes[0].layout = wide.strokes[0].layout!.map((b) => b + 1);
+    wide.cbinTag = Uint8Array.of(3, 0, 1, 0, 0xff, 0xff, 0xff, 0xff);
+    const a = writeNpnoImage(wide);
+    expect(a.stats[0].widths[0]).toBe((readNpnoImage(first).strokes[0].layout![0] & 31) + 1);
+    expect(a.bytes.length).toBeGreaterThan(first.length);
+    expect(checkNpnoAcceptance(a.bytes, { deep: true }).checks.filter((c) => !c.ok)).toEqual([]);
+    expect(Array.from(a.bytes.subarray(0x0c, 0x14))).toEqual([3, 0, 1, 0, 0xff, 0xff, 0xff, 0xff]);
+    const dirA = readNspDirectory(a.bytes)!;
+    expect(Array.from(decodeNspStroke(a.bytes, dirA, dirA.strokes[0])[0].subarray(0, pcm0[0].length))).toEqual(Array.from(pcm0[0]));
+    // Read back and written again, it is the same file: nothing is recomputed.
+    expect(writeNpnoImage(readNpnoImage(a.bytes)).bytes).toEqual(a.bytes);
+
+    // A looped stroke that runs on well past its loop end keeps that length.
+    const long = readNpnoImage(first);
+    const s3 = long.strokes[3];
+    const had = s3.pcm[0].length;
+    const more = new Int32Array(had + 5000);
+    for (let n = 0; n < more.length; n++) more[n] = n < had ? s3.pcm[0][n] : more[n - s3.loop!.length];
+    long.strokes[3] = { ...s3, pcm: [more], frames: more.length, layout: undefined, levels: undefined };
+    const b = writeNpnoImage(long).bytes;
+    expect(readNspDirectory(b)!.strokes[3].frames).toBeGreaterThanOrEqual(had + 5000);
+    expect(writeNpnoImage(readNpnoImage(b)).bytes).toEqual(b);
+
+    // A kept layout that can't hold the PCM is dropped for the encoder's own.
+    const stale = readNpnoImage(first);
+    for (const st of stale.strokes) st.layout = st.layout!.map(() => 1); // 1 bit, order 0
+    expect(writeNpnoImage(stale).bytes).toEqual(first);
   });
 
   it('writes the legacy v5 envelope with its CRC-16 trailer', () => {
@@ -292,13 +364,14 @@ describe('checkNpnoAcceptance', () => {
     const img = readNpnoImage(buildNpno(piano(1)).bytes);
     const keyMap = 0x8c;
     // Swap the roots: keys 21–59 now name the upper zone's root and 60–108 the lower one's.
-    for (let n = 21; n <= 59; n++) img.header[keyMap + n] = 68;
-    for (let n = 60; n <= 108; n++) img.header[keyMap + n] = 44;
-    expect(failedIds(writeNpnoImage(img).bytes)).toEqual(['key-map']);
+    // (The upper keys then also sit far above the root they name.)
+    for (let n = 21; n <= 59; n++) img.header[keyMap + n] = 107;
+    for (let n = 60; n <= 108; n++) img.header[keyMap + n] = 58;
+    expect(failedIds(writeNpnoImage(img).bytes)).toEqual(['key-map', 'key-reach']);
     // A key-map root with no recordings behind it.
-    for (let n = 21; n <= 59; n++) img.header[keyMap + n] = 44;
-    for (let n = 60; n <= 108; n++) img.header[keyMap + n] = 68;
-    img.header[keyMap + 110] = 70;
+    for (let n = 21; n <= 59; n++) img.header[keyMap + n] = 58;
+    for (let n = 60; n <= 108; n++) img.header[keyMap + n] = 107;
+    img.header[keyMap + 110] = 109;
     expect(failedIds(writeNpnoImage(img).bytes)).toEqual(['key-map']);
   });
 
@@ -455,12 +528,15 @@ describe('encodeNpnoStroke', () => {
 });
 
 // Real factory pianos (local only, never committed): NPNO_DIR=<folder of .npno>. Decode →
-// re-encode → decode must reproduce every stroke; the report lands in the test log.
+// re-encode must give the same file back; the report lands in the test log. What the image
+// keeps to get there (block levels, block layout, stroke length, the last block's overlap) is
+// then dropped piece by piece to count how far the encoder's own choices are from Nord's.
 const npnoDir = process.env.NPNO_DIR;
 const realFiles = npnoDir && existsSync(npnoDir) ? readdirSync(npnoDir).filter((f) => f.endsWith('.npno')) : [];
 describe.skipIf(realFiles.length === 0)('re-encode real pianos in $NPNO_DIR', () => {
   for (const name of realFiles) {
     it(`${name}: byte-identical re-encode; our own levels change only level bytes`, () => {
+      const stats = { levelDiffs: 0, levelFar: 0, sameLayout: 0 };
       const orig = new Uint8Array(readFileSync(join(npnoDir!, name)));
       expect(checkNpnoAcceptance(orig, { deep: true }).checks.filter((c) => !c.ok)).toEqual([]);
       expect(readNsp(orig)).toMatchObject({ hasChecksum: true, checksumValid: true });
@@ -475,7 +551,7 @@ describe.skipIf(realFiles.length === 0)('re-encode real pianos in $NPNO_DIR', ()
 
       // 2. With our own measured levels: same audio, same layout; count what differs.
       for (const s of img.strokes) s.levels = undefined;
-      const { bytes, stats } = writeNpnoImage(img);
+      const { bytes, stats: written } = writeNpnoImage(img);
       expect(checkNpnoAcceptance(bytes, { deep: true }).checks.filter((c) => !c.ok)).toEqual([]);
       expect(readNsp(bytes).checksumValid).toBe(true);
       const a = readNspDirectory(orig)!;
@@ -484,13 +560,13 @@ describe.skipIf(realFiles.length === 0)('re-encode real pianos in $NPNO_DIR', ()
       for (const s of a.strokes) for (let k = 0; k < s.blocks; k++) levelBytes.add(s.offset + k * a.blockWords * 2);
       const cnsp = findCnsp(orig);
       const checksumBytes = new Set([0x18, 0x19, 0x1a, 0x1b, orig.length - 2, orig.length - 1, cnsp + 6, cnsp + 7, cnsp + 8, cnsp + 9]);
-      let levelDiffs = 0;
       for (let i = 0; i < orig.length; i++) {
         if (orig[i] === bytes[i]) continue;
         if (levelBytes.has(i)) {
-          levelDiffs++;
-          // ±1 dB of rounding; very quiet blocks (peak of a few LSB) can differ more
-          expect(Math.abs(orig[i] - bytes[i]) <= 1 || Math.min(orig[i], bytes[i]) >= 50).toBe(true);
+          // The level byte is the DSP's meter value, measured by Nord before its own rounding:
+          // most differences are 1 dB, but some files run 1–2 dB off on many blocks.
+          stats.levelDiffs++;
+          if (Math.abs(orig[i] - bytes[i]) > 1) stats.levelFar++;
           continue;
         }
         expect(checksumBytes.has(i), `unexpected difference at 0x${i.toString(16)}`).toBe(true);
@@ -500,9 +576,20 @@ describe.skipIf(realFiles.length === 0)('re-encode real pianos in $NPNO_DIR', ()
         const pb = decodeNspStroke(bytes, b, b.strokes[i]);
         for (let c = 0; c < a.channels; c++) expect(pb[c]).toEqual(pa[c]);
       }
-      const blocks = stats.reduce((n, x) => n + x.blocks, 0);
-      console.log(`[npno-write] ${name}: ${a.strokes.length} strokes, ${blocks} blocks, ${orig.length} bytes; ` +
-        `own levels: size ratio ${(bytes.length / orig.length).toFixed(4)}, ${levelDiffs}/${blocks} level bytes differ`);
-    }, 300_000);
+      // 3. With our own block layout too: how many strokes does the encoder lay out as Nord did?
+      for (const s of img.strokes) s.layout = undefined;
+      const own = writeNpnoImage(img);
+      own.stats.forEach((st, i) => {
+        const kept = written[i];
+        if (st.blocks === kept.blocks && st.widths.every((w, k) => w === kept.widths[k] && st.orders[k] === kept.orders[k])) stats.sameLayout++;
+      });
+      const blocks = written.reduce((n, x) => n + x.blocks, 0);
+      const report = `[npno-write] ${name}: ${a.strokes.length} strokes, ${blocks} blocks, ${orig.length} bytes; ` +
+        `own levels: ${stats.levelDiffs}/${blocks} level bytes differ (${stats.levelFar} by more than 1 dB); ` +
+        `own layout: same as Nord's in ${stats.sameLayout}/${a.strokes.length} strokes, size ratio ${(own.bytes.length / orig.length).toFixed(4)}`;
+      console.log(report);
+      // NPNO_REPORT=<file> collects the lines, for runs that go one piano at a time.
+      if (process.env.NPNO_REPORT) appendFileSync(process.env.NPNO_REPORT, `${report}\n`);
+    }, 900_000); // three encodes; the 200 MB pianos take over five minutes
   }
 });

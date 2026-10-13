@@ -25,7 +25,7 @@ import { computeNs4Checksum } from '../clavia/checksum';
 import {
   BLOCK_OVERLAP, decodeNspStroke, findCnsp, framesPerBlock, NSP_ENVELOPE_RATE, PREDICTORS, readLayerTable, readNspDirectory,
 } from './nsp-audio';
-import { NSP_ROOT_OFFSET } from './nsp';
+import { NSP_MAX_KEYS_ABOVE_ROOT, NSP_ROOT_OFFSET } from './nsp';
 import {
   checkNpnoAcceptance, cnspChecksum, MAX_LAYERS_PER_ROOT, MAX_PIANO_NAME, MAX_PIANO_STROKES, type NpnoModel,
 } from './nsp-check';
@@ -91,6 +91,29 @@ export interface NpnoStrokeImage {
    * the block count differs — drop it after changing the PCM.
    */
   levels?: Uint8Array;
+  /**
+   * The stroke's length in frames as the file had it (`readNpnoImage` sets it). The encoder
+   * then writes exactly that many frames from `pcm`, loop or not, where it would otherwise end
+   * a looped stroke with the block that holds its loop end: factory strokes keep anything from
+   * no frames to several blocks after the loop end. Drop it after changing the PCM or the loop.
+   */
+  frames?: number;
+  /**
+   * Each block's predictor order and residual width as the file had them: one byte a block,
+   * `width | order << 5` (the low byte of the block header). `readNpnoImage` sets it. The
+   * factory encoder often takes a wider width or another order than the narrowest that fits
+   *, so its layout can't be recomputed and is kept. A
+   * block whose kept choice can't hold the PCM falls back to the encoder's own, and so does
+   * everything after it — drop it after changing the PCM.
+   */
+  layout?: Uint8Array;
+  /**
+   * The {@link BLOCK_OVERLAP} frames after the stroke's last frame, per channel, as the last
+   * block's overlap held them (`readNpnoImage` sets it). The encoder otherwise fills that
+   * overlap with the loop's continuation or silence; factory strokes cut from a longer take
+   * hold the take's next frames there. Used only together with `frames`.
+   */
+  tail?: ArrayLike<number>[];
 }
 
 export interface NpnoImage {
@@ -102,6 +125,11 @@ export interface NpnoImage {
   /** CNSP+0x000 … +0x731. The encoder overwrites magic, checksum and the directory. */
   header: Uint8Array;
   strokes: NpnoStrokeImage[];
+  /**
+   * The 8 bytes at 0x0C of the CBIN header. `FF` × 8 in most files and by default; some factory
+   * files hold small values in the first four (meaning unknown), which a re-encode keeps.
+   */
+  cbinTag?: Uint8Array;
 }
 
 export interface NpnoWriteResult {
@@ -208,8 +236,9 @@ export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedSt
   const loopEnd = loop ? loop.start + loop.length : 0;
   // The stroke ends at the end of the block holding frame `target - 1`: the loop end itself
   // for looped strokes (factory files always end the block containing the loop end), the
-  // last PCM frame otherwise.
-  const target = loop ? loopEnd + 1 : pcmLen;
+  // last PCM frame otherwise. A stroke read from a file keeps the length it had.
+  const kept = s.frames !== undefined && s.frames <= pcmLen ? s.frames : undefined;
+  const target = kept ?? (loop ? loopEnd + 1 : pcmLen);
   const maxOwn = framesPerBlock(blockWords, 1, channels);
   // Even 1-bit blocks couldn't hold it: refuse before allocating the work arrays.
   const least = fewestBlocks(pcmLen, loop, channels);
@@ -223,7 +252,7 @@ export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedSt
     const a = new Int32Array(P + extLen);
     for (let k = 0; k < 4; k++) a[k] = s.preroll[c]?.[k] ?? 0;
     const src = s.pcm[c];
-    const end = loop ? loopEnd : pcmLen;
+    const end = kept ?? (loop ? loopEnd : pcmLen);
     for (let n = 0; n < end; n++) {
       const v = Math.round(src[n]);
       if (v < -32768 || v > 32767) throw new Error(`sample ${v} at frame ${n} is outside int16`);
@@ -236,8 +265,10 @@ export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedSt
         const want = a[P + loop.start - k];
         if (a[P + loopEnd - k] !== want) { a[P + loopEnd - k] = want; seamForced = true; }
       }
-      for (let n = loopEnd; n < extLen; n++) a[P + n] = a[P + n - loop.length];
+      for (let n = Math.max(loopEnd, end); n < extLen; n++) a[P + n] = a[P + n - loop.length];
     }
+    const tail = kept === undefined ? undefined : s.tail?.[c];
+    if (tail) for (let k = 0; k < BLOCK_OVERLAP && k < tail.length; k++) a[P + end + k] = tail[k];
     return a;
   });
 
@@ -264,9 +295,21 @@ export function encodeNpnoStroke(s: NpnoStrokeImage, channels: 1 | 2): EncodedSt
   const widths: number[] = [];
   const orders: number[] = [];
   let t = 0;
+  let useLayout = s.layout !== undefined;
   while (t < target) {
     let best = { order: 0, width: 0 };
-    for (let o = 0; o < PREDICTORS.length; o++) {
+    if (useLayout) {
+      // The file's own choice for this block, if it still holds every residual.
+      const b = s.layout![blocks.length];
+      const width = b === undefined ? 0 : b & 31;
+      const order = b === undefined ? 0 : b >> 5;
+      const span = width ? framesPerBlock(blockWords, width, channels) + BLOCK_OVERLAP : 0;
+      let fits = span > BLOCK_OVERLAP && order < PREDICTORS.length;
+      for (let k = 0; fits && k < span; k++) fits = need[order][t + k] <= width;
+      if (fits) best = { order, width };
+      else useLayout = false;
+    }
+    for (let o = useLayout ? PREDICTORS.length : 0; o < PREDICTORS.length; o++) {
       const nd = need[o];
       // Frames t … t+k−1 all fit the widths tried so far; wider widths hold fewer frames, so
       // the scan only ever moves forward.
@@ -403,11 +446,15 @@ export function writeNpnoImage(img: NpnoImage): NpnoWriteResult {
     for (let c = 0; c < 2; c++) {
       for (let k = 0; k < 4; k++) be16(cnsp, r + 0x0c + c * 8 + k * 2, c < channels ? (s.preroll[c]?.[k] ?? 0) & 0xffff : 0);
     }
-    be32(cnsp, r + 0x1c, s.loop?.length ? s.loop.start : 0);
     be32(cnsp, r + 0x20, s.loop?.length ?? 0);
-    be32(cnsp, r + 0x24, e.loopBlock?.first ?? 0);
-    be32(cnsp, r + 0x28, e.loopBlock?.next ?? 0);
-    be16(cnsp, r + 0x2c, e.loopBlock?.index ?? 0);
+    // Without a loop the start and loop-block fields stay as the record has them: 0 from
+    // `buildNpno`, and whatever a factory record without a loop length carries there.
+    if (s.loop?.length && e.loopBlock) {
+      be32(cnsp, r + 0x1c, s.loop.start);
+      be32(cnsp, r + 0x24, e.loopBlock.first);
+      be32(cnsp, r + 0x28, e.loopBlock.next);
+      be16(cnsp, r + 0x2c, e.loopBlock.index);
+    }
     cnsp.set(e.data, at);
     at += e.data.length;
   });
@@ -419,6 +466,7 @@ export function writeNpnoImage(img: NpnoImage): NpnoWriteResult {
   out[4] = img.envelope === 'v6' ? 1 : 0;
   ascii(out, 8, 'npno');
   out.fill(0xff, 0x0c, 0x14);
+  if (img.cbinTag) out.set(img.cbinTag.subarray(0, 8), 0x0c);
   out[0x14] = img.cbinVersion & 0xff;
   out[0x15] = (img.cbinVersion >>> 8) & 0xff;
   if (img.envelope === 'v6') {
@@ -434,6 +482,45 @@ export function writeNpnoImage(img: NpnoImage): NpnoWriteResult {
 }
 
 /**
+ * The {@link BLOCK_OVERLAP} frames a stroke's last block holds after the stroke's own last
+ * frame, decoded from that block's overlap with the stroke's PCM as predictor history.
+ */
+function readStrokeTail(
+  bytes: Uint8Array, blockWords: number, channels: number,
+  s: { offset: number; blocks: number; frames: number; history: number[][] }, pcm: Int32Array[],
+): Int32Array[] {
+  const at = s.offset + (s.blocks - 1) * blockWords * 2;
+  const width = bytes[at + 1] & 31;
+  const coef = PREDICTORS[bytes[at + 1] >> 5] ?? [];
+  const own = framesPerBlock(blockWords, width, channels);
+  // The frame `back` before the stroke's end: PCM, or the record's history (most recent first).
+  const before = (c: number, x: Int32Array, n: number) => (n >= 0 ? x[n] : s.history[c]?.[-n - 1] ?? 0);
+  const out = Array.from({ length: channels }, () => new Int32Array(BLOCK_OVERLAP));
+  let bit = own * width * channels;
+  for (let k = 0; k < BLOCK_OVERLAP; k++) {
+    for (let c = 0; c < channels; c++) {
+      let r = 0;
+      for (let got = 0; got < width;) {
+        const offs = bit & 15;
+        const take = Math.min(16 - offs, width - got);
+        const w = at + 2 + (bit >> 4) * 2;
+        r |= ((((bytes[w] << 8) | bytes[w + 1]) >> offs) & ((1 << take) - 1)) << got;
+        got += take;
+        bit += take;
+      }
+      if (width < 32 && r & (1 << (width - 1))) r -= 2 ** width;
+      let p = 0;
+      for (let j = 0; j < coef.length; j++) {
+        const n = k - 1 - j; // tail frame index; negative = before the stroke's end
+        p += coef[j] * (n >= 0 ? out[c][n] : before(c, pcm[c], s.frames + n));
+      }
+      out[c][k] = r + p;
+    }
+  }
+  return out;
+}
+
+/**
  * Read a `.npno` back into an image: header bytes, every record, and each stroke's decoded
  * PCM (local use only — factory pianos are Clavia's audio). `writeNpnoImage` of the result
  * reproduces the decoded audio exactly.
@@ -445,40 +532,67 @@ export function readNpnoImage(bytes: Uint8Array): NpnoImage {
   const header = bytes.slice(base, base + NPNO_HEADER_SIZE);
   const roots = readLayerTable(bytes, base).flatMap((c, n) => new Array<number>(c).fill(n));
   if (roots.length !== dir.strokes.length) throw new Error('layers-per-root table does not match the stroke count');
-  const strokes = dir.strokes.map((s, i) => ({
-    rootNote: roots[i],
-    pcm: decodeNspStroke(bytes, dir, s),
-    preroll: s.history.map((h) => [...h].reverse()),
-    loop: s.loop,
-    record: bytes.slice(base + NPNO_HEADER_SIZE + i * NPNO_RECORD_SIZE, base + NPNO_HEADER_SIZE + (i + 1) * NPNO_RECORD_SIZE),
-    levels: Uint8Array.from({ length: s.blocks }, (_, b) => bytes[s.offset + b * dir.blockWords * 2]),
-  }));
+  const strokes = dir.strokes.map((s, i) => {
+    const pcm = decodeNspStroke(bytes, dir, s);
+    return {
+      rootNote: roots[i],
+      pcm,
+      tail: s.blocks > 0 ? readStrokeTail(bytes, dir.blockWords, dir.channels, s, pcm) : undefined,
+      preroll: s.history.map((h) => [...h].reverse()),
+      loop: s.loop,
+      record: bytes.slice(base + NPNO_HEADER_SIZE + i * NPNO_RECORD_SIZE, base + NPNO_HEADER_SIZE + (i + 1) * NPNO_RECORD_SIZE),
+      levels: Uint8Array.from({ length: s.blocks }, (_, b) => bytes[s.offset + b * dir.blockWords * 2]),
+      frames: s.frames,
+      layout: Uint8Array.from({ length: s.blocks }, (_, b) => bytes[s.offset + b * dir.blockWords * 2 + 1]),
+    };
+  });
   return {
     envelope: base === CBIN_V6_SIZE ? 'v6' : 'v5',
     cbinVersion: bytes[0x14] | (bytes[0x15] << 8),
     channels: dir.channels,
     header,
     strokes,
+    cbinTag: bytes.slice(0x0c, 0x14),
   };
 }
 
 // ── The musician-facing builder ─────────────────────────────────────────────────────────────
 
-/** Piano type byte (CNSP+0x18; NSM `SetBank`/`S_GetMainType`). 1/3/4 seen in factory files. */
+/**
+ * Piano type byte (CNSP+0x18; NSM `SetBank`/`S_GetMainType`). Values as the factory pianos
+ * carry them: 1–6, 14 and 15 seen on 36 local files; 7 and 16 from outside format
+ * notes (155 files), not seen here.
+ */
 export const NPNO_PIANO_TYPE = {
-  /** 1 — seen on Electric Grand 1 CP80. */
-  grand: 1,
-  /** 2 — inferred (not seen in a file). */
-  upright: 2,
-  /** 3 — seen on Wurlitzer 1 200A. */
-  electric: 3,
-  /** 4 — seen on Clavinet D6. */
+  /** 1 — electric grands (Electric Grand 1 CP80, EGrand 3). */
+  electricGrand: 1,
+  /** 2 — tine electric pianos (EP1 … EP9). */
+  electric: 2,
+  /** 3 — Wurlitzers. */
+  wurlitzer: 3,
+  /** 4 — Clavinet D6. */
   clav: 4,
-  /** 5 — inferred. */
-  digital: 5,
-  /** 6 — inferred. */
-  misc: 6,
+  /** 5 — grand pianos (White Grand, Royal Grand 3D). */
+  grand: 5,
+  /** 6 — uprights (Amber Upright, Felt Upright). */
+  upright: 6,
+  /** 7 — harpsichords (not seen locally). */
+  harpsichord: 7,
+  /** 14 — digital and FM pianos (DX7 FullTines, DigiGrand). */
+  digital: 14,
+  /** 15 — other electric pianos (Ballad EP1, Hybrid EP). */
+  misc: 15,
+  /** 16 — mallets (not seen locally). */
+  mallets: 16,
 } as const;
+
+/**
+ * Types whose factory v6 files carry release mode 2 at +0x8B (soft release) and +0x49C
+ * (normal release): the accelerating cut-off of the maintainers’ notes Grands, uprights
+ * and the other types seen carry 0 at +0x8B (the plain damper); a few digital and
+ * electric-grand files have 1 at +0x49C, which the writer doesn't reproduce.
+ */
+const CUT_OFF_RELEASE_TYPES: readonly number[] = [NPNO_PIANO_TYPE.electric, NPNO_PIANO_TYPE.wurlitzer, NPNO_PIANO_TYPE.clav];
 
 export interface NpnoLayerInput {
   /** PCM per channel, int16 range. The stroke should start at the attack (no lead-in silence needed). */
@@ -503,12 +617,17 @@ export interface NpnoLayerInput {
 
 export interface NpnoZoneInput {
   /**
-   * MIDI note the recording sounds at (60 for a C4 sample), 5–127, unique per zone. The file
-   * stores it {@link NSP_ROOT_OFFSET} (4) semitones lower, because the instrument plays every
-   * stroke that far above its stored root.
+   * MIDI note the recording sounds at when played at 44.1 kHz (60 for a C4 sample), 5–131,
+   * unique per zone. The file stores it {@link NSP_ROOT_OFFSET} (4) semitones lower, because
+   * the instrument plays every stroke that far above its stored root (the maintainers’ notes,
+   * "Root offset"). It must be at least {@link NPNO_RECORDING_ABOVE_TOP_KEY} (3) semitones
+   * above `highNote`: resample the recording up if it isn't.
    */
   rootNote: number;
-  /** Key range (inclusive) that plays this zone. Ranges must not overlap. */
+  /**
+   * Key range (inclusive) that plays this zone. Ranges must not overlap. The top key is at
+   * most one above the stored root, so at least 3 semitones below `rootNote`.
+   */
   lowNote: number;
   highNote: number;
   /** Dynamic layers, loudest (hardest-hit) first, as factory pianos store them. */
@@ -560,14 +679,17 @@ function defaultHeader(input: NpnoInput): Uint8Array {
   be16(h, 0x04, CNSP_V6);
   // +0x16 metadata block (NSM reads 0x67 bytes; Stage 4 ARM reads to +0x61C).
   be16(h, 0x16, CNSP_V6); // meta version (gated like the header version)
-  h[0x18] = input.pianoType ?? NPNO_PIANO_TYPE.grand;
-  h[0x19] = 1; // unknown (Clavinet 1, CP80 3, Wurlitzer 2); ARM overwrites it at load
+  const type = input.pianoType ?? NPNO_PIANO_TYPE.grand;
+  const release = CUT_OFF_RELEASE_TYPES.includes(type) ? 2 : 0;
+  h[0x18] = type;
+  h[0x19] = 1; // unknown (1 in most factory files, up to 12 in some); ARM overwrites it at load
   h[0x1a] = minor; // version minor digit (NSM S_GetVersion: format·100 + this·10)
   h[0x1b] = 2; // unknown, 2 in all three factory files
   ascii(h, 0x1c, displayName(input)); // name#variant, 32-byte field
   ascii(h, 0x3c, input.name); // plain name, 32-byte field (v6)
-  // +0x5C: third 32-byte string, zero in every factory file.
-  h[0x8b] = 2; // unknown byte (2 in the v6 Clavinet, 0 in both v5 files)
+  ascii(h, 0x5c, input.variant ?? ''); // model, 32-byte field (v6: "Stw B", "1978 Stage Mk1"; empty when the file has none)
+  // +0x88…+0x8A: zero or small type-dependent values in the factory files, meaning unknown.
+  h[0x8b] = release; // soft-release mode: 2 on EPs, Wurlitzers and the Clavinet, 0 on acoustic pianos
   // +0x8C key map: root note per MIDI key, 0xFF = unmapped.
   h.fill(0xff, 0x8c, 0x10c);
   for (const z of input.zones) for (let n = z.lowNote; n <= z.highNote; n++) h[0x8c + n] = storedRoot(z);
@@ -575,7 +697,7 @@ function defaultHeader(input: NpnoInput): Uint8Array {
   // zero; the constants below are identical in all three factory files unless noted.
   for (let n = 0; n < 128; n++) h[0x20c + n] = n <= 108 ? 0x0d : 0x39; // 0x0d: Clavinet value; 0x39 above key 108 in all
   h.fill(0x80, 0x41c, 0x49c);
-  h[0x49c] = 2; // Clavinet 2, v5 files 0
+  h[0x49c] = release; // release mode, as +0x8B
   h.fill(0x1e, 0x49d, 0x51d);
   h[0x51d] = 2; // Clavinet 2 (not read by the loader)
   // +0x40C…+0x410: Clavinet 28 (6d) 0d 6c 01; +0x40D is overwritten at load, +0x40F/+0x410 = 0x6c/1 in all.
@@ -597,17 +719,23 @@ function defaultRecord(opts: { floor: number; prevFloor: number | undefined; lev
   r[0x05] = opts.floor; // attenuation floor, 0.2 dB steps
   be32(r, 0x2e, opts.decayDbPerSecond === undefined ? defaultDecayCoefficient(opts.root) : decayCoefficient(opts.decayDbPerSecond));
   r[0x32] = 0;
-  r[0x33] = opts.floor; // copy of the attenuation floor (as in every factory v6 record)
+  // +0x33: the floor of the partner layer in the other note set (pedal up ↔ pedal down). A
+  // piano without a pedal-down set stores the layer's own floor, which is all we build.
+  r[0x33] = opts.floor;
   be16(r, 0x34, opts.level);
-  for (let k = 0; k < 13; k++) be32(r, 0x36 + k * 4, 0x800000); // 13 × 1.0 (Q23), as in every v6 record
-  // +0x6A: 14th coefficient, 0. +0x6E: u32 whose low 14 bits the loader keeps (factory values
-  // look like take numbers) — we write a unique id.
+  // 14 Q23 pre-loop factors, one per semitone the key lies below `root + 1` (the last for 12
+  // or more). 1.0 = no extra decay before the loop, as in the Clavinet; most factory pianos
+  // hold a slow decay here. A 0 would silence the keys that use it.
+  for (let k = 0; k < 14; k++) be32(r, 0x36 + k * 4, 0x800000);
+  // +0x6E: u32 whose low 14 bits the loader keeps (the take number in factory files) — we
+  // write a unique id.
   be32(r, 0x6e, opts.id & 0x3fff);
   r[0x72] = 0x0d; // unknown; equals the +0x20C table value in the Clavinet
   r[0x73] = 33; // unknown; Clavinet 36 → 28 with pitch
-  // Layer switch point, halfway from the previous (louder) layer's floor; the loader computes
-  // the same for v5 files.
-  r[0x74] = opts.prevFloor === undefined ? 0 : opts.floor - Math.trunc((opts.floor - opts.prevFloor) / 2);
+  // Layer switch point, halfway from the previous (louder) layer's floor, rounded up; the
+  // first layer counts from 0 (exact for 18,937 factory v6 records). The loader computes the
+  // same for v5 files.
+  r[0x74] = Math.ceil(((opts.prevFloor ?? 0) + opts.floor) / 2);
   return r;
 }
 
@@ -615,6 +743,13 @@ function defaultRecord(opts: { floor: number; prevFloor: number | undefined; lev
 const storedRoot = (z: NpnoZoneInput) => z.rootNote - NSP_ROOT_OFFSET;
 /** Lowest recorded note a zone can have: a stored root of 0 reads as an unused key in the key map. */
 export const MIN_RECORDED_NOTE = 1 + NSP_ROOT_OFFSET;
+/** Highest: a stored root of 127. */
+export const MAX_RECORDED_NOTE = 127 + NSP_ROOT_OFFSET;
+/**
+ * How far above a zone's top key its recording must sound (at 44.1 kHz): the top key is at
+ * most {@link NSP_MAX_KEYS_ABOVE_ROOT} above the stored root, which is 4 below the recording.
+ */
+export const NPNO_RECORDING_ABOVE_TOP_KEY = NSP_ROOT_OFFSET - NSP_MAX_KEYS_ABOVE_ROOT;
 
 /** A layer's floor in the record's 0.2 dB steps. */
 const floorUnits = (l: NpnoLayerInput) => Math.round(l.floorDb * 5);
@@ -654,8 +789,14 @@ function validateZones(input: NpnoInput): void {
     if (!(Number.isInteger(z.lowNote) && Number.isInteger(z.highNote) && z.lowNote >= 0 && z.highNote <= 127 && z.lowNote <= z.highNote)) {
       throw new Error(`Zone ${i}: key range ${z.lowNote}–${z.highNote} is invalid (whole MIDI notes 0–127, lowest first).`);
     }
-    if (!(Number.isInteger(z.rootNote) && z.rootNote >= MIN_RECORDED_NOTE && z.rootNote <= 127)) {
-      throw new Error(`Zone ${i}: the recorded note must be a MIDI note from ${MIN_RECORDED_NOTE} to 127 (got ${z.rootNote}).`);
+    if (!(Number.isInteger(z.rootNote) && z.rootNote >= MIN_RECORDED_NOTE && z.rootNote <= MAX_RECORDED_NOTE)) {
+      throw new Error(`Zone ${i}: the recorded note must be a whole note number from ${MIN_RECORDED_NOTE} to ${MAX_RECORDED_NOTE} (got ${z.rootNote}).`);
+    }
+    // A key two or more above the stored root can freeze the instrument (NSP_MAX_KEYS_ABOVE_ROOT).
+    if (z.highNote > z.rootNote - NPNO_RECORDING_ABOVE_TOP_KEY) {
+      throw new Error(`Zone ${i}: its top key (${z.highNote}) is too high for its recording (note ${z.rootNote}). A Nord plays a piano `
+        + `recording at least ${NPNO_RECORDING_ABOVE_TOP_KEY} semitones below the pitch it has at 44.1 kHz, so it must sound at note `
+        + `${z.highNote + NPNO_RECORDING_ABOVE_TOP_KEY} or higher: resample it up, or end the zone at key ${z.rootNote - NPNO_RECORDING_ABOVE_TOP_KEY}.`);
     }
     if (roots.has(z.rootNote)) throw new Error(`Two zones share root note ${z.rootNote}.`);
     roots.add(z.rootNote);

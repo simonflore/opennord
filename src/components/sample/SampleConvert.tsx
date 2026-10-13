@@ -28,8 +28,21 @@ const GENERATIONS: { code: TargetCodec; ext: string; label: string }[] = [
   { code: 2, ext: '.nsmp', label: 'NSMP 2 (.nsmp)' },
 ];
 
-/** The piano types a Nord files pianos under, as its panel names them. */
-const PIANO_TYPES = Object.entries(NPNO_PIANO_TYPE).map(([key, value]) => ({ value, label: key[0].toUpperCase() + key.slice(1) }));
+/** The piano types a piano file can name (the type byte of the factory pianos). */
+const PIANO_TYPE_LABELS: Record<keyof typeof NPNO_PIANO_TYPE, string> = {
+  electricGrand: 'Electric grand',
+  electric: 'Electric piano',
+  wurlitzer: 'Wurlitzer',
+  clav: 'Clavinet',
+  grand: 'Grand',
+  upright: 'Upright',
+  harpsichord: 'Harpsichord',
+  digital: 'Digital',
+  misc: 'Other electric',
+  mallets: 'Mallets',
+};
+const PIANO_TYPES = (Object.keys(NPNO_PIANO_TYPE) as (keyof typeof NPNO_PIANO_TYPE)[])
+  .map((key) => ({ value: NPNO_PIANO_TYPE[key], label: PIANO_TYPE_LABELS[key] }));
 
 /** Which generation a loaded file is, as a {@link GENERATIONS} code (`.nsmp` -> 2). */
 function sourceGeneration(file: NsmpFile): TargetCodec | 0 {

@@ -6,15 +6,30 @@
  * shared freely. They are still written to the gitignored `hardware-test/` folder, next to
  * the user's recordings, and are never committed.
  *
- * Each recording sounds at **A4 = 440 Hz** (T3 adds an A3 = 220 Hz zone) and every zone's
- * highest key is its recorded note, as in the factory pianos' top zones: the instrument only
- * plays a stroke at or below its recorded pitch, so the keys
- * below it test transposition and key A4 tests the recorded pitch itself.
+ * Key **A4 plays 440 Hz** (T3 adds a zone whose top key A3 plays 220 Hz). A zone's top key is
+ * one above the root the file stores, as in the factory pianos, and the instrument plays a
+ * recording 3 semitones below its 44.1 kHz pitch there (`NPNO_RECORDING_ABOVE_TOP_KEY`,
+ * the maintainers’ notes). So the tones are generated 3 semitones up, at C5 (and C4), and the
+ * keys below the top key test transposition.
  */
 import { NSP_SAMPLE_RATE } from '../ns4/nsp-audio';
-import { NPNO_PEAK, NPNO_PIANO_TYPE, type NpnoInput } from '../ns4/nsp-write';
-/** The recorded note of the main zone: A4. */
+import { NPNO_PEAK, NPNO_PIANO_TYPE, NPNO_RECORDING_ABOVE_TOP_KEY, type NpnoInput } from '../ns4/nsp-write';
+/** The top key of the main zone: A4, which plays 440 Hz. */
 export const TEST_PIANO_NOTE = 69;
+/** The note the main zone's recording sounds at when played at 44.1 kHz: C5. */
+export const TEST_PIANO_RECORDED_NOTE = TEST_PIANO_NOTE + NPNO_RECORDING_ABOVE_TOP_KEY;
+/**
+ * Loop length of every looped test tone, in frames (about 0.5 s). It holds 262 cycles of the
+ * C5 tone and 131 of the C4 one, which puts them 0.04 cents below equal temperament.
+ */
+export const TEST_LOOP_FRAMES = 22082;
+/** The frequency with `cycles` whole cycles in {@link TEST_LOOP_FRAMES}. */
+const loopHz = (cycles: number) => (cycles * NSP_SAMPLE_RATE) / TEST_LOOP_FRAMES;
+/** C5 (523.24 Hz): key A4 plays it at 440 Hz. */
+export const TEST_TONE_HZ = loopHz(262);
+/** C4 (261.62 Hz): key A3 plays it at 220 Hz. */
+const LOW_TONE_HZ = loopHz(131);
+const LOOP_SECONDS = TEST_LOOP_FRAMES / NSP_SAMPLE_RATE;
 /** Lowest key of the main zone: A3, an octave below the recording. */
 export const TEST_PIANO_LOW = 57;
 
@@ -96,21 +111,21 @@ const stereo = (t: TestTone) => ({ pcm: [t.pcm, t.pcm], loop: t.loop });
 
 /** The four test pianos (T3 is optional in the plan); build each with `buildNpno(spec.input)`. */
 export function testPianoSpecs(): TestPianoSpec[] {
-  const zoneA4 = { rootNote: TEST_PIANO_NOTE, lowNote: TEST_PIANO_LOW, highNote: TEST_PIANO_NOTE };
+  const zoneA4 = { rootNote: TEST_PIANO_RECORDED_NOTE, lowNote: TEST_PIANO_LOW, highNote: TEST_PIANO_NOTE };
   const base = { minor: 0, pianoType: NPNO_PIANO_TYPE.grand, channels: 2 as const };
   return [
     {
       id: 'T0',
       purpose: 'Container check: one zone (A3–A4), one layer, 2 s, no loop. Plays A4 = 440 Hz on key A4.',
       input: { ...base, name: 'OpenNord Test 0', variant: 'A440 no loop', zones: [
-        { ...zoneA4, layers: [{ ...stereo(testTone({ hz: 440, seconds: 2, harmonics: WARM })), floorDb: 0 }] },
+        { ...zoneA4, layers: [{ ...stereo(testTone({ hz: TEST_TONE_HZ, seconds: 2, harmonics: WARM })), floorDb: 0 }] },
       ] },
     },
     {
       id: 'T1',
       purpose: 'Loop check: as T0, with a 0.5 s sustain loop after 1 s. A held key keeps sounding.',
       input: { ...base, name: 'OpenNord Test 1', variant: 'A440 loop', zones: [
-        { ...zoneA4, layers: [{ ...stereo(testTone({ hz: 440, seconds: 1.5, harmonics: WARM, loopSeconds: 0.5 })), floorDb: 0 }] },
+        { ...zoneA4, layers: [{ ...stereo(testTone({ hz: TEST_TONE_HZ, seconds: 1.5, harmonics: WARM, loopSeconds: LOOP_SECONDS })), floorDb: 0 }] },
       ] },
     },
     {
@@ -118,20 +133,20 @@ export function testPianoSpecs(): TestPianoSpec[] {
       purpose: 'Touch check: one zone, two layers. Hard = bright and buzzy, soft = a pure sine; same pitch and peak level.',
       input: { ...base, name: 'OpenNord Test 2', variant: 'A440 2 layers', zones: [
         { ...zoneA4, layers: [
-          { ...stereo(testTone({ hz: 440, seconds: 1.5, harmonics: BRIGHT, loopSeconds: 0.5 })), floorDb: 0 },
-          { ...stereo(testTone({ hz: 440, seconds: 1.5, harmonics: PURE, loopSeconds: 0.5 })), floorDb: 20 },
+          { ...stereo(testTone({ hz: TEST_TONE_HZ, seconds: 1.5, harmonics: BRIGHT, loopSeconds: LOOP_SECONDS })), floorDb: 0 },
+          { ...stereo(testTone({ hz: TEST_TONE_HZ, seconds: 1.5, harmonics: PURE, loopSeconds: LOOP_SECONDS })), floorDb: 20 },
         ] },
       ] },
     },
     {
       id: 'T3',
-      purpose: 'Zone check (optional): A2–A3 plays a 220 Hz recording, A#3–A4 a 440 Hz one; both looped.',
+      purpose: 'Zone check (optional): two zones, A2–A3 (220 Hz on key A3) and A#3–A4 (440 Hz on key A4); both looped.',
       input: { ...base, name: 'OpenNord Test 3', variant: 'A220+A440', zones: [
-        { rootNote: 57, lowNote: 45, highNote: 57, layers: [
-          { ...stereo(testTone({ hz: 220, seconds: 1.5, harmonics: WARM, loopSeconds: 0.5 })), floorDb: 0 },
+        { rootNote: 57 + NPNO_RECORDING_ABOVE_TOP_KEY, lowNote: 45, highNote: 57, layers: [
+          { ...stereo(testTone({ hz: LOW_TONE_HZ, seconds: 1.5, harmonics: WARM, loopSeconds: LOOP_SECONDS })), floorDb: 0 },
         ] },
-        { rootNote: TEST_PIANO_NOTE, lowNote: 58, highNote: TEST_PIANO_NOTE, layers: [
-          { ...stereo(testTone({ hz: 440, seconds: 1.5, harmonics: WARM, loopSeconds: 0.5 })), floorDb: 0 },
+        { rootNote: TEST_PIANO_RECORDED_NOTE, lowNote: 58, highNote: TEST_PIANO_NOTE, layers: [
+          { ...stereo(testTone({ hz: TEST_TONE_HZ, seconds: 1.5, harmonics: WARM, loopSeconds: LOOP_SECONDS })), floorDb: 0 },
         ] },
       ] },
     },

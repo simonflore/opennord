@@ -16,22 +16,22 @@ const sine = (frames: number, f: number, rate: number, amp = 8000) =>
 const zone = (keyHigh: number, rootKey: number, globalID: number, velTop = 127) => ({ keyHigh, rootKey, globalID, velTop });
 
 describe('planPianoZones', () => {
-  it('pitches a narrow zone to its top key, so no key has to play above its recording', () => {
-    // A Nord piano can only play a recording at or below its own pitch.
+  it('pitches a narrow zone 3 semitones above its top key, so no key is more than one above the stored root', () => {
+    // A Nord piano plays a recording at least 3 semitones below its 44.1 kHz pitch.
     const plan = planPianoZones([zone(91, 90, 1), zone(94, 93, 2)]);
-    expect(plan.map((z) => [z.lowNote, z.highNote, z.rootNote, z.layers[0].sourceRoot])).toEqual([[0, 91, 91, 90], [92, 94, 94, 93]]);
+    expect(plan.map((z) => [z.lowNote, z.highNote, z.rootNote, z.layers[0].sourceRoot])).toEqual([[0, 91, 94, 90], [92, 94, 97, 93]]);
   });
 
   it('splits the keys above a recording into groups of four', () => {
     const plan = planPianoZones([zone(94, 93, 1), zone(108, 96, 2)]);
     expect(plan.slice(1).map((z) => [z.lowNote, z.highNote, z.rootNote])).toEqual([
-      [95, 96, 96], [97, 100, 100], [101, 104, 104], [105, 108, 108],
+      [95, 96, 99], [97, 100, 103], [101, 104, 107], [105, 108, 111],
     ]);
   });
 
   it('keeps the keys below a recording in one zone', () => {
     const plan = planPianoZones([zone(60, 50, 1)]);
-    expect(plan.map((z) => [z.lowNote, z.highNote, z.rootNote])).toEqual([[0, 52, 52], [53, 56, 56], [57, 60, 60]]);
+    expect(plan.map((z) => [z.lowNote, z.highNote, z.rootNote])).toEqual([[0, 52, 55], [53, 56, 59], [57, 60, 63]]);
   });
 
   it('turns zones that share their keys into touch layers, loudest first', () => {
@@ -151,7 +151,7 @@ describe('nsmpToNpno', () => {
       const pcm = decodeNspStroke(bytes, dir, dir.strokes.find((s) => s.zone === z)!);
       const recorded = estimateF0(pcm[0].subarray(1000, 15000), NSP_SAMPLE_RATE)!.hz;
       const semitones = key - zones[z].rootNote - NSP_ROOT_OFFSET;
-      expect(semitones).toBeLessThanOrEqual(0); // never above the recording
+      expect(semitones).toBeLessThanOrEqual(-3); // never more than one key above the stored root
       const source = key <= 59 ? 48 : 72; // the sample's own zone for this key
       expect(Math.abs(cents(recorded * 2 ** (semitones / 12), hz(source) * 2 ** ((key - source) / 12)))).toBeLessThan(2);
     }

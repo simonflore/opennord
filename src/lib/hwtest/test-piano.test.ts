@@ -4,7 +4,7 @@ import { NSP_ROOT_OFFSET, readNsp } from '../ns4/nsp';
 import { checkNpnoAcceptance } from '../ns4/nsp-check';
 import { buildNpno, NPNO_PEAK } from '../ns4/nsp-write';
 import { centsBetween, estimateF0, noteToHz, spectralCentroid } from './analysis';
-import { TEST_PIANO_NOTE, testPianoSpecs, testTone } from './test-piano';
+import { TEST_PIANO_NOTE, TEST_PIANO_RECORDED_NOTE, testPianoSpecs, testTone } from './test-piano';
 
 const specs = testPianoSpecs();
 const asFloat = (c: Int32Array) => Float32Array.from(c, (v) => v / 32768);
@@ -90,21 +90,27 @@ describe('test pianos', () => {
     const [hard, soft] = dir.strokes.map((s) => asFloat(decodeNspStroke(bytes, dir, s)[0]).subarray(4410, 26460));
     const ch = spectralCentroid(hard, NSP_SAMPLE_RATE)!;
     const cs = spectralCentroid(soft, NSP_SAMPLE_RATE)!;
-    expect(cs).toBeLessThan(500);
+    expect(cs).toBeLessThan(600); // a near-pure C5 (523 Hz)
     expect(ch / cs).toBeGreaterThan(2);
     expect(strokeFor(dir, 0, 127)?.index).toBe(0);
     expect(strokeFor(dir, 0, 20)?.index).toBe(1);
     expect(dir.strokes[1].velocityFrom).toBe(100); // 20 dB in 0.2 dB steps
   });
 
-  it('T3: two zones, A3 = 220 Hz below A#3, A4 = 440 Hz from A#3 up', () => {
+  it('keeps every key within one of its stored root, as a Nord needs', () => {
+    for (const spec of specs) {
+      for (const z of readNsp(buildNpno(spec.input).bytes).zones!) expect(z.highNote).toBe(z.rootNote + 1);
+    }
+  });
+
+  it('T3: two zones, key A3 = 220 Hz below A#3, key A4 = 440 Hz from A#3 up', () => {
     const { bytes } = buildNpno(specs[3].input);
     const cnsp = findCnsp(bytes);
-    expect(bytes[cnsp + 0x8c + 57]).toBe(53);
-    expect(bytes[cnsp + 0x8c + 58]).toBe(TEST_PIANO_NOTE - NSP_ROOT_OFFSET);
+    expect(bytes[cnsp + 0x8c + 57]).toBe(56);
+    expect(bytes[cnsp + 0x8c + 58]).toBe(TEST_PIANO_RECORDED_NOTE - NSP_ROOT_OFFSET);
     expect(readNsp(bytes).zones).toEqual([
-      { rootNote: 53, lowNote: 45, highNote: 57 },
-      { rootNote: 65, lowNote: 58, highNote: 69 },
+      { rootNote: 56, lowNote: 45, highNote: 57 },
+      { rootNote: TEST_PIANO_NOTE - 1, lowNote: 58, highNote: TEST_PIANO_NOTE },
     ]);
   });
 });

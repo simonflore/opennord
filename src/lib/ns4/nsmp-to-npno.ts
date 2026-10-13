@@ -4,10 +4,12 @@
  * piano rate and handed to {@link buildNpno}; nothing new is known about either format here.
  *
  * What has to change on the way:
- *  - **Pitch.** The piano DSP plays a recording at or below its own pitch, never above
- *, while a sample zone usually reaches above its root. So
- *    each zone is re-pitched to its top key, and the keys far above a recording get copies of
- *    their own, a few keys each, so none has to play far below its recording either.
+ *  - **Pitch.** A piano zone's top key is at most one above the note the file stores for its
+ *    recording, which a Nord plays 3 semitones below the recording's pitch at 44.1 kHz
+ *    (`NSP_MAX_KEYS_ABOVE_ROOT`, the maintainers’ notes), while a sample zone usually reaches
+ *    above its root. So each zone is re-pitched to sound right on its top key, and the keys
+ *    far above a recording get copies of their own, a few keys each, so none has to play far
+ *    below its recording either.
  *  - **Rate.** Samples carry their own rate (35,002 Hz by default); a piano plays at 44.1 kHz.
  *  - **Loops.** A piano loop is a whole number of frames. A short loop is repeated until the
  *    rounding is under a third of a cent, then cut where it meets itself.
@@ -21,11 +23,15 @@ import { dsp2Detune } from './nw1-dsp';
 import { DEFAULT_HALF_WIDTH, resampleForExport } from './nse-resample';
 import { peakAmplitude } from './nsmp-audio';
 import { NSP_SAMPLE_RATE, touchAttenuation } from './nsp-audio';
-import { buildNpno, MAX_NPNO_NAME, MIN_RECORDED_NOTE, NPNO_PIANO_TYPE, type NpnoBuildResult, type NpnoZoneInput } from './nsp-write';
+import { buildNpno, MAX_NPNO_NAME, MIN_RECORDED_NOTE, NPNO_PIANO_TYPE, NPNO_RECORDING_ABOVE_TOP_KEY, type NpnoBuildResult, type NpnoZoneInput } from './nsp-write';
 
 /** Most keys a recording covers above its own pitch before the next keys get a copy: a key
- *  then plays at most 3 semitones down, about what factory pianos do. */
+ *  then plays at most 3 semitones below its zone's top key, about what factory pianos do. */
 const MAX_ZONE_KEYS = 4;
+/** The note a zone's recordings are pitched to for a top key (`buildNpno`'s `rootNote`). */
+const recordedNoteFor = (topKey: number) => topKey + NPNO_RECORDING_ABOVE_TOP_KEY;
+/** Lowest top key a zone can have: its stored root, one below, can't be 0. */
+const MIN_TOP_KEY = MIN_RECORDED_NOTE - NPNO_RECORDING_ABOVE_TOP_KEY;
 /** A loop shorter than this (frames at the piano rate) is repeated: rounding half a frame in
  *  4,410 is under 0.2 cents. */
 const MIN_LOOP_FRAMES = 4410;
@@ -51,7 +57,8 @@ export interface SampleZone {
 export interface PianoZonePlan {
   lowNote: number;
   highNote: number;
-  /** Note the zone's recordings must sound at: its top key. */
+  /** Note the zone's recordings must sound at when played at 44.1 kHz: 3 semitones above its
+   *  top key, where the instrument plays them back down to pitch. */
   rootNote: number;
   /** Loudest first; `sourceRoot` is the note the sample's recording sounds at. */
   layers: { globalID: number; floorDb: number; sourceRoot: number }[];
@@ -79,7 +86,7 @@ export function layerFloors(velTops: readonly number[]): number[] {
  * zone on the same keys and velocity, an alternate take, is left out, since a piano plays one
  * recording for a key and touch. The layers need not split at the same keys: a piano zone runs
  * between neighbouring split points of any layer and takes, from each layer, the recording
- * that covers it. Each piano zone is pitched to its own top key.
+ * that covers it. Each piano zone is pitched for its own top key.
  */
 export function planPianoZones(zones: readonly SampleZone[]): PianoZonePlan[] {
   const bands = new Map<number, SampleZone[]>(); // top velocity → its zones, lowest keys first
@@ -102,10 +109,10 @@ export function planPianoZones(zones: readonly SampleZone[]): PianoZonePlan[] {
     const parts: PianoZonePlan[] = [];
     let t = high;
     while (t - sourceRoot >= MAX_ZONE_KEYS && t - MAX_ZONE_KEYS + 1 > low) {
-      parts.push({ lowNote: t - MAX_ZONE_KEYS + 1, highNote: t, rootNote: t, layers });
+      parts.push({ lowNote: t - MAX_ZONE_KEYS + 1, highNote: t, rootNote: recordedNoteFor(t), layers });
       t -= MAX_ZONE_KEYS;
     }
-    if (t >= Math.max(low, MIN_RECORDED_NOTE)) parts.push({ lowNote: low, highNote: t, rootNote: t, layers });
+    if (t >= Math.max(low, MIN_TOP_KEY)) parts.push({ lowNote: low, highNote: t, rootNote: recordedNoteFor(t), layers });
     plan.push(...parts.reverse());
     low = high + 1;
   }
@@ -179,7 +186,7 @@ export function pianoNameFrom(source: string): string {
 export interface NsmpToNpnoOptions {
   /** Piano name (see {@link pianoNameFrom}). */
   name: string;
-  /** Which piano type it is filed under on the instrument. Default Electric. */
+  /** Which piano type the file says it is ({@link NPNO_PIANO_TYPE}). Default: electric piano. */
   pianoType?: number;
 }
 

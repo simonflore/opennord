@@ -34,6 +34,15 @@ const LAYER_TABLE_END = LAYER_TABLE_OFFSET + 128 * 2;
  */
 export const NSP_ROOT_OFFSET = 4;
 
+/**
+ * Highest key a zone holds, counted from its key-map root. Every zone of 36 factory pianos
+ * ends at its root or one key above it. The loader indexes a record's 14 pre-loop factors
+ * (+0x36) by `root − key + 1`, which is negative from two keys
+ * above the root; an independent hardware test (Nord Electro 7, the maintainers’ notes) found
+ * that such a key freezes the instrument while one key above the root plays.
+ */
+export const NSP_MAX_KEYS_ABOVE_ROOT = 1;
+
 /** One sampled note: the MIDI key range it covers, pitched from `rootNote`. */
 export interface NspZone {
   /** The key map's root byte; the recording sounds at `rootNote + NSP_ROOT_OFFSET`. */

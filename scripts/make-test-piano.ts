@@ -21,7 +21,7 @@ import { testPianoSpecs } from '@/lib/hwtest/test-piano';
 import { compressorBurst, heldKeys, velocitySweep, writeMidiFile } from '@/lib/hwtest/midi-file';
 import { checkNpnoAcceptance } from '@/lib/ns4/nsp-check';
 import { decodeNspStroke, NSP_SAMPLE_RATE, readNspDirectory } from '@/lib/ns4/nsp-audio';
-import { buildNpno } from '@/lib/ns4/nsp-write';
+import { buildNpno, NPNO_RECORDING_ABOVE_TOP_KEY } from '@/lib/ns4/nsp-write';
 import { encodeWav } from '@/lib/ns4/wav';
 
 const { values } = parseArgs({ options: { out: { type: 'string', default: 'hardware-test' } } });
@@ -44,16 +44,16 @@ for (const spec of testPianoSpecs()) {
   for (const n of notes) console.log(`    note: ${n}`);
   if (!acc.ok) failed++;
 
-  // Decode every stroke back out of the written file: what the Nord should play at the
-  // recorded pitch (key A4, or A3 for T3's low zone).
+  // Decode every stroke back out of the written file, at the rate that makes it sound as the
+  // Nord should play it on the zone's top key (A4, or A3 for T3's low zone): 3 semitones down.
   const dir = readNspDirectory(bytes)!;
   for (const s of dir.strokes) {
     const pcm = decodeNspStroke(bytes, dir, s).map((c) => Float32Array.from(c, (v) => v / 32768));
     const zone = [...spec.input.zones].sort((a, b) => a.rootNote - b.rootNote)[s.zone];
     const layer = dir.strokes.filter((x) => x.zone === s.zone).indexOf(s);
-    const tag = `${spec.id}-${zone.rootNote === 69 ? 'A4' : 'A3'}${spec.id === 'T2' ? `-layer${layer + 1}-${layer === 0 ? 'hard' : 'soft'}` : ''}`;
+    const tag = `${spec.id}-${zone.highNote === 69 ? 'A4' : 'A3'}${spec.id === 'T2' ? `-layer${layer + 1}-${layer === 0 ? 'hard' : 'soft'}` : ''}`;
     const wav = join(dirs.previews, `${tag}.wav`);
-    writeFileSync(wav, encodeWav(pcm, NSP_SAMPLE_RATE));
+    writeFileSync(wav, encodeWav(pcm, Math.round(NSP_SAMPLE_RATE / 2 ** (NPNO_RECORDING_ABOVE_TOP_KEY / 12))));
   }
   console.log('');
 }

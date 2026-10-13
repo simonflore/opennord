@@ -113,20 +113,20 @@ describe('readNsp — checksum presence comes from the CBIN header', () => {
 describe('readNsp — one-zone pianos', () => {
   const oneZone = () => buildNpno({
     name: 'One Zone', channels: 1,
-    zones: [{ rootNote: 60, lowNote: 21, highNote: 108, layers: [{ pcm: [Int32Array.from(tone(4000, 0.02, 3000, 1))], floorDb: 0 }] }],
+    zones: [{ rootNote: 111, lowNote: 21, highNote: 108, layers: [{ pcm: [Int32Array.from(tone(4000, 0.02, 3000, 1))], floorDb: 0 }] }],
   }).bytes;
 
   it('reads the single zone the test recipe builds, since the layers-per-root table agrees', () => {
     const f = readNsp(oneZone());
     expect(f.sampleCount).toBe(1);
-    expect(f.zones).toEqual([{ rootNote: 56, lowNote: 21, highNote: 108 }]);
+    expect(f.zones).toEqual([{ rootNote: 107, lowNote: 21, highNote: 108 }]);
   });
 
   it("ignores a lone root the layers-per-root table doesn't back up", () => {
     const p = oneZone();
     const table = 0x2c + 0x622;
-    p[table + 56 * 2 + 1] = 0; // no strokes at the key map's root…
-    p[table + 57 * 2 + 1] = 1; // …but one at another note
+    p[table + 107 * 2 + 1] = 0; // no strokes at the key map's root…
+    p[table + 108 * 2 + 1] = 1; // …but one at another note
     expect(readNspZones(p)).toEqual([]);
     // and a file too short to hold the table can't vouch for a single zone either
     expect(readNspZones(p.subarray(0, 0x2c + 0x622))).toEqual([]);

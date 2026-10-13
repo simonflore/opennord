@@ -28,7 +28,7 @@ import { verifyTrailerChecksum } from '../clavia/crc16';
 import { verifyNs4Checksum } from '../clavia/checksum';
 import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
 import { decodeNspStroke, findCnsp, readLayerTable, readNspDirectory, type NspStroke } from './nsp-audio';
-import { nspChecksumKind, readNspZones } from './nsp';
+import { NSP_MAX_KEYS_ABOVE_ROOT, nspChecksumKind, readNspZones } from './nsp';
 import { mediaCompat, pianoVersionNumber, type MediaModelId, type PianoAcceptance } from '../clavia/media-compat';
 
 /** CNSP checksum: byte sum of everything after the 22-byte CNSP header, over the CNSP stream
@@ -276,6 +276,13 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: NpnoCheckOptions = 
   const keyRoots = zones.map((z) => z.rootNote);
   add('key-map', keyRoots.length > 0 && keyRoots.join() === tableRoots.join(),
     `key-map zones (${keyRoots.length}) match the notes' roots (${tableRoots.length}), with roots rising with the keys`);
+  // No key more than one above its zone's root: the loader's pre-loop table index is
+  // `root − key + 1`, and a key two above its root froze a Nord Electro 7 (NSP_MAX_KEYS_ABOVE_ROOT).
+  const high = zones.find((z) => z.highNote > z.rootNote + NSP_MAX_KEYS_ABOVE_ROOT);
+  add('key-reach', !high, high
+    ? `Key ${high.highNote} plays a recording stored for note ${high.rootNote}: a Nord plays a recording at most `
+      + `${NSP_MAX_KEYS_ABOVE_ROOT} key above its stored note, and a higher key can freeze the instrument`
+    : `no key is more than ${NSP_MAX_KEYS_ABOVE_ROOT} above its zone's stored note (as in every factory piano)`);
   if (opts.deep) {
     let bad = '';
     for (const s of strokes) {
