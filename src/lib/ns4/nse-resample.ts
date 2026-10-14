@@ -1,14 +1,11 @@
 /**
  * Band-preserving sample-rate converter for the **WAV export** path.
  *
- * The import resampler (`nw1-resample.ts`) deliberately reuses the Nord Sample
- * Editor's own fixed windowed-sinc, so audio imported *into* a Nord matches what
- * the instrument would store. That kernel's cutoff sits at the internal Nyquist of
- * the editor's import *downsample* (≈0.367 cycles/input-sample) — correct there,
- * wrong for going the other way. Reusing it to *upsample* a decoded ~35 kHz stroke
- * for export bandlimits to that same 0.367, discarding real source content between
- * ~13 kHz and the stroke's ~17.5 kHz Nyquist (measured: −3.4 dB @14 kHz, −10 dB
- * @15 kHz, −23 dB @16 kHz).
+ * A fixed kernel cut for the import *downsample* (≈0.367 cycles/input-sample at
+ * 48 kHz → 35,256 Hz) is correct there and wrong for going the other way: used to
+ * *upsample* a decoded ~35 kHz stroke for export it bandlimits to that same 0.367,
+ * discarding real source content between ~13 kHz and the stroke's ~17.5 kHz Nyquist
+ * (measured: −3.4 dB @14 kHz, −10 dB @15 kHz, −23 dB @16 kHz).
  *
  * Export is an interop/audit path (audition, re-use in a DAW, re-import into NSE),
  * **not** a write-back-to-instrument path, so it wants a *ratio-aware* filter: the
@@ -116,12 +113,12 @@ function buildKernel(halfWidth: number, beta: number, fc: number, phases: number
  * amplifies to full scale. The single quantisation to int16 happens once, in the
  * WAV encoder, after normalisation.
  */
-function resampleChannel(input: ArrayLike<number>, ratio: number, outLength: number, k: PolyKernel): Float64Array {
+function resampleChannel(input: ArrayLike<number>, ratio: number, outLength: number, k: PolyKernel, startPos = 0): Float64Array {
   const n = input.length;
   const { coeff, norm, taps, halfWidth, phases } = k;
   const out = new Float64Array(outLength);
   for (let o = 0; o < outLength; o++) {
-    const pos = o * ratio;
+    const pos = startPos + o * ratio;
     const center = Math.floor(pos);
     let phase = ((pos - center) * phases) | 0;
     if (phase >= phases) phase = phases - 1;
@@ -149,8 +146,8 @@ function resampleChannel(input: ArrayLike<number>, ratio: number, outLength: num
 }
 
 /**
- * Resample every channel from `srcRate` to `dstRate` with a linear-phase
- * Kaiser-windowed sinc. Returns floating-point PCM (unrounded — see
+ * Resample every channel from `srcRate` to `dstRate` for export, with a linear-phase
+ * Kaiser-windowed sinc ({@link resampleSinc}). Returns floating-point PCM (unrounded — see
  * {@link resampleChannel}); the kernel is built once and shared across channels.
  *
  * **Cutoff is ratio-aware.** Upsampling has no aliasing constraint below the
@@ -165,19 +162,34 @@ export function resampleForExport(
   dstRate: number,
   opts: SincResampleOptions = {},
 ): Float64Array[] {
+  return resampleSinc(channels, srcRate / dstRate, opts);
+}
+
+export interface SincResampleRun extends SincResampleOptions {
+  /** Output length per channel. Default `round(inputLength / ratio)`. */
+  outLength?: number;
+  /** Input position (fractional) of output sample 0. Default 0. */
+  startPos?: number;
+}
+
+/**
+ * Resample every channel by `ratio` (input samples per output sample) with the
+ * ratio-aware Kaiser-windowed sinc above. Returns floating-point PCM; the kernel is
+ * built once and shared across channels.
+ */
+export function resampleSinc(channels: ArrayLike<number>[], ratio: number, opts: SincResampleRun = {}): Float64Array[] {
   const halfWidth = opts.halfWidth ?? DEFAULT_HALF_WIDTH;
   const beta = opts.beta ?? 12;
   const cutoffScale = opts.cutoffScale ?? 0.90;
   const phases = opts.phases ?? 1024;
-  const ratio = srcRate / dstRate;
   // Cutoff in cycles per input sample (≤ 0.5). Upsample → cut at ~source Nyquist
   // (a hair under 0.5, so the top bin isn't in the −6 dB half-band roll); downsample
   // → cut at the new Nyquist minus the transition margin so it anti-aliases.
-  const fc = dstRate >= srcRate
+  const fc = ratio <= 1
     ? 0.5 * 0.985
-    : 0.5 * (dstRate / srcRate) * cutoffScale;
+    : 0.5 * (1 / ratio) * cutoffScale;
   const kernel = buildKernel(halfWidth, beta, fc, phases);
   const inLen = channels[0]?.length ?? 0;
-  const outLength = Math.round(inLen / ratio);
-  return channels.map((ch) => resampleChannel(ch, ratio, outLength, kernel));
+  const outLength = opts.outLength ?? Math.round(inLen / ratio);
+  return channels.map((ch) => resampleChannel(ch, ratio, outLength, kernel, opts.startPos ?? 0));
 }

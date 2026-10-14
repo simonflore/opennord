@@ -37,6 +37,31 @@ function parseWav24(bytes: Uint8Array): { rate: number; ch: number; data: Int32A
 const peak = (a: ArrayLike<number>) => { let m = 0; for (let i = 0; i < a.length; i++) m = Math.max(m, Math.abs(a[i])); return m; };
 const zeroCross = (a: ArrayLike<number>) => { let z = 0; for (let i = 1; i < a.length; i++) if ((a[i - 1] < 0) !== (a[i] < 0)) z++; return z; };
 
+/** 0.5 s of a 220 Hz sine at amplitude 3000, 48 kHz — the shape of the ground-truth sine. */
+const SINE = [Int32Array.from({ length: 24000 }, (_, i) => Math.round(3000 * Math.sin((2 * Math.PI * 220 * i) / 48000)))];
+
+describe('resampleNW1 — a synthetic sine', () => {
+  it('keeps pitch and level downsampling 48k → 35256', () => {
+    const out = resampleToRate(SINE, 48000, 35256);
+    expect(out[0].length).toBe(Math.round(24000 * 35256 / 48000));
+    expect(Math.abs(zeroCross(out[0]) - 220)).toBeLessThanOrEqual(2);
+    expect(Math.abs(peak(out[0]) - 3000)).toBeLessThanOrEqual(30);
+  });
+
+  it('keeps pitch and level upsampling 48k → 96k', () => {
+    const up = resampleToRate(SINE, 48000, 96000);
+    expect(up[0].length).toBe(48000);
+    expect(Math.abs(zeroCross(up[0]) - 220)).toBeLessThanOrEqual(2);
+    expect(Math.abs(peak(up[0]) - 3000)).toBeLessThanOrEqual(60);
+  });
+
+  it('honours outLength and startPos', () => {
+    const out = resampleNW1(SINE, { ratio: 48000 / 35256, outLength: 100, startPos: 0.5 });
+    expect(out[0].length).toBe(100);
+    expect(out[0][0]).not.toBe(resampleNW1(SINE, { ratio: 48000 / 35256, outLength: 100 })[0][0]);
+  });
+});
+
 describe.skipIf(!HAS_GT)('resampleNW1 — correctness', () => {
   it('preserves pitch + amplitude resampling a 220 Hz sine (48k → 35256)', () => {
     const wav = parseWav24(new Uint8Array(readFileSync(resolve(GT, 'sine_24.wav'))));
@@ -57,10 +82,9 @@ describe.skipIf(!HAS_GT)('resampleNW1 — correctness', () => {
 });
 
 describe.skipIf(!HAS_GT)('resampleNW1 — matches the editor length + spectrum (not phase)', () => {
-  // The editor's *encode* path uses a longer, runtime-generated kernel (s_newFir48,
-  // .bss — not statically extractable), so its output differs from ours in phase
-  // and onset. Both are valid resamples of the same signal; we validate that ours
-  // hits the same length and frequency content, not a sample-for-sample match.
+  // The editor's output differs from ours in phase and onset. Both are valid
+  // resamples of the same signal; we validate that ours hits the same length and
+  // frequency content, not a sample-for-sample match.
   for (const name of ['sine_24', 'ramp_24', 'impulse_24']) {
     it(name, () => {
       const wav = parseWav24(new Uint8Array(readFileSync(resolve(GT, `${name}.wav`))));

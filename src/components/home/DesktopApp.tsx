@@ -13,7 +13,13 @@ import { IconMac, IconWindows } from './icons';
  * The links follow the newest published desktop release: its asset names carry
  * no version (electron/README.md, "Releasing"), so nothing here changes when a
  * new build ships. Both builds update themselves once installed.
+ *
+ * {@link RELEASED} is false while no build is published: the rows then say a new
+ * build is coming instead of linking to a download that isn't there. Set it back
+ * when the next release is out.
  */
+export const RELEASED = false;
+
 const RELEASE_BASE = 'https://github.com/simonflore/opennord/releases';
 const RELEASE_PAGE = `${RELEASE_BASE}/latest`;
 
@@ -51,19 +57,27 @@ export function DesktopApp() {
                 {/* Dropped at phone width, where it would push the button onto its own line. */}
                 <span className="font-mono text-[11px] font-normal text-muted max-[430px]:hidden">{detail}</span>
               </span>
-              <span className={roadmapTag}>Beta</span>
-              <a className={cn(heroBtn, 'ml-auto')} href={href} aria-label={`Download for ${name}`}>
-                Download
-              </a>
+              <span className={cn(roadmapTag, !RELEASED && 'ml-auto')}>{RELEASED ? 'Beta' : 'Coming soon'}</span>
+              {RELEASED && (
+                <a className={cn(heroBtn, 'ml-auto')} href={href} aria-label={`Download for ${name}`}>
+                  Download
+                </a>
+              )}
             </div>
           ))}
           <p className="mt-3 text-xs leading-[1.55] text-muted">
+            {!RELEASED && 'A new build is on the way; until then, the web app does everything but the older Nords. '}
             Needs Windows 10 or macOS 13, or newer. On Windows, older Nords need
             one setup step, the UsbDk driver, and the installer shows a
-            SmartScreen notice the first time.{' '}
-            <a className={covLink} href={RELEASE_PAGE} target="_blank" rel="noopener noreferrer">
-              Release notes
-            </a>
+            SmartScreen notice the first time.
+            {RELEASED && (
+              <>
+                {' '}
+                <a className={covLink} href={RELEASE_PAGE} target="_blank" rel="noopener noreferrer">
+                  Release notes
+                </a>
+              </>
+            )}
           </p>
         </div>
         <div>

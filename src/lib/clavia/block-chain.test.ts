@@ -9,6 +9,13 @@ import { NE7_LAYOUT } from '../ne7/layout.generated';
 import { NO3_LAYOUT } from '../no3/layout.generated';
 import { NW2_LAYOUT } from '../nw2/layout.generated';
 
+/**
+ * Each generated field cites the registry it came from, naming the registry
+ * function when the layout's own source does.
+ */
+const NAMES_FUNCTIONS = NG_LAYOUT.source.includes('FUN_');
+const CITES_REGISTRY = NAMES_FUNCTIONS ? /OS \d\.\d\d registry FUN_c0[0-9a-f]{6}( · id \d+|$)/ : /OS \d\.\d\d registry( · id \d+|$)/;
+
 /** A tiny two-block layout for exercising the reader in isolation. */
 const TINY: FwLayout<'a.x' | 'a.s' | 'b.o' | 'b.h'> = {
   model: 'Test', source: 'test', container: 'test', versionRange: [100, 101], bodyBytes: 4 + 3 + 6,
@@ -157,7 +164,7 @@ describe('generated layouts', () => {
       const used = new Set<number>();
       for (const f of l.fields) {
         expect(f.bit + f.width, f.key).toBeLessThanOrEqual(l.blocks[f.block].length * 8);
-        expect(f.src).toMatch(/OS \d\.\d\d registry FUN_c0/);
+        expect(f.src).toMatch(CITES_REGISTRY);
         expect(['high', 'medium']).toContain(f.confidence);
         const start = (l.blocks[f.block].offset + 1) * 8 + f.bit;
         for (let b = start; b < start + f.width; b++) { expect(used.has(b), f.key).toBe(false); used.add(b); }

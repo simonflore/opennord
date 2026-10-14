@@ -3,6 +3,7 @@ import { buttonVariants } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { CONTENT, scrollToSection } from './layout';
 import { Wordmark } from '../shell/Wordmark';
+import { RELEASED } from './DesktopApp';
 
 const navLink = cn(
   'font-mono text-xs lowercase text-dim no-underline',
@@ -22,7 +23,8 @@ export function SiteHeader({ sections = true }: { sections?: boolean } = {}) {
           <>
             <a className={navLink} href="#features" onClick={scrollToSection('features')}>What it does</a>
             <a className={navLink} href="#coverage" onClick={scrollToSection('coverage')}>Keyboards</a>
-            <a className={navLink} href="#download" onClick={scrollToSection('download')}>Download</a>
+            {/* No download while no build is published: the section then says one is coming. */}
+            <a className={navLink} href="#download" onClick={scrollToSection('download')}>{RELEASED ? 'Download' : 'Desktop app'}</a>
           </>
         )}
         <Link to="/manifesto" className={navLink}>Manifesto</Link>

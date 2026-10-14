@@ -30,7 +30,7 @@ export const NO3_REVERB_COLOR = ['Normal', 'Dark', 'Bright'] as const;
 const B3_MODELS = new Set([0, 3]);
 
 export const NO3_PROVISIONAL_NOTE =
-  'Organ 3: OpenNord’s program map (OS 1.00), block order not yet confirmed on a real file — treat these values as provisional.';
+  'Organ 3: mapped for OS 1.00, block order not yet confirmed on a real file — treat these values as provisional.';
 
 type Get = (key: No3FieldKey) => number | undefined;
 

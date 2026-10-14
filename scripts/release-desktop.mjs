@@ -116,16 +116,27 @@ try {
 }
 
 // 4. Find the commit the public tag must point at: this checkout's commit as
-//    the mirror sees it. mirror-core.yml pushes `git subtree split` of this
-//    package, which is deterministic, so the same split here names the same
-//    commit — and its absence over there means the mirror has not caught up.
+//    the mirror sees it. mirror-core.yml pushes the output of the monorepo's
+//    scripts/mirror-core/mirror.sh,
+//    which is deterministic, so running it here names the same commit — and its
+//    absence over there means the mirror has not caught up.
 let target = null;
 if (!dryRun) {
   const top = tryRun('git', ['rev-parse', '--show-toplevel']);
-  const prefix = (tryRun('git', ['rev-parse', '--show-prefix']) ?? '').replace(/\/$/, '');
+  const filter = top ? join(top, 'scripts', 'mirror-core', 'mirror.sh') : null;
+  if (!filter || !existsSync(filter)) fatal('releases are cut from the monorepo: scripts/mirror-core/mirror.sh is missing.');
   console.log('\nWorking out the public commit for this release (about half a minute)…');
-  target = top && prefix ? tryRun('git', ['-C', top, 'subtree', 'split', `--prefix=${prefix}`, 'HEAD']) : null;
-  if (!target) fatal('could not compute the public mirror commit (git subtree split failed).');
+  const mirrorDir = mkdtempSync(join(tmpdir(), 'opennord-mirror-'));
+  let failure = null;
+  try {
+    target = execFileSync(filter, ['HEAD', mirrorDir], { cwd: core, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  } catch (error) {
+    failure = error;
+  } finally {
+    rmSync(mirrorDir, { recursive: true, force: true });
+  }
+  // mirror.sh says what went wrong on stderr (a missing tool, an unknown commit, …).
+  if (failure) fatal(`could not compute the public mirror commit:\n${String(failure.stderr || failure.message).trim()}`);
   if (tryRun('gh', ['api', `repos/${publicRepo}/commits/${target}`, '-q', '.sha']) === null) {
     fatal(`the public repo ${publicRepo} does not have commit ${target} yet — wait for the mirror workflow to finish, then re-run.`);
   }

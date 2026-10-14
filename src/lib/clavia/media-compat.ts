@@ -74,10 +74,13 @@ const { v4, v5, v6 } = CNSP_VERSION;
 const STROKES = 0x149f;
 
 /** Piano 4 / 5 / 6, Grand, Grand 2: the same piano manager {4, 120, 5} and limits. */
-function pianoLine(os: string, gate: string, confidence: Confidence, samples: readonly SampleGeneration[], sampleSource: string): MediaCompat {
+function pianoLine(
+  os: string, confidence: Confidence, samples: readonly SampleGeneration[],
+  sources: { gate: string; sampleSource: string },
+): MediaCompat {
   return {
-    pianos: { versions: [v5, v6], voiceTable: 0x6000, maxStrokes: STROKES, os, source: gate, confidence },
-    samples: { generations: samples, os, source: sampleSource, confidence: 'high' },
+    pianos: { versions: [v5, v6], voiceTable: 0x6000, maxStrokes: STROKES, os, source: sources.gate, confidence },
+    samples: { generations: samples, os, source: sources.sampleSource, confidence: 'high' },
   };
 }
 
@@ -222,16 +225,26 @@ export const MEDIA_COMPAT: Record<MediaModelId, MediaCompat> = {
   },
 
   // ── Piano line (Piano 4/5/6, Grand, Grand 2) ────────────────────────────────────────────────
-  'piano-4': pianoLine('2.66', 'gate (= Stage 3); manager →; stroke limit', 'high',
-    [3], 'version map + `cmp #3`'),
-  'grand': pianoLine('1.68', 'compare pattern (not confirmed in code); manager', 'medium',
-    [3], 'version map + generation-3 check'),
-  'piano-5': pianoLine('1.34', 'compare pattern (not confirmed in code); manager', 'medium',
-    [3, 4], 'Stage 4 map + generation 3–4 check'),
-  'piano-6': pianoLine('1.20', 'gate (thresholds 0x423–0x464); stroke limit', 'high',
-    [3, 4], 'Stage 4 map + generation 3–4 check'),
-  'grand-2': pianoLine('1.22', 'compare pattern (not confirmed in code); manager', 'medium',
-    [3, 4], 'Stage 4 map + generation 3–4 check'),
+  'piano-4': pianoLine('2.66', 'high', [3], {
+    gate: 'gate (= Stage 3); manager →; stroke limit',
+    sampleSource: 'version map + `cmp #3`',
+  }),
+  'grand': pianoLine('1.68', 'medium', [3], {
+    gate: 'compare pattern (not confirmed in code); manager',
+    sampleSource: 'version map + generation-3 check',
+  }),
+  'piano-5': pianoLine('1.34', 'medium', [3, 4], {
+    gate: 'compare pattern (not confirmed in code); manager',
+    sampleSource: 'Stage 4 map + generation 3–4 check',
+  }),
+  'piano-6': pianoLine('1.20', 'high', [3, 4], {
+    gate: 'gate (thresholds 0x423–0x464); stroke limit',
+    sampleSource: 'Stage 4 map + generation 3–4 check',
+  }),
+  'grand-2': pianoLine('1.22', 'medium', [3, 4], {
+    gate: 'compare pattern (not confirmed in code); manager',
+    sampleSource: 'Stage 4 map + generation 3–4 check',
+  }),
 
   // ── Leads: three partitions (Program, Performance, Settings) ────────────────────────────────
   'lead-4': { pianos: 'none', samples: 'none', note: 'OS 1.32: Program, Performance and Settings only' },

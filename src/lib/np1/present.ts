@@ -11,7 +11,7 @@ import { NP1_PIANO_TYPES } from './labels';
 import type { Np1FieldKey } from './layout.generated';
 
 export const NP1_NOTE =
-  'Nord Piano: OpenNord’s program map (OS 1.50). Where the settings start in the file is assumed, not yet confirmed on a real file — treat these values as provisional. The piano-type names are the ones the instrument displays.';
+  'Nord Piano: OpenNord’s program map (OS 1.50). Where the settings start in the file is assumed, not yet confirmed on a real file — treat these values as provisional. The piano-type names are the ones the instrument shows.';
 
 export function np1Decoded(bytes: Uint8Array): DecodedProgram {
   const p = decodeNp1(bytes);

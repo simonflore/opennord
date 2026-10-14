@@ -114,7 +114,7 @@ export function writeFwProgram<K extends string>(
   const walk = walkBlockChain(bytes.subarray(start, Math.max(start, end)));
   if (!walk.ok) throw new ProgramWriteError(`Not a ${layout.model} program body: ${walk.reason}`);
   if (walk.blocks.length !== layout.blocks.length || walk.blocks.some((b, i) => b.length !== layout.blocks[i].length)) {
-    throw new ProgramWriteError(`This ${layout.model} program is laid out differently from the program map OpenNord writes`);
+    throw new ProgramWriteError(`This ${layout.model} program is laid out differently from the layout OpenNord writes`);
   }
   const v = walk.formatVersion ?? 0;
   if (layout.versionRange && (v < layout.versionRange[0] || v > layout.versionRange[1])) {

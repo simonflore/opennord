@@ -176,7 +176,7 @@ export function decodeFwBody<K extends string>(body: Uint8Array, layout: FwLayou
 
   const resized = walk.blocks.flatMap((b, i) => (b.length !== layout.blocks[i].length ? [layout.blocks[i].name] : []));
   if (resized.length > 0) {
-    warnings.push(`Block size differs from the program map: ${resized.join(', ')}. Fields that still fit are read in place.`);
+    warnings.push(`Block size differs from the instrument’s layout: ${resized.join(', ')}. Fields that still fit are read in place.`);
   }
 
   let clipped = 0;

@@ -36,7 +36,7 @@ export const NE7_OSC_B = ['Off', 'Triangle', 'Saw', 'Square', 'Pulse 33', 'Pulse
 const B3_MODELS = new Set([0, 4, 5]);
 
 export const NE7_PROVISIONAL_NOTE =
-  'Electro 7: OpenNord’s program map (OS 1.30), block order not yet confirmed on a real file — treat these values as provisional.';
+  'Electro 7: mapped for OS 1.30, block order not yet confirmed on a real file — treat these values as provisional.';
 
 type Get = (key: Ne7FieldKey) => number | undefined;
 
