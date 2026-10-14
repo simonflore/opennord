@@ -53,4 +53,14 @@ describe('importWavToNsmp', () => {
     expect(Math.abs(z - 110)).toBeLessThanOrEqual(3);
     expect(Math.abs(peak(a) - 16384)).toBeLessThan(1500);
   });
+
+  it('a full-scale square WAV resampled to a target rate still decodes back', () => {
+    const rate = 48000, frames = 9600;
+    const sq = Float32Array.from({ length: frames }, (_, i) => (Math.floor(i / 48) % 2 ? -1 : 1));
+    const { bytes } = importWavToNsmp(encodeWav([sq], rate), { codec: 4, targetRate: 35002 });
+    const dec = decodeNsmp(bytes);
+    expect(dec).toHaveLength(1);
+    expect(peak(dec[0].channels[0])).toBeGreaterThan(30000);
+    expect(peak(dec[0].channels[0])).toBeLessThanOrEqual(32767);
+  });
 });

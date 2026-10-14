@@ -5,25 +5,25 @@
  * Structure mirrors what `readNsmp` parses: the shared
  * `CBIN` envelope + a flat section sequence `NSMP → hdr → cat → map → stk → sty
  * → meta`, each `[tag:u32 BE][version:u32 BE][size:u32 BE][payload]`. The `stk`
- * section carries a stroke header + the {@link encodeStroke} block stream.
+ * section carries a stroke header + the editor-exact NW1 block stream (`nw1-encode.ts`).
  *
  * Validated by **round-trip through our own reader** (`nsmp-write.test.ts`):
- * `decodeNsmp(writeNsmp(pcm))` returns the input PCM. A stroke written from PCM alone
- * gets a templated header (no loop, no gain values). A stroke converted from another
- * sample ({@link WriteStrokeMeta}) gets the header a real one has: the source's pitch
- * and gain bytes, and region pointers for its loop. Nothing here has been loaded on a
- * keyboard yet.
+ * `decodeNsmp(writeNsmp(pcm))` returns the input PCM. Every stroke gets the header a
+ * real one has: region pointers (start, second start, loop begin, end), the root key and
+ * the default pitch base; a stroke converted from another sample ({@link WriteStrokeMeta})
+ * also carries the source's pitch and gain bytes and its loop. A stroke written from PCM
+ * alone once had zero region pointers, which crashed Nord Sound Manager 9.03 (hardware
+ * test 2026-10-14). Nothing here has played on a keyboard yet.
  *
  * ⚠️ SCOPE (docs/LEGAL.md): the user's own audio only — local sample creation,
  * never factory content.
  */
 
-import { encodeStroke, type EncodeOptions } from './nsmp-encode';
 import { encodeCarriedStream, putRegionPointers } from './nsmp-stroke-carry';
+import { clampPcm16 } from './nw1-resample';
 import { patchNs4Checksum } from '../clavia/checksum';
 
 const CBIN_HEADER_SIZE = 0x2c;
-const STROKE_HEADER_SIZE = 0xb0; // observed; the block stream begins after it
 
 /** Build one `[tag][version][size][payload]` section (tag NUL-left-padded to 4). */
 function section(tag: string, version: number, payload: Uint8Array): Uint8Array {
@@ -100,7 +100,7 @@ export interface WriteStrokeMeta {
   decayRaw?: number;
 }
 
-export interface WriteNsmpOptions extends EncodeOptions {
+export interface WriteNsmpOptions {
   /** Sample name (stored in the `hdr` section; ASCII, truncated to fit). */
   name: string;
   /** Per-channel integer PCM (mono or stereo). */
@@ -109,7 +109,7 @@ export interface WriteNsmpOptions extends EncodeOptions {
   codec?: 3 | 4;
 }
 
-export interface WriteNsmpMultiOptions extends EncodeOptions {
+export interface WriteNsmpMultiOptions {
   name: string;
   /** Zones: splits (key ranges) and layers (velocity ranges), each with audio. */
   zones: WriteZone[];
@@ -119,10 +119,14 @@ export interface WriteNsmpMultiOptions extends EncodeOptions {
   globalLevelDetune?: Uint8Array;
   /** Per-key level and detune: 128 rows of 6 bytes, as the source has them. Default unity. */
   perNote?: Uint8Array[];
+  /** Codec 4: write zones that share keys and root as one zone with several strokes (velocity
+   *  layers), as the editor does. Off by default: a Stage 4 rejected such a file (see
+   *  {@link groupLayers}). */
+  layeredZones?: boolean;
 }
 
 /** The level/detune values a `map` opens with. */
-interface MapLevels { global?: Uint8Array; perNote?: Uint8Array[] }
+interface MapLevels { global?: Uint8Array; perNote?: Uint8Array[]; layeredZones?: boolean }
 
 const UNITY = [0x10, 0, 0, 0, 0, 0]; // per-note level 0x100000, detune 0
 
@@ -135,10 +139,18 @@ const UNITY = [0x10, 0, 0, 0, 0, 0]; // per-note level 0x100000, detune 0
  * the stroke's own u32 id at `stk` header +0. `zoneMode` defaults per-codec to the
  * value seen in real files (codec-3 `Strings` = 0, codec-4 `Other` = 1).
  */
+/**
+ * A zone's top key, capped at 24 semitones above its root. The Sample Editor greys out keys past
+ * that (the sample DSP pitches up at most 4×), and none of the 2,861 zones in the local corpus
+ * reaches further (the most is exactly 24).
+ */
+export const MAX_KEYS_ABOVE_ROOT = 24;
+const zoneTopKey = (z: WriteZone): number => Math.min(z.keyHigh, z.rootKey + MAX_KEYS_ABOVE_ROOT) & 0x7f;
+
 function zoneEntry(z: WriteZone, globalID: number, zoneMode: number): Uint8Array {
   const e = new Uint8Array(16);
   e[0] = z.rootKey & 0x7f; // root key (pitched note)
-  e[1] = z.keyHigh & 0x7f; // top key (split)
+  e[1] = zoneTopKey(z); // top key (split)
   e[2] = (z.keyLow ?? z.rootKey) & 0x7f; // bottom key — default to root
   e[3] = (z.zoneMode ?? zoneMode) & 0xff; // per-zone playback mode
   e[4] = (z.zonePlayback ?? 0) & 0xff;
@@ -149,6 +161,50 @@ function zoneEntry(z: WriteZone, globalID: number, zoneMode: number): Uint8Array
   e[14] = z.velLow ?? 0; // velMin
   e[15] = z.velTop ?? 127; // velMax (top velocity of the layer)
   return e;
+}
+
+/**
+ * A codec-4 zone with its strokes, as the editor writes it:
+ * an 8-byte head `[root][keyHigh][keyLow][mode][playback][oneShot][strokeCount:u16]`, then
+ * per stroke `[id:u32][strength:u16][velMin][velMax]`. Velocity layers are strokes of one
+ * zone; written as separate zones over the same keys, a Stage 4 played only the first
+ * (hardware test 2026-10-14). With one stroke this is the 16-byte {@link zoneEntry}.
+ */
+function layeredZoneEntry(g: { zone: WriteZone; strokes: { z: WriteZone; id: number }[] }): Uint8Array {
+  const e = new Uint8Array(8 + g.strokes.length * 8);
+  const z = g.zone;
+  e[0] = z.rootKey & 0x7f; e[1] = zoneTopKey(z); e[2] = (z.keyLow ?? z.rootKey) & 0x7f;
+  // Zone mode 0: every one of the 534 zones in the local `.nsmp4` corpus has it. With 1 (an
+  // earlier default) a Stage 4 played each zone at its recorded pitch on every key.
+  e[3] = (z.zoneMode ?? 0) & 0xff; e[4] = (z.zonePlayback ?? 0) & 0xff; e[5] = (z.zoneIsOneShot ?? 0) & 0xff;
+  e[6] = (g.strokes.length >>> 8) & 0xff; e[7] = g.strokes.length & 0xff;
+  g.strokes.forEach(({ z: s, id }, j) => {
+    const o = 8 + j * 8;
+    e[o] = (id >>> 24) & 0xff; e[o + 1] = (id >>> 16) & 0xff; e[o + 2] = (id >>> 8) & 0xff; e[o + 3] = id & 0xff;
+    e[o + 5] = 1; // strength (the value every single-stroke zone has; its meaning for layers is not known)
+    e[o + 6] = s.velLow ?? 0; e[o + 7] = s.velTop ?? 127;
+  });
+  return e;
+}
+
+/**
+ * Zones that share root and key range become one zone with several strokes, in order, when
+ * `layered` is set; otherwise one stroke per zone. Stroke ids stay the zones' positions
+ * (1-based), matching the `stk` sections. Layered is off by default: a Stage 4 reported
+ * "Memory pool is exhausted" on a two-stroke zone, and the Sample Editor never writes one for
+ * the Stage 4 (a zone's samples there are alternative takes; only the active one is exported,
+ * the maintainers’ notes, third round).
+ */
+function groupLayers(zones: WriteZone[], layered: boolean): { zone: WriteZone; strokes: { z: WriteZone; id: number }[] }[] {
+  if (!layered) return zones.map((z, i) => ({ zone: z, strokes: [{ z, id: i + 1 }] }));
+  const groups = new Map<string, { zone: WriteZone; strokes: { z: WriteZone; id: number }[] }>();
+  zones.forEach((z, i) => {
+    const key = [z.rootKey, z.keyLow ?? z.rootKey, z.keyHigh, z.zoneMode ?? 0, z.zonePlayback ?? 0, z.zoneIsOneShot ?? 0].join(',');
+    if (!groups.has(key)) groups.set(key, { zone: z, strokes: [] });
+    groups.get(key)!.strokes.push({ z, id: i + 1 });
+  });
+  for (const g of groups.values()) g.strokes.sort((a, b) => (a.z.velLow ?? 0) - (b.z.velLow ?? 0));
+  return [...groups.values()];
 }
 
 /**
@@ -180,8 +236,9 @@ function buildMapPayloadC3(zones: WriteZone[], levels: MapLevels): Uint8Array {
 function buildMapPayloadC4(zones: WriteZone[], levels: MapLevels): Uint8Array {
   const parts: Uint8Array[] = [levelRow(levels.global)]; // global
   for (let n = 0; n < 128; n++) parts.push(Uint8Array.from([...levelRow(levels.perNote?.[n]), n, n, n, n])); // per-note + note tag
-  parts.push(defaultUnisonHeader(zones.length)); // 31B SampleUnison block + 1B zone count
-  zones.forEach((z, i) => parts.push(zoneEntry(z, i + 1, 1)));
+  const groups = groupLayers(zones, levels.layeredZones ?? false);
+  parts.push(defaultUnisonHeader(groups.length)); // 31B SampleUnison block + 1B zone count
+  for (const g of groups) parts.push(layeredZoneEntry(g));
   parts.push(Uint8Array.from([0x00, 0x00, 0x00, 0x01, 0x00, 0x00])); // trailer
   return concat(parts);
 }
@@ -218,8 +275,8 @@ function buildMapPayload(zones: WriteZone[], codec: 3 | 4, levels: MapLevels = {
 export function writeNsmpMulti(opts: WriteNsmpMultiOptions): Uint8Array {
   const { name, zones } = opts;
   const codec = opts.codec ?? 3;
-  const levels = { global: opts.globalLevelDetune, perNote: opts.perNote };
-  return assembleNsmp(name, zones.map((z) => z.channels), buildMapPayload(zones, codec, levels), opts.blockSize, codec, zones.map((z) => z.stroke));
+  const levels = { global: opts.globalLevelDetune, perNote: opts.perNote, layeredZones: opts.layeredZones };
+  return assembleNsmp(name, zones.map((z) => z.channels), buildMapPayload(zones, codec, levels), codec, zones.map((z) => ({ rootKey: z.rootKey, ...z.stroke })));
 }
 
 /**
@@ -229,9 +286,9 @@ export function writeNsmpMulti(opts: WriteNsmpMultiOptions): Uint8Array {
 export function writeNsmp(opts: WriteNsmpOptions): Uint8Array {
   const { name, channels } = opts;
   const codec = opts.codec ?? 3;
-  // single zone across the keyboard, root key C4 (60)
-  const mapPayload = buildMapPayload([{ channels, keyHigh: 127, rootKey: 60 }], codec);
-  return assembleNsmp(name, [channels], mapPayload, opts.blockSize, codec);
+  // single zone from the bottom of the keyboard, root key C4 (60), as high as the root allows
+  const mapPayload = buildMapPayload([{ channels, keyLow: 0, keyHigh: 127, rootKey: 60 }], codec);
+  return assembleNsmp(name, [channels], mapPayload, codec, [{ rootKey: 60 }]);
 }
 
 /** Assemble the CBIN envelope + sections (one `stk` per stroke) + CRC. */
@@ -239,14 +296,13 @@ function assembleNsmp(
   name: string,
   strokes: ArrayLike<number>[][],
   mapPayload: Uint8Array,
-  blockSize: number | undefined,
   codec: 3 | 4,
-  metas: (WriteStrokeMeta | undefined)[] = [],
+  metas: WriteStrokeMeta[],
 ): Uint8Array {
   // Section versions differ by codec generation (observed in real .nsmp3/.nsmp4).
   const v = codec === 4
-    ? { file: 400, nsmp: 40, hdr: 11, map: 21, stk: 11, sty: 17 }
-    : { file: 300, nsmp: 30, hdr: 10, map: 14, stk: 11, sty: 7 };
+    ? { file: 400, nsmp: 40, hdr: 11, map: 21, stk: 11, sty: 17, nsmpLevel: 0x05 }
+    : { file: 300, nsmp: 30, hdr: 10, map: 14, stk: 11, sty: 7, nsmpLevel: 0x0c };
   const wordInterleaved = codec === 4; // codec 4 packs channels word-interleaved
 
   // --- CBIN envelope (0x00–0x2B) — samples: unslotted (bank/loc = 0xFFFFFFFF) ---
@@ -261,7 +317,11 @@ function assembleNsmp(
   // 0x18 CRC-32 patched at the end.
 
   // --- sections (templated from real samples) ---
-  const nsmp = section('NSMP', v.nsmp, Uint8Array.from([0x00, 0x02, 0x00, 0x0c]));
+  // The `NSMP` payload's last byte differs by generation: 0x0c in all 28 local `.nsmp3`, 0x05
+  // in all 13 local `.nsmp4`. With 0x0c in a `.nsmp4`, Nord Sound Manager 9.22 lists the
+  // sample as "Unsupported version" and asks for a newer OS; 0x05 is accepted (hardware test
+  // 2026-10-14, Stage 4). What the byte means is not known.
+  const nsmp = section('NSMP', v.nsmp, Uint8Array.from([0x00, 0x02, 0x00, v.nsmpLevel]));
 
   const hdrPayload = new Uint8Array(112);
   new DataView(hdrPayload.buffer).setUint16(4, 0x062c, false); // templated marker
@@ -271,24 +331,18 @@ function assembleNsmp(
   const cat = section('\0cat', 7, Uint8Array.from([0x0f, 0, 0, 0, 0, 0, 0, 0]));
   const map = section('\0map', v.map, mapPayload);
 
-  // One `stk` per stroke: a templated header then the encoded block stream. Byte 8
-  // of the stroke header is the channel count (the count the decoder
-  // de-interleaves by), so our reader recovers it without guessing.
-  // A carried stroke's region pointers are absolute stream positions, so each `stk` is built
-  // knowing where it lands in the file.
+  // One `stk` per stroke, every one built the way the editor builds it (`carriedStroke`): its
+  // byte-exact encoder, and a header whose region pointers name where the stream starts, loops
+  // and stops. Nord Sound Manager decodes a stroke from those pointers; the earlier template
+  // left them at zero for a stroke with no loop, and NSM 9.03 crashed reading it
+  // (hardware test 2026-10-14). The pointers are absolute
+  // stream positions, so each `stk` is built knowing where it lands in the file.
   let at = header.length + nsmp.length + hdr.length + cat.length + map.length;
   const stks = strokes.map((channels, i) => {
-    const meta = metas[i];
-    if (meta) {
-      const stk = section('\0stk', v.stk, carriedStroke(channels, i + 1, meta, wordInterleaved, at + 12));
-      at += stk.length;
-      return stk;
-    }
-    const header = new Uint8Array(STROKE_HEADER_SIZE);
-    new DataView(header.buffer).setUint32(0, i + 1, false); // global id — the u32 each zone names (map record +8)
-    header[6] = 0x88; header[7] = 0xba; // pitch/rate base (PITCH_BASE @ 0 cents) — read back as the replay sampleRate; 44100 would detune +4 semitones
-    header[8] = channels.length; // 1 = mono, 2 = stereo
-    const stk = section('\0stk', v.stk, concat([header, encodeStroke(channels, { blockSize, wordInterleaved })]));
+    // The codecs store ±32767; out-of-range PCM (a resampler's overshoot on hot audio) would be
+    // encoded wrongly and read back without audio, so every caller gets it clamped here.
+    const pcm = clampPcm16(channels);
+    const stk = section('\0stk', v.stk, carriedStroke(pcm, i + 1, metas[i] ?? {}, wordInterleaved, at + 12));
     at += stk.length;
     return stk;
   });
@@ -312,6 +366,22 @@ const put32 = (b: Uint8Array, o: number, v: number) => {
 };
 
 /**
+ * Gain bytes (+0x09…+0x11, the maintainers’ notes "Gain bytes") for a stroke with no source to
+ * copy them from. No real stroke has a zero gain: across the 1,378 local `.nsmp3`/`.nsmp4`
+ * strokes it runs 0.36–1.45 of unity (0x100000). So: unity gain, exponent 10, and the peak
+ * field as real strokes most often store it at that exponent, half the loudest sample, signed
+ * like it. What the instrument does with the peak is still not known.
+ */
+function putFreshGain(header: Uint8Array, channels: ArrayLike<number>[]): void {
+  let loudest = 0;
+  for (const c of channels) for (let i = 0; i < c.length; i++) if (Math.abs(c[i]) > Math.abs(loudest)) loudest = c[i];
+  const peak = Math.round(loudest / 2) & 0xffffff;
+  header[0x09] = 0x10; header[0x0a] = 0; header[0x0b] = 0; // gain u24 = 0x100000 (unity)
+  header[0x0c] = 10; // exponent
+  header[0x0d] = (peak >>> 16) & 0xff; header[0x0e] = (peak >>> 8) & 0xff; header[0x0f] = peak & 0xff;
+}
+
+/**
  * A `stk` payload for a stroke converted from another sample: the header a real codec-3/4
  * stroke has, then the block stream cut into the source's segments.
  *
@@ -332,6 +402,7 @@ function carriedStroke(channels: ArrayLike<number>[], globalID: number, meta: Wr
 
   put32(header, 0, globalID);
   if (meta.headerFields) header.set(meta.headerFields.subarray(0, 14), 0x04);
+  else putFreshGain(header, channels);
   const pitchBase = meta.pitchBase ?? (meta.headerFields ? undefined : 0x88ba);
   if (pitchBase !== undefined) { header[6] = (pitchBase >>> 8) & 0xff; header[7] = pitchBase & 0xff; }
   if (meta.rootKey !== undefined) header[5] = meta.rootKey & 0xff;

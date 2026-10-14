@@ -902,8 +902,11 @@ function validateZones(input: NpnoInput): void {
 /** Longest name whose suggested file name (`Name_6.<minor>.npno`) a Nord still takes. */
 export const MAX_NPNO_NAME = MAX_PIANO_NAME - '_6.0.npno'.length;
 
-/** The name part of the suggested file name: letters, digits, spaces (as `_`), `-`, `_`. */
-const fileBase = (input: NpnoInput) => input.name.replace(/[^A-Za-z0-9 _-]/g, '').trim().replace(/ +/g, '_') || 'Piano';
+/** A file-name stem from a display name: letters, digits, spaces (as `_`), `-`, `_`; `fallback` when nothing is left. */
+export const fileNameStem = (name: string, fallback: string): string =>
+  name.replace(/[^A-Za-z0-9 _-]/g, '').trim().replace(/ +/g, '_') || fallback;
+/** The name part of the suggested file name. */
+const fileBase = (input: NpnoInput) => fileNameStem(input.name, 'Piano');
 /** Suggested file name: NSM shows the part before the version tag. */
 const suggestedFileName = (input: NpnoInput) => `${fileBase(input)}_6.${input.minor ?? 0}.npno`;
 

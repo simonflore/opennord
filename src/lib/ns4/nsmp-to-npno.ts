@@ -31,7 +31,7 @@ import { buildNpno, MAX_NPNO_NAME, MIN_RECORDED_NOTE, NPNO_PIANO_TYPE, NPNO_RECO
 
 /** Most keys a recording covers above its own pitch before the next keys get a copy: a key
  *  then plays at most 3 semitones below its zone's top key, about what factory pianos do. */
-const MAX_ZONE_KEYS = 4;
+export const MAX_ZONE_KEYS = 4;
 /** The note a zone's recordings are pitched to for a top key (`buildNpno`'s `rootNote`). */
 const recordedNoteFor = (topKey: number) => topKey + NPNO_RECORDING_ABOVE_TOP_KEY;
 /** Lowest top key a zone can have: its stored root, one below, can't be 0. */
@@ -46,7 +46,8 @@ const TAIL_FADE_SECONDS = 0.5;
 /** Reach of the resampling filter either side of a frame, in input frames, with one to spare. */
 const FILTER_REACH = DEFAULT_HALF_WIDTH + 1;
 /** Said of every piano OpenNord builds, until one has been loaded on an instrument. */
-const UNTESTED = 'A piano made by OpenNord has not been tried on a Nord yet. Back up your Nord before you load it.';
+/** The warning every piano OpenNord makes carries until one has loaded on a Nord. */
+export const UNTESTED = 'A piano made by OpenNord has not been tried on a Nord yet. Back up your Nord before you load it.';
 /** Softest floor a layer can store, in dB. */
 const MAX_FLOOR_DB = 51;
 
@@ -56,6 +57,9 @@ export interface SampleZone {
   rootKey: number;
   velTop: number;
   globalID: number;
+  /** The layer's floor in dB below the hardest hit, when the caller sets it (Build sample's
+   *  layers); otherwise `planPianoZones` derives floors from the top velocities. */
+  floorDb?: number;
 }
 
 export interface PianoZonePlan {
@@ -106,7 +110,9 @@ export function planPianoZones(zones: readonly SampleZone[]): PianoZonePlan[] {
     // From each layer, the zone whose keys reach this far (none above a layer's top zone).
     const covering = loudestFirst.map((band) => band.find((z) => z.keyHigh >= top)).filter((z) => z !== undefined);
     const sourceRoot = covering[0].rootKey; // the loudest layer's: where the keys are split
-    const floors = layerFloors(covering.map((z) => z.velTop));
+    const floors = covering.every((z) => z.floorDb !== undefined)
+      ? covering.map((z) => z.floorDb!)
+      : layerFloors(covering.map((z) => z.velTop));
     const layers = covering.map((z, k) => ({ globalID: z.globalID, floorDb: floors[k], sourceRoot: z.rootKey }));
     const high = Math.min(127, top);
     // From the top down: a group of keys for each stretch that lies well above the recording.

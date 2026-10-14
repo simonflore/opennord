@@ -41,6 +41,14 @@ describe('planPianoZones', () => {
     expect(plan[1].layers).toHaveLength(1);
   });
 
+  it('uses the floors the caller gives each layer', () => {
+    const plan = planPianoZones([
+      { keyHigh: 60, rootKey: 63, velTop: 127, globalID: 1, floorDb: 0 },
+      { keyHigh: 60, rootKey: 63, velTop: 126, globalID: 2, floorDb: 12 },
+    ]);
+    expect(plan.at(-1)!.layers.map((l) => l.floorDb)).toEqual([0, 12]);
+  });
+
   it('pitches each layer from its own recorded note', () => {
     const plan = planPianoZones([zone(60, 60, 1, 63), zone(60, 58, 2, 127)]);
     expect(plan[0].layers.map((l) => [l.globalID, l.sourceRoot])).toEqual([[2, 58], [1, 60]]);

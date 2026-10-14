@@ -36,6 +36,8 @@ export interface EditZone {
   globalID?: number;
   /** Byte offset of this zone's 16-byte record in the source file (for in-place patching). */
   recordOffset?: number;
+  /** A later stroke of a multi-stroke zone: where its 8-byte entry (velocities at +6/+7) is. */
+  strokeEntryOffset?: number;
 }
 
 export interface EditModel {
@@ -56,6 +58,7 @@ export function editModel(file: NsmpFile, zones: NsmpZone[]): EditModel {
     zones: zones.map((z) => ({
       rootKey: z.rootKey, keyLow: z.keyLow, keyHigh: z.keyHigh,
       velTop: z.velTop, velLow: z.velLow, globalID: z.globalID, recordOffset: z.recordOffset,
+      ...(z.strokeEntryOffset !== undefined ? { strokeEntryOffset: z.strokeEntryOffset } : {}),
     })),
   };
 }
@@ -92,8 +95,13 @@ export function patchEditedNsmp(original: Uint8Array, model: EditModel): Uint8Ar
   for (const z of model.zones) {
     if (z.recordOffset == null) continue;
     const e = z.recordOffset;
-    out[e + layout.velTop] = clampKey(z.velTop);
-    out[e + layout.velLow] = clampKey(z.velLow);
+    // A later stroke of a multi-stroke zone keeps its velocities in its own entry.
+    const v = z.strokeEntryOffset !== undefined ? z.strokeEntryOffset - 8 : e;
+    out[v + layout.velTop] = clampKey(z.velTop);
+    out[v + layout.velLow] = clampKey(z.velLow);
+    // Root and keys live in the zone head, shared by its strokes: the first stroke owns them, so
+    // a later stroke's copy can't overwrite an edit made through the first.
+    if (z.strokeEntryOffset !== undefined) continue;
     out[e + layout.rootKey] = clampKey(z.rootKey);
     out[e + layout.keyLow] = clampKey(z.keyLow);
     out[e + layout.keyHigh] = clampKey(z.keyHigh);

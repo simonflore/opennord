@@ -279,8 +279,9 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
  * for; `velLow`..`velTop` its velocity range (a layer). `globalID` selects the
  * stroke that plays — matching the stroke's u32 id at `stk` header +0 (NOT a
  * positional index). Verified vs `.nsmpproj` ground truth + real file dumps;
- *. (Multi-stroke zones — strokeCount>1 — exist on the
- * wire but aren't modeled; all known content is single-stroke.)
+ *. A codec-4 zone can hold several strokes (velocity layers); each
+ * is reported as its own `NsmpZone`, sharing the zone's keys, with {@link strokeEntryOffset}
+ * set (`parseCodec4ZoneRecords`).
  */
 export interface NsmpZone {
   /** Top velocity of the layer — `velMax` @+15. */
@@ -301,8 +302,12 @@ export interface NsmpZone {
   zoneIsOneShot: number;
   /** The stroke this zone plays, by the stroke's global id (record u32 @+8 == `stk` header u32 @+0). */
   globalID: number;
-  /** Byte offset of this 16-byte record in the file, for in-place edits (0 when unknown). */
+  /** Byte offset of this 16-byte record in the file, for in-place edits (0 when unknown).
+   *  For a stroke of a multi-stroke zone: the zone's 8-byte head (keys, root, mode). */
   recordOffset: number;
+  /** Byte offset of this stroke's 8-byte entry (`[id:u32][strength:u16][velMin][velMax]`) when
+   *  it differs from `recordOffset + 8`, i.e. for strokes after the first in a multi-stroke zone. */
+  strokeEntryOffset?: number;
 }
 
 /**
@@ -416,6 +421,12 @@ export function parseCodec4ZoneRecords(
     for (let i = 0; i < count; i++) zones.push(record(recStart + i * REC));
     return zones;
   }
+  // A zone with several strokes (velocity layers): the editor writes an 8-byte zone head
+  // `[root][keyHigh][keyLow][mode][playback][oneShot][strokeCount:u16]`, then per stroke
+  // `[id:u32][strength:u16][velMin][velMax]` (codec 4).
+  // With one stroke per zone that is the 16-byte record above.
+  const layered = walkMultiStrokeZones(bytes, recStart, count, map.endOffset, gidSet);
+  if (layered) return layered;
 
   // Fallback: the zone-table header (`SampleUnison` block) can be a different size and
   // per-note rows aren't always unity, so the fixed offset can be wrong. Locate the
@@ -437,6 +448,39 @@ export function parseCodec4ZoneRecords(
   const zones: NsmpZone[] = [];
   for (let i = 0; i < best.n; i++) zones.push(record(best.start + i * REC));
   return zones;
+}
+
+/** Walk `count` codec-4 zones of variable length from `start`; null when they don't fit. */
+function walkMultiStrokeZones(
+  bytes: Uint8Array, start: number, count: number, end: number, gidSet?: Set<number>,
+): NsmpZone[] | null {
+  if (count < 1) return null;
+  const zones: NsmpZone[] = [];
+  let o = start;
+  let layered = false;
+  for (let i = 0; i < count; i++) {
+    // Key bytes in range and low ≤ root ≤ high, as in every real zone; this runs before the
+    // fallback scan, so a misframed table must not slip through.
+    if (o + 8 > end || bytes[o] > 127 || bytes[o + 1] > 127 || bytes[o + 2] > bytes[o] || bytes[o] > bytes[o + 1]) return null;
+    const n = (bytes[o + 6] << 8) | bytes[o + 7];
+    if (n < 1 || n > 64 || o + 8 + n * 8 > end) return null;
+    if (n > 1) layered = true;
+    for (let j = 0; j < n; j++) {
+      const e = o + 8 + j * 8;
+      const globalID = u32be(bytes, e);
+      if (gidSet && !gidSet.has(globalID)) return null;
+      zones.push({
+        rootKey: bytes[o], keyHigh: bytes[o + 1], keyLow: bytes[o + 2],
+        zoneMode: bytes[o + 3], zonePlayback: bytes[o + 4], zoneIsOneShot: bytes[o + 5],
+        globalID, velLow: bytes[e + 6], velTop: bytes[e + 7],
+        recordOffset: o, ...(j > 0 ? { strokeEntryOffset: e } : {}),
+      });
+    }
+    o += 8 + n * 8;
+  }
+  const trailer = end - o;
+  // All-single-stroke tables are the 16-byte path's; only accept here when a zone has layers.
+  return layered && trailer >= 0 && trailer <= 8 ? zones : null;
 }
 
 /**
@@ -998,6 +1042,17 @@ export function loopDecayDbPerSecond(decayRaw: number): number {
   const c = Math.abs(decayRaw >= 0x800000 ? decayRaw - 0x1000000 : decayRaw) / 0x800000;
   if (!(c > 0) || c >= 1) return 0;
   return -20 * Math.log10(c) * NSMP_ENVELOPE_RATE;
+}
+
+/**
+ * The stored loop-decay field for a loop that falls 40 dB in `seconds` (the editor's Decay
+ * time; c = 0.01^(1/(seconds·rate)), stored as −c·2²³). The inverse of
+ * {@link loopDecayDbPerSecond}. `null` or 0 = hold (`0x800000`).
+ */
+export function loopDecayRaw(seconds: number | null): number {
+  if (seconds === null || !(seconds > 0)) return 0x800000;
+  const c = 0.01 ** (1 / (seconds * NSMP_ENVELOPE_RATE));
+  return (0x1000000 - Math.round(c * 0x800000)) & 0xffffff;
 }
 
 export interface StrokeLoop {

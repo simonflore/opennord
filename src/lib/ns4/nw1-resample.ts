@@ -35,3 +35,22 @@ export function resampleNW1(channels: ArrayLike<number>[], opts: ResampleOptions
 export function resampleToRate(channels: ArrayLike<number>[], srcRate: number, dstRate: number): Int32Array[] {
   return resampleNW1(channels, { ratio: srcRate / dstRate });
 }
+
+/** One sample to the symmetric 16-bit range the Nord codecs store. */
+export const clamp16 = (v: number): number => Math.max(-32767, Math.min(32767, v));
+
+/**
+ * Clamp resampled channels to the symmetric 16-bit range the Nord codecs store (±32767). The
+ * sinc filter overshoots on hot audio (a full-scale square reaches about 40,000); the writers
+ * would encode such values wrongly and the file would read back without audio.
+ */
+export function clampPcm16(channels: ArrayLike<number>[]): ArrayLike<number>[] {
+  return channels.map((ch) => {
+    let i = 0;
+    while (i < ch.length && ch[i] >= -32767 && ch[i] <= 32767) i++;
+    if (i === ch.length) return ch; // already in range: no copy
+    const out = Int32Array.from(ch);
+    for (; i < out.length; i++) out[i] = clamp16(out[i]);
+    return out;
+  });
+}

@@ -11,6 +11,11 @@
  * makes the OG (codec-1) writer built on it correct by construction — the exact
  * bytes the editor would emit — without needing a Stage 2 to validate against.
  *
+ * **Except looped 32-bit strokes.** Their loop region has to fill whole 32-word lines
+ * (`alignLoopRegion`); the editor's own Phase1 rule for that region is not ported, so
+ * the block split there is ours and differs from the editor's (lossless either way).
+ * One-shots still match byte for byte (all 203 local ones).
+ *
  * The input PCM must already be in the editor's *internal* (resampled) domain —
  * i.e. the integer PCM that {@link decodeStroke} returns. This encoder does not
  * resample; the source→internal conversion (`CreateIntermediate`) is upstream.
@@ -170,6 +175,32 @@ function advance(channels: ArrayLike<number>[], st: ChState[], counts: number[])
  * `(order, bw)`. No stop block (Phase2 appends it).
  */
 export function planBlocks(channels: ArrayLike<number>[], opts: EncodeNW1Options = {}): NW1Block[] {
+  const blocks = planBlocksOnce(channels, opts);
+  if (opts.loopBeginInterleaved === undefined || opts.u24 || alignLoopRegion(blocks, channels.length, opts)) return blocks;
+  // Splitting and widening can't fix the count: in a word-interleaved stereo stroke every block
+  // is one header word plus an even number of data words, so the region's parity is its block
+  // count's. Real strokes also carry an extra segment just after the loop begin (e.g. ARP Quadra
+  // Str 8 BR 4.1, stroke 1: loop-begin block of 48, then a segment-opening block of 33); add one
+  // such boundary, a frame or more into the loop, and plan again.
+  const nCh = channels.length;
+  const total = (channels[0]?.length ?? 0) * nCh;
+  const BS = (opts.blockPerCh ?? BLOCK_PER_CH) * nCh;
+  // A boundary r frames in flips the count once r passes the loop segment's remainder (under
+  // one chunk), so one chunk's worth of candidates is enough.
+  for (let k = 1; k <= BS / nCh + 1; k++) {
+    const extra = opts.loopBeginInterleaved + k * nCh;
+    if (extra >= total - nCh) break;
+    const segs = [...(opts.segmentsInterleaved ?? []), extra];
+    const again = planBlocksOnce(channels, { ...opts, segmentsInterleaved: segs });
+    if (alignLoopRegion(again, nCh, { ...opts, segmentsInterleaved: segs })) return again;
+  }
+  // Nothing lines up (a very short loop at the very end): still write the stroke, unaligned, as
+  // before alignment existed, rather than fail the whole conversion or import. Its audio is
+  // intact; whether a Stage 4 loops it cleanly is not guaranteed.
+  return planBlocksOnce(channels, opts);
+}
+
+function planBlocksOnce(channels: ArrayLike<number>[], opts: EncodeNW1Options): NW1Block[] {
   const nCh = channels.length;
   if (nCh === 0) return [];
   const lenPerCh = channels[0].length;
@@ -235,6 +266,49 @@ export function planBlocks(channels: ArrayLike<number>[], opts: EncodeNW1Options
     }
   }
   return blocks;
+}
+
+/** Words a block takes in the stream, header included (32-bit words). */
+function blockWords(b: NW1Block, nCh: number, wordInterleaved: boolean): number {
+  if (!wordInterleaved) return 1 + Math.ceil((b.sampleCnt * b.bw) / 32);
+  const counts = perChannelCounts(b.sampleCnt, nCh);
+  return 1 + nCh * Math.ceil((counts[0] * b.bw) / 32);
+}
+
+/**
+ * Make the loop region — the loop-begin block up to the stop block — a whole number of 32-word
+ * lines, so the loop-begin pointer lands on a multiple of 32 words as the end pointer does.
+ * All 949 looped strokes in the local `.nsmp3`/`.nsmp4` corpus have it so; a stroke without it
+ * played up to its loop on a Stage 4 and then stopped the sample DSP ("DSP 3 Comm Error",
+ * hardware test 2026-10-14). The editor gets there by keeping blocks after the loop begin
+ * short; here a merged block is split (a full chunk packs into whole words, so each split adds
+ * exactly its one header word and changes no residual), and failing that a block is widened by
+ * one bit (lossless), starting nearest the loop begin. False when neither gets there.
+ */
+function alignLoopRegion(blocks: NW1Block[], nCh: number, opts: EncodeNW1Options): boolean {
+  const BS = (opts.blockPerCh ?? BLOCK_PER_CH) * nCh;
+  const at = blocks.findIndex((b) => b.flag2);
+  if (at < 0) return true;
+  const wi = opts.wordInterleaved === true;
+  const regionWords = () => blocks.slice(at).reduce((n, b) => n + blockWords(b, nCh, wi), 0);
+  let need = (32 - (regionWords() % 32)) % 32;
+  for (let i = at + 1; need > 0 && i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.linMode || b.sampleCnt <= BS) continue;
+    b.sampleCnt -= BS; // split off the block's first chunk, same order and width
+    blocks.splice(i, 0, { ...b, sampleCnt: BS });
+    need--;
+  }
+  // Out of merged blocks: widen non-forced blocks by a bit. A full chunk then takes one more
+  // word per channel; keep going until the region lines up (stereo may need to wrap past 32).
+  for (let i = at + 1; need !== 0 && i < blocks.length; ) {
+    const b = blocks[i];
+    if (b.linMode || b.bw >= 16) { i++; continue; }
+    const before = blockWords(b, nCh, wi);
+    b.bw++;
+    need = ((need - (blockWords(b, nCh, wi) - before)) % 32 + 32) % 32;
+  }
+  return regionWords() % 32 === 0;
 }
 
 /** Build a `CBlockHdr` header word. */

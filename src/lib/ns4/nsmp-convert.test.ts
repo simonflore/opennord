@@ -41,10 +41,10 @@ describe('convertNsmp — audio preserved across generations (synthetic)', () =>
     // `map` fix the .nsmp4 intermediate read back as zero zones, silently dropping
     // the splits/layers.
     const z4 = readNsmpZones(convertNsmp(src3, 4).bytes);
-    expect(z4.map((z) => z.keyHigh)).toEqual([59, 127]);
+    expect(z4.map((z) => z.keyHigh)).toEqual([59, 96]); // 127 capped at root 72 + 24
     expect(z4.map((z) => z.rootKey)).toEqual([48, 72]);
     const z3 = readNsmpZones(convertNsmp(convertNsmp(src3, 4).bytes, 3).bytes);
-    expect(z3.map((z) => z.keyHigh)).toEqual([59, 127]);
+    expect(z3.map((z) => z.keyHigh)).toEqual([59, 96]);
     expect(z3.map((z) => z.rootKey)).toEqual([48, 72]);
   });
 

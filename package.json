@@ -18,6 +18,7 @@
     "fixtures:scan": "vitest run src/lib/clavia/fixtures-scan.test.ts --reporter=default",
     "gen:factory-sounds": "esbuild scripts/gen-factory-sounds.ts --bundle --platform=node --format=esm --log-level=warning --outfile=scripts/.bin/gen-factory-sounds.mjs && node scripts/.bin/gen-factory-sounds.mjs",
     "hw:test-piano": "esbuild scripts/make-test-piano.ts --bundle --platform=node --format=esm --log-level=warning --outfile=hardware-test/.bin/make-test-piano.mjs && node hardware-test/.bin/make-test-piano.mjs",
+    "hw:test-sample": "esbuild scripts/make-test-sample.ts --bundle --platform=node --format=esm --log-level=warning --outfile=hardware-test/.bin/make-test-sample.mjs && node hardware-test/.bin/make-test-sample.mjs",
     "hw:compare": "esbuild scripts/compare-recording.ts --bundle --platform=node --format=esm --log-level=warning --outfile=hardware-test/.bin/compare-recording.mjs && node hardware-test/.bin/compare-recording.mjs",
     "hw:typecheck": "tsc --noEmit -p scripts/tsconfig.hwtest.json",
     "build:native": "OPENNORD_NATIVE=1 tsc -b && OPENNORD_NATIVE=1 vite build",
