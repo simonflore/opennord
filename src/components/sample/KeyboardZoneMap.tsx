@@ -1,11 +1,11 @@
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { EditZone } from '../../lib/ns4/sample-edit';
 import type { PlayableZone } from '../../lib/ns4/playable-zones';
-import { tileZones, clampKeyHigh, keyFraction, keyFromFraction, isBlackKey, KEY_MIN, KEY_MAX } from '../../lib/ns4/keyboard-view';
+import { tileZones, clampKeyHigh, isBlackKey, KEY_MIN, KEY_MAX } from '../../lib/ns4/keyboard-view';
 import { noteName } from '../../lib/ns4/sample-view';
 
-const W = 1000;
-const SEMI = W / (KEY_MAX - KEY_MIN);
+/** Drawing width for all 88 keys; a window of fewer keys is drawn narrower, so its keys keep a tappable size. */
+const FULL_W = 1000;
 const ZONE_TOP = 8, ZONE_H = 56;
 const KB_TOP = 82, KB_H = 92;
 const VIEW_H = KB_TOP + KB_H + 2;
@@ -15,7 +15,6 @@ const VIEW_H = KB_TOP + KB_H + 2;
 const ZONE_COUNT = 6;
 const zoneFill = (pos: number) => `var(--zone-${(pos % ZONE_COUNT) + 1})`;
 
-const xOf = (midi: number) => keyFraction(midi) * W;
 
 /**
  * The keyboard zone map: each sample is a colored band across the keys it covers.
@@ -29,7 +28,7 @@ const xOf = (midi: number) => keyFraction(midi) * W;
  * dragging retriggers across keys, and now-playing / root / range highlights appear.
  * When these props are absent the component behaves exactly as before.
  */
-export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, onPlayZone, onNoteOn, onNoteOff, soundingMidis, playableZones, respectKeyLow = false }: {
+export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, onPlayZone, onNoteOn, onNoteOff, soundingMidis, playableZones, respectKeyLow = false, labelByRoot = false, hatched, keys = { low: KEY_MIN, high: KEY_MAX } }: {
   zones: EditZone[];
   selected: number;
   onSelect: (index: number) => void;
@@ -47,7 +46,18 @@ export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, on
   playableZones?: PlayableZone[];
   /** Draw each zone from its own bottom key, so keys no zone covers stay bare. Off: zones tile from A0. */
   respectKeyLow?: boolean;
+  /** Name each band by its root note (C3) instead of its position (S1). */
+  labelByRoot?: boolean;
+  /** Key ranges drawn hatched over their bands: a piano's keys played by re-pitched copies. */
+  hatched?: readonly { keyLow: number; keyHigh: number }[];
+  /** The keys shown (default: all 88); a phone shows two octaves around the selected zone. */
+  keys?: { low: number; high: number };
 }) {
+  // Keys are spaced evenly; a window zooms in on part of the keyboard, the rest is cut off.
+  const W = Math.max(400, ((keys.high - keys.low) / (KEY_MAX - KEY_MIN)) * FULL_W);
+  const SEMI = W / (keys.high - keys.low);
+  const xOf = (midi: number) => (midi - keys.low) * SEMI;
+  const hatchId = useId();
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<number | null>(null);
   // Tracks the held key in playable mode so drag-across retriggers cleanly.
@@ -56,7 +66,7 @@ export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, on
 
   const keyAt = (clientX: number): number => {
     const rect = svgRef.current!.getBoundingClientRect();
-    return keyFromFraction((clientX - rect.left) / rect.width);
+    return keys.low + Math.round(Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)) * (keys.high - keys.low));
   };
 
   const press = (clientX: number) => {
@@ -75,9 +85,9 @@ export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, on
   };
 
   const blacks: number[] = [];
-  for (let m = KEY_MIN; m <= KEY_MAX; m++) if (isBlackKey(m)) blacks.push(m);
+  for (let m = keys.low; m <= keys.high; m++) if (isBlackKey(m)) blacks.push(m);
   const octaves: number[] = [];
-  for (let m = 24; m <= KEY_MAX; m += 12) octaves.push(m);
+  for (let m = 24; m <= keys.high; m += 12) if (m >= keys.low) octaves.push(m);
 
   return (
     <svg
@@ -104,35 +114,51 @@ export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, on
         const w = xOf(z.keyHigh + 1) - x;
         const isSel = z.index === selected;
         const isPlaying = !!soundingMidis && [...soundingMidis].some((m) => m >= z.keyLow && m <= z.keyHigh);
+        const label = labelByRoot ? noteName(z.rootKey) : `S${pos + 1}`;
         return (
           <g key={z.index} onClick={() => { onSelect(z.index); onPlayZone?.(z.index); }} style={{ cursor: onNoteOn ? 'crosshair' : 'pointer' }}>
             {/* Label by keyboard position (pos), not stroke order — S1 is always
                 the leftmost zone. onSelect/onPlayZone still use z.index to map
                 back to the underlying zone/stroke. */}
-            <title>{onPlayZone ? `S${pos + 1} — click to audition` : `S${pos + 1}`}</title>
+            <title>{onPlayZone ? `${label} — click to audition` : label}</title>
             <rect x={x + 1} y={ZONE_TOP} width={Math.max(0, w - 2)} height={ZONE_H} rx="4"
               fill={zoneFill(pos)}
               stroke={isSel || isPlaying ? 'var(--accent-bright)' : 'var(--line)'}
               strokeWidth={isPlaying ? 3 : isSel ? 2.5 : 1} />
             {w > 26 ? (
               <text x={x + w / 2} y={ZONE_TOP + ZONE_H / 2 + 5} textAnchor="middle" fontSize="14" fontWeight="700" fill="var(--ink)">
-                S{pos + 1}
+                {label}
               </text>
             ) : (
               // Too narrow for a horizontal label — rotate it so every zone stays identifiable.
               <text x={x + w / 2} y={ZONE_TOP + ZONE_H / 2} textAnchor="middle" dominantBaseline="middle"
                 fontSize="12" fontWeight="700" fill="var(--ink)"
                 transform={`rotate(-90 ${x + w / 2} ${ZONE_TOP + ZONE_H / 2})`}>
-                S{pos + 1}
+                {label}
               </text>
             )}
           </g>
         );
       })}
 
+      {hatched && hatched.length > 0 && (
+        <>
+          <defs>
+            <pattern id={hatchId} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width="2" height="6" fill="var(--ink)" opacity="0.22" />
+            </pattern>
+          </defs>
+          {hatched.map((h) => (
+            <rect key={h.keyLow} x={xOf(h.keyLow) + 1} y={ZONE_TOP} width={Math.max(0, xOf(h.keyHigh + 1) - xOf(h.keyLow) - 2)} height={ZONE_H}
+              rx="4" fill={`url(#${hatchId})`} pointerEvents="none" />
+          ))}
+        </>
+      )}
+
       {/* Root key markers — a faint accent tick at each zone's root note. */}
-      {playableZones?.map((z, pos) => (
-        <rect key={`r${z.globalID}-${pos}`}
+      {/* From the playable layout when there is one; else, with bands named by root, from the zones. */}
+      {(playableZones ?? (labelByRoot ? tiled : [])).map((z, pos) => (
+        <rect key={`r${pos}`}
           x={xOf(z.rootKey) + 1} y={KB_TOP} width={Math.max(1, SEMI - 2)} height={KB_H}
           fill="var(--accent)" opacity={0.55} pointerEvents="none" />
       ))}

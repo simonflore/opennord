@@ -35,8 +35,12 @@
    content keeps room for it (listed twice to win over the native rule above).
    The native side padding follows the components' narrower phone padding too
    (these rules are unlayered, so they win over the Tailwind utilities). */
+/* How much of the screen's foot the tab bar covers: 0 where it isn't shown. A bar a screen
+   keeps at its foot (the Build sample screen's Save on a phone) sits `bottom: var(--tabs-room)`. */
+:root { --tabs-room: 0px; }
 /* `width < 720px` matches Tailwind's max-[720px]: that shows the tab bar. */
 @media (width < 720px) {
+  :root { --tabs-room: var(--tabs-h); }
   .on-content,
   [data-native] .on-content {
     padding-bottom: calc(var(--tabs-h) + var(--s-6));

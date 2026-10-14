@@ -198,6 +198,8 @@ export interface NsmpToNpnoOptions {
   name: string;
   /** Which piano type the file says it is ({@link NPNO_PIANO_TYPE}). Default: electric piano. */
   pianoType?: number;
+  /** A model or variant shown after the name (e.g. "Mk I"); see `NpnoInput.variant`. */
+  variant?: string;
   /**
    * How a held note fades once it is in its loop: `'auto'` (default) takes the sample's own
    * loop decay where it sets one and a piano-like fade where it doesn't; `'piano'` gives every
@@ -336,6 +338,6 @@ export function sampleToPiano(source: SampleSource, opts: NsmpToNpnoOptions): Ns
     warnings.push('Held notes never fade: with the sustain pedal down, a note rings until you let go.');
   }
   warnings.push(UNTESTED);
-  const result = buildNpno({ name: opts.name, pianoType: opts.pianoType ?? NPNO_PIANO_TYPE.electric, channels, zones: input });
+  const result = buildNpno({ name: opts.name, variant: opts.variant, pianoType: opts.pianoType ?? NPNO_PIANO_TYPE.electric, channels, zones: input });
   return { ...result, warnings };
 }

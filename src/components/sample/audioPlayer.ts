@@ -25,11 +25,13 @@ let activeStop: (() => void) | null = null;
  * it was interrupted by the next play — so callers can reset their UI. Returns a
  * stop function for explicit Stop buttons.
  */
-export function playPcm(channels: Int32Array[], onEnded?: () => void, sampleRate: number = SAMPLE_RATE): () => void {
+export function playPcm(channels: Int32Array[], onEnded?: () => void, sampleRate: number = SAMPLE_RATE, { asIs = false }: { asIs?: boolean } = {}): () => void {
   activeStop?.(); // single voice — stop whatever else is playing
   const ctx = getSharedCtx(); // every audition is a tap: resume a suspended/interrupted context
   const src = ctx.createBufferSource();
-  src.buffer = toAudioBuffer(ctx, normalizeChannels(channels), sampleRate);
+  // `asIs`: 16-bit PCM at its own level (a take with its Level applied), not gained up to full scale.
+  const data = asIs ? channels.map((ch) => Float32Array.from(ch, (v) => v / 32768)) : normalizeChannels(channels);
+  src.buffer = toAudioBuffer(ctx, data, sampleRate);
   src.connect(ctx.destination);
   const stop = () => { try { src.stop(); } catch { /* already stopped */ } };
   src.onended = () => { if (activeStop === stop) activeStop = null; onEnded?.(); };

@@ -133,6 +133,13 @@ const piano: TargetProfile = {
     else if (!/^[\x20-\x7e]+$/.test(p.name) || p.name.includes('#')) {
       issues.push({ level: 'error', message: 'A piano name can only use plain letters, digits and basic punctuation: no accents, symbols or "#".' });
     }
+    const variant = p.piano?.variant ?? '';
+    if (variant && (!/^[\x20-\x7e]+$/.test(variant) || variant.includes('#'))) {
+      issues.push({ level: 'error', message: 'A variant can only use plain letters, digits and basic punctuation: no accents, symbols or "#".' });
+    } else if (variant && p.name.length + 1 + variant.length > piano.nameMax) {
+      // The file is named after both, and a piano's file name leaves room for this many.
+      issues.push({ level: 'error', message: `The name and variant together have at most ${piano.nameMax - 1} characters: the piano’s file is named after both.` });
+    }
     for (const z of p.zones) {
       if (z.layers.length > piano.maxLayersPerZone) issues.push({ level: 'error', zoneId: z.id, message: `Zone ${noteName(z.rootKey)} has more than ${piano.maxLayersPerZone} layers.` });
       // A Nord stores a floor in 0.2 dB steps; neighbours on one step would play as one layer.

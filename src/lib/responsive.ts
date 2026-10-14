@@ -7,20 +7,31 @@ import { useEffect, useState } from 'react';
  */
 export const BP_SPLIT = 900;
 
+/** Width (px) below which a screen takes its phone layout (Tailwind's `md`). */
+export const BP_PHONE = 768;
+
 /** True when the viewport is wide enough for the two-pane split layout. */
 export function useSplitLayout(): boolean {
-  const query = `(min-width: ${BP_SPLIT}px)`;
+  return useMedia(`(min-width: ${BP_SPLIT}px)`);
+}
+
+/** True on a phone-width viewport. False where the width can't be read, so the full layout shows. */
+export function useNarrow(): boolean {
+  return useMedia(`(max-width: ${BP_PHONE - 1}px)`);
+}
+
+function useMedia(query: string): boolean {
   const supported = typeof window !== 'undefined' && typeof window.matchMedia === 'function';
-  const [wide, setWide] = useState(() => (supported ? window.matchMedia(query).matches : false));
+  const [matches, setMatches] = useState(() => (supported ? window.matchMedia(query).matches : false));
 
   useEffect(() => {
     if (!supported) return;
     const mql = window.matchMedia(query);
-    const onChange = () => setWide(mql.matches);
+    const onChange = () => setMatches(mql.matches);
     onChange();
     mql.addEventListener('change', onChange);
     return () => mql.removeEventListener('change', onChange);
   }, [query, supported]);
 
-  return wide;
+  return matches;
 }

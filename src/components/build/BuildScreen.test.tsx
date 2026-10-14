@@ -46,7 +46,7 @@ describe('BuildScreen', () => {
 
   it('switches the format, marking the piano as untried', async () => {
     await open();
-    fireEvent.change(screen.getByLabelText('Format'), { target: { value: 'npno' } });
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Format' })).getByRole('radio', { name: 'Piano' }));
     expect(screen.getByText(/not yet tried on a Nord/i)).toBeInTheDocument();
   });
 
@@ -66,19 +66,18 @@ describe('BuildScreen', () => {
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
   });
 
-  it('splits a clip into notes and adds them as takes on the right zone', async () => {
+  it('splitting a one-note file that is already a take adds nothing again', async () => {
     await open();
     fireEvent.change(screen.getByLabelText('Add files…'), { target: { files: [wavFile('long.wav', 261.63)] } });
-    fireEvent.click(await screen.findByRole('button', { name: 'Split into notes…' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Add 0 zones and 1 take' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(screen.getAllByText(/zone C4/)).not.toHaveLength(0);
+    fireEvent.click(await screen.findByRole('button', { name: 'Split long.wav into notes' }));
+    expect(await screen.findByText('already zone C4’s take')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add 0 zones and 0 takes' })).toBeDisabled();
   });
 
   it('counts one zone in the singular', async () => {
     await open();
     fireEvent.change(screen.getByLabelText('Add files…'), { target: { files: [wavFile('Rhodes_C4.wav', 261.63)] } });
-    expect(await screen.findByText('1 zone')).toBeInTheDocument();
+    expect(await screen.findByText(/^1 zone · drag a split/)).toBeInTheDocument();
   });
 
   it('says a pitch it could not hear as a status, not an alert', async () => {

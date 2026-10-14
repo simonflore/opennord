@@ -28,7 +28,7 @@ describe('SplitDialog', () => {
     const onApply = vi.fn();
     render(<SplitDialog project={p} clipId={clipId} audio={recording()} onClose={vi.fn()} onApply={onApply} />);
     expect(screen.getAllByRole('row')).toHaveLength(4); // header + 3 notes
-    expect(screen.getByText('A3')).toBeInTheDocument();
+    expect(screen.getByLabelText('Key for note 1')).toHaveValue('A3');
     fireEvent.click(screen.getByRole('button', { name: 'Add 3 zones and 0 takes' }));
     const candidates: Candidate[] = onApply.mock.calls[0][0];
     expect(candidates.map((c) => c.root)).toEqual([57, 60, 64]);
@@ -55,6 +55,19 @@ describe('SplitDialog', () => {
     render(<SplitDialog project={first} clipId={clipId} audio={recording()} onClose={vi.fn()} onApply={onApply} />);
     expect(screen.getByText('a take on zone A3')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add 2 zones and 1 take' })).toBeInTheDocument();
+  });
+
+  it('leaves out notes that are already a zone’s take, instead of adding them again', () => {
+    const { p, clipId } = setup();
+    const onApply = vi.fn();
+    render(<SplitDialog project={p} clipId={clipId} audio={recording()} onClose={vi.fn()} onApply={onApply} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Add 3 zones and 0 takes' }));
+    const split = placeTakes(p, onApply.mock.calls[0][0]).project;
+    cleanup();
+    render(<SplitDialog project={split} clipId={clipId} audio={recording()} onClose={vi.fn()} onApply={vi.fn()} />);
+    expect(screen.getByText('already zone A3’s take')).toBeInTheDocument();
+    expect(screen.getAllByText(/^already zone/)).toHaveLength(3);
+    expect(screen.getByRole('button', { name: 'Add 0 zones and 0 takes' })).toBeDisabled();
   });
 
   it('shows a repeated key inside the split as a take, matching the button', () => {
@@ -86,8 +99,29 @@ describe('SplitDialog', () => {
     expect(every).toHaveValue(3);
     fireEvent.change(screen.getByLabelText('Start key'), { target: { value: '500' } });
     fireEvent.keyDown(screen.getByLabelText('Start key'), { key: 'Enter' });
-    expect(screen.getByLabelText('Start key')).toHaveValue(127);
+    expect(screen.getByRole('alert')).toHaveTextContent('“500” isn’t a key');
+    fireEvent.change(screen.getByLabelText('Start key'), { target: { value: 'G9' } });
+    fireEvent.keyDown(screen.getByLabelText('Start key'), { key: 'Enter' });
+    expect(screen.getByLabelText('Start key')).toHaveValue('G9');
     fireEvent.click(screen.getByRole('button', { name: /Add/ }));
     expect(onApply.mock.calls[0][0].map((c: Candidate) => c.root)).toEqual([127, 127, 127]);
+  });
+
+  it('takes a key set by hand for one note over the one it heard', () => {
+    const { p, clipId } = setup();
+    const onApply = vi.fn();
+    render(<SplitDialog project={p} clipId={clipId} audio={recording()} onClose={vi.fn()} onApply={onApply} />);
+    fireEvent.change(screen.getByLabelText('Key for note 2'), { target: { value: 'D3' } });
+    fireEvent.keyDown(screen.getByLabelText('Key for note 2'), { key: 'Enter' });
+    expect(screen.getByText('new zone D3')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Add/ }));
+    expect(onApply.mock.calls[0][0].map((c: Candidate) => c.root)).toEqual([57, 50, 64]);
+  });
+
+  it('says what needs checking', () => {
+    const { p, clipId } = setup();
+    const first = placeTakes(p, [{ clipId, start: 0, end: 1000, root: 57, label: 'x' }]).project;
+    render(<SplitDialog project={first} clipId={clipId} audio={recording()} onClose={vi.fn()} onApply={vi.fn()} />);
+    expect(screen.getByText('1 to check: 1 key that already has a zone.')).toBeInTheDocument();
   });
 });

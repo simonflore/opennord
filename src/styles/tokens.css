@@ -151,6 +151,10 @@
 @utility led-glow-connected { box-shadow: var(--led-connected-glow); }
 /* The selected row's accent bar on its left edge (rail entries, palette results). */
 @utility accent-bar   { box-shadow: inset 3px 0 0 var(--accent); }
+/* A selected radio's dot: a ring of the panel colour inside the accent fill. */
+@utility dot-ring     { box-shadow: inset 0 0 0 2px var(--surface-2); }
+/* Diagonal hatching: a piano's keys played by re-pitched copies (the legend; the map draws it in SVG). */
+@utility hatch        { background: repeating-linear-gradient(45deg, var(--muted) 0 2px, transparent 2px 5px); }
 /* A row's hover tint: the faintest lift over whatever it sits on. */
 @utility tint-hover   { background: color-mix(in srgb, var(--lift) 3%, transparent); }
 

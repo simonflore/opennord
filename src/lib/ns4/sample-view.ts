@@ -15,6 +15,18 @@ export function noteName(midi: number): string {
   return `${n}${Math.floor(midi / 12) - 1}`;
 }
 
+/**
+ * A run of keys as a player says it: "F#2–F3", "C3", and at the ends of an 88-key keyboard
+ * (A0–C8), where a range reaches keys no Nord has, "up to F#2" or "C6 and up".
+ */
+export function keyRange(low: number, high: number): string {
+  if (low === high) return noteName(low);
+  if (low <= 21 && high >= 108) return 'every key';
+  if (low <= 21) return `up to ${noteName(high)}`;
+  if (high >= 108) return `${noteName(low)} and up`;
+  return `${noteName(low)}–${noteName(high)}`;
+}
+
 export interface SampleHeaderView {
   name: string;
   /** ".nsmp" / ".nsmp3" / ".nsmp4" / "—". */

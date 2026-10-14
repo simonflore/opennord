@@ -23,6 +23,27 @@ describe('KeyboardZoneMap', () => {
     expect(html).toContain('var(--accent-bright)');
   });
 
+  it('names each band by its root note with labelByRoot', () => {
+    const html = renderToStaticMarkup(
+      <KeyboardZoneMap zones={zones} selected={1} onSelect={() => {}} labelByRoot respectKeyLow />,
+    );
+    expect(html).toContain('<title>E2</title>');
+    expect(html).toContain('<title>C4</title>');
+    expect(html).toContain('<title>F#6</title>');
+    expect(html).not.toContain('>S1<');
+  });
+
+  it('shows only the keys in a window, drawn narrower so they stay a tappable size', () => {
+    const html = renderToStaticMarkup(
+      <KeyboardZoneMap zones={zones} selected={1} onSelect={() => {}} keys={{ low: 48, high: 72 }} />,
+    );
+    expect(html).toContain('viewBox="0 0 400 ');
+    expect(html).toContain('>C3<');
+    expect(html).toContain('>C4<');
+    expect(html).not.toContain('>C2<');
+    expect(html).not.toContain('>C6<');
+  });
+
   it('advertises "click to audition" per zone when onPlayZone is provided', () => {
     const html = renderToStaticMarkup(
       <KeyboardZoneMap zones={zones} selected={0} onSelect={() => {}} onChangeKeyHigh={() => {}} onPlayZone={() => {}} />,

@@ -93,24 +93,13 @@ describe('SaveDialog', () => {
     expect(await screen.findByRole('button', { name: /new/i })).toBeInTheDocument();
   });
 
-  it('with a linked folder, also saves the project file next to the sample', async () => {
+  it('saving the sample writes only the sample, never a project file', async () => {
     folderName = 'Nord';
     const { p, read } = built();
     render(<SaveDialog project={p} read={read} onClose={vi.fn()} />);
-    expect(screen.getByText(/Also saves the project file/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Save sample' }));
     fireEvent.click(await screen.findByRole('button', { name: /new/i }));
-    await waitFor(() => expect(writeBack).toHaveBeenCalledTimes(2));
-    expect(writeBack.mock.calls.map((c) => c[0])).toEqual(['Saved_Pad.nsmp4', 'Saved_Pad.onsample']);
-    expect(await screen.findByText(/Saved_Pad.onsample/)).toBeInTheDocument();
-  });
-
-  it('without a folder, saving the sample does not write a project file', async () => {
-    const { p, read } = built();
-    render(<SaveDialog project={p} read={read} onClose={vi.fn()} />);
-    expect(screen.queryByText(/Also saves the project file/)).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Save sample' }));
-    await waitFor(() => expect(importSample).toHaveBeenCalled());
-    expect(downloadBytes).not.toHaveBeenCalled();
+    await waitFor(() => expect(writeBack).toHaveBeenCalledTimes(1));
+    expect(writeBack.mock.calls.map((c) => c[0])).toEqual(['Saved_Pad.nsmp4']);
   });
 });

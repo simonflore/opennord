@@ -22,9 +22,8 @@ export function useSaveBytes({ failLabel = "Couldn't convert" }: { failLabel?: s
 
   const folderWrite = useFolderWrite({
     prefScope: 'sample',
-    onSaved: (path, folderName, also) => {
-      const more = also.length ? ` and ${also.join(', ')}` : '';
-      setStatus({ kind: 'done', msg: `Saved to ${folderName}/${path}${more}`, warnings: pendingRef.current?.warnings ?? [] });
+    onSaved: (path, folderName) => {
+      setStatus({ kind: 'done', msg: `Saved to ${folderName}/${path}`, warnings: pendingRef.current?.warnings ?? [] });
       pendingRef.current = null;
     },
     onFallback: () => {
@@ -37,17 +36,11 @@ export function useSaveBytes({ failLabel = "Couldn't convert" }: { failLabel?: s
     },
   });
 
-  const writer = (bytes: Uint8Array) => async (w: FileSystemWritableFileStream) => {
-    await w.write(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
-  };
-
-  /** `also`: companion files written next to it in the linked folder; without a folder only the main file downloads. */
-  async function save(out: Uint8Array, filename: string, existing: boolean, warnings: string[], also?: { out: Uint8Array; filename: string }[]) {
+  async function save(out: Uint8Array, filename: string, existing: boolean, warnings: string[]) {
     pendingRef.current = { out, filename, warnings };
-    await folderWrite.save({
-      name: filename, existing, write: writer(out),
-      also: also?.map((a) => ({ name: a.filename, write: writer(a.out) })),
-    });
+    await folderWrite.save({ name: filename, existing, write: async (w) => {
+      await w.write(out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer);
+    } });
   }
 
   const fail = (e: unknown) => setStatus({ kind: 'error', msg: getErrorMessage(e) });

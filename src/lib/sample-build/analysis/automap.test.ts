@@ -16,6 +16,16 @@ describe('placeTakes', () => {
     expect(report).toEqual({ newZones: 2, addedTakes: 1, unclear: ['note 4'], outcomes: ['zone', 'zone', 'take', 'unclear'] });
     expect(project.zones[1].layers).toHaveLength(1); // the newer take waits
   });
+
+  it('leaves out a candidate that is already its zone’s take, within 10 ms at each end', () => {
+    const { p, clipId } = withClip();
+    const first = placeTakes(p, [cand(clipId, 48, 0)]).project;
+    const near = { ...cand(clipId, 48, 0), start: 300, end: 44100 - 300 }; // about 7 ms in from each end
+    const { project, report } = placeTakes(first, [near, { ...cand(clipId, 48, 0), start: 2000 }]);
+    expect(report.outcomes).toEqual(['same', 'take']);
+    expect(report.addedTakes).toBe(1);
+    expect(project.zones[0].takes).toHaveLength(2);
+  });
 });
 
 describe('autoMap', () => {

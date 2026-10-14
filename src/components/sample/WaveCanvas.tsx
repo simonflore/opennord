@@ -4,10 +4,14 @@ import { peaks } from '../../lib/ns4/nsmp-audio';
 const WIDTH = 600; // canvas pixels; CSS stretches it to the container
 
 /** Draws a mono waveform (channel 0) from raw integer PCM onto a canvas, with an
- *  optional shaded loop region (in/out as per-channel sample indices). */
+ *  optional shaded loop region (per-channel sample indices). `fill` stretches it to its
+ *  container's height instead of `height` px (which stays the drawing's resolution). */
 export function WaveCanvas(
-  { pcm, height = 64, loop, playhead }:
-  { pcm: Int32Array; height?: number; loop?: { start: number; end: number }; playhead?: number | null },
+  { pcm, height = 64, fill = false, loop, playhead }:
+  {
+    pcm: Int32Array; height?: number; fill?: boolean; loop?: { start: number; end: number };
+    playhead?: number | null;
+  },
 ) {
   const ref = useRef<HTMLCanvasElement>(null);
   // The bars and the peak depend only on the audio, so moving the loop or the playhead only redraws.
@@ -44,5 +48,5 @@ export function WaveCanvas(
       ctx.fillRect(px, 0, 2, height);
     }
   }, [pcm, bars, peak, height, loop, playhead]);
-  return <canvas ref={ref} width={WIDTH} height={height} style={{ width: '100%', height, background: 'var(--wave-bg)', borderRadius: 6, display: 'block' }} />;
+  return <canvas ref={ref} width={WIDTH} height={height} style={{ width: '100%', height: fill ? '100%' : height, background: 'var(--wave-bg)', borderRadius: 6, display: 'block' }} />;
 }

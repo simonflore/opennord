@@ -133,10 +133,16 @@ export function buildPianoFile(p: SampleProject, read: ReadAudio): BuildResult {
   // All loops hold: a true hold. Mixed: the converter's default fades them all, so say so.
   const mixed = holds.length > 0 && fades > 0;
   const result = sampleToPiano(source, {
-    name: p.name, pianoType: p.piano?.type ?? NPNO_PIANO_TYPE.electric,
+    name: p.name, variant: p.piano?.variant, pianoType: p.piano?.type ?? NPNO_PIANO_TYPE.electric,
     ...(holds.length > 0 && fades === 0 ? { loopFade: 0 } : {}),
   });
-  const acceptance = checkNpnoAcceptance(result.bytes, { deep: true, fileName: result.fileName });
+  // The file is named after the name and the variant, so two variants of one build don't share a
+  // file (the writer names it after the name alone, as factory pianos are; only the length counts).
+  const variant = p.piano?.variant;
+  const fileName = variant
+    ? `${fileNameStem(`${p.name} ${variant}`, 'Piano')}${result.fileName.slice(fileNameStem(p.name, 'Piano').length)}`
+    : result.fileName;
+  const acceptance = checkNpnoAcceptance(result.bytes, { deep: true, fileName });
   const failed = acceptance.checks.find((c) => !c.ok);
   if (failed) throw new Error(`This piano would not load on a Nord: ${failed.detail}`);
   // `sampleToPiano` adds its own, fuller "not tried on a Nord yet" line; keep only that one.
@@ -145,5 +151,5 @@ export function buildPianoFile(p: SampleProject, read: ReadAudio): BuildResult {
   if (mixed) {
     own.push(`Zones ${holds.join(', ')} hold their loops here, but in a piano they fade like a piano's: a piano made in OpenNord can't mix holding and fading loops yet.`);
   }
-  return { bytes: result.bytes, extension: '.npno', fileName: result.fileName, warnings: [...own, ...theirs] };
+  return { bytes: result.bytes, extension: '.npno', fileName, warnings: [...own, ...theirs] };
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { addClip, addLayer, addTake, addZone, emptyProject, setKeys, type NewTake, type SampleProject } from './model';
+import { addClip, addLayer, addTake, addZone, emptyProject, setKeys, setPiano, type NewTake, type SampleProject } from './model';
+import { TARGETS } from './targets';
 import { buildProject } from './build';
 import type { ClipAudio } from './render';
 import { checkNpnoAcceptance } from '../ns4/nsp-check';
@@ -31,6 +32,26 @@ function pianoProject(): { p: SampleProject; audio: Map<string, ClipAudio> } {
 }
 
 describe('buildProject: pianos', () => {
+  it('writes the piano type and the variant shown after the name', () => {
+    const { p, audio } = pianoProject();
+    const r = buildProject(setPiano(p, { type: 6, variant: 'Mk I' }), (id) => audio.get(id));
+    expect(checkNpnoAcceptance(r.bytes, { deep: true }).ok).toBe(true);
+    const text = new TextDecoder('latin1').decode(r.bytes);
+    const cnsp = text.indexOf('CNSP'); // the piano header (nsp-write.ts: type at +0x18, name#variant at +0x1C)
+    expect(r.bytes[cnsp + 0x18]).toBe(6);
+    expect(text.slice(cnsp + 0x1c, cnsp + 0x1c + 15)).toBe('Test Piano#Mk I');
+    expect(r.fileName).toMatch(/^Test_Piano_Mk_I_6\.\d\.npno$/); // two variants of one piano get two files
+  });
+
+  it('refuses a variant the Nord can’t show, in plain words', () => {
+    const { p } = pianoProject();
+    const messages = (variant: string) => TARGETS.npno.check(setPiano(p, { variant })).filter((i) => i.level === 'error').map((i) => i.message);
+    expect(messages('Mk#1')).toEqual(['A variant can only use plain letters, digits and basic punctuation: no accents, symbols or "#".']);
+    // 'Test Piano' (10) + a space + the variant must fit the file name's 23.
+    expect(messages('x'.repeat(13))).toEqual(['The name and variant together have at most 22 characters: the piano’s file is named after both.']);
+    expect(messages('x'.repeat(12))).toEqual([]);
+  });
+
   it('writes a piano a Nord should accept, with both layers loudest first', () => {
     const { p, audio } = pianoProject();
     const r = buildProject(p, (id) => audio.get(id));

@@ -10,7 +10,7 @@ import type { ReadAudio } from '@/lib/sample-build/render';
 import { TARGETS } from '@/lib/sample-build/targets';
 import { fileNameStem } from '@/lib/ns4/nsp-write';
 import { IssueRows } from './IssuesList';
-import type { LastBuild } from './ListenPanel';
+import type { LastBuild } from './useBuiltFile';
 
 /**
  * Save the build (spec §7, canvas "Save & send", without sending): the checks, then the file and
@@ -42,8 +42,7 @@ export function SaveDialog({ project, read, built, onClose }: { project: SampleP
   const saveFile = () => run(async () => {
     const r = built?.project === project ? built.file : buildProject(project, read);
     if (folder.folderName || piano) {
-      // With a folder linked, the project file goes next to the sample or piano (spec §8).
-      await saver.save(r.bytes, r.fileName, false, r.warnings, folder.folderName ? [{ out: writeOnsample(project, read), filename: projectFileName }] : undefined);
+      await saver.save(r.bytes, r.fileName, false, r.warnings);
     } else {
       await samples.importSample(new File([r.bytes as BlobPart], r.fileName));
       setMessage(`Added ${r.fileName} to your Library.`);
@@ -71,7 +70,7 @@ export function SaveDialog({ project, read, built, onClose }: { project: SampleP
             <IssueRows issues={[...errors, ...warnings]} />
             {!issues.length && <li className="text-dim">Ready to save.</li>}
           </ul>
-          <p className="text-sm text-dim">{folder.folderName ? `Saves into ${folder.folderName}. Also saves the project file.` : piano ? 'Downloads the piano file.' : 'Adds the sample to your Library.'}</p>
+          <p className="text-sm text-dim">{folder.folderName ? `Saves into ${folder.folderName}.` : piano ? 'Downloads the piano file.' : 'Adds the sample to your Library.'}</p>
           {/* How the save went, announced: done, warnings, or why it failed. */}
           <div role="status" className="flex flex-col gap-1">
             {message && <p className="text-sm">{message}</p>}

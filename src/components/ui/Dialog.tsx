@@ -87,7 +87,7 @@ export function Dialog({ open, onClose, title, children, footer, bare, className
       >
         <RD.Title className={bare ? 'sr-only' : 'mb-3 text-lg font-semibold text-ink'}>{title}</RD.Title>
         {bare ? children : <div className="text-ink">{children}</div>}
-        {!bare && footer && <div className="mt-4 flex justify-end gap-2">{footer}</div>}
+        {!bare && footer && <div className="mt-4 flex flex-wrap justify-end gap-2">{footer}</div>}
       </RD.Content>
     </>
   );

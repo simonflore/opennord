@@ -45,23 +45,27 @@ describe('ZonePanel', () => {
   it('for a piano: adds a take as a softer layer with its floor', () => {
     const { p, zoneId } = setup('npno');
     render(<Harness initial={p} zoneId={zoneId} />);
-    expect(screen.getByText('Layers, loudest first')).toBeInTheDocument();
+    expect(screen.getByText('Layers, soft to hard')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Add as layer' }));
     expect(zone().layers).toHaveLength(2);
-    fireEvent.change(screen.getAllByLabelText(/Takes over at/)[1], { target: { value: '18' } });
-    fireEvent.blur(screen.getAllByLabelText(/Takes over at/)[1]);
+    // Soft first; only the soft layer has a floor to set (the hard one plays the hardest hits).
+    expect(screen.getAllByText(/^(Soft|Hard)$/).map((e) => e.textContent)).toEqual(['Soft', 'Hard', 'Soft', 'Hard']);
+    const floor = screen.getByLabelText(/Takes over at/);
+    fireEvent.change(floor, { target: { value: '18' } });
+    fireEvent.blur(floor);
     expect(zone().layers[1].floorDb).toBe(18);
+    expect(screen.getByText('−18 dB')).toBeInTheDocument(); // under the boundary in the touch strip
   });
 
   it('for a piano: removes a layer again, keeping the last one', () => {
     const { p, zoneId } = setup('npno');
     render(<Harness initial={p} zoneId={zoneId} />);
     fireEvent.click(screen.getByRole('button', { name: 'Add as layer' }));
-    const removes = screen.getAllByRole('button', { name: 'Remove layer' });
-    expect(removes).toHaveLength(2);
-    fireEvent.click(removes[1]);
+    expect(screen.getAllByRole('button', { name: /^Remove layer/ })).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove layer Soft' }));
     expect(zone().layers).toHaveLength(1);
-    expect(screen.queryByRole('button', { name: 'Remove layer' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Remove layer/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add as layer' })).toBeInTheDocument(); // the take waits again
   });
 
   it('edits the root, tune and loop, and shows a refused edit', () => {
@@ -73,10 +77,32 @@ describe('ZonePanel', () => {
     fireEvent.click(screen.getByLabelText('Loop'));
     expect(zone().takes[0].loop).not.toBeNull();
     expect(screen.getByLabelText('Loop start')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Root'), { target: { value: '200' } });
+    fireEvent.change(screen.getByLabelText('Root'), { target: { value: 'H9' } });
+    fireEvent.blur(screen.getByLabelText('Root'));
+    expect(screen.getByRole('alert')).toHaveTextContent('“H9” isn’t a key');
+    expect(screen.getByLabelText('Root')).toHaveValue('C4');
+  });
+
+  it('takes the root as a note name, and steps it with the arrow keys', () => {
+    const { p, zoneId } = setup('nsmp4');
+    render(<Harness initial={setKeys(p, zoneId, 55, 70)} zoneId={zoneId} />);
+    const root = screen.getByLabelText('Root');
+    expect(root).toHaveValue('C4');
+    fireEvent.change(root, { target: { value: 'D4' } });
+    fireEvent.keyDown(root, { key: 'Enter' });
+    expect(zone().rootKey).toBe(62);
+    fireEvent.keyDown(root, { key: 'ArrowDown' });
+    expect(zone().rootKey).toBe(61);
+    expect(root).toHaveValue('C#4');
+  });
+
+  it('says a root the zone’s keys don’t include is refused', () => {
+    const { p, zoneId } = setup('nsmp4');
+    render(<Harness initial={setKeys(p, zoneId, 55, 70)} zoneId={zoneId} />);
+    fireEvent.change(screen.getByLabelText('Root'), { target: { value: 'C6' } });
     fireEvent.blur(screen.getByLabelText('Root'));
     expect(screen.getByRole('alert')).toHaveTextContent(/keys|root/);
-    expect(screen.getByLabelText('Root')).toHaveValue(60);
+    expect(zone().rootKey).toBe(60);
   });
 
   it('commits a root typed digit by digit only when done, without refusing the first digit', () => {
@@ -99,11 +125,49 @@ describe('ZonePanel', () => {
     expect(zone().takes[0].loopDecaySeconds).toBeNull();
   });
 
-  it('trims the take with the Start handle', () => {
+  it('moves Start with the arrow keys: 1 ms, or 10 ms with Shift, and names it in time', () => {
     const { p, zoneId } = setup('nsmp4');
     render(<Harness initial={p} zoneId={zoneId} />);
-    fireEvent.change(screen.getByLabelText('Start'), { target: { value: '441' } });
+    const start = screen.getByRole('slider', { name: 'Start' });
+    fireEvent.keyDown(start, { key: 'ArrowRight', shiftKey: true });
     expect(zone().takes[0].start).toBe(441);
+    fireEvent.keyDown(start, { key: 'ArrowLeft' });
+    expect(zone().takes[0].start).toBe(397);
+    expect(start).toHaveAttribute('aria-valuetext', '9 ms');
+    expect(start).toHaveTextContent('START 9 ms');
+  });
+
+  it('offers the loop seam view only once the take loops', () => {
+    const { p, zoneId } = setup('nsmp4');
+    render(<Harness initial={p} zoneId={zoneId} />);
+    expect(screen.getByRole('button', { name: 'Loop seam' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('switch', { name: 'Loop' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Loop seam' }));
+    expect(screen.getByRole('button', { name: 'Loop seam' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('loop start …')).toBeInTheDocument();
+    expect(screen.queryByRole('slider')).toBeNull(); // the seam shows the turn; points are moved in the other views
+  });
+
+  it('offers to correct the pitch heard only when the root is the note that was heard', () => {
+    const { p, zoneId } = setup('nsmp4');
+    const heard = (midi: number) => updateTake(p, zoneId, p.zones[0].takes[0].id, { pitchEstimate: { midi, cents: -32, confidence: 0.9 } });
+    render(<Harness initial={heard(60)} zoneId={zoneId} />);
+    fireEvent.click(screen.getByRole('button', { name: 'set +32 to correct what was heard' }));
+    expect(zone().takes[0].tuneCents).toBe(32);
+    cleanup();
+    render(<Harness initial={heard(62)} zoneId={zoneId} />); // heard D4, root C4: 32 cents wouldn't correct it
+    expect(screen.queryByRole('button', { name: /to correct what was heard/ })).toBeNull();
+  });
+
+  it('picks a point up by its flag, wherever on the flag it is pressed', () => {
+    const { p, zoneId } = setup('nsmp4');
+    render(<Harness initial={p} zoneId={zoneId} />);
+    const wave = screen.getByRole('slider', { name: 'End' }).closest('.relative')!.parentElement!.querySelector('.touch-none') as HTMLElement;
+    wave.setPointerCapture = () => {};
+    wave.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 190, right: 1000, bottom: 190, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerDown(screen.getByRole('slider', { name: 'End' }), { pointerId: 1, clientX: 990 });
+    fireEvent.pointerMove(wave, { pointerId: 1, clientX: 500 });
+    expect(zone().takes[0].end).toBe(22050);
   });
 
   it('removes a take, but not the last one', () => {

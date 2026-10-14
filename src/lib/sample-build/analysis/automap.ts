@@ -10,8 +10,22 @@ import { addTake, addZone, setKeys, type SampleProject, type Take } from '../mod
 export interface Candidate { clipId: string; start: number; end: number; root: number | null; label: string; pitchEstimate?: Take['pitchEstimate'] }
 export interface PlaceReport {
   newZones: number; addedTakes: number; unclear: string[];
-  /** Where each candidate went, in order: a new zone, a waiting take on a zone, or left out (no clear root). */
-  outcomes: ('zone' | 'take' | 'unclear')[];
+  /**
+   * Where each candidate went, in order: a new zone, a waiting take on a zone, left out as
+   * already there (the zone has a take of the same stretch of the same recording), or left
+   * out for want of a clear root.
+   */
+  outcomes: ('zone' | 'take' | 'same' | 'unclear')[];
+}
+
+/** Within this many seconds at both ends, a candidate is the take it matches, not a new one. */
+const SAME_STRETCH_SECONDS = 0.01;
+
+function sameStretch(p: SampleProject, t: Take, c: Candidate): boolean {
+  if (t.clipId !== c.clipId) return false;
+  const rate = p.clips.find((x) => x.id === c.clipId)?.sampleRate ?? 44100;
+  const slack = SAME_STRETCH_SECONDS * rate;
+  return Math.abs(t.start - c.start) <= slack && Math.abs(t.end - c.end) <= slack;
 }
 
 export function placeTakes(p: SampleProject, items: Candidate[]): { project: SampleProject; report: PlaceReport } {
@@ -21,6 +35,7 @@ export function placeTakes(p: SampleProject, items: Candidate[]): { project: Sam
     if (c.root === null) { report.unclear.push(c.label); report.outcomes.push('unclear'); continue; }
     const take = { clipId: c.clipId, start: c.start, end: c.end, loop: null, loopDecaySeconds: null, gainDb: 0, tuneCents: 0, pitchEstimate: c.pitchEstimate };
     const zone = project.zones.find((z) => z.rootKey === c.root);
+    if (zone && zone.takes.some((t) => sameStretch(project, t, c))) { report.outcomes.push('same'); continue; }
     if (zone) { project = addTake(project, zone.id, take).project; report.addedTakes++; report.outcomes.push('take'); continue; }
     // A new zone sits on its root alone; any zone already spread over that key is narrowed
     // back to its root first, and `autoMap` lays them all out again.
