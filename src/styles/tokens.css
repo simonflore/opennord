@@ -158,6 +158,8 @@
 :root[data-theme='dark'] {
   /* native controls (a select's list, scrollbars) drawn dark too */
   color-scheme: dark;
+  /* every scrolling pane: a quiet graphite thumb on the surface it scrolls */
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
 
   /* surfaces */
   --bg: #18191b;
