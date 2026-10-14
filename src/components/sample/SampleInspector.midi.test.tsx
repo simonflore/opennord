@@ -37,7 +37,7 @@ function Organ() {
 describe('SampleInspector MIDI routing', () => {
   it('never unhooks another instrument: not on mount, not on hot-plug, not on unmount', async () => {
     const { unmount } = render(
-      <FolderProvider><MidiProvider><Organ /><SampleInspector /></MidiProvider></FolderProvider>,
+      <FolderProvider><MidiProvider><Organ /><SampleInspector initial={{ bytes: new Uint8Array(0), name: 'none.nsmp' }} /></MidiProvider></FolderProvider>,
     );
     await act(async () => { await midiState!.connect(); });
     const send = (...bytes: number[]) => act(() => { midiIo.onMessage!(new Uint8Array(bytes)); });

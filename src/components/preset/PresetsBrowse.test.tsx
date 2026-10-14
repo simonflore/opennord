@@ -159,4 +159,21 @@ describe('PresetsBrowse', () => {
     const html = renderToStaticMarkup(<PresetsBrowse {...baseProps} entries={[entry]} kinds={['synth-preset']} />);
     expect(html).toContain('same name on Nord · A:1');
   });
+
+  it('colours a file\'s type by its Stage and offers a model filter when more than one Stage is listed', () => {
+    const entries: PresetEntry[] = [
+      { id: 'folder:a.ns3y', name: 'Three', kind: 'synth-preset', source: 'local', typeLabel: '.ns3y', generation: 'Stage 3' },
+      { id: 'folder:b.ns4y', name: 'Four', kind: 'synth-preset', source: 'local', typeLabel: '.ns4y', generation: 'Stage 4' },
+    ];
+    const html = renderToStaticMarkup(
+      <PresetsBrowse {...baseProps} entries={entries} kinds={['synth-preset']} generations={['Stage 3', 'Stage 4']} />,
+    );
+    expect(html).toMatch(/text-lcd-cyan[^>]*>\.ns3y</);
+    expect(html).toMatch(/text-red[^>]*>\.ns4y</);
+    expect(html).toContain('aria-label="Filter by model"');
+    const one = renderToStaticMarkup(
+      <PresetsBrowse {...baseProps} entries={entries.slice(0, 1)} kinds={['synth-preset']} generations={['Stage 3']} />,
+    );
+    expect(one).not.toContain('Filter by model');
+  });
 });

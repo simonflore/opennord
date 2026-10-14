@@ -19,16 +19,13 @@ import { isNsmpFileName, NSMP_EXTENSIONS } from '@/lib/ns4/nsmp';
  * The Samples screen as master/detail. Folder samples open in the inspector
  * (bytes in hand); device samples are pulled off the board with progress, then
  * opened in the same inspector — staying on the Samples screen. "Import a file…"
- * (in "+ Add") persists a file and opens it; "Preview a file…" opens the inspector's own
- * drag/drop/pick zone for a throwaway look (not stored).
+ * (in "+ Add") persists a file and opens it.
  */
 export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
   const s = useSamplesState();
   // The sample the route names, read by useOpenSample.
   const open = useOpenSample(selectedId);
-  // "Preview a file…": the inspector's own drop/pick zone, off the route.
-  const [loadNew, setLoadNew] = useState(false);
   // An import that wasn't a sample file: shown above the list, apart from the open sample.
   const [importError, setImportError] = useState('');
   const openEntry = useOpenEntry();
@@ -36,17 +33,14 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const canShare = useCanShareToCommunity();
   const share = useShareToCommunity();
 
-  // Opening a sample from the route closes a preview.
+  // Opening a sample from the route clears an import problem.
   useEffect(() => {
-    if (!selectedId) return;
-    setLoadNew(false);
-    setImportError('');
+    if (selectedId) setImportError('');
   }, [selectedId]);
 
   // Off the open sample, to the bare list (which closes it and lets go of its read).
   const toList = useLeaveEntry('/library/samples');
-  const startLoadNew = () => { toList(); setLoadNew(true); setImportError(''); };
-  const back = () => { toList(); setLoadNew(false); };
+  const back = toList;
 
   async function importSample() {
     const f = await pickFile(NSMP_EXTENSIONS.join(',')); // D3: no .npno (Pianos category)
@@ -57,7 +51,6 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     }
     setImportError('');
     const id = await s.importSample(f);      // persist + add to the list
-    setLoadNew(false);
     openEntry.sample(id);                     // and open it, like any library sample
   }
 
@@ -79,7 +72,6 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         category={s.category} onCategory={s.setCategory} categoriesPresent={s.categoriesPresent}
         onSource={s.setSource} onGeneration={s.setGeneration} onQuery={s.setQuery} clearFilters={s.clearFilters} filtered={s.filtered}
         onOpen={(e) => openEntry.sample(e.id)}
-        onLoadNew={startLoadNew}
         // selectedId may name any entry of the open row.
         activeId={openEntryNow?.id ?? selectedId ?? null}
         onImport={() => void importSample()}
@@ -98,15 +90,15 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   );
 
   // Remount the inspector per sample (key on name+size) so its load effect re-runs.
-  const inspector = (initial?: InspectorInput, factory?: boolean, onShare?: () => void, onKeepCopy?: () => void) => (
-    <SampleInspector key={initial ? `${initial.name}-${initial.bytes.length}` : 'new'} initial={initial} factory={factory} onShare={onShare} onKeepCopy={onKeepCopy} />
+  const inspector = (initial: InspectorInput, factory?: boolean, onShare?: () => void, onKeepCopy?: () => void) => (
+    <SampleInspector key={`${initial.name}-${initial.bytes.length}`} initial={initial} factory={factory} onShare={onShare} onKeepCopy={onKeepCopy} />
   );
   // A sample named by the route is the detail even before its bytes arrive, so a
   // phone shows its progress, error or "not found" instead of the bare list.
   // Its factory tag comes from the entry as it is now (a backup's origin can
   // resolve after its bytes do).
-  const hasDetail = !!selectedId || loadNew;
-  // Offered for a library file of your own; not for a pull off the Nord, a backup's factory entry or a preview.
+  const hasDetail = !!selectedId;
+  // Offered for a library file of your own; not for a pull off the Nord or a backup's factory entry.
   const shareOpen = openEntryNow && canShare && canShareAudio(community, openEntryNow) ? () => share(localMember(openEntryNow)?.id ?? openEntryNow.id) : undefined;
   // A sample with no copy on this computer (from the cloud, or pulled off the Nord) can be kept, once its bytes are here.
   const openBytes = open.state === 'open' ? open.sample.bytes : undefined;
@@ -127,8 +119,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
       </>
     )
     : <EmptyNote>Reading the sample…{open.state === 'reading' && open.pct !== null && ` ${open.pct}%`}</EmptyNote>
-  ) : loadNew ? inspector()
-    : <EmptyNote>Pick a sample to inspect it.</EmptyNote>;
+  ) : <EmptyNote>Pick a sample to inspect it.</EmptyNote>;
 
   return (
     <CategorySplit

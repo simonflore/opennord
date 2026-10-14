@@ -19,12 +19,12 @@ const folder = (over: Partial<FolderLibrary> = {}) => ({
 const open = (name: RegExp | string) => fireEvent.pointerDown(screen.getByRole('button', { name }), { button: 0, ctrlKey: false });
 
 describe('AddMenu', () => {
-  it('imports a file, previews one, or chooses a folder', () => {
+  it('imports a file or chooses a folder', () => {
     const f = folder();
-    const onImport = vi.fn(), preview = vi.fn();
-    render(<AddMenu folder={f} noun="a sample file" onImport={onImport} preview={preview} />);
+    const onImport = vi.fn();
+    render(<AddMenu folder={f} noun="a sample file" onImport={onImport} />);
     open('+ Add');
-    expect(screen.getByRole('menuitem', { name: /Preview a file/ })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Preview a file/ })).toBeNull();
     fireEvent.click(screen.getByRole('menuitem', { name: /Choose a folder/ }));
     expect(f.choose).toHaveBeenCalled();
     open('+ Add');

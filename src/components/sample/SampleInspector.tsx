@@ -5,8 +5,7 @@ import { editModel } from '../../lib/ns4/sample-edit';
 import { DEFAULT_ENVELOPE, type AmpEnvelope } from './sampleEngine';
 import { fullHeaderView, loadSample, playZone, type LoadedSample } from './loadSample';
 import { useSamplerMidiSink } from './useSamplerMidiSink';
-import { EnvelopePanel } from './EnvelopePanel';
-import { UnisonPanel } from './UnisonPanel';
+import { PlayPanel } from './PlayPanel';
 import { useSampleTransport } from './useSampleTransport';
 import { SampleHeader } from './SampleHeader';
 import { ZoneMap } from './ZoneMap';
@@ -18,32 +17,31 @@ import { sampleFilename } from '../../lib/library/sample-entries';
 import { SampleEditPanel } from './SampleEditPanel';
 import { SampleKeyboard } from './SampleKeyboard';
 import { SampleConvert } from './SampleConvert';
-import { MidiConnect } from './MidiConnect';
-import { readFileBytes } from '../../lib/file';
 
 /** A loaded sample plus the inspector's own bookkeeping. */
 type Loaded = LoadedSample & {
   /** Monotonic load id — keys the editor so it remounts per file (drops stale edits). */
   loadId: number;
-  /** Loaded from `initial` (the library's sample), not dropped or picked here
-   *  (the user's own file, never factory content). */
-  fromInitial: boolean;
 };
 
-/** What the inspector shows; `id` is the list entry it came from (none for a previewed file). */
+/** What the inspector shows; `id` is the list entry it came from. */
 export interface InspectorInput { id?: string; bytes: Uint8Array; name: string; }
 
+/**
+ * One sample, top to bottom: its header, then every action in one row (Save to
+ * computer · Convert ▾ · More ▾), then the keyboard map to edit beside a Play
+ * card (MIDI, Unison, envelope), then its recordings.
+ */
 export function SampleInspector({ initial, factory, onShare, onKeepCopy }: {
-  initial?: InspectorInput;
+  initial: InspectorInput;
   /** Open the share form on this one; absent where it can't be shared. */
   onShare?: () => void;
   /** Keep a copy in OpenNord's own storage; given for a sample with no copy on this computer. */
   onKeepCopy?: () => void;
   /** Whether `initial` is Nord factory content (never a file dropped or picked here). */
   factory?: boolean;
-} = {}) {
+}) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const [dragOver, setDragOver] = useState(false);
   const loadCount = useRef(0);
 
   // Synth-playground envelope (optional, off by default — not part of the sample).
@@ -67,25 +65,11 @@ export function SampleInspector({ initial, factory, onShare, onKeepCopy }: {
 
   useSamplerMidiSink(loaded?.sampler, loaded?.decodable, transport.refresh);
 
-  function loadBytes(bytes: Uint8Array, name: string, fromInitial: boolean) {
-    setLoaded({
-      ...loadSample(bytes, name, { env: () => envRef.current, unisonLevel: () => unisonRef.current }),
-      loadId: ++loadCount.current, fromInitial,
-    });
-  }
-
-  async function onFile(f: File) {
-    // Generation token: reading a big file takes time, and a second pick (or a
-    // library selection) must win even if this read resolves later — otherwise
-    // the view shows one file's name over another file's bytes.
-    const gen = ++loadCount.current;
-    const bytes = await readFileBytes(f);
-    if (gen !== loadCount.current) return; // superseded while reading
-    loadBytes(bytes, f.name, false); // a dropped/picked file is the user's own — not factory
-  }
-
   useEffect(() => {
-    if (initial) { ++loadCount.current; loadBytes(initial.bytes, initial.name, true); }
+    setLoaded({
+      ...loadSample(initial.bytes, initial.name, { env: () => envRef.current, unisonLevel: () => unisonRef.current }),
+      loadId: ++loadCount.current,
+    });
   }, [initial]);
 
   // Legacy (NWS-container, OG) files edit in place too, but only when the map is
@@ -103,28 +87,8 @@ export function SampleInspector({ initial, factory, onShare, onKeepCopy }: {
   const shown = loaded && loaded.file.recognized ? loaded : null;
   const unisonSummary = shown ? sampleUnisonView(shown.bytes)?.summary ?? null : null;
 
-  // Open a file for a quick look. Alone above the empty pane; beside a sample
-  // it moves into the side column, out of the instrument's way.
-  const dropZone = (
-    <label
-      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) onFile(f); }}
-      style={{ display: 'block', padding: shown ? 16 : 28, borderRadius: 'var(--r-lg)', marginTop: shown ? 12 : 0, marginBottom: shown ? 0 : 16, cursor: 'pointer',
-        background: dragOver ? 'var(--surface)' : 'transparent',
-        border: `2px dashed ${dragOver ? 'var(--red)' : 'var(--line)'}`, textAlign: 'center', color: 'var(--dim)' }}
-    >
-      <div style={{ color: 'var(--ink)', fontWeight: 600 }}>Preview a sample</div>
-      <div style={{ fontSize: 12, marginTop: 4 }}>Drop or click to open one for a quick look — <code>.nsmp</code>, <code>.nsmp3</code>, <code>.nsmp4</code>. To keep it in your library, use <strong>+ Add → Import a file…</strong>.</div>
-      <input type="file" accept=".nsmp,.nsmp3,.nsmp4" style={{ display: 'none' }}
-        onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
-    </label>
-  );
-
   return (
     <div>
-      {!shown && dropZone}
-
       {loaded && !loaded.file.recognized && (
         <div className="ps">
           <p>Not a recognized Nord sample.</p>
@@ -135,11 +99,13 @@ export function SampleInspector({ initial, factory, onShare, onKeepCopy }: {
       {shown && (
         <div className="ps">
           <SampleHeader view={fullHeaderView(shown)} />
-          {/* The sample as it is; edits are saved from the editor ("Save edited copy"). */}
-          <div className="mt-2"><ItemActions save={{ onSave: () => downloadBytes(shown.bytes, sampleFilename(shown.name, shown.file.codec, shown.file.legacy)) }} more={[
+          {/* Every action on the sample as it is, in one row; edits are saved from the editor ("Save edited copy"). */}
+          <div className="mt-2 mb-3"><ItemActions save={{ onSave: () => downloadBytes(shown.bytes, sampleFilename(shown.name, shown.file.codec, shown.file.legacy)) }} more={[
             ...(onShare ? [{ label: 'Share to community', onSelect: onShare }] : []),
             ...(onKeepCopy ? [{ label: 'Keep a copy', onSelect: onKeepCopy }] : []),
-          ]} /></div>
+          ]}>
+            {shown.decodable && <SampleConvert bytes={shown.bytes} file={shown.file} name={shown.name} />}
+          </ItemActions></div>
 
           <DetailColumns
             /* Keyboard-map editor leads once we've decoded the key map; edits patch
@@ -156,7 +122,7 @@ export function SampleInspector({ initial, factory, onShare, onKeepCopy }: {
                   legacy={shown.file.legacy}
                   rootSplitOnly={rootSplitOnly}
                   // Factory content drives the editor's "edit it for your own use" disclaimer.
-                  factory={shown.fromInitial && !!factory}
+                  factory={!!factory}
                   unison={unisonSummary}
                   onPlayZone={shown.decodable ? (i) => playZone(shown, i) : undefined}
                   onNoteOn={(midi) => { shown.sampler?.noteOn(midi, 100); transport.refresh(); }}
@@ -180,7 +146,7 @@ export function SampleInspector({ initial, factory, onShare, onKeepCopy }: {
                     />
                     <div className="ps-card" style={{ marginTop: 12 }}>
                       <p className="ps-sub" style={{ margin: 0 }}>
-                        Read-only — to edit the splits, convert to .nsmp3 / .nsmp4 below, then edit the result.
+                        Read-only — to edit the splits, use Convert above to make a .nsmp3 or .nsmp4, then edit that.
                       </p>
                     </div>
                   </>
@@ -192,17 +158,12 @@ export function SampleInspector({ initial, factory, onShare, onKeepCopy }: {
                     </p>
                   </div>
                 )}
-            side={
-              <>
-                {shown.decodable && <MidiConnect />}
-                {shown.decodable && (
-                  <EnvelopePanel enabled={envEnabled} env={env} onToggle={setEnvEnabled} onChange={setEnv} />
-                )}
-                {shown.decodable && <UnisonPanel level={unisonLevel} onChange={setUnisonLevel} />}
-                {shown.decodable && <SampleConvert bytes={shown.bytes} file={shown.file} name={shown.name} />}
-                {dropZone}
-              </>
-            }
+            side={shown.decodable && (
+              <PlayPanel
+                unison={unisonLevel} onUnison={setUnisonLevel}
+                envEnabled={envEnabled} env={env} onEnvToggle={setEnvEnabled} onEnv={setEnv}
+              />
+            )}
             rest={
               <>
                 <StrokeList

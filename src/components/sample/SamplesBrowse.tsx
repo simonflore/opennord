@@ -45,7 +45,7 @@ const SORT_LABEL: Record<SampleSort, string> = {
 export function SamplesBrowse(
   { entries, source, generation, query, nordCount, localCount, total = nordCount + localCount, showSourceFacet, showCloud = false, showUnknownGen,
     category = 'all', onCategory, categoriesPresent = [],
-    onSource, onGeneration, onQuery, clearFilters, filtered, onOpen, onLoadNew, onImport, onRemove, activeId,
+    onSource, onGeneration, onQuery, clearFilters, filtered, onOpen, onImport, onRemove, activeId,
     storedCount, storedBytes, prefs,
     canScanUsage, onScanUsage, scanPct, scanError, unusedCount, unusedOnly, onUnusedOnly,
     selected, selectedEntries, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
@@ -72,7 +72,6 @@ export function SamplesBrowse(
     onOpen: (e: SampleEntry) => void;
     /** The entry open in the detail pane, highlighted in the list. */
     activeId?: string | null;
-    onLoadNew: () => void;
     onImport: () => void;
     onRemove: (id: string) => void;
     storedCount: number;
@@ -194,7 +193,7 @@ export function SamplesBrowse(
       )}
       {/* At phone width the rail, and the folder in it, is hidden. */}
       <FolderMenu folder={folder} place="toolbar" className="min-[720px]:hidden" />
-      <AddMenu folder={folder} noun="a sample file" onImport={onImport} preview={onLoadNew} />
+      <AddMenu folder={folder} noun="a sample file" onImport={onImport} />
     </>
   );
 

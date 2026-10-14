@@ -1,6 +1,8 @@
 import type { NsmpFile } from '../../lib/ns4/nsmp';
 import { convertNsmp, type TargetCodec } from '../../lib/ns4/nsmp-convert';
+import { useState } from 'react';
 import { useFolder } from '../../lib/folder/FolderContext';
+import { Button, Dialog, Menu, MenuItem, MenuSeparator } from '../ui';
 import { MakePiano } from './MakePiano';
 import { useSaveBytes } from './useSaveBytes';
 
@@ -26,21 +28,23 @@ function sourceGeneration(file: NsmpFile): TargetCodec | 0 {
 }
 
 /**
- * Convert a loaded sample to another generation and save it. If a folder is linked
- * the result lands there; otherwise it downloads. Offers every generation other than
- * the source -- the original `.nsmp` (OG), `.nsmp3` and `.nsmp4` -- so a sample can
- * be converted between *any* two generations in either direction. Audio is preserved
- * exactly (`convertNsmp`).
+ * Convert a loaded sample to another generation and save it: one "Convert" menu
+ * beside Save to computer. If a folder is linked the result lands there;
+ * otherwise it downloads. Offers every generation other than the source -- the
+ * original `.nsmp` (OG), `.nsmp3` and `.nsmp4` -- so a sample can be converted
+ * between *any* two generations in either direction. Audio is preserved exactly
+ * (`convertNsmp`).
  *
- * It can also be made into a piano (`.npno`) with {@link MakePiano}.
+ * "Piano (.npno)…" opens {@link MakePiano} in a dialog, for its piano type and
+ * held-note fade. How a save went shows on its own line below the actions.
  */
 export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: NsmpFile; name?: string }) {
   const folder = useFolder();
   const saver = useSaveBytes();
+  const [piano, setPiano] = useState(false);
 
   const source = sourceGeneration(file);
   const targets = GENERATIONS.filter((g) => g.code !== source);
-  if (targets.length === 0) return null;
 
   async function convert(target: TargetCodec) {
     try {
@@ -52,29 +56,24 @@ export function SampleConvert({ bytes, file, name }: { bytes: Uint8Array; file: 
     }
   }
 
-  if (saver.dialog) return saver.dialog;
-
   return (
-    <div className="ps-card" style={{ marginTop: 12 }}>
-      <h4>CONVERT</h4>
-      <p className="ps-sub" style={{ marginTop: 0 }}>
-        Save this sample as another generation. The audio, loops, levels and tuning are kept.
-      </p>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+    <>
+      <Menu label="Convert" trigger={<Button variant="secondary" disabled={saver.saving}>Convert ▾</Button>}>
         {targets.map((g) => (
-          <button
-            key={g.code}
-            className="on-btn on-btn--secondary"
-            onClick={() => void convert(g.code)}
-            disabled={saver.saving}
-            title="Experimental -- not yet hardware-validated"
-          >
-            Convert to {g.label} -- experimental
-          </button>
+          <MenuItem key={g.code} onSelect={() => void convert(g.code)} hint="Experimental: not yet tried on a Nord">
+            {g.label}
+          </MenuItem>
         ))}
-      </div>
-      {saver.report}
-      <MakePiano bytes={bytes} storedName={file.name} name={name} />
-    </div>
+        <MenuSeparator />
+        <MenuItem onSelect={() => setPiano(true)} hint="Play it from the piano section (experimental)">
+          Piano (.npno)…
+        </MenuItem>
+      </Menu>
+      {saver.dialog}
+      <div className="basis-full empty:hidden">{saver.report}</div>
+      <Dialog open={piano} onClose={() => setPiano(false)} title="Make it a piano" portal>
+        <MakePiano bytes={bytes} storedName={file.name} name={name} />
+      </Dialog>
+    </>
   );
 }

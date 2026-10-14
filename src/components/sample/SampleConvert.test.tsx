@@ -45,6 +45,13 @@ const file: NsmpFile = {
 };
 const bytes = new Uint8Array(32);
 
+/** Radix opens its menus on pointerdown, not click. */
+const openConvert = () => fireEvent.pointerDown(screen.getByRole('button', { name: /convert/i }), { button: 0, ctrlKey: false });
+/** Pick a generation from the Convert menu. */
+const pick = (name: RegExp) => { openConvert(); fireEvent.click(screen.getByRole('menuitem', { name })); };
+/** Open the piano dialog from the Convert menu. */
+const openPiano = () => pick(/piano \(\.npno\)/i);
+
 /** Build a full FolderLibrary mock with given overrides. */
 function mockFolder(over: Record<string, unknown> = {}) {
   return {
@@ -71,9 +78,9 @@ describe('SampleConvert -- folder linked', () => {
 
     render(<SampleConvert bytes={bytes} file={file} name="TakeOnMe" />);
 
-    // Convert to NSMP 2 (.nsmp) button
-    const btn = screen.getByRole('button', { name: /convert to nsmp 2/i });
-    await act(async () => { fireEvent.click(btn); });
+    expect(screen.queryByRole('button', { name: /convert to nsmp/i })).toBeNull(); // one menu, not a button per format
+    pick(/nsmp 2/i);
+    await act(async () => {}); // let the save finish
 
     expect(downloadBytes).not.toHaveBeenCalled();
     expect(writeBack).toHaveBeenCalledTimes(1);
@@ -82,7 +89,7 @@ describe('SampleConvert -- folder linked', () => {
 });
 
 describe('SampleConvert -- write in flight', () => {
-  it('disables the convert buttons while a save runs (a double-click must not race two writes)', async () => {
+  it('disables the Convert menu while a save runs (a second pick must not race two writes)', async () => {
     let release!: () => void;
     const writeBack = vi.fn().mockImplementation(
       () => new Promise((res) => { release = () => res({ target: 'folder', path: 'TakeOnMe.nsmp' }); }),
@@ -94,11 +101,9 @@ describe('SampleConvert -- write in flight', () => {
 
     render(<SampleConvert bytes={bytes} file={file} name="TakeOnMe" />);
 
-    const btn = screen.getByRole('button', { name: /convert to nsmp 2/i });
-    fireEvent.click(btn);
+    pick(/nsmp 2/i);
     await act(async () => {}); // flush the saving state
-    expect(btn).toBeDisabled();
-    fireEvent.click(btn); // must be a no-op while the first write is in flight
+    expect(screen.getByRole('button', { name: /convert/i })).toBeDisabled();
     await act(async () => { release(); });
     expect(writeBack).toHaveBeenCalledTimes(1);
   });
@@ -112,8 +117,8 @@ describe('SampleConvert -- no folder linked', () => {
 
     render(<SampleConvert bytes={bytes} file={file} name="TakeOnMe" />);
 
-    const btn = screen.getByRole('button', { name: /convert to nsmp 2/i });
-    await act(async () => { fireEvent.click(btn); });
+    pick(/nsmp 2/i);
+    await act(async () => {}); // let the save finish
 
     expect(downloadBytes).toHaveBeenCalledTimes(1);
   });
@@ -126,6 +131,7 @@ describe('SampleConvert -- to a piano', () => {
     (downloadBytes as ReturnType<typeof vi.fn>).mockClear();
 
     render(<SampleConvert bytes={bytes} file={{ ...file, name: 'Converted' }} name="Take On Me.nsmp4" />);
+    openPiano();
 
     fireEvent.change(screen.getByLabelText(/piano type/i), { target: { value: String(NPNO_PIANO_TYPE.digital) } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /convert to piano/i })); });
@@ -143,6 +149,7 @@ describe('SampleConvert -- to a piano', () => {
     (nsmpToNpno as ReturnType<typeof vi.fn>).mockClear();
 
     render(<SampleConvert bytes={bytes} file={file} name="TakeOnMe" />);
+    openPiano();
     fireEvent.change(screen.getByLabelText(/held notes/i), { target: { value: '3' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /convert to piano/i })); });
     await screen.findByText(/not been tried on a nord/i);
@@ -160,6 +167,7 @@ describe('SampleConvert -- to a piano', () => {
     (useWriteBackPref as ReturnType<typeof vi.fn>).mockReturnValue({ mode: 'new', setMode: vi.fn() });
 
     render(<SampleConvert bytes={bytes} file={file} name="TakeOnMe" />);
+    openPiano();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /convert to piano/i })); });
 
     expect(await screen.findByText(/saved to tbm/i)).toBeInTheDocument();
@@ -172,6 +180,7 @@ describe('SampleConvert -- to a piano', () => {
     (nsmpToNpno as ReturnType<typeof vi.fn>).mockImplementationOnce(() => { throw new Error('too long for a Nord'); });
 
     render(<SampleConvert bytes={bytes} file={file} name="TakeOnMe" />);
+    openPiano();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /convert to piano/i })); });
 
     expect(await screen.findByText(/too long for a nord/i)).toBeInTheDocument();

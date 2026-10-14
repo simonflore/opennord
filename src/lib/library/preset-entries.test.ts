@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, cloudPresetEntries, type PresetEntry } from './preset-entries';
+import { presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, presentGenerations, cloudPresetEntries, type PresetEntry } from './preset-entries';
 import type { ProgramEntry } from '../device/transfer';
 
 const dev = (over: Partial<ProgramEntry>): ProgramEntry => ({
@@ -23,6 +23,20 @@ describe('preset-entries', () => {
     ]);
     expect(out[0]).toMatchObject({ source: 'local', kind: 'organ-preset', name: 'My Organ', size: 50 });
     expect(out[0].bytes).toBeInstanceOf(Uint8Array);
+  });
+
+  it('carries the file type and Stage model, so Stage 2/3/4 presets read and filter apart', () => {
+    const scanned = presetEntriesFromScanned([
+      { id: 'folder:a.ns2s', name: 'Two', path: 'a.ns2s', tag: 'ns2s', kind: 'synth-preset', bytes: new Uint8Array(10) },
+      { id: 'folder:b.ns3y', name: 'Three', path: 'b.ns3y', tag: 'ns3y', kind: 'synth-preset', bytes: new Uint8Array(10) },
+    ]);
+    const device = presetEntriesFromDevice([{ kind: 'organ-preset', partition: 7, entries: [dev({ name: 'Four' })] }]);
+    const all = [...device, ...scanned];
+    expect(all.map((e) => [e.typeLabel, e.generation])).toEqual([
+      ['.ns4o', 'Stage 4'], ['.ns2s', 'Stage 2'], ['.ns3y', 'Stage 3'],
+    ]);
+    expect(presentGenerations(all)).toEqual(['Stage 2', 'Stage 3', 'Stage 4']);
+    expect(filterPresets(all, 'all', 'all', '', 'Stage 3').map((e) => e.name)).toEqual(['Three']);
   });
 
   it('tags a bundle-sourced preset (id contains !) as source=backup', () => {
@@ -77,8 +91,8 @@ describe('cloud presets', () => {
       { fingerprint: 'p1', kind: 'program' as const, filename: 'Pad.ns4p' },
     ];
     expect(cloudPresetEntries(items, new Map())).toEqual([
-      { id: 'cloud:y1', name: 'Fat Lead', source: 'cloud', fingerprint: 'y1', kind: 'synth-preset' },
-      { id: 'cloud:y2', name: 'Gospel', source: 'cloud', fingerprint: 'y2', kind: 'organ-preset' },
+      { id: 'cloud:y1', name: 'Fat Lead', source: 'cloud', fingerprint: 'y1', kind: 'synth-preset', typeLabel: '.ns4y', generation: 'Stage 4' },
+      { id: 'cloud:y2', name: 'Gospel', source: 'cloud', fingerprint: 'y2', kind: 'organ-preset', typeLabel: '.ns4o', generation: 'Stage 4' },
     ]);
     const bytes = new Uint8Array([1]);
     expect(cloudPresetEntries(items, new Map([['y1', bytes]]))[0]).toMatchObject({ bytes, size: 1 });

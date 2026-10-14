@@ -4,7 +4,8 @@ import type { AmpEnvelope } from './sampleEngine';
  * Synth-playground envelope controls for the Samples keyboard. A toggle plus four
  * A/D/S/R sliders that shape a per-voice amp envelope for *auditioning* a sample.
  * This is NOT part of the `.nsmp` and is never written back — it's a synth layer on
- * top, off by default. Off → the sampler plays flat (today's behavior).
+ * top, off by default. Off → the sampler plays flat (today's behavior). A row of
+ * the Play card (PlayPanel), which says once that none of it is saved.
  */
 export interface EnvSlider { key: keyof AmpEnvelope; label: string; min: number; max: number; step: number; unit: 's' | '%' }
 
@@ -24,11 +25,11 @@ export function EnvelopePanel({ enabled, env, onToggle, onChange }: {
   onChange: (env: AmpEnvelope) => void;
 }) {
   return (
-    <div className="ps-card" style={{ marginTop: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <h4 style={{ margin: 0 }}>SYNTH PLAYGROUND</h4>
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="ps-sub m-0">Envelope</span>
         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-          <span className="ps-sub">{enabled ? 'On' : 'Off'}</span>
+          <span className="ps-sub m-0">{enabled ? 'On' : 'Off'}</span>
           <input
             type="checkbox"
             role="switch"
@@ -39,9 +40,6 @@ export function EnvelopePanel({ enabled, env, onToggle, onChange }: {
           />
         </label>
       </div>
-      <p className="ps-sub" style={{ margin: '4px 0 0' }}>
-        Amp envelope for auditioning — not part of the sample, never saved.
-      </p>
 
       {enabled && (
         <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>

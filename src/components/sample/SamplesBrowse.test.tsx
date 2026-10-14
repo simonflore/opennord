@@ -17,7 +17,7 @@ const prefs = (over: Partial<SamplesPrefsApi> = {}): SamplesPrefsApi => ({
 });
 
 const handlers = {
-  onSource: () => {}, onGeneration: () => {}, onQuery: () => {}, clearFilters: () => {}, filtered: false, onOpen: () => {}, onLoadNew: () => {},
+  onSource: () => {}, onGeneration: () => {}, onQuery: () => {}, clearFilters: () => {}, filtered: false, onOpen: () => {},
   onImport: () => {}, onRemove: () => {},
   canScanUsage: false, onScanUsage: () => {}, scanPct: null, unusedCount: null,
   unusedOnly: false, onUnusedOnly: () => {},

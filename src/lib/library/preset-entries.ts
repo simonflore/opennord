@@ -4,7 +4,7 @@ import type { ProgramEntry } from '../device/transfer';
 import type { LibrarySource } from './types';
 import type { PresetSort } from './prefs';
 import { formatSlot } from '../clavia/slot';
-import { identifyNordFile } from '../clavia/nord-file';
+import { generationOf, identifyNordFile } from '../clavia/nord-file';
 import { programNameFromFilename } from '../clavia/name';
 import { matchesQuery, sortWithFavorites } from './browse';
 import { foundOn, type FoundOn } from './found-on';
@@ -18,11 +18,25 @@ export interface PresetEntry extends FoundOn {
   name: string;
   source: LibrarySource;
   kind: PresetKind;
+  /** The file type, e.g. ".ns3y": which Stage the preset is for, at a glance. */
+  typeLabel?: string;
+  /** The Stage model the preset is for (a device preset: Stage 4). */
+  generation?: PresetGeneration;
   slot?: string;         // device — "A:26"
   size?: number;         // folder — byte length
   device?: ProgramEntry; // device — the enumerated entry, for pullPreset
   partition?: number;    // device — the preset partition index, for pullPreset
   bytes?: Uint8Array;     // folder — raw file, for download
+}
+
+/** The Stage models a preset file can be for (the preset browser covers the Stage line only). */
+export type PresetGeneration = 'Stage 2' | 'Stage 3' | 'Stage 4';
+const GENERATION_ORDER: PresetGeneration[] = ['Stage 2', 'Stage 3', 'Stage 4'];
+
+/** Type badge + Stage model from a preset file's tag (e.g. `ns3y` → ".ns3y", Stage 3). */
+function presetFormat(tag: string): Pick<PresetEntry, 'typeLabel' | 'generation'> {
+  const g = generationOf(tag);
+  return { typeLabel: `.${tag}`, ...(g !== 'unknown' ? { generation: g } : {}) };
 }
 
 const KIND_ORDER: PresetKind[] = ['organ-preset', 'piano-preset', 'synth-preset'];
@@ -43,7 +57,8 @@ export function presetFileExt(kind: PresetKind, bytes: Uint8Array): string {
  * loose-file presets are tagged `source:'local'`. */
 export function presetEntriesFromScanned(presets: ScannedPreset[]): PresetEntry[] {
   return presets.map((p) => ({
-    id: p.id, name: p.name, source: (p.id.includes('!') ? 'backup' : 'local') as LibrarySource, kind: p.kind, size: p.bytes.length, bytes: p.bytes,
+    id: p.id, name: p.name, source: (p.id.includes('!') ? 'backup' : 'local') as LibrarySource, kind: p.kind,
+    ...presetFormat(p.tag), size: p.bytes.length, bytes: p.bytes,
   }));
 }
 
@@ -51,9 +66,10 @@ export function presetEntriesFromScanned(presets: ScannedPreset[]): PresetEntry[
  *  Returns null when the bytes aren't a recognized preset — so the shared import
  *  store (which also holds programs) yields only presets here. */
 export function presetEntryFromImport(rec: { id: string; name: string; bytes: Uint8Array }): PresetEntry | null {
-  const kind = presetKindForTag(identifyNordFile(rec.bytes).tag);
+  const { tag } = identifyNordFile(rec.bytes);
+  const kind = presetKindForTag(tag);
   if (!kind) return null;
-  return { id: rec.id, name: programNameFromFilename(rec.name) ?? rec.name, source: 'local', kind, size: rec.bytes.length, bytes: rec.bytes };
+  return { id: rec.id, name: programNameFromFilename(rec.name) ?? rec.name, source: 'local', kind, ...presetFormat(tag), size: rec.bytes.length, bytes: rec.bytes };
 }
 
 /** Map the device's enumerated preset partitions into nord entries. */
@@ -63,17 +79,22 @@ export function presetEntriesFromDevice(
   return groups.flatMap((g) =>
     g.entries.map((e) => {
       const slot = formatSlot(e.bank, e.slot);
-      return { id: `nord-preset:${g.partition}:${slot}`, name: e.name, source: 'nord' as const, kind: g.kind, slot, device: e, partition: g.partition };
+      return {
+        id: `nord-preset:${g.partition}:${slot}`, name: e.name, source: 'nord' as const, kind: g.kind,
+        ...presetFormat(PRESET_EXT[g.kind]), slot, device: e, partition: g.partition,
+      };
     }));
 }
 
-/** Filter by source + kind + case-insensitive name query. */
+/** Filter by source + kind + Stage model + case-insensitive name query. */
 export function filterPresets(
   entries: PresetEntry[], source: LibrarySource | 'all', kind: PresetKind | 'all', query: string,
+  generation: PresetGeneration | 'all' = 'all',
 ): PresetEntry[] {
   return entries.filter((e) =>
     (source === 'all' || foundOn(e).includes(source)) &&
     (kind === 'all' || e.kind === kind) &&
+    (generation === 'all' || e.generation === generation) &&
     matchesQuery(e.name, query));
 }
 
@@ -93,14 +114,21 @@ export function presentKinds(entries: PresetEntry[]): PresetKind[] {
   return KIND_ORDER.filter((k) => have.has(k));
 }
 
+/** Distinct Stage models present in the entries, oldest first — for the model facet. */
+export function presentGenerations(entries: PresetEntry[]): PresetGeneration[] {
+  const have = new Set(entries.map((e) => e.generation));
+  return GENERATION_ORDER.filter((g) => have.has(g));
+}
+
 /** Cloud presets as entries. The kind comes from the file's type (its extension is its tag); anything else is not a preset. */
 export function cloudPresetEntries(items: CloudItem[], files: ReadonlyMap<string, Uint8Array>): PresetEntry[] {
   return cloudItemsOf(items, 'preset').flatMap((item) => {
-    const kind = presetKindForTag(extensionOf(item.filename) ?? '');
+    const tag = extensionOf(item.filename) ?? '';
+    const kind = presetKindForTag(tag);
     if (!kind) return [];
     const bytes = files.get(item.fingerprint);
     return [{
-      ...cloudEntryBase(item), kind, ...(bytes ? { bytes, size: bytes.length } : {}),
+      ...cloudEntryBase(item), kind, ...presetFormat(tag), ...(bytes ? { bytes, size: bytes.length } : {}),
     }];
   });
 }

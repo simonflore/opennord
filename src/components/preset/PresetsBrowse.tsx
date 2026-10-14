@@ -5,10 +5,10 @@ import { CategoryPanel } from '../library/CategoryPanel';
 import { LibraryCard } from '../library/LibraryCard';
 import { useStableCallback } from '@/lib/useStableCallback';
 import { LibraryEmpty } from '../library/LibraryEmpty';
-import { SlotTag } from '../library/SlotTag';
+import { SlotTag, genTone } from '../library/SlotTag';
 import { CardRemoveButton } from '../library/CardRemoveButton';
 import { PresetGlance } from './PresetGlance';
-import type { PresetEntry } from '@/lib/library/preset-entries';
+import type { PresetEntry, PresetGeneration } from '@/lib/library/preset-entries';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
 import { importedMember } from '@/lib/library/found-on';
@@ -27,12 +27,15 @@ const parsePresetSort = (raw: string): PresetSort =>
   raw === 'name' || raw === 'size' ? raw : 'default';
 
 export function PresetsBrowse({
-  entries, source, setSource, kind, setKind, query, setQuery, clearFilters, filtered,
-  kinds, showSourceFacet, showCloud = false, sort, setSort, isFavorite, toggleFavorite, onSelect, onImport, onRemove, activeId,
+  entries, source, setSource, kind, setKind, generation = 'all', setGeneration, generations = [],
+  query, setQuery, clearFilters, filtered, kinds, showSourceFacet, showCloud = false, sort, setSort, isFavorite, toggleFavorite, onSelect, onImport, onRemove, activeId,
 }: {
   entries: PresetEntry[];
   source: LibrarySource | 'all'; setSource: (s: LibrarySource | 'all') => void;
   kind: PresetKind | 'all'; setKind: (k: PresetKind | 'all') => void;
+  /** The Stage-model facet: chips, shown only when presets for more than one Stage are listed. */
+  generation?: PresetGeneration | 'all'; setGeneration?: (g: PresetGeneration | 'all') => void;
+  generations?: PresetGeneration[];
   query: string; setQuery: (q: string) => void;
   /** Every filter off and the search cleared (from the list's context). */
   clearFilters: () => void;
@@ -74,6 +77,12 @@ export function PresetsBrowse({
       onChange: (k: string) => setKind(k as PresetKind | 'all'),
       select: { allLabel: 'All types' },
     },
+    ...(generations.length > 1 ? [{
+      ariaLabel: 'Filter by model',
+      value: generation,
+      options: [{ key: 'all', label: 'All' }, ...generations.map((g) => ({ key: g, label: g }))],
+      onChange: (k: string) => setGeneration?.(k as PresetGeneration | 'all'),
+    }] : []),
   ];
 
   const sortOptions = (Object.keys(SORT_LABEL) as PresetSort[]).map((k) => ({ key: k, label: SORT_LABEL[k] }));
@@ -98,10 +107,16 @@ export function PresetsBrowse({
                 onToggleFavorite={() => toggleFavoriteStable(e)}
                 onOpen={() => onSelectStable(e)}
                 selected={e.id === activeId}
-                badge={<SlotTag>{e.slot ?? KIND_LABEL[e.kind]}</SlotTag>}
+                // A file's type, coloured by its Stage (grey/blue/red, as programs and samples); a Nord slot plain.
+                badge={
+                  <SlotTag tone={e.source === 'nord' ? undefined : genTone(e.generation)}>
+                    {e.slot ?? e.typeLabel ?? KIND_LABEL[e.kind]}
+                  </SlotTag>
+                }
                 engines={<PresetGlance entry={e} />}
                 footExtras={
                   <>
+                    <SlotTag>{KIND_LABEL[e.kind]}</SlotTag>
                     {e.size != null && <SlotTag>{formatBytes(e.size)}</SlotTag>}
                     {importedId && (
                       <CardRemoveButton name={e.name} onRemove={() => onRemoveStable(importedId)} />

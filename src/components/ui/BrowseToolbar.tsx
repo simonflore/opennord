@@ -8,6 +8,9 @@ export const selectClass = cn(
   'cursor-pointer rounded-sm border border-line px-[10px] py-1.5 text-xs text-ink fill-raised elev-1',
   'transition-colors duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)]',
   'hover:border-muted',
+  // The open list is drawn by the OS: give its options the app's colours, or
+  // light text lands on a white popup (Windows).
+  '[&_option]:bg-surface [&_option]:text-ink',
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]',
 );
 

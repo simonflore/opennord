@@ -156,6 +156,9 @@
 
 :root,
 :root[data-theme='dark'] {
+  /* native controls (a select's list, scrollbars) drawn dark too */
+  color-scheme: dark;
+
   /* surfaces */
   --bg: #18191b;
   --surface: #1b1c1f;

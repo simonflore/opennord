@@ -3,8 +3,8 @@ import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { usePresetsPrefs } from '@/lib/library/prefs';
 import {
-  presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, cloudPresetEntries, presetFileExt,
-  type PresetEntry,
+  presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, presentGenerations, cloudPresetEntries, presetFileExt,
+  type PresetEntry, type PresetGeneration,
 } from '@/lib/library/preset-entries';
 import { useCloudSnapshot } from '@/lib/library/CloudSnapshotContext';
 import { useSoundRows } from '@/lib/library/useSoundRows';
@@ -28,6 +28,7 @@ function usePresetsStateValue() {
   const imported = useImportedPresets();
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
   const [kind, setKind] = useState<PresetKind | 'all'>('all');
+  const [generation, setGeneration] = useState<PresetGeneration | 'all'>('all');
   const [query, setQuery] = useState('');
 
   // Lazily enumerate the device preset partitions on connect. Stage 4 only: its
@@ -54,13 +55,14 @@ function usePresetsStateValue() {
   const cloudEntries = useMemo(() => cloudPresetEntries(cloud.items, cloud.files), [cloud.items, cloud.files]);
   const { rows, byId, nordCount, localCount, showCloud, showSourceFacet } = useSoundRows(allEntries, cloudEntries, PRESET_ROWS);
   const kinds = presentKinds(rows);
+  const generations = presentGenerations(rows);
 
   // The list follows the search a beat behind (an interruptible render), so the
   // field keeps up with typing in a big folder.
   const listQuery = useDeferredValue(query);
   const shown = useMemo(
-    () => sortPresets(filterPresets(rows, source, kind, listQuery), prefs.sort, prefs.favorites),
-    [rows, source, kind, listQuery, prefs.sort, prefs.favorites],
+    () => sortPresets(filterPresets(rows, source, kind, listQuery, generation), prefs.sort, prefs.favorites),
+    [rows, source, kind, generation, listQuery, prefs.sort, prefs.favorites],
   );
   const entryById = useCallback((id: string) => byId.get(id), [byId]);
   // A copy of a cloud preset in OpenNord's own storage.
@@ -75,11 +77,12 @@ function usePresetsStateValue() {
     { active: listQuery.trim() !== '', reset: () => setQuery('') },
     { active: source !== 'all', reset: () => setSource('all') },
     { active: kind !== 'all', reset: () => setKind('all') },
+    { active: generation !== 'all', reset: () => setGeneration('all') },
   ]);
   return {
     all: allEntries, rows, clearFilters, filtered, ensureListed,
-    shown, source, setSource, kind, setKind, query, setQuery,
-    prefs, entryById, nordCount, localCount, showSourceFacet, showCloud, kinds, folder, session,
+    shown, source, setSource, kind, setKind, generation, setGeneration, query, setQuery,
+    prefs, entryById, nordCount, localCount, showSourceFacet, showCloud, kinds, generations, folder, session,
     importPreset: imported.add, removePreset: imported.remove, cloud, keepCopy,
   };
 }

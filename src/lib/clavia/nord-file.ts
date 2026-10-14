@@ -53,7 +53,8 @@ export interface NordFileInfo {
   sizeBytes: number;
 }
 
-function generationOf(tag: string): NordGeneration {
+/** The Stage generation a file's tag belongs to (`ns2*` → Stage 2, …); 'unknown' off the Stage line. */
+export function generationOf(tag: string): NordGeneration {
   if (tag.startsWith('ns2')) return 'Stage 2';
   if (tag.startsWith('ns3')) return 'Stage 3';
   if (tag.startsWith('ns4')) return 'Stage 4';
