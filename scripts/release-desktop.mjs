@@ -132,7 +132,13 @@ if (!dryRun) {
   } catch (error) {
     failure = error;
   } finally {
-    rmSync(mirrorDir, { recursive: true, force: true });
+    // Never let the cleanup hide mirror.sh's own error: on the first release with
+    // the filtered mirror, a failed removal (ENOTEMPTY) was all that was printed.
+    try {
+      rmSync(mirrorDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    } catch {
+      console.warn(`(could not remove ${mirrorDir}; it is safe to delete)`);
+    }
   }
   // mirror.sh says what went wrong on stderr (a missing tool, an unknown commit, …).
   if (failure) fatal(`could not compute the public mirror commit:\n${String(failure.stderr || failure.message).trim()}`);
