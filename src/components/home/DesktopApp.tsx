@@ -18,7 +18,7 @@ import { IconMac, IconWindows } from './icons';
  * build is coming instead of linking to a download that isn't there. Set it back
  * when the next release is out.
  */
-export const RELEASED = false;
+export const RELEASED = true;
 
 const RELEASE_BASE = 'https://github.com/simonflore/opennord/releases';
 const RELEASE_PAGE = `${RELEASE_BASE}/latest`;
