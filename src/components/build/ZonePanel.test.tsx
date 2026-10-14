@@ -165,8 +165,9 @@ describe('ZonePanel', () => {
     const wave = screen.getByRole('slider', { name: 'End' }).closest('.relative')!.parentElement!.querySelector('.touch-none') as HTMLElement;
     wave.setPointerCapture = () => {};
     wave.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 190, right: 1000, bottom: 190, x: 0, y: 0, toJSON: () => ({}) });
+    // End sits at 1000 px; the flag is pressed 10 px left of it and keeps that distance while dragged.
     fireEvent.pointerDown(screen.getByRole('slider', { name: 'End' }), { pointerId: 1, clientX: 990 });
-    fireEvent.pointerMove(wave, { pointerId: 1, clientX: 500 });
+    fireEvent.pointerMove(wave, { pointerId: 1, clientX: 490 });
     expect(zone().takes[0].end).toBe(22050);
   });
 

@@ -69,23 +69,26 @@ export function TakeEditor({ take, audio, onChange }: { take: Take; audio: ClipA
     const r = wave.current!.getBoundingClientRect();
     return v0 + ((clientX - r.left) / r.width) * (v1 - v0);
   };
-  const down = (e: PointerEvent<HTMLDivElement>) => {
-    if (shownView === 'seam') return;
-    const r = wave.current!.getBoundingClientRect();
-    const near = points.filter(visible)
-      .map((p) => ({ p, d: Math.abs(r.left + (pct(frameOf(p)) / 100) * r.width - e.clientX) }))
-      .sort((a, b) => a.d - b.d)[0];
-    if (!near || near.d > (e.pointerType === 'touch' ? GRAB_TOUCH_PX : GRAB_PX)) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setDragging(near.p);
-  };
-  /** A press on a point's flag picks that point up, wherever on the flag it lands. */
-  const grabFlag = (p: Point) => (e: PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation();
+  /** Where a point's line is on screen, in px. */
+  const lineX = (p: Point) => { const r = wave.current!.getBoundingClientRect(); return r.left + (pct(frameOf(p)) / 100) * r.width; };
+  // How far from its line the point was picked up, so it moves with the pointer instead of jumping to it.
+  const grabOffset = useRef(0);
+  const grab = (p: Point, e: PointerEvent<HTMLDivElement>) => {
+    grabOffset.current = e.clientX - lineX(p);
     wave.current!.setPointerCapture(e.pointerId);
     setDragging(p);
   };
-  const move = (e: PointerEvent<HTMLDivElement>) => { if (dragging) set(dragging, frameAt(e.clientX)); };
+  const down = (e: PointerEvent<HTMLDivElement>) => {
+    if (shownView === 'seam') return;
+    const near = points.filter(visible)
+      .map((p) => ({ p, d: Math.abs(lineX(p) - e.clientX) }))
+      .sort((a, b) => a.d - b.d)[0];
+    if (!near || near.d > (e.pointerType === 'touch' ? GRAB_TOUCH_PX : GRAB_PX)) return;
+    grab(near.p, e);
+  };
+  /** A press on a point's flag picks that point up, wherever on the flag it lands. */
+  const grabFlag = (p: Point) => (e: PointerEvent<HTMLDivElement>) => { e.stopPropagation(); grab(p, e); };
+  const move = (e: PointerEvent<HTMLDivElement>) => { if (dragging) set(dragging, frameAt(e.clientX - grabOffset.current)); };
   const up = (e: PointerEvent<HTMLDivElement>) => {
     if (!dragging) return;
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* not captured */ }

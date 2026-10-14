@@ -56,7 +56,10 @@ export function ClipsPanel({ project, activeClipId, onAddFiles, onSplit, apply }
               {/* Shown for the playing clip and an unused one; the others show them on hover, on focus
                   (they stay reachable by Tab) and always on a touch screen, which has no hover. */}
               <div className={cn('-mb-1 mt-1 flex gap-1', !active && zones.length > 0 && 'sr-only group-focus-within:not-sr-only group-hover:not-sr-only [@media(hover:none)]:not-sr-only')}>
-                <button type="button" className={rowAction} aria-label={`Split ${c.label} into notes`} onClick={() => onSplit(c.id)}>Split…</button>
+                {/* The same dialog: it finds the notes in a recording, and gives an unused one its key. */}
+                {zones.length
+                  ? <button type="button" className={rowAction} aria-label={`Split ${c.label} into notes`} onClick={() => onSplit(c.id)}>Split…</button>
+                  : <button type="button" className={cn(rowAction, 'text-accent-bright')} aria-label={`Place ${c.label} on the keys`} onClick={() => onSplit(c.id)}>Place…</button>}
                 {!zones.length && (
                   <button type="button" className={rowAction} aria-label={`Remove ${c.label}`} onClick={() => run((p) => removeClip(p, c.id))}>Remove</button>
                 )}

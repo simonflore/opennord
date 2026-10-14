@@ -2,7 +2,7 @@ import { useDeferredValue, useMemo, useRef, useState, type ReactNode } from 'rea
 import { Button, Dialog } from '@/components/ui';
 import { WaveCanvas } from '@/components/sample/WaveCanvas';
 import { cn } from '@/lib/cn';
-import type { SampleProject } from '@/lib/sample-build/model';
+import { zonesUsing, type SampleProject } from '@/lib/sample-build/model';
 import { toPcm16, type ClipAudio } from '@/lib/sample-build/render';
 import { splitOnSilence } from '@/lib/sample-build/analysis/split';
 import { estimatePitch } from '@/lib/sample-build/analysis/pitch';
@@ -85,7 +85,7 @@ export function SplitDialog({ project, clipId, audio, onClose, onApply }: {
     : `${plural(regions.length, 'note')} found.`;
 
   return (
-    <Dialog open onClose={onClose} title={`Split “${clip?.label ?? ''}” into notes`} className="w-[min(94vw,1080px)]"
+    <Dialog open onClose={onClose} title={zonesUsing(project, clipId).length ? `Split “${clip?.label ?? ''}” into notes` : `Place “${clip?.label ?? ''}” on the keys`} className="w-[min(94vw,1080px)]"
       footer={(
         <>
           <span className={cn('mr-auto self-center text-[13px]', toCheck.length || !regions.length ? 'text-warn' : 'text-muted')}>{summary}</span>

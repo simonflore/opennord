@@ -51,7 +51,9 @@ export function BuildScreen({ projectId, onClose }: { projectId: string; onClose
     try {
       const r = await s.addFiles(files);
       setProblem(r.unreadable.map((u) => `“${u.fileName}”: ${u.reason}`).join(' '));
-      setNotice(r.unclear.length ? `No clear pitch in ${r.unclear.map((n) => `“${n}”`).join(', ')}; set its key by hand.` : '');
+      setNotice(r.unclear.length
+        ? `No clear pitch in ${r.unclear.map((n) => `“${n}”`).join(', ')}, so ${r.unclear.length === 1 ? 'it isn’t' : 'they aren’t'} on the keys yet: use Place… in Clips to give ${r.unclear.length === 1 ? 'it' : 'each'} a key, or to split a recording of several notes.`
+        : '');
     } catch (e) {
       setNotice('');
       setProblem(describeFailure('Couldn’t store the recordings', e));
@@ -80,64 +82,72 @@ export function BuildScreen({ projectId, onClose }: { projectId: string; onClose
 
   return (
     <div className="flex min-h-full flex-col">
-      <header className="flex flex-wrap items-center gap-x-3.5 gap-y-3 border-b border-line bg-surface px-4 py-3.5 sm:px-6">
-        <nav aria-label="Breadcrumb" className="font-mono text-xs uppercase tracking-wide text-muted">
-          <a href="#/library/samples" className="text-muted hover:text-ink">Samples</a>
-          <span aria-hidden="true"> / </span>
-          <button type="button" onClick={onClose} className="uppercase hover:text-ink">Builds</button>
-        </nav>
-        <label className="flex min-w-0 flex-[0_1_auto] items-center gap-2.5 max-md:basis-full">
-          <span className="text-xs uppercase tracking-wider text-dim max-md:sr-only">Name</span>
-          <input className="ps-lcd !mb-0 min-h-11 w-56 min-w-0 max-md:w-full" value={p.name} aria-label="Name"
-            onChange={(e) => edit((x) => setName(x, e.target.value), 'name')} />
-        </label>
-        <div className="flex items-center gap-2.5">
-          <span aria-hidden="true" className="text-xs uppercase tracking-wider text-dim">For</span>
-          <div role="radiogroup" aria-label="Format" className="flex overflow-hidden rounded-md border border-line">
-            {formatButton('nsmp4', 'Stage 4')}
-            {formatButton('nsmp3', 'Stage 3')}
-            {formatButton('npno', 'Piano')}
+      {/* Two rows: where you are and saving on top; what you're building below, wrapping as it must. */}
+      <header className="flex flex-col gap-3 border-b border-line bg-surface px-4 py-3 sm:px-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <nav aria-label="Breadcrumb" className="font-mono text-xs uppercase tracking-wide text-muted">
+            <a href="#/library/samples" className="text-muted hover:text-ink">Samples</a>
+            <span aria-hidden="true"> / </span>
+            <button type="button" onClick={onClose} className="uppercase hover:text-ink">Builds</button>
+          </nav>
+          {/* On a phone the badge takes its own line under this row. */}
+          {TARGETS[p.target].hardware === 'untested' && (
+            <span className="rounded-sm border border-warn/40 px-2 py-1 text-xs text-warn max-md:order-last md:ml-auto">Not yet tried on a Nord</span>
+          )}
+          <div className={cn('flex items-center gap-1 md:gap-2', TARGETS[p.target].hardware === 'untested' ? 'max-md:ml-auto' : 'ml-auto')}>
+            {s.saveError
+              ? <span role="alert" className="text-xs text-warn">{s.saveError}</span>
+              : <span className="mr-1 text-xs text-muted">{s.saved ? 'Saved' : 'Saving…'}</span>}
+            <Button variant="ghost" className="min-h-11 min-w-11 px-0" aria-label="Undo" title="Undo" onClick={s.undo} disabled={!s.canUndo}>
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 3 L2 6 L5 9" /><path d="M2 6 H10 A4 4 0 0 1 10 14 H7" /></svg>
+            </Button>
+            <Button variant="ghost" className="min-h-11 min-w-11 px-0" aria-label="Redo" title="Redo" onClick={s.redo} disabled={!s.canRedo}>
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M11 3 L14 6 L11 9" /><path d="M14 6 H6 A4 4 0 0 0 6 14 H9" /></svg>
+            </Button>
+            <Button variant="primary" className="min-h-11 px-[18px] max-md:hidden" onClick={() => setSaving(true)}>Save…</Button>
           </div>
         </div>
-        {p.target === 'npno' && (
-          <>
-            <label className="flex items-center gap-2.5">
-              <span className="text-xs uppercase tracking-wider text-dim">Piano type</span>
-              <select value={p.piano?.type ?? NPNO_PIANO_TYPE.electric} onChange={(e) => edit((x) => setPiano(x, { type: Number(e.target.value) }))}
-                className={cn(selectClass, 'min-h-11')}>
-                {PIANO_TYPES.map(([label, type]) => <option key={type} value={type}>{label}</option>)}
-              </select>
-            </label>
-            <label className="flex items-center gap-2.5">
-              <span className="text-xs uppercase tracking-wider text-dim">Variant</span>
-              <input value={p.piano?.variant ?? ''} placeholder="Mk I" maxLength={20}
-                onChange={(e) => edit((x) => setPiano(x, { variant: e.target.value }), 'variant')}
-                className="min-h-11 w-24 rounded-sm border border-line bg-sink px-2.5 placeholder:text-muted" />
-            </label>
-          </>
-        )}
-        {TARGETS[p.target].hardware === 'untested' && <span className="rounded-sm border border-warn/40 px-2 py-1 text-xs text-warn">Not yet tried on a Nord</span>}
-        <div className="ml-auto flex items-center gap-1 md:gap-2">
-          {s.saveError
-            ? <span role="alert" className="text-xs text-warn">{s.saveError}</span>
-            : <span className="mr-1 text-xs text-muted">{s.saved ? 'Saved' : 'Saving…'}</span>}
-          <Button variant="ghost" className="min-h-11 min-w-11 px-0" aria-label="Undo" title="Undo" onClick={s.undo} disabled={!s.canUndo}>
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 3 L2 6 L5 9" /><path d="M2 6 H10 A4 4 0 0 1 10 14 H7" /></svg>
-          </Button>
-          <Button variant="ghost" className="min-h-11 min-w-11 px-0" aria-label="Redo" title="Redo" onClick={s.redo} disabled={!s.canRedo}>
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M11 3 L14 6 L11 9" /><path d="M14 6 H6 A4 4 0 0 0 6 14 H9" /></svg>
-          </Button>
-          <Button variant="primary" className="min-h-11 px-[18px] max-md:hidden" onClick={() => setSaving(true)}>Save…</Button>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+          <label className="flex min-w-0 items-center gap-2.5 max-md:basis-full">
+            <span className="text-xs uppercase tracking-wider text-dim max-md:sr-only">Name</span>
+            <input className="ps-lcd !mb-0 min-h-11 w-56 min-w-0 max-md:w-full" value={p.name} aria-label="Name"
+              onChange={(e) => edit((x) => setName(x, e.target.value), 'name')} />
+          </label>
+          <div className="flex items-center gap-2.5">
+            <span aria-hidden="true" className="text-xs uppercase tracking-wider text-dim">For</span>
+            <div role="radiogroup" aria-label="Format" className="flex overflow-hidden rounded-md border border-line">
+              {formatButton('nsmp4', 'Stage 4')}
+              {formatButton('nsmp3', 'Stage 3')}
+              {formatButton('npno', 'Piano')}
+            </div>
+          </div>
+          {p.target === 'npno' && (
+            <>
+              <label className="flex items-center gap-2.5">
+                <span className="text-xs uppercase tracking-wider text-dim">Piano type</span>
+                <select value={p.piano?.type ?? NPNO_PIANO_TYPE.electric} onChange={(e) => edit((x) => setPiano(x, { type: Number(e.target.value) }))}
+                  className={cn(selectClass, 'min-h-11')}>
+                  {PIANO_TYPES.map(([label, type]) => <option key={type} value={type}>{label}</option>)}
+                </select>
+              </label>
+              <label className="flex items-center gap-2.5">
+                <span className="text-xs uppercase tracking-wider text-dim">Variant</span>
+                <input value={p.piano?.variant ?? ''} placeholder="optional" maxLength={20}
+                  onChange={(e) => edit((x) => setPiano(x, { variant: e.target.value }), 'variant')}
+                  className="min-h-11 w-24 rounded-sm border border-line bg-sink px-2.5 placeholder:text-muted" />
+              </label>
+            </>
+          )}
         </div>
       </header>
       {problem && <p role="alert" className="px-6 py-2 text-sm text-warn">{problem}</p>}
       {notice && <p role="status" className="px-6 py-2 text-sm text-dim">{notice}</p>}
-      <div className="flex flex-auto flex-wrap">
-        {/* On a phone the clips come after the zone and the keyboard (canvas "Build sample on a phone"). */}
-        <div className="min-w-0 flex-[1_1_260px] border-line bg-surface p-[18px] max-md:order-last md:max-w-80 md:border-r">
+      {/* Clips beside the zone from tablet width up; on a phone they come after the zone and keyboard. */}
+      <div className="flex flex-auto flex-col md:grid md:grid-cols-[minmax(200px,240px)_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)]">
+        <div className="min-w-0 border-line bg-surface p-[18px] max-md:order-last md:border-r">
           <ClipsPanel project={p} activeClipId={activeClipId} onAddFiles={(f) => void addFiles(f)} onSplit={setSplitClipId} apply={s.apply} />
         </div>
-        <main className="flex min-w-0 flex-[999_1_640px] flex-col gap-4 px-4 py-5 sm:px-6">
+        <main className="flex min-w-0 flex-col gap-4 px-4 py-5 sm:px-6">
           {zone && <ZonePanel key={zone.id} project={p} zoneId={zone.id} read={s.read} apply={s.apply} />}
           <div className="md:hidden"><ZoneList project={p} selectedZoneId={zone?.id ?? null} onSelect={setSelectedZoneId} /></div>
           <BuildKeyboard project={p} selectedZoneId={zone?.id ?? null} onSelect={setSelectedZoneId} apply={s.apply} built={built} />
@@ -156,7 +166,7 @@ export function BuildScreen({ projectId, onClose }: { projectId: string; onClose
         const audio = clip && s.read(clip.id);
         return audio ? (
           <SplitDialog project={p} clipId={splitClipId} audio={audio} onClose={() => setSplitClipId(null)}
-            onApply={(candidates) => { edit((latest) => autoMap(placeTakes(latest, candidates).project)); setSplitClipId(null); }} />
+            onApply={(candidates) => { edit((latest) => autoMap(placeTakes(latest, candidates).project)); setSplitClipId(null); setNotice(''); }} />
         ) : null;
       })()}
       {/* Mounted only while open: it needs the Samples and Folder providers, and a closed dialog has nothing to show. */}

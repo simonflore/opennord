@@ -32,4 +32,13 @@ describe('ClipsPanel', () => {
     expect(screen.queryByText('spare.wav')).toBeNull();
     expect(screen.getByText('used.wav')).toBeInTheDocument();
   });
+
+  it('offers to place a recording that is on no key, and to split one that is', () => {
+    const onSplit = vi.fn();
+    const p = project();
+    render(<ClipsPanel project={p} onAddFiles={vi.fn()} onSplit={onSplit} apply={() => null} />);
+    expect(screen.getByRole('button', { name: 'Split used.wav into notes' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Place spare.wav on the keys' }));
+    expect(onSplit).toHaveBeenCalledWith(p.clips.find((c) => c.label === 'spare.wav')!.id);
+  });
 });

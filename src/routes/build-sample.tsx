@@ -37,6 +37,6 @@ function BuildSampleScreen() {
     }
   }
 
-  if (projectId) return <BuildScreen projectId={projectId} onClose={() => void navigate({ to: '/library/samples/build/{-$projectId}', params: {} })} />;
+  if (projectId) return <BuildScreen projectId={projectId} onClose={() => void navigate({ to: '/library/samples/build/{-$projectId}', params: { projectId: undefined } })} />;
   return <BuildList onOpen={open} onNew={() => void createProject('New sample').then(open)} onOpenFile={() => void openFile()} problem={problem} />;
 }
