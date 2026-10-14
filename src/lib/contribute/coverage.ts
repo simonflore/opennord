@@ -164,6 +164,17 @@ const LEGACY_LAYOUTS: Record<string, { layout: LegacyLayout; status: 'confirmed'
   'piano-2': { layout: NP2_LAYOUT, status: 'candidate' },
 };
 
+/** The firmware layout a model's programs are read with: a block chain (`fw`) or a legacy record, or null for a model with none. */
+export type ProgramLayout = { kind: 'fw'; layout: FwLayout } | { kind: 'legacy'; layout: LegacyLayout };
+
+export function programLayoutFor(modelId: string): ProgramLayout | null {
+  if (modelId === 'stage-4') return { kind: 'fw', layout: NS4_LAYOUT };
+  const fw = FW_LAYOUTS[modelId];
+  if (fw) return { kind: 'fw', layout: fw.layout };
+  const legacy = LEGACY_LAYOUTS[modelId];
+  return legacy ? { kind: 'legacy', layout: legacy.layout } : null;
+}
+
 /** The record-version width of a legacy-record model (1 or 2 bytes), or null when its program isn't a legacy record. */
 export function legacyVersionBytes(modelId: string): 1 | 2 | null {
   const legacy = LEGACY_LAYOUTS[modelId];

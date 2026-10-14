@@ -32,7 +32,7 @@ export function EngineCard({ card, tag, children }: {
       {card.kind === 'organ' && <OrganPanel m={card.organ} />}
       {card.kind === 'piano' && <PianoBody m={card.piano} stats={card.stats} />}
       {card.kind === 'synth' && <SynthBody m={card.synth} env={card.env} modEnv={card.modEnv} filterEnv={card.filterEnv} stats={card.stats} />}
-      <Meter label="vol" value={card.volume.value} fill={card.volume.fill} morph={card.volume.morph} />
+      {card.volume && <Meter label="vol" value={card.volume.value} fill={card.volume.fill} morph={card.volume.morph} />}
       {children}
     </div>
   );

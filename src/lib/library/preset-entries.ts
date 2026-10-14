@@ -27,10 +27,16 @@ export interface PresetEntry extends FoundOn {
 
 const KIND_ORDER: PresetKind[] = ['organ-preset', 'piano-preset', 'synth-preset'];
 
-/** The file extension a preset of each kind is saved and kept under. Device presets are Stage-4-only (ns4o/n/y); a folder-sourced ns3y/ns2s synth preset saves as .ns4y — its bytes are unchanged, only the filename ext. */
-export const PRESET_EXT: Record<PresetKind, string> = {
+/** The file extension a preset of each kind is saved and kept under when its bytes don't say (device presets are Stage-4-only: ns4o/n/y). */
+const PRESET_EXT: Record<PresetKind, string> = {
   'organ-preset': 'ns4o', 'piano-preset': 'ns4n', 'synth-preset': 'ns4y',
 };
+
+/** The extension to save a preset's `bytes` under: the file's own tag (a Stage 3 synth preset stays `.ns3y`, a Stage 2 one `.ns2s`), else the kind's. */
+export function presetFileExt(kind: PresetKind, bytes: Uint8Array): string {
+  const tag = identifyNordFile(bytes).tag;
+  return presetKindForTag(tag) === kind ? tag : PRESET_EXT[kind];
+}
 
 /** Map folder-scanned presets into local or backup entries.
  * Bundle-sourced presets (id contains `!`) are tagged `source:'backup'`;

@@ -17,7 +17,8 @@
  * A Stage 4 preset (organ `ns4o`, piano `ns4n`, synth `ns4y`) gets its checksum
  * and the preset reader's result (ns4/preset.ts): decoded, how many voices, and
  * whether every voice's identity — organ model, piano model, synth oscillator
- * and filter — came out. OpenNord writes no presets, so there is no write check.
+ * and filter — came out. A Stage 3 / Stage 2 synth preset (`ns3y`, `ns2s`) gets
+ * the same through its model's reader (synth-preset.ts). OpenNord writes no presets, so there is no write check.
  *
  * A piano (`.npno`) or sample (`.nsmp*`) gets its check value and a decode of
  * every note (stroke) it holds (ns4/nsp-audio.ts, ns4/nsmp.ts): how many there
@@ -44,6 +45,7 @@ import { parseClaviaFile, programTagFor } from '../formats';
 import { writeProgram, PROGRAM_WRITERS, NOT_WRITABLE, type ProgramValues } from '../program-write';
 import { readerResult, type ReaderVerdict } from '../diagnostics/file-read';
 import { parseNs4Preset } from '../ns4/preset';
+import { readSynthPreset, synthPresetLayout, type SynthPresetRead } from '../synth-preset';
 import { readNspIdentity } from '../ns4/nsp';
 import { readNspDirectory, decodeNspStroke } from '../ns4/nsp-audio';
 import { readNsmp, decodeNsmp } from '../ns4/nsmp';
@@ -258,9 +260,20 @@ export function checkProgram(bytes: Uint8Array, model: NordModelId | null): Prog
   };
 }
 
-/** The checks on a Stage 4 preset, or null for any other file. Never throws. */
+/** The checks on a Stage 4 preset or a Stage 3 / Stage 2 synth preset, or null for any other file. Never throws. */
 export function checkPreset(bytes: Uint8Array): PresetCheck | null {
   const tag = identifyNordFile(bytes).tag;
+  if (synthPresetLayout(tag)) {
+    let synth: SynthPresetRead | null = null;
+    try { synth = readSynthPreset(bytes, tag); } catch { /* counted as not read */ }
+    return {
+      checksumOk: verifyFileChecksum(bytes),
+      // Read, as for a Stage 4 preset: the body fits the layout and the synth decoded.
+      read: !!synth?.card,
+      voices: synth?.card ? 1 : 0,
+      identified: !!synth?.headline,
+    };
+  }
   if (tag !== 'ns4o' && tag !== 'ns4n' && tag !== 'ns4y') return null;
   let preset: ReturnType<typeof parseNs4Preset> = null;
   try { preset = parseNs4Preset(bytes); } catch { /* counted as not read */ }

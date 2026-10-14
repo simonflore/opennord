@@ -187,7 +187,7 @@ export function groupOfByte(map: Param[], byteIndex: number): Param['group'] | n
 }
 
 /** Byte indices touched by at least one known parameter (any layer). */
-export function claimedByteSet(map: Param[], byteLen: number): Set<number> {
+function claimedByteSet(map: Param[], byteLen: number): Set<number> {
   const claimed = new Set<number>();
   for (const p of map) {
     for (const layer of p.layers) {
@@ -225,6 +225,21 @@ export function coveragePercent(map: Param[], byteLen: number): number {
 
 // Re-export from clavia/diff for back-compat (moved to shared layer)
 export { diffBytes };
+
+/** The names of the known parameters covering each byte of a `byteLen`-byte file, in one pass over the map. */
+export function paramNamesByByte(map: Param[], byteLen: number): string[][] {
+  const out: string[][] = Array.from({ length: byteLen }, () => []);
+  for (const p of map) {
+    const seen = new Set<number>();
+    for (const l of p.layers) {
+      if (l.begBit < 0) continue;
+      for (let b = Math.floor(l.begBit / 8); b <= Math.floor(l.endBit / 8) && b < byteLen; b++) {
+        if (!seen.has(b)) { seen.add(b); out[b].push(p.name); }
+      }
+    }
+  }
+  return out;
+}
 
 /** Which known parameters (if any) cover a given byte — names a diff for you. */
 export function paramsCoveringByte(map: Param[], byteIndex: number): Param[] {

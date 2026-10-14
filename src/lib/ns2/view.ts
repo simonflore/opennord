@@ -5,13 +5,13 @@
  * optional `names` map keyed by ns2SampleKey().
  */
 import type {
-  EngineCardModel, OrganPanelModel, PianoCardModel, SynthCardModel,
+  EngineCardModel, OrganPanelModel, PianoCardModel, SynthCardModel, SynthEngineCard,
   HeaderView, Stat, VolumeView,
 } from '../clavia/engine-view';
 import { volumeFill, envCurve } from '../clavia/engine-view';
 import { drawbarViews, b3DrawbarViews } from '../clavia/drawbars';
 import { identifyNordFile } from '../clavia/nord-file';
-import { ORGAN_TYPE, type Ns2Slot, type Ns2Fx } from './decode';
+import { ORGAN_TYPE, type Ns2Slot, type Ns2Fx, type Ns2SynthSlot } from './decode';
 import { ns2Engines } from './engines';
 import { fxUnitOf } from '../clavia/fx-block';
 import type { FxPanelView } from '../clavia/fx-view';
@@ -83,12 +83,11 @@ function pianoStatsNs2(slot: Ns2Slot): Stat[] {
   );
 }
 
-function synthCardNs2(slot: Ns2Slot, names?: Record<string, string>): SynthCardModel {
-  const s = slot.synth;
+function synthCardNs2(id: string, s: Ns2SynthSlot, sampleName?: string): SynthCardModel {
   const isSample = s.osc === 'SAMPLE';
-  const osc = isSample ? (names?.[ns2SampleKey(slot.id, 'Synth')] ?? 'Sample') : s.osc;
+  const osc = isSample ? (sampleName ?? 'Sample') : s.osc;
   return {
-    id: slot.id,
+    id,
     source: isSample ? 'sample' : 'analog',
     osc,
     oscDetail: '',
@@ -98,8 +97,7 @@ function synthCardNs2(slot: Ns2Slot, names?: Record<string, string>): SynthCardM
   };
 }
 
-function synthStatsNs2(slot: Ns2Slot): Stat[] {
-  const s = slot.synth;
+function synthStatsNs2(s: Ns2SynthSlot): Stat[] {
   const lfo = [s.lfoWave, s.lfoRate].filter(Boolean).join(' · ');
   return statList(
     stat('voice', s.voice),
@@ -126,14 +124,25 @@ export function ns2EngineCards(slot: Ns2Slot, names?: Record<string, string>): E
   }
   if (slot.synth.on) {
     cards.push({
-      kind: 'synth', title: 'SYNTH', volume: volume(slot.synth.volume),
-      synth: synthCardNs2(slot, names),
-      env: envCurve(slot.synth.ampEnv),
-      modEnv: envCurve(slot.synth.modEnv) ?? undefined,
-      stats: synthStatsNs2(slot),
+      ...ns2SynthPresetCard(slot.synth, names?.[ns2SampleKey(slot.id, 'Synth')], slot.id),
+      volume: volume(slot.synth.volume),
     });
   }
   return cards;
+}
+
+/**
+ * The synth card without the level meter: a synth preset's (ns2/preset.ts), whose
+ * file holds no level; the program card adds its slot's level to it.
+ */
+export function ns2SynthPresetCard(s: Ns2SynthSlot, sampleName?: string, id = 'A'): SynthEngineCard {
+  return {
+    kind: 'synth', title: 'SYNTH',
+    synth: synthCardNs2(id, s, sampleName),
+    env: envCurve(s.ampEnv),
+    modEnv: envCurve(s.modEnv) ?? undefined,
+    stats: synthStatsNs2(s),
+  };
 }
 
 /**

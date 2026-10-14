@@ -3,7 +3,7 @@ import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { usePresetsPrefs } from '@/lib/library/prefs';
 import {
-  presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, cloudPresetEntries, PRESET_EXT,
+  presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, cloudPresetEntries, presetFileExt,
   type PresetEntry,
 } from '@/lib/library/preset-entries';
 import { useCloudSnapshot } from '@/lib/library/CloudSnapshotContext';
@@ -66,7 +66,7 @@ function usePresetsStateValue() {
   // A copy of a cloud preset in OpenNord's own storage.
   const { add } = imported;
   const keepCopy = useCallback((e: PresetEntry, bytes: Uint8Array) =>
-    add(new File([bytes as BlobPart], `${safeFilename(e.name)}.${PRESET_EXT[e.kind]}`)), [add]);
+    add(new File([bytes as BlobPart], `${safeFilename(e.name)}.${presetFileExt(e.kind, bytes)}`)), [add]);
 
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.

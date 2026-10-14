@@ -1008,6 +1008,16 @@ function synth(s: SlotGet): Ns2SynthSlot {
   };
 }
 
+const DEFAULTS: Values = Object.fromEntries(NS2_LAYOUT.fields.map((f) => [f.key, f.def]));
+
+/**
+ * Slot A's synth read from field values alone — a synth preset's (ns2/preset.ts),
+ * whose file holds only the synth container. A field not in `values` reads as its default.
+ */
+export function ns2SynthOf(values: Values): Ns2SynthSlot {
+  return synth(reader({ ...DEFAULTS, ...values }).slot('A'));
+}
+
 // ── Effects ─────────────────────────────────────────────────────────────────
 
 // The effect tables and scales below are facts from Chris55's nord-documentation (BSD-3-Clause,

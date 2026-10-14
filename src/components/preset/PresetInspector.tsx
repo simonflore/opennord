@@ -1,4 +1,4 @@
-import { PRESET_EXT, type PresetEntry } from '@/lib/library/preset-entries';
+import { presetFileExt, type PresetEntry } from '@/lib/library/preset-entries';
 import { copyHere, foundOn } from '@/lib/library/found-on';
 import { SOURCE_LABEL } from '@/lib/library/types';
 import { useCloudRead, type CloudSnapshotState } from '@/lib/library/CloudSnapshotContext';
@@ -45,7 +45,7 @@ export function PresetInspector({ entry, session, cloud, onKeepCopy }: {
           ? await pullPreset(session, entry.device, entry.partition)
           : null);
       if (!bytes) throw new Error(entry.source === 'cloud' ? 'it hasn’t arrived from the cloud yet.' : 'Connect your Nord to save this preset.');
-      downloadBytes(bytes, `${entry.name}.${PRESET_EXT[entry.kind]}`);
+      downloadBytes(bytes, `${entry.name}.${presetFileExt(entry.kind, bytes)}`);
     }, (e) => `Couldn't save ${entry.name}: ${getErrorMessage(e)}`);
   }
 

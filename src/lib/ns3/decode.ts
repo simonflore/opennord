@@ -704,6 +704,14 @@ function effects(get: Get, s: Slot, os300DelayRate = false): Ns3Fx[] {
   return [rotary, fx1, fx2, delay, amp, comp, reverb];
 }
 
+/**
+ * Panel A's synth read from field values alone — a synth preset's (ns3/preset.ts),
+ * whose file holds only the Synth block. Fields not in `values` read as their defaults.
+ */
+export function ns3SynthOf(values: Values): Ns3Synth {
+  return synth(reader(values), 'A');
+}
+
 function panel(get: Get, id: Slot, os300DelayRate: readonly Slot[] = []): Ns3Panel {
   return {
     id, piano: piano(get, id), organ: organ(get, id), synth: synth(get, id),

@@ -5,13 +5,13 @@
  * the shell) via the optional `names` map keyed by ns3SampleKey().
  */
 import type {
-  EngineCardModel, OrganPanelModel, PianoCardModel, SynthCardModel,
+  EngineCardModel, OrganPanelModel, PianoCardModel, SynthCardModel, SynthEngineCard,
   HeaderView, KeyItem, Stat, VolumeView,
 } from '../clavia/engine-view';
 import { volumeFill, envCurve } from '../clavia/engine-view';
 import { drawbarViews, b3DrawbarViews } from '../clavia/drawbars';
 import { identifyNordFile } from '../clavia/nord-file';
-import { ORGAN_TYPE, type Ns3Panel, type Ns3Split } from './decode';
+import { ORGAN_TYPE, type Ns3Panel, type Ns3Split, type Ns3Synth } from './decode';
 import type { KeyboardZonesView } from '../clavia/decoded';
 import { ns3Engines } from './engines';
 import { fxUnitOf } from '../clavia/fx-block';
@@ -104,16 +104,13 @@ function pianoStatsNs3(panel: Ns3Panel): Stat[] {
   return statList(stat('octave', panel.piano.octaveShift));
 }
 
-function synthCardNs3(panel: Ns3Panel, names?: Record<string, string>): SynthCardModel {
-  const s = panel.synth;
+function synthCardNs3(id: string, s: Ns3Synth, sampleName?: string): SynthCardModel {
   const isSample = s.oscillator.type === 'Sample';
-  const osc = isSample
-    ? (names?.[ns3SampleKey(panel.id, 'Synth')] ?? 'Sample')
-    : (s.oscillator.waveform || s.oscillator.type);
+  const osc = isSample ? (sampleName ?? 'Sample') : (s.oscillator.waveform || s.oscillator.type);
   const oscDetail = [s.oscillator.config !== 'None' ? s.oscillator.config : '', s.oscillator.pitch]
     .filter((x) => x && x !== '0 semi').join(' · ');
   return {
-    id: panel.id,
+    id,
     source: isSample ? 'sample' : 'analog',
     osc,
     oscDetail,
@@ -123,8 +120,7 @@ function synthCardNs3(panel: Ns3Panel, names?: Record<string, string>): SynthCar
   };
 }
 
-function synthStatsNs3(panel: Ns3Panel): Stat[] {
-  const s = panel.synth;
+function synthStatsNs3(s: Ns3Synth): Stat[] {
   const lfo = [s.lfo.wave, s.lfo.rate].filter(Boolean).join(' · ');
   return statList(
     stat('voice', s.voice),
@@ -152,14 +148,25 @@ export function ns3EngineCards(panel: Ns3Panel, names?: Record<string, string>):
   }
   if (panel.synth.on) {
     cards.push({
-      kind: 'synth', title: 'SYNTH', volume: volume(panel.synth.volume),
-      synth: synthCardNs3(panel, names),
-      env: envCurve(panel.synth.envAmp),
-      modEnv: envCurve(panel.synth.envMod) ?? undefined,
-      stats: synthStatsNs3(panel),
+      ...ns3SynthPresetCard(panel.synth, names?.[ns3SampleKey(panel.id, 'Synth')], panel.id),
+      volume: volume(panel.synth.volume),
     });
   }
   return cards;
+}
+
+/**
+ * The synth card without the level meter: a synth preset's (ns3/preset.ts), whose
+ * file holds no level; the program card adds its panel's level to it.
+ */
+export function ns3SynthPresetCard(s: Ns3Synth, sampleName?: string, id = 'A'): SynthEngineCard {
+  return {
+    kind: 'synth', title: 'SYNTH',
+    synth: synthCardNs3(id, s, sampleName),
+    env: envCurve(s.envAmp),
+    modEnv: envCurve(s.envMod) ?? undefined,
+    stats: synthStatsNs3(s),
+  };
 }
 
 /**

@@ -125,9 +125,13 @@ export type EngineCardModel =
   | { kind: 'organ'; title: string; volume: VolumeView; organ: OrganPanelModel }
   | { kind: 'piano'; title: string; volume: VolumeView; piano: PianoCardModel; stats: Stat[] }
   | {
-      kind: 'synth'; title: string; volume: VolumeView; synth: SynthCardModel;
+      /** Absent on a synth preset's card: the level is a program setting, not in the preset. */
+      kind: 'synth'; title: string; volume?: VolumeView; synth: SynthCardModel;
       env: EnvCurveView | null; modEnv?: EnvCurveView; filterEnv?: EnvCurveView; stats: Stat[];
     };
+
+/** The synth variant of {@link EngineCardModel}. */
+export type SynthEngineCard = Extract<EngineCardModel, { kind: 'synth' }>;
 
 /** Map a "-4.7 dB" style volume to a 0–100 meter fill, clamped to a -40..+6 dB window. */
 export function volumeFill(volume?: string): number {

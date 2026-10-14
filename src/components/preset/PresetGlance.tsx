@@ -1,5 +1,6 @@
 import type { PresetEntry } from '@/lib/library/preset-entries';
 import { parseNs4Preset } from '@/lib/ns4/preset';
+import { readSynthPreset } from '@/lib/synth-preset';
 import { drawbarLevels } from '@/lib/ns4/view';
 
 interface Glance { text: string; drawbars?: number[] }
@@ -7,8 +8,12 @@ interface Glance { text: string; drawbars?: number[] }
 /** What to say about a preset on its row; null when we don't decode it. */
 function describe(bytes: Uint8Array): Glance | null {
   const preset = parseNs4Preset(bytes);
-  const first = preset?.layers[0];
-  if (!preset || !first?.headline) return null;
+  if (!preset) {
+    const synth = readSynthPreset(bytes);
+    return synth?.headline ? { text: synth.headline } : null;
+  }
+  const first = preset.layers[0];
+  if (!first?.headline) return null;
   const more = preset.layers.length > 1 ? ` · ${preset.layers.length} layers` : '';
   // An organ's registration reads faster drawn than as nine digits.
   // (Only plain 0–8 positions: a VOX combo like "4+5" has no single height.)

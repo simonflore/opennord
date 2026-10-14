@@ -37,3 +37,17 @@ export function ns3ZeroFile(formatVersion = 304): Uint8Array {
 export function ns3SynthFile(values: Partial<Record<Ns3FieldKey, number>> = {}, formatVersion = 304): Uint8Array {
   return synthFwFile('ns3f', synthFwBody(NS3_LAYOUT, values, formatVersion), formatVersion);
 }
+
+/**
+ * A `.ns3y` synth preset the way the Nord saves one: the header, the u32 format
+ * version, then `program`'s Synth (A) block as it stands (ns3/preset.ts).
+ */
+export function ns3SynthPresetFile(program: Uint8Array = ns3SynthFile(), formatVersion = 300): Uint8Array {
+  const blk = NS3_LAYOUT.blocks.find((b) => b.key === 'synthA')!;
+  const from = CBIN_BODY_OFFSET + blk.offset;
+  const out = new Uint8Array(CBIN_BODY_OFFSET + 4 + 1 + blk.length);
+  out.set(buildCbinHeader({ formatType: 1, tag: 'ns3y', bank: 0, location: 0, category: 0, versionRaw: formatVersion }));
+  writeBits(out, CBIN_BODY_OFFSET * 8, 32, formatVersion);
+  out.set(program.subarray(from, from + 1 + blk.length), CBIN_BODY_OFFSET + 4);
+  return out;
+}

@@ -1,14 +1,14 @@
 /**
  * Decode Inspector — the in-browser reverse-engineering tool.
  *
- * Load a .ns4p and see every byte: green where a known parameter claims it, red
- * where it's still a gap. Load a SECOND file to diff — change one knob on the
+ * Load a Nord file and see every byte: green where the file's own layout names
+ * it (header, framing, a parameter), grey where that layout leaves it unused, red
+ * only where no layout covers it (contribute/byte-map.ts). Load a SECOND file to diff — change one knob on the
  * Nord, re-export, and the changed bytes light up yellow, naming the parameter
  * if known or flagging a gap to decode. This is how the format gets filled in.
  */
 
 import { useMemo, useState } from 'react';
-import { bytesToBitString } from '../lib/ns4/bits';
 import { fileTypeTag, hasCbinMagic } from '../lib/clavia/cbin';
 import { buildParamMap } from '../lib/ns4/maps';
 import { summarizeFile, type FileSummary } from '@/lib/clavia/identify-summary';
@@ -17,15 +17,17 @@ import { IdentifyPanel } from '@/components/decode/ProgramDecode';
 import { cn } from '@/lib/cn';
 import {
   decodeAllParams,
-  claimedByteSet,
   gapRanges,
   coveragePercent,
   diffBytes,
   paramsCoveringByte,
+  paramNamesByByte,
   groupOfByte,
 } from '../lib/ns4/coverage';
 import type { Ns4Group } from '../lib/ns4/maps';
 import { readFileBytes } from '../lib/file';
+import { fileByteMap, type ByteInfo } from '../lib/contribute/byte-map';
+import { presetKindForTag } from '../lib/clavia/preset-kind';
 
 // Engine-group colors — resolved from the --di-* data-viz tokens (tokens.css).
 // Kept as two Records (bg for swatches, text for the parameter-table dot)
@@ -57,23 +59,27 @@ export function DecodeInspector() {
   const [summaryA, setSummaryA] = useState<FileSummary | null>(null);
   function loadA(_name: string, bytes: Uint8Array) { setA(bytes); setSummaryA(summarizeFile(_name, bytes)); }
 
-  const view = useMemo(() => {
+  // The ns4decode parameter map places program offsets: it applies to a Stage 4 program, not to a preset.
+  const isStage4 = summaryA?.finding.generation === 'Stage 4' && !presetKindForTag(summaryA.finding.tag ?? '');
+  const modelGuess = summaryA?.modelGuess;
+  const fileView = useMemo(() => {
     if (!a) return null;
-    const claimed = claimedByteSet(map, a.length);
-    const diff = b ? new Set(diffBytes(a, b)) : new Set<number>();
+    const layout = fileByteMap(a, modelGuess);
+    // Stage 4 names a byte by the ns4decode parameter map first, then by its firmware layout.
+    const owners = isStage4 ? paramNamesByByte(map, a.length) : [];
+    const byteInfo: ByteInfo[] = layout.bytes.map((info, i) => (owners[i]?.length ? { role: 'field', labels: owners[i] } : info));
     return {
-      bits: bytesToBitString(a),
-      decoded: decodeAllParams(a, map),
-      claimed,
-      diff,
-      gaps: gapRanges(map, a.length),
-      coverage: coveragePercent(map, a.length),
+      layout,
+      byteInfo,
+      decoded: isStage4 ? decodeAllParams(a, map) : [],
+      gaps: isStage4 ? gapRanges(map, a.length) : [],
+      coverage: isStage4 ? coveragePercent(map, a.length) : 0,
       magic: hasCbinMagic(a),
       tag: fileTypeTag(a),
     };
-  }, [a, b, map]);
-
-  const isStage4 = summaryA?.finding.generation === 'Stage 4';
+  }, [a, map, modelGuess, isStage4]);
+  const diff = useMemo(() => (a && b ? new Set(diffBytes(a, b)) : new Set<number>()), [a, b]);
+  const view = fileView && { ...fileView, diff };
 
   return (
     <div className="mx-auto max-w-[980px] p-4 text-ink">
@@ -128,17 +134,35 @@ export function DecodeInspector() {
                 </table>
               </div>
             </>
+          ) : view.layout.layoutName ? (
+            <>
+              <h3 className="mt-5">Parameters as stored ({view.layout.fields.length}, {view.layout.layoutName} layout)</h3>
+              <div className="max-h-[260px] overflow-auto border border-line">
+                <table className="w-full border-collapse text-xs">
+                  <thead><tr className="bg-surface text-left">
+                    <th className={cellCls}>parameter</th><th className={cellCls}>value</th><th className={cellCls}>bits</th>
+                  </tr></thead>
+                  <tbody>
+                    {view.layout.fields.map((f) => (
+                      <tr key={f.key}>
+                        <td className={cellCls}>{f.key}</td>
+                        <td className={cn(cellCls, 'font-semibold tabular-nums')}>{f.value}</td>
+                        <td className={cn(cellCls, 'text-dim')}>{f.fileBit}–{f.fileBit + f.width - 1}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : (
-            <p className="text-xs text-dim">
-              Parameter map for {summaryA?.modelGuess ?? 'this model'} isn't decoded yet — byte grid + diff only.
-            </p>
+            <p className="text-xs text-dim">{view.layout.note ?? 'No parameter layout for this file.'} Byte grid + diff only.</p>
           )}
 
           <h3 className="mt-4">Bytes</h3>
-          <Legend />
-          <ByteGrid bytes={a!} claimed={view.claimed} diff={view.diff} map={map} />
+          <Legend unmapped={view.byteInfo.some((x) => x.role === 'unmapped')} />
+          <ByteGrid bytes={a!} info={view.byteInfo} diff={view.diff} />
 
-          {b && view.diff.size > 0 && <DiffList diff={[...view.diff]} map={map} />}
+          {b && view.diff.size > 0 && <DiffList diff={[...view.diff]} info={view.byteInfo} />}
         </>
       )}
     </div>
@@ -155,14 +179,30 @@ function Swatch({ bgClass, label }: { bgClass: string; label: string }) {
   );
 }
 
-function Legend() {
+/** Grey: bits the layout reserves, which the instrument doesn't use. Red only appears where no layout covers a byte. */
+const ROLE_BG: Record<ByteInfo['role'], string> = {
+  header: 'bg-[var(--di-known)]', structure: 'bg-[var(--di-known)]', field: 'bg-[var(--di-known)]',
+  unused: 'bg-surface-2', unmapped: 'bg-[var(--di-gap)]',
+};
+
+function Legend({ unmapped }: { unmapped: boolean }) {
   return (
     <div className="mb-1.5 text-xs">
       <Swatch bgClass="bg-[var(--di-known)]" label="known" />
-      <Swatch bgClass="bg-[var(--di-gap)]" label="gap" />
+      <Swatch bgClass="bg-surface-2" label="unused (reserved)" />
+      {unmapped && <Swatch bgClass="bg-[var(--di-gap)]" label="not mapped" />}
       <Swatch bgClass="bg-[var(--di-changed)]" label="changed (diff)" />
     </div>
   );
+}
+
+/** How a diff line reads per role: only a byte no layout covers is flagged. */
+const ROLE_TEXT: Partial<Record<ByteInfo['role'], string>> = { unused: 'italic text-dim', unmapped: 'italic text-danger' };
+
+function describeByte(info: ByteInfo): string {
+  if (info.role === 'unused') return `unused (${info.labels.join(', ')})`;
+  if (info.role === 'unmapped') return 'not mapped (no layout for this byte)';
+  return info.labels.join(', ');
 }
 
 // Section-colored coverage bar — the live, per-file equivalent of ns4decode's
@@ -190,16 +230,12 @@ function CoverageStrip({ bytes, map }: { bytes: Uint8Array; map: ReturnType<type
   );
 }
 
-function ByteGrid({ bytes, claimed, diff, map }: {
-  bytes: Uint8Array; claimed: Set<number>; diff: Set<number>; map: ReturnType<typeof buildParamMap>;
-}) {
+function ByteGrid({ bytes, info, diff }: { bytes: Uint8Array; info: ByteInfo[]; diff: Set<number> }) {
   return (
     <div className="flex flex-wrap gap-px font-mono text-[10px]">
       {Array.from(bytes).map((byteVal, i) => {
-        const bg = diff.has(i) ? 'bg-[var(--di-changed)]' : claimed.has(i) ? 'bg-[var(--di-known)]' : 'bg-[var(--di-gap)]';
-        const owners = paramsCoveringByte(map, i).map((p) => p.name);
-        const title = `byte ${i}: 0x${byteVal.toString(16).padStart(2, '0')}` +
-          (owners.length ? `\n${owners.join('\n')}` : '\n(unclaimed — gap)');
+        const bg = diff.has(i) ? 'bg-[var(--di-changed)]' : ROLE_BG[info[i].role];
+        const title = `byte ${i}: 0x${byteVal.toString(16).padStart(2, '0')}\n${describeByte(info[i])}`;
         return (
           <span key={i} title={title}
             className={cn('h-4 w-5 rounded-[2px] text-center leading-4', bg)}>
@@ -211,16 +247,16 @@ function ByteGrid({ bytes, claimed, diff, map }: {
   );
 }
 
-function DiffList({ diff, map }: { diff: number[]; map: ReturnType<typeof buildParamMap> }) {
+function DiffList({ diff, info }: { diff: number[]; info: ByteInfo[] }) {
   return (
     <>
       <h3 className="mt-5">What changed</h3>
       <ul className="text-[13px]">
         {diff.map((i) => {
-          const owners = paramsCoveringByte(map, i).map((p) => p.name);
+          const b = info[i];
           return (
             <li key={i}>
-              byte {i} — {owners.length ? owners.join(', ') : <em className="text-danger">unknown (gap to decode)</em>}
+              byte {i} — <span className={ROLE_TEXT[b.role]}>{describeByte(b)}</span>
             </li>
           );
         })}

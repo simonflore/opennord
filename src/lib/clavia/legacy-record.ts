@@ -108,6 +108,8 @@ export interface LegacyLayout<K extends string = string> {
    * Prefixes not listed name their own set.
    */
   readonly sets?: Readonly<Record<string, string>>;
+  /** What a file of this layout is called in messages; "program" when absent (a synth preset's layout says so). */
+  readonly unit?: string;
 }
 
 /** One used morph-list entry. */
@@ -213,13 +215,14 @@ export function readLegacyFile<K extends string>(
   convert?: (data: Uint8Array) => void,
 ): LegacyFileRead<K> {
   const warnings: string[] = [];
+  const unit = layout.unit ?? 'program';
   const expected = legacyFileBytes(bytes, layout);
   const data = legacyLayoutData(bytes, layout);
   const complete = data.length >= layout.dataBytes;
   if (!complete) {
-    warnings.push(`File too short: ${bytes.length} bytes, the program record makes ${expected}`);
+    warnings.push(`File too short: ${bytes.length} bytes, the ${unit} record makes ${expected}`);
   } else if (bytes.length !== expected) {
-    warnings.push(`Program file is ${bytes.length} bytes, the program record makes ${expected}`);
+    warnings.push(`${unit[0].toUpperCase()}${unit.slice(1)} file is ${bytes.length} bytes, the ${unit} record makes ${expected}`);
   }
   const recordVersion = legacyLayoutVersion(bytes, layout);
   if (versions.length > 0 && !versions.includes(recordVersion)) {

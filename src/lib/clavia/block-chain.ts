@@ -74,6 +74,8 @@ export interface FwLayout<K extends string = string> {
   readonly bodyBytes: number;
   readonly blocks: readonly FwBlock[];
   readonly fields: readonly FwField<K>[];
+  /** What a file of this layout is called in messages; "program" when absent (a synth preset's layout says so). */
+  readonly unit?: string;
 }
 
 /** The result of walking a body's block chain, before any layout is applied. */
@@ -157,12 +159,12 @@ export function decodeFwBody<K extends string>(body: Uint8Array, layout: FwLayou
   const walk = walkBlockChain(body);
 
   if (!walk.ok) {
-    warnings.push(`Not a ${layout.model} program body: ${walk.reason}. Showing the file header only.`);
+    warnings.push(`Not a ${layout.model} ${layout.unit ?? 'program'} body: ${walk.reason}. Showing the file header only.`);
     return { layoutMatched: false, formatVersion: walk.formatVersion, values, outOfRange, warnings };
   }
   if (walk.blocks.length !== layout.blocks.length) {
     warnings.push(
-      `Expected ${layout.blocks.length} blocks for a ${layout.model} program, found ${walk.blocks.length}. ` +
+      `Expected ${layout.blocks.length} blocks for a ${layout.model} ${layout.unit ?? 'program'}, found ${walk.blocks.length}. ` +
       'This file uses a layout OpenNord has not seen yet; showing the file header only.');
     return { layoutMatched: false, formatVersion: walk.formatVersion, values, outOfRange, warnings };
   }
