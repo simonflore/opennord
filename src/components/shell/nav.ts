@@ -17,12 +17,14 @@ export const DEV_DESTS: Dest[] = [
   { to: '/dev/kit', label: 'Instrument kit' },
 ];
 
-// Cloud and Community are build-injected routes (present only when a proprietary
+// Cloud, Community and Account are build-injected routes (present only when a proprietary
 // build supplies them and the capability is available), so they sit outside the
 // base NavTo union and are cast where they're named.
 export const COMMUNITY_TO = '/community' as NavTo;
 /** The share form; `?item=<library entry id>` opens it on that program or preset. */
 export const COMMUNITY_SHARE_TO = '/community/share' as NavTo;
+/** The signed-in person's page (sign-out, backups, shares, the MCP): only where this build can sign in. */
+export const ACCOUNT_TO = '/account' as NavTo;
 export const COMMUNITY_SUB: Dest[] = [
   { to: COMMUNITY_TO, label: 'Browse' },
   { to: COMMUNITY_SHARE_TO, label: 'Share a patch' },
@@ -55,18 +57,21 @@ export function useCommunityPages(): Dest[] {
  * The tools beside the library, as this build and its capabilities allow: the
  * rail's Tools group and the palette's pages both read this, so a gated
  * destination is added in one place. Cloud and Community appear only when a
- * proprietary build supplies them; Contribute only in the web/dev build.
+ * proprietary build supplies them, Account only where it can sign in, and
+ * Contribute only in the web/dev build.
  * Community is also listed where it is off but can be turned on (`optIn`): the
  * page it opens is where that is offered.
  */
 export function useTools(): Dest[] {
   const caps = useCapabilities();
   const cloud = caps.cloud.available, community = caps.community.available || !!caps.community.optIn;
+  const account = caps.auth.available;
   return useMemo(() => [
     { to: '/device', label: 'Device' },
     { to: '/compatibility', label: 'Compatibility' },
     ...(cloud ? [{ to: '/cloud' as NavTo, label: 'Cloud' }] : []),
     ...(community ? [{ to: COMMUNITY_TO, label: 'Community' }] : []),
     ...(__RE__ ? [{ to: '/contribute' as const, label: 'Contribute' }] : []),
-  ], [cloud, community]);
+    ...(account ? [{ to: ACCOUNT_TO, label: 'Account' }] : []),
+  ], [cloud, community, account]);
 }
