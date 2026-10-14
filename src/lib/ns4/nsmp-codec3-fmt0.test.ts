@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { readNsmp, decodeNsmp, readNsmpZones, parseNsmpSections, nsmpLayout } from './nsmp';
+import { readNsmp, decodeNsmp, readNsmpZones, parseNsmpSections, nsmpLayout , strokeGlobalId } from './nsmp';
 import { hasGt } from './gt-fixtures';
 
 /**
@@ -41,7 +41,7 @@ for (const rel of FILES) {
       const secs = parseNsmpSections(bytes);
       expect(secs.find((s) => s.tag.endsWith('map'))!.version).toBe(12);
       const gidSet = new Set(
-        secs.filter((s) => s.tag.endsWith('stk')).map((s) => bytes[s.payloadOffset + 3]),
+        secs.filter((s) => s.tag.endsWith('stk')).map((s) => strokeGlobalId(bytes, s.payloadOffset)),
       );
       const zones = readNsmpZones(bytes);
       expect(zones.length).toBeGreaterThan(0);

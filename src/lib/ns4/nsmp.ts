@@ -277,7 +277,7 @@ export function readNsmp(bytes: Uint8Array): NsmpFile {
  *
  * `keyHigh`/`keyLow` are the zone's split bounds; `rootKey` the key it's pitched
  * for; `velLow`..`velTop` its velocity range (a layer). `globalID` selects the
- * stroke that plays — matching the stroke's id at `stk` header +3 (NOT a
+ * stroke that plays — matching the stroke's u32 id at `stk` header +0 (NOT a
  * positional index). Verified vs `.nsmpproj` ground truth + real file dumps;
  *. (Multi-stroke zones — strokeCount>1 — exist on the
  * wire but aren't modeled; all known content is single-stroke.)
@@ -299,7 +299,7 @@ export interface NsmpZone {
   zonePlayback: number;
   /** Per-zone one-shot flag (+5). */
   zoneIsOneShot: number;
-  /** The stroke this zone plays, by the stroke's global id (record +11 == `stk` header +3). */
+  /** The stroke this zone plays, by the stroke's global id (record u32 @+8 == `stk` header u32 @+0). */
   globalID: number;
   /** Byte offset of this 16-byte record in the file, for in-place edits (0 when unknown). */
   recordOffset: number;
@@ -440,8 +440,8 @@ export function parseCodec4ZoneRecords(
 }
 
 /**
- * Map each stroke's global id (`stk` header +3) to its root key (`stk` header +5).
- * The stroke header begins `00 00 00 <gid> 00 <root> 88 ba …` across every codec
+ * Map each stroke's global id (`stk` header u32 @+0) to its root key (`stk` header +5).
+ * The stroke header begins `<gid:u32> 00 <root> 88 ba …` across every codec
  * generation — validated against codec-4 ground truth (sine_24 root 57, ramp_24
  * root 24, matching their `.nsmpproj` `m_rootKey`).
  */
@@ -1096,7 +1096,7 @@ export interface DecodedStrokeResult extends DecodedStroke {
   index: number;
   /** Channel count used (decoder de-interleaves by this). */
   channelCount: number;
-  /** The stroke's global id (`stk` header byte +3) — what a zone's `globalID` references. */
+  /** The stroke's global id (`stk` header u32 @+0) — what a zone's `globalID` references. */
   globalID: number;
   /** Loop window in audio frames, or null when not decodable. */
   loop: StrokeLoop | null;

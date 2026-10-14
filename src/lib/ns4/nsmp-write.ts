@@ -132,7 +132,7 @@ const UNITY = [0x10, 0, 0, 0, 0, 0]; // per-note level 0x100000, detune 0
  *   +0 rootKey | +1 keyHigh(split) | +2 keyLow(btm) | +3 zoneMode |
  *   +6 u16 strokeCount=1 | +8 u32 globalID | +12 u16 strength=1 | +14 velMin | +15 velMax.
  * We write single-stroke zones (keyLow = rootKey unless given); `globalID` matches
- * the stroke's own id at `stk` header +3. `zoneMode` defaults per-codec to the
+ * the stroke's own u32 id at `stk` header +0. `zoneMode` defaults per-codec to the
  * value seen in real files (codec-3 `Strings` = 0, codec-4 `Other` = 1).
  */
 function zoneEntry(z: WriteZone, globalID: number, zoneMode: number): Uint8Array {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { readNsmp, decodeNsmp, parseNsmpSections, readNsmpZones } from './nsmp';
+import { readNsmp, decodeNsmp, parseNsmpSections, readNsmpZones , strokeGlobalId } from './nsmp';
 import { hasGt } from './gt-fixtures';
 
 /**
@@ -47,7 +47,7 @@ for (const rel of FILES) {
       const map = secs.find((s) => s.tag.endsWith('map'))!;
       expect(map.version).toBe(10);
       const gidSet = new Set(
-        secs.filter((s) => s.tag.endsWith('stk')).map((s) => bytes[s.payloadOffset + 3]),
+        secs.filter((s) => s.tag.endsWith('stk')).map((s) => strokeGlobalId(bytes, s.payloadOffset)),
       );
       const zones = readNsmpZones(bytes);
       expect(zones.length).toBeGreaterThan(0);
@@ -92,7 +92,7 @@ describe.skipIf(!hasGt(SPITFIRE_C2))('codec-2: Spitfire per-zone-value records d
     : new Uint8Array();
   it('decodes a zone for (nearly) every stroke, not a truncated 8-record run', () => {
     const strokes = new Set(
-      parseNsmpSections(bytes).filter((s) => s.tag.endsWith('stk')).map((s) => bytes[s.payloadOffset + 3]),
+      parseNsmpSections(bytes).filter((s) => s.tag.endsWith('stk')).map((s) => strokeGlobalId(bytes, s.payloadOffset)),
     );
     const zones = readNsmpZones(bytes);
     expect(zones.length).toBeGreaterThanOrEqual(strokes.size - 1); // was 8 of 37 before the fix

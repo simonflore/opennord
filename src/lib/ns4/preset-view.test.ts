@@ -39,8 +39,9 @@ const load = (name: string) => parseNs4Preset(new Uint8Array(readFileSync(resolv
 const PAD = 'Synth Preset_Bank 1_Slow Motion Pad.ns4y';
 const B3 = 'Organ Preset_Bank 1_B3 Cocktail.ns4o';
 const UPRIGHT = 'Piano Preset_Bank 1_Powerful Upright.ns4n';
+const ENSEMBLE = 'Synth Preset_Bank 5_Ensemble Whl AT.ns4y';
 
-describe.skipIf(!hasGt(`${DIR}/${PAD}`, `${DIR}/${B3}`, `${DIR}/${UPRIGHT}`))('presetVoices — factory presets', () => {
+describe.skipIf(!hasGt(`${DIR}/${PAD}`, `${DIR}/${B3}`, `${DIR}/${UPRIGHT}`, `${DIR}/${ENSEMBLE}`))('presetVoices — factory presets', () => {
   it('synth: filter, envelopes and only the effects that are on', () => {
     const [v] = presetVoices(load(PAD));
     if (v.card.kind !== 'synth') throw new Error('expected a synth card');
@@ -58,8 +59,14 @@ describe.skipIf(!hasGt(`${DIR}/${PAD}`, `${DIR}/${B3}`, `${DIR}/${UPRIGHT}`))('p
     expect(v.card.synth.filter).toMatchObject({ type: 'LP24', cutoffHz: 4200, res: 0 });
     expect(v.card.synth.wave).toEqual({ shape: 'saw' });
     expect(v.card.synth.lfo).toMatchObject({ shape: 'triangle', rate: '0.60 Hz' });
-    // The delay tempo is morphed by aftertouch and pedal — listed even though the delay is off.
-    expect(v.morphs.map((m) => m.name)).toContain('FX delay tempo');
+    // No morphs. The port map once read a delay-tempo After Touch and Ctrl Pedal morph
+    // ("20 ms") on every file; the firmware layout put those deltas elsewhere (#110).
+    expect(v.morphs).toEqual([]);
+  });
+
+  it('synth: a delay tempo morph that is set is listed', () => {
+    const [v] = presetVoices(load(ENSEMBLE));
+    expect(v.morphs.find((m) => m.name === 'FX delay tempo')).toMatchObject({ at: '405 ms (148 bpm)' });
   });
 
   it('organ: the B3 with its registration', () => {

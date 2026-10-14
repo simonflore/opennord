@@ -30,8 +30,8 @@ export interface EditZone {
   velTop: number;
   /** Bottom velocity of the layer (velMin). */
   velLow: number;
-  /** The stroke this zone plays, by global id (record +11 codec-3/4 / `stk` header +3
-   *  or +0 legacy) — needed to locate the right `stk` header when patching legacy files.
+  /** The stroke this zone plays, by global id (the `stk` header's u32 @+0 in every
+   *  generation) — needed to locate the right `stk` header when patching legacy files.
    *  Populated by {@link editModel} for real files; only the legacy patch path reads it. */
   globalID?: number;
   /** Byte offset of this zone's 16-byte record in the source file (for in-place patching). */
