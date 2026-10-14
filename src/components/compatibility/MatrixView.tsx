@@ -18,6 +18,7 @@ const STATUS: Record<ValidationStatus, { label: string; glyph: string; hint: str
 /** Program Parameters marks. */
 const FULL_MAP = { glyph: '◆', label: 'Full map', hint: 'reads every setting a program stores' };
 const FULL_MAP_TITLE = 'Full map: every setting the instrument stores in a program; not yet checked against a real file';
+const CONFIRMED_READ_TITLE = 'Programs read the way the real instrument plays them';
 
 const LEGEND: ValidationStatus[] = ['validated', 're', 'inferred', 'unsupported'];
 
@@ -140,12 +141,14 @@ export function MatrixView() {
                         d.paramCount != null ? String(d.paramCount)
                         : d.status === 'partial' ? 'Partial'
                         : d.pct != null ? `${d.pct}%` : `${d.controlCount}✓`;
-                      // Stage 4 (validated) is already marked Works; elsewhere the full-map mark says the
-                      // reader covers every stored parameter even though no real file confirmed it yet.
-                      const fullMap = d.fullMap && d.status !== 'full';
-                      const title = fullMap ? FULL_MAP_TITLE : DECODE_LABEL[d.status];
+                      // A reader confirmed on a real instrument (Stage 4, and Stage 3 / 2 since 2026-10-14) reads
+                      // as Works; elsewhere the full-map mark says the reader covers every stored parameter
+                      // even though no real file confirmed it yet.
+                      const confirmed = statusFor(m.id, 'file-read').status === 'validated';
+                      const fullMap = d.fullMap && d.status !== 'full' && !confirmed;
+                      const title = confirmed ? CONFIRMED_READ_TITLE : fullMap ? FULL_MAP_TITLE : DECODE_LABEL[d.status];
                       return (
-                        <td className={cn(cell, 'font-bold tabular-nums', CELL_COLOR[DECODE_CELL[d.status]])} title={title}>
+                        <td className={cn(cell, 'font-bold tabular-nums', CELL_COLOR[confirmed ? 'validated' : DECODE_CELL[d.status]])} title={title}>
                           <span className="sr-only">{d.paramCount != null ? `${text} parameters` : text}{fullMap ? ', full map' : ''}</span>
                           <span aria-hidden="true">
                             {text}

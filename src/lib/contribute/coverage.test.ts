@@ -21,9 +21,10 @@ describe('decodeForModel', () => {
     const d = decodeForModel('stage-4');
     const map = summarizeProgress(getModelProgress('stage-4')!);
     expect(d).toMatchObject({ bodyBytes: 824, coveredBytes: map.coveredBytes, candidateBytes: map.candidateBytes, pct: map.pct });
-    // 824 bytes: fields, 24 block lengths, 4 version bytes, reserved bits.
-    expect(d.pct).toBeGreaterThan(85);
-    expect(d.pct).toBeLessThan(100);
+    // 824 bytes: fields, 24 block lengths, 4 version bytes, reserved bits. The framing and
+    // reserved bits hold no setting, so the share of settings decoded is all of them.
+    expect(d.pct).toBe(100);
+    expect(getModelProgress('stage-4')?.regions?.some((r) => r.status === 'reserved' && r.label === 'Block length')).toBe(true);
   });
 
   it('reports Stage 3 with the firmware layout\'s parameter count and a confirmed byte map', () => {
@@ -32,8 +33,9 @@ describe('decodeForModel', () => {
     const params = new Set(NS3_LAYOUT.fields.filter((f) => f.key.split('.').length === 2).map((f) => f.name));
     expect(d).toMatchObject({ status: 'partial', paramCount: params.size, bodyBytes: 548 });
     expect(d.paramCount).toBeGreaterThan(150);
-    // Everything but the version word, the 19 length bytes and the reserved bits is a field.
-    expect(d.pct).toBeGreaterThan(80);
+    // Everything but the version word, the 19 length bytes and the reserved bits is a field:
+    // those hold no setting, so every setting byte is decoded.
+    expect(d.pct).toBe(100);
     expect(getModelProgress('stage-3')?.regions?.some((r) => r.status === 'candidate')).toBe(false);
   });
 

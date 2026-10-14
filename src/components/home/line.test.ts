@@ -10,7 +10,7 @@ describe('landing-page coverage numbers', () => {
     expect(READ_MODELS.length).toBeGreaterThan(20);
   });
   it('names only hardware-validated models as validated', () => {
-    expect(HARDWARE_VALIDATED.map((m) => m.id)).toEqual(['stage-4']);
+    expect(HARDWARE_VALIDATED.map((m) => m.id).sort()).toEqual(['stage-2', 'stage-2-ex', 'stage-3', 'stage-4']);
   });
   it('groups them into families that add up, with the C-series under Organ', () => {
     expect(READ_FAMILIES.reduce((n, f) => n + f.models, 0)).toBe(READ_MODELS.length);

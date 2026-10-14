@@ -25,8 +25,10 @@ export interface MappedControl {
  * `confirmed` — mapped to a named control with known encoding.
  * `candidate` — section identified but individual field bits not yet pinned.
  * `unknown`   — varies in the corpus but not yet attributed to a section.
+ * `reserved`  — known to hold no setting: a firmware layout's format version, block
+ *               lengths and the bits it leaves unused. Not a gap: nothing is left to decode there.
  */
-export type RegionStatus = 'constant' | 'confirmed' | 'candidate' | 'unknown';
+export type RegionStatus = 'constant' | 'confirmed' | 'candidate' | 'unknown' | 'reserved';
 
 export interface BodyRegion {
   start: number;

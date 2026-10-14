@@ -10,15 +10,18 @@ const CELL_COLOR: Record<RegionStatus, string> = {
   candidate: 'bg-dim',
   unknown: 'bg-muted opacity-50',
   constant: 'bg-line',
+  // Known to hold no setting (framing, unused bits): drawn as known, never as a gap; the tooltip says what it is.
+  reserved: 'bg-ink',
 };
 const cellCls = (status: RegionStatus) =>
   cn('inline-block h-2.5 w-2.5 flex-shrink-0 rounded-[2px] max-[560px]:h-2 max-[560px]:w-2', CELL_COLOR[status]);
 
 const LABEL: Record<RegionStatus, string> = {
-  confirmed: 'Confirmed',
+  confirmed: 'Known',
   candidate: 'Section identified',
   constant:  'Constant across corpus',
   unknown:   'Varies — unidentified',
+  reserved:  'No setting stored',
 };
 
 /** Build a flat byte→region lookup from the regions array. */
@@ -51,7 +54,7 @@ export function ByteMapView({ progress }: { progress: ModelProgress }) {
         <span className="font-semibold text-ink">{coveredBytes} decoded</span>
         {candidateBytes > 0 && <><span className="text-muted">·</span><span>{candidateBytes} identified</span></>}
         {controlCount > 0 && <><span className="text-muted">·</span><span>{controlCount} controls</span></>}
-        {pct != null && <><span className="text-muted">·</span><span>{pct}% decoded</span></>}
+        {pct != null && <><span className="text-muted">·</span><span>{pct}% of settings decoded</span></>}
       </div>
 
       <div className="flex flex-col gap-0.5">
@@ -70,7 +73,7 @@ export function ByteMapView({ progress }: { progress: ModelProgress }) {
       </div>
 
       <div className="mt-2 flex flex-wrap gap-2.5 text-[11px] text-dim">
-        {(['confirmed', 'candidate', 'unknown', 'constant'] as RegionStatus[]).map(s => (
+        {(['confirmed', 'candidate', 'unknown', 'constant'] as RegionStatus[]).filter((s) => regions.some((r) => r.status === s)).map(s => (
           <span key={s} className="flex items-center gap-1">
             <span className={cellCls(s)} />
             {LABEL[s]}

@@ -11,8 +11,9 @@
  * Where the model's own OS is mapped (the maintainers’ notes: FileTransfer version,
  * partition order, file formats) a cell is `re` — every model with USB transfer now; a
  * cell assumed from a sibling stays `inferred`. The C1's firmware has no USB
- * transfer at all. Only Stage 4 is `validated`; real owners running the read-only probe
- * upgrade cells to `validated`.
+ * transfer at all. Stage 4 and Stage 3 are `validated` throughout; the Stage 2 / 2 EX
+ * file reading and samples are (its USB transfer is not yet tested). Real owners running
+ * the read-only probe upgrade cells to `validated`.
  */
 import type { NordModelId } from './partitions';
 
@@ -60,31 +61,31 @@ export const VALIDATION: Partial<Record<NordModelId, Partial<Record<Capability, 
   },
   'stage-2-ex': {
     // Nord Stage 2 EX = Stage 2 + extended memory; shares the ns2p body + OG transport.
-    'file-read': { status: 're', note: "same ns2p program format as the Stage 2 (EX = extended memory), read by the same firmware-layout reader (lib/ns2); not HW-tested on EX" },
+    'file-read': { status: 'validated', note: "same ns2p program format as the Stage 2 (EX = extended memory), read by the same firmware-layout reader (lib/ns2); programs confirmed on a real Stage 2 (2026-10-14)" },
     enumerate: { status: 're', note: "same OG vendor-USB FileTransfer as Stage 2; read-only, not HW-tested" },
     pull: { status: 're', note: "FileTransfer Download RE'd (shared with Stage 2); read-only, no EX HW test" },
     push: { status: 're', note: "FileTransfer Upload RE'd (shared with Stage 2); WRITE \u2014 untested-write risk" },
     delete: { status: 're', note: "FileTransfer Delete RE'd (shared with Stage 2); WRITE \u2014 untested-write risk" },
     backup: { status: 're', note: "ns2exb ZIP (extended sibling of ns2b); mechanism RE'd, untested" },
-    samples: { status: 're', note: "same OS as Stage 2: loads .nsmp with an NWS v8/v11 body only; OpenNord converts other formats. Untested on HW" },
+    samples: { status: 'validated', note: "same OS as Stage 2: loads .nsmp with an NWS v8/v11 body only; OpenNord converts other formats. Converted samples confirmed loading on a real Stage 2 (2026-10-14); OpenNord's USB transfer to a Stage 2 not yet tested" },
   },
   'stage-2': {
-    'file-read': { status: 're', note: "ns2p read-only reader (lib/ns2) generated from the Stage 2 OS 3.00 firmware's parameter descriptors (container list): a u16 record version + 519 bytes (21 global, then slots A and B of 249), every stored parameter plus its Wheel/After Touch/Ctrl Pedal morph deltas; record versions 0-6 converted to 7 as the OS 3.00 load path does; data at 0x2E behind the NSM-era header, 0x1A behind the legacy one. Framing, values and morph deltas checked against ns3-program-viewer's public corpus of real files (489 .ns2p, NSM-era and legacy); not HW-tested" },
+    'file-read': { status: 'validated', note: "ns2p read-only reader (lib/ns2) generated from the Stage 2 OS 3.00 firmware's parameter descriptors (container list): a u16 record version + 519 bytes (21 global, then slots A and B of 249), every stored parameter plus its Wheel/After Touch/Ctrl Pedal morph deltas; record versions 0-6 converted to 7 as the OS 3.00 load path does; data at 0x2E behind the NSM-era header, 0x1A behind the legacy one. Framing, values and morph deltas checked against ns3-program-viewer's public corpus of real files (489 .ns2p, NSM-era and legacy); programs confirmed on a real Stage 2 (2026-10-14)" },
     enumerate: { status: 're', note: "protocol confirmed on a Stage 2 (OS 3.00) by a community capture (issue #31; FileTransfer v8, partition list); OpenNord itself not yet run on one. On Windows the browser often can't claim it (UsbDk needed)" },
     pull: { status: 're', note: "programs pulled byte-identical in the community capture (issue #31); OpenNord's client not yet run on a Stage 2" },
     push: { status: 're', note: "FileTransfer Upload RE'd; WRITE op, untested-write risk on HW" },
     delete: { status: 're', note: "FileTransfer Delete RE'd; WRITE op, untested-write risk on HW" },
     backup: { status: 're', note: "ns2b ZIP of flat programs; mechanism RE'd, untested" },
-    samples: { status: 're', note: "firmware loads .nsmp with an NWS v8/v11 body only; OpenNord converts other formats (convertNsmp). Untested on HW" },
+    samples: { status: 'validated', note: "firmware loads .nsmp with an NWS v8/v11 body only; OpenNord converts other formats (convertNsmp). Converted samples confirmed loading on a real Stage 2 (2026-10-14); OpenNord's USB transfer to a Stage 2 not yet tested" },
   },
   'stage-3': {
-    'file-read': { status: 're', note: "ns3f read-only body reader (lib/ns3) generated from the Stage 3 OS 2.64 firmware registry: u32 format version + 19 length-prefixed blocks, 175 parameters plus their morph deltas. Framing and values checked against ns3-program-viewer's public corpus of real files (848 .ns3f/.ns3l, NSM-era and legacy). Formats 3.00–3.04 (older 3.x values fixed up on read as the firmware does; a 3.00 free-running delay time shown on its old scale); 2.0x bodies open header-only. Not HW-tested" },
-    enumerate: { status: 're', note: "same transfer code as Stage 4 (firmware); partition order per the firmware, Program = 7. A Stage 3 Compact on an older build got 'status 18' (session lock left held); fixed in #38, not retested on HW" },
-    pull: { status: 're', note: "FileTransfer Download RE'd; read-only, no Stage 3 HW test" },
-    push: { status: 're', note: "FileTransfer Upload RE'd; WRITE only to the Program partition the connect probe confirms; untested on HW" },
-    delete: { status: 're', note: "FileTransfer Delete RE'd; WRITE only to the probe-confirmed Program partition; untested on HW" },
-    backup: { status: 're', note: "ns3b ZIP backup; mechanism RE'd, untested on HW" },
-    samples: { status: 're', note: "firmware loads .nsmp3 (NSMP v30) only; OpenNord converts other formats (convertNsmp). Untested on HW" },
+    'file-read': { status: 'validated', note: "ns3f read-only body reader (lib/ns3) generated from the Stage 3 OS 2.64 firmware registry: u32 format version + 19 length-prefixed blocks, 175 parameters plus their morph deltas. Framing and values checked against ns3-program-viewer's public corpus of real files (848 .ns3f/.ns3l, NSM-era and legacy). Formats 3.00–3.04 (older 3.x values fixed up on read as the firmware does; a 3.00 free-running delay time shown on its old scale); 2.0x bodies open header-only. Confirmed on a real Stage 3 (2026-10-14)" },
+    enumerate: { status: 'validated', note: "same transfer code as Stage 4; Program is partition 7. USB connection and partition list confirmed on a real Stage 3 (2026-10-14)" },
+    pull: { status: 'validated', note: "FileTransfer Download confirmed on a real Stage 3 (2026-10-14)" },
+    push: { status: 'validated', note: "FileTransfer Upload, only to the Program partition the connect probe confirms; confirmed on a real Stage 3 (2026-10-14)" },
+    delete: { status: 'validated', note: "FileTransfer Delete, only on the probe-confirmed Program partition; confirmed on a real Stage 3 (2026-10-14)" },
+    backup: { status: 'validated', note: "ns3b ZIP backup; confirmed on a real Stage 3 (2026-10-14)" },
+    samples: { status: 'validated', note: "firmware loads .nsmp3 (NSMP v30) only; OpenNord converts other formats (convertNsmp). Confirmed on a real Stage 3 (2026-10-14)" },
   },
   'stage-4': {
     'file-read': { status: 'validated', note: "ns4p decoded 0-mismatch vs ns4decode against real HW fixture" },

@@ -7,9 +7,9 @@ import { ALL_MODELS, type NordModelId } from '../../lib/clavia/partitions';
 import { statusFor, type Capability, type ValidationStatus } from '../../lib/clavia/validation';
 
 // A short sample of the line, read live from src/lib/clavia/validation.ts (the
-// same source as the in-app /compatibility matrix). Only Stage 4 is
-// hardware-validated; the rest is built from each model's own software or files
-// (ready to test) or assumed from a sibling model.
+// same source as the in-app /compatibility matrix). Stage 4 and Stage 3 are
+// hardware-validated, the Stage 2 in part; the rest is built from each model's own
+// software or files (ready to test) or assumed from a sibling model.
 type Cell = 'v' | 're' | 'inf' | 'na';
 
 const SAMPLE_MODELS: NordModelId[] = ['stage-4', 'stage-3', 'stage-2', 'electro-6', 'piano-5', 'grand-2', 'wave-2', 'lead-4'];
@@ -51,7 +51,7 @@ export function Matrix() {
       <SectionHead
         overline="Honest by model"
         title="What works on which Nord"
-        sub="Only the Stage 4 is validated on real hardware. The rest is built from each model's own software and gets promoted as owners test it. Nothing here is dressed up."
+        sub="The Stage 4 and Stage 3 are validated on real hardware, and the Stage 2 for its files and samples. The rest is built from each model's own software and gets promoted as owners test it. Nothing here is dressed up."
       />
       <div className="overflow-x-auto rounded-md border border-line fill-surface elev-1">
         <table className="w-full min-w-[420px] border-collapse">

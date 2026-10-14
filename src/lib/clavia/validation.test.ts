@@ -7,11 +7,20 @@ describe('validation matrix', () => {
     expect(statusFor('stage-4', 'enumerate').status).toBe('validated');
     expect(statusFor('stage-4', 'file-read').status).toBe('validated');
   });
-  it('Stage 3 transfer is reverse-engineered, not yet validated', () => {
-    expect(statusFor('stage-3', 'enumerate').status).toBe('re');
+  it('Stage 3 is hardware-validated throughout, USB transfer included (2026-10-14)', () => {
+    for (const cap of CAPABILITIES) expect(statusFor('stage-3', cap).status, cap).toBe('validated');
   });
-  it('only Stage 4 is hardware-validated', () => {
-    const others = ['stage-3', 'stage-2', 'electro-6', 'piano-6', 'grand-2'] as const;
+  it('Stage 2 / 2 EX: files and samples validated, USB transfer not yet tested', () => {
+    for (const id of ['stage-2', 'stage-2-ex'] as const) {
+      expect(statusFor(id, 'file-read').status, id).toBe('validated');
+      expect(statusFor(id, 'samples').status, id).toBe('validated');
+      for (const cap of ['enumerate', 'pull', 'push', 'delete', 'backup'] as const) {
+        expect(statusFor(id, cap).status, `${id} ${cap}`).toBe('re');
+      }
+    }
+  });
+  it('only Stage 4 and Stage 3 transfer is hardware-validated', () => {
+    const others = ['stage-2', 'stage-2-ex', 'electro-6', 'piano-6', 'grand-2'] as const;
     for (const id of others) {
       expect(statusFor(id, 'pull').status, id).not.toBe('validated');
     }
@@ -123,10 +132,11 @@ describe('validation matrix', () => {
     expect(statusFor('piano-1', 'samples').status).toBe('unsupported');
   });
 
-  it('has a row for every registered model, and none is hardware-validated besides Stage 4', () => {
+  it('has a row for every registered model, and none is hardware-validated besides the Stage 4, 3 and 2 / 2 EX', () => {
+    const tested = new Set(['stage-4', 'stage-3', 'stage-2', 'stage-2-ex']);
     for (const m of ALL_MODELS) {
       expect(VALIDATION[m.id], m.id).toBeDefined();
-      if (m.id === 'stage-4') continue;
+      if (tested.has(m.id)) continue;
       for (const cap of CAPABILITIES) expect(statusFor(m.id, cap).status, `${m.id} ${cap}`).not.toBe('validated');
     }
   });

@@ -11,13 +11,15 @@ import { HARDWARE_VALIDATED, READ_FAMILIES, READ_MODELS } from './line';
  * this page is either.
  */
 export function Coverage() {
-  const validated = HARDWARE_VALIDATED.map((m) => m.name.replace(/^Nord /, '')).join(', ');
+  const names = HARDWARE_VALIDATED.map((m) => m.name.replace(/^Nord /, ''));
+  // "Stage 4, Stage 3 and Stage 2 are" / "Stage 4 is".
+  const validated = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} are` : `${names[0]} is`;
   return (
     <section id="coverage" className={SEC}>
       <SectionHead
         overline="One container, the whole line"
         title={`${READ_MODELS.length} Nord models read today`}
-        sub={`Every Nord generation shares one file container, so one reader covers the line. The ${validated} is validated on the real instrument; the others are built from each model’s own software and files, and marked as such below.`}
+        sub={`Every Nord generation shares one file container, so one reader covers the line. The ${validated} validated on the real instrument; the others are built from each model’s own software and files, and marked as such below.`}
       />
       <div className="max-w-[26rem]">
         <div className={listHead}>

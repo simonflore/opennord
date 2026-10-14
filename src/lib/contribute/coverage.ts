@@ -205,7 +205,7 @@ export function programLayoutInfo(modelId: string): ProgramLayoutInfo | null {
   };
 }
 
-/** Run-length encode per-byte kinds; `field:<label>` bytes take `status`, everything else is constant. */
+/** Run-length encode per-byte kinds; `field:<label>` bytes take `status`, everything else holds no setting (`reserved`). */
 function kindsToRegions(kind: string[], status: 'confirmed' | 'candidate'): BodyRegion[] {
   const regions: BodyRegion[] = [];
   let i = 0;
@@ -213,7 +213,7 @@ function kindsToRegions(kind: string[], status: 'confirmed' | 'candidate'): Body
     let j = i + 1;
     while (j < kind.length && kind[j] === kind[i]) j++;
     const field = kind[i].startsWith('field:');
-    regions.push({ start: i, end: j - 1, label: field ? kind[i].slice(6) : kind[i], status: field ? status : 'constant' });
+    regions.push({ start: i, end: j - 1, label: field ? kind[i].slice(6) : kind[i], status: field ? status : 'reserved' });
     i = j;
   }
   return regions;
@@ -270,9 +270,11 @@ export function getModelProgress(modelId: string): ModelProgress | undefined {
  *
  * The headline `pct` counts only **confirmed** region bytes — the bytes we can
  * decode into real parameter values — so the number means the same thing across
- * every model ("what OpenNord can actually read"). Candidate sections (identified
- * but not field-pinned) are reported separately as `candidateBytes` and still
- * render on the byte map; they don't inflate the headline.
+ * every model ("what OpenNord can actually read"). It is a share of the bytes that
+ * hold settings: `reserved` bytes (a layout's framing and unused bits) hold none, so
+ * they are left out, and a model whose layout maps every setting reads 100%.
+ * Candidate sections (identified but not field-pinned) are reported separately as
+ * `candidateBytes` and still render on the byte map; they don't inflate the headline.
  *
  * When a model has no `regions` (older entries, or controls localized without regions),
  * we fall back to counting the union of `controls` bytes as confirmed.
@@ -282,17 +284,21 @@ export function summarizeProgress(
 ): { coveredBytes: number; candidateBytes: number; controlCount: number; pct: number | null } {
   let coveredBytes: number;
   let candidateBytes = 0;
+  let reservedBytes = 0;
 
   if (p.regions && p.regions.length > 0) {
     const confirmed = new Set<number>();
     const candidate = new Set<number>();
+    const reserved = new Set<number>();
     for (const r of p.regions) {
-      const bucket = r.status === 'confirmed' ? confirmed : r.status === 'candidate' ? candidate : null;
+      const bucket = r.status === 'confirmed' ? confirmed : r.status === 'candidate' ? candidate
+        : r.status === 'reserved' ? reserved : null;
       if (!bucket) continue;
       for (let b = r.start; b <= r.end; b++) bucket.add(b);
     }
     coveredBytes = confirmed.size;
     candidateBytes = candidate.size;
+    reservedBytes = reserved.size;
   } else {
     const seen = new Set<number>();
     for (const c of p.controls) for (const r of c.ranges) for (let b = r.start; b <= r.end; b++) seen.add(b);
@@ -303,7 +309,7 @@ export function summarizeProgress(
     coveredBytes,
     candidateBytes,
     controlCount: p.controls.length,
-    pct: p.bodyBytes ? Math.round((coveredBytes / p.bodyBytes) * 100) : null,
+    pct: p.bodyBytes && p.bodyBytes > reservedBytes ? Math.round((coveredBytes / (p.bodyBytes - reservedBytes)) * 100) : null,
   };
 }
 

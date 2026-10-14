@@ -41,10 +41,10 @@ describe('MatrixView', () => {
     expect(row(html, 'Nord Electro 6')).toContain(', full map');
     expect(row(html, 'Nord Lead 4')).toContain(', full map');
     expect(row(html, 'Nord Wave 2')).toContain(', full map');     // morph buffers read too
-    expect(row(html, 'Nord Stage 3')).toContain(', full map');    // firmware layout
-    expect(row(html, 'Nord Stage 2')).toContain(', full map');    // firmware descriptor layout
-    expect(row(html, 'Nord Stage 2 EX')).toContain(', full map'); // same ns2p format
-    expect(row(html, 'Nord Stage 4')).not.toContain(', full map'); // already validated
+    // Confirmed on a real instrument: read as Works, no longer marked as an unchecked full map.
+    for (const name of ['Nord Stage 4', 'Nord Stage 3', 'Nord Stage 2', 'Nord Stage 2 EX']) {
+      expect(row(html, name), name).not.toContain(', full map');
+    }
   });
   it('shows the parameter count as a bare number', () => {
     const html = render();
