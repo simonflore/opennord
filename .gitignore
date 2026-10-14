@@ -51,3 +51,4 @@ electron/dist/
 
 # Xcode per-user state inside the in-repo Swift packages
 .swiftpm/
+scripts/.bin/
