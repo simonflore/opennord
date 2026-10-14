@@ -43,6 +43,14 @@ export const NSP_ROOT_OFFSET = 4;
  */
 export const NSP_MAX_KEYS_ABOVE_ROOT = 1;
 
+/**
+ * Lowest first undamped key (header +0x40D) of the 36 factory pianos: 89 on grands and
+ * uprights, 92–94 on electric grands, 109 (every key damped) elsewhere. OpenNord wrote 0 until
+ * 2026-10-14, and such a piano rang on every key after key-up on a Stage 2
+ *.
+ */
+export const NSP_MIN_UNDAMPED_FROM = 89;
+
 /** One sampled note: the MIDI key range it covers, pitched from `rootNote`. */
 export interface NspZone {
   /** The key map's root byte; the recording sounds at `rootNote + NSP_ROOT_OFFSET`. */

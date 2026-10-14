@@ -7,7 +7,7 @@ import { checkNpnoAcceptance, voiceTableEntries, type NpnoModel } from './nsp-ch
 import { tone } from './nsp-synth.testing';
 import {
   blockLevel, buildNpno, defaultDecayCoefficient, encodeNpnoStroke, NPNO_HEADER_SIZE, NPNO_PEAK,
-  defaultDamper, NPNO_PIANO_TYPE, NPNO_RECORD_SIZE, readNpnoImage, writeNpnoImage, type NpnoInput,
+  defaultDamper, defaultUndampedFrom, NPNO_ALL_DAMPED, NPNO_PIANO_TYPE, NPNO_RECORD_SIZE, readNpnoImage, writeNpnoImage, type NpnoInput,
 } from './nsp-write';
 import { identifyNsmp } from '../clavia/sample-identify';
 import { auditionKeys } from '@/components/piano/auditionKeys';
@@ -247,6 +247,32 @@ describe('buildNpno', () => {
     expect([h[0x49d + 21], h[0x49d + 108]]).toEqual([54, 20]);
     const clav = buildNpno({ ...p, pianoType: NPNO_PIANO_TYPE.clav }).bytes.subarray(0x2c);
     expect([clav[0x20c + 30], clav[0x49d + 30]]).toEqual([13, 0x1e]);
+  });
+
+  it('sets the first undamped key by piano type, as the factory pianos do', () => {
+    // +0x40D: 0 left every key ringing on key-up on a Stage 2. Factory files: 89–92 on grands
+    // and uprights, 92–94 on electric grands, 109 (every key damped) on every other type.
+    const header = (pianoType: number) => buildNpno({ ...piano(1), pianoType }).bytes.subarray(0x2c);
+    expect(header(NPNO_PIANO_TYPE.grand)[0x40d]).toBe(90);
+    expect(header(NPNO_PIANO_TYPE.upright)[0x40d]).toBe(90);
+    expect(header(NPNO_PIANO_TYPE.electricGrand)[0x40d]).toBe(92);
+    for (const t of Object.values(NPNO_PIANO_TYPE)) {
+      expect(header(t)[0x40d]).toBe(defaultUndampedFrom(t));
+      expect(defaultUndampedFrom(t)).toBeGreaterThanOrEqual(89);
+      if (t === NPNO_PIANO_TYPE.grand || t === NPNO_PIANO_TYPE.upright || t === NPNO_PIANO_TYPE.electricGrand) continue;
+      expect(defaultUndampedFrom(t)).toBe(NPNO_ALL_DAMPED);
+    }
+    expect(buildNpno({ ...piano(1), undampedFrom: NPNO_ALL_DAMPED }).bytes[0x2c + 0x40d]).toBe(NPNO_ALL_DAMPED);
+  });
+
+  it('fails a piano whose keys have no dampers', () => {
+    const { bytes } = buildNpno(piano(1));
+    expect(checkNpnoAcceptance(bytes).checks.find((c) => c.id === 'dampers')).toMatchObject({ ok: true });
+    const old = bytes.slice();
+    old[0x2c + 0x40d] = 0; // as OpenNord wrote before 2026-10-14
+    const bad = checkNpnoAcceptance(old).checks.find((c) => c.id === 'dampers')!;
+    expect(bad.ok).toBe(false);
+    expect(bad.detail).toMatch(/Keys from 0 up have no damper/);
   });
 
   it('sets the release mode and the model name by piano type', () => {

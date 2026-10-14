@@ -28,7 +28,7 @@ import { verifyTrailerChecksum } from '../clavia/crc16';
 import { verifyNs4Checksum } from '../clavia/checksum';
 import { hasCbinMagic, fileTypeTag } from '../clavia/cbin';
 import { decodeNspStroke, findCnsp, readLayerTable, readNspDirectory, type NspStroke } from './nsp-audio';
-import { NSP_MAX_KEYS_ABOVE_ROOT, nspChecksumKind, readNspZones } from './nsp';
+import { NSP_MAX_KEYS_ABOVE_ROOT, NSP_MIN_UNDAMPED_FROM, nspChecksumKind, readNspZones } from './nsp';
 import { mediaCompat, pianoVersionNumber, type MediaModelId, type PianoAcceptance } from '../clavia/media-compat';
 
 /** CNSP checksum: byte sum of everything after the 22-byte CNSP header, over the CNSP stream
@@ -283,6 +283,13 @@ export function checkNpnoAcceptance(bytes: Uint8Array, opts: NpnoCheckOptions = 
     ? `Key ${high.highNote} plays a recording stored for note ${high.rootNote}: a Nord plays a recording at most `
       + `${NSP_MAX_KEYS_ABOVE_ROOT} key above its stored note, and a higher key can freeze the instrument`
     : `no key is more than ${NSP_MAX_KEYS_ABOVE_ROOT} above its zone's stored note (as in every factory piano)`);
+  // Header +0x40D, the first key without a damper: every factory piano has it at 89 or above.
+  // Lower, keys from there up ring on after key-up (on a Stage 2, every key when it is 0).
+  const undampedFrom = bytes[cnsp + 0x40d];
+  add('dampers', undampedFrom >= NSP_MIN_UNDAMPED_FROM, undampedFrom >= NSP_MIN_UNDAMPED_FROM
+    ? `keys below ${undampedFrom} stop when let go (as in every factory piano)`
+    : `Keys from ${undampedFrom} up have no damper: they ring on after you let go, as if the pedal were down. `
+      + 'Make this piano again with the current OpenNord');
   if (opts.deep) {
     let bad = '';
     for (const s of strokes) {

@@ -629,6 +629,25 @@ export function defaultDamper(type: number, root: number): [number, number] {
 }
 
 /**
+ * Header +0x40D: the first key without a damper (external spec). Keys from it up ring on after
+ * key-up, as the top strings of a real piano do. The 30 factory pianos in the maintainers’ notes
+ * store 89–92 on grands and uprights, 92 (v6) and 94 (v5) on the two electric grands, and 109
+ * (above the top key, so every key is damped) on every other type. Pianos written before
+ * 2026-10-14 stored 0 here, and one played on a Stage 2 rang on every key until its recording
+ * ended, as if the pedal were down (user report). That the Stage 2 reads this byte is inferred
+ * from that report and the factory values, not from its loader; the Stage 4 replaces it at load.
+ */
+export const NPNO_ALL_DAMPED = 109;
+const UNDAMPED_FROM_BY_TYPE: Record<number, number> = {
+  [NPNO_PIANO_TYPE.grand]: 90,
+  [NPNO_PIANO_TYPE.upright]: 90,
+  [NPNO_PIANO_TYPE.electricGrand]: 92,
+};
+export function defaultUndampedFrom(type: number): number {
+  return UNDAMPED_FROM_BY_TYPE[type] ?? NPNO_ALL_DAMPED;
+}
+
+/**
  * Header table +0x49D per key. Its use is not known. Acoustic and digital pianos carry one
  * curve, falling from 80 in the bass to 20 at the top (fit residual under 1 for grands);
  * electric pianos and the Clavinet mostly carry a flat 30, which is also what unmapped keys
@@ -705,6 +724,11 @@ export interface NpnoInput {
    * the result against that model. Default: any model that loads v6 (checked as a Stage 4).
    */
   model?: NpnoModel;
+  /**
+   * The first key without a damper (header +0x40D): keys from it up ring on after key-up.
+   * Default by piano type ({@link defaultUndampedFrom}); {@link NPNO_ALL_DAMPED} damps every key.
+   */
+  undampedFrom?: number;
 }
 
 /** Level word baseline (0.1 dB attenuation, hypothesis). */
@@ -753,8 +777,9 @@ function defaultHeader(input: NpnoInput): Uint8Array {
   h.fill(0x80, 0x41c, 0x49c);
   h[0x49c] = release; // release mode, as +0x8B
   h[0x51d] = 2; // Clavinet 2 (not read by the loader)
-  // +0x40C…+0x410: Clavinet 28 (6d) 0d 6c 01; +0x40D is overwritten at load, +0x40F/+0x410 = 0x6c/1 in all.
+  // +0x40C…+0x410: Clavinet 28 6d 0d 6c 01; +0x40F/+0x410 = 0x6c/1 in all.
   h[0x40c] = 0x28; h[0x40e] = 0x0d; h[0x40f] = 0x6c; h[0x410] = 0x01;
+  h[0x40d] = input.undampedFrom ?? defaultUndampedFrom(type);
   return h;
 }
 

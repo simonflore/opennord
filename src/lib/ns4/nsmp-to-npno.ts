@@ -27,7 +27,7 @@ import { dsp2Detune } from './nw1-dsp';
 import { DEFAULT_HALF_WIDTH, resampleForExport } from './nse-resample';
 import { peakAmplitude } from './nsmp-audio';
 import { NSP_SAMPLE_RATE, touchAttenuation } from './nsp-audio';
-import { buildNpno, MAX_NPNO_NAME, MIN_RECORDED_NOTE, NPNO_PIANO_TYPE, NPNO_RECORDING_ABOVE_TOP_KEY, type NpnoBuildResult, type NpnoZoneInput } from './nsp-write';
+import { buildNpno, MAX_NPNO_NAME, MIN_RECORDED_NOTE, NPNO_ALL_DAMPED, NPNO_PIANO_TYPE, NPNO_RECORDING_ABOVE_TOP_KEY, type NpnoBuildResult, type NpnoZoneInput } from './nsp-write';
 
 /** Most keys a recording covers above its own pitch before the next keys get a copy: a key
  *  then plays at most 3 semitones below its zone's top key, about what factory pianos do. */
@@ -338,6 +338,11 @@ export function sampleToPiano(source: SampleSource, opts: NsmpToNpnoOptions): Ns
     warnings.push('Held notes never fade: with the sustain pedal down, a note rings until you let go.');
   }
   warnings.push(UNTESTED);
-  const result = buildNpno({ name: opts.name, variant: opts.variant, pianoType: opts.pianoType ?? NPNO_PIANO_TYPE.electric, channels, zones: input });
+  // Every key is damped whatever the type: a sample's notes are often one long take with no
+  // loop, so an undamped top octave on a grand would ring to the end of each recording.
+  const result = buildNpno({
+    name: opts.name, variant: opts.variant, pianoType: opts.pianoType ?? NPNO_PIANO_TYPE.electric, channels, zones: input,
+    undampedFrom: NPNO_ALL_DAMPED,
+  });
   return { ...result, warnings };
 }

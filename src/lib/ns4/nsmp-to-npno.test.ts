@@ -7,6 +7,7 @@ import { peakAmplitude } from './nsmp-audio';
 import { NSP_SAMPLE_RATE, decodeNspStroke, readNspDirectory } from './nsp-audio';
 import { NSP_ROOT_OFFSET, readNsp, readNspZones } from './nsp';
 import { checkNpnoAcceptance } from './nsp-check';
+import { NPNO_ALL_DAMPED, NPNO_PIANO_TYPE } from './nsp-write';
 import { estimateF0 } from '../hwtest/analysis';
 
 const hz = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
@@ -147,6 +148,14 @@ describe('nsmpToNpno', () => {
     expect(readNsp(bytes).name).toBe('Two Notes');
     const failed = checkNpnoAcceptance(bytes, { deep: true, fileName }).checks.filter((c) => !c.ok);
     expect(failed).toEqual([]);
+  });
+
+  it('damps every key whatever the piano type, so a one-shot stops on key-up', () => {
+    // Header +0x40D, the first undamped key: 0 left every key ringing to the end on a Stage 2,
+    // and a grand's factory 90 would leave the top octave of a one-shot sample doing the same.
+    for (const pianoType of [undefined, NPNO_PIANO_TYPE.grand, NPNO_PIANO_TYPE.upright, NPNO_PIANO_TYPE.electricGrand]) {
+      expect(nsmpToNpno(sample, { name: 'Two Notes', pianoType }).bytes[0x2c + 0x40d]).toBe(NPNO_ALL_DAMPED);
+    }
   });
 
   it('plays every key at the pitch the sample played it', () => {
