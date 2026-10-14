@@ -114,7 +114,7 @@ export function parseNs4Preset(bytes: Uint8Array): Ns4Preset | null {
   const models = decodeNs4Engines(decoded).layers;
   const modelFor = (letter: string) => models.find((m) => m.id === letter);
   const decodeLayer = (L: number): ParamRow[] => collapseMorphs(
-    decoded.filter((d) => d.layer === L).map((d) => ({ ...d, name: d.name.replace(/ \[[ABC]\]$/, ''), layer: 0 })),
+    decoded.filter((d) => d.layer === L).map((d) => ({ ...d, name: d.baseName, layer: 0 })),
   );
 
   const layers: PresetLayer[] = [];

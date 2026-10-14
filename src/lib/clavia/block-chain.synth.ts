@@ -9,7 +9,7 @@
 import { buildCbinHeader } from './cbin';
 import { sealTrailerChecksum } from './crc16';
 import { writeBits } from './bitstream';
-import { fieldRaw, type FwLayout } from './block-chain';
+import { buildFwBody, fieldBodyBit, fieldRaw, type FwLayout } from './block-chain';
 import { LEGACY_DATA_OFFSET, LEGACY_RECORD_OFFSET, NSM_RECORD_OFFSET, type LegacyLayout } from './legacy-record';
 
 // The encode primitives live in production code; re-exported for the tests that import them from here.
@@ -19,22 +19,11 @@ export { writeBits, fieldRaw };
 export function fieldBit<K extends string>(layout: FwLayout<K>, key: K): number {
   const f = layout.fields.find((x) => x.key === key);
   if (!f) throw new Error(`no field ${key} in the ${layout.model} layout`);
-  return (layout.blocks[f.block].offset + 1) * 8 + f.bit;
+  return fieldBodyBit(layout, f);
 }
 
-/** A body for `layout` with every field at its firmware default, overridden by `values`. */
-export function synthFwBody<K extends string>(
-  layout: FwLayout<K>, values: Partial<Record<K, number>> = {}, formatVersion = layout.versionRange?.[0] ?? 100,
-): Uint8Array {
-  const body = new Uint8Array(layout.bodyBytes);
-  writeBits(body, 0, 32, formatVersion);
-  for (const b of layout.blocks) body[b.offset] = b.length;
-  for (const f of layout.fields) {
-    const v = values[f.key] ?? f.def;
-    writeBits(body, (layout.blocks[f.block].offset + 1) * 8 + f.bit, f.width, fieldRaw(v, f));
-  }
-  return body;
-}
+/** A body for `layout` with every field at its firmware default, overridden by `values` (block-chain.ts). */
+export const synthFwBody = buildFwBody;
 
 /**
  * A whole file: the NSM-era CBIN header for `tag` followed by `body` (checksum

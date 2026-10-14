@@ -2,6 +2,7 @@
  * make-test-piano — writes the hardware test kit:
  *   pianos/    four tiny synthetic .npno pianos (T0–T3), each checked with
  *              checkNpnoAcceptance(deep) — load them with Nord Sound Manager's Piano tab
+ *   programs/  the empty program (ns4/empty.ts) — group F stores it into an empty program slot
  *   previews/  each test stroke decoded back to WAV, to hear what the Nord should play
  *   midi/      a velocity sweep, held keys, a staccato note and a compressor burst, to play the
  *              Nord from a DAW (MIDI channel 1)
@@ -23,10 +24,11 @@ import { checkNpnoAcceptance } from '@/lib/ns4/nsp-check';
 import { decodeNspStroke, NSP_SAMPLE_RATE, readNspDirectory } from '@/lib/ns4/nsp-audio';
 import { buildNpno, NPNO_RECORDING_ABOVE_TOP_KEY } from '@/lib/ns4/nsp-write';
 import { encodeWav } from '@/lib/ns4/wav';
+import { emptyNs4Program } from '@/lib/ns4/empty';
 
 const { values } = parseArgs({ options: { out: { type: 'string', default: 'hardware-test' } } });
 const out = resolve(values.out!);
-const dirs = { pianos: join(out, 'pianos'), previews: join(out, 'previews'), midi: join(out, 'midi'), recordings: join(out, 'recordings') };
+const dirs = { pianos: join(out, 'pianos'), programs: join(out, 'programs'), previews: join(out, 'previews'), midi: join(out, 'midi'), recordings: join(out, 'recordings') };
 for (const d of Object.values(dirs)) mkdirSync(d, { recursive: true });
 const show = (p: string) => relative(process.cwd(), p) || '.';
 
@@ -67,6 +69,10 @@ const midi = {
   'comp-A2-burst.mid': compressorBurst(),
 };
 for (const [name, notes] of Object.entries(midi)) writeFileSync(join(dirs.midi, name), writeMidiFile(notes));
+const emptyProgram = join(dirs.programs, 'OpenNord Empty.ns4p');
+writeFileSync(emptyProgram, emptyNs4Program());
+console.log(`F    ${show(emptyProgram)}  (every setting at its firmware default; store into an EMPTY program slot)\n`);
+
 console.log(`previews: ${show(dirs.previews)}/  (decoded test strokes, 44.1 kHz)`);
 console.log(`midi:     ${show(dirs.midi)}/  ${Object.keys(midi).join(', ')} (MIDI channel 1)`);
 console.log(`record into: ${show(dirs.recordings)}/  (local only; git ignores this folder)`);

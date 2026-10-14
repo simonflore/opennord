@@ -23,7 +23,7 @@
  * warning, so the Library can still list it.
  */
 import { cbinFraming, formatCbinVersion } from './cbin';
-import { readBits } from './bitstream';
+import { readBits, writeBits } from './bitstream';
 
 /**
  * How a field's raw bits map to its value.
@@ -133,6 +133,24 @@ export function fieldRaw(value: number, field: Pick<FwField, 'enc' | 'width' | '
     case 'twos': return value < 0 ? value + 2 ** field.width : value;
     default: return value >>> 0;
   }
+}
+
+/**
+ * A body for `layout` the way the firmware serialiser lays one out — u32 BE
+ * version, each block's length byte, every field at its firmware default
+ * (overridden by `values`), reserved bits zero. Bits the layout doesn't list are
+ * zero too: a body built this way is only as complete as its layout.
+ */
+export function buildFwBody<K extends string>(
+  layout: FwLayout<K>, values: Partial<Record<K, number>> = {}, formatVersion = layout.versionRange?.[0] ?? 100,
+): Uint8Array {
+  const body = new Uint8Array(layout.bodyBytes);
+  writeBits(body, 0, 32, formatVersion);
+  for (const b of layout.blocks) body[b.offset] = b.length;
+  for (const f of layout.fields) {
+    writeBits(body, fieldBodyBit(layout, f), f.width, fieldRaw(values[f.key] ?? f.def, f));
+  }
+  return body;
 }
 
 export interface FwBodyDecode<K extends string> {

@@ -44,13 +44,14 @@ export function collapseMorphs(params: DecodedParam[]): ParamRow[] {
   return [...base.values()];
 }
 
-const META = new Set(['file type', 'file version', 'file version again', 'bank', 'location in bank', 'checksum']);
+/** The file's own bookkeeping, which the map lists among the master settings: not a sound setting. */
+export const FILE_FIELDS: ReadonlySet<string> = new Set(['file type', 'file version', 'file version again', 'bank', 'location in bank', 'checksum']);
 const GROUP_LABEL: Record<string, string> = { file: 'File', m: 'Master / Global', o: 'Organ', p: 'Piano', y: 'Synth' };
 const GROUP_ORDER = ['file', 'm', 'o', 'p', 'y'];
 
 export interface ParamGroup { key: string; label: string; rows: ParamRow[]; }
 
-const groupKey = (r: ParamRow) => (META.has(r.name) ? 'file' : r.group);
+const groupKey = (r: ParamRow) => (FILE_FIELDS.has(r.name) ? 'file' : r.group);
 
 /** Bucket rows into ordered sections (File, Master, Organ, Piano, Synth). */
 export function groupParams(rows: ParamRow[]): ParamGroup[] {

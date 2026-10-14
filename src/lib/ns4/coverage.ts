@@ -28,7 +28,10 @@ const DEP_TABLES_MERGED: Record<string, Record<string, string>> = {
 };
 
 export interface DecodedParam {
+  /** Display name: a layered setting carries its layer, e.g. "volume [A]". */
   name: string;
+  /** The parameter's own name, as edits name it ("volume"); the layer is `layer`. */
+  baseName: string;
   group: Param['group'];
   layer: number;
   begBit: number;
@@ -38,6 +41,8 @@ export interface DecodedParam {
   display: string;
   /** Identified but not a player's setting (see `Param.internal`). */
   internal?: boolean;
+  /** A full-width morph row (see `Param.morphOf`): a delta on another setting, not a value of its own. */
+  morph?: true;
 }
 
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
@@ -121,9 +126,11 @@ function wideMorphDisplay(
 }
 
 /** The body's format version (×100, e.g. 313), or null when the file is too short to hold one. */
-function bodyFormatVersion(bits: string): number | null {
-  const beg = CBIN_BODY_OFFSET * 8;
-  return bits.length >= beg + 32 ? readField(bits, beg, beg + 31) : null;
+/** A program body's format version (×100, e.g. 313), read where every Stage 4 body starts; null when too short. */
+export function ns4BodyFormatVersion(bytes: Uint8Array): number | null {
+  return bytes.length >= CBIN_BODY_OFFSET + 4
+    ? new DataView(bytes.buffer, bytes.byteOffset).getUint32(CBIN_BODY_OFFSET, false)
+    : null;
 }
 
 /**
@@ -145,7 +152,7 @@ export function decodeAllParams(bytes: Uint8Array, map: Param[]): DecodedParam[]
   const bits = bytesToBitString(bytes);
   // A parameter a later format version introduced is not in an older file: its bits
   // were reserved zeros then, which would read as a real "off" or "0".
-  const version = bodyFormatVersion(bits);
+  const version = ns4BodyFormatVersion(bytes);
   const present = map.filter((p) => !(p.since && version !== null && version < p.since));
   // Pass 1: raw value of every param/layer (morphs need their base's value).
   const rawById: Record<string, number[]> = {};
@@ -167,6 +174,7 @@ export function decodeAllParams(bytes: Uint8Array, map: Param[]): DecodedParam[]
       if (label === null && !Number.isNaN(value)) label = depDisplay(p.id, value, k, rawById);
       out.push({
         name: p.layers.length > 1 ? `${p.name} [${'ABC'[k] ?? k}]` : p.name,
+        baseName: p.name,
         group: p.group,
         layer: k,
         begBit: layer.begBit,
@@ -174,6 +182,7 @@ export function decodeAllParams(bytes: Uint8Array, map: Param[]): DecodedParam[]
         value,
         display: label ?? (Number.isNaN(value) ? '—' : String(value)),
         ...(p.internal ? { internal: true } : {}),
+        ...(p.morphOf ? { morph: true as const } : {}),
       });
     });
   }

@@ -27,9 +27,19 @@ export interface RawEdit {
   value: number;
 }
 
+/** Each map's group:name index, built once per map (maps are frozen and reused). */
+const indexes = new WeakMap<Param[], Map<string, Param>>();
+
 /** Resolve a parameter by group + base name (offset-map naming, no [A]/[B] suffix). */
 export function findParam(map: Param[], group: Ns4Group, name: string): Param | undefined {
-  return map.find((p) => p.group === group && p.name === name);
+  let index = indexes.get(map);
+  if (!index) {
+    index = new Map();
+    // First wins, as a linear find would.
+    for (const p of map) if (!index.has(`${p.group}:${p.name}`)) index.set(`${p.group}:${p.name}`, p);
+    indexes.set(map, index);
+  }
+  return index.get(`${group}:${name}`);
 }
 
 /** Read the current raw value of a single parameter/layer from `bytes`. */
