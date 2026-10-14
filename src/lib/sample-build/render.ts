@@ -13,6 +13,20 @@ export interface RenderedTake {
   loopStart: number | null;
 }
 
+const pcmCache = new WeakMap<ClipAudio, Int32Array>();
+
+/** A clip's first channel as 16-bit PCM numbers, for drawing (WaveCanvas); made once per clip audio. */
+export function toPcm16(audio: ClipAudio): Int32Array {
+  let pcm = pcmCache.get(audio);
+  if (!pcm) {
+    const ch = audio.channels[0];
+    pcm = new Int32Array(ch.length);
+    for (let i = 0; i < ch.length; i++) pcm[i] = clamp16(Math.round(ch[i] * 32767));
+    pcmCache.set(audio, pcm);
+  }
+  return pcm;
+}
+
 export function renderTake(take: Take, audio: ClipAudio): RenderedTake {
   const g = 10 ** (take.gainDb / 20) * 32767;
   const channels = audio.channels.map((ch) => {

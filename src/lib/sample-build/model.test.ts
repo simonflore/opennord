@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  addClip, addLayer, addTake, addZone, emptyProject, projectProblems, removeLayer, removeZone,
-  setActiveTake, setKeys, setRoot, setTarget, updateTake, zoneById, type NewTake, type SampleProject,
+  addClip, addLayer, addTake, addZone, emptyProject, projectProblems, removeClip, removeLayer, removeTake, removeZone,
+  moveSplit, setActiveTake, setKeys, setName, setRoot, setTarget, updateTake, zoneById, type NewTake, type SampleProject,
 } from './model';
 
 const take = (clipId: string, over: Partial<NewTake> = {}): NewTake => ({
@@ -23,6 +23,13 @@ describe('the project model', () => {
     expect(p.zones).toEqual([]);
     expect(p.target).toBe('nsmp4');
     expect(projectProblems(p)).toEqual([]);
+  });
+
+  it('renames the project and marks it changed', () => {
+    const p = { ...twoZones().p, updatedAt: '2000-01-01T00:00:00.000Z' };
+    const q = setName(p, 'Mk I');
+    expect(q.name).toBe('Mk I');
+    expect(q.updatedAt).not.toBe(p.updatedAt);
   });
 
   it('keeps zones sorted by root, each on its own root key until mapped', () => {
@@ -187,5 +194,73 @@ describe('review fixes', () => {
   it('names zones by note, not by number', () => {
     const { p } = zoneWith3();
     expect(() => addZone(p, 60, t(p.clips[0].id))).toThrow(/^C4 already has a zone/);
+  });
+});
+
+describe('moveSplit', () => {
+  const t = (clipId: string): NewTake => ({ clipId, start: 0, end: 100, loop: null, loopDecaySeconds: null, gainDb: 0, tuneCents: 0 });
+  function two(): { p: SampleProject; low: string; high: string } {
+    const c = addClip(emptyProject('x'), { label: 'a', source: { kind: 'file', fileName: 'a.wav' }, audioRef: 'a', sampleRate: 44100, channels: 1, frames: 100 });
+    const a = addZone(c.project, 48, t(c.clipId));
+    const b = addZone(a.project, 60, t(c.clipId));
+    let p = setKeys(b.project, a.zoneId, 36, 54);
+    p = setKeys(p, b.zoneId, 55, 72);
+    return { p, low: a.zoneId, high: b.zoneId };
+  }
+
+  it('moves the split and the neighbour together', () => {
+    const { p, low, high } = two();
+    const moved = moveSplit(p, low, 57);
+    expect([zoneById(moved, low).keyHigh, zoneById(moved, high).keyLow]).toEqual([57, 58]);
+    const back = moveSplit(moved, low, 50);
+    expect([zoneById(back, low).keyHigh, zoneById(back, high).keyLow]).toEqual([50, 51]);
+  });
+
+  it('stops before the neighbour\'s root and at its own root', () => {
+    const { p, low, high } = two();
+    expect(zoneById(moveSplit(p, low, 80), low).keyHigh).toBe(59);
+    expect(zoneById(moveSplit(p, low, 80), high).keyLow).toBe(60);
+    expect(zoneById(moveSplit(p, low, 10), low).keyHigh).toBe(48);
+  });
+
+  it('moves only the top zone\'s own top key', () => {
+    const { p, high } = two();
+    expect(zoneById(moveSplit(p, high, 90), high).keyHigh).toBe(90);
+    expect(zoneById(moveSplit(p, high, 200), high).keyHigh).toBe(127);
+  });
+
+  describe('removing takes and clips', () => {
+    it('removes a take that waits, and refuses the last take of a zone', () => {
+      const { p, clipId, c4 } = twoZones();
+      const added = addTake(p, c4, take(clipId, { end: 1000 }));
+      const q = removeTake(added.project, c4, added.takeId);
+      expect(zoneById(q, c4).takes).toHaveLength(1);
+      expect(() => removeTake(q, c4, zoneById(q, c4).takes[0].id)).toThrow(/at least one take/);
+    });
+
+    it('removing a layer’s take removes the layer, and the next loudest plays at 0 dB', () => {
+      const { p, clipId, c4 } = twoZones();
+      const soft = addTake(p, c4, take(clipId));
+      const layered = addLayer(soft.project, c4, soft.takeId, 12);
+      const loudest = zoneById(layered, c4).layers[0].takeId;
+      const q = removeTake(layered, c4, loudest);
+      expect(zoneById(q, c4).layers).toEqual([{ takeId: soft.takeId, floorDb: 0 }]);
+      expect(projectProblems(q)).toEqual([]);
+    });
+
+    it('removing the active take of a sample makes a waiting take play', () => {
+      const { p, clipId, c4 } = twoZones();
+      const other = addTake(p, c4, take(clipId));
+      const q = removeTake(other.project, c4, zoneById(p, c4).takes[0].id);
+      expect(zoneById(q, c4).layers).toEqual([{ takeId: other.takeId, floorDb: 0 }]);
+    });
+
+    it('removes a clip no take uses, and refuses one that is used', () => {
+      const { p, clipId } = twoZones();
+      const spare = addClip(p, { label: 'spare.wav', source: { kind: 'file', fileName: 'spare.wav' }, audioRef: 's', sampleRate: 44100, channels: 1, frames: 10 });
+      const q = removeClip(spare.project, spare.clipId);
+      expect(q.clips.map((c) => c.id)).toEqual([clipId]);
+      expect(() => removeClip(q, clipId)).toThrow(/C3, C4/);
+    });
   });
 });

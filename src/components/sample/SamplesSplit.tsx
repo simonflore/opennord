@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
 import { Button } from '@/components/ui';
@@ -23,6 +24,7 @@ import { isNsmpFileName, NSMP_EXTENSIONS } from '@/lib/ns4/nsmp';
  */
 export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const wide = useSplitLayout();
+  const navigate = useNavigate();
   const s = useSamplesState();
   // The sample the route names, read by useOpenSample.
   const open = useOpenSample(selectedId);
@@ -75,6 +77,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         // selectedId may name any entry of the open row.
         activeId={openEntryNow?.id ?? selectedId ?? null}
         onImport={() => void importSample()}
+        onBuild={() => void navigate({ to: '/library/samples/build/{-$projectId}', params: {} })}
         onRemove={onRemove}
         storedCount={s.storedCount} storedBytes={s.storedBytes}
         prefs={s.prefs}

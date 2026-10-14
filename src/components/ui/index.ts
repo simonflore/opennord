@@ -14,5 +14,6 @@ export { Pill } from './Pill';
 export { FileInput } from './FileInput';
 export { SplitView } from './SplitView';
 export { Dialog, anyDialogOpen, type DialogProps } from './Dialog';
+export { ConfirmDialog } from './ConfirmDialog';
 export { Menu, MenuItem, MenuLabel, MenuSeparator } from './Menu';
 export { WriteTargetDialog } from './WriteTargetDialog';

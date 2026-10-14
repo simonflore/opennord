@@ -74,7 +74,7 @@ describe('useFolderWrite — folder linked, pref "new"', () => {
 
     expect(writeBack).toHaveBeenCalledTimes(1);
     expect(onSaved).toHaveBeenCalledTimes(1);
-    expect(onSaved).toHaveBeenCalledWith('test-file.nsmp', 'MyNord');
+    expect(onSaved).toHaveBeenCalledWith('test-file.nsmp', 'MyNord', []);
     expect(onFallback).not.toHaveBeenCalled();
   });
 });
@@ -103,7 +103,7 @@ describe('useFolderWrite — folder linked, pref "ask"', () => {
 
     expect(setMode).toHaveBeenCalledWith('overwrite');
     expect(writeBack).toHaveBeenCalledTimes(1);
-    expect(onSaved).toHaveBeenCalledWith('test-file.nsmp', 'MyNord');
+    expect(onSaved).toHaveBeenCalledWith('test-file.nsmp', 'MyNord', []);
     expect(result.current.dialogProps).toBeNull();
   });
 });
@@ -166,5 +166,32 @@ describe('useFolderWrite — folder linked but FSA denied (target=download)', ()
     expect(writeBack).toHaveBeenCalledTimes(1);
     expect(onFallback).toHaveBeenCalledTimes(1);
     expect(onSaved).not.toHaveBeenCalled();
+  });
+});
+
+describe('useFolderWrite — companion files', () => {
+  it('writes the job’s also files after it, into the folder with the same mode, and names them', async () => {
+    const writeBack = vi.fn(async (name: string) => ({ target: 'folder', path: name }));
+    (useFolder as ReturnType<typeof vi.fn>).mockReturnValue(mockFolder({ folderName: 'MyNord', writeBack }));
+    (useWriteBackPref as ReturnType<typeof vi.fn>).mockReturnValue(mockPref('overwrite'));
+    const onSaved = vi.fn();
+    const { result } = renderHook(() => useFolderWrite({ onSaved, onFallback: vi.fn() }));
+    const also = { name: 'test-file.onsample', write: vi.fn().mockResolvedValue(undefined) };
+    await act(async () => { await result.current.save({ ...makeJob(), also: [also] }); });
+    expect(writeBack.mock.calls.map((c) => [c[0], (c as unknown[])[2]])).toEqual([
+      ['test-file.nsmp', { mode: 'overwrite' }], ['test-file.onsample', { mode: 'overwrite' }],
+    ]);
+    expect(onSaved).toHaveBeenCalledWith('test-file.nsmp', 'MyNord', ['test-file.onsample']);
+  });
+
+  it('does not write the also files when there is no folder', async () => {
+    const folder = mockFolder({ folderName: null });
+    (useFolder as ReturnType<typeof vi.fn>).mockReturnValue(folder);
+    (useWriteBackPref as ReturnType<typeof vi.fn>).mockReturnValue(mockPref('new'));
+    const onFallback = vi.fn();
+    const { result } = renderHook(() => useFolderWrite({ onSaved: vi.fn(), onFallback }));
+    await act(async () => { await result.current.save({ ...makeJob(), also: [{ name: 'x.onsample', write: vi.fn() }] }); });
+    expect(onFallback).toHaveBeenCalledTimes(1);
+    expect(folder.writeBack).not.toHaveBeenCalled();
   });
 });

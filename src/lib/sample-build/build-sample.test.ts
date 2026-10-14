@@ -125,11 +125,11 @@ describe('buildProject: samples', () => {
     const short = new Map(audio);
     const first = p.zones[0].takes[0].clipId;
     short.set(first, { sampleRate: 44100, channels: [new Float32Array(1000)] });
-    expect(() => buildProject(p, (id) => short.get(id))).toThrow(/audio for zone A3 doesn't match its clip/);
+    expect(() => buildProject(p, (id) => short.get(id))).toThrow(/audio for zone A3 doesn.t match its clip/);
     const stereo = new Map(audio);
     const second = p.zones[1].takes[0].clipId;
     stereo.set(second, { sampleRate: 44100, channels: [new Float32Array(44100), new Float32Array(44100)] });
-    expect(() => buildProject(p, (id) => stereo.get(id))).toThrow(/audio for zone A4 doesn't match its clip/);
+    expect(() => buildProject(p, (id) => stereo.get(id))).toThrow(/audio for zone A4 doesn.t match its clip/);
   });
 });
 
@@ -147,6 +147,6 @@ describe('buildProject: review fixes', () => {
     const { p, audio } = project();
     const id = p.zones[1].takes[0].clipId;
     const wrongRate = (cid: string) => (cid === id ? { ...audio.get(cid)!, sampleRate: 48000 } : audio.get(cid));
-    expect(() => buildProject(p, wrongRate)).toThrow(/doesn't match its clip/);
+    expect(() => buildProject(p, wrongRate)).toThrow(/doesn.t match its clip/);
   });
 });

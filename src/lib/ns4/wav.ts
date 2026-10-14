@@ -201,3 +201,13 @@ export function parseWav(bytes: Uint8Array): WavAudio {
   }
   return { sampleRate, channelCount, bitDepth, float: isFloat, channels };
 }
+
+/** Parsed WAV channels as floats in −1…1: integers by their bit depth, float sources by 0x7FFFFF. */
+export function wavToFloat(wav: WavAudio): Float32Array[] {
+  const scale = wav.float ? 1 / 0x7fffff : 1 / 2 ** (wav.bitDepth - 1);
+  return wav.channels.map((ch) => {
+    const out = new Float32Array(ch.length);
+    for (let i = 0; i < ch.length; i++) out[i] = ch[i] * scale;
+    return out;
+  });
+}

@@ -64,4 +64,12 @@ describe('KeyboardZoneMap', () => {
     expect(readOnly).not.toContain('ew-resize'); // read-only: bands only, no handles
     expect(readOnly).toContain('>S1<');          // zones still drawn
   });
+
+  it('draws a zone from its own bottom key with respectKeyLow, leaving the keys below it bare', () => {
+    const band = (html: string) => Number(/<rect x="([\d.]+)" y="8"/.exec(html)![1]);
+    const tiled = renderToStaticMarkup(<KeyboardZoneMap zones={zones} selected={0} onSelect={() => {}} />);
+    const honest = renderToStaticMarkup(<KeyboardZoneMap zones={zones} selected={0} onSelect={() => {}} respectKeyLow />);
+    expect(band(tiled)).toBe(1); // from A0
+    expect(band(honest)).toBeCloseTo((1000 * (40 - 21)) / 87 + 1); // from E2, the zone's own key
+  });
 });

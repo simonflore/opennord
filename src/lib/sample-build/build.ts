@@ -34,10 +34,10 @@ export function prepare(p: SampleProject, read: ReadAudio): { warnings: string[]
     warnings: issues.filter((i) => i.level === 'warning').map((i) => i.message),
     take: (z, t) => {
       const audio = audioOf(t.clipId);
-      if (!audio) throw new Error(`The audio for zone ${noteName(z.rootKey)} is missing; replace its take.`);
+      if (!audio) throw new Error(`The audio for zone ${noteName(z.rootKey)} is missing; remove this take and add the recording again.`);
       const clip = p.clips.find((c) => c.id === t.clipId);
       if (audio.sampleRate !== clip?.sampleRate || audio.channels.length !== clip.channels || audio.channels.some((ch) => ch.length < t.end)) {
-        throw new Error(`The audio for zone ${noteName(z.rootKey)} doesn't match its clip; replace its take.`);
+        throw new Error(`The audio for zone ${noteName(z.rootKey)} doesn’t match its clip; remove this take and add the recording again.`);
       }
       return renderTake(t, audio);
     },

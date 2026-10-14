@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { RemoveResult } from '@/lib/library/keep-copies';
 import '../library/library.css';
-import { BrowseToolbar, Button, Dialog, type FacetGroup } from '../ui';
+import { BrowseToolbar, Button, Dialog, MenuItem, type FacetGroup } from '../ui';
 import { CategoryPanel } from '../library/CategoryPanel';
 import { LibraryCard } from '../library/LibraryCard';
 import { useStableCallback } from '@/lib/useStableCallback';
@@ -45,7 +45,7 @@ const SORT_LABEL: Record<SampleSort, string> = {
 export function SamplesBrowse(
   { entries, source, generation, query, nordCount, localCount, total = nordCount + localCount, showSourceFacet, showCloud = false, showUnknownGen,
     category = 'all', onCategory, categoriesPresent = [],
-    onSource, onGeneration, onQuery, clearFilters, filtered, onOpen, onImport, onRemove, activeId,
+    onSource, onGeneration, onQuery, clearFilters, filtered, onOpen, onImport, onBuild, onRemove, activeId,
     storedCount, storedBytes, prefs,
     canScanUsage, onScanUsage, scanPct, scanError, unusedCount, unusedOnly, onUnusedOnly,
     selected, selectedEntries, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
@@ -73,6 +73,8 @@ export function SamplesBrowse(
     /** The entry open in the detail pane, highlighted in the list. */
     activeId?: string | null;
     onImport: () => void;
+    /** Opens the Build a sample screen (offered in "+ Add" when given). */
+    onBuild?: () => void;
     onRemove: (id: string) => void;
     storedCount: number;
     storedBytes: number;
@@ -193,7 +195,9 @@ export function SamplesBrowse(
       )}
       {/* At phone width the rail, and the folder in it, is hidden. */}
       <FolderMenu folder={folder} place="toolbar" className="min-[720px]:hidden" />
-      <AddMenu folder={folder} noun="a sample file" onImport={onImport} />
+      <AddMenu folder={folder} noun="a sample file" onImport={onImport}>
+        {onBuild && <MenuItem onSelect={onBuild} hint="Makes a sample from your own recordings">Build a sample…</MenuItem>}
+      </AddMenu>
     </>
   );
 

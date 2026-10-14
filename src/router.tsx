@@ -3,6 +3,7 @@ import { rootRoute } from '@/routes/root';
 import { HomeRoute } from '@/routes/home';
 import { LibraryIndexRoute, ProgramsRoute } from '@/routes/library';
 import { SamplesRoute, SamplesRedirectRoute } from '@/routes/samples';
+import { BuildSampleRoute } from '@/routes/build-sample';
 import { PresetsRoute } from '@/routes/presets';
 import { PianosRoute } from '@/routes/pianos';
 import { DeviceRoute } from '@/routes/device';
@@ -17,7 +18,7 @@ export function createAppRouter(extra: AnyRoute[] = []) {
   const routeTree = rootRoute.addChildren([
     HomeRoute,
     LibraryIndexRoute, ProgramsRoute,
-    SamplesRedirectRoute, SamplesRoute,
+    SamplesRedirectRoute, SamplesRoute, BuildSampleRoute,
     PresetsRoute, PianosRoute, DeviceRoute, CompatibilityRoute, AboutRoute, ManifestoRoute,
     ...RE_ROUTES,
     ...extra,

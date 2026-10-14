@@ -10,7 +10,7 @@
  * Local only: recordings of the user's instrument are read from disk and never sent
  * anywhere (`docs/LEGAL.md`).
  */
-import { parseWav } from '../ns4/wav';
+import { parseWav, wavToFloat } from '../ns4/wav';
 
 export const toDb = (x: number): number => (x > 0 ? 20 * Math.log10(x) : -Infinity);
 /** Frequency of a MIDI note at A4 = `a4` Hz (equal temperament). */
@@ -52,8 +52,7 @@ export interface Recording {
 /** Read a WAV file (8/16/24/32-bit PCM or 32-bit float) into Float32 channels in [-1, 1]. */
 export function readRecording(bytes: Uint8Array): Recording {
   const wav = parseWav(bytes);
-  const scale = wav.float ? 1 / 0x7fffff : wav.bitDepth === 8 ? 1 / 128 : 1 / 2 ** (wav.bitDepth - 1);
-  return { sampleRate: wav.sampleRate, channels: wav.channels.map((c) => Float32Array.from(c, (v) => v * scale)) };
+  return { sampleRate: wav.sampleRate, channels: wavToFloat(wav) };
 }
 
 export type ChannelPick = 'mix' | 'left' | 'right' | 'side';

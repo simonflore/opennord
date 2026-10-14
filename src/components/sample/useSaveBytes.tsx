@@ -13,16 +13,18 @@ type Status =
  * Save a converted sample or piano: into the linked folder when there is one, else as a
  * download, and say how it went. `dialog` (the folder's "new file or overwrite" question)
  * takes the caller's place while it is open; `report` is the outcome, shown below its buttons.
+ * `failLabel` starts what `fail` reports; `clear` empties the report before a new attempt.
  */
-export function useSaveBytes() {
+export function useSaveBytes({ failLabel = "Couldn't convert" }: { failLabel?: string } = {}) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   // The file being saved, for whichever way the save ends; dropped once it has.
   const pendingRef = useRef<{ out: Uint8Array; filename: string; warnings: string[] } | null>(null);
 
   const folderWrite = useFolderWrite({
     prefScope: 'sample',
-    onSaved: (path, folderName) => {
-      setStatus({ kind: 'done', msg: `Saved to ${folderName}/${path}`, warnings: pendingRef.current?.warnings ?? [] });
+    onSaved: (path, folderName, also) => {
+      const more = also.length ? ` and ${also.join(', ')}` : '';
+      setStatus({ kind: 'done', msg: `Saved to ${folderName}/${path}${more}`, warnings: pendingRef.current?.warnings ?? [] });
       pendingRef.current = null;
     },
     onFallback: () => {
@@ -35,14 +37,21 @@ export function useSaveBytes() {
     },
   });
 
-  async function save(out: Uint8Array, filename: string, existing: boolean, warnings: string[]) {
+  const writer = (bytes: Uint8Array) => async (w: FileSystemWritableFileStream) => {
+    await w.write(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+  };
+
+  /** `also`: companion files written next to it in the linked folder; without a folder only the main file downloads. */
+  async function save(out: Uint8Array, filename: string, existing: boolean, warnings: string[], also?: { out: Uint8Array; filename: string }[]) {
     pendingRef.current = { out, filename, warnings };
-    await folderWrite.save({ name: filename, existing, write: async (w) => {
-      await w.write(out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer);
-    } });
+    await folderWrite.save({
+      name: filename, existing, write: writer(out),
+      also: also?.map((a) => ({ name: a.filename, write: writer(a.out) })),
+    });
   }
 
   const fail = (e: unknown) => setStatus({ kind: 'error', msg: getErrorMessage(e) });
+  const clear = () => setStatus({ kind: 'idle' });
 
   const dialog: ReactNode = folderWrite.dialogProps && (
     <WriteTargetDialog
@@ -64,7 +73,7 @@ export function useSaveBytes() {
         </>
       )}
       {status.kind === 'error' && (
-        <p className="ps-sub" style={{ marginTop: 10, color: 'var(--warn)' }}>{"Couldn't convert:"} {status.msg}</p>
+        <p className="ps-sub" style={{ marginTop: 10, color: 'var(--warn)' }}>{failLabel}: {status.msg}</p>
       )}
       {folderWrite.error && (
         <p className="ps-sub" style={{ marginTop: 10, color: 'var(--warn)' }}>{"Couldn't save:"} {folderWrite.error}</p>
@@ -72,5 +81,5 @@ export function useSaveBytes() {
     </>
   );
 
-  return { save, fail, saving: folderWrite.saving, dialog, report };
+  return { save, fail, clear, saving: folderWrite.saving, dialog, report };
 }

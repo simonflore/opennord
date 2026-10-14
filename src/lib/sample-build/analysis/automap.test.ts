@@ -13,7 +13,7 @@ describe('placeTakes', () => {
     const { p, clipId } = withClip();
     const { project, report } = placeTakes(p, [cand(clipId, 36, 0), cand(clipId, 48, 1), cand(clipId, 48, 2), cand(clipId, null, 3)]);
     expect(project.zones.map((z) => [z.rootKey, z.takes.length])).toEqual([[36, 1], [48, 2]]);
-    expect(report).toEqual({ newZones: 2, addedTakes: 1, unclear: ['note 4'] });
+    expect(report).toEqual({ newZones: 2, addedTakes: 1, unclear: ['note 4'], outcomes: ['zone', 'zone', 'take', 'unclear'] });
     expect(project.zones[1].layers).toHaveLength(1); // the newer take waits
   });
 });

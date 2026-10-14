@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { cn } from '@/lib/cn';
-import { Button, Dialog } from '../ui';
+import { ConfirmDialog } from '../ui';
 
 const stop = (ev: SyntheticEvent) => ev.stopPropagation();
 
@@ -48,21 +48,8 @@ export function CardRemoveButton({ name, onRemove }: { name: string; onRemove: (
 /** "Remove … from your library?" — the confirm every Remove from library goes through. */
 export function RemoveFromLibraryDialog({ name, onCancel, onRemove }: { name: string; onCancel: () => void; onRemove: () => void }) {
   return (
-    <Dialog
-      open
-      portal
-      onClose={onCancel}
-      title={`Remove “${name}” from your library?`}
-      footer={(
-        <>
-          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
-          <Button variant="primary" onClick={onRemove}>Remove from library</Button>
-        </>
-      )}
-    >
-      <p className="m-0 text-[13px] text-dim">
-        OpenNord forgets its copy. The file on your computer or your Nord isn’t touched.
-      </p>
-    </Dialog>
+    <ConfirmDialog portal title={`Remove “${name}” from your library?`} confirmLabel="Remove from library" onCancel={onCancel} onConfirm={onRemove}>
+      OpenNord forgets its copy. The file on your computer or your Nord isn’t touched.
+    </ConfirmDialog>
   );
 }

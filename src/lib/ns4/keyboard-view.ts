@@ -24,7 +24,7 @@ export interface TiledZone {
   index: number;
   rootKey: number;
   keyHigh: number;
-  /** Bottom key of the zone — the previous zone's keyHigh + 1 (KEY_MIN for the first). */
+  /** Bottom key of the zone — the previous zone's keyHigh + 1 (KEY_MIN for the first), or its own with `respectKeyLow`. */
   keyLow: number;
   velTop: number;
 }
@@ -32,13 +32,16 @@ export interface TiledZone {
 /**
  * Lay the zones out left→right by ascending top key (split point), deriving each
  * zone's bottom key from the previous boundary. Keeps the original index so a
- * drag can write back to the right edit-model entry.
+ * drag can write back to the right edit-model entry. With `respectKeyLow`, each
+ * zone starts at its own bottom key instead (never below the previous zone's top),
+ * so keys no zone covers show as a gap.
  */
-export function tileZones(zones: EditZone[]): TiledZone[] {
+export function tileZones(zones: EditZone[], opts: { respectKeyLow?: boolean } = {}): TiledZone[] {
   const ordered = zones.map((z, index) => ({ ...z, index })).sort((a, b) => a.keyHigh - b.keyHigh);
   let low = KEY_MIN;
   return ordered.map((z) => {
-    const tz: TiledZone = { index: z.index, rootKey: z.rootKey, keyHigh: z.keyHigh, keyLow: low, velTop: z.velTop };
+    const keyLow = opts.respectKeyLow ? Math.max(low, z.keyLow) : low;
+    const tz: TiledZone = { index: z.index, rootKey: z.rootKey, keyHigh: z.keyHigh, keyLow, velTop: z.velTop };
     low = z.keyHigh + 1;
     return tz;
   });

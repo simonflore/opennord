@@ -29,7 +29,7 @@ const xOf = (midi: number) => keyFraction(midi) * W;
  * dragging retriggers across keys, and now-playing / root / range highlights appear.
  * When these props are absent the component behaves exactly as before.
  */
-export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, onPlayZone, onNoteOn, onNoteOff, soundingMidis, playableZones }: {
+export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, onPlayZone, onNoteOn, onNoteOff, soundingMidis, playableZones, respectKeyLow = false }: {
   zones: EditZone[];
   selected: number;
   onSelect: (index: number) => void;
@@ -45,12 +45,14 @@ export function KeyboardZoneMap({ zones, selected, onSelect, onChangeKeyHigh, on
   soundingMidis?: ReadonlySet<number>;
   /** Gapless layout from buildPlayableZones — drives root markers + selected-range tint. */
   playableZones?: PlayableZone[];
+  /** Draw each zone from its own bottom key, so keys no zone covers stay bare. Off: zones tile from A0. */
+  respectKeyLow?: boolean;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<number | null>(null);
   // Tracks the held key in playable mode so drag-across retriggers cleanly.
   const held = useRef<number | null>(null);
-  const tiled = tileZones(zones);
+  const tiled = tileZones(zones, { respectKeyLow });
 
   const keyAt = (clientX: number): number => {
     const rect = svgRef.current!.getBoundingClientRect();

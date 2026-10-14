@@ -167,13 +167,63 @@ export function setKeys(p: SampleProject, zoneId: string, keyLow: number, keyHig
   return withZone(p, zoneId, (z) => ({ ...z, keyLow, keyHigh }));
 }
 
+/**
+ * Drag a zone's split: its top key moves, and the zone above starts on the next key. Clamped
+ * so each zone keeps its root: the split stays between this zone's root and the key before
+ * the next zone's root. A gap above the zone stays a gap.
+ */
+export function moveSplit(p: SampleProject, zoneId: string, keyHigh: number): SampleProject {
+  const z = zoneById(p, zoneId);
+  const sorted = [...p.zones].sort((a, b) => a.keyLow - b.keyLow);
+  const next = sorted[sorted.indexOf(z) + 1];
+  const touching = next !== undefined && next.keyLow === z.keyHigh + 1;
+  const top = next ? next.rootKey - 1 : 127;
+  const high = Math.max(z.rootKey, Math.min(top, Math.round(keyHigh)));
+  if (!next) return withZone(p, zoneId, (x) => ({ ...x, keyHigh: high }));
+  const nextLow = touching ? high + 1 : Math.max(next.keyLow, high + 1);
+  return assertSound(touch(p, p.zones.map((x) => (x.id === zoneId ? { ...x, keyHigh: high } : x.id === next.id ? { ...x, keyLow: nextLow } : x))));
+}
+
 export function updateTake(p: SampleProject, zoneId: string, takeId: string, change: Partial<NewTake>): SampleProject {
   return withZone(p, zoneId, (z) => ({ ...z, takes: z.takes.map((t) => (t.id === takeId ? { ...t, ...change } : t)) }));
+}
+
+/**
+ * Remove a take. A zone keeps at least one. A take that is a layer takes its layer with it;
+ * the next loudest layer then plays at 0 dB, and a zone left with no layer plays its first take.
+ */
+export function removeTake(p: SampleProject, zoneId: string, takeId: string): SampleProject {
+  return withZone(p, zoneId, (z) => {
+    if (!z.takes.some((t) => t.id === takeId)) throw new Error(`No take ${takeId} in this zone`);
+    if (z.takes.length === 1) throw new Error('A zone needs at least one take; remove the zone instead.');
+    const takes = z.takes.filter((t) => t.id !== takeId);
+    const left = z.layers.filter((l) => l.takeId !== takeId);
+    const layers = left.length ? [{ ...left[0], floorDb: 0 }, ...left.slice(1)] : [{ takeId: takes[0].id, floorDb: 0 }];
+    return { ...z, takes, layers };
+  });
+}
+
+/** The zones (by root note) whose takes use a clip, lowest first. */
+export function zonesUsing(p: SampleProject, clipId: string): string[] {
+  return [...p.zones].sort((a, b) => a.rootKey - b.rootKey).filter((z) => z.takes.some((t) => t.clipId === clipId)).map((z) => noteName(z.rootKey));
+}
+
+/** Remove a recording no take uses. Its stored audio may stay; nothing points at it. */
+export function removeClip(p: SampleProject, clipId: string): SampleProject {
+  if (!p.clips.some((c) => c.id === clipId)) throw new Error(`No clip ${clipId}`);
+  const used = zonesUsing(p, clipId);
+  if (used.length) throw new Error(`This recording is used by ${used.length === 1 ? 'zone' : 'zones'} ${used.join(', ')}; remove those takes first.`);
+  return touch(p, p.zones, { clips: p.clips.filter((c) => c.id !== clipId) });
 }
 
 export function removeZone(p: SampleProject, zoneId: string): SampleProject {
   zoneById(p, zoneId);
   return touch(p, p.zones.filter((z) => z.id !== zoneId));
+}
+
+/** Rename the build; like every edit, it marks the project as changed now. */
+export function setName(p: SampleProject, name: string): SampleProject {
+  return touch(p, p.zones, { name });
 }
 
 /** Change the file format. Nothing in the project changes; the new profile's `check` says what the file will get. */

@@ -9,16 +9,20 @@
  *    watched folder (see {@link ../folder/bundlePrefs}).
  *  - `sample-imports` — samples the user imported as single files (the user's own
  *    `.nsmp*` bytes, never Nord factory content; docs/LEGAL.md).
+ *  - `sample-projects` — Build-sample projects (plain JSON; the user's own work).
+ *  - `sample-project-audio` — the clip audio those projects use, by `Clip.audioRef`.
  *
  * Bumping `DB_VERSION` and creating missing stores in `onupgradeneeded` keeps the
  * upgrade from an older (folder-only) database non-destructive.
  */
 const DB_NAME = 'opennord';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 export const STORE_FOLDER = 'folder';
 export const STORE_IMPORTS = 'imports';
 export const STORE_BUNDLE_CHOICE = 'bundle-choice';
 export const STORE_SAMPLE_IMPORTS = 'sample-imports';
+export const STORE_SAMPLE_PROJECTS = 'sample-projects';
+export const STORE_SAMPLE_PROJECT_AUDIO = 'sample-project-audio';
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -29,6 +33,8 @@ function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_IMPORTS)) db.createObjectStore(STORE_IMPORTS);
       if (!db.objectStoreNames.contains(STORE_BUNDLE_CHOICE)) db.createObjectStore(STORE_BUNDLE_CHOICE);
       if (!db.objectStoreNames.contains(STORE_SAMPLE_IMPORTS)) db.createObjectStore(STORE_SAMPLE_IMPORTS);
+      if (!db.objectStoreNames.contains(STORE_SAMPLE_PROJECTS)) db.createObjectStore(STORE_SAMPLE_PROJECTS);
+      if (!db.objectStoreNames.contains(STORE_SAMPLE_PROJECT_AUDIO)) db.createObjectStore(STORE_SAMPLE_PROJECT_AUDIO);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -48,6 +54,20 @@ export function idbTx<T>(
         const req = run(os);
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
+      }),
+  );
+}
+
+/** Run writes across several stores in one readwrite transaction; resolves when it commits, so all or none land. */
+export function idbWriteAll(stores: string[], run: (tx: IDBTransaction) => void): Promise<void> {
+  return openDb().then(
+    (db) =>
+      new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(stores, 'readwrite');
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+        run(tx);
       }),
   );
 }

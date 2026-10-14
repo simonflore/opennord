@@ -12,6 +12,12 @@ describe('tileZones', () => {
     expect(tiled.map((t) => t.keyLow)).toEqual([KEY_MIN, 41, 61]);
     expect(tiled.map((t) => t.index)).toEqual([2, 1, 0]); // original positions preserved
   });
+
+  it('keeps each zone’s own bottom key when asked, so gaps stay gaps', () => {
+    const zones = [z(60, 72), { ...z(40, 48), keyLow: 36 }];
+    expect(tileZones(zones, { respectKeyLow: true }).map((t) => [t.keyLow, t.keyHigh])).toEqual([[36, 48], [60, 72]]);
+    expect(tileZones(zones).map((t) => [t.keyLow, t.keyHigh])).toEqual([[KEY_MIN, 48], [49, 72]]); // default unchanged
+  });
 });
 
 describe('clampKeyHigh', () => {

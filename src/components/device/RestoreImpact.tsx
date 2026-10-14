@@ -1,6 +1,5 @@
 import type { RestoreImpact as Impact } from '../../lib/device/restore-diff';
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+import { plural } from '../../lib/plural';
 
 /** Renders the device-vs-backup restore impact — leads with the slot-change count
  *  (the MIDI Program Change targets), then a breakdown + content counts. */

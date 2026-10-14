@@ -63,7 +63,8 @@ export function editModel(file: NsmpFile, zones: NsmpZone[]): EditModel {
   };
 }
 
-const clampKey = (n: number): number => Math.max(0, Math.min(127, Math.round(n))) & 0x7f;
+/** A key number rounded and held to 0–127. */
+export const clampKey = (n: number): number => Math.max(0, Math.min(127, Math.round(n))) & 0x7f;
 
 /**
  * Patch the edited zone fields + name back into the original file bytes, then

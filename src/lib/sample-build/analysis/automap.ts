@@ -8,21 +8,26 @@ import { MAX_KEYS_ABOVE_ROOT } from '../../ns4/nsmp-write';
 import { addTake, addZone, setKeys, type SampleProject, type Take } from '../model';
 
 export interface Candidate { clipId: string; start: number; end: number; root: number | null; label: string; pitchEstimate?: Take['pitchEstimate'] }
-export interface PlaceReport { newZones: number; addedTakes: number; unclear: string[] }
+export interface PlaceReport {
+  newZones: number; addedTakes: number; unclear: string[];
+  /** Where each candidate went, in order: a new zone, a waiting take on a zone, or left out (no clear root). */
+  outcomes: ('zone' | 'take' | 'unclear')[];
+}
 
 export function placeTakes(p: SampleProject, items: Candidate[]): { project: SampleProject; report: PlaceReport } {
-  const report: PlaceReport = { newZones: 0, addedTakes: 0, unclear: [] };
+  const report: PlaceReport = { newZones: 0, addedTakes: 0, unclear: [], outcomes: [] };
   let project = p;
   for (const c of items) {
-    if (c.root === null) { report.unclear.push(c.label); continue; }
+    if (c.root === null) { report.unclear.push(c.label); report.outcomes.push('unclear'); continue; }
     const take = { clipId: c.clipId, start: c.start, end: c.end, loop: null, loopDecaySeconds: null, gainDb: 0, tuneCents: 0, pitchEstimate: c.pitchEstimate };
     const zone = project.zones.find((z) => z.rootKey === c.root);
-    if (zone) { project = addTake(project, zone.id, take).project; report.addedTakes++; continue; }
+    if (zone) { project = addTake(project, zone.id, take).project; report.addedTakes++; report.outcomes.push('take'); continue; }
     // A new zone sits on its root alone; any zone already spread over that key is narrowed
     // back to its root first, and `autoMap` lays them all out again.
     for (const z of project.zones) if (c.root >= z.keyLow && c.root <= z.keyHigh) project = setKeys(project, z.id, z.rootKey, z.rootKey);
     project = addZone(project, c.root, take).project;
     report.newZones++;
+    report.outcomes.push('zone');
   }
   return { project, report };
 }

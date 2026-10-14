@@ -11,6 +11,11 @@ export interface FolderWriteJob {
   existing: boolean;
   /** Streams the output bytes into the folder file. */
   write: (w: FileSystemWritableFileStream) => Promise<void>;
+  /**
+   * Companion files (e.g. a build's project file) written after this one, into the folder
+   * only and with the same new-or-overwrite choice. Nothing is written for them without a folder.
+   */
+  also?: { name: string; write: (w: FileSystemWritableFileStream) => Promise<void> }[];
 }
 
 /**
@@ -20,7 +25,8 @@ export interface FolderWriteJob {
  * its own download fallback, and renders the dialog from `dialogProps`.
  */
 export function useFolderWrite({ onSaved, onFallback, prefScope }: {
-  onSaved: (path: string, folderName: string) => void;
+  /** `also` lists the paths of the job's companion files that were written (empty for a job without any). */
+  onSaved: (path: string, folderName: string, also: string[]) => void;
   onFallback: () => void | Promise<void>;
   /** Scope for the remembered overwrite policy — keep flows with different
    *  stakes (sample convert vs backup re-export) from sharing one "remember". */
@@ -36,8 +42,16 @@ export function useFolderWrite({ onSaved, onFallback, prefScope }: {
     setSaving(true);
     try {
       const res = await folder.writeBack(job.name, job.write, { mode });
-      if (res.target === 'folder') onSaved(res.path, folder.folderName ?? '');
-      else await onFallback();
+      if (res.target !== 'folder') { await onFallback(); return; }
+      const also: string[] = [];
+      try {
+        for (const a of job.also ?? []) {
+          const r = await folder.writeBack(a.name, a.write, { mode });
+          if (r.target === 'folder') also.push(r.path);
+        }
+      } finally {
+        onSaved(res.path, folder.folderName ?? '', also); // the main file is saved even if a companion failed
+      }
     } catch (e) {
       // Surface the failure (revoked permission, disk error mid-stream) — a
       // silent stop here reads as "saved" when nothing was written. Kept out
