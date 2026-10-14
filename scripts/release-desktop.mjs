@@ -116,20 +116,19 @@ try {
 }
 
 // 4. Find the commit the public tag must point at: this checkout's commit as
-//    the mirror sees it. mirror-core.yml pushes the output of the monorepo's
-//    scripts/mirror-core/mirror.sh,
-//    which is deterministic, so running it here names the same commit — and its
-//    absence over there means the mirror has not caught up.
+//    the public repo has it. The monorepo's scripts/mirror-core/mirror.sh
+//    computes it (mirror-core.yml publishes the same), and its absence over
+//    there means the mirror has not caught up.
 let target = null;
 if (!dryRun) {
   const top = tryRun('git', ['rev-parse', '--show-toplevel']);
-  const filter = top ? join(top, 'scripts', 'mirror-core', 'mirror.sh') : null;
-  if (!filter || !existsSync(filter)) fatal('releases are cut from the monorepo: scripts/mirror-core/mirror.sh is missing.');
+  const mirror = top ? join(top, 'scripts', 'mirror-core', 'mirror.sh') : null;
+  if (!mirror || !existsSync(mirror)) fatal('releases are cut from the monorepo: scripts/mirror-core/mirror.sh is missing.');
   console.log('\nWorking out the public commit for this release (about half a minute)…');
   const mirrorDir = mkdtempSync(join(tmpdir(), 'opennord-mirror-'));
   let failure = null;
   try {
-    target = execFileSync(filter, ['HEAD', mirrorDir], { cwd: core, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    target = execFileSync(mirror, ['HEAD', mirrorDir], { cwd: core, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   } catch (error) {
     failure = error;
   } finally {
