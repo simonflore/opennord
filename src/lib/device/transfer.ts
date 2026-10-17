@@ -7,7 +7,7 @@ import { NordError, NordStatus } from './protocol';
 import { readAsciiFixed } from '../clavia/ascii';
 import { buildCbinHeader, cbinFraming, cbinRecord, hasCbinMagic, readCbinHeader } from '../clavia/cbin';
 import { patchNs4Checksum } from '../clavia/checksum';
-import { formatSlot } from '../clavia/slot';
+import { formatDeviceSlot } from '../clavia/slot';
 import { programCategoryName } from '../clavia/categories';
 import { readU32BE as u32 } from './payload-io';
 
@@ -163,8 +163,8 @@ export interface ProgramRowView {
 /** Display row for a ProgramEntry — reuses the shared slot + category formatting. */
 export function programEntryView(e: ProgramEntry): ProgramRowView {
   return {
-    name: e.name || `(slot ${formatSlot(e.bank, e.slot)})`,
-    slot: formatSlot(e.bank, e.slot),
+    name: e.name || `(slot ${formatDeviceSlot(e.bank, e.slot)})`,
+    slot: formatDeviceSlot(e.bank, e.slot),
     category: programCategoryName(e.categoryId) ?? `#${e.categoryId}`,
     version: `v${(e.version / 100).toFixed(2)}`,
   };
@@ -259,7 +259,7 @@ export async function pushFile(
   session.assertWritable(); // refuse before any frame: the open partition must be confirmed
   const refusal = pushRefusal(fileBytes);
   if (refusal) throw new NordError(refusal);
-  const where = formatSlot(bank, slot);
+  const where = formatDeviceSlot(bank, slot);
 
   /** Create + write + commit, with a refused create as an error. */
   const write = async () => {

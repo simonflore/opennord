@@ -14,6 +14,21 @@ export function formatSlot(bank: number, location: number): string {
 }
 
 /**
+ * The label of a slot the Nord itself listed. Unlike {@link formatSlot}, which reads
+ * a file header's 6-bit location, it keeps the whole location and bank: a Stage 2
+ * bank holds 100 slots, and masking gave slots 0 and 64 the same label, so two
+ * programs shared a Library id (the wrong one opened, and its read never finished).
+ * Slots 0–63 of banks A–H read exactly as {@link formatSlot} reads them; past that
+ * the pages keep counting (slot 64 is "A:91"), so every slot has a label of its own.
+ * Not what a Stage 2 shows on its panel — that label is still to be confirmed.
+ * @example formatDeviceSlot(0, 64) // → "A:91"
+ */
+export function formatDeviceSlot(bank: number, location: number): string {
+  const letter = BANK_LETTERS[bank] ?? String(bank);
+  return `${letter}:${Math.floor(location / 8) + 1}${(location % 8) + 1}`;
+}
+
+/**
  * The same address, written out for prose ("Write to Slot A:26"). Use this in
  * sentences; keep {@link formatSlot} for dense grid cells where space is tight.
  * @example slotLabel(0, 21) // → "Slot A:36"

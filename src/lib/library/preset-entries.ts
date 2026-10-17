@@ -3,7 +3,7 @@ import type { ScannedPreset } from '../folder/scan';
 import type { ProgramEntry } from '../device/transfer';
 import type { LibrarySource } from './types';
 import type { PresetSort } from './prefs';
-import { formatSlot } from '../clavia/slot';
+import { formatDeviceSlot } from '../clavia/slot';
 import { generationOf, identifyNordFile } from '../clavia/nord-file';
 import { programNameFromFilename } from '../clavia/name';
 import { matchesQuery, sortWithFavorites } from './browse';
@@ -78,7 +78,7 @@ export function presetEntriesFromDevice(
 ): PresetEntry[] {
   return groups.flatMap((g) =>
     g.entries.map((e) => {
-      const slot = formatSlot(e.bank, e.slot);
+      const slot = formatDeviceSlot(e.bank, e.slot);
       return {
         id: `nord-preset:${g.partition}:${slot}`, name: e.name, source: 'nord' as const, kind: g.kind,
         ...presetFormat(PRESET_EXT[g.kind]), slot, device: e, partition: g.partition,

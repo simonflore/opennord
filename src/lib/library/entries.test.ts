@@ -37,6 +37,11 @@ describe('nordEntriesFromDevice', () => {
     const out = nordEntriesFromDevice([{ bank: 0, slot: 0, name: 'Lyle Lead', categoryId: 6, version: 313, sizeBytes: 0, fourcc: 'ns4p' }]);
     expect(out[0].category).toBe('Lead'); // id 6 = Lead
   });
+  it('keeps every program of a 100-slot Stage 2 bank under its own id', () => {
+    const device = (slot: number, name: string) => ({ bank: 0, slot, name, categoryId: 0, version: 6, sizeBytes: 0, fourcc: 'ns2p' });
+    const out = nordEntriesFromDevice([device(0, 'LadiesNight Bass'), device(64, 'The opening')]);
+    expect(out.map((e) => e.id)).toEqual(['nord:A:11', 'nord:A:91']);
+  });
 });
 
 describe('filterEntries', () => {

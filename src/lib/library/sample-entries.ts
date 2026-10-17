@@ -3,7 +3,7 @@ import type { ScannedSample } from '../folder/scan';
 import type { ProgramEntry } from '../device/transfer';
 import type { LibrarySource } from './types';
 import type { SampleSort } from './prefs';
-import { formatSlot } from '../clavia/slot';
+import { formatDeviceSlot } from '../clavia/slot';
 import { sampleCategoryLabel, SAMPLE_CATEGORY_LABELS } from '../clavia/sample-categories';
 import { matchesAny, sortWithFavorites } from './browse';
 import type { BackupRef } from '../clavia/backup/backup-index';
@@ -123,7 +123,7 @@ export function sampleEntriesFromBackupRefs(refs: BackupRef[]): SampleEntry[] {
 /** Map the device's enumerated sample-partition files into nord Sample entries. */
 export function nordSampleEntriesFromDevice(entries: ProgramEntry[]): SampleEntry[] {
   return entries.map((e) => {
-    const slot = formatSlot(e.bank, e.slot);
+    const slot = formatDeviceSlot(e.bank, e.slot);
     return { id: `nord-sample:${slot}`, name: e.name, source: 'nord' as const, generation: 'unknown' as const, slot, device: e };
   });
 }

@@ -47,6 +47,10 @@ describe('identifyNordFile', () => {
     expect(info.category).toBe(21);
   });
 
+  it('reads an NSM-era header location as the 6-bit grid, ignoring bits above it', () => {
+    expect(identifyNordFile(cbin('ns4p', 1, { bank: 0, loc: 0x7f })).slot).toBe('A:88');
+  });
+
   it('decodes the Stage 2 (ns2p, legacy format 0) header — raw slot + shared category, no version', () => {
     // RE'd by diffing 6 real .ns2p: location is the raw program number (SUMMER 69
     // → slot 69), category shares the enum (12 = Synth), 0x14 is not the version.

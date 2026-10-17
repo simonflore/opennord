@@ -22,6 +22,11 @@ vi.mock('../device/factory', () => ({
 const dev = (over: Partial<ProgramEntry>): ProgramEntry => ({ bank: 0, slot: 0, name: 'X', categoryId: 0, version: 100, sizeBytes: 10, fourcc: 'npno', ...over });
 
 describe('piano-entries', () => {
+  it('keeps pianos in slots 0 and 64 under their own ids', () => {
+    const out = pianoEntriesFromDevice([dev({ slot: 0, name: 'A' }), dev({ slot: 64, name: 'B' })]);
+    expect(out.map((e) => e.id)).toEqual(['nord-piano:A:11', 'nord-piano:A:91']);
+  });
+
   it('maps device entries with slot, partition, and a precomputed factory match', () => {
     const out = pianoEntriesFromDevice([dev({ name: 'Grand Lady D' }), dev({ bank: 0, slot: 1, name: 'My Piano' })]);
     expect(out[0]).toMatchObject({ source: 'nord', name: 'Grand Lady D', partition: 1, slot: 'A:11' });

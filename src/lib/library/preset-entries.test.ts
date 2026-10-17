@@ -7,6 +7,13 @@ const dev = (over: Partial<ProgramEntry>): ProgramEntry => ({
 });
 
 describe('preset-entries', () => {
+  it('keeps presets in slots 0 and 64 under their own ids', () => {
+    const out = presetEntriesFromDevice([
+      { kind: 'synth-preset', partition: 9, entries: [dev({ slot: 0, name: 'A' }), dev({ slot: 64, name: 'B' })] },
+    ]);
+    expect(out.map((e) => e.id)).toEqual(['nord-preset:9:A:11', 'nord-preset:9:A:91']);
+  });
+
   it('maps device groups into entries carrying kind + partition + slot', () => {
     const out = presetEntriesFromDevice([
       { kind: 'synth-preset', partition: 9, entries: [dev({ bank: 0, slot: 0, name: 'Pad' })] },

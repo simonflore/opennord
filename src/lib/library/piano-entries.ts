@@ -4,7 +4,7 @@ import { readNspIdentity, readNspZones } from '../ns4/nsp';
 import { resolveFactory, type FactoryMatch } from '../device/factory';
 import type { LibrarySource } from './types';
 import type { PianoSort } from './prefs';
-import { formatSlot } from '../clavia/slot';
+import { formatDeviceSlot } from '../clavia/slot';
 import { PARTITION_PIANO } from '../device/opcodes';
 import { matchesQuery, sortWithFavorites } from './browse';
 import type { BackupRef } from '../clavia/backup/backup-index';
@@ -83,7 +83,7 @@ export function pianoEntriesFromBackupRefs(refs: BackupRef[]): PianoEntry[] {
 /** Map the device's enumerated Piano Library files into nord entries. */
 export function pianoEntriesFromDevice(entries: ProgramEntry[]): PianoEntry[] {
   return entries.map((e) => {
-    const slot = formatSlot(e.bank, e.slot);
+    const slot = formatDeviceSlot(e.bank, e.slot);
     return { id: `nord-piano:${slot}`, name: e.name, source: 'nord' as const, slot, device: e, partition: PARTITION_PIANO, factory: resolveFactory(e.name, 'npno') };
   });
 }

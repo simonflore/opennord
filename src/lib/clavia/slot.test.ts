@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatSlot, wave2Slot, electro5Slot, lead4Slot } from './slot';
+import { formatSlot, formatDeviceSlot, wave2Slot, electro5Slot, lead4Slot } from './slot';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -59,6 +59,30 @@ describe('formatSlot', () => {
     expect(formatSlot(6, 0)).toBe('G:11');
     expect(formatSlot(2, 63)).toBe('C:88');
     expect(formatSlot(0, 0)).toBe('A:11');
+  });
+
+  it('reads a file header\'s location as the 6-bit grid, whatever sits above it', () => {
+    expect(formatSlot(0, 0x40)).toBe('A:11');
+    expect(formatSlot(2, 0xff)).toBe('C:88');
+  });
+});
+
+describe('formatDeviceSlot', () => {
+  it('reads slots 0–63 of banks A–H as formatSlot does', () => {
+    for (let bank = 0; bank < 8; bank++) {
+      for (let slot = 0; slot < 64; slot++) expect(formatDeviceSlot(bank, slot)).toBe(formatSlot(bank, slot));
+    }
+  });
+
+  it('gives every slot of a 100-slot Stage 2 bank its own label', () => {
+    expect(formatDeviceSlot(0, 64)).toBe('A:91');
+    expect(formatDeviceSlot(0, 99)).toBe('A:134');
+    expect(new Set(Array.from({ length: 100 }, (_, slot) => formatDeviceSlot(0, slot))).size).toBe(100);
+  });
+
+  it('keeps banks past H apart from A–H', () => {
+    expect(formatDeviceSlot(8, 0)).toBe('8:11');
+    expect(formatDeviceSlot(8, 0)).not.toBe(formatDeviceSlot(0, 0));
   });
 });
 

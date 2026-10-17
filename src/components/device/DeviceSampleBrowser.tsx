@@ -1,6 +1,6 @@
 import { type ProgramEntry } from '../../lib/device/transfer';
 import type { PartitionCapacity } from '../../lib/device/capacity';
-import { formatSlot } from '../../lib/clavia/slot';
+import { formatDeviceSlot } from '../../lib/clavia/slot';
 import { formatBytes } from '../../lib/format';
 import { StorageMeter } from './StorageMeter';
 import { IdentityLcd } from '../program/widgets';
@@ -34,8 +34,8 @@ export function DeviceSampleBrowser({ entries, deviceName, sampleCapacity, piano
           {sorted.map((e) => (
             <div key={`${e.bank}-${e.slot}`} className="ps-row">
               <button className="ps-row-open" onClick={() => onSelect(e)}>
-                <span className="ps-row-slot">{formatSlot(e.bank, e.slot)}</span>
-                <span style={{ flex: 1, fontWeight: 600 }}>{e.name || `(slot ${formatSlot(e.bank, e.slot)})`}</span>
+                <span className="ps-row-slot">{formatDeviceSlot(e.bank, e.slot)}</span>
+                <span style={{ flex: 1, fontWeight: 600 }}>{e.name || `(slot ${formatDeviceSlot(e.bank, e.slot)})`}</span>
                 <span className="ps-fact">{formatBytes(e.sizeBytes)}</span>
               </button>
             </div>

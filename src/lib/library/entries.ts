@@ -1,7 +1,7 @@
 import type { LibraryEntry, LibrarySource, LibrarySort } from './types';
 import type { ProgramEntry } from '../device/transfer';
 import type { ScannedProgram } from '../folder/scan';
-import { formatSlot } from '../clavia/slot';
+import { formatDeviceSlot } from '../clavia/slot';
 import { isNs4Program, parseClaviaFile } from '../formats';
 import { identifyNordFile } from '../clavia/nord-file';
 import { programNameFromFilename } from '../clavia/name';
@@ -27,13 +27,13 @@ function fileMetaFor(bytes: Uint8Array): Pick<LibraryEntry, 'typeLabel' | 'gener
 
 /** The Library id of the program in a Nord slot, e.g. "nord:A:26". */
 export function nordEntryId(e: Pick<ProgramEntry, 'bank' | 'slot'>): string {
-  return `nord:${formatSlot(e.bank, e.slot)}`;
+  return `nord:${formatDeviceSlot(e.bank, e.slot)}`;
 }
 
 /** Map the device's enumerated programs into Library entries. */
 export function nordEntriesFromDevice(entries: ProgramEntry[]): LibraryEntry[] {
   return entries.map((e) => ({
-    id: nordEntryId(e), name: e.name, source: 'nord', slot: formatSlot(e.bank, e.slot), category: programCategoryName(e.categoryId),
+    id: nordEntryId(e), name: e.name, source: 'nord', slot: formatDeviceSlot(e.bank, e.slot), category: programCategoryName(e.categoryId),
     // The type, so a file with this slot's name is hinted only when it is the same kind of file.
     typeLabel: `.${e.fourcc}`,
   }));

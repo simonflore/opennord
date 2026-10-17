@@ -46,6 +46,11 @@ describe('nordSampleEntriesFromDevice', () => {
     expect(out[0].bytes).toBeUndefined();
     expect(out[0].device).toBe(entry);   // carried for pullSample on tap
   });
+  it('keeps the samples of a Stage 2 past slot 64 apart from the first ones', () => {
+    const device = (slot: number, name: string) => ({ bank: 0, slot, name, categoryId: 0, version: 100, sizeBytes: 0, fourcc: 'nsmp' });
+    const out = nordSampleEntriesFromDevice([device(0, 'OrchStrings'), device(64, 'KRG')]);
+    expect(out.map((e) => e.id)).toEqual(['nord-sample:A:11', 'nord-sample:A:91']);
+  });
 });
 
 const sample: SampleEntry[] = [
