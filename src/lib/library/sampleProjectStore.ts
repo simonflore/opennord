@@ -35,6 +35,15 @@ export function saveClipAudio(audioRef: string, audio: ClipAudio): Promise<void>
   return idbTx(STORE_SAMPLE_PROJECT_AUDIO, 'readwrite', (s) => s.put(audio, audioRef)).then(() => undefined);
 }
 
+/** Forget stored clip audio no project points at (an import's left-over recordings). */
+export function deleteClipAudio(audioRefs: readonly string[]): Promise<void> {
+  if (!audioRefs.length) return Promise.resolve();
+  return idbWriteAll([STORE_SAMPLE_PROJECT_AUDIO], (tx) => {
+    const audio = tx.objectStore(STORE_SAMPLE_PROJECT_AUDIO);
+    for (const ref of audioRefs) audio.delete(ref);
+  });
+}
+
 export function loadClipAudio(audioRef: string): Promise<ClipAudio | undefined> {
   return idbTx<ClipAudio | undefined>(STORE_SAMPLE_PROJECT_AUDIO, 'readonly', (s) => s.get(audioRef));
 }

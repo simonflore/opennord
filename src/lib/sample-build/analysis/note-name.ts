@@ -8,6 +8,11 @@
  * as the app and NSE show notes.
  */
 const PITCH: Record<string, number> = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
+
+/** MIDI number of a note letter, accidental (`#`, `s` sharp; `b` flat) and octave, C4 = 60. Not range-checked. */
+export const noteMidi = (letter: string, accidental: string | undefined, octave: number): number =>
+  (octave + 1) * 12 + PITCH[letter.toLowerCase()] + (accidental === '#' || accidental === 's' ? 1 : accidental === 'b' ? -1 : 0);
+
 const NUMBER_CUES = new Set(['note', 'midi', 'key']);
 
 export function rootFromFileName(fileName: string): number | undefined {
@@ -24,9 +29,7 @@ export function rootFromFileName(fileName: string): number | undefined {
   for (const w of words) {
     const m = /^([A-Ga-g])(#|b|s)?(~1|[0-9])$/.exec(w);
     if (m) {
-      const octave = m[3] === '~1' ? -1 : Number(m[3]);
-      const accidental = m[2] === '#' || m[2] === 's' ? 1 : m[2] === 'b' ? -1 : 0;
-      const midi = (octave + 1) * 12 + PITCH[m[1].toLowerCase()] + accidental;
+      const midi = noteMidi(m[1], m[2], m[3] === '~1' ? -1 : Number(m[3]));
       if (midi >= 0 && midi <= 127) note = midi;
     } else if (NUMBER_CUES.has(previous.toLowerCase()) && /^\d+$/.test(w) && Number(w) <= 127) {
       numeric = Number(w);

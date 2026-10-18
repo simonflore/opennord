@@ -31,8 +31,11 @@ async function pickFolderFsa(): Promise<FolderHandleResult> {
   return { name: handle.name, handle, source: handle };
 }
 
-/** Fallback path: a one-shot <input webkitdirectory> picker, no persistence. */
-function pickFolderInput(): Promise<FolderHandleResult> {
+/**
+ * A one-shot <input webkitdirectory> picker, no persistence: the library folder's fallback,
+ * and what an import that only reads a folder once uses (it must not replace the linked one).
+ */
+export function pickFolderInput(): Promise<FolderHandleResult> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';

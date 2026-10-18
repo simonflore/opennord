@@ -65,9 +65,17 @@ describe('encodeWav', () => {
     const wav = encodeWav([new Float32Array([1, -1, 0, 0])], 44100, { start: 0, end: 2 });
     const smpl = 44 + 4 * 2;
     expect(u32(wav, smpl + 20)).toBe(60); // default C4
-    const parsed = parseWav(wav);         // parser skips the unknown chunk
+    const parsed = parseWav(wav);
     expect(parsed.channelCount).toBe(1);
     expect(parsed.channels[0].length).toBe(4);
+  });
+
+  it('reads back the root and loop a smpl chunk names, and says nothing without one', () => {
+    const audio = [new Float32Array(1000)];
+    expect(parseWav(encodeWav(audio, 44100, { start: 100, end: 900, unityNote: 62 }))).toMatchObject({ unityNote: 62, loop: { start: 100, end: 900 } });
+    const plain = parseWav(encodeWav(audio, 44100));
+    expect(plain.unityNote).toBeUndefined();
+    expect(plain.loop).toBeUndefined();
   });
 });
 

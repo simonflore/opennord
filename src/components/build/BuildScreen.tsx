@@ -31,7 +31,12 @@ const PIANO_TYPES: [string, number][] = [
 const NO_AUDIO: ReadAudio = () => undefined;
 
 /** One open build (spec §7, canvas "Build sample"). */
-export function BuildScreen({ projectId, onClose }: { projectId: string; onClose: () => void }) {
+export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNotes }: {
+  projectId: string; onClose: () => void;
+  /** What an import brought over and left out, shown until dismissed (`onDismissNotes`). */
+  importNotes?: string[];
+  onDismissNotes?: () => void;
+}) {
   const s = useSampleProject(projectId);
   const built = useBuiltFile(s.state === 'open' ? s.project : EMPTY, s.state === 'open' ? s.read : NO_AUDIO); // the file the Nord gets: played, and reused by Save
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
@@ -142,6 +147,14 @@ export function BuildScreen({ projectId, onClose }: { projectId: string; onClose
       </header>
       {problem && <p role="alert" className="px-6 py-2 text-sm text-warn">{problem}</p>}
       {notice && <p role="status" className="px-6 py-2 text-sm text-dim">{notice}</p>}
+      {importNotes.length > 0 && (
+        <section aria-label="From the import" className="flex items-start gap-3 border-b border-line px-6 py-2">
+          <ul className="m-0 flex-1 list-none p-0 text-sm text-dim">
+            {importNotes.map((n) => <li key={n}>{n}</li>)}
+          </ul>
+          <Button variant="ghost" className="min-h-11" onClick={onDismissNotes}>Dismiss</Button>
+        </section>
+      )}
       {/* Clips beside the zone from tablet width up; on a phone they come after the zone and keyboard. */}
       <div className="flex flex-auto flex-col md:grid md:grid-cols-[minmax(200px,240px)_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)]">
         <div className="min-w-0 border-line bg-surface p-[18px] max-md:order-last md:border-r">

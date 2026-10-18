@@ -148,6 +148,10 @@ export interface WavAudio {
   /** IEEE float source (`channels` then hold the value × 0x7FFFFF). */
   float: boolean;
   channels: Int32Array[];
+  /** The note it was recorded at, from a `smpl` chunk (what `encodeWav` writes). */
+  unityNote?: number;
+  /** Its first loop from a `smpl` chunk, in frames, end inclusive. */
+  loop?: { start: number; end: number };
 }
 
 const fourCC = (b: Uint8Array, o: number) => String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3]);
@@ -162,6 +166,7 @@ export function parseWav(bytes: Uint8Array): WavAudio {
   if (fourCC(bytes, 0) !== 'RIFF' || fourCC(bytes, 8) !== 'WAVE') throw new Error('parseWav: not a RIFF/WAVE file');
 
   let fmtTag = 0, channelCount = 0, sampleRate = 0, bitDepth = 0, dataOff = -1, dataLen = 0;
+  let unityNote: number | undefined, loop: WavAudio['loop'];
   let o = 12;
   while (o + 8 <= bytes.length) {
     const id = fourCC(bytes, o);
@@ -175,6 +180,14 @@ export function parseWav(bytes: Uint8Array): WavAudio {
       if (fmtTag === 0xfffe && sz >= 26) fmtTag = dv.getUint16(body + 24, true); // EXTENSIBLE → real tag
     } else if (id === 'data') {
       dataOff = body; dataLen = Math.min(sz, bytes.length - body);
+    } else if (id === 'smpl' && sz >= 36 && body + 36 <= bytes.length) {
+      // The layout `encodeWav` writes: unity note at +12, loop count at +28, loops from +36.
+      const unity = dv.getUint32(body + 12, true);
+      if (unity > 0 && unity < 128) unityNote = unity;
+      if (dv.getUint32(body + 28, true) > 0 && sz >= 60 && body + 60 <= bytes.length) {
+        const start = dv.getUint32(body + 44, true), end = dv.getUint32(body + 48, true);
+        if (end > start) loop = { start, end };
+      }
     }
     o = body + sz + (sz & 1); // chunks are word-aligned
   }
@@ -199,7 +212,7 @@ export function parseWav(bytes: Uint8Array): WavAudio {
       channels[c][f] = v;
     }
   }
-  return { sampleRate, channelCount, bitDepth, float: isFloat, channels };
+  return { sampleRate, channelCount, bitDepth, float: isFloat, channels, ...(unityNote !== undefined && { unityNote }), ...(loop && { loop }) };
 }
 
 /** Parsed WAV channels as floats in −1…1: integers by their bit depth, float sources by 0x7FFFFF. */

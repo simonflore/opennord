@@ -21,6 +21,20 @@ async function open() {
 }
 
 describe('BuildScreen', () => {
+  it('shows what an import brought over until dismissed', async () => {
+    const id = await createProject('Grand');
+    const onDismissNotes = vi.fn();
+    const screenFor = (notes: string[]) => <MidiProvider><BuildScreen projectId={id} onClose={vi.fn()} importNotes={notes} onDismissNotes={onDismissNotes} /></MidiProvider>;
+    const { rerender } = render(screenFor(['Imported 2 zones.', 'Left out: 1 release sample.']));
+    const notes = await screen.findByRole('region', { name: 'From the import' });
+    expect(notes).toHaveTextContent('Imported 2 zones.');
+    expect(notes).toHaveTextContent('Left out: 1 release sample.');
+    fireEvent.click(within(notes).getByRole('button', { name: 'Dismiss' }));
+    expect(onDismissNotes).toHaveBeenCalled();
+    rerender(screenFor([])); // the route forgets them, so the build shows none when it opens again
+    expect(screen.queryByRole('region', { name: 'From the import' })).toBeNull();
+  });
+
   it('adds WAV files from the file picker and lists them as clips', async () => {
     await open();
     const input = screen.getByLabelText('Add files…');

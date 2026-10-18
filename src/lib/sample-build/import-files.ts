@@ -6,7 +6,7 @@
  * Decoding (slow, and independent of the project) and placing (cheap) are separate steps, so
  * a caller can decode once, store the audio, and then place onto whatever the project is by then.
  */
-import { parseWav, wavToFloat } from '../ns4/wav';
+import { parseWav, wavToFloat, type WavAudio } from '../ns4/wav';
 import { getErrorMessage } from '../errors';
 import { addClip, type SampleProject } from './model';
 import type { ClipAudio } from './render';
@@ -14,13 +14,17 @@ import { rootFromFileName } from './analysis/note-name';
 import { estimatePitch } from './analysis/pitch';
 import { autoMap, placeTakes, type Candidate, type PlaceReport } from './analysis/automap';
 
-export function wavToClipAudio(bytes: Uint8Array): ClipAudio {
+/** A WAV's audio, with the root and loop its `smpl` chunk names, when it has one. */
+export function readWav(bytes: Uint8Array): { audio: ClipAudio } & Pick<WavAudio, 'unityNote' | 'loop'> {
   let wav;
   try { wav = parseWav(bytes); } catch { throw new Error('This isn’t a WAV file OpenNord can read (PCM or 32-bit float).'); }
   if (!wav.channels[0]?.length) throw new Error('This WAV file has no audio in it.');
   if (!(wav.sampleRate > 0)) throw new Error('This WAV file doesn’t say its sample rate, so it can’t be played.');
-  return { sampleRate: wav.sampleRate, channels: wavToFloat({ ...wav, channels: wav.channels.slice(0, 2) }) };
+  const audio = { sampleRate: wav.sampleRate, channels: wavToFloat({ ...wav, channels: wav.channels.slice(0, 2) }) };
+  return { audio, unityNote: wav.unityNote, loop: wav.loop };
 }
+
+export const wavToClipAudio = (bytes: Uint8Array): ClipAudio => readWav(bytes).audio;
 
 export interface ImportedFile { fileName: string; bytes: Uint8Array }
 export interface DecodedFile { fileName: string; audio: ClipAudio; pitch: ReturnType<typeof estimatePitch> }

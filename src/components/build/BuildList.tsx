@@ -9,8 +9,11 @@ import type { SampleProject } from '@/lib/sample-build/model';
 type Row = Awaited<ReturnType<typeof listProjects>>[number];
 
 /** Your builds, newest first: open one, delete one, or start a new one (spec §7). `problem` is why opening a file failed. */
-export function BuildList({ onOpen, onNew, onOpenFile, problem }: {
-  onOpen: (id: string) => void; onNew: () => void; onOpenFile: () => void; problem?: string;
+export function BuildList({ onOpen, onNew, onOpenFile, onImportSfz, importing = false, problem }: {
+  onOpen: (id: string) => void; onNew: () => void; onOpenFile: () => void;
+  /** Start a build from an SFZ instrument's folder; `importing` while it reads. */
+  onImportSfz?: () => void; importing?: boolean;
+  problem?: string;
 }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [deleting, setDeleting] = useState<SampleProject | null>(null);
@@ -34,12 +37,18 @@ export function BuildList({ onOpen, onNew, onOpenFile, problem }: {
         <SectionLabel>Your builds</SectionLabel>
         <div className="ml-auto flex gap-2">
           <Button variant="secondary" onClick={onOpenFile}>Open a project file…</Button>
+          {onImportSfz && (
+            <Button variant="secondary" onClick={onImportSfz} disabled={importing}
+              title="Pick an SFZ instrument’s folder: its key map, loops and recordings become a build">
+              {importing ? 'Importing…' : 'Import SFZ…'}
+            </Button>
+          )}
           <Button variant="primary" onClick={onNew}>New build</Button>
         </div>
       </div>
       {problem && <p role="alert" className="text-sm text-warn">{problem}</p>}
       {rows === null ? <EmptyNote>Loading your builds…</EmptyNote>
-        : rows.length === 0 ? <EmptyNote>No builds yet. Start one from your own recordings.</EmptyNote>
+        : rows.length === 0 ? <EmptyNote>No builds yet. Start one from your own recordings, or from an SFZ instrument.</EmptyNote>
         : (
           <ul className="flex flex-col gap-2">
             {rows.map((r) => (

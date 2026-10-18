@@ -19,6 +19,15 @@ describe('BuildList', () => {
     expect(onOpen).toHaveBeenCalledWith(p.id);
   });
 
+  it('starts a build from an SFZ instrument, and says while it imports', async () => {
+    const onImportSfz = vi.fn();
+    const { rerender } = render(<BuildList onOpen={vi.fn()} onNew={vi.fn()} onOpenFile={vi.fn()} onImportSfz={onImportSfz} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Import SFZ…' }));
+    expect(onImportSfz).toHaveBeenCalled();
+    rerender(<BuildList onOpen={vi.fn()} onNew={vi.fn()} onOpenFile={vi.fn()} onImportSfz={onImportSfz} importing />);
+    expect(screen.getByRole('button', { name: 'Importing…' })).toBeDisabled();
+  });
+
   it('starts a new build', async () => {
     const onNew = vi.fn();
     render(<BuildList onOpen={vi.fn()} onNew={onNew} onOpenFile={vi.fn()} />);

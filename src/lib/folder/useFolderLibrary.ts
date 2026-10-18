@@ -3,6 +3,7 @@ import {
   pickFolder, restoreFolder, rescan, grantAndScan, forgetFolder, supportsPersistentFolders,
   fileFromHandle, requestWriteAccess, writeFileToDir, listDirNames,
 } from './access';
+import { isPickerCancel } from './picker-cancel';
 import { resolveWriteName, type WriteResult } from './writeBack';
 import { type Scanner, type ScanBatch, type BundleDescriptor } from './pipeline';
 import { createScanner } from './scanner';
@@ -13,12 +14,6 @@ import { getErrorMessage } from '../errors';
 
 const emptyResult = (): ScanResult => ({ programs: [], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
 const EMPTY = emptyResult();
-
-/** A user dismissing the folder picker is not an error worth surfacing. */
-function isCancel(err: unknown): boolean {
-  if (err instanceof DOMException && err.name === 'AbortError') return true;
-  return /cancel|no folder chosen|aborted/i.test(getErrorMessage(err));
-}
 
 export interface FolderLibrary {
   /** Connected folder name, or null when none. */
@@ -234,7 +229,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
       await runScan(r.name, r.source, r.handle);
     } catch (err) {
       if (op !== opRef.current) return;
-      if (!isCancel(err)) {
+      if (!isPickerCancel(err)) {
         console.error('Folder pick failed', err);
         // Preserve whatever was already loaded — a failed re-pick (the
         // Android/Google-Drive empty-selection case included) must not wipe
@@ -264,7 +259,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
       }
     } catch (err) {
       if (op !== opRef.current) return;
-      if (!isCancel(err)) { console.error('Folder reconnect failed', err); setReconnectError(getErrorMessage(err)); }
+      if (!isPickerCancel(err)) { console.error('Folder reconnect failed', err); setReconnectError(getErrorMessage(err)); }
     } finally { if (op === opRef.current) setBusy(false); }
   }, [pending, folderName, runScan]);
 
