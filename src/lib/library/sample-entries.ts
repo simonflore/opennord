@@ -8,6 +8,7 @@ import { sampleCategoryLabel, SAMPLE_CATEGORY_LABELS } from '../clavia/sample-ca
 import { matchesAny, sortWithFavorites } from './browse';
 import type { BackupRef } from '../clavia/backup/backup-index';
 import { foundOn, type FoundOn } from './found-on';
+import { withUniqueIds } from './unique-ids';
 import { cloudEntryBase, cloudItemsOf } from './cloud-entries';
 import type { CloudItem } from '../capabilities/types';
 import { safeFilename } from '../ns4/bundle';
@@ -122,10 +123,10 @@ export function sampleEntriesFromBackupRefs(refs: BackupRef[]): SampleEntry[] {
 
 /** Map the device's enumerated sample-partition files into nord Sample entries. */
 export function nordSampleEntriesFromDevice(entries: ProgramEntry[]): SampleEntry[] {
-  return entries.map((e) => {
+  return withUniqueIds(entries.map((e) => {
     const slot = formatDeviceSlot(e.bank, e.slot);
     return { id: `nord-sample:${slot}`, name: e.name, source: 'nord' as const, generation: 'unknown' as const, slot, device: e };
-  });
+  }));
 }
 
 /** Filter by source + generation + category + query (name/category) + optional unused-only. */

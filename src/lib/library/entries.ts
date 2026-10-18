@@ -10,6 +10,7 @@ import { activeEngineKinds, engineSearchText, type EngineKind } from '../clavia/
 import { isSplit } from '../ns4/view';
 import { matchesAny, sortWithFavorites } from './browse';
 import { foundOn } from './found-on';
+import { withUniqueIds } from './unique-ids';
 import { cloudEntryBase, cloudItemsOf, extensionOf } from './cloud-entries';
 import type { CloudItem } from '../capabilities/types';
 
@@ -30,13 +31,14 @@ export function nordEntryId(e: Pick<ProgramEntry, 'bank' | 'slot'>): string {
   return `nord:${formatDeviceSlot(e.bank, e.slot)}`;
 }
 
-/** Map the device's enumerated programs into Library entries. */
+/** Map the device's enumerated programs into Library entries, one per file and in
+ *  its order (`useNordReads` lines them up by index), each id its own. */
 export function nordEntriesFromDevice(entries: ProgramEntry[]): LibraryEntry[] {
-  return entries.map((e) => ({
+  return withUniqueIds(entries.map((e): LibraryEntry => ({
     id: nordEntryId(e), name: e.name, source: 'nord', slot: formatDeviceSlot(e.bank, e.slot), category: programCategoryName(e.categoryId),
     // The type, so a file with this slot's name is hinted only when it is the same kind of file.
     typeLabel: `.${e.fourcc}`,
-  }));
+  })));
 }
 
 /** A Nord entry once its program has been read from the keyboard: it plays,

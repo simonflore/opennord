@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useDeferredValue, useEffect, us
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { usePresetsPrefs } from '@/lib/library/prefs';
+import { useReportRepeatedIds } from '@/lib/library/useReportRepeatedIds';
 import {
   presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, presentGenerations, cloudPresetEntries, presetFileExt,
   type PresetEntry, type PresetGeneration,
@@ -44,11 +45,13 @@ function usePresetsStateValue() {
     return () => { cancelled = true; };
   }, [session, setPresetEntries]);
 
+  const nordPresets = useMemo(() => presetEntriesFromDevice(presetEntries), [presetEntries]);
+  useReportRepeatedIds('preset', nordPresets);
   const allEntries: PresetEntry[] = useMemo(() => [
-    ...presetEntriesFromDevice(presetEntries),
+    ...nordPresets,
     ...presetEntriesFromScanned(folder.result.presets),
     ...imported.entries,
-  ], [presetEntries, folder.result.presets, imported.entries]);
+  ], [nordPresets, folder.result.presets, imported.entries]);
   // One row per preset, as in the program list: `allEntries` stays what is here
   // and on the Nord (what backup and the share picker read); rows add the cloud.
   const cloud = useCloudSnapshot();

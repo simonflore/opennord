@@ -11,6 +11,7 @@ import {
 import { useCloudSnapshot } from '@/lib/library/CloudSnapshotContext';
 import { sameSizeOnly, useSoundRows } from '@/lib/library/useSoundRows';
 import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
+import { useReportRepeatedIds } from '@/lib/library/useReportRepeatedIds';
 import { readNsmp } from '@/lib/ns4/nsmp';
 import { safeFilename } from '@/lib/ns4/bundle';
 import type { LibrarySource } from '@/lib/library/types';
@@ -115,13 +116,15 @@ function useSamplesStateValue() {
 
   // Tag device samples the scan found unused (match by normalized name).
   const unusedNames = useMemo(() => (usage ? new Set(usage.unused.map((s) => normalizeSampleName(s.name))) : null), [usage]);
+  const nordSamples = useMemo(() => nordSampleEntriesFromDevice(sampleEntries), [sampleEntries]);
+  useReportRepeatedIds('sample', nordSamples);
   const allEntries: SampleEntry[] = useMemo(() => [
-    ...nordSampleEntriesFromDevice(sampleEntries).map((e) =>
+    ...nordSamples.map((e) =>
       unusedNames ? { ...e, unused: unusedNames.has(normalizeSampleName(e.name)) } : e),
     ...sampleEntriesFromScanned(folder.result.samples),
     ...sampleEntriesFromBackupRefs(folder.result.backupSamples).map((e) => ({ ...e, factory: origins.get(e.id) })),
     ...imported.entries,
-  ], [sampleEntries, unusedNames, folder.result.samples, folder.result.backupSamples, origins, imported.entries]);
+  ], [nordSamples, unusedNames, folder.result.samples, folder.result.backupSamples, origins, imported.entries]);
   // One row per sample, as in the program list: `allEntries` stays what is here
   // and on the Nord (what backup, the share picker and the Nord cleanup read);
   // rows add the cloud. An entry whose bytes aren't here (on the Nord, inside a

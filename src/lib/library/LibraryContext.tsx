@@ -8,6 +8,7 @@ import { useLibraryPrefs } from '@/lib/library/prefs';
 import { nordEntriesFromDevice, entriesFromScannedPrograms, filterEntries, sortEntries, presentCategories, cloudProgramEntries } from '@/lib/library/entries';
 import type { LibraryEntry, LibrarySource } from '@/lib/library/types';
 import { useNordReads } from '@/lib/library/useNordReads';
+import { useReportRepeatedIds } from '@/lib/library/useReportRepeatedIds';
 import { useCloudSnapshot } from '@/lib/library/CloudSnapshotContext';
 import { useSoundRows } from '@/lib/library/useSoundRows';
 
@@ -48,6 +49,7 @@ function useLibraryStateValue() {
   // rescan or an import keeps the other sources' entry objects (and their
   // memoised table rows).
   const nordSlots = useMemo(() => nordEntriesFromDevice(deviceEntries), [deviceEntries]);
+  useReportRepeatedIds('program', nordSlots);
   // A Nord program is read from the keyboard when it's opened (LibrarySplit).
   const nord = useNordReads(session, deviceEntries, nordSlots);
   const nordEntries = nord.entries;

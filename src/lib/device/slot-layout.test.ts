@@ -1,8 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { deviceSlotLayout } from './slot-layout';
-import { ALL_MODELS, MODELS, PROGRAM_SLOTS, programSlotLayout, STAGE4_PROGRAM_SLOTS } from '../clavia/partitions';
+import { ALL_MODELS, MODELS, PARTITION_SLOTS, PROGRAM_SLOTS, programSlotLayout, STAGE4_PROGRAM_SLOTS, type PartitionKind, type SlotLayout } from '../clavia/partitions';
 import { formatDeviceSlot } from '../clavia/slot';
 import { nordEntriesFromDevice } from '../library/entries';
+import { nordSampleEntriesFromDevice } from '../library/sample-entries';
+import { pianoEntriesFromDevice } from '../library/piano-entries';
+import { presetEntriesFromDevice } from '../library/preset-entries';
+import { repeatedIds } from '../library/unique-ids';
 import type { ProgramEntry } from './transfer';
 
 const file = (bank: number, slot: number): ProgramEntry =>
@@ -19,13 +23,43 @@ describe('the Program partition of every model', () => {
     (_, layout) => {
       const all = addresses(layout);
       expect(new Set(all.map((e) => formatDeviceSlot(e.bank, e.slot))).size).toBe(all.length);
-      expect(new Set(nordEntriesFromDevice(all).map((e) => e.id)).size).toBe(all.length);
+      // The builders make ids unique whatever the labels do (withUniqueIds), so ask
+      // whether any id had to be: none may.
+      expect(repeatedIds(nordEntriesFromDevice(all))).toEqual([]);
     },
   );
 
   it('records shapes only for models that have a Program partition', () => {
     for (const id of Object.keys(PROGRAM_SLOTS) as (keyof typeof MODELS)[]) {
       expect(MODELS[id].partitions.some((p) => p.kind === 'program'), id).toBe(true);
+    }
+  });
+});
+
+/** The Library list each partition's files are keyed in, where there is one. */
+const LIBRARY_IDS: Partial<Record<PartitionKind, (files: ProgramEntry[]) => { id: string }[]>> = {
+  samplib: nordSampleEntriesFromDevice,
+  piano: pianoEntriesFromDevice,
+  'organ-preset': (files) => presetEntriesFromDevice([{ kind: 'organ-preset', partition: 7, entries: files }]),
+  'synth-preset': (files) => presetEntriesFromDevice([{ kind: 'synth-preset', partition: 9, entries: files }]),
+};
+
+describe('the other partitions of every model', () => {
+  const shapes = Object.entries(PARTITION_SLOTS).flatMap(([model, kinds]) =>
+    Object.entries(kinds!).map(([kind, layout]) => [model, kind as PartitionKind, layout as SlotLayout] as const));
+
+  it.each(shapes)('%s %s: every slot has its own label and Library id', (_, kind, layout) => {
+    const all = addresses(layout);
+    expect(new Set(all.map((e) => formatDeviceSlot(e.bank, e.slot))).size).toBe(all.length);
+    const ids = LIBRARY_IDS[kind];
+    if (ids) expect(repeatedIds(ids(all))).toEqual([]);
+  });
+
+  it('records shapes only for partitions the model has', () => {
+    for (const [model, kinds] of Object.entries(PARTITION_SLOTS)) {
+      for (const kind of Object.keys(kinds!)) {
+        expect(MODELS[model as keyof typeof MODELS].partitions.some((p) => p.kind === kind), `${model} ${kind}`).toBe(true);
+      }
     }
   });
 });

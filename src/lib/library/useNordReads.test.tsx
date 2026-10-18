@@ -38,6 +38,17 @@ describe('useNordReads', () => {
     expect(before[1].id).toBe(pad.id);
   });
 
+  it('reads the file a repeated id names, not the first with that slot', async () => {
+    pull.mockResolvedValue(stage4);
+    const list = [slot(0, 'LadiesNight'), slot(0, 'The opening')];
+    const { result } = setup(list);
+    act(() => result.current.read('nord:A:11~2'));
+    await waitFor(() => expect(result.current.reading).toBeNull());
+    expect(pull).toHaveBeenCalledWith(session, list[1]);
+    expect(result.current.entries[1].program?.name).toBe('The opening');
+    expect(result.current.entries[0].program).toBeUndefined();
+  });
+
   it('reads one slot at a time', async () => {
     let finish!: (b: Uint8Array) => void;
     pull.mockReturnValueOnce(new Promise((r) => { finish = r; }));

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useDeferredValue, useEffect, us
 import { useDevice } from '@/lib/device/DeviceContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { usePianosPrefs } from '@/lib/library/prefs';
+import { useReportRepeatedIds } from '@/lib/library/useReportRepeatedIds';
 import {
   pianoEntriesFromScanned, pianoEntriesFromDevice, pianoEntriesFromBackupRefs,
   filterPianos, sortPianos,
@@ -93,12 +94,14 @@ function usePianosStateValue() {
 
   // Tag device pianos the scan found unused (match by normalized name).
   const unusedNames = useMemo(() => (usage ? new Set(usage.unused.map((s) => normalizeSampleName(s.name))) : null), [usage]);
+  const nordPianos = useMemo(() => pianoEntriesFromDevice(pianoEntries), [pianoEntries]);
+  useReportRepeatedIds('piano', nordPianos);
   const allEntries: PianoEntry[] = useMemo(() => [
-    ...pianoEntriesFromDevice(pianoEntries).map((e) =>
+    ...nordPianos.map((e) =>
       unusedNames ? { ...e, unused: unusedNames.has(normalizeSampleName(e.name)) } : e),
     ...pianoEntriesFromScanned(folder.result.pianos),
     ...pianoEntriesFromBackupRefs(folder.result.backupPianos),
-  ], [pianoEntries, unusedNames, folder.result.pianos, folder.result.backupPianos]);
+  ], [nordPianos, unusedNames, folder.result.pianos, folder.result.backupPianos]);
   // One row per piano: the same file twice in a folder is one row, and a folder
   // piano named like one on the Nord carries the hint. No cloud entries: backup
   // never stores a piano. No type for the hint: every entry is a .npno. The

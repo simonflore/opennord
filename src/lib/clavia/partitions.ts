@@ -697,6 +697,29 @@ export const PROGRAM_SLOTS: Partial<Record<NordModelId, SlotLayout>> = {
   'lead-a1': { banks: 4, perBank: 50 },
 };
 
+/**
+ * The other partitions' banks × slots, where a firmware descriptor gives them
+ * (the maintainers’ notes, high). Nothing draws these yet; they are here so the
+ * slot-label sweep covers every address a Nord can list — the sample libraries
+ * (26 × 100) and the Electro 7's synth presets (32 × 100) are bigger than any
+ * Program partition. Live partitions (one bank of 1–6) are left out: no list
+ * keys them. Programs are in `PROGRAM_SLOTS`.
+ */
+export const PARTITION_SLOTS: Partial<Record<NordModelId, Partial<Record<Exclude<PartitionKind, 'program'>, SlotLayout>>>> = {
+  'electro-3': { 'organ-preset': { banks: 3, perBank: 17 } },
+  'electro-3-hp': { 'organ-preset': { banks: 3, perBank: 17 } },
+  'electro-5': { setlist: { banks: 4, perBank: 50 } },
+  'electro-7': {
+    piano: { banks: 6, perBank: 20 },
+    samplib: { banks: 26, perBank: 100 },
+    'synth-preset': { banks: 32, perBank: 100 },
+  },
+  'wave-2': { samplib: { banks: 26, perBank: 100 } },
+  // The Leads' single sounds sit in the `synth-preset` partition (see `leadLine`).
+  'lead-4': { 'synth-preset': { banks: 4, perBank: 99 } },
+  'lead-a1': { 'synth-preset': { banks: 8, perBank: 50 } },
+};
+
 /** What the device views assumed for every Nord before the shapes were recorded. */
 export const STAGE4_PROGRAM_SLOTS: SlotLayout = { banks: 8, perBank: 64 };
 

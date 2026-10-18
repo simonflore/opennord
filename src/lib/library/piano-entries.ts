@@ -10,6 +10,7 @@ import { matchesQuery, sortWithFavorites } from './browse';
 import type { BackupRef } from '../clavia/backup/backup-index';
 import { backupPianoId, backupPianoName } from './backup-piano';
 import { foundOn, type FoundOn } from './found-on';
+import { withUniqueIds } from './unique-ids';
 
 /** One piano in the Pianos browser — a folder piano-library file, a backup's or a device-listed one.
  *  A row of the list is one of these carrying what it was merged from (`FoundOn`). */
@@ -82,10 +83,10 @@ export function pianoEntriesFromBackupRefs(refs: BackupRef[]): PianoEntry[] {
 
 /** Map the device's enumerated Piano Library files into nord entries. */
 export function pianoEntriesFromDevice(entries: ProgramEntry[]): PianoEntry[] {
-  return entries.map((e) => {
+  return withUniqueIds(entries.map((e) => {
     const slot = formatDeviceSlot(e.bank, e.slot);
     return { id: `nord-piano:${slot}`, name: e.name, source: 'nord' as const, slot, device: e, partition: PARTITION_PIANO, factory: resolveFactory(e.name, 'npno') };
-  });
+  }));
 }
 
 /** Filter by source + case-insensitive name query. */

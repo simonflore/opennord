@@ -8,6 +8,7 @@ import { generationOf, identifyNordFile } from '../clavia/nord-file';
 import { programNameFromFilename } from '../clavia/name';
 import { matchesQuery, sortWithFavorites } from './browse';
 import { foundOn, type FoundOn } from './found-on';
+import { withUniqueIds } from './unique-ids';
 import { cloudEntryBase, cloudItemsOf, extensionOf } from './cloud-entries';
 import type { CloudItem } from '../capabilities/types';
 
@@ -76,14 +77,14 @@ export function presetEntryFromImport(rec: { id: string; name: string; bytes: Ui
 export function presetEntriesFromDevice(
   groups: { kind: PresetKind; partition: number; entries: ProgramEntry[] }[],
 ): PresetEntry[] {
-  return groups.flatMap((g) =>
-    g.entries.map((e) => {
+  return withUniqueIds(groups.flatMap((g) =>
+    g.entries.map((e): PresetEntry => {
       const slot = formatDeviceSlot(e.bank, e.slot);
       return {
         id: `nord-preset:${g.partition}:${slot}`, name: e.name, source: 'nord' as const, kind: g.kind,
         ...presetFormat(PRESET_EXT[g.kind]), slot, device: e, partition: g.partition,
       };
-    }));
+    })));
 }
 
 /** Filter by source + kind + Stage model + case-insensitive name query. */
