@@ -11,7 +11,7 @@ import { useSamplesData } from '../../lib/library/SamplesContext';
 import { usePianosData } from '../../lib/library/PianosContext';
 import { useOpenEntry } from '../library/openEntry';
 import { rankCommands, type Command } from './commands';
-import { ABOUT, COMMUNITY_TO, DEV_DESTS, useCommunityPages, useTools } from './nav';
+import { ABOUT, COMMUNITY_TO, DEV_DESTS, openDocs, useCommunityPages, useTools } from './nav';
 import { groupLabel, rowActive } from './styles';
 
 // The hint shows the slot, or everywhere the entry is found; only the slot is
@@ -45,7 +45,9 @@ function useCommands(): Command[] {
       ...communityPages.filter((d) => d.to !== COMMUNITY_TO),
       ...(__RE__ ? DEV_DESTS : []),
       ABOUT,
-    ].map((d) => ({ id: `page:${d.to}`, group: 'Pages', label: d.label, run: () => navigate({ to: d.to }) }));
+    ].map((d): Command => ({ id: `page:${d.to}`, group: 'Pages', label: d.label, run: () => navigate({ to: d.to }) }));
+    // The docs are a site of their own, opened beside the app.
+    pages.push({ id: 'page:docs', group: 'Pages', label: 'Docs', keywords: 'help manual documentation', run: openDocs });
 
     // A program on the Nord is found by its slot there, whichever entry its row is shown as.
     const programCommands = programs.map((e): Command => {

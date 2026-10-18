@@ -14,6 +14,10 @@
 
 Why this exists, and where it's going: [`MANIFESTO.md`](MANIFESTO.md).
 
+**Documentation:** how to use OpenNord and how to work on it is at
+[opennord.gigmeister.app/docs](https://opennord.gigmeister.app/docs/), built from
+the Markdown in [`docs-site/`](docs-site/) (Astro Starlight; `cd docs-site && npm install && npm run dev`).
+
 OpenNord is **free and open source** (AGPL-3.0). It exists because everything that makes it possible — the Nord file-format knowledge, the decoders — was built by the community, in the open. This gives that work a home that outlives any one person and a place for the next contributor to plug in.
 
 ## What it does today
@@ -73,7 +77,8 @@ decode-layer map, commands, and the legal guardrails.
 | `src/lib/ai/` | search ranker — zero-config keyword ranking today, LLM-pluggable behind one interface |
 | `src/lib/midi/` | **live MIDI** — note/pedal input that plays the loaded sample (the in-app rompler); *not* the transfer path (that's vendor USB in `device/`) |
 | `scripts/` | USB-protocol tools (`nord*.c`, libusb) + file-format tooling |
-| `docs/` | architecture, roadmap, format notes, the USB protocol, multi-model, legal stance |
+| `docs-site/` | the documentation site — Markdown pages in `docs-site/src/content/docs/`, served at `/docs/` |
+| `docs/` | legal stance and contributing notes |
 
 ## Contributing
 

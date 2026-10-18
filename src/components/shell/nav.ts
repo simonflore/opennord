@@ -11,6 +11,24 @@ export interface Dest { to: NavTo; label: string }
 
 export const ABOUT: Dest = { to: '/about', label: 'About & legal' };
 
+/** The published docs (docs-site/ in this repository). */
+export const PUBLIC_DOCS_URL = 'https://opennord.gigmeister.app/docs/';
+
+/**
+ * Where "Docs" opens. The website serves the docs next to the app at /docs/;
+ * the desktop and iPad apps load the app from a file or an app origin, and the
+ * dev server has no docs, so those open the published site.
+ */
+export function docsUrl(location: Pick<Location, 'protocol'> | undefined = globalThis.location, dev = import.meta.env.DEV): string {
+  const web = location?.protocol === 'https:' || location?.protocol === 'http:';
+  return web && !dev ? '/docs/' : PUBLIC_DOCS_URL;
+}
+
+/** Opens the docs beside the app: a new tab, or the system browser in the desktop app. */
+export function openDocs(): void {
+  window.open(docsUrl(), '_blank', 'noopener');
+}
+
 export const DEV_DESTS: Dest[] = [
   { to: '/dev/inspect', label: 'Decode Inspector' },
   { to: '/dev/decode', label: 'Program Decode' },

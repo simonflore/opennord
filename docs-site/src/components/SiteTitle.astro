@@ -1,0 +1,32 @@
+---
+// The app's wordmark (lowercase mono "open" + accent "nord"), then "docs".
+const home = import.meta.env.BASE_URL;
+---
+<a href={home} class="site-title">
+  <span class="wordmark">open<span class="wordmark-accent">nord</span></span>
+  <span class="site-title-docs">docs</span>
+</a>
+
+<style>
+  .site-title {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .wordmark {
+    font-family: var(--sl-font-mono);
+    font-weight: 600;
+    font-size: var(--sl-text-h4);
+    letter-spacing: -0.02em;
+    color: var(--sl-color-white);
+  }
+  .wordmark-accent { color: var(--sl-color-accent); }
+  .site-title-docs {
+    font-family: var(--sl-font-mono);
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    text-transform: lowercase;
+  }
+</style>

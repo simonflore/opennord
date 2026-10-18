@@ -1,0 +1,21 @@
+{
+  "name": "opennord-docs",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "description": "The OpenNord documentation site (Astro Starlight). Content is Markdown in src/content/docs/.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.42.6",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans-condensed": "^5.3.0",
+    "astro": "7.3.8",
+    "sharp": "^0.35.5",
+    "starlight-links-validator": "0.27.0"
+  }
+}

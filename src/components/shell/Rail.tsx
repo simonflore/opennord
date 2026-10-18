@@ -5,7 +5,7 @@ import type { LibrarySource } from '../../lib/library/types';
 import { BetaBadge } from './BetaBadge';
 import { Led } from './Led';
 import { groupLabel, rowActive } from './styles';
-import { ABOUT, COMMUNITY_TO, DEV_DESTS, useCommunityPages, useTools, type NavTo } from './nav';
+import { ABOUT, COMMUNITY_TO, DEV_DESTS, docsUrl, useCommunityPages, useTools, type NavTo } from './nav';
 import { FolderMenu } from '../library/FolderMenu';
 import { useFolderOptional } from '../../lib/folder/FolderContext';
 
@@ -174,6 +174,19 @@ export const Rail = memo(function Rail({ path, onNavigate, counts, sources, acti
             ))}
           </details>
         )}
+        <a
+          className={cn(
+            'flex w-full items-center gap-2 py-1.5 pr-4 pl-4 font-mono text-xs lowercase no-underline',
+            'text-dim transition-colors duration-[120ms] hover:text-ink hover:tint-hover',
+            'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-focus)]',
+          )}
+          href={docsUrl()}
+          target="_blank"
+          rel="noopener"
+        >
+          <span className="min-w-0 flex-1 truncate">Docs</span>
+          <span aria-hidden className="text-muted">↗</span>
+        </a>
         <Item label={ABOUT.label} active={isActive(ABOUT.to)} onClick={() => onNavigate(ABOUT.to)} />
       </div>
 

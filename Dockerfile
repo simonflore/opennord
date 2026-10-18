@@ -22,12 +22,22 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+# --- Docs stage: the documentation site (docs-site/, Astro Starlight) -------
+# Its own npm project, served at /docs/ next to the app.
+FROM node:22-alpine AS docs
+WORKDIR /docs
+COPY docs-site/package.json docs-site/package-lock.json ./
+RUN npm ci
+COPY docs-site/ ./
+RUN npm run build
+
 # --- Runtime stage: serve the static bundle with nginx ---------------------
 # Only /app/dist is copied in — no node_modules, no source, no RE tooling.
 FROM nginx:1.27-alpine AS runtime
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=docs /docs/dist /usr/share/nginx/html/docs
 
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

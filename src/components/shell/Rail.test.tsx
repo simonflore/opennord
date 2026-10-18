@@ -33,6 +33,10 @@ function render(path: string, opts: { caps?: Partial<Capabilities>; sources?: So
 
 
 describe('Rail', () => {
+  it('links to the docs', () => {
+    expect(render('/library/programs')).toMatch(/<a[^>]*href="[^"]*docs\/"[^>]*target="_blank"[^>]*>.*Docs/);
+  });
+
   it('lists the library with counts, then the tools', () => {
     const html = render('/library/programs');
     for (const label of ['Programs', 'Presets', 'User Samples', 'Piano Samples', 'Device', 'Compatibility', 'Contribute']) {

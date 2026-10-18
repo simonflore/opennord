@@ -1,0 +1,46 @@
+/*
+ * Studio Dark for the docs: the app's palette (src/styles/tokens.css in core)
+ * mapped onto Starlight's tokens. One accent, graphite surfaces, Plex type.
+ * Keep the values in step with tokens.css when the app's palette changes.
+ */
+:root,
+:root[data-theme='dark'] {
+  --sl-font: 'IBM Plex Sans Condensed', -apple-system, system-ui, sans-serif;
+  --sl-font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* --accent / --accent-bright / --accent-soft */
+  --sl-color-accent-low: #3a1f10;
+  --sl-color-accent: #ff6a1a;
+  --sl-color-accent-high: #ff8c4f;
+
+  /* --ink, --dim, --muted, --line, --surface-2, --surface, --bg */
+  --sl-color-white: #ecebe6;
+  --sl-color-gray-1: #ecebe6;
+  --sl-color-gray-2: #9a9a94;
+  --sl-color-gray-3: #85857f;
+  --sl-color-gray-4: #2c2e33;
+  --sl-color-gray-5: #202124;
+  --sl-color-gray-6: #1b1c1f;
+  --sl-color-black: #18191b;
+
+  --sl-color-bg: #18191b;
+  --sl-color-bg-nav: #1b1c1f;
+  --sl-color-bg-sidebar: #1b1c1f;
+  --sl-color-hairline: #2c2e33;
+  --sl-color-hairline-light: #2c2e33;
+  --sl-color-hairline-shade: #2c2e33;
+}
+
+html { background: #18191b; }
+body { background: #18191b; }
+
+/* Accent links read as text on dark surfaces, as in the app. */
+.sl-markdown-content a:not(:where(.not-content *)) { color: var(--sl-color-accent-high); }
+
+/* Monospace eyebrows for the sidebar groups, like the app's rail. */
+.sidebar-content summary .group-label,
+.sidebar-content .large {
+  font-family: var(--sl-font-mono);
+  text-transform: lowercase;
+  letter-spacing: 0;
+}

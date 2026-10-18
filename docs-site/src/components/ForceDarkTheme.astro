@@ -1,0 +1,7 @@
+---
+// Replaces Starlight's theme provider: OpenNord is dark-only, like the app.
+---
+<script is:inline>
+  window.StarlightThemeProvider = { updatePickers() {} };
+  document.documentElement.dataset.theme = 'dark';
+</script>

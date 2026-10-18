@@ -1,6 +1,9 @@
 # Keep the build context small and keep RE / factory artifacts out of it.
 node_modules
+**/node_modules
 dist
+**/dist
+docs-site/.astro
 .git
 .github
 .claude
