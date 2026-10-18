@@ -1,6 +1,8 @@
 import { slotLabel } from '../../lib/clavia/slot';
 import { freeName } from '../../lib/clavia/name';
 import type { ProgramEntry } from '../../lib/device/transfer';
+import type { ModelInfo } from '../../lib/clavia/partitions';
+import type { BankInfo } from '../../lib/device/capacity';
 import { TargetSlotPicker } from './TargetSlotPicker';
 import { ConfirmPanel } from './ConfirmPanel';
 import type { usePushFlow } from './usePushFlow';
@@ -11,10 +13,16 @@ import type { usePushFlow } from './usePushFlow';
  * program's "Send to Nord" in the Library both show this, so the step is the
  * same wherever it starts.
  */
-export function PushFlowPanel({ push, entries }: { push: ReturnType<typeof usePushFlow>; entries: ProgramEntry[] }) {
+export function PushFlowPanel({ push, entries, model, bankList }: {
+  push: ReturnType<typeof usePushFlow>; entries: ProgramEntry[];
+  /** The connected Nord's model, so the slot picker draws its banks and slots. */
+  model?: ModelInfo;
+  /** The Nord's own bank list, when read. */
+  bankList?: readonly BankInfo[] | null;
+}) {
   if (!push.pushSource) return null;
   if (!push.picked) {
-    return <TargetSlotPicker entries={entries} onPick={push.pickSlot} onCancel={push.cancel} />;
+    return <TargetSlotPicker entries={entries} model={model} bankList={bankList} onPick={push.pickSlot} onCancel={push.cancel} />;
   }
   const where = slotLabel(push.picked.bank, push.picked.slot);
   const { bank, slot } = push.picked;

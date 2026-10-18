@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import '../../styles/nord.css';
 import type { ProgramEntry } from '../../lib/device/transfer';
-import { BANK_LETTERS } from '../../lib/clavia/slot';
+import type { ModelInfo } from '../../lib/clavia/partitions';
+import { deviceSlotLayout } from '../../lib/device/slot-layout';
+import type { BankInfo } from '../../lib/device/capacity';
 import { SlotGrid } from './SlotGrid';
 import { BankLabel } from './BankLabel';
 import { PlanProgress } from './PlanProgress';
@@ -13,8 +15,12 @@ import { planArrange, planDelete, planInsert, type ArrangeMode, type Addr } from
 
 /** The Organize view: per-bank grids + a Dialog confirm. Shared by the live-device
  *  Organize mode and the backup organizer (which supply the `reorg` flow). */
-export function OrganizeGrids({ entries, reorg, confirmExtra }: {
+export function OrganizeGrids({ entries, model, bankList, reorg, confirmExtra }: {
   entries: ProgramEntry[];
+  /** The Nord's model, for its bank × slot shape; without it, a Stage 4's grown to the files. */
+  model?: ModelInfo;
+  /** The Nord's own bank list, when read: it wins over the model's recorded shape. */
+  bankList?: readonly BankInfo[] | null;
   reorg: ReorgApi;
   /** Optional extra control in the confirm dialog (live: the "back up first" toggle). */
   confirmExtra?: ReactNode;
@@ -24,6 +30,7 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
     mode === 'insert' ? reorg.propose((occ) => planInsert(occ, g.from, g.to)) : reorg.onGesture(g);
   const remove = (at: Addr) => reorg.propose((occ) => planDelete(occ, at));
   const plan = reorg.pendingPlan;
+  const { banks, perBank } = deviceSlotLayout(model, entries, bankList);
   const verb = plan?.destructive ? 'Delete' : plan?.bulk
     ? plan.title.split(' ')[0]                       // 'Sort' / 'Compact'
     : plan?.title.startsWith('Swap') ? 'Swap' : 'Move';
@@ -44,7 +51,7 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
           options={[{ value: 'swap', label: 'Swap' }, { value: 'insert', label: 'Insert' }]}
         />
       </div>
-      {BANK_LETTERS.split('').map((_, bank) => {
+      {Array.from({ length: banks }, (_, bank) => {
         const count = entries.filter((e) => e.bank === bank).length;
         const arrange = (mode: ArrangeMode) => reorg.propose((occ) => planArrange(occ, bank, mode));
         return (
@@ -58,7 +65,7 @@ export function OrganizeGrids({ entries, reorg, confirmExtra }: {
                 </div>
               )}
             </div>
-            <SlotGrid bank={bank} slotCount={64} entries={entries} onGesture={routeGesture} onDelete={reorg.busy ? undefined : remove} mode={mode} />
+            <SlotGrid bank={bank} slotCount={perBank} entries={entries} onGesture={routeGesture} onDelete={reorg.busy ? undefined : remove} mode={mode} />
           </div>
         );
       })}

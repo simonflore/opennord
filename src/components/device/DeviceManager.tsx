@@ -5,6 +5,7 @@ import type { NordSession } from '../../lib/device/session';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import { readPartitionCapacity } from '../../lib/device/capacity';
 import { useDevice } from '../../lib/device/DeviceContext';
+import { identifyDevice } from '../../lib/device/connect-probe';
 import { PARTITION_PROGRAM } from '../../lib/device/opcodes';
 import { slotLabel } from '../../lib/clavia/slot';
 import { NS4_PRODUCT_ID } from '../../lib/device/negotiate';
@@ -37,6 +38,8 @@ import { nordEntryId } from '../../lib/library/entries';
  */
 export function DeviceManager() {
   const { session, entries, deviceName, productId, capacity, setConnection, setCapacity, isCurrent, lost, refresh } = useDevice();
+  // The connected model, so the slot picker and Organize draw its own banks and slots.
+  const model = identifyDevice(productId).model;
   const folder = useFolder();
   const openEntry = useOpenEntry();
   const { ensureListed } = useLibraryData();
@@ -133,7 +136,7 @@ export function DeviceManager() {
   const writable = session.canWrite(session.programPartition);
 
   // Push flow: pick a slot, then confirm.
-  if (push.pushSource) return <PushFlowPanel push={push} entries={entries} />;
+  if (push.pushSource) return <PushFlowPanel push={push} entries={entries} model={model} bankList={capacity?.banks} />;
 
   // Delete confirm.
   if (del.pendingDelete) {
@@ -190,6 +193,7 @@ export function DeviceManager() {
           <p className="ps-sub mb-3">Back up or restore your Nord from its menu in the top bar.</p>
           <DeviceBrowser
             entries={entries}
+            model={model}
             deviceName={deviceName}
             capacity={capacity}
             onSelect={open}

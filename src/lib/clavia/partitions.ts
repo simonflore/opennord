@@ -659,3 +659,48 @@ export function programPartitionIndex(model: ModelInfo | undefined): number | un
 export function programPartitionStaticIndex(model: ModelInfo | undefined): number | undefined {
   return model?.partitions.find((p) => p.kind === 'program')?.staticIndex;
 }
+
+/** How a partition's slots are laid out: `banks` banks of `perBank` slots each. */
+export interface SlotLayout { banks: number; perBank: number }
+
+/**
+ * The Program partition's banks × slots, per model. The device views drew every
+ * Nord as a Stage 4 (8 banks of 64) and labelled slots on its 6-bit grid, which
+ * gave two Stage 2 slots one Library id (#186). Most of the line has another
+ * shape, so the shape is data here, beside the partitions it describes.
+ *
+ * Sources: Stage 4 and Stage 2 from the maintainers’ notes (hardware: the Stage 4
+ * enumeration; the Stage 2 capture in issue #31); every other model from its
+ * firmware's partition descriptor (the maintainers’ notes, high). How these map
+ * to the front-panel banks is medium. A model missing here (Stage 3, Stage 2 EX,
+ * Stage Classic / EX, Wave, Piano 4/5/6, Grand, Grand 2) has no recorded shape
+ * yet: the device views fall back to the Stage 4's (`programSlotLayout`).
+ */
+export const PROGRAM_SLOTS: Partial<Record<NordModelId, SlotLayout>> = {
+  'stage-4': { banks: 8, perBank: 64 },
+  'stage-2': { banks: 4, perBank: 100 },
+  'electro-3': { banks: 1, perBank: 128 },
+  'electro-3-hp': { banks: 1, perBank: 128 },
+  'electro-4': { banks: 1, perBank: 128 },
+  'electro-5': { banks: 8, perBank: 50 },
+  'electro-6': { banks: 26, perBank: 16 },
+  'electro-7': { banks: 20, perBank: 25 },
+  'piano-1': { banks: 24, perBank: 5 },
+  'piano-2': { banks: 2, perBank: 120 },
+  'piano-3': { banks: 4, perBank: 50 },
+  'organ-3': { banks: 8, perBank: 50 },
+  'wave-2': { banks: 16, perBank: 25 },
+  'c2': { banks: 1, perBank: 126 },
+  'c2d': { banks: 1, perBank: 126 },
+  // The Leads' `program` partition is the Performance one (see `leadLine`).
+  'lead-4': { banks: 2, perBank: 50 },
+  'lead-a1': { banks: 4, perBank: 50 },
+};
+
+/** What the device views assumed for every Nord before the shapes were recorded. */
+export const STAGE4_PROGRAM_SLOTS: SlotLayout = { banks: 8, perBank: 64 };
+
+/** A model's Program partition shape, or the Stage 4's when it isn't recorded. */
+export function programSlotLayout(model: ModelInfo | undefined): SlotLayout {
+  return (model && PROGRAM_SLOTS[model.id]) ?? STAGE4_PROGRAM_SLOTS;
+}

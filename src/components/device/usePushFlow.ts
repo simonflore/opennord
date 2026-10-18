@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { focusFile, pushProgram } from '../../lib/device/transfer';
 import { programNameFromFilename } from '../../lib/clavia/name';
-import { formatSlot } from '../../lib/clavia/slot';
+import { formatDeviceSlot } from '../../lib/clavia/slot';
 import type { NordSession } from '../../lib/device/session';
 import type { SlotTarget } from './TargetSlotPicker';
 
@@ -68,7 +68,7 @@ export function usePushFlow(
       });
       await refresh(session);
       cancel();
-    }, (e) => `Could not write to ${formatSlot(picked.bank, picked.slot)}: ${getErrorMessage(e)}`);
+    }, (e) => `Could not write to ${formatDeviceSlot(picked.bank, picked.slot)}: ${getErrorMessage(e)}`);
   }
 
   return { pushSource, picked, pickSlot, unpick, error, busy, startPush, startSendFile, confirmPush, cancel };

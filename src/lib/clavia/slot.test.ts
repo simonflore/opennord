@@ -81,7 +81,8 @@ describe('formatDeviceSlot', () => {
   });
 
   it('keeps banks past H apart from A–H', () => {
-    expect(formatDeviceSlot(8, 0)).toBe('8:11');
+    expect(formatDeviceSlot(8, 0)).toBe('I:11');
+    expect(formatDeviceSlot(25, 0)).toBe('Z:11');
     expect(formatDeviceSlot(8, 0)).not.toBe(formatDeviceSlot(0, 0));
   });
 });

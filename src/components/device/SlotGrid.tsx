@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import type { Addr } from '../../lib/device/reorg';
-import { formatSlot, BANK_LETTERS } from '../../lib/clavia/slot';
+import { formatDeviceSlot, bankLetter } from '../../lib/clavia/slot';
 import './slotgrid.css';
 
 interface Props {
@@ -22,7 +22,7 @@ const DRAG_MIME = 'application/x-nord-slot';
  *  any other bank's grid — to move it. */
 export function SlotGrid({ bank, slotCount, entries, onGesture, onDelete, mode = 'swap' }: Props) {
   const bySlot = new Map(entries.filter((e) => e.bank === bank).map((e) => [e.slot, e]));
-  const bankLabel = BANK_LETTERS[bank & 0x7] ?? String(bank);
+  const bankLabel = bankLetter(bank);
   // Highlight-only: which empty cell a drag is currently over. Local to this grid
   // (you hover one grid at a time) — it does NOT carry the drag source, which
   // lives in dataTransfer so cross-bank drops still resolve it.
@@ -46,7 +46,7 @@ export function SlotGrid({ bank, slotCount, entries, onGesture, onDelete, mode =
                 : ''
             }`}
             draggable={occupied}
-            aria-label={`${formatSlot(bank, slot)}${occupied ? `: ${e!.name}` : ' (empty)'}`}
+            aria-label={`${formatDeviceSlot(bank, slot)}${occupied ? `: ${e!.name}` : ' (empty)'}`}
             title={occupied
               ? (mode === 'insert' ? 'Drop a program here to insert it — the programs after it shift down' : 'Drop a program here to swap')
               : undefined}
@@ -72,14 +72,14 @@ export function SlotGrid({ bank, slotCount, entries, onGesture, onDelete, mode =
               onGesture({ kind: 'move', from, to: { bank, slot } });
             }}
           >
-            <span className="slot-grid__label">{formatSlot(bank, slot)}</span>
+            <span className="slot-grid__label">{formatDeviceSlot(bank, slot)}</span>
             {occupied && <span className="slot-grid__name">{e!.name}</span>}
             {occupied && onDelete && (
               <button
                 type="button"
                 className="slot-grid__delete"
                 draggable={false}
-                aria-label={`Delete ${e!.name || 'program'} (${formatSlot(bank, slot)})`}
+                aria-label={`Delete ${e!.name || 'program'} (${formatDeviceSlot(bank, slot)})`}
                 title={`Delete ${e!.name || 'this program'}`}
                 onClick={(ev) => { ev.stopPropagation(); onDelete({ bank, slot }); }}
               >

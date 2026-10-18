@@ -10,17 +10,21 @@ describe('validation matrix', () => {
   it('Stage 3 is hardware-validated throughout, USB transfer included (2026-10-14)', () => {
     for (const cap of CAPABILITIES) expect(statusFor('stage-3', cap).status, cap).toBe('validated');
   });
-  it('Stage 2 / 2 EX: files and samples validated, USB transfer not yet tested', () => {
+  it('Stage 2 / 2 EX: files and samples validated; a Stage 2 listed and read over USB (2026-10-17), writes not yet tested', () => {
     for (const id of ['stage-2', 'stage-2-ex'] as const) {
       expect(statusFor(id, 'file-read').status, id).toBe('validated');
       expect(statusFor(id, 'samples').status, id).toBe('validated');
-      for (const cap of ['enumerate', 'pull', 'push', 'delete', 'backup'] as const) {
+      for (const cap of ['push', 'delete', 'backup'] as const) {
         expect(statusFor(id, cap).status, `${id} ${cap}`).toBe('re');
       }
     }
+    for (const cap of ['enumerate', 'pull'] as const) {
+      expect(statusFor('stage-2', cap).status, cap).toBe('validated');
+      expect(statusFor('stage-2-ex', cap).status, cap).toBe('re'); // not tried on an EX
+    }
   });
-  it('only Stage 4 and Stage 3 transfer is hardware-validated', () => {
-    const others = ['stage-2', 'stage-2-ex', 'electro-6', 'piano-6', 'grand-2'] as const;
+  it('only Stage 4, Stage 3 and Stage 2 reads over USB are hardware-validated', () => {
+    const others = ['stage-2-ex', 'electro-6', 'piano-6', 'grand-2'] as const;
     for (const id of others) {
       expect(statusFor(id, 'pull').status, id).not.toBe('validated');
     }

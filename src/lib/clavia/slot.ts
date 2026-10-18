@@ -14,6 +14,18 @@ export function formatSlot(bank: number, location: number): string {
 }
 
 /**
+ * The letter of a bank the Nord itself listed. Past H the alphabet goes on: the
+ * Electro 6 has 26 program banks and the Electro 7 / Wave 2 sample libraries 26
+ * banks, so masking to A–H would give banks 0 and 8
+ * the same letter. Whether those panels letter their banks this way is not
+ * confirmed; that each bank gets its own letter is what matters here.
+ */
+export function bankLetter(bank: number): string {
+  return DEVICE_BANK_LETTERS[bank] ?? String(bank);
+}
+const DEVICE_BANK_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+/**
  * The label of a slot the Nord itself listed. Unlike {@link formatSlot}, which reads
  * a file header's 6-bit location, it keeps the whole location and bank: a Stage 2
  * bank holds 100 slots, and masking gave slots 0 and 64 the same label, so two
@@ -21,20 +33,22 @@ export function formatSlot(bank: number, location: number): string {
  * Slots 0–63 of banks A–H read exactly as {@link formatSlot} reads them; past that
  * the pages keep counting (slot 64 is "A:91"), so every slot has a label of its own.
  * Not what a Stage 2 shows on its panel — that label is still to be confirmed.
+ * Every label the device views show, and every Library id of a Nord slot, comes
+ * from here: a slot address is unique, so its label must be too.
  * @example formatDeviceSlot(0, 64) // → "A:91"
  */
 export function formatDeviceSlot(bank: number, location: number): string {
-  const letter = BANK_LETTERS[bank] ?? String(bank);
-  return `${letter}:${Math.floor(location / 8) + 1}${(location % 8) + 1}`;
+  return `${bankLetter(bank)}:${Math.floor(location / 8) + 1}${(location % 8) + 1}`;
 }
 
 /**
- * The same address, written out for prose ("Write to Slot A:26"). Use this in
- * sentences; keep {@link formatSlot} for dense grid cells where space is tight.
+ * A slot on the Nord, written out for prose ("Write to Slot A:26"): what a send
+ * or a delete asks the player to confirm, so it must name the slot it acts on
+ * (the device label, never the 6-bit file-header one).
  * @example slotLabel(0, 21) // → "Slot A:36"
  */
 export function slotLabel(bank: number, location: number): string {
-  return `Slot ${formatSlot(bank, location)}`;
+  return `Slot ${formatDeviceSlot(bank, location)}`;
 }
 
 /**

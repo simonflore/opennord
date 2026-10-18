@@ -202,7 +202,7 @@ export function LibrarySplit({ selectedId, full = false, onFull }: {
       {push.pushSource && device.session && device.session === pushFor && (
         // While it writes, it can't be dismissed: the write would go on unseen, and its error with it.
         <Dialog open portal onClose={() => { if (!push.busy) push.cancel(); }} title="Send to Nord" className="w-[min(96vw,760px)]">
-          <PushFlowPanel push={push} entries={device.entries} />
+          <PushFlowPanel push={push} entries={device.entries} model={identifyDevice(device.productId).model} bankList={device.capacity?.banks} />
         </Dialog>
       )}
       {removing && (

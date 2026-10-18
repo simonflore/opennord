@@ -5,6 +5,7 @@ import type { PartitionCapacity } from '../../lib/device/capacity';
 import { StorageMeter } from './StorageMeter';
 import { IdentityLcd } from '../program/widgets';
 import { OrganizeGrids } from './OrganizeGrids';
+import type { ModelInfo } from '../../lib/clavia/partitions';
 import { BankLabel } from './BankLabel';
 import { Button, FileInput } from '../ui';
 import { ALL_MODELS } from '../../lib/clavia/partitions';
@@ -18,9 +19,11 @@ const PROGRAM_ACCEPT = [...new Set(ALL_MODELS.map((m) => m.programTag).filter(Bo
   .map((tag) => `.${tag}`)
   .join(',');
 
-/** Programs grouped by bank A–H. Open, delete, or send a file to the Nord. */
-export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelete, onSendFile, writable = true, reorg, reorgConfirmExtra }: {
+/** Programs grouped by bank. Open, delete, or send a file to the Nord. */
+export function DeviceBrowser({ entries, model, deviceName, capacity, onSelect, onDelete, onSendFile, writable = true, reorg, reorgConfirmExtra }: {
   entries: ProgramEntry[];
+  /** The connected Nord's model: Organize draws its banks and slots. */
+  model?: ModelInfo;
   deviceName: string;
   /** Program partition capacity for the storage readout, or null while it loads. */
   capacity: PartitionCapacity | null;
@@ -60,7 +63,7 @@ export function DeviceBrowser({ entries, deviceName, capacity, onSelect, onDelet
         </div>
       </div>
       {organize ? (
-        <OrganizeGrids entries={entries} reorg={reorg} confirmExtra={reorgConfirmExtra} />
+        <OrganizeGrids entries={entries} model={model} bankList={capacity?.banks} reorg={reorg} confirmExtra={reorgConfirmExtra} />
       ) : (
         [...byBank.keys()].sort((a, b) => a - b).map((bank) => (
           <div key={bank} style={{ marginBottom: 14 }}>

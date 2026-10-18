@@ -1,5 +1,5 @@
 import type { ProgramEntry } from './transfer';
-import { formatSlot, BANK_LETTERS } from '../clavia/slot';
+import { formatDeviceSlot, bankLetter } from '../clavia/slot';
 
 export interface Addr { bank: number; slot: number }
 export type Op = { kind: 'copy'; from: Addr; to: Addr } | { kind: 'delete'; at: Addr };
@@ -46,7 +46,7 @@ export function planMove(occ: Occupancy, from: Addr, to: Addr): Plan | PlanError
     ],
     journalSlots: [from, to],
     title: 'Move program',
-    summary: `Move "${src.name || formatSlot(from.bank, from.slot)}" from ${formatSlot(from.bank, from.slot)} to ${formatSlot(to.bank, to.slot)}`,
+    summary: `Move "${src.name || formatDeviceSlot(from.bank, from.slot)}" from ${formatDeviceSlot(from.bank, from.slot)} to ${formatDeviceSlot(to.bank, to.slot)}`,
   };
 }
 
@@ -55,7 +55,7 @@ export function planMove(occ: Occupancy, from: Addr, to: Addr): Plan | PlanError
 export function planDelete(occ: Occupancy, at: Addr): Plan | PlanError {
   const src = occ.get(addrKey(at));
   if (!src) return { error: 'There is no program in that slot.' };
-  const where = formatSlot(at.bank, at.slot);
+  const where = formatDeviceSlot(at.bank, at.slot);
   return {
     ops: [{ kind: 'delete', at }],
     journalSlots: [at],
@@ -80,7 +80,7 @@ export function planSwap(occ: Occupancy, a: Addr, b: Addr): Plan | PlanError {
     ],
     journalSlots: [a, b],
     title: 'Swap programs',
-    summary: `Swap "${A.name || formatSlot(a.bank, a.slot)}" (${formatSlot(a.bank, a.slot)}) and "${B.name || formatSlot(b.bank, b.slot)}" (${formatSlot(b.bank, b.slot)})`,
+    summary: `Swap "${A.name || formatDeviceSlot(a.bank, a.slot)}" (${formatDeviceSlot(a.bank, a.slot)}) and "${B.name || formatDeviceSlot(b.bank, b.slot)}" (${formatDeviceSlot(b.bank, b.slot)})`,
   };
 }
 
@@ -135,7 +135,7 @@ export function planInsert(occ: Occupancy, from: Addr, to: Addr): Plan | PlanErr
   const direction = to.slot < from.slot ? 'down' : 'up';
   return {
     ops, journalSlots, title: 'Insert program', bulk: true,
-    summary: `Insert "${src.name || formatSlot(from.bank, from.slot)}" at ${formatSlot(to.bank, to.slot)} — ${moved} ${moved === 1 ? 'program' : 'programs'} shift ${direction}`,
+    summary: `Insert "${src.name || formatDeviceSlot(from.bank, from.slot)}" at ${formatDeviceSlot(to.bank, to.slot)} — ${moved} ${moved === 1 ? 'program' : 'programs'} shift ${direction}`,
   };
 }
 
@@ -171,7 +171,7 @@ export function planArrange(occ: Occupancy, bank: number, mode: ArrangeMode): Pl
       if (!seen.has(addrKey(a))) { seen.add(addrKey(a)); journalSlots.push(a); }
     }
   }
-  const label = BANK_LETTERS[bank & 0x7] ?? String(bank);
+  const label = bankLetter(bank);
   return mode === 'name'
     ? { ops, journalSlots, title: 'Sort bank A–Z', summary: `Sort ${n} programs in Bank ${label} alphabetically`, bulk: true }
     : { ops, journalSlots, title: 'Compact bank', summary: `Compact ${n} programs in Bank ${label}`, bulk: true };
