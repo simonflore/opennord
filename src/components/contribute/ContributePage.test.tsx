@@ -9,13 +9,15 @@ import { ContributePage } from './ContributePage';
 afterEach(cleanup);
 
 describe('ContributePage', () => {
-  it('shows the asks, with a connect step when no Nord is connected', () => {
+  it('shows the two asks, with a connect step when no Nord is connected', () => {
     render(<DeviceProvider><ContributePage /></DeviceProvider>);
     expect(screen.getByRole('heading', { level: 1, name: /help confirm opennord/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /check your nord/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /share two or three of your programs/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /measure a few sounds/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /share programs/i })).toHaveAttribute('href', expect.stringContaining('labels=programs'));
+    expect(screen.getByRole('heading', { name: /help improve file support/i })).toBeInTheDocument();
+    // Programs and the rest go by mail (or to the community where there is one), not as asks (#173).
+    expect(screen.queryByRole('heading', { name: /share two or three of your programs/i })).toBeNull();
+    expect(screen.queryByRole('heading', { name: /measure a few sounds/i })).toBeNull();
+    expect(screen.getByRole('link', { name: 'opennord@gigmeister.app' })).toHaveAttribute('href', 'mailto:opennord@gigmeister.app');
     // No WebUSB here: the connect step explains it in-line, not as a nested card with its own heading.
     expect(screen.getByText(/open this in chrome or edge to connect/i)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /open this in chrome/i })).toBeNull();
