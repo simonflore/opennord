@@ -2,7 +2,8 @@ import type { ReactElement } from 'react';
 import { cn } from '@/lib/cn';
 import { SEC } from './layout';
 import { SectionHead } from './SectionHead';
-import { heroBtn, listGrid, listHead, listRule, roadmapTag, covLink } from './styles';
+import { heroBtn, listHead, listRule, roadmapTag, covLink } from './styles';
+import { docsHref } from '../shell/nav';
 import { IconMac, IconWindows } from './icons';
 
 /**
@@ -28,23 +29,15 @@ const BUILDS: { name: string; detail: string; href: string; icon: () => ReactEle
   { name: 'macOS', detail: 'universal', href: `${RELEASE_BASE}/latest/download/OpenNord-mac.dmg`, icon: IconMac },
 ];
 
-// What the desktop build adds over the web app, stated as rows like the
-// feature list rather than as marketing copy in a panel.
-const ADDS: { title: string; body: string }[] = [
-  { title: 'USB with no browser', body: 'Connect, read and write without Chrome or Edge.' },
-  { title: 'Older Nords', body: 'Reaches the pre-WinUSB models, like the Stage 2, that a browser can’t claim.' },
-  { title: 'The same app', body: 'Everything the web app does works here too.' },
-];
-
 export function DesktopApp() {
   return (
     <section id="download" className={SEC}>
       <SectionHead
         overline="Where USB actually works"
-        title="Talk to your Nord from the desktop"
-        sub="A native app for Windows and macOS: the same app, with a direct line to the keyboard."
+        title="The desktop app"
+        sub="The same app for Windows and macOS, with a direct line to the keyboard: no browser needed, and it reaches older Nords like the Stage 2 that a browser can’t."
       />
-      <div className={listGrid}>
+      <div className="max-w-[34rem]">
         <div>
           <div className={listHead}>
             <span>Builds</span>
@@ -78,21 +71,9 @@ export function DesktopApp() {
                 </a>
               </>
             )}
+            {RELEASED ? ' · ' : ' '}
+            <a className={covLink} href={docsHref('start/platforms/')}>Requirements and setup →</a>
           </p>
-        </div>
-        <div>
-          <div className={listHead}>
-            <span>What it adds</span>
-            <span className="text-muted">{ADDS.length}</span>
-          </div>
-          <ul className="m-0 list-none p-0">
-            {ADDS.map((a) => (
-              <li key={a.title} className={cn('py-3', listRule)}>
-                <div className="text-[13px] font-bold text-ink">{a.title}</div>
-                <p className="mt-0.5 text-[13px] leading-[1.55] text-dim">{a.body}</p>
-              </li>
-            ))}
-          </ul>
         </div>
       </div>
     </section>

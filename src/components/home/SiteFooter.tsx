@@ -3,6 +3,7 @@ import { cn } from '@/lib/cn';
 import { GigmeisterFooterNote } from '@/components/sibling/Gigmeister';
 import { CONTENT } from './layout';
 import { Wordmark } from '../shell/Wordmark';
+import { docsHref } from '../shell/nav';
 
 const footerLink = 'text-xs font-semibold text-dim no-underline transition-colors duration-[120ms] ease-[cubic-bezier(.2,.6,.2,1)] hover:text-ink';
 
@@ -21,6 +22,7 @@ export function SiteFooter() {
         </div>
         <nav className="flex flex-wrap gap-4" aria-label="Footer">
           <Link to="/library/programs" className={footerLink}>Open the app</Link>
+          <a href={docsHref()} className={footerLink}>Docs</a>
           <Link to="/manifesto" className={footerLink}>Manifesto</Link>
           <Link to="/about" className={footerLink}>About &amp; legal</Link>
           <a

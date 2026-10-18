@@ -5,6 +5,7 @@ import { CONTENT } from './layout';
 import { covLink, heroBtn } from './styles';
 import { HeroInstrument } from './HeroInstrument';
 import { READ_MODELS } from './line';
+import { docsHref } from '../shell/nav';
 
 /**
  * The hero: eyebrow, a full-bleed display title, then the supporting copy and
@@ -37,13 +38,8 @@ export function Hero() {
             <Link to="/library/programs" className={heroBtn}>
               Open the app
             </Link>
-            <a
-              className={buttonVariants({ variant: 'outline', size: 'lg' })}
-              href="https://github.com/simonflore/opennord"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View on GitHub
+            <a className={buttonVariants({ variant: 'outline', size: 'lg' })} href={docsHref('start/quickstart/')}>
+              Read the docs
             </a>
           </div>
           <p className="mt-4 text-[11px] font-medium tracking-[0.2px] text-muted">

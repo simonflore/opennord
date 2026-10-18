@@ -24,6 +24,11 @@ export function docsUrl(location: Pick<Location, 'protocol'> | undefined = globa
   return web && !dev ? '/docs/' : PUBLIC_DOCS_URL;
 }
 
+/** A page of the docs, e.g. `guide/library/`; the docs' front page without one. */
+export function docsHref(page = ''): string {
+  return docsUrl() + page;
+}
+
 /** Opens the docs beside the app: a new tab, or the system browser in the desktop app. */
 export function openDocs(): void {
   window.open(docsUrl(), '_blank', 'noopener');

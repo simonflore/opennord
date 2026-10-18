@@ -10,5 +10,7 @@ pull request as the change. New lines go under **Unreleased**.
 
 ## Unreleased
 
+- **Website.** The front page is shorter: what OpenNord does, the desktop app,
+  and links into these docs for the detail.
 - **Docs.** OpenNord has documentation: these pages, at `/docs/`, opened from
   **Docs** in the side rail or the ⌘K menu.
