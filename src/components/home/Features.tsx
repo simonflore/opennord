@@ -4,36 +4,33 @@ import { docsHref } from '../shell/nav';
 import { SEC } from './layout';
 import { covLink, indexedRow, listIndex, listRule } from './styles';
 import { SectionHead } from './SectionHead';
-import { READ_FAMILIES, READ_MODELS } from './line';
+import { FULLY_TESTED, READ_MODELS, READ_TESTED_ONLY, modelList } from './line';
 
 /** One thing OpenNord does, and the docs page that shows how (`doc`, under /docs/). */
 interface Feature { title: string; body: string; doc?: string }
 
+const tested = modelList(FULLY_TESTED);
+
 const FEATURES: Feature[] = [
-  { title: 'Read your programs', body: 'Open a program and see what’s inside: piano, organ, synth and effects, laid out like the panel.', doc: 'guide/programs/' },
-  { title: 'Organize a library', body: 'Point OpenNord at a folder and search your programs, presets, samples and pianos in one place.', doc: 'guide/library/' },
-  { title: 'Play your samples', body: 'Play samples and pianos on screen or from a MIDI keyboard, and export them to WAV.', doc: 'guide/samples/' },
-  { title: 'Bring older patches to Stage 4', body: 'Turn a Stage 2 or 3 program into a Stage 4 file, with a report of what carried over.', doc: 'guide/convert/' },
-  { title: 'Transfer over USB', body: 'Pull programs off your Nord and write them back, from Chrome or Edge on a computer or the desktop app.', doc: 'guide/connect/' },
-  { title: 'Back up & restore', body: 'Save the whole keyboard to one file, and put it back when you need to.', doc: 'guide/backup/' },
+  { title: 'Read programs', body: 'See a program’s settings: piano, organ, synth, effects and the keyboard split.', doc: 'guide/programs/' },
+  { title: 'Library', body: 'Search the programs, presets, samples and pianos in a folder or on the keyboard.', doc: 'guide/library/' },
+  { title: 'Samples', body: 'Play samples and pianos on screen or from a MIDI keyboard. Export them to WAV.', doc: 'guide/samples/' },
+  { title: 'Convert to Stage 4', body: 'Turn a Stage 2 or 3 program into a Stage 4 program, with a list of what carried over.', doc: 'guide/convert/' },
+  { title: 'USB transfer', body: `Copy programs to and from the keyboard, from Chrome, Edge or the desktop app. Tested on the ${tested}.`, doc: 'guide/connect/' },
+  { title: 'Backup', body: `Save the whole keyboard to one file and restore it. Tested on the ${tested}.`, doc: 'guide/backup/' },
 ];
 /** Shown where the build has the community library (the hosted app). */
 const SHARE: Feature = { title: 'Share your programs', body: 'Publish programs you made and browse what other players share. Programs only: never Nord’s factory sounds.' };
 
-/** "Stage, Electro, Piano and Organ". */
-const families = (() => {
-  const names = READ_FAMILIES.map((f) => f.family);
-  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
-})();
 
 export function Features() {
   const items = useCapabilities().community.available ? [...FEATURES, SHARE] : FEATURES;
   return (
     <section id="features" className={SEC}>
       <SectionHead
-        overline="Your patches and your keyboard"
+        overline="Features"
         title="What it does"
-        sub="Everything here works from a file. The Nord itself is only needed to move sounds to and from it."
+        sub="Reading, playing and converting work from a file. You only need the keyboard to copy sounds to and from it."
       />
       <ol className="m-0 grid list-none grid-cols-2 gap-x-10 p-0 max-[760px]:grid-cols-1">
         {items.map((f, i) => (
@@ -48,8 +45,14 @@ export function Features() {
           </li>
         ))}
       </ol>
-      <p className="mt-6 text-xs leading-[1.5] text-muted">
-        Reads {READ_MODELS.length} Nord models across the {families} families, the Nord Stage first.{' '}
+      <p className="mt-6 max-w-[44rem] text-xs leading-[1.6] text-muted">
+        Tested on a real instrument: the Nord {tested} (everything above), and the
+        Nord {modelList(READ_TESTED_ONLY)} (reading only; nothing that changes the
+        keyboard has been tested on them). OpenNord also
+        recognises files from {READ_MODELS.length - FULLY_TESTED.length - READ_TESTED_ONLY.length} other
+        Nord models, but nothing has been tested on them yet. This is beta software:
+        sending a program to the keyboard replaces what is in that slot, so back up
+        first.{' '}
         <a href={docsHref('reference/instruments/')} className={covLink}>Supported instruments →</a>
       </p>
     </section>

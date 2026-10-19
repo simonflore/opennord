@@ -73,6 +73,13 @@ Then add one line to the [changelog](/docs/reference/changelog/) under
 - **Say what works today.** Describe what the app does now, and say plainly when
   something is limited to a platform or an instrument. Plans belong in the
   roadmap, not here.
+- **Never claim more than was tested.** Which models are tested comes from the
+  app's own table (`src/lib/clavia/validation.ts`). The table on
+  [Supported instruments](/docs/reference/instruments/) must match it; a test
+  fails when it doesn't. Anywhere else, name the tested models rather than
+  counting how many models OpenNord "reads".
+- **Plain words, no slogans.** Short factual sentences. No taglines, no
+  "companion", no "seamless", no claims you can't point to.
 - **Short steps.** Numbered steps for a task; one action per step.
 - **Only what is in this repository.** Describe what the open-source app does,
   nothing else.

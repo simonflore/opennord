@@ -33,9 +33,9 @@ export function DesktopApp() {
   return (
     <section id="download" className={SEC}>
       <SectionHead
-        overline="Where USB actually works"
-        title="The desktop app"
-        sub="The same app for Windows and macOS, with a direct line to the keyboard: no browser needed, and it reaches older Nords like the Stage 2 that a browser can’t."
+        overline="Windows and macOS"
+        title="Desktop app"
+        sub="The same app, with USB access that doesn’t need Chrome or Edge. It can also connect to older Nords, like the Stage 2, that a browser can’t."
       />
       <div className="max-w-[34rem]">
         <div>

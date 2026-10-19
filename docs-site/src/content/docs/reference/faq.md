@@ -5,6 +5,17 @@ sidebar:
   order: 3
 ---
 
+## Is it safe to connect my keyboard?
+
+Reading from the keyboard (listing, opening, copying, backing up) doesn't change
+anything on it. Sending, deleting, reorganising and restoring do. Those have
+been tested on real Nord Stage 4 and Stage 3 keyboards, but not widely.
+OpenNord is beta software with no warranty.
+
+Before you change anything: make a backup you can restore with Nord Sound
+Manager, try a spare slot first, and don't write to a model that isn't tested.
+See [Supported instruments](/docs/reference/instruments/).
+
 ## Does OpenNord upload my files?
 
 No. Your programs, samples and pianos are opened on your own device. Imported

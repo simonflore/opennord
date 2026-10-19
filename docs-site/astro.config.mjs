@@ -16,7 +16,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'OpenNord docs',
-      description: 'How to use OpenNord, the open companion for Nord keyboards, and how to work on it.',
+      description: 'How to use OpenNord, a free app for Nord keyboard files and USB transfer.',
       favicon: '/favicon.svg',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/simonflore/opennord' }],
       // Pages are edited in the public repository, where the site lives at docs-site/.

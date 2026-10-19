@@ -6,9 +6,9 @@ sidebar:
 ---
 
 OpenNord can turn a **Stage 2 or Stage 3 program into a Stage 4 program**. The
-result is a real `.ns4p` file your Stage 4 can load. It is a good first guess
-at the original sound, not a perfect copy: the Stage 4's engines differ, so
-some things need a pick by ear.
+result is a `.ns4p` file your Stage 4 can load. It won't sound exactly the
+same: the Stage 4's engines are different, so some settings need choosing by
+ear.
 
 ## Convert a program
 
@@ -38,7 +38,7 @@ Manager.
 - Morphs, the arpeggiator, the second panel and the rotary speaker.
 - **Piano and sample sounds** always come back as **Pick on your Stage 4**:
   choose the closest piano or sample on the keyboard.
-- Conversion only goes forward, to the Stage 4.
+- You can only convert to the Stage 4, not back.
 
 The conversion hasn't been compared by ear on a real Stage 4 yet. If something
 sounds clearly wrong, [let us know](https://github.com/simonflore/opennord/issues/new).

@@ -8,6 +8,9 @@ sidebar:
 :::danger[This replaces what is in the slot]
 Sending a program to a slot that holds one replaces it. There is no undo on the
 keyboard. [Back up your Nord](/docs/guide/backup/) first, and try a spare slot.
+
+Sending has been tested on the Nord Stage 4 and Stage 3 only. On other models
+it is untested; see [Supported instruments](/docs/reference/instruments/).
 :::
 
 ## Send a program

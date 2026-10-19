@@ -21,7 +21,8 @@ For models where OpenNord can only reach the programs yet, the download is a
 ## Restore a backup
 
 Restoring, and reorganising a backup offline, work with OpenNord and Nord Sound
-Manager backups in the `.ns4b` format.
+Manager backups in the `.ns4b` format (Stage 4). Restoring replaces everything
+on the keyboard, so keep the backup file until you've checked the result.
 
 1. Click your Nord's name › **Restore Nord…** and pick a `.ns4b` file.
 2. OpenNord previews what will change, then asks **Restore to *Nord*?**. A

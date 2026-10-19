@@ -12,9 +12,9 @@ delete from it and back it up. Each cell says how sure that is:
 | Mark | Means |
 |---|---|
 | ✓ **Works** | Tried on a real instrument. |
-| ● **Ready to test** | Should work; not yet tried on a real one. |
-| ○ **Likely** | Expected to work like a closely related model. |
-| ? **Needs a tester** | We need someone with this Nord. |
+| ● **Ready to test** | Not tested on a real instrument yet. |
+| ○ **Likely** | Not tested; expected to work like a related model. |
+| ? **Needs a tester** | Not tested, and not known yet. |
 | – **Not available** | The instrument can't do it. |
 
 The same overview, in words: [Supported instruments](/docs/reference/instruments/).
@@ -31,4 +31,5 @@ it changes nothing.
 3. To help, press **Share results to help**. It opens a pre-filled issue on
    GitHub for you to look over and send. Nothing is sent without you.
 
-Reports from models marked ● or ? are what turns them into ✓.
+Today only the Nord Stage 4 and Stage 3 are ✓ for everything. Reports from
+models marked ● or ? are what turns them into ✓.

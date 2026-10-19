@@ -14,7 +14,7 @@ export function SiteFooter() {
         <div>
           <Wordmark className="text-lg" />
           <p className="mt-2 max-w-[20rem] text-[13px] leading-[1.55] text-dim">
-            An open companion for Nord® keyboards.
+            A free, open-source app for Nord® keyboards.
           </p>
           {/* Copy lives in components/sibling/Gigmeister.tsx with every other
               mention, so the surfaces can't drift apart. */}

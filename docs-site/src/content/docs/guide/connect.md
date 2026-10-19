@@ -11,7 +11,9 @@ iPad app. See [Where it runs](/docs/start/platforms/).
 
 :::caution[Beta: writing changes your keyboard]
 Listing, reading and backing up only read from your Nord. Sending, deleting,
-moving and restoring change what is on it. [Back up first](/docs/guide/backup/).
+moving and restoring change what is on it. These have been tested on the Nord
+Stage 4 and Stage 3 only. [Back up first](/docs/guide/backup/), and see
+[Supported instruments](/docs/reference/instruments/).
 :::
 
 ## Connect

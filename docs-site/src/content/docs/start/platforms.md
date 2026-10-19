@@ -32,8 +32,9 @@ time.
 
 There is a desktop app for **macOS 13 or newer** (one download for Intel and
 Apple silicon) and **Windows 10 or newer** (64-bit), on the
-[releases page](https://github.com/simonflore/opennord/releases). It exists to
-reach the older Nords a browser can't connect to, like the Stage 2.
+[releases page](https://github.com/simonflore/opennord/releases). It can also
+connect to older Nords that a browser can't, like the Stage 2. On the Stage 2,
+reading and copying from the keyboard have been tested; sending has not.
 
 - **Windows:** older Nords need one setup step, the
   [UsbDk](https://github.com/daynix/UsbDk/releases) driver. The installer shows

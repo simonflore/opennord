@@ -5,8 +5,7 @@ sidebar:
   order: 2
 ---
 
-Open a program from the [Library](/docs/guide/library/) and OpenNord shows what is in
-it, laid out like the instrument.
+Open a program from the [Library](/docs/guide/library/) to see its settings.
 
 ## Stage 4 programs
 
