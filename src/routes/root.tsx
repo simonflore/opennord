@@ -19,8 +19,8 @@ function RootLayout() {
   // Trailing slash trimmed once, so every comparison below sees one spelling of a page.
   const path = useRouterState({ select: (s) => trimSlash(s.location.pathname) });
 
-  // The landing page (`/`) and the manifesto are the full-bleed site — no app shell.
-  if (path === '/' || path === '/manifesto') {
+  // The landing page (`/`) is the full-bleed site — no app shell.
+  if (path === '/') {
     return (
       <ErrorBoundary resetKey={path}>
         <Outlet />

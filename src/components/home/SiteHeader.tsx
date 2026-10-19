@@ -12,22 +12,16 @@ const navLink = cn(
   'max-[720px]:hidden',
 );
 
-/** `sections`: the links to the landing page's own sections, which only exist on that page. */
-export function SiteHeader({ sections = true }: { sections?: boolean } = {}) {
+export function SiteHeader() {
   return (
     <header className={cn(CONTENT, 'flex items-center justify-between gap-4 py-4')}>
       <Link to="/" className="no-underline" aria-label="OpenNord home">
         <Wordmark className="text-lg" />
       </Link>
       <nav className="flex items-center gap-6 max-[720px]:gap-3" aria-label="Primary">
-        {sections && (
-          <>
-            {/* No download while no build is published: the section then says one is coming. */}
-            <a className={navLink} href="#download" onClick={scrollToSection('download')}>{RELEASED ? 'Download' : 'Desktop app'}</a>
-          </>
-        )}
+        {/* No download while no build is published: the section then says one is coming. */}
+        <a className={navLink} href="#download" onClick={scrollToSection('download')}>{RELEASED ? 'Download' : 'Desktop app'}</a>
         <a className={navLink} href={docsHref()}>Docs</a>
-        <Link to="/manifesto" className={navLink}>Manifesto</Link>
         <a
           className={navLink}
           href="https://github.com/simonflore/opennord"

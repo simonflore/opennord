@@ -10,6 +10,7 @@ pull request as the change. New lines go under **Unreleased**.
 
 ## Unreleased
 
+- **Manifesto.** Removed from the website and the repository.
 - **Website and docs.** Plainer wording, and every page now says the same thing
   about which Nords are tested: the Stage 4 and Stage 3 for everything, the
   Stage 2 for reading only, other models not yet.

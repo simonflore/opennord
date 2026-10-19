@@ -12,8 +12,6 @@
 > **back up your keyboard first** and don't run it on data you can't afford to lose.
 > You are responsible for what you send to your instrument.
 
-Why this exists, and where it's going: [`MANIFESTO.md`](MANIFESTO.md).
-
 **Documentation:** how to use OpenNord and how to work on it is at
 [opennord.gigmeister.app/docs](https://opennord.gigmeister.app/docs/), built from
 the Markdown in [`docs-site/`](docs-site/) (Astro Starlight; `cd docs-site && npm install && npm run dev`).
