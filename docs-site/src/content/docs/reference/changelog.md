@@ -10,6 +10,8 @@ pull request as the change. New lines go under **Unreleased**.
 
 ## Unreleased
 
+- **Connecting a Stage 2.** It's called a Nord Stage 2 in the app and in the
+  Check my Nord results, not just “Nord”.
 - **Manifesto.** Removed from the website and the repository.
 - **Website and docs.** Plainer wording, and every page now says the same thing
   about which Nords are tested: the Stage 4 and Stage 3 for everything, the

@@ -11,7 +11,7 @@ import { isPlayerFacing } from '../../lib/device/player-message';
 import { NordSession } from '../../lib/device/session';
 import { NordStatus, SessionRefusedError } from '../../lib/device/protocol';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
-import { hasTrustedLayout, identifyDevice, resolveDeviceAccess, PROBE_REPLY_TIMEOUT_MS, type DeviceIdentity } from '../../lib/device/connect-probe';
+import { connectedDeviceName, hasTrustedLayout, identifyDevice, resolveDeviceAccess, PROBE_REPLY_TIMEOUT_MS, type DeviceIdentity } from '../../lib/device/connect-probe';
 import { modelById } from '../../lib/clavia/partitions';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
 import { initialFileTransferVersion, shouldNegotiateVersion } from '../../lib/device/negotiate';
@@ -170,10 +170,10 @@ export function useConnectNord(onConnected: OnConnected) {
         const dev = nords[0];
         productId = dev.productId;
         transport = new ElectronUsbTransport(productId);
-        await runSession(transport, dev.productName ?? 'Nord', productId);
+        await runSession(transport, connectedDeviceName(dev.productName, productId), productId);
         diagnostics.record({
           kind: 'device.connect', ok: true,
-          message: `Connected ${dev.productName ?? 'Nord'} (pid 0x${productId.toString(16)}, desktop)`,
+          message: `Connected ${connectedDeviceName(dev.productName, productId)} (pid 0x${productId.toString(16)}, desktop)`,
           detail: { path: 'electron', productId },
         });
         return;
@@ -185,7 +185,7 @@ export function useConnectNord(onConnected: OnConnected) {
         // (0), the Stage 4 is only ASSUMED, so the probe must find its program
         // files before anything is written.
         productId = await ipad.identify();
-        if (productId) await runSession(ipad, identifyDevice(productId).model?.name ?? 'Nord', productId);
+        if (productId) await runSession(ipad, connectedDeviceName(undefined, productId), productId);
         else await runSession(ipad, 'Nord Stage 4', 0, { model: modelById('stage-4'), confirmed: false });
         diagnostics.record({
           kind: 'device.connect', ok: true,
@@ -204,11 +204,11 @@ export function useConnectNord(onConnected: OnConnected) {
       bulk = findBulkInterface(device);
       productId = device.productId;
       transport = new WebUsbTransport(device);
-      await runSession(transport, device.productName ?? 'Nord', device.productId);
+      await runSession(transport, connectedDeviceName(device.productName, device.productId), device.productId);
       diagnostics.record({
         kind: 'device.connect',
         ok: true,
-        message: `Connected ${device.productName ?? 'Nord'} (pid 0x${productId.toString(16)})`,
+        message: `Connected ${connectedDeviceName(device.productName, productId)} (pid 0x${productId.toString(16)})`,
         detail: { usb, bulk },
       });
     } catch (e) {

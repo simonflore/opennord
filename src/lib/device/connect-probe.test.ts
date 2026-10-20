@@ -7,7 +7,7 @@ import {
 } from './opcodes';
 import { NordSession } from './session';
 import { MockTransport, TransportTimeoutError, type NordTransport } from './transport';
-import { confirmProgramPartition, hasTrustedLayout, identifyDevice, resolveDeviceAccess } from './connect-probe';
+import { confirmProgramPartition, connectedDeviceName, hasTrustedLayout, identifyDevice, resolveDeviceAccess } from './connect-probe';
 import { deleteProgram } from './transfer';
 import { restore } from './backup';
 import { buildMetaXml } from './ns4b';
@@ -183,6 +183,19 @@ describe('identifyDevice', () => {
 
   it('knows nothing about an unknown product id', () => {
     expect(identifyDevice(0x9999)).toEqual({ model: undefined, confirmed: false });
+  });
+});
+
+describe('connectedDeviceName', () => {
+  it('names a Nord that calls itself just "Nord" by its product id (issue #47)', () => {
+    expect(connectedDeviceName('Nord', 0x0021)).toBe('Nord Stage 2');
+    expect(connectedDeviceName(undefined, 0x0021)).toBe('Nord Stage 2');
+  });
+  it("keeps the device's own name when it says more", () => {
+    expect(connectedDeviceName('Nord Stage 2 EX', 0x0021)).toBe('Nord Stage 2 EX');
+  });
+  it('falls back to "Nord" for an unknown product id', () => {
+    expect(connectedDeviceName('', 0x9999)).toBe('Nord');
   });
 });
 

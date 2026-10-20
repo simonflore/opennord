@@ -148,6 +148,17 @@ export function identifyDevice(productId: number | undefined): DeviceIdentity {
 }
 
 /**
+ * The name to show for a connected Nord. Some Nords give USB a bare "Nord" as
+ * their product name (a Stage 2 did, issue #47), so a name that says no more
+ * than that gives way to the model the product id identifies.
+ */
+export function connectedDeviceName(productName: string | null | undefined, productId: number | undefined): string {
+  const name = productName?.trim();
+  if (name && name.toLowerCase() !== 'nord') return name;
+  return identifyDevice(productId).model?.name ?? 'Nord';
+}
+
+/**
  * True when the device's partition layout can be trusted without probing: a
  * hardware-confirmed model whose hardware-confirmed Program index doesn't move
  * between OS versions (today: Stage 4). Stage 2 is excluded — NSM adds its user

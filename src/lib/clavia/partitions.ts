@@ -247,6 +247,8 @@ export const MODELS: Record<NordModelId, ModelInfo> = {
     //, same order as the issue #31 capture): Synth is `ns2s`,
     // Settings is `ns2y`. OS 3.00 registers the user Pedal unconditionally; the
     // pedal gate is NSM's rule for older OS (no pre-3.00 image checked).
+    // A second owner's read-only probe (issue #47, 2026-10-17) found the same 10
+    // partitions with these file types at these indices.
     id: 'stage-2', name: 'Nord Stage 2', generation: 'OG', programTag: 'ns2p', sampleCodec: 'og', productId: 0x0021,
     os: { min: 100, recommended: 300 }, layoutVariesByOs: true,
     fileTransferVersion: 8, // OS 3.00: issue #31 negotiation capture; the maintainers’ notes "Accepted frame versions"
