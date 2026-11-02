@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { zipSync, strToU8, type ZipOptions } from 'fflate';
-import { readZipDirectory, extractZipEntry, extractZipEntryHead } from './zip-directory';
+import { readZipDirectory, extractZipEntry, extractZipEntryHead, storedEntryData } from './zip-directory';
 import { crc32 } from '../checksum';
 
 // fflate zipSync builds a real ZIP we can index + extract from. level 0 = stored, else deflate.
@@ -43,6 +43,15 @@ describe('zip-directory', () => {
     const entries = await readZipDirectory(blob);
     const e = entries.find((x) => x.path === 'b/deflated.bin')!;
     expect([...await extractZipEntry(blob, e)]).toEqual([...deflated]);
+  });
+
+  it('storedEntryData slices a stored entry’s data as a Blob; a deflated entry gets null', async () => {
+    const entries = await readZipDirectory(blob);
+    const byName = Object.fromEntries(entries.map((e) => [e.path, e]));
+    const data = await storedEntryData(blob, byName['a/stored.bin']);
+    expect(data).toBeInstanceOf(Blob);
+    expect(new Uint8Array(await data!.arrayBuffer())).toEqual(stored);
+    expect(await storedEntryData(blob, byName['b/deflated.bin'])).toBeNull();
   });
 
   it('extractZipEntryHead returns head of a STORED entry (method 0)', async () => {

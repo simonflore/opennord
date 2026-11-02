@@ -13,12 +13,25 @@ const importSample = vi.fn(async (_f: File) => 'local:1');
 vi.mock('@/lib/library/SamplesContext', () => ({ useSamplesState: () => ({ importSample }) }));
 vi.mock('@/lib/folder/FolderContext', () => ({ useFolder: () => ({ folderName, writeBack }) }));
 vi.mock('@/lib/download', () => ({ downloadBytes: vi.fn() }));
+const send = {
+  connected: false, busy: false, status: '',
+  refusal: vi.fn((_bytes?: Uint8Array): string | undefined => undefined),
+  send: vi.fn(async (_bytes: Uint8Array, _name: string) => {}),
+  clear: vi.fn(),
+};
+vi.mock('@/components/device/useSendSample', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/device/useSendSample')>()),
+  useSendSample: () => send,
+}));
 import { downloadBytes } from '@/lib/download';
 import { SaveDialog } from './SaveDialog';
+import type { LastBuild } from './useBuiltFile';
+import { NOT_YET_TRIED } from '@/lib/device/write-guard';
 
 // Node 26's jsdom has no working localStorage, and the real useFolderWrite reads the overwrite preference from it.
 beforeEach(() => {
   folderName = null;
+  send.connected = false; send.busy = false; send.status = ''; send.refusal.mockReturnValue(undefined);
   const m = new Map<string, string>();
   vi.stubGlobal('localStorage', {
     getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k),
@@ -101,5 +114,93 @@ describe('SaveDialog', () => {
     fireEvent.click(await screen.findByRole('button', { name: /new/i }));
     await waitFor(() => expect(writeBack).toHaveBeenCalledTimes(1));
     expect(writeBack.mock.calls.map((c) => c[0])).toEqual(['Saved_Pad.nsmp4']);
+  });
+
+  it('shows no Send to Nord without a connected Nord', () => {
+    const { p, read } = built();
+    render(<SaveDialog project={p} read={read} onClose={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Send to Nord' })).toBeNull();
+  });
+
+  it('sends the built sample under the project name, once on a double click', async () => {
+    send.connected = true;
+    const { p, read } = built();
+    render(<SaveDialog project={p} read={read} onClose={vi.fn()} />);
+    const button = screen.getByRole('button', { name: 'Send to Nord' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(send.send).toHaveBeenCalledTimes(1));
+    expect(send.send).toHaveBeenCalledWith(expect.any(Uint8Array), 'Saved Pad');
+  });
+
+  it('never sends an empty name to the Nord', async () => {
+    send.connected = true;
+    const { p, read } = built();
+    const file = { bytes: new Uint8Array([1, 2, 3]), fileName: 'Sample.nsmp4', warnings: [] } as unknown as LastBuild['file'];
+    const unnamed = { ...p, name: '   ' };
+    render(<SaveDialog project={unnamed} read={read} built={{ project: unnamed, file }} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Send to Nord' }));
+    await waitFor(() => expect(send.send).toHaveBeenCalledWith(file.bytes, 'Sample'));
+  });
+
+  it('sends the file Listen already built when the project is unchanged', async () => {
+    send.connected = true;
+    const { p, read } = built();
+    const file = { bytes: new Uint8Array([1, 2, 3]), fileName: 'Saved_Pad.nsmp4', warnings: [] } as unknown as LastBuild['file'];
+    render(<SaveDialog project={p} read={read} built={{ project: p, file }} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Send to Nord' }));
+    await waitFor(() => expect(send.send).toHaveBeenCalledWith(file.bytes, 'Saved Pad'));
+  });
+
+  it('greys Send with the reason the hook gives', () => {
+    send.connected = true;
+    send.refusal.mockReturnValue(NOT_YET_TRIED.sample);
+    const { p, read } = built();
+    render(<SaveDialog project={p} read={read} onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Send to Nord' })).toBeDisabled();
+    expect(screen.getByText(/^Not yet tried on a Nord/)).toBeInTheDocument();
+  });
+
+  it('greys Send for an .nsmp3 build', () => {
+    send.connected = true;
+    const { p, read } = built();
+    render(<SaveDialog project={{ ...p, target: 'nsmp3' }} read={read} onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Send to Nord' })).toBeDisabled();
+    expect(screen.getByText(/Only \.nsmp4 samples/)).toBeInTheDocument();
+  });
+
+  it('shows the piano text and no Send button for a piano', () => {
+    send.connected = true;
+    const { p, read } = built();
+    render(<SaveDialog project={{ ...p, target: 'npno' }} read={read} onClose={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Send to Nord' })).toBeNull();
+    expect(screen.getByText(NOT_YET_TRIED.piano)).toBeInTheDocument();
+  });
+
+  it('shows how the send went, in the one status region', () => {
+    send.connected = true;
+    send.status = 'Sent “Saved Pad” to your Nord.';
+    const { p, read } = built();
+    render(<SaveDialog project={p} read={read} onClose={vi.fn()} />);
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+    expect(screen.getByRole('status')).toHaveTextContent('Sent “Saved Pad” to your Nord.');
+  });
+
+  it('keeps the send status in view after the Nord drops', () => {
+    send.connected = false;
+    send.status = 'Couldn’t send: Your Nord stopped answering. Unplug it and plug it back in. The sample may be on your Nord now; check it there before sending again.';
+    const { p, read } = built();
+    render(<SaveDialog project={p} read={read} onClose={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Send to Nord' })).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent(/stopped answering.*may be on your Nord/);
+  });
+
+  it('says a build failure plainly instead of sending', async () => {
+    send.connected = true;
+    const { p } = built();
+    render(<SaveDialog project={p} read={() => undefined} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Send to Nord' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(/^Couldn’t send: /);
+    expect(send.send).not.toHaveBeenCalled();
   });
 });

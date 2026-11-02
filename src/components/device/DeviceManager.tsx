@@ -22,8 +22,8 @@ import { useDeleteFlow } from './useDeleteFlow';
 import { useSamplesFlow } from './useSamplesFlow';
 import { useReorg } from './useReorg';
 import { sessionDeviceIO } from '../../lib/device/device-io';
-import { backup, backupFilename } from '../../lib/device/backup';
-import { downloadBytes } from '../../lib/download';
+import { backupFilename, safetyBackup } from '../../lib/device/backup';
+import { downloadBlob } from '../../lib/download';
 import { useFolder } from '../../lib/folder/FolderContext';
 import { useOpenEntry } from '../library/openEntry';
 import { useLibraryData } from '../../lib/library/LibraryContext';
@@ -37,7 +37,7 @@ import { nordEntryId } from '../../lib/library/entries';
  * component is the switch between them.
  */
 export function DeviceManager() {
-  const { session, entries, deviceName, productId, capacity, setConnection, setCapacity, isCurrent, lost, refresh } = useDevice();
+  const { session, entries, deviceName, productId, capacity, setConnection, setCapacity, isCurrent, lost, lostMessage, refresh } = useDevice();
   // The connected model, so the slot picker and Organize draw its own banks and slots.
   const model = identifyDevice(productId).model;
   const folder = useFolder();
@@ -75,8 +75,9 @@ export function DeviceManager() {
   const backedUp = useRef(false);
   const backupOnce = useCallback(async () => {
     if (!session || !backupWanted || backedUp.current) return;
-    const bytes = await backup(session);
-    downloadBytes(bytes, backupFilename(session, 'OpenNord Safety Backup'));
+    // Programs, presets, Live and Settings only: never the libraries (minutes to read, and a reorganize can't touch them).
+    const blob = await safetyBackup(session);
+    downloadBlob(blob, backupFilename(session, 'OpenNord Safety Backup'));
     backedUp.current = true;
   }, [session, backupWanted]);
   const reorg = useReorg({
@@ -122,7 +123,7 @@ export function DeviceManager() {
             onPick={openBundle}
           />
         )}
-        {lost && <p className="on-error" role="status">Your Nord was disconnected. Connect it again to carry on.</p>}
+        {lost && <p className="on-error" role="status">{lostMessage}</p>}
         <ConnectPanel
           onConnected={(s, e, name, pid) => setConnection(s, e, name, pid)}
           onOpenBackup={() => { setOrganizingBundlePath(undefined); setOrganizingBackup(true); }}

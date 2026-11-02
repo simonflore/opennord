@@ -1,6 +1,6 @@
 ---
-title: Send a program to your Nord
-description: Write a program from OpenNord to a slot on your Nord, and what can stop it.
+title: Send to your Nord
+description: Write a program to a slot on your Nord, send a sample to it, and what can stop either.
 sidebar:
   order: 8
 ---
@@ -41,6 +41,31 @@ The button explains why:
   yet.
 
 Presets can't be sent yet.
+
+## Send a sample
+
+:::caution[Not yet tried on a Nord]
+Sending samples is off until it has been tried on a Nord. Until then the
+button is greyed and says "Not yet tried on a Nord: sending samples stays off
+until it has been."
+:::
+
+With a Stage 4 connected, you can send a sample of your own from two places:
+
+- **A sample in the Library:** open it under **User Samples** and press
+  **Send to Nord**. It is offered only for a sample the Nord doesn't have yet,
+  never for factory samples.
+- **Build sample:** in the **Save** dialog, press **Send to Nord**.
+
+A sample goes to an empty place on the Nord; it never replaces one. If the Nord
+already has a sample with that name, it gets a number, like “Pad (1)”, and
+OpenNord tells you the name it got. Long names are cut short, the way the Nord
+keeps them. When the sample memory is short of room, OpenNord first makes room
+from space the Nord has already freed ("Making room on your Nord…"). That never
+removes a sample.
+
+Only `.nsmp4` samples can go to a Stage 4: convert others first (see
+[Samples](/docs/guide/samples/)). Pianos can't be sent yet.
 
 ## Delete a program
 

@@ -1,8 +1,9 @@
-import { zipSync, unzipSync, Zip, ZipPassThrough } from 'fflate';
+import { zipSync, unzipSync } from 'fflate';
+import { StoredZipWriter } from '../clavia/backup/stored-zip';
 import { hasCbinMagic, readCbinHeader } from '../clavia/cbin';
 import { patchNs4Checksum } from '../clavia/checksum';
 import { streamUnzip } from '../folder/unzip-stream';
-import { USER_PARTITIONS, disambiguatePath, partitionForPath, type PartitionSpec } from './ns4b';
+import { USER_PARTITIONS, disambiguatePath, nameFromPath, partitionForPath, type PartitionSpec } from './ns4b';
 import { PARTITION_PROGRAM } from './opcodes';
 import type { ProgramEntry } from './transfer';
 import type { DeviceIO } from './device-io';
@@ -47,8 +48,7 @@ const isProgramEntry = (path: string) => path !== 'meta.xml' && partitionForPath
 function toProgramFile(path: string, bytes: Uint8Array): ProgramFile | null {
   if (!isProgramEntry(path) || !hasCbinMagic(bytes)) return null;
   const h = readCbinHeader(bytes);
-  const name = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '');
-  return { addr: { bank: h.bank, slot: h.location }, name, bytes, categoryId: h.category, version: h.versionRaw, fourcc: h.tag };
+  return { addr: { bank: h.bank, slot: h.location }, name: nameFromPath(path), bytes, categoryId: h.category, version: h.versionRaw, fourcc: h.tag };
 }
 
 /** Parse a .ns4b into an in-memory model. Throws if it isn't a Nord backup. */
@@ -155,16 +155,11 @@ export function serializeBackup(model: BackupModel): Uint8Array {
 export async function streamBackupTo(model: BackupModel, writable: WritableStream<Uint8Array>): Promise<void> {
   if (!model.source) throw new Error('streamBackupTo requires a streamed-in backup (model.source).');
   const writer = writable.getWriter();
-  const pending: Uint8Array[] = []; // zip output produced (synchronously) by the current entry
-  const zip = new Zip((err, chunk) => { if (!err && chunk.length) pending.push(chunk); });
-
-  const drain = async () => { for (const c of pending.splice(0)) { await writer.ready; await writer.write(c); } };
-  const addStored = async (path: string, bytes: Uint8Array) => {
-    const file = new ZipPassThrough(path); // stored: no recompression, byte-for-byte
-    zip.add(file);
-    file.push(bytes, true);
-    await drain();
-  };
+  // Stored, with sizes in each local header and no data descriptors, so this archive
+  // streams back in through streamUnzip intact (see StoredZipWriter).
+  const zip = new StoredZipWriter();
+  const write = async (chunks: Uint8Array[]) => { for (const c of chunks) { await writer.ready; await writer.write(c); } };
+  const addStored = (path: string, bytes: Uint8Array) => write(zip.add(path, bytes));
 
   try {
     // 1) carry every non-program entry through untouched (meta.xml, presets, samples)
@@ -172,8 +167,7 @@ export async function streamBackupTo(model: BackupModel, writable: WritableStrea
     // 2) append the edited program set; Program/ never collides with the passthrough folders
     const used = new Set<string>();
     for (const [path, bytes] of finalProgramFiles(model, used)) await addStored(path, bytes);
-    zip.end();
-    await drain();
+    await write(zip.end());
     await writer.close();
   } catch (e) {
     await writer.abort(e).catch(() => {});

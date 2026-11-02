@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
@@ -13,6 +13,8 @@ import { useCanShareToCommunity, useShareToCommunity } from '@/components/shell/
 import { audioToShare } from '@/lib/library/share-audio';
 import { useLeaveEntry, useOpenEntry, useRemoveCopy } from '@/components/library/openEntry';
 import { copyHere } from '@/lib/library/found-on';
+import { sendNameFor, useSendSample } from '@/components/device/useSendSample';
+import { canOfferSend, clearsSendOnOpen, sendShownFor } from './sendOffer';
 import { pickFile } from '@/lib/pick-file';
 import { isNsmpFileName, NSMP_EXTENSIONS } from '@/lib/ns4/nsmp';
 
@@ -34,6 +36,22 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const community = useCapabilities().community;
   const canShare = useCanShareToCommunity();
   const share = useShareToCommunity();
+  // Send to Nord, for a sample of your own that isn't on the Nord already (spec §11).
+  const sendSample = useSendSample();
+  const { clear: clearSend } = sendSample;
+  // The sample the current send (and its status) belongs to: only it shows them.
+  const [sentFor, setSentFor] = useState<string>();
+  const sendNow = useRef({ busy: sendSample.busy, sentFor });
+  useEffect(() => { sendNow.current = { busy: sendSample.busy, sentFor }; }, [sendSample.busy, sentFor]);
+  // Opening another sample lets go of a finished send's status; not on busy turning
+  // false, so an outcome that lands while another sample is open waits for its own.
+  useEffect(() => {
+    if (clearsSendOnOpen(selectedId, sendNow.current.sentFor, sendNow.current.busy)) {
+      clearSend();
+      setSentFor(undefined);
+    }
+  }, [selectedId, clearSend]);
+  const shownSend = sendShownFor(selectedId, sentFor, sendSample);
 
   // Opening a sample from the route clears an import problem.
   useEffect(() => {
@@ -93,8 +111,10 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   );
 
   // Remount the inspector per sample (key on name+size) so its load effect re-runs.
-  const inspector = (initial: InspectorInput, factory?: boolean, onShare?: () => void, onKeepCopy?: () => void) => (
-    <SampleInspector key={`${initial.name}-${initial.bytes.length}`} initial={initial} factory={factory} onShare={onShare} onKeepCopy={onKeepCopy} />
+  const inspector = (initial: InspectorInput, factory?: boolean, onShare?: () => void, onKeepCopy?: () => void, send?: { onSend: () => void; disabledReason?: string }) => (
+    // The status stays when the Nord is lost (no send then): it says what to do.
+    <SampleInspector key={`${initial.name}-${initial.bytes.length}`} initial={initial} factory={factory} onShare={onShare} onKeepCopy={onKeepCopy}
+      send={send} sendStatus={shownSend.status} />
   );
   // A sample named by the route is the detail even before its bytes arrive, so a
   // phone shows its progress, error or "not found" instead of the bare list.
@@ -108,6 +128,17 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const openBytes = open.state === 'open' ? open.sample.bytes : undefined;
   const keepOpen = openEntryNow && openBytes && !copyHere(openEntryNow)
     ? () => void s.keepCopy(openEntryNow, openBytes) : undefined;
+  // Hidden without a Nord, for anything the Nord has, and for factory content.
+  const opened = open.state === 'open' ? open : null;
+  const sendOpen = opened && sendSample.connected && canOfferSend(openEntryNow, opened.factory)
+    ? {
+        onSend: () => {
+          if (!sendSample.busy) setSentFor(selectedId); // a running send keeps its own sample
+          void sendSample.send(opened.sample.bytes, sendNameFor(opened.sample.name));
+        },
+        disabledReason: shownSend.busyReason ?? sendSample.refusal(opened.sample.bytes),
+      }
+    : undefined;
   const detail = selectedId ? (
     open.state === 'missing' ? <NotListedNote noun="sample" />
     : open.state === 'failed' ? (
@@ -119,7 +150,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
     : open.state === 'open' ? (
       <>
         {!open.listed && <EmptyNote>This sample isn’t in your library right now.</EmptyNote>}
-        {inspector(open.sample, open.factory, open.factory ? undefined : shareOpen, keepOpen)}
+        {inspector(open.sample, open.factory, open.factory ? undefined : shareOpen, keepOpen, sendOpen)}
       </>
     )
     : <EmptyNote>Reading the sample…{open.state === 'reading' && open.pct !== null && ` ${open.pct}%`}</EmptyNote>

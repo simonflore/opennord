@@ -62,3 +62,24 @@ describe('Samp Lib partition + dependency opcode', () => {
     expect(CQryFileGetDependency).toBe(0x28);
   });
 });
+
+import { CQryEraseStatus, CReqEraseBlock } from './opcodes';
+import { encodeMessage } from './protocol';
+
+describe('erase frames on the wire', () => {
+  // Written out by hand from NSM's frame layout (length, protocol 0x0c, version 0x0a,
+  // opcode, payload words, CRC-16/CCITT-FALSE), so the opcodes are checked as bytes.
+  it('EraseBlock(4) is opcode 0x22 with the block count as its one word', () => {
+    expect([...encodeMessage(CReqEraseBlock, [4])]).toEqual([
+      0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x0a,
+      0x00, 0x00, 0x00, 0x22, 0x00, 0x00, 0x00, 0x04, 0x67, 0x29,
+    ]);
+  });
+
+  it('the erase status query is opcode 0x26 with no payload', () => {
+    expect([...encodeMessage(CQryEraseStatus, [])]).toEqual([
+      0x00, 0x00, 0x00, 0x12, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x0a,
+      0x00, 0x00, 0x00, 0x26, 0x41, 0x62,
+    ]);
+  });
+});

@@ -8,7 +8,8 @@ import {
   readPartitionCapacity,
   type PartitionCapacity,
 } from './capacity';
-import type { NordSession } from './session';
+import { NordSession } from './session';
+import { MockTransport } from './transport';
 
 /** Parse a space-separated hex dump into bytes. */
 function hex(s: string): Uint8Array {
@@ -134,5 +135,21 @@ describe('partitionFreeBytes (free + reserved blocks × block size)', () => {
 
   it('returns undefined for a slot-constrained partition (no block size)', () => {
     expect(partitionFreeBytes(cap({ freeBlocks: 1000, reservedBlocks: 0 }))).toBeUndefined();
+  });
+});
+
+describe('readPartitionCapacity block size', () => {
+  it('uses the block size the partition list reports, else the table', async () => {
+    const withGeometry = await readPartitionCapacity(new NordSession(new MockTransport([PART_STATE_PROGRAM, BANK_LIST_PROGRAM])), 5, { blockBytes: 32768 });
+    expect(withGeometry.blockSizeBytes).toBe(32768);
+    const fallback = await readPartitionCapacity(new NordSession(new MockTransport([PART_STATE_PROGRAM, BANK_LIST_PROGRAM])), 5);
+    expect(fallback.blockSizeBytes).toBe(65536);
+    const zero = await readPartitionCapacity(new NordSession(new MockTransport([PART_STATE_PROGRAM, BANK_LIST_PROGRAM])), 5, { blockBytes: 0 });
+    expect(zero.blockSizeBytes).toBe(65536);
+  });
+
+  it('ignores geometry for a partition with no known block size', async () => {
+    const program = await readPartitionCapacity(new NordSession(new MockTransport([PART_STATE_PROGRAM, BANK_LIST_PROGRAM])), 6, { blockBytes: 65536 });
+    expect(program.blockSizeBytes).toBeUndefined();
   });
 });

@@ -29,10 +29,10 @@ export interface InspectorInput { id?: string; bytes: Uint8Array; name: string; 
 
 /**
  * One sample, top to bottom: its header, then every action in one row (Save to
- * computer · Convert ▾ · More ▾), then the keyboard map to edit beside a Play
- * card (MIDI, Unison, envelope), then its recordings.
+ * computer · Send to Nord · Convert ▾ · More ▾), then the keyboard map to edit
+ * beside a Play card (MIDI, Unison, envelope), then its recordings.
  */
-export function SampleInspector({ initial, factory, onShare, onKeepCopy }: {
+export function SampleInspector({ initial, factory, onShare, onKeepCopy, send, sendStatus }: {
   initial: InspectorInput;
   /** Open the share form on this one; absent where it can't be shared. */
   onShare?: () => void;
@@ -40,6 +40,10 @@ export function SampleInspector({ initial, factory, onShare, onKeepCopy }: {
   onKeepCopy?: () => void;
   /** Whether `initial` is Nord factory content (never a file dropped or picked here). */
   factory?: boolean;
+  /** Send this sample to the connected Nord; given only while one is connected (spec §11). */
+  send?: { onSend: () => void; disabledReason?: string };
+  /** How the last send went, in plain words. */
+  sendStatus?: string;
 }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const loadCount = useRef(0);
@@ -100,12 +104,13 @@ export function SampleInspector({ initial, factory, onShare, onKeepCopy }: {
         <div className="ps">
           <SampleHeader view={fullHeaderView(shown)} />
           {/* Every action on the sample as it is, in one row; edits are saved from the editor ("Save edited copy"). */}
-          <div className="mt-2 mb-3"><ItemActions save={{ onSave: () => downloadBytes(shown.bytes, sampleFilename(shown.name, shown.file.codec, shown.file.legacy)) }} more={[
+          <div className="mt-2 mb-3"><ItemActions send={send} save={{ onSave: () => downloadBytes(shown.bytes, sampleFilename(shown.name, shown.file.codec, shown.file.legacy)) }} more={[
             ...(onShare ? [{ label: 'Share to community', onSelect: onShare }] : []),
             ...(onKeepCopy ? [{ label: 'Keep a copy', onSelect: onKeepCopy }] : []),
           ]}>
             {shown.decodable && <SampleConvert bytes={shown.bytes} file={shown.file} name={shown.name} />}
-          </ItemActions></div>
+          </ItemActions>
+          {sendStatus && <p role="status" className="ps-sub mt-1">{sendStatus}</p>}</div>
 
           <DetailColumns
             /* Keyboard-map editor leads once we've decoded the key map; edits patch

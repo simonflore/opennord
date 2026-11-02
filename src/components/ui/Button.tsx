@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/cn';
 
@@ -42,7 +42,7 @@ export const buttonVariants = cva(
 );
 
 type ButtonProps = VariantProps<typeof buttonVariants> &
-  Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'color'> & { children: ReactNode };
+  Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'color'> & { children: ReactNode; ref?: Ref<HTMLButtonElement> };
 
 export function Button({ variant, size, type = 'button', className, children, ...rest }: ButtonProps) {
   return (

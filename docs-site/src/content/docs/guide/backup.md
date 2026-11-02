@@ -15,8 +15,27 @@ on your computer with everything on the keyboard.
 3. OpenNord reads every file ("Backing up N of M…") and downloads
    **OpenNord Backup *date*.ns4b**.
 
+On a Stage 4 the backup holds your samples and pianos too, next to the
+programs, presets, Live and settings. Reading them can take many minutes.
+
 For models where OpenNord can only reach the programs yet, the download is a
 `.zip` of the programs, and OpenNord says so.
+
+## Update a backup
+
+Reading every sample and piano again takes long. **Update a backup…** starts
+from a backup you already have:
+
+1. Click your Nord's name in the top bar and pick **Back up Nord** or
+   **Restore Nord…**. In the dialog, press **Update a backup…** and pick an
+   earlier `.ns4b` of this Nord.
+2. OpenNord copies the samples and pianos that are still the same (same name,
+   place and size) from that backup, and reads everything else from your Nord.
+3. It downloads a new backup and says how many samples and pianos it copied.
+   Your earlier backup is unchanged.
+
+A sample you changed on the Nord without changing its size keeps the earlier
+copy. For a completely fresh copy, use **Back up Nord**.
 
 ## Restore a backup
 
@@ -30,6 +49,26 @@ on the keyboard, so keep the backup file until you've checked the result.
    current programs, presets, Live and settings.
 3. Factory sample libraries in the backup are skipped. OpenNord lists them with
    links to Nord's downloads; install those with Nord Sound Manager.
+
+### Samples and pianos
+
+:::caution[Not yet tried on a Nord]
+Writing samples and pianos to a Nord is off until it has been tried on one.
+Until then a restore leaves them out and says so: "… weren’t restored: not yet
+tried on a Nord." Your programs, presets, Live and settings are still
+restored.
+:::
+
+Once it is on, a restore on a Stage 4 puts your samples and pianos back by
+name:
+
+- A sample or piano already on the Nord with the same name and size is left
+  as it is.
+- One on the Nord that the backup doesn't have, or that has another file under
+  that name in the backup, is removed, then the backup's copy is written.
+- If the backup's samples won't fit, nothing is removed, and OpenNord says why.
+- If OpenNord has to stop, the summary names anything that is no longer on the
+  Nord but is still in your backup.
 
 ## Reorganise a backup offline
 

@@ -19,6 +19,7 @@ export const CReqBegin = 0x04;
 export const CReqEnd = 0x06;
 export const CQryPartState = 0x08; // → 0x09: a partition's file count + free/used erase blocks
 export const CReqEraseBlock = 0x22; // → 0x23: free N erase blocks before a large write
+export const CQryEraseStatus = 0x26; // → 0x27: status, total, done, busy — polled while an erase runs
 export const CReqFileOpen = 0x0c;
 export const CReqFileCreate = 0x0a;
 export const CReqFileClose = 0x0e;

@@ -14,17 +14,27 @@ const disconnect = vi.fn();
 let device: Record<string, unknown> = {};
 vi.mock('../../lib/device/DeviceContext', () => ({ useDevice: () => device }));
 let backupBusy = false;
+let panelMounts = 0;
 vi.mock('../device/BackupPanel', async () => {
-  const { useEffect } = await import('react');
+  const { useEffect, useState } = await import('react');
   return {
-    BackupPanel: ({ startBackup, onBusyChange }: { startBackup?: boolean; onBusyChange?: (b: boolean) => void }) => {
+    BackupPanel: ({ startBackup, onBusyChange, onSessionLost }: {
+      startBackup?: boolean; onBusyChange?: (b: boolean) => void; onSessionLost?: () => void;
+    }) => {
       useEffect(() => { onBusyChange?.(backupBusy); }, [onBusyChange]);
-      return <div>{startBackup ? 'BACKING UP' : 'RESTORE PICKER'}</div>;
+      const [mount] = useState(() => ++panelMounts);
+      return (
+        <div data-mount={mount}>
+          {startBackup ? 'BACKING UP' : 'RESTORE PICKER'}
+          <button type="button" onClick={onSessionLost}>NORD STOPS ANSWERING</button>
+        </div>
+      );
     },
   };
 });
 
 import { DeviceStatus } from './DeviceStatus';
+import { STOPPED_ANSWERING } from '../../lib/device/session';
 
 const SESSION = { canWrite: () => true, programPartition: 3 };
 
@@ -102,6 +112,27 @@ describe('DeviceStatus', () => {
     device = { ...device, session: { ...SESSION } }; // a new session for the same Nord
     rerender(<DeviceStatus onManage={vi.fn()} />);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('drops a Nord that stopped answering mid-restore at once, and keeps the restore’s summary up', async () => {
+    const markLost = vi.fn();
+    device = { ...device, session: SESSION, deviceName: 'Nord Stage 4', entries: [], markLost };
+    const { rerender } = render(<DeviceStatus onManage={vi.fn()} />);
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Restore Nord…/ }));
+    const mount = screen.getByText('RESTORE PICKER').getAttribute('data-mount');
+    fireEvent.click(screen.getByRole('button', { name: 'NORD STOPS ANSWERING' }));
+    expect(markLost).toHaveBeenCalledWith(SESSION, STOPPED_ANSWERING);
+    device = { ...device, session: null }; // what markLost does
+    rerender(<DeviceStatus onManage={vi.fn()} />);
+    expect(screen.getByRole('dialog')).toHaveTextContent('RESTORE PICKER');
+    // The same panel, not a fresh one: its restore summary is still there.
+    expect(screen.getByText('RESTORE PICKER')).toHaveAttribute('data-mount', mount);
+    expect(screen.getByRole('button', { name: 'Connect', hidden: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // The Nord's menu button is gone: focus lands on Connect, not on the page's top.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Connect' })).toHaveFocus());
   });
 
   it('can’t close while a backup is running, and gives focus back to the Nord’s button', async () => {

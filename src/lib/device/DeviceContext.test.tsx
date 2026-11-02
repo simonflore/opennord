@@ -42,6 +42,46 @@ describe('DeviceContext', () => {
   });
 });
 
+describe('DeviceContext: a Nord that stopped answering', () => {
+  it('is forgotten at once, its transport released, and the reason kept until the next connect', () => {
+    const close = vi.fn().mockResolvedValue(undefined);
+    const session = { close, onLost: vi.fn() };
+    const { result } = renderHook(() => useDevice(), { wrapper: DeviceProvider });
+    act(() => result.current.setConnection(session as never, [{ name: 'A' } as never], 'Nord', 0x002e));
+    expect(result.current.lostMessage).toBe('');
+    act(() => result.current.markLost(session as never, 'Your Nord stopped answering.'));
+    expect(result.current.session).toBeNull();
+    expect(result.current.entries).toEqual([]);
+    expect(close).toHaveBeenCalledTimes(1); // nothing else can use the session
+    expect(result.current.lost).toBe(true);
+    expect(result.current.lostMessage).toBe('Your Nord stopped answering.');
+    act(() => result.current.setConnection({ close: vi.fn(), onLost: vi.fn() } as never, [], 'Nord', 0x002e));
+    expect(result.current.lost).toBe(false);
+    expect(result.current.lostMessage).toBe('');
+  });
+
+  it('leaves a Nord connected since alone', () => {
+    const old = { close: vi.fn().mockResolvedValue(undefined), onLost: vi.fn() };
+    const next = { close: vi.fn(), onLost: vi.fn() };
+    const { result } = renderHook(() => useDevice(), { wrapper: DeviceProvider });
+    act(() => result.current.setConnection(old as never, [], 'Nord', 0x002e));
+    act(() => result.current.setConnection(next as never, [], 'Nord', 0x002e));
+    act(() => result.current.markLost(old as never, 'Your Nord stopped answering.'));
+    expect(result.current.session).toBe(next);
+    expect(result.current.lost).toBe(false);
+    expect(next.close).not.toHaveBeenCalled();
+  });
+
+  it('says an unplugged Nord was disconnected', () => {
+    let unplug = () => {};
+    const session = { close: vi.fn().mockResolvedValue(undefined), onLost: (cb: () => void) => { unplug = cb; } };
+    const { result } = renderHook(() => useDevice(), { wrapper: DeviceProvider });
+    act(() => result.current.setConnection(session as never, [], 'Nord', 0x002e));
+    act(() => unplug());
+    expect(result.current.lostMessage).toBe('Your Nord was disconnected. Connect it again to carry on.');
+  });
+});
+
 describe('DeviceContext connect', () => {
   it('lets one connect run at a time, for every Connect button', () => {
     const { result } = renderHook(() => useDevice(), { wrapper: DeviceProvider });

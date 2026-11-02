@@ -8,11 +8,13 @@ export interface MoreAction { label: string; onSelect: () => void }
  * **Send to Nord** · **Save to computer** · **More**.
  *
  * One orange button: Send to Nord when it can go (a Nord is connected and takes
- * it), else Save to computer. Send to Nord shows even when it can't go, greyed
- * with the reason beside it ("Connect your Nord to send it"), so the page says
- * what's possible instead of hiding it. Kinds the app can't send yet (presets,
- * samples, pianos) pass no `send`. `children` are a kind's own actions, after
- * Save and before More (a sample's Convert menu).
+ * it), else Save to computer. When Send can't go it stays, greyed, with the
+ * reason beside it, so the page says what's possible instead of hiding it.
+ * Programs pass `send` always ("Connect your Nord to send it" without one).
+ * Samples pass it only while a Nord is connected (spec §11: no Send button
+ * without a connection), and not for a sample the Nord already has or for
+ * factory content. Presets and pianos pass no `send` yet. `children` are a
+ * kind's own actions, after Save and before More (a sample's Convert menu).
  */
 export function ItemActions({ send, save, more = [], children }: {
   send?: { onSend: () => void; disabledReason?: string };

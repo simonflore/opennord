@@ -4,7 +4,9 @@
 //   e.g.   nordprobe 04:0 02:6 20:6,0,0     (Begin / BankList part6 / FileIterate)
 // Framing (big-endian): [u32 len][u32 0x0C][u32 0x0A][u32 msgId][payload u32...][u16 crc16]
 // CRC-16/CCITT (poly 0x1021, init 0xFFFF). Transport: bulk OUT 0x03 / IN 0x82.
-// READ-ONLY by intent — pass only query/read opcodes.
+// READ-ONLY by intent — pass only query/read opcodes, plus Begin (04) and End (06):
+// those two open and close the session (they take and release the Nord's lock) and
+// change nothing stored, so a run may bracket its queries with them.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

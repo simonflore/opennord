@@ -34,7 +34,7 @@ The absolute line above is about factory **audio** — the actual sample/library
 
 OpenNord distinguishes two different things:
 
-- **Local device access (any content, personal use).** Reading files — programs, presets, *and samples, factory ones included* — from your own Nord to your own computer, and inspecting or editing them locally, is personal access to your own device. It is the same thing Nord Sound Manager does when it backs the sample library up to your computer. OpenNord neither hosts nor redistributes this content; it stays on your machine.
+- **Local device access (any content, personal use).** Reading files — programs, presets, *and samples, factory ones included* — from your own Nord to your own computer, and inspecting or editing them locally, is personal access to your own device. It is the same thing Nord Sound Manager does when it backs the sample library up to your computer. OpenNord neither hosts nor redistributes this content; it stays on your machine. This includes backing up the factory pianos and samples in your Nord's libraries to your own computer, as Nord Sound Manager's backup does. Restoring such a backup to your own Nord is the same local access in the other direction: OpenNord writes your own copy back to your own instrument and keeps nothing.
 - **Community sharing (user-created only).** Anything OpenNord publishes or shares carries **user-created content only**: programs, presets, and samples and pianos the sharer made, never Nord's factory sample/library audio. This line is absolute, independent of the local-access capability above.
 
 Device sample browsing (read a sample off the board, edit, download) is local access; it has no sharing surface, so the community-sharing guardrail is untouched.

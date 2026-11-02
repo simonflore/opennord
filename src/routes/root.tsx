@@ -11,6 +11,7 @@ import { isApple } from '@/lib/platform';
 import { trimSlash } from '@/lib/library/categories';
 import { isLetterKey } from '@/lib/keys';
 import { anyDialogOpen } from '@/components/ui';
+import { UntestedWritesBanner } from '@/components/shell/UntestedWritesBanner';
 
 /** The persistent app shell: top bar, left rail (phone: bottom tabs) + routed content outlet. */
 export const rootRoute = createRootRoute({ component: RootLayout });
@@ -58,6 +59,8 @@ function AppShell({ path }: { path: string }) {
   return (
     <div className="flex min-h-screen flex-col stage-backdrop">
       <TopBar onSearch={() => setPalette('search')} onManageDevice={() => navigate({ to: '/device' })} />
+      {/* Dev builds only: says so while untested sample/piano writes are on (/dev/hardware). */}
+      {import.meta.env.DEV && <UntestedWritesBanner />}
       <div className="flex flex-1">
         <ShellRail path={path} onNavigate={go} />
         {/* Plain "on-content" class kept as a hook: `[data-native] .on-content` in

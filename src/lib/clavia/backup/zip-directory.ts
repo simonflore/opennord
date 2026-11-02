@@ -117,6 +117,19 @@ export async function extractZipEntry(file: Blob, entry: ZipEntry): Promise<Uint
 }
 
 /**
+ * A stored entry's data as a slice of `file`, without reading it: one 30-byte read of
+ * its local header. Null for a compressed entry (its data isn't the file's bytes).
+ */
+export async function storedEntryData(file: Blob, entry: ZipEntry): Promise<Blob | null> {
+  if (entry.method !== 0 || entry.compressedSize !== entry.size) return null;
+  const lh = dv(await slice(file, entry.offset, entry.offset + 30));
+  if (lh.byteLength < 30 || lh.getUint32(0, true) !== 0x04034b50) throw new Error(`Bad local header for ${entry.path}.`);
+  const dataStart = entry.offset + 30 + lh.getUint16(26, true) + lh.getUint16(28, true);
+  if (dataStart + entry.size > file.size) throw new Error(`${entry.path} runs past the end of the archive.`);
+  return file.slice(dataStart, dataStart + entry.size);
+}
+
+/**
  * Read only the first `n` decompressed bytes of an entry — cheap origin/header
  * probes without pulling the whole (possibly multi-MB) file. For STORED entries
  * it slices just `n` bytes off disk; for DEFLATE it must inflate the entry (no

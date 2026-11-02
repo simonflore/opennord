@@ -7,13 +7,13 @@ import { readAsciiFixed } from '../clavia/ascii';
 import { readU32BE as u32 } from './payload-io';
 
 /**
- * Erase-block size in bytes per partition (Nord Stage 4). The device does NOT
- * transmit this (CRpyPartState counts are in blocks). It's derived from the
- * documented partition capacities — 2 GB Piano / 1 GB Sample Library (official
- * NS4 specs) — over the measured ~16384-block totals, which land on clean powers
- * of two: 128 KiB (Piano) and 64 KiB (Sample). This converts block counts into
- * real megabytes. Program is slot-bound, not byte-bound, so it's omitted (its
- * meter uses slots). Sources: nordkeyboards.com NS4 specs; the maintainers’ notes.
+ * Erase-block size in bytes per partition (Nord Stage 4), used when the partition
+ * list wasn't read. The device does report it: w0 of each `CQryPartList` record
+ * (partition-list.ts; NSM `GetFileBlockCnt` divides by it). These
+ * values were derived from the documented capacities (2 GB Piano / 1 GB Sample
+ * Library) over the measured ~16384-block totals: 128 KiB (Piano) and 64 KiB
+ * (Sample). The hardware session (the maintainers’ notes, W0) compares them
+ * with w0. Program is slot-bound, so it's omitted (its meter uses slots).
  */
 const PARTITION_BLOCK_BYTES: Record<number, number> = {
   0: 131072, // Piano (Native) — shares the physical Piano partition
@@ -37,7 +37,9 @@ export interface PartitionState {
   usedBlocks: number;
   /** Erase blocks available for new user content. */
   freeBlocks: number;
-  /** Erase blocks held in reserve (counted against capacity on some partitions). */
+  /** Dirty erase blocks: deleted files' blocks, not yet erased. Writable again only after
+   *  a `CReqEraseBlock`, on a partition that supports it (NSM `EraseDeletedBlocksAsync`
+   * erases exactly this count). The name is kept from the first reading. */
   reservedBlocks: number;
 }
 
@@ -109,8 +111,12 @@ export function decodeBankList(payload: Uint8Array): BankList {
  * Read a partition's full capacity: `CQryPartState` + `CQryBankList`, combined.
  * Session-independent — the queries take an explicit partition index and don't
  * need a `begin()` (validated live). Throws NordError on a non-OK reply status.
+ * `geometry` is the partition list's block size (w0); it applies only to the byte-sized
+ * partitions in the table above (0, 1, 4, 5). Without it, or when it is 0, the table is used.
  */
-export async function readPartitionCapacity(session: NordSession, partition: number): Promise<PartitionCapacity> {
+export async function readPartitionCapacity(
+  session: NordSession, partition: number, geometry?: { blockBytes: number },
+): Promise<PartitionCapacity> {
   const ps = await session.request(CQryPartState, [partition]);
   if (ps.status !== 0) throw new NordError(`partition state query failed (status ${ps.status})`);
   const state = decodePartState(ps.payload);
@@ -122,7 +128,9 @@ export async function readPartitionCapacity(session: NordSession, partition: num
   return {
     ...state, banks, totalSlots,
     freeSlots: Math.max(0, totalSlots - state.fileCount),
-    blockSizeBytes: PARTITION_BLOCK_BYTES[partition],
+    blockSizeBytes: partition in PARTITION_BLOCK_BYTES && geometry && geometry.blockBytes > 0
+      ? geometry.blockBytes
+      : PARTITION_BLOCK_BYTES[partition],
   };
 }
 
@@ -130,11 +138,9 @@ export async function readPartitionCapacity(session: NordSession, partition: num
  * Free space in bytes for a byte-constrained partition (Sample / Piano), or
  * `undefined` for slot-constrained partitions (Programs — no block size).
  *
- * Formula:
- *   freeBytes = (freeBlocks + reservedBlocks) × blockSize
- * (NSM reads `(mem[+0xf14] + mem[+0xf0c]) × mem[+0x3bc]` — free + reserved
- * blocks, times the per-partition block size held at +0x3bc.) This pins the
- * bytes-per-block conversion that `checkDownloadFit` had deferred.
+ * NSM's free-space figure: (free + dirty) × block size. Dirty
+ * blocks only count as free on a partition that can erase them; the write path
+ * (fit.ts `planFit`) makes that distinction, this display figure does not.
  */
 export function partitionFreeBytes(cap: PartitionCapacity): number | undefined {
   if (cap.blockSizeBytes === undefined) return undefined;
@@ -152,8 +158,8 @@ export interface FitResult {
  * Will `addedFiles` new files fit in the partition? Pure — operates on an already-read
  * `PartitionCapacity`, so it's trivially testable and the UI can reuse it. Checks the
  * slot count (the binding limit for programs, fully hardware-validated); free block
- * space is reported on the capacity but not gated here (the bytes-per-block conversion
- * isn't pinned yet). `label` is a player-facing partition name.
+ * space is gated for sample and piano writes by `planFit` (fit.ts), which needs the
+ * partition list. `label` is a player-facing partition name.
  */
 export function checkDownloadFit(cap: PartitionCapacity, addedFiles: number, label = 'This'): FitResult {
   if (addedFiles <= cap.freeSlots) return { fits: true, freeSlots: cap.freeSlots };

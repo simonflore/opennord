@@ -10,6 +10,16 @@ pull request as the change. New lines go under **Unreleased**.
 
 ## Unreleased
 
+- **Back up Nord.** On a Stage 4 a backup now holds your samples and pianos
+  too.
+- **Update a backup….** A new button in the backup dialog: it copies the
+  samples and pianos that haven't changed from an earlier backup and reads the
+  rest from your Nord.
+- **Restore Nord….** A restore can put samples and pianos back by name. It is
+  off until it has been tried on a Nord; until then they are left out and the
+  summary says so.
+- **Send to Nord for samples.** From a sample in the Library and from the
+  **Save** dialog of Build sample. It is off until it has been tried on a Nord.
 - **Linked folder.** In Chrome and Edge, files you add or save in the folder show
   up when you come back to OpenNord, without **Rescan folder**, and on opening
   OpenNord the folder's programs and presets show straight away. The reconnect

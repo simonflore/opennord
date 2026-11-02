@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { NordSession } from './session';
+import { describe, it, expect, vi } from 'vitest';
+import { NordSession, SessionLostError } from './session';
 import { MockTransport, TransportTimeoutError } from './transport';
 import { encodeMessage, NordError, SessionRefusedError } from './protocol';
 import { CReqBegin, CReqEnd, CQryFileInfo } from './opcodes';
+import { WriteBlockedError } from './write-guard';
 
 describe('NordSession', () => {
   it('sends a request and returns the decoded reply', async () => {
@@ -215,5 +216,101 @@ describe('NordSession', () => {
     await session.begin(4);
     expect(timeouts).toEqual([50, undefined]); // the bound covers the handshake only
     expect([...t.sent[1].slice(8, 12)]).toEqual([0, 0, 0, 0x04]);
+  });
+
+  it('abandon forgets the open session without sending anything, so later writes refuse', async () => {
+    const t = new MockTransport([encodeMessage(CReqBegin | 1, [0])]);
+    const session = new NordSession(t);
+    session.allowWrites([5]);
+    await session.begin(5);
+    expect(() => session.assertWritable()).not.toThrow();
+    session.abandon();
+    expect(t.sent).toHaveLength(1); // the Begin only: no End
+    expect(() => session.assertWritable()).toThrow(WriteBlockedError);
+  });
+
+  it('bracket sends no end after its body abandoned the session', async () => {
+    const t = new MockTransport([encodeMessage(CReqBegin | 1, [0])]);
+    const session = new NordSession(t);
+    await expect(session.bracket(5, async () => { session.abandon(); throw new Error('lost'); })).rejects.toThrow('lost');
+    expect(t.sent).toHaveLength(1); // the Begin only
+  });
+
+  it('bracket sends no end after its body marked the session dead, even on success', async () => {
+    const t = new MockTransport([encodeMessage(CReqBegin | 1, [0])]);
+    const session = new NordSession(t);
+    await expect(session.bracket(5, async () => { session.markDead(); return 7; })).resolves.toBe(7);
+    expect(t.sent).toHaveLength(1);
+  });
+
+  it('an abandon in one bracket does not skip the next bracket’s end', async () => {
+    const t = new MockTransport([
+      encodeMessage(CReqBegin | 1, [0]), encodeMessage(CReqBegin | 1, [0]), encodeMessage(CReqEnd | 1, [0]),
+    ]);
+    const session = new NordSession(t);
+    await session.bracket(5, async () => { session.abandon(); });
+    await session.bracket(5, async () => undefined);
+    expect(t.sent).toHaveLength(3); // Begin, Begin, End
+  });
+});
+
+describe('NordSession.markDead', () => {
+  it('a program session after markDead rejects without sending a frame', async () => {
+    const t = new MockTransport([encodeMessage(CReqBegin | 1, [0]), encodeMessage(CReqEnd | 1, [0])]);
+    const session = new NordSession(t);
+    session.markDead();
+    let ran = false;
+    await expect(session.withSession(6, async () => { ran = true; })).rejects.toBeInstanceOf(SessionLostError);
+    expect(ran).toBe(false);
+    expect(t.sent).toHaveLength(0);
+    await expect(session.request(CQryFileInfo, [0, 0])).rejects.toBeInstanceOf(SessionLostError);
+    await expect(session.send(CQryFileInfo, [0, 0])).rejects.toBeInstanceOf(SessionLostError);
+    await expect(session.receiveRaw()).rejects.toBeInstanceOf(SessionLostError);
+    expect(t.sent).toHaveLength(0);
+    expect(session.isDead).toBe(true);
+  });
+
+  it('drops what was queued behind the operation that killed it, and closes without waiting', async () => {
+    const t = new MockTransport([]);
+    const closed = vi.spyOn(t, 'close');
+    const session = new NordSession(t);
+    let release!: () => void;
+    const killing = session.exclusive(async () => {
+      session.markDead();
+      await new Promise<void>((r) => { release = r; });
+    });
+    let queuedRan = false;
+    const queued = session.withSession(6, async () => { queuedRan = true; });
+    await new Promise((r) => setTimeout(r, 0)); // `killing` has started and killed the session
+    await session.close(); // doesn't wait for `killing`
+    expect(closed).toHaveBeenCalledTimes(1);
+    release();
+    await killing;
+    await expect(queued).rejects.toBeInstanceOf(SessionLostError);
+    expect(queuedRan).toBe(false);
+  });
+
+  it('a close queued before the session died still releases the transport', async () => {
+    const t = new MockTransport([]);
+    const closed = vi.spyOn(t, 'close');
+    const session = new NordSession(t);
+    let release!: () => void;
+    const killing = session.exclusive(async () => { await new Promise<void>((r) => { release = r; }); session.markDead(); });
+    const closing = session.close();
+    await new Promise((r) => setTimeout(r, 0)); // `killing` has started
+    release();
+    await killing;
+    await closing;
+    expect(closed).toHaveBeenCalledTimes(1);
+  });
+
+  it('a new session afterwards works as usual', async () => {
+    new NordSession(new MockTransport([])).markDead();
+    const t = new MockTransport([encodeMessage(CReqBegin | 1, [0]), encodeMessage(CReqEnd | 1, [0])]);
+    const fresh = new NordSession(t);
+    let ran = false;
+    await fresh.withSession(6, async () => { ran = true; });
+    expect(ran).toBe(true);
+    expect(t.sent).toHaveLength(2);
   });
 });

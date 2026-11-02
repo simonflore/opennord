@@ -34,6 +34,15 @@ interface DeviceState {
   disconnect: () => void;
   /** True after the Nord went away on its own (unplugged, switched off), until the next connect. */
   lost: boolean;
+  /** What to tell the player about the lost Nord ('' while `lost` is false). */
+  lostMessage: string;
+  /**
+   * Forget `s` now and treat it as lost, saying `message`: for a Nord that stopped
+   * answering mid-write (`sessionLost`), whose replies can't be trusted any more.
+   * Releases the transport, so nothing else can use the session; the player
+   * reconnects. Does nothing when `s` is no longer the connected session.
+   */
+  markLost: (s: NordSession, message: string) => void;
   /** The connect under way or last tried, shared by every Connect button (useConnectNord). */
   connectState: ConnectState;
   /** Claim the one connect: false while another is under way (the top bar's and the
@@ -44,6 +53,9 @@ interface DeviceState {
 }
 
 export interface ConnectState { status: 'idle' | 'connecting' | 'connected' | 'error'; message: string }
+
+/** Said after a Nord was unplugged or switched off. */
+const UNPLUGGED_MESSAGE = 'Your Nord was disconnected. Connect it again to carry on.';
 
 const Ctx = createContext<DeviceState | null>(null);
 
@@ -59,7 +71,8 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
   // The connected session right now (set with it, not after a render), for isCurrent.
   const current = useRef<NordSession | null>(null);
   const isCurrent = useCallback((s: NordSession) => current.current === s, []);
-  const [lost, setLost] = useState(false);
+  const [lostMessage, setLostMessage] = useState('');
+  const lost = lostMessage !== '';
   const [connectState, setConnectState] = useState<ConnectState>({ status: 'idle', message: '' });
   // Set synchronously, so two clicks in the same moment can't both start a connect.
   const connecting = useRef(false);
@@ -84,6 +97,12 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     setSession(null); setEntries([]); setSampleEntries([]); setPresetEntries([]); setPianoEntries([]); setDeviceName(''); setProductId(0); setCapacity(null);
   }, []);
 
+  const markLost = useCallback((s: NordSession, message: string) => {
+    if (current.current !== s) return; // a newer Nord is connected: leave it be
+    forget();
+    setLostMessage(message);
+  }, [forget]);
+
   const refresh = useCallback(async (s: NordSession) => {
     await s.withSession(s.programPartition, async () => {
       const programs = await enumeratePrograms(s);
@@ -107,9 +126,9 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     isCurrent,
     setConnection: (s, e, name, pid) => {
       current.current = s;
-      setLost(false);
+      setLostMessage('');
       // An unplugged Nord: without this the lists stay up as if it were still there.
-      s.onLost(() => { if (current.current === s) { forget(); setLost(true); } });
+      s.onLost(() => markLost(s, UNPLUGGED_MESSAGE));
       setSession(s); setEntries(e); setDeviceName(name); setProductId(pid);
       setSampleEntries([]); setPresetEntries([]); setPianoEntries([]); setCapacity(null);
     },
@@ -117,6 +136,8 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     refresh,
     disconnect: forget,
     lost,
+    lostMessage,
+    markLost,
     connectState, beginConnect, endConnect,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

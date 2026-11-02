@@ -7,6 +7,29 @@ import { WriteBlockedError } from './write-guard';
 /** Largest single reply we expect (program bodies are < 1 KB; windowed reads keep chunks small). */
 const READ_BUFFER = 8192;
 
+/** `reply`, if it answers `msgId` (opcode = msgId | 1); otherwise a {@link NordError}. */
+function answering(msgId: number, reply: NordReply): NordReply {
+  if (reply.msgId !== (msgId | 1)) {
+    throw new NordError(`unexpected reply opcode 0x${reply.msgId.toString(16)} for request 0x${msgId.toString(16)}`);
+  }
+  return reply;
+}
+
+/**
+ * What the player is told when the Nord stopped answering mid-operation: its replies
+ * are out of step, so OpenNord drops the session and only a fresh plug-in helps.
+ * Shared by Send to Nord and the restore summary.
+ */
+export const STOPPED_ANSWERING = 'Your Nord stopped answering. Unplug it and plug it back in, then try again.';
+
+/** An operation on a session marked dead ({@link NordSession.markDead}): nothing was sent. */
+export class SessionLostError extends NordError {
+  constructor() {
+    super(STOPPED_ANSWERING);
+    this.name = 'SessionLostError';
+  }
+}
+
 /** A live FileTransfer session over a transport. Correlates each request to its reply. */
 export class NordSession {
   /** FileTransfer protocol version this session's frames carry. Defaults to the NS4
@@ -41,6 +64,12 @@ export class NordSession {
   /** Bound on each reply read, while {@link withReplyTimeout} runs. */
   private replyTimeoutMs: number | undefined;
 
+  /** Set by {@link markDead}: the reply stream is out of step for good. */
+  private dead = false;
+
+  /** Set by {@link abandon}: the running {@link bracket} must not send its end. */
+  private abandoned = false;
+
   constructor(private readonly transport: NordTransport) {}
 
   /**
@@ -52,9 +81,40 @@ export class NordSession {
    * `end` themselves stay unlocked so they can be composed within it.
    */
   exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    // Checked when the operation's turn comes: one queued behind the write that
+    // killed the session must not run on it.
+    const guarded = async () => {
+      if (this.dead) throw new SessionLostError();
+      return fn();
+    };
+    return this.enqueue(guarded);
+  }
+
+  private enqueue<T>(fn: () => Promise<T>): Promise<T> {
     const run = this.lock.then(fn, fn);
     this.lock = run.catch(() => undefined); // a failed op must not jam the queue
     return run;
+  }
+
+  /**
+   * The Nord stopped answering mid-operation (a reply that never came, an abort
+   * close it never answered): its replies can't be paired with requests any more.
+   * From now on every queued or new operation rejects with {@link SessionLostError}
+   * without sending a frame, and {@link close} skips the queue. Call it from inside
+   * the lock, the moment the desync is seen; the player then reconnects.
+   */
+  markDead(): void {
+    this.dead = true;
+    this.openPartition = undefined;
+  }
+
+  /** Whether {@link markDead} was called. */
+  get isDead(): boolean {
+    return this.dead;
+  }
+
+  private assertAlive(): void {
+    if (this.dead) throw new SessionLostError();
   }
 
   /**
@@ -64,7 +124,10 @@ export class NordSession {
    * fails "busy" — looking like Nord Sound Manager holds the device.
    */
   close(): Promise<void> {
-    return this.exclusive(() => this.transport.close());
+    // A dead session has nothing worth waiting for: release the Nord now.
+    if (this.dead) return this.transport.close();
+    // Not `exclusive`: a close queued before the session died must still run.
+    return this.enqueue(() => this.transport.close());
   }
 
   /** Call `cb` once the transport finds the Nord gone (unplugged, switched off).
@@ -113,17 +176,41 @@ export class NordSession {
   /** Send a request and return its decoded reply, without asserting the reply opcode.
    *  For queries whose reply-opcode convention isn't confirmed yet (e.g. GetFocus). */
   async requestRaw(msgId: number, words: number[], trailing?: Uint8Array): Promise<NordReply> {
+    this.assertAlive();
     await this.transport.bulkOut(encodeMessage(msgId, words, trailing, { version: this.version }));
     return decodeReply(await this.transport.bulkIn(READ_BUFFER, this.replyTimeoutMs));
   }
 
   /** Send a request and return its decoded reply (verifies opcode = request | 1). */
   async request(msgId: number, words: number[], trailing?: Uint8Array): Promise<NordReply> {
-    const reply = await this.requestRaw(msgId, words, trailing);
-    if (reply.msgId !== (msgId | 1)) {
-      throw new NordError(`unexpected reply opcode 0x${reply.msgId.toString(16)} for request 0x${msgId.toString(16)}`);
-    }
-    return reply;
+    return answering(msgId, await this.requestRaw(msgId, words, trailing));
+  }
+
+  /**
+   * Send a request without reading its reply. For a streamed FileWrite: NSM sends
+   * every chunk as soon as the last one left (`OnSendDone`) and reads
+   * one acknowledgement after the last (the maintainers’ notes, "Writing samples and
+   * pianos"). Pair with {@link receive}.
+   */
+  async send(msgId: number, words: number[], trailing?: Uint8Array): Promise<void> {
+    this.assertAlive();
+    await this.transport.bulkOut(encodeMessage(msgId, words, trailing, { version: this.version }));
+  }
+
+  /** Read the next reply and check it answers `msgId` (opcode = msgId | 1), as {@link request} does. */
+  async receive(msgId: number): Promise<NordReply> {
+    return answering(msgId, await this.receiveRaw());
+  }
+
+  /** Read the next reply, whatever it answers. For draining replies after a failed streamed write. */
+  async receiveRaw(): Promise<NordReply> {
+    this.assertAlive();
+    return decodeReply(await this.transport.bulkIn(READ_BUFFER, this.replyTimeoutMs));
+  }
+
+  /** The bound on each reply read, if a {@link withReplyTimeout} is running. */
+  get replyTimeout(): number | undefined {
+    return this.replyTimeoutMs;
   }
 
   /**
@@ -197,6 +284,18 @@ export class NordSession {
   }
 
   /**
+   * Forget the open `begin`…`end` without sending anything. For a session whose
+   * reply stream is out of step (a write the Nord stopped answering): an end's reply
+   * couldn't be trusted, so the player reconnects instead. Writes refuse from here
+   * until a new {@link begin}; the next begin ends the Nord's stale session itself
+   * (its busy reply, see {@link begin}).
+   */
+  abandon(): void {
+    this.openPartition = undefined;
+    this.abandoned = true;
+  }
+
+  /**
    * Run `fn` inside a `begin(partition)` … `end()` session, always ending it.
    * The device only shows "synchronizing" while a session is open, so callers
    * should bracket each operation rather than hold a session open at idle.
@@ -214,16 +313,20 @@ export class NordSession {
   /**
    * `begin(partition)` … `fn` … `end()`, for a caller already inside
    * {@link exclusive} (the lock is not re-entrant; {@link withSession} is this
-   * plus the lock). A refused begin throws {@link SessionRefusedError}.
+   * plus the lock). A refused begin throws {@link SessionRefusedError}. When `fn`
+   * {@link abandon}ed the session or {@link markDead marked it dead}, no end is
+   * sent: the replies are out of step, so an end's reply couldn't be trusted.
    */
   async bracket<T>(partition: number, fn: () => Promise<T>): Promise<T> {
     const begun = await this.begin(partition);
     if (begun.status !== 0) throw new SessionRefusedError(partition, begun.status);
+    this.abandoned = false;
     try {
       return await fn();
     } finally {
       // don't let an end failure mask the operation's own error / result
-      await this.endQuietly();
+      if (!this.abandoned && !this.dead) await this.endQuietly();
+      this.abandoned = false;
     }
   }
 
