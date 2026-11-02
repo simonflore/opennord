@@ -4,12 +4,11 @@ import { useFolder } from '@/lib/folder/FolderContext';
 import { usePresetsPrefs } from '@/lib/library/prefs';
 import { useReportRepeatedIds } from '@/lib/library/useReportRepeatedIds';
 import {
-  presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, presentGenerations, cloudPresetEntries, presetFileExt,
+  presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, presentGenerations, cloudPresetEntries, presetFilename,
   type PresetEntry, type PresetGeneration,
 } from '@/lib/library/preset-entries';
 import { useCloudSnapshot } from '@/lib/library/CloudSnapshotContext';
 import { useSoundRows } from '@/lib/library/useSoundRows';
-import { safeFilename } from '@/lib/ns4/bundle';
 import { useImportedPresets } from '@/lib/library/useImportedPresets';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
@@ -71,7 +70,7 @@ function usePresetsStateValue() {
   // A copy of a cloud preset in OpenNord's own storage.
   const { add } = imported;
   const keepCopy = useCallback((e: PresetEntry, bytes: Uint8Array) =>
-    add(new File([bytes as BlobPart], `${safeFilename(e.name)}.${presetFileExt(e.kind, bytes)}`)), [add]);
+    add(new File([bytes as BlobPart], presetFilename(e, bytes, { safe: true }))), [add]);
 
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.

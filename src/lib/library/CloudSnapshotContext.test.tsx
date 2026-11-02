@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { CapabilitiesProvider } from '../capabilities/CapabilitiesContext';
-import { CloudSnapshotProvider, useCloudSnapshot } from './CloudSnapshotContext';
+import { CloudSnapshotProvider, useCloudSnapshot, useLatestSnapshot } from './CloudSnapshotContext';
 
 const snapshot = { takenAt: '2026-10-13T13:10:00Z', items: [{ fingerprint: 'x1', kind: 'program' as const, filename: 'Pad.ns4p' }] };
 function auth(user: { id: string } | null) {
@@ -86,5 +86,19 @@ describe('CloudSnapshotProvider', () => {
     act(() => result.current.read('x1'));
     await waitFor(() => expect(result.current.files.has('x1')).toBe(true));
     expect(fetchItem).toHaveBeenCalledTimes(3);
+  });
+  it('the snapshot alone keeps its identity while a file is fetched', async () => {
+    const a = auth({ id: 'u1' });
+    const cloud = { available: true, latestSnapshot: vi.fn(async () => snapshot), fetchItem: vi.fn(async () => new Uint8Array([7])) };
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <CapabilitiesProvider value={{ cloud, auth: a.api } as never}><CloudSnapshotProvider>{children}</CloudSnapshotProvider></CapabilitiesProvider>
+    );
+    const { result } = renderHook(() => ({ all: useCloudSnapshot(), latest: useLatestSnapshot() }), { wrapper });
+    await waitFor(() => expect(result.current.latest.status).toBe('ready'));
+    const before = result.current.latest;
+    act(() => result.current.all.read('x1'));
+    await waitFor(() => expect(result.current.all.files.has('x1')).toBe(true));
+    expect(result.current.latest).toBe(before);
+    expect(result.current.all).toMatchObject({ status: 'ready', items: snapshot.items });
   });
 });

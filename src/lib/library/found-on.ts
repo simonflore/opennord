@@ -1,7 +1,7 @@
 /** One row per sound: the same bytes found in several places are one row,
  *  shown as one of its entries and badged with every source it is found on.
  *  Pure — no React, no DOM. */
-import { isImported, type LibrarySource } from './types';
+import { isImported, SOURCE_LABEL, type LibrarySource } from './types';
 
 /** What a merged row carries on top of its own entry. Absent on a plain entry. */
 export interface FoundOn {
@@ -103,6 +103,13 @@ export function sourceFacets(rows: { source: LibrarySource; sources?: LibrarySou
     if (on.includes('cloud')) cloudCount++;
   }
   return { nordCount, localCount, showCloud: cloudCount > 0, showSourceFacet: [nordCount, localCount, cloudCount].filter((n) => n > 0).length > 1 };
+}
+
+/** The options of a list's source filter: All, On Nord and Local, then Backup
+ *  and Cloud where the list has them. Labelled as the badges are. */
+export function sourceFilterOptions(opts: { backup?: boolean; cloud?: boolean } = {}): { key: LibrarySource | 'all'; label: string }[] {
+  const sources: LibrarySource[] = ['nord', 'local', ...(opts.backup ? ['backup' as const] : []), ...(opts.cloud ? ['cloud' as const] : [])];
+  return [{ key: 'all', label: 'All' }, ...sources.map((s) => ({ key: s, label: SOURCE_LABEL[s] }))];
 }
 
 /** Every id that names this row: its own first. A link or a selection made through any of them finds it. */

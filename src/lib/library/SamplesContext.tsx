@@ -8,7 +8,7 @@ import {
   filterSamples, sortSamples, presentSampleCategories, cloudSampleEntries, sampleFilename,
   type SampleEntry, type SampleGeneration,
 } from '@/lib/library/sample-entries';
-import { useCloudSnapshot } from '@/lib/library/CloudSnapshotContext';
+import { useLatestSnapshot } from '@/lib/library/CloudSnapshotContext';
 import { sameSizeOnly, useSoundRows } from '@/lib/library/useSoundRows';
 import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
 import { useReportRepeatedIds } from '@/lib/library/useReportRepeatedIds';
@@ -50,6 +50,12 @@ export function selectedBytes(entries: SampleEntry[], selected: Set<string>): nu
 const SAMPLE_EXT: Record<string, string> = { og: 'nsmp', '3': 'nsmp3', '4': 'nsmp4', npno: 'npno' };
 const extForGeneration = (g: string) => SAMPLE_EXT[g] ?? 'nsmp4';
 const SAMPLE_ROWS_HERE_ONLY = { fingerprint: sameSizeOnly<SampleEntry> };
+
+/** The name a kept sample is stored under: as Save names it, or by its generation when the file isn't one OpenNord reads. */
+function keptSampleFilename(e: SampleEntry, bytes: Uint8Array): string {
+  const file = readNsmp(bytes);
+  return file.recognized ? sampleFilename(e.name, file.codec, file.legacy) : `${safeFilename(e.name)}.${extForGeneration(e.generation)}`;
+}
 
 /** Merges device + folder samples into one filtered/sorted list and owns the
  *  Samples-screen view state. Mirrors useLibraryStateValue for programs. */
@@ -129,7 +135,7 @@ function useSamplesStateValue() {
   // and on the Nord (what backup, the share picker and the Nord cleanup read);
   // rows add the cloud. An entry whose bytes aren't here (on the Nord, inside a
   // backup) is never fingerprinted, so it never merges: it only hints.
-  const cloud = useCloudSnapshot();
+  const cloud = useLatestSnapshot();
   const cloudEntries = useMemo(() => cloudSampleEntries(cloud.items), [cloud.items]);
   // No type for the hint: a device sample's listing says no generation, and every
   // entry here is a sample. A sample can be tens of megabytes: with no cloud
@@ -262,11 +268,8 @@ function useSamplesStateValue() {
   // A copy of a sample (fetched from the cloud, or pulled off the Nord) in
   // OpenNord's own storage, named as Save names it.
   const { add } = imported;
-  const keepCopy = useCallback((e: SampleEntry, bytes: Uint8Array) => {
-    const file = readNsmp(bytes);
-    const name = file.recognized ? sampleFilename(e.name, file.codec, file.legacy) : `${safeFilename(e.name)}.${extForGeneration(e.generation)}`;
-    return add(new File([bytes as BlobPart], name));
-  }, [add]);
+  const keepCopy = useCallback((e: SampleEntry, bytes: Uint8Array) =>
+    add(new File([bytes as BlobPart], keptSampleFilename(e, bytes))), [add]);
 
   // The list's filters, once: `filtered` and the "clear filters" button both read
   // this, and a filter counts while set even if its facet is hidden right now.

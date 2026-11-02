@@ -14,7 +14,7 @@ const folder: { result: { samples: unknown[]; backupSamples: unknown[] }; openBu
   result: { samples: [], backupSamples: [] }, openBundle: async () => { throw new Error('none'); },
 };
 const imported = { entries: [], add: vi.fn(async () => 'local:1'), remove: async () => {} };
-const prefs = { sort: 'default', favorites: new Set<string>(), setSort: () => {}, isFavorite: () => false, toggleFavorite: () => {}, isFavoriteRow: () => false, toggleFavoriteRow: () => {} };
+const prefs = { sort: 'default', favorites: new Set<string>(), setSort: () => {}, isFavoriteRow: () => false, toggleFavoriteRow: () => {} };
 const origins = new Map();
 let cloudState: CloudSnapshotState;
 let fingerprints: ReadonlyMap<string, string> = new Map();
@@ -23,7 +23,7 @@ vi.mock('@/lib/folder/FolderContext', () => ({ useFolder: () => folder }));
 vi.mock('@/lib/library/useImportedSamples', () => ({ useImportedSamples: () => imported }));
 vi.mock('@/lib/library/prefs', () => ({ useSamplesPrefs: () => prefs }));
 vi.mock('./useBackupOrigins', () => ({ useBackupOrigins: () => origins }));
-vi.mock('@/lib/library/CloudSnapshotContext', () => ({ useCloudSnapshot: () => cloudState }));
+vi.mock('@/lib/library/CloudSnapshotContext', () => ({ useLatestSnapshot: () => cloudState }));
 vi.mock('@/lib/library/useFingerprints', () => ({ useFingerprints: () => fingerprints }));
 
 const dev = (id: string, sizeBytes: number): SampleEntry => ({

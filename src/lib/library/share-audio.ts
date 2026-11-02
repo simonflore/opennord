@@ -1,15 +1,17 @@
 import type { CommunityClient } from '../capabilities/types';
-import type { LibrarySource } from './types';
+import { copyHere, type Mergeable } from './found-on';
 
 /**
- * Whether "Share to community" is offered for a sample or piano: one of your
- * own, held as a file. Never one still on the Nord (no bytes here) and never
- * factory content. This only decides what is offered; the share form and the
- * server run the real check on the bytes.
+ * The copy "Share to community" shares for a sample or piano, when it is
+ * offered: one of your own, held as a file on this computer (the copy here, as
+ * the Library shares a program). Never one still on the Nord or only in the
+ * cloud (no file here) and never factory content. This only decides what is
+ * offered; the share form and the server run the real check on the bytes.
  */
-export function canShareAudio(
+export function audioToShare(
   community: CommunityClient,
-  entry: { bytes?: Uint8Array; source: LibrarySource; factory?: unknown; isFactory?: boolean },
-): boolean {
-  return community.available && !!community.samples && !!entry.bytes && entry.source !== 'nord' && !entry.factory && !entry.isFactory;
+  entry: Mergeable & { bytes?: Uint8Array; factory?: unknown; isFactory?: boolean },
+): { id: string } | undefined {
+  if (!community.available || !community.samples || !entry.bytes || entry.factory || entry.isFactory) return undefined;
+  return copyHere(entry);
 }

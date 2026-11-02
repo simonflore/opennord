@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, presentGenerations, cloudPresetEntries, type PresetEntry } from './preset-entries';
+import { presetEntriesFromScanned, presetEntriesFromDevice, filterPresets, sortPresets, presentKinds, presentGenerations, cloudPresetEntries, presetFilename, type PresetEntry } from './preset-entries';
 import type { ProgramEntry } from '../device/transfer';
 
 const dev = (over: Partial<ProgramEntry>): ProgramEntry => ({
@@ -86,6 +86,15 @@ describe('preset-entries', () => {
     ];
     expect(sortPresets(es, 'name', new Set()).map((e) => e.name)).toEqual(['A', 'B']);
     expect(sortPresets(es, 'name', new Set(['1'])).map((e) => e.name)).toEqual(['B', 'A']); // fav floats up
+  });
+});
+
+describe('presetFilename', () => {
+  it('names a preset by its name and kind; a kept copy’s name is one the file system takes', () => {
+    const e = { name: 'Lead: A/B', kind: 'synth-preset' as const };
+    const bytes = new Uint8Array([1]); // says nothing of its type: the kind's extension
+    expect(presetFilename(e, bytes)).toBe('Lead: A/B.ns4y');
+    expect(presetFilename(e, bytes, { safe: true })).toBe('Lead_ A_B.ns4y');
   });
 });
 

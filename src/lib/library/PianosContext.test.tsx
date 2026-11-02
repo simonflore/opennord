@@ -9,7 +9,7 @@ import type { ProgramEntry } from '../device/transfer';
 let device: { session: null; pianoEntries: ProgramEntry[]; setPianoEntries: () => void; isCurrent: () => boolean };
 let folder: { result: { pianos: { id: string; name: string; bytes: Uint8Array }[]; backupPianos: [] } };
 let fingerprints: ReadonlyMap<string, string> = new Map();
-const prefs = { sort: 'default', favorites: new Set<string>(), setSort: () => {}, isFavorite: () => false, toggleFavorite: () => {}, isFavoriteRow: () => false, toggleFavoriteRow: () => {} };
+const prefs = { sort: 'default', favorites: new Set<string>(), setSort: () => {}, isFavoriteRow: () => false, toggleFavoriteRow: () => {} };
 vi.mock('@/lib/device/DeviceContext', () => ({ useDevice: () => device }));
 vi.mock('@/lib/folder/FolderContext', () => ({ useFolder: () => folder }));
 vi.mock('@/lib/library/prefs', () => ({ usePianosPrefs: () => prefs }));

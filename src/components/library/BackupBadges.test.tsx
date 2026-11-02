@@ -23,7 +23,7 @@ import type { SamplesPrefsApi } from '../../lib/library/prefs';
 const noop = () => {};
 
 const samplePrefs = (): SamplesPrefsApi => ({
-  sort: 'default', setSort: noop, favorites: new Set<string>(), isFavorite: () => false, toggleFavorite: noop,
+  sort: 'default', setSort: noop, favorites: new Set<string>(),
   isFavoriteRow: () => false, toggleFavoriteRow: noop,
 });
 

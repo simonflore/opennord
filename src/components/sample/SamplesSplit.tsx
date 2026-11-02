@@ -10,9 +10,9 @@ import { useOpenSample } from '@/lib/library/useOpenSample';
 import { useSplitLayout } from '@/lib/responsive';
 import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
 import { useCanShareToCommunity, useShareToCommunity } from '@/components/shell/useShareToCommunity';
-import { canShareAudio } from '@/lib/library/share-audio';
+import { audioToShare } from '@/lib/library/share-audio';
 import { useLeaveEntry, useOpenEntry, useRemoveCopy } from '@/components/library/openEntry';
-import { copyHere, localMember } from '@/lib/library/found-on';
+import { copyHere } from '@/lib/library/found-on';
 import { pickFile } from '@/lib/pick-file';
 import { isNsmpFileName, NSMP_EXTENSIONS } from '@/lib/ns4/nsmp';
 
@@ -102,7 +102,8 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   // resolve after its bytes do).
   const hasDetail = !!selectedId;
   // Offered for a library file of your own; not for a pull off the Nord or a backup's factory entry.
-  const shareOpen = openEntryNow && canShare && canShareAudio(community, openEntryNow) ? () => share(localMember(openEntryNow)?.id ?? openEntryNow.id) : undefined;
+  const toShare = openEntryNow && canShare ? audioToShare(community, openEntryNow) : undefined;
+  const shareOpen = toShare ? () => share(toShare.id) : undefined;
   // A sample with no copy on this computer (from the cloud, or pulled off the Nord) can be kept, once its bytes are here.
   const openBytes = open.state === 'open' ? open.sample.bytes : undefined;
   const keepOpen = openEntryNow && openBytes && !copyHere(openEntryNow)

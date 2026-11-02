@@ -10,9 +10,9 @@ import { BundlePicker } from './BundlePicker';
 import { NewBackupsBanner } from './NewBackupsBanner';
 import { FolderMenu } from './FolderMenu';
 import { AddMenu } from './AddMenu';
-import { SOURCE_LABEL, type LibraryEntry, type LibrarySource, type LibrarySort } from '../../lib/library/types';
+import type { LibraryEntry, LibrarySource, LibrarySort } from '../../lib/library/types';
 import type { LibraryPrefsApi } from '../../lib/library/prefs';
-import { sourceFacets } from '../../lib/library/found-on';
+import { sourceFacets, sourceFilterOptions } from '../../lib/library/found-on';
 import type { CloudSnapshotState } from '../../lib/library/CloudSnapshotContext';
 import { EmptyNote } from './EmptyNote';
 import type { FolderLibrary } from '../../lib/folder/useFolderLibrary';
@@ -57,9 +57,6 @@ interface Props {
   cloud?: Pick<CloudSnapshotState, 'status' | 'refresh'>;
   onSignIn?: () => void;
 }
-
-const TABS: Array<LibrarySource | 'all'> = ['all', 'nord', 'local', 'backup', 'cloud'];
-const TAB_LABEL: Record<LibrarySource | 'all', string> = { all: 'All', ...SOURCE_LABEL };
 
 const SORT_LABEL: Record<LibrarySort, string> = { default: 'Default', name: 'Name (A–Z)', source: 'Source' };
 
@@ -107,7 +104,7 @@ export function LibraryView({
     {
       ariaLabel: 'Filter by source',
       value: source,
-      options: TABS.filter((t) => t !== 'cloud' || hasCloud).map((t) => ({ key: t, label: TAB_LABEL[t] })),
+      options: sourceFilterOptions({ backup: true, cloud: hasCloud }),
       onChange: (k) => onSource(k as LibrarySource | 'all'),
     },
     ...(generationsPresent.length > 1 ? [{

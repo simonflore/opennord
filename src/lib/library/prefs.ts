@@ -44,8 +44,6 @@ export interface PrefsApi<S extends string> {
   sort: S;
   setSort: (sort: S) => void;
   favorites: ReadonlySet<string>;
-  isFavorite: (id: string) => boolean;
-  toggleFavorite: (id: string) => void;
   /** Whether a row is a favourite: through its id, any member's id, or its fingerprint. */
   isFavoriteRow: (row: Mergeable) => boolean;
   toggleFavoriteRow: (row: Mergeable) => void;
@@ -58,12 +56,6 @@ function usePrefs<S extends string>(key: string, parseSort: (raw: unknown) => S)
 
   const favorites = useMemo(() => new Set(prefs.favorites), [prefs.favorites]);
   const setSort = useCallback((sort: S) => setPrefs((p) => ({ ...p, sort })), []);
-  const toggleFavorite = useCallback((id: string) => setPrefs((p) => ({
-    ...p,
-    favorites: p.favorites.includes(id) ? p.favorites.filter((x) => x !== id) : [...p.favorites, id],
-  })), []);
-
-  const isFavorite = useCallback((id: string) => favorites.has(id), [favorites]);
   const isFavoriteRowCb = useCallback((row: Mergeable) => isFavoriteRow(favorites, row), [favorites]);
   // A row is marked by its fingerprint and every entry's id, so it stays marked
   // whichever entry it is shown as and whether or not its bytes are here; unmarking
@@ -73,7 +65,7 @@ function usePrefs<S extends string>(key: string, parseSort: (raw: unknown) => S)
     const on = keys.some((k) => p.favorites.includes(k));
     return { ...p, favorites: on ? p.favorites.filter((k) => !keys.includes(k)) : [...p.favorites, ...keys.filter((k) => !p.favorites.includes(k))] };
   }), []);
-  return { sort: prefs.sort, setSort, favorites, isFavorite, toggleFavorite, isFavoriteRow: isFavoriteRowCb, toggleFavoriteRow };
+  return { sort: prefs.sort, setSort, favorites, isFavoriteRow: isFavoriteRowCb, toggleFavoriteRow };
 }
 
 const parseLibrarySort = (raw: unknown): LibrarySort =>

@@ -11,6 +11,7 @@ import { foundOn, type FoundOn } from './found-on';
 import { withUniqueIds } from './unique-ids';
 import { cloudEntryBase, cloudItemsOf, extensionOf } from './cloud-entries';
 import type { CloudItem } from '../capabilities/types';
+import { safeFilename } from '../ns4/bundle';
 
 /** One preset in the Presets browser — a folder, device-listed or cloud preset.
  *  A row of the list is one of these carrying what it was merged from (`FoundOn`). */
@@ -51,6 +52,13 @@ const PRESET_EXT: Record<PresetKind, string> = {
 export function presetFileExt(kind: PresetKind, bytes: Uint8Array): string {
   const tag = identifyNordFile(bytes).tag;
   return presetKindForTag(tag) === kind ? tag : PRESET_EXT[kind];
+}
+
+/** The file name a preset is saved or kept under: its name and {@link presetFileExt}.
+ *  Save hands the name to the browser as it is; a kept copy is stored under a
+ *  name the file system takes (`safe`). */
+export function presetFilename(entry: { name: string; kind: PresetKind }, bytes: Uint8Array, opts: { safe?: boolean } = {}): string {
+  return `${opts.safe ? safeFilename(entry.name) : entry.name}.${presetFileExt(entry.kind, bytes)}`;
 }
 
 /** Map folder-scanned presets into local or backup entries.

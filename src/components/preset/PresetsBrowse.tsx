@@ -11,7 +11,7 @@ import { PresetGlance } from './PresetGlance';
 import type { PresetEntry, PresetGeneration } from '@/lib/library/preset-entries';
 import type { PresetKind } from '@/lib/clavia/preset-kind';
 import type { LibrarySource } from '@/lib/library/types';
-import { importedMember } from '@/lib/library/found-on';
+import { importedMember, sourceFilterOptions } from '@/lib/library/found-on';
 import type { PresetSort } from '@/lib/library/prefs';
 import { formatBytes } from '@/lib/format';
 import { AddMenu } from '../library/AddMenu';
@@ -61,10 +61,7 @@ export function PresetsBrowse({
     ...(showSourceFacet ? [{
       ariaLabel: 'Filter by source',
       value: source,
-      options: [
-        { key: 'all', label: 'All' }, { key: 'nord', label: 'On Nord' }, { key: 'local', label: 'Local' },
-        ...(showCloud ? [{ key: 'cloud', label: 'Cloud' }] : []),
-      ],
+      options: sourceFilterOptions({ cloud: showCloud }),
       onChange: (k: string) => setSource(k as LibrarySource | 'all'),
     }] : []),
     {

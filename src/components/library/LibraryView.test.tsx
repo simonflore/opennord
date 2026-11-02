@@ -14,7 +14,7 @@ const entries: LibraryEntry[] = [
 ];
 
 const prefs = (over: Partial<LibraryPrefsApi> = {}): LibraryPrefsApi => ({
-  sort: 'default', setSort: () => {}, favorites: new Set<string>(), isFavorite: () => false, toggleFavorite: () => {},
+  sort: 'default', setSort: () => {}, favorites: new Set<string>(),
   isFavoriteRow: () => false, toggleFavoriteRow: () => {},
   ...over,
 });

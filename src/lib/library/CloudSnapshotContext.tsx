@@ -5,12 +5,18 @@ import { getErrorMessage } from '../errors';
 
 export type CloudStatus = 'absent' | 'signed-out' | 'loading' | 'ready' | 'empty' | 'failed';
 
-/** The latest cloud snapshot as a Library source: its items, and the files fetched from it so far. */
-export interface CloudSnapshotState {
+/** The latest cloud snapshot: whether there is one, and what it lists. */
+export interface LatestSnapshot {
   status: CloudStatus;
   takenAt?: string;
   /** Empty unless the status is 'ready'. */
   items: CloudItem[];
+  /** Load the snapshot again (after a backup made a new one). */
+  refresh: () => void;
+}
+
+/** The files fetched from the snapshot so far. Changes with every fetch, so it is a context of its own. */
+export interface CloudFiles {
   /** Fingerprint → bytes, for every file fetched this session. */
   files: ReadonlyMap<string, Uint8Array>;
   /** Fingerprints being fetched now. */
@@ -19,17 +25,22 @@ export interface CloudSnapshotState {
   failed: ReadonlyMap<string, string>;
   /** Fetch one file, once: a call while it is being fetched, or after it arrived, does nothing. */
   read: (fingerprint: string) => void;
-  /** Load the snapshot again (after a backup made a new one). */
-  refresh: () => void;
 }
+
+/** The latest cloud snapshot as a Library source: its items, and the files fetched from it so far. */
+export interface CloudSnapshotState extends LatestSnapshot, CloudFiles {}
 
 const noop = () => {};
 const EMPTY_FETCHED = { files: new Map<string, Uint8Array>(), reading: new Set<string>(), failed: new Map<string, string>() };
 // One empty list, so a status without items doesn't rebuild every list's cloud entries.
 const NO_ITEMS: CloudItem[] = [];
-const ABSENT: CloudSnapshotState = Object.freeze({ status: 'absent' as const, items: NO_ITEMS, ...EMPTY_FETCHED, read: noop, refresh: noop });
+const ABSENT_SNAPSHOT: LatestSnapshot = Object.freeze({ status: 'absent' as const, items: NO_ITEMS, refresh: noop });
+const ABSENT_FILES: CloudFiles = Object.freeze({ ...EMPTY_FETCHED, read: noop });
 
-const Ctx = createContext<CloudSnapshotState>(ABSENT);
+// Two contexts: the rail and the samples list read only the snapshot, and skip
+// the render every file fetch would otherwise cost them.
+const SnapshotCtx = createContext<LatestSnapshot>(ABSENT_SNAPSHOT);
+const FilesCtx = createContext<CloudFiles>(ABSENT_FILES);
 
 /**
  * The user's latest snapshot, loaded when someone is signed in, again when the
@@ -77,7 +88,7 @@ export function CloudSnapshotProvider({ children }: { children: ReactNode }) {
       const base = prev.for === user ? prev : { for: user, ...EMPTY_FETCHED };
       return { ...base, reading: new Set(base.reading).add(fingerprint), failed: without(base.failed, fingerprint) };
     });
-    // One update when the fetch settles (every list provider reads this context),
+    // One update when the fetch settles (the lists that fetch read the files' context),
     // and none when it settles for a user who is no longer the one signed in.
     const settle = (change: (f: typeof fetched) => Partial<typeof fetched>) => {
       mine.busy.delete(fingerprint);
@@ -92,19 +103,28 @@ export function CloudSnapshotProvider({ children }: { children: ReactNode }) {
     );
   }, [cloud, userId]);
 
-  const value = useMemo<CloudSnapshotState>(() => {
-    if (!canRead) return ABSENT;
-    const mine = fetched.for === userId ? fetched : EMPTY_FETCHED;
-    const base = { files: mine.files, reading: mine.reading, failed: mine.failed, read, refresh, items: NO_ITEMS };
+  const snapshot = useMemo<LatestSnapshot>(() => {
+    if (!canRead) return ABSENT_SNAPSHOT;
+    const base = { refresh, items: NO_ITEMS };
     if (!userId) return { ...base, status: 'signed-out' };
     // A refresh keeps showing the snapshot it replaces until the new one is here.
     if (load?.for !== userId) return { ...base, status: 'loading' };
     if (load.error) return { ...base, status: 'failed' };
     if (!load.snapshot) return { ...base, status: 'empty' };
     return { ...base, status: 'ready', takenAt: load.snapshot.takenAt, items: load.snapshot.items };
-  }, [canRead, userId, load, fetched, read, refresh]);
+  }, [canRead, userId, load, refresh]);
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  const files = useMemo<CloudFiles>(() => {
+    if (!canRead) return ABSENT_FILES;
+    const mine = fetched.for === userId ? fetched : EMPTY_FETCHED;
+    return { files: mine.files, reading: mine.reading, failed: mine.failed, read };
+  }, [canRead, userId, fetched, read]);
+
+  return (
+    <SnapshotCtx.Provider value={snapshot}>
+      <FilesCtx.Provider value={files}>{children}</FilesCtx.Provider>
+    </SnapshotCtx.Provider>
+  );
 }
 
 function without<K, V>(from: ReadonlyMap<K, V>, key: K): ReadonlyMap<K, V>;
@@ -115,9 +135,18 @@ function without<K, V>(from: ReadonlyMap<K, V> | ReadonlySet<K>, key: K) {
   const s = new Set(from as ReadonlySet<K>); s.delete(key); return s;
 }
 
-/** The cloud source. Without a provider, or in a build without cloud reads, it is absent. */
+/** The cloud source: the snapshot and the files fetched from it. Without a
+ *  provider, or in a build without cloud reads, it is absent. */
 export function useCloudSnapshot(): CloudSnapshotState {
-  return useContext(Ctx);
+  const snapshot = useContext(SnapshotCtx);
+  const files = useContext(FilesCtx);
+  return useMemo(() => ({ ...snapshot, ...files }), [snapshot, files]);
+}
+
+/** The snapshot alone, for a reader that never fetches a file: it doesn't
+ *  render again when one arrives. */
+export function useLatestSnapshot(): LatestSnapshot {
+  return useContext(SnapshotCtx);
 }
 
 /**

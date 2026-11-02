@@ -8,7 +8,7 @@ import { usePresetsData } from '../../lib/library/PresetsContext';
 import { useSamplesData } from '../../lib/library/SamplesContext';
 import { usePianosData } from '../../lib/library/PianosContext';
 import { useFolderOptional } from '../../lib/folder/FolderContext';
-import { useCloudSnapshot } from '../../lib/library/CloudSnapshotContext';
+import { useLatestSnapshot } from '../../lib/library/CloudSnapshotContext';
 import type { SourceItem } from './Rail';
 
 /**
@@ -24,7 +24,7 @@ export function useRailData() {
   const samples = useSamplesData().rows.length;
   const pianos = usePianosData().rows.length;
   const hasFolder = !!useFolderOptional()?.folderName;
-  const { status: cloudStatus, takenAt } = useCloudSnapshot();
+  const { status: cloudStatus, takenAt } = useLatestSnapshot();
 
   const counts: Record<CategoryId, number> = useMemo(
     () => ({ programs: programs.length, presets, samples, pianos }),

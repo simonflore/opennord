@@ -10,7 +10,7 @@ import type { CloudSnapshotState } from './CloudSnapshotContext';
 const device = { entries: [] };
 const folder: { result: { programs: { id: string; name: string; bytes: Uint8Array }[] } } = { result: { programs: [] } };
 let imported = { entries: [] as { id: string; name: string; source: 'local' }[], add: async () => {}, remove: async () => {} };
-const prefs = { sort: 'default', favorites: new Set<string>(), setSort: () => {}, isFavorite: () => false, toggleFavorite: () => {} };
+const prefs = { sort: 'default', favorites: new Set<string>(), setSort: () => {} };
 vi.mock('@/lib/device/DeviceContext', () => ({ useDevice: () => device }));
 vi.mock('@/lib/folder/FolderContext', () => ({ useFolder: () => folder }));
 vi.mock('@/lib/library/useImportedLibrary', () => ({ useImportedLibrary: () => imported }));

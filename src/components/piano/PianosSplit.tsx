@@ -7,7 +7,7 @@ import { EmptyNote, NotListedNote } from '@/components/library/EmptyNote';
 import { useSplitLayout } from '@/lib/responsive';
 import { useCapabilities } from '@/lib/capabilities/CapabilitiesContext';
 import { useCanShareToCommunity, useShareToCommunity } from '@/components/shell/useShareToCommunity';
-import { canShareAudio } from '@/lib/library/share-audio';
+import { audioToShare } from '@/lib/library/share-audio';
 
 /**
  * Pianos master/detail: the browse list + a thin piano inspector.
@@ -46,8 +46,9 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
     </div>
   );
 
+  const toShare = entry && canShare ? audioToShare(community, entry) : undefined;
   const detail = entry
-    ? <PianoInspector key={entry.id} entry={entry} session={s.session} onShare={canShare && canShareAudio(community, entry) ? () => share(entry.id) : undefined} />
+    ? <PianoInspector key={entry.id} entry={entry} session={s.session} onShare={toShare ? () => share(toShare.id) : undefined} />
     : selectedId ? <NotListedNote noun="piano" className="p-4" />
     : <EmptyNote className="p-4">Pick a piano to see its details.</EmptyNote>;
 

@@ -10,6 +10,7 @@ import { FactoryPill } from '../library/FactoryPill';
 import { SlotTag } from '../library/SlotTag';
 import type { PianoEntry } from '@/lib/library/piano-entries';
 import type { LibrarySource } from '@/lib/library/types';
+import { sourceFilterOptions } from '@/lib/library/found-on';
 import type { PianoSort } from '@/lib/library/prefs';
 import { formatBytes } from '@/lib/format';
 import { PianoAddMenu } from './PianoAddMenu';
@@ -83,9 +84,7 @@ export function PianosBrowse({
     ? [{
         ariaLabel: 'Filter by source',
         value: source,
-        options: [
-          { key: 'all', label: 'All' }, { key: 'nord', label: 'On Nord' }, { key: 'local', label: 'Local' },
-        ],
+        options: sourceFilterOptions(),
         onChange: (k: string) => setSource(k as LibrarySource | 'all'),
       }]
     : [];

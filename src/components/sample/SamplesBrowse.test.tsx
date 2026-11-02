@@ -11,7 +11,7 @@ const entries: SampleEntry[] = [
 ];
 
 const prefs = (over: Partial<SamplesPrefsApi> = {}): SamplesPrefsApi => ({
-  sort: 'default', setSort: () => {}, favorites: new Set<string>(), isFavorite: () => false, toggleFavorite: () => {},
+  sort: 'default', setSort: () => {}, favorites: new Set<string>(),
   isFavoriteRow: () => false, toggleFavoriteRow: () => {},
   ...over,
 });
@@ -111,7 +111,7 @@ describe('SamplesBrowse', () => {
         entries={entries} source="all" generation="all" query=""
         nordCount={1} localCount={2} showSourceFacet showUnknownGen={false}
         storedCount={0} storedBytes={0}
-        prefs={prefs({ favorites: new Set(['folder:Bell.nsmp4']), isFavorite: (id) => id === 'folder:Bell.nsmp4' })}
+        prefs={prefs({ favorites: new Set(['folder:Bell.nsmp4']) })}
         {...handlers} {...reclaimHandlers}
       />,
     );

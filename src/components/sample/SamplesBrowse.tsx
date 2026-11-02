@@ -13,7 +13,7 @@ import { CardRemoveButton } from '../library/CardRemoveButton';
 import type { SampleEntry, SampleGeneration } from '../../lib/library/sample-entries';
 import type { SamplesPrefsApi, SampleSort } from '../../lib/library/prefs';
 import type { LibrarySource } from '../../lib/library/types';
-import { importedMember, isFavoriteRow } from '../../lib/library/found-on';
+import { importedMember, isFavoriteRow, sourceFilterOptions } from '../../lib/library/found-on';
 import { AddMenu } from '../library/AddMenu';
 import { FolderMenu } from '../library/FolderMenu';
 import { useFolderOptional } from '@/lib/folder/FolderContext';
@@ -152,10 +152,7 @@ export function SamplesBrowse(
     ...(showSourceFacet ? [{
       ariaLabel: 'Filter by source',
       value: source,
-      options: [
-        { key: 'all', label: 'All' }, { key: 'nord', label: 'On Nord' }, { key: 'local', label: 'Local' },
-        ...(showCloud ? [{ key: 'cloud', label: 'Cloud' }] : []),
-      ],
+      options: sourceFilterOptions({ cloud: showCloud }),
       onChange: (k: string) => onSource(k as LibrarySource | 'all'),
     }] : []),
     {

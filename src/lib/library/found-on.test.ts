@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeBySound, foundOn, countFoundOn, sourceFacets, memberIds, isFavoriteRow, favoriteKeysFor, localMember, nordSlotOf, type Mergeable } from './found-on';
+import { mergeBySound, foundOn, countFoundOn, sourceFacets, sourceFilterOptions, memberIds, isFavoriteRow, favoriteKeysFor, localMember, nordSlotOf, type Mergeable } from './found-on';
 import type { LibrarySource } from './types';
 
 interface E extends Mergeable { type?: string }
@@ -102,6 +102,12 @@ describe('row helpers', () => {
     const both = { ...e('folder:a', 'local'), sources: ['local', 'backup'] as LibrarySource[] };
     expect(sourceFacets([both, e('cloud:x', 'cloud')])).toEqual({ nordCount: 0, localCount: 1, showCloud: true, showSourceFacet: true });
     expect(sourceFacets([both]).showSourceFacet).toBe(false);
+  });
+  it('sourceFilterOptions lists All, On Nord and Local, then Backup and Cloud where asked', () => {
+    const labels = (o: { label: string }[]) => o.map((x) => x.label);
+    expect(labels(sourceFilterOptions())).toEqual(['All', 'On Nord', 'Local']);
+    expect(labels(sourceFilterOptions({ cloud: true }))).toEqual(['All', 'On Nord', 'Local', 'Cloud']);
+    expect(sourceFilterOptions({ backup: true, cloud: true }).map((x) => x.key)).toEqual(['all', 'nord', 'local', 'backup', 'cloud']);
   });
   it('memberIds lists the row’s own id first', () => {
     expect(memberIds(row)).toEqual(['folder:a', 'cloud:x1']);

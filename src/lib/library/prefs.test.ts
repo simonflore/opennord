@@ -13,8 +13,9 @@ describe('useSamplesPrefs', () => {
   });
   it('toggles a favorite and persists it under its own key', () => {
     const { result } = renderHook(() => useSamplesPrefs());
-    act(() => result.current.toggleFavorite('folder:Bell.nsmp4'));
-    expect(result.current.isFavorite('folder:Bell.nsmp4')).toBe(true);
+    const bell = { id: 'folder:Bell.nsmp4', name: 'Bell', source: 'local' as const };
+    act(() => result.current.toggleFavoriteRow(bell));
+    expect(result.current.isFavoriteRow(bell)).toBe(true);
     expect(localStorage.getItem('opennord.samples.prefs')).toContain('folder:Bell.nsmp4');
     // library prefs untouched
     expect(localStorage.getItem('opennord.library.prefs')).toBeNull();
