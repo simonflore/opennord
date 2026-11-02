@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook, act, waitFor, cleanup } from '@testing-library/react';
 import { useFolderLibrary } from './useFolderLibrary';
 import type { Scanner, BundleDescriptor } from './pipeline';
 import type { FolderSource } from './source';
 import * as access from './access';
+import * as scanCache from './scanCache';
 
 // A fake program-bearing batch (id is what the hook surfaces).
 function prog(id: string) {
@@ -33,6 +34,7 @@ vi.mock('./access', () => ({
   rescan: vi.fn(),
   forgetFolder: vi.fn(async () => {}),
   fileFromHandle: vi.fn(),
+  folderFingerprint: vi.fn(async () => 'same'),
 }));
 
 const choiceStore: { value: null | { folderName: string; decided: string[]; skipped: string[] } } = { value: null };
@@ -42,7 +44,23 @@ vi.mock('./bundlePrefs', () => ({
   clearBundleChoice: vi.fn(async () => { choiceStore.value = null; }),
 }));
 
-beforeEach(() => { choiceStore.value = null; });
+// The kept last scan (IDB-backed): nothing kept unless a test says so.
+vi.mock('./scanCache', () => ({
+  loadScanCache: vi.fn(async () => null),
+  saveScanCache: vi.fn(async () => {}),
+  clearScanCache: vi.fn(async () => {}),
+}));
+
+beforeEach(() => {
+  choiceStore.value = null;
+  vi.mocked(scanCache.loadScanCache).mockReset().mockImplementation(async () => null);
+  vi.mocked(scanCache.saveScanCache).mockClear();
+  vi.mocked(scanCache.clearScanCache).mockClear();
+  vi.mocked(access.folderFingerprint).mockReset().mockImplementation(async () => 'same');
+  vi.mocked(access.rescan).mockClear();
+});
+// Unmount each test's hook, so its window listeners don't answer the next test's focus events.
+afterEach(cleanup);
 
 describe('useFolderLibrary gate', () => {
   it('loose programs appear immediately; a single new bundle auto-expands', async () => {
@@ -375,5 +393,227 @@ describe('useFolderLibrary openBundle', () => {
     expect(scannerWithOpenBundle.openBundle).toHaveBeenCalledWith('TBM.ns4b');
     expect(file.name).toBe('TBM.ns4b');
     expect(file.size).toBe(3);
+  });
+});
+
+describe('useFolderLibrary rescan when the window comes back', () => {
+  // Only Date is faked: the 30 s wait is measured with it, and waitFor keeps real timers.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  const later = (ms: number) => vi.setSystemTime(Date.now() + ms);
+  const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+  const focus = () => act(async () => { window.dispatchEvent(new Event('focus')); });
+
+  /** A restored, readable folder whose scans are counted. */
+  async function restoredFolder(name = 'F') {
+    let scans = 0;
+    const scanner: Scanner = {
+      async scanLoose(_source, onBatch) {
+        scans++;
+        onBatch({ programs: [prog(`folder:scan${scans}.ns4p`)], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
+        return [];
+      },
+      async expandBundles() {},
+    };
+    const handle = {} as FileSystemDirectoryHandle;
+    vi.mocked(access.restoreFolder).mockResolvedValueOnce({ status: 'granted', name, handle, source: handle as never });
+    const makeScanner = () => scanner;
+    const hook = renderHook(() => useFolderLibrary(makeScanner));
+    await waitFor(() => expect(hook.result.current.folderName).toBe(name));
+    await waitFor(() => expect(hook.result.current.busy).toBe(false));
+    return { hook, scans: () => scans };
+  }
+
+  it('rescans when the folder changed while the window was away', async () => {
+    const { hook, scans } = await restoredFolder();
+    expect(scans()).toBe(1);
+    vi.mocked(access.folderFingerprint).mockImplementation(async () => 'changed');
+    later(31_000);
+    await focus();
+    await waitFor(() => expect(scans()).toBe(2));
+    await waitFor(() => expect(hook.result.current.result.programs.map((p) => p.id)).toEqual(['folder:scan2.ns4p']));
+  });
+
+  it('also rescans when the page becomes visible again', async () => {
+    const { scans } = await restoredFolder();
+    vi.mocked(access.folderFingerprint).mockImplementation(async () => 'changed');
+    later(31_000);
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+    await waitFor(() => expect(scans()).toBe(2));
+  });
+
+  it('skips the scan when no Nord file was added, removed or changed', async () => {
+    const { scans } = await restoredFolder();
+    const listings = vi.mocked(access.folderFingerprint).mock.calls.length;
+    later(31_000);
+    await focus();
+    await settle();
+    expect(vi.mocked(access.folderFingerprint).mock.calls.length).toBe(listings + 1); // it did look
+    expect(scans()).toBe(1);
+  });
+
+  it('looks at most once every 30 seconds, however often the window comes back', async () => {
+    const { scans } = await restoredFolder();
+    vi.mocked(access.folderFingerprint).mockImplementation(async () => 'changed');
+    const listings = () => vi.mocked(access.folderFingerprint).mock.calls.length;
+    const before = listings();
+    later(5_000);
+    await focus();
+    await settle();
+    expect(listings()).toBe(before); // too soon after the launch scan
+    expect(scans()).toBe(1);
+    later(26_000);
+    await focus();
+    await waitFor(() => expect(scans()).toBe(2));
+    later(10_000);
+    await focus();
+    await settle();
+    expect(scans()).toBe(2); // too soon after the last look
+  });
+
+  it('does nothing while the folder waits for permission, or while a scan is running', async () => {
+    vi.mocked(access.restoreFolder).mockResolvedValueOnce({ status: 'needs-permission', name: 'P', handle: {} as FileSystemDirectoryHandle });
+    const waiting = renderHook(() => useFolderLibrary(() => fakeScanner([])));
+    await waitFor(() => expect(waiting.result.current.needsReconnect).toBe(true));
+    later(31_000);
+    await focus();
+    await settle();
+    expect(access.folderFingerprint).not.toHaveBeenCalled();
+    waiting.unmount();
+
+    const scanner: Scanner = { scanLoose: () => new Promise(() => {}), expandBundles: async () => {} };
+    const handle = {} as FileSystemDirectoryHandle;
+    vi.mocked(access.restoreFolder).mockResolvedValueOnce({ status: 'granted', name: 'S', handle, source: handle as never });
+    const makeScanner = () => scanner;
+    const scanning = renderHook(() => useFolderLibrary(makeScanner));
+    await waitFor(() => expect(scanning.result.current.busy).toBe(true));
+    const listings = vi.mocked(access.folderFingerprint).mock.calls.length;
+    later(31_000);
+    await focus();
+    await settle();
+    expect(vi.mocked(access.folderFingerprint).mock.calls.length).toBe(listings);
+    expect(access.rescan).not.toHaveBeenCalled();
+  });
+
+  it('a look still in progress when another folder is chosen does not rescan the old one', async () => {
+    const { hook, scans } = await restoredFolder('Old');
+    let finishListing!: (fp: string) => void;
+    vi.mocked(access.folderFingerprint).mockImplementationOnce(() => new Promise((res) => { finishListing = res; }));
+    later(31_000);
+    await focus();
+    await waitFor(() => expect(finishListing).toBeTypeOf('function'));
+
+    await act(async () => { await hook.result.current.choose(); }); // the default mocked pick, 'F'
+    expect(hook.result.current.folderName).toBe('F');
+    expect(scans()).toBe(2);
+
+    await act(async () => { finishListing('changed'); });
+    await settle();
+    expect(access.rescan).not.toHaveBeenCalled();
+    expect(scans()).toBe(2);
+    expect(hook.result.current.folderName).toBe('F');
+  });
+});
+
+describe('useFolderLibrary last scan kept for launch', () => {
+  const batch = (id: string) => ({ programs: [prog(id)], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
+  const kept = (id: string) => ({ result: { ...batch(id) }, bundles: [{ path: 'Kept.ns4b', size: 1 }] });
+  const ids = (r: { current: ReturnType<typeof useFolderLibrary> }) => r.current.result.programs.map((p) => p.id);
+
+  it('shows the last scan at launch, then the new one once it has finished', async () => {
+    let finish = () => {};
+    const scanner: Scanner = {
+      async scanLoose(_source, onBatch) {
+        onBatch(batch('folder:fresh.ns4p'));
+        await new Promise<void>((res) => { finish = res; });
+        return [];
+      },
+      async expandBundles() {},
+    };
+    const handle = {} as FileSystemDirectoryHandle;
+    vi.mocked(access.restoreFolder).mockResolvedValueOnce({ status: 'granted', name: 'F', handle, source: handle as never });
+    vi.mocked(scanCache.loadScanCache).mockResolvedValueOnce(kept('folder:kept.ns4p') as never);
+    const makeScanner = () => scanner;
+    const { result } = renderHook(() => useFolderLibrary(makeScanner));
+
+    await waitFor(() => expect(ids(result)).toEqual(['folder:kept.ns4p']));
+    expect(scanCache.loadScanCache).toHaveBeenCalledWith('F', handle); // asked for this folder only
+    expect(result.current.bundles.map((b) => b.path)).toEqual(['Kept.ns4b']);
+    expect(result.current.busy).toBe(true);
+    await waitFor(() => expect(finish).not.toBe(undefined));
+    expect(ids(result)).toEqual(['folder:kept.ns4p']); // not emptied while the scan runs
+
+    await act(async () => { finish(); });
+    await waitFor(() => expect(result.current.busy).toBe(false));
+    expect(ids(result)).toEqual(['folder:fresh.ns4p']);
+    expect(result.current.bundles).toEqual([]);
+  });
+
+  it('keeps a finished scan of a linked folder for next launch', async () => {
+    const handle = {} as FileSystemDirectoryHandle;
+    vi.mocked(access.restoreFolder).mockResolvedValueOnce({ status: 'granted', name: 'F', handle, source: handle as never });
+    const scanner = fakeScanner([{ path: 'B.ns4b', size: 10 }]); // one new backup: auto-loaded
+    const makeScanner = () => scanner;
+    const { result } = renderHook(() => useFolderLibrary(makeScanner));
+    await waitFor(() => expect(result.current.busy).toBe(false));
+    await waitFor(() => expect(scanCache.saveScanCache).toHaveBeenCalled());
+    const [name, savedHandle, saved, bundles] = vi.mocked(scanCache.saveScanCache).mock.lastCall!;
+    expect(name).toBe('F');
+    expect(savedHandle).toBe(handle);
+    expect(saved.programs.map((p) => p.id)).toEqual(['folder:loose.ns4p', 'folder:B.ns4b!x.ns4p']);
+    expect(bundles).toEqual([{ path: 'B.ns4b', size: 10 }]);
+  });
+
+  it('keeps nothing for a folder picked without a lasting link', async () => {
+    const { result } = renderHook(() => useFolderLibrary(() => fakeScanner([])));
+    await act(async () => { await result.current.choose(); }); // the default mocked pick has no handle
+    expect(ids(result)).toEqual(['folder:loose.ns4p']);
+    expect(scanCache.saveScanCache).not.toHaveBeenCalled();
+  });
+
+  it('shows the last scan while the folder waits for permission, and keeps it up while reconnecting', async () => {
+    const handle = {} as FileSystemDirectoryHandle;
+    vi.mocked(access.restoreFolder).mockResolvedValueOnce({ status: 'needs-permission', name: 'P', handle });
+    vi.mocked(scanCache.loadScanCache).mockResolvedValueOnce(kept('folder:kept.ns4p') as never);
+    let finish = () => {};
+    const scanner: Scanner = {
+      async scanLoose(_source, onBatch) {
+        onBatch(batch('folder:fresh.ns4p'));
+        await new Promise<void>((res) => { finish = res; });
+        return [];
+      },
+      async expandBundles() {},
+    };
+    const makeScanner = () => scanner;
+    const { result } = renderHook(() => useFolderLibrary(makeScanner));
+    await waitFor(() => expect(ids(result)).toEqual(['folder:kept.ns4p']));
+    expect(result.current.needsReconnect).toBe(true);
+
+    vi.mocked(access.grantAndScan).mockResolvedValueOnce(handle as never);
+    let reconnected!: Promise<void>;
+    act(() => { reconnected = result.current.reconnect(); });
+    await waitFor(() => expect(result.current.needsReconnect).toBe(false));
+    expect(ids(result)).toEqual(['folder:kept.ns4p']);
+    await act(async () => { finish(); await reconnected; });
+    expect(ids(result)).toEqual(['folder:fresh.ns4p']);
+  });
+
+  it('a kept scan arriving after a fresh pick is not shown', async () => {
+    let giveCache!: (v: unknown) => void;
+    vi.mocked(scanCache.loadScanCache).mockImplementationOnce(() => new Promise((res) => { giveCache = res as never; }));
+    const handle = {} as FileSystemDirectoryHandle;
+    vi.mocked(access.restoreFolder).mockResolvedValueOnce({ status: 'needs-permission', name: 'Old', handle });
+    const { result } = renderHook(() => useFolderLibrary(() => fakeScanner([])));
+    await waitFor(() => expect(giveCache).toBeTypeOf('function'));
+    await act(async () => { await result.current.choose(); });
+    await act(async () => { giveCache(kept('folder:kept.ns4p')); });
+    expect(ids(result)).toEqual(['folder:loose.ns4p']);
+  });
+
+  it('Forget drops the kept scan', async () => {
+    const { result } = renderHook(() => useFolderLibrary(() => fakeScanner([])));
+    await act(async () => { await result.current.forget(); });
+    expect(scanCache.clearScanCache).toHaveBeenCalled();
   });
 });

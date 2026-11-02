@@ -10,6 +10,11 @@ pull request as the change. New lines go under **Unreleased**.
 
 ## Unreleased
 
+- **Linked folder.** In Chrome and Edge, files you add or save in the folder show
+  up when you come back to OpenNord, without **Rescan folder**, and on opening
+  OpenNord the folder's programs and presets show straight away. The reconnect
+  banner says how to stop being asked (**Allow on every visit**), and browsers
+  that can't remember a folder say so where you choose it.
 - **Connecting a Stage 2.** It's called a Nord Stage 2 in the app and in the
   Check my Nord results, not just “Nord”.
 - **Manifesto.** Removed from the website and the repository.

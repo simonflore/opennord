@@ -9,6 +9,8 @@ export interface LocatedFile {
   kind: 'file';
   path: string;
   size: number;
+  /** When the file was last saved (ms since 1970), as the file system reports it. */
+  lastModified: number;
   bytes(): Promise<Uint8Array>;
 }
 
@@ -17,6 +19,7 @@ export interface LocatedBundle {
   kind: 'bundle';
   path: string;
   size: number;
+  lastModified: number;
   stream(): ReadableStream<Uint8Array>;
   file(): Promise<File>;
 }
@@ -26,8 +29,9 @@ export type Located = LocatedFile | LocatedBundle;
 interface AsyncDir { values(): AsyncIterable<FileSystemHandle>; }
 
 function locatedForFile(path: string, file: File, isBundle: boolean): Located {
-  if (isBundle) return { kind: 'bundle', path, size: file.size, stream: () => file.stream(), file: async () => file };
-  return { kind: 'file', path, size: file.size, bytes: () => readFileBytes(file) };
+  const { size, lastModified } = file;
+  if (isBundle) return { kind: 'bundle', path, size, lastModified, stream: () => file.stream(), file: async () => file };
+  return { kind: 'file', path, size, lastModified, bytes: () => readFileBytes(file) };
 }
 
 async function* fromHandle(dir: FileSystemDirectoryHandle, prefix: string): AsyncGenerator<Located> {

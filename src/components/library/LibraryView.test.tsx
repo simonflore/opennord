@@ -203,6 +203,16 @@ describe('LibraryView', () => {
     expect(isDisabled(buttonFor(html, 'Forget folder'))).toBe(false);
   });
 
+  it('says in the reconnect banner how to stop being asked', () => {
+    const html = renderToStaticMarkup(
+      <LibraryView
+        entries={[]} source="all" query="" {...handlers}
+        prefs={prefs()} folder={folder({ folderName: 'TBM', needsReconnect: true })}
+      />,
+    );
+    expect(html).toContain('In Chrome or Edge, choose “Allow on every visit” when asked, and it won’t ask again.');
+  });
+
   it('surfaces a reconnect error in the banner instead of failing silently', () => {
     const html = renderToStaticMarkup(
       <LibraryView

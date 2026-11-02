@@ -43,6 +43,26 @@ describe('AddMenu', () => {
   });
 });
 
+const ONE_SHOT = /This browser can’t remember a folder, so you choose it each visit\./;
+
+describe('a browser that can’t remember a folder', () => {
+  it('says so where the folder is chosen', () => {
+    render(<AddMenu folder={folder({ canPersist: false })} noun="a program file" onImport={() => {}} />);
+    open('+ Add');
+    expect(screen.getByRole('menuitem', { name: /Choose a folder/ })).toHaveTextContent(ONE_SHOT);
+    cleanup();
+    render(<FolderMenu folder={folder({ folderName: 'Patches', canPersist: false })} place="rail" />);
+    open(/Patches/);
+    expect(screen.getByRole('menuitem', { name: /Change folder/ })).toHaveTextContent(ONE_SHOT);
+  });
+
+  it('says nothing of the kind where it can', () => {
+    render(<AddMenu folder={folder()} noun="a program file" onImport={() => {}} />);
+    open('+ Add');
+    expect(screen.getByRole('menuitem', { name: /Choose a folder/ })).not.toHaveTextContent(ONE_SHOT);
+  });
+});
+
 describe('FolderMenu', () => {
   it('shows nothing without a folder', () => {
     const { container } = render(<FolderMenu folder={folder()} place="rail" />);

@@ -1,5 +1,5 @@
 import { saveHandle, loadHandle, clearHandle } from './idbStore';
-import type { FolderSource } from './source';
+import { locateNordFiles, type FolderSource } from './source';
 
 /** True when this browser can pick a folder and persist the handle (Chromium desktop). */
 export function supportsPersistentFolders(): boolean {
@@ -107,6 +107,19 @@ export async function grantAndScan(handle: FileSystemDirectoryHandle): Promise<F
 /** Re-scan a live handle (manual refresh) — the handle is itself the source. */
 export function rescan(handle: FileSystemDirectoryHandle): FolderSource {
   return handle;
+}
+
+/**
+ * A cheap summary of what a scan would read: every Nord file's path, size and
+ * modified time, without reading any of them. Two equal fingerprints mean no
+ * Nord file was added, removed, resized or saved since, so a rescan can be
+ * skipped. Files a scan ignores (photos, notes) don't count.
+ */
+export async function folderFingerprint(handle: FileSystemDirectoryHandle): Promise<string> {
+  const files: Array<[string, number, number]> = [];
+  for await (const loc of locateNordFiles(handle)) files.push([loc.path, loc.size, loc.lastModified]);
+  files.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)); // the walk's order isn't guaranteed
+  return JSON.stringify(files);
 }
 
 /** Forget the saved folder. */

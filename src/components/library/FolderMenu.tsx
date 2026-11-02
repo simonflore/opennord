@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react';
 import { cn } from '@/lib/cn';
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from '../ui';
 import type { FolderLibrary } from '@/lib/folder/useFolderLibrary';
+import { ONE_SHOT_FOLDER_NOTE } from './AddMenu';
 
 /**
  * The connected folder as one item, with what can be done to it in its menu:
@@ -29,7 +30,7 @@ export function FolderMenu({ folder, place, className }: {
       {needsReconnect
         ? <MenuItem onSelect={() => void folder.reconnect()} disabled={busy} hint="Your browser asks again after a reload">Reconnect folder</MenuItem>
         : canPersist && <MenuItem onSelect={() => void folder.refresh()} disabled={busy} hint="Pick up files added or changed since">Rescan folder</MenuItem>}
-      <MenuItem onSelect={() => void folder.choose()} disabled={busy}>Change folder…</MenuItem>
+      <MenuItem onSelect={() => void folder.choose()} disabled={busy} hint={canPersist ? undefined : ONE_SHOT_FOLDER_NOTE}>Change folder…</MenuItem>
       <MenuSeparator />
       {/* Never disabled: it's the way out of a scan or a prompt that hangs. */}
       <MenuItem tone="quiet" onSelect={() => void folder.forget()} hint="Your files stay where they are">Forget folder</MenuItem>

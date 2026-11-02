@@ -2,7 +2,8 @@
  * Shared IndexedDB opener for OpenNord's local persistence. One database, four
  * object stores:
  *  - `folder`  — the watched-folder directory handle (a pointer to the user's
- *    own folder; see {@link ../folder/idbStore}).
+ *    own folder; see {@link ../folder/idbStore}), and its last scan's programs
+ *    and presets, never audio ({@link ../folder/scanCache}).
  *  - `imports` — programs the user imported as single files, so they survive a
  *    reload (the user's own `.ns4p` bytes — never Nord audio/samples; docs/LEGAL.md).
  *  - `bundle-choice` — which `.ns4b` backups the user chose to load/skip for the

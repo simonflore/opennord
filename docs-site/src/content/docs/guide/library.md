@@ -51,10 +51,20 @@ copied, and subfolders are searched too.
 If the folder holds several backups, OpenNord asks **Load which backups?**. Pick
 the ones to add, or **Skip backups**.
 
+In Chrome and Edge, OpenNord remembers the folder. When you open OpenNord again
+it shows the programs and presets the folder held last time straight away, then
+updates them once it has read the folder again. Piano and sample files show up
+when that read reaches them. Other browsers can't remember a folder, so there
+you choose it again each visit.
+
 The folder's menu in the rail has:
 
-- **Rescan folder**: pick up files added or changed since.
+- **Rescan folder**: pick up files added or changed since. In Chrome and Edge
+  this also happens by itself when you come back to OpenNord after adding or
+  saving files in the folder (at most every 30 seconds).
 - **Reconnect folder**: after a reload, your browser asks for permission again.
+  In Chrome or Edge, choose **Allow on every visit** when asked, and it won't
+  ask again.
 - **Change folder…** and **Forget folder** (your files stay where they are).
 
 :::note[Stage 2 and 3 programs]

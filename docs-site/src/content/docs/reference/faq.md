@@ -46,6 +46,7 @@ it first), a Live program, or a model OpenNord doesn't write to yet. See
 ## My folder looks empty
 
 - After a reload, use **Reconnect folder**: the browser asks for permission
+  again. In Chrome or Edge, choose **Allow on every visit** and it won't ask
   again.
 - A folder scan adds Stage 4 and Electro 6 programs. Import Stage 2 and 3
   programs with **Import a file…**.

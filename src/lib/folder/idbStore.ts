@@ -1,8 +1,9 @@
 /**
- * Persists ONLY the watched-folder directory handle (a pointer to the user's own
- * folder) — never file contents (docs/LEGAL.md). FileSystemDirectoryHandle is
- * structured-clonable, so IndexedDB can store it directly. Storage glue lives in
- * the shared {@link ../idb} opener.
+ * Persists the watched-folder directory handle (a pointer to the user's own
+ * folder). FileSystemDirectoryHandle is structured-clonable, so IndexedDB can
+ * store it directly. The same store keeps the folder's last scan under its own
+ * key ({@link ./scanCache}): the programs and presets, never piano or sample
+ * audio (docs/LEGAL.md). Storage glue lives in the shared {@link ../idb} opener.
  */
 import { idbTx, STORE_FOLDER } from '../idb';
 

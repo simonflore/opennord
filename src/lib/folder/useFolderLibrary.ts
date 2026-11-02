@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   pickFolder, restoreFolder, rescan, grantAndScan, forgetFolder, supportsPersistentFolders,
-  fileFromHandle, requestWriteAccess, writeFileToDir, listDirNames,
+  fileFromHandle, requestWriteAccess, writeFileToDir, listDirNames, folderFingerprint,
 } from './access';
 import { isPickerCancel } from './picker-cancel';
 import { resolveWriteName, type WriteResult } from './writeBack';
 import { type Scanner, type ScanBatch, type BundleDescriptor } from './pipeline';
 import { createScanner } from './scanner';
 import { loadBundleChoice, saveBundleChoice, clearBundleChoice } from './bundlePrefs';
+import { loadScanCache, saveScanCache, clearScanCache } from './scanCache';
 import type { FolderSource } from './source';
 import type { ScanResult } from './scan';
 import { getErrorMessage } from '../errors';
 
 const emptyResult = (): ScanResult => ({ programs: [], presets: [], pianos: [], samples: [], errors: [], backupPianos: [], backupSamples: [] });
 const EMPTY = emptyResult();
+
+/** Least time between two looks at the folder when the window comes back into view. */
+export const AUTO_RESCAN_INTERVAL_MS = 30_000;
 
 export interface FolderLibrary {
   /** Connected folder name, or null when none. */
@@ -63,6 +67,12 @@ function withBatch(r: ScanResult, b: ScanBatch): ScanResult {
   addBatch(next, b);
   return next;
 }
+/** A copy of `r` that later batches added to `r` don't reach. */
+function snapshot(r: ScanResult): ScanResult {
+  const copy = emptyResult();
+  addBatch(copy, r);
+  return copy;
+}
 /** Add a scan batch to `r` in place (a result nothing renders yet). */
 function addBatch(r: ScanResult, b: ScanBatch) {
   r.programs.push(...b.programs);
@@ -93,6 +103,17 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
   // invalidate a concurrent applyBundleSelection()'s in-flight expandBundles
   // calls, silently dropping already-decided-and-persisted bundle entries.
   const opRef = useRef(0);
+  // What the last finished scan read (see folderFingerprint), and when the folder
+  // was last scanned or looked at, so coming back to the window rescans only
+  // when something changed, and at most once per AUTO_RESCAN_INTERVAL_MS.
+  const fingerprintRef = useRef<string | null>(null);
+  const lastLookRef = useRef(0);
+  // `busy` for the window listeners, which outlive the render that set them up.
+  const busyRef = useRef(false);
+  useEffect(() => { busyRef.current = busy; }, [busy]);
+  // The lists show the scan kept from last time (see scanCache), so the next
+  // scan keeps them up until it is done instead of starting empty.
+  const showingKeptRef = useRef(false);
 
   const append = useCallback((gen: number) => (b: ScanBatch) => {
     if (gen !== genRef.current) return;
@@ -110,26 +131,37 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     name: string, source: FolderSource, dirHandle?: FileSystemDirectoryHandle | null, keep = false,
   ) => {
     const gen = ++genRef.current;
+    lastLookRef.current = Date.now();
     scannerRef.current?.dispose?.();
     const scanner = makeScanner();
     scannerRef.current = scanner;
-    // `keep` (a refresh of the same folder): the last scan stays shown until the
-    // new one has re-read what was showing (the loose files and the remembered
-    // backups), so the lists, and an entry open beside them, don't empty out
-    // meanwhile. A new folder starts empty and fills as it scans.
-    let staged: ScanResult | null = keep ? emptyResult() : null;
+    showingKeptRef.current = false;
+    // `keep` (a refresh of the same folder, or a launch showing the scan kept
+    // from last time): the last scan stays shown until the new one has re-read
+    // what was showing (the loose files and the remembered backups), so the
+    // lists, and an entry open beside them, don't empty out meanwhile. A new
+    // folder starts empty and fills as it scans. Either way `collected` holds
+    // the whole new scan, to keep for the next launch.
+    const collected = emptyResult();
+    let staged = keep;
     if (!keep) { setResult(EMPTY); setBundles([]); }
     setNewBundles([]); setPickerOpen(false); // a backup applied mid-refresh would be overwritten
     const shown = append(gen);
     const onBatch = (b: ScanBatch) => {
+      if (gen !== genRef.current) return;
+      addBatch(collected, b);
       if (!staged) shown(b);
-      else if (gen === genRef.current) addBatch(staged, b);
     };
 
     // Up to the commit below, a refresh that fails leaves an emptied list with
     // the reason (the last scan was kept on screen and mustn't pass for current).
     let found: BundleDescriptor[], choice: Awaited<ReturnType<typeof loadBundleChoice>>, undecided: BundleDescriptor[];
+    let fingerprint: string | null = null;
     try {
+      // Listed before reading, so a file saved during the scan still counts as
+      // a change next time. One that can't be listed just means no skipping.
+      if (dirHandle) fingerprint = await folderFingerprint(dirHandle).catch(() => null);
+      if (gen !== genRef.current) return;
       found = await scanner.scanLoose(source, onBatch);
       if (gen !== genRef.current) return;
       if (!staged) setBundles(found);
@@ -151,7 +183,8 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
       setBundles([]);
       return;
     }
-    if (staged) { setResult(staged); setBundles(found); setNewBundles(undecided); staged = null; }
+    if (staged) { setResult(snapshot(collected)); setBundles(found); setNewBundles(undecided); staged = false; }
+    fingerprintRef.current = fingerprint;
 
     if (undecided.length >= 2) {
       setPickerOpen(true);
@@ -162,6 +195,11 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
       await saveBundleChoice({ folderName: name, handle: dirHandle ?? undefined, decided: [only], skipped: [] });
       if (gen !== genRef.current) return;
       setNewBundles([]);
+    }
+
+    // Kept for the next launch: only a linked folder, the one launch reopens.
+    if (dirHandle) {
+      saveScanCache(name, dirHandle, collected, found).catch((err) => console.warn('Could not keep the folder scan', err));
     }
   }, [append, makeScanner]);
 
@@ -174,6 +212,14 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
       // picked/reconnected while this was pending, a late "granted" here must
       // not clobber the newer folder's handle/name with the old one.
       const op = ++opRef.current;
+      // Show the scan kept from last time for this folder, if any, unless a
+      // newer operation has taken over meanwhile.
+      const showKept = async (name: string, dir: FileSystemDirectoryHandle) => {
+        const kept = await loadScanCache(name, dir).catch(() => null);
+        if (!kept || cancelled || op !== opRef.current) return false;
+        setResult(kept.result); setBundles(kept.bundles);
+        return true;
+      };
       try {
         const state = await restoreFolder();
         if (cancelled || op !== opRef.current) return;
@@ -185,7 +231,9 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
           // results.
           setBusy(true);
           try {
-            await runScan(state.name, state.source, state.handle);
+            const kept = await showKept(state.name, state.handle);
+            if (cancelled || op !== opRef.current) return;
+            await runScan(state.name, state.source, state.handle, kept);
           } finally {
             // Only clear busy if a newer operation (a fresh choose/reconnect/
             // refresh, possibly after Forget) hasn't already superseded this
@@ -195,6 +243,8 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
           }
         } else if (state.status === 'needs-permission') {
           setFolderName(state.name); setPending(state.handle);
+          // Until Reconnect, the lists show what the folder held last time.
+          if (await showKept(state.name, state.handle)) showingKeptRef.current = true;
         }
       } catch (err) {
         if (cancelled || op !== opRef.current) return;
@@ -252,7 +302,7 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
       if (op !== opRef.current) return;
       if (source) {
         setHandle(pending); setPending(null);
-        await runScan(folderName ?? pending.name, source, pending);
+        await runScan(folderName ?? pending.name, source, pending, showingKeptRef.current);
       } else {
         // Permission wasn't granted — say so rather than silently doing nothing.
         setReconnectError(`Couldn't read “${folderName ?? 'the folder'}” — your browser blocked access. Click Reconnect folder and choose Allow, or Change folder.`);
@@ -277,6 +327,37 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     } finally { if (op === opRef.current) setBusy(false); }
   }, [handle, folderName, runScan]);
 
+  // Coming back to the window (after saving files elsewhere, say) rescans a
+  // connected, readable folder, but only when a listing of its Nord files
+  // (names, sizes, modified times) differs from what the last scan read, and
+  // never while a scan, pick or permission prompt is under way: closing a
+  // picker or a prompt focuses the window too. A choose/reconnect/forget that
+  // starts while the folder is being listed wins (opRef), as everywhere above.
+  useEffect(() => {
+    if (!handle || !folderName) return;
+    const look = async () => {
+      if (busyRef.current || Date.now() - lastLookRef.current < AUTO_RESCAN_INTERVAL_MS) return;
+      lastLookRef.current = Date.now();
+      const op = opRef.current;
+      let fingerprint: string;
+      try {
+        fingerprint = await folderFingerprint(handle);
+      } catch {
+        return; // can't be listed (access withdrawn, folder moved): Rescan folder says why
+      }
+      if (op !== opRef.current || busyRef.current || fingerprint === fingerprintRef.current) return;
+      await refresh();
+    };
+    const onFocus = () => { void look(); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') void look(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [handle, folderName, refresh]);
+
   const forget = useCallback(async () => {
     // Reset the UI first so Forget always responds instantly — it's the escape
     // hatch; never gate it on the IDB write completing. That includes busy: a
@@ -285,10 +366,12 @@ export function useFolderLibrary(makeScanner: () => Scanner = createScanner): Fo
     // without this Choose/Re-pick would stay disabled indefinitely.
     genRef.current++; // abandon in-flight batches/expansions
     opRef.current++; // and any in-flight operation's claim on clearing busy
+    fingerprintRef.current = null;
+    showingKeptRef.current = false;
     setHandle(null); setPending(null); setFolderName(null); setReconnectError(null);
     setResult(EMPTY); setBundles([]); setNewBundles([]); setPickerOpen(false);
     setBusy(false);
-    await forgetFolder(); await clearBundleChoice();
+    await forgetFolder(); await clearBundleChoice(); await clearScanCache();
   }, []);
 
   const openBundlePicker = useCallback(() => setPickerOpen(true), []);

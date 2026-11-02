@@ -67,3 +67,33 @@ it('writeFileToDir creates a file and streams bytes; listDirNames lists entries'
   await writeFileToDir(dir, 'out.nsmp', async (w) => { await w.write(new Uint8Array([9, 9])); });
   expect([...written['out.nsmp']]).toEqual([9, 9]);
 });
+
+import { folderFingerprint } from './access';
+
+describe('folderFingerprint', () => {
+  // A dir tree whose files carry a size and a modified time, like the real handles.
+  type Tree = { [name: string]: { size: number; modified: number } | Tree };
+  function dir(children: Tree): FileSystemDirectoryHandle {
+    return {
+      kind: 'directory',
+      async *values() {
+        for (const [name, c] of Object.entries(children)) {
+          if (typeof c.modified === 'number') {
+            const { size, modified } = c as { size: number; modified: number };
+            yield { kind: 'file', name, async getFile() { return new File([new Uint8Array(size)], name, { lastModified: modified }); } };
+          } else yield Object.assign(dir(c as Tree), { name });
+        }
+      },
+    } as unknown as FileSystemDirectoryHandle;
+  }
+
+  it('changes when a Nord file is added, resized or saved again, and ignores other files', async () => {
+    const base: Tree = { 'a.ns4p': { size: 3, modified: 1 }, Bank: { 'b.ns4p': { size: 4, modified: 2 } } };
+    const fp = await folderFingerprint(dir(base));
+    expect(await folderFingerprint(dir({ ...base }))).toBe(fp);
+    expect(await folderFingerprint(dir({ ...base, 'notes.txt': { size: 9, modified: 9 } }))).toBe(fp);
+    expect(await folderFingerprint(dir({ ...base, 'c.ns4p': { size: 1, modified: 3 } }))).not.toBe(fp);
+    expect(await folderFingerprint(dir({ ...base, 'a.ns4p': { size: 5, modified: 1 } }))).not.toBe(fp);
+    expect(await folderFingerprint(dir({ ...base, 'a.ns4p': { size: 3, modified: 7 } }))).not.toBe(fp);
+  });
+});

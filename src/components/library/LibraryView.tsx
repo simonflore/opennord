@@ -139,7 +139,12 @@ export function LibraryView({
         <div className="mb-3 flex items-center gap-3 rounded-md border border-line px-[14px] py-2.5 text-ink">
           {reconnectError
             ? <span className="text-danger">{reconnectError}</span>
-            : <span>Reconnect <strong>{folderName}</strong> to load your patches.</span>}
+            : (
+              <span>
+                Reconnect <strong>{folderName}</strong> to load your patches.
+                {' '}In Chrome or Edge, choose “Allow on every visit” when asked, and it won’t ask again.
+              </span>
+            )}
           <Button variant="ghost" onClick={onReconnect} disabled={busy}>Reconnect folder</Button>
           {/* Never disabled: Forget only clears local state, so it stays the
               escape hatch when a pending browser dialog has wedged `busy`. */}
