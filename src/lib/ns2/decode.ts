@@ -48,12 +48,9 @@ import { setting, type FxBlock } from '../clavia/fx-block';
 import { morphTargets, switchedBy } from '../clavia/fx-morph';
 import { EFFECT_SRC, EQ_MID_FREQ } from '../clavia/fx-tables';
 import { NORD_DB } from '../clavia/volume';
-import {
-  NSM_RECORD_OFFSET, legacyData, legacyDataOffset, legacyLayoutVersion, legacyMorphDeltas, legacyRecordVersion,
-  legacyTrailerBytes, readLegacyRecord,
-} from '../clavia/legacy-record';
+import { NSM_RECORD_OFFSET, legacyMorphDeltas } from '../clavia/legacy-record';
 import { NS2_LAYOUT, type Ns2FieldKey } from './layout.generated';
-import { convertNs2 } from './convert';
+import { readNs2Values } from './values';
 
 export type { Ns2FieldKey };
 
@@ -1108,38 +1105,9 @@ function rotary(get: Get): Ns2Rotary {
 
 // ── Program ─────────────────────────────────────────────────────────────────
 
-const LAYOUT_VERSION = NS2_LAYOUT.recordVersion ?? 7;
-
 /** Decode a Stage 2 / 2 EX `.ns2p` into its active slot(s), plus every layout field in `values`. */
 export function decodeNs2(bytes: Uint8Array): Ns2File {
-  const warnings: string[] = [];
-  // Data at 0x2E behind the NSM-era header (no trailer, 565 bytes), else at 0x1A
-  // followed by the 2-byte trailer (547).
-  const dataOffset = legacyDataOffset(bytes, NS2_LAYOUT);
-  const trailerBytes = legacyTrailerBytes(bytes);
-  // The record's own u16 version (in front of the data) is the one the firmware
-  // goes by; the CBIN version field (0x14, LE) carries a copy on both headers.
-  const own = legacyLayoutVersion(bytes, NS2_LAYOUT);
-  const recordVersion = own <= LAYOUT_VERSION ? own : legacyRecordVersion(bytes);
-  const data = legacyData(bytes, dataOffset, trailerBytes);
-  const whole = data.length >= NS2_LAYOUT.dataBytes;
-  if (!whole) {
-    warnings.push(
-      `This file is shorter than a Stage 2 program (${bytes.length} bytes, expected ` +
-      `${dataOffset + NS2_LAYOUT.dataBytes + trailerBytes}); settings past the end show as 0.`,
-    );
-  }
-  if (recordVersion > LAYOUT_VERSION) {
-    warnings.push('This program was saved in a newer Stage 2 format than OpenNord knows; some settings may show wrong.');
-  } else if (recordVersion < LAYOUT_VERSION && whole) {
-    warnings.push(
-      'This program was saved by an older Stage 2 OS. The Nord updates it when it loads it, ' +
-      'and OpenNord shows it updated the same way.',
-      ...convertNs2(data, recordVersion),
-    );
-  }
-
-  const { values, outOfRange } = readLegacyRecord(data, NS2_LAYOUT);
+  const { dataOffset, recordVersion, values, outOfRange, warnings } = readNs2Values(bytes);
   const morphDeltas = legacyMorphDeltas(NS2_LAYOUT, values);
 
   const { get, slot } = reader(values);
@@ -1187,7 +1155,7 @@ export function decodeNs2(bytes: Uint8Array): Ns2File {
     recordVersion,
     values,
     morphDeltas,
-    outOfRange,
-    warnings,
+    outOfRange: [...outOfRange],
+    warnings: [...warnings],
   };
 }

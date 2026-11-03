@@ -34,7 +34,7 @@
  * same values as the earlier corpus-derived decoder; only the Vox/Farfisa/Pipe
  * vibrato and synth "After Touch" labels differ.
  */
-import { decodeFwProgram, type FwProgram } from '../clavia/block-chain';
+import type { FwProgram } from '../clavia/block-chain';
 import { DRAWBAR_NUMBERS } from '../clavia/fw-present';
 import { NORD_DB } from '../clavia/volume';
 import { setting, type FxBlock } from '../clavia/fx-block';
@@ -42,7 +42,9 @@ import { morphTargets } from '../clavia/fx-morph';
 import { EFFECT_SRC, EQ_MID_FREQ } from '../clavia/fx-tables';
 import { NS3_FILTER_FREQ } from './filter-freq';
 import { NS3_LAYOUT, type Ns3FieldKey } from './layout.generated';
-import { convertNs3Values } from './convert';
+import { readNs3Values } from './values';
+
+export { ns3FieldsAbsent } from './values';
 
 export type { Ns3FieldKey };
 
@@ -719,68 +721,9 @@ function panel(get: Get, id: Slot, os300DelayRate: readonly Slot[] = []): Ns3Pan
   };
 }
 
-/**
- * Parameters added inside 3.x took reserved (zero) bits; on loading an older 3.x
- * file the firmware sets them to their defaults (version fix-ups,:
- * Pitch Stick Range 1 below 3.03, the Extern volume-pedal switches on below
- * 3.04 — both their defaults). The other fix-ups (Dual-KB style below 3.02, the
- * 3.00 delay rate) change stored values; convert.ts applies them.
- */
-const ADDED_IN: readonly { before: number; keys: readonly Ns3FieldKey[] }[] = [
-  { before: 303, keys: ['common.pitchStickRange'] },               // id 157
-  { before: 304, keys: ['externA.volPedalEnable', 'externB.volPedalEnable'] }, // id 245
-];
-
-/** Fields a body of `formatVersion` does not store yet: the firmware loads them at their defaults. */
-export function ns3FieldsAbsent(formatVersion: number): Ns3FieldKey[] {
-  return ADDED_IN.filter((a) => formatVersion < a.before).flatMap((a) => a.keys);
-}
-
-function withVersionDefaults(values: Values, formatVersion: number): Values {
-  const absent = ns3FieldsAbsent(formatVersion);
-  if (absent.length === 0) return values;
-  const out = { ...values };
-  for (const k of absent) out[k] = DEFAULTS.get(k) ?? 0;
-  return out;
-}
-
-/** Lowest body format the layout describes; 2.0x bodies (converted by the Nord on load) differ. */
-const FIRST_LAYOUT_VERSION = NS3_LAYOUT.versionRange?.[0] ?? 300;
-
 /** Decode a Stage 3 program into its active panel(s), plus every layout field in `values`. */
 export function decodeNs3(bytes: Uint8Array): Ns3File {
-  const fw = decodeFwProgram(bytes, NS3_LAYOUT);
-  let { layoutMatched, values, warnings } = fw;
-  const v = fw.formatVersion;
-  if (layoutMatched && v !== null && v < FIRST_LAYOUT_VERSION) {
-    // A 2.0x body: Piano, SynthCommon and Organ have other sizes and fields
-    // (firmware "Multi v1" registry), so reading it with the 3.x layout would misplace values.
-    layoutMatched = false;
-    values = {};
-    warnings = [
-      `This program uses the Stage 3's format ${(v / 100).toFixed(2)} from an early OS, which the Nord converts ` +
-      `when it loads it. OpenNord reads formats ${(FIRST_LAYOUT_VERSION / 100).toFixed(2)}–` +
-      `${((NS3_LAYOUT.versionRange?.[1] ?? 304) / 100).toFixed(2)}; showing the file header only.`,
-    ];
-  }
-
-  let os300DelayRate: readonly Slot[] = [];
-  if (layoutMatched && v !== null) {
-    const c = convertNs3Values(withVersionDefaults(values, v), v);
-    if (c.refused) {
-      layoutMatched = false;
-      values = {};
-      warnings = [c.refused];
-    } else {
-      values = c.values;
-      os300DelayRate = c.os300DelayRate;
-      if (os300DelayRate.some((s) => values[`effects${s}.dlyEnable`] === 1)) {
-        warnings = [...warnings,
-          'This program comes from Stage 3 OS 3.00, which set the free-running delay time on its original ' +
-          '0–127 scale. OpenNord shows that delay time as the file stores it, on the old scale.'];
-      }
-    }
-  }
+  const { fw, layoutMatched, values, warnings, os300DelayRate } = readNs3Values(bytes);
 
   const panels: Ns3Panel[] = [];
   let keyboardSplit: Ns3Split | null = null;
@@ -793,7 +736,7 @@ export function decodeNs3(bytes: Uint8Array): Ns3File {
     if (slots === 2 || slots === 3) panels.push(panel(get, 'B', os300DelayRate));
   }
   return {
-    ...fw, format: 'ns3f', layoutMatched, values, outOfRange: layoutMatched ? fw.outOfRange : [], warnings, panels,
+    ...fw, format: 'ns3f', layoutMatched, values, outOfRange: layoutMatched ? fw.outOfRange : [], warnings: [...warnings], panels,
     split: keyboardSplit,
     ...(os300DelayRate.length > 0 && { os300DelayRate }),
   };

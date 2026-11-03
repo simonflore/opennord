@@ -89,7 +89,7 @@ export type NordProgram =
  * Every model OpenNord can decode. Add new codecs here as they land —
  * formats.ts is the only file that knows all concrete program types.
  */
-const CODECS: readonly ModelCodec<NordProgram>[] = [
+export const CODECS: readonly ModelCodec<NordProgram>[] = [
   ns4Codec,
   ne6Codec,
   np4Codec,
