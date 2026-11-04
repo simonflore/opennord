@@ -34,7 +34,8 @@ describe('HardwareChecks', () => {
     expect(html).toContain('Read the partition list');
     expect(html).toContain('OPENNORD 2PIECE');
     expect(html).toContain('never replaces one');
-    expect(html).toContain('Let OpenNord write samples');
+    // Samples are confirmed on a Nord and on in every build: only the pianos' switch is left.
+    expect(html).not.toContain('Let OpenNord write samples');
     expect(html).toContain('Let OpenNord write pianos');
     // Task 9 carry: both things the switch arms are named next to it.
     expect(html).toMatch(/Send to Nord/);
@@ -51,8 +52,10 @@ describe('HardwareChecks', () => {
       const input = html.slice(0, html.indexOf(label)).split('<input').at(-1) ?? '';
       return /\bchecked\b/.test(input);
     };
-    expect(checked('Let OpenNord write samples')).toBe(false);
     expect(checked('Let OpenNord write pianos')).toBe(true);
+    allowed.kinds = [];
+    const off = renderToStaticMarkup(<HardwareChecks />);
+    expect(off.slice(0, off.indexOf('Let OpenNord write pianos')).split('<input').at(-1)).not.toMatch(/\bchecked\b/);
   });
 });
 

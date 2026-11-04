@@ -46,8 +46,7 @@ The oldest `.nsmp` files can be read-only: convert them to `.nsmp3` or
   every one.
 - **Save to computer** downloads the sample file itself.
 - **Send to Nord**, with a Stage 4 connected, sends a sample of your own to
-  the keyboard. It is off until it has been tried on a Nord; see
-  [Send a sample](/docs/guide/send/#send-a-sample).
+  the keyboard; see [Send a sample](/docs/guide/send/#send-a-sample).
 
 Factory samples can be opened and played too. They stay on your device;
 OpenNord never shares them.

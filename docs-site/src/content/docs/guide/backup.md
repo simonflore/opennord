@@ -52,15 +52,14 @@ on the keyboard, so keep the backup file until you've checked the result.
 
 ### Samples and pianos
 
-:::caution[Not yet tried on a Nord]
-Writing samples and pianos to a Nord is off until it has been tried on one.
-Until then a restore leaves them out and says so: "… weren’t restored: not yet
-tried on a Nord." Your programs, presets, Live and settings are still
-restored.
+:::caution[Pianos: not yet tried on a Nord]
+Writing pianos to a Nord is off until it has been tried on one. Until then a
+restore leaves them out and says so: "… weren’t restored: not yet tried on a
+Nord." Your programs, presets, Live, settings and samples are still restored.
 :::
 
-Once it is on, a restore on a Stage 4 puts your samples and pianos back by
-name:
+A restore on a Stage 4 puts your samples (and, once that is on, your pianos)
+back by name:
 
 - A sample or piano already on the Nord with the same name and size is left
   as it is.

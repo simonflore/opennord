@@ -742,10 +742,10 @@ describe('restore of the sample library', () => {
     expect(result.failures[0].error).toMatch(/same name on your Nord/);
   });
 
-  it('without options, leaves samples out under the shipped gate', async () => {
+  it('without options, leaves pianos out under the shipped gate (samples are on: tried on a Stage 4)', async () => {
     const t = new MockTransport([]);
-    const result = await restore(stage4Session(t), archive());
-    expect(result.leftOut).toEqual([{ path: 'Samp Lib/User 1/Pad.nsmp4', kind: 'sample', why: 'not-yet-tried' }]);
+    const result = await restore(stage4Session(t), archive({ 'Piano/Bank 1/Grand.npno': cbinFile(record, { tag: 'npno' }) }));
+    expect(result.leftOut).toEqual([{ path: 'Piano/Bank 1/Grand.npno', kind: 'piano', why: 'not-yet-tried' }]);
     expect(t.sent).toHaveLength(0);
   });
 

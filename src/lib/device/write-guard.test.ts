@@ -15,9 +15,9 @@ afterEach(() => {
 });
 
 describe('the sample and piano hardware gate', () => {
-  it('starts closed for both kinds', () => {
-    expect(LIBRARY_WRITES_VERIFIED).toEqual({ sample: false, piano: false });
-    expect(libraryWritesOn('sample', LIBRARY_WRITES_VERIFIED, [])).toBe(false);
+  it('is open for samples (tried on a Stage 4) and closed for pianos', () => {
+    expect(LIBRARY_WRITES_VERIFIED).toEqual({ sample: true, piano: false });
+    expect(libraryWritesOn('sample', LIBRARY_WRITES_VERIFIED, [])).toBe(true);
     expect(libraryWritesOn('piano', LIBRARY_WRITES_VERIFIED, [])).toBe(false);
   });
 
@@ -47,7 +47,8 @@ describe('the sample and piano hardware gate', () => {
     vi.stubEnv('DEV', false);
     vi.stubGlobal('localStorage', store('["sample","piano"]'));
     expect(untestedWritesAllowed()).toEqual([]);
-    expect(libraryWritesOn('sample')).toBe(false);
+    // Samples are verified on a Stage 4: on in every build. Pianos are not, whatever is stored.
+    expect(libraryWritesOn('sample')).toBe(true);
     expect(libraryWritesOn('piano')).toBe(false);
   });
 
@@ -55,7 +56,9 @@ describe('the sample and piano hardware gate', () => {
     vi.stubEnv('DEV', true);
     vi.stubGlobal('localStorage', store('["piano"]'));
     expect(libraryWritesOn('piano')).toBe(true);
-    expect(libraryWritesOn('sample')).toBe(false);
+    expect(libraryWritesOn('sample')).toBe(true);
+    vi.stubGlobal('localStorage', store('[]'));
+    expect(libraryWritesOn('piano')).toBe(false);
   });
 
   it('fails closed when localStorage is missing or throws', () => {
@@ -69,7 +72,7 @@ describe('the sample and piano hardware gate', () => {
     });
     expect(untestedWritesAllowed()).toEqual([]);
     expect(() => setUntestedWrites(['sample'])).not.toThrow();
-    expect(libraryWritesOn('sample')).toBe(false);
+    expect(libraryWritesOn('piano')).toBe(false);
   });
 
   it('fails closed when reading the storage global itself throws', () => {

@@ -41,8 +41,8 @@ time.
 
 The button says why. Common reasons: a Stage 3 program on a Stage 4 (convert
 it first), a Live program, or a model OpenNord doesn't write to yet. See
-[Send a program](/docs/guide/send/#when-sending-is-off). For a sample: sending
-samples is off until it has been tried on a Nord; see
+[Send a program](/docs/guide/send/#when-sending-is-off). For a sample: only a
+`.nsmp4` sample of your own goes to a Stage 4; see
 [Send a sample](/docs/guide/send/#send-a-sample).
 
 ## My folder looks empty

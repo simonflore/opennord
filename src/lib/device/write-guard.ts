@@ -34,8 +34,12 @@ export type LibraryKind = 'sample' | 'piano';
  * The hardware gate for sample and piano writes (send, restore). Each kind turns on
  * only after the hardware session for it has passed (the maintainers’ notes,
  * "Session 2", W4 for samples, W5 for pianos). Flip one value per kind, here only.
+ *
+ * Samples: on since 2026-11-04, sending one to a Stage 4 confirmed on the instrument
+ * (W4). Restoring a backup's samples (W5) uses the same write and is on with it; W5
+ * itself is not recorded yet. Pianos: off until W5.
  */
-export const LIBRARY_WRITES_VERIFIED: Readonly<Record<LibraryKind, boolean>> = { sample: false, piano: false };
+export const LIBRARY_WRITES_VERIFIED: Readonly<Record<LibraryKind, boolean>> = { sample: true, piano: false };
 
 /** Where the /dev/hardware page keeps "try untested writes", for the hardware session. */
 export const UNTESTED_WRITES_KEY = 'opennord.tryUntestedWrites';

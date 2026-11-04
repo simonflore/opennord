@@ -3,7 +3,7 @@ import { Button, FileInput, buttonVariants } from '../ui';
 import { useDevice } from '../../lib/device/DeviceContext';
 import { readPartitionList, type PartitionInfo } from '../../lib/device/partition-list';
 import { describeFlags, nextAllowed, runTwoPieceWrite, TWO_PIECE_NAME, type TwoPieceResult } from '../../lib/device/hw-checks';
-import { setUntestedWrites, untestedWritesAllowed, type LibraryKind } from '../../lib/device/write-guard';
+import { LIBRARY_WRITES_VERIFIED, setUntestedWrites, untestedWritesAllowed, type LibraryKind } from '../../lib/device/write-guard';
 import { STOPPED_ANSWERING } from '../../lib/device/session';
 import { stoppedAnswering } from '../device/useSendSample';
 import { getErrorMessage } from '../../lib/errors';
@@ -132,7 +132,8 @@ export function HardwareChecks() {
                   removes the Nord’s files that the backup replaces. Make a fresh backup first. Every development build
                   on this computer reads these switches.
                 </p>
-                {(['sample', 'piano'] as const).map((kind) => (
+                {/* A kind confirmed on a Nord is on in every build: no switch for it. */}
+                {(['sample', 'piano'] as const).filter((kind) => !LIBRARY_WRITES_VERIFIED[kind]).map((kind) => (
                   <label key={kind} className="flex min-h-11 items-center gap-2 text-sm text-ink">
                     <input type="checkbox" className="size-5" checked={allowed.includes(kind)} onChange={(e) => toggle(kind, e.target.checked)} />
                     Let OpenNord write {kind}s (not yet tried on a Nord)

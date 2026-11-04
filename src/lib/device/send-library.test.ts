@@ -150,12 +150,18 @@ describe('sendLibraryFile', () => {
     expect(t.sent).toHaveLength(0);
   });
 
-  it('without an override, asks libraryWritesOn: closed by default', async () => {
+  it('without an override, asks libraryWritesOn: closed by default for a kind not yet tried (pianos)', async () => {
     vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {} });
     const { t, s } = stage4([]);
     await expect(sendLibraryFile(s, 'piano', sample, 'x')).rejects.toThrow(NOT_YET_TRIED.piano);
-    await expect(sendLibraryFile(s, 'sample', sample, 'x')).rejects.toThrow(NOT_YET_TRIED.sample);
     expect(t.sent).toHaveLength(0);
+  });
+
+  it('without an override, asks libraryWritesOn: open for samples, tried on a Stage 4', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {} });
+    const { t, s } = stage4([...upToCreate(), ack(CReqFileWrite), ack(CReqFileClose), ack(CReqEnd)]);
+    await expect(sendLibraryFile(s, 'sample', sample, 'Test Pad')).resolves.toEqual({ bank: 0, slot: 1, name: 'Test Pad' });
+    expect(sentIds(t)).toContain(CReqFileCreate);
   });
 
   it('without an override, asks libraryWritesOn: open when the dev switch allows the kind', async () => {

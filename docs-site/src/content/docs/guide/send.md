@@ -44,12 +44,6 @@ Presets can't be sent yet.
 
 ## Send a sample
 
-:::caution[Not yet tried on a Nord]
-Sending samples is off until it has been tried on a Nord. Until then the
-button is greyed and says "Not yet tried on a Nord: sending samples stays off
-until it has been."
-:::
-
 With a Stage 4 connected, you can send a sample of your own from two places:
 
 - **A sample in the Library:** open it under **User Samples** and press

@@ -33,8 +33,7 @@ sidebar:
    - **Save project file** keeps the whole build as `.onsample`, to carry on
      later or on another computer.
    - **Send to Nord**, with a Stage 4 connected, sends the sample to an empty
-     place on the keyboard. It is off until it has been tried on a Nord; see
-     [Send a sample](/docs/guide/send/#send-a-sample).
+     place on the keyboard; see [Send a sample](/docs/guide/send/#send-a-sample).
 
 The build saves as you go, with undo and redo. Deleting a build removes its
 recordings, but not the samples you saved from it.
