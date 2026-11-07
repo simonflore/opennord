@@ -4,7 +4,8 @@ import { readNspIdentity, readNspZones } from '../ns4/nsp';
 import { resolveFactory, type FactoryMatch } from '../device/factory';
 import type { LibrarySource } from './types';
 import type { PianoSort } from './prefs';
-import { formatDeviceSlot } from '../clavia/slot';
+import { formatDeviceSlot, sampleSlotScheme } from '../clavia/slot';
+import type { ModelInfo } from '../clavia/partitions';
 import { PARTITION_PIANO } from '../device/opcodes';
 import { matchesQuery, sortWithFavorites } from './browse';
 import type { BackupRef } from '../clavia/backup/backup-index';
@@ -81,12 +82,14 @@ export function pianoEntriesFromBackupRefs(refs: BackupRef[]): PianoEntry[] {
   });
 }
 
-/** Map the device's enumerated Piano Library files into nord entries. */
-export function pianoEntriesFromDevice(entries: ProgramEntry[]): PianoEntry[] {
-  return withUniqueIds(entries.map((e) => {
-    const slot = formatDeviceSlot(e.bank, e.slot);
-    return { id: `nord-piano:${slot}`, name: e.name, source: 'nord' as const, slot, device: e, partition: PARTITION_PIANO, factory: resolveFactory(e.name, 'npno') };
-  }));
+/** Map the device's enumerated Piano Library files into nord entries. `model`, the
+ *  connected Nord's, gives the slot label its panel uses (a Stage 2 numbers them). */
+export function pianoEntriesFromDevice(entries: ProgramEntry[], model?: ModelInfo): PianoEntry[] {
+  const scheme = sampleSlotScheme(model);
+  return withUniqueIds(entries.map((e) => ({
+    id: `nord-piano:${formatDeviceSlot(e.bank, e.slot)}`, name: e.name, source: 'nord' as const,
+    slot: formatDeviceSlot(e.bank, e.slot, scheme), device: e, partition: PARTITION_PIANO, factory: resolveFactory(e.name, 'npno'),
+  })));
 }
 
 /** Filter by source + case-insensitive name query. */

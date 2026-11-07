@@ -144,5 +144,10 @@ describe('ns2HeaderView', () => {
       groups: [{ id: 'A', engines: ['organ', 'piano', 'synth'] }, { id: 'B', engines: ['piano'] }],
     });
     expect(h.sizeBytes).toBe(64);
+    expect(h.name).toBe('Unnamed'); // no name given
+  });
+
+  it('shows the program\'s name, which lives outside the ns2 body', () => {
+    expect(ns2HeaderView(new Uint8Array(64), [slot()], 'Take On Me').name).toBe('Take On Me');
   });
 });

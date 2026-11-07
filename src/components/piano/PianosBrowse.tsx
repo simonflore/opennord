@@ -36,7 +36,7 @@ export function PianosBrowse({
   entries, source, setSource, query, setQuery, clearFilters, filtered,
   showSourceFacet, sort, setSort, isFavorite, toggleFavorite, onSelect, activeId,
   // Piano-usage cleanup (device-connected)
-  canScanUsage, onScanUsage, scanPct, scanError, unusedCount, unusedOnly, onUnusedOnly,
+  canScanUsage, onScanUsage, scanPct, scanError, onDismissScanError, unusedCount, unusedOnly, onUnusedOnly,
   // Reclaim-space selection
   selected, selectedEntries, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
   removeFromNord, removing, removePct,
@@ -63,6 +63,8 @@ export function PianosBrowse({
   onScanUsage: () => void;
   scanPct: number | null;
   scanError?: string;
+  /** Clears the scan's message once read. */
+  onDismissScanError?: () => void;
   unusedCount: number | null;
   unusedOnly: boolean;
   onUnusedOnly: (v: boolean) => void;
@@ -148,7 +150,12 @@ export function PianosBrowse({
 
   const banners = (
     <>
-      {scanError && <p className="mb-3 text-xs text-danger" role="alert">{scanError}</p>}
+      {scanError && (
+        <div className="mb-3 flex items-start gap-2" role="alert">
+          <p className="m-0 flex-1 text-xs text-danger">{scanError}</p>
+          {onDismissScanError && <Button variant="ghost" onClick={onDismissScanError}>Dismiss</Button>}
+        </div>
+      )}
       {/* Reclaim bar — shown when at least one piano is selected */}
       {selected.size > 0 && (
         <div

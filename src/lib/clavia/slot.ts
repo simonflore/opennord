@@ -32,13 +32,55 @@ const DEVICE_BANK_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
  * programs shared a Library id (the wrong one opened, and its read never finished).
  * Slots 0–63 of banks A–H read exactly as {@link formatSlot} reads them; past that
  * the pages keep counting (slot 64 is "A:91"), so every slot has a label of its own.
- * Not what a Stage 2 shows on its panel — that label is still to be confirmed.
+ * That grid label is the Library id of a slot on every model; what the views show
+ * a Stage 2 player is its panel's `A:PP:S` (`scheme` 'pages', {@link programSlotScheme}).
  * Every label the device views show, and every Library id of a Nord slot, comes
  * from here: a slot address is unique, so its label must be too.
  * @example formatDeviceSlot(0, 64) // → "A:91"
  */
-export function formatDeviceSlot(bank: number, location: number): string {
+export function formatDeviceSlot(bank: number, location: number, scheme: SlotScheme = 'grid'): string {
+  if (scheme === 'pages') {
+    // A Stage 2 panel: bank, page 01–20, program 1–5 (confirmed on a Stage 2 EX: the
+    // last slot of a bank reads "B:20:5", the 40th "B:08:5").
+    const page = Math.floor(location / 5) + 1;
+    return `${bankLetter(bank)}:${String(page).padStart(2, '0')}:${(location % 5) + 1}`;
+  }
+  if (scheme === 'number') return String(location + 1);
   return `${bankLetter(bank)}:${Math.floor(location / 8) + 1}${(location % 8) + 1}`;
+}
+
+/**
+ * How a Nord labels its slots on the panel. `grid` is the Stage 3/4 `X:YY` grid;
+ * `pages` the Stage 2 family's `X:PP:S` (bank, page of five, program); `number` a
+ * plain 1-based number, as a Stage 2 shows its sample slots.
+ */
+export type SlotScheme = 'grid' | 'pages' | 'number';
+
+/** The models whose program slots read bank : page : program (a Stage 2 / 2 EX). */
+const PAGED_MODELS = new Set(['stage-2', 'stage-2-ex']);
+
+/** A model, its id, or a program file type, as the key the scheme tables use. */
+function modelKey(model?: { id: string } | string | null): string | undefined {
+  return typeof model === 'string' ? model : model?.id;
+}
+
+/**
+ * The scheme a Nord's program slots are labelled in, from its model id or a
+ * listed program's file type (`ns2p` is a Stage 2 program).
+ */
+export function programSlotScheme(model?: { id: string } | string | null): SlotScheme {
+  const key = modelKey(model);
+  if (!key) return 'grid';
+  return PAGED_MODELS.has(key) || key === 'ns2p' ? 'pages' : 'grid';
+}
+
+/**
+ * The scheme a Nord's sample (or piano) slots are labelled in: a Stage 2 numbers
+ * its samples 1, 2, 3…; every other model keeps the program grid.
+ */
+export function sampleSlotScheme(model?: { id: string } | string | null): SlotScheme {
+  const key = modelKey(model);
+  return key && PAGED_MODELS.has(key) ? 'number' : 'grid';
 }
 
 /**
@@ -47,8 +89,8 @@ export function formatDeviceSlot(bank: number, location: number): string {
  * (the device label, never the 6-bit file-header one).
  * @example slotLabel(0, 21) // → "Slot A:36"
  */
-export function slotLabel(bank: number, location: number): string {
-  return `Slot ${formatDeviceSlot(bank, location)}`;
+export function slotLabel(bank: number, location: number, scheme: SlotScheme = 'grid'): string {
+  return `Slot ${formatDeviceSlot(bank, location, scheme)}`;
 }
 
 /**

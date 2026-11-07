@@ -6,6 +6,7 @@ import { WRITE_BLOCKED_MESSAGE } from '../../lib/device/write-guard';
 import { planReorg, buildOccupancy, isPlanError, type Addr, type Occupancy, type Plan, type PlanError } from '../../lib/device/reorg';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import { getErrorMessage } from '../../lib/errors';
+import type { SlotScheme } from '../../lib/clavia/slot';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 
 export interface UseReorgOpts {
@@ -23,6 +24,8 @@ export interface UseReorgOpts {
   /** Apply a gesture immediately with no confirm dialog (the non-destructive backup
    *  organizer — nothing is written until the user downloads). Default false. */
   autoApply?: boolean;
+  /** How the view labels slots, for the plans' summaries (a Stage 2's bank : page : program). */
+  scheme?: SlotScheme;
 }
 
 export interface ReorgApi {
@@ -33,6 +36,8 @@ export interface ReorgApi {
   result: ExecResult | null;
   /** "Don't ask again this session" — once set, gestures apply without confirming. */
   dontAsk: boolean;
+  /** How slots are labelled in this flow's summaries, when the caller said. */
+  scheme?: SlotScheme;
   setDontAsk(v: boolean): void;
   /** Generic entry point: build occupancy, run any planner, then confirm/apply. */
   propose(makePlan: (occ: Occupancy) => Plan | PlanError): void;
@@ -44,7 +49,7 @@ export interface ReorgApi {
 /** The one reorg flow: gesture → plan (move|swap) → confirm → execute (journal
  *  rollback) → refresh. Shared by the live-device Organize mode and the backup
  *  organizer; they differ only in io / refresh / backupOnce / run. */
-export function useReorg({ io, partition, entries, refresh, backupOnce, run, autoApply = false }: UseReorgOpts): ReorgApi {
+export function useReorg({ io, partition, entries, refresh, backupOnce, run, autoApply = false, scheme }: UseReorgOpts): ReorgApi {
   const { busy, error, setError, run: runAction } = useAsyncAction();
   const [pendingPlan, setPendingPlan] = useState<Plan | null>(null);
   const [progress, setProgress] = useState<ExecProgress | null>(null);
@@ -94,8 +99,8 @@ export function useReorg({ io, partition, entries, refresh, backupOnce, run, aut
     occRef.current = occ; // freeze the exact occupancy the plan was validated against
     // A bulk rearrange (sort/compact) remaps many slot numbers, and a delete removes
     // a program — both ALWAYS confirm, even on the apply-on-drop backup path and
-    // even with "don't ask again" set.
-    if ((autoApply || dontAsk) && !plan.bulk && !plan.destructive) {
+    // even with "don't ask again" set; a short insert (`quiet`) honours it.
+    if ((autoApply || dontAsk) && (!plan.bulk || (dontAsk && plan.quiet)) && !plan.destructive) {
       if (!busy) void apply(plan); // single move/swap — apply on drop, no confirm
     } else {
       setPendingPlan(plan); // show the confirm dialog
@@ -103,7 +108,7 @@ export function useReorg({ io, partition, entries, refresh, backupOnce, run, aut
   }
 
   function onGesture(g: { kind: 'move'; from: Addr; to: Addr }) {
-    propose((occ) => planReorg(occ, g.from, g.to));
+    propose((occ) => planReorg(occ, g.from, g.to, scheme));
   }
 
   async function confirm() {
@@ -111,5 +116,5 @@ export function useReorg({ io, partition, entries, refresh, backupOnce, run, aut
     await apply(pendingPlan);
   }
 
-  return { pendingPlan, busy, progress, error, result, dontAsk, setDontAsk, propose, onGesture, confirm, cancel: () => setPendingPlan(null) };
+  return { pendingPlan, busy, progress, error, result, dontAsk, scheme, setDontAsk, propose, onGesture, confirm, cancel: () => setPendingPlan(null) };
 }

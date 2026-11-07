@@ -10,6 +10,17 @@ pull request as the change. New lines go under **Unreleased**.
 
 ## Unreleased
 
+- **Stage 2 slots.** Programs on a Stage 2 or 2 EX show their slot as the
+  panel does, bank, page and program (B:08:5), and samples and pianos by their
+  number.
+- **Stage 2 programs** show their name instead of "Unnamed".
+- **Samples on a Stage 2** show under the `.nsmp` filter (and a Stage 3's under
+  `.nsmp3`, which is also the type a kept copy of one is saved as), and **Largest first** /
+  **Smallest first** sort the samples on your Nord too. **Most samples** is now
+  **Most recordings**.
+- **Find unused samples.** Its message can be dismissed.
+- **Organize.** **Don’t ask again this session** now covers an **Insert** that
+  moves up to five programs; a longer one still asks.
 - **Back up Nord.** On a Stage 4 a backup now holds your samples and pianos
   too.
 - **Update a backup….** A new button in the backup dialog: it copies the

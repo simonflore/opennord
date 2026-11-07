@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { MODELS } from '../clavia/partitions';
 import { pianoEntriesFromScanned, pianoEntriesFromDevice, pianoEntriesFromBackupRefs, filterPianos, sortPianos, type PianoEntry } from './piano-entries';
 import type { ProgramEntry } from '../device/transfer';
 import type { BackupRef } from '../clavia/backup/backup-index';
@@ -25,6 +26,11 @@ describe('piano-entries', () => {
   it('keeps pianos in slots 0 and 64 under their own ids', () => {
     const out = pianoEntriesFromDevice([dev({ slot: 0, name: 'A' }), dev({ slot: 64, name: 'B' })]);
     expect(out.map((e) => e.id)).toEqual(['nord-piano:A:11', 'nord-piano:A:91']);
+  });
+
+  it('numbers a Stage 2\'s pianos as its panel does, under the same ids', () => {
+    const out = pianoEntriesFromDevice([dev({ slot: 2, name: 'A' })], MODELS['stage-2']);
+    expect(out[0]).toMatchObject({ id: 'nord-piano:A:13', slot: '3' });
   });
 
   it('maps device entries with slot, partition, and a precomputed factory match', () => {

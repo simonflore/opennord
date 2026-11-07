@@ -34,7 +34,7 @@ describe('NordFileCard', () => {
   it('shows a Stage 2 file with its decoded slot + category, but no version', () => {
     const html = renderToStaticMarkup(<NordFileCard bytes={cbin('ns2p', 0, { bank: 3, loc: 69, cat: 12, ver: 6 })} />);
     expect(html).toContain('Stage 2');
-    expect(html).toContain('D:69');   // raw program slot
+    expect(html).toContain('D:14:5'); // program 69 as the Stage 2 panel shows it
     expect(html).toContain('Synth');  // shared category enum
     expect(html).not.toContain('v0.06'); // never show the bogus legacy version
     expect(html).not.toContain('VERSION'); // no version row for Stage 2

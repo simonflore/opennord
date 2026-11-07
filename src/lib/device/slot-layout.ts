@@ -1,6 +1,7 @@
 import { programSlotLayout, type ModelInfo, type SlotLayout } from '../clavia/partitions';
 import type { BankInfo } from './capacity';
 import type { ProgramEntry } from './transfer';
+import { programSlotScheme, type SlotScheme } from '../clavia/slot';
 
 /**
  * The slots a device view draws, from the best source there is: the Nord's own
@@ -21,4 +22,14 @@ export function deviceSlotLayout(
     perBank = Math.max(perBank, e.slot + 1);
   }
   return { banks, perBank };
+}
+
+/**
+ * How a device view labels the Nord's program slots: from its model, else from the
+ * programs it listed (a Stage 2's are `ns2p`). The one place that decides it: the
+ * connect flow stores it on the session, and every view and message asks here.
+ */
+export function deviceSlotScheme(model: ModelInfo | undefined, entries: readonly ProgramEntry[]): SlotScheme {
+  if (model) return programSlotScheme(model);
+  return programSlotScheme(entries.find((e) => e.fourcc)?.fourcc);
 }

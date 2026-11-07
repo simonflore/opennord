@@ -3,7 +3,8 @@ import type { ScannedSample } from '../folder/scan';
 import type { ProgramEntry } from '../device/transfer';
 import type { LibrarySource } from './types';
 import type { SampleSort } from './prefs';
-import { formatDeviceSlot } from '../clavia/slot';
+import { formatDeviceSlot, sampleSlotScheme } from '../clavia/slot';
+import type { ModelInfo } from '../clavia/partitions';
 import { sampleCategoryLabel, SAMPLE_CATEGORY_LABELS } from '../clavia/sample-categories';
 import { matchesAny, sortWithFavorites } from './browse';
 import type { BackupRef } from '../clavia/backup/backup-index';
@@ -121,12 +122,26 @@ export function sampleEntriesFromBackupRefs(refs: BackupRef[]): SampleEntry[] {
   });
 }
 
-/** Map the device's enumerated sample-partition files into nord Sample entries. */
-export function nordSampleEntriesFromDevice(entries: ProgramEntry[]): SampleEntry[] {
-  return withUniqueIds(entries.map((e) => {
-    const slot = formatDeviceSlot(e.bank, e.slot);
-    return { id: `nord-sample:${slot}`, name: e.name, source: 'nord' as const, generation: 'unknown' as const, slot, device: e };
-  }));
+/** The format a Nord's own samples are in: the one its model takes (a Stage 2 holds
+ *  `.nsmp`), so the format filter finds them. Unknown when the model takes several. */
+function deviceSampleGeneration(model: ModelInfo | undefined): SampleGeneration {
+  if (model?.sampleCodec === 'og') return 'og';
+  if (model?.sampleCodec === 'codec3') return '3';
+  return 'unknown';
+}
+
+/** Map the device's enumerated sample-partition files into nord Sample entries.
+ *  `model`, the connected Nord's, gives the slot label its panel uses (a Stage 2
+ *  numbers its samples 1, 2, 3…) and the samples' format. */
+export function nordSampleEntriesFromDevice(entries: ProgramEntry[], model?: ModelInfo): SampleEntry[] {
+  const scheme = sampleSlotScheme(model);
+  const generation = deviceSampleGeneration(model);
+  return withUniqueIds(entries.map((e) => ({
+    id: `nord-sample:${formatDeviceSlot(e.bank, e.slot)}`, name: e.name, source: 'nord' as const, generation,
+    slot: formatDeviceSlot(e.bank, e.slot, scheme), device: e,
+    // The listing gives each sample's size, so Largest / Smallest first sort them too.
+    size: e.sizeBytes || undefined,
+  })));
 }
 
 /** Filter by source + generation + category + query (name/category) + optional unused-only. */

@@ -209,6 +209,28 @@ describe('planInsert', () => {
   });
 });
 
+describe('plan summaries and quiet inserts', () => {
+  const prog = (bank: number, slot: number, name: string): ProgramEntry => ({
+    bank, slot, name, categoryId: 0, version: 300, sizeBytes: 100, fourcc: 'ns2p',
+  });
+  const full = (n: number) => buildOccupancy(Array.from({ length: n }, (_, i) => prog(0, i, `P${i}`)));
+
+  it('names slots in the scheme the caller passes', () => {
+    const p = planMove(buildOccupancy([prog(1, 39, 'Pad')]), { bank: 1, slot: 39 }, { bank: 1, slot: 99 }, 'pages') as Plan;
+    expect(p.summary).toBe('Move "Pad" from B:08:5 to B:20:5');
+    expect((planMove(buildOccupancy([prog(1, 39, 'Pad')]), { bank: 1, slot: 39 }, { bank: 1, slot: 99 }) as Plan).summary)
+      .toBe('Move "Pad" from B:58 to B:134');
+  });
+
+  it('lets "don\'t ask again" cover a short insert, never a long one', () => {
+    const short = planInsert(full(10), { bank: 0, slot: 4 }, { bank: 0, slot: 0 }) as Plan; // shifts 4
+    expect(short.quiet).toBe(true);
+    const long = planInsert(full(100), { bank: 0, slot: 99 }, { bank: 0, slot: 0 }) as Plan; // shifts 99
+    expect(long.quiet).toBe(false);
+    expect(long.bulk).toBe(true);
+  });
+});
+
 describe('planDelete', () => {
   it('removes one program: a journaled delete that always confirms', () => {
     const src = { bank: 2, slot: 27, name: 'Nirvana', categoryId: 0, version: 313, sizeBytes: 100, fourcc: 'ns4p' };

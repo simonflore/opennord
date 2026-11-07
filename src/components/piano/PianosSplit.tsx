@@ -35,7 +35,7 @@ export function PianosSplit({ selectedId }: { selectedId?: string }) {
         onSelect={(e) => open.piano(e.id)}
         // selectedId may name any entry of the open row.
         activeId={entry?.id ?? selectedId}
-        canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct} scanError={s.scanError}
+        canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct} scanError={s.scanError} onDismissScanError={s.dismissScanError}
         unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
         selected={s.selected} selectedEntries={s.selectedEntries} toggleSelected={s.toggleSelected}
         selectAllUnused={s.selectAllUnused} clearSelected={s.clearSelected}

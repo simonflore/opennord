@@ -6,6 +6,7 @@ import {
 } from './sample-entries';
 import { writeNsmp } from '../ns4/nsmp-write';
 import type { NsmpFile } from '../ns4/nsmp';
+import { MODELS } from '../clavia/partitions';
 import type { ScannedSample } from '../folder/scan';
 import type { BackupRef } from '../clavia/backup/backup-index';
 
@@ -45,6 +46,21 @@ describe('nordSampleEntriesFromDevice', () => {
     expect(out[0]).toMatchObject({ id: 'nord-sample:A:26', name: 'Mellotron', source: 'nord', slot: 'A:26', generation: 'unknown' });
     expect(out[0].bytes).toBeUndefined();
     expect(out[0].device).toBe(entry);   // carried for pullSample on tap
+  });
+  it('numbers a Stage 2\'s samples as its panel does, in its format, with their sizes', () => {
+    const entry = { bank: 0, slot: 4, name: 'KRG', categoryId: 0, version: 100, sizeBytes: 2048, fourcc: 'nsmp' };
+    const stage2 = MODELS['stage-2'];
+    const out = nordSampleEntriesFromDevice([entry], stage2);
+    expect(out[0]).toMatchObject({ id: 'nord-sample:A:15', slot: '5', generation: 'og', size: 2048 });
+    expect(filterSamples(out, 'all', 'og', '')).toHaveLength(1); // the .nsmp filter finds them
+  });
+  it('marks a Stage 3\'s samples .nsmp3, the one format it takes, and keeps its grid labels', () => {
+    const entry = { bank: 0, slot: 13, name: 'Pad', categoryId: 0, version: 300, sizeBytes: 10, fourcc: 'nsmp' };
+    expect(nordSampleEntriesFromDevice([entry], MODELS['stage-3'])[0]).toMatchObject({ slot: 'A:26', generation: '3' });
+  });
+  it('leaves a Stage 4\'s samples unknown: it takes .nsmp3 and .nsmp4', () => {
+    const entry = { bank: 0, slot: 13, name: 'Pad', categoryId: 0, version: 400, sizeBytes: 10, fourcc: 'nsmp' };
+    expect(nordSampleEntriesFromDevice([entry], MODELS['stage-4'])[0].generation).toBe('unknown');
   });
   it('keeps the samples of a Stage 2 past slot 64 apart from the first ones', () => {
     const device = (slot: number, name: string) => ({ bank: 0, slot, name, categoryId: 0, version: 100, sizeBytes: 0, fourcc: 'nsmp' });

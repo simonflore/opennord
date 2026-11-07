@@ -1,4 +1,5 @@
 import { slotLabel } from '../../lib/clavia/slot';
+import { deviceSlotScheme } from '../../lib/device/slot-layout';
 import { freeName } from '../../lib/clavia/name';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import type { ModelInfo } from '../../lib/clavia/partitions';
@@ -24,7 +25,7 @@ export function PushFlowPanel({ push, entries, model, bankList }: {
   if (!push.picked) {
     return <TargetSlotPicker entries={entries} model={model} bankList={bankList} onPick={push.pickSlot} onCancel={push.cancel} />;
   }
-  const where = slotLabel(push.picked.bank, push.picked.slot);
+  const where = slotLabel(push.picked.bank, push.picked.slot, deviceSlotScheme(model, entries));
   const { bank, slot } = push.picked;
   // The Nord keeps one sound per name, so a name another slot holds is numbered, as the Nord does.
   const elsewhere = entries.filter((e) => !(e.bank === bank && e.slot === slot)).map((e) => e.name);

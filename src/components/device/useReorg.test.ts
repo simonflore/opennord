@@ -4,7 +4,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useReorg } from './useReorg';
 import type { DeviceIO } from '../../lib/device/device-io';
 import type { ProgramEntry } from '../../lib/device/transfer';
-import { type Occupancy, planArrange, planDelete, planReorg } from '../../lib/device/reorg';
+import { type Occupancy, planArrange, planDelete, planInsert, planReorg } from '../../lib/device/reorg';
 
 const prog = (bank: number, slot: number, name: string): ProgramEntry => ({
   bank, slot, name, categoryId: 0, version: 313, sizeBytes: 100, fourcc: 'ns4p',
@@ -135,6 +135,19 @@ describe('useReorg', () => {
     act(() => result.current.setDontAsk(true));
     act(() => result.current.propose((occ: Occupancy) => planArrange(occ, 0, 'name')));
     expect(result.current.pendingPlan?.bulk).toBe(true); // still confirms
+  });
+
+  it('an insert applies without a confirm once "don\'t ask again" is set', async () => {
+    const entries = [prog(0, 0, 'A'), prog(0, 1, 'B'), prog(0, 2, 'C')];
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useReorg({ io: ioFor(entries), partition: 6, entries, refresh }));
+    act(() => result.current.propose((occ: Occupancy) => planInsert(occ, { bank: 0, slot: 2 }, { bank: 0, slot: 0 })));
+    expect(result.current.pendingPlan?.title).toBe('Insert program'); // asks the first time
+    act(() => result.current.setDontAsk(true));
+    act(() => result.current.cancel());
+    await act(async () => { result.current.propose((occ: Occupancy) => planInsert(occ, { bank: 0, slot: 2 }, { bank: 0, slot: 0 })); });
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    expect(result.current.pendingPlan).toBeNull();
   });
 
   it('a delete ALWAYS confirms — neither autoApply nor "don\'t ask again" skips it', () => {

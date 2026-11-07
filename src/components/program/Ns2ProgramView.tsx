@@ -10,7 +10,7 @@ import { BandedProgramView, useResolvedSampleNames, type ProgramBand } from './B
  * ns2's structure is two slots (A/B), each a complete sound with its own engines +
  * FX, plus the program's own effects (rotary, comp, reverb), all on the shared effects panel.
  */
-export function Ns2ProgramView({ bytes }: { bytes: Uint8Array }) {
+export function Ns2ProgramView({ bytes, name }: { bytes: Uint8Array; name?: string }) {
   const { slots, globalFx } = useMemo(() => decodeNs2(bytes), [bytes]);
   const active = useMemo(() => slots.filter((s) => s.active), [slots]);
   const names = useResolvedSampleNames(() => resolveNs2Names(active), [active]);
@@ -23,7 +23,7 @@ export function Ns2ProgramView({ bytes }: { bytes: Uint8Array }) {
 
   return (
     <BandedProgramView
-      header={ns2HeaderView(bytes, active)}
+      header={ns2HeaderView(bytes, active, name)}
       bands={bands}
       fx={ns2FxPanel(active, globalFx)}
       sampleRefs={ns2SampleRefs(active, names)}

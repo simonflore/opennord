@@ -1,5 +1,5 @@
 import type { ProgramEntry } from './transfer';
-import { formatDeviceSlot, bankLetter } from '../clavia/slot';
+import { formatDeviceSlot, bankLetter, type SlotScheme } from '../clavia/slot';
 
 export interface Addr { bank: number; slot: number }
 export type Op = { kind: 'copy'; from: Addr; to: Addr } | { kind: 'delete'; at: Addr };
@@ -15,6 +15,9 @@ export interface Plan {
   /** Removes a program for good (a delete, not a rearrangement). ALWAYS confirms,
    *  like a bulk plan, and "don't ask again" never covers it. */
   destructive?: boolean;
+  /** A bulk plan that "don't ask again" may still cover: an insert that shifts no
+   *  more than {@link QUIET_INSERT_MAX} programs. A longer one asks, like a sort. */
+  quiet?: boolean;
 }
 export interface PlanError { error: string }
 export type Occupancy = Map<string, ProgramEntry>;
@@ -29,12 +32,17 @@ export function buildOccupancy(entries: ProgramEntry[]): Occupancy {
   return m;
 }
 
+/** A slot as the Nord's panel names it, in the scheme the caller's view uses. */
+function slotOf(scheme: SlotScheme, a: Addr): string {
+  return formatDeviceSlot(a.bank, a.slot, scheme);
+}
+
 export function isPlanError(p: Plan | PlanError): p is PlanError {
   return (p as PlanError).error !== undefined;
 }
 
 /** Plan a move of one program into an empty slot. Copy-then-delete (no move opcode). */
-export function planMove(occ: Occupancy, from: Addr, to: Addr): Plan | PlanError {
+export function planMove(occ: Occupancy, from: Addr, to: Addr, scheme: SlotScheme = 'grid'): Plan | PlanError {
   if (addrKey(from) === addrKey(to)) return { error: 'Source and target are the same slot.' };
   const src = occ.get(addrKey(from));
   if (!src) return { error: 'There is no program in the source slot.' };
@@ -46,16 +54,16 @@ export function planMove(occ: Occupancy, from: Addr, to: Addr): Plan | PlanError
     ],
     journalSlots: [from, to],
     title: 'Move program',
-    summary: `Move "${src.name || formatDeviceSlot(from.bank, from.slot)}" from ${formatDeviceSlot(from.bank, from.slot)} to ${formatDeviceSlot(to.bank, to.slot)}`,
+    summary: `Move "${src.name || slotOf(scheme, from)}" from ${slotOf(scheme, from)} to ${slotOf(scheme, to)}`,
   };
 }
 
 /** Delete the program at `at`. Journaled like any other plan, so the executor
  *  reads its bytes first and can put it back if the delete goes wrong. */
-export function planDelete(occ: Occupancy, at: Addr): Plan | PlanError {
+export function planDelete(occ: Occupancy, at: Addr, scheme: SlotScheme = 'grid'): Plan | PlanError {
   const src = occ.get(addrKey(at));
   if (!src) return { error: 'There is no program in that slot.' };
-  const where = formatDeviceSlot(at.bank, at.slot);
+  const where = slotOf(scheme, at);
   return {
     ops: [{ kind: 'delete', at }],
     journalSlots: [at],
@@ -68,7 +76,7 @@ export function planDelete(occ: Occupancy, at: Addr): Plan | PlanError {
 /** Swap two occupied slots. Two journaled copies — the executor reads each copy's
  *  source from its pre-mutation journal, so b's bytes survive a's overwrite. No
  *  scratch slot, no delete. */
-export function planSwap(occ: Occupancy, a: Addr, b: Addr): Plan | PlanError {
+export function planSwap(occ: Occupancy, a: Addr, b: Addr, scheme: SlotScheme = 'grid'): Plan | PlanError {
   if (addrKey(a) === addrKey(b)) return { error: 'Source and target are the same slot.' };
   const A = occ.get(addrKey(a));
   const B = occ.get(addrKey(b));
@@ -80,26 +88,26 @@ export function planSwap(occ: Occupancy, a: Addr, b: Addr): Plan | PlanError {
     ],
     journalSlots: [a, b],
     title: 'Swap programs',
-    summary: `Swap "${A.name || formatDeviceSlot(a.bank, a.slot)}" (${formatDeviceSlot(a.bank, a.slot)}) and "${B.name || formatDeviceSlot(b.bank, b.slot)}" (${formatDeviceSlot(b.bank, b.slot)})`,
+    summary: `Swap "${A.name || slotOf(scheme, a)}" (${slotOf(scheme, a)}) and "${B.name || slotOf(scheme, b)}" (${slotOf(scheme, b)})`,
   };
 }
 
 /** A drop from `from` onto `to`: move into an empty target, swap with an occupied one. */
-export function planReorg(occ: Occupancy, from: Addr, to: Addr): Plan | PlanError {
+export function planReorg(occ: Occupancy, from: Addr, to: Addr, scheme: SlotScheme = 'grid'): Plan | PlanError {
   if (addrKey(from) === addrKey(to)) return { error: 'Dropped on the same slot.' };
-  return occ.has(addrKey(to)) ? planSwap(occ, from, to) : planMove(occ, from, to);
+  return occ.has(addrKey(to)) ? planSwap(occ, from, to, scheme) : planMove(occ, from, to, scheme);
 }
 
 /** Insert the program at `from` so it lands at `to`, rippling the run between by
  *  one toward the first empty slot (the vacated source counts as empty). Same bank
  *  only — a clean rotation that never needs a free slot. Dropping onto an empty
  *  slot degenerates to a plain move. Bulk (remaps a run of slots). */
-export function planInsert(occ: Occupancy, from: Addr, to: Addr): Plan | PlanError {
+export function planInsert(occ: Occupancy, from: Addr, to: Addr, scheme: SlotScheme = 'grid'): Plan | PlanError {
   if (from.bank !== to.bank) return { error: 'Insert works within one bank for now.' };
   if (addrKey(from) === addrKey(to)) return { error: 'Dropped on the same slot.' };
   const src = occ.get(addrKey(from));
   if (!src) return { error: 'There is no program in the source slot.' };
-  if (!occ.has(addrKey(to))) return planMove(occ, from, to); // onto an empty slot → plain move
+  if (!occ.has(addrKey(to))) return planMove(occ, from, to, scheme); // onto an empty slot → plain move
 
   const bank = from.bank;
   // `from` empties as the program leaves, so treat it as empty while scanning.
@@ -134,10 +142,14 @@ export function planInsert(occ: Occupancy, from: Addr, to: Addr): Plan | PlanErr
   }
   const direction = to.slot < from.slot ? 'down' : 'up';
   return {
-    ops, journalSlots, title: 'Insert program', bulk: true,
-    summary: `Insert "${src.name || formatDeviceSlot(from.bank, from.slot)}" at ${formatDeviceSlot(to.bank, to.slot)} — ${moved} ${moved === 1 ? 'program' : 'programs'} shift ${direction}`,
+    ops, journalSlots, title: 'Insert program', bulk: true, quiet: moved <= QUIET_INSERT_MAX,
+    summary: `Insert "${src.name || slotOf(scheme, from)}" at ${slotOf(scheme, to)} — ${moved} ${moved === 1 ? 'program' : 'programs'} shift ${direction}`,
   };
 }
+
+/** The most programs an insert may shift and still go without asking once "don't
+ *  ask again" is set: a Stage 2 page. Past it, slot numbers move like a sort's. */
+export const QUIET_INSERT_MAX = 5;
 
 export type ArrangeMode = 'name' | 'compact';
 

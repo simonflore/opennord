@@ -63,7 +63,12 @@ Press **Organize**:
 2. Drag a program onto an empty slot to move it, or onto another program.
 3. Per bank, **Sort A–Z** and **Compact** (close the gaps).
 4. Confirm. **Back up my Nord first** is ticked by default and downloads a
-   safety backup before anything moves.
+   safety backup before anything moves. Tick **Don’t ask again this session**
+   to move, swap and insert without the dialog. A sort, a compact, a delete and
+   an insert that moves more than five programs always ask.
+
+Slots are labelled as on your Nord: A:12 on a Stage 3 or 4, and bank, page and
+program on a Stage 2, like B:08:5, with a row per page.
 
 Press **Done organizing** when you're finished.
 

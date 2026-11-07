@@ -7,6 +7,11 @@
   gap: 6px;
 }
 
+/* A Stage 2 bank: one page of five programs per row, as on its panel. */
+.slot-grid--pages {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .slot-grid__cell {
   position: relative;
   display: flex;

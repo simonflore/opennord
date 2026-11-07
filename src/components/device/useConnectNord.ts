@@ -11,6 +11,7 @@ import { isPlayerFacing } from '../../lib/device/player-message';
 import { NordSession } from '../../lib/device/session';
 import { NordStatus, SessionRefusedError } from '../../lib/device/protocol';
 import { enumeratePrograms, type ProgramEntry } from '../../lib/device/transfer';
+import { deviceSlotScheme } from '../../lib/device/slot-layout';
 import { connectedDeviceName, hasTrustedLayout, identifyDevice, resolveDeviceAccess, PROBE_REPLY_TIMEOUT_MS, type DeviceIdentity } from '../../lib/device/connect-probe';
 import { modelById } from '../../lib/clavia/partitions';
 import { findAuthorizedDevice } from '../../lib/device/authorized';
@@ -149,6 +150,7 @@ export function useConnectNord(onConnected: OnConnected) {
     // nothing before this) would otherwise leave "Connecting…" up for good.
     const entries = await session.withReplyTimeout(CONNECT_REPLY_TIMEOUT_MS, () =>
       session.withSession(session.programPartition, () => enumeratePrograms(session)));
+    session.slotScheme = deviceSlotScheme(deviceIdentity.model, entries);
     endConnect({ status: 'connected', message: '' });
     onConnected(session, entries, deviceName, productId);
   }

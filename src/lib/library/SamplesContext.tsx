@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
+import { identifyDevice } from '@/lib/device/connect-probe';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { useImportedSamples } from '@/lib/library/useImportedSamples';
 import { useSamplesPrefs } from '@/lib/library/prefs';
@@ -60,7 +61,8 @@ function keptSampleFilename(e: SampleEntry, bytes: Uint8Array): string {
 /** Merges device + folder samples into one filtered/sorted list and owns the
  *  Samples-screen view state. Mirrors useLibraryStateValue for programs. */
 function useSamplesStateValue() {
-  const { session, sampleEntries, setSampleEntries, isCurrent } = useDevice();
+  const { session, sampleEntries, setSampleEntries, isCurrent, productId } = useDevice();
+  const model = identifyDevice(productId).model;
   const folder = useFolder();
   const imported = useImportedSamples();
   const prefs = useSamplesPrefs();
@@ -122,7 +124,7 @@ function useSamplesStateValue() {
 
   // Tag device samples the scan found unused (match by normalized name).
   const unusedNames = useMemo(() => (usage ? new Set(usage.unused.map((s) => normalizeSampleName(s.name))) : null), [usage]);
-  const nordSamples = useMemo(() => nordSampleEntriesFromDevice(sampleEntries), [sampleEntries]);
+  const nordSamples = useMemo(() => nordSampleEntriesFromDevice(sampleEntries, model), [sampleEntries, model]);
   useReportRepeatedIds('sample', nordSamples);
   const allEntries: SampleEntry[] = useMemo(() => [
     ...nordSamples.map((e) =>
@@ -287,7 +289,7 @@ function useSamplesStateValue() {
     category, setCategory, categoriesPresent, query, setQuery,
     prefs, entryById, nordCount, localCount, showSourceFacet, showUnknownGen, folder,
     // Sample-usage cleanup (device-connected)
-    canScanUsage: !!session, scanUsage, scanPct, scanError, unusedCount,
+    canScanUsage: !!session, scanUsage, scanPct, scanError, dismissScanError: () => setScanError(''), unusedCount,
     unusedOnly, setUnusedOnly, missingCount: usage ? usage.missing.length : null,
     importSample: imported.add, removeSample: imported.remove, storedCount, storedBytes,
     // Selection + removal

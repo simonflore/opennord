@@ -56,7 +56,8 @@ OpenNord never shares them.
 With a Nord connected:
 
 1. Press **Find unused samples**: OpenNord checks which samples no program on
-   the keyboard uses. **Unused only** lists them.
+   the keyboard uses. **Unused only** lists them. If the check can't finish,
+   it says so and changes nothing; **Dismiss** clears the message.
 2. Select the ones to remove and press **Delete from Nord**. The dialog says
    how much space it frees.
 3. Tick **Save a copy to a folder first** to keep them.

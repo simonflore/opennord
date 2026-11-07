@@ -1,13 +1,16 @@
 import { type ProgramEntry } from '../../lib/device/transfer';
 import type { PartitionCapacity } from '../../lib/device/capacity';
-import { formatDeviceSlot } from '../../lib/clavia/slot';
+import { formatDeviceSlot, sampleSlotScheme } from '../../lib/clavia/slot';
+import type { ModelInfo } from '../../lib/clavia/partitions';
 import { formatBytes } from '../../lib/format';
 import { StorageMeter } from './StorageMeter';
 import { IdentityLcd } from '../program/widgets';
 
 /** The board's samples (Samp Lib partition) as a flat list; tap one to pull + open. */
-export function DeviceSampleBrowser({ entries, deviceName, sampleCapacity, pianoCapacity, onSelect }: {
+export function DeviceSampleBrowser({ entries, model, deviceName, sampleCapacity, pianoCapacity, onSelect }: {
   entries: ProgramEntry[];
+  /** The connected Nord's model, for how its panel numbers samples. */
+  model?: ModelInfo;
   deviceName: string;
   /** Sample Library storage (byte-constrained), or null while it loads. */
   sampleCapacity: PartitionCapacity | null;
@@ -15,6 +18,7 @@ export function DeviceSampleBrowser({ entries, deviceName, sampleCapacity, piano
   pianoCapacity: PartitionCapacity | null;
   onSelect: (entry: ProgramEntry) => void;
 }) {
+  const scheme = sampleSlotScheme(model);
   const sorted = entries.slice().sort((a, b) => a.bank - b.bank || a.slot - b.slot);
   return (
     <div className="ps">
@@ -34,8 +38,8 @@ export function DeviceSampleBrowser({ entries, deviceName, sampleCapacity, piano
           {sorted.map((e) => (
             <div key={`${e.bank}-${e.slot}`} className="ps-row">
               <button className="ps-row-open" onClick={() => onSelect(e)}>
-                <span className="ps-row-slot">{formatDeviceSlot(e.bank, e.slot)}</span>
-                <span style={{ flex: 1, fontWeight: 600 }}>{e.name || `(slot ${formatDeviceSlot(e.bank, e.slot)})`}</span>
+                <span className="ps-row-slot">{formatDeviceSlot(e.bank, e.slot, scheme)}</span>
+                <span style={{ flex: 1, fontWeight: 600 }}>{e.name || `(slot ${formatDeviceSlot(e.bank, e.slot, scheme)})`}</span>
                 <span className="ps-fact">{formatBytes(e.sizeBytes)}</span>
               </button>
             </div>

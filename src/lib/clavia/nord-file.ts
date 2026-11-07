@@ -16,7 +16,7 @@
  */
 import { hasCbinMagic, readCbinHeader } from './cbin';
 import { programCategoryName } from './categories';
-import { formatSlot, wave2Slot, electro5Slot, lead4Slot, BANK_LETTERS } from './slot';
+import { formatSlot, formatDeviceSlot, wave2Slot, electro5Slot, lead4Slot, BANK_LETTERS } from './slot';
 import { modelById, modelByTag, type NordModelId } from './partitions';
 import { fileTagInfo, fileTagLabel, type NordFileKind } from './file-tags';
 
@@ -115,12 +115,16 @@ export function identifyNordFile(bytes: Uint8Array): NordFileInfo {
     // "unhandled" (base class sequential display), not the Stage 8-column grid.
     // nl4p: Lead 4 — 2-bank/50-slot sequential.
     // ne5p: Electro 5 — same sequential scheme.
-    // ns2p and ne4p use the raw location value directly (sequential 0-based raw display).
+    // ns2p: the raw 0-based program number, shown as the Stage 2 panel shows it,
+    // bank : page (01–20) : program (1–5) — confirmed on a Stage 2 EX.
+    // ne4p uses the raw location value directly.
     info.slot = h.tag === 'ne5p'
       ? electro5Slot(h.bank, h.location)
       : h.tag === 'nl4p'
         ? lead4Slot(h.bank, h.location)
-        : `${BANK_LETTERS[h.bank & 0x7] ?? h.bank}:${h.location}`;
+        : h.tag === 'ns2p'
+          ? formatDeviceSlot(h.bank & 0x7, h.location, 'pages')
+          : `${BANK_LETTERS[h.bank & 0x7] ?? h.bank}:${h.location}`;
     info.category = h.category;
     info.categoryName = programCategoryName(h.category);
   }

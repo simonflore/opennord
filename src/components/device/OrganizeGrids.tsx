@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import '../../styles/nord.css';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import type { ModelInfo } from '../../lib/clavia/partitions';
-import { deviceSlotLayout } from '../../lib/device/slot-layout';
+import { deviceSlotLayout, deviceSlotScheme } from '../../lib/device/slot-layout';
 import type { BankInfo } from '../../lib/device/capacity';
 import { SlotGrid } from './SlotGrid';
 import { BankLabel } from './BankLabel';
@@ -26,9 +26,12 @@ export function OrganizeGrids({ entries, model, bankList, reorg, confirmExtra }:
   confirmExtra?: ReactNode;
 }) {
   const [mode, setMode] = useState<'swap' | 'insert'>('swap');
+  // The cells and every plan's summary use one scheme (the live flow passes the
+  // session's, which its own move/swap gestures use too), so a drop and its confirm agree.
+  const scheme = reorg.scheme ?? deviceSlotScheme(model, entries);
   const routeGesture = (g: { kind: 'move'; from: Addr; to: Addr }) =>
-    mode === 'insert' ? reorg.propose((occ) => planInsert(occ, g.from, g.to)) : reorg.onGesture(g);
-  const remove = (at: Addr) => reorg.propose((occ) => planDelete(occ, at));
+    mode === 'insert' ? reorg.propose((occ) => planInsert(occ, g.from, g.to, scheme)) : reorg.onGesture(g);
+  const remove = (at: Addr) => reorg.propose((occ) => planDelete(occ, at, scheme));
   const plan = reorg.pendingPlan;
   const { banks, perBank } = deviceSlotLayout(model, entries, bankList);
   const verb = plan?.destructive ? 'Delete' : plan?.bulk
@@ -65,7 +68,7 @@ export function OrganizeGrids({ entries, model, bankList, reorg, confirmExtra }:
                 </div>
               )}
             </div>
-            <SlotGrid bank={bank} slotCount={perBank} entries={entries} onGesture={routeGesture} onDelete={reorg.busy ? undefined : remove} mode={mode} />
+            <SlotGrid bank={bank} slotCount={perBank} entries={entries} onGesture={routeGesture} onDelete={reorg.busy ? undefined : remove} mode={mode} scheme={scheme} />
           </div>
         );
       })}
@@ -95,7 +98,7 @@ export function OrganizeGrids({ entries, model, bankList, reorg, confirmExtra }:
           </p>
         )}
         {confirmExtra}
-        {!plan?.destructive && (
+        {!plan?.destructive && (!plan?.bulk || plan.quiet) && (
           <label className="ps-sub" style={{ display: 'block', marginTop: 8 }}>
             <input type="checkbox" checked={reorg.dontAsk} onChange={(e) => reorg.setDontAsk(e.target.checked)} />{' '}
             Don’t ask again this session

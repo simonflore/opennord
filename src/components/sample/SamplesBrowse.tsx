@@ -39,7 +39,7 @@ const SORT_LABEL: Record<SampleSort, string> = {
   'name-desc': 'Name (Z–A)',
   size: 'Largest first',
   'size-asc': 'Smallest first',
-  strokes: 'Most samples',
+  strokes: 'Most recordings',
 };
 
 export function SamplesBrowse(
@@ -47,7 +47,7 @@ export function SamplesBrowse(
     category = 'all', onCategory, categoriesPresent = [],
     onSource, onGeneration, onQuery, clearFilters, filtered, onOpen, onImport, onBuild, onRemove, activeId,
     storedCount, storedBytes, prefs,
-    canScanUsage, onScanUsage, scanPct, scanError, unusedCount, unusedOnly, onUnusedOnly,
+    canScanUsage, onScanUsage, scanPct, scanError, onDismissScanError, unusedCount, unusedOnly, onUnusedOnly,
     selected, selectedEntries, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,
     removeFromNord, removing, removePct }: {
     entries: SampleEntry[];
@@ -84,6 +84,8 @@ export function SamplesBrowse(
     onScanUsage: () => void;
     scanPct: number | null;
     scanError?: string;
+    /** Clears the scan's message once read. */
+    onDismissScanError?: () => void;
     unusedCount: number | null;
     unusedOnly: boolean;
     onUnusedOnly: (v: boolean) => void;
@@ -200,7 +202,12 @@ export function SamplesBrowse(
 
   const banners = (
     <>
-      {scanError && <p className="mb-3 text-xs text-danger" role="alert">{scanError}</p>}
+      {scanError && (
+        <div className="mb-3 flex items-start gap-2" role="alert">
+          <p className="m-0 flex-1 text-xs text-danger">{scanError}</p>
+          {onDismissScanError && <Button variant="ghost" onClick={onDismissScanError}>Dismiss</Button>}
+        </div>
+      )}
       {/* Reclaim bar — shown when at least one sample is selected */}
       {selected.size > 0 && (
         <div

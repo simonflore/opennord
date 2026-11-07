@@ -18,8 +18,9 @@ it is untested; see [Supported instruments](/docs/reference/instruments/).
 1. [Connect your Nord](/docs/guide/connect/).
 2. Open the program in the Library and press **Send to Nord**, or press
    **Send a file to Nord…** on the **Device** page and pick a program file.
-3. **Choose a slot.** Slots are shown the way the Nord shows them, like A:12,
-   with the program in each, or "— empty".
+3. **Choose a slot.** Slots are shown the way the Nord shows them, like A:12
+   (on a Stage 2: bank, page and program, like B:08:5), with the program in
+   each, or "— empty".
 4. Check the confirmation: "This replaces “Name” at A:12." or "Send to A:12
    (currently empty)." It also shows the name the program will have on the
    Nord (a name that's already used gets a number).

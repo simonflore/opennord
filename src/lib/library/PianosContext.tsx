@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useDevice } from '@/lib/device/DeviceContext';
+import { identifyDevice } from '@/lib/device/connect-probe';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { usePianosPrefs } from '@/lib/library/prefs';
 import { useReportRepeatedIds } from '@/lib/library/useReportRepeatedIds';
@@ -37,7 +38,8 @@ const PIANO_ROWS = { fingerprint: sameSizeOnly<PianoEntry> };
 /** Merges device + folder pianos into one filtered/sorted list and owns the
  *  Pianos-screen view state. Mirrors SamplesContext with piano-specific deltas. */
 function usePianosStateValue() {
-  const { session, pianoEntries, setPianoEntries, isCurrent } = useDevice();
+  const { session, pianoEntries, setPianoEntries, isCurrent, productId } = useDevice();
+  const model = identifyDevice(productId).model;
   const folder = useFolder();
   const prefs = usePianosPrefs();
   const [source, setSource] = useState<LibrarySource | 'all'>('all');
@@ -94,7 +96,7 @@ function usePianosStateValue() {
 
   // Tag device pianos the scan found unused (match by normalized name).
   const unusedNames = useMemo(() => (usage ? new Set(usage.unused.map((s) => normalizeSampleName(s.name))) : null), [usage]);
-  const nordPianos = useMemo(() => pianoEntriesFromDevice(pianoEntries), [pianoEntries]);
+  const nordPianos = useMemo(() => pianoEntriesFromDevice(pianoEntries, model), [pianoEntries, model]);
   useReportRepeatedIds('piano', nordPianos);
   const allEntries: PianoEntry[] = useMemo(() => [
     ...nordPianos.map((e) =>
@@ -181,7 +183,7 @@ function usePianosStateValue() {
     all: allEntries, rows, clearFilters, filtered, ensureListed,
     shown, source, setSource, query, setQuery, prefs, entryById, nordCount, localCount, showSourceFacet, folder, session,
     // Piano-usage cleanup (device-connected)
-    canScanUsage: !!session, scanUsage, scanPct, scanError, unusedCount,
+    canScanUsage: !!session, scanUsage, scanPct, scanError, dismissScanError: () => setScanError(''), unusedCount,
     unusedOnly, setUnusedOnly,
     // Selection + removal
     selected, selectedEntries, toggleSelected, selectAllUnused, clearSelected, selectedFreeBytes,

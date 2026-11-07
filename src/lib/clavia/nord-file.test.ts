@@ -56,7 +56,7 @@ describe('identifyNordFile', () => {
     // → slot 69), category shares the enum (12 = Synth), 0x14 is not the version.
     const info = identifyNordFile(cbin('ns2p', 0, { bank: 3, loc: 69, cat: 12, ver: 6 }));
     expect(info).toMatchObject({ recognized: true, generation: 'Stage 2', kind: 'program', formatType: 0, headerDecoded: true, fullyDecoded: false });
-    expect(info.slot).toBe('D:69');          // raw location, not the NSM page-encoding
+    expect(info.slot).toBe('D:14:5');        // raw program 69 → page 14, program 5, as the panel shows it
     expect(info.categoryName).toBe('Synth');
     expect(info.version).toBeUndefined();    // legacy header has no OS version here
   });

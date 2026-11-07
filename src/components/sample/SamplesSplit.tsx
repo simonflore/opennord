@@ -99,7 +99,7 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
         onRemove={onRemove}
         storedCount={s.storedCount} storedBytes={s.storedBytes}
         prefs={s.prefs}
-        canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct} scanError={s.scanError}
+        canScanUsage={s.canScanUsage} onScanUsage={() => void s.scanUsage()} scanPct={s.scanPct} scanError={s.scanError} onDismissScanError={s.dismissScanError}
         unusedCount={s.unusedCount} unusedOnly={s.unusedOnly} onUnusedOnly={s.setUnusedOnly}
         selected={s.selected} selectedEntries={s.selectedEntries} toggleSelected={s.toggleSelected}
         selectAllUnused={s.selectAllUnused} clearSelected={s.clearSelected}

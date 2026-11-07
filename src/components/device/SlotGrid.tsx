@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ProgramEntry } from '../../lib/device/transfer';
 import type { Addr } from '../../lib/device/reorg';
-import { formatDeviceSlot, bankLetter } from '../../lib/clavia/slot';
+import { formatDeviceSlot, bankLetter, type SlotScheme } from '../../lib/clavia/slot';
 import './slotgrid.css';
 
 interface Props {
@@ -12,6 +12,8 @@ interface Props {
   /** Offer a delete button on each occupied slot; the caller confirms. */
   onDelete?(at: Addr): void;
   mode?: 'swap' | 'insert';
+  /** How this Nord labels its slots (a Stage 2's bank : page : program). */
+  scheme?: SlotScheme;
 }
 
 /** MIME carried on the drag so the source {bank,slot} travels with it — across grid
@@ -20,7 +22,7 @@ const DRAG_MIME = 'application/x-nord-slot';
 
 /** A grid of one bank's slots. Drag an occupied slot onto an empty one — in this or
  *  any other bank's grid — to move it. */
-export function SlotGrid({ bank, slotCount, entries, onGesture, onDelete, mode = 'swap' }: Props) {
+export function SlotGrid({ bank, slotCount, entries, onGesture, onDelete, mode = 'swap', scheme = 'grid' }: Props) {
   const bySlot = new Map(entries.filter((e) => e.bank === bank).map((e) => [e.slot, e]));
   const bankLabel = bankLetter(bank);
   // Highlight-only: which empty cell a drag is currently over. Local to this grid
@@ -29,7 +31,7 @@ export function SlotGrid({ bank, slotCount, entries, onGesture, onDelete, mode =
   const [overSlot, setOverSlot] = useState<number | null>(null);
 
   return (
-    <div className="slot-grid" role="grid" aria-label={`Bank ${bankLabel}`}>
+    <div className={`slot-grid${scheme === 'pages' ? ' slot-grid--pages' : ''}`} role="grid" aria-label={`Bank ${bankLabel}`}>
       {Array.from({ length: slotCount }, (_, slot) => {
         const e = bySlot.get(slot);
         const occupied = e !== undefined;
@@ -46,7 +48,7 @@ export function SlotGrid({ bank, slotCount, entries, onGesture, onDelete, mode =
                 : ''
             }`}
             draggable={occupied}
-            aria-label={`${formatDeviceSlot(bank, slot)}${occupied ? `: ${e!.name}` : ' (empty)'}`}
+            aria-label={`${formatDeviceSlot(bank, slot, scheme)}${occupied ? `: ${e!.name}` : ' (empty)'}`}
             title={occupied
               ? (mode === 'insert' ? 'Drop a program here to insert it — the programs after it shift down' : 'Drop a program here to swap')
               : undefined}
@@ -72,14 +74,14 @@ export function SlotGrid({ bank, slotCount, entries, onGesture, onDelete, mode =
               onGesture({ kind: 'move', from, to: { bank, slot } });
             }}
           >
-            <span className="slot-grid__label">{formatDeviceSlot(bank, slot)}</span>
+            <span className="slot-grid__label">{formatDeviceSlot(bank, slot, scheme)}</span>
             {occupied && <span className="slot-grid__name">{e!.name}</span>}
             {occupied && onDelete && (
               <button
                 type="button"
                 className="slot-grid__delete"
                 draggable={false}
-                aria-label={`Delete ${e!.name || 'program'} (${formatDeviceSlot(bank, slot)})`}
+                aria-label={`Delete ${e!.name || 'program'} (${formatDeviceSlot(bank, slot, scheme)})`}
                 title={`Delete ${e!.name || 'this program'}`}
                 onClick={(ev) => { ev.stopPropagation(); onDelete({ bank, slot }); }}
               >

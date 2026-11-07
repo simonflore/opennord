@@ -173,11 +173,12 @@ export function ns2SampleRefs(slots: Ns2Slot[], names: Record<string, string>): 
   return refs;
 }
 
-export function ns2HeaderView(bytes: Uint8Array, slots: Ns2Slot[]): HeaderView {
+export function ns2HeaderView(bytes: Uint8Array, slots: Ns2Slot[], name?: string): HeaderView {
   const info = identifyNordFile(bytes);
   return {
-    // ns2 stores no program name — show 'Unnamed' (the slot already appears as a pill).
-    name: 'Unnamed',
+    // The ns2 body stores no program name: it lives in the filename (or the Nord's
+    // listing), which the caller passes. 'Unnamed' only when there is none.
+    name: name?.trim() || 'Unnamed',
     slot: info.slot ?? '—',
     category: info.categoryName ?? '—',
     version: info.version ? `v${info.version}` : '—',

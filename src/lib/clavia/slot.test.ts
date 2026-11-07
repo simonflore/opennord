@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatSlot, formatDeviceSlot, wave2Slot, electro5Slot, lead4Slot } from './slot';
+import { formatSlot, formatDeviceSlot, wave2Slot, electro5Slot, lead4Slot, programSlotScheme, sampleSlotScheme } from './slot';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -64,6 +64,29 @@ describe('formatSlot', () => {
   it('reads a file header\'s location as the 6-bit grid, whatever sits above it', () => {
     expect(formatSlot(0, 0x40)).toBe('A:11');
     expect(formatSlot(2, 0xff)).toBe('C:88');
+  });
+});
+
+describe('Stage 2 panel labels', () => {
+  it('reads a Stage 2 slot as bank : page : program, as its panel does', () => {
+    expect(formatDeviceSlot(0, 0, 'pages')).toBe('A:01:1');
+    expect(formatDeviceSlot(1, 39, 'pages')).toBe('B:08:5'); // OpenNord once showed this as B:58
+    expect(formatDeviceSlot(1, 99, 'pages')).toBe('B:20:5'); // …and this as B:134
+    expect(new Set(Array.from({ length: 100 }, (_, s) => formatDeviceSlot(0, s, 'pages'))).size).toBe(100);
+  });
+
+  it('numbers a Stage 2 sample slot plainly', () => {
+    expect(formatDeviceSlot(0, 0, 'number')).toBe('1');
+    expect(sampleSlotScheme('stage-2-ex')).toBe('number');
+    expect(sampleSlotScheme('stage-4')).toBe('grid');
+  });
+
+  it('picks the scheme from the model or a listed program type', () => {
+    expect(programSlotScheme({ id: 'stage-2' })).toBe('pages');
+    expect(programSlotScheme('stage-2-ex')).toBe('pages');
+    expect(programSlotScheme('ns2p')).toBe('pages');
+    expect(programSlotScheme('ns4p')).toBe('grid');
+    expect(programSlotScheme(undefined)).toBe('grid');
   });
 });
 

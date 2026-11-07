@@ -87,6 +87,7 @@ export function DeviceManager() {
     refresh: () => refresh(session!),
     backupOnce,
     run: (fn) => session!.withSession(session!.programPartition, fn),
+    scheme: session?.slotScheme,
   });
   const reorgConfirmExtra = (
     <label className="ps-sub" style={{ display: 'block', marginTop: 8 }}>
@@ -144,7 +145,7 @@ export function DeviceManager() {
     return (
       <ConfirmPanel
         title="Delete from Nord?"
-        message={`Permanently deletes "${del.pendingDelete.name}" from ${slotLabel(del.pendingDelete.bank, del.pendingDelete.slot)}. Back up your Nord first if you may want it back.`}
+        message={`Permanently deletes "${del.pendingDelete.name}" from ${slotLabel(del.pendingDelete.bank, del.pendingDelete.slot, session.slotScheme)}. Back up your Nord first if you may want it back.`}
         confirmLabel="Delete from Nord"
         busy={del.busy}
         onConfirm={del.confirmDelete}
@@ -208,6 +209,7 @@ export function DeviceManager() {
       ) : (
         <DeviceSampleBrowser
           entries={samples.sampleEntries}
+          model={model}
           deviceName={deviceName}
           sampleCapacity={samples.sampleCapacity}
           pianoCapacity={samples.pianoCapacity}

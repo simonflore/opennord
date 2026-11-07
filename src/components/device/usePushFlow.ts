@@ -68,7 +68,7 @@ export function usePushFlow(
       });
       await refresh(session);
       cancel();
-    }, (e) => `Could not write to ${formatDeviceSlot(picked.bank, picked.slot)}: ${getErrorMessage(e)}`);
+    }, (e) => `Could not write to ${formatDeviceSlot(picked.bank, picked.slot, session.slotScheme)}: ${getErrorMessage(e)}`);
   }
 
   return { pushSource, picked, pickSlot, unpick, error, busy, startPush, startSendFile, confirmPush, cancel };

@@ -3,6 +3,7 @@ import { encodeMessage, decodeReply, NordError, NordStatus, SessionRefusedError,
 import { CReqBegin, CReqEnd, PARTITION_PROGRAM, PROTOCOL_ID, PROTOCOL_VERSION } from './opcodes';
 import { PROTOCOL_NEGOTIATE, MSG_QRY_VERSIONS, isKnownFileTransferVersion, parseVersionReply } from './negotiate';
 import { WriteBlockedError } from './write-guard';
+import type { SlotScheme } from '../clavia/slot';
 
 /** Largest single reply we expect (program bodies are < 1 KB; windowed reads keep chunks small). */
 const READ_BUFFER = 8192;
@@ -51,6 +52,11 @@ export class NordSession {
    *  model those indices are different partitions, so a backup there holds the
    *  programs only (see backup.ts) and its presets are not listed. */
   stage4Layout = false;
+
+  /** How this Nord's panel labels its program slots (a Stage 2's bank : page :
+   *  program). Set by the connect flow from `deviceSlotScheme`; what the session's
+   *  own messages name a slot with. */
+  slotScheme: SlotScheme = 'grid';
 
   /** Partitions this session may write to. Empty by default, so a session that
    *  never had its layout confirmed refuses every write; the connect flow fills
