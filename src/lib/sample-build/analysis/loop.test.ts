@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findLoop } from './loop';
+import { findLoop, loopJoinMatch } from './loop';
 import type { ClipAudio } from '../render';
 
 const SR = 44100;
@@ -76,5 +76,16 @@ describe('findLoop', () => {
     const loop = findLoop({ sampleRate: SR, channels: [ch] }, { start: 0, end: ch.length })!;
     expect(loop).not.toBeNull();
     expect(loop.match).toBeLessThan(0.9);
+  });
+
+  it('measures the join of any loop: the found one scores as found, a careless one low', () => {
+    const ch = shaped(2, (i) => Math.sin((2 * Math.PI * 220 * i) / SR));
+    const audio: ClipAudio = { sampleRate: SR, channels: [ch] };
+    const l = findLoop(audio, { start: 0, end: ch.length })!;
+    expect(loopJoinMatch(audio, l.start, l.end)).toBeCloseTo(l.match, 5);
+    expect(loopJoinMatch(audio, l.start + 50, l.end)!).toBeLessThan(0.5);
+    expect(loopJoinMatch(audio, 10, 20)).toBeNull();
+    // A crossfade over the compared stretch smooths the careless join, as the sample plays it.
+    expect(loopJoinMatch(audio, l.start + 50, l.end, Math.round(0.05 * SR))!).toBeGreaterThan(0.9); // no longer marked
   });
 });

@@ -19,20 +19,20 @@ describe('BuildList', () => {
     expect(onOpen).toHaveBeenCalledWith(p.id);
   });
 
-  it('starts a build from an SFZ instrument, and says while it imports', async () => {
-    const onImportSfz = vi.fn();
-    const { rerender } = render(<BuildList onOpen={vi.fn()} onNew={vi.fn()} onOpenFile={vi.fn()} onImportSfz={onImportSfz} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Import SFZ…' }));
-    expect(onImportSfz).toHaveBeenCalled();
-    rerender(<BuildList onOpen={vi.fn()} onNew={vi.fn()} onOpenFile={vi.fn()} onImportSfz={onImportSfz} importing />);
-    expect(screen.getByRole('button', { name: 'Importing…' })).toBeDisabled();
-  });
-
-  it('starts a new build', async () => {
-    const onNew = vi.fn();
-    render(<BuildList onOpen={vi.fn()} onNew={onNew} onOpenFile={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'New build' }));
-    await waitFor(() => expect(onNew).toHaveBeenCalled());
+  it('offers every way to start in one New build menu, and says while it opens one', async () => {
+    const calls = { onNew: vi.fn(), onOpenFile: vi.fn(), onOpenSampleFile: vi.fn(), onImportSfz: vi.fn(), onImportNsmpproj: vi.fn() };
+    const { rerender } = render(<BuildList onOpen={vi.fn()} {...calls} />);
+    const items: [string, keyof typeof calls][] = [
+      ['From recordings', 'onNew'], ['From a sample file…', 'onOpenSampleFile'], ['From an SFZ instrument…', 'onImportSfz'],
+      ['From a Nord Sample Editor project…', 'onImportNsmpproj'], ['Open a saved build…', 'onOpenFile'],
+    ];
+    for (const [label, call] of items) {
+      fireEvent.keyDown(screen.getByRole('button', { name: 'New build ▾' }), { key: 'Enter' });
+      fireEvent.click(screen.getByRole('menuitem', { name: new RegExp(`^${label.replace(/[.…]/g, '.')}`) }));
+      await waitFor(() => expect(calls[call]).toHaveBeenCalled());
+    }
+    rerender(<BuildList onOpen={vi.fn()} {...calls} importing />);
+    expect(screen.getByRole('button', { name: 'Opening…' })).toBeDisabled();
   });
 
   it('asks before deleting a build, and keeps it on Cancel', async () => {

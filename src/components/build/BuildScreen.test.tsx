@@ -40,7 +40,7 @@ describe('BuildScreen', () => {
     const input = screen.getByLabelText('Add files…');
     fireEvent.change(input, { target: { files: [wavFile('Rhodes_C3.wav', 130.81), wavFile('Rhodes_C4.wav', 261.63)] } });
     // The first zone is selected at once, so its take names a file too: look in the clip list.
-    const clips = await screen.findByRole('complementary', { name: 'Clips' });
+    const clips = await screen.findByRole('complementary', { name: 'Recordings' });
     expect(await within(clips).findByText('Rhodes_C3.wav')).toBeInTheDocument();
     expect(within(clips).getByText('Rhodes_C4.wav')).toBeInTheDocument();
     expect(screen.getAllByText(/zone C3|zone C4/)).toHaveLength(2);
@@ -102,15 +102,20 @@ describe('BuildScreen', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('All takes: finds a loop in every take and normalizes them, saying what it did', async () => {
+  it('the take tools act on all takes when switched, saying what they did; the overview lists every zone', async () => {
     await open();
     fireEvent.change(screen.getByLabelText('Add files…'), { target: { files: [wavFile('Rhodes_C3.wav', 130.81), wavFile('Rhodes_C4.wav', 261.63)] } });
-    const tools = await screen.findByRole('group', { name: 'All takes' });
+    const tools = await screen.findByRole('group', { name: 'Take tools' });
+    fireEvent.click(within(tools).getByRole('radio', { name: 'All takes' }));
     fireEvent.click(within(tools).getByRole('button', { name: 'Find loops' }));
     expect(await screen.findByText(/^Loops found in 2 takes/)).toBeInTheDocument();
     fireEvent.click(within(tools).getByRole('button', { name: 'Normalize' }));
     expect(await screen.findByText(/^Levels set on 2 takes/)).toBeInTheDocument();
+    const overview = screen.getByRole('region', { name: 'Takes overview' });
+    expect(within(overview).getAllByRole('button', { name: /C3|C4/ })).toHaveLength(2);
+    expect(within(overview).getAllByText(/^loop /)).toHaveLength(2);
   });
+
 
   it('picks the sample’s category, User until changed', async () => {
     const id = await open();
@@ -119,5 +124,11 @@ describe('BuildScreen', () => {
     fireEvent.change(cat, { target: { value: '9' } });
     expect(cat).toHaveDisplayValue('Strings');
     await waitFor(async () => expect((await loadProject(id))?.category).toBe(9));
+  });
+
+  it('an empty build says how a build goes, with a link to how it works', async () => {
+    await open();
+    expect(screen.getByText(/recordings → zones on the keys → a sample on your Nord/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'How Build a sample works' })).toHaveAttribute('href', expect.stringMatching(/guide\/build-sample\/#how-it-fits-together$/));
   });
 });

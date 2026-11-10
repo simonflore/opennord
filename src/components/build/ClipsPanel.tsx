@@ -28,9 +28,9 @@ export function ClipsPanel({ project, activeClipId, onAddFiles, onRecord, onSpli
   const total = project.clips.reduce((s, c) => s + c.frames / c.sampleRate, 0);
 
   return (
-    <aside aria-label="Clips" className="flex flex-col gap-3.5">
+    <aside aria-label="Recordings" className="flex flex-col gap-3.5">
       <div className="flex items-baseline justify-between">
-        <SectionLabel>Clips</SectionLabel>
+        <SectionLabel>Recordings</SectionLabel>
         {project.clips.length > 0 && <span className="font-mono text-xs text-muted">{project.clips.length} · {seconds(total)}</span>}
       </div>
       <div className="flex gap-2">

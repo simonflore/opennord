@@ -77,7 +77,6 @@ describe('find loops across a build', () => {
     const { p, audio } = project([tone(0.5), tone(0.3, 2)]);
     const r = findLoopsAll(p, (id) => audio.get(id));
     expect(r.report.changed).toBe(2);
-    expect(r.report.weakestMatch).toBeGreaterThan(0.95);
     for (const z of r.project.zones) {
       const t = z.takes[0];
       expect(t.loop).not.toBeNull();

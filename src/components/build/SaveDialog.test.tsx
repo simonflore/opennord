@@ -28,6 +28,12 @@ const space: { capacity: unknown; places: { bank: number; slot: number; label: s
 vi.mock('@/components/device/useSampleSpace', () => ({ useSampleSpace: () => space }));
 import { downloadBytes } from '@/lib/download';
 import { SaveDialog } from './SaveDialog';
+
+/** Pick one of the Save dialog's other ways to save (in its fold-out). */
+function otherWay(name: 'Save project file' | 'Save for Nord Sample Editor') {
+  fireEvent.click(screen.getByText('Other ways to save'));
+  fireEvent.click(screen.getByRole('button', { name, hidden: true }));
+}
 import type { LastBuild } from './useBuiltFile';
 import { NOT_YET_TRIED } from '@/lib/device/write-guard';
 
@@ -64,14 +70,14 @@ describe('SaveDialog', () => {
   it('downloads the project file', async () => {
     const { p, read } = built();
     render(<SaveDialog project={p} read={read} onClose={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Save project file' }));
+    otherWay('Save project file');
     await waitFor(() => expect(downloadBytes).toHaveBeenCalledWith(expect.any(Uint8Array), 'Saved_Pad.onsample'));
   });
 
   it('saves a Nord Sample Editor project with its recordings as one zip', async () => {
     const { p, read } = built();
     render(<SaveDialog project={p} read={read} onClose={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Save for Nord Sample Editor' }));
+    otherWay('Save for Nord Sample Editor');
     await waitFor(() => expect(downloadBytes).toHaveBeenCalled());
     const [bytes, name] = vi.mocked(downloadBytes).mock.calls[0];
     expect(name).toBe('Saved_Pad (Nord Sample Editor).zip');
@@ -83,24 +89,25 @@ describe('SaveDialog', () => {
   it('offers no Nord Sample Editor project for a piano', () => {
     const { p, read } = built();
     render(<SaveDialog project={setTarget(p, 'npno')} read={read} onClose={vi.fn()} />);
-    expect(screen.queryByRole('button', { name: 'Save for Nord Sample Editor' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save project file', hidden: true })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save for Nord Sample Editor', hidden: true })).toBeNull();
   });
 
-  it('blocks saving while the project has errors', () => {
+  it('blocks saving the sample while the project has errors, but not the build itself', () => {
     const { p, read } = built();
     const z = p.zones[0];
     const bad = updateTake(p, z.id, z.takes[0].id, { loop: { start: 0 } });
     render(<SaveDialog project={bad} read={read} onClose={vi.fn()} />);
     expect(screen.getByText('Fix these before saving')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save sample' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Save project file' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save project file', hidden: true })).toBeEnabled();
   });
 
   it('says in plain words when the project file cannot be written', async () => {
     const { p } = built();
     const missing = () => undefined;
     render(<SaveDialog project={p} read={missing} onClose={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Save project file' }));
+    otherWay('Save project file');
     expect(await screen.findByRole('status')).toHaveTextContent(/Couldn’t save: The audio for “C4.wav” couldn’t be read, so the project file wasn’t written\.$/);
     expect(screen.queryByText(/Couldn.t convert/)).toBeNull();
     expect(downloadBytes).not.toHaveBeenCalled();

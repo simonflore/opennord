@@ -98,12 +98,7 @@ export function SaveDialog({ project, read, built, onClose }: { project: SampleP
   const blocked = errors.length > 0 || saver.saving || busy;
   return (
     <Dialog open onClose={onClose} title="Save"
-      footer={(
-        <>
-          <Button variant="secondary" className="min-h-11" disabled={blocked} onClick={() => void saveProjectFile()}>Save project file</Button>
-          <Button variant="primary" className="min-h-11" disabled={blocked} onClick={() => void saveFile()}>{piano ? 'Save piano' : 'Save sample'}</Button>
-        </>
-      )}>
+      footer={<Button variant="primary" className="min-h-11" disabled={blocked} onClick={() => void saveFile()}>{piano ? 'Save piano' : 'Save sample'}</Button>}>
       {saver.dialog ?? (
         <div className="flex min-w-0 flex-col gap-3">
           <div className="ps-lcd break-words">{project.name}</div>
@@ -139,14 +134,22 @@ export function SaveDialog({ project, read, built, onClose }: { project: SampleP
               {sendReason && <p id={sendReasonId} className="text-sm text-dim">{sendReason}</p>}
             </div>
           )}
-          {!piano && (
-            <div className="flex flex-col gap-1 border-t border-line pt-3">
-              <Button variant="secondary" className="min-h-11 self-start" disabled={saver.saving || busy} onClick={() => void saveEditorProject()}>
-                Save for Nord Sample Editor
-              </Button>
-              <p className="text-sm text-dim">A .zip with a Nord Sample Editor project and its recordings. Unzip it, keep the files together, and open the .nsmpproj in Nord Sample Editor.</p>
+          {/* The build itself, not a Nord file: saving it isn't held back by the checks. */}
+          <details className="group rounded-md border border-line px-3.5 py-2">
+            <summary className="flex min-h-11 cursor-pointer items-center text-sm text-dim hover:text-ink">Other ways to save</summary>
+            <div className="flex flex-col gap-3 pb-2 pt-1">
+              <div className="flex flex-col gap-1">
+                <Button variant="secondary" className="min-h-11 self-start" disabled={saver.saving || busy} onClick={() => void saveProjectFile()}>Save project file</Button>
+                <p className="m-0 text-sm text-muted">The whole build (.onsample), to carry on later or on another computer.</p>
+              </div>
+              {!piano && (
+                <div className="flex flex-col gap-1">
+                  <Button variant="secondary" className="min-h-11 self-start" disabled={saver.saving || busy} onClick={() => void saveEditorProject()}>Save for Nord Sample Editor</Button>
+                  <p className="m-0 text-sm text-muted">A .zip with a Nord Sample Editor project and its recordings: unzip it and open the .nsmpproj.</p>
+                </div>
+              )}
             </div>
-          )}
+          </details>
           {/* How the save went, announced: done, warnings, or why it failed. */}
           <div role="status" className="flex flex-col gap-1">
             {message && <p className="text-sm">{message}</p>}

@@ -3,7 +3,7 @@ import { addClip, addZone, emptyProject, projectProblems, setKeys, type NewTake,
 import { buildProject } from './build';
 import { nsmpToProject } from './from-nsmp';
 import type { ClipAudio } from './render';
-import { NSMP_SAMPLE_RATE } from '../ns4/nsmp';
+import { NSMP_SAMPLE_RATE, parseNsmpSections } from '../ns4/nsmp';
 
 const sine = (hz: number, seconds: number, rate = 44100) =>
   Float32Array.from({ length: Math.round(seconds * rate) }, (_, i) => 0.3 * Math.sin((2 * Math.PI * hz * i) / rate));
@@ -58,5 +58,13 @@ describe('nsmpToProject', () => {
 
   it('refuses what isn’t a sample, saying so', () => {
     expect(() => nsmpToProject(new Uint8Array(64), 'x')).toThrow(/isn’t a sample/);
+  });
+
+  it('refuses one of Nord’s own samples, by the mark in its header', () => {
+    const { p, audio } = source('nsmp4');
+    const bytes = buildProject(p, (id) => audio.get(id)).bytes.slice();
+    const hdr = parseNsmpSections(bytes).find((x) => x.tag.endsWith('hdr'))!;
+    bytes[hdr.payloadOffset + 8] = 0x0a; bytes[hdr.payloadOffset + 9] = 0x01; // the factory mark
+    expect(() => nsmpToProject(bytes, 'x')).toThrow(/one of Nord’s own samples/);
   });
 });

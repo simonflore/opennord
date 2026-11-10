@@ -10,7 +10,8 @@ import { NPNO_PIANO_TYPE } from '@/lib/ns4/nsp-write';
 import type { ReadAudio } from '@/lib/sample-build/render';
 import { TARGETS } from '@/lib/sample-build/targets';
 import { ClipsPanel } from './ClipsPanel';
-import { ZoneList } from './ZoneList';
+import { TakesOverview } from './TakesOverview';
+import { docsHref } from '@/components/shell/nav';
 import { ZonePanel } from './ZonePanel';
 import { BuildKeyboard } from './BuildKeyboard';
 import { IssuesList } from './IssuesList';
@@ -27,7 +28,7 @@ import { RecordDialog, type RecordInto } from './RecordDialog';
 import { useApplyError } from './useApplyError';
 import { findLoopsAll, normalizeAll, trimSilenceAll, type BatchReport } from '@/lib/sample-build/batch';
 import type { SampleProject } from '@/lib/sample-build/model';
-import { PEAK_DB, SILENCE_DB, matchWords } from './takeTools';
+import { PEAK_DB, SILENCE_DB } from './takeTools';
 import { plural } from '@/lib/plural';
 
 const EMPTY = emptyProject('', 'nsmp4', '');
@@ -58,6 +59,8 @@ export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNot
   const [splitClipId, setSplitClipId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [recording, setRecording] = useState(false);
+  // What the take tools act on; kept while moving between zones.
+  const [toolScope, setToolScope] = useState<'take' | 'all'>('take');
 
   if (s.state === 'loading') return <EmptyNote>Opening the build…</EmptyNote>;
   if (s.state === 'missing') return <EmptyNote>This build isn’t here any more.</EmptyNote>;
@@ -70,7 +73,7 @@ export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNot
       const r = await s.addFiles(files);
       setProblem(r.unreadable.map((u) => `“${u.fileName}”: ${u.reason}`).join(' '));
       setNotice(r.unclear.length
-        ? `No clear pitch in ${r.unclear.map((n) => `“${n}”`).join(', ')}, so ${r.unclear.length === 1 ? 'it isn’t' : 'they aren’t'} on the keys yet: use Place… in Clips to give ${r.unclear.length === 1 ? 'it' : 'each'} a key, or to split a recording of several notes.`
+        ? `No clear pitch in ${r.unclear.map((n) => `“${n}”`).join(', ')}, so ${r.unclear.length === 1 ? 'it isn’t' : 'they aren’t'} on the keys yet: use Place… in Recordings to give ${r.unclear.length === 1 ? 'it' : 'each'} a key, or to split a recording of several notes.`
         : '');
     } catch (e) {
       setNotice('');
@@ -78,17 +81,17 @@ export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNot
     }
   }
 
-  /** One tool over every take: one undo step, and a line saying what it did. */
-  function allTakes(tool: (x: SampleProject) => { project: SampleProject; report: BatchReport }, said: (r: BatchReport) => string) {
+  /** One tool over every take: one undo step; returns a line saying what it did ('' when refused, said as a problem). */
+  function allTakes(tool: (x: SampleProject) => { project: SampleProject; report: BatchReport }, said: (r: BatchReport) => string): string {
     let report: BatchReport | undefined;
     const refused = s.apply((x) => { const r = tool(x); report = r.report; return r.report.changed ? r.project : x; });
-    if (refused || !report) { setProblem(refused ?? ''); return; }
+    if (refused || !report) { setProblem(refused ?? ''); return ''; }
     setProblem('');
     const missing = report.missing ? ` ${plural(report.missing, 'take')} ${report.missing === 1 ? 'has' : 'have'} no audio here.` : '';
-    setNotice(said(report) + missing);
+    return said(report) + missing;
   }
   const findLoops = () => allTakes((x) => findLoopsAll(x, s.read), (r) => r.changed
-    ? `Loops found in ${plural(r.changed, 'take')}${r.unchanged ? `, none in ${r.unchanged}` : ''}; the weakest is ${matchWords(r.weakestMatch ?? 1)}. Each take now ends where its loop does.`
+    ? `Loops found in ${plural(r.changed, 'take')}${r.unchanged ? `, none in ${r.unchanged}` : ''}. Each take now ends where its loop does; joins that may click are marked under Zones.`
     : 'No loops found: the takes are too short or too quiet.');
   const normalize = () => allTakes((x) => normalizeAll(x, s.read, PEAK_DB), (r) => r.changed
     ? p.target === 'npno'
@@ -117,7 +120,7 @@ export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNot
     const pitch = estimatePitch(audio, 0, frames);
     if (!pitch) {
       await s.addRecording(audio, label);
-      return 'no clear pitch heard: give it a key with Place… in Clips';
+      return 'no clear pitch heard: give it a key with Place… in Recordings';
     }
     await s.addRecording(audio, label, (x, clipId) =>
       autoMap(placeTakes(x, [{ ...take(clipId), root: pitch.midi, label, pitchEstimate: pitch }]).project));
@@ -229,16 +232,17 @@ export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNot
           <ClipsPanel project={p} activeClipId={activeClipId} onAddFiles={(f) => void addFiles(f)} onRecord={() => setRecording(true)} onSplit={setSplitClipId} apply={s.apply} />
         </div>
         <main className="flex min-w-0 flex-col gap-4 px-4 py-5 sm:px-6">
-          {p.zones.length > 0 && (
-            <div role="group" aria-label="All takes" className="flex flex-wrap items-center gap-2">
-              <span className="text-xs uppercase tracking-wider text-dim">All takes</span>
-              <Button variant="secondary" className="min-h-11" onClick={findLoops}>Find loops</Button>
-              <Button variant="secondary" className="min-h-11" onClick={normalize}>Normalize</Button>
-              <Button variant="secondary" className="min-h-11" onClick={trim}>Trim silence</Button>
+          {!p.zones.length && (
+            <div className="rounded-lg border border-dashed border-grid px-5 py-6 text-dim">
+              <p className="m-0 text-ink">Add recordings, or record some, to make the first zone.</p>
+              <p className="m-0 mt-1 text-sm">A build goes one way: recordings → zones on the keys → a sample on your Nord.{' '}
+                <a href={`${docsHref('guide/build-sample/')}#how-it-fits-together`} target="_blank" rel="noreferrer">How Build a sample works</a>
+              </p>
             </div>
           )}
-          {zone && <ZonePanel key={zone.id} project={p} zoneId={zone.id} read={s.read} apply={s.apply} />}
-          <div className="md:hidden"><ZoneList project={p} selectedZoneId={zone?.id ?? null} onSelect={setSelectedZoneId} /></div>
+          {zone && <ZonePanel key={zone.id} project={p} zoneId={zone.id} read={s.read} apply={s.apply}
+            scope={toolScope} onScope={setToolScope} allTakes={{ findLoops, normalize, trim }} />}
+          <TakesOverview project={p} read={s.read} selectedZoneId={zone?.id ?? null} onSelect={setSelectedZoneId} />
           <BuildKeyboard project={p} selectedZoneId={zone?.id ?? null} onSelect={setSelectedZoneId} apply={s.apply} built={built} />
           <IssuesList project={p} onSelectZone={setSelectedZoneId} />
           {/* A piano isn't played on the keyboard above yet; its own player stays for now. */}

@@ -13,9 +13,8 @@ import { PianoLayers } from './PianoLayers';
 import type { Apply } from '@/lib/library/useSampleProject';
 import { useApplyError } from './useApplyError';
 import { findTakeLoop, loopChange, normalizeGain, normalizeZone, trimSilence } from '@/lib/sample-build/batch';
-import { PEAK_DB, SILENCE_DB, matchWords } from './takeTools';
+import { PEAK_DB, SILENCE_DB, matchWords, signed } from './takeTools';
 
-const signed = (n: number, digits = 0) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toFixed(digits)}`;
 /** The value inside a card: large mono, the card itself is the box. */
 const cardValue = 'w-full min-w-0 bg-transparent font-mono text-lg text-ink outline-none disabled:text-muted';
 
@@ -44,7 +43,13 @@ function Card({ label, hint, children, htmlFor }: { label: string; hint: ReactNo
 }
 
 /** The selected zone (spec §7, canvas "Build sample"): its takes or layers, the take's recording and its settings. */
-export function ZonePanel({ project, zoneId, read, apply }: { project: SampleProject; zoneId: string; read: ReadAudio; apply: Apply }) {
+export function ZonePanel({ project, zoneId, read, apply, scope = 'take', onScope, allTakes }: {
+  project: SampleProject; zoneId: string; read: ReadAudio; apply: Apply;
+  /** What the take tools act on: this take, or every take of the build (`allTakes`, which say what they did). */
+  scope?: 'take' | 'all';
+  onScope?: (scope: 'take' | 'all') => void;
+  allTakes?: { findLoops: () => string; normalize: () => string; trim: () => string };
+}) {
   const [run, error, setError] = useApplyError(apply);
   const [editing, setEditing] = useState<string | null>(null); // a layer's take, for pianos
   // What the last take tool did, and to which take: shown only while that take is the one shown.
@@ -62,6 +67,8 @@ export function ZonePanel({ project, zoneId, read, apply }: { project: SamplePro
   const heard = take?.pitchEstimate;
   const rate = clip?.sampleRate ?? 44100;
   const toolNote = note && note.takeId === take?.id ? note.text : '';
+  // This take needs its audio; all takes don't.
+  const canAct = scope === 'all' ? !!allTakes : !!(take && audio);
   const setToolNote = (text: string) => setNote(take ? { takeId: take.id, text } : null);
 
   return (
@@ -107,15 +114,30 @@ export function ZonePanel({ project, zoneId, read, apply }: { project: SamplePro
       )}
 
       {take && audio && <TakeEditor take={take} audio={audio} onChange={change} />}
-      {take && audio && (
+      {/* The tools show without this take's audio too: All takes still works on the other zones. */}
+      {((take && audio) || allTakes) && (
         <div role="group" aria-label="Take tools" className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" className="min-h-11" onClick={() => {
+          {allTakes && onScope && (
+            <div role="radiogroup" aria-label="Tools act on" className="flex overflow-hidden rounded-md border border-line">
+              {(['take', 'all'] as const).map((v) => (
+                <button key={v} type="button" role="radio" aria-checked={scope === v} onClick={() => onScope(v)}
+                  className={cn('min-h-11 px-3 text-sm', scope === v ? 'bg-surface-2 text-ink' : 'bg-sink text-dim hover:text-ink')}>
+                  {v === 'take' ? 'This take' : 'All takes'}
+                </button>
+              ))}
+            </div>
+          )}
+          <Button variant="secondary" className="min-h-11" disabled={!canAct} onClick={() => {
+            if (scope === 'all' && allTakes) { setToolNote(allTakes.findLoops()); return; }
+            if (!take || !audio) return;
             const l = findTakeLoop(take, audio);
             if (!l) { setToolNote('No loop found: the take is too short or too quiet.'); return; }
             change(loopChange(l), false);
             setToolNote(`Loop found: ${formatDuration((l.end - l.start) / rate)}, ${matchWords(l.match)}. The take now ends where the loop does.`);
-          }}>Find loop</Button>
-          <Button variant="secondary" className="min-h-11" onClick={() => {
+          }}>{scope === 'all' && allTakes ? 'Find loops' : 'Find loop'}</Button>
+          <Button variant="secondary" className="min-h-11" disabled={!canAct} onClick={() => {
+            if (scope === 'all' && allTakes) { setToolNote(allTakes.normalize()); return; }
+            if (!take || !audio) return;
             if (piano) {
               // One level for the zone's takes, so its soft layers stay softer.
               run((p) => normalizeZone(p, read, zoneId, PEAK_DB).project);
@@ -127,7 +149,9 @@ export function ZonePanel({ project, zoneId, read, apply }: { project: SamplePro
             change({ gainDb: g }, false);
             setToolNote(`Level set to ${signed(g, 2)} dB: the loudest moment reaches ${PEAK_DB} dB.`);
           }}>Normalize</Button>
-          <Button variant="secondary" className="min-h-11" onClick={() => {
+          <Button variant="secondary" className="min-h-11" disabled={!canAct} onClick={() => {
+            if (scope === 'all' && allTakes) { setToolNote(allTakes.trim()); return; }
+            if (!take || !audio) return;
             const t = trimSilence(take, audio, { thresholdDb: SILENCE_DB });
             if (!t) { setToolNote('No silence to trim.'); return; }
             change(t, false);

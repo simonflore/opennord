@@ -10,6 +10,12 @@ pull request as the change. New lines go under **Unreleased**.
 
 ## Unreleased
 
+- **Build a sample, tidied up.** Every way to start a build is in one **New
+  build** menu. **Zones** lists every zone with its loop drawn and marks joins
+  that may click (**Next loop to check**). **Find loop**, **Normalize** and
+  **Trim silence** are one set of tools, for **This take** or **All takes**.
+  The Save dialog leads with **Save sample** and **Send to Nord**, with the rest
+  under **Other ways to save**. **Clips** are now **Recordings**.
 - **Open in Build a sample.** A sample of your own opens as a build, with its
   zones, loops, loop decay and tuning, to rework and save again. A sample built
   in OpenNord now keeps the category you chose.

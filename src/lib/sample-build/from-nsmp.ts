@@ -28,6 +28,8 @@ const decaySeconds = (dbPerSecond: number): number | null => (dbPerSecond > 0 ? 
 export function nsmpToProject(bytes: Uint8Array, name: string, newRef: () => string = () => crypto.randomUUID()): FromNsmp {
   const file = readNsmp(bytes);
   if (!file.recognized || file.pianoLibrary) throw new Error('This isn’t a sample OpenNord can open as a build.');
+  // The sample's own header marks Nord's factory samples (`hdrFactoryFlag`); a build is for your own.
+  if (file.suspectedFactory) throw new Error('This looks like one of Nord’s own samples. Build a sample is for samples you made.');
   const strokes = decodeNsmp(bytes);
   if (!strokes.length) throw new Error('OpenNord couldn’t read the recordings in this sample, so it can’t be opened as a build.');
   const zones = readNsmpZones(bytes);

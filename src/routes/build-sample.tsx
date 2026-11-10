@@ -10,6 +10,7 @@ import { pickFile, pickFolderFiles } from '@/lib/pick-file';
 import { importSfz, isSfz, type PickedFile } from '@/lib/library/importSfz';
 import { decodeWithBrowser } from '@/lib/sample-build/browser-decode';
 import { importNsmpproj, isNsmpproj } from '@/lib/library/importNsmpproj';
+import { openSampleAsBuild } from '@/lib/library/openSampleAsBuild';
 import { Button, Dialog } from '@/components/ui';
 import { readFileBytes } from '@/lib/file';
 import { getErrorMessage } from '@/lib/errors';
@@ -74,6 +75,22 @@ function BuildSampleScreen() {
     }
   }
 
+  /** A sample file of your own, opened as a build (as the inspector's More › Open in Build a sample does). */
+  async function openSampleFile() {
+    const f = await pickFile('.nsmp,.nsmp3,.nsmp4');
+    if (!f) return;
+    setProblem('');
+    setImporting(true);
+    try {
+      const r = await openSampleAsBuild(await readFileBytes(f), f.name);
+      open(r.projectId, r.notes);
+    } catch (e) {
+      setProblem(getErrorMessage(e));
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function openFile() {
     const f = await pickFile('.onsample');
     if (!f) return;
@@ -98,7 +115,7 @@ function BuildSampleScreen() {
   return (
     <>
       <BuildList onOpen={(id) => open(id)} onNew={() => void createProject('New sample').then((id) => open(id))} onOpenFile={() => void openFile()}
-        onImportSfz={() => void importFolder()} onImportNsmpproj={() => void importEditorProject()} importing={importing} problem={problem} />
+        onOpenSampleFile={() => void openSampleFile()} onImportSfz={() => void importFolder()} onImportNsmpproj={() => void importEditorProject()} importing={importing} problem={problem} />
       <Dialog open={!!choice} onClose={() => setChoice(null)} title={choice?.kind === 'nse' ? 'Which project?' : 'Which instrument?'}>
         <p className="m-0 mb-3 text-sm text-dim">This folder holds several. Pick the one to import.</p>
         <ul className="m-0 flex list-none flex-col gap-2 p-0">

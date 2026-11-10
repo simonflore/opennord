@@ -143,3 +143,31 @@ export function findLoop(audio: ClipAudio, take: { start: number; end: number },
   if (!best) return null;
   return { start: take.start + best.s, end: take.start + best.e, match: Math.max(0, Math.min(1, 1 - best.nsd)) };
 }
+
+/**
+ * How alike the sound is either side of a loop's join, 0 to 1, as {@link findLoop} scores it:
+ * the {@link MATCH_MS} before the loop start against the same before the end. For any loop,
+ * found or set by hand. With a loop crossfade (`fadeFrames`, as `renderTake` writes it) the end
+ * is scored as faded, so a join the crossfade has smoothed scores as it plays. Reads only the
+ * frames it compares; null when there isn't room to compare.
+ */
+export function loopJoinMatch(audio: ClipAudio, loopStart: number, end: number, fadeFrames = 0): number | null {
+  const w = Math.max(8, Math.round((MATCH_MS / 1000) * audio.sampleRate));
+  const x = Math.max(0, Math.min(fadeFrames, end - loopStart, loopStart));
+  if (loopStart - w < 0 || end > audio.channels[0].length || end - loopStart < w) return null;
+  const before = mono(audio, loopStart - w, loopStart);
+  const atEnd = mono(audio, end - w, end);
+  if (x > 0) {
+    // The fade runs over the last x frames before the end, into the x frames before the loop start (render.ts).
+    const pre = mono(audio, loopStart - x, loopStart);
+    for (let i = 0; i < w; i++) {
+      const k = i - (w - x); // position within the fade, when the window reaches into it
+      if (k < 0) continue;
+      const g = (k + 1) / x;
+      atEnd[i] = atEnd[i] * (1 - g) + pre[k] * g;
+    }
+  }
+  let d = 0, e = 0;
+  for (let i = 0; i < w; i++) { const p = before[i], q = atEnd[i]; d += (p - q) * (p - q); e += p * p + q * q; }
+  return Math.max(0, Math.min(1, 1 - (e > 0 ? d / e : 0)));
+}

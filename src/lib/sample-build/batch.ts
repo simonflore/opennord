@@ -68,8 +68,6 @@ export interface BatchReport {
   missing: number;
   /** Takes the tool found nothing to do with (no loop found, all silence, already right). */
   unchanged: number;
-  /** Find loops: the weakest match among the loops found (0–1). */
-  weakestMatch?: number;
 }
 
 function eachTake(p: SampleProject, read: ReadAudio, change: (take: Take, audio: ClipAudio) => Partial<NewTake> | null) {
@@ -88,14 +86,10 @@ function eachTake(p: SampleProject, read: ReadAudio, change: (take: Take, audio:
 
 /** Find a loop in every take; a take with no loop found keeps what it had. */
 export function findLoopsAll(p: SampleProject, read: ReadAudio, opts: LoopSearch = {}) {
-  let weakest: number | undefined;
-  const r = eachTake(p, read, (take, audio) => {
+  return eachTake(p, read, (take, audio) => {
     const l = findTakeLoop(take, audio, opts);
-    if (!l) return null;
-    weakest = Math.min(weakest ?? 1, l.match);
-    return loopChange(l);
+    return l ? loopChange(l) : null;
   });
-  return { project: r.project, report: { ...r.report, ...(weakest !== undefined && { weakestMatch: weakest }) } };
 }
 
 /**

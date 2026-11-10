@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { addClip, addTake, addZone, emptyProject, setKeys, setTarget, updateTake, type SampleProject } from '@/lib/sample-build/model';
 import type { ClipAudio } from '@/lib/sample-build/render';
 import { ZonePanel } from './ZonePanel';
@@ -211,5 +211,22 @@ describe('ZonePanel', () => {
     expect(zone().takes[0].loopCrossfadeMs).toBe(20);
     fireEvent.click(screen.getByRole('button', { name: 'Normalize' }));
     expect(zone().takes[0].gainDb).toBeCloseTo(-1 - 20 * Math.log10(0.3), 1);
+  });
+
+  it('keeps All takes in reach when this zone’s recording is missing; This take waits for audio', () => {
+    const { p, zoneId } = setup('nsmp4');
+    const findLoops = vi.fn(() => 'Loops found in 3 takes.');
+    function Missing() {
+      const [scope, setScope] = useState<'take' | 'all'>('take');
+      return <ZonePanel project={p} zoneId={zoneId} read={() => undefined} apply={() => null}
+        scope={scope} onScope={setScope} allTakes={{ findLoops, normalize: () => '', trim: () => '' }} />;
+    }
+    render(<Missing />);
+    expect(screen.getByText(/audio for this take is missing/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Find loop' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('radio', { name: 'All takes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Find loops' }));
+    expect(findLoops).toHaveBeenCalled();
+    expect(screen.getByText('Loops found in 3 takes.')).toBeInTheDocument();
   });
 });

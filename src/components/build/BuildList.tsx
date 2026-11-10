@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, ConfirmDialog, SectionLabel } from '@/components/ui';
+import { Button, Card, ConfirmDialog, Menu, MenuItem, SectionLabel } from '@/components/ui';
 import { EmptyNote } from '@/components/library/EmptyNote';
 import { deleteProject, listProjects, loadProject } from '@/lib/library/sampleProjectStore';
 import { TARGETS } from '@/lib/sample-build/targets';
@@ -8,12 +8,20 @@ import type { SampleProject } from '@/lib/sample-build/model';
 
 type Row = Awaited<ReturnType<typeof listProjects>>[number];
 
-/** Your builds, newest first: open one, delete one, or start a new one (spec §7). `problem` is why opening a file failed. */
-export function BuildList({ onOpen, onNew, onOpenFile, onImportSfz, onImportNsmpproj, importing = false, problem }: {
-  onOpen: (id: string) => void; onNew: () => void; onOpenFile: () => void;
-  /** Start a build from an SFZ instrument's folder; `importing` while it reads. */
+/**
+ * Your builds, newest first: open one, delete one, or start one (spec §7). Every way to start
+ * is in one menu, **New build**: from recordings, a sample file, an SFZ instrument, a Nord Sample
+ * Editor project, or a saved build. `problem` is why opening something failed.
+ */
+export function BuildList({ onOpen, onNew, onOpenFile, onOpenSampleFile, onImportSfz, onImportNsmpproj, importing = false, problem }: {
+  onOpen: (id: string) => void; onNew: () => void;
+  /** Open a saved build (`.onsample`). */
+  onOpenFile: () => void;
+  /** Start from a sample file of your own (`.nsmp`, `.nsmp3`, `.nsmp4`). */
+  onOpenSampleFile?: () => void;
+  /** Start from an SFZ instrument's folder; `importing` while it reads. */
   onImportSfz?: () => void; importing?: boolean;
-  /** Start a build from a Nord Sample Editor project's folder (the project and its recordings). */
+  /** Start from a Nord Sample Editor project's folder (the project and its recordings). */
   onImportNsmpproj?: () => void;
   problem?: string;
 }) {
@@ -37,26 +45,19 @@ export function BuildList({ onOpen, onNew, onOpenFile, onImportSfz, onImportNsmp
     <div className="flex flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center gap-3">
         <SectionLabel>Your builds</SectionLabel>
-        <div className="ml-auto flex flex-wrap justify-end gap-2">
-          <Button variant="secondary" onClick={onOpenFile}>Open a project file…</Button>
-          {onImportSfz && (
-            <Button variant="secondary" onClick={onImportSfz} disabled={importing}
-              title="Pick an SFZ instrument’s folder: its key map, loops and recordings become a build">
-              {importing ? 'Importing…' : 'Import SFZ…'}
-            </Button>
-          )}
-          {onImportNsmpproj && (
-            <Button variant="secondary" onClick={onImportNsmpproj} disabled={importing}
-              title="Pick the folder with a Nord Sample Editor project and its recordings: its zones, loops and samples become a build">
-              Open Nord Sample Editor project…
-            </Button>
-          )}
-          <Button variant="primary" onClick={onNew}>New build</Button>
+        <div className="ml-auto">
+          <Menu label="New build" trigger={<Button variant="primary" disabled={importing}>{importing ? 'Opening…' : 'New build ▾'}</Button>}>
+            <MenuItem onSelect={onNew} hint="Add or record your own audio">From recordings</MenuItem>
+            {onOpenSampleFile && <MenuItem onSelect={onOpenSampleFile} hint="A sample of your own, to rework. In User Samples: More › Open in Build a sample">From a sample file…</MenuItem>}
+            {onImportSfz && <MenuItem onSelect={onImportSfz} hint="Pick the instrument’s folder">From an SFZ instrument…</MenuItem>}
+            {onImportNsmpproj && <MenuItem onSelect={onImportNsmpproj} hint="Pick the folder with the project and its recordings">From a Nord Sample Editor project…</MenuItem>}
+            <MenuItem onSelect={onOpenFile} hint="A build saved as a project file (.onsample)">Open a saved build…</MenuItem>
+          </Menu>
         </div>
       </div>
       {problem && <p role="alert" className="text-sm text-warn">{problem}</p>}
       {rows === null ? <EmptyNote>Loading your builds…</EmptyNote>
-        : rows.length === 0 ? <EmptyNote>No builds yet. Start one from your own recordings, an SFZ instrument, a Nord Sample Editor project, or a sample in your Library.</EmptyNote>
+        : rows.length === 0 ? <EmptyNote>No builds yet. Start one with New build.</EmptyNote>
         : (
           <ul className="flex flex-col gap-2">
             {rows.map((r) => (
