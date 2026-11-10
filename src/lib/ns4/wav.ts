@@ -186,7 +186,8 @@ export function parseWav(bytes: Uint8Array): WavAudio {
       if (unity > 0 && unity < 128) unityNote = unity;
       if (dv.getUint32(body + 28, true) > 0 && sz >= 60 && body + 60 <= bytes.length) {
         const start = dv.getUint32(body + 44, true), end = dv.getUint32(body + 48, true);
-        if (end > start) loop = { start, end };
+        // Only a forward loop (type 0): a Nord loops forward, so a ping-pong or backward loop is left out.
+        if (end > start && dv.getUint32(body + 40, true) === 0) loop = { start, end };
       }
     }
     o = body + sz + (sz & 1); // chunks are word-aligned

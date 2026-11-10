@@ -7,7 +7,11 @@
 import { MAX_KEYS_ABOVE_ROOT } from '../../ns4/nsmp-write';
 import { addTake, addZone, setKeys, type SampleProject, type Take } from '../model';
 
-export interface Candidate { clipId: string; start: number; end: number; root: number | null; label: string; pitchEstimate?: Take['pitchEstimate'] }
+export interface Candidate {
+  clipId: string; start: number; end: number; root: number | null; label: string; pitchEstimate?: Take['pitchEstimate'];
+  /** Where the take's loop starts (it ends at `end`), when the recording brought one. */
+  loopStart?: number;
+}
 export interface PlaceReport {
   newZones: number; addedTakes: number; unclear: string[];
   /**
@@ -33,7 +37,7 @@ export function placeTakes(p: SampleProject, items: Candidate[]): { project: Sam
   let project = p;
   for (const c of items) {
     if (c.root === null) { report.unclear.push(c.label); report.outcomes.push('unclear'); continue; }
-    const take = { clipId: c.clipId, start: c.start, end: c.end, loop: null, loopDecaySeconds: null, gainDb: 0, tuneCents: 0, pitchEstimate: c.pitchEstimate };
+    const take = { clipId: c.clipId, start: c.start, end: c.end, loop: c.loopStart !== undefined ? { start: c.loopStart } : null, loopDecaySeconds: null, gainDb: 0, tuneCents: 0, pitchEstimate: c.pitchEstimate };
     const zone = project.zones.find((z) => z.rootKey === c.root);
     if (zone && zone.takes.some((t) => sameStretch(project, t, c))) { report.outcomes.push('same'); continue; }
     if (zone) { project = addTake(project, zone.id, take).project; report.addedTakes++; report.outcomes.push('take'); continue; }

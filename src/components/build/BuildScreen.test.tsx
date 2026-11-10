@@ -101,4 +101,14 @@ describe('BuildScreen', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('No clear pitch in “quiet.wav”');
     expect(screen.queryByRole('alert')).toBeNull();
   });
+
+  it('All takes: finds a loop in every take and normalizes them, saying what it did', async () => {
+    await open();
+    fireEvent.change(screen.getByLabelText('Add files…'), { target: { files: [wavFile('Rhodes_C3.wav', 130.81), wavFile('Rhodes_C4.wav', 261.63)] } });
+    const tools = await screen.findByRole('group', { name: 'All takes' });
+    fireEvent.click(within(tools).getByRole('button', { name: 'Find loops' }));
+    expect(await screen.findByText(/^Loops found in 2 takes/)).toBeInTheDocument();
+    fireEvent.click(within(tools).getByRole('button', { name: 'Normalize' }));
+    expect(await screen.findByText(/^Levels set on 2 takes/)).toBeInTheDocument();
+  });
 });

@@ -194,4 +194,22 @@ describe('ZonePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove zone' }));
     expect(zone()).toBeNull();
   });
+
+  it('take tools: finds a loop (the take ends on it), normalizes, and the crossfade waits for a loop', () => {
+    const { p, zoneId } = setup('nsmp4');
+    render(<Harness initial={p} zoneId={zoneId} />);
+    expect(screen.getByLabelText('Loop crossfade (ms)')).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Find loop' }));
+    const t = zone().takes[0];
+    expect(t.loop.start).toBeGreaterThan(0);
+    expect(t.end).toBeLessThanOrEqual(44100);
+    expect(screen.getByText(/^Loop found: /)).toHaveAttribute('role', 'status');
+    const xfade = screen.getByLabelText('Loop crossfade (ms)');
+    expect(xfade).toBeEnabled();
+    fireEvent.change(xfade, { target: { value: '20' } });
+    fireEvent.blur(xfade);
+    expect(zone().takes[0].loopCrossfadeMs).toBe(20);
+    fireEvent.click(screen.getByRole('button', { name: 'Normalize' }));
+    expect(zone().takes[0].gainDb).toBeCloseTo(-1 - 20 * Math.log10(0.3), 1);
+  });
 });

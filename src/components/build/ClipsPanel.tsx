@@ -9,7 +9,7 @@ const seconds = (s: number) => (s < 60 ? `${s.toFixed(1)} s` : `${Math.floor(s /
 const rowAction = 'min-h-8 flex-none rounded-sm px-1.5 text-xs text-dim hover:bg-surface-2 hover:text-ink';
 
 /**
- * The project's recordings (spec §7, canvas "Build sample"): add WAV files, see where each is
+ * The project's recordings (spec §7, canvas "Build sample"): add WAV or AIFF files, see where each is
  * used (the selected zone's playing take is marked), split a long one, remove an unused one.
  */
 export function ClipsPanel({ project, activeClipId, onAddFiles, onSplit, apply }: {
@@ -31,14 +31,14 @@ export function ClipsPanel({ project, activeClipId, onAddFiles, onSplit, apply }
         <SectionLabel>Clips</SectionLabel>
         {project.clips.length > 0 && <span className="font-mono text-xs text-muted">{project.clips.length} · {seconds(total)}</span>}
       </div>
-      <FileInput accept=".wav,audio/wav" multiple onFiles={onAddFiles} className={cn(buttonVariants({ variant: 'secondary' }), 'min-h-11')}>
+      <FileInput accept=".wav,.aif,.aiff,.aifc,audio/wav,audio/aiff" multiple onFiles={onAddFiles} className={cn(buttonVariants({ variant: 'secondary' }), 'min-h-11')}>
         Add files…
       </FileInput>
       <div
         onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={drop}
         className={cn('rounded-md border border-dashed p-3.5 text-center text-[13px] text-muted', over ? 'border-accent' : 'border-grid')}
       >
-        Drop WAV files here. Files named by note (Rhodes_C3.wav) map themselves.
+        Drop WAV or AIFF files here. Files named by note (Rhodes_C3.wav) map themselves.
       </div>
       <ul className="flex flex-col gap-1.5">
         {project.clips.map((c) => {

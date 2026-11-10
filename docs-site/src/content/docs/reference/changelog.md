@@ -10,6 +10,12 @@ pull request as the change. New lines go under **Unreleased**.
 
 ## Unreleased
 
+- **Build a sample.** **Find loop** finds a clean loop in a take, and **All
+  takes** finds loops, normalizes or trims the silence of every take at once.
+  **Loop crossfade** smooths a loop's join. AIFF files (`.aif`, `.aiff`) can be
+  added, and a loop or root note saved in a WAV or AIFF file now comes along.
+  **Save for Nord Sample Editor** saves a build as a Nord Sample Editor project
+  with its recordings.
 - **Stage 2 slots.** Programs on a Stage 2 or 2 EX show their slot as the
   panel does, bank, page and program (B:08:5), and samples and pianos by their
   number.

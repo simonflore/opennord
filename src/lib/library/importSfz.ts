@@ -7,7 +7,7 @@ import { readFileBytes } from '../file';
 import { parseSfz, sfzRegion } from '../sample-build/sfz';
 import { folderOf, sampleResolver } from '../sample-build/sfz-files';
 import { describeSfzImport, keptRegions, sfzToProject, type SfzSample } from '../sample-build/sfz-project';
-import { readWav } from '../sample-build/import-files';
+import { isReadableAudioName, readAudioFile } from '../sample-build/import-files';
 import type { ClipAudio } from '../sample-build/render';
 import { deleteClipAudio, saveClipAudio, saveProject } from './sampleProjectStore';
 
@@ -60,8 +60,7 @@ export async function importSfz(
     if (!at) return;
     try {
       const bytes = await readFileBytes(byPath.get(at)!);
-      const wav = /\.wav$/i.test(at);
-      const read = wav ? readWav(bytes) : decodeOther ? { audio: await decodeOther(bytes) } : undefined;
+      const read = isReadableAudioName(at) ? readAudioFile(bytes) : decodeOther ? { audio: await decodeOther(bytes) } : undefined;
       if (!read) return;
       const audioRef = crypto.randomUUID();
       await saveClipAudio(audioRef, read.audio);

@@ -19,6 +19,10 @@ import { SplitDialog } from './SplitDialog';
 import { SaveDialog } from './SaveDialog';
 import { autoMap, placeTakes } from '@/lib/sample-build/analysis/automap';
 import { useApplyError } from './useApplyError';
+import { findLoopsAll, normalizeAll, trimSilenceAll, type BatchReport } from '@/lib/sample-build/batch';
+import type { SampleProject } from '@/lib/sample-build/model';
+import { PEAK_DB, SILENCE_DB, matchWords } from './takeTools';
+import { plural } from '@/lib/plural';
 
 const EMPTY = emptyProject('', 'nsmp4', '');
 /** The Nord's piano types, as a player names them (`NPNO_PIANO_TYPE`). */
@@ -64,6 +68,27 @@ export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNot
       setProblem(describeFailure('Couldn’t store the recordings', e));
     }
   }
+
+  /** One tool over every take: one undo step, and a line saying what it did. */
+  function allTakes(tool: (x: SampleProject) => { project: SampleProject; report: BatchReport }, said: (r: BatchReport) => string) {
+    let report: BatchReport | undefined;
+    const refused = s.apply((x) => { const r = tool(x); report = r.report; return r.report.changed ? r.project : x; });
+    if (refused || !report) { setProblem(refused ?? ''); return; }
+    setProblem('');
+    const missing = report.missing ? ` ${plural(report.missing, 'take')} ${report.missing === 1 ? 'has' : 'have'} no audio here.` : '';
+    setNotice(said(report) + missing);
+  }
+  const findLoops = () => allTakes((x) => findLoopsAll(x, s.read), (r) => r.changed
+    ? `Loops found in ${plural(r.changed, 'take')}${r.unchanged ? `, none in ${r.unchanged}` : ''}; the weakest is ${matchWords(r.weakestMatch ?? 1)}. Each take now ends where its loop does.`
+    : 'No loops found: the takes are too short or too quiet.');
+  const normalize = () => allTakes((x) => normalizeAll(x, s.read, PEAK_DB), (r) => r.changed
+    ? p.target === 'npno'
+      ? `Levels set on ${plural(r.changed, 'take')}: each zone’s loudest layer reaches ${PEAK_DB} dB, and its softer layers stay softer.`
+      : `Levels set on ${plural(r.changed, 'take')}: each loudest moment reaches ${PEAK_DB} dB.`
+    : `Every take already peaks at ${PEAK_DB} dB.`);
+  const trim = () => allTakes((x) => trimSilenceAll(x, s.read, { thresholdDb: SILENCE_DB }), (r) => r.changed
+    ? `Silence trimmed in ${plural(r.changed, 'take')}. Looped takes keep their end.`
+    : 'No silence to trim.');
 
   const formatButton = (t: TargetId, label: string) => (
     <button key={t} type="button" role="radio" aria-checked={p.target === t} title={TARGETS[t].label} onClick={() => switchTo(t)}
@@ -161,6 +186,14 @@ export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNot
           <ClipsPanel project={p} activeClipId={activeClipId} onAddFiles={(f) => void addFiles(f)} onSplit={setSplitClipId} apply={s.apply} />
         </div>
         <main className="flex min-w-0 flex-col gap-4 px-4 py-5 sm:px-6">
+          {p.zones.length > 0 && (
+            <div role="group" aria-label="All takes" className="flex flex-wrap items-center gap-2">
+              <span className="text-xs uppercase tracking-wider text-dim">All takes</span>
+              <Button variant="secondary" className="min-h-11" onClick={findLoops}>Find loops</Button>
+              <Button variant="secondary" className="min-h-11" onClick={normalize}>Normalize</Button>
+              <Button variant="secondary" className="min-h-11" onClick={trim}>Trim silence</Button>
+            </div>
+          )}
           {zone && <ZonePanel key={zone.id} project={p} zoneId={zone.id} read={s.read} apply={s.apply} />}
           <div className="md:hidden"><ZoneList project={p} selectedZoneId={zone?.id ?? null} onSelect={setSelectedZoneId} /></div>
           <BuildKeyboard project={p} selectedZoneId={zone?.id ?? null} onSelect={setSelectedZoneId} apply={s.apply} built={built} />

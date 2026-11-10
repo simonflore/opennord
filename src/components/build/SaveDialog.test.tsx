@@ -2,7 +2,8 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { emptyProject, updateTake } from '@/lib/sample-build/model';
+import { emptyProject, setTarget, updateTake } from '@/lib/sample-build/model';
+import { strFromU8, unzipSync } from 'fflate';
 import { importAudioFiles } from '@/lib/sample-build/import-files';
 import { encodeWav } from '@/lib/ns4/wav';
 import { readNsmp } from '@/lib/ns4/nsmp';
@@ -62,6 +63,24 @@ describe('SaveDialog', () => {
     render(<SaveDialog project={p} read={read} onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Save project file' }));
     await waitFor(() => expect(downloadBytes).toHaveBeenCalledWith(expect.any(Uint8Array), 'Saved_Pad.onsample'));
+  });
+
+  it('saves a Nord Sample Editor project with its recordings as one zip', async () => {
+    const { p, read } = built();
+    render(<SaveDialog project={p} read={read} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save for Nord Sample Editor' }));
+    await waitFor(() => expect(downloadBytes).toHaveBeenCalled());
+    const [bytes, name] = vi.mocked(downloadBytes).mock.calls[0];
+    expect(name).toBe('Saved_Pad (Nord Sample Editor).zip');
+    const files = unzipSync(bytes as Uint8Array);
+    expect(Object.keys(files).sort()).toEqual(['C4.wav', 'Saved_Pad.nsmpproj']);
+    expect(strFromU8(files['Saved_Pad.nsmpproj'])).toContain('m_fullName = C4.wav');
+  });
+
+  it('offers no Nord Sample Editor project for a piano', () => {
+    const { p, read } = built();
+    render(<SaveDialog project={setTarget(p, 'npno')} read={read} onClose={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Save for Nord Sample Editor' })).toBeNull();
   });
 
   it('blocks saving while the project has errors', () => {

@@ -32,6 +32,11 @@ export interface Take {
   loop: { start: number } | null;
   /** Seconds to fall 40 dB while held in the loop; null holds. */
   loopDecaySeconds: number | null;
+  /**
+   * Smooth the loop's join: the last this-many ms before End are faded into the sound just before
+   * the loop start, written into the audio (the Nord plays a loop's join as it is). Absent or 0: none.
+   */
+  loopCrossfadeMs?: number;
   gainDb: number;
   tuneCents: number;
   pitchEstimate?: { midi: number; cents: number; confidence: number };
@@ -264,6 +269,7 @@ function problemsOf(p: SampleProject, withLoops: boolean): string[] {
       if (!(t.start >= 0 && t.start < t.end && t.end <= c.frames)) out.push(`${name}: a take's start and end don't fit its audio`);
       if (!Number.isFinite(t.gainDb) || !Number.isFinite(t.tuneCents)) out.push(`${name}: a take's level or tuning is not a number`);
       if (t.loopDecaySeconds !== null && !(Number.isFinite(t.loopDecaySeconds) && t.loopDecaySeconds > 0)) out.push(`${name}: a loop's decay must be a number of seconds above 0`);
+      if (t.loopCrossfadeMs !== undefined && !(Number.isFinite(t.loopCrossfadeMs) && t.loopCrossfadeMs >= 0)) out.push(`${name}: a loop's crossfade must be a number of ms, 0 or more`);
       if (withLoops && t.loop && !(t.loop.start > t.start && t.loop.start < t.end)) out.push(`Loop in ${name.toLowerCase()} must start inside its take`);
     }
   });

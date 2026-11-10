@@ -6,6 +6,8 @@ import { useSamplesState } from '@/lib/library/SamplesContext';
 import { useFolder } from '@/lib/folder/FolderContext';
 import { buildProject } from '@/lib/sample-build/build';
 import { writeOnsample } from '@/lib/sample-build/onsample';
+import { writeNsmpproj, zipNsmpproj } from '@/lib/sample-build/nsmpproj';
+import { VERSION_LABEL } from '@/lib/version';
 import type { SampleProject } from '@/lib/sample-build/model';
 import type { ReadAudio } from '@/lib/sample-build/render';
 import { TARGETS } from '@/lib/sample-build/targets';
@@ -61,6 +63,16 @@ export function SaveDialog({ project, read, built, onClose }: { project: SampleP
     await saver.save(writeOnsample(project, read), projectFileName, false, []);
   });
 
+  /** The build as a Nord Sample Editor project, zipped with its WAVs. Not held back by the checks: the editor has its own. */
+  const saveEditorProject = () => run(async () => {
+    const stem = fileNameStem(project.name, 'Sample');
+    const written = writeNsmpproj(project, read, {
+      builtFile: built?.project === project ? built.file.bytes : undefined,
+      maker: { name: 'OpenNord', version: VERSION_LABEL },
+    });
+    await saver.save(zipNsmpproj(`${stem}.nsmpproj`, written), `${stem} (Nord Sample Editor).zip`, false, []);
+  });
+
   /** Build (or reuse Listen's file) and send it; the hook says how it went. */
   async function sendNow() {
     if (busyRef.current || send.busy) return;
@@ -107,6 +119,14 @@ export function SaveDialog({ project, read, built, onClose }: { project: SampleP
                 Send to Nord
               </Button>
               {sendReason && <p id={sendReasonId} className="text-sm text-dim">{sendReason}</p>}
+            </div>
+          )}
+          {!piano && (
+            <div className="flex flex-col gap-1 border-t border-line pt-3">
+              <Button variant="secondary" className="min-h-11 self-start" disabled={saver.saving || busy} onClick={() => void saveEditorProject()}>
+                Save for Nord Sample Editor
+              </Button>
+              <p className="text-sm text-dim">A .zip with a Nord Sample Editor project and its recordings. Unzip it, keep the files together, and open the .nsmpproj in Nord Sample Editor.</p>
             </div>
           )}
           {/* How the save went, announced: done, warnings, or why it failed. */}

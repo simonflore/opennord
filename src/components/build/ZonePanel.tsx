@@ -12,6 +12,8 @@ import { NoteField } from './NoteField';
 import { PianoLayers } from './PianoLayers';
 import type { Apply } from '@/lib/library/useSampleProject';
 import { useApplyError } from './useApplyError';
+import { findTakeLoop, loopChange, normalizeGain, normalizeZone, trimSilence } from '@/lib/sample-build/batch';
+import { PEAK_DB, SILENCE_DB, matchWords } from './takeTools';
 
 const signed = (n: number, digits = 0) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toFixed(digits)}`;
 /** The value inside a card: large mono, the card itself is the box. */
@@ -45,6 +47,8 @@ function Card({ label, hint, children, htmlFor }: { label: string; hint: ReactNo
 export function ZonePanel({ project, zoneId, read, apply }: { project: SampleProject; zoneId: string; read: ReadAudio; apply: Apply }) {
   const [run, error, setError] = useApplyError(apply);
   const [editing, setEditing] = useState<string | null>(null); // a layer's take, for pianos
+  // What the last take tool did, and to which take: shown only while that take is the one shown.
+  const [note, setNote] = useState<{ takeId: string; text: string } | null>(null);
   const z = zoneById(project, zoneId);
   const piano = TARGETS[project.target].partition === 'piano';
   const take: Take | undefined = (editing && z.takes.find((t) => t.id === editing)) || takeOf(z, z.layers[0]);
@@ -57,6 +61,8 @@ export function ZonePanel({ project, zoneId, read, apply }: { project: SamplePro
   const clipLabel = (t: Take) => project.clips.find((c) => c.id === t.clipId)?.label ?? '';
   const heard = take?.pitchEstimate;
   const rate = clip?.sampleRate ?? 44100;
+  const toolNote = note && note.takeId === take?.id ? note.text : '';
+  const setToolNote = (text: string) => setNote(take ? { takeId: take.id, text } : null);
 
   return (
     <section aria-label="Zone" className="flex flex-col gap-3.5 rounded-lg border border-line bg-surface-2 px-4 py-4 sm:px-[18px]">
@@ -101,6 +107,35 @@ export function ZonePanel({ project, zoneId, read, apply }: { project: SamplePro
       )}
 
       {take && audio && <TakeEditor take={take} audio={audio} onChange={change} />}
+      {take && audio && (
+        <div role="group" aria-label="Take tools" className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" className="min-h-11" onClick={() => {
+            const l = findTakeLoop(take, audio);
+            if (!l) { setToolNote('No loop found: the take is too short or too quiet.'); return; }
+            change(loopChange(l), false);
+            setToolNote(`Loop found: ${formatDuration((l.end - l.start) / rate)}, ${matchWords(l.match)}. The take now ends where the loop does.`);
+          }}>Find loop</Button>
+          <Button variant="secondary" className="min-h-11" onClick={() => {
+            if (piano) {
+              // One level for the zone's takes, so its soft layers stay softer.
+              run((p) => normalizeZone(p, read, zoneId, PEAK_DB).project);
+              setToolNote(`Levels set for this zone: its loudest layer reaches ${PEAK_DB} dB, softer layers stay softer.`);
+              return;
+            }
+            const g = normalizeGain(take, audio, PEAK_DB);
+            if (g === null) { setToolNote('This take is silent.'); return; }
+            change({ gainDb: g }, false);
+            setToolNote(`Level set to ${signed(g, 2)} dB: the loudest moment reaches ${PEAK_DB} dB.`);
+          }}>Normalize</Button>
+          <Button variant="secondary" className="min-h-11" onClick={() => {
+            const t = trimSilence(take, audio, { thresholdDb: SILENCE_DB });
+            if (!t) { setToolNote('No silence to trim.'); return; }
+            change(t, false);
+            setToolNote(take.loop ? 'Silence trimmed at the start; the end stays where the loop ends.' : 'Silence trimmed at both ends.');
+          }}>Trim silence</Button>
+          {toolNote && <span role="status" className="text-sm text-dim">{toolNote}</span>}
+        </div>
+      )}
       {take && clip && !audio && <p className="text-sm text-warn">The audio for this take is missing; add the file again.</p>}
 
       {take && (
@@ -140,6 +175,13 @@ export function ZonePanel({ project, zoneId, read, apply }: { project: SamplePro
               placeholder={take.loop ? 'hold' : '—'} disabled={!take.loop}
               onCommit={(v) => change({ loopDecaySeconds: v })} onClear={() => change({ loopDecaySeconds: null })} className={cardValue} />
             {take.loop && take.loopDecaySeconds != null && <span aria-hidden="true" className="font-mono text-sm text-dim">s</span>}
+          </Card>
+          <Card label="Loop crossfade" htmlFor={`xfade-${zoneId}`}
+            hint={!take.loop ? 'needs a loop' : take.loopCrossfadeMs ? 'smooths the join into the loop' : 'the join plays as recorded'}>
+            <NumberField id={`xfade-${zoneId}`} aria-label="Loop crossfade (ms)" min={0} step={5} value={take.loop ? take.loopCrossfadeMs ?? null : null}
+              placeholder={take.loop ? 'off' : '—'} disabled={!take.loop}
+              onCommit={(v) => change({ loopCrossfadeMs: v })} onClear={() => change({ loopCrossfadeMs: undefined })} className={cardValue} />
+            {take.loop && !!take.loopCrossfadeMs && <span aria-hidden="true" className="font-mono text-sm text-dim">ms</span>}
           </Card>
           <Card label="Keys" hint="drag a split on the keyboard">
             <span className="font-mono text-lg">{keyRange(z.keyLow, z.keyHigh)}</span>

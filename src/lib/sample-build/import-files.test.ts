@@ -69,4 +69,21 @@ describe('importAudioFiles', () => {
     expect(r.project.zones[0].takes).toHaveLength(2);
     expect(r.report.addedTakes).toBe(1);
   });
+
+  it('a stored C4 (many tools’ default) gives way to the pitch heard; another stored note wins', () => {
+    const tone = (hz: number) => Float32Array.from({ length: 26460 }, (_, i) => 0.4 * Math.sin((2 * Math.PI * hz * i) / 44100));
+    const at = (unityNote: number) => encodeWav([tone(65.41)], 44100, { start: 1000, end: 20000, unityNote });
+    const r = importAudioFiles(emptyProject('x'), [{ fileName: 'Strings.wav', bytes: at(60) }]);
+    expect(r.project.zones[0].rootKey).toBe(36); // C2, as heard
+    expect(r.project.zones[0].takes[0].loop).toEqual({ start: 1000 }); // a forward loop comes along
+    const s = importAudioFiles(emptyProject('x'), [{ fileName: 'Strings.wav', bytes: at(38) }]);
+    expect(s.project.zones[0].rootKey).toBe(38);
+  });
+
+  it('leaves out a loop that isn’t forward (a Nord loops forward only)', () => {
+    const wav = encodeWav([Float32Array.from({ length: 4410 }, (_, i) => Math.sin(i / 10) * 0.4)], 44100, { start: 100, end: 4000 });
+    new DataView(wav.buffer).setUint32(wav.length - 68 + 8 + 40, 1, true); // smpl loop type: 1 = ping-pong
+    const r = importAudioFiles(emptyProject('x'), [{ fileName: 'Pad_C3.wav', bytes: wav }]);
+    expect(r.project.zones[0].takes[0].loop).toBeNull();
+  });
 });
