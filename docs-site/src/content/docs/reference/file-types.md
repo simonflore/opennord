@@ -31,7 +31,7 @@ Stage 3 programs can also be `.ns3p`.
 | `.nsmp4` | A sample, Stage 4 generation |
 | `.npno` | A piano |
 | `.onsample` | An OpenNord sample-build project ([Build a sample](/docs/guide/build-sample/)) |
-| `.nsmpproj` | A Nord Sample Editor project; [Build a sample](/docs/guide/build-sample/) saves one, with its recordings, as a `.zip` |
+| `.nsmpproj` | A Nord Sample Editor project; [Build a sample](/docs/guide/build-sample/) opens one with its recordings, and saves one as a `.zip` |
 
 ## Other Nords
 

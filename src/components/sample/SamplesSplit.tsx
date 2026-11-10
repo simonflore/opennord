@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { openSampleAsBuild } from '@/lib/library/openSampleAsBuild';
 import { SamplesBrowse } from './SamplesBrowse';
 import { SampleInspector, type InspectorInput } from './SampleInspector';
 import { Button } from '@/components/ui';
@@ -114,7 +115,11 @@ export function SamplesSplit({ selectedId }: { selectedId?: string }) {
   const inspector = (initial: InspectorInput, factory?: boolean, onShare?: () => void, onKeepCopy?: () => void, send?: { onSend: () => void; disabledReason?: string }) => (
     // The status stays when the Nord is lost (no send then): it says what to do.
     <SampleInspector key={`${initial.name}-${initial.bytes.length}`} initial={initial} factory={factory} onShare={onShare} onKeepCopy={onKeepCopy}
-      send={send} sendStatus={shownSend.status} />
+      send={send} sendStatus={shownSend.status}
+      onOpenInBuild={factory ? undefined : async () => {
+        const r = await openSampleAsBuild(initial.bytes, initial.name);
+        void navigate({ to: '/library/samples/build/{-$projectId}', params: { projectId: r.projectId }, state: { importNotes: r.notes } });
+      }} />
   );
   // A sample named by the route is the detail even before its bytes arrive, so a
   // phone shows its progress, error or "not found" instead of the bare list.

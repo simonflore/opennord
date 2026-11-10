@@ -61,6 +61,23 @@ describe('sendLibraryFile', () => {
     expect(create.words.slice(0, 7)).toEqual([0, 1, record.length, ext2Type('nsmp'), 0xffffffff, 0x000f0000, 8]);
   });
 
+  it('writes into the empty place the player chose', async () => {
+    const replies = [partList(), ack(CReqBegin), partState(1, 7, 100, 0), banks, ...listing(['Pad']), ack(CReqFileCreate, 1, 2),
+      ack(CReqFileWrite), ack(CReqFileClose), ack(CReqEnd)];
+    const { t, s } = stage4(replies);
+    const sent = await sendLibraryFile(s, 'sample', sample, 'Test Pad', { enabled: true, at: { bank: 1, slot: 2 } });
+    expect(sent).toEqual({ bank: 1, slot: 2, name: 'Test Pad' });
+    expect(decodeReply(t.sent[8]).words.slice(0, 2)).toEqual([1, 2]);
+  });
+
+  it('refuses, sending nothing, when the place chosen was filled meanwhile', async () => {
+    const { t, s } = stage4([partList(), ack(CReqBegin), partState(1, 7, 100, 0), banks, ...listing(['Pad']), ack(CReqEnd)]);
+    await expect(sendLibraryFile(s, 'sample', sample, 'Test Pad', { enabled: true, at: { bank: 0, slot: 0 } }))
+      .rejects.toThrow(/isn’t empty any more/);
+    expect(sentIds(t)).not.toContain(CReqFileCreate);
+    expect(sentIds(t).at(-1)).toBe(CReqEnd);
+  });
+
   it('numbers a name the Nord already has, past every copy', async () => {
     const { s } = stage4([
       partList(), ack(CReqBegin), partState(2, 7, 100, 0), banks, ...listing(['Test Pad', 'Test Pad (1)']),

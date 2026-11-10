@@ -4,7 +4,8 @@ import { EmptyNote } from '@/components/library/EmptyNote';
 import { useSampleProject } from '@/lib/library/useSampleProject';
 import { describeFailure } from '@/lib/errors';
 import { cn } from '@/lib/cn';
-import { emptyProject, setName, setPiano, setTarget, takeOf, type TargetId } from '@/lib/sample-build/model';
+import { emptyProject, setCategory, setName, setPiano, setTarget, takeOf, type TargetId } from '@/lib/sample-build/model';
+import { SAMPLE_CATEGORY } from '@/lib/clavia/sample-categories';
 import { NPNO_PIANO_TYPE } from '@/lib/ns4/nsp-write';
 import type { ReadAudio } from '@/lib/sample-build/render';
 import { TARGETS } from '@/lib/sample-build/targets';
@@ -18,6 +19,11 @@ import { PianoListen } from '@/components/piano/PianoListen';
 import { SplitDialog } from './SplitDialog';
 import { SaveDialog } from './SaveDialog';
 import { autoMap, placeTakes } from '@/lib/sample-build/analysis/automap';
+import { estimatePitch } from '@/lib/sample-build/analysis/pitch';
+import { addTake } from '@/lib/sample-build/model';
+import { noteName } from '@/lib/ns4/sample-view';
+import type { ClipAudio } from '@/lib/sample-build/render';
+import { RecordDialog, type RecordInto } from './RecordDialog';
 import { useApplyError } from './useApplyError';
 import { findLoopsAll, normalizeAll, trimSilenceAll, type BatchReport } from '@/lib/sample-build/batch';
 import type { SampleProject } from '@/lib/sample-build/model';
@@ -33,6 +39,8 @@ const PIANO_TYPES: [string, number][] = [
   ['Mallets', NPNO_PIANO_TYPE.mallets],
 ];
 const NO_AUDIO: ReadAudio = () => undefined;
+/** The Nord's sample categories, by name; User (15) is a new sample's. */
+const CATEGORIES = Object.entries(SAMPLE_CATEGORY).map(([id, label]) => [Number(id), label] as const).sort((a, b) => a[1].localeCompare(b[1]));
 
 /** One open build (spec §7, canvas "Build sample"). */
 export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNotes }: {
@@ -49,6 +57,7 @@ export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNot
   const [edit, problem, setProblem] = useApplyError(s.apply);
   const [splitClipId, setSplitClipId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [recording, setRecording] = useState(false);
 
   if (s.state === 'loading') return <EmptyNote>Opening the build…</EmptyNote>;
   if (s.state === 'missing') return <EmptyNote>This build isn’t here any more.</EmptyNote>;
@@ -89,6 +98,31 @@ export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNot
   const trim = () => allTakes((x) => trimSilenceAll(x, s.read, { thresholdDb: SILENCE_DB }), (r) => r.changed
     ? `Silence trimmed in ${plural(r.changed, 'take')}. Looped takes keep their end.`
     : 'No silence to trim.');
+
+  /** Store a recording made in the Record dialog and put it where the player chose; says where it went. */
+  async function recorded(audio: ClipAudio, into: RecordInto, label: string): Promise<string> {
+    const frames = audio.channels[0].length;
+    const take = (clipId: string) => ({ clipId, start: 0, end: frames, loop: null, loopDecaySeconds: null, gainDb: 0, tuneCents: 0 });
+    if (into === 'take' && zone) {
+      const zoneId = zone.id, root = zone.rootKey;
+      await s.addRecording(audio, label, (x, clipId) => addTake(x, zoneId, take(clipId)).project);
+      return `added to zone ${noteName(root)}`;
+    }
+    if (into === 'split') {
+      const clipId = await s.addRecording(audio, label);
+      setRecording(false);
+      setSplitClipId(clipId);
+      return 'split into notes';
+    }
+    const pitch = estimatePitch(audio, 0, frames);
+    if (!pitch) {
+      await s.addRecording(audio, label);
+      return 'no clear pitch heard: give it a key with Place… in Clips';
+    }
+    await s.addRecording(audio, label, (x, clipId) =>
+      autoMap(placeTakes(x, [{ ...take(clipId), root: pitch.midi, label, pitchEstimate: pitch }]).project));
+    return `zone ${noteName(pitch.midi)}`;
+  }
 
   const formatButton = (t: TargetId, label: string) => (
     <button key={t} type="button" role="radio" aria-checked={p.target === t} title={TARGETS[t].label} onClick={() => switchTo(t)}
@@ -151,6 +185,15 @@ export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNot
               {formatButton('npno', 'Piano')}
             </div>
           </div>
+          {p.target !== 'npno' && (
+            <label className="flex items-center gap-2.5">
+              <span className="text-xs uppercase tracking-wider text-dim">Category</span>
+              <select value={p.category > 0 ? p.category : 15} onChange={(e) => edit((x) => setCategory(x, Number(e.target.value)))}
+                className={cn(selectClass, 'min-h-11')}>
+                {CATEGORIES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+              </select>
+            </label>
+          )}
           {p.target === 'npno' && (
             <>
               <label className="flex items-center gap-2.5">
@@ -183,7 +226,7 @@ export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNot
       {/* Clips beside the zone from tablet width up; on a phone they come after the zone and keyboard. */}
       <div className="flex flex-auto flex-col md:grid md:grid-cols-[minmax(200px,240px)_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)]">
         <div className="min-w-0 border-line bg-surface p-[18px] max-md:order-last md:border-r">
-          <ClipsPanel project={p} activeClipId={activeClipId} onAddFiles={(f) => void addFiles(f)} onSplit={setSplitClipId} apply={s.apply} />
+          <ClipsPanel project={p} activeClipId={activeClipId} onAddFiles={(f) => void addFiles(f)} onRecord={() => setRecording(true)} onSplit={setSplitClipId} apply={s.apply} />
         </div>
         <main className="flex min-w-0 flex-col gap-4 px-4 py-5 sm:px-6">
           {p.zones.length > 0 && (
@@ -215,6 +258,7 @@ export function BuildScreen({ projectId, onClose, importNotes = [], onDismissNot
             onApply={(candidates) => { edit((latest) => autoMap(placeTakes(latest, candidates).project)); setSplitClipId(null); setNotice(''); }} />
         ) : null;
       })()}
+      {recording && <RecordDialog zoneRoot={zone?.rootKey} onClose={() => setRecording(false)} onRecorded={recorded} />}
       {/* Mounted only while open: it needs the Samples and Folder providers, and a closed dialog has nothing to show. */}
       {saving && <SaveDialog project={p} read={s.read} built={built && 'file' in built ? built : null} onClose={() => setSaving(false)} />}
     </div>

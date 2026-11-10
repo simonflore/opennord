@@ -9,10 +9,12 @@ import type { SampleProject } from '@/lib/sample-build/model';
 type Row = Awaited<ReturnType<typeof listProjects>>[number];
 
 /** Your builds, newest first: open one, delete one, or start a new one (spec §7). `problem` is why opening a file failed. */
-export function BuildList({ onOpen, onNew, onOpenFile, onImportSfz, importing = false, problem }: {
+export function BuildList({ onOpen, onNew, onOpenFile, onImportSfz, onImportNsmpproj, importing = false, problem }: {
   onOpen: (id: string) => void; onNew: () => void; onOpenFile: () => void;
   /** Start a build from an SFZ instrument's folder; `importing` while it reads. */
   onImportSfz?: () => void; importing?: boolean;
+  /** Start a build from a Nord Sample Editor project's folder (the project and its recordings). */
+  onImportNsmpproj?: () => void;
   problem?: string;
 }) {
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -35,7 +37,7 @@ export function BuildList({ onOpen, onNew, onOpenFile, onImportSfz, importing = 
     <div className="flex flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center gap-3">
         <SectionLabel>Your builds</SectionLabel>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap justify-end gap-2">
           <Button variant="secondary" onClick={onOpenFile}>Open a project file…</Button>
           {onImportSfz && (
             <Button variant="secondary" onClick={onImportSfz} disabled={importing}
@@ -43,12 +45,18 @@ export function BuildList({ onOpen, onNew, onOpenFile, onImportSfz, importing = 
               {importing ? 'Importing…' : 'Import SFZ…'}
             </Button>
           )}
+          {onImportNsmpproj && (
+            <Button variant="secondary" onClick={onImportNsmpproj} disabled={importing}
+              title="Pick the folder with a Nord Sample Editor project and its recordings: its zones, loops and samples become a build">
+              Open Nord Sample Editor project…
+            </Button>
+          )}
           <Button variant="primary" onClick={onNew}>New build</Button>
         </div>
       </div>
       {problem && <p role="alert" className="text-sm text-warn">{problem}</p>}
       {rows === null ? <EmptyNote>Loading your builds…</EmptyNote>
-        : rows.length === 0 ? <EmptyNote>No builds yet. Start one from your own recordings, or from an SFZ instrument.</EmptyNote>
+        : rows.length === 0 ? <EmptyNote>No builds yet. Start one from your own recordings, an SFZ instrument, a Nord Sample Editor project, or a sample in your Library.</EmptyNote>
         : (
           <ul className="flex flex-col gap-2">
             {rows.map((r) => (

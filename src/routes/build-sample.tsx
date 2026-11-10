@@ -9,6 +9,7 @@ import { readOnsample } from '@/lib/sample-build/onsample';
 import { pickFile, pickFolderFiles } from '@/lib/pick-file';
 import { importSfz, isSfz, type PickedFile } from '@/lib/library/importSfz';
 import { decodeWithBrowser } from '@/lib/sample-build/browser-decode';
+import { importNsmpproj, isNsmpproj } from '@/lib/library/importNsmpproj';
 import { Button, Dialog } from '@/components/ui';
 import { readFileBytes } from '@/lib/file';
 import { getErrorMessage } from '@/lib/errors';
@@ -34,8 +35,8 @@ function BuildSampleScreen() {
   const open = (id: string, importNotes?: string[]) =>
     void navigate({ to: '/library/samples/build/{-$projectId}', params: { projectId: id }, state: importNotes && { importNotes } });
   const importNotes = useRouterState({ select: (s) => s.location.state.importNotes });
-  // A folder with several instruments asks which to import.
-  const [choice, setChoice] = useState<PickedFile[] | null>(null);
+  // A folder with several instruments (or editor projects) asks which to import.
+  const [choice, setChoice] = useState<{ files: PickedFile[]; kind: 'sfz' | 'nse' } | null>(null);
   const [importing, setImporting] = useState(false);
 
   async function importFolder() {
@@ -45,15 +46,26 @@ function BuildSampleScreen() {
     setProblem('');
     const sfzs = files.filter((f) => isSfz(f.path));
     if (!sfzs.length) setProblem('There’s no .sfz file in that folder. Pick the folder the instrument came in.');
-    else if (sfzs.length === 1) await runImport(sfzs[0], files);
-    else setChoice(files);
+    else if (sfzs.length === 1) await runImport(sfzs[0], files, 'sfz');
+    else setChoice({ files, kind: 'sfz' });
   }
 
-  async function runImport(sfz: PickedFile, files: PickedFile[]) {
+  async function importEditorProject() {
+    let files: PickedFile[] | null;
+    try { files = await pickFolderFiles(); } catch (e) { setProblem(getErrorMessage(e)); return; }
+    if (!files) return;
+    setProblem('');
+    const projects = files.filter((f) => isNsmpproj(f.path));
+    if (!projects.length) setProblem('There’s no .nsmpproj file in that folder. Pick the folder with the Nord Sample Editor project and its recordings.');
+    else if (projects.length === 1) await runImport(projects[0], files, 'nse');
+    else setChoice({ files, kind: 'nse' });
+  }
+
+  async function runImport(picked: PickedFile, files: PickedFile[], kind: 'sfz' | 'nse') {
     setChoice(null);
     setImporting(true);
     try {
-      const r = await importSfz(sfz, files, decodeWithBrowser);
+      const r = kind === 'sfz' ? await importSfz(picked, files, decodeWithBrowser) : await importNsmpproj(picked, files, decodeWithBrowser);
       open(r.projectId, r.notes);
     } catch (e) {
       setProblem(getErrorMessage(e));
@@ -86,13 +98,13 @@ function BuildSampleScreen() {
   return (
     <>
       <BuildList onOpen={(id) => open(id)} onNew={() => void createProject('New sample').then((id) => open(id))} onOpenFile={() => void openFile()}
-        onImportSfz={() => void importFolder()} importing={importing} problem={problem} />
-      <Dialog open={!!choice} onClose={() => setChoice(null)} title="Which instrument?">
+        onImportSfz={() => void importFolder()} onImportNsmpproj={() => void importEditorProject()} importing={importing} problem={problem} />
+      <Dialog open={!!choice} onClose={() => setChoice(null)} title={choice?.kind === 'nse' ? 'Which project?' : 'Which instrument?'}>
         <p className="m-0 mb-3 text-sm text-dim">This folder holds several. Pick the one to import.</p>
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {choice?.filter((f) => isSfz(f.path)).map((s) => (
+          {choice?.files.filter((f) => (choice.kind === 'nse' ? isNsmpproj(f.path) : isSfz(f.path))).map((s) => (
             <li key={s.path}>
-              <Button variant="secondary" className="min-h-11 w-full justify-start" onClick={() => void runImport(s, choice)}>
+              <Button variant="secondary" className="min-h-11 w-full justify-start" onClick={() => void runImport(s, choice.files, choice.kind)}>
                 {s.path.split('/').slice(1).join('/') || s.path}
               </Button>
             </li>

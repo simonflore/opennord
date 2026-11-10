@@ -111,4 +111,13 @@ describe('BuildScreen', () => {
     fireEvent.click(within(tools).getByRole('button', { name: 'Normalize' }));
     expect(await screen.findByText(/^Levels set on 2 takes/)).toBeInTheDocument();
   });
+
+  it('picks the sample’s category, User until changed', async () => {
+    const id = await open();
+    const cat = screen.getByRole('combobox', { name: 'Category' });
+    expect(cat).toHaveDisplayValue('User');
+    fireEvent.change(cat, { target: { value: '9' } });
+    expect(cat).toHaveDisplayValue('Strings');
+    await waitFor(async () => expect((await loadProject(id))?.category).toBe(9));
+  });
 });

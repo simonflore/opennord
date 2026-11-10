@@ -22,7 +22,8 @@ export interface SendSample {
   status: string;
   /** Why Send is greyed for these bytes (or for any sample, without bytes); undefined when it can go. */
   refusal: (bytes?: Uint8Array) => string | undefined;
-  send: (bytes: Uint8Array, name: string) => Promise<void>;
+  /** `at`: the empty place the player chose; else the first empty one. */
+  send: (bytes: Uint8Array, name: string, at?: { bank: number; slot: number }) => Promise<void>;
   clear: () => void;
 }
 
@@ -117,7 +118,7 @@ export function useSendSample(): SendSample {
     return bytes ? libraryFileRefusal('sample', bytes) : undefined;
   }, [session, writes]);
 
-  const send = useCallback(async (bytes: Uint8Array, name: string) => {
+  const send = useCallback(async (bytes: Uint8Array, name: string, at?: { bank: number; slot: number }) => {
     if (!session || busyRef.current) return;
     const refused = refusal(bytes);
     if (refused) { setStatus(refused); return; }
@@ -125,7 +126,7 @@ export function useSendSample(): SendSample {
     setBusy(true);
     setStatus('Getting your Nord ready…');
     try {
-      const sent = await sendLibraryFile(session, 'sample', bytes, name, { onProgress: (p) => setStatus(sendProgressText(p)) });
+      const sent = await sendLibraryFile(session, 'sample', bytes, name, { onProgress: (p) => setStatus(sendProgressText(p)), ...(at && { at }) });
       // The Nord keeps a long name cut short; only a numbered name means it had one already.
       setStatus(sent.name === deviceName(name)
         ? `Sent “${sent.name}” to your Nord.`

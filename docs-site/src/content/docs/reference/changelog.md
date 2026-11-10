@@ -10,6 +10,15 @@ pull request as the change. New lines go under **Unreleased**.
 
 ## Unreleased
 
+- **Open in Build a sample.** A sample of your own opens as a build, with its
+  zones, loops, loop decay and tuning, to rework and save again. A sample built
+  in OpenNord now keeps the category you chose.
+- **Open Nord Sample Editor project.** A project made in Nord Sample Editor opens
+  as a build, with its recordings, to carry on in OpenNord.
+- **Record** in Build a sample: record takes from a microphone or audio
+  interface, starting when you play. **Category** sets a sample's category.
+- **Save and send.** The Save dialog shows the Nord's free sample memory, and
+  you can pick the empty place a sample goes to.
 - **Build a sample.** **Find loop** finds a clean loop in a take, and **All
   takes** finds loops, normalizes or trims the silence of every take at once.
   **Loop crossfade** smooths a loop's join. AIFF files (`.aif`, `.aiff`) can be

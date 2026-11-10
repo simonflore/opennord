@@ -24,6 +24,8 @@ vi.mock('@/components/device/useSendSample', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/components/device/useSendSample')>()),
   useSendSample: () => send,
 }));
+const space: { capacity: unknown; places: { bank: number; slot: number; label: string }[] } = { capacity: null, places: [] };
+vi.mock('@/components/device/useSampleSpace', () => ({ useSampleSpace: () => space }));
 import { downloadBytes } from '@/lib/download';
 import { SaveDialog } from './SaveDialog';
 import type { LastBuild } from './useBuiltFile';
@@ -33,6 +35,7 @@ import { NOT_YET_TRIED } from '@/lib/device/write-guard';
 beforeEach(() => {
   folderName = null;
   send.connected = false; send.busy = false; send.status = ''; send.refusal.mockReturnValue(undefined);
+  space.capacity = null; space.places = [];
   const m = new Map<string, string>();
   vi.stubGlobal('localStorage', {
     getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k),
@@ -221,5 +224,18 @@ describe('SaveDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send to Nord' }));
     expect(await screen.findByRole('status')).toHaveTextContent(/^Couldn’t send: /);
     expect(send.send).not.toHaveBeenCalled();
+  });
+
+  it('with a Nord connected, shows its sample memory and sends to the empty place chosen', async () => {
+    send.connected = true;
+    space.capacity = { fileCount: 1, usedBlocks: 300, freeBlocks: 700, reservedBlocks: 0, banks: [], totalSlots: 0, freeSlots: 0, blockSizeBytes: 65536 };
+    space.places = [{ bank: 0, slot: 1, label: 'A:12' }, { bank: 0, slot: 2, label: 'A:13' }];
+    const { p, read } = built();
+    render(<SaveDialog project={p} read={read} onClose={vi.fn()} />);
+    expect(screen.getByText('Sample memory on the Nord')).toBeInTheDocument();
+    expect(screen.getByText(/43\.8 MB free|43\.75 MB free|44 MB free|45\.9 MB free/)).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Location on the Nord' }), { target: { value: '0:2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send to Nord, A:13' }));
+    await waitFor(() => expect(send.send).toHaveBeenCalledWith(expect.any(Uint8Array), 'Saved Pad', { bank: 0, slot: 2 }));
   });
 });

@@ -231,6 +231,12 @@ export function setName(p: SampleProject, name: string): SampleProject {
   return touch(p, p.zones, { name });
 }
 
+/** The sample's category (`clavia/sample-categories`: 1–18; 0 leaves it to the file's default, User). */
+export function setCategory(p: SampleProject, category: number): SampleProject {
+  if (!Number.isInteger(category) || category < 0 || category > 18) throw new Error('That isn’t a sample category.');
+  return touch(p, p.zones, { category });
+}
+
 /** A piano's type and variant (shown after the name on the Nord, e.g. "Mk I"); an empty variant is none. */
 export function setPiano(p: SampleProject, change: { type?: number; variant?: string }): SampleProject {
   const piano = { ...(p.piano ?? { type: NPNO_PIANO_TYPE.electric }), ...change };

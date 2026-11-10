@@ -24,6 +24,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>OpenNord records your playing when you choose Record in Build a sample.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>OpenNord uses Bluetooth to play its sounds from a Bluetooth MIDI keyboard.</string>
 	<key>LSRequiresIPhoneOS</key>

@@ -12,11 +12,13 @@ const rowAction = 'min-h-8 flex-none rounded-sm px-1.5 text-xs text-dim hover:bg
  * The project's recordings (spec §7, canvas "Build sample"): add WAV or AIFF files, see where each is
  * used (the selected zone's playing take is marked), split a long one, remove an unused one.
  */
-export function ClipsPanel({ project, activeClipId, onAddFiles, onSplit, apply }: {
+export function ClipsPanel({ project, activeClipId, onAddFiles, onRecord, onSplit, apply }: {
   project: SampleProject;
   /** The recording the selected zone plays, marked in the list. */
   activeClipId?: string;
   onAddFiles: (files: File[]) => void;
+  /** Open the Record dialog. */
+  onRecord?: () => void;
   onSplit: (clipId: string) => void;
   apply: Apply;
 }) {
@@ -31,9 +33,16 @@ export function ClipsPanel({ project, activeClipId, onAddFiles, onSplit, apply }
         <SectionLabel>Clips</SectionLabel>
         {project.clips.length > 0 && <span className="font-mono text-xs text-muted">{project.clips.length} · {seconds(total)}</span>}
       </div>
-      <FileInput accept=".wav,.aif,.aiff,.aifc,audio/wav,audio/aiff" multiple onFiles={onAddFiles} className={cn(buttonVariants({ variant: 'secondary' }), 'min-h-11')}>
-        Add files…
-      </FileInput>
+      <div className="flex gap-2">
+        <FileInput accept=".wav,.aif,.aiff,.aifc,audio/wav,audio/aiff" multiple onFiles={onAddFiles} className={cn(buttonVariants({ variant: 'secondary' }), 'min-h-11 flex-1')}>
+          Add files…
+        </FileInput>
+        {onRecord && (
+          <button type="button" onClick={onRecord} className={cn(buttonVariants({ variant: 'secondary' }), 'min-h-11 flex-1 gap-2')}>
+            <span aria-hidden="true" className="size-2.5 rounded-full bg-danger" />Record
+          </button>
+        )}
+      </div>
       <div
         onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={drop}
         className={cn('rounded-md border border-dashed p-3.5 text-center text-[13px] text-muted', over ? 'border-accent' : 'border-grid')}

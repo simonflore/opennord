@@ -123,6 +123,12 @@ export interface WriteNsmpMultiOptions {
    *  layers), as the editor does. Off by default: a Stage 4 rejected such a file (see
    *  {@link groupLayers}). */
   layeredZones?: boolean;
+  /**
+   * The sample's main category id (`clavia/sample-categories`: 1–18, 15 = User), written where
+   * the editor keeps it: the `cat` section's first byte (`m_categoryCategory`,
+   * `readSampleCategory`) and the CBIN header's category byte. Default 15 (User), as before.
+   */
+  category?: number;
 }
 
 /** The level/detune values a `map` opens with. */
@@ -276,7 +282,7 @@ export function writeNsmpMulti(opts: WriteNsmpMultiOptions): Uint8Array {
   const { name, zones } = opts;
   const codec = opts.codec ?? 3;
   const levels = { global: opts.globalLevelDetune, perNote: opts.perNote, layeredZones: opts.layeredZones };
-  return assembleNsmp(name, zones.map((z) => z.channels), buildMapPayload(zones, codec, levels), codec, zones.map((z) => ({ rootKey: z.rootKey, ...z.stroke })));
+  return assembleNsmp(name, zones.map((z) => z.channels), buildMapPayload(zones, codec, levels), codec, zones.map((z) => ({ rootKey: z.rootKey, ...z.stroke })), opts.category);
 }
 
 /**
@@ -291,6 +297,9 @@ export function writeNsmp(opts: WriteNsmpOptions): Uint8Array {
   return assembleNsmp(name, [channels], mapPayload, codec, [{ rootKey: 60 }]);
 }
 
+/** The sample category for an instrument nobody filed: User. */
+const USER_CATEGORY = 0x0f;
+
 /** Assemble the CBIN envelope + sections (one `stk` per stroke) + CRC. */
 function assembleNsmp(
   name: string,
@@ -298,7 +307,9 @@ function assembleNsmp(
   mapPayload: Uint8Array,
   codec: 3 | 4,
   metas: WriteStrokeMeta[],
+  category = USER_CATEGORY,
 ): Uint8Array {
+  const cat8 = Number.isInteger(category) && category >= 1 && category <= 18 ? category : USER_CATEGORY;
   // Section versions differ by codec generation (observed in real .nsmp3/.nsmp4).
   const v = codec === 4
     ? { file: 400, nsmp: 40, hdr: 11, map: 21, stk: 11, sty: 17, nsmpLevel: 0x05 }
@@ -312,7 +323,7 @@ function assembleNsmp(
   header[0x04] = 1; // format type
   header.set([0x6e, 0x73, 0x6d, 0x70], 0x08); // "nsmp"
   hv.setUint32(0x0c, 0xffffffff, false); // bank/loc — not slotted
-  header[0x12] = 0x0f; // category byte (templated from real samples)
+  header[0x12] = cat8; // category byte (15 = User in every user sample seen)
   hv.setUint16(0x14, v.file, true); // version (3.00 / 4.00) — u16 LE
   // 0x18 CRC-32 patched at the end.
 
@@ -328,7 +339,7 @@ function assembleNsmp(
   hdrPayload.set(asciiPad(name, 112 - 10, 0).subarray(0, 112 - 10), 10); // name at +10
   const hdr = section('\0hdr', v.hdr, hdrPayload);
 
-  const cat = section('\0cat', 7, Uint8Array.from([0x0f, 0, 0, 0, 0, 0, 0, 0]));
+  const cat = section('\0cat', 7, Uint8Array.from([cat8, 0, 0, 0, 0, 0, 0, 0]));
   const map = section('\0map', v.map, mapPayload);
 
   // One `stk` per stroke, every one built the way the editor builds it (`carriedStroke`): its

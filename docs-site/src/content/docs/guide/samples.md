@@ -42,6 +42,9 @@ The oldest `.nsmp` files can be read-only: convert them to `.nsmp3` or
 - **Convert** makes an `.nsmp4`, `.nsmp3` or `.nsmp` copy for another
   generation of Nord. These are marked "Experimental: not yet tried on a Nord".
 - **Make it a piano** turns a sample into a `.npno` piano (experimental).
+- **More** › **Open in Build a sample** opens a sample of your own as a new
+  build, to find its loops, swap or retrim recordings and save it again (see
+  [Build a sample](/docs/guide/build-sample/)).
 - **WAV** on a stroke downloads that recording; **Export all (.zip)** downloads
   every one.
 - **Save to computer** downloads the sample file itself.

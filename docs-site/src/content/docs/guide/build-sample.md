@@ -13,8 +13,21 @@ sidebar:
 
 1. **Start a build.** **New build** starts one; **Open a project file…** opens a
    saved `.onsample` project. Your builds are listed under **Your builds**.
+   To rework a sample you already have, open it under **User Samples** and
+   choose **More** › **Open in Build a sample**: each zone comes over with its
+   keys, root, loop, loop decay and tuning. A zone with velocity layers keeps the
+   loudest playing and the others as takes. Each recording comes up to full
+   level, so set **Level** per take if they should differ. Not offered for Nord
+   factory samples.
+   **Open Nord Sample Editor project…** opens a project made in Nord Sample
+   Editor: pick the folder with the `.nsmpproj` and its recordings. Zones, the
+   sample that's switched on in each, trims, loops, loop crossfades, decay,
+   levels, tuning, key ranges and category come over; the editor's short loop
+   doesn't (use **Find loop**). A recording that isn't in the folder is named.
 2. **Name it and pick what it is for:** **Stage 4**, **Stage 3** or **Piano**.
-   For a piano, also choose the **Piano type** and an optional **Variant**.
+   For a sample, choose its **Category** (User until you change it); the Nord
+   and Nord Sound Manager list it under that. For a piano, choose the **Piano
+   type** and an optional **Variant**.
    Pianos are marked "Not yet tried on a Nord".
 3. **Add recordings.** Under **Clips**, **Add files…** (`.wav`, `.aif`, `.aiff`)
    or drag files in.
@@ -25,6 +38,15 @@ sidebar:
      end of the sample, so the take ends where the loop does.
    - **Split…** cuts one long recording of several notes into one clip per note,
      at the pauses between them.
+   - **Record** records from a microphone or audio interface. Pick the
+     **Input** and **Channels**, then what to record into: **a new take** on the
+     selected zone (with no zone yet, **a new zone** on the note OpenNord hears),
+     or **one long take** of several notes with pauses, split afterwards.
+     Recording starts when the sound is louder than **Start when louder than**,
+     so no silence is kept in front, and can stop by itself after 2 seconds of
+     silence. The meters show the input's level; the dashed line is the start
+     level. Recording needs a browser that may use the microphone (allow it when
+     asked).
 4. **Shape each zone:** level, loop on or off, fades and key range. The take
    editor sets the **Start** and the **Loop seam**. A piano has velocity
    layers, **soft to hard** (up to 30 per zone). Under the take editor:
@@ -57,7 +79,9 @@ sidebar:
      zones, takes (the one that plays is switched on), trims, loops, loop
      crossfades, levels and key ranges come along.
    - **Send to Nord**, with a Stage 4 connected, sends the sample to an empty
-     place on the keyboard; see [Send a sample](/docs/guide/send/#send-a-sample).
+     place on the keyboard: the first one, or the one you pick under **Location
+     on the Nord**. The Nord's free sample memory is shown above it; see
+     [Send a sample](/docs/guide/send/#send-a-sample).
 
 The build saves as you go, with undo and redo. Deleting a build removes its
 recordings, but not the samples you saved from it.

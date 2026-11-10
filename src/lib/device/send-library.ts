@@ -35,6 +35,12 @@ export interface SendOptions {
   enabled?: boolean;
   /** For tests: how the erase poll waits. */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * The place the player chose. Used when it is still empty when the send starts; a place
+   * filled meanwhile refuses the send (nothing is replaced) rather than going elsewhere.
+   * Absent: the first empty place, as before.
+   */
+  at?: { bank: number; slot: number };
 }
 
 /**
@@ -103,8 +109,11 @@ export function sendLibraryFile(
         const fit = planFit(cap, info, [cbinFraming(bytes).recordBytes], { label: kind });
         // An unreadable layout (no block size) is not "no room": it stays a plain refusal.
         if (!fit.fits) throw info.blockBytes > 0 ? new NoRoomError(fit.reason) : new NordError(fit.reason);
-        const at = firstFreeLocation(onNord, cap.banks);
+        const at = firstFreeLocation(onNord, cap.banks, opts.at && { prefer: opts.at });
         if (!at) throw new NoRoomError(noFreePlaceReason(kind));
+        if (opts.at && (at.bank !== opts.at.bank || at.slot !== opts.at.slot)) {
+          throw new NordError(`The place you chose on your Nord isn’t empty any more, so nothing was sent. Pick another.`);
+        }
         // Before any erase: a name the Nord has (as it keeps names, cut at 128 bytes) is numbered.
         const sendName = deviceFreeName(name, onNord.map((e) => e.name));
         try {

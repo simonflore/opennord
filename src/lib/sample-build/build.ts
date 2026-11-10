@@ -76,7 +76,7 @@ export function buildSampleFile(p: SampleProject, read: ReadAudio): BuildResult 
       },
     };
   });
-  const bytes = writeNsmpMulti({ name: p.name, codec, zones });
+  const bytes = writeNsmpMulti({ name: p.name, codec, zones, ...(p.category > 0 && { category: p.category }) });
 
   // Read back: the file must hold what was asked.
   const got = readNsmpZones(bytes);

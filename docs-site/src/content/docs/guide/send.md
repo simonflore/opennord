@@ -50,7 +50,11 @@ With a Stage 4 connected, you can send a sample of your own from two places:
 - **A sample in the Library:** open it under **User Samples** and press
   **Send to Nord**. It is offered only for a sample the Nord doesn't have yet,
   never for factory samples.
-- **Build sample:** in the **Save** dialog, press **Send to Nord**.
+- **Build sample:** in the **Save** dialog, press **Send to Nord**. The dialog
+  shows the Nord's **Sample memory** (how much is free, and the sliver this
+  sample takes once you've listened to it) and a **Location on the Nord** list
+  of empty places; the first empty one is chosen unless you pick another. If the
+  place you picked was filled in the meantime, nothing is sent.
 
 A sample goes to an empty place on the Nord; it never replaces one. If the Nord
 already has a sample with that name, it gets a number, like “Pad (1)”, and

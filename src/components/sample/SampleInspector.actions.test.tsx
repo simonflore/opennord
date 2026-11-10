@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { addClip, addZone, emptyProject } from '../../lib/sample-build/model';
+import { buildProject } from '../../lib/sample-build/build';
 import { SampleInspector } from './SampleInspector';
 import { MidiProvider } from '../../lib/midi/MidiContext';
 import { FolderProvider } from '../../lib/folder/FolderContext';
@@ -34,5 +36,25 @@ describe('SampleInspector', () => {
     expect(screen.getByRole('button', { name: 'Save to computer' })).toBeInTheDocument();
     expect(screen.queryByText(/preview a sample/i)).not.toBeInTheDocument();
     expect(document.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it('opens a sample of your own in Build a sample, and says when it can’t', async () => {
+    const ch = Float32Array.from({ length: 22050 }, (_, i) => 0.3 * Math.sin(i / 20));
+    const c = addClip(emptyProject('Pad'), { label: 'a', source: { kind: 'file', fileName: 'a.wav' }, audioRef: 'a', sampleRate: 44100, channels: 1, frames: ch.length });
+    const p = addZone(c.project, 60, { clipId: c.clipId, start: 0, end: ch.length, loop: null, loopDecaySeconds: null, gainDb: 0, tuneCents: 0 }).project;
+    const bytes = buildProject(p, () => ({ sampleRate: 44100, channels: [ch] })).bytes;
+    const onOpenInBuild = vi.fn(async () => { throw new Error('storage is full'); });
+    render(<FolderProvider><MidiProvider><SampleInspector initial={{ bytes, name: 'Pad.nsmp4' }} onOpenInBuild={onOpenInBuild} /></MidiProvider></FolderProvider>);
+    fireEvent.keyDown(await screen.findByRole('button', { name: 'More actions' }), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Open in Build a sample' }));
+    expect(onOpenInBuild).toHaveBeenCalled();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t open it as a build: storage is full');
+  });
+
+  it('offers no Open in Build a sample for factory content', async () => {
+    const bytes = makeSyntheticNsmp('Strings');
+    render(<FolderProvider><MidiProvider><SampleInspector initial={{ bytes, name: 'Strings.nsmp' }} factory onOpenInBuild={vi.fn()} /></MidiProvider></FolderProvider>);
+    await waitFor(() => expect(screen.getByText('Strings')).toBeInTheDocument());
+    expect(screen.queryByRole('menuitem', { name: 'Open in Build a sample' })).toBeNull();
   });
 });

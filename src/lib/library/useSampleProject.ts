@@ -6,7 +6,7 @@
  * overlapping edits and imports never work from a stale snapshot.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { emptyProject, type SampleProject } from '../sample-build/model';
+import { addClip, emptyProject, type SampleProject } from '../sample-build/model';
 import type { ClipAudio, ReadAudio } from '../sample-build/render';
 import { decodeAudioFiles, placeDecoded, type DecodedFile } from '../sample-build/import-files';
 import { describeFailure, getErrorMessage } from '../errors';
@@ -163,6 +163,24 @@ export function useSampleProject(projectId: string) {
     return { unreadable, unclear: r.report.unclear };
   }, [storeAudio, commit]);
 
+  /**
+   * Add a recording made in the app: its audio is stored first, then it becomes a clip and
+   * `place` puts it to use (a take, a zone) in the same undo step. Returns the new clip's id.
+   */
+  const addRecording = useCallback(async (clipAudio: ClipAudio, label: string, place: (p: SampleProject, clipId: string) => SampleProject = (p) => p) => {
+    if (!current.current) throw new Error('The project isn’t open.');
+    const gen = generation.current;
+    const audioRef = crypto.randomUUID();
+    await storeAudio(new Map([[audioRef, clipAudio]]));
+    if (gen !== generation.current || !current.current) throw new Error('The project was closed.');
+    const added = addClip(current.current, {
+      label, source: { kind: 'recording', recordedAt: new Date().toISOString() }, audioRef,
+      sampleRate: clipAudio.sampleRate, channels: clipAudio.channels.length as 1 | 2, frames: clipAudio.channels[0].length,
+    });
+    commit(place(added.project, added.clipId));
+    return added.clipId;
+  }, [storeAudio, commit]);
+
   const undo = useCallback(() => {
     const p = current.current;
     if (!p || !past.current.length) return;
@@ -190,7 +208,7 @@ export function useSampleProject(projectId: string) {
     return clip ? audio.current.get(clip.audioRef) : undefined;
   }, [project]);
 
-  const base = { apply, addFiles, undo, redo };
+  const base = { apply, addFiles, addRecording, undo, redo };
   if (project === undefined) return { state: 'loading' as const, ...base };
   if (project === null) return { state: 'missing' as const, ...base };
   return { state: 'open' as const, project, read, canUndo: past.current.length > 0, canRedo: future.current.length > 0, saved, saveError, ...base };

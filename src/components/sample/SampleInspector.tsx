@@ -17,6 +17,7 @@ import { sampleFilename } from '../../lib/library/sample-entries';
 import { SampleEditPanel } from './SampleEditPanel';
 import { SampleKeyboard } from './SampleKeyboard';
 import { SampleConvert } from './SampleConvert';
+import { describeFailure } from '../../lib/errors';
 
 /** A loaded sample plus the inspector's own bookkeeping. */
 type Loaded = LoadedSample & {
@@ -32,7 +33,7 @@ export interface InspectorInput { id?: string; bytes: Uint8Array; name: string; 
  * computer · Send to Nord · Convert ▾ · More ▾), then the keyboard map to edit
  * beside a Play card (MIDI, Unison, envelope), then its recordings.
  */
-export function SampleInspector({ initial, factory, onShare, onKeepCopy, send, sendStatus }: {
+export function SampleInspector({ initial, factory, onShare, onKeepCopy, send, sendStatus, onOpenInBuild }: {
   initial: InspectorInput;
   /** Open the share form on this one; absent where it can't be shared. */
   onShare?: () => void;
@@ -44,7 +45,10 @@ export function SampleInspector({ initial, factory, onShare, onKeepCopy, send, s
   send?: { onSend: () => void; disabledReason?: string };
   /** How the last send went, in plain words. */
   sendStatus?: string;
+  /** Open this sample as a new build (Build a sample); offered for a sample of your own whose recordings read. */
+  onOpenInBuild?: () => Promise<void>;
 }) {
+  const [buildProblem, setBuildProblem] = useState('');
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const loadCount = useRef(0);
 
@@ -107,10 +111,15 @@ export function SampleInspector({ initial, factory, onShare, onKeepCopy, send, s
           <div className="mt-2 mb-3"><ItemActions send={send} save={{ onSave: () => downloadBytes(shown.bytes, sampleFilename(shown.name, shown.file.codec, shown.file.legacy)) }} more={[
             ...(onShare ? [{ label: 'Share to community', onSelect: onShare }] : []),
             ...(onKeepCopy ? [{ label: 'Keep a copy', onSelect: onKeepCopy }] : []),
+            ...(onOpenInBuild && !factory && shown.decodable ? [{
+              label: 'Open in Build a sample',
+              onSelect: () => { setBuildProblem(''); onOpenInBuild().catch((e: unknown) => setBuildProblem(describeFailure('Couldn’t open it as a build', e))); },
+            }] : []),
           ]}>
             {shown.decodable && <SampleConvert bytes={shown.bytes} file={shown.file} name={shown.name} />}
           </ItemActions>
-          {sendStatus && <p role="status" className="ps-sub mt-1">{sendStatus}</p>}</div>
+          {sendStatus && <p role="status" className="ps-sub mt-1">{sendStatus}</p>}
+          {buildProblem && <p role="alert" className="ps-sub mt-1 text-warn">{buildProblem}</p>}</div>
 
           <DetailColumns
             /* Keyboard-map editor leads once we've decoded the key map; edits patch
